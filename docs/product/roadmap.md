@@ -48,6 +48,8 @@ flowchart LR
 | EVM-009 | Chodzący szkielet: aplikacja mobilna | mobile-developer | 003, 006, 008 |
 | EVM-010 | Backlog M1 gotowy do realizacji | product-owner | 002, 004, 005 |
 | EVM-011 | Spike: kolejka offline i upload w tle | mobile-developer | 001 |
+| EVM-012 | Polityka cyklu życia dokumentacji + walidator | product-owner + devops-engineer | 001 |
+| EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
 
 **Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych; spike potwierdza wykonalność uploadu w tle; historyjki M1 w statusie `ready`.
 
