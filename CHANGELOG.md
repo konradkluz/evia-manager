@@ -1,0 +1,9 @@
+# Changelog
+
+Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie: [SemVer](https://semver.org/lang/pl/).
+
+## [Unreleased]
+### Dodano
+- Zespół agentów (`.claude/agents/`), komendy (`.claude/skills/`) i workflow `deliver-story` (`.claude/workflows/`).
+- Dokumentacja produktu (wizja, domena, roadmapa), procesu (workflow, DoR, DoD, strategia testów, konwencje), baseline bezpieczeństwa i zasady UX.
+- Backlog M0: EVM-001 … EVM-011.
