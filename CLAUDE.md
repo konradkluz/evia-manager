@@ -54,8 +54,8 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 - Daty: ISO `YYYY-MM-DD`; strefa biznesowa `Europe/Warsaw`, zapis w UTC.
 
 ## Stack i komendy
-> Do ustalenia w M0 (EVM-001, ADR) przez `solution-architect`; komendy uzupełnia `devops-engineer` w EVM-006.
-- Stack: _TBD_
+> Stack zaakceptowany w EVM-001 (ADR 0001–0014, `docs/architecture/README.md`); komendy uzupełnia `devops-engineer` w EVM-006.
+- Stack: TypeScript wszędzie · backend NestJS (Node.js LTS), modularny monolit z centralną autoryzacją i audytem · PostgreSQL + Kysely, zadania w tle pg-boss · REST + OpenAPI 3.1 contract-first · własne uwierzytelnianie (Argon2id, TOTP, passkeys) · panel web React + Vite, shadcn/ui + Tailwind z design tokens · mobile React Native + Expo (iOS + Android), SQLCipher, upload w tle mechanizmami systemu · hosting UE: Hetzner + Scaleway (storage mediów `pl-waw`) · CI: GitHub Actions, pnpm + Turborepo, EAS Build · testy: Vitest, Testcontainers, Playwright, Maestro
 - Instalacja / uruchomienie lokalne / testy / lint / typy / pokrycie / E2E: _TBD_
 
 ## Mapa dokumentacji
