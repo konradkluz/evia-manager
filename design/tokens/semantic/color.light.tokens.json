@@ -1,0 +1,329 @@
+{
+  "color": {
+    "$type": "color",
+    "$description": "EVM-003 · Role kolorów — motyw jasny (jedyny w v1). Motyw ciemny = nowy plik color.dark.tokens.json z identycznymi ścieżkami ról.",
+    "bg": {
+      "canvas": {"$value": "{palette.neutral.100}", "$description": "Tło aplikacji / strony (pod kartami i tabelami)."},
+      "surface": {"$value": "{palette.neutral.0}", "$description": "Powierzchnia: karty, tabele, dialogi, pola, arkusze."},
+      "surface-subtle": {"$value": "{palette.neutral.50}", "$description": "Wyróżnienie w obrębie powierzchni (nagłówek tabeli, pasek filtrów)."},
+      "surface-hover": {"$value": "{palette.neutral.100}", "$description": "Najechanie na wiersz / element listy."},
+      "surface-pressed": {"$value": "{palette.neutral.200}", "$description": "Wciśnięcie elementu listy."},
+      "selected": {"$value": "{palette.teal.50}", "$description": "Zaznaczony wiersz / wybrana opcja (1,07:1 do bg.surface — zawsze z drugim wskaźnikiem ≥ 3:1, np. border.selected lub ikona check; nie jako wskaźnik dolnej nawigacji)."},
+      "inverse": {"$value": "{palette.neutral.900}", "$description": "Ciemna powierzchnia: toast, pasek offline."},
+      "brand": {"$value": "{palette.teal.600}", "$description": "Powierzchnia marki: ekran logowania, tło logo."},
+      "brand-strong": {"$value": "{palette.teal.800}", "$description": "Pasek aplikacji (mobile), boczna nawigacja (web)."},
+      "disabled": {"$value": "{palette.neutral.200}", "$description": "Tło wyłączonej kontrolki."},
+      "skeleton": {"$value": "{palette.neutral.200}", "$description": "Szkielet ładowania."},
+      "skeleton-highlight": {"$value": "{palette.neutral.100}", "$description": "Refleks animacji szkieletu."},
+      "scrim": {"$value": "{palette.alpha.black-50}", "$description": "Przyciemnienie pod dialogiem / arkuszem."}
+    },
+    "text": {
+      "primary": {"$value": "{palette.neutral.900}", "$description": "Tekst podstawowy (≥ 7:1 na wszystkich tłach jasnych)."},
+      "secondary": {"$value": "{palette.neutral.700}", "$description": "Tekst drugorzędny, opisy, metadane (≥ 7:1)."},
+      "tertiary": {"$value": "{palette.neutral.600}", "$description": "Podpowiedzi, placeholder, liczniki (≥ 4,5:1)."},
+      "disabled": {"$value": "{palette.neutral.500}", "$description": "Tekst wyłączony (wyjęty z wymogu kontrastu WCAG 1.4.3; mimo to ≥ 3:1 na tle disabled)."},
+      "inverse": {"$value": "{palette.neutral.0}", "$description": "Tekst na bg.inverse."},
+      "on-brand": {"$value": "{palette.neutral.0}", "$description": "Tekst na bg.brand / bg.brand-strong."},
+      "link": {"$value": "{palette.teal.700}", "$description": "Link (zawsze podkreślony)."},
+      "link-hover": {"$value": "{palette.teal.800}", "$description": "Link — najechanie / wciśnięcie."},
+      "error": {"$value": "{palette.red.800}", "$description": "Komunikat błędu pola, kwota / termin po terminie."},
+      "success": {"$value": "{palette.green.800}", "$description": "Tekst potwierdzenia."},
+      "warning": {"$value": "{palette.amber.800}", "$description": "Tekst ostrzeżenia."}
+    },
+    "icon": {
+      "primary": {"$value": "{palette.neutral.800}", "$description": "Ikona obok tekstu podstawowego, ikony akcji."},
+      "secondary": {"$value": "{palette.neutral.600}", "$description": "Ikona pomocnicza (≥ 3:1)."},
+      "disabled": {"$value": "{palette.neutral.400}", "$description": "Ikona wyłączona (wyjęta z wymogu kontrastu)."},
+      "inverse": {"$value": "{palette.neutral.0}", "$description": "Ikona na tłach ciemnych / marki."},
+      "brand": {"$value": "{palette.teal.600}", "$description": "Ikona wyróżniona marką."},
+      "success": {"$value": "{palette.green.700}"},
+      "warning": {"$value": "{palette.amber.700}"},
+      "error": {"$value": "{palette.red.700}"},
+      "info": {"$value": "{palette.blue.700}"}
+    },
+    "border": {
+      "subtle": {"$value": "{palette.neutral.200}", "$description": "Separatory, linie tabeli (dekoracyjne)."},
+      "default": {"$value": "{palette.neutral.300}", "$description": "Obrys karty (dekoracyjny — karta nie jest kontrolką)."},
+      "strong": {"$value": "{palette.neutral.500}", "$description": "Obrys pól formularza, checkboxów, radio (≥ 3:1 — WCAG 1.4.11)."},
+      "strong-hover": {"$value": "{palette.neutral.700}", "$description": "Obrys pola po najechaniu."},
+      "selected": {"$value": "{palette.teal.700}", "$description": "Obrys zaznaczonego elementu / aktywnej karty."},
+      "error": {"$value": "{palette.red.700}", "$description": "Obrys pola z błędem."},
+      "inverse": {"$value": "{palette.neutral.0}", "$description": "Obrys na tłach ciemnych."}
+    },
+    "focus": {
+      "ring": {"$value": "{palette.blue.600}", "$description": "Pierścień fokusu (2 px + odstęp 2 px w kolorze tła)."},
+      "ring-inverse": {"$value": "{palette.neutral.0}", "$description": "Pierścień fokusu na bg.brand-strong / bg.inverse."}
+    },
+    "nav": {
+      "$description": "Dolna nawigacja mobile (BottomNav) na bg.surface. Stan aktywny = kapsuła ≥ 3:1 + pogrubiona etykieta, nie sam odcień.",
+      "indicator": {"$value": "{palette.teal.700}", "$description": "Kapsuła za ikoną aktywnej pozycji (6,74:1 do bg.surface)."},
+      "on-indicator": {"$value": "{palette.neutral.0}", "$description": "Ikona aktywnej pozycji na kapsule (6,74:1)."},
+      "label-active": {"$value": "{palette.neutral.900}", "$description": "Etykieta aktywnej pozycji (font.weight.semibold)."},
+      "label": {"$value": "{palette.neutral.700}", "$description": "Etykieta nieaktywnej pozycji (font.weight.medium)."},
+      "icon": {"$value": "{palette.neutral.600}", "$description": "Ikona nieaktywnej pozycji (6,69:1 do bg.surface)."}
+    },
+    "brand": {
+      "primary": {"$value": "{palette.teal.600}", "$description": "Kolor marki — logo, ilustracje. Nie dla tekstu < 18,66 px bold na bg.canvas."},
+      "accent": {
+        "$value": "{palette.lime.300}",
+        "$description": "Akcent marki (neon) — tylko dekoracja i wskaźnik aktywnej pozycji na bg.brand-strong; nigdy jako tekst na jasnym tle ani jako kolor statusu."
+      }
+    },
+    "action": {
+      "primary": {
+        "$description": "Akcja główna (jedna na widok / sekcję).",
+        "bg": {"$value": "{palette.teal.700}"},
+        "bg-hover": {"$value": "{palette.teal.800}"},
+        "bg-pressed": {"$value": "{palette.teal.900}"},
+        "bg-disabled": {"$value": "{palette.neutral.200}"},
+        "text": {"$value": "{palette.neutral.0}"},
+        "text-disabled": {"$value": "{palette.neutral.500}"}
+      },
+      "secondary": {
+        "$description": "Akcja drugorzędna (obrys).",
+        "bg": {"$value": "{palette.neutral.0}"},
+        "bg-hover": {"$value": "{palette.teal.50}"},
+        "bg-pressed": {"$value": "{palette.teal.100}"},
+        "border": {"$value": "{palette.teal.700}"},
+        "border-disabled": {"$value": "{palette.neutral.300}"},
+        "text": {"$value": "{palette.teal.700}"},
+        "text-disabled": {"$value": "{palette.neutral.500}"}
+      },
+      "tertiary": {
+        "$description": "Akcja trzeciorzędna (tekstowa / ghost).",
+        "bg-hover": {"$value": "{palette.neutral.100}"},
+        "bg-pressed": {"$value": "{palette.neutral.200}"},
+        "text": {"$value": "{palette.teal.700}"},
+        "text-disabled": {"$value": "{palette.neutral.500}"}
+      },
+      "danger": {
+        "$description": "Akcja niszcząca (usuń, anuluj zlecenie).",
+        "bg": {"$value": "{palette.red.700}"},
+        "bg-hover": {"$value": "{palette.red.800}"},
+        "bg-pressed": {"$value": "{palette.red.900}"},
+        "bg-disabled": {"$value": "{palette.neutral.200}"},
+        "text": {"$value": "{palette.neutral.0}"},
+        "text-disabled": {"$value": "{palette.neutral.500}"},
+        "text-subtle": {"$value": "{palette.red.700}"}
+      }
+    },
+    "control": {
+      "$description": "Pola formularza, checkbox, radio, przełącznik.",
+      "bg": {"$value": "{palette.neutral.0}"},
+      "bg-disabled": {"$value": "{palette.neutral.100}"},
+      "border-disabled": {"$value": "{palette.neutral.300}"},
+      "placeholder": {"$value": "{palette.neutral.600}"},
+      "checked": {"$value": "{palette.teal.700}"},
+      "checked-hover": {"$value": "{palette.teal.800}"},
+      "on-checked": {"$value": "{palette.neutral.0}"}
+    },
+    "feedback": {
+      "$description": "Komunikaty (alert, toast, walidacja).",
+      "success": {
+        "bg": {"$value": "{palette.green.50}"},
+        "border": {"$value": "{palette.green.600}"},
+        "icon": {"$value": "{palette.green.700}"},
+        "text": {"$value": "{palette.green.800}"}
+      },
+      "warning": {
+        "bg": {"$value": "{palette.amber.50}"},
+        "border": {"$value": "{palette.amber.600}"},
+        "icon": {"$value": "{palette.amber.700}"},
+        "text": {"$value": "{palette.amber.800}"}
+      },
+      "error": {
+        "bg": {"$value": "{palette.red.50}"},
+        "border": {"$value": "{palette.red.600}"},
+        "icon": {"$value": "{palette.red.700}"},
+        "text": {"$value": "{palette.red.800}"}
+      },
+      "info": {
+        "bg": {"$value": "{palette.blue.50}"},
+        "border": {"$value": "{palette.blue.600}"},
+        "icon": {"$value": "{palette.blue.700}"},
+        "text": {"$value": "{palette.blue.800}"}
+      }
+    },
+    "status": {
+      "$description": "Statusy: kolor jest dodatkiem — zawsze ikona + etykieta (patrz styleguide 4.4). $extensions zawiera ikonę (Lucide) i etykietę PL.",
+      "order": {
+        "new": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Nowe", "icon": "inbox", "tone": "neutral"}},
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        },
+        "quote": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Wycena", "icon": "calculator", "tone": "violet"}},
+          "bg": {"$value": "{palette.violet.100}"},
+          "text": {"$value": "{palette.violet.900}"},
+          "icon": {"$value": "{palette.violet.700}"},
+          "border": {"$value": "{palette.violet.300}"}
+        },
+        "accepted": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Zaakceptowane", "icon": "thumbs-up", "tone": "blue"}},
+          "bg": {"$value": "{palette.blue.100}"},
+          "text": {"$value": "{palette.blue.900}"},
+          "icon": {"$value": "{palette.blue.700}"},
+          "border": {"$value": "{palette.blue.300}"}
+        },
+        "in-progress": {
+          "$extensions": {"pl.eviacharge.status": {"label": "W realizacji", "icon": "wrench", "tone": "teal"}},
+          "bg": {"$value": "{palette.teal.100}"},
+          "text": {"$value": "{palette.teal.900}"},
+          "icon": {"$value": "{palette.teal.700}"},
+          "border": {"$value": "{palette.teal.300}"}
+        },
+        "completed": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Zakończone", "icon": "circle-check", "tone": "green"}},
+          "bg": {"$value": "{palette.green.100}"},
+          "text": {"$value": "{palette.green.900}"},
+          "icon": {"$value": "{palette.green.700}"},
+          "border": {"$value": "{palette.green.300}"}
+        },
+        "settled": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Rozliczone", "icon": "banknote", "tone": "green-strong"}},
+          "bg": {"$value": "{palette.green.800}"},
+          "text": {"$value": "{palette.neutral.0}"},
+          "icon": {"$value": "{palette.neutral.0}"},
+          "border": {"$value": "{palette.green.800}"}
+        },
+        "on-hold": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Wstrzymane", "icon": "circle-pause", "tone": "amber"}},
+          "bg": {"$value": "{palette.amber.100}"},
+          "text": {"$value": "{palette.amber.900}"},
+          "icon": {"$value": "{palette.amber.700}"},
+          "border": {"$value": "{palette.amber.300}"}
+        },
+        "cancelled": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Anulowane", "icon": "ban", "tone": "neutral"}},
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        }
+      },
+      "stage": {
+        "todo": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Do zrobienia", "icon": "circle", "tone": "neutral"}},
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        },
+        "in-progress": {
+          "$extensions": {"pl.eviacharge.status": {"label": "W toku", "icon": "circle-play", "tone": "teal"}},
+          "bg": {"$value": "{palette.teal.100}"},
+          "text": {"$value": "{palette.teal.900}"},
+          "icon": {"$value": "{palette.teal.700}"},
+          "border": {"$value": "{palette.teal.300}"}
+        },
+        "waiting": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Czekamy na stronę trzecią", "icon": "hourglass", "tone": "amber"}},
+          "bg": {"$value": "{palette.amber.100}"},
+          "text": {"$value": "{palette.amber.900}"},
+          "icon": {"$value": "{palette.amber.700}"},
+          "border": {"$value": "{palette.amber.300}"}
+        },
+        "done": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Zakończony", "icon": "circle-check", "tone": "green"}},
+          "bg": {"$value": "{palette.green.100}"},
+          "text": {"$value": "{palette.green.900}"},
+          "icon": {"$value": "{palette.green.700}"},
+          "border": {"$value": "{palette.green.300}"}
+        },
+        "not-applicable": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Nie dotyczy", "icon": "circle-minus", "tone": "neutral"}},
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        },
+        "blocked": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Zablokowany", "icon": "octagon-alert", "tone": "red"}},
+          "bg": {"$value": "{palette.red.100}"},
+          "text": {"$value": "{palette.red.900}"},
+          "icon": {"$value": "{palette.red.700}"},
+          "border": {"$value": "{palette.red.300}"}
+        }
+      },
+      "payment": {
+        "planned": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Planowana", "icon": "calendar-clock", "tone": "neutral"}},
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        },
+        "issued": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Wystawiona", "icon": "file-text", "tone": "blue"}},
+          "bg": {"$value": "{palette.blue.100}"},
+          "text": {"$value": "{palette.blue.900}"},
+          "icon": {"$value": "{palette.blue.700}"},
+          "border": {"$value": "{palette.blue.300}"}
+        },
+        "paid": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Opłacona", "icon": "circle-check", "tone": "green"}},
+          "bg": {"$value": "{palette.green.100}"},
+          "text": {"$value": "{palette.green.900}"},
+          "icon": {"$value": "{palette.green.700}"},
+          "border": {"$value": "{palette.green.300}"}
+        },
+        "overdue": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Po terminie", "icon": "alarm-clock", "tone": "red-strong"}},
+          "bg": {"$value": "{palette.red.800}"},
+          "text": {"$value": "{palette.neutral.0}"},
+          "icon": {"$value": "{palette.neutral.0}"},
+          "border": {"$value": "{palette.red.800}"}
+        }
+      }
+    },
+    "sync": {
+      "$description": "Stan synchronizacji i uploadu (mobile; web dla wysyłki plików).",
+      "offline": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Offline", "icon": "wifi-off"}},
+        "bg": {"$value": "{palette.neutral.800}"},
+        "text": {"$value": "{palette.neutral.0}"},
+        "icon": {"$value": "{palette.neutral.0}"}
+      },
+      "queued": {
+        "$extensions": {"pl.eviacharge.status": {"label": "W kolejce", "icon": "clock"}},
+        "bg": {"$value": "{palette.neutral.100}"},
+        "text": {"$value": "{palette.neutral.800}"},
+        "icon": {"$value": "{palette.neutral.700}"}
+      },
+      "waiting-wifi": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Czeka na Wi-Fi", "icon": "wifi"}},
+        "$description": "Plik czeka na Wi-Fi, bo włączono „Wysyłaj tylko przez Wi-Fi” (zasięg komórkowy jest).",
+        "bg": {"$value": "{palette.amber.100}"},
+        "text": {"$value": "{palette.amber.900}"},
+        "icon": {"$value": "{palette.amber.700}"}
+      },
+      "in-progress": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Wysyłanie", "icon": "cloud-upload"}},
+        "bg": {"$value": "{palette.blue.100}"},
+        "text": {"$value": "{palette.blue.900}"},
+        "icon": {"$value": "{palette.blue.700}"}
+      },
+      "done": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Wysłano", "icon": "cloud-check"}},
+        "bg": {"$value": "{palette.green.100}"},
+        "text": {"$value": "{palette.green.900}"},
+        "icon": {"$value": "{palette.green.700}"}
+      },
+      "error": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Błąd wysyłania", "icon": "cloud-alert"}},
+        "bg": {"$value": "{palette.red.100}"},
+        "text": {"$value": "{palette.red.900}"},
+        "icon": {"$value": "{palette.red.700}"}
+      },
+      "progress": {
+        "track": {"$value": "{palette.neutral.200}"},
+        "fill": {"$value": "{palette.blue.600}"},
+        "fill-done": {"$value": "{palette.green.700}"},
+        "fill-error": {"$value": "{palette.red.700}"}
+      }
+    }
+  }
+}

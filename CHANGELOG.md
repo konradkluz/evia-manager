@@ -7,3 +7,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie:
 - Zespół agentów (`.claude/agents/`), komendy (`.claude/skills/`) i workflow `deliver-story` (`.claude/workflows/`).
 - Dokumentacja produktu (wizja, domena, roadmapa), procesu (workflow, DoR, DoD, strategia testów, konwencje), baseline bezpieczeństwa i zasady UX.
 - Backlog M0: EVM-001 … EVM-011.
+- Styleguide v1.0.0 (`docs/ux/styleguide.md`), design tokens W3C DTCG w warstwach bazowej i semantycznej (`design/tokens/`), materiały marki EVia Charge ze źródłami i licencjami (`design/brand/`) [EVM-003].

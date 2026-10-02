@@ -1,0 +1,178 @@
+{
+  "text": {
+    "$type": "typography",
+    "$description": "EVM-003 · Style tekstu (role). Web: rem = px/16. Mobile: sp (Android) / pt z Dynamic Type (iOS).",
+    "display": {
+      "$value": {
+        "fontFamily": "{font.family.display}",
+        "fontSize": "{font.size.36}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.tight}",
+        "lineHeight": "{font.line-height.36}"
+      },
+      "$description": "Ekran logowania, puste stany dużego formatu. Exo 2."
+    },
+    "heading-1": {
+      "$value": {
+        "fontFamily": "{font.family.display}",
+        "fontSize": "{font.size.30}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.tight}",
+        "lineHeight": "{font.line-height.30}"
+      },
+      "$description": "Tytuł strony (web). Exo 2."
+    },
+    "heading-2": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.24}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.24}"
+      },
+      "$description": "Tytuł sekcji (web), tytuł ekranu (mobile)."
+    },
+    "heading-3": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.20}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.20}"
+      },
+      "$description": "Tytuł karty / dialogu."
+    },
+    "heading-4": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.18}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.18}"
+      },
+      "$description": "Podsekcja, nagłówek grupy pól."
+    },
+    "body-lg": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.18}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.18}"
+      },
+      "$description": "Tekst kluczowy w terenie (adres, instrukcja)."
+    },
+    "body": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.16}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.16}"
+      },
+      "$description": "Tekst podstawowy (minimum na mobile)."
+    },
+    "body-sm": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.14}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.14}"
+      },
+      "$description": "Tekst gęsty (tabele web, opisy pomocnicze)."
+    },
+    "label": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.14}",
+        "fontWeight": "{font.weight.medium}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.14}"
+      },
+      "$description": "Etykiety pól (web), odznaki statusu."
+    },
+    "label-lg": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.16}",
+        "fontWeight": "{font.weight.medium}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.16}"
+      },
+      "$description": "Etykiety pól (mobile)."
+    },
+    "button": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.16}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.16}"
+      },
+      "$description": "Etykieta przycisku (web md/lg, mobile)."
+    },
+    "button-sm": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.14}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.14}"
+      },
+      "$description": "Przycisk sm (tylko web)."
+    },
+    "caption": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.12}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.12}"
+      },
+      "$description": "Metadane (czas wpisu, autor) — tylko web; na mobile min. body-sm."
+    },
+    "overline": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.12}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.wide}",
+        "lineHeight": "{font.line-height.12}"
+      },
+      "$description": "Nagłówki grup nawigacji (wersaliki)."
+    },
+    "numeric": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.14}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.14}"
+      },
+      "$description": "Kwoty, daty, liczby w tabelach — font-variant-numeric: tabular-nums (feature tnum).",
+      "$extensions": {"pl.eviacharge.font": {"fontFeatures": ["tnum"]}}
+    },
+    "numeric-lg": {
+      "$value": {
+        "fontFamily": "{font.family.sans}",
+        "fontSize": "{font.size.20}",
+        "fontWeight": "{font.weight.semibold}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.20}"
+      },
+      "$description": "Sumy, kwoty wyróżnione.",
+      "$extensions": {"pl.eviacharge.font": {"fontFeatures": ["tnum"]}}
+    },
+    "mono": {
+      "$value": {
+        "fontFamily": "{font.family.mono}",
+        "fontSize": "{font.size.14}",
+        "fontWeight": "{font.weight.regular}",
+        "letterSpacing": "{font.letter-spacing.none}",
+        "lineHeight": "{font.line-height.14}"
+      },
+      "$description": "Identyfikatory techniczne (nr PPE)."
+    }
+  }
+}

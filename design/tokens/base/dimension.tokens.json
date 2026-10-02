@@ -1,0 +1,32 @@
+{
+  "dimension": {
+    "$type": "dimension",
+    "$description": "EVM-003 · Skala wymiarów bazowych (siatka 4 px; 1, 2, 3, 6 tylko dla obramowań i drobnych korekt). Nazwa = wartość w px (web: px CSS; mobile: dp/pt). 9999 = pełne zaokrąglenie.",
+    "0": {"$value": {"value": 0, "unit": "px"}},
+    "1": {"$value": {"value": 1, "unit": "px"}},
+    "2": {"$value": {"value": 2, "unit": "px"}},
+    "3": {"$value": {"value": 3, "unit": "px"}},
+    "4": {"$value": {"value": 4, "unit": "px"}},
+    "6": {"$value": {"value": 6, "unit": "px"}},
+    "8": {"$value": {"value": 8, "unit": "px"}},
+    "12": {"$value": {"value": 12, "unit": "px"}},
+    "16": {"$value": {"value": 16, "unit": "px"}},
+    "20": {"$value": {"value": 20, "unit": "px"}},
+    "24": {"$value": {"value": 24, "unit": "px"}},
+    "32": {"$value": {"value": 32, "unit": "px"}},
+    "40": {"$value": {"value": 40, "unit": "px"}},
+    "48": {"$value": {"value": 48, "unit": "px"}},
+    "56": {"$value": {"value": 56, "unit": "px"}},
+    "64": {"$value": {"value": 64, "unit": "px"}},
+    "72": {"$value": {"value": 72, "unit": "px"}},
+    "80": {"$value": {"value": 80, "unit": "px"}},
+    "96": {"$value": {"value": 96, "unit": "px"}},
+    "160": {"$value": {"value": 160, "unit": "px"}},
+    "256": {"$value": {"value": 256, "unit": "px"}},
+    "400": {"$value": {"value": 400, "unit": "px"}},
+    "560": {"$value": {"value": 560, "unit": "px"}},
+    "640": {"$value": {"value": 640, "unit": "px"}},
+    "720": {"$value": {"value": 720, "unit": "px"}},
+    "9999": {"$value": {"value": 9999, "unit": "px"}}
+  }
+}

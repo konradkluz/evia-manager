@@ -1,0 +1,106 @@
+{
+  "shadow": {
+    "$type": "shadow",
+    "$description": "Cienie bazowe (warstwy). Kolor tylko z palette.alpha.",
+    "1": {
+      "$value": [
+        {
+          "color": "{palette.alpha.black-12}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 1, "unit": "px"},
+          "blur": {"value": 3, "unit": "px"},
+          "spread": {"value": 0, "unit": "px"}
+        },
+        {
+          "color": "{palette.alpha.black-8}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 1, "unit": "px"},
+          "blur": {"value": 2, "unit": "px"},
+          "spread": {"value": -1, "unit": "px"}
+        }
+      ],
+      "$description": "Niskie uniesienie (karta po najechaniu, pasek przyklejony)."
+    },
+    "2": {
+      "$value": [
+        {
+          "color": "{palette.alpha.black-12}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 4, "unit": "px"},
+          "blur": {"value": 8, "unit": "px"},
+          "spread": {"value": -2, "unit": "px"}
+        },
+        {
+          "color": "{palette.alpha.black-8}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 2, "unit": "px"},
+          "blur": {"value": 4, "unit": "px"},
+          "spread": {"value": -2, "unit": "px"}
+        }
+      ],
+      "$description": "Średnie (menu rozwijane, popover)."
+    },
+    "3": {
+      "$value": [
+        {
+          "color": "{palette.alpha.black-16}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 12, "unit": "px"},
+          "blur": {"value": 24, "unit": "px"},
+          "spread": {"value": -4, "unit": "px"}
+        },
+        {
+          "color": "{palette.alpha.black-8}",
+          "offsetX": {"value": 0, "unit": "px"},
+          "offsetY": {"value": 4, "unit": "px"},
+          "blur": {"value": 8, "unit": "px"},
+          "spread": {"value": -4, "unit": "px"}
+        }
+      ],
+      "$description": "Wysokie (dialog, toast)."
+    },
+    "up-1": {
+      "$value": {
+        "color": "{palette.alpha.black-12}",
+        "offsetX": {"value": 0, "unit": "px"},
+        "offsetY": {"value": -2, "unit": "px"},
+        "blur": {"value": 8, "unit": "px"},
+        "spread": {"value": 0, "unit": "px"}
+      },
+      "$description": "Cień skierowany w górę — dolny pasek akcji / nawigacji mobile."
+    }
+  },
+  "duration": {
+    "$type": "duration",
+    "0": {"$value": {"value": 0, "unit": "ms"}},
+    "100": {"$value": {"value": 100, "unit": "ms"}},
+    "150": {"$value": {"value": 150, "unit": "ms"}},
+    "200": {"$value": {"value": 200, "unit": "ms"}},
+    "300": {"$value": {"value": 300, "unit": "ms"}},
+    "1500": {"$value": {"value": 1500, "unit": "ms"}, "$description": "Cykl animacji szkieletu ładowania."}
+  },
+  "easing": {
+    "$type": "cubicBezier",
+    "standard": {"$value": [0.2, 0, 0, 1], "$description": "Zmiany w miejscu (hover, rozwinięcie)."},
+    "decelerate": {"$value": [0, 0, 0, 1], "$description": "Wejście elementu (dialog, toast, arkusz)."},
+    "accelerate": {"$value": [0.3, 0, 1, 1], "$description": "Wyjście elementu."},
+    "linear": {"$value": [0, 0, 1, 1], "$description": "Postęp, szkielet ładowania."}
+  },
+  "z-layer": {
+    "$type": "number",
+    "$description": "Warstwy (z-index na web; kolejność warstw na mobile).",
+    "base": {"$value": 0},
+    "sticky": {"$value": 100},
+    "dropdown": {"$value": 200},
+    "overlay": {"$value": 300},
+    "dialog": {"$value": 400},
+    "toast": {"$value": 500}
+  },
+  "opacity": {
+    "$type": "number",
+    "$description": "Krycia. Nie używać krycia do oznaczania stanu „wyłączony” (kontrast) — od tego są role color.*-disabled.",
+    "0": {"$value": 0},
+    "60": {"$value": 0.6, "$description": "Minimum pulsowania szkieletu (gdy brak animacji przesunięcia)."},
+    "100": {"$value": 1}
+  }
+}

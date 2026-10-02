@@ -29,3 +29,6 @@ docs/ux/reviews/**/*.png
 docs/qa/**/*.png
 
 # Uzupełnia devops-engineer po wyborze stacku (EVM-006)
+
+# Artefakty narzędzia Playwright MCP
+.playwright-mcp/

@@ -1,0 +1,116 @@
+{
+  "space": {
+    "$type": "dimension",
+    "$description": "EVM-003 · Odstępy semantyczne. inset = wewnątrz kontenera, stack = pionowo między elementami, inline = poziomo między elementami.",
+    "inset": {
+      "xs": {"$value": "{dimension.4}"},
+      "sm": {"$value": "{dimension.8}"},
+      "md": {"$value": "{dimension.16}"},
+      "lg": {"$value": "{dimension.24}"},
+      "xl": {"$value": "{dimension.32}"}
+    },
+    "stack": {
+      "xs": {"$value": "{dimension.4}"},
+      "sm": {"$value": "{dimension.8}"},
+      "md": {"$value": "{dimension.16}"},
+      "lg": {"$value": "{dimension.24}"},
+      "xl": {"$value": "{dimension.32}"},
+      "2xl": {"$value": "{dimension.48}"}
+    },
+    "inline": {
+      "xs": {"$value": "{dimension.4}"},
+      "sm": {"$value": "{dimension.8}"},
+      "md": {"$value": "{dimension.12}"},
+      "lg": {"$value": "{dimension.16}"},
+      "xl": {"$value": "{dimension.24}"}
+    }
+  },
+  "size": {
+    "$type": "dimension",
+    "touch-target": {
+      "min": {
+        "$value": "{dimension.48}",
+        "$description": "Minimalny cel dotyku mobile (48×48 dp). Obowiązkowy dla każdego elementu interaktywnego w aplikacji mobilnej."
+      },
+      "field": {"$value": "{dimension.56}", "$description": "Akcje główne w terenie (aparat, Zapisz, Wyślij) — 56×56 dp."},
+      "web-min": {"$value": "{dimension.24}", "$description": "Minimum WCAG 2.5.8 na web (dla gęstych tabel); zalecane 32+."},
+      "shutter": {"$value": "{dimension.72}", "$description": "Spust aparatu (72×72 dp) — najważniejsza akcja w terenie."}
+    },
+    "control": {
+      "height": {
+        "web": {
+          "sm": {"$value": "{dimension.32}", "$description": "Kontrolki w gęstych tabelach / paskach filtrów."},
+          "md": {"$value": "{dimension.40}", "$description": "Domyślna wysokość kontrolki web."},
+          "lg": {"$value": "{dimension.48}", "$description": "Formularze dotykowe / tablet."}
+        },
+        "mobile": {
+          "md": {"$value": "{dimension.48}", "$description": "Domyślna wysokość kontrolki mobile."},
+          "lg": {"$value": "{dimension.56}", "$description": "Akcja główna w terenie."}
+        }
+      }
+    },
+    "icon": {
+      "sm": {"$value": "{dimension.16}"},
+      "md": {"$value": "{dimension.20}"},
+      "lg": {"$value": "{dimension.24}"},
+      "xl": {"$value": "{dimension.32}"},
+      "2xl": {"$value": "{dimension.48}", "$description": "Ikona pustego stanu."},
+      "stroke": {"$value": "{dimension.2}", "$description": "Grubość linii ikon Lucide (w jednostkach siatki ikony 24×24); bez skalowania z rozmiarem."}
+    },
+    "thumbnail": {
+      "sm": {"$value": "{dimension.48}", "$description": "Miniatura w wierszu kolejki uploadu."},
+      "md": {"$value": "{dimension.96}", "$description": "Kafel galerii web / mobile (min.)."},
+      "lg": {"$value": "{dimension.160}", "$description": "Kafel galerii web (duży)."}
+    },
+    "badge": {"height": {"$value": "{dimension.24}"}},
+    "timeline-marker": {"$value": "{dimension.24}", "$description": "Znacznik wpisu osi czasu (ikona statusu)."},
+    "progress-bar": {"height": {"$value": "{dimension.4}", "$description": "Pasek postępu uploadu."}},
+    "app-bar": {
+      "height": {"mobile": {"$value": "{dimension.56}"}, "web": {"$value": "{dimension.64}"}}
+    },
+    "bottom-nav": {
+      "height": {"$value": "{dimension.64}", "$description": "Dolna nawigacja mobile (cel 64×64 dp > 48)."},
+      "indicator": {
+        "$description": "Kapsuła aktywnej pozycji dolnej nawigacji (za ikoną; promień radius.pill).",
+        "width": {"$value": "{dimension.64}"},
+        "height": {"$value": "{dimension.32}"}
+      }
+    },
+    "sidebar": {
+      "width": {"expanded": {"$value": "{dimension.256}"}, "collapsed": {"$value": "{dimension.72}"}}
+    },
+    "dialog": {
+      "width": {
+        "sm": {"$value": "{dimension.400}"},
+        "md": {"$value": "{dimension.560}"},
+        "lg": {"$value": "{dimension.720}"}
+      }
+    },
+    "toast": {"max-width": {"$value": "{dimension.400}"}},
+    "form": {
+      "max-width": {"$value": "{dimension.640}", "$description": "Maksymalna szerokość kolumny formularza (czytelność)."}
+    },
+    "focus-ring": {
+      "width": {"$value": "{dimension.2}", "$description": "Grubość pierścienia fokusu."},
+      "offset": {"$value": "{dimension.2}", "$description": "Odstęp pierścienia od elementu (w kolorze tła)."}
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "$description": "Promienie zaokrągleń (8 px = przyciski marki eviacharge.pl).",
+    "none": {"$value": "{dimension.0}"},
+    "checkbox": {"$value": "{dimension.4}"},
+    "control": {"$value": "{dimension.8}", "$description": "Przyciski, pola, select."},
+    "thumbnail": {"$value": "{dimension.8}"},
+    "card": {"$value": "{dimension.12}"},
+    "dialog": {"$value": "{dimension.16}"},
+    "sheet": {"$value": "{dimension.16}", "$description": "Arkusz dolny mobile (tylko górne rogi)."},
+    "pill": {"$value": "{dimension.9999}", "$description": "Odznaki statusu, chipy filtrów."}
+  },
+  "border-width": {
+    "$type": "dimension",
+    "default": {"$value": "{dimension.1}"},
+    "strong": {"$value": "{dimension.2}", "$description": "Pole w stanie fokus/błąd (obok pierścienia), checkbox, obrys przycisku drugorzędnego."},
+    "indicator": {"$value": "{dimension.3}", "$description": "Wskaźnik aktywnej zakładki / pozycji nawigacji / zaznaczonego wiersza."}
+  }
+}

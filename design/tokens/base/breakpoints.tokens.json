@@ -1,0 +1,33 @@
+{
+  "breakpoint": {
+    "$type": "dimension",
+    "$description": "Dolne granice szerokości okna (min-width). Projektujemy i testujemy w 360 / 768 / 1280 / 1440. Poniżej 360 px układ compact bez gwarancji.",
+    "compact": {"$value": {"value": 360, "unit": "px"}, "$description": "Telefon (minimum wspierane)."},
+    "medium": {"$value": {"value": 768, "unit": "px"}, "$description": "Tablet / mały laptop."},
+    "expanded": {"$value": {"value": 1280, "unit": "px"}, "$description": "Desktop biurowy."},
+    "wide": {"$value": {"value": 1440, "unit": "px"}, "$description": "Szeroki desktop."}
+  },
+  "grid": {
+    "$description": "Siatka kolumnowa per breakpoint.",
+    "compact": {
+      "columns": {"$type": "number", "$value": 4},
+      "gutter": {"$type": "dimension", "$value": "{dimension.16}"},
+      "margin": {"$type": "dimension", "$value": "{dimension.16}"}
+    },
+    "medium": {
+      "columns": {"$type": "number", "$value": 8},
+      "gutter": {"$type": "dimension", "$value": "{dimension.24}"},
+      "margin": {"$type": "dimension", "$value": "{dimension.24}"}
+    },
+    "expanded": {
+      "columns": {"$type": "number", "$value": 12},
+      "gutter": {"$type": "dimension", "$value": "{dimension.24}"},
+      "margin": {"$type": "dimension", "$value": "{dimension.32}"}
+    },
+    "wide": {
+      "columns": {"$type": "number", "$value": 12},
+      "gutter": {"$type": "dimension", "$value": "{dimension.24}"},
+      "margin": {"$type": "dimension", "$value": "{dimension.40}"}
+    }
+  }
+}

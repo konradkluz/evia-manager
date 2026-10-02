@@ -1,0 +1,48 @@
+{
+  "elevation": {
+    "$type": "shadow",
+    "$description": "EVM-003 · Uniesienie (cienie) według roli.",
+    "card": {"$value": "{shadow.1}", "$description": "Karta interaktywna po najechaniu (spoczynek: bez cienia, obrys border.default)."},
+    "sticky": {"$value": "{shadow.1}", "$description": "Przyklejony nagłówek tabeli / pasek filtrów."},
+    "bottom-bar": {"$value": "{shadow.up-1}", "$description": "Dolny pasek akcji i nawigacji mobile."},
+    "dropdown": {"$value": "{shadow.2}", "$description": "Menu rozwijane, popover, lista selecta."},
+    "dialog": {"$value": "{shadow.3}", "$description": "Dialog, arkusz dolny."},
+    "toast": {"$value": "{shadow.3}", "$description": "Toast."}
+  },
+  "motion": {
+    "$description": "Ruch. Przy prefers-reduced-motion / „Ogranicz ruch” wszystkie duration → duration.0 (poza szkieletem: statyczny, opacity 60–100%).",
+    "duration": {
+      "$type": "duration",
+      "instant": {"$value": "{duration.0}"},
+      "fast": {"$value": "{duration.100}", "$description": "Hover, zmiana koloru, checkbox."},
+      "base": {"$value": "{duration.200}", "$description": "Wejście elementu, rozwinięcie."},
+      "exit": {"$value": "{duration.150}", "$description": "Wyjście elementu."},
+      "slow": {"$value": "{duration.300}", "$description": "Arkusz dolny, panel boczny."},
+      "skeleton": {"$value": "{duration.1500}"}
+    },
+    "easing": {
+      "$type": "cubicBezier",
+      "standard": {"$value": "{easing.standard}"},
+      "enter": {"$value": "{easing.decelerate}"},
+      "exit": {"$value": "{easing.accelerate}"},
+      "linear": {"$value": "{easing.linear}"}
+    },
+    "transition": {
+      "$type": "transition",
+      "hover": {"$value": {"duration": "{duration.100}", "delay": "{duration.0}", "timingFunction": "{easing.standard}"}},
+      "enter": {"$value": {"duration": "{duration.200}", "delay": "{duration.0}", "timingFunction": "{easing.decelerate}"}},
+      "exit": {"$value": {"duration": "{duration.150}", "delay": "{duration.0}", "timingFunction": "{easing.accelerate}"}},
+      "expand": {"$value": {"duration": "{duration.200}", "delay": "{duration.0}", "timingFunction": "{easing.standard}"}},
+      "sheet": {"$value": {"duration": "{duration.300}", "delay": "{duration.0}", "timingFunction": "{easing.decelerate}"}}
+    }
+  },
+  "layer": {
+    "$type": "number",
+    "$description": "Warstwy wg roli.",
+    "sticky": {"$value": "{z-layer.sticky}"},
+    "dropdown": {"$value": "{z-layer.dropdown}"},
+    "overlay": {"$value": "{z-layer.overlay}"},
+    "dialog": {"$value": "{z-layer.dialog}"},
+    "toast": {"$value": "{z-layer.toast}"}
+  }
+}

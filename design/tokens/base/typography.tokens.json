@@ -1,0 +1,56 @@
+{
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "sans": {
+        "$value": ["Inter", "system-ui", "-apple-system", "Segoe UI", "Roboto", "Arial", "sans-serif"],
+        "$description": "Inter (SIL OFL 1.1) — tekst interfejsu, tabele, liczby (tnum). Font strony eviacharge.pl."
+      },
+      "display": {
+        "$value": ["Exo 2", "Inter", "system-ui", "sans-serif"],
+        "$description": "Exo 2 (SIL OFL 1.1) — nagłówki wyświetlane (display, H1). Font logotypu i nagłówków eviacharge.pl."
+      },
+      "mono": {
+        "$value": ["JetBrains Mono", "ui-monospace", "Menlo", "Consolas", "monospace"],
+        "$description": "JetBrains Mono (SIL OFL 1.1) — identyfikatory techniczne (np. nr PPE). Używany oszczędnie."
+      }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": {"$value": 400},
+      "medium": {"$value": 500},
+      "semibold": {"$value": 600},
+      "bold": {"$value": 700}
+    },
+    "size": {
+      "$type": "dimension",
+      "$description": "Skala rozmiarów pisma (px / sp). Minimum dla treści: 12 (tylko metadane); tekst podstawowy mobile: 16.",
+      "12": {"$value": {"value": 12, "unit": "px"}},
+      "14": {"$value": {"value": 14, "unit": "px"}},
+      "16": {"$value": {"value": 16, "unit": "px"}},
+      "18": {"$value": {"value": 18, "unit": "px"}},
+      "20": {"$value": {"value": 20, "unit": "px"}},
+      "24": {"$value": {"value": 24, "unit": "px"}},
+      "30": {"$value": {"value": 30, "unit": "px"}},
+      "36": {"$value": {"value": 36, "unit": "px"}}
+    },
+    "line-height": {
+      "$type": "number",
+      "$description": "Interlinia jako mnożnik, nazwa = rozmiar pisma; daje wysokość linii w siatce 4 px (12→16, 14→20, 16→24, 18→28, 20→28, 24→32, 30→36, 36→44).",
+      "12": {"$value": 1.3333},
+      "14": {"$value": 1.4286},
+      "16": {"$value": 1.5},
+      "18": {"$value": 1.5556},
+      "20": {"$value": 1.4},
+      "24": {"$value": 1.3333},
+      "30": {"$value": 1.2},
+      "36": {"$value": 1.2222}
+    },
+    "letter-spacing": {
+      "$type": "dimension",
+      "tight": {"$value": {"value": -0.2, "unit": "px"}, "$description": "Display / H1 (Exo 2)."},
+      "none": {"$value": {"value": 0, "unit": "px"}},
+      "wide": {"$value": {"value": 0.4, "unit": "px"}, "$description": "Etykiety wersalikami (np. nagłówki grup w nawigacji)."}
+    }
+  }
+}
