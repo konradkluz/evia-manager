@@ -32,7 +32,16 @@ test-results/
 docs/ux/reviews/**/*.png
 docs/qa/**/*.png
 
-# Uzupełnia devops-engineer po wyborze stacku (EVM-006)
+# Stack (EVM-006): zależności, buildy, cache narzędzi
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+.pnpm-store/
+*.log
+.expo/
 
 # Artefakty narzędzia Playwright MCP
 .playwright-mcp/

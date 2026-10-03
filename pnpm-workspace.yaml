@@ -1,0 +1,21 @@
+# pnpm workspace and supply-chain settings (ADR-0012, ADR-0015, SR-SUPPLY-01; EVM-006).
+# Every package with an install script needs an explicit decision in allowBuilds (strictDepBuilds);
+# the reason for each entry is recorded in docs/backlog/M0/EVM-006-repozytorium-i-ci.md → "Dziennik".
+packages:
+  - apps/*
+  - services/*
+  - packages/*
+  - tools/*
+
+# Exact versions only (no ranges), resolved from the npm registry.
+savePrefix: ''
+engineStrict: true
+
+# Supply chain: never lower these values (SR-SUPPLY-01).
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+strictDepBuilds: true
+allowBuilds: {}
+
+catalog:
+  typescript: 6.0.3

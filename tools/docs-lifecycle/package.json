@@ -1,0 +1,7 @@
+{
+  "name": "@evia/docs-lifecycle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Document lifecycle validator and cleanup report (EVM-012); runs without installed dependencies."
+}
