@@ -15,7 +15,9 @@ engineStrict: true
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
 strictDepBuilds: true
-allowBuilds: {}
+allowBuilds:
+  # Hooks are installed by the root prepare script (tools/git-hooks), never by the package postinstall (W1).
+  lefthook: false
 
 catalog:
   '@types/node': 26.6.3

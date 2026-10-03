@@ -1,0 +1,49 @@
+# Dev and CI tooling only (ADR-0015, ADR-0016; EVM-006) — never used on staging or production.
+# Always run with the explicit file: docker compose -f compose.yaml run --rm <service> …
+# Rules (tested in tools/repo-policy): images by tag + digest or built from a Dockerfile pinned by digest; no ports,
+# no privileged mode, no Docker socket, no env_file and no ${…} interpolation; read-only root file system, all
+# capabilities dropped, no-new-privileges, non-root user; bind mounts only from the allow-list, read-only except
+# output directories (coverage/backend-tests, .scratch/scans). No project `name:` — every clone gets its own volumes.
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+
+x-backend: &backend
+  <<: *hardening
+  image: evia-backend-tests:local
+  build:
+    context: infra/docker/backend-tests
+  pull_policy: build
+  user: node
+  working_dir: /work/repo
+  tmpfs:
+    - /tmp:noexec,nosuid,nodev
+    - /home/node:uid=1000,gid=1000,mode=0700,noexec,nosuid,nodev
+  volumes:
+    - bt-work:/work
+    - ./coverage/backend-tests:/out
+    - ./package.json:/src/package.json:ro
+    - ./pnpm-lock.yaml:/src/pnpm-lock.yaml:ro
+    - ./pnpm-workspace.yaml:/src/pnpm-workspace.yaml:ro
+    - ./turbo.json:/src/turbo.json:ro
+    - ./.nvmrc:/src/.nvmrc:ro
+    - ./packages:/src/packages:ro
+    - ./tools:/src/tools:ro
+    - ./design/tokens:/src/design/tokens:ro
+
+services:
+  # Linux dependencies from the lockfile into the bt-work volume (network: npm registry). Run after a lockfile change.
+  backend-install:
+    <<: *backend
+    command: ['install']
+
+  # Lint, types and tests with coverage on Linux, without network (EVM-008: internal network with PostgreSQL).
+  backend-tests:
+    <<: *backend
+    network_mode: none
+
+volumes:
+  bt-work:
