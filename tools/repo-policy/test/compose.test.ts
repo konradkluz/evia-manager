@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { composeProblems, dockerfileProblems, OUTPUT_MOUNTS } from '../src/compose.ts';
-import { exists, filesBelow, json, list, read, record, text, yaml } from '../src/files.ts';
+import { exists, filesBelow, json, list, read, record, staged, text, yaml } from '../src/files.ts';
+import { agentPermissionProblems } from '../src/workflows.ts';
 
 const compose = record(yaml('compose.yaml'));
 const services = record(compose['services']);
@@ -94,6 +95,12 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
       /spawn(Sync)?\(\s*['"]docker['"]|exec(File)?(Sync)?\(\s*['"]docker['"]/.test(read(path)),
     );
     expect(spawning).toEqual(['tools/scan/lib/compose.mjs']);
+  });
+
+  it('EVM-006 AC1 (D4, RR-03): the committed agent settings ask before compose and settings edits and deny other Docker verbs', () => {
+    // The index, not the working tree: an unstaged local edit is the owner's choice, a weakened commit is not.
+    const settings = JSON.parse(staged('.claude/settings.json')) as unknown;
+    expect(agentPermissionProblems(settings, Object.keys(services))).toEqual([]);
   });
 
   it('EVM-006 AC1 (W1): skipped builds — lefthook may not run its own install script; hooks come from the prepare script', () => {

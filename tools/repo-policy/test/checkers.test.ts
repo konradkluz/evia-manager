@@ -1,6 +1,9 @@
 /**
  * The policy checkers detect violations (synthetic inputs) — proof that a green real-repository test is meaningful.
  */
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { composeProblems, dockerfileProblems } from '../src/compose.ts';
@@ -11,9 +14,17 @@ import {
   osvExceptionProblems,
   trivyExceptionProblems,
 } from '../src/exceptions.ts';
-import { daysBetween, today } from '../src/files.ts';
+import { daysBetween, staged, today } from '../src/files.ts';
 import { envExampleProblems, gitleaksConfigProblems } from '../src/secrets.ts';
-import { ciGateProblems, dockerCommandProblems, renovateWorkflowProblems, workflowProblems } from '../src/workflows.ts';
+import {
+  agentPermissionProblems,
+  ciGateProblems,
+  dockerCommandProblems,
+  renovateWorkflowProblems,
+  REQUIRED_ASK,
+  REQUIRED_DENY,
+  workflowProblems,
+} from '../src/workflows.ts';
 
 const DIGEST = 'a'.repeat(64);
 const SHA = 'b'.repeat(40);
@@ -177,6 +188,53 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
       'docker compose -f compose.yaml run backend-tests x',
     ]) {
       expect(dockerCommandProblems('s', command, services), command).toHaveLength(1);
+    }
+  });
+});
+
+describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
+  const services = ['backend-tests'];
+  const settings = (permissions: Record<string, unknown>): unknown => ({
+    permissions: { ask: [...REQUIRED_ASK], deny: [...REQUIRED_DENY], allow: [], ...permissions },
+  });
+
+  it('EVM-006 D4 (RR-03): the required ask and deny rules with Docker allowed only as a compose.yaml service pass', () => {
+    const allow = ['Bash(pnpm run gate)', 'Bash(docker compose -f compose.yaml run --rm backend-tests pnpm run test:backend:*)'];
+    expect(agentPermissionProblems(settings({ allow }), services)).toEqual([]);
+  });
+
+  it('EVM-006 D4 (RR-03): a removed ask rule for compose*.yaml, a removed Docker deny and bypassing allow rules are reported', () => {
+    const ask = REQUIRED_ASK.filter((rule) => !rule.endsWith('(**/compose*.yaml)'));
+    const deny = REQUIRED_DENY.filter((rule) => rule !== 'Bash(docker run:*)');
+    const allow = [
+      'Write(**/compose*.yaml)',
+      'Edit(.claude/settings.json)',
+      'Bash(docker:*)',
+      'Bash(docker compose -f compose.yaml run --rm evil sh)',
+      'Bash(docker compose -f compose.yaml up)',
+    ];
+    const problems = agentPermissionProblems(settings({ ask, deny, allow, defaultMode: 'bypassPermissions' }), services);
+    expect(problems).toEqual([
+      '.claude/settings.json: brak reguły ask Edit(**/compose*.yaml)',
+      '.claude/settings.json: brak reguły ask Write(**/compose*.yaml)',
+      '.claude/settings.json: brak reguły deny Bash(docker run:*)',
+      '.claude/settings.json: defaultMode bypassPermissions',
+      '.claude/settings.json: allow Write(**/compose*.yaml) omija monit',
+      '.claude/settings.json: allow Edit(.claude/settings.json) omija monit',
+      '.claude/settings.json: allow Bash(docker:*) — Docker wyłącznie jako usługa compose.yaml',
+      '.claude/settings.json: allow Bash(docker compose -f compose.yaml run --rm evil sh) — Docker wyłącznie jako usługa compose.yaml',
+      '.claude/settings.json: allow Bash(docker compose -f compose.yaml up) — Docker wyłącznie jako usługa compose.yaml',
+    ]);
+    expect(agentPermissionProblems({}, services)).toHaveLength(REQUIRED_ASK.length + REQUIRED_DENY.length);
+  });
+
+  it('EVM-006 D4: the committed content is read from the git index; outside a git checkout from the file itself', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'evm-006-staged-'));
+    try {
+      writeFileSync(join(dir, 'settings.json'), '{"synthetic":true}');
+      expect(staged('settings.json', dir)).toBe('{"synthetic":true}');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

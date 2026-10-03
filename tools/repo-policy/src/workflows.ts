@@ -114,3 +114,47 @@ export function dockerCommandProblems(where: string, command: string, services: 
   }
   return problems;
 }
+
+/** `ask` rules of .claude/settings.json: the owner confirms every edit of the settings and of compose files (D4a, RR-03). */
+export const REQUIRED_ASK = Object.freeze(
+  ['.claude/settings.json', '**/compose*.yaml', '**/compose*.yml', '**/docker-compose*.yaml', '**/docker-compose*.yml'].flatMap((path) => [
+    `Edit(${path})`,
+    `Write(${path})`,
+  ]),
+);
+
+/** `deny` rules of .claude/settings.json: no other Docker verbs (A6), no skipped hooks, no push to main, no SSH keys. */
+export const REQUIRED_DENY = Object.freeze([
+  'Bash(docker run:*)',
+  'Bash(docker exec:*)',
+  'Bash(docker cp:*)',
+  'Bash(git commit --no-verify:*)',
+  'Bash(git commit -n:*)',
+  'Bash(git push --no-verify:*)',
+  'Bash(git push --force:*)',
+  'Bash(git push -f:*)',
+  'Bash(git push origin main:*)',
+  'Read(~/.ssh/**)',
+]);
+
+/**
+ * Agent permissions (D4, RR-03, A6; security-engineer review of EVM-006): the required `ask` and `deny` rules are present,
+ * and no `allow` rule writes settings or compose files or starts Docker other than as a compose.yaml service.
+ */
+export function agentPermissionProblems(document: unknown, services: readonly string[]): string[] {
+  const permissions = record(record(document)['permissions']);
+  const rules = (kind: string): string[] => list(permissions[kind]).map(String);
+  const problems = [
+    ...REQUIRED_ASK.filter((rule) => !rules('ask').includes(rule)).map((rule) => `.claude/settings.json: brak reguły ask ${rule}`),
+    ...REQUIRED_DENY.filter((rule) => !rules('deny').includes(rule)).map((rule) => `.claude/settings.json: brak reguły deny ${rule}`),
+  ];
+  if (text(permissions['defaultMode']) === 'bypassPermissions') problems.push('.claude/settings.json: defaultMode bypassPermissions');
+  for (const rule of rules('allow')) {
+    if (/^(Edit|Write)\(/.test(rule) && /compose|settings/.test(rule)) problems.push(`.claude/settings.json: allow ${rule} omija monit`);
+    const command = /^Bash\((.*)\)$/.exec(rule)?.[1] ?? '';
+    if (!/\bdocker\b/.test(command)) continue;
+    const service = /^docker compose -f compose\.yaml run --rm (\S+)(?: .*)?$/.exec(command)?.[1] ?? '';
+    if (!services.includes(service)) problems.push(`.claude/settings.json: allow ${rule} — Docker wyłącznie jako usługa compose.yaml`);
+  }
+  return problems;
+}

@@ -46,6 +46,15 @@ export function filesBelow(dir: string, filter: (path: string) => boolean): stri
   return exists(dir) ? walk(dir) : [];
 }
 
+/**
+ * The content git would commit — the index (`git show :<path>`); the file itself outside a git checkout. For files
+ * whose unstaged local edits are the owner's own choice but must never be committed weakened (.claude/settings.json).
+ */
+export function staged(path: string, root = ROOT): string {
+  const result = spawnSync('git', ['show', `:${path}`], { cwd: root, encoding: 'utf8' });
+  return result.status === 0 ? result.stdout : readFileSync(join(root, path), 'utf8');
+}
+
 /** `git check-ignore -q`: true when git ignores the path. */
 export function gitIgnores(path: string): boolean {
   return spawnSync('git', ['check-ignore', '-q', '--no-index', path], { cwd: ROOT }).status === 0;
