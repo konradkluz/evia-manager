@@ -4,7 +4,7 @@ title: Backlog M1 gotowy do realizacji
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: product-owner
 contributors: []
@@ -62,3 +62,4 @@ _—_
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
+- 2026-10-03 — ready → in-progress: start /deliver, gałąź `feature/EVM-010-backlog-m1` (decyzja Konrada: realizacja w czasie przerwy EVM-006 — praca koncepcyjna równolegle z historyjką z kodem)
