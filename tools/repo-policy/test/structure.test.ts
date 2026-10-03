@@ -33,6 +33,10 @@ const DEPENDENCY_FREE = [
   'tools/main-integrity',
   'tools/scan',
 ];
+/** Tests that read the whole repository and today's date (exception expiry, document classes) — never cached. */
+const UNCACHED_TESTS = ['tools/docs-lifecycle', 'tools/repo-policy'];
+/** A module that resolves the repository root from its own location (`new URL('../../..', import.meta.url)`). */
+const ROOT_REFERENCE = /new URL\(\s*['"]\.\.\/\.\.\/\.\.(?:\/|['"])/;
 
 describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
   it('EVM-006 AC1: configuration of the monorepo, quality and scans is in place', () => {
@@ -146,6 +150,30 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/*');
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
+  });
+
+  it('EVM-006 AC2: tests reading the repository outside their workspace are never replayed from the Turborepo cache', () => {
+    // Turborepo hashes only the files of the workspace — a test reading compose.yaml, workflows, docs or today's
+    // date would otherwise stay green from the cache after those change (QA / code review of EVM-006).
+    const tasksOf = (workspace: string): Record<string, unknown> =>
+      exists(`${workspace}/turbo.json`) ? record(record(json(`${workspace}/turbo.json`))['tasks']) : {};
+    for (const workspace of UNCACHED_TESTS) {
+      expect(list(record(json(`${workspace}/turbo.json`))['extends']), workspace).toEqual(['//']);
+      for (const task of ['test', 'test:coverage']) expect(record(tasksOf(workspace)[task])['cache'], `${workspace} ${task}`).toBe(false);
+    }
+    const readsRoot = (workspace: string): boolean =>
+      ['src', 'lib', 'test']
+        .flatMap((dir) => filesBelow(`${workspace}/${dir}`, (path) => /\.(ts|mts|mjs|js)$/.test(path)))
+        .some((path) => ROOT_REFERENCE.test(read(path)));
+    const detected = WORKSPACES.filter(readsRoot);
+    expect(detected).toEqual(expect.arrayContaining(UNCACHED_TESTS));
+    for (const workspace of detected) {
+      for (const task of ['test', 'test:coverage']) {
+        const config = record(tasksOf(workspace)[task]);
+        const declared = list(config['inputs']).some((input) => String(input).startsWith('$TURBO_ROOT$/'));
+        expect(config['cache'] === false || declared, `${workspace} ${task}: cache: false albo inputs z $TURBO_ROOT$/…`).toBe(true);
+      }
+    }
   });
 
   it('EVM-006 AC2 (W13): module boundaries cover every workspace root directory that exists', () => {
