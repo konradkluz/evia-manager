@@ -12,6 +12,9 @@
  *   4. have a green `ci-gate` job in the latest run of .github/workflows/ci.yml (push) for the PR head commit —
  *      read from the Actions API, never from commit statuses or check runs (tokens with statuses/checks write could forge them);
  *   5. have a first line in the Conventional Commits format with [EVM-###], [renovate] or [M#] and an optional " (#N)".
+ * ACKNOWLEDGED lists commits of closed incidents (docs/ops/github-i-ci.md → „Czerwony main”): their reasons are still
+ * logged on every run, but they no longer make the run red — so the window detects the next incident instead of
+ * staying red for the next WINDOW commits. It never hides push checks (force push, rewritten history).
  * Commits changing SENSITIVE_PATHS are listed separately: a push that changes K6 itself or the workflows can neutralise
  * later runs, which only the Activity view of the repository shows (docs/ops/github-i-ci.md).
  * Fail closed: an API error, an unexpected answer or a missing value is red. Only node:* and the built-in fetch.
@@ -71,6 +74,7 @@ export async function main({ env, fetch, log }) {
   const baseline = env['BASELINE'] ?? '';
   const before = env['BEFORE'] ?? '';
   const after = env['AFTER'] ?? '';
+  const acknowledged = (env['ACKNOWLEDGED'] ?? '').split(/[\s,]+/u).filter(Boolean);
   const push = event === 'push';
   if (
     token === '' ||
@@ -84,6 +88,10 @@ export async function main({ env, fetch, log }) {
     log(
       'main-integrity: wymagane zmienne GITHUB_TOKEN, GITHUB_REPOSITORY, MAIN_MERGER, EVENT (push, schedule, workflow_dispatch), BASELINE i AFTER (pełne SHA), przy push także BEFORE',
     );
+    return 2;
+  }
+  if (!acknowledged.every((sha) => SHA.test(sha))) {
+    log('main-integrity: ACKNOWLEDGED — wyłącznie pełne SHA commitów (40 znaków hex) oddzielone spacjami');
     return 2;
   }
   /** @param {string} path */
@@ -109,7 +117,9 @@ export async function main({ env, fetch, log }) {
     log(
       `main-integrity: ${commits.length} commit(ów) main od ${after.slice(0, 12)} do bazy ${baseline.slice(0, 12)} (zdarzenie: ${event})`,
     );
+    if (acknowledged.length > 0) log(`Potwierdzone incydenty — ACKNOWLEDGED: ${acknowledged.map((sha) => sha.slice(0, 12)).join(', ')}`);
     const problems = [];
+    let closed = 0;
     /** @type {string[]} */
     const sensitive = [];
     for (const commit of commits) {
@@ -118,8 +128,11 @@ export async function main({ env, fetch, log }) {
       const touched = await sensitiveFiles({ repository, sha, get });
       if (touched !== null) sensitive.push(`- ${sha.slice(0, 12)}: ${oneLine(touched)}`);
       const reasons = await verifyCommit({ sha, title, parents: list(commit['parents']).length }, { repository, merger, get });
-      log(`- ${sha.slice(0, 12)} ${oneLine(title)} — ${reasons.length === 0 ? 'OK' : oneLine(reasons.join('; '))}`);
-      if (reasons.length > 0) problems.push(sha);
+      const known = reasons.length > 0 && acknowledged.includes(sha);
+      const verdict = reasons.length === 0 ? 'OK' : `${known ? 'potwierdzony incydent (ACKNOWLEDGED): ' : ''}${reasons.join('; ')}`;
+      log(`- ${sha.slice(0, 12)} ${oneLine(title)} — ${oneLine(verdict)}`);
+      if (known) closed += 1;
+      else if (reasons.length > 0) problems.push(sha);
     }
     if (sensitive.length > 0) {
       log(
@@ -133,7 +146,9 @@ export async function main({ env, fetch, log }) {
       );
       return 1;
     }
-    log(`main-integrity: OK — ${commits.length} commit(ów) z PR scalonych przez ${oneLine(merger)} przy zielonym ci-gate`);
+    log(
+      `main-integrity: OK — ${String(commits.length - closed)} commit(ów) z PR scalonych przez ${oneLine(merger)} przy zielonym ci-gate${closed > 0 ? `; potwierdzone incydenty: ${String(closed)} (ACKNOWLEDGED)` : ''}`,
+    );
     return 0;
   } catch (error) {
     // Fail closed: every error (API, network, malformed answer) makes main red.

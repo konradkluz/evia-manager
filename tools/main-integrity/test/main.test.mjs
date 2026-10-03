@@ -358,6 +358,39 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
     for (const line of out.split('\n')) assert.doesNotMatch(line, /^::/);
   });
 
+  it('EVM-006 AC4 (code review, round 2): an acknowledged incident stops reddening the window, a new violation is still red', async () => {
+    // BEFORE: a direct push (no merged PR) — the incident; SHA: a correct squash merge after it (e.g. the revert PR).
+    const incident = { [`/repos/${REPO}/commits/${BEFORE}/pulls`]: [] };
+    const open = await run({ ACKNOWLEDGED: '' }, incident);
+    assert.equal(open.status, 1, open.out);
+    const closed = await run({ ACKNOWLEDGED: BEFORE }, incident);
+    assert.equal(closed.status, 0, closed.out);
+    assert.match(closed.out, /ACKNOWLEDGED: bbbbbbbbbbbb/);
+    assert.match(closed.out, /bbbbbbbbbbbb .*potwierdzony incydent \(ACKNOWLEDGED\): .*bezpośredni push/);
+    assert.match(closed.out, /OK — 1 commit.*potwierdzone incydenty: 1 \(ACKNOWLEDGED\)/);
+    // A new commit violating the rule after the acknowledged one is red again — detection is not lost.
+    const fresh = await run({ ACKNOWLEDGED: `${BEFORE}\n${'f'.repeat(40)}` }, { ...incident, [`/repos/${REPO}/commits/${SHA}/pulls`]: [] });
+    assert.equal(fresh.status, 1, fresh.out);
+    assert.match(fresh.out, /aaaaaaaaaaaa .*— commit nie pochodzi ze scalonego PR/);
+    assert.match(fresh.out, /CZERWONY — 1 commit/);
+  });
+
+  it('EVM-006 AC4 (code review, round 2): acknowledging does not hide a force push and a correct commit on the list stays OK', async () => {
+    assert.equal((await run({ FORCED: 'true', ACKNOWLEDGED: SHA })).status, 1);
+    const { status, out } = await run({ ACKNOWLEDGED: `${SHA}, ${BEFORE}` });
+    assert.equal(status, 0, out);
+    assert.match(out, /aaaaaaaaaaaa .* — OK/);
+    assert.doesNotMatch(out, /potwierdzone incydenty/);
+  });
+
+  it('EVM-006 AC4 (code review, round 2): ACKNOWLEDGED with anything but full SHAs → exit 2', async () => {
+    for (const value of ['bbbbbbbbbbbb', 'main', `${BEFORE} x`]) {
+      const { status, out } = await run({ ACKNOWLEDGED: value });
+      assert.equal(status, 2, value);
+      assert.match(out, /ACKNOWLEDGED/);
+    }
+  });
+
   it('EVM-006 AC4: missing configuration → exit 2', async () => {
     assert.equal((await run({ GITHUB_TOKEN: '' })).status, 2);
     assert.equal((await run({ MAIN_MERGER: '' })).status, 2);

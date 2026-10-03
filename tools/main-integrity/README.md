@@ -11,7 +11,9 @@ Każdy przebieg sprawdza **okno kroczące** — 30 najnowszych commitów `main` 
 
 Commity z okna, które zmieniają `.github/`, `tools/main-integrity/` albo `tools/scan/`, log wypisuje osobno (lista plików obcięta przez API — też): taki commit może wyłączyć K6 albo skany, więc Konrad potwierdza w widoku Activity, że wszedł przez „Pull request merge”.
 
-Zmienne: `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `MAIN_MERGER`, `EVENT` (`push`, `schedule`, `workflow_dispatch`), `BASELINE` i `AFTER` (pełne SHA), przy `push` także `BEFORE` i `FORCED`. Koszt: do 5 zapytań API na commit, ok. 150 na przebieg (limit `GITHUB_TOKEN`: 1000/h na repozytorium).
+**Zamknięcie incydentu — `ACKNOWLEDGED`.** Bez niego commit, który raz zaczerwienił K6, czerwieniłby każdy przebieg przez kolejne 30 commitów `main`, a nowy incydent zginąłby w stałym czerwonym stanie. Pełne SHA zamkniętych incydentów (oddzielone spacjami) dopisuje PR zamykający incydent (`docs/ops/github-i-ci.md` → „Czerwony `main`”). Taki commit nadal jest sprawdzany, a jego powody są logowane w każdym przebiegu („potwierdzony incydent (ACKNOWLEDGED)”), lecz nie czerwieni przebiegu. Każdy inny commit naruszający reguły nadal daje czerwony wynik. Lista nie ukrywa kontroli pushu (force push, przepisana historia). Wartość inna niż pełne SHA = błąd konfiguracji (kod `2`). Zmiana listy to zmiana `.github/**`, czyli plik wrażliwy (K3), wypisany w logu K6.
+
+Zmienne: `GITHUB_TOKEN`, `GITHUB_REPOSITORY`, `MAIN_MERGER`, `EVENT` (`push`, `schedule`, `workflow_dispatch`), `BASELINE` i `AFTER` (pełne SHA), opcjonalnie `ACKNOWLEDGED`, przy `push` także `BEFORE` i `FORCED`. Koszt: do 5 zapytań API na commit, ok. 150 na przebieg (limit `GITHUB_TOKEN`: 1000/h na repozytorium).
 
 Każdy błąd (API, sieć, nieoczekiwana odpowiedź, `BASELINE` poza historią `main`) daje **czerwony** wynik (fail-closed). Teksty z repozytorium (tytuły commitów, nazwy plików) są wypisywane w jednej linii bez znaków sterujących — nie da się nimi wstrzyknąć komend workflow `::`. Czerwony `main-integrity` = incydent: procedura w `docs/ops/github-i-ci.md` → „Czerwony `main`”.
 

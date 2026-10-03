@@ -114,6 +114,9 @@ describe('main-integrity.yml (EVM-006 AC4; A1, K6, code and security review)', (
     const env = record(step['env']);
     expect(env['MAIN_MERGER']).toBe('konradkluz');
     expect(text(env['BASELINE'])).toMatch(/^[0-9a-f]{40}$/);
+    // Closed incidents only (code review, round 2): a literal list of full SHAs, never an expression or a variable.
+    expect(typeof env['ACKNOWLEDGED']).toBe('string');
+    expect(text(env['ACKNOWLEDGED'])).toMatch(/^(?:[0-9a-f]{40}(?: [0-9a-f]{40})*)?$/);
     expect(env).toMatchObject({
       GITHUB_TOKEN: '${{ github.token }}',
       EVENT: '${{ github.event_name }}',

@@ -38,6 +38,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           MAIN_MERGER: konradkluz
           BASELINE: cd0eedd887d8e82753addebed15f35527f727031
+          # Closed incidents (docs/ops/github-i-ci.md → „Czerwony main”): full SHAs separated by spaces, added in the
+          # PR that closes the incident. Their reasons are still logged; new violations stay red.
+          ACKNOWLEDGED: ''
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
