@@ -10,7 +10,8 @@ Bramka z EVM-006 (AC3): **≥ 90% linii i gałęzi zmienionego kodu** (`docs/pro
 | Krok | Zasada |
 |---|---|
 | Baza | `git merge-base HEAD origin/main` (lokalnie bez `origin/main` — `main`); na samym `main` — poprzedni commit (pierwszy commit — puste drzewo) |
-| Zmiany | `git diff -U0 <baza>` łącznie ze zmianami nieskomitowanymi i plikami nieśledzonymi (pętla TDD) |
+| Zmiany | `git diff -U0 <baza>` łącznie ze zmianami nieskomitowanymi i plikami nieśledzonymi (pętla TDD). Prefiksy `a/` i `b/` są podane jawnie, więc `diff.noprefix` ani `diff.mnemonicPrefix` w konfiguracji git nie ukrywają plików. Nazwy ze spacją (git dopisuje TAB w nagłówku `+++`) i nazwy w cudzysłowie C (`"`, `\`, znaki sterujące) są odczytywane. Linia treści zaczynająca się od `++ ` nie jest brana za nagłówek |
+| Kompletność (fail-closed) | `git diff --numstat -z` dla tego samego zakresu: każdy zmieniony plik źródłowy musi mieć w łatce dokładnie tyle dodanych linii, ile podaje `--numstat`. Inaczej kod `2` z listą plików — np. plik źródłowy oznaczony jako binarny w `.gitattributes` (`-diff`) albo nieobsługiwany zapis ścieżki. Nigdy „brak mierzalnych zmian” |
 | Kod źródłowy | pliki `apps/`, `packages/`, `services/`, `tools/` z rozszerzeniem `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` — poza wykluczeniami z `packages/config/coverage-exclusions.json` (jedno źródło wykluczeń) |
 | Raporty | `<apps\|packages\|services\|tools>/<workspace>/coverage/lcov.info` (host, CI) i każdy `lcov.info` pod `coverage/backend-tests/` (kontener `backend-tests`); ścieżki `SF:` względne, Windows, `/work/repo/…` i runnera CI są normalizowane do ścieżek repozytorium, trafienia scalane (maksimum) |
 | Wynik | linie (`DA`) i gałęzie (`BRDA`) na zmienionych liniach; **zmieniony plik źródłowy bez raportu = niepokryty** (niepuste zmienione linie) |

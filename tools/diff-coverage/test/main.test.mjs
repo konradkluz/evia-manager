@@ -218,3 +218,82 @@ describe('diff-coverage CLI on a temporary repository (EVM-006 AC3)', () => {
     assert.match(err, /coverage-exclusions/);
   });
 });
+
+describe('diff-coverage fails closed on unusual diffs (EVM-006 AC3; QA and code review, round 2)', () => {
+  beforeEach(() => {
+    repo = tempRepo('evm006-diffcov-closed-');
+    repo.write('packages/config/coverage-exclusions.json', EXCLUSIONS);
+    repo.write('README.md', '# synthetic\n');
+    repo.commit('chore: base');
+    repo.git(['checkout', '--quiet', '-b', 'feature/EVM-999-closed']);
+  });
+  afterEach(() => {
+    repo.dispose();
+  });
+
+  it('EVM-006 AC3: diff.noprefix or diff.mnemonicPrefix in the git config does not hide changed files', () => {
+    repo.write('packages/p/src/a.ts', SOURCE_10);
+    repo.commit('feat: a');
+    repo.write(
+      'packages/p/coverage/lcov.info',
+      lcov('src/a.ts', 10, (line) => (line <= 5 ? 1 : 0)),
+    );
+    for (const key of ['diff.noprefix', 'diff.mnemonicPrefix']) {
+      repo.git(['config', key, 'true']);
+      const { status, out } = run();
+      assert.equal(status, 1, `${key}: ${out}`);
+      assert.match(out, /6, 7, 8, 9, 10/);
+    }
+  });
+
+  it('EVM-006 AC3: an added line starting with "++ " is a changed line of its file, not a new file header', () => {
+    repo.git(['checkout', '--quiet', 'main']);
+    repo.write('packages/p/src/a.ts', SOURCE_10);
+    repo.commit('feat: a on main');
+    repo.git(['checkout', '--quiet', '-b', 'feature/EVM-999-plus']);
+    // Line 2 printed by git as "+++ b/packages/p/src/other.ts", then a second hunk at line 9 of the same file.
+    const lines = SOURCE_10.split('\n');
+    lines[1] = '++ b/packages/p/src/other.ts';
+    lines[8] = 'export const changed = 9;';
+    repo.write('packages/p/src/a.ts', lines.join('\n'));
+    repo.commit('feat: change a');
+    repo.write(
+      'packages/p/coverage/lcov.info',
+      lcov('src/a.ts', 10, (line) => (line === 9 ? 0 : 1)),
+    );
+    const { status, out } = run();
+    assert.equal(status, 1, out);
+    assert.match(out, /packages\/p\/src\/a\.ts \| 1\/2 .* \| 9 \|/);
+    assert.doesNotMatch(out, /other\.ts/);
+  });
+
+  it('EVM-006 AC3: a source file shown as binary (-diff in .gitattributes) → exit 2 naming the file, never "no changes"', () => {
+    repo.write('.gitattributes', 'packages/p/src/*.ts -diff\n');
+    repo.commit('chore: attributes');
+    repo.write('packages/p/src/a.ts', SOURCE_10);
+    repo.git(['add', '--all']);
+    const { status, out, err } = run();
+    assert.equal(status, 2, out);
+    assert.match(err, /packages\/p\/src\/a\.ts/);
+    assert.match(err, /binarny/);
+  });
+
+  it('EVM-006 AC3: a name with a space and a double quote (C-quoted by git) is measured — Linux file systems', (t) => {
+    const path = 'packages/p/src/a "b".ts';
+    try {
+      repo.write(path, SOURCE_10);
+    } catch {
+      t.skip('the file system does not allow " in file names (Windows) — runs in CI on Linux');
+      return;
+    }
+    repo.commit('feat: quoted name');
+    repo.write(
+      'packages/p/coverage/lcov.info',
+      lcov('src/a "b".ts', 10, (line) => (line <= 8 ? 1 : 0)),
+    );
+    const { status, out } = run();
+    assert.equal(status, 1, out);
+    assert.ok(out.includes(path), out);
+    assert.match(out, /8\/10/);
+  });
+});

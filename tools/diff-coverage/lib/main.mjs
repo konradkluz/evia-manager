@@ -9,8 +9,8 @@
 import { spawnSync } from 'node:child_process';
 import { lstatSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseUnifiedDiff } from './diff.mjs';
-import { evaluate, meets } from './evaluate.mjs';
+import { parseNumstat, parseUnifiedDiff, unaccounted } from './diff.mjs';
+import { evaluate, isSourceFile, meets } from './evaluate.mjs';
 import { mergeCoverage, parseLcov } from './lcov.mjs';
 import { CONTAINER_REPORTS, normalizeSource, workspaceOfReport } from './paths.mjs';
 
@@ -19,6 +19,11 @@ export const THRESHOLD = 90;
 /** Single source of coverage exclusions (W3a). */
 export const EXCLUSIONS_FILE = 'packages/config/coverage-exclusions.json';
 const WORKSPACE_ROOTS = ['apps', 'packages', 'services', 'tools'];
+/**
+ * Options of both diff commands (the -U0 patch and --numstat). Explicit prefixes override diff.noprefix and
+ * diff.mnemonicPrefix of the developer's git config, which would otherwise hide every file from the parser.
+ */
+const DIFF_OPTIONS = ['--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', '--src-prefix=a/', '--dst-prefix=b/'];
 const USAGE = 'Użycie: node tools/diff-coverage/cli.mjs [clean]';
 
 class ToolError extends Error {}
@@ -53,9 +58,17 @@ function check(io) {
   const root = repositoryRoot(io.cwd);
   const exclude = readExclusions(root);
   const base = resolveBase(root);
-  const changed = parseUnifiedDiff(
-    git(root, ['-c', 'core.quotePath=false', 'diff', '-U0', '--no-color', '--no-ext-diff', '--no-textconv', '--find-renames', base]),
+  const range = [...DIFF_OPTIONS, base];
+  const changed = parseUnifiedDiff(git(root, ['-c', 'core.quotePath=false', 'diff', '-U0', ...range]));
+  // Fail closed: every changed source file must be fully read from the patch, or the gate cannot judge it.
+  const missed = unaccounted(changed, parseNumstat(git(root, ['diff', '--numstat', '-z', ...range]))).filter((path) =>
+    isSourceFile(path, exclude),
   );
+  if (missed.length > 0) {
+    throw new ToolError(
+      `nie odczytano zmienionych linii plików źródłowych z git diff: ${missed.join(', ')} — bez nich bramka nie ocenia pokrycia (plik binarny wg .gitattributes albo nieobsługiwany zapis ścieżki)`,
+    );
+  }
   for (const path of git(root, ['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) {
     const lines = readLines(root, path);
     if (lines)
