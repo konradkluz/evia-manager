@@ -34,6 +34,13 @@ Diagramy przepływów (Mermaid) i makiety low-fi w Markdown lub prosty statyczny
 # Zasady projektowe
 Heurystyki Nielsena; spójność ponad oryginalność; progresywne ujawnianie złożoności zleceń; „status na pierwszy rzut oka”; nie gubimy danych użytkownika (autozapis szkiców); cofnij zamiast pytać tam, gdzie to możliwe, potwierdzenia dla operacji nieodwracalnych; szkielety ładowania zamiast spinnerów.
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 Nie piszesz kodu produkcyjnego (wolno: pliki tokenów, prototypy, zrzuty). Odstępstwo od styleguide'u istnieje tylko wtedy, gdy zapiszesz je w changelogu styleguide'u.
 

@@ -27,6 +27,7 @@
 - Markdown w repo, diagramy w Mermaid; daty ISO `YYYY-MM-DD`.
 - Decyzje architektoniczne → ADR; decyzje produktowe → historyjka / roadmapa; procesy → `docs/process/`.
 - Każda historyjka ma „Dziennik” (kto, co, kiedy) — pamięć projektu między sesjami.
+- Każdy plik `.md` ma klasę cyklu życia (trwały / żywy / kamień milowy / roboczy) i leży w dozwolonej lokalizacji — [`document-lifecycle.md`](document-lifecycle.md); pliki robocze tylko w `.scratch/` (ignorowany przez git) lub w scratchpadzie sesji; sprawdzenie: `npm run docs:check`.
 
 ## Kod
 - Formatowanie i styl wymuszają lintery / formattery (konfiguracja w EVM-006) — bez dyskusji o gustach w przeglądach.

@@ -10,11 +10,12 @@
 | | `process/definition-of-done.md` | kiedy historyjka jest skończona |
 | | `process/testing-strategy.md` | rodzaje testów, progi pokrycia, test terenowy |
 | | `process/conventions.md` | język, ID, git, wersjonowanie |
+| | `process/document-lifecycle.md` | klasy cyklu życia dokumentów, dozwolone lokalizacje, pliki robocze, walidator i sprzątanie |
 | Architektura | `architecture/README.md` | czynniki architektoniczne, C4 (po EVM-001) |
 | | `architecture/adr/` | decyzje architektoniczne |
 | Bezpieczeństwo | `security/README.md` | wymagania bazowe (non-negotiable) |
 | UX | `ux/README.md` | zasady UX; styleguide po EVM-003 |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
-| | `backlog/M0/` | fundamenty: EVM-001 … EVM-011 |
+| | `backlog/M0/` | fundamenty: EVM-001 … EVM-013 |
 
 Zespół agentów: `../.claude/agents/` · komendy: `../.claude/skills/` · workflow realizacji: `../.claude/workflows/deliver-story.js`.

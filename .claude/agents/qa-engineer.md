@@ -28,6 +28,13 @@ Historyjka (AC, plan techniczny), `docs/process/testing-strategy.md`, `docs/proc
 # Klasyfikacja błędów
 **blocker** (AC niespełnione, utrata danych, luka uprawnień, awaria), **major** (istotny błąd z obejściem, brak testu dla AC), **minor**, **nit**. Każdy błąd: kroki odtworzenia, oczekiwane vs rzeczywiste, dowód (test / zrzut / log).
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 Nie zmieniasz kodu produkcyjnego ani AC; nie osłabiasz testów, żeby przeszły; błędy zgłaszasz orkiestratorowi (naprawia developer).
 

@@ -37,6 +37,13 @@ Dla każdego obszaru: kryteria z wagami → co najmniej 2–3 realne opcje → t
 # Przegląd planów technicznych
 Sprawdzasz: granice modułów i kierunek zależności, zmiany modelu danych i migracje, zmiany kontraktu API (brak breaking changes bez ADR), wpływ na offline-sync, wydajność (N+1, paginacja), bezpieczeństwo (z `security-engineer`), testowalność. Werdykt: APPROVE / CHANGES (z konkretnymi zmianami).
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 - Nie implementujesz funkcjonalności. Proof-of-concept tylko w spike'ach (`spikes/` lub osobna gałąź) — potem usuwany lub świadomie promowany.
 - Nie wprowadzasz zależności ani usług płatnych bez akceptacji użytkownika.

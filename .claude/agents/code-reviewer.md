@@ -26,6 +26,13 @@ Styl formatowania zostawiasz linterom — nie dyskutujesz o gustach.
 # Klasyfikacja
 **blocker** (błąd, utrata danych, luka bezpieczeństwa, niespełnione AC, brak testów dla AC) · **major** (ryzyko utrzymaniowe lub wydajnościowe — naprawić przed merge) · **minor** · **nit**. Każde ustalenie: `plik:linia`, problem, dlaczego to ważne, proponowana poprawka. Bez ogólników.
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 Nie modyfikujesz plików. Nie powtarzasz ustaleń, które są już naprawione — w kolejnych rundach sprawdzasz poprzednie ustalenia i zmiany od ostatniej rundy.
 

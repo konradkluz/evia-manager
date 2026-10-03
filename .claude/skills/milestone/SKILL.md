@@ -1,6 +1,6 @@
 ---
 name: milestone
-description: Planowanie lub zamknięcie kamienia milowego EVia Manager. "/milestone plan M1" — dekompozycja na epiki i historyjki spełniające DoR (product-owner + architekt + UX + security) do akceptacji użytkownika. "/milestone close M1" — przegląd celów, checklista wydania, security sign-off, retrospektywa i propozycje ulepszeń procesu oraz agentów.
+description: Planowanie lub zamknięcie kamienia milowego EVia Manager. "/milestone plan M1" — dekompozycja na epiki i historyjki spełniające DoR (product-owner + architekt + UX + security) do akceptacji użytkownika. "/milestone close M1" — przegląd celów, checklista wydania, security sign-off, retrospektywa, sprzątanie dokumentacji (za zgodą użytkownika) i propozycje ulepszeń procesu oraz agentów.
 argument-hint: plan|close <M#>
 disable-model-invocation: true
 ---
@@ -18,5 +18,13 @@ Pierwsze słowo argumentu to tryb (`plan` albo `close`), drugie — kamień milo
 1. Sprawdź kryteria wyjścia z roadmapy; wypisz historyjki niezakończone (przenieść / odrzucić — decyzja użytkownika).
 2. Checklista wydania: bramki CI zielone; **security-engineer** — sign-off (model zagrożeń, skany, DAST na staging); **devops-engineer** — backup i test odtworzenia, monitoring, runbooki; dokumentacja i `CHANGELOG.md` (numer wersji); notatki wydania dla użytkowników po polsku.
 3. Wdrożenie produkcyjne — **wyłącznie po wyraźnej zgodzie użytkownika**.
-4. **Retrospektywa:** co działało, co nie (liczba rund poprawek, powtarzające się ustalenia z przeglądów, blokady, czas oczekiwania na decyzje); konkretne propozycje zmian w `CLAUDE.md`, agentach (`.claude/agents/`), workflow i szablonach — wprowadzane po akceptacji użytkownika. Zapis: `docs/process/retros/<M#>.md`.
-5. Zaktualizuj roadmapę (status kamienia, wnioski, korekta planu kolejnych).
+4. **Retrospektywa:** co działało, co nie (liczba rund poprawek, powtarzające się ustalenia z przeglądów, blokady, czas oczekiwania na decyzje); konkretne propozycje zmian w `CLAUDE.md`, agentach (`.claude/agents/`), workflow i szablonach — wprowadzane po akceptacji użytkownika. Przenieś wnioski z dowodów QA/UX, notatek i spike'ów kamienia (`docs/qa/`, `docs/ux/reviews/`, `docs/notes/`, `spikes/`) do historyjek („Uwagi do rozważenia”) i retrospektywy; przejrzyj aktualność dokumentów żywych (rozbieżność → poprawka albo pozycja backlogu). Zapis: `docs/process/retros/<M#>.md`.
+5. **Sprzątanie dokumentacji** (zasady: `docs/process/document-lifecycle.md`) — bez decyzji użytkownika żaden plik nie jest usuwany ani przenoszony:
+   1. `npm run docs:check` — 0 błędów (błędy napraw przed raportem).
+   2. `npm run docs:cleanup -- <M#>` — raport sprzątania (tylko odczyt).
+   3. Przedstaw raport użytkownikowi i zapytaj (AskUserQuestion) o pozycje „usuń”: **wszystkie** / **wybrane** (lista) / **żadne**. Pozycje „przejrzyj” — decyzja użytkownika per pozycja: aktualizacja treści, dodanie odwołania, nowy termin (`review_by` / `expires`), pozostawienie bez zmian albo usunięcie.
+   4. Wykonaj wyłącznie zaakceptowane pozycje: `git rm -- <ścieżka>`, katalog spike'a `git rm -r -- spikes/<nazwa>/` — nic poza nimi.
+   5. Plik klasy „kamień milowy”, którego użytkownik nie usuwa, dostaje `expires: YYYY-MM-DD` (we frontmatterze; dla spike'a — w `spikes/<nazwa>/README.md`; termin proponujesz, zatwierdza użytkownik) — wróci w raporcie jako „przejrzyj”.
+   6. W `docs/process/retros/<M#>.md` dopisz sekcję **„Sprzątanie dokumentacji”**: data, decyzja użytkownika, lista usuniętych ścieżek, pozycje pozostawione (powód i `expires`), decyzje dla pozycji „przejrzyj” oraz informacja, że usunięte pliki można odtworzyć z historii git (polecenia w polityce).
+   7. Ponownie `npm run docs:check` — 0 błędów; commit na gałęzi zamknięcia kamienia (merge do `main` wyłącznie za zgodą użytkownika).
+6. Zaktualizuj roadmapę (status kamienia, wnioski, korekta planu kolejnych).

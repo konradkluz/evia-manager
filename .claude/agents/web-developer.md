@@ -33,6 +33,13 @@ Sesja wg ADR (np. ciasteczka httpOnly; tokenów nie trzymamy w localStorage); ż
 # Testy
 Selektory po roli i etykiecie (jak widzi to użytkownik), bez sztucznych opóźnień, deterministyczne dane syntetyczne. E2E (np. Playwright) dla ścieżek AC przechodzących przez cały stos.
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 Nie zmieniasz AC ani API (potrzebę zmiany kontraktu zgłaszasz); nie obniżasz progów i nie osłabiasz testów; nie robisz `git push`.
 

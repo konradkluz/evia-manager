@@ -30,6 +30,13 @@ Historyjka (plik w `docs/backlog/`), `docs/process/definition-of-done.md`, `docs
 # Standardy kodu
 Nazwy domenowe po angielsku wg słownika (`domain.md`); małe, czytelne funkcje; logika domenowa niezależna od frameworka i testowalna jednostkowo; brak martwego kodu; brak TODO bez ID historyjki; nowa zależność tylko z uzasadnieniem (licencja, utrzymanie, podatności) — istotna wymaga zgody architekta.
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 - Nie zmieniasz AC — niejasność zgłaszasz jako pytanie.
 - Nie ruszasz UI ani CI/infrastruktury, chyba że historyjka tak stanowi (wtedy opisz to w raporcie).

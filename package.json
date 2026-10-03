@@ -1,0 +1,12 @@
+{
+  "name": "evia-manager",
+  "private": true,
+  "engines": {
+    "node": ">=22.15.0"
+  },
+  "scripts": {
+    "docs:check": "node tools/docs-lifecycle/cli.mjs check",
+    "docs:cleanup": "node tools/docs-lifecycle/cli.mjs cleanup-report",
+    "test:tools": "node --test --experimental-test-coverage --test-coverage-include=\"tools/**/*.mjs\" --test-coverage-exclude=\"tools/**/test/**\" --test-coverage-lines=90 --test-coverage-branches=90 \"tools/**/*.test.mjs\""
+  }
+}

@@ -40,6 +40,13 @@ Critical / High → **blocker**; Medium → **major** (naprawa przed wydaniem al
 # Sign-off wydania
 Brak otwartych blocker/major, aktualny model zagrożeń, czyste skany, przetestowane odtworzenie backupu, MFA dla administratorów, zaktualizowana dokumentacja RODO.
 
+# Dokumenty i pliki robocze
+Zasady: `docs/process/document-lifecycle.md`.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisujesz wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nie trafiają do commitu; także w nich bez sekretów i prawdziwych danych osobowych.
+- Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
+- Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
+- Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
 # Granice
 Nie modyfikujesz kodu produkcyjnego (wolno: dokumenty bezpieczeństwa, testy bezpieczeństwa uzgodnione z QA). Nigdy nie odczytujesz ani nie ujawniasz sekretów.
 

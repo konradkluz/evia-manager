@@ -38,7 +38,7 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 4. **Bezpieczeństwo domyślnie.** Wymagania bazowe: `docs/security/README.md`. Każdy endpoint: deny-by-default + testy macierzy ról. Brak danych osobowych w logach i danych testowych.
 5. **Styleguide jest wiążący.** Tylko design tokens i komponenty z biblioteki; odstępstwa wyłącznie za zgodą `ux-designer`, zapisane w styleguide'zie. Dostępność WCAG 2.2 AA.
 6. **Definition of Ready / Done** (`docs/process/definition-of-ready.md`, `docs/process/definition-of-done.md`) to bramki — nie pomijamy kroków workflow.
-7. **Decyzje zapisujemy.** Architektoniczne → ADR (`docs/architecture/adr/`), produktowe → historyjka / roadmapa. Dokumentacja żyje w repo i zmienia się razem z kodem.
+7. **Decyzje zapisujemy.** Architektoniczne → ADR (`docs/architecture/adr/`), produktowe → historyjka / roadmapa. Dokumentacja żyje w repo i zmienia się razem z kodem. Każdy plik `.md` ma klasę cyklu życia (trwały / żywy / kamień milowy / roboczy) i leży w dozwolonej lokalizacji — `docs/process/document-lifecycle.md`.
 8. **Prostota.** YAGNI, sprawdzona („nudna”) technologia; nowa zależność tylko z uzasadnieniem (licencja, utrzymanie, bezpieczeństwo).
 
 ## Bezpieczeństwo pracy agentów
@@ -46,6 +46,8 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 - Bez wyraźnej zgody użytkownika: żadnego `git push`, merge do `main`, wdrożeń produkcyjnych, zmian we współdzielonej infrastrukturze, zakupów / płatnych usług, wysyłania danych do zewnętrznych serwisów.
 - Żadnych destrukcyjnych operacji (usuwanie danych, `git reset --hard`, force-push) bez potwierdzenia.
 - Nie używaj prawdziwych danych klientów w testach, fixture'ach ani przykładach — tylko dane syntetyczne.
+- Pliki robocze (notatki, szkice, wyniki pośrednie) zapisuj wyłącznie w `.scratch/` (ignorowany przez git) albo w scratchpadzie sesji — nigdy w części repozytorium śledzonej przez git; także w nich bez sekretów i prawdziwych danych osobowych.
+- Dokumentów istniejących na `main` nie usuwamy, nie przenosimy i nie obniżamy ich klasy bez decyzji Konrada — wyłącznie w kroku „Sprzątanie dokumentacji” w `/milestone close` albo w zaakceptowanej historyjce.
 
 ## Konwencje (skrót — pełne: `docs/process/conventions.md`)
 - Język: UI i dokumentacja po polsku; kod, identyfikatory, komentarze w kodzie i commity po angielsku. Nazwy domenowe w kodzie wg słownika w `docs/product/domain.md`.
@@ -54,9 +56,12 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 - Daty: ISO `YYYY-MM-DD`; strefa biznesowa `Europe/Warsaw`, zapis w UTC.
 
 ## Stack i komendy
-> Stack zaakceptowany w EVM-001 (ADR 0001–0014, `docs/architecture/README.md`); komendy uzupełnia `devops-engineer` w EVM-006.
+> Stack zaakceptowany w EVM-001 (ADR 0001–0014, `docs/architecture/README.md`); komendy aplikacji uzupełnia `devops-engineer` w EVM-006, komendy dokumentacji pochodzą z EVM-012.
 - Stack: TypeScript wszędzie · backend NestJS (Node.js LTS), modularny monolit z centralną autoryzacją i audytem · PostgreSQL + Kysely, zadania w tle pg-boss · REST + OpenAPI 3.1 contract-first · własne uwierzytelnianie (Argon2id, TOTP, passkeys) · panel web React + Vite, shadcn/ui + Tailwind z design tokens · mobile React Native + Expo (iOS + Android), SQLCipher, upload w tle mechanizmami systemu · hosting UE: Hetzner + Scaleway (storage mediów `pl-waw`) · CI: GitHub Actions, pnpm + Turborepo, EAS Build · testy: Vitest, Testcontainers, Playwright, Maestro
-- Instalacja / uruchomienie lokalne / testy / lint / typy / pokrycie / E2E: _TBD_
+- Instalacja: brak (do EVM-006) — wymagany Node.js ≥ 22.15; nie uruchamiaj `npm install` (przy zerowych zależnościach tworzy `package-lock.json`, którego nie commitujemy).
+- Lokalna bramka jakości (do EVM-006): `npm run test:tools` (testy narzędzi z `tools/`, pokrycie linii i gałęzi ≥ 90%) i `npm run docs:check` (walidator cyklu życia dokumentów — 0 błędów).
+- Dokumentacja: `npm run docs:cleanup -- M#` — raport sprzątania dla kamienia milowego (tylko odczyt, krok `/milestone close`). Opcje walidatora (`--list`, `--today YYYY-MM-DD`) w PowerShell: `npm run docs:check '--' --list` albo `node tools/docs-lifecycle/cli.mjs check --list` (Windows PowerShell 5.1 usuwa gołe `--`).
+- Uruchomienie lokalne / testy aplikacji / lint / typy / pokrycie / E2E: _TBD_ (EVM-006)
 
 ## Mapa dokumentacji
 `docs/README.md`

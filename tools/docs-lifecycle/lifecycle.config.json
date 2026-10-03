@@ -1,0 +1,101 @@
+{
+  "$comment": "Validator configuration for EVM-012. The rules mirror 1:1 the table 'Dozwolone lokalizacje' in docs/process/document-lifecycle.md (same order, patterns, classes and orphan check) - change both together; the EVM-012 AC1 test checks consistency.",
+  "policy": "docs/process/document-lifecycle.md",
+  "scratchDir": ".scratch",
+  "roadmap": { "path": "docs/product/roadmap.md", "section": "Przegląd" },
+  "milestoneDirPattern": "docs/backlog/<M#>/**",
+  "storyPattern": "docs/backlog/<M#>/<EVM-ID>-*.md",
+  "spikesDir": "spikes",
+  "rules": [
+    { "id": 1, "patterns": ["README.md", "CLAUDE.md", "CHANGELOG.md"], "class": "living", "orphanCheck": false },
+    { "id": 2, "patterns": [".claude/**/*.md"], "class": "living", "orphanCheck": false },
+    { "id": 3, "patterns": [".scratch/**"], "class": "ephemeral", "orphanCheck": false },
+    { "id": 4, "patterns": ["docs/README.md"], "class": "living", "orphanCheck": false },
+    {
+      "id": 5,
+      "patterns": ["docs/backlog/README.md", "docs/backlog/_template.md", "docs/backlog/<M#>/README.md"],
+      "class": "living",
+      "orphanCheck": false
+    },
+    { "id": 6, "patterns": ["docs/backlog/<M#>/<EVM-ID>-*.md"], "class": "permanent", "orphanCheck": false },
+    {
+      "id": 7,
+      "patterns": ["docs/architecture/adr/README.md", "docs/architecture/adr/0000-template.md"],
+      "class": "living",
+      "orphanCheck": false
+    },
+    { "id": 8, "patterns": ["docs/architecture/adr/<NNNN>-*.md"], "class": "permanent", "orphanCheck": false },
+    { "id": 9, "patterns": ["docs/process/retros/<M#>.md"], "class": "permanent", "orphanCheck": false },
+    { "id": 10, "patterns": ["docs/spikes/<EVM-ID>-*.md"], "class": "permanent", "orphanCheck": false },
+    {
+      "id": 11,
+      "patterns": ["docs/qa/<EVM-ID>/**/*.md"],
+      "class": "milestone",
+      "milestoneFrom": "story",
+      "orphanCheck": false
+    },
+    {
+      "id": 12,
+      "patterns": ["docs/ux/reviews/<EVM-ID>/**/*.md"],
+      "class": "milestone",
+      "milestoneFrom": "story",
+      "orphanCheck": false
+    },
+    {
+      "id": 13,
+      "patterns": ["spikes/<nazwa>/**/*.md"],
+      "class": "milestone",
+      "milestoneFrom": "spike",
+      "orphanCheck": false
+    },
+    {
+      "id": 14,
+      "patterns": ["docs/notes/**/*.md"],
+      "class": "lifecycle",
+      "milestoneFrom": "field",
+      "orphanCheck": true
+    },
+    {
+      "id": 15,
+      "patterns": [
+        "docs/backlog/**",
+        "docs/architecture/adr/**",
+        "docs/process/retros/**",
+        "docs/qa/**",
+        "docs/ux/reviews/**",
+        "docs/spikes/**",
+        "spikes/*.md"
+      ],
+      "class": "forbidden",
+      "orphanCheck": false
+    },
+    {
+      "id": 16,
+      "patterns": [
+        "docs/product/**/*.md",
+        "docs/process/**/*.md",
+        "docs/architecture/**/*.md",
+        "docs/security/**/*.md",
+        "docs/ux/**/*.md",
+        "docs/ops/**/*.md",
+        "design/**/*.md"
+      ],
+      "class": "living",
+      "orphanCheck": true
+    },
+    {
+      "id": 17,
+      "patterns": [
+        "apps/**/README.md",
+        "packages/**/README.md",
+        "services/**/README.md",
+        "infra/**/README.md",
+        "tools/**/README.md",
+        ".github/**/*.md"
+      ],
+      "class": "living",
+      "orphanCheck": false
+    }
+  ],
+  "defaultRule": { "class": "forbidden" }
+}

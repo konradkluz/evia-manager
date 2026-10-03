@@ -24,6 +24,7 @@ Historyjka jest `done`, gdy spełnia **wszystkie** punkty (dla dokumentów — p
 ## Przeglądy i dokumentacja
 - [ ] `code-reviewer`: APPROVE; `security-engineer` / `ux-designer`: APPROVE (gdy dotyczy).
 - [ ] Zaktualizowane: specyfikacja API, ADR (gdy była decyzja), `CHANGELOG.md` (Unreleased), `.env.example`, dokumentacja użytkownika (gdy zmienia się sposób pracy).
+- [ ] Walidator dokumentacji `npm run docs:check`: 0 błędów, ostrzeżenia przejrzane; nowe pliki `.md` mają klasę i lokalizację zgodną z `docs/process/document-lifecycle.md`, pliki robocze są poza repozytorium (`.scratch/`).
 
 ## Akceptacja
 - [ ] Demo przedstawione; użytkownik zaakceptował przyrost; squash merge do `main`; wpis w „Dziennik”.

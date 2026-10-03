@@ -14,6 +14,10 @@ secrets/
 # Claude Code — ustawienia lokalne użytkownika
 .claude/settings.local.json
 
+# Pliki robocze agentów i ludzi (notatki, szkice, wyniki pośrednie) — nigdy w repozytorium
+# (EVM-012, docs/process/document-lifecycle.md → „Pliki robocze”)
+.scratch/
+
 # IDE / system
 .idea/
 .vscode/*
