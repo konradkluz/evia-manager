@@ -1,0 +1,12 @@
+{
+  "$comment": "EVM-006 W3a: the single source of coverage exclusions, read by the Vitest preset (src/vitest.js), by evia-node-test (src/node-test.js) for tools/*.mjs and by tools/diff-coverage. Every entry needs a reason (docs/process/testing-strategy.md -> Progi).",
+  "exclude": [
+    { "pattern": "**/node_modules/**", "reason": "third-party code" },
+    { "pattern": "**/dist/**", "reason": "generated build output" },
+    { "pattern": "**/coverage/**", "reason": "coverage reports" },
+    { "pattern": "**/test/**", "reason": "tests, test helpers and fixtures" },
+    { "pattern": "**/*.test.*", "reason": "tests" },
+    { "pattern": "**/*.config.*", "reason": "tool configuration (ESLint, Vitest)" },
+    { "pattern": "**/*.d.ts", "reason": "type declarations without runtime code" }
+  ]
+}

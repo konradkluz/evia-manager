@@ -1,0 +1,13 @@
+# Prettier formats code and configuration only (EVM-006). Markdown is guarded by `npm run docs:check`
+# (Prettier would reflow tables); design tokens are owned by ux-designer; lockfiles are generated.
+**/*.md
+design/
+.claude/
+.semgrep/
+pnpm-lock.yaml
+.scratch/
+.idea/
+.playwright-mcp/
+.turbo/
+**/dist/
+**/coverage/

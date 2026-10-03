@@ -1,0 +1,12 @@
+{
+  "extends": "@evia/config/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    // EVM-006: the EVM-012 code indexes arrays without undefined checks; debt for EVM-013
+    // (tools/repo-policy lists this workspace as the only one allowed to relax shared checks).
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["**/*.mjs", "*.config.js"],
+  "exclude": ["node_modules", "coverage"]
+}
