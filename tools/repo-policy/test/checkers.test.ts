@@ -301,4 +301,21 @@ describe('exception checkers (EVM-006 AC4; B2, A3, A5)', () => {
     expect(today(new Date('2026-10-03T22:30:00Z'))).toBe('2026-10-04');
     expect(daysBetween('2026-10-03', '2026-11-02')).toBe(30);
   });
+
+  it('EVM-006 AC4 (QA): the business day and exception horizons stay right around the DST changes in Europe/Warsaw', () => {
+    // Autumn 2026: CEST (UTC+2) ends on 2026-10-25 at 03:00 local time; spring 2026: CEST starts on 2026-03-29 at 02:00.
+    expect(today(new Date('2026-10-24T21:59:59Z'))).toBe('2026-10-24');
+    expect(today(new Date('2026-10-24T22:00:00Z'))).toBe('2026-10-25');
+    expect(today(new Date('2026-10-25T22:59:59Z'))).toBe('2026-10-25');
+    expect(today(new Date('2026-10-25T23:00:00Z'))).toBe('2026-10-26');
+    expect(today(new Date('2026-03-28T22:59:59Z'))).toBe('2026-03-28');
+    expect(today(new Date('2026-03-28T23:00:00Z'))).toBe('2026-03-29');
+    expect(today(new Date('2026-03-29T21:59:59Z'))).toBe('2026-03-29');
+    expect(today(new Date('2026-03-29T22:00:00Z'))).toBe('2026-03-30');
+    // A 25-hour and a 23-hour day still count as one day — horizons (≤ 30 / ≤ 90 days) do not drift.
+    expect(daysBetween('2026-10-24', '2026-10-26')).toBe(2);
+    expect(daysBetween('2026-03-28', '2026-03-30')).toBe(2);
+    expect(daysBetween('2026-10-01', '2026-10-31')).toBe(30);
+    expect(daysBetween('2026-03-01', '2026-05-30')).toBe(90);
+  });
 });
