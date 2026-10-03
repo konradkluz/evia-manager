@@ -135,48 +135,65 @@ flowchart TB
   worker -.->|"logi i metryki przez Alloy [T]"| grafana
 ```
 
-## Mapa modułów domenowych (wstępna — doprecyzowanie w EVM-002)
-Strzałka = „zależy od publicznego API modułu”. Wszystkie moduły zależą od `platform` (pominięte dla czytelności); `authorization` jest wywoływany z warstwy `api` każdego modułu. Reguły egzekwuje dependency-cruiser ([ADR-0001](adr/0001-architektura-ogolna-modularny-monolit.md)).
+## Mapa modułów domenowych
+> Doprecyzowana w EVM-002 (do akceptacji Konrada na demo EVM-002): nowy moduł `parties` (kontrahenci, w tym OSD), `sites` nie zależy od `customers`, **schemat PostgreSQL per moduł** (decyzja delegowana z ADR-0001, reguła 5). Własność tabel, klucze obce i port kompozycji zlecenia: [`domain-model.md`](domain-model.md#moduły-i-własność-tabel).
+
+Strzałka = „zależy od publicznego API modułu” (i kierunek kluczy obcych między schematami). Wszystkie moduły zależą od `platform` (pominięte dla czytelności); `authorization` jest wywoływany z warstwy `api` każdego modułu; `sync` czyta fasady wszystkich modułów w zakresie synchronizacji (pokazane główne). `procedures` i `payments` rejestrują się jako kontrybutorzy kompozycji zlecenia przez port zdefiniowany w `work-orders` (bez cyklu). Reguły egzekwuje dependency-cruiser ([ADR-0001](adr/0001-architektura-ogolna-modularny-monolit.md)).
 
 ```mermaid
 flowchart LR
-  identity["identity<br/>użytkownicy, role, sesje, urządzenia, MFA"]
+  identity["identity<br/>User, Session, Device, MFA"]
   authz["authorization<br/>RBAC + polityki obiektowe"]
-  audit["audit<br/>dziennik append-only"]
+  audit["audit<br/>AuditEvent, tylko dopisywanie"]
+  parties["parties<br/>Party (w tym OSD)"]
   customers["customers<br/>Customer"]
-  sites["sites<br/>Site, SiteType"]
-  catalog["catalog<br/>ServiceCatalogItem, WorkOrderTemplate"]
-  wo["work-orders<br/>WorkOrder, ScopeItem, status"]
+  sites["sites<br/>Site, Charger"]
+  catalog["catalog<br/>katalog usług, szablony, DocumentKind"]
+  wo["work-orders<br/>WorkOrder, ScopeItem, WorkOrderAssignment"]
   proc["procedures<br/>Procedure, ProcedureStage"]
   pay["payments<br/>PaymentMilestone"]
-  timeline["timeline<br/>TimelineEntry, Note, Comment"]
-  media["media<br/>MediaAsset, Document, UploadSession"]
-  sync["sync<br/>kanał zmian, mutacje z urządzeń"]
+  timeline["timeline<br/>TimelineEntry"]
+  media["media<br/>MediaAsset, Document, StoredFile, UploadSession"]
+  sync["sync<br/>SyncChange, DeviceSyncState, komendy mobilne"]
   authz --> identity
-  sites --> customers
+  sites --> parties
+  catalog --> parties
   wo --> customers
   wo --> sites
   wo --> catalog
+  wo --> identity
   proc --> wo
   proc --> catalog
+  proc --> parties
+  proc --> identity
   pay --> wo
+  pay --> catalog
   timeline --> wo
+  timeline --> proc
   media --> wo
   media --> proc
+  media --> customers
+  media --> sites
+  media --> catalog
+  media --> identity
+  sync --> identity
   sync --> wo
+  sync --> proc
   sync --> timeline
   sync --> media
-  sync --> proc
+  timeline -.->|"zdarzenia"| pay
+  timeline -.->|"zdarzenia"| media
   audit -.->|"zdarzenia"| identity
   audit -.->|"zdarzenia"| wo
+  audit -.->|"zdarzenia"| pay
   audit -.->|"zdarzenia"| media
 ```
 
 | Moduł | Odpowiedzialność | Kamień |
 |---|---|---|
-| `platform` | jądro współdzielone: UUIDv7, czas (`Europe/Warsaw`/UTC), pieniądze (grosze), błędy RFC 9457, zdarzenia/outbox, dostęp do bazy, szyfrowanie pól, konfiguracja | M0 |
+| `platform` | jądro współdzielone: UUIDv7, czas (`Europe/Warsaw`/UTC), pieniądze (grosze), błędy RFC 9457, zdarzenia/outbox, idempotencja (rekordy kluczy), dostęp do bazy, szyfrowanie pól, konfiguracja | M0 |
 | `identity`, `authorization`, `audit` | konta, logowanie, MFA, sesje i urządzenia; deny-by-default; dziennik audytu | M1 (E1), M2 (E9) |
-| `customers`, `sites` | klienci, lokalizacje, wyszukiwanie z polskimi znakami | M1 (E2, E3) |
+| `customers`, `sites`, `parties` | klienci, lokalizacje (z ładowarkami), kontrahenci (administracja, OSD, projektanci…), wyszukiwanie z polskimi znakami | M1 (E2, E3) |
 | `catalog`, `work-orders`, `procedures` | katalog usług, szablony, zlecenia, procesy i etapy | M1 (E3, E4) |
 | `payments` | etapy płatności, nieopłacone i po terminie | M1 (E7) |
 | `timeline` | dziennik, wpisy, komentarze, automatyczna historia | M1 (E5) |
@@ -275,7 +292,7 @@ Pełna tabela (siedziba, rola, dane, region, umowa) i ocena ryzyka CLOUD Act: [A
 |---|---|---|
 | ten plik | przegląd, podsumowanie dla decydenta, C4 (poziom 1–2), mapa modułów, NFR, koszty | EVM-001 |
 | `adr/` | decyzje architektoniczne (indeks: [`adr/README.md`](adr/README.md)) | od EVM-001 |
-| `domain-model.md` | model domeny i danych (ERD), walidacja na scenariuszach A–F | EVM-002 |
-| `api-guidelines.md` | styl API, błędy, paginacja, idempotencja, wersjonowanie, kompatybilność | EVM-002 |
-| `offline-sync.md` | identyfikatory, kolejka, kursory zmian, konflikty | EVM-002 / EVM-011 |
-| `media-pipeline.md` | upload, przetwarzanie, przechowywanie, dostęp, retencja | EVM-002 / EVM-011 |
+| [`domain-model.md`](domain-model.md) | model domeny i danych (ERD), stany, uprawnienia, gotowość offline, klasyfikacja danych, walidacja na scenariuszach A–F | EVM-002 (do akceptacji na demo) |
+| [`api-guidelines.md`](api-guidelines.md) | styl API, błędy, paginacja, wyszukiwanie z polskimi znakami, idempotencja, wersjonowanie, kompatybilność, autoryzacja, limity | EVM-002 |
+| [`offline-sync.md`](offline-sync.md) | identyfikatory, kolejka, kursory zmian, konflikty, zakres urządzenia | szkic: EVM-002; wnioski: EVM-011 |
+| `media-pipeline.md` | upload, przetwarzanie, przechowywanie, dostęp, retencja | EVM-011 (do tego czasu: [ADR-0009](adr/0009-storage-i-przetwarzanie-mediow.md); encje i stany plików w `domain-model.md`) |

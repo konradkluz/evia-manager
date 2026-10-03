@@ -3,7 +3,8 @@
 | Obszar | Plik | Po co |
 |---|---|---|
 | Produkt | `product/vision.md` | problem, cele, role, wymagania niefunkcjonalne |
-| | `product/domain.md` | słownik, model „kompozycji” zleceń, scenariusze A–F |
+| | `product/domain.md` | słownik (nazwy w kodzie), model „kompozycji” zleceń, scenariusze A–F |
+| | `product/service-catalog.md` | dane startowe: katalog usług, szablony procesów i zleceń, rodzaje dokumentów (propozycja do akceptacji) |
 | | `product/roadmap.md` | kamienie milowe, MVP, ryzyka, najbliższe kroki |
 | Proces | `process/workflow.md` | jak pracuje zespół agentów, bramki, RACI, raport agenta |
 | | `process/definition-of-ready.md` | kiedy historyjka może wejść do realizacji |
@@ -11,8 +12,11 @@
 | | `process/testing-strategy.md` | rodzaje testów, progi pokrycia, test terenowy |
 | | `process/conventions.md` | język, ID, git, wersjonowanie |
 | | `process/document-lifecycle.md` | klasy cyklu życia dokumentów, dozwolone lokalizacje, pliki robocze, walidator i sprzątanie |
-| Architektura | `architecture/README.md` | czynniki architektoniczne, C4 (po EVM-001) |
+| Architektura | `architecture/README.md` | czynniki architektoniczne, C4, mapa modułów, NFR, koszty |
 | | `architecture/adr/` | decyzje architektoniczne |
+| | `architecture/domain-model.md` | model domeny i danych: ERD, encje, stany, uprawnienia, gotowość offline, klasyfikacja danych |
+| | `architecture/api-guidelines.md` | wytyczne API: zasoby, błędy, paginacja, wyszukiwanie, idempotencja, wersjonowanie, autoryzacja, limity |
+| | `architecture/offline-sync.md` | synchronizacja offline (szkic): zasady, komendy mobilne, zakres urządzenia |
 | Bezpieczeństwo | `security/README.md` | wymagania bazowe (non-negotiable) |
 | UX | `ux/README.md` | zasady UX; styleguide po EVM-003 |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
