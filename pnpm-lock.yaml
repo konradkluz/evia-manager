@@ -225,6 +225,21 @@ importers:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@26.6.3)(@vitest/coverage-v8@5.0.3)(vite@8.3.2(@types/node@26.6.3))
 
+  tools/diff-coverage:
+    devDependencies:
+      '@evia/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.3
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   tools/docs-lifecycle:
     devDependencies:
       '@evia/config':
