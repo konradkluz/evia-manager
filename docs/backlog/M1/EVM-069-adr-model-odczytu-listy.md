@@ -4,7 +4,7 @@ title: ADR — model odczytu listy i podsumowania zlecenia
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: solution-architect
 contributors: []
@@ -81,3 +81,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; konsultacja solution-architect W1)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — ready → in-progress: start /deliver w nocy 3/4.10 (decyzja Konrada — kolejka EVM-006 → EVM-014 → EVM-069, demo rano); gałąź `feature/EVM-069-adr-model-odczytu-listy` **ułożona na `feature/EVM-006-repo-i-ci`** (EVM-006 w PR #2, jeszcze nie na `main`: hooki, `.gitignore`, numeracja ADR po ADR-0016); po scaleniu PR #2 orkiestrator wciąga `origin/main` merge'em (bez force-pusha). Decyzja Konrada o ADR (AC6) — rano (`/adr`)
