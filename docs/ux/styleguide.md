@@ -1,6 +1,6 @@
 # Styleguide EVia Manager
 
-> **Wersja 1.0.0 · 2026-10-02 · EVM-003** · Właściciel: `ux-designer` · Status: obowiązujący (wiążący dla wszystkich implementujących UI).
+> **Wersja 1.1.0 · 2026-10-03 · EVM-004** (pierwsza wersja: 1.0.0 · 2026-10-02 · EVM-003) · Właściciel: `ux-designer` · Status: obowiązujący (wiążący dla wszystkich implementujących UI). Zmiany: [§ 8 Changelog](#8-changelog); przepływy i makiety MVP: [`flows/README.md`](flows/README.md).
 > Źródło prawdy wartości: `design/tokens/` (W3C DTCG) — opis struktury w `design/tokens/README.md`. Materiały marki: `design/brand/README.md`.
 > Konwencja: `nazwa.tokenu` w kodzie to token semantyczny (używany w UI); `palette.*`, `dimension.*`, `font.*`, `shadow.*`, `duration.*`, `easing.*` to tokeny bazowe (tylko w definicjach ról). Liczby w nawiasach podane są pomocniczo — w kodzie **zawsze token**.
 
@@ -200,8 +200,10 @@ Metoda: WCAG 2.x, luminancja względna sRGB, `(L1 + 0,05) / (L2 + 0,05)`; policz
 | `text.primary` #1A1A1A | `feedback.info.bg` #EFF6FF | tekst | **15,99:1** | 4,5:1 | AAA |
 | `status.order.new.text` #2B2B2B | `status.order.new.bg` #F5F5F5 | tekst | **12,99:1** | 4,5:1 | AAA |
 | `status.order.new.icon` #404040 | `status.order.new.bg` #F5F5F5 | UI | **9,51:1** | 3:1 | AA |
-| `status.order.quote.text` #4C1D95 | `status.order.quote.bg` #EDE9FE | tekst | **9,23:1** | 4,5:1 | AAA |
-| `status.order.quote.icon` #6D28D9 | `status.order.quote.bg` #EDE9FE | UI | **5,98:1** | 3:1 | AA |
+| `status.order.quoting.text` #4C1D95 | `status.order.quoting.bg` #EDE9FE | tekst | **9,23:1** | 4,5:1 | AAA |
+| `status.order.quoting.icon` #6D28D9 | `status.order.quoting.bg` #EDE9FE | UI | **5,98:1** | 3:1 | AA |
+| `status.order.quote.text` #4C1D95 (wycofywany od 1.1.0 → `quoting`) | `status.order.quote.bg` #EDE9FE | tekst | **9,23:1** | 4,5:1 | AAA |
+| `status.order.quote.icon` #6D28D9 (wycofywany od 1.1.0 → `quoting`) | `status.order.quote.bg` #EDE9FE | UI | **5,98:1** | 3:1 | AA |
 | `status.order.accepted.text` #1E3A8A | `status.order.accepted.bg` #DBEAFE | tekst | **8,49:1** | 4,5:1 | AAA |
 | `status.order.accepted.icon` #1D4ED8 | `status.order.accepted.bg` #DBEAFE | UI | **5,49:1** | 3:1 | AA |
 | `status.order.in-progress.text` #0A3E43 | `status.order.in-progress.bg` #D3F4F8 | tekst | **10,13:1** | 4,5:1 | AAA |
@@ -228,10 +230,14 @@ Metoda: WCAG 2.x, luminancja względna sRGB, `(L1 + 0,05) / (L2 + 0,05)`; policz
 | `status.stage.blocked.icon` #B91C1C | `status.stage.blocked.bg` #FEE2E2 | UI | **5,30:1** | 3:1 | AA |
 | `status.payment.planned.text` #2B2B2B | `status.payment.planned.bg` #F5F5F5 | tekst | **12,99:1** | 4,5:1 | AAA |
 | `status.payment.planned.icon` #404040 | `status.payment.planned.bg` #F5F5F5 | UI | **9,51:1** | 3:1 | AA |
-| `status.payment.issued.text` #1E3A8A | `status.payment.issued.bg` #DBEAFE | tekst | **8,49:1** | 4,5:1 | AAA |
-| `status.payment.issued.icon` #1D4ED8 | `status.payment.issued.bg` #DBEAFE | UI | **5,49:1** | 3:1 | AA |
+| `status.payment.invoiced.text` #1E3A8A | `status.payment.invoiced.bg` #DBEAFE | tekst | **8,49:1** | 4,5:1 | AAA |
+| `status.payment.invoiced.icon` #1D4ED8 | `status.payment.invoiced.bg` #DBEAFE | UI | **5,49:1** | 3:1 | AA |
+| `status.payment.issued.text` #1E3A8A (wycofywany od 1.1.0 → `invoiced`) | `status.payment.issued.bg` #DBEAFE | tekst | **8,49:1** | 4,5:1 | AAA |
+| `status.payment.issued.icon` #1D4ED8 (wycofywany od 1.1.0 → `invoiced`) | `status.payment.issued.bg` #DBEAFE | UI | **5,49:1** | 3:1 | AA |
 | `status.payment.paid.text` #14532D | `status.payment.paid.bg` #DCFCE7 | tekst | **8,30:1** | 4,5:1 | AAA |
 | `status.payment.paid.icon` #15803D | `status.payment.paid.bg` #DCFCE7 | UI | **4,57:1** | 3:1 | AA |
+| `status.payment.cancelled.text` #2B2B2B | `status.payment.cancelled.bg` #F5F5F5 | tekst | **12,99:1** | 4,5:1 | AAA |
+| `status.payment.cancelled.icon` #404040 | `status.payment.cancelled.bg` #F5F5F5 | UI | **9,51:1** | 3:1 | AA |
 | `status.payment.overdue.text` #FFFFFF | `status.payment.overdue.bg` #991B1B | tekst | **8,31:1** | 4,5:1 | AAA |
 | `status.payment.overdue.icon` #FFFFFF | `status.payment.overdue.bg` #991B1B | UI | **8,31:1** | 3:1 | AA |
 | `sync.offline.text` #FFFFFF | `sync.offline.bg` #2B2B2B | tekst | **14,16:1** | 4,5:1 | AAA |
@@ -260,7 +266,7 @@ Metoda: WCAG 2.x, luminancja względna sRGB, `(L1 + 0,05) / (L2 + 0,05)`; policz
 | `sync.progress.fill-done` #15803D | `sync.progress.track` #E5E5E5 | UI | **3,98:1** | 3:1 | AA |
 | `sync.progress.fill-error` #B91C1C | `sync.progress.track` #E5E5E5 | UI | **5,14:1** | 3:1 | AA |
 
-(Nazwy w tabeli bez prefiksu `color.`.) Kontrast nowych par liczy i dopisuje `ux-designer` przy każdej zmianie palety lub ról.
+(Nazwy w tabeli bez prefiksu `color.`.) Kontrast nowych par liczy i dopisuje `ux-designer` przy każdej zmianie palety lub ról. Pary dodane w 1.1.0 (`status.order.quoting.*`, `status.payment.invoiced.*`, `status.payment.cancelled.*`) policzono 2026-10-03 tą samą metodą; mają te same wartości co pary o tych samych aliasach z 1.0.0.
 
 ### 2.2 Typografia
 **Fonty i licencje**
@@ -453,7 +459,8 @@ Inwentarz dla M1–M2. Biblioteka komponentów powstaje w historyjkach implement
 - **Warianty:** pasek filtrów (web, nad tabelą, `color.bg.surface-subtle`), chip filtra (`radius.pill`, wybrany: `color.bg.selected` + `color.border.selected` + ikona `check`), panel „Więcej filtrów”, arkusz filtrów (mobile), zapisane widoki („Czekamy na OSD > 14 dni”).
 - **Stany:** chip — domyślny obrys `color.border.strong`; hover `color.bg.surface-hover`; fokus pierścień; aktywny (wybrany) jak wyżej; wyłączony `color.text.disabled`; ładowanie wyników — szkielet tabeli, filtry pozostają aktywne.
 - **Tokeny:** wysokość chipa `size.control.height.web.sm` (web) / `size.touch-target.min` (mobile), `space.inline.sm`, `text.label`.
-- **Zasady:** aktywne filtry zawsze widoczne jako chipy z `x` + „Wyczyść filtry”; licznik wyników („24 zlecenia”); filtry w adresie URL (web — możliwość udostępnienia linku); bez przycisku „Zastosuj” na web (natychmiast), z przyciskiem „Pokaż wyniki (24)” w arkuszu mobile.
+- **Zasady:** aktywne filtry zawsze widoczne jako chipy z `x` + „Wyczyść filtry”; licznik wyników („24 zlecenia”); bez przycisku „Zastosuj” na web (natychmiast), z przyciskiem „Pokaż wyniki (24)” w arkuszu mobile.
+- **Adres URL i tytuł karty (web, od 1.1.0):** w adresie URL wyłącznie wartości bez danych osobowych — status, rodzaj strony, liczba dni X i identyfikator zapisanego widoku (link można udostępnić). Fraza wyszukiwania i filtry z danymi osobowymi (klient, adres, osoba) **nie trafiają do URL ani do tytułu karty** — zostają w pamięci karty, a zapytanie idzie przez `POST …/search` (SR-API-04, SR-WEB-05, AB-16).
 
 ### 3.8 Karta (Card)
 - **Warianty:** karta informacyjna (sekcja szczegółów), karta zlecenia na liście (klikalna), karta podsumowania (status, „Czekamy na”, termin, płatność).
@@ -480,7 +487,7 @@ Inwentarz dla M1–M2. Biblioteka komponentów powstaje w historyjkach implement
 - **Zasady:** każde zdjęcie ma tekst alternatywny z metadanych (kategoria, etap, data); lightbox: przyciski poprzednie/następne (nie tylko gest), zoom przyciskami, Esc zamyka.
 
 ### 3.12 Uploader i element kolejki uploadu (Uploader, UploadQueueItem)
-- **Warianty:** web — strefa upuszczania + „Wybierz pliki”; mobile — przycisk aparatu (`size.touch-target.shutter` na ekranie aparatu, `size.touch-target.field` w widoku zlecenia) + „Z galerii”; element kolejki (miniatura `size.thumbnail.sm`, nazwa/kategoria, stan, akcja).
+- **Warianty:** web — strefa upuszczania + „Wybierz pliki”, z widoczną listą dozwolonych typów i limitów (SR-FILE-01); mobile — wyłącznie przycisk aparatu (`size.touch-target.shutter` na ekranie aparatu, `size.touch-target.field` w widoku zlecenia) — **bez „Z galerii”** (od 1.1.0: aplikacja nie ma dostępu do galerii ani plików poza swoim katalogiem — ADR-0007, P3, P7); element kolejki (miniatura `size.thumbnail.sm`, nazwa/kategoria, stan, akcja).
 - **Stany elementu (tokeny `color.sync.*`, § 5.4):** W kolejce · Wysyłanie n % (pasek `size.progress-bar.height`, `color.sync.progress.fill` na `color.sync.progress.track`) · Wysłano · Błąd + „Ponów” · Czeka na Wi-Fi + „Wyślij teraz przez sieć komórkową” (obowiązkowy, gdy włączono „Wysyłaj tylko przez Wi-Fi”). Strefa upuszczania: hover/przeciąganie `color.bg.selected` + obrys `color.border.selected` przerywany; fokus pierścień; wyłączony (brak uprawnień) z wyjaśnieniem; błąd typu/rozmiaru — komunikat przy pliku.
 - **Zasady:** plik nigdy nie znika z kolejki bez potwierdzenia serwera; „Ponów” i „Usuń z kolejki” jako widoczne przyciski (nie gest); postęp liczbowo i paskiem; zbiorczo: „Wysłano 12 z 15 · 3 w kolejce”.
 - **Web / mobile:** web — przeciąganie jest dodatkiem, zawsze jest przycisk „Wybierz pliki” (WCAG 2.5.7).
@@ -532,7 +539,9 @@ Inwentarz dla M1–M2. Biblioteka komponentów powstaje w historyjkach implement
 
 ### 4.1 Formularze
 - Jedna kolumna (`size.form.max-width`); grupy pól z nagłówkiem `text.heading-4`, odstęp grup `space.stack.lg`.
-- **Autozapis szkicu** co kilka sekund i przy opuszczeniu ekranu: dyskretna informacja „Szkic zapisany 14:05” (`text.body-sm`, `color.text.secondary`). Powrót do formularza przywraca szkic.
+- **Autozapis szkicu** co kilka sekund i przy opuszczeniu ekranu — miejsce przechowywania zależy od kanału (od 1.1.0, SR-WEB-05, SR-SESS-05, TM-10):
+  - **web:** szkic wyłącznie **w pamięci karty** — nigdy w `localStorage`, `sessionStorage`, IndexedDB ani ciasteczkach (komputery biura są współdzielone, a formularze zawierają dane klientów). Szkic jest przypisany do zalogowanej osoby: znika przy wylogowaniu, zamknięciu karty i zalogowaniu innej osoby; po wygaśnięciu sesji wraca tylko wtedy, gdy w tej samej karcie ponownie uwierzytelni się ta sama osoba. Informacja: „Szkic w tej karcie · 14:05” (`text.body-sm`, `color.text.secondary`) z podpowiedzią „Szkic znika po zamknięciu karty lub wylogowaniu.” — mikrocopy nie obiecuje trwałego zapisu;
+  - **mobile:** szkic w zaszyfrowanej bazie aplikacji (jak kolejka, SR-MOB-01): „Szkic zapisany w telefonie · 14:05”; powrót do formularza przywraca szkic.
 - Przycisk główny „Zapisz …” na dole (mobile — przyklejony dolny pasek `elevation.bottom-bar`); nie blokujemy przycisku przy błędach — po kliknięciu pokazujemy podsumowanie błędów na górze (lista linków do pól) i ustawiamy fokus na podsumowaniu.
 - Minimum pisania w terenie: wybór zamiast wpisywania (chipy, listy), wartości domyślne, dyktowanie systemowe w polach notatek.
 
@@ -543,52 +552,62 @@ Inwentarz dla M1–M2. Biblioteka komponentów powstaje w historyjkach implement
 - Długie listy: paginacja (web) lub „Pokaż więcej” / doczytywanie (mobile) z zachowaniem pozycji przy powrocie.
 
 ### 4.3 Filtry
-§ 3.7. Zapisane widoki odpowiadają na pytania biura: „Czekamy na OSD”, „Po terminie”, „Nieopłacone”, „Moje na dziś”. Filtry i sortowanie zapamiętane per użytkownik.
+§ 3.7. Zapisane widoki odpowiadają na pytania biura: „Czekamy na OSD”, „Po terminie”, „Nieopłacone”, „Moje na dziś”. Filtry i sortowanie zapamiętane per użytkownik **poza magazynami przeglądarki** (od 1.1.0): docelowo preferencje po stronie serwera (do decyzji `solution-architect`, EVM-004 → „Uwagi do rozważenia”); do tego czasu tylko w pamięci karty i w adresie URL w zakresie z § 3.7.
 
 ### 4.4 Statusy (AC5)
-Każda wartość = **unikalna ikona (w obrębie grupy) + etykieta PL + rola koloru**. Tokeny: `color.status.{grupa}.{wartość}.{bg|text|icon|border}`; etykieta i ikona także w `$extensions.pl.eviacharge.status` tokenu. Komponent: § 3.9.
+Każda wartość = **unikalna ikona (w obrębie grupy) + etykieta PL + rola koloru**. Tokeny: `color.status.{grupa}.{klucz}.{bg|text|icon|border}`; etykieta i ikona także w `$extensions.pl.eviacharge.status` tokenu. Komponent: § 3.9.
+
+**Mapowanie kod modelu → klucz tokenu (od 1.1.0):** kody statusów pochodzą z `docs/architecture/domain-model.md` (`snake_case`, identyczne w bazie i API); **klucz tokenu = kod modelu zapisany w `kebab-case`** (podkreślnik → łącznik: `in_progress` → `in-progress`, `not_applicable` → `not-applicable`, `on_hold` → `on-hold`). Jedna reguła dla web i mobile, bez listy wyjątków. Klucze `quote` i `issued` z 1.0.0 mają `$deprecated` (DTCG 2025.10 § 6.3.1) — transformacja (EVM-006) ich nie eksportuje, a usuwamy je w najbliższej wersji MAJOR. Wartość nieznana (nowsza wersja API, ADR-0004) — odznaka zastępcza, propozycja [P-12] (§ 8).
 
 **Status zlecenia** (`color.status.order.*`)
 
-| Wartość (kod) | Etykieta | Ikona Lucide | Ton | bg / text / icon |
-|---|---|---|---|---|
-| `new` | Nowe | `inbox` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
-| `quote` | Wycena | `calculator` | fioletowy | `palette.violet.100` / `violet.900` / `violet.700` |
-| `accepted` | Zaakceptowane | `thumbs-up` | niebieski | `palette.blue.100` / `blue.900` / `blue.700` |
-| `in-progress` | W realizacji | `wrench` | morski (marka) | `palette.teal.100` / `teal.900` / `teal.700` |
-| `completed` | Zakończone | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
-| `settled` | Rozliczone | `banknote` | zielony mocny | `palette.green.800` / `neutral.0` / `neutral.0` |
-| `on-hold` | Wstrzymane | `circle-pause` | bursztynowy | `palette.amber.100` / `amber.900` / `amber.700` |
-| `cancelled` | Anulowane | `ban` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
+| Kod modelu | Klucz tokenu | Etykieta | Ikona Lucide | Ton | bg / text / icon |
+|---|---|---|---|---|---|
+| `new` | `new` | Nowe | `inbox` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
+| `quoting` | `quoting` (do 1.1.0: `quote` — wycofywany) | Wycena | `calculator` | fioletowy | `palette.violet.100` / `violet.900` / `violet.700` |
+| `accepted` | `accepted` | Zaakceptowane | `thumbs-up` | niebieski | `palette.blue.100` / `blue.900` / `blue.700` |
+| `in_progress` | `in-progress` | W realizacji | `wrench` | morski (marka) | `palette.teal.100` / `teal.900` / `teal.700` |
+| `completed` | `completed` | Zakończone | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
+| `settled` | `settled` | Rozliczone | `banknote` | zielony mocny | `palette.green.800` / `neutral.0` / `neutral.0` |
+| `on_hold` | `on-hold` | Wstrzymane | `circle-pause` | bursztynowy | `palette.amber.100` / `amber.900` / `amber.700` |
+| `cancelled` | `cancelled` | Anulowane | `ban` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
 
 **Status etapu** (`color.status.stage.*`)
 
-| Wartość (kod) | Etykieta | Ikona Lucide | Ton | bg / text / icon |
-|---|---|---|---|---|
-| `todo` | Do zrobienia | `circle` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
-| `in-progress` | W toku | `circle-play` | morski | `palette.teal.100` / `teal.900` / `teal.700` |
-| `waiting` | Czekamy na stronę trzecią | `hourglass` | bursztynowy | `palette.amber.100` / `amber.900` / `amber.700` |
-| `done` | Zakończony | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
-| `not-applicable` | Nie dotyczy | `circle-minus` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
-| `blocked` | Zablokowany | `octagon-alert` | czerwony | `palette.red.100` / `red.900` / `red.700` |
+| Kod modelu | Klucz tokenu | Etykieta | Ikona Lucide | Ton | bg / text / icon |
+|---|---|---|---|---|---|
+| `todo` | `todo` | Do zrobienia | `circle` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
+| `in_progress` | `in-progress` | W toku | `circle-play` | morski | `palette.teal.100` / `teal.900` / `teal.700` |
+| `waiting` | `waiting` | Czekamy na… | `hourglass` | bursztynowy | `palette.amber.100` / `amber.900` / `amber.700` |
+| `done` | `done` | Zakończony | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
+| `not_applicable` | `not-applicable` | Nie dotyczy | `circle-minus` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
+| `blocked` | `blocked` | Zablokowany | `octagon-alert` | czerwony | `palette.red.100` / `red.900` / `red.700` |
 
-Etap „Czekamy na stronę trzecią” w widokach szczegółów rozwija się do „Czekamy na: [strona, np. OSD] · od 15 dni” (licznik dni `text.numeric`; > 14 dni — ikona `triangle-alert` `color.icon.warning` i tekst `color.text.warning`).
+**„Czekamy na…” — rozwinięcie (od 1.1.0, decyzja Konrada P1 z EVM-002).** Czekamy na klienta albo na stronę (`waitingOn` = `customer` / `party`). Odznaka ma zawsze etykietę „Czekamy na…”; w szczegółach, na kartach i w kolumnie „Czekamy na” obok odznaki stoi rozwinięcie:
+- „Czekamy na: klient · od 3 dni”;
+- „Czekamy na: [nazwa strony] ([rodzaj strony]) · od 15 dni”, np. „Czekamy na: Stoen Operator (OSD) · od 15 dni” (rodzaj strony — etykiety z § 6.2).
+
+Licznik dni liczony od `waitingSince` w `Europe/Warsaw`, `text.numeric` („od dziś”, „od 1 dnia”, „od 3 dni” — odmiana § 6.3); **powyżej 14 dni** — ikona `triangle-alert` `color.icon.warning` i tekst `color.text.warning` (próg bez zmian). Nazwa dostępna odznaki z rozwinięciem: „Status: Czekamy na Stoen Operator (OSD) od 15 dni”.
 
 **Status etapu płatności** (`color.status.payment.*`)
 
-| Wartość (kod) | Etykieta | Ikona Lucide | Ton | bg / text / icon |
-|---|---|---|---|---|
-| `planned` | Planowana | `calendar-clock` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
-| `issued` | Wystawiona | `file-text` | niebieski | `palette.blue.100` / `blue.900` / `blue.700` |
-| `paid` | Opłacona | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
-| `overdue` | Po terminie | `alarm-clock` | czerwony mocny | `palette.red.800` / `neutral.0` / `neutral.0` |
+| Kod modelu | Klucz tokenu | Etykieta | Ikona Lucide | Ton | bg / text / icon |
+|---|---|---|---|---|---|
+| `planned` | `planned` | Planowana | `calendar-clock` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
+| `invoiced` | `invoiced` (do 1.1.0: `issued` — wycofywany) | Wystawiona | `file-text` | niebieski | `palette.blue.100` / `blue.900` / `blue.700` |
+| `paid` | `paid` | Opłacona | `circle-check` | zielony | `palette.green.100` / `green.900` / `green.700` |
+| `cancelled` | `cancelled` (nowy w 1.1.0) | Anulowana | `ban` | neutralny | `palette.neutral.100` / `neutral.800` / `neutral.700` |
 
-Ikony są unikalne w obrębie każdej grupy; `circle-check` celowo oznacza „zakończone/opłacone” we wszystkich grupach (spójne znaczenie). Kontrasty wszystkich par: § 2.1.4 (tekst odznak ≥ 7,13:1, ikony ≥ 4,51:1).
+**Oznaczenie wyliczane „Po terminie”** (`color.status.payment.overdue.*`, od 1.1.0 — nie jest statusem zapisanym w modelu): etap płatności w stanie `invoiced` z terminem (`dueDate`) wcześniejszym niż dziś w `Europe/Warsaw` (`isOverdue`) pokazuje **jedną mocną odznakę „Po terminie”** (`alarm-clock`, `palette.red.800` / `neutral.0` / `neutral.0`) **zamiast** „Wystawiona”; nazwa dostępna: „Wystawiona, po terminie od 5 dni”. Liczba dni po terminie obok odznaki (`text.numeric`, `color.text.error`). Filtr „Po terminie” = `isOverdue`; „Nieopłacone” = wszystkie `invoiced` (także po terminie).
+
+Ikony są unikalne w obrębie każdej grupy (z pominięciem kluczy wycofywanych); `circle-check` celowo oznacza „zakończone/opłacone”, a `ban` — „anulowane” we wszystkich grupach (spójne znaczenie). Kontrasty wszystkich par: § 2.1.4 (tekst odznak ≥ 7,13:1, ikony ≥ 4,51:1).
 
 **Weryfikacja rozróżnialności bez koloru (2026-10-02):** odznaki wszystkich 18 wartości wyrenderowano z ikonami Lucide 1.50.0 i sprawdzono w skali szarości oraz w symulacji deuteranopii i protanopii (macierze Machado i in. 2009, nasilenie 1,0). Wynik: każda wartość pozostaje rozróżnialna dzięki unikalnemu kształtowi ikony i etykiecie; tony zlewające się w symulacji (zielony ↔ bursztynowy, fioletowy ↔ niebieski, czerwony subtelny ↔ neutralny przy protanopii) nie niosą samodzielnie informacji. Etykiety pozostają czytelne w skali szarości (kontrast luminancji tekstu ≥ 7:1 nie zależy od barwy). Wariant mocny (Rozliczone, Po terminie) wyróżnia się jasnością tła także w skali szarości. Zrzut z weryfikacji: lokalnie (poza repozytorium); powtórzyć w przeglądzie UX pierwszej implementacji odznaki.
 
+**Uzupełnienie 1.1.0 (2026-10-03):** wartości i oznaczenia jest teraz 19 (zlecenie 8, etap 6, płatność 4 + „Po terminie”). Nowa odznaka „Anulowana” (płatność) używa pary ikona + ton już zweryfikowanej dla „Anulowane” (zlecenie); od „Planowana” (ten sam ton neutralny) odróżnia ją kształt ikony (`ban` vs `calendar-clock`) i etykieta — tak samo jak „Nowe” i „Anulowane” w grupie zlecenia. „Wycena” i „Wystawiona” zmieniają tylko klucz tokenu (wygląd bez zmian). Powtórzyć symulację w przeglądzie UX pierwszej implementacji odznaki.
+
 ### 4.5 Oś czasu
-§ 3.10. Zmiana statusu w dzienniku: „Anna Nowak zmieniła status etapu „Uzgodnienia z OSD” na [Czekamy na stronę trzecią]” (odznaka kompaktowa + etykieta).
+§ 3.10. Zmiana statusu w dzienniku: „Anna Testowa zmieniła status etapu „Warunki przyłączenia i projekt umowy” (Uzgodnienia z OSD) na [Czekamy na…] · Czekamy na: Stoen Operator (OSD)” (odznaka kompaktowa + etykieta + rozwinięcie z § 4.4). Wpis zdarzenia nie zawiera wartości danych osobowych ani kwot (`domain-model.md` → `TimelineEntry`).
 
 ### 4.6 Galeria
 § 3.11. Grupowanie po kategorii/etapie, filtr „Niewysłane”; przy zleceniu licznik „48 zdjęć · 3 niewysłane”.
@@ -607,23 +626,25 @@ Ikony są unikalne w obrębie każdej grupy; `circle-check` celowo oznacza „za
 - Treść komunikatów: § 6.4. Nigdy nie tracimy danych wpisanych przez użytkownika z powodu błędu.
 
 ### 4.10 Offline
-§ 5.4. Web: baner „Brak połączenia — zmiany zapiszemy, gdy połączenie wróci” tylko jeśli operacja wymaga sieci; formularze nie są czyszczone.
+§ 5.4. Web: baner tylko jeśli operacja wymaga sieci; formularze nie są czyszczone, a wpisane dane zostają **wyłącznie w pamięci karty** (zasada szkicu z § 4.1 — nigdy w magazynach przeglądarki). Panel nie ma kolejki offline, więc mikrocopy nie obiecuje zapisu w tle (od 1.1.0): „Brak połączenia. Wpisane dane zostają w tej karcie — zapisz je, gdy połączenie wróci.” Przycisk zapisu w tym czasie wyłączony z podpowiedzią „Zapiszesz po powrocie połączenia.”
 
 ### 4.11 Potwierdzenia i „Cofnij”
 | Operacja | Wzorzec |
 |---|---|
-| Odwracalna (archiwizacja, zmiana statusu, każde usunięcie, które system potrafi przywrócić) | wykonaj od razu + toast „… [Cofnij]” (10 s) |
-| Nieodwracalna (trwałe usunięcie zlecenia, usunięcie niewysłanego zdjęcia z urządzenia, anulowanie zlecenia z powiadomieniem klienta, wylogowanie z niewysłanymi danymi) | dialog potwierdzenia: tytuł-pytanie z nazwą obiektu („Usunąć 3 niewysłane zdjęcia?”), skutek („Zdjęcia nie zostały wysłane i znikną z telefonu.”), przyciski „Usuń zdjęcia” (danger) i „Anuluj” (tertiary); fokus domyślnie na „Anuluj” |
+| **Odwracalna tą samą rolą** — zmiana statusu, dla której tabela przejść w `docs/architecture/domain-model.md` ma przejście odwrotne prowadzące **dokładnie do poprzedniego stanu**, dostępne tej samej roli **bez step-upu** (np. etap `in_progress → done` i z powrotem `done → in_progress`); soft delete, które ta sama rola potrafi przywrócić | wykonaj od razu + toast „… [Cofnij]” (10 s). „Cofnij” wywołuje **komendę przejścia odwrotnego** (z tymi samymi parametrami, które użytkownik mógłby podać ręcznie, np. poprzednia strona i data „od kiedy”) albo przywrócenie — **nigdy** przywracania pól ani `PATCH` statusu (SR-API-07, SR-AUTHZ-10). Lista przejść z „Cofnij”: [`flows/04-aktualizacja-etapu.md`](flows/04-aktualizacja-etapu.md) |
+| **Bez przejścia odwrotnego**, ale z dalszą drogą w tabeli przejść (np. etap `todo → in_progress`, `todo → waiting`; zlecenie `new → quoting`) | wykonaj od razu + toast bez „Cofnij” („Zmieniono status etapu na W toku.”); kolejną zmianę użytkownik wybiera z menu statusu |
+| **Odwrócenie wymaga Administratora ze step-upem albo operacja jest nieodwracalna** — wystawienie faktury (`planned → invoiced`), odnotowanie wpłaty (`invoiced → paid`), anulowanie transzy, anulowanie zlecenia, rozliczenie zlecenia (`completed → settled`), trwałe usunięcie, usunięcie niewysłanego pliku z urządzenia, wylogowanie z niewysłanymi danymi | dialog potwierdzenia **z podsumowaniem skutku** (np. kwota, numer faktury, data, które transze zostaną anulowane): tytuł-pytanie z nazwą obiektu („Wystawić fakturę dla transzy „Zaliczka”?”), skutek („Cofnąć to może tylko administrator.”), przyciski z czasownikiem („Wystaw fakturę”; danger dla operacji niszczących) i „Anuluj” (tertiary); fokus domyślnie na „Anuluj”. Operacje Administratora ze step-upem dodatkowo przechodzą przez dialog ponownego uwierzytelnienia ([`flows/01-logowanie-mfa.md`](flows/01-logowanie-mfa.md), W-04) |
 
-Usunięcie **niewysłanego** pliku z urządzenia jest zawsze nieodwracalne → zawsze dialog.
+Usunięcie **niewysłanego** pliku z urządzenia jest zawsze nieodwracalne → zawsze dialog. Zmiana 1.1.0: w 1.0.0 każda „zmiana statusu” była opisana jako odwracalna — to nieprawda dla przejść bez drogi powrotnej i dla przejść, których odwrócenie zarezerwowano dla Administratora ze step-upem (konsultacja `security-engineer`, EVM-004, M2).
 
 ### 4.12 Szkielety ładowania
 § 3.16. Szkielet od pierwszej klatki dla list, kart i szczegółów; częściowe dane pokazujemy od razu (najpierw nagłówek zlecenia, potem sekcje).
 
 ### 4.13 Brak uprawnień
 - Elementów, do których użytkownik nie ma dostępu, nie pokazujemy w nawigacji.
-- Wejście z linku na zasób bez uprawnień: pusty stan z ikoną `lock`, „Nie masz dostępu do tego zlecenia. Poproś administratora o uprawnienia.” + „Wróć do listy”. Nie ujawniamy danych zasobu (np. nazwy klienta).
-- Akcja niedozwolona w widocznym kontekście: przycisk wyłączony z podpowiedzią „Edycję płatności może wykonać tylko administrator.”
+- **Wejście z linku na zasób niedostępny albo usunięty** (od 1.1.0): API zwraca `404 not_found` w obu przypadkach (`docs/architecture/api-guidelines.md`, SR-AUTHZ-02), więc UI pokazuje **jeden** pusty stan „Nie znaleziono …” z ikoną `search-x` — „Nie znaleziono zlecenia. Mogło zostać usunięte albo nie masz do niego dostępu. [Wróć do listy]” — i nie ujawnia, czy zasób istnieje. Ekran nie pokazuje żadnych danych zasobu, także z pamięci listy (np. nazwy klienta z poprzedniego ekranu), a tytuł karty to „Nie znaleziono · EVia Manager”.
+- **„Nie masz dostępu” z ikoną `lock`** — tylko dla akcji i plików w widocznym kontekście, do których rola nie ma prawa (`403`), np. plik `identity_data` lub `building_security` dla roli Tylko odczyt: wiersz z ikoną `lock` i tekstem „Plik dostępny dla administratora i edytora”.
+- Akcja niedozwolona w widocznym kontekście: przycisk wyłączony z podpowiedzią „Korektę płatności może wykonać tylko administrator.” Rola Tylko odczyt nie widzi akcji edycji wcale (akcje ukryte, nie wyłączone).
 
 ---
 
@@ -691,8 +712,9 @@ Usunięcie **niewysłanego** pliku z urządzenia jest zawsze nieodwracalne → z
 
 Zasady „nic nie ginie”:
 - Zapis lokalny jest natychmiastowy i potwierdzony („Zapisano w telefonie”); wysyłka w tle wznawia się automatycznie (szczegóły techniczne: EVM-011).
+- **Potwierdzenie dopiero po trwałym zapisie** (od 1.1.0): toast „Zapisano w telefonie” i ogłoszenie czytnika pojawiają się, gdy plik jest zapisany na dysk w katalogu aplikacji (z wymuszeniem zapisu — `fsync`), a medium i wpis kolejki są zatwierdzone w jednej transakcji zaszyfrowanej bazy; suma kontrolna SHA-256 nie opóźnia potwierdzenia (liczona po zapisie, przed wysyłką). Film: do końca zapisu stan „Zapisywanie filmu…” (spust nieaktywny, „Gotowe” w stanie ładowania); zatrzymanie nagrania z dowolnego powodu (zamknięcie, „wstecz”, przerwanie przez system, koniec miejsca) **zapisuje** nagranie, nigdy go nie odrzuca; nieudany zapis — jawny komunikat, nigdy ciche niepowodzenie. Makieta: [`flows/09-mobile-zdjecia-filmy-offline.md`](flows/09-mobile-zdjecia-filmy-offline.md) (M-06).
 - Plik usuwamy z urządzenia dopiero po potwierdzeniu serwera; usunięcie ręczne niewysłanego pliku = dialog (§ 4.11).
-- Wylogowanie / zmiana konta przy niewysłanych danych: blokujący dialog z liczbą elementów i opcją „Wyślij teraz”.
+- Wylogowanie / zmiana konta przy niewysłanych danych: blokujący dialog z liczbą elementów i opcją „Wyślij teraz”. Skutki zgodne z polityką P2 (od 1.1.0): **wylogowanie** usuwa z telefonu dane zleceń, a niewysłane elementy zostają zaszyfrowane i wyślemy je po zalogowaniu **na to samo konto**; **logowanie innej osoby** i „Wyczyść dane firmowe” usuwają wszystko, także niewysłane elementy (SR-MOB-13). Makiety: [`flows/09-mobile-zdjecia-filmy-offline.md`](flows/09-mobile-zdjecia-filmy-offline.md) (M-09) i [`flows/01-logowanie-mfa.md`](flows/01-logowanie-mfa.md) (M-02).
 - Status tekstowy zawsze obok ikony; zmiany stanu ogłaszane czytnikowi ekranu (`aria-live="polite"` / ogłoszenia dostępności platformy) bez spamowania (zbiorczo co kilka sekund).
 
 ---
@@ -717,13 +739,13 @@ Zasady „nic nie ginie”:
 | Katalog usług / pozycja zakresu | klocek usługi / jego wystąpienie w zleceniu | produkt, item |
 | Proces | ścieżka z etapami („Uzgodnienia z OSD”) | workflow, procedura |
 | Etap | krok procesu | krok, faza, task |
-| Status etapu | Do zrobienia, W toku, Czekamy na stronę trzecią, Zakończony, Nie dotyczy, Zablokowany | — |
-| Etap płatności | transza do zapłaty (Planowana, Wystawiona, Opłacona, Po terminie) | rata, faktura (faktura to dokument w etapie) |
+| Status etapu | Do zrobienia, W toku, Czekamy na…, Zakończony, Nie dotyczy, Zablokowany; „Czekamy na…” rozwijamy do „Czekamy na: klient · od 3 dni” / „Czekamy na: [nazwa strony] ([rodzaj strony]) · od 15 dni” (§ 4.4) | Czekamy na stronę trzecią (do 1.0.0 — klient nie jest stroną) |
+| Etap płatności | transza do zapłaty: Planowana, Wystawiona, Opłacona, Anulowana + oznaczenie wyliczane „Po terminie” (§ 4.4); **nieopłacone** = wystawione (także po terminie), „Planowana” nie jest nieopłacona | rata, faktura (faktura to dokument w etapie) |
 | Dziennik | chronologiczna historia zlecenia | historia, log, aktywność |
 | Wpis / komentarz | notatka z rozmowy, ustalenie / komentarz użytkownika | post, wiadomość |
 | Media / zdjęcie / film | pliki z aparatu z metadanymi | załącznik (dla zdjęć) |
 | Dokument | projekt, ekspertyza, zgoda, warunki przyłączenia, protokół (z wersjami) | plik (ogólnie), załącznik |
-| Strona | administracja, zarządca, wspólnota, projektant, rzeczoznawca ppoż., OSD, podwykonawca | kontrahent, party |
+| Strona | rodzaje (etykiety wg `docs/product/service-catalog.md` § 7): Administracja, Zarządca, Wspólnota / spółdzielnia, Projektant, Rzeczoznawca ppoż, Rzeczoznawca (ekspertyza), OSD, Podwykonawca, Dostawca, Inny; klient nie jest stroną | kontrahent, party |
 | OSD | Operator Systemu Dystrybucyjnego; w danych konkretna nazwa (np. Stoen Operator) | „Stoen” jako nazwa ogólna w UI |
 | Moc przyłączeniowa | z jednostką „kW” | moc umowna (w etykietach) |
 | PPE | punkt poboru energii (rozwinięcie w podpowiedzi) | — |
@@ -762,11 +784,12 @@ Wzorzec: **[Co się stało — prostymi słowami]. [Dlaczego — jeśli pomaga].
 | Niespójne dane | „Termin nie może być wcześniejszy niż data rozpoczęcia (02.10.2026).” |
 | Brak zasięgu przy wysyłaniu | „Nie wysłano 3 zdjęć — brak połączenia. Zdjęcia są bezpieczne w telefonie i wyślemy je automatycznie. [Wyślij teraz]” |
 | Plik za duży / zły typ | „Plik „projekt.dwg” ma nieobsługiwany format. Dodaj plik PDF, JPG lub PNG.” |
-| Brak uprawnień | „Nie możesz edytować płatności. Poproś administratora o uprawnienia.” |
+| Brak uprawnień (`403`, akcja lub plik) | „Nie możesz skorygować płatności. Poproś administratora.” · plik: „Plik dostępny dla administratora i edytora.” |
 | Konflikt edycji | „Ktoś zmienił to zlecenie w międzyczasie. Twoje zmiany zachowaliśmy — porównaj i zapisz ponownie. [Porównaj]” |
-| Sesja wygasła | „Sesja wygasła. Zaloguj się ponownie — niezapisane zmiany zachowaliśmy. [Zaloguj się]” |
+| Sesja wygasła (web, od 1.1.0) | „Sesja wygasła. Zaloguj się ponownie w tej karcie — niezapisane zmiany przywrócimy, jeśli zalogujesz się na to samo konto. [Zaloguj się]” (szkic tylko w pamięci karty — § 4.1) |
+| Zbyt wiele prób / żądań (`429`) | „Zbyt wiele prób. Spróbuj ponownie za 2 min.” (czas z nagłówka `Retry-After`; ten sam komunikat niezależnie od tego, czy konto istnieje) |
 | Błąd serwera | „Nie udało się zapisać zlecenia. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: 7F3A). [Spróbuj ponownie]” |
-| Nie znaleziono | „Nie znaleziono zlecenia. Mogło zostać usunięte. [Wróć do listy]” |
+| Nie znaleziono (`404` — także zasób bez dostępu) | „Nie znaleziono zlecenia. Mogło zostać usunięte albo nie masz do niego dostępu. [Wróć do listy]” |
 
 Komunikaty sukcesu krótkie, w czasie przeszłym: „Zapisano zlecenie.”, „Wysłano 12 zdjęć.”
 
@@ -788,7 +811,8 @@ Komunikaty sukcesu krótkie, w czasie przeszłym: „Zapisano zlecenie.”, „W
 | Gesty (2.5.1, 2.5.2) | bez gestów wielopunktowych/ścieżkowych jako jedynej drogi; akcja na zwolnieniu | § 5.1 |
 | Etykiety i instrukcje (1.3.1, 2.5.3, 3.3.2, 4.1.2) | widoczna etykieta = nazwa dostępna; role i stany | § 3.2, przyciski ikonowe z nazwą dostępną |
 | Błędy (3.3.1, 3.3.3, 3.3.4) | identyfikacja, sugestia poprawy, zapobieganie przy operacjach ważnych | § 4.9, § 6.4, § 4.11 |
-| Uwierzytelnianie (3.3.8) | bez testów poznawczych; wklejanie haseł, menedżery haseł | do uwzględnienia w ekranie logowania (EVM-004) |
+| Uwierzytelnianie (3.3.8) | bez testów poznawczych; wklejanie haseł, menedżery haseł | ekrany W-01–W-04 i M-01 w [`flows/01-logowanie-mfa.md`](flows/01-logowanie-mfa.md): `autocomplete` `username` / `current-password` / `one-time-code`, wklejanie dozwolone, passkey jako metoda bez przepisywania kodu |
+| Limity czasu (2.2.1) | ostrzeżenie przed wygaśnięciem sesji i możliwość przedłużenia | web: ostrzeżenie przed końcem bezczynności, „Przedłuż sesję” przedłuża tylko bezczynność, w granicach maks. 12 h (SR-SESS-03) — propozycja wzorca [P-11] (§ 8) |
 | Zbędne ponowne wpisywanie (3.3.7) | dane już podane są podpowiadane | autouzupełnianie klienta/lokalizacji, kopiowanie z poprzedniego zlecenia |
 | Spójna pomoc (3.2.6) | pomoc w tym samym miejscu | link „Pomoc” w menu konta (web) / „Więcej” (mobile) |
 | Komunikaty stanu (4.1.3) | ogłaszane bez fokusu | toasty `role="status"`, postęp uploadu zbiorczo `aria-live="polite"`, błędy `role="alert"` |
@@ -814,6 +838,40 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### 1.1.0 — 2026-10-03 (EVM-004)
+MINOR (§ 7.2 pkt 5): nowe tokeny i korekty treści; żadna nazwa tokenu ani komponentu nie znika. Źródła: zaakceptowany model domeny (EVM-002, decyzja Konrada P1 „Czekamy na…”), polityki bezpieczeństwa P1–P7 (EVM-005) i konsultacja `security-engineer` w EVM-004 (M1–M4).
+- **§ 4.4, § 6.2 — „Czekamy na…”:** etykieta statusu etapu `waiting` = „Czekamy na…” (było: „Czekamy na stronę trzecią” — czekamy też na klienta); rozwinięcie „Czekamy na: klient · od 3 dni” / „Czekamy na: [nazwa strony] ([rodzaj strony]) · od 15 dni”, próg 14 dni bez zmian; § 4.5 — przykład wpisu dziennika.
+- **§ 4.4 — etapy płatności zgodne z modelem:** nowy status „Anulowana” (`color.status.payment.cancelled.*`, ton neutralny, ikona `ban`); „Po terminie” = oznaczenie wyliczane (`isOverdue`), które zastępuje odznakę „Wystawiona”, nie status.
+- **§ 4.4 — klucze tokenów = kody modelu:** reguła `snake_case` → `kebab-case`; nowe `color.status.order.quoting.*` i `color.status.payment.invoiced.*`; `quote` i `issued` oznaczone `$deprecated` (DTCG 2025.10 § 6.3.1), bez eksportu do kodu UI, usunięcie w najbliższej wersji MAJOR. § 2.1.4 — 6 nowych wierszy kontrastu (te same pary aliasów co w 1.0.0).
+- **§ 6.2 — „Strona”:** pełna lista rodzajów z `service-catalog.md` § 7 (dodane: wspólnota / spółdzielnia, rzeczoznawca (ekspertyza), dostawca, inny); „nieopłacone” = wystawione.
+- **§ 3.12 — mobilny Uploader bez „Z galerii”** (ADR-0007, P3, P7); web — widoczna lista typów i limitów (SR-FILE-01).
+- **§ 4.13, § 6.4 — `404` vs `403`:** wejście z linku na zasób niedostępny albo usunięty = jeden stan „Nie znaleziono …” bez danych zasobu; „Nie masz dostępu” (`lock`) tylko dla akcji i plików w widocznym kontekście; rola Tylko odczyt — akcje edycji ukryte.
+- **§ 4.1, § 4.10, § 6.4 — szkice w panelu tylko w pamięci karty** (M1 z konsultacji security; SR-WEB-05, SR-SESS-05, TM-10): nigdy w magazynach przeglądarki; szkic przypisany do osoby; mikrocopy bez obietnicy trwałego zapisu; mobile — zaszyfrowana baza aplikacji.
+- **§ 4.11 — „Cofnij” tylko przez przejście odwrotne tej samej roli bez step-upu** (M2 z konsultacji security; SR-AUTHZ-10, SR-API-07): przejścia bez drogi powrotnej — toast bez „Cofnij”; operacje, których odwrócenie wymaga Administratora ze step-upem (wystawienie faktury, odnotowanie wpłaty, anulowanie transzy i zlecenia, rozliczenie) — dialog z podsumowaniem.
+- **§ 3.7, § 4.3 — URL i tytuł karty bez danych osobowych;** zapamiętywanie filtrów poza magazynami przeglądarki (SR-API-04, SR-WEB-05).
+- **§ 5.4 — „Zapisano w telefonie” dopiero po trwałym zapisie** pliku i wpisu w kolejce; film — stan „Zapisywanie filmu…”, przerwane nagranie zawsze zapisywane (poprawki po przeglądzie `mobile-developer`, EVM-004).
+- **§ 5.4 — skutki wylogowania i zmiany konta** zgodne z P2 i SR-MOB-13; **§ 7.1** — wiersze 3.3.8 (ekrany logowania EVM-004) i 2.2.1 (ostrzeżenie o wygaśnięciu sesji).
+- Tokeny: 479 → **491** (semantic 295 → 307, w tym 8 wycofywanych); `design/tokens/README.md` — wersja 1.1.0, zasada `$deprecated`, reguła mapowania kodów.
+
+#### Propozycje (EVM-004) — zaakceptowane (Konrad, 2026-10-03; wdrożenie w 1.2.0)
+Braki wykryte przy makietach EVM-004 ([`flows/README.md`](flows/README.md)). Makiety oznaczają ich użycie znacznikiem `[P-n]`. **Bez podbijania wersji:** po akceptacji Konrada `ux-designer` wdraża je jako 1.2.0 przed pierwszą historyjką, która ich używa (do tego czasu nie wolno ich implementować). Każda propozycja korzysta najpierw z istniejących ról i komponentów; nowe tokeny wskazano jawnie.
+
+| ID | Brak | Propozycja | Uzasadnienie | Ekrany |
+|---|---|---|---|---|
+| P-1 | Menu akcji — styleguide odwołuje się do „menu `ellipsis-vertical`” (§ 3.1, § 3.6, § 3.8), ale nie definiuje komponentu | **ActionMenu:** web — lista pod wyzwalaczem (`color.bg.surface`, `elevation.dropdown`, `layer.dropdown`, `radius.control`), wiersz min. `size.control.height.web.md`, hover `color.bg.surface-hover`, separator `color.border.subtle`, akcje niszczące na końcu (`color.action.danger.text-subtle`), pozycja wyłączona `color.text.disabled` + podpowiedź; klawiatura: strzałki, Home / End, Enter, Esc, fokus wraca do wyzwalacza; role `menu` / `menuitem`. Mobile — BottomSheet (§ 3.13) z wierszami `size.touch-target.min` | menu zmiany statusu, akcje wiersza i transzy; jedno zachowanie klawiatury w całym panelu | W-06, W-07, W-08, W-09, W-10, W-11, M-03 |
+| P-2 | Sekcja rozwijana — progresywne ujawnianie (§ 1 pkt 5) bez komponentu | **Disclosure:** nagłówek jako przycisk (`text.heading-4`, ikona `chevron-down` / `chevron-up` `size.icon.md`, `aria-expanded`), w stanie zwiniętym podsumowanie (bieżący etap, „Czekamy na…”, postęp [P-6]); rozwinięcie `motion.transition.expand`; mobile — nagłówek min. `size.touch-target.min` | 9 procesów w scenariuszu C nie mieści się w jednym widoku | W-06, M-03 |
+| P-3 | Wybór jednej z kilku bogatych opcji (szablon z podglądem) | **SelectableCard:** karta (§ 3.8) w roli radio w `fieldset` z legendą; wybrana — obrys `color.border.selected` `border-width.indicator` + zaznaczone radio (`color.control.checked`) + tło `color.bg.selected` (tylko z obrysem — § 2.1.3); klawiatura jak grupa radio; mobile — cała karta celem dotyku | wybór szablonu z podglądem pozycji, procesów i transz | W-05, M-10 |
+| P-4 | Pole kodu jednorazowego | **TextField „kod jednorazowy”:** jedno pole (nie sześć), `inputmode="numeric"`, `autocomplete="one-time-code"` (Android — autouzupełnianie kodu), `text.numeric-lg`, wklejanie dozwolone, bez automatycznego wysłania (WCAG 3.2.2); wariant „kod odzyskiwania” — tekst `text.mono`, `autocomplete="off"`, ignoruje spacje i łączniki | WCAG 3.3.8, menedżery haseł i schowek | W-02, W-03, W-04, M-01 |
+| P-5 | Stan blokujący cały ekran (bez nawigacji i danych) | **EmptyState — wariant „blokujący”:** bez Sidebar / BottomNav i bez danych, ikona `size.icon.2xl`, tytuł `text.heading-2`, opis `text.body`, jedna akcja primary (mobile w dolnym pasku `size.touch-target.field`) + opcjonalnie tertiary („Wyloguj”); tło `color.bg.canvas` | `mfa_enrollment_required`, stany urządzenia z P2 / P7 | W-03, M-02 |
+| P-6 | Postęp procesu („3 z 7 etapów”) — `color.sync.progress.*` oznacza wysyłanie | **ProcedureProgress:** tekst „3 z 7 etapów” (`text.body-sm`, `color.text.secondary`) + opcjonalny pasek `size.progress-bar.height`; **nowe role** `color.progress.track` → `palette.neutral.200`, `color.progress.fill` → `palette.teal.700` (5,35:1 do toru, 6,74:1 do `bg.surface`) | postęp niosą etapy (`domain-model.md` → `Procedure`), nie status zlecenia | W-06, M-03, W-10 (kompaktowo) |
+| P-7 | Stany pliku po stronie serwera (przed `ready`, kwarantanna, plik za duży na skan) | **Znaczniki pliku** (miniatura, wiersz dokumentu; web i mobile), wzór jak § 5.4: „Sprawdzanie pliku” — `scan-search`, `color.sync.queued.*` (bez podglądu i pobrania przed `clean`); „Wymaga uwagi” — `triangle-alert`, `color.feedback.warning.*` (przyczyna tylko dla Administratora — P5); „Nie skanowany AV — za duży” — `info`, `color.feedback.info.*` (SR-FILE-12); „Czeka na plik z telefonu · [autor] · od [czas]” — `clock`, `color.sync.queued.*`, kafel bez miniatury, **bez procentów i akcji** (metadane z telefonu dotarły przed plikiem — postęp zna tylko urządzenie, które wysyła) | P5, SR-FILE-12; § 5.4 opisuje tylko wysyłanie; metadane i plik idą osobnymi kanałami (`offline-sync.md`, ADR-0009) | W-09, M-08 |
+| P-8 | Szybkie zlecenie przed numerem z serwera | **Odznaka „Oczekuje na numer”** w miejscu numeru: `clock`, `color.sync.queued.*`; po `applied` — numer (np. „ZL-2026-0042”) i ogłoszenie „Zlecenie dostało numer ZL-2026-0042”; po `rejected` — „Wymaga uwagi” [P-9] | numer nadaje serwer (D8) | M-03, M-05, M-10 |
+| P-9 | „Wymaga uwagi” w kolejce (odrzucone mutacje, pliki w kwarantannie) — § 4.7 ma tylko „Błąd” | **Sekcja „Wymaga uwagi”** na górze ekranu Kolejka i stan SyncIndicator „Wymaga uwagi · 2” (`triangle-alert`, `color.sync.error.*`, najwyższy priorytet: Wymaga uwagi > Błąd > Offline > Czeka na Wi-Fi > Wysyłanie > Zsynchronizowano); akcje: odrzucony wpis lub zdjęcie — „Dodaj do innego zlecenia” (nowa komenda `Create*`, bez edycji), każdy element — „Usuń z telefonu” (dialog § 4.11); plik w kwarantannie — bez przyczyny, „Biuro sprawdzi plik.” | `offline-sync.md` (zasada 2, „Wymaga uwagi”), P5 | M-07, M-09, AppBar |
+| P-10 | Ekran aparatu — § 5.2 opisuje układ, brak komponentu | **CameraScreen:** podgląd na cały ekran; górny pasek `color.bg.brand-strong` (zamknij `x`, numer zlecenia, SyncIndicator); dolny panel `color.bg.brand-strong`: chipy kategorii (wariant na ciemnym tle — obrys `color.border.inverse`, wybrany: `color.bg.surface` + `color.text.primary` + `check`), przełącznik Zdjęcie / Film (te same chipy; chip wyłączony — obrys przerywany `color.border.inverse`, ikona powodu, np. `mic-off` / `hard-drive`, bez zaznaczenia, a pod przełącznikiem widoczny powód `color.text.on-brand` z przyciskiem akcji — bez mikrofonu albo przy za małej ilości miejsca na film), spust `size.touch-target.shutter` (obrys `color.border.inverse`; nagrywanie — wypełnienie `color.action.danger.bg` + czas `text.numeric` `color.text.on-brand`), latarka (`flashlight` / `flashlight-off`, `size.touch-target.min`), licznik serii, „Gotowe” `size.touch-target.field`; fokus `color.focus.ring-inverse`; **bez wskaźnika lokalizacji** (P3); stan „Zapisywanie filmu…” (spust nieaktywny, „Gotowe” w stanie ładowania — § 5.4); prośba o uprawnienie przed monitem systemu — EmptyState (§ 3.15, aparat) i BottomSheet (§ 3.13, mikrofon) | najczęstszy ekran w terenie | M-06 |
+| P-11 | Ostrzeżenie o wygaśnięciu sesji (WCAG 2.2.1) | **Wzorzec „Sesja wygasa”:** AlertDialog (§ 3.13) 2 min przed końcem bezczynności: „Sesja wygaśnie za 2 min z powodu braku aktywności.” [Przedłuż sesję] [Wyloguj]; czas ogłaszany `aria-live="polite"` co minutę; przedłużenie tylko bezczynności, w granicach maks. 12 h od zalogowania (SR-SESS-03); przed limitem 12 h — „Sesja wygaśnie o 18:05 (limit 12 godzin). Zapisz zmiany.” bez przedłużenia | WCAG 2.2.1, SR-SESS-03, szkice tylko w pamięci karty | wszystkie ekrany web po zalogowaniu |
+| P-12 | Wartość statusu nieznana aplikacji (nowsza wersja API, ADR-0004) | **Odznaka zastępcza:** nowe role `color.status.unknown.{bg,text,icon,border}` → `palette.neutral.100` / `neutral.800` / `neutral.700` / `neutral.300` (12,99:1 / 9,51:1), ikona `circle-help`, etykieta „Nieznany status”, podpowiedź „Zaktualizuj aplikację, aby zobaczyć szczegóły.” | klienci obsługują wartość nieznaną (ADR-0004, SR-MOB-10) | W-06, W-10, W-11, M-03, M-05 |
+| P-13 | Tryb ukrytych danych na telefonie (7 dni offline, brak blokady ekranu — P2, P7) | **Wzorzec „Dane ukryte”:** stały Banner pod paskiem (`color.feedback.warning.*`, ikona `eye-off`): „Dane zleceń są ukryte — [powód]. Aparat i kolejka działają.” + akcja wyjścia; w aparacie i Kolejce zamiast nazw, adresów, telefonów i miniatur — numer zlecenia i liczby, miniatura → ikona typu pliku; lista i szczegóły zleceń — EmptyState z wyjaśnieniem | SR-MOB-05, SR-MOB-06 | M-02, M-03, M-05, M-06, M-07 |
+
 ### 1.0.0 — 2026-10-02 (EVM-003)
 - Pierwsza wersja: zasady, fundamenty (kolor z tabelą kontrastów, typografia, odstępy, siatka i breakpointy, rozmiary, promienie, obramowania, cienie i warstwy, ruch, ikony), inwentarz 18 komponentów + pomocnicze, wzorce, wytyczne terenowe, treści, dostępność i egzekwowanie.
 - Tokeny W3C DTCG 2025.10 w dwóch warstwach (`base/`, `semantic/`), motyw jasny.

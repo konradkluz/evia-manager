@@ -145,7 +145,7 @@
       }
     },
     "status": {
-      "$description": "Statusy: kolor jest dodatkiem — zawsze ikona + etykieta (patrz styleguide 4.4). $extensions zawiera ikonę (Lucide) i etykietę PL.",
+      "$description": "Statusy: kolor jest dodatkiem — zawsze ikona + etykieta (patrz styleguide 4.4). $extensions zawiera ikonę (Lucide) i etykietę PL. Klucz tokenu = kod modelu (domain-model.md) zapisany w kebab-case (in_progress → in-progress); grupy z $deprecated nie są eksportowane do kodu UI (od 1.1.0).",
       "order": {
         "new": {
           "$extensions": {"pl.eviacharge.status": {"label": "Nowe", "icon": "inbox", "tone": "neutral"}},
@@ -154,7 +154,16 @@
           "icon": {"$value": "{palette.neutral.700}"},
           "border": {"$value": "{palette.neutral.300}"}
         },
+        "quoting": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Wycena", "icon": "calculator", "tone": "violet"}},
+          "$description": "Kod modelu `quoting` (EVM-004, styleguide 1.1.0). Zastępuje wycofywany klucz `quote`.",
+          "bg": {"$value": "{palette.violet.100}"},
+          "text": {"$value": "{palette.violet.900}"},
+          "icon": {"$value": "{palette.violet.700}"},
+          "border": {"$value": "{palette.violet.300}"}
+        },
         "quote": {
+          "$deprecated": "Od 1.1.0 (EVM-004) użyj color.status.order.quoting — klucz zgodny z kodem modelu `quoting`. Usunięcie w najbliższej wersji MAJOR.",
           "$extensions": {"pl.eviacharge.status": {"label": "Wycena", "icon": "calculator", "tone": "violet"}},
           "bg": {"$value": "{palette.violet.100}"},
           "text": {"$value": "{palette.violet.900}"},
@@ -220,7 +229,8 @@
           "border": {"$value": "{palette.teal.300}"}
         },
         "waiting": {
-          "$extensions": {"pl.eviacharge.status": {"label": "Czekamy na stronę trzecią", "icon": "hourglass", "tone": "amber"}},
+          "$extensions": {"pl.eviacharge.status": {"label": "Czekamy na…", "icon": "hourglass", "tone": "amber"}},
+          "$description": "Etykieta „Czekamy na…” (decyzja Konrada P1, EVM-002; styleguide 1.1.0). W widokach rozwijana do „Czekamy na: klient · od 3 dni” albo „Czekamy na: [nazwa strony] ([rodzaj strony]) · od 15 dni”.",
           "bg": {"$value": "{palette.amber.100}"},
           "text": {"$value": "{palette.amber.900}"},
           "icon": {"$value": "{palette.amber.700}"},
@@ -256,7 +266,16 @@
           "icon": {"$value": "{palette.neutral.700}"},
           "border": {"$value": "{palette.neutral.300}"}
         },
+        "invoiced": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Wystawiona", "icon": "file-text", "tone": "blue"}},
+          "$description": "Kod modelu `invoiced` (EVM-004, styleguide 1.1.0). Zastępuje wycofywany klucz `issued`.",
+          "bg": {"$value": "{palette.blue.100}"},
+          "text": {"$value": "{palette.blue.900}"},
+          "icon": {"$value": "{palette.blue.700}"},
+          "border": {"$value": "{palette.blue.300}"}
+        },
         "issued": {
+          "$deprecated": "Od 1.1.0 (EVM-004) użyj color.status.payment.invoiced — klucz zgodny z kodem modelu `invoiced`. Usunięcie w najbliższej wersji MAJOR.",
           "$extensions": {"pl.eviacharge.status": {"label": "Wystawiona", "icon": "file-text", "tone": "blue"}},
           "bg": {"$value": "{palette.blue.100}"},
           "text": {"$value": "{palette.blue.900}"},
@@ -270,8 +289,17 @@
           "icon": {"$value": "{palette.green.700}"},
           "border": {"$value": "{palette.green.300}"}
         },
+        "cancelled": {
+          "$extensions": {"pl.eviacharge.status": {"label": "Anulowana", "icon": "ban", "tone": "neutral"}},
+          "$description": "Kod modelu `cancelled` etapu płatności (EVM-004, styleguide 1.1.0); ton i ikona jak „Anulowane” w grupie zlecenia.",
+          "bg": {"$value": "{palette.neutral.100}"},
+          "text": {"$value": "{palette.neutral.800}"},
+          "icon": {"$value": "{palette.neutral.700}"},
+          "border": {"$value": "{palette.neutral.300}"}
+        },
         "overdue": {
           "$extensions": {"pl.eviacharge.status": {"label": "Po terminie", "icon": "alarm-clock", "tone": "red-strong"}},
+          "$description": "Oznaczenie wyliczane, nie status zapisany w modelu: etap „Wystawiona” (`invoiced`) z terminem wcześniejszym niż dziś (Europe/Warsaw) pokazuje tę mocną odznakę zamiast „Wystawiona” (styleguide 1.1.0, § 4.4).",
           "bg": {"$value": "{palette.red.800}"},
           "text": {"$value": "{palette.neutral.0}"},
           "icon": {"$value": "{palette.neutral.0}"},

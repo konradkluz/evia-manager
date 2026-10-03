@@ -1,6 +1,6 @@
 # Design tokens — EVia Manager
 
-> EVM-003 · Właściciel: `ux-designer` · Wersja tokenów: **1.0.0** (2026-10-02) · Zasady użycia: `docs/ux/styleguide.md`.
+> EVM-003, EVM-004 · Właściciel: `ux-designer` · Wersja tokenów: **1.1.0** (2026-10-03; pierwsza wersja 1.0.0 — 2026-10-02) · Zasady użycia: `docs/ux/styleguide.md` (zmiany: § 8 Changelog).
 > Jedno źródło prawdy dla panelu web i aplikacji mobilnej (iOS, Android). Tokeny są niezależne od frameworka — transformację do platform wdraża EVM-006.
 
 ## Format
@@ -41,6 +41,12 @@ Zasady warstw:
 - Stany: `-hover`, `-pressed`, `-disabled`, `-selected`; tło `bg`, tekst `text`, ikona `icon`, obrys `border`.
 - Skale bazowe nazwane wartością (`dimension.16`, `font.size.14`, `duration.200`) albo stopniem rampy (`palette.teal.700`).
 - Nazwy domenowe statusów po angielsku zgodnie ze słownikiem (`color.status.order.in-progress`, `color.status.payment.overdue`); etykiety PL w `$extensions`.
+- **Kod modelu → klucz tokenu (od 1.1.0):** klucz statusu = kod z `docs/architecture/domain-model.md` (`snake_case`) zapisany w `kebab-case` — podkreślnik zamieniamy na łącznik (`in_progress` → `color.status.order.in-progress`, `not_applicable` → `color.status.stage.not-applicable`, `invoiced` → `color.status.payment.invoiced`). Jedna reguła dla web i mobile, bez listy wyjątków. Wyjątek znaczeniowy: `color.status.payment.overdue` to oznaczenie wyliczane (`isOverdue`), nie kod statusu (styleguide § 4.4).
+
+## Wycofywanie tokenów (`$deprecated`, od 1.1.0)
+- Token lub grupę, której nazwa ma zniknąć, oznaczamy `$deprecated` z wyjaśnieniem i następcą (DTCG 2025.10: § 5.2.4 — token, § 6.3.1 — grupa; oznaczenie grupy obejmuje wszystkie jej tokeny). Przykład: `color.status.order.quote` → `color.status.order.quoting`, `color.status.payment.issued` → `color.status.payment.invoiced`.
+- Wycofywany token **nadal jest poprawnym tokenem** (aliasy, typy, walidacja), ale transformacja (EVM-006) **nie eksportuje go do kodu UI**, a lint zgłasza jego użycie.
+- Usunięcie następuje w najbliższej wersji MAJOR styleguide'u i tokenów (§ 7.2 pkt 5 styleguide'u); do tego czasu wersja jest MINOR.
 
 ## Motyw ciemny (poza zakresem v1) — jak dodać bez refaktoru
 1. Skopiować `semantic/color.light.tokens.json` → `semantic/color.dark.tokens.json`.
@@ -54,7 +60,13 @@ Pliki `size`, `effects`, `typography` są niezależne od motywu.
 - **Web:** zmienne CSS z prefiksem `--evm-` dla tokenów semantycznych (np. `--evm-color-action-primary-bg`); `dimension` w `rem` (px/16) dla typografii i odstępów, `px` dla obramowań i promieni; `typography` → klasy/utility; `font.line-height` jako liczba bez jednostki; `pl.eviacharge.font.fontFeatures: ["tnum"]` → `font-variant-numeric: tabular-nums`.
 - **Mobile (iOS, Android):** `px` w tokenach = **dp** (Android) / **pt** (iOS) 1:1; rozmiary pisma jako `sp` / skalowane przez Dynamic Type; kolory z `hex` (+ `alpha`); `cubicBezier` → krzywe platformy; `shadow` → elevation (Android) / shadow (iOS) — dopuszczalne przybliżenie.
 - Tokeny bazowe (`palette.*`, `dimension.*` …) nie są eksportowane do kodu aplikacji albo są eksportowane jako prywatne — tak, by lint (§ 7.2 styleguide'u) mógł wymusić użycie ról.
-- Walidacja w CI (EVM-006): poprawny JSON, każdy token ma `$type`, aliasy rozwiązywalne, brak cykli, brak literałów w `semantic/`, zgodność typu aliasu z typem tokenu.
+- Tokeny i grupy z `$deprecated` nie są eksportowane (patrz „Wycofywanie tokenów”).
+- Walidacja w CI (EVM-006): poprawny JSON, każdy token ma `$type`, aliasy rozwiązywalne, brak cykli, brak literałów w `semantic/`, zgodność typu aliasu z typem tokenu, `$deprecated` tylko jako `true`, `false` albo tekst.
 
 ## Weryfikacja wersji 1.0.0
 Sprawdzono 2026-10-02 skryptem pomocniczym (poza repozytorium): 9 plików, **479 tokenów** (base 184, semantic 295), 0 błędów: JSON poprawny, aliasy rozwiązywalne, brak cykli, typy aliasów zgodne, brak literałów w `semantic/`, brak odwołań semantic → semantic. Kontrasty par kolorów: styleguide § 2.1.4.
+
+## Zmiany w wersji 1.1.0 (EVM-004)
+- `semantic/color.light.tokens.json`: nowe grupy `color.status.order.quoting`, `color.status.payment.invoiced`, `color.status.payment.cancelled` (po 4 tokeny: `bg`, `text`, `icon`, `border` — wyłącznie aliasy do `palette.*`); `color.status.order.quote` i `color.status.payment.issued` z `$deprecated`; etykieta `color.status.stage.waiting` → „Czekamy na…”; opis oznaczenia wyliczanego przy `color.status.payment.overdue`.
+- Liczba tokenów: **491** (base 184, semantic 307, w tym 8 wycofywanych).
+- Sprawdzenie 2026-10-03 (skrypt w przeglądarce na `about:blank`, bez sieci): aliasy nowych grup rozwiązywalne do istniejących stopni palety, klucze w `kebab-case`, każdy kod statusu z `domain-model.md` ma niewycofywany klucz, ikony i etykiety unikalne w grupach (z pominięciem wycofywanych), kontrasty nowych par jak w styleguide § 2.1.4. Pełną walidację wszystkich plików (JSON, `$type`, cykle, literały) powtarza orkiestrator przed scaleniem.

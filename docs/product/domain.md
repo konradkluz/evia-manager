@@ -1,6 +1,6 @@
 # Domena — słownik i model zleceń
 
-> Właściciele: `product-owner` (pojęcia) i `solution-architect` (model w kodzie). Nazwy w kodzie **potwierdzone w EVM-002** (2026-10-03, do akceptacji Konrada na demo) — zmiany względem propozycji z uzasadnieniem: [Zmiany nazw w kodzie](#zmiany-nazw-w-kodzie-evm-002). Znaczenia pojęć i etykiety zweryfikowane biznesowo przez `product-owner` (2026-10-03); terminy w UI — styleguide § 6.2 (np. kontrahenta w UI nazywamy „stroną”). Model danych: [`../architecture/domain-model.md`](../architecture/domain-model.md); dane startowe katalogu i szablonów: [`service-catalog.md`](service-catalog.md).
+> Właściciele: `product-owner` (pojęcia) i `solution-architect` (model w kodzie). Nazwy w kodzie **potwierdzone w EVM-002** (2026-10-03, do akceptacji Konrada na demo) — zmiany względem propozycji z uzasadnieniem: [Zmiany nazw w kodzie](#zmiany-nazw-w-kodzie-evm-002). Znaczenia pojęć i etykiety zweryfikowane biznesowo przez `product-owner` (2026-10-03); terminologia makiet MVP (`docs/ux/flows/`) zweryfikowana w EVM-004 (2026-10-03) — [pojęcia z makiet](#pojęcia-z-makiet-mvp-dodane-w-evm-004); terminy w UI — styleguide § 6.2 (np. kontrahenta w UI nazywamy „stroną”). Model danych: [`../architecture/domain-model.md`](../architecture/domain-model.md); dane startowe katalogu i szablonów: [`service-catalog.md`](service-catalog.md).
 
 ## Jak zapanować nad różnorodnością zleceń? (rekomendacja)
 Nie narzucamy sztywnych „typów zleceń”, ale też nie robimy formularzy bez struktury. **Zlecenie składamy z klocków:**
@@ -83,13 +83,25 @@ Zlecenie = Klient + Lokalizacja + Zakres (pozycje z katalogu usług)
 | Zmiana w dzienniku zmian | techniczny wpis kanału zmian dla urządzeń (tylko identyfikatory) | `SyncChange` |
 | Rekord idempotencji | zapamiętany wynik mutacji dla klucza idempotencji | `IdempotencyRecord` |
 
+### Pojęcia z makiet MVP (dodane w EVM-004)
+Pojęcia, których używają makiety ([`docs/ux/flows/`](../ux/flows/README.md)) — bez nowych encji; nazwy w kodzie wg modelu.
+
+| Pojęcie | Znaczenie | Nazwa w kodzie |
+|---|---|---|
+| Klasa poufności dokumentu | kto może pobrać plik dokumentu; wynika z rodzaju dokumentu: **Standardowy** (pozostałe dokumenty — nadal mogą zawierać dane osobowe), **Bezpieczeństwo budynku** (projekt, ekspertyza, opinia ppoż, dokumentacja budynku), **Dane identyfikacyjne** (PESEL, numer dokumentu tożsamości, podpis — np. pełnomocnictwo, wniosek do OSD). Rola Tylko odczyt pobiera wyłącznie pliki „Standardowy”. Przy rodzaju „Inny dokument” pytamy, czy dokument zawiera PESEL lub numer dokumentu tożsamości („tak” = Dane identyfikacyjne). Klasę pojedynczego dokumentu Administrator i Edytor mogą tylko podnieść | `DocumentKind.confidentiality` (`standard` / `building_security` / `identity_data`); podniesienie klasy — `Document.confidentialityOverride` (do dopisania w modelu przed E6 — uwaga z EVM-004) |
+| Korekta płatności | cofnięcie albo poprawka skutku finansowego transzy już wystawionej lub opłaconej: wycofanie faktury, anulowanie faktury, cofnięcie wpłaty, zmiana kwoty transzy wystawionej lub opłaconej, przywrócenie anulowanej transzy, usunięcie transzy. Wykonuje **tylko Administrator** z ponownym uwierzytelnieniem, wyłącznie w panelu. Korektą nie jest wystawienie faktury, odnotowanie wpłaty ani **anulowanie transzy „Planowanej”** (z powodem) — te operacje wykonuje także Edytor (doprecyzowanie decyzji z EVM-002: Edytor anuluje tylko transzę „Planowaną”) | przejścia `invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`; edycja `amountMinor` w `invoiced` / `paid`; soft delete `PaymentMilestone` — wszystkie: Administrator ze step-upem |
+| Dokumenty lokalizacji / klienta | dokument przypisany do lokalizacji (np. dokumentacja budynku od administracji) albo do klienta, a nie do jednego zlecenia — widoczny w każdym zleceniu tej lokalizacji lub tego klienta, bez kopiowania | kotwica `Document`: `Site` albo `Customer` (zamiast `WorkOrder`) |
+| Inne zlecenia w tej lokalizacji | wcześniejsze i równoległe zlecenia w tej samej lokalizacji, pokazane w szczegółach zlecenia (tylko panel): numer, tytuł, status, data zamknięcia — bez danych klienta innego zlecenia (scenariusz D) | lista `WorkOrder` po `siteId`, filtrowana tą samą polityką co lista zleceń |
+| Oczekuje na numer | szybkie zlecenie zapisane w telefonie, zanim serwer nada mu numer; można już dodawać do niego zdjęcia i wpisy — wyślemy je po utworzeniu zlecenia | zlecenie z `CreateQuickWorkOrder` bez `number` do wyniku `applied` / `duplicate` |
+| Wymaga uwagi | stan elementu, który nie trafił do archiwum zlecenia automatycznie i czeka na decyzję człowieka: plik zatrzymany przez skan bezpieczeństwa albo wpis, zdjęcie lub szybkie zlecenie z telefonu odrzucone przy synchronizacji; nic nie znika bez decyzji użytkownika | plik: `StoredFile.state = quarantined`; telefon: wynik mutacji `rejected` ([`offline-sync.md`](../architecture/offline-sync.md)) |
+
 ## Zmiany nazw w kodzie (EVM-002)
 Zmiany względem propozycji sprzed EVM-002; pozostałe nazwy potwierdzone bez zmian.
 
 | Pojęcie | Było | Jest | Uzasadnienie |
 |---|---|---|---|
 | Etap płatności | `PaymentMilestone`; status z wartością „po terminie” | `PaymentMilestone` (status: `PaymentMilestoneStatus`: planowana / wystawiona / opłacona / anulowana; wyliczane `isOverdue`) | „po terminie” zależy od daty, więc jest wyliczane przy odczycie (bez zadania cyklicznego zmieniającego dane); „anulowana” potrzebna przy korektach i anulowaniu zlecenia |
-| Status etapu | `StageStatus`; wartość „czekamy na stronę trzecią” | `StageStatus` (`todo`, `in_progress`, `waiting`, `blocked`, `done`, `not_applicable`); `waiting` = „Czekamy na…” | czekamy także na klienta (pełnomocnictwo, termin montażu, opłata przyłączeniowa), a klient nie jest „stroną”; na kogo — pole `waitingOn`. Etykieta w styleguide („Czekamy na stronę trzecią”) do uzgodnienia na demo |
+| Status etapu | `StageStatus`; wartość „czekamy na stronę trzecią” | `StageStatus` (`todo`, `in_progress`, `waiting`, `blocked`, `done`, `not_applicable`); `waiting` = „Czekamy na…” | czekamy także na klienta (pełnomocnictwo, termin montażu, opłata przyłączeniowa), a klient nie jest „stroną”; na kogo — pole `waitingOn`. Etykieta w styleguide: „Czekamy na…” (decyzja Konrada P1 z EVM-002; styleguide 1.1.0, EVM-004) |
 | Dziennik | `Timeline` / `TimelineEntry` | `TimelineEntry` (tabela); `Timeline` — widok | dziennik zlecenia to zapytanie po wpisach, nie osobny obiekt do przechowywania |
 | Wpis / komentarz | `Note` / `Comment` | `TimelineEntry` z `kind` = `note` / `comment` | jedna tabela tylko do dopisywania dla wpisów, komentarzy i zdarzeń — jedna polityka synchronizacji offline i kolejności; nazwy `Note` / `Comment` zostają w komendach mobilnych |
 | Dokument | `Document` | `Document` + `DocumentVersion` (rodzaj: `DocumentKind`) | wersje dokumentów od v1 (bez przebudowy w M3); rodzaj dokumentu jako konfiguracja z poziomem poufności |

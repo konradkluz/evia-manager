@@ -22,7 +22,8 @@
 | | `security/requirements.md` | wymagania bezpieczeństwa `SR-…` (ASVS 5.0 L2, MASVS 2.1) per moduł i epik, bramki CI |
 | | `security/policies.md` | polityki bezpieczeństwa P1–P12 do decyzji |
 | | `security/rodo.md` | RODO (szkic operacyjny): inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia |
-| UX | `ux/README.md` | zasady UX; styleguide po EVM-003 |
+| UX | `ux/README.md` | zasady UX, artefakty; styleguide 1.1.0 (`ux/styleguide.md`) |
+| | `ux/flows/README.md` | przepływy i makiety MVP: mapa nawigacji web i mobile, ekrany ze stanami i rolami, scenariusze A–D (EVM-004) |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
 | | `backlog/M0/` | fundamenty: EVM-001 … EVM-013 |
 
