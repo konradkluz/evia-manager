@@ -26,5 +26,6 @@
 | | `ux/flows/README.md` | przepływy i makiety MVP: mapa nawigacji web i mobile, ekrany ze stanami i rolami, scenariusze A–D (EVM-004) |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
 | | `backlog/M0/` | fundamenty: EVM-001 … EVM-013 |
+| | `backlog/M1/` | MVP „Biuro”: EVM-014 … EVM-072; indeks `backlog/M1/README.md` — fazy, punkt pilota, pokrycie zakresu, decyzje dla Konrada |
 
 Zespół agentów: `../.claude/agents/` · komendy: `../.claude/skills/` · workflow realizacji: `../.claude/workflows/deliver-story.js`.
