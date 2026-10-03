@@ -325,7 +325,9 @@ function classify(path, ctx) {
     orphan: false,
   };
   /** @type {Report} */
-  const report = (code, reason, severity = 'error') => ctx.findings.push({ severity, code, path, class: record.class, reason });
+  const report = (code, reason, severity = 'error') => {
+    ctx.findings.push({ severity, code, path, class: record.class, reason });
+  };
   const scratch = `${ctx.config.scratchDir}/`;
   const ephemeralOutside = `plik roboczy (lifecycle: ephemeral) w części repozytorium śledzonej przez git — zapisuj go w ${scratch} (ignorowany przez git) albo w scratchpadzie sesji`;
   const unknownClass = `nieznana klasa ${quote(String(lifecycle))} w polu lifecycle — dozwolone wartości: ${CLASSES.join(', ')}`;

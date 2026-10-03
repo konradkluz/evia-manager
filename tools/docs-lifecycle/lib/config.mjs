@@ -129,7 +129,10 @@ function parseRule(raw, index, spikesDir) {
   check(RULE_CLASSES.includes(raw.class), `${where}: nieznana klasa ${String(raw.class)}`);
   check(typeof raw.orphanCheck === 'boolean', `${where}: orphanCheck musi być true albo false`);
   const allowedSources = MILESTONE_FROM_BY_CLASS.get(raw.class) ?? [undefined];
-  check(allowedSources.includes(raw.milestoneFrom), `${where}: niepoprawne milestoneFrom dla klasy ${raw.class}`);
+  check(
+    /** @type {readonly (string | undefined)[]} */ (allowedSources).includes(raw.milestoneFrom),
+    `${where}: niepoprawne milestoneFrom dla klasy ${raw.class}`,
+  );
   const patterns = raw.patterns.map(compilePattern);
   const required = REQUIRED_PLACEHOLDER.get(raw.milestoneFrom);
   for (const pattern of patterns) {
