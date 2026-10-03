@@ -293,6 +293,12 @@ Dodatkowo (ADR-0012 → „Weryfikacja”): podatna zależność → czerwony OS
   - sprawdzić dostępność GitHub Environments (sekrety środowisk, ograniczenie gałęzi wdrożeń) w prywatnym repo na Free — polegają na nich SR-INFRA-13 / SR-INFRA-14 i RR-20 (EVM-007).
 - 2026-10-03 — remote `origin` dodany, `main` wypchnięty przez Konrada (stan: `e4b4a2f`).
 - 2026-10-03 — Konrad: zgoda na `git push` **wyłącznie gałęzi `feature/EVM-006-repo-i-ci`** do `origin` (agenci i orkiestrator) w celu weryfikacji CI; bez force-pusha, bez `main`. PR na GitHubie otwiera Konrad (brak `gh` na stacji); push na `main` — tylko Konrad.
+- 2026-10-03 — Konrad (odpowiedzi na pytania planu D1–D5):
+  - **D1:** Node **26** także na hoście Windows (jedna wersja główna wszędzie, ADR-0015); Konrad instaluje Node 26 z nodejs.org i `npm install -g pnpm@12.8.1` przed implementacją.
+  - **D2:** scalanie do `main` — **Konrad klika „Squash and merge” w PR na GitHubie** po akceptacji demo (widzi status `ci-gate`); orkiestrator lokalnie tylko `git fetch` + `git merge --ff-only origin/main`; job `main-integrity` wykrywa commity na `main` bez zielonego PR. Zastępuje lokalny squash przez orkiestratora i ręczny push `main` — do zapisania w `docs/process/` (konwencje / workflow) w tej historyjce.
+  - **D3:** **zizmor** (MIT, analiza workflowów GitHub Actions) dodany w EVM-006 — odstępstwo od listy narzędzi ADR-0012 zapisane w ADR / historyjce.
+  - **D4:** zgoda (a) na zapis `compose.yaml` przez wykonawcę (Konrad potwierdza monit reguły `ask`); (b) zmiany `.claude/settings.json` z p. 12 — wprowadzone przez orkiestratora 2026-10-03 (allow: `backend-install`, `backend-tests … gate:backend` / `test:backend:*`, `pnpm run gate`, `pnpm run scan`; deny: `--no-verify` / `-n`, dalsze formy pushu na `main`, `Read(~/.ssh/**)`) — do przeglądu `security-engineer` w tej historyjce.
+  - **D5:** brak odpowiedzi → rekomendacja: fine-grained PAT tylko do tego repo (Contents RW, Pull requests RW, Workflows RW, Issues RW, Dependabot alerts R, Metadata R; 90 dni) jako sekret repo `RENOVATE_TOKEN`, zakłada Konrad po scaleniu wg `docs/ops/`.
 
 ## Uwagi do rozważenia
 _—_
