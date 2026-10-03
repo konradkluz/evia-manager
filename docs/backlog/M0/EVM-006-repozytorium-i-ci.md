@@ -77,7 +77,11 @@ Przejęcie z EVM-012 (dopisane 2026-10-03 po przeglądzie `solution-architect`, 
 _Uzupełnia wykonawca._
 
 ## Decyzje
-_—_
+- 2026-10-03 — Konrad: repozytorium zdalne = prywatne `konradkluz/evia-manager` na GitHubie, plan **GitHub Free (bez Pro)**. Skutki do uwzględnienia w planie:
+  - prywatne repo na Free nie ma ochrony gałęzi ani rulesetów — AC4 („czerwony etap blokuje merge do `main`”) realizujemy jako CI na każdym PR / pushu + instrukcja i kontrole kompensujące, bez twardej blokady po stronie GitHuba;
+  - mitygacja RR-02 / RR-11 z EVM-005 („wymagana akceptacja PR przez Konrada”) nie jest wymuszalna — do ponownej oceny przez `security-engineer` w planie; kontrole już działające: deploy key tylko do tego repo (`~/.ssh/evia_manager`, alias `github-evia-manager`), reguła `deny` na `git push origin main` w `.claude/settings.json`, squash merge lokalnie przez orkiestratora po akceptacji, push na `main` wykonuje Konrad;
+  - sprawdzić dostępność GitHub Environments (sekrety środowisk, ograniczenie gałęzi wdrożeń) w prywatnym repo na Free — polegają na nich SR-INFRA-13 / SR-INFRA-14 i RR-20 (EVM-007).
+- 2026-10-03 — remote `origin` dodany, `main` wypchnięty przez Konrada (stan: `e4b4a2f`).
 
 ## Uwagi do rozważenia
 _—_

@@ -55,6 +55,11 @@ Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicz
 ## Notatki techniczne
 Wymaga działań Konrada: założenie konta / płatności u dostawcy chmury, ewentualnie domena — orkiestrator poprosi o to z wyprzedzeniem.
 
+Stan kont (2026-10-03):
+- **Hetzner:** konto założone (2FA wg SR-INFRA-09), puste projekty `evia-staging` i `evia-prod` — bez serwerów, wolumenów, IP i tokenów API. Zasoby tworzy OpenTofu w tej historyjce po akceptacji kosztów (AC1); token API projektu Konrad generuje w trakcie i wkleja bezpośrednio do sekretów CI (nigdy do repozytorium ani czatu).
+- **GitHub:** prywatne repo, plan Free — zob. EVM-006 → „Decyzje” (wpływ na GitHub Environments, SR-INFRA-13 / SR-INFRA-14, RR-20).
+- **Brak:** Scaleway (kopie bazy, storage mediów, e-mail, stan IaC) — potrzebne przed startem tej historyjki.
+
 ## Plan techniczny
 _Uzupełnia wykonawca._
 
