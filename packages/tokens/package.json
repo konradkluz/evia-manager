@@ -1,0 +1,30 @@
+{
+  "name": "@evia/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Design tokens from design/tokens (W3C DTCG) built with Style Dictionary into web CSS variables and mobile constants (EVM-006 AC6).",
+  "exports": {
+    "./web.css": "./dist/web/tokens.css",
+    "./mobile": {
+      "types": "./dist/mobile/tokens.d.ts",
+      "default": "./dist/mobile/tokens.js"
+    }
+  },
+  "scripts": {
+    "build": "node src/cli.ts",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "style-dictionary": "5.5.5",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
