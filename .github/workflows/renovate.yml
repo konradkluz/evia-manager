@@ -1,0 +1,38 @@
+# Renovate (EVM-006 AC8, bramka 12; security-engineer A7). Runs only on main and only when Konrad has enabled it:
+# repository variable RENOVATE_ENABLED=true and secret RENOVATE_TOKEN (fine-grained PAT, docs/ops/rotacja-sekretow.md).
+# The token is visible to the Renovate step only; install scripts of dependencies never run (ignoreScripts in
+# renovate.json, RENOVATE_ALLOW_SCRIPTS=false), the image is pinned by digest. This is the only workflow with a secret.
+name: renovate
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    name: renovate
+    if: github.ref == 'refs/heads/main' && vars.RENOVATE_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: renovatebot/github-action@6d26fcf0275dc65624cbc3d51fe78bc773f98321 # v46.3.6
+        with:
+          renovate-image: ghcr.io/renovatebot/renovate:44.126.0@sha256:b07b6fe34bd80fe2ce035e2053d63a0205e5f99ba3ee799447e0439f2c728002
+        env:
+          RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_ONBOARDING: 'false'
+          RENOVATE_REQUIRE_CONFIG: required
+          RENOVATE_ALLOW_SCRIPTS: 'false'
+          LOG_LEVEL: info
