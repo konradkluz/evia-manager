@@ -4,7 +4,7 @@ title: Styleguide 1.2.0 — propozycje [P-1…P-13] i poprawki makiet z EVM-004
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P0
 owner: ux-designer
 contributors: [security-engineer]
@@ -237,12 +237,17 @@ _—_
 10. **Potwierdzenie pliku w kwarantannie przez technika (M2, `mobile-developer`):** akcja w rodzaju „Przyjmuję do wiadomości” przenosi element z „Wymaga uwagi” do sekcji informacyjnej. Kapsuła wraca wtedy do stanu przesyłania, a technik nie musi usuwać pliku, żeby pozbyć się alarmu. Do ustalenia przy refinemencie E11 / E12 z `security-engineer`: czy lokalny plik zostaje w telefonie (P5, kwarantanna do 30 dni) i kiedy znika.
 11. **Tokeny odznaki licznika w BottomNav** (§ 3.18): styleguide od 1.0.0 opisuje licznik („odznaka z liczbą, nie sama kropka”), ale nie podaje jego tokenów kolorów. Do ustalenia przy pierwszej implementacji BottomNav (EVM-009) — `ux-designer` dopisze tokeny i parę kontrastu w § 2.1.4, bez nowych tokenów, jeśli wystarczą istniejące role.
 
+**Z przeglądów — runda 2 (nieblokujące, minor / nit):**
+12. **Makieta M-07 a reguły rundy 1** (`flows/09-mobile-zdjecia-filmy-offline.md` ok. l. 161–198; mobile-developer minor, QA nit): podsumowanie Kolejki „Wysłano 9 z 12 · 3 w kolejce” nie sumuje się z sekcjami i nie pokazuje stanu przesyłania z § 4.7; pozycja „Kolejka” w BottomNav bez odznaki licznika z § 3.18 — poprawka makiety przy refinemencie M2 (E10–E12) albo w EVM-071.
+13. **Wyjątek CameraScreen (bez banera offline)** zapisany tylko w § 5.4 i § 8 — dopisać odwołanie w § 3.24 (Anatomia) i w § 4.16 („zawsze, poza CameraScreen”) (mobile-developer nit, QA nit).
+14. **Odnośnik „kwoty transz” — kolejność przewinięcia i `focus()`** (`flows/03-szczegoly-zlecenia.md:140-141`; web-developer minor): `focus()` wołane w trakcie płynnego przewijania — doprecyzować przy implementacji W-06 (EVM-018 / EVM-030): fokus po zakończeniu przewijania (`scrollend`) albo `focus({ preventScroll: true })` + `scrollIntoView`.
+
 ## Definition of Done
-- [ ] AC1–AC7 spełnione (weryfikacja QA przez inspekcję)
-- [ ] `npm run docs:check` — 0 błędów; diagramy Mermaid renderują się lokalnie
-- [ ] Przeglądy: web-developer, mobile-developer, product-owner — APPROVE
-- [ ] `CHANGELOG.md` zaktualizowany
-- [ ] Demo i akceptacja Konrada
+- [x] AC1–AC7 spełnione (weryfikacja QA przez inspekcję) — QA PASS w rundach 1 i 2 (macierz AC → dowody w raporcie QA; m.in. 13 sekcji „od 1.2.0”, 0 trafień `[P-n]` w `flows/`, 497 tokenów, 168 par kontrastu przeliczonych z `dist/web/tokens.css`)
+- [x] `npm run docs:check` — 0 błędów, 0 ostrzeżeń (orkiestrator 2026-10-04); diagramy Mermaid (12 w `flows/`) renderują się lokalnie (QA); dodatkowo `pnpm run build` (6 nowych zmiennych `--evm-color-progress-*` / `--evm-color-status-unknown-*`), `pnpm run gate` i `npm run test:tools` zielone (orkiestrator)
+- [x] Przeglądy: web-developer, mobile-developer, product-owner — APPROVE (runda 2)
+- [x] `CHANGELOG.md` zaktualizowany („Unreleased → Zmieniono”: styleguide i tokeny 1.1.0 → 1.2.0)
+- [ ] Demo i akceptacja Konrada (w tym decyzja: reguła postępu procesu bez etapów „Nie dotyczy” — „Uwagi do rozważenia” pkt 5)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -260,3 +265,5 @@ _—_
   - `mobile-developer`: stan przesyłania nie znika pod „Wymaga uwagi” — baner offline zawsze bez połączenia, nazwa dostępna kapsuły ze stanem następnym, licznik „Kolejka” w BottomNav niezależny od kapsuły, podsumowanie Kolejki (§ 3.18, § 4.7, § 4.16, § 5.4, `flows/09`). Kolejność P-9 bez zmian; potwierdzanie kwarantanny — „Uwagi do rozważenia” pkt 10;
   - `product-owner`: reguła liczenia postępu (§ 3.23, § 8 rozstrzygnięcie 6) oznaczona jako doprecyzowanie `domain-model.md` do potwierdzenia na demo; przypadek m = 0; pytanie z rekomendacją i właściciel uzgodnienia — „Uwagi do rozważenia” pkt 5;
   - styleguide § 8 → 1.2.0 — wpis „Poprawki po przeglądach (runda 1)”. Tokeny bez zmian. Bez powłoki: commit `docs(ux): apply review fixes round 1 [EVM-014]` i bramkę wykonuje QA
+- 2026-10-04 — weryfikacja: runda 1 — QA PASS, 3 × `changes_required` (po jednym major od web-developer, mobile-developer, product-owner); runda 2 — QA PASS (commit poprawek ux-designer `90210b1` przez QA), web-developer, mobile-developer, product-owner — APPROVE; workflow `deliver-story` `passed` (≈ 1 h 25 min)
+- 2026-10-04 — in-progress → in-review (orkiestrator): bramka orkiestratora zielona (`docs:check` 0/0, `build`, `gate`, `test:tools`); uwagi minor / nit z rundy 2 → „Uwagi do rozważenia” pkt 12–14; push gałęzi i PR z bazą `feature/EVM-006-repo-i-ci`; demo rano
