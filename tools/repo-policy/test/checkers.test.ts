@@ -148,20 +148,19 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     expect(workflowProblems('w.yml', '', { on: 'issue_comment' }).join('\n')).toContain('issue_comment');
   });
 
-  it('EVM-006 AC4 (A2, W6): ci-gate must need every job but main-integrity, always run and require success of each', () => {
+  it('EVM-006 AC4 (A2, W6): ci-gate must need every job, always run and require success of each; K6 is not a job of ci.yml', () => {
     const run = 'jq -e \'(keys == ["a", "b"]) and all(.[]; .result == "success")\'';
-    const valid = { jobs: { a: {}, b: {}, 'main-integrity': {}, 'ci-gate': { if: 'always()', needs: ['a', 'b'], steps: [{ run }] } } };
+    const valid = { jobs: { a: {}, b: {}, 'ci-gate': { if: 'always()', needs: ['a', 'b'], steps: [{ run }] } } };
     expect(ciGateProblems(valid)).toEqual([]);
-    const broken = {
-      jobs: { a: {}, b: { needs: ['main-integrity'] }, 'main-integrity': {}, 'ci-gate': { needs: ['a'], steps: [{ run: 'true' }] } },
-    };
+    const broken = { jobs: { a: {}, b: {}, 'ci-gate': { needs: ['a'], steps: [{ run: 'true' }] } } };
     expect(ciGateProblems(broken)).toEqual([
       'ci-gate: needs musi obejmować a, b',
       'ci-gate: wymagane if: always()',
       'ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs',
       'ci-gate: każdy job z needs musi mieć wynik success',
-      'ci-gate: b nie może zależeć od main-integrity',
     ]);
+    const integrity = { jobs: { ...valid.jobs, 'main-integrity': {} } };
+    expect(ciGateProblems(integrity)).toContain('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
   });
 
   it('EVM-006 AC8 (A7): the Renovate token only in the Renovate step, image by digest, scripts disabled, main only', () => {

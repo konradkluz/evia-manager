@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * K6 — integrity of main after a push (EVM-006, ADR-0016) — tools/main-integrity/README.md.
- * Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, MAIN_MERGER, BEFORE, AFTER, FORCED (set by .github/workflows/ci.yml).
+ * K6 — integrity of main after a push and nightly (EVM-006, ADR-0016) — tools/main-integrity/README.md.
+ * Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, MAIN_MERGER, EVENT, BASELINE, BEFORE, AFTER, FORCED
+ * (set by .github/workflows/main-integrity.yml).
  */
 import { main } from './lib/main.mjs';
 

@@ -19,7 +19,7 @@ ADR-0012 zakładał plan **GitHub Pro albo Team**, bo tylko płatny plan egzekwu
 | Odwracalność | 2 | zmiana planu bez zmian w kodzie |
 
 ## Rozważane opcje
-1. **A — GitHub Free + kontrole kompensujące K1–K7** (procedura scalania, CI na każdym pushu z jednym checkiem `ci-gate`, kontrola `main-integrity` po każdym pushu na `main`, minimum sekretów).
+1. **A — GitHub Free + kontrole kompensujące K1–K7** (procedura scalania, CI na każdym pushu z jednym checkiem `ci-gate`, kontrola `main-integrity` po każdym pushu na `main` i co noc, minimum sekretów).
 2. **B — GitHub Pro** (4 USD/mies. ≈ 15,50 zł) z rulesetem `main` bez listy obejść i wymaganym checkiem `ci-gate`.
 3. **C — GitHub Team** (organizacja, 4 USD/użytkownika/mies.) — jak B plus konta maszynowe w organizacji; wymaga przeniesienia repozytorium.
 
@@ -37,17 +37,17 @@ ADR-0012 zakładał plan **GitHub Pro albo Team**, bo tylko płatny plan egzekwu
 B wygrywa w ocenie technicznej; A wybiera **decyzja kosztowa Konrada** dla M0, przy założeniu, że do czasu sekretów wdrożeniowych w CI (EVM-007) ryzyko obejścia jest wykrywalne i odwracalne. Informacje o planach i funkcjach zweryfikowane 2026-10-03 (źródła niżej).
 
 ## Decyzja
-Wybieramy **A — GitHub Free z kontrolami K1–K7**, ponieważ spełnia decyzję kosztową Konrada, a każde obejście procedury zostaje wykryte (K6) i jest odwracalne (revert), dopóki w CI nie ma sekretów wdrożeniowych.
+Wybieramy **A — GitHub Free z kontrolami K1–K7**, ponieważ spełnia decyzję kosztową Konrada, a **obejście proceduralne** (bezpośredni push, scalenie przy czerwonym `ci-gate` albo przez kogoś innego niż Konrad, force push, zły tytuł) zostaje wykryte (K6) i jest odwracalne (revert), dopóki w CI nie ma sekretów wdrożeniowych. **Obejście złośliwe** K6 może przeoczyć: osoba z prawem zapisu (także agent z kluczem wdrożeniowym) może w workflowie swojej gałęzi podnieść `permissions: contents: write` i wypchnąć commit na `main` tokenem `GITHUB_TOKEN` — taki push nie uruchamia żadnego workflowu, a jeśli ten sam commit zmienia `tools/main-integrity/**` albo workflowy, kolejne przebiegi K6 działają już na zmienionym kodzie. Takie obejście wykrywa wyłącznie widok Activity repozytorium (wpis „Direct push” od `github-actions[bot]`) — przeglądany przy każdym scaleniu i co tydzień (K2).
 
 **Kontrole kompensujące** (szczegóły i procedury: `docs/ops/github-i-ci.md`):
 | # | Kontrola | Typ |
 |---|---|---|
 | K1 | CI (`.github/workflows/ci.yml`) na każdym pushu każdej gałęzi; jeden check `ci-gate`, zielony wyłącznie przy `success` wszystkich wymaganych jobów; e-mail o nieudanym przebiegu | wykrywająca |
-| K2 | Scalanie: „Squash and merge” klika wyłącznie Konrad w PR, przy zielonym `ci-gate` dla HEAD gałęzi, po akceptacji demo; tytuł PR = Conventional Commit z ID; po scaleniu przegląd widoku Activity dla `main` (tylko „Pull request merge” Konrada); orkiestrator lokalnie tylko `git fetch` + `git merge --ff-only origin/main` | proceduralna |
+| K2 | Scalanie: „Squash and merge” klika wyłącznie Konrad w PR, przy zielonym `ci-gate` dla HEAD gałęzi, po akceptacji demo; tytuł PR = Conventional Commit z ID; po scaleniu i co tydzień przegląd widoku Activity dla `main` (tylko „Pull request merge” Konrada); orkiestrator lokalnie tylko `git fetch` + `git merge --ff-only origin/main` | proceduralna |
 | K3 | Szablon PR z checklistą; zmiany plików wrażliwych (`.github/**`, `.claude/**`, `compose*.yaml`, `lefthook.yml`, pliki wyjątków skanerów) wymagają jawnej uwagi Konrada; `CODEOWNERS` jako dokumentacja; lista zmienionych plików wrażliwych w podsumowaniu joba `security` | proceduralna |
 | K4 | Agenci: klucz wdrożeniowy tylko do tego repozytorium; reguły `deny` w `.claude/settings.json`; push wykonuje orkiestrator; tokeny GitHub na stacji bez prawa scalania (`Contents: write`) | zapobiegawcza, częściowa |
 | K5 | Ustawienia repozytorium: wyłącznie squash merge z komunikatem „tytuł i opis PR”, akcje tylko przypięte po SHA, `GITHUB_TOKEN` domyślnie tylko do odczytu, wyłączone tworzenie i akceptowanie PR przez Actions, wyłączone forkowanie, MFA (passkey) | zapobiegawcza |
-| K6 | `main-integrity` (`tools/main-integrity`) po każdym pushu na `main`: każdy commit z zakresu pushu pochodzi ze scalonego PR (scalił Konrad), HEAD tego PR ma zielony `ci-gate` w przebiegu `ci.yml`, historia jest przewinięciem, tytuł z `[EVM-###]`, `[renovate]` albo `[M#]`; każdy błąd = czerwony | wykrywająca |
+| K6 | `main-integrity` (`tools/main-integrity`; osobny workflow `.github/workflows/main-integrity.yml` bez grupy `concurrency`, żeby GitHub nie anulował oczekujących przebiegów) po każdym pushu na `main` i co noc: każdy commit z **okna kroczącego** — 30 najnowszych commitów `main` aż do `BASELINE` (ostatni commit `main` sprzed K6) — pochodzi ze scalonego PR (scalił Konrad), HEAD tego PR ma zielony `ci-gate` w przebiegu `ci.yml`, tytuł z `[EVM-###]`, `[renovate]` albo `[M#]`; przy pushu historia jest przewinięciem bez force pushu; commity zmieniające `.github/`, `tools/main-integrity/` albo `tools/scan/` wypisane osobno do sprawdzenia w Activity; każdy błąd = czerwony. Wykrywa obejście proceduralne, także commit wypchnięty bez uruchomienia workflowu — przy następnym pushu albo w nocy | wykrywająca |
 | K7 | Minimum sekretów repozytorium: w EVM-006 wyłącznie `RENOVATE_TOKEN` (dodawany dopiero po rozstrzygnięciu ryzyka Q1 przez `security-engineer` i Konrada) | ograniczająca |
 
 **Zmiany względem ADR-0012:**
@@ -67,8 +67,8 @@ Wybieramy **A — GitHub Free z kontrolami K1–K7**, ponieważ spełnia decyzj�
 **Ograniczenie dla EVM-007:** na Free każdy sekret jest sekretem repozytorium, dostępnym dla workflowu uruchomionego z dowolnej gałęzi; środowiska nie mają sekretów ani ograniczenia gałęzi wdrożeń. Założenia SR-INFRA-13, SR-INFRA-14 i RR-20 („poświadczenia tylko w środowiskach ograniczonych do `main`”) są na Free niewykonalne. Mechanizm wdrożeń wybiera **osobny ADR przed planem EVM-007**.
 
 ## Konsekwencje
-- **Pozytywne:** 0 zł zamiast ≈ 15,50 zł/mies.; te same polecenia lokalnie i w CI (kontener `backend-tests`, skany przez `compose run`); obejście procedury jest wykrywane po fakcie (K6) i odwracalne; workflowy sprawdzane statycznie przed pushem (zizmor, actionlint, `tools/repo-policy`).
-- **Negatywne / koszty:** brak twardej blokady — bezpośredni push lub scalenie z czerwonym CI jest możliwe i wykrywane dopiero po fakcie; K6 działa z workflowu, który ten sam push może zmienić (stąd przegląd widoku Activity w K2); pula 2000 min Actions (szacunek 700–1150 min/mies.); `RENOVATE_TOKEN` jako sekret repozytorium byłby czytelny dla workflowu z dowolnej gałęzi (Q1 — do rozstrzygnięcia przed dodaniem sekretu).
+- **Pozytywne:** 0 zł zamiast ≈ 15,50 zł/mies.; te same polecenia lokalnie i w CI (kontener `backend-tests`, skany przez `compose run`); obejście proceduralne jest wykrywane po fakcie (K6) i odwracalne; workflowy sprawdzane statycznie przed pushem (zizmor, actionlint, `tools/repo-policy`).
+- **Negatywne / koszty:** brak twardej blokady — bezpośredni push lub scalenie z czerwonym CI jest możliwe i wykrywane dopiero po fakcie; K6 działa z workflowu i narzędzia, które ten sam push może zmienić — push tokenem `GITHUB_TOKEN` z workflowu gałęzi nie uruchamia workflowów, więc złośliwe obejście połączone ze zmianą K6 wykrywa tylko przegląd widoku Activity (K2, przy scaleniu i co tydzień); pula 2000 min Actions (szacunek 700–1150 min/mies.); `RENOVATE_TOKEN` jako sekret repozytorium byłby czytelny dla workflowu z dowolnej gałęzi (Q1 — do rozstrzygnięcia przed dodaniem sekretu).
 - **Ryzyka i mitygacje:** RR-21 „GitHub Free: brak egzekwowanej ochrony `main`, środowisk i sekretów per gałąź” — 1×3 = 3 Medium po K1–K7 (w M0 faktycznie wpływ W2 — brak wdrożeń), do akceptacji Konrada (`docs/security/threat-model.md`); RR-02 wariant (a) (GitHub App z wymaganą akceptacją PR) niewykonalny bez rulesetu — powrót przy planie B.
 
 ## Plan wyjścia
@@ -76,7 +76,8 @@ Przejście na **B (Pro)**: zmiana planu konta (≈ 15,50 zł/mies.), ruleset `ma
 
 ## Weryfikacja
 - EVM-006 (dowody `manual` na demo): zielony `ci-gate` na gałęzi; czerwony przebieg przy celowo niepokrytym kodzie; ustawienia K5; e-mail o nieudanym przebiegu dociera do Konrada (także przy pushu kluczem wdrożeniowym).
-- Po pierwszym scaleniu: `main-integrity` zielony; widok Activity pokazuje wyłącznie „Pull request merge” Konrada.
+- Przed scaleniem EVM-006: `BASELINE` w `main-integrity.yml` = bieżący HEAD `main` (rodzic commita EVM-006).
+- Po pierwszym scaleniu: `main-integrity` zielony (push i pierwszy przebieg nocny); widok Activity pokazuje wyłącznie „Pull request merge” Konrada.
 - Retrospektywa M0 i co miesiąc: liczba czerwonych `main-integrity` (cel: 0), zużycie minut Actions; przegląd warunków powrotu do planu B przed planem EVM-007.
 
 ## Źródła (zweryfikowane 2026-10-03)

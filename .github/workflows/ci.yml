@@ -1,6 +1,7 @@
 # CI (EVM-006 AC4; ADR-0012, ADR-0016): the same commands as locally. On GitHub Free there is no ruleset — the
 # single check `ci-gate` must be green before Konrad clicks "Squash and merge" (docs/ops/github-i-ci.md, K1–K7),
-# and `main-integrity` (K6) turns red when a commit reaches main any other way.
+# and main-integrity.yml (K6) turns red when a commit reaches main any other way. K6 is a workflow of its own: the
+# concurrency group below would cancel its pending runs.
 # Rules (tested in tools/repo-policy): actions pinned to a full commit SHA with a version comment, explicit
 # permissions per job, checkout without persisted credentials, no secrets, timeouts on every job.
 name: ci
@@ -163,28 +164,3 @@ jobs:
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e '(keys == ["backend", "coverage", "quality", "security"]) and all(.[]; .result == "success")' > /dev/null
-
-  main-integrity:
-    name: main-integrity
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      actions: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-      - name: K6 — every commit on main comes from a PR merged by Konrad with a green ci-gate
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          MAIN_MERGER: konradkluz
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.after }}
-          FORCED: ${{ github.event.forced }}
-        run: node tools/main-integrity/cli.mjs

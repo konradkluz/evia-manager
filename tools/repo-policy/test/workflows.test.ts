@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { exists, json, list, read, record, text, workspaces, yaml } from '../src/files.ts';
 import { ciGateProblems, dockerCommandProblems, renovateWorkflowProblems, workflowProblems } from '../src/workflows.ts';
 
-const WORKFLOWS = ['ci.yml', 'nightly.yml', 'renovate.yml'];
+const WORKFLOWS = ['ci.yml', 'main-integrity.yml', 'nightly.yml', 'renovate.yml'];
 const ci = record(yaml('.github/workflows/ci.yml'));
 const jobs = record(ci['jobs']);
 const job = (name: string): Record<string, unknown> => record(jobs[name]);
@@ -86,18 +86,41 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     expect(record(checkout?.['with'])['fetch-depth']).toBe(0);
   });
 
-  it('EVM-006 AC4 (A2, W6): ci-gate is green only when every required job succeeded; main-integrity is outside it', () => {
+  it('EVM-006 AC4 (A2, W6): ci-gate is green only when every required job succeeded; K6 is not a job of ci.yml', () => {
     expect(ciGateProblems(ci)).toEqual([]);
     expect(job('ci-gate')['permissions']).toEqual({});
   });
+});
 
-  it('EVM-006 AC4 (A1): main-integrity runs on pushes to main with read-only API access and the owner login', () => {
-    const integrity = job('main-integrity');
-    expect(integrity['if']).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+describe('main-integrity.yml (EVM-006 AC4; A1, K6, code and security review)', () => {
+  const workflow = record(yaml('.github/workflows/main-integrity.yml'));
+  const integrity = record(record(workflow['jobs'])['main-integrity']);
+
+  it('EVM-006 AC4 (A1): K6 runs on every push to main, nightly and on demand — in its own workflow without a concurrency group', () => {
+    expect(Object.keys(record(workflow['jobs']))).toEqual(['main-integrity']);
+    expect(record(workflow['on'])['push']).toEqual({ branches: ['main'] });
+    expect(list(record(workflow['on'])['schedule']).length).toBe(1);
+    expect('workflow_dispatch' in record(workflow['on'])).toBe(true);
+    // GitHub cancels a pending run of a concurrency group when a newer run queues — no K6 run may be dropped.
+    expect(workflow['concurrency']).toBeUndefined();
+    expect(integrity['concurrency']).toBeUndefined();
+    expect(integrity['if']).toBe("github.ref == 'refs/heads/main'");
+  });
+
+  it('EVM-006 AC4 (A1): read-only API access, the owner login, the baseline commit and the event of the run', () => {
     expect(integrity['permissions']).toEqual({ contents: 'read', actions: 'read', 'pull-requests': 'read' });
     const step = list(integrity['steps']).map(record).at(-1) ?? {};
     expect(step['run']).toBe('node tools/main-integrity/cli.mjs');
-    expect(record(step['env'])['MAIN_MERGER']).toBe('konradkluz');
+    const env = record(step['env']);
+    expect(env['MAIN_MERGER']).toBe('konradkluz');
+    expect(text(env['BASELINE'])).toMatch(/^[0-9a-f]{40}$/);
+    expect(env).toMatchObject({
+      GITHUB_TOKEN: '${{ github.token }}',
+      EVENT: '${{ github.event_name }}',
+      BEFORE: '${{ github.event.before }}',
+      AFTER: '${{ github.sha }}',
+      FORCED: '${{ github.event.forced }}',
+    });
   });
 });
 

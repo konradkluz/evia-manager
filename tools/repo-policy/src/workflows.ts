@@ -49,15 +49,16 @@ export function workflowProblems(file: string, raw: string, document: unknown): 
 }
 
 /**
- * A2, W6: `ci-gate` depends on every other job except `main-integrity`, always runs and requires `success` of each
- * dependency, with the exact list of dependencies in its check (a skipped, cancelled, failed or missing job = red).
+ * A2, W6: `ci-gate` depends on every other job of ci.yml, always runs and requires `success` of each dependency, with
+ * the exact list of dependencies in its check (a skipped, cancelled, failed or missing job = red). K6 is not a job of
+ * ci.yml — it has its own workflow (main-integrity.yml) without a concurrency group.
  */
 export function ciGateProblems(document: unknown): string[] {
   const jobs = record(record(document)['jobs']);
   const gate = record(jobs['ci-gate']);
   const needs = list(gate['needs']).map(String).sort();
   const expected = Object.keys(jobs)
-    .filter((name) => name !== 'ci-gate' && name !== 'main-integrity')
+    .filter((name) => name !== 'ci-gate')
     .sort();
   const problems: string[] = [];
   if (JSON.stringify(needs) !== JSON.stringify(expected)) problems.push(`ci-gate: needs musi obejmować ${expected.join(', ')}`);
@@ -72,10 +73,7 @@ export function ciGateProblems(document: unknown): string[] {
       .map((key) => key.trim().replace(/"/g, '')) ?? [];
   if (JSON.stringify(keys) !== JSON.stringify(expected)) problems.push('ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs');
   if (!script.includes('all(.[]; .result == "success")')) problems.push('ci-gate: każdy job z needs musi mieć wynik success');
-  for (const [name, value] of Object.entries(jobs)) {
-    if (list(record(value)['needs']).map(String).includes('main-integrity'))
-      problems.push(`ci-gate: ${name} nie może zależeć od main-integrity`);
-  }
+  if ('main-integrity' in jobs) problems.push('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
   return problems;
 }
 

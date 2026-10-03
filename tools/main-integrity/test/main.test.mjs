@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { COMMIT_TITLE, main } from '../lib/main.mjs';
+import { COMMIT_TITLE, main, SENSITIVE_PATHS, WINDOW } from '../lib/main.mjs';
 
 const CLI = fileURLToPath(new URL('../cli.mjs', import.meta.url));
 const REPO = 'synthetic-owner/evia-manager';
 const OWNER = 'owner-synthetic';
 const BEFORE = 'b'.repeat(40);
+const BASELINE = 'e'.repeat(40);
 const SHA = 'a'.repeat(40);
 const SHA2 = 'c'.repeat(40);
 const HEAD = 'd'.repeat(40);
@@ -36,16 +37,29 @@ const pull = (overrides = {}) => ({
   ...overrides,
 });
 
+const COMPARE = `/repos/${REPO}/compare/${BEFORE}...${SHA}`;
+const HISTORY = `/repos/${REPO}/commits?sha=${SHA}&per_page=${String(WINDOW)}`;
+/** @param {string} sha */
+const files = (sha) => `/repos/${REPO}/commits/${sha}`;
+/** @param {string[]} names */
+const changed = (names) => ({ files: names.map((filename) => ({ filename })) });
+
 /**
- * Fake GitHub REST API: path → JSON body (or a number = HTTP error status).
+ * Fake GitHub REST API: path → JSON body (or a number = HTTP error status). Default: main = BASELINE ← BEFORE ← SHA,
+ * the push BEFORE..SHA adds SHA (a squash merge of PR #2 by the owner with a green ci-gate on the PR head).
  * @param {Record<string, unknown>} overrides
  */
 function api(overrides = {}) {
   /** @type {Record<string, unknown>} */
   const routes = {
-    [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'ahead', total_commits: 1, commits: [commit()] },
+    [COMPARE]: { status: 'ahead', total_commits: 1, commits: [commit()] },
+    [HISTORY]: [commit(), commit({ sha: BEFORE, message: 'docs: x [EVM-006] (#1)' }), commit({ sha: BASELINE, message: 'legacy' })],
+    [files(SHA)]: changed(['docs/ops/github-i-ci.md']),
+    [files(BEFORE)]: changed(['README.md']),
     [`/repos/${REPO}/commits/${SHA}/pulls`]: [pull()],
+    [`/repos/${REPO}/commits/${BEFORE}/pulls`]: [pull({ number: 1, merge_commit_sha: BEFORE })],
     [`/repos/${REPO}/pulls/2`]: pull(),
+    [`/repos/${REPO}/pulls/1`]: pull({ number: 1, merge_commit_sha: BEFORE }),
     [`/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&event=push&per_page=100`]: {
       workflow_runs: [
         { id: 7, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T09:00:00Z' },
@@ -90,18 +104,40 @@ async function run(env = {}, routes = {}) {
   const out = [];
   const { fetch, calls } = api(routes);
   const status = await main({
-    env: { GITHUB_TOKEN: 'synthetic-token', GITHUB_REPOSITORY: REPO, BEFORE, AFTER: SHA, FORCED: 'false', MAIN_MERGER: OWNER, ...env },
+    env: {
+      GITHUB_TOKEN: 'synthetic-token',
+      GITHUB_REPOSITORY: REPO,
+      EVENT: 'push',
+      BEFORE,
+      AFTER: SHA,
+      FORCED: 'false',
+      MAIN_MERGER: OWNER,
+      BASELINE,
+      ...env,
+    },
     fetch,
     log: (line) => out.push(line),
   });
   return { status, out: out.join('\n'), calls };
 }
 
+/** A history of `count` squash merges below SHA, without the baseline (a long main). */
+function longHistory(/** @type {number} */ count) {
+  const shas = Array.from({ length: count }, (_, i) => (i === 0 ? SHA : (i + 0x100).toString(16).padStart(40, '1')));
+  /** @type {Record<string, unknown>} */
+  const routes = { [HISTORY]: shas.map((sha) => commit({ sha })) };
+  for (const sha of shas) {
+    routes[files(sha)] = changed(['docs/a.md']);
+    routes[`/repos/${REPO}/commits/${sha}/pulls`] = [pull({ merge_commit_sha: sha })];
+  }
+  return { shas, routes };
+}
+
 describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
   it('EVM-006 AC4: a squash merge of a PR merged by the owner with a green ci-gate and a Conventional Commit title passes', async () => {
     const { status, out } = await run();
     assert.equal(status, 0, out);
-    assert.match(out, /OK/);
+    assert.match(out, /OK — 2 commit/);
   });
 
   it('EVM-006 AC4: the title format accepts [EVM-###], [renovate] and [M#] with an optional (#N) suffix (W5)', () => {
@@ -127,10 +163,7 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
 
   it('EVM-006 AC4: the lesson from PR #1 — a squash commit titled "Feature/evm 010 backlog m1 (#1)" is red', async () => {
     const message = 'Feature/evm 010 backlog m1 (#1)';
-    const { status, out } = await run(
-      {},
-      { [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'ahead', total_commits: 1, commits: [commit({ message })] } },
-    );
+    const { status, out } = await run({}, { [HISTORY]: [commit({ message }), commit({ sha: BASELINE })] });
     assert.equal(status, 1);
     assert.match(out, /Conventional Commit/);
   });
@@ -142,10 +175,7 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
   });
 
   it('EVM-006 AC4: a history that is not a fast-forward of the previous main is red', async () => {
-    const { status } = await run(
-      {},
-      { [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'diverged', total_commits: 1, commits: [commit()] } },
-    );
+    const { status } = await run({}, { [COMPARE]: { status: 'diverged', total_commits: 1, commits: [commit()] } });
     assert.equal(status, 1);
   });
 
@@ -159,31 +189,93 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
     const { status, out } = await run(
       {},
       {
-        [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: {
-          status: 'ahead',
-          total_commits: 2,
-          commits: [commit({ sha: SHA2, message: 'fix: sneak in [EVM-006]' }), commit()],
-        },
+        [COMPARE]: { status: 'ahead', total_commits: 2, commits: [commit({ sha: SHA2 }), commit()] },
+        [HISTORY]: [commit(), commit({ sha: SHA2, message: 'fix: sneak in [EVM-006]' }), commit({ sha: BASELINE })],
+        [files(SHA2)]: changed(['src/x.ts']),
         [`/repos/${REPO}/commits/${SHA2}/pulls`]: [],
       },
     );
     assert.equal(status, 1);
-    assert.match(out, /cccccccccccc/);
+    assert.match(out, /cccccccccccc .*bezpośredni push/);
   });
 
-  it('EVM-006 AC4: more commits than the API returned is red (fail closed)', async () => {
-    const { status } = await run(
+  it('EVM-006 AC4 (security review): a commit outside the push range — e.g. pushed with GITHUB_TOKEN, which starts no workflow — is red on the next push', async () => {
+    const { status, out } = await run(
       {},
-      { [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'ahead', total_commits: 300, commits: [commit()] } },
+      {
+        [HISTORY]: [commit(), commit({ sha: BEFORE, message: 'chore: bot [EVM-006]' }), commit({ sha: BASELINE })],
+        [`/repos/${REPO}/commits/${BEFORE}/pulls`]: [],
+      },
     );
     assert.equal(status, 1);
+    assert.match(out, /bbbbbbbbbbbb .*bezpośredni push/);
+  });
+
+  it('EVM-006 AC4 (security review): the nightly run checks the window without a push and is red for a direct push', async () => {
+    const green = await run({ EVENT: 'schedule', BEFORE: '', FORCED: '' });
+    assert.equal(green.status, 0, green.out);
+    assert.ok(!green.calls.some((path) => path.includes('/compare/')));
+    const red = await run({ EVENT: 'schedule', BEFORE: '', FORCED: '' }, { [`/repos/${REPO}/commits/${BEFORE}/pulls`]: [] });
+    assert.equal(red.status, 1);
+    assert.match(red.out, /bbbbbbbbbbbb/);
+  });
+
+  it('EVM-006 AC4: the window stops at the baseline — the history of main before K6 is not checked', async () => {
+    const { status, out, calls } = await run({}, { [HISTORY]: [commit(), commit({ sha: BASELINE }), commit({ sha: SHA2, message: 'x' })] });
+    assert.equal(status, 0, out);
+    assert.match(out, /OK — 1 commit/);
+    assert.ok(!calls.some((path) => path.includes(BASELINE) || path.includes(SHA2)));
+  });
+
+  it(`EVM-006 AC4: a long main is checked in a window of the newest ${String(WINDOW)} commits`, async () => {
+    const { shas, routes } = longHistory(WINDOW);
+    const { status, out, calls } = await run({}, routes);
+    assert.equal(status, 0, out);
+    assert.match(out, new RegExp(`OK — ${String(WINDOW)} commit`));
+    assert.equal(calls.filter((path) => path.endsWith('/pulls')).length, shas.length);
+  });
+
+  it('EVM-006 AC4: a short history without the baseline is red (rewritten history or a wrong BASELINE)', async () => {
+    const { status, out } = await run({}, { [HISTORY]: [commit(), commit({ sha: BEFORE, message: 'docs: x [EVM-006] (#1)' })] });
+    assert.equal(status, 1);
+    assert.match(out, /BASELINE/);
+  });
+
+  it('EVM-006 AC4: a push with more commits than the window, or more than the API returned, is red (fail closed)', async () => {
+    assert.equal((await run({}, { [COMPARE]: { status: 'ahead', total_commits: WINDOW + 1, commits: [commit()] } })).status, 1);
+    assert.equal((await run({}, { [COMPARE]: { status: 'ahead', total_commits: 2, commits: [commit()] } })).status, 1);
+  });
+
+  it('EVM-006 AC4: a commit list that is not a list or does not start at AFTER is red (fail closed)', async () => {
+    assert.equal((await run({}, { [HISTORY]: { message: 'not a list' } })).status, 1);
+    const shifted = await run({}, { [HISTORY]: [commit({ sha: BEFORE }), commit({ sha: BASELINE })] });
+    assert.equal(shifted.status, 1);
+    assert.match(shifted.out, /AFTER/);
+  });
+
+  it('EVM-006 AC4 (security review): commits changing .github/, tools/main-integrity/ or tools/scan/ are listed for the Activity check', async () => {
+    assert.deepEqual(SENSITIVE_PATHS, ['.github/', 'tools/main-integrity/', 'tools/scan/']);
+    const { status, out } = await run(
+      {},
+      {
+        [files(SHA)]: changed(['.github/workflows/ci.yml', 'docs/x.md', 'tools/main-integrity/lib/main.mjs', 'tools/scan/lib/steps.mjs']),
+        [files(BEFORE)]: { files: Array.from({ length: 300 }, (_, i) => ({ filename: `docs/f${String(i)}.md` })) },
+      },
+    );
+    assert.equal(status, 0, out);
+    assert.match(out, /aaaaaaaaaaaa: \.github\/workflows\/ci\.yml, tools\/main-integrity\/lib\/main\.mjs, tools\/scan\/lib\/steps\.mjs/);
+    assert.match(out, /bbbbbbbbbbbb: lista plików obcięta/);
+    assert.match(out, /Activity/);
+    const quiet = await run();
+    assert.doesNotMatch(quiet.out, /Activity/);
+  });
+
+  it('EVM-006 AC4: a commit file list that is not a list is red (fail closed)', async () => {
+    assert.equal((await run({}, { [files(SHA)]: { message: 'no files' } })).status, 1);
   });
 
   it('EVM-006 AC4: a merge commit (two parents) is red — only squash merges are allowed', async () => {
-    const { status, out } = await run(
-      {},
-      { [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'ahead', total_commits: 1, commits: [commit({ parents: 2 })] } },
-    );
+    const { status, out } = await run({}, { [HISTORY]: [commit({ parents: 2 }), commit({ sha: BASELINE })] });
     assert.equal(status, 1);
     assert.match(out, /rodzic/);
   });
@@ -191,7 +283,7 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
   it('EVM-006 AC4: an open PR that merely contains the commit does not count (direct push of a PR commit)', async () => {
     const { status, out } = await run(
       {},
-      { [`/repos/${REPO}/commits/${SHA}/pulls`]: [pull({ state: 'open', merged_at: null, merge_commit_sha: 'e'.repeat(40) })] },
+      { [`/repos/${REPO}/commits/${SHA}/pulls`]: [pull({ state: 'open', merged_at: null, merge_commit_sha: 'f'.repeat(40) })] },
     );
     assert.equal(status, 1);
     assert.match(out, /scalonego PR/);
@@ -239,12 +331,11 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
   });
 
   it('EVM-006 AC4: a network error or a malformed answer is red (fail closed)', async () => {
-    const compare = `/repos/${REPO}/compare/${BEFORE}...${SHA}`;
-    const network = await run({}, { [compare]: 'network-error' });
+    const network = await run({}, { [COMPARE]: 'network-error' });
     assert.equal(network.status, 1);
     assert.match(network.out, /niedostępne/);
-    assert.equal((await run({}, { [compare]: 'bad-json' })).status, 1);
-    assert.equal((await run({}, { [compare]: null })).status, 1);
+    assert.equal((await run({}, { [COMPARE]: 'bad-json' })).status, 1);
+    assert.equal((await run({}, { [COMPARE]: null })).status, 1);
     assert.equal((await run({}, { [`/repos/${REPO}/commits/${SHA}/pulls`]: { message: 'not a list' } })).status, 1);
   });
 
@@ -255,11 +346,14 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
     assert.equal((await run({}, { [`/repos/${REPO}/pulls/2`]: pull({ head: {} }) })).status, 1);
   });
 
-  it('EVM-006 AC4: untrusted titles are printed on one line (no injected ::workflow commands)', async () => {
+  it('EVM-006 AC4: untrusted titles and file names are printed on one line (no injected ::workflow commands)', async () => {
     const message = 'feat: x [EVM-006]\u000d::error::injected';
     const { out } = await run(
       {},
-      { [`/repos/${REPO}/compare/${BEFORE}...${SHA}`]: { status: 'ahead', total_commits: 1, commits: [commit({ message })] } },
+      {
+        [HISTORY]: [commit({ message }), commit({ sha: BASELINE })],
+        [files(SHA)]: changed(['.github/x\n::error::injected']),
+      },
     );
     for (const line of out.split('\n')) assert.doesNotMatch(line, /^::/);
   });
@@ -268,6 +362,9 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
     assert.equal((await run({ GITHUB_TOKEN: '' })).status, 2);
     assert.equal((await run({ MAIN_MERGER: '' })).status, 2);
     assert.equal((await run({ AFTER: 'not-a-sha' })).status, 2);
+    assert.equal((await run({ BASELINE: '' })).status, 2);
+    assert.equal((await run({ BEFORE: '' })).status, 2);
+    assert.equal((await run({ EVENT: '' })).status, 2);
   });
 
   it('EVM-006 AC4: the CLI reads the environment and exits 2 without configuration', () => {

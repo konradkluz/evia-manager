@@ -12,7 +12,7 @@
 - [ ] Bramka lokalna zielona (`pnpm run gate`) — wynik w raporcie historyjki.
 - [ ] Demo zaakceptowane; status historyjki `in-review` → po scaleniu `done`.
 - [ ] Pliki wrażliwe (lista w podsumowaniu joba `security` i w `.github/CODEOWNERS`): `.github/**`, `.claude/**`, `compose*.yaml`, `lefthook.yml`, `infra/**`, pliki wyjątków skanerów, `renovate.json`, `pnpm-workspace.yaml` — przejrzane świadomie (nie zmieniono / zmiany rozumiem i akceptuję).
-- [ ] Po scaleniu: widok Activity dla `main` pokazuje tylko „Pull request merge” wykonane przez Konrada; job `main-integrity` zielony.
+- [ ] Po scaleniu: widok Activity dla `main` pokazuje tylko „Pull request merge” wykonane przez Konrada; workflow `main-integrity` zielony (commity zmieniające `.github/`, `tools/main-integrity/`, `tools/scan/` z jego logu potwierdzone w Activity).
 
 ## Dowody
 - Bramka lokalna / skany (`pnpm run gate`, `pnpm run scan`):

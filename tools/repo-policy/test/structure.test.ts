@@ -63,6 +63,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'zizmor.yml',
       '.semgrepignore',
       '.github/workflows/ci.yml',
+      '.github/workflows/main-integrity.yml',
       '.github/workflows/nightly.yml',
       '.github/workflows/renovate.yml',
       '.github/CODEOWNERS',
@@ -210,7 +211,7 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(read('infra/docker/backend-tests/Dockerfile')).toMatch(
       new RegExp(`^FROM node:${major}\\.\\d+\\.\\d+-trixie-slim@sha256:[0-9a-f]{64}$`, 'm'),
     );
-    for (const workflow of ['ci.yml', 'nightly.yml']) {
+    for (const workflow of ['ci.yml', 'main-integrity.yml', 'nightly.yml']) {
       const raw = read(`.github/workflows/${workflow}`);
       expect(raw.match(/uses: actions\/setup-node@/g)?.length, workflow).toBe(raw.match(/node-version-file: \.nvmrc/g)?.length);
     }
