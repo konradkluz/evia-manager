@@ -18,6 +18,10 @@
 | | `architecture/api-guidelines.md` | wytyczne API: zasoby, błędy, paginacja, wyszukiwanie, idempotencja, wersjonowanie, autoryzacja, limity |
 | | `architecture/offline-sync.md` | synchronizacja offline (szkic): zasady, komendy mobilne, zakres urządzenia |
 | Bezpieczeństwo | `security/README.md` | wymagania bazowe (non-negotiable) |
+| | `security/threat-model.md` | model zagrożeń: STRIDE, przypadki nadużyć, ryzyka rezydualne do akceptacji |
+| | `security/requirements.md` | wymagania bezpieczeństwa `SR-…` (ASVS 5.0 L2, MASVS 2.1) per moduł i epik, bramki CI |
+| | `security/policies.md` | polityki bezpieczeństwa P1–P12 do decyzji |
+| | `security/rodo.md` | RODO (szkic operacyjny): inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia |
 | UX | `ux/README.md` | zasady UX; styleguide po EVM-003 |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
 | | `backlog/M0/` | fundamenty: EVM-001 … EVM-013 |
