@@ -67,7 +67,20 @@ flowchart LR
 | E7 Płatności etapowe | etapy płatności (kwota, nr faktury, termin, status), zestawienie nieopłaconych i po terminie |
 | E8 Gotowość produkcyjna | import istniejących danych (CSV/Excel, jeśli potrzebny), test odtworzenia backupu, monitoring i alerty, security sign-off z DAST, dokumentacja RODO, krótka instrukcja, wdrożenie produkcyjne |
 
-**Pilot wewnętrzny:** możliwy po E1–E5 (wybrane zlecenia, równolegle z dotychczasowymi narzędziami).
+**Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 59 historyjek EVM-014 … EVM-072 (EVM-010, `/milestone plan M1`; **zmiany w tej sekcji do akceptacji Konrada** — decyzja 13 w planie). Kolejność w fazach:
+
+0. przygotowanie — styleguide 1.2.0, makiety ekranów „bez makiety”, ADR modelu odczytu listy (równolegle z EVM-006–EVM-008);
+1. przyrost pionowy — logowanie → lista zleceń → utworzenie zlecenia → szczegóły;
+2. konta i bezpieczeństwo dostępu (E1);
+3. prowadzenie zlecenia (E3, E4, E5, E2) → **pilot próbny**;
+4. dokumenty i media (E6);
+5. gotowość do realnych danych (E8: produkcja, test odtworzenia, RODO z DPIA, instrukcja w panelu, pentest i sign-off) → **pilot realny**;
+6. płatności (E7) i sign-off → **wydanie 1.0**;
+7. pozycje P2 (jeśli nie opóźniają 1.0).
+
+**Pilot wewnętrzny** (rekomendacja — decyzja 4 w planie): **pilot próbny** po E1–E5 na staging, wyłącznie na danych syntetycznych (zakaz wpisywania realnych zleceń); **pilot realny** na produkcji po E6 i części E8 z zewnętrznym pentestem i security sign-off (RR-10) — wybrane zlecenia, równolegle z dotychczasowymi narzędziami; płatności (E7) dochodzą w trakcie pilota, a zlecenia założone przed nimi dostają transze ręcznie; każde wdrożenie prod w trakcie pilota przechodzi bramkę bezpieczeństwa i wymaga zatwierdzenia wersji przez Konrada; telefon to panel w przeglądarce (zdjęcia z galerii, zasady pracy na prywatnym telefonie w instrukcji — decyzje 18 i 19 w planie).
+
+**Uwagi do E8** (decyzje w planie): plan GitHub (Pro albo Free z kontrolami kompensującymi — decyzja przed planem EVM-007, wpływa na wdrożenia staging i prod oraz test odtworzenia); pentest zewnętrzny przed pilotem realnym — zakup za osobną zgodą; uproszczona DPIA i ocena transferów do USA przed pilotem realnym; import danych z CSV / Excel — rekomendacja: nie w M1 (świadome przesunięcie).
 **Kryteria wyjścia:** historyjki P1 `done`; UAT — Konrad (i min. 1 osoba z biura) prowadzi w systemie po jednym realnym zleceniu ze scenariuszy A–D (`domain.md`) bez obejść; security sign-off (brak otwartych Critical/High/Medium, MFA, czysty DAST baseline); backup odtworzony testowo; progi pokrycia spełnione; E2E dla kluczowych ścieżek.
 
 ## M2 — MVP „Teren”: aplikacja mobilna (wydanie 1.1)
@@ -123,3 +136,5 @@ flowchart LR
 3. Równolegle (prace koncepcyjne): `/deliver EVM-001` (stack) i `/deliver EVM-003` (styleguide).
 4. Po akceptacji ADR stacku: EVM-002, EVM-005, EVM-006, EVM-011 → EVM-007 → EVM-008 → EVM-009; EVM-004 po 002 i 003.
 5. EVM-010 (`/milestone plan M1`) → `/milestone close M0` → start M1.
+6. Decyzje do planu M1 ([`docs/backlog/M1/README.md`](../backlog/M1/README.md) → „Decyzje dla Konrada”): najpierw 1 (Scaleway), 2 (domena) i 5 (plan GitHub) — przed planem EVM-007; z akceptacją planu — 4, 8, 10–13, 17.
+7. Faza 0 M1 (EVM-014, EVM-015, EVM-071, EVM-069) równolegle z dokończeniem EVM-006–EVM-008; potem przyrost pionowy od EVM-016.

@@ -95,6 +95,18 @@ Pojęcia, których używają makiety ([`docs/ux/flows/`](../ux/flows/README.md))
 | Oczekuje na numer | szybkie zlecenie zapisane w telefonie, zanim serwer nada mu numer; można już dodawać do niego zdjęcia i wpisy — wyślemy je po utworzeniu zlecenia | zlecenie z `CreateQuickWorkOrder` bez `number` do wyniku `applied` / `duplicate` |
 | Wymaga uwagi | stan elementu, który nie trafił do archiwum zlecenia automatycznie i czeka na decyzję człowieka: plik zatrzymany przez skan bezpieczeństwa albo wpis, zdjęcie lub szybkie zlecenie z telefonu odrzucone przy synchronizacji; nic nie znika bez decyzji użytkownika | plik: `StoredFile.state = quarantined`; telefon: wynik mutacji `rejected` ([`offline-sync.md`](../architecture/offline-sync.md)) |
 
+### Pojęcia z planu M1 (dodane w EVM-010)
+Pojęcia używane w historyjkach M1 ([`docs/backlog/M1/README.md`](../backlog/M1/README.md)) — bez nowych encji poza wskazanymi w historyjkach.
+
+| Pojęcie | Znaczenie | Nazwa w kodzie |
+|---|---|---|
+| Do wystawienia | transze w stanie „Planowana” w zleceniach niezamkniętych — faktura (albo proforma) jeszcze nie wystawiona; filtr w Płatnościach (EVM-059) | filtr `status = planned` |
+| Ponowne uwierzytelnienie (step-up) | ponowne potwierdzenie tożsamości drugim krokiem przed operacją wrażliwą, gdy ostatnie uwierzytelnienie było ponad 15 min temu (lista operacji — polityka P2) | `403 step_up_required`; `Session.lastAuthenticatedAt` |
+| Link aktywacyjny | jednorazowy link do ustawienia hasła i drugiego kroku: dla pierwszego Administratora z polecenia na serwerze (EVM-016), dla pozostałych — z zaproszenia (EVM-024); ważny 72 h; samo otwarcie linku go nie zużywa | token zaproszenia (w bazie tylko skrót; w adresie wyłącznie we fragmencie `#…` — tak samo link resetu hasła, EVM-025) |
+| Rejestr usunięć | lista identyfikatorów obiektów usuniętych trwale, zanonimizowanych albo zredagowanych (bez danych), przechowywana poza bazą, żeby po odtworzeniu kopii usunięte dane nie wróciły (SR-PRIV-04) | port w `platform`, osobny bucket |
+| Zlecenie zamknięte — tylko do odczytu | w zleceniu „Rozliczone” albo „Anulowane” zakres, procesy, etapy, płatności i dane zlecenia są tylko do odczytu; wpisy, media i dokumenty nadal można dodawać (PO-8 z EVM-004) | `409 work_order_closed` |
+| Ostatni aktywny Administrator | konto Administratora, którego nie można dezaktywować ani pozbawić roli, bo system zostałby bez Administratora (EVM-027) | `409 last_active_administrator` |
+
 ## Zmiany nazw w kodzie (EVM-002)
 Zmiany względem propozycji sprzed EVM-002; pozostałe nazwy potwierdzone bez zmian.
 
