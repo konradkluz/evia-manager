@@ -40,7 +40,7 @@ flowchart TD
                                                  │ ──────────────────────────── │
                                                  │ Zablokuj…                    │
                                                  └──────────────────────────────┘
-                                                   ActionMenu [P-1]
+                                                   ActionMenu (§ 3.20)
 
  Dialog „Czekamy na…” (size.dialog.width.md):
 ┌──────────────────────────────────────────────────────────┐
@@ -145,11 +145,11 @@ Zasada (styleguide § 4.11, M2 z konsultacji security): **„Cofnij” wywołuje
 | Przejścia etapu | tabela „Etap procesu” (wszystkie: A, E) | tak | tak | ukryte |
 | Zmień, na kogo czekamy | edycja `waitingOn`, `waitingOnPartyId`, `waitingSince` (`If-Match`) | tak | tak | ukryte |
 | Dodaj stronę (z dialogu) | utworzenie `Party` | tak | tak | ukryte |
-| Edytuj etap (termin, odpowiedzialny, notatki — menu `⋮` etapu) | edycja `ProcedureStage` | tak | tak | ukryte |
+| Edytuj etap (termin, osoba odpowiedzialna, notatki — menu `⋮` etapu) | edycja `ProcedureStage` | tak | tak | ukryte |
 | Cofnij | przejście odwrotne z listy wyżej | tak | tak | — |
 | Telefon | — (MVP: `UpdateStageStatus` dopiero po MVP) | nie | nie | — |
 
 - **Responsywność:** menu pod odznaką (`elevation.dropdown`); `breakpoint.compact` — menu jako arkusz od dołu, dialog na pełną szerokość z przyciskami na dole.
-- **Komponenty i tokeny:** StatusBadge jako przycisk (§ 3.9: `chevron-down`, fokus `color.focus.ring`, wyłączona — bez `chevron-down` z podpowiedzią), tokeny `color.status.stage.*`; ActionMenu [P-1]; Dialog (§ 3.13) `size.dialog.width.md`; radio (§ 3.4); Combobox (§ 3.3) z grupą „Podpowiedzi z lokalizacji”; DatePicker (§ 3.5) z blokadą dat z przyszłości; TextArea (§ 3.2); Toast z akcją (§ 3.14, 10 s, `size.toast.max-width`); InlineAlert (§ 3.19) `color.feedback.error.*`; rozwinięcie „Czekamy na: …” (§ 4.4) `text.body-sm`, `text.numeric`, `color.text.warning` + `triangle-alert` powyżej 14 dni.
+- **Komponenty i tokeny:** StatusBadge jako przycisk (§ 3.9: `chevron-down`, fokus `color.focus.ring`, wyłączona — bez `chevron-down` z podpowiedzią), tokeny `color.status.stage.*`; ActionMenu (§ 3.20) — pozycje wyłącznie z tabeli przejść, fokus pozycji pierścieniem wewnętrznym; Dialog (§ 3.13) `size.dialog.width.md`; radio (§ 3.4); Combobox (§ 3.3) z grupą „Podpowiedzi z lokalizacji”; DatePicker (§ 3.5) z blokadą dat z przyszłości; TextArea (§ 3.2); Toast z akcją (§ 3.14, 10 s, `size.toast.max-width`); InlineAlert (§ 3.19) `color.feedback.error.*`; rozwinięcie „Czekamy na: …” (§ 4.4) `text.body-sm`, `text.numeric`, `color.text.warning` + `triangle-alert` powyżej 14 dni.
 - **Mikrocopy:** pozycje menu z tabeli · „Na kogo czekamy?” · „Klienta” / „Stronę” · „Podpowiedzi z lokalizacji” · „Od kiedy” · „Nie później niż dziś.” · „Licznik dni zacznie się od nowa.” · „Dlaczego etap jest zablokowany?” · „Zablokuj etap” · „Data zakończenia” · „Zakończ etap” · toasty: „Etap „…”: Czekamy na Stoen Operator (OSD). [Cofnij]”, „Zmieniono status etapu na W toku.” · „Status etapu zmienisz w panelu.”
 - **Dostępność:** odznaka-przycisk z nazwą „Status etapu Warunki przyłączenia i projekt umowy: W toku. Zmień status”; menu z klawiatury (strzałki, Enter, Esc), fokus wraca na odznakę; po zapisie fokus zostaje na odznace, nowy status ogłaszany przez toast (`role="status"`); „Cofnij” osiągalny klawiaturą, toast nie znika, gdy ma fokus (§ 3.14); data z klawiatury i z kalendarza (§ 3.5).

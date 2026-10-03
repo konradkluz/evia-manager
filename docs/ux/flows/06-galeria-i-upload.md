@@ -18,10 +18,10 @@ flowchart TD
   I -->|"Dodaj dokument"| E
   E --> J["Sprawdzanie pliku: skan i przetwarzanie, bez podglądu i pobrania"]
   J -->|"ready"| K["Gotowe: miniatura, lightbox, pobranie wg roli"]
-  J -->|"quarantined"| L["Wymaga uwagi: przyczyna i Skanuj ponownie tylko Administrator"]
+  J -->|"quarantined: wynik skanu albo type_mismatch"| L["Wymaga uwagi: przyczyna i Skanuj ponownie tylko Administrator"]
   L -->|"Skanuj ponownie"| W4{{"W-04 Ponowne uwierzytelnienie"}}
   W4 --> J
-  J -->|"film ponad 2 GB z przeglądarki"| M["Nie skanowany AV, za duży: tylko podgląd 720p, oryginał jako załącznik"]
+  J -->|"film ponad 2 GB z przeglądarki, walidacja ffprobe poprawna"| M["Nieskanowany antywirusem — plik za duży: tylko podgląd 720p, oryginał jako załącznik dla A i E"]
   E -->|"błąd sieci albo niezgodna suma kontrolna"| N["Nie wysłano: Ponów, plik w pamięci karty"]
   K -->|"Eksportuj ZIP"| W4b{{"W-04, potem zadanie w tle"}}
   A -->|"medium z telefonu, metadane dotarły przed plikiem"| T["Czeka na plik z telefonu: autor i od kiedy, bez procentów i akcji wysyłki"]
@@ -48,14 +48,15 @@ flowchart TD
 │ └──────────────────────────────────────────────────────────────────────────┘ │
 │ Wysyłanie · 3 z 5 · nie zamykaj karty do końca wysyłania                     │
 │  ▣ IMG_0412.jpg   ████████░░ 80%                         [Wstrzymaj]         │
-│  ▣ IMG_0413.jpg   ‹scan-search› Sprawdzanie pliku   [P-7]                     │
+│  ▣ IMG_0413.jpg   ‹scan-search› Sprawdzanie pliku   § 4.14                    │
 │  ▣ IMG_0414.jpg   ‹cloud-alert› Nie wysłano — przerwane połączenie [Ponów]   │
 │                                                                              │
 │ W trakcie prac (24)                                                          │
 │  ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐                                   │
-│  │img │ │img │ │img │ │▶ 0:42│ │img │ │ ⚠  │ ← Wymaga uwagi [P-7]           │
-│  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘                                   │
-│  ┌────┐ ‹clock› Czeka na plik z telefonu · Piotr Testowy · od 14:05  [P-7]   │
+│  │img │ │img │ │img │ │▶ 0:42│ │img │ │ ⚠  │ ← Wymaga uwagi (§ 4.14)        │
+│  └────┘ └────┘ └────┘ └────┘ └────┘ └────┘   pod kaflem: ‹triangle-alert›    │
+│                                              „Wymaga uwagi” (nie sama ikona) │
+│  ┌────┐ ‹clock› Czeka na plik z telefonu · Piotr Testowy · od 14:05  § 4.14  │
 │  │ ▶  │ (metadane już są, film czeka w kolejce telefonu — bez procentów)     │
 │  └────┘                                                                      │
 │ Stan przed pracami (12)  ...                                                 │
@@ -100,21 +101,26 @@ flowchart TD
  │ Plik może zawierać metadane, np. lokalizację. Do udostępnienia poza firmą   │
  │ użyj podglądu.                                                              │
  │ [Anuluj]  [Pobierz podgląd]  [[ Pobierz oryginał ]]                         │
+
+ Film > 2 GB z przeglądarki (SR-FILE-12) — znacznik przy miniaturze, w lightboxie
+ (pod metadanymi) i w dialogu pobrania, nad treścią:
+ │ ‹info› Nieskanowany antywirusem — plik za duży                              │
+ │ Pobrać oryginał?  (dalej jak wyżej; podgląd tylko 720p)                     │
 ```
 
-**Stany pliku** (`StoredFile.state` → UI; znaczniki [P-7] i § 5.4)
+**Stany pliku** (`StoredFile.state` → UI; znaczniki — styleguide § 4.14, wysyłanie — § 5.4)
 | Stan pliku | UI | Podgląd / pobranie |
 |---|---|---|
 | wybór pliku niezgodny z listą (typ, rozmiar, czas filmu) | komunikat przy pliku (§ 6.4): „Plik „projekt.dwg” ma nieobsługiwany format. Dodaj plik PDF, DOCX, XLSX, JPG lub PNG.”, „Film jest dłuższy niż 30 min.” | — |
 | wysyłanie z tej karty (`pending_upload`, sesja uploadu tej karty) | „Wysyłanie 45%” + pasek (`color.sync.progress.*`), „Wstrzymaj” — postęp zna tylko karta, która wysyła (panel postępu) | brak |
-| plik z telefonu jeszcze nie dotarł (`origin = mobile`; medium bez pliku albo `pending_upload` — `CreateMediaAsset` zastosowane przed plikiem, np. film czeka na Wi-Fi albo telefon znów stracił zasięg) | znacznik [P-7] „Czeka na plik z telefonu · Piotr Testowy · od 14:05” — `clock`, `color.sync.queued.*`; czas wg § 6.3 („od 14:05”, „od wczoraj, 9:30”, „od 3 dni”); kafel bez miniatury (ikona typu pliku); **bez procentów, paska i akcji wysyłki** (wysyłką steruje telefon autora); metadane edytowalne wg roli | brak |
+| plik z telefonu jeszcze nie dotarł (`origin = mobile`; medium bez pliku albo `pending_upload` — `CreateMediaAsset` zastosowane przed plikiem, np. film czeka na Wi-Fi albo telefon znów stracił zasięg) | znacznik (§ 4.14) „Czeka na plik z telefonu · Piotr Testowy · od 14:05” — `clock`, `color.sync.queued.*`; czas wg § 6.3 („od 14:05”, „od wczoraj, 9:30”, „od 3 dni”); kafel bez miniatury (ikona typu pliku); **bez procentów, paska i akcji wysyłki** (wysyłką steruje telefon autora); metadane edytowalne wg roli | brak |
 | medium z panelu bez pliku poza kartą, która je wysyła (`origin = web`, `pending_upload` — wysyłanie w innej karcie albo przerwane) | „Czeka na plik · Anna Testowa · od 14:05” — jak wyżej, bez procentów | brak |
 | błąd wysyłki / `failed` (`checksum_mismatch`) | „Nie wysłano — [powód]” + „Ponów” (plik jest w pamięci karty do jej zamknięcia) | brak |
-| `uploaded`, `scanning`, `clean`, `processing` | „Sprawdzanie pliku” [P-7] — `scan-search`, `color.sync.queued.*` | **brak podglądu i pobrania** |
+| `uploaded`, `scanning`, `clean`, `processing` | „Sprawdzanie pliku” (§ 4.14) — `scan-search`, `color.sync.queued.*` | **brak podglądu i pobrania** |
 | `ready` | miniatura, lightbox | wg roli (tabela „Role”) |
-| `quarantined` | „Wymaga uwagi” [P-7] — `triangle-alert`, `color.feedback.warning.*`. Administrator: przyczyna (np. „Skan wykrył zagrożenie”, „Typ pliku niezgodny z rozszerzeniem”) i „Skanuj ponownie” ↑; Edytor i Tylko odczyt: „Plik zatrzymany przez skan bezpieczeństwa. Administrator został powiadomiony.” bez przyczyny i bez akcji | brak; **brak zwolnienia bez skanu** (P5 pkt 5) |
+| `quarantined` (wynik skanu albo `type_mismatch`) | „Wymaga uwagi” (§ 4.14, wygląd jak § 4.16) — `triangle-alert`, `color.sync.error.*`. Administrator: przyczyna (np. „Skan wykrył zagrożenie”, „Typ pliku niezgodny z rozszerzeniem”) i „Skanuj ponownie” ↑; Edytor i Tylko odczyt: „Plik zatrzymany przez skan bezpieczeństwa. Administrator został powiadomiony.” bez przyczyny i bez akcji | brak; **brak zwolnienia bez skanu** (P5 pkt 5) |
 | `failed` (`processing_error`, po `clean`) | „Nie udało się przygotować podglądu. Spróbujemy ponownie.” | Administrator i Edytor — oryginał; Tylko odczyt — brak |
-| film > 2 GB z przeglądarki (SR-FILE-12) | znacznik „Nie skanowany AV — za duży” [P-7] (`info`, `color.feedback.info.*`) | tylko podgląd 720p; oryginał wyłącznie jako załącznik (Administrator, Edytor) |
+| film > 2 GB z przeglądarki (SR-FILE-12), **po pozytywnej walidacji ffprobe** — wcześniej „Sprawdzanie pliku”, niezgodność → `quarantined` (`type_mismatch`) | znacznik „Nieskanowany antywirusem — plik za duży” (§ 4.14: `info`, `color.feedback.info.*`) przy miniaturze, w lightboxie i przy „Pobierz oryginał” (pozycja menu i dialog); bez „Skanuj ponownie” | tylko podgląd 720p; oryginał wyłącznie jako załącznik (Administrator, Edytor; Tylko odczyt — brak, P6) |
 
 **Klasa poufności dokumentu** (M4 z konsultacji security; P6, SR-AUTHZ-07, AB-20)
 - Klasa z rodzaju dokumentu (`DocumentKind.confidentiality`, `service-catalog.md` § 6): **Standardowy** (`standard`) < **Bezpieczeństwo budynku** (`building_security`) < **Dane identyfikacyjne** (`identity_data`).
@@ -149,6 +155,6 @@ flowchart TD
 | Kopiuj link do pliku, masowe pobranie oryginałów | — | nie ma w UI | nie ma w UI | nie ma w UI |
 
 - **Responsywność:** `breakpoint.wide` / `breakpoint.expanded` — galeria auto-fill do `size.thumbnail.lg`, tabela dokumentów z kolumną „Klasa”; `breakpoint.medium` — kafle `size.thumbnail.md`, tabela bez kolumny „Etap” (w szczegółach wiersza); `breakpoint.compact` — galeria 3 kolumny, dokumenty jako lista kart, Uploader jako przycisk „Wybierz pliki” (bez strefy upuszczania).
-- **Komponenty i tokeny:** Uploader i UploadQueueItem (§ 3.12) — strefa upuszczania (`color.bg.selected` + przerywany `color.border.selected` przy przeciąganiu), „Wybierz pliki” (WCAG 2.5.7), pasek postępu `size.progress-bar.height`, `color.sync.progress.*`, stany `color.sync.*`; Gallery, Thumbnail, Lightbox (§ 3.11) — `radius.thumbnail`, `space.inline.xs`; znaczniki pliku [P-7]; DataTable (§ 3.6) — dokumenty; Dialog (§ 3.13) — dodawanie, pobranie oryginału; Select (§ 3.3) — kategoria, rodzaj, etap, „Podnieś klasę”; radio (§ 3.4); FilterChip (§ 3.7); ActionMenu [P-1]; Button primary / secondary / tertiary (§ 3.1); InlineAlert (§ 3.19); ikony `cloud-upload`, `scan-search`, `clock` („Czeka na plik z telefonu” [P-7]), `triangle-alert`, `lock`, `image`, `file-text`, `info`.
-- **Mikrocopy:** „Upuść zdjęcia lub filmy tutaj albo [Wybierz pliki]” · limity jak w makiecie · „Wysyłanie · 3 z 5 · nie zamykaj karty do końca wysyłania” · „w tym 3 czekają na plik z telefonu” · „Czeka na plik z telefonu · Piotr Testowy · od 14:05” · „Czeka na plik · Anna Testowa · od 14:05” · „Sprawdzanie pliku” · „Wymaga uwagi” · „Plik zatrzymany przez skan bezpieczeństwa. Administrator został powiadomiony.” · „Skanuj ponownie” · „Nie skanowany AV — za duży” · „Pobrać oryginał? Plik może zawierać metadane, np. lokalizację. Do udostępnienia poza firmą użyj podglądu.” · „Czy dokument zawiera PESEL lub numer dokumentu tożsamości?” · „Podnieś klasę” · „Plik dostępny dla administratora i edytora” · eksport: „Przygotowujemy plik ZIP. Link pokażemy tutaj, gdy będzie gotowy — będzie ważny 24 godziny i zadziała raz.”
-- **Dostępność:** „Wybierz pliki” zawsze obok strefy upuszczania (WCAG 2.5.7); postęp zbiorczo `aria-live="polite"` („Wysłano 3 z 5”), bez ogłaszania każdego procentu; miniatury z tekstem alternatywnym z metadanych (kategoria, etap, data — § 3.11); kafel bez pliku z nazwą „Film, W trakcie prac, czeka na plik z telefonu, Piotr Testowy, od 14:05” (stan w nazwie, nie tylko ikona); lightbox: przyciski „Poprzednie / Następne”, zoom przyciskami, Esc zamyka, fokus wraca do miniatury; film z napisem czasu trwania i kontrolkami klawiatury; klasa poufności jako tekst (nie tylko ikona).
+- **Komponenty i tokeny:** Uploader i UploadQueueItem (§ 3.12) — strefa upuszczania (`color.bg.selected` + przerywany `color.border.selected` przy przeciąganiu), „Wybierz pliki” (WCAG 2.5.7), pasek postępu `size.progress-bar.height`, `color.sync.progress.*`, stany `color.sync.*`; Gallery, Thumbnail, Lightbox (§ 3.11) — `radius.thumbnail`, `space.inline.xs`; znaczniki stanu pliku (§ 4.14 — `color.sync.queued.*`, `color.sync.error.*`, `color.feedback.info.*`; pod miniaturą, nigdy sama ikona); DataTable (§ 3.6) — dokumenty; Dialog (§ 3.13) — dodawanie, pobranie oryginału; Select (§ 3.3) — kategoria, rodzaj, etap, „Podnieś klasę”; radio (§ 3.4); FilterChip (§ 3.7); ActionMenu (§ 3.20) — menu `⋮` dokumentu i lightboxa; Button primary / secondary / tertiary (§ 3.1); InlineAlert (§ 3.19); ikony `cloud-upload`, `scan-search`, `clock` („Czeka na plik z telefonu”), `triangle-alert`, `lock`, `image`, `file-text`, `info`.
+- **Mikrocopy:** „Upuść zdjęcia lub filmy tutaj albo [Wybierz pliki]” · limity jak w makiecie · „Wysyłanie · 3 z 5 · nie zamykaj karty do końca wysyłania” · „w tym 3 czekają na plik z telefonu” · „Czeka na plik z telefonu · Piotr Testowy · od 14:05” · „Czeka na plik · Anna Testowa · od 14:05” · „Sprawdzanie pliku” · „Wymaga uwagi” · „Plik zatrzymany przez skan bezpieczeństwa. Administrator został powiadomiony.” · „Skanuj ponownie” · „Nieskanowany antywirusem — plik za duży” · „Pobrać oryginał? Plik może zawierać metadane, np. lokalizację. Do udostępnienia poza firmą użyj podglądu.” · „Czy dokument zawiera PESEL lub numer dokumentu tożsamości?” · „Podnieś klasę” · „Plik dostępny dla administratora i edytora” · eksport: „Przygotowujemy plik ZIP. Link pokażemy tutaj, gdy będzie gotowy — będzie ważny 24 godziny i zadziała raz.”
+- **Dostępność:** „Wybierz pliki” zawsze obok strefy upuszczania (WCAG 2.5.7); postęp zbiorczo `aria-live="polite"` („Wysłano 3 z 5”), bez ogłaszania każdego procentu; miniatury z tekstem alternatywnym z metadanych (kategoria, etap, data — § 3.11); kafel bez pliku z nazwą „Film, W trakcie prac, czeka na plik z telefonu, Piotr Testowy, od 14:05” (stan w nazwie, nie tylko ikona); duży film z nazwą „Film, W trakcie prac, nieskanowany antywirusem — plik za duży” — także w lightboxie i przy „Pobierz oryginał”; lightbox: przyciski „Poprzednie / Następne”, zoom przyciskami, Esc zamyka, fokus wraca do miniatury; film z napisem czasu trwania i kontrolkami klawiatury; klasa poufności jako tekst (nie tylko ikona).

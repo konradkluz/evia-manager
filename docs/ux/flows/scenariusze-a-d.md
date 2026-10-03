@@ -52,7 +52,7 @@ Administracja → ekspertyza → opinia ppoż → projekt → OSD → zgoda → 
 | Krok | Kto i kanał | Ekran | Akcja | Wynik | Obejście |
 |---|---|---|---|---|---|
 | C1 | E, web | W-05 | klient; nowa lokalizacja „Garaż w budynku wielorodzinnym” z nr miejsca 15 i poziomem −1; zarządca — „Dodaj stronę” (rodzaj „Wspólnota / spółdzielnia”); OSD; szablon „Garaż — pełny proces” | 9 procesów, 4 transze | brak |
-| C2 | E, web | W-06 | podgląd: procesy zwinięte z postępem „0 z 4 etapów” [P-6]; podsumowanie „Na jakim etapie” per proces | „na jakim etapie jesteśmy z administracją / w OSD” widać osobno | brak |
+| C2 | E, web | W-06 | podgląd: procesy zwinięte (Disclosure, § 3.21) z postępem „0 z 4 etapów” (ProcedureProgress, § 3.23); podsumowanie „Na jakim etapie” per proces | „na jakim etapie jesteśmy z administracją / w OSD” widać osobno | brak |
 | C3 | E, web | W-07 → W-09 | „Dokumentacja budynku otrzymana” → „Czekamy na…” strona rodzaju „Administracja” (nowa strona z dialogu); po otrzymaniu — „Dodaj dokument” „Dokumentacja budynku”, „Przypisz do: Lokalizacji” (Bezpieczeństwo budynku) | dokument w sekcji „Dokumenty lokalizacji” | brak |
 | C4 | E, web | W-07 | ekspertyza: „Wizja lokalna rzeczoznawcy” → „Czekamy na…” strona „Rzeczoznawca (ekspertyza)”; opinia ppoż — „Rzeczoznawca ppoż”; projekt — „Projektant” | „Na kogo czekamy” pokazuje kilka stron jednocześnie, posortowanych od najdłuższego oczekiwania | brak |
 | C5 | E, web | W-09 | ekspertyza, opinia ppoż i projekt jako dokumenty („Bezpieczeństwo budynku” z rodzaju) | R widzi metadane z `lock` | brak |
@@ -92,7 +92,7 @@ Pierwsze zlecenie bez urządzenia; po czasie kolejne zlecenie (także dla innego
 | L8 | Uzupełnienie danych lokalizacji i strony po utworzeniu zlecenia (A1′ — baner „Uzupełnij dane klienta i lokalizacji”; w praktyce także PPE albo zarządca poznani później) — makiety nie mają akcji edycji lokalizacji ani strony (klienta edytuje się w W-14) | zamknięte (PO-1, poprawki po przeglądach — runda 1): W-06 — baner „Zlecenie założone w terenie” z odnośnikami (klient → W-14, lokalizacja → W-20, kwoty → „Zmień kwotę”), „Edytuj” w karcie „Lokalizacja” i „Edytuj stronę” przy OSD i zarządcy (A, E; R — ukryte) z informacją „Zmiana dotyczy wszystkich zleceń w tej lokalizacji (n).”; W-20 na mapie nawigacji jako dialog bez makiety (pola z W-05) — pełna makieta przy refinemencie E3 / E4; krok A1″ |
 
 ## Weryfikacja biznesowa (product-owner, 2026-10-03)
-**Wynik:** scenariusze A–D przechodzą przez makiety bez obejść. Wariant A1′ kończy się na zleceniu z numerem w panelu — dalsze uzupełnienie lokalizacji opisuje luka L8. Terminologia makiet jest zgodna ze słownikiem ([`domain.md`](../../product/domain.md); nowe pojęcia — „Pojęcia z makiet MVP”) i ze styleguide § 6.2. Uwagi do mikrocopy i kandydaci do backlogu: historyjka EVM-004 → „Uwagi do rozważenia” → „Weryfikacja biznesowa”.
+**Wynik:** scenariusze A–D przechodzą przez makiety bez obejść. Terminologia makiet jest zgodna ze słownikiem ([`domain.md`](../../product/domain.md); nowe pojęcia — „Pojęcia z makiet MVP”) i ze styleguide § 6.2. Uwagi do mikrocopy i kandydaci do backlogu: historyjka EVM-004 → „Uwagi do rozważenia” → „Weryfikacja biznesowa”.
 
 **Co sprawdziłem**
 | Obszar | Wynik |

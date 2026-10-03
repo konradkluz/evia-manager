@@ -1,7 +1,7 @@
 # Przepływy i makiety MVP (M1–M2)
 
-> Dokument żywy (EVM-004). Właściciel: `ux-designer`. Stan: **makiety low-fi zaakceptowane przez Konrada 2026-10-03 (demo EVM-004)** — wiążąca specyfikacja UI dla epików E1–E7 (panel web, M1) i E9–E13 (aplikacja mobilna, M2). Szczegóły ekranów doprecyzowujemy przy refinemencie epików; zmiana zachowania opisanego tutaj = zmiana tego dokumentu w historyjce.
-> Podstawa: styleguide **1.1.0** ([`../styleguide.md`](../styleguide.md)), tokeny ([`design/tokens/`](../../../design/tokens/README.md)), model domeny ([`domain-model.md`](../../architecture/domain-model.md)), synchronizacja offline ([`offline-sync.md`](../../architecture/offline-sync.md)), polityki P1–P12 ([`policies.md`](../../security/policies.md)) i wymagania `SR-…` ([`requirements.md`](../../security/requirements.md)). Słownictwo UI: [`domain.md`](../../product/domain.md) i styleguide § 6.2.
+> Dokument żywy (EVM-004; aktualizacja do styleguide'u 1.2.0 — EVM-014, 2026-10-04). Właściciel: `ux-designer`. Stan: **makiety low-fi zaakceptowane przez Konrada 2026-10-03 (demo EVM-004)** — wiążąca specyfikacja UI dla epików E1–E7 (panel web, M1) i E9–E13 (aplikacja mobilna, M2). Szczegóły ekranów doprecyzowujemy przy refinemencie epików; zmiana zachowania opisanego tutaj = zmiana tego dokumentu w historyjce.
+> Podstawa: styleguide **1.2.0** ([`../styleguide.md`](../styleguide.md); od 1.2.0 makiety odwołują się wyłącznie do § styleguide'u — dawne propozycje P-1…P-13 mają własne §, tabela [Propozycje do styleguide'u](#propozycje-do-styleguideu)), tokeny ([`design/tokens/`](../../../design/tokens/README.md)), model domeny ([`domain-model.md`](../../architecture/domain-model.md)), synchronizacja offline ([`offline-sync.md`](../../architecture/offline-sync.md)), polityki P1–P12 ([`policies.md`](../../security/policies.md)) i wymagania `SR-…` ([`requirements.md`](../../security/requirements.md)). Słownictwo UI: [`domain.md`](../../product/domain.md) i styleguide § 6.2.
 
 ## Spis treści
 1. [Jak czytać makiety](#jak-czytać-makiety)
@@ -12,7 +12,7 @@
 6. [Zasady wspólne](#zasady-wspólne) — stany, bezpieczeństwo i prywatność w UI, dane w makietach
 7. [Pokrycie kryteriów AC2–AC5](#pokrycie-kryteriów-ac2ac5)
 8. [Zgodność z politykami P1–P7](#zgodność-z-politykami-p1p7)
-9. [Propozycje do styleguide'u](#propozycje-do-styleguideu)
+9. [Propozycje do styleguide'u](#propozycje-do-styleguideu) — od 1.2.0 mapa P-n → § styleguide'u
 
 ## Jak czytać makiety
 **Forma.** Diagram przepływu w Mermaid + dla każdego ekranu: cel, główna akcja, hierarchia treści, szkielet ASCII, tabela stanów, różnice ról, zachowanie responsywne, komponenty i tokeny, mikrocopy, dostępność. Makiety są low-fi: pokazują układ, hierarchię i treść, **nie** proporcje ani kolory. Wartości wizualne wynikają wyłącznie z tokenów i komponentów styleguide'u — w makietach nie ma literałów kolorów, rozmiarów ani fontów.
@@ -27,14 +27,13 @@
 | `[Wybierz… ▾]` | select albo combobox | Select / Combobox (§ 3.3) |
 | `( ) / (•)`, `[ ] / [x]` | radio, checkbox | § 3.4 |
 | `«W toku»` | odznaka statusu (ikona + etykieta) | StatusBadge (§ 3.9) |
-| `«W toku ▾»` | odznaka jako przycisk zmiany statusu | StatusBadge (§ 3.9) + ActionMenu [P-1] |
+| `«W toku ▾»` | odznaka jako przycisk zmiany statusu | StatusBadge (§ 3.9) + ActionMenu (§ 3.20) |
 | `{Czekamy na OSD > 14 dni}` / `{✓ …}` | chip filtra / wybrany chip | FilterChip (§ 3.7) |
-| `⋮` | menu akcji | ActionMenu [P-1] |
-| `▸` / `▾` przy nagłówku | sekcja zwinięta / rozwinięta | Disclosure [P-2] |
+| `⋮` | menu akcji | ActionMenu (§ 3.20) |
+| `▸` / `▾` przy nagłówku | sekcja zwinięta / rozwinięta | Disclosure (§ 3.21) |
 | `⟨Offline · 5⟩` | kapsuła wskaźnika synchronizacji | SyncIndicator (§ 5.4) |
 | `▒▒▒▒` | szkielet ładowania | Skeleton (§ 3.16) |
 | `‹lock›` | ikona Lucide (nazwa) | § 2.10 |
-| `[P-n]` | użycie propozycji spoza styleguide'u 1.1.0 | styleguide § 8 → „Propozycje (EVM-004)” |
 
 **Odwołania:** `§ 3.x` — komponent styleguide'u, `§ 4.x` — wzorzec, `§ 5.x` — teren, `§ 6.x` — treści; tokeny semantyczne pełnymi nazwami (np. `color.status.stage.waiting.*`, `space.stack.md`). Układ web opisujemy dla breakpointu `breakpoint.expanded`, a zmiany dla `breakpoint.medium` i `breakpoint.compact` — w punkcie „Responsywność”; mobile — układ compact.
 
@@ -82,7 +81,7 @@
 └──────────────────────────────────┘
 ```
 - **AppBar** (§ 3.18): `size.app-bar.height.mobile`, `color.bg.brand-strong`, tytuł `text.heading-3` `color.text.on-brand`, wstecz `arrow-left`, **SyncIndicator** (§ 5.4) zawsze po prawej; dotknięcie → [M-07 Kolejka](09-mobile-zdjecia-filmy-offline.md#m-07-kolejka).
-- **BottomNav** (§ 3.18): 4 pozycje — **Zlecenia** ([M-05](07-lista-zlecen-i-filtry.md#m-05-lista-zleceń)), **Dodaj** (arkusz: Zdjęcie lub film → [M-06](09-mobile-zdjecia-filmy-offline.md#m-06-aparat), Wpis → [M-04](05-wpis-i-komentarz.md#m-04-nowy-wpis), Nowe zlecenie → [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie)), **Kolejka** (licznik jako odznaka z liczbą), **Więcej** ([M-09](09-mobile-zdjecia-filmy-offline.md#m-09-więcej) — w tym Wyloguj i Prywatność).
+- **BottomNav** (§ 3.18): 4 pozycje — **Zlecenia** ([M-05](07-lista-zlecen-i-filtry.md#m-05-lista-zleceń)), **Dodaj** (arkusz akcji — ActionMenu, § 3.20: Zdjęcie lub film → [M-06](09-mobile-zdjecia-filmy-offline.md#m-06-aparat), Wpis → [M-04](05-wpis-i-komentarz.md#m-04-nowy-wpis), Nowe zlecenie → [M-10](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie)), **Kolejka** (licznik jako odznaka z liczbą), **Więcej** ([M-09](09-mobile-zdjecia-filmy-offline.md#m-09-więcej) — w tym Wyloguj i Prywatność).
 - Akcje główne w strefie kciuka (§ 5.2), cele dotyku ≥ `size.touch-target.min`, akcje główne `size.touch-target.field`.
 
 ## Mapa nawigacji
@@ -226,7 +225,7 @@ Każdy ekran ma tabelę z pięcioma stanami. Wspólne zachowanie (szczegóły w 
 |---|---|---|
 | **Pusty** | EmptyState (§ 3.15): dlaczego pusto + co zrobić; brak wyników filtrów — „Wyczyść filtry” | jak web; akcje w strefie kciuka |
 | **Ładowanie** | Skeleton (§ 3.16) w kształcie treści od pierwszej klatki; częściowe dane od razu (najpierw nagłówek); po 10 s „Ładowanie trwa dłużej niż zwykle…” + „Spróbuj ponownie” | dane z lokalnej bazy od razu; Skeleton tylko przy pierwszej synchronizacji; odświeżanie pociągnięciem (jedyny dozwolony spinner) |
-| **Błąd** | § 4.9: alert w sekcji z wyjściem albo EmptyState `circle-alert` + „Spróbuj ponownie”; `429` — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.” (czas z `Retry-After`); konflikt `412` — komunikat z § 6.4, wpisane dane zostają | błędy wysyłki w SyncIndicator i na ekranie Kolejka; odrzucone mutacje → „Wymaga uwagi” [P-9] |
+| **Błąd** | § 4.9: alert w sekcji z wyjściem albo EmptyState `circle-alert` + „Spróbuj ponownie”; `429` — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.” (czas z `Retry-After`); konflikt `412` — komunikat z § 6.4, wpisane dane zostają | błędy wysyłki w SyncIndicator i na ekranie Kolejka; odrzucone mutacje → „Wymaga uwagi” (§ 4.16) |
 | **Offline** | baner § 4.10 tylko gdy operacja wymaga sieci; wpisane dane zostają **w pamięci karty**; panel nie ma kolejki offline | SyncIndicator „Offline · 5” + baner § 5.4; praca na lokalnej bazie, zapis do kolejki („Zapisano w telefonie”) |
 | **Brak uprawnień** | `404` (zasób nie istnieje, usunięty albo poza uprawnieniami) — jeden stan „Nie znaleziono …” bez danych zasobu; `403` (akcja lub plik w widocznym kontekście) — `lock` + wyjaśnienie; Tylko odczyt — akcje edycji ukryte; Edytor przy akcjach Administratora — wyłączone z podpowiedzią (§ 4.13) | Tylko odczyt — M-02 (brak dostępu do aplikacji); zlecenie, które zniknęło z zakresu — „Nie znaleziono zlecenia” + elementy oczekujące zostają w Kolejce |
 
@@ -238,7 +237,7 @@ Ustalenia z konsultacji `security-engineer` (EVM-004) i wymagania `SR-…`, obow
 2. **Ekran `404` bez danych zasobu** — także z pamięci listy (np. nazwy klienta z poprzedniego ekranu); styleguide § 4.13.
 3. **„Wyloguj” dostępne z każdego ekranu** po zalogowaniu (web — menu konta w TopBar; mobile — Więcej, a w stanach blokujących M-02 — przycisk na ekranie) (SR-SESS-05).
 4. **Link do klauzuli informacyjnej** w panelu (menu konta i ekran logowania) i w aplikacji (Więcej i ekran logowania) (SR-PRIV-05, SR-MOB-12).
-5. **Wygaśnięcie sesji web:** ostrzeżenie przed końcem bezczynności, „Przedłuż sesję” przedłuża tylko bezczynność, w granicach 12 h od zalogowania (WCAG 2.2.1, SR-SESS-03) — wzorzec [P-11].
+5. **Wygaśnięcie sesji web:** ostrzeżenie przed końcem bezczynności, „Przedłuż sesję” przedłuża tylko bezczynność, w granicach 12 h od zalogowania (WCAG 2.2.1, SR-SESS-03) — wzorzec „Sesja wygasa” (§ 4.17): czas z serwera, po wygaśnięciu albo `401` dane znikają z widoku i z pamięci zapytań.
 6. **Szkice i niezapisane zmiany w panelu tylko w pamięci karty** — nigdy w `localStorage`, `sessionStorage`, IndexedDB ani ciasteczkach; odrzucane przy wylogowaniu, zamknięciu karty i zalogowaniu innej osoby; przywracane tylko po ponownym uwierzytelnieniu tej samej osoby w tej samej karcie; mikrocopy nie obiecuje trwałego zapisu (styleguide § 4.1, SR-WEB-05, SR-SESS-05, TM-10). Aplikacja mobilna — szkice w zaszyfrowanej bazie (SR-MOB-01).
 7. **URL bez danych osobowych:** tylko status, rodzaj strony, liczba dni X i identyfikator zapisanego widoku; wyszukiwanie przez `POST …/search` (SR-API-04, AB-16); paginacja maks. 100 pozycji na stronę (`api-guidelines.md`); zapamiętywanie filtrów poza magazynami przeglądarki (styleguide § 4.3).
 8. **Pola notatek** (notatki klienta, lokalizacji i strony, wpisy, komentarze, opisy): podpowiedź „Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów”; zwykły tekst bez Markdown i HTML; w treści aktywne są tylko linki `https:`, `tel:` i `mailto:` (SR-DATA-02, SR-INPUT-05, SR-WEB-03). `Site.notes` trafia na telefony pracowników.
@@ -249,7 +248,7 @@ Ustalenia z konsultacji `security-engineer` (EVM-004) i wymagania `SR-…`, obow
 13. **„Cofnij”** tylko przez przejście odwrotne tej samej roli bez step-upu; operacje, których odwrócenie wymaga Administratora ze step-upem — dialog z podsumowaniem (styleguide § 4.11; lista: [04-aktualizacja-etapu.md](04-aktualizacja-etapu.md#cofnij--lista-przejść)).
 
 ### Dane w makietach
-Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby („Jan Przykładowy”, „Anna Testowa”), adresy („ul. Testowa 7, 00-001 Warszawa”), telefony w formacie z § 6.3 z fikcyjnymi cyframi, e-maile tylko w domenach `example.com` i `*.test` (RFC 2606), numery zleceń w formacie modelu (`ZL-2026-0042`), numery faktur oznaczone `TEST`, bez numerów PESEL, NIP, PPE i tablic rejestracyjnych. Nazwa OSD jako firmy (np. „Stoen Operator”) jest dopuszczalna — to rodzaj strony, nie klient.
+Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby („Jan Przykładowy”, „Anna Testowa”), adresy („ul. Testowa 7, 00-001 Warszawa”), telefony w formacie z § 6.3 z fikcyjnymi cyframi, e-maile tylko w domenach `example.com` i `*.test` (RFC 2606), numery zleceń w formacie modelu (`ZL-2026-0042`), numery faktur oznaczone `TEST`, bez numerów PESEL, NIP i tablic rejestracyjnych (także na podglądzie aparatu). **PPE wyłącznie w formie oznaczonej `TEST`**, której nie da się pomylić z prawdziwym kodem PPE (np. `PL-TEST-0001`), i tylko w makietach panelu — w makietach aplikacji mobilnej PPE nie występuje (projekcja telefonu jest bez PPE — zasada 11). Nazwa OSD jako firmy (np. „Stoen Operator”) jest dopuszczalna — to rodzaj strony, nie klient.
 
 ## Pokrycie kryteriów AC2–AC5
 | AC2 — przepływ | Plik | Diagram | Ekrany z makietą |
@@ -266,7 +265,7 @@ Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby (�
 | 10. Mobile: szybkie nowe zlecenie | [10-mobile-szybkie-zlecenie.md](10-mobile-szybkie-zlecenie.md) | tak, do stanu po synchronizacji (numer) | M-10 (+ M-03, M-05) |
 
 - **AC3 — stany i role:** każdy ekran z makietą ma tabelę pięciu stanów i tabelę ról (web: A / E / R; mobile: A / E, R — brak dostępu).
-- **AC4 — zgodność ze styleguide'em:** każdy ekran ma listę „Komponenty i tokeny” z odwołaniami do §; elementy spoza styleguide'u 1.1.0 są oznaczone `[P-n]` i opisane w styleguide § 8 → „Propozycje (EVM-004) — zaakceptowane (Konrad, 2026-10-03; wdrożenie w 1.2.0)”.
+- **AC4 — zgodność ze styleguide'em:** każdy ekran ma listę „Komponenty i tokeny” z odwołaniami do § styleguide'u 1.2.0 (EVM-014); elementy, które w EVM-004 były propozycjami P-1…P-13, wskazują teraz swoje § (§ 3.2.1, § 3.9.1, § 3.15.1, § 3.20–§ 3.24, § 4.14–§ 4.18).
 - **AC5 — scenariusze A–D:** [scenariusze-a-d.md](scenariusze-a-d.md).
 
 ## Zgodność z politykami P1–P7
@@ -275,25 +274,25 @@ Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby (�
 | P1 — MFA | MFA dla wszystkich ról; Administrator w panelu — passkey; TOTP Administratora tylko w aplikacji; aplikacja na telefonie tylko z TOTP — W-03 informuje A i E i pozwala dodać TOTP obok passkey, konto bez TOTP na telefonie → M-02 z drogą do panelu (Konto → Drugi krok logowania), bez konfiguracji MFA na telefonie; kody odzyskiwania pokazane raz; step-up i funkcje administracyjne tylko w panelu; bez „Zapamiętaj mnie” | [01](01-logowanie-mfa.md) W-01–W-04, M-01, M-02 |
 | P2 — sesje i urządzenia | `401 session_revoked` („Wyloguj urządzenie” — kolejka zostaje), `401 device_wipe_required` („Zablokuj i wyczyść”), 7 dni offline (dane ukryte, aparat i kolejka działają), limit urządzeń, logowanie innej osoby = wyczyszczenie, ostrzeżenie o wygaśnięciu sesji web | [01](01-logowanie-mfa.md) M-02, [09](09-mobile-zdjecia-filmy-offline.md) M-09, zasady wspólne pkt 5 |
 | P3 — EXIF / GPS | aparat bez wskaźnika lokalizacji, brak „Z galerii”; ostrzeżenie o metadanych przy „Pobierz oryginał”; lightbox bez panelu EXIF / GPS | [06](06-galeria-i-upload.md) W-09, [09](09-mobile-zdjecia-filmy-offline.md) M-06 |
-| P5 — skanowanie plików | stany „Sprawdzanie pliku”, „Wymaga uwagi” (przyczyna i „Skanuj ponownie” ↑ tylko Administrator), „Nie skanowany AV — za duży”; brak podglądu i pobrania przed `clean` | [06](06-galeria-i-upload.md) W-09, [09](09-mobile-zdjecia-filmy-offline.md) M-07, M-08 |
+| P5 — skanowanie plików | stany „Sprawdzanie pliku”, „Wymaga uwagi” (przyczyna i „Skanuj ponownie” ↑ tylko Administrator), „Nieskanowany antywirusem — plik za duży”; brak podglądu i pobrania przed `clean` (styleguide § 4.14) | [06](06-galeria-i-upload.md) W-09, [09](09-mobile-zdjecia-filmy-offline.md) M-07, M-08 |
 | P6 — Tylko odczyt | widzi płatności i dokumenty `standard`; bez oryginałów, `identity_data`, `building_security`, eksportu i aplikacji mobilnej; bez akcji edycji; klasa poufności dokumentu przy uploadzie | wszystkie tabele ról; [06](06-galeria-i-upload.md) W-09; [01](01-logowanie-mfa.md) M-02 |
 | P7 — telefony | blokada ekranu (logowanie odrzucone, w trakcie sesji — dane ukryte), ostrzeżenie o poprawkach bezpieczeństwa (6 / 12 miesięcy, nieblokujące), blokada aplikacji po 5 min w tle, „Wyczyść dane firmowe”; uprawnienia: aparat i mikrofon (P7 pkt 3) oraz powiadomienia o wysyłaniu (Android 13+; poza listą P7 pkt 3 — uwaga dla `security-engineer` w historyjce), każde w momencie użycia z ekranem wyjaśniającym przed monitem systemu i stanem odmowy (brak mikrofonu wyłącza tylko film); bez lokalizacji, galerii i kontaktów | [01](01-logowanie-mfa.md) M-01, M-02; [09](09-mobile-zdjecia-filmy-offline.md) M-06, M-07, M-09 |
 
 ## Propozycje do styleguide'u
-Elementy makiet spoza styleguide'u 1.1.0 — pełny opis, uzasadnienie i lista ekranów: styleguide § 8 → „Propozycje (EVM-004) — zaakceptowane (Konrad, 2026-10-03; wdrożenie w 1.2.0)”. Nie wolno ich implementować przed akceptacją Konrada i wdrożeniem w styleguide 1.2.0.
+Propozycje z EVM-004 (zaakceptowane przez Konrada 2026-10-03) są **od styleguide'u 1.2.0 (EVM-014) jego częścią** — obowiązuje opis w § z kolumny „Od 1.2.0”; zapis akceptacji, rozstrzygnięcia projektowe i zmiany kolumny „Ekrany”: styleguide § 8 → 1.2.0 i „Propozycje (EVM-004)”. Kolumna „Ekrany” = ekrany, których makieta, tabela stanów lub lista „Komponenty i tokeny” używa elementu (także przez notację `⋮`, `▸` / `▾`, `«… ▾»`); jest taka sama jak w styleguide § 8.
 
-| ID | Propozycja | Ekrany |
-|---|---|---|
-| P-1 | Menu akcji (ActionMenu) | W-06, W-07, W-08, W-09, W-10, W-11, M-03 |
-| P-2 | Sekcja rozwijana (Disclosure) | W-06, M-03 |
-| P-3 | Karta wyboru (SelectableCard) | W-05, M-10 |
-| P-4 | TextField „kod jednorazowy” i „kod odzyskiwania” | W-02, W-03, W-04, M-01 |
-| P-5 | EmptyState — wariant „blokujący” | W-03, M-02 |
-| P-6 | Postęp procesu („3 z 7 etapów”) | W-06, W-10, M-03 |
-| P-7 | Znaczniki pliku po stronie serwera | W-09, M-08 |
-| P-8 | Odznaka „Oczekuje na numer” | M-03, M-05, M-10 |
-| P-9 | „Wymaga uwagi” w Kolejce i w SyncIndicator | M-07, M-09, AppBar |
-| P-10 | Ekran aparatu (CameraScreen) | M-06 |
-| P-11 | Ostrzeżenie o wygaśnięciu sesji | wszystkie ekrany web po zalogowaniu |
-| P-12 | Odznaka wartości nieznanej | W-06, W-10, W-11, M-03, M-05 |
-| P-13 | Tryb ukrytych danych na telefonie | M-02, M-03, M-05, M-06, M-07 |
+| ID | Element | Od 1.2.0 | Ekrany |
+|---|---|---|---|
+| P-1 | Menu akcji (ActionMenu) | [§ 3.20](../styleguide.md#320-menu-akcji-actionmenu-od-120) | W-06, W-07, W-08, W-09, W-11; arkusz „Dodaj” w BottomNav |
+| P-2 | Sekcja rozwijana (Disclosure) | [§ 3.21](../styleguide.md#321-sekcja-rozwijana-disclosure-od-120) | W-05, W-06, M-03, M-07 |
+| P-3 | Karta wyboru (SelectableCard) | [§ 3.22](../styleguide.md#322-karta-wyboru-selectablecard-od-120) | W-05, M-10 |
+| P-4 | Pole kodu jednorazowego i kodu odzyskiwania (TextField) | [§ 3.2.1](../styleguide.md#321-pole-kodu-jednorazowego-i-kodu-odzyskiwania-od-120) | W-02, W-03, W-04, M-01 |
+| P-5 | Pusty stan blokujący (EmptyState) | [§ 3.15.1](../styleguide.md#3151-pusty-stan-blokujący-od-120) | W-03, M-02 |
+| P-6 | Postęp procesu (ProcedureProgress) | [§ 3.23](../styleguide.md#323-postęp-procesu-procedureprogress-od-120) | W-06, W-10 (kompaktowo), M-03 |
+| P-7 | Stany pliku na serwerze | [§ 4.14](../styleguide.md#414-stany-pliku-na-serwerze-od-120) | W-09, M-08 |
+| P-8 | „Oczekuje na numer” | [§ 4.15](../styleguide.md#415-oczekuje-na-numer-od-120) | M-03, M-05, M-06, M-07, M-10 |
+| P-9 | „Wymaga uwagi” w Kolejce i SyncIndicator | [§ 4.16](../styleguide.md#416-wymaga-uwagi-w-kolejce-i-syncindicator-od-120) | M-03, M-04, M-07, M-10, AppBar (SyncIndicator) |
+| P-10 | Ekran aparatu (CameraScreen) | [§ 3.24](../styleguide.md#324-ekran-aparatu-camerascreen-od-120) | M-06 |
+| P-11 | „Sesja wygasa” | [§ 4.17](../styleguide.md#417-sesja-wygasa-od-120) | wszystkie ekrany web po zalogowaniu |
+| P-12 | Odznaka wartości nieznanej (StatusBadge) | [§ 3.9.1](../styleguide.md#391-odznaka-wartości-nieznanej-od-120) | W-06, W-10, W-11, M-03, M-05 |
+| P-13 | „Dane ukryte” na telefonie | [§ 4.18](../styleguide.md#418-dane-ukryte-na-telefonie-od-120) | M-02, M-03, M-04, M-05, M-06, M-07, M-08, M-10 |

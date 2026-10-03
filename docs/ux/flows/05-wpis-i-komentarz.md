@@ -51,10 +51,10 @@ flowchart TD
            Uzgodniono z klientem podpisanie pełnomocnictwa w biurze
            w piątek.  · Etap: Pełnomocnictwo od klienta
  «‹hourglass›» Anna Testowa · dziś, 11:02                                  
-           zmieniła status etapu „Warunki przyłączenia i projekt umowy”
-           na «Czekamy na…» · Czekamy na: Stoen Operator (OSD)
+           Zmiana statusu etapu „Warunki przyłączenia i projekt umowy”:
+           «Czekamy na…» · Czekamy na: Stoen Operator (OSD)
  ‹image›   Piotr Testowy · dziś, 9:41 · z telefonu (zrobione 9:12)
-           dodał 12 zdjęć · W trakcie prac   ▣ ▣ ▣ ▣ +8
+           Dodano 12 zdjęć · W trakcie prac   ▣ ▣ ▣ ▣ +8
  ── Wczoraj ───────────────────────────────────────────────────────────────
  ‹message-square-text› Marta Fikcyjna · wczoraj, 16:20                    ⋮
            Proszę o potwierdzenie terminu montażu z administracją.
@@ -63,7 +63,8 @@ flowchart TD
  ‹pencil›  Piotr Testowy · wczoraj, 9:05 · Wizyta na miejscu              
            Zastąpiony poprawką z wczoraj, 9:30  [Pokaż treść]
  ── 02.10.2026 ────────────────────────────────────────────────────────────
- ‹file-text› Anna Testowa · 02.10.2026, 10:00 — transza „Zaliczka”: «Wystawiona»
+ ‹file-text› Anna Testowa · 02.10.2026, 10:00
+           Zmiana statusu transzy „Zaliczka”: «Wystawiona»
  [Pokaż starsze]
 
  Menu ⋮ wpisu: Popraw wpis · Usuń wpis (A) · Zredaguj treść… (A ↑)
@@ -74,8 +75,8 @@ flowchart TD
 |---|---|---|---|
 | Wpis | `pencil` + kategoria | autor, czas, kategoria, treść, opcjonalnie etap | `note` |
 | Komentarz | `message-square-text` | autor, czas, treść | `comment` |
-| Zmiana statusu (zlecenie, etap, transza) | odznaka kompaktowa statusu | „… zmieniła status etapu „…” na [status]” + rozwinięcie „Czekamy na: …” (§ 4.5); **bez kwot i wartości danych osobowych** | `event` |
-| Media i dokumenty | `image` / `file-text` | „dodał 12 zdjęć · [kategoria]” + miniatury (tylko pliki `ready`); dokument — rodzaj i tytuł | `event` |
+| Zmiana statusu (zlecenie, etap, transza) | odznaka kompaktowa statusu | autor w nagłówku wpisu; treść bezosobowa: „Zmiana statusu etapu „…”: «[status]»” + rozwinięcie „Czekamy na: …” (§ 4.5, § 6.1); **bez kwot i wartości danych osobowych** | `event` |
+| Media i dokumenty | `image` / `file-text` | autor w nagłówku wpisu; „Dodano 12 zdjęć · [kategoria]” + miniatury (tylko pliki `ready`); dokument — „Dodano dokument” + rodzaj i tytuł | `event` |
 | Poprawka | jak wpis | „Poprawka wpisu z [czas]: …”; poprawiany wpis zwinięty z napisem „Zastąpiony poprawką z [czas]” i „Pokaż treść” | `supersedesEntryId` |
 | Z telefonu | dopisek „z telefonu (zrobione 9:12)” | kolejność wg czasu serwera, czas z telefonu tylko jako informacja (SR-SYNC-05) | `origin = mobile`, `capturedAt` |
 | Zredagowany | `eye-off` | „Treść usunięta przez administratora 03.10.2026.” | `redactedAt` |
@@ -100,7 +101,7 @@ flowchart TD
 | Zredaguj treść | redakcja treści (A ↑, nieodwracalna — dialog § 4.11) | tak ↑ | wyłączone | ukryte |
 
 - **Responsywność:** `breakpoint.expanded` — pole wpisu nad osią w kolumnie treści; `breakpoint.medium` — jak expanded, chipy kategorii zawijane; `breakpoint.compact` — pole wpisu zwinięte do przycisku „Dodaj wpis” (rozwija formularz), filtry w arkuszu „Filtry” (§ 3.7).
-- **Komponenty i tokeny:** Timeline, TimelineEntry (§ 3.10) — znacznik `size.timeline-marker`, linia `color.border.default` `border-width.strong`, autor `text.label`, czas `text.caption` `color.text.secondary`, treść `text.body`, odstęp `space.stack.md`; StatusBadge kompaktowa (§ 3.9); radio (§ 3.4); FilterChip (§ 3.7) — kategorie i typy; Select (§ 3.3) — etap; TextArea (§ 3.2) z podpowiedzią `color.text.tertiary`; Thumbnail (§ 3.11) `size.thumbnail.sm`; ActionMenu [P-1]; Button primary (§ 3.1); Dialog (§ 3.13) — redakcja; Toast (§ 3.14).
+- **Komponenty i tokeny:** Timeline, TimelineEntry (§ 3.10) — znacznik `size.timeline-marker`, linia `color.border.default` `border-width.strong`, autor `text.label`, czas `text.caption` `color.text.secondary`, treść `text.body`, odstęp `space.stack.md`; StatusBadge kompaktowa (§ 3.9); radio (§ 3.4); FilterChip (§ 3.7) — kategorie i typy; Select (§ 3.3) — etap; TextArea (§ 3.2) z podpowiedzią `color.text.tertiary`; Thumbnail (§ 3.11) `size.thumbnail.sm`; ActionMenu (§ 3.20) — menu `⋮` wpisu; Button primary (§ 3.1); Dialog (§ 3.13) — redakcja; Toast (§ 3.14).
 - **Mikrocopy:** „Nowy wpis” · „Wpis” / „Komentarz” · „Kategoria” · kategorie: „Rozmowa telefoniczna”, „Spotkanie”, „Ustalenie”, „Wizyta na miejscu”, „Inne” · „Etap (opcjonalnie)” · „Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów.” · „Dodaj wpis” / „Dodaj komentarz” · „Pokaż:” · „Poprawka wpisu z …” · „Zastąpiony poprawką z …” · „z telefonu (zrobione 9:12)” · „Popraw wpis” · „Usuń wpis” · „Zredaguj treść…” · dialog redakcji: „Zredagować treść wpisu? Treść zostanie zastąpiona znacznikiem — tej operacji nie można cofnąć.” [Zredaguj treść] (danger) [Anuluj] · toasty: „Dodano wpis.”, „Usunięto wpis. [Cofnij]”.
 - **Dostępność:** oś czasu jako lista (`ol`) z nagłówkami dni; każdy wpis ma nazwę dostępną z typem, autorem i pełną datą (czas względny w tekście, pełna data w podpowiedzi — § 6.3); treść wpisów renderowana jako zwykły tekst — aktywne tylko linki `https:`, `tel:`, `mailto:` (SR-WEB-03, SR-INPUT-05); nowy wpis ogłaszany `role="status"`; „Pokaż starsze” zachowuje fokus.
 
@@ -153,7 +154,7 @@ flowchart TD
 | Wysłano | `cloud-check` „Wysłano” (znacznik znika po chwili) | — |
 | Błąd sieci lub serwera | `cloud-alert` „Nie wysłano — ponowimy automatycznie” | „Ponów” |
 | Czeka na zlecenie | `clock` „Wyślemy po utworzeniu zlecenia” (szybkie zlecenie bez numeru) | — |
-| Odrzucony (`rejected`: zlecenie usunięte, brak dostępu, błąd walidacji) | „Wymaga uwagi” [P-9] | „Dodaj do innego zlecenia” (nowa komenda `CreateNote`) · „Usuń z telefonu” (dialog) |
+| Odrzucony (`rejected`: zlecenie usunięte, brak dostępu, błąd walidacji) | „Wymaga uwagi” (§ 4.16: `triangle-alert`, `color.sync.error.*`) + „Przejdź do kolejki” | „Dodaj do innego zlecenia” (nowa komenda `CreateNote`) · „Usuń z telefonu” (dialog) |
 
 **Stany**
 | Stan | Zachowanie |
@@ -162,7 +163,7 @@ flowchart TD
 | Ładowanie | nd. — zapis lokalny jest natychmiastowy (bez oczekiwania na sieć). |
 | Błąd | Pusta treść: „Wpisz treść wpisu albo użyj dyktowania.”; brak miejsca w telefonie: „Brak miejsca w telefonie. Zwolnij miejsce — wpis zostaje w szkicu.”; błędy wysyłki — tabela wyżej. |
 | Offline | Normalna praca: zapis do kolejki, SyncIndicator „Offline · n”, toast „Zapisano w telefonie. Wyślemy, gdy wróci zasięg.” |
-| Brak uprawnień | Tylko odczyt — brak dostępu do aplikacji (M-02). Utrata dostępu do zlecenia przed wysłaniem — `rejected: forbidden` → „Wymaga uwagi”. Tryb ukrytych danych [P-13] — wpisy niedostępne (ukryte są dane zleceń); dostępne pozostają aparat i Kolejka. |
+| Brak uprawnień | Tylko odczyt — brak dostępu do aplikacji (M-02). Utrata dostępu do zlecenia przed wysłaniem — `rejected: forbidden` → „Wymaga uwagi”. Tryb ukrytych danych (§ 4.18) — wpisy niedostępne (EmptyState; dane zleceń nie są renderowane); dostępne pozostają aparat i Kolejka. |
 
 **Role**
 | Akcja | Komenda (`offline-sync.md`) | A | E | R |
@@ -172,6 +173,6 @@ flowchart TD
 | Popraw, usuń, zredaguj | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
 
 - **Responsywność:** jedna kolumna; przy otwartej klawiaturze dolny pasek przyklejony nad klawiaturą; powiększenie czcionki do 200 % — chipy zawijane.
-- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); FilterChip (§ 3.7) jako wybór pojedynczy — wysokość `size.touch-target.min`, odstęp `space.inline.sm`; Select jako BottomSheet (§ 3.3, § 3.13) `radius.sheet`; TextArea (§ 3.2) `text.body`, etykiety `text.label-lg`; Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; Toast (§ 3.14); znaczniki stanu `color.sync.queued.*`, `color.sync.in-progress.*`, `color.sync.done.*`, `color.sync.error.*`; „Wymaga uwagi” [P-9].
+- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); FilterChip (§ 3.7) jako wybór pojedynczy — wysokość `size.touch-target.min`, odstęp `space.inline.sm`; Select jako BottomSheet (§ 3.3, § 3.13) `radius.sheet`; TextArea (§ 3.2) `text.body`, etykiety `text.label-lg`; Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; Toast (§ 3.14); znaczniki stanu `color.sync.queued.*`, `color.sync.in-progress.*`, `color.sync.done.*`, `color.sync.error.*`; „Wymaga uwagi” (§ 4.16); tryb ukrytych danych (§ 4.18).
 - **Mikrocopy:** „Nowy wpis” · „Wpis” / „Komentarz” · „Kategoria” · „Etap (opcjonalnie)” · „Możesz dyktować — mikrofon na klawiaturze.” · „Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów.” · „Szkic zapisany w telefonie · 14:05” · „Zapisz wpis” · „Zapisano w telefonie. Wyślemy, gdy wróci zasięg.” · „Czeka na wysłanie” · „Wyślemy po utworzeniu zlecenia”.
 - **Dostępność:** chipy jako grupa radio z etykietą „Kategoria”; dyktowanie systemowe (bez własnego nagrywania); cele dotyku ≥ `size.touch-target.min`, odstęp `space.inline.sm`; zapis potwierdzony ogłoszeniem dostępności; zamknięcie `✕` z niezapisaną treścią — treść zostaje w szkicu (bez pytania), szkic wraca przy ponownym otwarciu.
