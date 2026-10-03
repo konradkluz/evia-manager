@@ -1,17 +1,12 @@
-// @ts-check
 /**
  * Shared ESLint flat config (ADR-0012): type-aware strict rules for TypeScript and checked JavaScript.
  * UI token rules and the SQL concatenation ban arrive with the first UI and Kysely code (EVM-008).
  */
 import js from '@eslint/js';
 import globals from 'globals';
-import tseslint from 'typescript-eslint';
+import tseslint, { type ConfigArray } from 'typescript-eslint';
 
-/**
- * @param {{ tsconfigRootDir: string, ignores?: string[] }} options
- * @returns {import('typescript-eslint').ConfigArray}
- */
-export function config({ tsconfigRootDir, ignores = [] }) {
+export function config({ tsconfigRootDir, ignores = [] }: { tsconfigRootDir: string; ignores?: string[] }): ConfigArray {
   return [
     { ignores: ['dist/**', 'coverage/**', 'node_modules/**', ...ignores] },
     js.configs.recommended,

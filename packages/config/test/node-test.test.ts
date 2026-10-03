@@ -1,8 +1,7 @@
-// @ts-check
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { coverageExclusions } from '../src/coverage-exclusions.js';
-import { nodeTestArgs, runNodeTests } from '../src/node-test.js';
+import { coverageExclusions } from '../src/coverage-exclusions.ts';
+import { nodeTestArgs, runNodeTests } from '../src/node-test.ts';
 
 describe('evia-node-test — node:test with coverage for tools/*.mjs (EVM-006 AC2, AC3)', () => {
   it('EVM-006 AC3: thresholds 90% lines and branches, all source files, exclusions from the shared file, lcov for diff coverage', () => {
@@ -25,8 +24,7 @@ describe('evia-node-test — node:test with coverage for tools/*.mjs (EVM-006 AC
   });
 
   it('EVM-006 AC3: removes a stale report, creates the coverage directory and returns the exit code of node', () => {
-    /** @type {string[]} */
-    const calls = [];
+    const calls: string[] = [];
     const status = runNodeTests({
       cwd: '/repo/tools/x',
       execPath: '/usr/bin/node',

@@ -1,25 +1,22 @@
 #!/usr/bin/env node
-// @ts-check
 /**
  * evia-node-test — runs node:test with coverage for tools written as dependency-free .mjs (EVM-006 W2, W3).
  * Thresholds: 90% lines and branches (shared packages and tools/, testing-strategy.md). Exclusions come from
  * coverage-exclusions.json; the lcov report in coverage/lcov.info feeds tools/diff-coverage.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { coverageExclusions } from './coverage-exclusions.js';
-import { COVERAGE_THRESHOLDS } from './vitest.js';
+import { coverageExclusions } from './coverage-exclusions.ts';
+import { COVERAGE_THRESHOLDS } from './vitest.ts';
 
-/** @returns {string[]} */
-export function nodeTestArgs() {
+export function nodeTestArgs(): string[] {
   const threshold = COVERAGE_THRESHOLDS.shared;
   return [
     '--test',
     '--experimental-test-coverage',
-    `--test-coverage-lines=${String(threshold)}`,
-    `--test-coverage-branches=${String(threshold)}`,
+    `--test-coverage-lines=${threshold}`,
+    `--test-coverage-branches=${threshold}`,
     '--test-coverage-include-all',
     '--test-coverage-include=**/*.mjs',
     ...coverageExclusions().map((pattern) => `--test-coverage-exclude=${pattern}`),
@@ -31,28 +28,23 @@ export function nodeTestArgs() {
   ];
 }
 
-/**
- * @typedef {object} RunOptions
- * @property {string} cwd
- * @property {string} execPath
- * @property {(path: string) => void} rm
- * @property {(path: string) => void} mkdir
- * @property {(command: string, args: string[], cwd: string) => number} spawn
- */
+export interface RunOptions {
+  readonly cwd: string;
+  readonly execPath: string;
+  readonly rm: (path: string) => void;
+  readonly mkdir: (path: string) => void;
+  readonly spawn: (command: string, args: string[], cwd: string) => number;
+}
 
-/**
- * @param {RunOptions} options
- * @returns {number} exit status of node --test
- */
-export function runNodeTests({ cwd, execPath, rm, mkdir, spawn }) {
+/** @returns exit status of node --test (a stale report is removed first, so it can never pass for a new run) */
+export function runNodeTests({ cwd, execPath, rm, mkdir, spawn }: RunOptions): number {
   rm(join(cwd, 'coverage', 'lcov.info'));
   mkdir(join(cwd, 'coverage'));
   return spawn(execPath, nodeTestArgs(), cwd);
 }
 
-/* v8 ignore start -- process wiring (bin entry point), exercised by every tool's test:coverage script */
-// The bin is reached through a node_modules symlink: compare real paths.
-if (process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/* v8 ignore start -- process wiring of the bin; runNodeTests() is covered by tests */
+if (import.meta.main) {
   process.exitCode = runNodeTests({
     cwd: process.cwd(),
     execPath: process.execPath,

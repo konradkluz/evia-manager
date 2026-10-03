@@ -1,12 +1,8 @@
-// @ts-check
 import { describe, expect, it } from 'vitest';
-import { config } from '../src/eslint.js';
+import { config } from '../src/eslint.ts';
 
-/**
- * @param {ReturnType<typeof config>} entries
- * @returns {Record<string, unknown>}
- */
-const rules = (entries) => Object.fromEntries(entries.flatMap((entry) => Object.entries(entry.rules ?? {})));
+const rules = (entries: ReturnType<typeof config>): Record<string, unknown> =>
+  Object.fromEntries(entries.flatMap((entry) => Object.entries(entry.rules ?? {})));
 
 describe('ESLint flat config (EVM-006 AC2)', () => {
   const entries = config({ tsconfigRootDir: '/repo/packages/x' });

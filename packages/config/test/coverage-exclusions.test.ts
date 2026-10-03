@@ -1,6 +1,5 @@
-// @ts-check
 import { describe, expect, it } from 'vitest';
-import { coverageExclusions, parseCoverageExclusions } from '../src/coverage-exclusions.js';
+import { coverageExclusions, parseCoverageExclusions } from '../src/coverage-exclusions.ts';
 
 describe('coverage exclusions — single source (EVM-006 AC3, W3a)', () => {
   it('EVM-006 AC3: the repository file lists patterns, each with a reason', () => {

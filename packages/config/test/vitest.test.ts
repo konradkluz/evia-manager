@@ -1,7 +1,6 @@
-// @ts-check
 import { describe, expect, it } from 'vitest';
-import { coverageExclusions } from '../src/coverage-exclusions.js';
-import { COVERAGE_THRESHOLDS, coverage } from '../src/vitest.js';
+import { coverageExclusions } from '../src/coverage-exclusions.ts';
+import { COVERAGE_THRESHOLDS, coverage } from '../src/vitest.ts';
 
 describe('Vitest preset (EVM-006 AC3)', () => {
   it('EVM-006 AC3: thresholds follow docs/process/testing-strategy.md (shared and tools 90, backend 85, web and mobile 80)', () => {
