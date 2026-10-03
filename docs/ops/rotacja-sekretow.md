@@ -15,7 +15,7 @@
 | Sekret | Gdzie | Zakres | Ważność / rotacja | Kto używa |
 |---|---|---|---|---|
 | `RENOVATE_TOKEN` (fine-grained PAT) | sekret repozytorium — **dodawany dopiero po rozstrzygnięciu Q1** (`github-i-ci.md` → „Renovate”) | tylko `konradkluz/evia-manager`: Contents RW, Pull requests RW, Workflows RW, Issues RW, Dependabot alerts R, Metadata R (D5) | 90 dni; przypomnienie w kalendarzu Konrada | workflow `renovate.yml` (wyłącznie env kroku Renovate) |
-| PAT `gh` orkiestratora (fine-grained) | Windows keyring stacji (`gh auth`) — nigdy w repozytorium | tylko to repozytorium: Pull requests RW, Actions R, Contents R, Metadata R — **bez Contents write** (nie scali PR) | 30 dni | orkiestrator: zakładanie PR, odczyt wyników CI |
+| PAT `gh` orkiestratora (fine-grained) | Windows keyring stacji (`gh auth`) — nigdy w repozytorium | tylko to repozytorium: Pull requests RW, Actions R, Contents R, Metadata R — **bez Contents write** (nie scali PR) | 30 dni; przypomnienie w kalendarzu Konrada | orkiestrator: zakładanie PR, odczyt wyników CI |
 | Klucz wdrożeniowy agentów (SSH) | `~/.ssh/evia_manager` (alias `github-evia-manager`), poza repozytorium | zapis do tego repozytorium (wypycha gałęzie) | przy incydencie, odejściu osoby z dostępem do stacji albo co 12 miesięcy | orkiestrator (push gałęzi za zgodą Konrada) |
 
 ## Procedury
@@ -25,6 +25,6 @@
 3. Uruchom `renovate` ręcznie (Actions → renovate → Run workflow na `main`); sprawdź Dependency Dashboard.
 4. Unieważnij poprzedni token (rotacja) i zapisz datę następnej rotacji.
 
-**Rotacja PAT `gh`**: nowy token z zakresem z tabeli → `gh auth login --with-token` (token wklejany z menedżera haseł, bez zapisu w plikach) → `gh auth status` → unieważnienie poprzedniego tokenu.
+**Utworzenie / rotacja PAT `gh`** (Konrad): GitHub → Settings → Developer settings → Fine-grained tokens → *Generate new token*: Resource owner `konradkluz`, *Only select repositories* = `evia-manager`, uprawnienia z tabeli, wygaśnięcie 30 dni → `gh auth login --with-token` (token wklejany z menedżera haseł, bez zapisu w plikach) → `gh auth status` bez `--show-token` (token w `keyring`, nie w pliku) → unieważnienie poprzedniego tokenu i data następnej rotacji. Token wypisany w sesji agenta (`gh auth token`, `gh auth status --show-token` / `-t`) jest skompromitowany (zasada nadrzędna) — unieważnij go i wydaj nowy (ocena: `docs/security/threat-model.md` → RR-02).
 
 **Unieważnienie przy incydencie** (dowolny z powyższych): usuń token / klucz (Developer settings albo Settings → Deploy keys) **natychmiast**, potem procedura „Czerwony `main`” w `github-i-ci.md`, jeśli doszło do zmian w repozytorium.
