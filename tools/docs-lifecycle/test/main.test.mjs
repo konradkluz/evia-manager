@@ -127,7 +127,10 @@ describe('CLI cleanup-report (EVM-012 AC5)', () => {
   it('EVM-012 AC5: raport dla M1 — plik M1 do usunięcia, pliki M0 nieobecne', () => {
     const result = runMain(['cleanup-report', 'M1'], { cwd: mixed.root, env: mixed.env });
     assert.match(result.stdout, /\| `docs\/notes\/plan-m1\.md` \| kamień milowy \| usuń \|/);
-    assert.match(result.stdout, /\| `docs\/notes\/plan-m0\.md` \| kamień milowy \| przejrzyj \| kamień milowy M0 \(pole milestone\) — nie dotyczy M1; przeterminowany: expires 2026-10-01/);
+    assert.match(
+      result.stdout,
+      /\| `docs\/notes\/plan-m0\.md` \| kamień milowy \| przejrzyj \| kamień milowy M0 \(pole milestone\) — nie dotyczy M1; przeterminowany: expires 2026-10-01/,
+    );
     assert.ok(!result.stdout.includes('docs/qa/EVM-001/raport.md'));
   });
 
@@ -148,7 +151,10 @@ describe('CLI cleanup-report (EVM-012 AC5)', () => {
     runMain(['cleanup-report', 'M1'], { cwd: mixed.root, env: mixed.env });
     const afterRun = snapshotRepo(mixed);
     assert.deepEqual(afterRun, before);
-    assert.ok(before.files.some((line) => line.startsWith('.scratch/notatka.md ')), 'migawka obejmuje pliki ignorowane');
+    assert.ok(
+      before.files.some((line) => line.startsWith('.scratch/notatka.md ')),
+      'migawka obejmuje pliki ignorowane',
+    );
   });
 });
 

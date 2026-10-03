@@ -70,7 +70,8 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
     const classes = String(section(policy, '## Klasy cyklu życia'));
     for (const value of ['permanent', 'living', 'milestone', 'ephemeral']) assert.ok(classes.includes(`\`${value}\``), value);
     const decisions = String(section(policy, '## Kto i kiedy decyduje'));
-    for (const role of ['| Konrad |', '| Orkiestrator |', '| Agenci |', '| Walidator i raport |']) assert.ok(decisions.includes(role), role);
+    for (const role of ['| Konrad |', '| Orkiestrator |', '| Agenci |', '| Walidator i raport |'])
+      assert.ok(decisions.includes(role), role);
   });
 
   it('EVM-012 AC1: polityka podlinkowana z docs/README.md i z docs/process/conventions.md → „Dokumentacja”', () => {
@@ -90,7 +91,13 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
 
   it('EVM-012 AC1: polityka podaje polecenia walidatora w formie bezpiecznej dla PowerShell', () => {
     const commands = String(section(policy, '## Walidator i raport sprzątania'));
-    for (const command of ['npm run docs:check', 'npm run docs:cleanup -- M#', 'npm run test:tools', 'node tools/docs-lifecycle/cli.mjs check --list', "'--'"]) {
+    for (const command of [
+      'npm run docs:check',
+      'npm run docs:cleanup -- M#',
+      'npm run test:tools',
+      'node tools/docs-lifecycle/cli.mjs check --list',
+      "'--'",
+    ]) {
       assert.ok(commands.includes(command), command);
     }
   });
@@ -103,7 +110,12 @@ describe('polecenia npm (EVM-012 AC3, AC8)', () => {
     assert.equal(manifest.scripts['docs:check'], 'node tools/docs-lifecycle/cli.mjs check');
     assert.equal(manifest.scripts['docs:cleanup'], 'node tools/docs-lifecycle/cli.mjs cleanup-report');
     const test = manifest.scripts['test:tools'];
-    for (const part of ['--experimental-test-coverage', '--test-coverage-lines=90', '--test-coverage-branches=90', '"tools/**/*.test.mjs"']) {
+    for (const part of [
+      '--experimental-test-coverage',
+      '--test-coverage-lines=90',
+      '--test-coverage-branches=90',
+      '"tools/**/*.test.mjs"',
+    ]) {
       assert.ok(test.includes(part), part);
     }
   });
@@ -122,7 +134,13 @@ describe('polecenia npm (EVM-012 AC3, AC8)', () => {
 describe('sprzątanie w /milestone close i zasady dla agentów (EVM-012 AC7, AC8)', () => {
   it('EVM-012 AC7: tryb close w SKILL.md ma krok „Sprzątanie dokumentacji” z raportem i zapisem w retrospektywie', () => {
     const close = String(section(read('.claude/skills/milestone/SKILL.md'), '## Tryb `close`'));
-    for (const anchor of ['Sprzątanie dokumentacji', 'npm run docs:cleanup', 'docs/process/retros/<M#>.md', 'expires', 'npm run docs:check']) {
+    for (const anchor of [
+      'Sprzątanie dokumentacji',
+      'npm run docs:cleanup',
+      'docs/process/retros/<M#>.md',
+      'expires',
+      'npm run docs:check',
+    ]) {
       assert.ok(close.includes(anchor), anchor);
     }
   });

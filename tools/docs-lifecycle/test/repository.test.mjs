@@ -33,7 +33,10 @@ describe('lista plików z gita i odczyt (EVM-012, ustalenia E, F)', () => {
   });
 
   it('EVM-012 AC3: plik w .scratch/ dodany przez git add -f jest widoczny dla gita', () => {
-    const repo = createTempRepo({ files: { '.scratch/notatka.md': '# R\n', '.scratch/inny.md': '# I\n' }, tracked: ['.scratch/notatka.md'] });
+    const repo = createTempRepo({
+      files: { '.scratch/notatka.md': '# R\n', '.scratch/inny.md': '# I\n' },
+      tracked: ['.scratch/notatka.md'],
+    });
     try {
       const loaded = load(repo);
       assert.ok(loaded.paths.includes('.scratch/notatka.md'));
@@ -67,10 +70,7 @@ describe('lista plików z gita i odczyt (EVM-012, ustalenia E, F)', () => {
     });
     try {
       const analysis = analyze(load(repo), { config, today: TODAY });
-      assert.deepEqual(codes(analysis, 'error'), [
-        'location-forbidden docs/notatka-łódź.md',
-        'milestone-unknown docs/notes/źle.md',
-      ]);
+      assert.deepEqual(codes(analysis, 'error'), ['location-forbidden docs/notatka-łódź.md', 'milestone-unknown docs/notes/źle.md']);
     } finally {
       repo.cleanup();
     }
@@ -102,7 +102,10 @@ describe('lista plików z gita i odczyt (EVM-012, ustalenia E, F)', () => {
   it('EVM-012 AC3: katalog bez repozytorium git — błąd środowiska po polsku', () => {
     const repo = createTempRepo({ init: false, gitignore: null });
     try {
-      assert.throws(() => load(repo), (error) => error instanceof ToolError && /brak repozytorium git/.test(error.message));
+      assert.throws(
+        () => load(repo),
+        (error) => error instanceof ToolError && /brak repozytorium git/.test(error.message),
+      );
     } finally {
       repo.cleanup();
     }
@@ -110,7 +113,10 @@ describe('lista plików z gita i odczyt (EVM-012, ustalenia E, F)', () => {
 
   it('EVM-012 AC5: tylko odczyt — git uruchamiany wyłącznie z listy dozwolonych poleceń', () => {
     for (const command of ['status', 'commit', 'rm', 'add', 'checkout', 'config']) {
-      assert.throws(() => runGit([command], { cwd: '.', env: process.env }), (error) => error instanceof ToolError && /niedozwolone/.test(error.message));
+      assert.throws(
+        () => runGit([command], { cwd: '.', env: process.env }),
+        (error) => error instanceof ToolError && /niedozwolone/.test(error.message),
+      );
     }
   });
 

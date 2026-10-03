@@ -59,7 +59,10 @@ describe('walidator — stan czysty i klasyfikacja (EVM-012)', () => {
 
   it('EVM-012 AC2: pliki inne niż .md poza .scratch/ i spikes/ nie są klasyfikowane; rozszerzenie .MD jest plikiem Markdown', () => {
     const analysis = analyzeFiles({ 'design/tokens/color.tokens.json': '{}', 'docs/product/NOTATKA.MD': '# x\n' });
-    assert.equal(analysis.files.some((file) => file.path.endsWith('.json')), false);
+    assert.equal(
+      analysis.files.some((file) => file.path.endsWith('.json')),
+      false,
+    );
     assert.deepEqual(codes(analysis), ['location-forbidden docs/product/NOTATKA.MD']);
   });
 });
@@ -129,10 +132,7 @@ describe('walidator — błędy blokujące (EVM-012 AC3)', () => {
       'docs/notes/archiwum.md': doc({ lifecycle: 'archive' }),
       'docs/product/wizja-2.md': doc({ lifecycle: 'trwały' }),
     });
-    assert.deepEqual(codes(analysis, 'error'), [
-      'class-unknown docs/notes/archiwum.md',
-      'class-unknown docs/product/wizja-2.md',
-    ]);
+    assert.deepEqual(codes(analysis, 'error'), ['class-unknown docs/notes/archiwum.md', 'class-unknown docs/product/wizja-2.md']);
     const finding = findingOf(analysis, 'class-unknown', 'docs/notes/archiwum.md');
     assert.match(finding.reason, /„archive”/);
     assert.match(finding.reason, /permanent, living, milestone, ephemeral/);
@@ -240,10 +240,7 @@ describe('walidator — błędy blokujące (EVM-012 AC3)', () => {
 
   it('EVM-012 AC3: każdy plik w .scratch/ widoczny dla gita jest błędem, niezależnie od typu', () => {
     const analysis = analyzeFiles({ '.scratch/notatka.md': '# R\n', '.scratch/EVM-012/wynik.txt': 'x' });
-    assert.deepEqual(codes(analysis, 'error'), [
-      'ephemeral-tracked .scratch/EVM-012/wynik.txt',
-      'ephemeral-tracked .scratch/notatka.md',
-    ]);
+    assert.deepEqual(codes(analysis, 'error'), ['ephemeral-tracked .scratch/EVM-012/wynik.txt', 'ephemeral-tracked .scratch/notatka.md']);
     assert.equal(fileOf(analysis, '.scratch/notatka.md').class, 'ephemeral');
     assert.match(findingOf(analysis, 'ephemeral-tracked', '.scratch/notatka.md').reason, /git rm --cached/);
   });

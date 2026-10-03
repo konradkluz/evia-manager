@@ -70,7 +70,11 @@ export function parseCli(argv) {
     }
     if (values.list === true) throw new ToolError('opcja --list dotyczy tylko polecenia check');
   } else {
-    throw new ToolError(command === undefined ? 'brak polecenia (check albo cleanup-report)' : `nieznane polecenie ${quote(command)} — dostępne: check, cleanup-report`);
+    throw new ToolError(
+      command === undefined
+        ? 'brak polecenia (check albo cleanup-report)'
+        : `nieznane polecenie ${quote(command)} — dostępne: check, cleanup-report`,
+    );
   }
   const today = values.today ?? null;
   if (today !== null && !isValidIsoDate(today)) {

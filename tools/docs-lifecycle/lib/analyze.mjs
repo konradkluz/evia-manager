@@ -455,7 +455,10 @@ function milestoneFromSpike(record, fields, ctx, report) {
     const value = fields.get('milestone');
     const problem = milestoneProblem(value, ctx.milestones);
     if (problem === 'missing') {
-      report('milestone-missing', "kamień milowy bez M# — README spike'a wymaga pola milestone: M# (kamień, do którego potrzebny jest kod spike'a)");
+      report(
+        'milestone-missing',
+        "kamień milowy bez M# — README spike'a wymaga pola milestone: M# (kamień, do którego potrzebny jest kod spike'a)",
+      );
     } else if (problem !== null) {
       report('milestone-unknown', invalidMilestoneText(String(value), problem, ctx.milestones));
     } else {
@@ -499,7 +502,10 @@ function checkDates(record, fields, today, report) {
     const value = fields.get(field);
     if (value === undefined) continue;
     if (!isValidIsoDate(value)) {
-      report('date-invalid', `niepoprawna data w polu ${field}: ${quote(value)} — wymagany format YYYY-MM-DD i prawdziwa data kalendarzowa`);
+      report(
+        'date-invalid',
+        `niepoprawna data w polu ${field}: ${quote(value)} — wymagany format YYYY-MM-DD i prawdziwa data kalendarzowa`,
+      );
     } else if (!ALLOWED_DATE_FIELDS[cls].includes(field)) {
       report(
         'date-not-allowed',

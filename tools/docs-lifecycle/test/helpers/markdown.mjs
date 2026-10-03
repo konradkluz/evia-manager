@@ -40,7 +40,10 @@ export function parsePolicyRules(policy) {
   const rules = [];
   for (const line of lines.slice(header + 2)) {
     if (!line.startsWith('|')) break;
-    const cells = line.split('|').slice(1, -1).map((cell) => cell.trim());
+    const cells = line
+      .split('|')
+      .slice(1, -1)
+      .map((cell) => cell.trim());
     const backticked = (/** @type {string} */ cell) => Array.from(cell.matchAll(/`([^`]+)`/g), (match) => match[1]);
     const classes = backticked(cells[2]);
     if (classes.length !== 1) throw new Error(`wiersz ${cells[0]}: oczekiwano jednego kodu klasy, jest: ${classes.join(', ')}`);

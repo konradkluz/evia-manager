@@ -78,9 +78,7 @@ function decode(token) {
  */
 export function referenceCandidates(source, token) {
   const target = decode(token).normalize('NFC');
-  const raw = target.startsWith('/')
-    ? [target.slice(1)]
-    : [posix.join(posix.dirname(source.normalize('NFC')), target), target];
+  const raw = target.startsWith('/') ? [target.slice(1)] : [posix.join(posix.dirname(source.normalize('NFC')), target), target];
   const candidates = raw.map((path) => posix.normalize(path)).filter((path) => path !== '..' && !path.startsWith('../'));
   return [...new Set(candidates)];
 }

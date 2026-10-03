@@ -84,7 +84,13 @@ describe('format wyjścia walidatora (EVM-012)', () => {
     assert.equal(lines[2], 'Data: 2026-10-02 (Europe/Warsaw) · plików .md: 7');
     assert.ok(lines.includes('| Ścieżka | Klasa | Proponowana akcja | Uzasadnienie |'));
     assert.ok(lines.includes('|---|---|---|---|'));
-    assert.ok(lines.some((line) => /^\| `docs\/notes\/plan\.md` \| kamień milowy \| usuń \| kamień milowy M0 \(pole milestone\); odwołania: docs\/README\.md/.test(line)));
+    assert.ok(
+      lines.some((line) =>
+        /^\| `docs\/notes\/plan\.md` \| kamień milowy \| usuń \| kamień milowy M0 \(pole milestone\); odwołania: docs\/README\.md/.test(
+          line,
+        ),
+      ),
+    );
     assert.ok(lines.includes('Pozycje: 1 (usuń: 1, przejrzyj: 0).'));
     assert.ok(lines.includes('_Tylko odczyt — żaden plik nie został zmieniony; decyzję podejmuje Konrad w `/milestone close`._'));
     assert.ok(!text.includes('Uwaga'));
