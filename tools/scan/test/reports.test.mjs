@@ -105,7 +105,15 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
     /** @param {unknown[]} licenses */
     const report = (licenses) => ({
       Results: [
-        { Target: 'pnpm-lock.yaml', Type: 'pnpm' },
+        {
+          Target: 'pnpm-lock.yaml',
+          Type: 'pnpm',
+          Packages: [
+            { Name: 'a', Version: '1.0.0', Licenses: ['MIT'] },
+            { Name: 'font', Version: '2.0.0', Licenses: ['OFL-1.1'] },
+            { Name: 'g', Version: '3.0.0', Licenses: ['GPL-3.0-only'] },
+          ],
+        },
         { Target: 'pnpm-lock.yaml', Class: 'license', Licenses: licenses },
       ],
     });
@@ -120,6 +128,39 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
     );
     assert.deepEqual(trivyLicenseVerdict(report([{ Name: 'GPL-3.0-only', PkgName: 'g' }])).problems, ['GPL-3.0-only · g']);
     assert.equal(trivyLicenseVerdict({ Results: [] }).passed, false);
+  });
+
+  it('EVM-006 AC4 (security review): a production dependency without a license is an unknown license — red, named in the report', () => {
+    /** @param {unknown[]} packages @param {unknown[]} [licenses] */
+    const report = (packages, licenses = []) => ({
+      Results: [
+        { Target: 'pnpm-lock.yaml', Class: 'lang-pkgs', Type: 'pnpm', Packages: packages },
+        { Target: 'pnpm-lock.yaml', Class: 'license', Licenses: licenses },
+        // Lockfiles of other ecosystems inside node_modules (e.g. examples of a package) are not dependencies.
+        {
+          Target: 'node_modules/x/examples/Podfile.lock',
+          Class: 'lang-pkgs',
+          Type: 'cocoapods',
+          Packages: [{ Name: 'Pod', Version: '0.1.0' }],
+        },
+      ],
+    });
+    const red = trivyLicenseVerdict(
+      report([
+        { Name: 'licensed', Version: '1.0.0', Licenses: ['MIT'] },
+        { Name: 'selftest-unlicensed-fixture', Version: '1.0.0' },
+        { Name: 'empty', Version: '2.0.0', Licenses: [''] },
+        { Name: 'selftest-unlicensed-fixture', Version: '1.0.0' },
+      ]),
+    );
+    assert.equal(red.passed, false);
+    assert.deepEqual(red.problems, ['licencja nieznana · selftest-unlicensed-fixture@1.0.0', 'licencja nieznana · empty@2.0.0']);
+    assert.match(red.summary, /nieznane: 2/);
+    // A license reported only in the license class counts as known.
+    const known = trivyLicenseVerdict(report([{ Name: 'b', Version: '1.0.0' }], [{ Name: 'ISC', PkgName: 'b' }]));
+    assert.equal(known.passed, true, known.problems.join('\n'));
+    // No package list (e.g. changed Trivy flags) is an empty scan — red, never a silent pass.
+    assert.equal(trivyLicenseVerdict(report([])).summary, 'pusty cel skanu (0 pakietów pnpm)');
   });
 
   it('EVM-006 AC4: SPDX expressions — OR needs one allowed alternative, AND needs all', () => {

@@ -67,6 +67,11 @@ export function fixtures() {
     'license/pnpm-lock.yaml': LOCKFILE('selftest-gpl-fixture', '1.0.0'),
     'license/node_modules/.pnpm/selftest-gpl-fixture@1.0.0/node_modules/selftest-gpl-fixture/package.json':
       '{ "name": "selftest-gpl-fixture", "version": "1.0.0", "license": "GPL-3.0-only" }\n',
+    'license-unknown/package.json':
+      '{ "name": "selftest", "version": "1.0.0", "private": true, "dependencies": { "selftest-unlicensed-fixture": "1.0.0" } }\n',
+    'license-unknown/pnpm-lock.yaml': LOCKFILE('selftest-unlicensed-fixture', '1.0.0'),
+    'license-unknown/node_modules/.pnpm/selftest-unlicensed-fixture@1.0.0/node_modules/selftest-unlicensed-fixture/package.json':
+      '{ "name": "selftest-unlicensed-fixture", "version": "1.0.0" }\n',
     'zizmor/.github/workflows/selftest.yml': [
       'name: selftest',
       'on:',

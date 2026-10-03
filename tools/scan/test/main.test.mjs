@@ -26,7 +26,7 @@ const GREEN = {
   'trivy-config.json': { Results: [{ Target: 'docker/backend-tests/Dockerfile', Misconfigurations: [] }] },
   'trivy-license.json': {
     Results: [
-      { Target: 'pnpm-lock.yaml', Type: 'pnpm' },
+      { Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: [{ Name: 'a', Version: '1.0.0', Licenses: ['MIT'] }] },
       { Class: 'license', Licenses: [{ Name: 'MIT', PkgName: 'a' }] },
     ],
   },
@@ -51,9 +51,16 @@ const GREEN = {
   },
   'selftest/trivy-license.json': {
     Results: [
-      { Target: 'pnpm-lock.yaml', Type: 'pnpm' },
+      {
+        Target: 'pnpm-lock.yaml',
+        Type: 'pnpm',
+        Packages: [{ Name: 'selftest-gpl-fixture', Version: '1.0.0', Licenses: ['GPL-3.0-only'] }],
+      },
       { Class: 'license', Licenses: [{ Name: 'GPL-3.0-only', PkgName: 'selftest-gpl-fixture' }] },
     ],
+  },
+  'selftest/trivy-license-unknown.json': {
+    Results: [{ Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: [{ Name: 'selftest-unlicensed-fixture', Version: '1.0.0' }] }],
   },
 };
 const ZIZMOR_SELFTEST = [
@@ -153,6 +160,10 @@ describe('scan runner (EVM-006 AC4, AC5; SR-SUPPLY-07, SR-SUPPLY-10)', () => {
     assert.match(out, /BRAMKA WYŁĄCZONA/);
     const wrongId = run(['selftest'], fakeCompose({ overrides: { 'selftest/trivy-config.json': GREEN['trivy-config.json'] } }));
     assert.equal(wrongId.status, 1);
+    // Security review: the unknown-license gate has its own self-test — a licensed fixture means the gate is off.
+    const licensed = run(['selftest'], fakeCompose({ overrides: { 'selftest/trivy-license-unknown.json': GREEN['trivy-license.json'] } }));
+    assert.equal(licensed.status, 1);
+    assert.match(licensed.out, /selftest-licenses-unknown/);
     const missingId = runStep(
       /** @type {import('../lib/steps.mjs').Step} */ (SELFTEST_STEPS.find((step) => step.id === 'selftest-trivy-config')),
       {
@@ -279,13 +290,16 @@ describe('self-test fixtures and compose helper (EVM-006 AC4, AC5; SR-PRIV-08)',
 
   it('EVM-006 AC4: fixtures cover every scanner of the self-test', () => {
     const files = Object.keys(fixtures());
-    for (const prefix of ['gitleaks/', 'osv/', 'trivy-config/', 'license/', 'zizmor/.github/workflows/']) {
+    for (const prefix of ['gitleaks/', 'osv/', 'trivy-config/', 'license/', 'license-unknown/', 'zizmor/.github/workflows/']) {
       assert.ok(
         files.some((file) => file.startsWith(prefix)),
         prefix,
       );
     }
     assert.match(fixtures()['osv/pnpm-lock.yaml'] ?? '', /lodash@4\.17\.20/);
+    const unlicensed = Object.entries(fixtures()).filter(([file]) => file.startsWith('license-unknown/') && file.endsWith('package.json'));
+    assert.equal(unlicensed.length, 2);
+    for (const [file, content] of unlicensed) assert.equal('license' in JSON.parse(content), false, file);
   });
 
   it('EVM-006 AC4 (A6): docker is only ever called as docker compose -f compose.yaml run --rm <known service>', () => {

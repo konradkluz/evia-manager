@@ -281,6 +281,22 @@ export const SELFTEST_STEPS = [
     },
   },
   {
+    id: 'selftest-licenses-unknown',
+    label: 'samotest Trivy license (zależność bez licencji = nieznana)',
+    service: 'scan-trivy',
+    args: [...TRIVY_LICENSE, '--output', '/out/selftest/trivy-license-unknown.json', '/out/selftest/license-unknown'],
+    okExit: [0],
+    report: 'selftest/trivy-license-unknown.json',
+    verdict: (report) => {
+      const gate = trivyLicenseVerdict(report);
+      return selftestVerdict(
+        gate,
+        gate.problems.includes('licencja nieznana · selftest-unlicensed-fixture@1.0.0'),
+        'selftest-unlicensed-fixture',
+      );
+    },
+  },
+  {
     id: 'selftest-zizmor',
     label: 'samotest zizmor (pull_request_target + wstrzyknięcie)',
     service: 'scan-zizmor',

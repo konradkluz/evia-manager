@@ -143,21 +143,39 @@ export function trivyConfigVerdict(report) {
 }
 
 /**
- * Trivy `--scanners license`: every license outside the allow-list blocks; the scan must have read a pnpm lockfile.
+ * Trivy `--scanners license`: every license outside the allow-list blocks, and so does an unknown license — a pnpm
+ * package without any license (requirements.md → bramka 4; security-engineer review of EVM-006: Trivy reports no
+ * license finding for such a package, so it is judged from the package list). The scan must have read a pnpm lockfile
+ * with packages. Exceptions: only .trivyignore.yaml → licenses (by license name, with expired_at) — Trivy cannot bind a
+ * license exception to a package, so an unknown license has no exception; such a dependency needs a story.
  * @param {unknown} report
  * @returns {Verdict}
  */
 export function trivyLicenseVerdict(report) {
   const results = list(record(report)['Results']).map(record);
-  if (!results.some((result) => text(result['Type']) === 'pnpm')) {
+  const pnpm = results.filter((result) => text(result['Type']) === 'pnpm');
+  if (pnpm.length === 0) {
     return { passed: false, summary: 'pusty cel skanu (brak pnpm-lock.yaml i node_modules)', problems: [] };
   }
+  const packages = pnpm.flatMap((result) => list(result['Packages']).map(record));
+  if (packages.length === 0) return { passed: false, summary: 'pusty cel skanu (0 pakietów pnpm)', problems: [] };
   const licenses = results.flatMap((result) => list(result['Licenses']).map(record));
   const violations = licenses.filter((license) => !licenseAllowed(text(license['Name'])));
+  const licensed = new Set(licenses.map((license) => text(license['PkgName'])));
+  const unknown = [
+    ...new Set(
+      packages
+        .filter((pkg) => !list(pkg['Licenses']).some((name) => text(name).trim() !== '') && !licensed.has(text(pkg['Name'])))
+        .map((pkg) => `${text(pkg['Name'])}@${text(pkg['Version'])}`),
+    ),
+  ];
   return {
-    passed: violations.length === 0,
-    summary: `licencje: ${licenses.length} (spoza listy dozwolonych: ${violations.length})`,
-    problems: violations.map((license) => `${text(license['Name'])} · ${text(license['PkgName'])}`),
+    passed: violations.length === 0 && unknown.length === 0,
+    summary: `pakiety: ${packages.length}, licencje: ${licenses.length} (spoza listy dozwolonych: ${violations.length}, nieznane: ${unknown.length})`,
+    problems: [
+      ...violations.map((license) => `${text(license['Name'])} · ${text(license['PkgName'])}`),
+      ...unknown.map((name) => `licencja nieznana · ${name}`),
+    ],
   };
 }
 
