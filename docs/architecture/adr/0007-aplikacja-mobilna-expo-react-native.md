@@ -1,6 +1,7 @@
 # ADR-0007: Aplikacja mobilna — React Native z Expo (iOS + Android), upload w tle natywnymi mechanizmami systemu
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
+- **Zakres platform doprecyzowany** 2026-10-03 (decyzja Konrada, [ADR-0015](0015-srodowisko-testow-per-warstwa.md)): iOS odłożony — pilotaż i spike tylko na Androidzie; kod pozostaje zgodny z iOS (Expo); decyzja o iOS przed planowaniem wydania iOS.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: mobile-developer, security-engineer)
 - **Powiązane:** EVM-001, EVM-009, EVM-011 (spike), E9–E14 (M2); ADR-0004, ADR-0005, ADR-0008, ADR-0009, ADR-0012, ADR-0014

@@ -21,6 +21,7 @@
 | CI/CD | GitHub Actions, pnpm + Turborepo, EAS Build (iOS bez Maca) | [0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md) |
 | Obserwowalność | Grafana Cloud (UE) + Sentry (UE), redakcja danych osobowych | [0013](adr/0013-obserwowalnosc.md) |
 | Testy | Vitest, Testcontainers, macierz ról z kontraktu, Playwright, Maestro | [0014](adr/0014-narzedzia-testowe.md) |
+| Środowisko testów | Per warstwa: backend w kontenerach Linux, web w przeglądarkach na Windows, mobile i E2E Android na emulatorze Windows, narzędzia natywnie; CI Linux jako dodatkowa bramka (bez emulatora); iOS odłożony | [0015](adr/0015-srodowisko-testow-per-warstwa.md) |
 
 **Dlaczego tak:** jeden język (TypeScript) w backendzie, panelu i aplikacji mobilnej — wspólny kontrakt i logika synchronizacji, mniej błędów, szybsza praca agentów. Sprawdzona („nudna”) technologia z dojrzałymi narzędziami testowymi. Jedna maszyna i jedna baza zamiast wielu usług — tanio i prosto. Dane klientów u firm z UE (Niemcy, Francja; storage w Warszawie). Upload dużych filmów w tle przez mechanizmy systemu (iOS URLSession, Android UIDT); ryzyko sprawdzamy w spike'u EVM-011 przed M2.
 
@@ -39,7 +40,7 @@
 3. Jakość wideo: **1080p z ograniczonym bitrate, maks. 30 min / 4 GB**.
 4. Telefony: **mieszane — firmowe i prywatne (BYOD)**; wsparcie iOS 17+ i Android 10+. Konsekwencja: polityka BYOD (prywatność, wymagana blokada ekranu, czyszczenie danych firmowych bez MDM) do opracowania w EVM-005.
 5. Podprocesorzy z USA w regionach UE (Sentry, Grafana Cloud): **tak**, po redakcji danych osobowych; ryzyko rezydualne oceni EVM-005.
-6. Konta: **Apple Developer i Google Play Console firmowe** (zakłada Konrad przed EVM-009), **GitHub Pro** na koncie osobistym (potwierdzenie przy EVM-006).
+6. Konta: **Apple Developer i Google Play Console firmowe** (zakłada Konrad przed EVM-009), **GitHub Pro** na koncie osobistym (potwierdzenie przy EVM-006). *Doprecyzowanie 2026-10-03 ([ADR-0015](adr/0015-srodowisko-testow-per-warstwa.md)): iOS odłożony — konto Apple Developer zakładane dopiero po decyzji o iOS (przed planowaniem wydania iOS); przed EVM-009 potrzebne tylko konto Google Play Console.*
 
 **Pytania do decyzji (z rekomendacją) — stan przed demo**
 1. **Hosting:** wariant A (≈ 192 zł, PostgreSQL utrzymywany przez nas) czy B (≈ 458 zł, wszystko w Scaleway z zarządzaną bazą)? — *Rekomendacja: A*; przejście na B później zajmuje 1–2 dni.
@@ -241,6 +242,8 @@ Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.
 | Konto Apple Developer | 99 USD/rok | 8,25 USD | 31,98 |
 | **Razem miesięcznie** | | | **≈ 192 zł** |
 | Jednorazowo | Google Play Console 25 USD | | ≈ 97 zł |
+
+> **Adnotacja 2026-10-03 ([ADR-0015](adr/0015-srodowisko-testow-per-warstwa.md)):** iOS odłożony w całości — konto Apple Developer (≈ 32 zł/mies.) i buildy iOS w EAS nie są ponoszone do decyzji o iOS. Tabele pokazują koszt docelowy z iOS i nie są przeliczane.
 
 **Porównanie z budżetem 300 zł/mies.:** mieści się wszystko, łącznie z niezmiennym backupem bazy i mediów u innego dostawcy, skanem AV, MFA, kontem Apple i GitHub Pro. **Rezerwa ≈ 108 zł** wystarcza na jedną z opcji: EAS Starter (19 USD ≈ 74 zł — szybsza kolejka buildów) **albo** Sentry Team (26 USD ≈ 101 zł — więcej użytkowników i błędów); obu naraz nie. **Nie mieści się:** wariant B z zarządzaną bazą (≈ 458 zł/mies.) i samodzielnie hostowany stos obserwowalności (+ ok. 30–40 zł). Pozycji oznaczonych pogrubieniem (backup poza głównym miejscem, skan AV, MFA, płatny plan GitHub) nie wolno usunąć bez nowego ADR i zgody Konrada.
 

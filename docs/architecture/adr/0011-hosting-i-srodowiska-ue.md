@@ -1,6 +1,7 @@
 # ADR-0011: Hosting i środowiska w UE — Hetzner Cloud (obliczenia i baza) + Scaleway (storage, backupy bazy, e-mail) + Hetzner Storage Box (backup mediów)
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
+- **Częściowo zastąpiona przez:** [ADR-0015](0015-srodowisko-testow-per-warstwa.md) (2026-10-03) — zakres: tabela „Środowiska”, wiersz `dev`: testy backendu uruchamiamy lokalnie wyłącznie na Linuksie w kontenerze `backend-tests` w dev Compose; porty usług dev publikowane tylko na `127.0.0.1`. Pozostała treść obowiązuje.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (`rodo.md` — podprocesorzy), EVM-006, EVM-007; ADR-0001, ADR-0003, ADR-0005, ADR-0009, ADR-0010, ADR-0012, ADR-0013

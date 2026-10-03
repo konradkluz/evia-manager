@@ -60,9 +60,13 @@ Nie dotyczy.
 Akcje CI przypięte do wersji/SHA, minimalne uprawnienia tokenów CI, brak sekretów w logach.
 
 ## Notatki techniczne
-Środowisko Konrada: Windows 11 — instrukcje i skrypty muszą działać na Windows (oraz w CI na Linux / macOS).
+Środowisko Konrada: Windows 11. Testy per warstwa (ADR-0015): backend w kontenerach Linux (`backend-tests` + usługi z ADR-0011), web/mobile/narzędzia natywnie na Windows; CI Linux dla wszystkich warstw.
 
-Środowisko lokalne (Konrad, 2026-10-03, demo EVM-012): Konrad będzie pracował lokalnie na **Dockerze** i tam uruchamiał środowisko — instrukcja uruchomienia (AC1) i bramka lokalna (AC2) muszą działać w kontenerach (Docker Desktop na Windows 11); natywne uruchomienie na Windows — opcjonalnie.
+Środowisko lokalne (Konrad, 2026-10-03, demo EVM-012): Konrad będzie pracował lokalnie na **Dockerze** i tam uruchamiał środowisko — instrukcja uruchomienia (AC1) i bramka lokalna (AC2) muszą działać w kontenerach (Docker Desktop na Windows 11); natywne uruchomienie na Windows — opcjonalnie. Doprecyzowane w ADR-0015: w kontenerach — backend.
+
+Z ADR-0015 (zaakceptowany 2026-10-03, bez zmiany AC):
+- „Po EVM-006”: `compose.yaml` z `backend-tests` (utwardzenia, digest, `-f`), lista dozwolonych montaży, osobne `node_modules` host/kontener i kryterium edytora, pnpm 11 `allowBuilds`/`minimumReleaseAge`, sieć `internal`, porty `127.0.0.1`, `.gitattributes`, joby CI w obrazie `backend-tests`, E2E Android w CI warunkowo, pomiar czasu.
+- Sekrety usług zewnętrznych (prawdziwe klucze, tokeny, certyfikaty) **nigdy w katalogu repozytorium** — także nie w plikach ignorowanych przez git; w repo wyłącznie `.env.example` z wartościami przykładowymi (dotyczy AC5 i instrukcji z AC1).
 
 Przejęcie z EVM-012 (dopisane 2026-10-03 po przeglądzie `solution-architect`, bez zmiany AC):
 - Główny `package.json` z EVM-012 (minimalny: `private: true`, bez zależności) ma trzy skrypty — `docs:check`, `docs:cleanup`, `test:tools` — do przejęcia bez zmian (wywołanie także przez `pnpm run …`). `tools/docs-lifecycle/` jest samowystarczalny (tylko moduły `node:*` i importy względne) i wchodzi do monorepo jako workspace `tools/*`.
@@ -87,3 +91,4 @@ _—_
 - 2026-10-02 — utworzono (setup zespołu)
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
 - 2026-10-03 — dopisano notatkę o przejęciu głównego `package.json` i narzędzia z EVM-012 („Notatki techniczne”, bez zmiany AC) (product-owner)
+- 2026-10-03 — „Notatki techniczne” zaktualizowane wg ADR-0015 (testy per warstwa, zadania „Po EVM-006”, sekrety usług zewnętrznych poza katalogiem repo), bez zmiany AC (product-owner)

@@ -35,7 +35,7 @@ Wyłącznie design tokens i komponenty wspólnej biblioteki mobilnej; konwencje 
 # Testy
 - TDD z `EVM-xxx AC#` w opisach testów.
 - Silnik synchronizacji i kolejka uploadu to najbardziej ryzykowny kod: testy jednostkowe z symulacją awarii sieci, przerwań, duplikatów, restartów; najwyższe progi pokrycia.
-- E2E mobilne (narzędzie wg ADR) dla kluczowych przepływów, w tym scenariusze offline (tryb samolotowy → powrót sieci).
+- E2E mobilne (narzędzie wg ADR) dla kluczowych przepływów, w tym scenariusze offline (tryb samolotowy → powrót sieci). E2E Android: dowodem lokalnym jest Maestro na emulatorze Androida na Windows; iOS odłożone (ADR-0015).
 - Do wydań: checklista ręcznego testu terenowego (garaż podziemny) w `docs/process/testing-strategy.md`.
 
 # Kompatybilność

@@ -23,6 +23,21 @@
 | Bezpieczeństwa | SAST, zależności, sekrety w CI; DAST baseline na staging | CI / przed wydaniem |
 | Wydajnościowe (smoke) | listy, wyszukiwanie, upload dużych plików | przed wydaniem (od M1) |
 
+## Gdzie uruchamiamy testy (ADR-0015)
+Środowisko testów jest dobrane do platformy docelowej warstwy. Dowód lokalny trafia do raportu agenta i liczy się w DoD; bramką merge jest zawsze dodatkowo CI Linux (od EVM-006). Pełna tabela: [ADR-0015](../architecture/adr/0015-srodowisko-testow-per-warstwa.md) → „Co jest dowodem — per warstwa”.
+
+| Warstwa | Dowód lokalny | CI Linux |
+|---|---|---|
+| Backend (API, worker, media-processor, migracje): jednostkowe, integracyjne, kontraktowe, macierz ról | wyłącznie kontener Linux `backend-tests` (od EVM-006); wynik natywny na Windows nie jest dowodem | tak |
+| Pakiety współdzielone, lint, typy, kontrakt | natywnie na Windows | tak |
+| Web: Vitest, Playwright E2E | natywnie na Windows w Chromium/Chrome, Edge (`msedge`), Firefox; bez testów zrzutów ekranu | tak (Chromium, Firefox, WebKit; zrzuty ekranu tylko tu lub w obrazie Playwright) |
+| Mobile: Jest, Vitest, lint, typy | natywnie na Windows | tak (bez emulatora) |
+| E2E Android (Maestro) | emulator Androida na Windows — jedyny dowód (wynik z wersją API w raporcie) | odłożone (warunek powrotu w ADR-0015) |
+| iOS | odłożony w całości do decyzji przed planowaniem wydania iOS | — |
+| `tools/`, dokumentacja | natywnie na Windows | tak |
+
+Zasady: rozbieżność lokalnie/CI to błąd do wyjaśnienia (dla backendu rozstrzyga Linux); testy nie zależą od strefy czasowej ani ustawień regionalnych hosta — strefę `Europe/Warsaw` ustawia sam test.
+
 ## Progi (bramki CI — spadek blokuje merge)
 | Obszar | Linie i gałęzie |
 |---|---|

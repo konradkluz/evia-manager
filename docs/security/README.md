@@ -37,6 +37,7 @@
 ## Łańcuch dostaw i sekrety
 - Lockfile, automatyczne aktualizacje zależności, skan podatności i licencji w CI, akcje CI przypięte do wersji/SHA.
 - Sekrety wyłącznie w menedżerze sekretów / sekretach CI; skan sekretów w pre-commit i CI; rotacja po wycieku lub odejściu pracownika.
+- Sekrety usług zewnętrznych (EAS, GitHub, Scaleway, Sentry, Grafana Cloud, konta Apple/Google) **nigdy w katalogu repozytorium** — także nie w plikach ignorowanych przez git; trzymamy je w menedżerze sekretów albo poza repo (np. `%USERPROFILE%\.evia\`). W repo (ignorowane przez git) wyłącznie syntetyczne sekrety dev. Obowiązuje od 2026-10-03 ([ADR-0015](../architecture/adr/0015-srodowisko-testow-per-warstwa.md), M2); ryzyka rezydualne R1–R3 z ADR-0015 (tryb bypass agentów, gniazdo Dockera, obrazy bez weryfikacji podpisu) trafią do modelu zagrożeń w EVM-005.
 - Agenci AI nie mają dostępu do plików z sekretami (`.claude/settings.json` → `permissions.deny`).
 
 ## W procesie

@@ -18,7 +18,29 @@
       "Read(**/*service-account*.json)",
       "Bash(git push --force:*)",
       "Bash(git push -f:*)",
-      "Bash(git push --force-with-lease:*)"
+      "Bash(git push --force-with-lease:*)",
+      "Bash(docker run:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker cp:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git push origin --delete:*)",
+      "Bash(git push --mirror:*)",
+      "Bash(git push --all:*)",
+      "Bash(git push --tags:*)"
+    ],
+    "ask": [
+      "Edit(.claude/settings.json)",
+      "Write(.claude/settings.json)",
+      "Edit(**/compose*.yaml)",
+      "Write(**/compose*.yaml)",
+      "Edit(**/compose*.yml)",
+      "Write(**/compose*.yml)",
+      "Edit(**/docker-compose*.yaml)",
+      "Write(**/docker-compose*.yaml)",
+      "Edit(**/docker-compose*.yml)",
+      "Write(**/docker-compose*.yml)"
     ]
   }
 }

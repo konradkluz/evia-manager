@@ -31,7 +31,7 @@ Semantyczny HTML, etykiety pól, zarządzanie fokusem w dialogach i po nawigacji
 Sesja wg ADR (np. ciasteczka httpOnly; tokenów nie trzymamy w localStorage); żadnego wstrzykiwania surowego HTML z danych użytkownika; zgodność z CSP (bez inline script); obsługa 401/403 (ukrywanie akcji w UI jest wygodą — autoryzację i tak egzekwuje serwer); nie logujemy danych osobowych.
 
 # Testy
-Selektory po roli i etykiecie (jak widzi to użytkownik), bez sztucznych opóźnień, deterministyczne dane syntetyczne. E2E (np. Playwright) dla ścieżek AC przechodzących przez cały stos.
+Selektory po roli i etykiecie (jak widzi to użytkownik), bez sztucznych opóźnień, deterministyczne dane syntetyczne. E2E (np. Playwright) dla ścieżek AC przechodzących przez cały stos. Dowodem E2E web są przebiegi Playwright na Windows w Chromium, Edge (`msedge`) i Firefox; testy zrzutów ekranu tylko w obrazie Playwright lub CI (ADR-0015).
 
 # Dokumenty i pliki robocze
 Zasady: `docs/process/document-lifecycle.md`.

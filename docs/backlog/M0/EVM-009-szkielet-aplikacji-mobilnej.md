@@ -39,14 +39,16 @@ Podejście mobilne i dystrybucja: ADR-y z EVM-001. API ze szkieletu: EVM-008.
 - Wtedy testy jednostkowe i komponentowe działają w CI z progami pokrycia, a test dymny E2E mobile działa wg ADR.
 
 **AC5 — Build i dystrybucja**
-- Wtedy CI buduje wersje iOS i Android, a kanał dystrybucji wewnętrznej jest skonfigurowany.
-- Weryfikacja ręczna (Konrad): build zainstalowany na min. 1 telefonie iOS i 1 Android.
+- Wtedy CI buduje wersję Android, a kanał dystrybucji wewnętrznej dla Androida jest skonfigurowany.
+- Weryfikacja ręczna (Konrad): build zainstalowany na min. 1 telefonie Android.
+- _iOS odłożony (decyzja Konrada 2026-10-03, ADR-0015) — bez buildu iOS i bez instalacji na iPhonie w tej historyjce._
 
 **AC6 — Bezpieczeństwo bazowe**
 - Wtedy paczka aplikacji nie zawiera sekretów, komunikacja odbywa się wyłącznie przez HTTPS, a bezpieczny magazyn na tokeny jest przygotowany (bez logowania).
 
 ## Poza zakresem
 Logowanie (M2, E9), praca offline na danych, aparat i upload (spike EVM-011, potem M2).
+iOS — odłożony (decyzja Konrada 2026-10-03, ADR-0015): build iOS w CI/EAS, kanał dystrybucji iOS, konto Apple Developer, testy na iPhonie i symulatorze iOS. Decyzja o iOS przed planowaniem wydania iOS; kod aplikacji pozostaje zgodny z iOS (Expo).
 
 ## UX / UI
 Powłoka, pusty stan i ekran aktualizacji wg styleguide'u v1 (wytyczne „Teren”).
@@ -55,7 +57,9 @@ Powłoka, pusty stan i ekran aktualizacji wg styleguide'u v1 (wytyczne „Teren�
 Klucze podpisu aplikacji tylko w bezpiecznym magazynie CI; publikacja buildów wyłącznie za zgodą Konrada.
 
 ## Notatki techniczne
-Buildy iOS wymagają macOS (chmura / runner CI) — Konrad pracuje na Windows 11. Konta deweloperskie (Apple, Google) zakłada Konrad — orkiestrator poprosi z wyprzedzeniem.
+Konrad pracuje na Windows 11. Konto deweloperskie Google Play zakłada Konrad — orkiestrator poprosi z wyprzedzeniem; konto Apple Developer niepotrzebne do decyzji o iOS (ADR-0015).
+
+Testy (AC4) wg ADR-0015: jednostkowe i komponentowe natywnie i w CI Linux; test dymny E2E — Maestro na emulatorze Androida na Windows (jedyny dowód; E2E Android w CI odłożone do warunku powrotu z ADR-0015); w CI tylko joby bez emulatora. iOS odłożony (decyzja Konrada 2026-10-03, ADR-0015): bez buildów iOS w EAS i bez testów iOS; kod pozostaje zgodny z iOS (Expo), bez zależności tylko-Android bez uzasadnienia. Raport wykonawcy zawiera wynik Maestro z wersją API emulatora.
 
 ## Plan techniczny
 _Uzupełnia wykonawca._
@@ -75,3 +79,5 @@ _—_
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
+- 2026-10-03 — zmiana AC — do potwierdzenia przez Konrada: AC5 tylko Android (iOS odłożony, decyzja Konrada 2026-10-03, ADR-0015); iOS dopisany do „Poza zakresem”; „Notatki techniczne” wg ADR-0015 (product-owner)
+- 2026-10-03 — zmiana AC (iOS odłożony, ADR-0015) potwierdzona przez Konrada; status bez zmian: ready

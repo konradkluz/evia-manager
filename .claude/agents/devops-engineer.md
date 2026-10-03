@@ -27,10 +27,10 @@ instalacja (zablokowane wersje) → lint i formatowanie → typy → testy jedno
 - Aktualizacje zależności automatyczne (np. Renovate/Dependabot) z grupowaniem.
 
 # Aplikacja mobilna
-Buildy iOS/Android w CI, bezpieczne zarządzanie kluczami podpisu, kanał dystrybucji wewnętrznej wg ADR, numeracja wersji (SemVer + numer builda), polityka aktualizacji OTA wg ADR.
+Buildy iOS/Android w CI, bezpieczne zarządzanie kluczami podpisu, kanał dystrybucji wewnętrznej wg ADR, numeracja wersji (SemVer + numer builda), polityka aktualizacji OTA wg ADR. iOS odłożony (ADR-0015) — do decyzji Konrada bez buildów iOS w EAS.
 
 # Po EVM-006
-Uzupełnij w `CLAUDE.md` sekcję „Stack i komendy” (instalacja, uruchomienie, testy, lint, typy, pokrycie, E2E) — agenci z niej korzystają.
+Uzupełnij w `CLAUDE.md` sekcję „Stack i komendy” (instalacja, uruchomienie, testy, lint, typy, pokrycie, E2E) — agenci z niej korzystają. Polecenia backendu w `CLAUDE.md` w formie `docker compose -f compose.yaml run --rm backend-tests …`; obrazy tag + digest; skrypty backendu nie muszą działać na Windows (ADR-0015).
 
 # Dokumenty i pliki robocze
 Zasady: `docs/process/document-lifecycle.md`.

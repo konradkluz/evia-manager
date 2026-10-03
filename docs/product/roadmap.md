@@ -51,7 +51,7 @@ flowchart LR
 | EVM-012 | Polityka cyklu życia dokumentacji + walidator | product-owner + devops-engineer | 001 |
 | EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
 
-**Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych; spike potwierdza wykonalność uploadu w tle; historyjki M1 w statusie `ready`.
+**Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych z Androidem; spike potwierdza wykonalność uploadu w tle na Androidzie (iOS odłożony — ADR-0015); historyjki M1 w statusie `ready`.
 
 ## M1 — MVP „Biuro” (wydanie 1.0)
 **Cel:** firma prowadzi wszystkie nowe zlecenia w panelu web. Telefon może tymczasowo dodawać zdjęcia przez przeglądarkę (online).
@@ -73,6 +73,8 @@ flowchart LR
 ## M2 — MVP „Teren”: aplikacja mobilna (wydanie 1.1)
 **Cel:** technik dokumentuje zlecenie zdjęciami, filmami i wpisami także bez zasięgu; wszystko trafia automatycznie do archiwum zlecenia. Start równolegle z drugą połową M1, gdy API zleceń i mediów (E3, E6) jest stabilne.
 
+> **iOS odłożony (decyzja Konrada 2026-10-03, ADR-0015):** pilotaż aplikacji mobilnej tylko na Androidzie — bez buildów iOS i testów iOS. Kod pozostaje zgodny z iOS (Expo). Decyzja o iOS (testy uploadu w tle na iPhonie, dystrybucja) zapada przed planowaniem wydania iOS; konto Apple Developer jest niepotrzebne do tego czasu.
+
 | Epik | Zakres |
 |---|---|
 | E9 Dostęp mobilny | te same konta i MFA, bezpieczne przechowywanie sesji, zdalne wylogowanie urządzenia, opcjonalnie biometria |
@@ -80,9 +82,9 @@ flowchart LR
 | E11 Zdjęcia i filmy | aparat w aplikacji, kategoria i opis, trwała kolejka, automatyczny wznawialny upload w tle, opcja „filmy tylko przez Wi-Fi”, status każdego pliku, brak duplikatów |
 | E12 Wpisy offline | wpisy i komentarze bez zasięgu z późniejszą synchronizacją |
 | E13 Nowe zlecenie z telefonu | szybkie zlecenie (klient + adres + szablon) uzupełniane potem w biurze |
-| E14 Dystrybucja i utrzymanie | kanał dystrybucji wewnętrznej iOS / Android, wymuszanie minimalnej wersji, raportowanie błędów bez danych osobowych, opcjonalnie push |
+| E14 Dystrybucja i utrzymanie | kanał dystrybucji wewnętrznej Android (iOS odłożony — patrz adnotacja wyżej), wymuszanie minimalnej wersji, raportowanie błędów bez danych osobowych, opcjonalnie push |
 
-**Kryteria wyjścia:** **test terenowy** — w garażu podziemnym bez zasięgu technik wykonuje min. 30 zdjęć i 3 filmy oraz dodaje 2 wpisy; po wyjściu na zasięg wszystko trafia do właściwego zlecenia automatycznie, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu; weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach firmowych.
+**Kryteria wyjścia:** **test terenowy** — w garażu podziemnym bez zasięgu technik wykonuje min. 30 zdjęć i 3 filmy oraz dodaje 2 wpisy; po wyjściu na zasięg wszystko trafia do właściwego zlecenia automatycznie, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu; weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach firmowych z Androidem (pilotaż; iOS po osobnej decyzji).
 
 ## Next
 - **M3 Procesy:** szablony procesów z checklistami wymaganych dokumentów (OSD, administracja, ekspertyza, ppoż, projekt), terminy i przypomnienia (np. brak odpowiedzi administracji > 14 dni), widok „Moje zadania”, książka kontaktów (administracje, projektanci, rzeczoznawcy, OSD), wersjonowanie dokumentów, generowanie pism z szablonów (np. pełnomocnictwo, wnioski), powiadomienia e-mail/push, pulpit (lejek zleceń, czas w etapach, nieopłacone).
@@ -97,7 +99,7 @@ flowchart LR
 | Ryzyko | Mitygacja |
 |---|---|
 | Zbyt sztywny albo zbyt luźny model zleceń | kompozycja (katalog + szablony + etapy), walidacja na scenariuszach A–F w EVM-002 |
-| Ograniczenia uploadu w tle (zwłaszcza iOS) | spike EVM-011 przed wyborem ostatecznego podejścia, test terenowy w M2 |
+| Ograniczenia uploadu w tle (zwłaszcza iOS) | spike EVM-011 (Android) przed wyborem ostatecznego podejścia, test terenowy w M2; iOS odłożony (ADR-0015) — weryfikacja uploadu w tle na iOS przed planowaniem wydania iOS |
 | Wyciek danych klientów (RODO) | ASVS L2, model zagrożeń, przegląd bezpieczeństwa w każdej historyjce, MFA, audyt |
 | Wąskie gardło akceptacji (jedna osoba) | małe przyrosty, zwięzłe demo, pytania z rekomendowaną odpowiedzią, grupowanie decyzji |
 | Rozjazd ze styleguide'em | tokeny jako kod, reguły lint, przegląd UX jako bramka |
@@ -107,7 +109,7 @@ flowchart LR
 
 ## Czego potrzebujemy od Ciebie (wejścia do M0)
 1. Materiały marki: logo, kolory, fonty lub adres strony www (EVM-003).
-2. Telefony: iOS / Android, modele, czy firmowe czy prywatne (EVM-001, EVM-009).
+2. Telefony: iOS / Android, modele, czy firmowe czy prywatne (EVM-001, EVM-009). _Ustalone: flota mieszana; pilotaż tylko na Androidzie, iOS odłożony (ADR-0015) — potrzebne konto Google Play; konto Apple Developer dopiero po decyzji o iOS._
 3. Liczba użytkowników teraz i za rok; kto z czego korzysta.
 4. Obecne narzędzia i dane do ewentualnej migracji (Excel, dysk, komunikatory).
 5. Hosting: preferencje, miesięczny budżet, domena (EVM-001, EVM-007).

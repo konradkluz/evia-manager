@@ -8,6 +8,7 @@ Historyjka jest `done`, gdy spełnia **wszystkie** punkty (dla dokumentów — p
 
 ## Jakość i testy
 - [ ] Bramki CI zielone: lint, formatowanie, typy, testy jednostkowe, integracyjne i E2E.
+- [ ] Testy uruchomione w środowisku właściwym dla warstwy (ADR-0015): backend w kontenerze Linux, web w przeglądarkach na Windows, E2E Android na emulatorze na Windows; testy zrzutów ekranu tylko na Linuksie; CI zielone.
 - [ ] Progi pokrycia spełnione (`testing-strategy.md`), w tym ≥ 90% pokrycia zmienionego kodu; brak nieuzasadnionych wykluczeń.
 - [ ] Brak nowych ostrzeżeń, martwego kodu i TODO bez ID historyjki.
 

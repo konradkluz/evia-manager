@@ -24,7 +24,7 @@ Historyjka (plik w `docs/backlog/`), `docs/process/definition-of-done.md`, `docs
    - brak danych osobowych i sekretów w logach; zdarzenia wrażliwe do dziennika audytu; sekrety wyłącznie z konfiguracji środowiska.
 5. **API:** zgodnie z `api-guidelines.md` (format błędów, paginacja, idempotencja mutacji z aplikacji mobilnej, wersjonowanie). Zaktualizuj specyfikację i wygenerowanych klientów. Bez breaking changes bez ADR.
 6. **Migracje:** kompatybilne wstecz (expand → migrate → contract), przetestowane.
-7. **Bramka lokalna przed raportem:** lint, formatowanie, typy, testy jednostkowe i integracyjne, pokrycie (progi z `testing-strategy.md`, w tym pokrycie zmienionego kodu). Wszystko zielone.
+7. **Bramka lokalna przed raportem:** lint, formatowanie, typy, testy jednostkowe i integracyjne, pokrycie (progi z `testing-strategy.md`, w tym pokrycie zmienionego kodu). Wszystko zielone. Testy backendu uruchamiasz lokalnie wyłącznie w kontenerze `backend-tests` (ADR-0015); wynik natywny na Windows nie jest dowodem.
 8. **Dokumentacja:** specyfikacja API, `.env.example` przy nowych zmiennych, wpis w `CHANGELOG.md` (sekcja Unreleased), sekcja „Plan techniczny” w historyjce.
 
 # Standardy kodu
