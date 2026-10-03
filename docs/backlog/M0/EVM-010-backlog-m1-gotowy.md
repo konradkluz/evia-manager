@@ -4,7 +4,7 @@ title: Backlog M1 gotowy do realizacji
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P0
 owner: product-owner
 contributors: []
@@ -313,9 +313,21 @@ Bez zmian ADR i `domain-model.md` w tej historyjce; zmiany wykonują wskazane hi
 20. **Telefon w pilocie B** — panel w przeglądarce prywatnych telefonów to nowy kanał spoza modelu zagrożeń (TM-01, P7 opisują tylko aplikację); nowe RR w EVM-065 AC4, decyzje 18 i 19.
 21. **Tokeny w linkach jednorazowych** — ADR-0013 i SR-LOG-02 usuwają z logów tylko query z podpisami URL-i; zasada „token tylko we fragmencie URL” dopisana w README M1 → „Zasady wspólne” i w EVM-016, EVM-024, EVM-025 (bez zmian ADR; `security-engineer` może rozważyć dopisanie jej do `requirements.md` przy najbliższej aktualizacji).
 
+### Uwagi nieblokujące z weryfikacji (runda 3, orkiestrator 2026-10-03)
+Ustalenia minor / nit z QA i przeglądów rundy 3, niezałatwione w historyjce:
+1. **Ostrzeżenie o transzach przy anulowaniu zlecenia** (ux-designer, minor; EVM-053 AC6 i „Poza zakresem” vs EVM-058 AC3). Ostrzeżenie „Planowane transze (N) zostaną anulowane.” i komunikat 422 w „Rozlicz…” należą do EVM-053 (skutek działa od tego wydania); EVM-058 rozszerza je o pełne podsumowanie — doprecyzować przy `/refine` EVM-053 / EVM-058, zanim staną się `ready` do realizacji.
+2. **Testy wokół zmiany czasu** (QA, nit; README M1 → „Zasady wspólne”). Żadne AC nie używa dat zmiany czasu (2026-10-25, 2027-03-28), choć „> X dni”, „po terminie” i TTL zależą od Europe/Warsaw — dopisać przy refinemencie EVM-034, EVM-055, EVM-016 / EVM-067 (wymóg z `testing-strategy.md`).
+3. **Format AC** (QA, nit). 181 z 438 AC bez „Zakładając”, 73 bez „Gdy” (głównie AC uprawnień i stanów) — zgodne z praktyką M0; ewentualne ujednolicenie przy refinemencie.
+4. **Sekcja „Decyzje dla Konrada”** (QA, nit; README M1). Pozycje 8, 11–13 bez wiersza „Historyjki”, 13 bez konsekwencji; roadmapa wymienia grupę „z akceptacją planu” bez 18 i 19.
+5. **Graf zależności** (QA, nit; README M1). 59 węzłów i 114 krawędzi — mało czytelny; rozważyć grafy per faza.
+6. **Zależności zewnętrzne w „Kontekście”** (QA, nit; EVM-062–064) zamiast w „Notatkach technicznych”.
+7. **Brak wpisu o poprawkach rundy 2 w „Dzienniku”** (QA, nit) — uzupełnione wpisem orkiestratora o rundach.
+8. **Lista faz w `roadmap.md`** (QA + solution-architect, minor) — **naprawione przez orkiestratora** (pusta linia przed listą „0.”).
+9. **`design/brand/logo-color.svg`** (QA, minor) — zmiana spoza zakresu w drzewie roboczym (`borderopacity="0a` bez cudzysłowu — niepoprawny XML); **nie weszła do commitów EVM-010**, decyzja o przywróceniu — Konrad.
+
 ## Definition of Done
-- [ ] AC1–AC4 spełnione (weryfikacja QA przez inspekcję)
-- [ ] Przeglądy: solution-architect, ux-designer, security-engineer — APPROVE
+- [x] AC1–AC4 spełnione (weryfikacja QA przez inspekcję) — QA runda 3: PASS (59 historyjek EVM-014…EVM-072, 7 × P0 / 47 × P1 / 5 × P2, 4–8 AC, pokrycie roadmapy, ekranów, scenariuszy A–D i SR E1–E8, graf bez cykli, 19 decyzji z rekomendacją); u orkiestratora: `npm run docs:check` 0 błędów / 0 ostrzeżeń, `npm run test:tools` 189/189
+- [x] Przeglądy: solution-architect, ux-designer, security-engineer — APPROVE (runda 3; R1: 3× CHANGES, 12 ustaleń blocker/major; R2: security CHANGES, 1× major — poprawione); konsultacje planu: solution-architect i security-engineer (CHANGES — wdrożone)
 - [ ] Akceptacja Konrada; zaakceptowane historyjki w statusie `ready`
 
 ## Dziennik
@@ -356,3 +368,5 @@ Bez zmian ADR i `domain-model.md` w tej historyjce; zmiany wykonują wskazane hi
   - README → „Punkt pilota” (EVM-053 i EVM-054 na prod w jednym wydaniu), „Kolejność i fazy”, „Zdolności przekrojowe”, „Zasady wspólne” (granice modułów, testy współbieżności), tabela SR E7, „Zmiany względem planu wstępnego”; odwołania w EVM-030, EVM-038, EVM-070.
 
   `npm run docs:check` — 0 błędów, 0 ostrzeżeń.
+- 2026-10-03 — workflow `deliver-story`: `passed` po 3 rundach (R1: 3× CHANGES — 12 ustaleń; R2: security CHANGES — zasada kopii zdjęć w chmurze w EVM-064 AC8, EVM-065 AC4, EVM-066 AC2, decyzje 18–19; R3: 3× APPROVE, QA PASS); zmiany product-owner zacommitowane przez orkiestratora (bez `design/brand/logo-color.svg`)
+- 2026-10-03 — in-progress → in-review: DoD (AC + przeglądy) spełnione; czeka na demo i decyzje Konrada (akceptacja planu, decyzje „Teraz”: 4, 8, 10–13, 17–19)
