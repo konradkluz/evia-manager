@@ -4,7 +4,7 @@ title: Security sign-off wydania 1.0
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: security-engineer
 contributors: [devops-engineer]
@@ -81,3 +81,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-065 planu wstępnego — konsultacja security-engineer pkt 2)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): powiązanie z bramką wdrożeń w trakcie pilota (EVM-065 AC7)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): testy ścieżek płatności w EVM-053 i EVM-054 zamiast EVM-058 (AC2)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

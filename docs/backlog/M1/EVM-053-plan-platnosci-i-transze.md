@@ -111,3 +111,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie transz i „Planu płatności” w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054
+- 2026-10-03 — plan M1 zaakceptowany przez Konrada (EVM-010); historyjka zostaje w `draft` do `/refine` — doprecyzować podział ostrzeżenia o transzach przy anulowaniu zlecenia między EVM-053 AC6 a EVM-058 AC3 (EVM-010 → „Uwagi do rozważenia” 1)

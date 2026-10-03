@@ -4,7 +4,7 @@ title: Procesy i etapy w zleceniu — z szablonu, osoba odpowiedzialna i termin
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -103,3 +103,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie procesów w karcie i podglądzie szablonu W-05 (AC1)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

@@ -4,7 +4,7 @@ title: Zdjęcia w zleceniu — wysyłanie z panelu i skan bezpieczeństwa
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -111,3 +111,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; część (a) podziału EVM-044 — konsultacja solution-architect W3)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer, security-engineer): AC3 i AC4 połączone (skan), nowe AC4 — wysyłanie z przeglądarki w telefonie; zależność od EVM-071 (makieta W-09 compact); decyzje 18 i 19
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

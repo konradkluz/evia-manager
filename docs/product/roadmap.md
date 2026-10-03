@@ -67,7 +67,7 @@ flowchart LR
 | E7 Płatności etapowe | etapy płatności (kwota, nr faktury, termin, status), zestawienie nieopłaconych i po terminie |
 | E8 Gotowość produkcyjna | import istniejących danych (CSV/Excel, jeśli potrzebny), test odtworzenia backupu, monitoring i alerty, security sign-off z DAST, dokumentacja RODO, krótka instrukcja, wdrożenie produkcyjne |
 
-**Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 59 historyjek EVM-014 … EVM-072 (EVM-010, `/milestone plan M1`; **zmiany w tej sekcji do akceptacji Konrada** — decyzja 13 w planie). Kolejność w fazach:
+**Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 59 historyjek EVM-014 … EVM-072 (EVM-010, `/milestone plan M1`; zmiany w tej sekcji **zaakceptowane przez Konrada 2026-10-03** — decyzja 13 w planie). Kolejność w fazach:
 
 0. przygotowanie — styleguide 1.2.0, makiety ekranów „bez makiety”, ADR modelu odczytu listy (równolegle z EVM-006–EVM-008);
 1. przyrost pionowy — logowanie → lista zleceń → utworzenie zlecenia → szczegóły;

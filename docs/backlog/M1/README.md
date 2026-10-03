@@ -1,6 +1,6 @@
 # M1 — MVP „Biuro” (wydanie 1.0): plan i indeks historyjek
 
-> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan do akceptacji Konrada** — wszystkie historyjki mają status `draft`. Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
+> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan zaakceptowany przez Konrada 2026-10-03** (demo EVM-010) — 57 historyjek `ready`; EVM-053 i EVM-058 w `draft` do `/refine`. Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
 
 ## Spis treści
 1. [Cel M1](#cel-m1)
@@ -808,6 +808,7 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 - Historyjki: EVM-007, EVM-016, EVM-024.
 
 **5. Plan GitHub a wdrożenia**
+- **Decyzja Konrada (2026-10-03):** zostajemy na **GitHub Free** (bez Pro). Skutek: przed planem EVM-007 ADR zmieniający ADR-0012 i SR-INFRA-13 / SR-INFRA-14 — wdrożenie wzorcem pull z weryfikacją na VM, zero sekretów prod w GitHubie, test odtworzenia poza GitHub Actions — oraz nowe RR do akceptacji (`/adr`).
 - Pytanie: GitHub Pro (ok. 4 USD / mies.) czy GitHub Free z kontrolami kompensującymi?
 - Kontekst: na Free w repozytorium prywatnym nie ma Environments ani rulesetów, więc każdy sekret CI jest sekretem repozytorium, który odczyta workflow z dowolnej gałęzi — także wypchniętej kluczem agentów. Dotyczy SR-INFRA-13, SR-INFRA-14 (kanał wdrożenia staging i prod — dlatego termin przed planem EVM-007), RR-20, SR-SUPPLY-05 i mitygacji RR-02 / RR-11; odwołanie do nowego ryzyka z planu EVM-006.
 - Rekomendacja: **GitHub Pro przed planem EVM-007** — sekrety w środowiskach ograniczonych do `main`, ruleset `main`; ADR-0012 i wymagania bez zmian.
@@ -828,37 +829,45 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 
 ### Teraz — z akceptacją planu M1
 **4. Punkt pilota**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: **wariant B poprzedzony A** — [Punkt pilota](#punkt-pilota): A po fazie 3 na staging (dane syntetyczne, zakaz realnych zleceń); B po fazach 4–5 na prod (pentest i sign-off EVM-065); E7 w trakcie pilota; UAT na realnych zleceniach tylko na prod.
 - Konsekwencje: B — płatności poza systemem do końca fazy 6, zlecenia sprzed EVM-053 bez transz (biuro dodaje ręcznie), każde wdrożenie prod w trakcie pilota przechodzi bramkę z EVM-065 AC7 i wymaga zatwierdzenia digestu przez Konrada, telefon to panel w przeglądarce (decyzje 18 i 19); tylko A (realne użycie od 1.0) — dłużej podwójna praca; C — realny pilot po E1–E5 tylko z pentestem, a E6 wymaga drugiego pentestu albo akceptacji ryzyka.
 - Historyjki: EVM-053, EVM-065, EVM-070.
 
 **8. Import istniejących danych**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: **nie w M1** — nowe zlecenia od startu pilota, bieżące kończą się w dotychczasowych narzędziach.
 - Konsekwencja „tak”: osobna historyjka z przeglądem `security-engineer` (parser XLSX z limitami SR-FILE-04, podstawa prawna i retencja danych historycznych, pliki źródłowe poza repozytorium) — wydłuża M1.
 
 **10. Ochrona ostatniego aktywnego Administratora**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: **tak** — ostatniego aktywnego Administratora nie da się dezaktywować ani zmienić mu roli; Administrator nie dezaktywuje siebie i nie odbiera sobie roli; drugi krok Administratora resetuje tylko inny Administrator albo runbook.
 - Konsekwencja „nie”: jedna pomyłka blokuje zarządzanie systemem do trybu awaryjnego przez SSH.
 - Historyjki: EVM-027.
 
 **11. Priorytety P2 i EVM-051**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: P2 (EVM-042, EVM-043, EVM-052, EVM-059, EVM-060) realizujemy po P1, jeśli nie opóźniają 1.0 — przy zamknięciu M1 mogą przejść do M2 / M3; EVM-052 i EVM-060 (nowe operacje wrażliwe) trafiają na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie `security-engineer`; **EVM-051 podniesiona do P1** (trwałe usunięcie omyłkowego zdjęcia z danymi osobowymi przed realnymi danymi).
 - Konsekwencja pominięcia P2: brak eksportu ZIP, filtra „Do wystawienia”, usuwania zleceń (zostaje anulowanie), ręcznych procesów (zostaje „Nie dotyczy”), podpowiedzi lokalizacji klienta.
 
 **12. Makiety w dwóch historyjkach UX**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: **tak — EVM-015 (E1) i EVM-071 (pozostałe)** zamiast jednej (plan wstępny). EVM-015 jest mała i odblokowuje aktywację pierwszego Administratora (W-13); EVM-071 idzie równolegle.
 - Konsekwencja jednej historyjki: EVM-016 czeka na wszystkie makiety M1.
 
 **13. Zmiany w roadmapie M1**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Rekomendacja: **akceptuj** zmiany w [`roadmap.md`](../../product/roadmap.md) (odnośnik do planu, fazy, pilot A → B, E7 po pilocie realnym, przesunięcia, najbliższe kroki).
 
 **17. Dane zlecenia zamkniętego**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja.
 - Pytanie: czy w zleceniu „Rozliczone” / „Anulowane” tytuł, opis, opiekun i planowana data mają być tylko do odczytu?
 - Rekomendacja: **tak** (`409 work_order_closed`, jak zakres, procesy i płatności — PO-8); zmiana po przywróceniu przez Administratora.
 - Konsekwencja „edytowalne”: rozliczone zlecenie można zmieniać bez przywrócenia (ślad tylko w dzienniku).
 - Historyjki: EVM-035, EVM-071.
 
 **18. Zdjęcia z telefonu w pilocie B — galeria czy aparat z przeglądarki**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja — wariant „galeria” **pod warunkiem zasady o kopii w chmurze** (EVM-066 AC2).
 - Pytanie: czy technik robi zdjęcia i filmy aparatem systemowym i wybiera je w panelu z galerii (kopie zostają na telefonie do potwierdzenia „Wysłano”), czy aparatem uruchamianym z przeglądarki (bez kopii w galerii)?
 - Rekomendacja (`product-owner`, `ux-designer`; ryzyko ocenia `security-engineer` w EVM-065 AC4 i DPIA): **galeria pod warunkiem przyjęcia zasady o kopii w chmurze** — zdjęcia przetrwają brak zasięgu, blokadę ekranu i wyładowanie karty z pamięci („nic nie ginie”). Zasada w instrukcji (EVM-066 AC2): przed pierwszym zdjęciem do pracy technik wyłącza automatyczną kopię zdjęć i filmów w chmurze (Zdjęcia Google, OneDrive, chmura producenta) albo wyklucza z niej folder aparatu; po „Wysłano 12 zdjęć — możesz je usunąć z telefonu.” usuwa zdjęcia z galerii i opróżnia kosz galerii; przy odejściu z firmy potwierdza Administratorowi usunięcie zdjęć z telefonu i chmury. Lokalizacja w aparacie wyłączona (P3); w miarę możliwości telefony firmowe.
 - Jeśli Konrad nie przyjmuje tej zasady (np. technicy nie zgodzą się wyłączyć kopii na prywatnym telefonie): rekomendacja zmienia się na **aparat z przeglądarki** albo **telefony firmowe** (bez prywatnego konta w chmurze).
@@ -867,6 +876,7 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 - Historyjki: EVM-044, EVM-046, EVM-066, EVM-071. Termin: przed makietą W-09 w telefonie (EVM-071 — faza 0).
 
 **19. Panel w przeglądarce prywatnego telefonu w pilocie B (BYOD)**
+- **Decyzja Konrada (2026-10-03, demo EVM-010):** przyjęta rekomendacja — nowe RR z kontrolami kompensującymi (EVM-065 AC4, EVM-064 AC8).
 - Pytanie: czy do czasu aplikacji (M2) technicy mogą używać pełnego panelu w przeglądarce prywatnych telefonów — z kontrolami kompensującymi — czy ograniczamy telefon do samego wysyłania zdjęć albo do telefonów firmowych?
 - Kontekst: kontrole aplikacji (SQLCipher, kontrola blokady ekranu, limit offline — P7, TM-01) w przeglądarce nie działają; kradzież odblokowanego telefonu z otwartą sesją daje dostęp Edytora do wszystkich zleceń i klientów (RR-13) do 60 min bezczynności (maks. 12 h); pobrany oryginał albo dokument może trafić do katalogu „Pobrane” i kopii w chmurze prywatnego konta (przegląd `security-engineer` EVM-010).
 - Rekomendacja (`security-engineer`): **akceptacja nowego RR z kontrolami** — zasady w instrukcji (EVM-066 AC2: blokada ekranu, „Wyloguj” po wysłaniu, bez pobierania oryginałów i dokumentów na telefon, bez cudzych telefonów; w wariancie „galeria” z decyzji 18 — wyłączona automatyczna kopia zdjęć w chmurze i opróżniany kosz galerii), przepływ BYOD w modelu zagrożeń (EVM-065 AC4) i DPIA (EVM-064 AC8), ograniczenie zapisane w [Punkt pilota](#punkt-pilota).

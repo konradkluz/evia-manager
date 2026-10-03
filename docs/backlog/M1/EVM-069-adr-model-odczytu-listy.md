@@ -4,7 +4,7 @@ title: ADR — model odczytu listy i podsumowania zlecenia
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P0
 owner: solution-architect
 contributors: []
@@ -80,3 +80,4 @@ _—_
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; konsultacja solution-architect W1)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

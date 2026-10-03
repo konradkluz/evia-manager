@@ -4,7 +4,7 @@ title: RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie 
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: security-engineer
 contributors: [product-owner, devops-engineer]
@@ -93,3 +93,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): AC1 — podstawa transferów do USA (DPF albo SCC); AC8 — uproszczona DPIA albo udokumentowana decyzja o jej zbędności
 - 2026-10-03 — poprawki z przeglądu EVM-010, runda 2 (security-engineer): AC8 — w zakresie DPIA kopie zdjęć w galerii i ryzyko automatycznej kopii w prywatnej chmurze (decyzja 18)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

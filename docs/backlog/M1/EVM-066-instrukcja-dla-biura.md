@@ -4,7 +4,7 @@ title: Krótka instrukcja dla biura
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: product-owner
 contributors: [web-developer, ux-designer, devops-engineer]
@@ -96,3 +96,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer, security-engineer): AC6 — instrukcja opublikowana w panelu z odnośnikiem z W-19 (przeniesiony z EVM-063 AC3), zależność od EVM-063; AC2 — zasady pracy na telefonie (BYOD); `web-developer` i `code-reviewer` w zespole historyjki
 - 2026-10-03 — poprawki z przeglądu EVM-010, runda 2 (security-engineer): AC2 — wyłączenie automatycznej kopii zdjęć w chmurze, opróżnianie kosza galerii, potwierdzenie usunięcia przy odejściu z firmy (warunek rekomendacji „galeria” w decyzji 18)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

@@ -101,3 +101,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): reguły serwera przeniesione do EVM-053 (uczestnik `payments`, warunek rozliczenia, skutek anulowania, spójność SR-API-06) i EVM-054 (blokada anulowania przy transzy „Wystawiona”, testy ścieżek); zostają dialogi z podsumowaniem, stany przed wysłaniem, AC5 i spójność UI; `owner` → web-developer
+- 2026-10-03 — plan M1 zaakceptowany przez Konrada (EVM-010); historyjka zostaje w `draft` do `/refine` — doprecyzować podział ostrzeżenia o transzach przy anulowaniu zlecenia między EVM-053 AC6 a EVM-058 AC3 (EVM-010 → „Uwagi do rozważenia” 1)

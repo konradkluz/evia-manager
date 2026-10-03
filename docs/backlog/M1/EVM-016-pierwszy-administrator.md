@@ -4,7 +4,7 @@ title: Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wy
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: draft
+status: ready
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -118,3 +118,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; podział EVM-016 planu wstępnego — konsultacja solution-architect W2)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token linku tylko we fragmencie URL, otwarcie nie zużywa linku, polecenie wypisuje link wyłącznie na TTY (AC1, AC5)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

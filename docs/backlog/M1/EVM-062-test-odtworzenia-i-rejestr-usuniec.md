@@ -4,7 +4,7 @@ title: Test odtworzenia kopii produkcji i rejestr usunięć
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: devops-engineer
 contributors: [backend-developer]
@@ -88,3 +88,4 @@ _—_
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

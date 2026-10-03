@@ -4,7 +4,7 @@ title: Zaproszenie użytkownika i aktywacja konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -111,3 +111,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token zaproszenia tylko we fragmencie URL, otwarcie nie zużywa linku (AC1, AC3)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

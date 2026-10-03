@@ -4,7 +4,7 @@ title: Dokumenty z rodzajem i klasą poufności
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -100,3 +100,4 @@ _—_
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

@@ -4,7 +4,7 @@ title: Nowe zlecenie z szablonu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -109,3 +109,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): karta i podgląd szablonu bez procesów i transz do EVM-031 / EVM-053 (AC1)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

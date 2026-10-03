@@ -4,7 +4,7 @@ title: Środowisko produkcyjne, wdrożenie i monitoring
 type: enabler
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: devops-engineer
 contributors: []
@@ -101,3 +101,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): odesłanie do bramki wdrożeń w trakcie pilota (EVM-065 AC7)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

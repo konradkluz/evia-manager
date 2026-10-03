@@ -4,7 +4,7 @@ title: Eksport ZIP zdjęć zlecenia (step-up)
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: draft
+status: ready
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -97,3 +97,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): AC7 — eksport widzi i pobiera wyłącznie zlecający, pobranie przez autoryzowane `download-url` z audytem; warunek wdrożenia na prod
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

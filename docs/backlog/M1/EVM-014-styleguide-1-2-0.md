@@ -4,7 +4,7 @@ title: Styleguide 1.2.0 — propozycje [P-1…P-13] i poprawki makiet z EVM-004
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P0
 owner: ux-designer
 contributors: []
@@ -103,3 +103,4 @@ _—_
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

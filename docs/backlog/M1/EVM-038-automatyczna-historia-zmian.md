@@ -4,7 +4,7 @@ title: Automatyczna historia zmian w dzienniku
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: draft
+status: ready
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -94,3 +94,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): zdarzenia transz — EVM-054 (także skutek anulowania zlecenia z EVM-053); EVM-058 bez nowych zdarzeń
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

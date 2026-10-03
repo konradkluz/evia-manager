@@ -4,7 +4,7 @@ title: Prywatność i pomoc w panelu — klauzule informacyjne
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: draft
+status: ready
 priority: P1
 owner: web-developer
 contributors: [security-engineer, ux-designer]
@@ -85,3 +85,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): odnośnik do instrukcji przeniesiony do EVM-066 (AC3)
+- 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)

@@ -4,7 +4,7 @@ title: Backlog M1 gotowy do realizacji
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: product-owner
 contributors: []
@@ -284,7 +284,10 @@ Obie konsultacje (2026-10-03) zakończyły się werdyktem **CHANGES**; wszystkie
 | 10 | podział E1 zaakceptowany z poprawkami; decyzja 3 (Windows Hello + telefon, ≥ 2 klucze, kody od EVM-023, osobne konta staging/prod); decyzja 10 — tak (+ zakaz dezaktywacji siebie i odebrania sobie roli; reset MFA Administratora tylko przez innego Administratora albo runbook); decyzja 8 — nie w M1 (warunki ewentualnej historyjki); decyzje 1 i 2 — tak, przed EVM-007 | README → „Decyzje dla Konrada” |
 
 ## Decyzje
-_—_
+- 2026-10-03 — Konrad: realizacja EVM-010 w czasie przerwy EVM-006 (praca koncepcyjna równolegle z historyjką z kodem).
+- 2026-10-03 — Konrad (demo): **akceptacja planu M1** (59 historyjek EVM-014…EVM-072, fazy 0–7, `roadmap.md`) wraz z rekomendacjami decyzji „Teraz” z README M1: 4 (pilot A na staging → B na prod po pentestcie), 8 (bez importu danych w M1), 10 (ochrona ostatniego Administratora), 11 (P2 po P1; EVM-051 → P1), 12 (makiety w EVM-015 i EVM-071), 13 (zmiany w roadmapie), 17 (zlecenie zamknięte tylko do odczytu), 18 (zdjęcia z galerii pod warunkiem wyłączenia automatycznej kopii w chmurze), 19 (panel w przeglądarce prywatnego telefonu w pilocie B — nowe RR z kontrolami). Decyzja 5: GitHub Free (Konrad, wcześniej) → ADR zmieniający ADR-0012 przed planem EVM-007. Pozostałe decyzje (1–3, 6, 7, 9, 14–16) — w terminach z README M1.
+- 2026-10-03 — Konrad: przywrócić `design/brand/logo-color.svg` z gita (uszkodzenie spoza zakresu, nie weszło do EVM-010).
+- 2026-10-03 — Konrad: scalanie przez PR na GitHubie („Squash and merge”, decyzja D2 z EVM-006) — orkiestrator wypycha gałąź `feature/EVM-010-backlog-m1`.
 
 ## Uwagi do rozważenia
 ### Implementacja (product-owner, 2026-10-03) — rozbieżności z ADR i modelem
@@ -328,7 +331,7 @@ Ustalenia minor / nit z QA i przeglądów rundy 3, niezałatwione w historyjce:
 ## Definition of Done
 - [x] AC1–AC4 spełnione (weryfikacja QA przez inspekcję) — QA runda 3: PASS (59 historyjek EVM-014…EVM-072, 7 × P0 / 47 × P1 / 5 × P2, 4–8 AC, pokrycie roadmapy, ekranów, scenariuszy A–D i SR E1–E8, graf bez cykli, 19 decyzji z rekomendacją); u orkiestratora: `npm run docs:check` 0 błędów / 0 ostrzeżeń, `npm run test:tools` 189/189
 - [x] Przeglądy: solution-architect, ux-designer, security-engineer — APPROVE (runda 3; R1: 3× CHANGES, 12 ustaleń blocker/major; R2: security CHANGES, 1× major — poprawione); konsultacje planu: solution-architect i security-engineer (CHANGES — wdrożone)
-- [ ] Akceptacja Konrada; zaakceptowane historyjki w statusie `ready`
+- [x] Akceptacja Konrada; zaakceptowane historyjki w statusie `ready` — 2026-10-03: „Akceptuję”; 57 historyjek `ready`, EVM-053 i EVM-058 w `draft` do `/refine`
 
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
@@ -370,3 +373,4 @@ Ustalenia minor / nit z QA i przeglądów rundy 3, niezałatwione w historyjce:
   `npm run docs:check` — 0 błędów, 0 ostrzeżeń.
 - 2026-10-03 — workflow `deliver-story`: `passed` po 3 rundach (R1: 3× CHANGES — 12 ustaleń; R2: security CHANGES — zasada kopii zdjęć w chmurze w EVM-064 AC8, EVM-065 AC4, EVM-066 AC2, decyzje 18–19; R3: 3× APPROVE, QA PASS); zmiany product-owner zacommitowane przez orkiestratora (bez `design/brand/logo-color.svg`)
 - 2026-10-03 — in-progress → in-review: DoD (AC + przeglądy) spełnione; czeka na demo i decyzje Konrada (akceptacja planu, decyzje „Teraz”: 4, 8, 10–13, 17–19)
+- 2026-10-03 — in-review → done: akceptacja Konrada na demo; decyzje wpisane w README M1 i roadmapie; 57 historyjek M1 → `ready`; merge przez PR na GitHubie
