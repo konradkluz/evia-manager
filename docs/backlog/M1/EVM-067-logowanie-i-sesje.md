@@ -1,0 +1,111 @@
+---
+id: EVM-067
+title: Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji
+type: story
+milestone: M1
+epic: E1 Dostęp i użytkownicy
+status: draft
+priority: P0
+owner: backend-developer
+contributors: [web-developer]
+reviewers: [code-reviewer, security-engineer, ux-designer]
+depends_on: [EVM-016]
+---
+
+# EVM-067: Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji
+
+## Historyjka
+Jako **użytkownik panelu** chcę **zalogować się hasłem i kluczem dostępu, a po bezczynności zostać bezpiecznie wylogowany z ostrzeżeniem**, aby **codziennie wchodzić do systemu szybko, bez ryzyka, że ktoś przejmie pozostawioną sesję**.
+
+## Kontekst
+- Drugi krok ścieżki pionowej (po EVM-016). ADR-0005, P1, P2 (sesja web 60 min / 12 h), SR-AUTH-05 (jednakowe odpowiedzi, limit 20 prób/min/IP — wymagane już tutaj, konsultacja security pkt 3c).
+- Blokada konta i e-maile o bezpieczeństwie — EVM-026; kod z aplikacji i kody odzyskiwania — EVM-023; limit 5 sesji — EVM-028.
+- Makiety: [W-01](../../ux/flows/01-logowanie-mfa.md#w-01-logowanie), [W-02](../../ux/flows/01-logowanie-mfa.md#w-02-drugi-krok), ostrzeżenie o wygaśnięciu sesji [P-11] (styleguide 1.2.0).
+
+## Kryteria akceptacji
+**AC1 — Logowanie (SR-SESS-02, SR-WEB-06)**
+- Zakładając aktywne konto z kluczem dostępu
+- Gdy podaję e-mail i hasło (W-01), a potem używam klucza dostępu (W-02)
+- Wtedy powstaje sesja z nowym identyfikatorem (poprzedni, jeśli był, jest nieważny), trafiam na W-10 albo na ścieżkę względną panelu z linku (adres zewnętrzny jest ignorowany), `lastLoginAt` jest zapisany, a w audycie jest zdarzenie logowania.
+
+**AC2 — Jednakowa odpowiedź (SR-AUTH-05)**
+- Zakładając złe hasło, nieistniejący e-mail, konto zaproszone albo dezaktywowane
+- Gdy próbuję się zalogować
+- Wtedy w każdym przypadku dostaję ten sam kod błędu i komunikat „Nieprawidłowy e-mail lub hasło.” z porównywalnym czasem odpowiedzi (test z tolerancją), e-mail zostaje w polu, a hasło jest czyszczone.
+
+**AC3 — Limit prób z jednego adresu (SR-AUTH-05, SR-API-02)**
+- Zakładając 20 prób logowania albo drugiego kroku w ciągu minuty z jednego IP
+- Gdy wysyłam 21. próbę
+- Wtedy API zwraca `429 rate_limited` z `Retry-After`, a W-01 pokazuje „Zbyt wiele prób logowania. Spróbuj ponownie za 1 min.” — tak samo dla konta istniejącego i nieistniejącego.
+
+**AC4 — Drugi krok (SR-AUTH-06, SR-AUTH-09, P1)**
+- Zakładając poprawne hasło
+- Gdy jestem na W-02
+- Wtedy Administrator widzi wyłącznie „Użyj klucza dostępu” (bez kodu z aplikacji i bez „Użyj innej metody”); nieudany albo anulowany klucz daje „Nie udało się użyć klucza dostępu…” z możliwością ponowienia; po przekroczeniu czasu na drugi krok widzę „Logowanie trwało zbyt długo. Zaloguj się ponownie.”; żądanie drugiego kroku bez poprawnego pierwszego zwraca `401`.
+
+**AC5 — Wygasanie sesji (SR-SESS-03, P2)**
+- Zakładając sesję rozpoczętą 2026-10-05 08:00 (zegar kontrolowany)
+- Gdy nie ma aktywności przez 60 min albo mija 12 h od zalogowania mimo aktywności
+- Wtedy następne żądanie zwraca `401 session_expired`, a W-01 pokazuje komunikat „Sesja wygasła…”.
+
+**AC6 — Ostrzeżenie przed wygaśnięciem [P-11]**
+- Zakładając zbliżający się koniec bezczynności
+- Gdy pojawia się ostrzeżenie i wybieram „Przedłuż sesję”
+- Wtedy bezczynność liczy się od nowa, ale sesja nie przekracza 12 h od zalogowania; szkic formularza (tylko w pamięci karty) wraca po ponownym zalogowaniu tej samej osoby w tej samej karcie, a po zalogowaniu innej osoby jest odrzucany.
+
+**AC7 — Ciasteczko i CSRF (SR-SESS-01, SR-SESS-10)**
+- Zakładając zalogowaną sesję
+- Gdy sprawdzam odpowiedź logowania i żądania zmieniające stan
+- Wtedy ciasteczko to `__Host-evia_session` z `HttpOnly; Secure; SameSite=Strict; Path=/`, a żądanie zmieniające stan bez poprawnego `Origin` / `Sec-Fetch-Site` / `X-CSRF-Token` zwraca `403 csrf_failed`.
+
+**AC8 — Role i stany (SR-AUTHZ-05)**
+- Zakładając fikstury Administratora, Edytora i Tylko odczyt
+- Gdy każde z kont się loguje
+- Wtedy każda rola wchodzi do panelu, konto bez skonfigurowanego drugiego kroku trafia na W-03 (`403 mfa_enrollment_required`), a bez połączenia W-01 pokazuje baner „Brak połączenia. Logowanie wymaga połączenia z internetem.” i wyłączony przycisk.
+
+## Poza zakresem
+- Blokada konta po 10 próbach, e-maile o blokadzie i nowej przeglądarce — EVM-026.
+- Kod z aplikacji i kody odzyskiwania w W-02 — EVM-023.
+- Limit 5 sesji web i lista „Moje sesje” — EVM-028. „Zapamiętaj mnie” — brak (P1).
+- Logowanie w aplikacji mobilnej — od E9.
+
+## UX / UI
+- W-01, W-02 (wariant Administratora — klucz dostępu), [P-11] na wszystkich ekranach po zalogowaniu.
+- Stany: pusty (fokus na „E-mail”), ładowanie (przycisk z `aria-busy`), błąd (jeden komunikat, `429`, błąd serwera § 6.4), offline (baner § 4.10), brak uprawnień (nie dotyczy przed zalogowaniem — stan konta nie jest ujawniany). Tytuł karty „Logowanie · EVia Manager”.
+
+## Bezpieczeństwo i prywatność
+| Rola | Dostęp |
+|---|---|
+| Administrator | logowanie hasłem i kluczem dostępu |
+| Edytor | logowanie hasłem i kluczem dostępu (kod z aplikacji od EVM-023) |
+| Tylko odczyt | jak Edytor |
+| Niezalogowany | W-01, W-02 |
+
+- Dane: sesja (IP pełny — P9, user agent, czasy), `lastLoginAt`, audyt logowań.
+- W AC: SR-AUTH-05, SR-AUTH-06, SR-AUTH-09, SR-SESS-01, SR-SESS-02, SR-SESS-03, SR-SESS-10, SR-API-02, SR-WEB-06, SR-AUTHZ-05.
+- W sekcji: SR-AUTH-14 (ścieżka web: hasło + klucz dostępu albo kod; kanał sesji `web`), SR-WEB-05 (szkice tylko w pamięci karty), SR-LOG-03, SR-LOG-06 (metryki nieudanych logowań).
+- Polityki: P1, P2, P9, P10.
+
+## Notatki techniczne
+- Moduły: `identity`, `audit` + panel.
+- Wygasanie liczone wstrzykiwanym zegarem; limity per IP z IP ustawianego przez Caddy (SR-API-09, EVM-008).
+- Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
+
+## Plan techniczny
+_Uzupełnia wykonawca przed implementacją._
+
+## Decyzje
+_—_
+
+## Uwagi do rozważenia
+_—_
+
+## Definition of Done
+- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-067 AC#`)
+- [ ] Bramki CI zielone, progi pokrycia spełnione
+- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`)
+- [ ] Demo i akceptacja użytkownika
+
+## Dziennik
+- 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-016 planu wstępnego — konsultacja solution-architect W2)
