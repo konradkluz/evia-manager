@@ -81,8 +81,13 @@ function check(root, io) {
 
 /** @param {string} path */
 function isLefthookHook(path) {
+  return isRegularFile(path) && readFileSync(path, 'utf8').includes('lefthook');
+}
+
+/** @param {string} path */
+function isRegularFile(path) {
   try {
-    return lstatSync(path).isFile() && readFileSync(path, 'utf8').includes('lefthook');
+    return lstatSync(path).isFile();
   } catch {
     return false;
   }
@@ -97,5 +102,9 @@ export function git(args, cwd) {
 /** @type {Io['lefthook']} */
 export function lefthook(args, cwd) {
   const bin = join(cwd, 'node_modules', 'lefthook', 'bin', 'index.js');
+  if (!isRegularFile(bin)) {
+    console.error('git-hooks: brak pakietu lefthook w node_modules — uruchom pnpm install');
+    return 1;
+  }
   return spawnSync(process.execPath, [bin, ...args], { cwd, stdio: 'inherit' }).status ?? 1;
 }
