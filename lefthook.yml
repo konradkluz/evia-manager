@@ -1,0 +1,21 @@
+# Git hooks (EVM-006 AC5; SR-INFRA-05, bramka 1). Installed by `pnpm install` (root `prepare` → tools/git-hooks).
+# Hooks never change files (no automatic fixes) and can be skipped locally (LEFTHOOK=0, --no-verify) — the binding
+# gates run in CI. Docker only through `docker compose -f compose.yaml run --rm …` (tools/scan); without Docker the
+# secret check fails and the commit or push is rejected (fail closed).
+pre-commit:
+  parallel: false
+  commands:
+    format:
+      glob: '*.{js,mjs,cjs,ts,tsx,mts,cts,json,yaml,yml,css}'
+      run: pnpm exec prettier --check --ignore-unknown {staged_files}
+    lint:
+      glob: '{apps,packages,services,tools}/**/*.{js,mjs,cjs,ts,tsx,mts,cts}'
+      run: pnpm exec eslint --no-warn-ignored {staged_files}
+    secrets:
+      run: node tools/scan/cli.mjs hook pre-commit
+
+pre-push:
+  commands:
+    secrets:
+      run: node tools/scan/cli.mjs hook pre-push
+      use_stdin: true

@@ -1,0 +1,4 @@
+# gitleaks (bramka 1, EVM-006): default rules only. Weakening the configuration — allowlists of paths, regexes or
+# commits — is forbidden and tested in tools/repo-policy. False positives: fingerprints in .gitleaksignore.
+[extend]
+useDefault = true

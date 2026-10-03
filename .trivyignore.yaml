@@ -1,0 +1,4 @@
+# Trivy exceptions (bramki 4–6). Every entry needs `statement` ("<reason> · owner: <role> · EVM-###") and
+# `expired_at` (≤ 90 days; licenses only for non-distributed tools). Expired entries fail tools/repo-policy.
+misconfigurations: []
+licenses: []

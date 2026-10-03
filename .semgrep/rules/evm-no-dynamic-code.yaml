@@ -1,0 +1,14 @@
+rules:
+  - id: evm-no-dynamic-code
+    message: >-
+      Dynamic code execution (eval, Function constructor) — code injection, CWE-95. Express the logic directly;
+      parse data with JSON.parse or a schema instead.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      cwe: 'CWE-95: Eval Injection'
+      source: EVM-006 (bramka 2, reguły własne)
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: new Function(...)
+      - pattern: Function(...)

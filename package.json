@@ -25,10 +25,12 @@
     "coverage:diff": "node tools/diff-coverage/cli.mjs",
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "e2e": "turbo run e2e"
+    "e2e": "turbo run e2e",
+    "scan": "node tools/scan/cli.mjs all"
   },
   "devDependencies": {
     "dependency-cruiser": "18.5.0",
+    "eslint": "catalog:",
     "lefthook": "2.1.15",
     "prettier": "3.9.9",
     "turbo": "2.11.5",

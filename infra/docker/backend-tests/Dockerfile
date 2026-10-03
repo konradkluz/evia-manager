@@ -24,4 +24,6 @@ ENV XDG_CACHE_HOME=/work/cache \
 
 USER node
 WORKDIR /work/repo
+# One-off test runs, not a service: no health check.
+HEALTHCHECK NONE
 ENTRYPOINT ["node", "/src/tools/container/sync.mjs"]
