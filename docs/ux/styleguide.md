@@ -594,6 +594,12 @@ Propozycja P-5 z EVM-004. Ekrany: W-03, M-02. Wymagania: P1, P2, P6, P7; SR-AUTH
 - **Anatomia — górny pasek (AppBar):** `size.app-bar.height.mobile`, tło `color.bg.brand-strong`, tytuł `text.heading-3` `color.text.on-brand` (8,98:1), wstecz `arrow-left` `color.icon.inverse` (8,98:1), **wskaźnik synchronizacji** po prawej — zawsze jako kapsuła z własnym tłem (§ 5.4), nigdy sama ikona `color.sync.*.icon` bezpośrednio na pasku (1,3–1,8:1).
 - **Stany:** fokus (klawiatura/czytnik) — w dolnej nawigacji `color.focus.ring` (5,17:1 do `bg.surface`), **w górnym pasku `color.focus.ring-inverse`** (8,98:1 do `bg.brand-strong`; `color.focus.ring` daje tam tylko 1,74:1 — zakazane); wciśnięty — dolna nawigacja `color.bg.surface-pressed` (kapsuła aktywna zachowuje 5,35:1), górny pasek `color.bg.brand` pod przyciskiem; licznik (np. 3 w kolejce) jako odznaka z liczbą, nie sama kropka.
 - **Zasady:** cel dotyku każdej pozycji ≥ `size.touch-target.min`; akcje główne w strefie kciuka (§ 5.2); systemowy gest wstecz działa zawsze.
+- **Licznik na pozycji „Kolejka”** (od 1.2.0):
+  - liczy elementy jeszcze niewysłane: „W kolejce”, „Wysyłanie”, „Czeka na Wi-Fi”, „Czeka na połączenie”, „Błąd” (§ 5.4);
+  - nie liczy elementów „Wymaga uwagi” — ten stan sygnalizuje kapsuła SyncIndicator (§ 4.16);
+  - działa niezależnie od stanu kapsuły, więc technik widzi, że zostało coś do wysłania, także gdy kapsuła pokazuje „Wymaga uwagi”;
+  - przy 0 odznaki nie ma — wszystko wysłane;
+  - nazwa dostępna: „Kolejka, 5 do wysłania”.
 
 ### 3.19 Komponenty pomocnicze
 - **Alert (InlineAlert / Banner):** `color.feedback.{ton}.*`, ikona tonu, tytuł `text.label-lg`, treść `text.body` `color.text.primary`, akcja; obrys lewy `border-width.indicator` `color.feedback.{ton}.border`; `role="alert"` tylko dla błędów.
@@ -640,12 +646,18 @@ Propozycja P-3 z EVM-004. Ekrany: W-05, M-10.
 
 ### 3.23 Postęp procesu (ProcedureProgress) (od 1.2.0)
 Propozycja P-6 z EVM-004. Ekrany: W-06, W-10 (`breakpoint.wide`, kolumna „Postęp”), M-03.
-- **Anatomia:** tekst „n z m etapów” + opcjonalny pasek: tor `color.progress.track`, wypełnienie `color.progress.fill` proporcjonalne do n / m. **Reguła liczenia:** n — etapy „Zakończony”, m — etapy procesu bez „Nie dotyczy” (etap „Nie dotyczy” nie liczy się do postępu). Gdy n = m — „n z n etapów” + ikona `circle-check` `color.icon.success` + „Wszystkie zakończone”.
-- **Warianty:** pełny — tekst + pasek (nagłówek procesu w W-06 i M-03); kompaktowy — sam tekst (kolumna „Postęp” w W-10: suma etapów wszystkich procesów zlecenia, np. „14 z 30 etapów”); proces bez etapów — „Proces nie ma etapów.” bez paska.
+- **Anatomia:** tekst „n z m etapów” + opcjonalny pasek: tor `color.progress.track`, wypełnienie `color.progress.fill` proporcjonalne do n / m. **Reguła liczenia:** n — etapy „Zakończony”, m — etapy procesu bez „Nie dotyczy” (etap „Nie dotyczy” nie liczy się do postępu). Gdy n = m > 0 — „n z n etapów” + ikona `circle-check` `color.icon.success` + „Wszystkie zakończone”.
+  - **Status reguły — do potwierdzenia.** Reguła doprecyzowuje `domain-model.md` → `Procedure` („etapy zakończone / wszystkie”), który nie wyłącza „Nie dotyczy”. Wymaga potwierdzenia Konrada na demo EVM-014. Po akceptacji `solution-architect` aktualizuje `domain-model.md` (najpóźniej w EVM-031). Rekomendacja: wyłączamy „Nie dotyczy” — EVM-071 zaleca „Nie dotyczy” zamiast usuwania etapu, więc taki etap nie może blokować „Wszystkie zakończone”. Na tej regule opiera się scenariusz B11 (`flows/scenariusze-a-d.md`): zbędny etap „Prace sieciowe…” → „Nie dotyczy”, wynik „procesy zakończone”. Makiety W-06 i M-03 nie zależą od decyzji — żaden pokazany proces nie ma etapu „Nie dotyczy”.
+  - **m = 0** (proces ma etapy, ale wszystkie są „Nie dotyczy”): tekst „Nie dotyczy” + ikona `circle-minus` `color.icon.secondary` (jak status etapu, § 4.4). Bez paska, bez „n z m” i bez „Wszystkie zakończone” — nic nie zostało zakończone.
+- **Warianty:**
+  - pełny — tekst + pasek (nagłówek procesu w W-06 i M-03);
+  - kompaktowy — sam tekst: kolumna „Postęp” w W-10, suma etapów wszystkich procesów zlecenia, np. „14 z 30 etapów”. Gdy suma m = 0 — „—” z nazwą dostępną „Postęp: brak etapów do realizacji”;
+  - proces bez etapów — „Proces nie ma etapów.” bez paska;
+  - wszystkie etapy „Nie dotyczy” — „Nie dotyczy” bez paska (reguła m = 0 wyżej).
 - **Stany:** statyczny — hover, fokus, wciśnięty, wyłączony: nd. (nie jest kontrolką; fokus ma nagłówek sekcji, § 3.21); błąd — nd. (brak danych → komponent nie jest pokazywany, sekcja ma własny alert, § 4.9); ładowanie — szkielet tekstu (§ 3.16).
 - **Tokeny:** `color.progress.track`, `color.progress.fill` (nowe w 1.2.0), `size.progress-bar.height`, `radius.pill`, tekst `text.body-sm` (web) / `text.body` (mobile) `color.text.secondary`, odstęp tekst–pasek `space.inline.sm` (w wierszu) albo `space.stack.xs` (pod tekstem); szerokość paska wynika z kolumny (bez stałej wartości). **Nie używamy `color.sync.progress.*`** — to postęp wysyłania.
 - **Dostępność:** komponent nieinteraktywny — fokus i cel dotyku (≥ `size.touch-target.min` na mobile) ma nagłówek sekcji (§ 3.21); informację niesie tekst; pasek jest dekoracyjny (`aria-hidden="true"`, nie `role="progressbar"` — to nie postęp operacji); wypełnienie ma 5,35:1 do toru i 6,74:1 do `bg.surface` (§ 2.1.4), więc pasek jest czytelny także w słońcu; tekst postępu jest częścią nazwy dostępnej nagłówka sekcji; zmiany nie są ogłaszane (zmianę statusu etapu ogłasza toast — § 4.11).
-- **Mikrocopy:** „2 z 7 etapów” (gdy m = 1: „1 z 1 etapu”) · „Wszystkie zakończone” · „Proces nie ma etapów.”
+- **Mikrocopy:** „2 z 7 etapów” (gdy m = 1: „1 z 1 etapu”) · „Wszystkie zakończone” · „Proces nie ma etapów.” · „Nie dotyczy” (m = 0; nazwa dostępna nagłówka: „Opinia ppoż, nie dotyczy”)
 - **Web / mobile:** web — tekst i pasek w jednym wierszu nagłówka procesu; mobile — tekst obok nazwy procesu, pasek pod nazwą na pełną szerokość nagłówka.
 
 ### 3.24 Ekran aparatu (CameraScreen) (od 1.2.0)
@@ -748,7 +760,7 @@ Ikony są unikalne w obrębie każdej grupy (z pominięciem kluczy wycofywanych)
 § 3.11. Grupowanie po kategorii/etapie, filtr „Niewysłane”; przy zleceniu licznik „48 zdjęć · 3 niewysłane”.
 
 ### 4.7 Kolejka uploadu
-§ 3.12 i § 5.4. Ekran „Kolejka” (mobile): sekcje „Wymaga uwagi” (na górze — § 4.16, od 1.2.0), „Błąd” (z „Ponów wszystkie”), „Czeka na Wi-Fi”, „Wysyłanie”, „W kolejce”, „Wysłane dziś” (zwinięta — Disclosure, § 3.21). Web: panel postępu przy zleceniu.
+§ 3.12 i § 5.4. Ekran „Kolejka” (mobile): sekcje „Wymaga uwagi” (na górze — § 4.16, od 1.2.0), „Błąd” (z „Ponów wszystkie”), „Czeka na Wi-Fi”, „Wysyłanie”, „W kolejce”, „Wysłane dziś” (zwinięta — Disclosure, § 3.21). Nad sekcjami podsumowanie z liczbami i stanem przesyłania z § 5.4 („Offline · 5 w kolejce”, „Wysyłanie 3 z 12…”, „2 filmy czekają na Wi-Fi”, „Wszystko wysłane · Zsynchronizowano 14:05”) — widoczne także wtedy, gdy kapsuła pokazuje „Wymaga uwagi” (od 1.2.0). Web: panel postępu przy zleceniu.
 
 ### 4.8 Puste stany
 § 3.15. Przykłady: „Nie masz jeszcze zleceń. [Dodaj zlecenie]” · „Brak zleceń spełniających filtry. [Wyczyść filtry]” · „To zlecenie nie ma jeszcze zdjęć. [Zrób zdjęcie]”.
@@ -823,6 +835,11 @@ Propozycja P-9 z EVM-004. Ekrany: M-03, M-04, M-07, M-10 i AppBar (SyncIndicator
 - **Warianty:** stan kapsuły SyncIndicator; sekcja i element Kolejki; znacznik elementu na ekranie zlecenia, wpisu i szybkiego zlecenia; powód — odrzucona mutacja (wpis, zdjęcie), odrzucone szybkie zlecenie, plik w kwarantannie.
 - **Anatomia:**
   - **SyncIndicator** (§ 5.4): stan „Wymaga uwagi · 2” — kapsuła `color.sync.error.bg` (7,35:1 do paska), ikona `triangle-alert` `color.sync.error.icon`, tekst `color.sync.error.text`; **najwyższy priorytet: Wymaga uwagi > Błąd > Offline > Czeka na Wi-Fi > Wysyłanie > Zsynchronizowano**; dotknięcie → Kolejka, sekcja „Wymaga uwagi”.
+  - **Stan przesyłania nie znika pod „Wymaga uwagi”.** Plik w kwarantannie może zostać w telefonie długo (kwarantanna do 30 dni — P5; jedyna akcja to „Usuń z telefonu”), a kapsuła przez cały ten czas pokazuje „Wymaga uwagi”. Dlatego:
+    - baner offline pod AppBar jest widoczny zawsze, gdy nie ma połączenia — niezależnie od stanu kapsuły (§ 5.4, wiersz „Offline”);
+    - nazwa dostępna kapsuły zawiera stan przesyłania — czyli stan, który kapsuła pokazałaby bez „Wymaga uwagi” (Dostępność niżej);
+    - licznik niewysłanych na pozycji „Kolejka” w BottomNav (§ 3.18) działa niezależnie od kapsuły;
+    - podsumowanie Kolejki (M-07) zawsze pokazuje stan przesyłania (§ 4.7).
   - **Kolejka** (M-07): sekcja „Wymaga uwagi (n)” na górze, nad „Błąd”. Element: miniatura albo ikona typu (w trybie ukrytych danych — zawsze ikona typu, § 4.18), typ i numer zlecenia, powód prostymi słowami, obrys lewy `border-width.indicator` `color.feedback.error.border`, akcje jako widoczne przyciski.
   - **Inne ekrany** (M-03, M-04, M-10): element, którego dotyczy (wpis, szybkie zlecenie), ma znacznik „Wymaga uwagi” i przycisk „Przejdź do kolejki”.
 - **Akcje (telefon tylko dodaje):**
@@ -832,8 +849,8 @@ Propozycja P-9 z EVM-004. Ekrany: M-03, M-04, M-07, M-10 i AppBar (SyncIndicator
   - „Usuń z telefonu” — zawsze dialog z § 4.11 (usunięcie niewysłanego elementu jest nieodwracalne).
 - **Stany:** znacznik — statyczny (hover, fokus, wciśnięty, wyłączony: nd.); kapsuła SyncIndicator — stany z § 5.4 (fokus `color.focus.ring-inverse`, wciśnięty `color.bg.brand`); przyciski — § 3.1; błąd — nd. (stan sam jest sygnałem); ładowanie — nd. (Kolejka jest lokalna; „Dodaj do innego zlecenia” otwiera arkusz wyboru zlecenia z lokalnej bazy).
 - **Tokeny:** `color.sync.error.{bg|text|icon}`, `color.feedback.error.border`, `border-width.indicator`, `size.icon.sm` (znacznik) / `size.icon.md` (kapsuła), `text.label`, `radius.pill`, `size.badge.height`, przyciski `size.touch-target.min`, odstępy `space.stack.sm`, separator `color.border.subtle`.
-- **Dostępność:** kapsuła z nazwą „Wymaga uwagi: 2 elementy. Otwórz kolejkę”; element z nazwą dostępną (typ, zlecenie, powód); pojawienie się elementu „Wymaga uwagi” ogłaszane raz, zbiorczo (§ 5.4); akcje jako przyciski, nie gesty (§ 5.1), cele ≥ `size.touch-target.min`; akcje niszczące oddzielone od częstych; kolor nie jest jedynym nośnikiem.
-- **Mikrocopy:** „Wymaga uwagi” · „Wymaga uwagi · 2” · „Zlecenie zostało usunięte albo nie masz do niego dostępu.” · „Zlecenie nie zostało utworzone — [powód prostymi słowami].” · „Plik zatrzymany przez skan bezpieczeństwa. Biuro sprawdzi plik.” · „Dodaj do innego zlecenia” · „Utwórz ponownie” · „Usuń z telefonu” · „Przejdź do kolejki”.
+- **Dostępność:** kapsuła z nazwą „Wymaga uwagi: 2 elementy. [stan przesyłania]. Otwórz kolejkę”. Stan przesyłania to tekst stanu następnego wg priorytetu (§ 5.4), np. „Wymaga uwagi: 1 element. Offline, 5 w kolejce. Otwórz kolejkę”, „Wymaga uwagi: 1 element. 2 filmy czekają na Wi-Fi. Otwórz kolejkę”, „Wymaga uwagi: 1 element. Zsynchronizowano 14:05. Otwórz kolejkę”. Element z nazwą dostępną (typ, zlecenie, powód); pojawienie się elementu „Wymaga uwagi” ogłaszane raz, zbiorczo (§ 5.4); akcje jako przyciski, nie gesty (§ 5.1), cele ≥ `size.touch-target.min`; akcje niszczące oddzielone od częstych; kolor nie jest jedynym nośnikiem.
+- **Mikrocopy:** „Wymaga uwagi” · „Wymaga uwagi · 2” · nazwa dostępna kapsuły „Wymaga uwagi: 1 element. Offline, 5 w kolejce. Otwórz kolejkę” · „Zlecenie zostało usunięte albo nie masz do niego dostępu.” · „Zlecenie nie zostało utworzone — [powód prostymi słowami].” · „Plik zatrzymany przez skan bezpieczeństwa. Biuro sprawdzi plik.” · „Dodaj do innego zlecenia” · „Utwórz ponownie” · „Usuń z telefonu” · „Przejdź do kolejki”.
 - **Web / mobile:** mobile — Kolejka, SyncIndicator i znaczniki elementów; web — wyłącznie znacznik pliku w kwarantannie i filtr „Wymaga uwagi (n)” w W-09 (§ 4.14).
 
 ### 4.17 Sesja wygasa (od 1.2.0)
@@ -911,6 +928,11 @@ Propozycja P-13 z EVM-004. Ekrany: M-02, M-03, M-04, M-05, M-06, M-07, M-08, M-1
 - **Offline:** kapsuła `color.sync.offline.bg` ma do `bg.brand-strong` tylko 1,58:1, dlatego dostaje obrys `color.border.inverse` `border-width.strong` (8,98:1 do paska). Pozostałe kapsuły odcinają się od paska bez obrysu (7,35–8,24:1).
 - **Fokus:** `color.focus.ring-inverse` (§ 3.18).
 - **Priorytet przy kilku stanach naraz** (od 1.2.0 z „Wymaga uwagi” — § 4.16): Wymaga uwagi > Błąd > Offline > Czeka na Wi-Fi > Wysyłanie > Zsynchronizowano; liczniki pozostałych stanów pokazuje ekran „Kolejka”.
+- **Kapsuła pokazuje jeden stan, ale stan przesyłania nie znika** (od 1.2.0) — ważne, gdy kapsuła długo pokazuje „Wymaga uwagi” (§ 4.16):
+  - baner offline jest widoczny zawsze, gdy nie ma połączenia — niezależnie od stanu kapsuły (wiersz „Offline” niżej);
+  - nazwa dostępna kapsuły w stanie „Wymaga uwagi” albo „Błąd” zawiera także tekst stanu następnego wg priorytetu („Wymaga uwagi: 1 element. Offline, 5 w kolejce. Otwórz kolejkę”);
+  - licznik niewysłanych na pozycji „Kolejka” w BottomNav nie zależy od kapsuły (§ 3.18);
+  - podsumowanie ekranu „Kolejka” zawsze pokazuje stan przesyłania (§ 4.7).
 - Na wąskich ekranach (< 360 dp lub długi tytuł) kapsuła skraca tekst do liczby („5”, „2 Wi-Fi”), ale nigdy do samej ikony; pełny tekst w etykiecie dostępności.
 
 | Stan | Ikona | Tekst (mikrocopy) | Tokeny |
@@ -918,7 +940,7 @@ Propozycja P-13 z EVM-004. Ekrany: M-02, M-03, M-04, M-05, M-06, M-07, M-08, M-1
 | Online, wszystko wysłane | `cloud-check` | „Zsynchronizowano 14:05” | `color.sync.done.*` |
 | Online, wysyłanie | `cloud-upload` | „Wysyłanie 3 z 12…” | `color.sync.in-progress.*` |
 | Czeka na Wi-Fi (sieć komórkowa, włączone „Wysyłaj tylko przez Wi-Fi”) | `wifi` | „2 filmy czekają na Wi-Fi” (polska odmiana liczebnika: „1 film czeka”, „2 filmy czekają”, „5 filmów czeka”, „22 filmy czekają”; dotyczy tylko filmów — zdjęcia idą przez sieć komórkową) | `color.sync.waiting-wifi.*` |
-| Offline | `wifi-off` | „Offline · 5 w kolejce” — dodatkowo baner pod paskiem: „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.” | `color.sync.offline.*` + obrys `color.border.inverse` |
+| Offline | `wifi-off` | „Offline · 5 w kolejce” — dodatkowo baner pod paskiem: „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.” Baner jest widoczny zawsze, gdy nie ma połączenia, także gdy kapsuła pokazuje „Wymaga uwagi” albo „Błąd” (od 1.2.0). Stoi pod banerem „Dane ukryte” (§ 4.18), jeśli oba są widoczne. Wyjątek: CameraScreen (§ 3.24) — bez banera, żeby nie zasłaniać podglądu; tam stan offline niesie nazwa dostępna kapsuły. Pojawienie się banera ogłaszane raz | `color.sync.offline.*` + obrys `color.border.inverse` |
 | Błąd wysyłania | `cloud-alert` | „Nie wysłano 2 · Ponów” | `color.sync.error.*` |
 | Wymaga uwagi (od 1.2.0 — § 4.16) | `triangle-alert` | „Wymaga uwagi · 2” | `color.sync.error.*` |
 
@@ -1082,11 +1104,17 @@ MINOR (§ 7.2 pkt 5): nowe komponenty, warianty, wzorce i 6 tokenów; żadna naz
   4. **ProcedureProgress:** informację niesie tekst „n z m etapów”; pasek jest dekoracyjny (`aria-hidden`), a wypełnienie ma ≥ 3:1 do toru i do tła.
   5. **Kolumna „Ekrany”** = ekrany, których makieta, tabela stanów lub lista „Komponenty i tokeny” używa elementu (także przez notację `⋮`, `▸` / `▾`, `«… ▾»`). Zmiany: P-1 − W-10 i − M-03 (makiety bez menu), + arkusz „Dodaj” w BottomNav; P-2 + W-05, M-07; P-8 + M-06, M-07; P-9 + M-03, M-04, M-10, − M-09 (ekran nie używa stanu); P-13 + M-04, M-08, M-10; P-12 — bez zmian listy, a M-03 i M-05 mają § 3.9.1 w „Komponenty i tokeny” (SR-MOB-10).
   6. **ProcedureProgress — reguła liczenia:** n — etapy „Zakończony”, m — etapy procesu bez „Nie dotyczy”; W-06 i M-03 — „Uzgodnienia z OSD” poprawione z „3 z 7” na „2 z 7 etapów” (zakończone są 2 etapy).
+     - **Do potwierdzenia.** Reguła doprecyzowuje `domain-model.md` → `Procedure` („etapy zakończone / wszystkie”). Wymaga potwierdzenia Konrada na demo EVM-014 (rekomendacja: TAK — wyłączamy „Nie dotyczy”, zgodnie z EVM-071). Po akceptacji `solution-architect` aktualizuje `domain-model.md`, najpóźniej w EVM-031.
+     - **m = 0** (wszystkie etapy „Nie dotyczy”): „Nie dotyczy” z `circle-minus`, bez paska i bez „Wszystkie zakończone”. W kolumnie „Postęp” W-10 suma m = 0 daje „—”.
   7. **CameraScreen — przyciski na ciemnym panelu:** „Gotowe” (primary) z obrysem `color.border.inverse` (granica `action.primary.bg` do panelu — 1,33:1); przyciski powodu („Zezwól na mikrofon”, „Otwórz ustawienia”) — tekst `color.text.on-brand` z obrysem `color.border.inverse` (`action.tertiary.text` na panelu nie spełnia 4,5:1). Bez nowych tokenów.
   8. **Odznaka wartości nieznanej:** podpowiedź zależna od kanału — web „Odśwież stronę, aby zobaczyć szczegóły.”, mobile „Zaktualizuj aplikację, aby zobaczyć szczegóły.”; wartość nieznana nigdy nie jest przyciskiem zmiany statusu.
   9. **„Sesja wygasa”:** wariant limitu 12 h pokazujemy 10 min przed limitem (czas na zapis zmian), bez „Przedłuż sesję”, z przyciskiem „Rozumiem”.
   10. **Disclosure:** ikony `chevron-down` / `chevron-up` jak w propozycji; notacja `▸` / `▾` w makietach oznacza stan, nie kształt ikony.
 - **Makiety (`flows/`):** odwołania `[P-n]` zastąpione nazwą komponentu i § 1.2.0; pełna kolumna „Ekrany”; PO-3 (kafel „Na kogo czekamy” bez pustego wiersza klienta — tylko faktyczne oczekiwania), PO-5 (PPE tylko w formie oznaczonej `TEST`, wyłącznie w makietach panelu), runda 2 pkt 8 (trzy odnośniki banera „Zlecenie założone w terenie” — trzy różne komponenty i nazwy dostępne), pkt 9 (kolejność kontroli w diagramie logowania mobilnego), pkt 10 (nieaktualne zdanie o luce L8).
+- **Poprawki po przeglądach (runda 1, EVM-014):**
+  - baner „Zlecenie założone w terenie” — odnośnik „kwoty transz” ustawia fokus na wyzwalaczu `⋮` pierwszej transzy „Planowana” bez kwoty, a bez takiej transzy — na nagłówku „Płatności” (`tabindex="-1"`). Pozycji menu „Zmień kwotę” przy zamkniętym menu nie ma w drzewie dokumentu. Mechanizm: `href="#platnosci"` jako zapas, przewinięcie z `scroll-padding` i `focus()` w obsłudze zdarzenia. Zmiany w `flows/03`, `08` (kolejność pozycji menu transzy „Planowana”), `10` i `scenariusze-a-d.md`;
+  - stan przesyłania nie znika pod „Wymaga uwagi” (§ 3.18, § 4.7, § 4.16, § 5.4, `flows/09`): baner offline widoczny zawsze bez połączenia (poza CameraScreen), nazwa dostępna kapsuły ze stanem następnym wg priorytetu, licznik niewysłanych na „Kolejka” w BottomNav niezależny od kapsuły, podsumowanie Kolejki ze stanem przesyłania. Kolejność priorytetu P-9 bez zmian;
+  - ProcedureProgress (§ 3.23, rozstrzygnięcie 6): reguła liczenia oznaczona jako doprecyzowanie `domain-model.md` do potwierdzenia; przypadek m = 0 — „Nie dotyczy”.
 - Tokeny: 491 → **497** (base 184, semantic 307 → 313, w tym 8 wycofywanych): `color.progress.{track,fill}`, `color.status.unknown.{bg,text,icon,border}` — wyłącznie aliasy do `palette.*`; `quote` / `issued` bez zmian (`$deprecated` do najbliższej wersji MAJOR). `@evia/tokens` — przebudowa pakietu, eksporty najwyższego poziomu bez zmian.
 
 **Odstępstwa:** brak.

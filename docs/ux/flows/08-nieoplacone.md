@@ -84,6 +84,11 @@ Wspólna tabela dla W-11 i sekcji „Płatności” w [W-06](03-szczegoly-zlecen
 | — (zlecenie) | Dodaj transzę | utworzenie `PaymentMilestone` (`planned`) | tak | tak | ukryte |
 | zlecenie Rozliczone albo Anulowane | wszystkie powyższe | zmiany płatności zablokowane (`domain-model.md`) | wyłączone: „Zlecenie jest rozliczone — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.” | wyłączone (jw.) | ukryte |
 
+**Transza „Planowana” w W-06 — rozmieszczenie akcji** (ActionMenu, § 3.20):
+- „Wystaw fakturę…” to widoczny przycisk wiersza;
+- menu `⋮` („Akcje transzy: [nazwa]”) ma najpierw „Zmień kwotę”, a na końcu, w osobnej grupie, „Anuluj transzę…” i „Usuń transzę…”;
+- odnośnik „kwoty transz” z banera „Zlecenie założone w terenie” ustawia fokus na tym wyzwalaczu `⋮` ([W-06 → baner](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)).
+
 **Dialogi z podsumowaniem** (tytuł-pytanie, skutek, przycisk z czasownikiem; fokus na „Anuluj”)
 | Akcja | Podsumowanie w dialogu | Zdanie o skutku |
 |---|---|---|

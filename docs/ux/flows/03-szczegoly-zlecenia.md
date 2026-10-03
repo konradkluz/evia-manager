@@ -126,9 +126,22 @@ Trzy odnośniki robią trzy różne rzeczy, więc mają **trzy różne komponent
 |---|---|---|---|---|
 | klienta | **Link** — nawigacja (`color.text.link`, podkreślony; `href` do szczegółów klienta) | W-14 — szczegóły klienta (jak „Przejdź do klienta”; bez makiety — przy refinemencie E2) | „Uzupełnij dane klienta — przejdź do klienta”; po przejściu fokus na nagłówku W-14 (zwykła nawigacja), „wstecz” wraca do W-06 | e-mail, NIP, osoba kontaktowa, adres korespondencyjny, notatki |
 | lokalizacji | **Button tertiary** (§ 3.1) z `aria-haspopup="dialog"` — wygląda jak przycisk tekstowy, bez podkreślenia | W-20 „Edytuj lokalizację” (dialog z karty „Lokalizacja” — niżej) | „Uzupełnij dane lokalizacji” (otwiera dialog); fokus w dialogu na pierwszym polu, po zamknięciu wraca do przycisku | poziom garażu, OSD, zarządca, moc przyłączeniowa, PPE, notatki |
-| kwoty transz | **Link do sekcji na tej stronie** (`href="#platnosci"`, podkreślony, ikona `arrow-down` `size.icon.sm`) | przewinięcie do sekcji „Płatności” (`scroll-padding` równe wysokości przyklejonych pasków — WCAG 2.4.11), fokus na „Zmień kwotę” pierwszej transzy „Planowana” bez kwoty ([akcje płatności](08-nieoplacone.md#akcje-płatności--status--rola)) | „Uzupełnij kwoty transz — przejdź do sekcji Płatności” | kwoty transz |
+| kwoty transz | **Link do sekcji na tej stronie** (`href="#platnosci"`, podkreślony, ikona `arrow-down` `size.icon.sm`) | przewinięcie do sekcji „Płatności” na tej stronie (mechanizm — niżej) | „Uzupełnij kwoty transz — przejdź do sekcji Płatności”; fokus na wyzwalaczu `⋮` pierwszej transzy „Planowana” bez kwoty („Akcje transzy: Po uzyskaniu zgód (30%)”), a gdy takiej transzy nie ma — na nagłówku sekcji „Płatności” | kwoty transz — „Zmień kwotę” z menu `⋮` transzy ([akcje płatności](08-nieoplacone.md#akcje-płatności--status--rola)) |
 
 Kontrast odnośników na `color.feedback.info.bg` — 6,20:1 (styleguide § 2.1.4).
+
+**Odnośnik „kwoty transz” — cel fokusu i mechanizm**
+- **Dlaczego nie „Zmień kwotę”:** to pozycja menu `⋮` transzy (ActionMenu, § 3.20). Przy zamkniętym menu pozycji nie ma w drzewie dokumentu, więc nie może przyjąć fokusu. Sam `href="#platnosci"` przenosi tylko punkt startu nawigacji sekwencyjnej — nie ustawia fokusu na kontrolce.
+- **Cel fokusu (w tej kolejności):**
+  1. wyzwalacz `⋮` pierwszej wg kolejności w tabeli transzy „Planowana” bez kwoty — nazwa „Akcje transzy: Po uzyskaniu zgód (30%)”. Menu zostaje zamknięte. Enter albo Spacja otwiera je z fokusem na pierwszej pozycji — w menu transzy „Planowana” to „Zmień kwotę”, bo „Anuluj transzę…” i „Usuń transzę…” stoją na końcu, w osobnej grupie (§ 3.20);
+  2. gdy takiej transzy nie ma — nagłówek sekcji „Płatności” (h2, `id="platnosci"`, `tabindex="-1"`). Tak jest, gdy wszystkie kwoty są już wpisane albo zlecenie nie ma transz; baner jest widoczny do końca statusu „Nowe”, więc odnośnik musi działać także wtedy. Z nagłówka Tab prowadzi do akcji sekcji („Dodaj transzę”, akcje transz).
+- **Mechanizm:**
+  - element `<a href="#platnosci">` — semantyka odnośnika na tej stronie i zapas: bez obsługi zdarzenia przeglądarka przewija do kotwicy;
+  - obsługa aktywacji (kliknięcie, Enter): `preventDefault()`, potem przewinięcie nagłówka sekcji do widoku — `scroll-padding-top` kontenera przewijania równe wysokości przyklejonych pasków (WCAG 2.4.11); przewijanie płynne tylko bez `prefers-reduced-motion` (§ 2.9);
+  - na koniec `focus()` na celu, z `preventScroll`, gdy cel jest już w widoku pod nagłówkiem; w przeciwnym razie bez tej opcji — przewinięcie przy fokusie też uwzględnia `scroll-padding`;
+  - adres URL bez zmian i bez wpisu w historii — „wstecz” wraca do poprzedniej strony, jak wszędzie w W-06.
+- **Widoczny fokus:** wyzwalacz `⋮` — stany IconButton (§ 3.1, `color.focus.ring`); nagłówek — pierścień `color.focus.ring` przy `:focus-visible` (aktywacja z klawiatury).
+- **Responsywność:** na `breakpoint.compact` płatności to lista kart (§ 3.6). Celem jest `⋮` karty transzy, a menu otwiera się jako BottomSheet (§ 3.20).
 
 **Karta „Lokalizacja” — edycja lokalizacji i stron (W-20, dialog; bez makiety — przy refinemencie E3 / E4)**
 - **„Edytuj”** w nagłówku karty (nazwa dostępna „Edytuj lokalizację”) otwiera dialog (§ 3.13, `size.dialog.width.md`) z polami sekcji „2. Lokalizacja” z [W-05](02-nowe-zlecenie-z-szablonu.md#w-05-nowe-zlecenie), wypełnionymi bieżącymi danymi: typ obiektu, adres, nr miejsca i poziom, OSD i zarządca (combobox stron z „Dodaj stronę”), moc przyłączeniowa, PPE, notatki z podpowiedzią „Nie wpisuj PESEL…”. Nad polami InlineAlert (§ 3.19, `color.feedback.info.*`): „Zmiana dotyczy wszystkich zleceń w tej lokalizacji (2).” — licznik tą samą polityką co lista (SR-AUTHZ-03); lokalizacja bywa wspólna dla zleceń różnych klientów (scenariusz D4′).

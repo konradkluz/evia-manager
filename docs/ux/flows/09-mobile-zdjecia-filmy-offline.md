@@ -158,7 +158,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 ## M-07 Kolejka
 - **Cel:** w każdej chwili wiedzieć, co jest niewysłane, dlaczego, i móc to wysłać — „nic nie ginie”.
 - **Główna akcja:** zależna od sekcji — „Ponów wszystkie” (Błąd), „Wyślij teraz przez sieć komórkową” (Czeka na Wi-Fi), „Dodaj do innego zlecenia” (Wymaga uwagi).
-- **Hierarchia treści:** 1) podsumowanie „Wysłano 9 z 12 · 3 w kolejce” + pasek; 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **Wymaga uwagi** (§ 4.16); 4) Błąd; 5) Czeka na Wi-Fi; 6) Wysyłanie; 7) W kolejce; 8) Wysłane dziś (zwinięte).
+- **Hierarchia treści:** 1) podsumowanie „Wysłano 9 z 12 · 3 w kolejce” + pasek i stan przesyłania (§ 4.7 — widoczny także wtedy, gdy kapsuła pokazuje „Wymaga uwagi”); 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **Wymaga uwagi** (§ 4.16); 4) Błąd; 5) Czeka na Wi-Fi; 6) Wysyłanie; 7) W kolejce; 8) Wysłane dziś (zwinięte).
 
 **Makieta (compact)**
 ```text
@@ -243,7 +243,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Pusty | „Wszystko wysłane. Zdjęcia i wpisy zrobione bez zasięgu pojawią się tutaj.” + „Zsynchronizowano 14:05”. |
 | Ładowanie | nd. — kolejka jest lokalna i dostępna od razu; postęp wysyłania aktualizowany na bieżąco. |
 | Błąd | Sekcje „Błąd” i „Wymaga uwagi”; automatyczne ponawianie z rosnącą przerwą, „Ponów” wymusza od razu; brak miejsca na urządzeniu przy pobieraniu miniatur nie dotyczy kolejki. |
-| Offline | SyncIndicator „Offline · 5” + baner § 5.4 „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.”; elementy w stanie „Czeka na połączenie”. |
+| Offline | SyncIndicator „Offline · 5” (albo „Wymaga uwagi · n”, gdy jest taki element — wtedy stan offline jest w nazwie dostępnej kapsuły) + baner § 5.4 „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.” — widoczny zawsze bez połączenia; elementy w stanie „Czeka na połączenie”. |
 | Brak uprawnień | Tylko odczyt — M-02. Brak zgody na powiadomienia (Android 13+) przy niewysłanych elementach — Banner „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” [Włącz powiadomienia] (monit systemu, a po trwałej odmowie — ustawienia powiadomień aplikacji); wysyłanie działa dalej, Banner znika po wysłaniu wszystkiego albo po włączeniu powiadomień. Utrata dostępu do zlecenia — elementy trafiają do „Wymaga uwagi” (nie są kasowane). Tryb ukrytych danych (§ 4.18) — kolejka działa, ale bez nazw, adresów, telefonów i miniatur (dane nie są renderowane, także w nazwach dostępnych): „Zdjęcie · ZL-2026-0042”, ikona typu pliku zamiast miniatury. Po „Wyloguj urządzenie” (`401 session_revoked`) kolejka jest zaszyfrowana i niewidoczna do ponownego zalogowania tego samego konta (M-02). |
 
 **Role**
