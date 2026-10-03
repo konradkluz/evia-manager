@@ -3,6 +3,7 @@
  * gitleaks in git hooks (EVM-006 AC5, bramka 1, security-engineer A3), started by lefthook.yml:
  *   pre-commit → staged changes;  pre-push → every pushed range (never an empty range).
  * Fail closed: any non-zero result (a finding, Docker unavailable, a missing commit) rejects the commit or push.
+ * --verbose lists the findings (rule, file, line, fingerprint) — the secret itself is always redacted (--redact).
  * Hooks can be skipped locally; the binding secret gate is CI.
  */
 import { GITLEAKS_COMMON } from './steps.mjs';
@@ -45,8 +46,17 @@ export function runHook(hook, { compose, stdin, hasOriginMain, log }) {
   /** @type {string[][]} */
   const invocations =
     hook === 'pre-commit'
-      ? [['git', '--pre-commit', '--staged', ...GITLEAKS_COMMON, '--exit-code', '1', '/repo']]
-      : pushRanges(stdin, { hasOriginMain }).map((range) => ['git', ...GITLEAKS_COMMON, '--log-opts', range, '--exit-code', '1', '/repo']);
+      ? [['git', '--pre-commit', '--staged', ...GITLEAKS_COMMON, '--verbose', '--exit-code', '1', '/repo']]
+      : pushRanges(stdin, { hasOriginMain }).map((range) => [
+          'git',
+          ...GITLEAKS_COMMON,
+          '--verbose',
+          '--log-opts',
+          range,
+          '--exit-code',
+          '1',
+          '/repo',
+        ]);
   for (const args of invocations) {
     const result = compose('scan-gitleaks', args, { capture: false });
     if (result.status !== 0) {
