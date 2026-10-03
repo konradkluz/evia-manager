@@ -315,3 +315,4 @@ _—_
 - 2026-10-03 — „Notatki techniczne” zaktualizowane wg ADR-0015 (testy per warstwa, zadania „Po EVM-006”, sekrety usług zewnętrznych poza katalogiem repo), bez zmiany AC (product-owner)
 - 2026-10-03 — ready → in-progress: start /deliver, gałąź `feature/EVM-006-repo-i-ci`
 - 2026-10-03 — plan techniczny (devops-engineer)
+- 2026-10-03 — wstrzymane (status bez zmian): czeka na instalację Node 26 i pnpm 12.8.1 na stacji Konrada (D1); w międzyczasie potok EVM-010 (decyzja Konrada); ponowny start workflow po EVM-010
