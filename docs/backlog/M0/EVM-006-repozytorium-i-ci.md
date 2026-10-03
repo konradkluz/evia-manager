@@ -4,7 +4,7 @@ title: Repozytorium, monorepo i CI z bramkami jakości
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: devops-engineer
 contributors: []
@@ -82,6 +82,7 @@ _Uzupełnia wykonawca._
   - mitygacja RR-02 / RR-11 z EVM-005 („wymagana akceptacja PR przez Konrada”) nie jest wymuszalna — do ponownej oceny przez `security-engineer` w planie; kontrole już działające: deploy key tylko do tego repo (`~/.ssh/evia_manager`, alias `github-evia-manager`), reguła `deny` na `git push origin main` w `.claude/settings.json`, squash merge lokalnie przez orkiestratora po akceptacji, push na `main` wykonuje Konrad;
   - sprawdzić dostępność GitHub Environments (sekrety środowisk, ograniczenie gałęzi wdrożeń) w prywatnym repo na Free — polegają na nich SR-INFRA-13 / SR-INFRA-14 i RR-20 (EVM-007).
 - 2026-10-03 — remote `origin` dodany, `main` wypchnięty przez Konrada (stan: `e4b4a2f`).
+- 2026-10-03 — Konrad: zgoda na `git push` **wyłącznie gałęzi `feature/EVM-006-repo-i-ci`** do `origin` (agenci i orkiestrator) w celu weryfikacji CI; bez force-pusha, bez `main`. PR na GitHubie otwiera Konrad (brak `gh` na stacji); push na `main` — tylko Konrad.
 
 ## Uwagi do rozważenia
 _—_
@@ -96,3 +97,4 @@ _—_
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
 - 2026-10-03 — dopisano notatkę o przejęciu głównego `package.json` i narzędzia z EVM-012 („Notatki techniczne”, bez zmiany AC) (product-owner)
 - 2026-10-03 — „Notatki techniczne” zaktualizowane wg ADR-0015 (testy per warstwa, zadania „Po EVM-006”, sekrety usług zewnętrznych poza katalogiem repo), bez zmiany AC (product-owner)
+- 2026-10-03 — ready → in-progress: start /deliver, gałąź `feature/EVM-006-repo-i-ci`
