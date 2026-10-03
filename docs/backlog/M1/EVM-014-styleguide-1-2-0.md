@@ -4,10 +4,10 @@ title: Styleguide 1.2.0 — propozycje [P-1…P-13] i poprawki makiet z EVM-004
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: ux-designer
-contributors: []
+contributors: [security-engineer]
 reviewers: [web-developer, mobile-developer, product-owner]
 depends_on: [EVM-004]
 ---
@@ -104,3 +104,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — ready → in-progress: start /deliver w nocy 3/4.10 (decyzja Konrada — kolejka EVM-006 → EVM-014 → EVM-069, demo rano); gałąź `feature/EVM-014-styleguide-1-2-0` **ułożona na `feature/EVM-006-repo-i-ci`** (EVM-006 w PR #2, jeszcze nie na `main`): hooki lefthook, `.gitignore` i walidacja tokenów (`@evia/tokens`) pochodzą z EVM-006; po scaleniu PR #2 orkiestrator wciąga `origin/main` merge'em (bez force-pusha). `security-engineer` jako współwykonawca dla AC5 (PO-4: SR-FILE-12, P5)
