@@ -13,7 +13,7 @@ Jesteś orkiestratorem (Tech Lead). Proces: `docs/process/workflow.md`. Nie pomi
 1. Znajdź plik `docs/backlog/**/$ARGUMENTS-*.md`. Brak → zatrzymaj się.
 2. Sprawdź `docs/process/definition-of-ready.md`: status `ready`, numerowane AC, uzupełnione `owner` i `reviewers`, wszystkie `depends_on` w statusie `done`. Niespełnione → wypisz braki i zaproponuj `/refine $ARGUMENTS`.
 3. WIP: jeśli inna historyjka z kodem ma status `in-progress` lub `in-review` — zapytaj użytkownika, czy kontynuować.
-4. Git: drzewo robocze czyste (`git status`). Gdy repozytorium jeszcze nie istnieje (przed EVM-006) — zapytaj o `git init` i pierwszy commit. Utwórz gałąź `feature/$ARGUMENTS-<krótki-slug>` od aktualnego `main`.
+4. Git: drzewo robocze czyste (`git status`); `git fetch` + `git merge --ff-only origin/main` na `main`. Utwórz gałąź `feature/$ARGUMENTS-<krótki-slug>` od aktualnego `main`.
 5. Ustaw w historyjce `status: in-progress`, dopisz wpis w „Dziennik”. Poinformuj użytkownika jednym zdaniem o starcie.
 
 ## 2. Potok agentów (workflow `deliver-story`)
@@ -37,7 +37,7 @@ Gdy narzędzie Workflow jest niedostępne — wykonaj te same kroki ręcznie nar
 ## 5. Demo i akceptacja
 Przedstaw zwięźle: co dostarczono · tabela AC → status → dowód · „jak to sprawdzić” (kroki, adres, zrzuty) · testy i pokrycie · wyniki przeglądów · kryteria `manual` do ręcznego sprawdzenia · znane ograniczenia.
 Zapytaj (AskUserQuestion): **Akceptuję** / **Poprawki** / **Odrzucam**.
-- Akceptuję → squash merge do `main` (Conventional Commits z ID), `status: done`, wpis w „Dziennik”. `git push` tylko po potwierdzeniu użytkownika.
+- Akceptuję → scalenie wg D2 (`docs/ops/github-i-ci.md` → „Scalanie”): orkiestrator wypycha gałąź (wyłącznie za zgodą użytkownika, bez force) i zakłada PR (`gh`) albo podaje użytkownikowi **tytuł PR w formacie Conventional Commit z ID** (np. `feat(work-orders): add template selection [EVM-123]`) — stanie się on commitem na `main`; **użytkownik klika „Squash and merge”** przy zielonym `ci-gate` i sprawdza widok Activity; orkiestrator potem tylko `git fetch` + `git merge --ff-only origin/main`, ustawia `status: done` i dopisuje wpis w „Dziennik”. Nigdy push na `main`.
 - Poprawki → zapisz uwagi w historyjce i wróć do kroku 2 z `userNotes`.
 - Odrzucam → `status: blocked` z uzasadnieniem; bez merge.
 

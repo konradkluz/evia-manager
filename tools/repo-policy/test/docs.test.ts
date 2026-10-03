@@ -17,9 +17,11 @@ function section(markdown: string, heading: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
-/** Every `pnpm run <script>` mentioned in the text exists in the root package.json. */
+/** Every `pnpm run <script>` mentioned in the text exists in the root package.json (a name ending with `:` is a family of future scripts). */
 function missingScripts(markdown: string): string[] {
-  return [...markdown.matchAll(/pnpm run ([\w:-]+)/g)].map((match) => match[1] ?? '').filter((name) => !(name in scripts));
+  return [...markdown.matchAll(/pnpm run ([\w:-]+)/g)]
+    .map((match) => match[1] ?? '')
+    .filter((name) => !name.endsWith(':') && !(name in scripts));
 }
 
 describe('README quick start (EVM-006 AC1)', () => {

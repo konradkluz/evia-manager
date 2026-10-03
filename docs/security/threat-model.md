@@ -219,7 +219,7 @@ Kolumny: P, W — ryzyko bazowe; „Rezyd.” — ryzyko rezydualne po mitygacja
 | TM-51 | C-15 | I | Ujawnienie hasła przez zapytanie do Pwned Passwords | 1 | 2 | 2 Low | ADR-0005 k-anonimowość · SR-AUTH-02 | 1×1=1 Low | — |
 | TM-52 | C-15 | D | Niedostępność Pwned Passwords — brak sprawdzenia haseł z wycieków | 2 | 1 | 2 Low | ADR-0005 fallback lokalny · SR-ERR-02 | 2×1=2 Low | — |
 | TM-53 | C-16 | S | Certyfikat dla naszej domeny wystawiony napastnikowi (przejęty DNS lub rejestrator) → MITM, fałszywy panel | 1 | 3 | 3 Medium | SR-INFRA-12 (CAA, DNSSEC, monitoring CT, MFA u rejestratora) · P8 | 1×3=3 Medium | RR-06 |
-| TM-54 | C-17 | T | Złośliwa zmiana w `main` (przejęte konto, agent, obejście rulesetu) | 2 | 3 | 6 High | ADR-0012 ruleset bez obejść · SR-SUPPLY-05, SR-SUPPLY-07 | 1×3=3 Medium | RR-11 |
+| TM-54 | C-17 | T | Złośliwa zmiana w `main` (przejęte konto, agent, obejście rulesetu; na GitHub Free — bezpośredni push lub scalenie przy czerwonym CI) | 2 | 3 | 6 High | ADR-0012 ruleset bez obejść; na Free (ADR-0016) kontrole K1–K7 z `main-integrity` (K6) · SR-SUPPLY-05, SR-SUPPLY-07 | 1×3=3 Medium | RR-11, RR-21 |
 | TM-55 | C-17 | E | Przejęta akcja lub narzędzie CI kradnie sekrety (wzorzec CVE-2026-33634) | 2 | 3 | 6 High | ADR-0012 SHA akcji, karencja Renovate · SR-SUPPLY-04, SR-SUPPLY-01 | 1×3=3 Medium | RR-04 |
 | TM-56 | C-17 | I | Sekrety w repozytorium, historii lub logach CI | 2 | 3 | 6 High | ADR-0012, 0015 · SR-INFRA-05, SR-SUPPLY-07 (gitleaks pre-commit i CI) | 1×2=2 Low | — |
 | TM-57 | C-17 | T | Podmiana obrazu w GHCR przed wdrożeniem | 1 | 3 | 3 Medium | ADR-0012 wdrożenie po digeście · SR-SUPPLY-03, SR-SUPPLY-04 | 1×2=2 Low | — |
@@ -731,6 +731,21 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
   - token projektu prod zamiast dedykowanego projektu — przejęty job może też usunąć VM prod albo odczytać jej kopie dysku (z plikiem klucza LUKS — RR-05); ocena bez zmian (W3 już przy odczycie kopii), ale skutek obejmuje też dostępność prod;
   - odtwarzanie na runnerze GitHub — dane osobowe u podmiotu z USA, sprzeczne z `rodo.md` i ADR-0011 — niedopuszczalne.
 - **Decyzja Konrada:** przyjęta rekomendacja (2026-10-03, demo EVM-005).
+
+### RR-21 — GitHub Free: brak egzekwowanej ochrony `main`, środowisk i sekretów per gałąź
+- **Opis:** repozytorium prywatne na GitHub Free (decyzja Konrada 2026-10-03) nie ma rulesetów, gałęzi chronionych, sekretów środowisk ani ograniczenia gałęzi wdrożeń. Bezpośredni push na `main` (kluczem wdrożeniowym agentów albo z konta Konrada) i scalenie PR przy czerwonym CI są technicznie możliwe; każdy sekret repozytorium jest czytelny dla workflowu uruchomionego z dowolnej gałęzi.
+- **Źródło:** ADR-0016 (Proponowana), EVM-006 (ponowna ocena `security-engineer`, sekcja C konsultacji); TM-54, TM-55, AB-24, AB-27; RR-02, RR-11.
+- **Ryzyko bazowe:** TM-54 bez rulesetu P2 × W3 = 6 High.
+- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium — po K1–K7 (`docs/ops/github-i-ci.md`), w tym `main-integrity` sprawdzającym każdy commit pushu przez API przebiegów (A1), przeglądzie widoku Activity przy każdym scaleniu (A8) i **bez sekretów z prawem zapisu w repozytorium**. W M0 faktyczny wpływ W2 (brak wdrożeń i danych produkcyjnych).
+- **`RENOVATE_TOKEN` jako sekret repozytorium na Free:** P2 × W3 = 6 High — jeden push gałęzi ze zmienionym workflowem wystarcza, by wykraść PAT działający jako Konrad; nim można scalić PR, który przejdzie K6 i w widoku Activity wygląda jak scalenie Konrada (wykrycie praktycznie niemożliwe). **Nie akceptować bez mitygacji** — pytanie Q1 do rozstrzygnięcia przed dodaniem sekretu (`renovate.yml` działa dopiero po ustawieniu zmiennej `RENOVATE_ENABLED`).
+- **Rekomendacja:** **akceptuj w M0** z K1–K7 i bez sekretów z prawem zapisu; przegląd przed planem EVM-007 (sekrety wdrożeniowe) i przy każdym warunku powrotu do planu płatnego z ADR-0016.
+- **Konsekwencja innego wyboru:** GitHub Pro (≈ 15,50 zł/mies.) — ruleset bez listy obejść, wymagany check `ci-gate`; ryzyko wraca do oceny z RR-11.
+- **Decyzja Konrada:** — (do decyzji na demo EVM-006, razem z ADR-0016).
+
+**Ponowna ocena RR-02 i RR-11 przy GitHub Free (EVM-006, `security-engineer`, do decyzji Konrada na demo):**
+- **RR-02:** wariant (a) — GitHub App z wymaganą akceptacją PR — jest na Free niewykonalny (bez rulesetu nie ma wymuszonej akceptacji; token aplikacji pozwala na to samo co klucz wdrożeniowy). Ryzyko 3 Medium utrzymane wyłącznie przy K4 (agenci bez tokenów z prawem scalania, push wykonuje orkiestrator) i warunkach RR-21. Od 2026-10-03 na stacji jest `gh` z fine-grained PAT bez `Contents: write` (decyzja Konrada) — wpływ na K4 oceni `security-engineer` w przeglądzie EVM-006. Powrót do wariantu (a) — przy planie płatnym.
+- **RR-11:** w M0 bez zmian (brak wdrożeń). SR-INFRA-13 i SR-INFRA-14 (sekrety środowisk ograniczonych do `main`) są na Free niewykonalne — decyzja o mechanizmie wdrożeń w osobnym ADR przed planem EVM-007.
+- **RR-03:** kontrola opiera się na regule `ask` dla `compose*.yaml` w `.claude/settings.json` i na testach `tools/repo-policy` (Docker wyłącznie przez `docker compose -f compose.yaml run --rm …`, bez gniazda Dockera).
 
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.

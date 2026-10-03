@@ -1,6 +1,6 @@
 # Strategia testów
 
-> Wersja wstępna. Narzędzia dla każdej warstwy wybierają `solution-architect` i `qa-engineer` w EVM-001 / EVM-006 i wpisują je w sekcji „Narzędzia”.
+> Narzędzia wybrane w EVM-001 (ADR-0014, ADR-0015) i wdrożone w EVM-006 — sekcja „Narzędzia”; kolejne warstwy (web, mobile, backend) dopisują swoje polecenia w historyjkach, które je wprowadzają.
 
 ## Zasady
 1. **TDD:** test przed kodem; każde AC ma co najmniej jeden test automatyczny z oznaczeniem `EVM-xxx AC#` w nazwie lub opisie (śledzenie AC → test).
@@ -42,6 +42,7 @@ Zasady: rozbieżność lokalnie/CI to błąd do wyjaśnienia (dla backendu rozst
 | Obszar | Linie i gałęzie |
 |---|---|
 | **Zmieniony kod w każdej zmianie (diff coverage)** | **≥ 90%** |
+| Pakiety współdzielone i `tools/` | ≥ 90% |
 | Backend — całość | ≥ 85% |
 | Backend — moduły domenowe | ≥ 95%, wynik testów mutacyjnych ≥ 70% (cel 80%) |
 | Web — całość | ≥ 80% |
@@ -66,4 +67,20 @@ Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga A
 5. Wynik i obserwacje zapisane w historyjce wydania.
 
 ## Narzędzia
-_Do uzupełnienia w EVM-001 / EVM-006._
+Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: sprawdzenie hooków git, usunięcie starych raportów `lcov.info`, `gate:native` — format, lint, typy, testy z progami w każdym workspace, granice modułów — potem `gate:backend` w kontenerze `backend-tests` i `coverage:diff`). W CI te same polecenia (`.github/workflows/ci.yml`); skany bezpieczeństwa: `pnpm run scan` (`tools/scan/README.md`).
+
+| Warstwa / rodzaj | Narzędzie | Polecenie | Od |
+|---|---|---|---|
+| Pakiety współdzielone (`packages/*`) — jednostkowe i pokrycie | **Vitest 5** + pokrycie V8, preset `@evia/config/vitest` (progi per warstwa, raport `lcov`) | natywnie: `pnpm run test:coverage` (Turborepo); parytet Linux: `docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend` | EVM-006 |
+| Narzędzia `tools/*.mjs` (bez zależności w runtime) | **node:test** z pokryciem przez `evia-node-test` (`@evia/config`; progi 90% linii i gałęzi, wszystkie pliki źródłowe, raport `lcov`) | `pnpm run test:coverage`; całość jak w EVM-012: `npm run test:tools` | EVM-006 (EVM-012) |
+| Niezmienniki repozytorium (`tools/repo-policy`) | Vitest (TypeScript) + `yaml` | w ramach `pnpm run test:coverage` | EVM-006 |
+| Design tokens (`packages/tokens`) | Vitest — walidacja tokenów i build web / mobile | `pnpm run build`, `pnpm run test:coverage` | EVM-006 |
+| **Pokrycie zmienionego kodu ≥ 90%** | **`tools/diff-coverage`** — własny skrypt (baza: `merge-base` z `origin/main`; zmiany nieskomitowane i nowe pliki też się liczą; zmieniony plik bez raportu = niepokryty; scala raporty hosta, kontenera i CI) | `pnpm run coverage:diff` | EVM-006 |
+| Wykluczenia z pokrycia | jedno źródło: `packages/config/coverage-exclusions.json` (każde z uzasadnieniem) — czytają je Vitest, `evia-node-test` i `diff-coverage` | — | EVM-006 |
+| Backend (API, worker, media-processor, migracje), integracyjne z PostgreSQL | Vitest + Testcontainers (CI) / usługi Compose (lokalnie) w kontenerze **`backend-tests`** | `docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend` (po `docker compose -f compose.yaml run --rm backend-install`) | EVM-008 |
+| Lint, format, typy, granice modułów | ESLint 10 + typescript-eslint (`strictTypeChecked`), Prettier 3, TypeScript 6 (`strict`), dependency-cruiser | `pnpm run lint`, `pnpm run format:check`, `pnpm run typecheck`, `pnpm run deps:check` | EVM-006 |
+| Web — komponentowe i E2E | Vitest + Testing Library + axe; **Playwright** (Chrome, Edge, Firefox na Windows; CI Linux) | `pnpm run e2e` (zadania od EVM-008) | EVM-008 |
+| Mobile — komponentowe i E2E Android | Jest + jest-expo; **Maestro** na emulatorze Androida na Windows | od EVM-009 | EVM-009 |
+| Bezpieczeństwo (SAST, zależności, licencje, sekrety, Dockerfile, workflowy) | Semgrep CE, OSV-Scanner, Trivy, gitleaks, zizmor, actionlint + samotest skanerów | `pnpm run scan`; gitleaks także w hookach `pre-commit` / `pre-push` | EVM-006 |
+
+Zasady: wynik natywny na Windows nie jest dowodem dla backendu (ADR-0015); próg pokrycia, którego nie da się spełnić, zgłaszamy — nie obniżamy go i nie dodajemy wykluczeń bez uzasadnienia w `coverage-exclusions.json`; komentarze `v8 ignore` / `node:coverage` tylko dla okablowania procesu (punkty wejścia), zawsze z uzasadnieniem w treści komentarza.

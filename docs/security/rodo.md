@@ -155,7 +155,7 @@ Na podstawie [ADR-0011](../architecture/adr/0011-hosting-i-srodowiska-ue.md) (�
 | Scaleway SAS (grupa Iliad) | Francja | storage mediów, kopie bazy, e-mail transakcyjny | media, dokumenty, kopie, adresy e-mail pracowników | PL (`pl-waw`) | DPA w warunkach usługi | nie | do akceptacji (E8) |
 | Functional Software Inc. (Sentry) | USA | raporty błędów | ograniczone (identyfikatory po scrubbingu) | UE (Frankfurt) | DPA + SCC albo DPF | możliwy dostęp z USA (wsparcie) | do zawarcia; weryfikacja DPF (E8) `[PRAWNIK/IOD]` |
 | Grafana Labs | USA | logi i metryki | ograniczone (identyfikatory, prefiks IP) | UE | DPA + SCC albo DPF | możliwy dostęp z USA | do zawarcia; weryfikacja DPF (E8) `[PRAWNIK/IOD]` |
-| GitHub Inc. (Microsoft) | USA | kod, CI | brak danych klientów; konta pracowników | USA/UE | DPA w umowie klienta | tak (konta) | do akceptacji (EVM-006) |
+| GitHub Inc. (Microsoft) | USA | kod, CI | brak danych klientów — wyłącznie kod i dane syntetyczne; dziś tylko konto Konrada | USA/UE | DPA w umowie klienta (plan Free) | tak (konta) | EVM-006: plan Free, tylko konto Konrada; DPA do weryfikacji przy dodaniu kont pracowników `[PRAWNIK/IOD]` |
 | 650 Industries Inc. (Expo) | USA | buildy mobilne, podpisywanie | brak danych klientów; konta pracowników | USA | DPA na żądanie | tak (konta) | do decyzji przy EVM-009 |
 | Google (Play Console) | USA | dystrybucja aplikacji | e-maile testerów (pracowników) | globalnie | warunki programu deweloperskiego | tak | przy EVM-009 `[PRAWNIK/IOD]` |
 | Apple (TestFlight) | USA | dystrybucja iOS | — | — | — | — | odłożone (ADR-0015) |

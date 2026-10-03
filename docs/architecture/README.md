@@ -18,7 +18,7 @@
 | Media | Scaleway Object Storage (Warszawa), multipart z podpisanymi URL-ami, ClamAV, izolowane przetwarzanie | [0009](adr/0009-storage-i-przetwarzanie-mediow.md) |
 | Zadania w tle | pg-boss w PostgreSQL | [0010](adr/0010-zadania-w-tle-pg-boss.md) |
 | Hosting | Hetzner (VM, Niemcy) + Scaleway (storage, backupy, e-mail) + Storage Box (kopia mediów) | [0011](adr/0011-hosting-i-srodowiska-ue.md) |
-| CI/CD | GitHub Actions, pnpm + Turborepo, EAS Build (iOS bez Maca) | [0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md) |
+| CI/CD | GitHub Actions, pnpm + Turborepo, EAS Build (iOS bez Maca); GitHub Free z kontrolami kompensującymi, zizmor i actionlint (proponowane) | [0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md), [0016](adr/0016-github-free-ochrona-main-kontrole-kompensujace.md) |
 | Obserwowalność | Grafana Cloud (UE) + Sentry (UE), redakcja danych osobowych | [0013](adr/0013-obserwowalnosc.md) |
 | Testy | Vitest, Testcontainers, macierz ról z kontraktu, Playwright, Maestro | [0014](adr/0014-narzedzia-testowe.md) |
 | Środowisko testów | Per warstwa: backend w kontenerach Linux, web w przeglądarkach na Windows, mobile i E2E Android na emulatorze Windows, narzędzia natywnie; CI Linux jako dodatkowa bramka (bez emulatora); iOS odłożony | [0015](adr/0015-srodowisko-testow-per-warstwa.md) |
@@ -201,6 +201,21 @@ flowchart LR
 | `sync` | synchronizacja offline urządzeń | M2 (E10–E13) |
 | później | `notifications` (M3), `reporting` (M4), `integrations` (M5), `investments` (M6) | — |
 
+## Struktura repozytorium (monorepo)
+Potwierdzona w EVM-006 bez zmian względem [ADR-0012](adr/0012-ci-cd-monorepo-narzedzia-jakosci.md) (pnpm workspaces + Turborepo); katalogi powstają dopiero z treścią (YAGNI). Polecenia: `CLAUDE.md` → „Stack i komendy”; CI i ochrona `main`: [`../ops/github-i-ci.md`](../ops/github-i-ci.md).
+
+| Ścieżka | Zawartość | Od |
+|---|---|---|
+| `packages/config` | wspólna konfiguracja: tsconfig (`strict`), ESLint, preset pokrycia Vitest, runner `node:test`, jedno źródło wykluczeń pokrycia | EVM-006 |
+| `packages/tokens` | `@evia/tokens` — tokeny z `design/tokens/` → CSS (`--evm-…`) i stałe React Native (Style Dictionary 5) | EVM-006 |
+| `tools/*` | narzędzia repozytorium jako workspace'y: `docs-lifecycle` (EVM-012), `diff-coverage`, `container`, `git-hooks`, `scan`, `main-integrity`, `repo-policy` | EVM-006 |
+| `compose.yaml` (katalog główny) | kontener `backend-tests` (ADR-0015) i skanery uruchamiane przez `docker compose -f compose.yaml run --rm …` | EVM-006 |
+| `infra/docker/backend-tests/` | obraz środowiska testów backendu (Node 26 po digeście + pnpm) | EVM-006 |
+| `.github/workflows/` | `ci.yml`, `nightly.yml`, `renovate.yml` | EVM-006 |
+| `apps/api`, `apps/web` · `apps/mobile` · `infra/` (OpenTofu) · `services/media-processor`, `packages/{contracts,sync-core,ui-web}` | aplikacje, infrastruktura i pakiety domenowe | EVM-008 · EVM-009 · EVM-007 · przy pierwszej potrzebie |
+
+Kierunek zależności (dependency-cruiser, bramka lokalna i CI): `apps/*`, `services/*` i `packages/*` nie importują `tools/*`; `packages/*` nie importują `apps/*` ani `services/*`; `tools/*` nie importują `apps/*` ani `services/*`; bez cykli. Granice modułów `apps/api` (ADR-0001) — od EVM-008.
+
 ## Wymagania niefunkcjonalne — wartości docelowe
 Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.
 
@@ -261,6 +276,8 @@ Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.
 | Jednorazowo | Google Play Console 25 USD | | ≈ 97 zł |
 
 > **Adnotacja 2026-10-03 ([ADR-0015](adr/0015-srodowisko-testow-per-warstwa.md)):** iOS odłożony w całości — konto Apple Developer (≈ 32 zł/mies.) i buildy iOS w EAS nie są ponoszone do decyzji o iOS. Tabele pokazują koszt docelowy z iOS i nie są przeliczane.
+
+> **Adnotacja 2026-10-03 (EVM-006, [ADR-0016](adr/0016-github-free-ochrona-main-kontrole-kompensujace.md) — Proponowana):** decyzja Konrada — repozytorium na **GitHub Free** (0 zł zamiast ≈ 15,50 zł/mies.; 2000 min Actions, limit wydatków 0 USD). Ochrona `main` nie jest egzekwowana przez GitHub — zastępują ją kontrole kompensujące K1–K7 (wykrycie zamiast blokady); warunki powrotu do planu płatnego w ADR-0016. Tabele nie są przeliczane do czasu akceptacji ADR-0016.
 
 **Porównanie z budżetem 300 zł/mies.:** mieści się wszystko, łącznie z niezmiennym backupem bazy i mediów u innego dostawcy, skanem AV, MFA, kontem Apple i GitHub Pro. **Rezerwa ≈ 108 zł** wystarcza na jedną z opcji: EAS Starter (19 USD ≈ 74 zł — szybsza kolejka buildów) **albo** Sentry Team (26 USD ≈ 101 zł — więcej użytkowników i błędów); obu naraz nie. **Nie mieści się:** wariant B z zarządzaną bazą (≈ 458 zł/mies.) i samodzielnie hostowany stos obserwowalności (+ ok. 30–40 zł). Pozycji oznaczonych pogrubieniem (backup poza głównym miejscem, skan AV, MFA, płatny plan GitHub) nie wolno usunąć bez nowego ADR i zgody Konrada.
 
