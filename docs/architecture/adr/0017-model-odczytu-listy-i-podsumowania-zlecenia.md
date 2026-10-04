@@ -111,7 +111,7 @@ Skala ocen 1–5 (5 = najlepiej); suma ważona = Σ (waga × ocena), maksimum 19
 | Koszt zapisu | na transakcję zmieniającą zlecenie: 1 blokada wiersza projekcji + ok. 8–10 krótkich zapytań po kluczu ≈ **3–6 ms** | brak | brak |
 | Wzrost | liniowy; do ~100 tys. zleceń (~15 MB) przegląd nadal w pamięci (~50–100 ms); powyżej — kolumny grup bez `:today` z indeksem albo rewizja ADR | liniowy z liczbą etapów i transz | — |
 
-Pomiar p95 to kryterium AC6 w EVM-034 i EVM-056 (plan testów niżej). Wersje i semantykę PostgreSQL 18 (READ COMMITTED, `SELECT … FOR UPDATE`, porównanie wierszy, indeksy częściowe, opcje widoków) oraz reguły oasdiff zweryfikowano 2026-10-04 ([Źródła](#źródła)).
+Pomiar p95 to kryterium AC6 w EVM-034 i EVM-056 (plan testów niżej). Wersje i semantykę PostgreSQL 18 (READ COMMITTED, tryby blokad wierszy i kontrole kluczy obcych, porównanie wierszy, indeksy częściowe, opcje widoków) oraz reguły oasdiff zweryfikowano 2026-10-04 ([Źródła](#źródła)).
 
 ## Decyzja
 Wybieramy **(a) — projekcję w module odczytu `overview` aktualizowaną w tej samej transakcji co zapis**. Wariant spełnia K0, ma najwyższą sumę ważoną i zachowuje regułę 2 ADR-0001 bez wyjątku. Wyższy koszt wdrożenia (ryzyko R8) rekompensuje przewidywalny czas odczytu i prostsze testy. **ADR-0001 nie dostaje adnotacji.** Planem wyjścia jest (b2).
@@ -122,11 +122,12 @@ Elementy decyzji:
    - Podsumowanie W-06 dotyczy jednego zlecenia i **nie korzysta z projekcji**. SPA składa kafle z zasobów zakotwiczonych w zleceniu (procesy z etapami — EVM-031/032, transze — EVM-053), zgodnie z zasadą wspólną M1 i EVM-018.
    - Wartości zależne od daty i bieżący etap procesu serwer liczy ze wstrzykiwanego zegara i zwraca jako pola tylko do odczytu tych zasobów ([Kontrakt](#kontrakt-api-ac3)).
    - Każdy kafel ma własne źródło danych, więc błąd jednego źródła daje „alert w kaflu”, a pozostałe kafle działają (EVM-034 AC8, EVM-056 AC8).
-2. **Moduł `overview`** (schemat `overview`) zależy od `work-orders`, `procedures`, `payments`, `sites`, `parties`, `customers`, `identity` i `authorization` przez fasady, porty systemowe i zdarzenia. **Żaden moduł nie zależy od `overview`.** Klucz obcy prowadzi tylko do `work_orders` — zgodnie z kierunkiem zależności.
+2. **Moduł `overview`** (schemat `overview`) zależy od `work-orders`, `procedures`, `payments`, `sites`, `parties`, `customers`, `identity` i `authorization` przez fasady, porty systemowe i zdarzenia. **Żaden moduł nie zależy od `overview`.** Jedyny klucz obcy poza schemat `overview` prowadzi z `work_order_summaries` do `work_orders` — zgodnie z kierunkiem zależności. `work_order_waits` wskazuje `work_order_summaries` ([Współbieżność](#aktualizacja-przebudowa-i-weryfikacja)).
 3. **Projekcja przechowuje wyłącznie klucze filtrów i sortowań**: identyfikatory, kody, daty i liczniki ([Model projekcji](#model-projekcji)). Bez nazw, tytułów, pól swobodnych, danych kontaktowych, `search_text` i kwot. Wartości wyświetlane pobieramy przez fasady raz na stronę, stałą liczbą zapytań.
 4. **Aktualizacja w tej samej transakcji.**
    - Przeliczenie obejmuje cały wiersz zlecenia ze stanu źródeł, bez przyrostów — jest więc idempotentne i niezależne od kolejności zdarzeń.
    - Działa pod blokadą wiersza projekcji. Wycofanie komendy wycofuje projekcję.
+   - Komendy domenowe blokują wiersz `work_orders` w trybie `SELECT … FOR NO KEY UPDATE`, a nie `FOR UPDATE`. Z `FOR UPDATE` kontrola klucza obcego projekcji tworzyłaby cykl blokad ([Współbieżność](#aktualizacja-przebudowa-i-weryfikacja)).
 5. **Przebudowa i weryfikacja.**
    - Polecenia CLI `rebuild` i `verify` w kontenerze `worker` używają tej samej funkcji przeliczenia co handlery.
    - Nocny `verify` działa jako zadanie pg-boss z metryką i alertem.
@@ -197,7 +198,7 @@ Schemat `overview`. Lista kolumn jest **zamknięta** (W1): nowa kolumna wymaga z
 | Kolumna | Typ | Do czego |
 |---|---|---|
 | `stage_id` | `uuid` PK (bez klucza obcego — wiersz zastępuje przeliczenie) | identyfikacja oczekiwania |
-| `work_order_id` | `uuid`, FK → `work_orders.work_orders(id)` `ON DELETE CASCADE` | kotwica, `EXISTS` w filtrze |
+| `work_order_id` | `uuid`, FK → `overview.work_order_summaries(work_order_id)` `ON DELETE CASCADE` — kontrola klucza trafia w wiersz projekcji, który przeliczenie już blokuje, a nie w wiersz zlecenia ([Współbieżność](#aktualizacja-przebudowa-i-weryfikacja)) | kotwica, `EXISTS` w filtrze |
 | `waiting_on` | `text`, `CHECK` (`customer` / `party`) | filtr „klient / strona” |
 | `party_id` | `uuid` NULL (`CHECK`: wymagany wtedy i tylko wtedy, gdy `waiting_on = party`) | obsługa zmiany rodzaju strony |
 | `party_kind` | `text` NULL, `CHECK` formatu kodu `^[a-z][a-z0-9_]{1,63}$` (bez listy wartości — nowy `PartyKind` nie wymaga migracji `overview`) | filtr „rodzaj strony” |
@@ -208,7 +209,7 @@ Schemat `overview`. Lista kolumn jest **zamknięta** (W1): nowa kolumna wymaga z
 **Zakaz kopiowania (W1):** `title`, `description`, `statusReason`, `blockedReason`, `notes`, numer faktury, kwoty, nazwy (klientów, stron, użytkowników, etapów), adresy, kontakty, `search_text`. Wartości zależne od daty („po terminie”, liczby dni) — nigdy zapisywane.
 
 **Klasyfikacja (SR-DATA-01):** **WF**; pośrednio **DO-K** (`customer_id`, `site_id`), **DO-P** (`coordinator_user_id`), **DO-3** (`party_id`) oraz terminy i liczniki transz powiązane z klientem. To dane **pseudonimowe** (motyw 26 RODO), a nie dane bez znaczenia dla RODO. Brak pól swobodnych, `search_text` i projekcji na telefon. Usuwanie:
-- purge zlecenia usuwa projekcję kaskadowo (klucz obcy);
+- purge zlecenia usuwa projekcję kaskadowo (łańcuch kluczy obcych `work_orders` → `work_order_summaries` → `work_order_waits`);
 - soft delete jest kopiowany jako `deleted_at`;
 - anonimizacja nie dotyczy, bo projekcja nie przechowuje wartości danych osobowych;
 - retencja — jak `WorkOrder`.
@@ -230,6 +231,8 @@ Wiersz klasyfikacji: [`domain-model.md`](../domain-model.md#klasyfikacja-danych)
    2. **dopiero po uzyskaniu blokady** — odczyt stanu źródeł kolejnymi poleceniami przez porty systemowe (W5);
    3. obliczenie wiersza czystą funkcją;
    4. zapis: `UPDATE` wiersza i zastąpienie wierszy `work_order_waits` zlecenia.
+
+   Zlecenia usuniętego trwale (purge) w tej samej transakcji nie przeliczamy — jego wiersze usuwa kaskada.
 4. Błąd przeliczenia albo przekroczenie `lock_timeout` wycofuje całą transakcję (komendę i projekcję). Odpowiedź: `500 internal_error` z `traceId`, bez szczegółów SQL (W12); metryka `projection_recompute_failed_total`.
 
 ```mermaid
@@ -259,7 +262,7 @@ sequenceDiagram
 - druga czeka na blokadę wiersza projekcji;
 - po zatwierdzeniu pierwszej każde kolejne polecenie drugiej dostaje nowy snapshot (PostgreSQL 18, § 13.2.1), więc jej odczyt źródeł widzi już obie zmiany.
 
-Warunek poprawności: **źródła czytamy wyłącznie po uzyskaniu blokady** — bez buforowania odczytów sprzed niej. Projekcję blokujemy zawsze na końcu transakcji i w stałej kolejności. Przeliczenie czyta źródła bez blokad, więc blokada projekcji nie tworzy cyklu z blokadami domenowymi, np. z blokadą wiersza zlecenia z EVM-053.
+Warunek poprawności: **źródła czytamy wyłącznie po uzyskaniu blokady** — bez buforowania odczytów sprzed niej. Projekcję blokujemy zawsze na końcu transakcji i w stałej kolejności.
 
 ```mermaid
 sequenceDiagram
@@ -276,6 +279,45 @@ sequenceDiagram
   DB-->>T2: blokada przyznana
   T2->>DB: odczyt etapów nowym snapshotem: A i B nowe, zapis projekcji
   T2->>DB: COMMIT, projekcja zgodna ze stanem obu etapów
+```
+
+**Blokady domenowe i klucze obce.** Przeliczenie czyta źródła bez blokad, ale zapis projekcji uruchamia kontrole kluczy obcych. `INSERT` po stronie odwołującej się blokuje wiersz nadrzędny w trybie `FOR KEY SHARE`. Ten tryb koliduje z `FOR UPDATE`, z `DELETE` i ze zmianą kolumn kluczowych wiersza nadrzędnego (PostgreSQL 18, § 13.3.2). Gdyby oczekiwania wskazywały `work_orders`, powstałby cykl blokad:
+- komenda trzyma `SELECT … FOR UPDATE` zlecenia (np. przejście z EVM-030 albo transza z EVM-053) i przed zatwierdzeniem czeka na blokadę wiersza projekcji;
+- równoległa zmiana etapu albo `rebuild` trzyma blokadę wiersza projekcji i przy wstawianiu oczekiwania czeka na `FOR KEY SHARE` tego samego zlecenia.
+
+Wynikiem byłoby zakleszczenie (`40P01`) i `500` dla jednej z komend. Dlatego obowiązują trzy reguły:
+1. **`work_order_waits` wskazuje `work_order_summaries`, a nie `work_orders`** ([Model projekcji](#model-projekcji)). Kontrola klucza przy zastępowaniu oczekiwań trafia w wiersz projekcji, który transakcja już blokuje, więc nie czeka na blokady domenowe. `UPDATE` wiersza projekcji nie zmienia `work_order_id`, więc nie sprawdza ponownie klucza do `work_orders`. Purge usuwa wiersze łańcuchowo: `work_orders` → `work_order_summaries` → `work_order_waits`.
+2. **Komendy domenowe blokują wiersz `work_orders` w trybie `SELECT … FOR NO KEY UPDATE`** (Kysely `.forNoKeyUpdate()`), a nie `FOR UPDATE`:
+   - tryb wyklucza się sam ze sobą, więc nadal serializuje przejścia zlecenia i komendy transz (EVM-053);
+   - nie koliduje z `FOR KEY SHARE` z kontroli kluczy obcych;
+   - zwykły `UPDATE` zlecenia bez zmiany kolumn kluczowych bierze ten sam tryb;
+   - komenda, która ma się serializować z przejściami, bierze blokadę jawnie i nie polega na niejawnej blokadzie klucza obcego;
+   - kolumn z unikalnym indeksem (`id`, `number` — nadawany przy utworzeniu, EVM-022) komendy nie zmieniają. Taka zmiana brałaby `FOR UPDATE` i wymaga przeglądu tej sekcji.
+3. **Pierwszy `INSERT` wiersza `work_order_summaries`** sprawdza klucz do `work_orders` (`FOR KEY SHARE`):
+   - w zwykłej pracy wiersz powstaje w transakcji utworzenia zlecenia, która sama trzyma nowy wiersz zlecenia;
+   - poza nią wiersz wstawia tylko `rebuild` — gdy go brakuje (pusta projekcja po wdrożeniu EVM-034 albo rozjazd). Dzięki regule 2 ta kontrola nie czeka na komendy domenowe;
+   - czeka tylko na purge tego zlecenia. Po jego zatwierdzeniu `rebuild` dostaje błąd klucza obcego (`23503`, bez cyklu blokad) i ponawia partię bez tego zlecenia.
+
+Purge równoległy z przeliczeniem istniejącego wiersza też nie tworzy cyklu. Przeliczenie zapisuje tylko wiersze projekcji, które już blokuje, więc nie czeka na purge. Kaskada purge czeka na zatwierdzenie przeliczenia, a potem usuwa wiersze.
+
+Przeplot z regułami 1 i 2 — komenda z blokadą wiersza zlecenia i równoległa zmiana etapu tego zlecenia (bez cyklu blokad):
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant T1 as Transakcja 1, etap A na waiting
+  participant DB as PostgreSQL
+  participant T2 as Transakcja 2, przejście zlecenia
+  T2->>DB: SELECT FOR NO KEY UPDATE wiersza zlecenia
+  T1->>DB: UPDATE etapu A
+  T1->>DB: SELECT FOR UPDATE wiersza projekcji zlecenia
+  T1->>DB: INSERT oczekiwania, kontrola klucza na wierszu projekcji
+  T2->>DB: UPDATE zlecenia
+  T2->>DB: SELECT FOR UPDATE wiersza projekcji, czeka na T1
+  T1->>DB: COMMIT
+  DB-->>T2: blokada przyznana
+  T2->>DB: odczyt źródeł nowym snapshotem, zapis projekcji
+  T2->>DB: COMMIT, projekcja zawiera obie zmiany
 ```
 
 **Funkcja przeliczenia** (czysta, testowana jednostkowo; dane z portów systemowych, W5):
@@ -304,7 +346,8 @@ Zawsze pomijamy dzieci usunięte, a transze `cancelled` nie liczą się do sygna
   - polecenia CLI w kontenerze `worker` (dokładna składnia — EVM-034), uruchamiane jako `evia_app`;
   - **bez endpointu HTTP i bez funkcji w panelu**;
   - partie z limitem rozmiaru (start: 500 zleceń, konfiguracja), współbieżność 1;
-  - te same blokady i ta sama funkcja przeliczenia co handlery, bez wyłączania systemu.
+  - te same blokady i ta sama funkcja przeliczenia co handlery, bez wyłączania systemu;
+  - partia przerwana błędem klucza obcego (`23503` — purge zlecenia w trakcie przebudowy) jest ponawiana bez tego zlecenia ([Współbieżność](#aktualizacja-przebudowa-i-weryfikacja)).
 - **`rebuild`** przelicza wszystkie zlecenia albo wskazane. Wypełnia też nowe kolumny po zmianie *expand*, np. sygnały płatności w EVM-056 (przed produkcją nie ma danych realnych).
 - **`verify`** działa tylko do odczytu:
   - porównuje zapisany wiersz z przeliczonym;
@@ -385,7 +428,7 @@ Warunek przeglądu `security-engineer` (konsultacja planu EVM-069, APPROVE z war
 | W7 | **Wejście i kontrakt.** `sort`, `view`, `waitingOn` i `waitingOnPartyKind` z listy dozwolonych (słownik `PartyKind`); wartość spoza listy → `400 validation_failed` bez echa wartości (tylko `pointer` i `code`). `waitingLongerThanDays` — liczba całkowita 1–365 (`0`, `366`, `14a` → `400`); powtórzony parametr → `400 duplicate_parameter`, nieznany → `400 unknown_parameter`. Wyrażenie sortowania „Najpilniejsze” (`ORDER BY` i `CASE`) budujemy wyłącznie ze stałych w kodzie; `:today`, próg 14 dni i X są parametrami. „Dziś” i `asOf` nigdy nie pochodzą z żądania. Nowe pola wyliczane (`isOverdue`, `waitingDays`, `overdueDays`, `currentStageId`, `waiting`, `nextDueDate`, `hasOverdueStage`, `payment`) są `readOnly` i odrzucane na wejściu (`read_only_field`). W URL tylko kody i liczby, bez ID stron | SR-INPUT-01, SR-INPUT-03, SR-API-01, SR-AUTHZ-04, V2.2.1, V1.2.4 |
 | W8 | **Kursor.** `asOf` (data „dziś” pierwszej strony) i grupa „Najpilniejsze” są wyłącznie w szyfrowanym i uwierzytelnionym kursorze (`platform/crypto`, api-guidelines). Kursor zawiera też ID użytkownika, skrót filtrów (m.in. `view`, `waitingOn`, rodzaj strony, X, status, skrót frazy) i czas wygaśnięcia, ale nie zawiera jawnie dat ani kwot klucza sortowania. Kursor zmieniony, wygasły, cudzy albo z innymi filtrami → `400 invalid_cursor` | api-guidelines, V8.2.2 |
 | W9 | **Kanał.** Lista, wyszukiwanie i zasoby W-06 z polami płatności mają `channels: [web]`. Dopuszczenie `mobile` wymaga osobnej projekcji bez płatności i przeglądu security | SR-AUTHZ-12, SR-SYNC-04, AB-14 |
-| W10 | **Baza.** Uprawnienia: `evia_app` — wyłącznie DML na schemacie `overview`; `evia_readonly` — brak dostępu (nadanie w M4 tylko po przeglądzie); właściciel — `evia_migrator`. Klucze obce do `work_orders` z `ON DELETE CASCADE`, więc purge i ponowne zastosowanie rejestru usunięć po PITR (SR-PRIV-04) czyszczą projekcję. Brak triggerów `SyncChange` | SR-INFRA-03, SR-DATA-08, SR-PRIV-04 |
+| W10 | **Baza.** Uprawnienia: `evia_app` — wyłącznie DML na schemacie `overview`; `evia_readonly` — brak dostępu (nadanie w M4 tylko po przeglądzie); właściciel — `evia_migrator`. Klucze obce z `ON DELETE CASCADE` w łańcuchu `work_orders` → `work_order_summaries` → `work_order_waits`, więc purge i ponowne zastosowanie rejestru usunięć po PITR (SR-PRIV-04) czyszczą projekcję. Brak triggerów `SyncChange` | SR-INFRA-03, SR-DATA-08, SR-PRIV-04 |
 | W11 | **`rebuild` i `verify`.** Tylko CLI w kontenerze `worker`, bez endpointu HTTP i funkcji w panelu; uruchamiane jako `evia_app`. Te same blokady wiersza co handlery; partie z limitem, współbieżność 1. Log startu i końca z liczbami i `traceId`; raport rozbieżności — wyłącznie liczby i UUID (bez kwot, dat i nazw). Nocny `verify` z metryką i alertem; ładunek zadania pg-boss — tylko identyfikatory. Rekomendacja: `verify` po każdym odtworzeniu z kopii (runbook EVM-062) | SR-AUTHZ-11, SR-LOG-02, SR-LOG-03, SR-INFRA-11, V16.2.5 |
 | W12 | **Dostępność.** Po przeniesieniu listy zostają limity (strona ≤ 100, 300 żądań/min, wyszukiwanie 60/min) i licznik masowego odczytu P10 (regresja EVM-017 AC5 i EVM-072 AC5). Rekomendacja: `statement_timeout` dla zapytań listy (start: 2 s) i `lock_timeout` dla blokady projekcji (start: 5 s). Błąd przeliczenia wycofuje komendę z `500 internal_error` i `traceId`, bez szczegółów SQL | SR-API-02, SR-API-01, P10, V15.1.3 |
 
@@ -412,7 +455,7 @@ Testy powstają w EVM-034 i EVM-056 (TDD, oznaczenia `EVM-034 AC#` / `EVM-056 AC
 | 3 | **Polityka w zapytaniu** (AC4) | Zlecenie usunięte miękko z najsilniejszym sygnałem (najstarsze oczekiwanie, najstarszy termin po terminie): wyniki, kolejność, „+n”, sumy i granice stron (60 zleceń, strony po 25) są **identyczne** jak bez tego zlecenia, dla A, E i R. Sprawdzone, że warunek jest w zapytaniu (zapytanie listy zawiera predykat; brak odsiewania po pobraniu) | EVM-034 AC6, EVM-056 AC6 |
 | 4 | **Spójność po błędzie transakcji** (AC4) | Wymuszony błąd przeliczenia (atrapa portu) w komendzie zmiany etapu → etap, audyt, wpis dziennika i projekcja bez zmian; odpowiedź `500 internal_error` z `traceId`, bez SQL. Wymuszony błąd w komendzie po przeliczeniu → projekcja wycofana razem z komendą | EVM-034 |
 | 5 | **Przebudowa i `verify`** (AC4) | `rebuild` na pustej i na rozjechanej projekcji (ręcznie zmienione wiersze w teście) → zgodność z przeliczeniem; `verify` zgłasza dokładnie zmienione UUID i licznik; rozbieżność `deleted_at` → zdarzenie alertu bezpieczeństwa; `rebuild` równolegle z komendami zmieniającymi etapy tych samych zleceń → po zakończeniu `verify` = 0 rozbieżności | EVM-034 |
-| 6 | **Współbieżność** | Dwie równoległe transakcje zmieniają dwa różne etapy jednego zlecenia → projekcja odzwierciedla oba (bez zgubionej aktualizacji); transakcja wielu zleceń w odwrotnej kolejności niż równoległa → brak zakleszczenia (kolejność `work_order_id`); przekroczenie `lock_timeout` → wycofanie i `500` | EVM-034 |
+| 6 | **Współbieżność** | Dwie równoległe transakcje zmieniają dwa różne etapy jednego zlecenia → projekcja odzwierciedla oba (bez zgubionej aktualizacji); transakcja wielu zleceń w odwrotnej kolejności niż równoległa → brak zakleszczenia (kolejność `work_order_id`); przekroczenie `lock_timeout` → wycofanie i `500`. **Blokada wiersza zlecenia** (przeplot sterowany krokami na dwóch połączeniach, nie losowe obciążenie): komenda trzymająca blokadę wiersza `work_orders` (przejście z EVM-030; w EVM-053 — komenda transzy) równolegle (a) ze zmianą etapu tego zlecenia na `waiting` i (b) z `rebuild` tego zlecenia, także przy brakującym wierszu projekcji → brak `40P01`, obie komendy zatwierdzone, projekcja zawiera obie zmiany (`verify` = 0). Purge zlecenia równolegle z przeliczeniem istniejącego wiersza → brak `40P01`, brak wierszy projekcji; z `rebuild` przy brakującym wierszu → `23503` i ponowienie partii bez zlecenia | EVM-034; komendy transz — EVM-053 |
 | 7 | **Granice dat** | D1: dziś 2026-10-03, `waitingSince` 2026-09-18 → jest dla X = 14, nie ma dla X = 15. D6: termin 2026-10-07 → po terminie dopiero 2026-10-08. Zmiana czasu: zegar 2026-10-24T22:30Z (= 2026-10-25 00:30 CEST) i 2026-10-25T23:30Z (= 2026-10-26 00:30 CET) → „dziś” to odpowiednio 2026-10-25 i 2026-10-26, a liczby dni bez przesunięcia. Próg 14: N = 14 bez alertu, N = 15 z alertem | EVM-034 AC2, EVM-056 AC5 |
 | 8 | **Projekcja = przeliczenie** (siatka bezpieczeństwa) | Po każdym teście integracyjnym zmieniającym zlecenie, etap, transzę, lokalizację lub stronę wspólna asercja porównuje projekcję dotkniętych zleceń z przeliczeniem — wykrywa brakujący handler | EVM-034, EVM-056 i kolejne |
 | T1 | **Parzystość listy i odczytu pojedynczego** | Dla A, E i R lista (każde sortowanie i widok) daje ten sam zbiór ID co `GET` pojedynczego zlecenia; przypadki: usunięte zlecenie, usunięty etap, usunięta transza; widok „Usunięte” tylko dla Administratora (EVM-060) | EVM-034, EVM-056, EVM-060 |
@@ -429,10 +472,11 @@ Testy powstają w EVM-034 i EVM-056 (TDD, oznaczenia `EVM-034 AC#` / `EVM-056 AC
 | Dokument | Zmiana | Kiedy |
 |---|---|---|
 | [`domain-model.md`](../domain-model.md) → „Moduły i własność tabel” | wiersz modułu `overview` (schemat `overview`, projekcje `WorkOrderSummary` i `WorkOrderWait`, zależności), oznaczony „proponowany — ADR-0017” | **EVM-069** |
-| `domain-model.md` → „Moduły i własność tabel” → „Zasady” | punkt o projekcji: ta sama transakcja, przeliczenie w całości, bez danych osobowych w wartościach, przebudowa, poza synchronizacją, uprawnienia ról bazy, W-06 bez projekcji | **EVM-069** |
+| `domain-model.md` → „Moduły i własność tabel” → „Zasady” | punkt o projekcji: ta sama transakcja, przeliczenie w całości, bez danych osobowych w wartościach, przebudowa, poza synchronizacją, uprawnienia ról bazy, W-06 bez projekcji; łańcuch kluczy obcych i blokady wiersza zlecenia w trybie `FOR NO KEY UPDATE` ([Współbieżność](#aktualizacja-przebudowa-i-weryfikacja)) | **EVM-069** |
 | `domain-model.md` → „Gotowość offline” i „Klasyfikacja danych” | wiersz projekcji (poza urządzeniem; klasyfikacja W1) | **EVM-069** |
 | `domain-model.md` → „Pola kontrolowane przez serwer”, `Procedure` (bieżący etap) | pola wyliczane z [kontraktu](#kontrakt-api-ac3); po decyzji o [pytaniu 2](#pytania-do-konrada) — „bieżący etap = pierwszy niezakończony”; usunięcie oznaczeń „proponowany” | EVM-034, EVM-056 |
-| [EVM-034](../../backlog/M1/EVM-034-czekamy-na-lista-i-podsumowanie.md) → „Notatki techniczne” | zakres wg ADR: moduł `overview`, sygnały oczekiwań i terminów, przeniesienie listy i wyszukiwania, polecenia `rebuild` i `verify`, testy z AC4, W1–W12, dokumenty do aktualizacji | **EVM-069** |
+| [EVM-034](../../backlog/M1/EVM-034-czekamy-na-lista-i-podsumowanie.md) → „Notatki techniczne” | zakres wg ADR: moduł `overview`, sygnały oczekiwań i terminów, przeniesienie listy i wyszukiwania, polecenia `rebuild` i `verify`, testy z AC4, W1–W12, dokumenty do aktualizacji; łańcuch kluczy obcych projekcji i przegląd istniejących blokad wiersza `work_orders` (np. z EVM-030) pod kątem trybu `FOR NO KEY UPDATE` | **EVM-069** |
+| EVM-030 i EVM-053 → plan techniczny | blokada wiersza zlecenia (przejścia, komendy transz) w trybie `SELECT … FOR NO KEY UPDATE`, a nie `FOR UPDATE`; notatkę EVM-053 „np. `SELECT … FOR UPDATE`” czytamy zgodnie z tym ADR; EVM-053 dodaje do testu 6 przypadek komendy transzy | plan techniczny EVM-030 i EVM-053 (uwaga w EVM-069 → „Uwagi do rozważenia”) |
 | [EVM-056](../../backlog/M1/EVM-056-platnosci-na-liscie-i-podsumowaniu.md) → „Notatki techniczne” | zakres wg ADR: sygnały płatności (expand + `rebuild`), „Najpilniejsze”, widoki, pole `payment`, W4, testy | **EVM-069** |
 | ADR-0001 | **bez adnotacji** — rekomendacja (a) nie tworzy wyjątku od reguły 2 | — |
 | [`docs/architecture/README.md`](../README.md#mapa-modułów-domenowych) → mapa modułów | węzeł `overview` i jego zależności | EVM-034 (gdy moduł powstaje) |
@@ -461,7 +505,7 @@ Testy powstają w EVM-034 i EVM-056 (TDD, oznaczenia `EVM-034 AC#` / `EVM-056 AC
   - *Rozmiar EVM-034 (R8)* → [pytanie 6](#pytania-do-konrada): wydzielenie enablera przy `/refine`.
   - *Brak konwencji `x-extensible-enum`* → oasdiff zablokowałby każdą nową wartość enumu w odpowiedzi; konwencja w EVM-008.
   - *Przeliczenie spowalnia zapis albo blokuje komendy* → `lock_timeout`, metryka czasu przeliczenia (`projection_recompute_duration`), blokada tylko na końcu transakcji.
-  - *Zakleszczenia* → stała kolejność blokad i odczyt źródeł bez blokad (test 6).
+  - *Zakleszczenia* → stała kolejność blokad projekcji, odczyt źródeł bez blokad, klucz obcy oczekiwań do wiersza projekcji i blokady wiersza zlecenia w trybie `FOR NO KEY UPDATE` (test 6). Tryb blokady sprawdzają przegląd kodu i test 6.
   - *Skala powyżej ~100 tys. zleceń* → kolumny grup niezależne od daty z indeksem albo rewizja ADR (miernik — p95 listy w Grafanie).
   - *Polityka drobniejsza niż kotwica (M4/M5)* → W3: wyzwalacz rewizji.
 
@@ -500,6 +544,9 @@ Rekomendacje architekta. Decyzja zapada na `/adr` (EVM-069 AC6), a pytania powta
 Zweryfikowane 2026-10-04:
 - PostgreSQL 18 (bieżące wydanie 18.6, wsparcie do 2030-11-14): https://www.postgresql.org/support/versioning/
 - PostgreSQL 18, § 13.2.1 *Read Committed Isolation Level* — każde polecenie dostaje nowy snapshot; `UPDATE`, `DELETE` i `SELECT FOR UPDATE` czekają na transakcję, która zmieniła wiersz, i ponownie oceniają `WHERE` na nowej wersji: https://www.postgresql.org/docs/18/transaction-iso.html
+- PostgreSQL 18, § 13.3.2 *Row-Level Locks* (tabela 13.3 — `FOR KEY SHARE` koliduje tylko z `FOR UPDATE`; `FOR UPDATE` bierze też `DELETE` i `UPDATE` kolumn z unikalnym indeksem, `FOR NO KEY UPDATE` — pozostałe `UPDATE`) i § 13.3.4 *Deadlocks* (stała kolejność blokad): https://www.postgresql.org/docs/18/explicit-locking.html
+- PostgreSQL 9.3, informacje o wydaniu — kontrole kluczy obcych blokują wiersz nadrzędny w trybie `KEY SHARE`, niekolidującym z `NO KEY UPDATE` (zachowanie obowiązuje do dziś): https://www.postgresql.org/docs/release/9.3.0/
+- Kysely, `SelectQueryBuilder.forNoKeyUpdate()`: https://kysely-org.github.io/kysely-apidoc/interfaces/SelectQueryBuilder.html
 - PostgreSQL 18, § 9.25.5 *Row Constructor Comparison* — porównanie od lewej, para z NULL daje wynik nieokreślony (stąd brak NULL w krotce kursora): https://www.postgresql.org/docs/18/functions-comparisons.html
 - PostgreSQL 18, § 11.8 *Partial Indexes* — predykat z parametrem nie implikuje predykatu indeksu częściowego: https://www.postgresql.org/docs/18/indexes-partial.html
 - PostgreSQL 18, `CREATE VIEW` — domyślnie uprawnienia właściciela widoku; `security_invoker`, `security_barrier` (ocena (b1)): https://www.postgresql.org/docs/18/sql-createview.html
