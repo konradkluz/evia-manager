@@ -106,6 +106,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
   - **Do czego:** lista i wyszukiwanie zleceń (W-10) filtrują i sortują po danych `work-orders`, `procedures` i `payments` z projekcji modułu `overview` — wiersz na zlecenie i wiersz na oczekiwanie.
   - **Zawartość:** wyłącznie identyfikatory, kody, daty i liczniki — bez nazw, tytułów, pól swobodnych, `search_text` i kwot (dane pseudonimowe — [klasyfikacja](#klasyfikacja-danych)).
   - **Aktualizacja:** handlery zdarzeń w procesie przeliczają projekcję w całości (nie przyrostami), w tej samej transakcji co zmiana, pod blokadą wiersza projekcji. Polecenia `rebuild` i `verify` działają jako CLI w kontenerze `worker`.
+  - **Klucze obce i blokady:** łańcuch `work_orders` → `work_order_summaries` → `work_order_waits` z `ON DELETE CASCADE`. Komendy domenowe blokują wiersz `work_orders` w trybie `SELECT … FOR NO KEY UPDATE`, a nie `FOR UPDATE` — inaczej kontrola klucza obcego projekcji tworzy cykl blokad (ADR-0017 → „Współbieżność”).
   - **Daty:** wartości zależne od daty („po terminie”, dni oczekiwania) liczy zapytanie z parametrem „dziś” — projekcja ich nie przechowuje.
   - **Synchronizacja i uprawnienia:** poza synchronizacją (bez triggerów `SyncChange`); `evia_app` — DML, `evia_readonly` — brak dostępu.
   - **Szczegóły zlecenia (W-06)** nie korzystają z projekcji — kafle składa panel z zasobów zakotwiczonych w zleceniu.
