@@ -73,7 +73,26 @@ Jako **pracownik biura** chcę **widzieć na liście zleceń i w podsumowaniu zl
 - W AC: SR-AUTHZ-03, SR-AUTHZ-05. W sekcji: SR-API-04 (parametry bez danych osobowych), SR-API-02. Polityka P6.
 
 ## Notatki techniczne
-- Moduły: zgodnie z ADR EVM-069, `payments`, `work-orders` + panel. Wartości sortowania i widoków dodawane addytywnie do enumów z EVM-017.
+- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Proponowana” — wariant zależy od decyzji Konrada na `/adr`): `overview` (moduł z EVM-034), `payments`, `work-orders` + panel. Wartości sortowania i widoków dodawane addytywnie do enumów z EVM-017.
+- **Projekcja `overview`** dostaje sygnały płatności jako zmianę *expand*:
+  - kolumny `invoiced_count`, `paid_count`, `earliest_invoiced_due_date` z wartością domyślną;
+  - wypełnienie poleceniem `rebuild`;
+  - handlery zdarzeń `PaymentMilestone` i port systemowy `payments` (status i termin transz, bez kwot — W5).
+
+  Projekcja nie przechowuje kwot. Sumy (wystawione, po terminie z tym samym „dziś”) zwraca fasada `payments` jednym zapytaniem wsadowym na stronę.
+- **Kontrakt wyłącznie addytywnie:**
+  - `sort`: `urgency`;
+  - `view`: `overdue_payments`, `unpaid`;
+  - pole listy `payment` (stan jako `x-extensible-enum`, liczba wystawionych, sumy);
+  - pola `PaymentMilestone.isOverdue` i `PaymentMilestone.overdueDays`.
+
+  Domyślne sortowanie API z EVM-017 zostaje bez zmian. W-10 wysyła `sort=urgency` jawnie (domyślne sortowanie AC3 to decyzja UI).
+- Definicje D6–D9 i D13 z ADR-0017 → „Definicje wyliczeń”: „Najpilniejsze” — grupy i klucze (pytanie 3 ADR-0017); kolumna „Płatność” (pytanie 4); widoki tylko dla zleceń niezamkniętych (pytanie 7).
+- **W4:** sortowanie „Najpilniejsze” (składowa płatności), widoki płatności i pole `payment` wymagają prawa odczytu płatności (v1: A, E, R — P6). Reguła jest w `x-evia-authz` (pole `payment` w `hiddenFields`, ograniczenie wartości `view` i `sort`). Kontrola ma test jednostkowy z atrapą polityki.
+- Plan techniczny obejmuje W1–W12 i testy z ADR-0017 dla sygnałów płatności: wydajność „Najpilniejsze” z widokiem „Nieopłacone” (AC6), licznik zapytań, polityka (zlecenie spoza uprawnień nie zmienia kolejności ani sum), granice dat 2026-10-07 / 2026-10-08 i zmiana czasu 2026-10-25, T1–T4.
+- Dokumenty do aktualizacji przy implementacji:
+  - `docs/security/rodo.md` — inwentaryzacja `PaymentMilestone`: w kolumnie „Gdzie” miejsce „projekcja `overview` (serwer)”, bez kwot (W1);
+  - `domain-model.md` — pola wyliczane transzy w „Pola kontrolowane przez serwer”.
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
