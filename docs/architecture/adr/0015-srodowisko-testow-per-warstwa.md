@@ -1,6 +1,7 @@
 # ADR-0015: Środowisko testów per warstwa — backend na Linuksie w kontenerach, web, mobile i narzędzia natywnie na Windows, CI na Linuksie
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-03)
+- **Częściowo zastąpiona przez:** [ADR-0016](0016-github-free-ochrona-main-kontrole-kompensujace.md) (2026-10-04) — zakres: „Po EVM-006” p. 10 — joby backendu w CI uruchamiamy tym samym poleceniem co lokalnie (`docker compose -f compose.yaml run --rm backend-tests …`), a nie przez `container:`.
 - **Data:** 2026-10-03
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect
 - **Powiązane:** EVM-005, EVM-006, EVM-009, EVM-011, EVM-012, EVM-013; ADR-0002, ADR-0007, ADR-0011 (częściowo zastępuje), ADR-0012, ADR-0014 (częściowo zastępuje); `docs/process/testing-strategy.md`, `docs/security/README.md`

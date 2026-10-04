@@ -4,7 +4,7 @@ title: Repozytorium, monorepo i CI z bramkami jakości
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: devops-engineer
 contributors: []
@@ -410,6 +410,8 @@ Dodatkowo (ADR-0012 → „Weryfikacja”): podatna zależność → czerwony OS
 - 2026-10-03 — Konrad: **orkiestrator zakłada PR-y i czyta wyniki CI** — na stacji zainstalowany `gh` 2.102.0, zalogowany fine-grained PAT (Windows keyring) tylko do repo `evia-manager`: Pull requests RW, Actions R, Contents R, Metadata R; ważność 30 dni; **bez Contents write** (scalanie PR wymaga Contents write — sprawdzone w dokumentacji GitHub „Permissions required for fine-grained personal access tokens”), więc scalenie „Squash and merge” nadal wykonuje wyłącznie Konrad (D2). `gh` nie jest helperem poświadczeń gita (git dalej przez klucz wdrożeniowy). Zmienia kontrolę K4 („brak `gh` i tokenów GitHub na stacji”) — do oceny `security-engineer` w tej historyjce (m.in. `gh auth token` wypisuje token — rozważyć regułę `deny`; zapis K4 i runbooka rotacji w `docs/ops/`). Tytuł PR = Conventional Commit z ID historyjki (lekcja z PR #1).
 - 2026-10-03 — Konrad (ok. 20:15, w trakcie potoku): **tymczasowe zdjęcie reguł `ask` `Edit(**/compose*.yaml)` i `Write(**/compose*.yaml)`** w kopii roboczej `.claude/settings.json` (niezacommitowane), żeby implementacja w tle nie czekała na monit przy zapisie `compose.yaml` (zakres D4 (a) bez zmian — treść `compose.yaml` sprawdzają testy `tools/repo-policy` i `security-engineer`). Zakres czasowy: do końca przebiegu workflow. **Przywrócone przez orkiestratora 2026-10-03 ok. 23:40** (`git checkout -- .claude/settings.json`; kopia robocza = HEAD), więc RR-03 wraca do stanu z oceny; ustalenie major `security-engineer` z rund 2–3 zamknięte zapisem i przywróceniem.
 - 2026-10-03 — Konrad (plan na noc 3/4.10): po EVM-006 sekwencyjnie EVM-014 i EVM-069 bez demo w nocy (demo zbiorcze rano); zgoda na push gałęzi EVM-014 i EVM-069 (bez force, nigdy `main`) i zakładanie PR-ów przez orkiestratora.
+- 2026-10-04 — Konrad (demo EVM-006, przy scaleniu PR #2): **ADR-0016 zaakceptowany razem z ryzykiem rezydualnym RR-21** (M0, K1–K7, bez sekretów repozytorium z prawem zapisu; notki „częściowo zastąpiona” w ADR-0012 i ADR-0015); **Q1 `RENOVATE_TOKEN` — nie teraz** (Renovate wyłączony do mitygacji); **reguły `deny` dla `gh auth token` i `gh auth status --show-token` / `-t`** (formy `gh`, `gh.exe`, pełna ścieżka) z testem w `tools/repo-policy` — tak (domknięcie na gałęzi `feature/EVM-006-domkniecie`). Do sprawdzenia przez Konrada: ustawienia repo K5 (m.in. „Automatically delete head branches”) i brak poświadczeń GitHub w Git Credential Manager.
+- 2026-10-04 — Konrad: stała zgoda na push gałęzi `feature/EVM-*` przez orkiestratora (bez force, nigdy `main`); PR-y zawsze z bazą `main`.
 
 ## Uwagi do rozważenia
 - (devops-engineer, plan 2026-10-03) pnpm 12 `trustPolicy: no-downgrade` — odrzuca wersję pakietu o niższym poziomie zaufania niż poprzednie wydania (np. bez provenance); utwardzenie łańcucha dostaw poza SR-SUPPLY-01 — do decyzji `security-engineer`, poza zakresem EVM-006.
@@ -427,7 +429,7 @@ Dodatkowo (ADR-0012 → „Weryfikacja”): podatna zależność → czerwony OS
 - [x] Przeglądy: code-reviewer — APPROVE (runda 3); security-engineer — APPROVE (runda zamykająca, commit `4858ffb`)
 - [x] Bramka orkiestratora (2026-10-03, po rundzie 3): `pnpm run gate` EXIT 0 (pokrycie zmienionego kodu: linie 99,8%, gałęzie 96,3%), `npm run test:tools` EXIT 0 (linie 99,87%, gałęzie 98,00%), `npm run docs:check` 0 błędów / 0 ostrzeżeń, `pnpm run scan` EXIT 0 (samotesty 6/6) — zgodne z raportem QA
 - [x] `CHANGELOG.md` (Unreleased → Dodano / Zmieniono) i dokumentacja (README, `CLAUDE.md`, `testing-strategy.md`, `conventions.md`, `workflow.md`, `docs/ops/`, ADR-0016, model zagrożeń) zaktualizowane
-- [ ] Demo i akceptacja Konrada (w tym decyzje: ADR-0016 i RR-21, Q1 `RENOVATE_TOKEN`, reguła `deny` dla `gh auth token`)
+- [x] Demo i akceptacja Konrada — scalenie PR #2 (2026-10-04 00:58 UTC, `533c021`) i decyzje z „Decyzji” (ADR-0016 + RR-21, Q1, `deny` dla `gh`)
 
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
@@ -447,3 +449,4 @@ Dodatkowo (ADR-0012 → „Weryfikacja”): podatna zależność → czerwony OS
 - 2026-10-03 — orkiestrator: reguły `ask` przywrócone, decyzja zapisana w „Decyzjach”, neutralne sformułowania w `tools/repo-policy` (`8496d53`); security-engineer — runda zamykająca APPROVE, ocena tokenu `gh` względem K4 (Low) w `threat-model.md` i runbookach (`4858ffb`); bramka orkiestratora zielona (DoD)
 - 2026-10-03 — in-progress → in-review: push gałęzi i PR przez orkiestratora; demo i decyzje Konrada rano (noc 3/4.10)
 - 2026-10-03 — dowody CI (orkiestrator, `gh` z PAT tylko do odczytu Actions), PR #2: (1) pierwszy przebieg `703daa4` — run 37156173483 zielony (quality, backend, security, coverage, `ci-gate`; ok. 3 min); gitleaks w CI — pełna historia, 59 commitów, 0 wykryć; samotesty skanerów 6/6; test nazwy w cudzysłowie C (pomijany na Windows) przechodzi na Linuksie; (2) AC3 w CI — commit dowodowy `87ad770` z niepokrytą funkcją w `packages/tokens` → run 37156408572 czerwony (`quality`: „Tests with coverage thresholds”, `backend`: parytet Linux, `coverage` pominięty, `ci-gate` czerwony); revert `868e0ac` (drzewo = `703daa4`) → run 37156554454 zielony. Na tak dużej gałęzi trzy niepokryte linie nie obniżają pokrycia zmienionego kodu (99,8% z ok. 2700 linii), więc dowodem jest próg globalny pakietu (73,08% linii < 90%). Linki: https://github.com/konradkluz/evia-manager/actions/runs/37156173483 · https://github.com/konradkluz/evia-manager/actions/runs/37156408572 · https://github.com/konradkluz/evia-manager/actions/runs/37156554454
+- 2026-10-04 — in-review → done: Konrad scalił PR #2 („Squash and merge”, `533c021` — drzewo = `f853574`) i podjął decyzje (ADR-0016 + RR-21, Q1 — nie teraz, `deny` dla `gh`); domknięcie (orkiestrator): statusy ADR-0016 / 0012 / 0015 i indeks, RR-21 i RR-02 w `threat-model.md`, Renovate „wstrzymane” w `docs/ops/github-i-ci.md`; reguły `deny` dla `gh` z testem — `devops-engineer`

@@ -60,7 +60,7 @@ Każda zmiana na `main` przechodzi przez PR — także backlog, ADR i `/mileston
 
 ## Renovate (AC8)
 - Konfiguracja: `renovate.json` (grupy, przypinanie SHA akcji i digestów obrazów, karencja 3 dni, bez automerge, bez skryptów instalacyjnych, tytuły `… [renovate]`); walidacja `renovate-config-validator --strict` w `pnpm run scan` i w jobie `security`.
-- **Włączenie (po scaleniu EVM-006):** sekret repozytorium `RENOVATE_TOKEN` (fine-grained PAT — `rotacja-sekretow.md`) i zmienna repozytorium `RENOVATE_ENABLED` = `true`. **Najpierw** rozstrzygnięcie ryzyka Q1 (`security-engineer`): sekret repozytorium na Free jest czytelny dla workflowu uruchomionego z dowolnej gałęzi — bez mitygacji ryzyko 2×3 = 6 High.
+- **Włączenie (po scaleniu EVM-006):** sekret repozytorium `RENOVATE_TOKEN` (fine-grained PAT — `rotacja-sekretow.md`) i zmienna repozytorium `RENOVATE_ENABLED` = `true`. **Stan 2026-10-04: wstrzymane** — Konrad zdecydował nie dodawać sekretu do czasu mitygacji Q1 (`threat-model.md` → RR-21). **Najpierw** rozstrzygnięcie ryzyka Q1 (`security-engineer`): sekret repozytorium na Free jest czytelny dla workflowu uruchomionego z dowolnej gałęzi — bez mitygacji ryzyko 2×3 = 6 High.
 - Pierwszy przebieg tworzy **Dependency Dashboard** (issue) — dowód `manual`. PR-y Renovate przechodzą tę samą procedurę scalania (Konrad, zielony `ci-gate`); PR z etykietą `security` — przegląd obowiązkowy.
 
 ## Minuty Actions i koszty

@@ -1,6 +1,6 @@
 # ADR-0016: GitHub Free — ochrona `main` procedurą i kontrolami kompensującymi K1–K7, zizmor i actionlint, CI backendu przez `docker compose run`
 
-- **Status:** Proponowana
+- **Status:** Zaakceptowana (Konrad, 2026-10-04 — demo EVM-006, razem z ryzykiem rezydualnym RR-21)
 - **Data:** 2026-10-03
 - **Decydent:** Konrad (akceptacja na demo EVM-006 razem z ryzykiem rezydualnym RR-21) · **Autor:** devops-engineer (szkic wg wytycznych `solution-architect` W12; przegląd `solution-architect` przed demo)
 - **Powiązane:** EVM-006, EVM-007; ADR-0012 (częściowo zastępuje — plan GitHub i weryfikacja ochrony `main`, lista narzędzi CI), ADR-0015 (częściowo zastępuje — „Po EVM-006” p. 10), ADR-0014; `docs/ops/github-i-ci.md`, `docs/security/threat-model.md` (RR-21)
