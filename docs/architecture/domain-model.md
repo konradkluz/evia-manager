@@ -94,6 +94,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 | `timeline` | `timeline` | `TimelineEntry` | `work-orders`, `procedures`; subskrybuje zdarzenia `procedures`, `payments`, `media` |
 | `media` | `media` | `MediaAsset`, `Document`, `DocumentVersion`, `StoredFile`, `UploadSession` | `work-orders`, `procedures`, `customers`, `sites`, `catalog`, `identity` |
 | `sync` | `sync` | `SyncChange`, `DeviceSyncState` | `identity` i fasady modułów w zakresie synchronizacji |
+| `overview` — **proponowany** ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md), status „Proponowana”; powstaje w EVM-034) | `overview` | projekcje odczytu `WorkOrderSummary` (`work_order_summaries`) i `WorkOrderWait` (`work_order_waits`) — bez encji domenowych | `work-orders` (klucz obcy z `ON DELETE CASCADE`), `procedures`, `payments`, `sites`, `parties`, `customers`, `identity`, `authorization` — fasady, porty systemowe i zdarzenia; **żaden moduł nie zależy od `overview`** |
 | pg-boss | `pgboss` | kolejka zadań (ADR-0010) | — |
 
 **Zasady**
@@ -101,6 +102,14 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 - **Utworzenie zlecenia z szablonu** wymaga zapisu w `work-orders`, `procedures` i `payments` w jednej transakcji, a `work-orders` nie może zależeć od `procedures` ani `payments`. Rozwiązanie: `work-orders` definiuje port `WorkOrderCompositionContributor`, a `procedures` i `payments` rejestrują jego implementacje (odwrócenie zależności, bez cykli).
 - **Dziennik zmian synchronizacji** zapisuje w tej samej transakcji generyczny trigger na tabelach objętych synchronizacją (instalowany migracją), więc moduły domenowe nie zależą od `sync`. Alternatywa (port w `platform`) — do potwierdzenia w EVM-011.
 - **Uprawnienia ról bazy per schemat** (ADR-0003): `evia_app` — DML na schematach domenowych; na `audit` wyłącznie `INSERT` i `SELECT` (bez `UPDATE`, `DELETE`, `TRUNCATE`) + trigger odrzucający zmiany; `evia_readonly` — tylko widoki uzgodnione w EVM-005; `evia_migrator` — właściciel schematów.
+- **Projekcja listy zleceń — proponowana ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md)).**
+  - **Do czego:** lista i wyszukiwanie zleceń (W-10) filtrują i sortują po danych `work-orders`, `procedures` i `payments` z projekcji modułu `overview` — wiersz na zlecenie i wiersz na oczekiwanie.
+  - **Zawartość:** wyłącznie identyfikatory, kody, daty i liczniki — bez nazw, tytułów, pól swobodnych, `search_text` i kwot (dane pseudonimowe — [klasyfikacja](#klasyfikacja-danych)).
+  - **Aktualizacja:** handlery zdarzeń w procesie przeliczają projekcję w całości (nie przyrostami), w tej samej transakcji co zmiana, pod blokadą wiersza projekcji. Polecenia `rebuild` i `verify` działają jako CLI w kontenerze `worker`.
+  - **Daty:** wartości zależne od daty („po terminie”, dni oczekiwania) liczy zapytanie z parametrem „dziś” — projekcja ich nie przechowuje.
+  - **Synchronizacja i uprawnienia:** poza synchronizacją (bez triggerów `SyncChange`); `evia_app` — DML, `evia_readonly` — brak dostępu.
+  - **Szczegóły zlecenia (W-06)** nie korzystają z projekcji — kafle składa panel z zasobów zakotwiczonych w zleceniu.
+  - Definicje wyliczeń: ADR-0017 → „Definicje wyliczeń (AC2)”.
 
 ## ERD — przegląd
 Encje i relacje bez atrybutów. Linie przerywane w opisach = klucz opcjonalny. `SyncChange` i `IdempotencyRecord` nie mają kluczy obcych (przechowują wyłącznie identyfikatory) — patrz obszar 4.
@@ -912,6 +921,7 @@ Zgodnie z [`offline-sync.md`](offline-sync.md) i ADR-0008. „ID z telefonu” �
 | `User` | nie | — (dezaktywacja) | tak | nie | ↓ (`id`, `displayName`) | dane innych użytkowników tylko nazwa wyświetlana |
 | `Session`, `Device`, `DeviceSyncState` | nie | — | — | — | — (własne urządzenie: stan lokalny) | `deviceId` z sesji |
 | `AuditEvent`, `IdempotencyRecord`, `SyncChange` | nie | — | — | **tak** | — | po stronie serwera |
+| `WorkOrderSummary`, `WorkOrderWait` (projekcja `overview`, proponowana — ADR-0017) | nie | — (kopia `deleted_at` zlecenia) | — (przeliczana w całości) | nie | — | po stronie serwera; bez triggerów `SyncChange`; komendy z telefonu aktualizują ją tą samą ścieżką komend domenowych; telefon liczy „Czekamy na…” lokalnie wg definicji z ADR-0017 |
 
 ## Klasyfikacja danych
 Wejście do EVM-005 (`threat-model.md`, `rodo.md`) — **do recenzji `security-engineer`**. Klasy: **DO-K** — dane osobowe klientów; **DO-3** — dane osobowe osób trzecich (kontrahenci, osoby kontaktowe); **DO-P** — dane osobowe pracowników; **WF** — wrażliwe dla firmy; **WEW** — wewnętrzne; **KONF** — konfiguracja; **SEK** — sekrety uwierzytelniające. Każde pole swobodne i każde medium traktujemy jako **mogące zawierać dane osobowe**. Retencja i podstawa prawna dla wszystkich wierszy: **EVM-005** (`rodo.md`), z wyjątkiem wartości technicznych przesądzonych w ADR (podane w kolumnie).
@@ -938,6 +948,7 @@ Wejście do EVM-005 (`threat-model.md`, `rodo.md`) — **do recenzji `security-e
 | `AuditEvent` | DO-P (aktor, IP, user agent); bez wartości danych osobowych | `actorUserId`, `ipAddress`, `userAgent` | — (tylko kody) | nie | **nie** | brak (tylko do dopisywania); po retencji — usunięcie partiami | ≥ 2 lata (ADR-0013), potwierdzenie EVM-005 |
 | `IdempotencyRecord` | WEW; DO-P pośrednio (`userId`, `deviceId`) | — (skrót treści, wynik minimalny) | — | nie | nie | usunięcie po retencji (S) | 30 dni (ADR-0004) |
 | `SyncChange` | WEW (tylko identyfikatory i kody) | — | — | nie | nie (źródło kursora) | usunięcie po retencji (S) | 90 dni (ADR-0008) |
+| `WorkOrderSummary`, `WorkOrderWait` (projekcja `overview`, proponowana — ADR-0017) | WF; pośrednio DO-K (`customerId`, `siteId`), DO-P (opiekun), DO-3 (`partyId`) — **dane pseudonimowe** (motyw 26 RODO); terminy i liczniki transz jak `PaymentMilestone`, **bez kwot** | — (tylko identyfikatory pseudonimowe, kody, daty, liczniki; zamknięta lista kolumn w ADR-0017, nowa kolumna — przegląd `security-engineer`) | brak | nie | **nie** (tylko serwer) | kaskadowo z purge zlecenia (klucz obcy `ON DELETE CASCADE`, także przy ponownym zastosowaniu rejestru usunięć po odtworzeniu); soft delete — kopia `deleted_at`; anonimizacja nie dotyczy (brak wartości danych osobowych) | jak `WorkOrder` (EVM-005) |
 
 **Wyjątek audytu:** `AuditEvent` dla etapów płatności zawiera kwotę i kody statusów (rozliczalność finansowa) — świadomy, opisany wyjątek od zasady „bez wartości”; kwota nie identyfikuje osoby bez kotwicy.
 
