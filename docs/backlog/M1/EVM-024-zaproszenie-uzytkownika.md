@@ -27,7 +27,8 @@ Jako **Administrator** chcę **zaprosić pracownika e-mailem z wybraną rolą**,
 **AC1 — Zaproszenie (SR-AUTH-12, SR-SESS-08)**
 - Zakładając Administratora po step-upie w W-16
 - Gdy zaprasza osobę: e-mail `anna.testowa@example.com`, nazwa „Anna Testowa”, rola Edytor
-- Wtedy konto ma status „Zaproszony”, w bazie jest tylko skrót tokenu z ważnością 72 h, powstaje zdarzenie audytu, a e-mail z linkiem trafia do kolejki w tej samej transakcji co zaproszenie (outbox); token jest w linku wyłącznie we fragmencie adresu (`#…`), a ładunek zadania w kolejce zawiera tylko identyfikatory (README M1 → „Zasady wspólne” → „Bezpieczeństwo i dane”).
+- Wtedy konto ma status „Oczekuje na aktywację” (`invited`), w bazie jest tylko skrót tokenu z ważnością 72 h, powstaje zdarzenie audytu, a e-mail z linkiem trafia do kolejki w tej samej transakcji co zaproszenie (outbox); token jest w linku wyłącznie we fragmencie adresu (`#…`), a ładunek zadania w kolejce zawiera tylko identyfikatory (README M1 → „Zasady wspólne” → „Bezpieczeństwo i dane”).
+- Oraz gdy zaproszenie (także wysłane ponownie) ma rolę Administrator, wszyscy aktywni Administratorzy dostają alert bezpieczeństwa (SR-LOG-07).
 
 **AC2 — Treść e-maila (SR-INPUT-07)**
 - Gdy e-mail zaproszenia jest wysyłany
@@ -112,3 +113,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token zaproszenia tylko we fragmencie URL, otwarcie nie zużywa linku (AC1, AC3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`); dopisany alert bezpieczeństwa dla Administratorów przy zaproszeniu z rolą Administrator (treść: `docs/ux/flows/e-maile.md`, e-mail 9)

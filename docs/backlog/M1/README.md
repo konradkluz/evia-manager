@@ -824,6 +824,7 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 
 **16. Kod odzyskiwania przy ponownym uwierzytelnieniu (W-04)**
 - Rekomendacja: **niedostępny** (rekomendacja `security-engineer` i `ux-designer` z EVM-004).
+- **Decyzja Konrada (2026-10-04, demo EVM-015):** przyjęta rekomendacja — kod odzyskiwania niedostępny w każdym ponownym uwierzytelnieniu (wariant S1 z EVM-015 odrzucony; ponowna ocena po pilocie, jeśli resety drugiego kroku okażą się częste).
 - Konsekwencja „dostępny”: wydrukowane kody stają się drugą drogą do operacji wrażliwych (korekty, anonimizacja, zarządzanie użytkownikami).
 - Historyjki: EVM-029.
 

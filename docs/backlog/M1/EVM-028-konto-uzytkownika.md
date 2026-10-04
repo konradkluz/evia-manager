@@ -36,7 +36,7 @@ Jako **użytkownik** chcę **samodzielnie zmienić nazwę, hasło i metody drugi
 **AC3 — Metody drugiego kroku (SR-AUTH-10, SR-AUTH-15)**
 - Zakładając „Drugi krok logowania” w W-15
 - Gdy po pełnym ponownym uwierzytelnieniu dodaję kolejny klucz dostępu, usuwam klucz, dodaję albo usuwam kod z aplikacji
-- Wtedy lista metod pokazuje nazwę i datę dodania każdego klucza, a każda zmiana wysyła e-mail na adres konta i tworzy zdarzenie audytu.
+- Wtedy lista metod pokazuje nazwę i datę dodania każdego klucza, a każda zmiana wysyła e-mail na adres konta i tworzy zdarzenie audytu, a zmiana na koncie Administratora wysyła też alert bezpieczeństwa do wszystkich aktywnych Administratorów (SR-LOG-07).
 
 **AC4 — Reguły metod**
 - Zakładając Administratora z jednym kluczem dostępu albo dowolne konto z jedną metodą
@@ -105,3 +105,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC3 — dopisany alert bezpieczeństwa dla Administratorów przy zmianie drugiego kroku konta Administratora

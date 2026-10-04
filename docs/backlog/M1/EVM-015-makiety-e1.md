@@ -4,7 +4,7 @@ title: Makiety ekranów E1 — reset hasła, zaproszenie, konto, użytkownicy i 
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: in-progress
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -243,7 +243,10 @@ Kontrakt API, migracje, model danych i zależności — nie dotyczy. Makiety są
    - commit robi agent z powłoką: tylko jawne ścieżki z „Zakresu zmian”, hook pre-commit bez `--no-verify`.
 
 ## Decyzje
-_—_
+Demo 2026-10-04 (Konrad):
+1. **Decyzja 16 / S1 — odrzucone.** Kod odzyskiwania niedostępny w każdym ponownym uwierzytelnieniu (step-up i pełne ponowne uwierzytelnienie); decyzja 16 bez zmian (README M1 → „Decyzje dla Konrada” → 16). Makiety zostają uproszczone do wariantu „S1 odrzucone” (W-02, W-04, W-15), a W-02 dostaje podpowiedź także dla Edytora i Tylko odczyt („Uwagi do rozważenia” 1). Ponowna ocena po pilocie, jeśli resety drugiego kroku okażą się częste.
+2. **Zmiany AC w EVM-016, EVM-023, EVM-024, EVM-027 i EVM-028 — zaakceptowane** w brzmieniu z „Uwag do rozważenia” 2 (EVM-023 AC5 — wariant „S1 odrzucone”); naniesione przez orkiestratora 2026-10-04 z wpisami w „Dzienniku” tamtych historyjek.
+3. **Przyrost — poprawki przed merge:** runda `ux-designer` obejmuje decyzję 1 oraz ustalenia (a)–(g) i (j) z „Uwag do rozważenia” 7; (h) i (i) zostają jako wejście do planów E1. Potem ponowna weryfikacja QA, przeglądy i demo końcowe.
 
 ## Uwagi do rozważenia
 1. **Decyzja 16 / S1 — dla Konrada (demo).** Czy kod odzyskiwania może zastąpić drugi krok w pełnym ponownym uwierzytelnieniu wyłącznie przed „Dodaj klucz dostępu” / „Dodaj kod z aplikacji” (warunki (a)–(c) w „Ustaleniach z konsultacji”)? Makiety pokazują oba warianty (W-02, W-04, W-15). Rekomendacja `ux-designer`: **przyjąć z warunkami** — Administrator i pracownik po utracie metody sami ją odtworzą, a wykrywanie zapewniają e-maile, alert i audyt; ryzyko rezydualne 3 Medium wymaga akceptacji Konrada. Wariant „niedostępny” jest wykonalny, jeśli jest drugi Administrator (decyzja 7). Step-up (W-04) bez kodu odzyskiwania w obu wariantach (EVM-029 AC4).
@@ -311,3 +314,4 @@ _—_
 - 2026-10-04 — weryfikacja (workflow `deliver-story`, 2 rundy): runda 1 — QA PASS, `web-developer` i `security-engineer` changes_required (3 × major), poprawki `ux-designer`; runda 2 — QA PASS AC1–AC8, `web-developer` i `security-engineer` APPROVE; 14 ustaleń nieblokujących → „Uwagi do rozważenia” 7
 - 2026-10-04 — Konrad zgodził się na wypychanie gałęzi roboczej `claude/relaxed-franklin-7owvdc` w trakcie realizacji (bez force, bez PR przed akceptacją; sesja w chmurze)
 - 2026-10-04 — in-progress → in-review: weryfikacja orkiestratora (`docs:check` 0/0, `test:tools` 328/328, Mermaid 7/7, linki, tokeny i § styleguide'u, dane syntetyczne), DoD bez demo; demo dla Konrada z decyzją 16 / S1 i zmianami AC w EVM-016, EVM-023, EVM-024, EVM-027, EVM-028
+- 2026-10-04 — demo (Konrad): S1 odrzucone (decyzja 16 bez zmian), zmiany AC w EVM-016, EVM-023, EVM-024, EVM-027, EVM-028 zaakceptowane i naniesione, przyrost → poprawki przed merge („Decyzje” 1–3); in-review → in-progress

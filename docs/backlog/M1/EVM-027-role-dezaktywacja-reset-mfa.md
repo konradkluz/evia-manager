@@ -55,13 +55,13 @@ Jako **Administrator** chcę **zmieniać role, dezaktywować i reaktywować kont
 - Wtedy co najmniej jeden aktywny Administrator zostaje (zmiany serializowane — test współbieżności).
 
 **AC7 — Alerty (SR-LOG-07)**
-- Gdy ktoś zostaje albo przestaje być Administratorem, albo drugi krok Administratora jest resetowany
+- Gdy ktoś zostaje albo przestaje być Administratorem (także przez reaktywację konta z rolą Administrator), albo drugi krok Administratora jest resetowany
 - Wtedy wszyscy Administratorzy dostają alert bezpieczeństwa.
 
 **AC8 — Uprawnienia i stany (SR-AUTHZ-11, SR-AUTHZ-05)**
 - Zakładając role Edytor, Tylko odczyt i niezalogowanego
 - Gdy próbują operacji z tej historyjki
-- Wtedy dostają `403 forbidden` (E, R) albo `401`; operacje mają `stepUp: true` i `channels: [web]`; W-16 pokazuje dialogi z podsumowaniem, `412 version_conflict` przy równoczesnej zmianie („Ktoś zmienił to konto w międzyczasie…”), offline — akcje wyłączone.
+- Wtedy dostają `403 forbidden` (E, R) albo `401`; operacje mają `stepUp: true` i `channels: [web]`; W-16 pokazuje dialogi z podsumowaniem, `412 version_conflict` przy równoczesnej zmianie (komunikat z makiety W-16), offline — akcje wyłączone.
 
 ## Poza zakresem
 - Urządzenia i ich czyszczenie (W-17) — od E9. Anonimizacja konta po 2 latach (P4) — M4.
@@ -108,3 +108,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC7 — alert także przy reaktywacji konta z rolą Administrator; AC8 — komunikat `412` wg makiety W-16 (forma bezosobowa)

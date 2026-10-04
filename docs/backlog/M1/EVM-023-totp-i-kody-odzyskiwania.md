@@ -46,7 +46,7 @@ Jako **pracownik bez klucza dostępu na komputerze** chcę **logować się kodem
 **AC5 — Logowanie kodem odzyskiwania (SR-AUTH-15)**
 - Zakładając konto z 10 kodami
 - Gdy w W-02 wybieram „Użyj kodu odzyskiwania” i wpisuję kod
-- Wtedy jestem zalogowany z komunikatem „Zalogowano kodem odzyskiwania. Pozostało 9 kodów. Wysłaliśmy e-mail z informacją o tym logowaniu.” (Administrator — z zachętą „Dodaj klucz dostępu”), ten sam kod drugi raz jest odrzucony, a użycie ma e-mail i zdarzenie audytu.
+- Wtedy jestem zalogowany z komunikatem „Zalogowano kodem odzyskiwania. Pozostało 9 kodów. Wysłaliśmy e-mail z informacją o tym logowaniu.” (Administrator — z podpowiedzią „Poproś innego administratora o reset drugiego kroku logowania.”), ten sam kod drugi raz jest odrzucony, a użycie ma e-mail i zdarzenie audytu.
 
 **AC6 — Powiadomienia o zmianie drugiego kroku (SR-AUTH-10)**
 - Gdy konto konfiguruje kod z aplikacji albo generuje kody odzyskiwania
@@ -104,3 +104,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC5 — podpowiedź dla Administratora po logowaniu kodem odzyskiwania zgodna z decyzją 16 (kod odzyskiwania niedostępny przy ponownym uwierzytelnieniu — S1 odrzucone)
