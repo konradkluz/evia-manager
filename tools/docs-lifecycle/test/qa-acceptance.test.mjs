@@ -186,7 +186,10 @@ describe('QA: ostrzeżenia i granica doby (EVM-012 AC4)', () => {
       const result = runCli(['check'], { cwd: repo.root, env: repo.env });
       assert.equal(result.code, 0, result.stdout);
       assert.doesNotMatch(result.stdout, /BŁĄD/);
-      assert.match(result.stdout, /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · przeterminowany: expires 2020-01-01 \(dzisiaj \d{4}-\d{2}-\d{2}\)/m);
+      assert.match(
+        result.stdout,
+        /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · przeterminowany: expires 2020-01-01 \(dzisiaj \d{4}-\d{2}-\d{2}\)/m,
+      );
       assert.match(result.stdout, /^OSTRZEŻENIE · docs\/product\/cennik\.md · żywy · przeterminowany: review_by 2020-01-01/m);
       assert.match(result.stdout, /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · osierocony/m);
       assert.match(result.stdout, /^OSTRZEŻENIE · docs\/product\/cennik\.md · żywy · osierocony/m);
@@ -220,7 +223,13 @@ describe('QA: ostrzeżenia i granica doby (EVM-012 AC4)', () => {
         assert.doesNotMatch(valid.stdout, /przeterminowany/);
         const expired = runMain(['check'], { cwd: repo.root, env: repo.env, now: () => new Date(firstExpired) });
         assert.equal(expired.code, 0);
-        assert.match(expired.stdout, new RegExp(`^OSTRZEŻENIE · docs/notes/plan\\.md · kamień milowy · przeterminowany: expires ${expires} \\(dzisiaj ${nextDay}\\)`, 'm'));
+        assert.match(
+          expired.stdout,
+          new RegExp(
+            `^OSTRZEŻENIE · docs/notes/plan\\.md · kamień milowy · przeterminowany: expires ${expires} \\(dzisiaj ${nextDay}\\)`,
+            'm',
+          ),
+        );
       } finally {
         repo.cleanup();
       }
@@ -297,12 +306,18 @@ describe('QA: wydruk raportu sprzątania dla każdego kamienia (EVM-012 AC5, AC6
         assert.equal(result.code, 0, `${target}: ${result.stderr}`);
         const rows = reportRows(result.stdout);
         assert.deepEqual(
-          rows.filter((row) => row.action === 'usuń').map((row) => row.path).sort(),
+          rows
+            .filter((row) => row.action === 'usuń')
+            .map((row) => row.path)
+            .sort(),
           [...removals].sort(),
           target,
         );
         assert.deepEqual(
-          rows.filter((row) => row.action !== 'usuń').map((row) => `${row.action} ${row.path}`).sort(),
+          rows
+            .filter((row) => row.action !== 'usuń')
+            .map((row) => `${row.action} ${row.path}`)
+            .sort(),
           ['przejrzyj docs/product/cennik.md', 'przejrzyj docs/product/sierota-źdźbło.md'],
           target,
         );
@@ -311,7 +326,10 @@ describe('QA: wydruk raportu sprzątania dla każdego kamienia (EVM-012 AC5, AC6
           assert.ok(['trwały', 'żywy', 'kamień milowy'].includes(row.cls), `${target}: ${row.cls}`);
           assert.ok(row.reason.length > 0, `${target}: ${row.path} bez uzasadnienia`);
         }
-        assert.match(result.stdout, new RegExp(`Pozycje: ${rows.length} \\(usuń: ${removals.length}, przejrzyj: ${rows.length - removals.length}\\)\\.`));
+        assert.match(
+          result.stdout,
+          new RegExp(`Pozycje: ${rows.length} \\(usuń: ${removals.length}, przejrzyj: ${rows.length - removals.length}\\)\\.`),
+        );
         assert.match(result.stdout, /_Tylko odczyt — żaden plik nie został zmieniony/);
       }
       assert.deepEqual(snapshotRepo(repo), before);
@@ -452,8 +470,16 @@ describe('QA: niezależne wyliczenie plików .md prawdziwego repozytorium (EVM-0
     const checked = new Map(analysis.files.map((file) => [file.path, file]));
     const onDisk = markdownOnDisk(repository.root);
     assert.ok(onDisk.length > 0);
-    assert.deepEqual(onDisk.filter((path) => !checked.has(path)), [], 'pliki .md pominięte przez walidator');
-    assert.deepEqual(onDisk.filter((path) => checked.get(path)?.class === null), [], 'pliki .md bez klasy');
+    assert.deepEqual(
+      onDisk.filter((path) => !checked.has(path)),
+      [],
+      'pliki .md pominięte przez walidator',
+    );
+    assert.deepEqual(
+      onDisk.filter((path) => checked.get(path)?.class === null),
+      [],
+      'pliki .md bez klasy',
+    );
     assert.deepEqual(
       analysis.files.map((file) => file.path).filter((path) => !existsSync(join(repository.root, ...path.split('/')))),
       [],
@@ -530,7 +556,15 @@ describe('QA: walidator czyta wyłącznie pliki .md ze zbioru gita (EVM-012 AC5,
       'docs/notes/plan.md': doc({ lifecycle: 'milestone', milestone: 'M0' }),
       'spikes/kolejka/README.md': doc({ milestone: 'M0' }, '# Spike EVM-011\n'),
     };
-    const other = ['.env', '.env.local', 'secrets/klucz.pem', 'config/service-account.json', 'spikes/kolejka/kolejka.ts', 'docs/qa/EVM-001/zrzut.png', 'package.json'];
+    const other = [
+      '.env',
+      '.env.local',
+      'secrets/klucz.pem',
+      'config/service-account.json',
+      'spikes/kolejka/kolejka.ts',
+      'docs/qa/EVM-001/zrzut.png',
+      'package.json',
+    ];
     /** @type {Record<string, string>} */
     const contents = { ...markdown, ...Object.fromEntries(other.map((path) => [path, 'SYNTETYCZNY_SEKRET=nie-czytaj\n'])) };
     /** @type {string[]} */
@@ -580,7 +614,10 @@ describe('QA: kotwice polityki, kroku sprzątania i instrukcji agentów (EVM-012
     const fields = String(section(policy, '### Pola metadanych')).split('\n');
     assert.ok(fields.some((line) => /^\| Klasa \| Obowiązkowe \| Opcjonalne \| Niedozwolone/.test(line)));
     for (const label of ['trwały', 'żywy', 'kamień milowy', 'roboczy']) {
-      assert.ok(fields.some((line) => line.startsWith(`| ${label} |`)), label);
+      assert.ok(
+        fields.some((line) => line.startsWith(`| ${label} |`)),
+        label,
+      );
     }
     const milestoneRow = String(fields.find((line) => line.startsWith('| kamień milowy |')));
     assert.ok(milestoneRow.includes('M#') && milestoneRow.includes('`expires: YYYY-MM-DD`'), milestoneRow);
@@ -600,7 +637,15 @@ describe('QA: kotwice polityki, kroku sprzątania i instrukcji agentów (EVM-012
     const roadmap = steps.findIndex((line) => line.includes('Zaktualizuj roadmapę'));
     assert.ok(retro >= 0 && cleanup === retro + 1 && roadmap === cleanup + 1, steps.join('\n'));
     const cleanupStep = close.slice(close.indexOf(steps[cleanup]), close.indexOf(steps[roadmap]));
-    for (const anchor of ['**wszystkie**', '**wybrane**', '**żadne**', 'git rm', 'npm run docs:cleanup -- <M#>', 'docs/process/retros/<M#>.md', '„Sprzątanie dokumentacji”']) {
+    for (const anchor of [
+      '**wszystkie**',
+      '**wybrane**',
+      '**żadne**',
+      'git rm',
+      'npm run docs:cleanup -- <M#>',
+      'docs/process/retros/<M#>.md',
+      '„Sprzątanie dokumentacji”',
+    ]) {
       assert.ok(cleanupStep.includes(anchor), anchor);
     }
   });
@@ -617,9 +662,18 @@ describe('QA: kotwice polityki, kroku sprzątania i instrukcji agentów (EVM-012
   });
 
   it('EVM-012 AC8: polityka → „Gdzie zapisać dokument”: raport QA i przegląd UX = kamień milowy, notatka robocza = .scratch/ (roboczy)', () => {
-    const rows = String(section(policy, '## Gdzie zapisać dokument')).split('\n').filter((line) => line.startsWith('|'));
+    const rows = String(section(policy, '## Gdzie zapisać dokument'))
+      .split('\n')
+      .filter((line) => line.startsWith('|'));
     /** @param {string} location */
-    const classOf = (location) => String(rows.find((line) => line.includes(location))?.split('|').at(-2)?.trim());
+    const classOf = (location) =>
+      String(
+        rows
+          .find((line) => line.includes(location))
+          ?.split('|')
+          .at(-2)
+          ?.trim(),
+      );
     assert.match(classOf('`docs/qa/<EVM-ID>/`'), /^kamień milowy/);
     assert.match(classOf('`docs/ux/reviews/<EVM-ID>/`'), /^kamień milowy/);
     assert.equal(classOf('`.scratch/`'), 'roboczy');

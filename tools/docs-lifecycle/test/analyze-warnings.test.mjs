@@ -103,7 +103,10 @@ describe('walidator — ostrzeżenia (EVM-012 AC4)', () => {
       'class-conflict docs/product/sprzeczny.md',
     ]);
     assert.equal(analysis.warningCount, 0);
-    assert.equal(analysis.files.some((file) => file.orphan), false);
+    assert.equal(
+      analysis.files.some((file) => file.orphan),
+      false,
+    );
   });
 
   it('EVM-012 AC4: inne błędy (np. niepoprawna data) nie wyłączają ostrzeżenia „osierocony”', () => {

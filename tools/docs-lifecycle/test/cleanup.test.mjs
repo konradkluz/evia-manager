@@ -89,8 +89,11 @@ describe('raport sprzątania (EVM-012 AC5)', () => {
     for (const target of ['M0', 'M1', 'M2']) {
       for (const item of report(target).items) {
         assert.ok(item.path.length > 0);
-        assert.ok(['permanent', 'living', 'milestone'].includes(item.class), `${item.path}: ${item.class}`);
-        assert.ok(dictionary.includes(item.action));
+        assert.ok(
+          /** @type {(string | null)[]} */ (['permanent', 'living', 'milestone']).includes(item.class),
+          `${item.path}: ${item.class}`,
+        );
+        assert.ok(/** @type {string[]} */ (dictionary).includes(item.action));
         assert.ok(item.reason.length > 20, item.reason);
       }
     }
@@ -152,7 +155,7 @@ describe('ochrona plików trwałych i żywych (EVM-012 AC6)', () => {
   it('EVM-012 AC6: dla każdego kamienia żaden plik trwały ani żywy nie ma „usuń” ani „archiwizuj”', () => {
     for (const target of analysis.milestones) {
       for (const item of report(target).items) {
-        if (PERMANENT_OR_LIVING.includes(item.path) || ['permanent', 'living'].includes(item.class)) {
+        if (PERMANENT_OR_LIVING.includes(item.path) || /** @type {(string | null)[]} */ (['permanent', 'living']).includes(item.class)) {
           assert.equal(item.action, ACTIONS.review, `${target}: ${item.path}`);
         }
         assert.notEqual(item.action, ACTIONS.archive);

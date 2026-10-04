@@ -33,7 +33,10 @@ function rawConfig() {
 function assertInvalid(mutate, message) {
   const raw = rawConfig();
   mutate(raw);
-  assert.throws(() => parseConfig(raw), (error) => error instanceof ToolError && message.test(error.message));
+  assert.throws(
+    () => parseConfig(raw),
+    (error) => error instanceof ToolError && message.test(error.message),
+  );
 }
 
 describe('konfiguracja reguł lokalizacji (EVM-012)', () => {
@@ -184,7 +187,10 @@ describe('konfiguracja reguł lokalizacji (EVM-012)', () => {
     try {
       const broken = join(dir, 'lifecycle.config.json');
       writeFileSync(broken, '{ "rules": [');
-      assert.throws(() => loadConfig(broken), (error) => error instanceof ToolError && /konfiguracj/.test(error.message));
+      assert.throws(
+        () => loadConfig(broken),
+        (error) => error instanceof ToolError && /konfiguracj/.test(error.message),
+      );
       assert.throws(() => loadConfig(join(dir, 'brak.json')), ToolError);
     } finally {
       rmSync(dir, { recursive: true, force: true, maxRetries: 5 });

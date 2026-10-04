@@ -28,7 +28,21 @@
       "Bash(git push origin --delete:*)",
       "Bash(git push --mirror:*)",
       "Bash(git push --all:*)",
-      "Bash(git push --tags:*)"
+      "Bash(git push --tags:*)",
+      "Bash(git push origin HEAD:refs/heads/main:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push origin +*)",
+      "Bash(git commit --no-verify:*)",
+      "Bash(git commit -n:*)",
+      "Bash(git push --no-verify:*)",
+      "Read(~/.ssh/**)"
+    ],
+    "allow": [
+      "Bash(docker compose -f compose.yaml run --rm backend-install)",
+      "Bash(docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend)",
+      "Bash(docker compose -f compose.yaml run --rm backend-tests pnpm run test:backend:*)",
+      "Bash(pnpm run gate)",
+      "Bash(pnpm run scan)"
     ],
     "ask": [
       "Edit(.claude/settings.json)",

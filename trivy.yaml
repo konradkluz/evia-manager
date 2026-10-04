@@ -1,0 +1,3 @@
+# Trivy (bramki 4 i 5, EVM-006): shared settings of `pnpm run scan` and CI. Scans run without network
+# (embedded misconfiguration checks; licenses need no database); the gate decision is made by tools/scan.
+ignorefile: .trivyignore.yaml

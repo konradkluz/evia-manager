@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependency updates (bramka 12, ADR-0012, EVM-006 AC8): grouped, pinned, weekly, 3-day cooldown, never automerged.",
+  "extends": ["config:recommended", ":dependencyDashboard", ":semanticCommits", "helpers:pinGitHubActionDigests", "docker:pinDigests"],
+  "timezone": "Europe/Warsaw",
+  "schedule": ["before 9am on monday"],
+  "rangeStrategy": "pin",
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "automerge": false,
+  "ignoreScripts": true,
+  "labels": ["dependencies"],
+  "commitMessageSuffix": "[renovate]",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"],
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": "GitHub Actions (full commit SHA with a version comment)",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    { "description": "Container images (tag + digest)", "matchDatasources": ["docker"], "groupName": "container images" },
+    {
+      "description": "Scanner images: one PR, reviewed with the scanner self-test (tools/scan)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "ghcr.io/gitleaks/gitleaks",
+        "semgrep/semgrep",
+        "ghcr.io/google/osv-scanner",
+        "ghcr.io/aquasecurity/trivy",
+        "ghcr.io/zizmorcore/zizmor",
+        "rhysd/actionlint",
+        "ghcr.io/renovatebot/renovate"
+      ],
+      "groupName": "scanner images"
+    },
+    {
+      "description": "Lint and formatting",
+      "matchPackageNames": ["eslint", "@eslint/js", "typescript-eslint", "globals", "prettier", "dependency-cruiser"],
+      "groupName": "lint and formatting"
+    },
+    { "description": "TypeScript", "matchPackageNames": ["typescript", "@types/node"], "groupName": "TypeScript" },
+    { "description": "Test tools", "matchPackageNames": ["vitest", "@vitest/**"], "groupName": "test tools" },
+    { "description": "Monorepo tooling", "matchPackageNames": ["turbo", "pnpm", "lefthook"], "groupName": "monorepo tooling" },
+    { "description": "Design tokens", "matchPackageNames": ["style-dictionary"], "groupName": "Style Dictionary" }
+  ],
+  "customManagers": [
+    {
+      "description": "pnpm version in the backend-tests Dockerfile (must equal package.json packageManager)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^infra/docker/.+/Dockerfile$/"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG [A-Z_]+=(?<currentValue>\\S+)"]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Line endings (ADR-0015, EVM-006): LF in the index and in every working tree, also on Windows.
+* text=auto eol=lf
+
+# Binary files — never normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tgz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.mp4 binary
+*.mov binary

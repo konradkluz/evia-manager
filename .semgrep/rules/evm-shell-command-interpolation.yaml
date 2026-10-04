@@ -1,0 +1,46 @@
+rules:
+  - id: evm-shell-command-interpolation
+    message: >-
+      A shell command is built from a template literal or concatenation (child_process exec/execSync) — command
+      injection, CWE-78. Use execFile/spawn with an argument array and without a shell.
+    severity: ERROR
+    languages: [typescript, javascript]
+    metadata:
+      cwe: 'CWE-78: Improper Neutralization of Special Elements used in an OS Command'
+      source: EVM-006 (bramka 2, reguły własne)
+      limitation: renamed imports (import { exec as run }) are not followed
+    patterns:
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      import $M from '$CP';
+                      ...
+                  - pattern-inside: |
+                      import * as $M from '$CP';
+                      ...
+                  - pattern-inside: |
+                      $M = require('$CP');
+                      ...
+              - pattern-either:
+                  - pattern: $M.$F(`...${...}...`, ...)
+                  - pattern: $M.$F($A + $B, ...)
+              - metavariable-regex:
+                  metavariable: $F
+                  regex: ^(exec|execSync)$
+          - patterns:
+              - pattern-either:
+                  - pattern-inside: |
+                      import { exec } from '$CP';
+                      ...
+                  - pattern-inside: |
+                      import { execSync } from '$CP';
+                      ...
+              - pattern-either:
+                  - pattern: exec(`...${...}...`, ...)
+                  - pattern: exec($A + $B, ...)
+                  - pattern: execSync(`...${...}...`, ...)
+                  - pattern: execSync($A + $B, ...)
+      - metavariable-regex:
+          metavariable: $CP
+          regex: ^(node:)?child_process$

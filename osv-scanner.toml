@@ -1,0 +1,6 @@
+# OSV-Scanner exceptions (bramka 3, EVM-006). Format of each exception:
+# [[IgnoredVulns]]
+# id = "GHSA-…"                 # never MAL-… (malicious packages have no exceptions)
+# ignoreUntil = 2026-11-02      # ≤ 30 days for Critical/High, ≤ 90 days for others
+# reason = "<not reachable because …> · owner: <role> · EVM-###"
+# Expired or malformed exceptions fail tools/repo-policy.

@@ -55,10 +55,10 @@ flowchart TD
   H -- tak, runda = 3 --> X[Eskalacja do użytkownika]
   H -- nie --> J[Orkiestrator: własna weryfikacja + DoD]
   J --> K[Demo i akceptacja użytkownika]
-  K -- akceptuję --> L[Squash merge do main, status done]
+  K -- akceptuję --> L["Konrad: Squash and merge w PR (zielony ci-gate), orkiestrator: fetch + merge ff-only, status done"]
   K -- poprawki --> E
 ```
-Środkową część (plan → poprawki) wykonuje deterministycznie workflow `.claude/workflows/deliver-story.js`; gotowość, demo i merge prowadzi orkiestrator ze skilla `/deliver`.
+Środkową część (plan → poprawki) wykonuje deterministycznie workflow `.claude/workflows/deliver-story.js`; gotowość i demo prowadzi orkiestrator ze skilla `/deliver`. **Scalenie do `main` wykonuje Konrad** — „Squash and merge” w PR na GitHubie przy zielonym `ci-gate`, z tytułem PR w formacie Conventional Commit z ID (D2, EVM-006); orkiestrator wypycha gałąź za zgodą Konrada, a po scaleniu tylko `git fetch` + `git merge --ff-only origin/main` (`docs/process/conventions.md` → „Git”, `docs/ops/github-i-ci.md`).
 
 ### Kto przegląda
 - `code-reviewer` — każda zmiana kodu.

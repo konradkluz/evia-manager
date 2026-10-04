@@ -1,0 +1,166 @@
+# CI (EVM-006 AC4; ADR-0012, ADR-0016): the same commands as locally. On GitHub Free there is no ruleset — the
+# single check `ci-gate` must be green before Konrad clicks "Squash and merge" (docs/ops/github-i-ci.md, K1–K7),
+# and main-integrity.yml (K6) turns red when a commit reaches main any other way. K6 is a workflow of its own: the
+# concurrency group below would cancel its pending runs.
+# Rules (tested in tools/repo-policy): actions pinned to a full commit SHA with a version comment, explicit
+# permissions per job, checkout without persisted credentials, no secrets, timeouts on every job.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: '1'
+  DO_NOT_TRACK: '1'
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Format
+        run: pnpm run format:check
+      - name: Lint
+        run: pnpm exec turbo run lint
+      - name: Types
+        run: pnpm exec turbo run typecheck
+      - name: Module boundaries
+        run: pnpm run deps:check
+      - name: Tests with coverage thresholds
+        run: pnpm exec turbo run test:coverage
+      - name: Build
+        run: pnpm exec turbo run build
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lcov-quality
+          path: |
+            packages/*/coverage/lcov.info
+            tools/*/coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 7
+
+  backend:
+    name: backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Output directories writable for the container users
+        run: mkdir -p coverage/backend-tests .scratch/scans && chmod 0777 coverage/backend-tests .scratch/scans
+      - name: Install Linux dependencies (backend-install)
+        run: docker compose -f compose.yaml run --rm backend-install
+      - name: Lint, types and tests with coverage on Linux (backend-tests)
+        run: docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend
+      - name: Licenses of production dependencies (bramka 4)
+        run: node tools/scan/cli.mjs licenses
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lcov-backend
+          path: coverage/backend-tests/
+          if-no-files-found: error
+          retention-days: 7
+
+  security:
+    name: security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: Scans and scanner self-test (gitleaks, Semgrep, OSV, Trivy, zizmor, actionlint, Renovate config)
+        run: node tools/scan/cli.mjs security
+      - name: Sensitive files changed in this push (K3)
+        if: always()
+        run: |
+          base="$(git merge-base HEAD origin/main)"
+          if [ "$base" = "$(git rev-parse HEAD)" ]; then base="$(git rev-parse HEAD^)"; fi
+          {
+            echo "### Zmienione pliki wrażliwe (K3) — wymagają jawnej uwagi Konrada"
+            git diff --name-only "$base" HEAD -- .github .claude 'compose*.yaml' lefthook.yml .gitleaks.toml .gitleaksignore \
+              osv-scanner.toml trivy.yaml .trivyignore.yaml zizmor.yml .semgrepignore .semgrep renovate.json pnpm-workspace.yaml \
+              | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: scan-reports
+          path: .scratch/scans/*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  coverage:
+    name: coverage
+    needs: [quality, backend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lcov-quality
+          path: .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lcov-backend
+          path: coverage/backend-tests
+      - name: Changed-code coverage ≥ 90% (diff-coverage)
+        run: node tools/diff-coverage/cli.mjs
+
+  ci-gate:
+    name: ci-gate
+    if: always()
+    needs: [quality, backend, security, coverage]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every required job succeeded (failure, cancelled, skipped or missing = red)
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e '(keys == ["backend", "coverage", "quality", "security"]) and all(.[]; .result == "success")' > /dev/null

@@ -1,0 +1,48 @@
+# K6 — integrity of main (EVM-006 AC4; ADR-0016; docs/ops/github-i-ci.md; tools/main-integrity/README.md).
+# A workflow of its own without `concurrency`: GitHub cancels a pending run of a concurrency group when a newer one
+# queues, and a cancelled run sends no e-mail — every push to main and every nightly run must be checked. Runs are
+# read-only and idempotent, so parallel runs do no harm. Each run re-checks the newest commits of main down to
+# BASELINE (the last commit of main before K6), so a commit pushed with GITHUB_TOKEN — which starts no workflow — is
+# found by the next push or by the nightly run. A failed run sends GitHub's e-mail to Konrad.
+name: main-integrity
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '45 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  main-integrity:
+    name: main-integrity
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout, list of commits of main, compare and changed files
+      actions: read # runs and jobs of ci.yml (green ci-gate on the PR head)
+      pull-requests: read # the merged PR of each commit and who merged it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - name: K6 — every commit in the window comes from a PR merged by Konrad with a green ci-gate
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          MAIN_MERGER: konradkluz
+          BASELINE: cd0eedd887d8e82753addebed15f35527f727031
+          # Closed incidents (docs/ops/github-i-ci.md → „Czerwony main”): full SHAs separated by spaces, added in the
+          # PR that closes the incident. Their reasons are still logged; new violations stay red.
+          ACKNOWLEDGED: ''
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          FORCED: ${{ github.event.forced }}
+        run: node tools/main-integrity/cli.mjs

@@ -10,9 +10,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const TOOL_DIR = fileURLToPath(new URL('..', import.meta.url));
-const SOURCES = ['cli.mjs', ...readdirSync(join(TOOL_DIR, 'lib')).map((name) => `lib/${name}`)].filter((path) =>
-  path.endsWith('.mjs'),
-);
+const SOURCES = ['cli.mjs', ...readdirSync(join(TOOL_DIR, 'lib')).map((name) => `lib/${name}`)].filter((path) => path.endsWith('.mjs'));
 
 /** @param {string} path */
 const source = (path) => readFileSync(join(TOOL_DIR, ...path.split('/')), 'utf8');
@@ -28,7 +26,13 @@ function importedNames(text, specifier) {
   const pattern = new RegExp(`import\\s+([^;]*?)\\s+from\\s+'${specifier}'`, 'g');
   for (const match of text.matchAll(pattern)) {
     assert.match(match[1], /^\{[^}]*\}$/, `tylko importy nazwane z ${specifier}: ${match[1]}`);
-    names.push(...match[1].slice(1, -1).split(',').map((name) => name.trim()).filter(Boolean));
+    names.push(
+      ...match[1]
+        .slice(1, -1)
+        .split(',')
+        .map((name) => name.trim())
+        .filter(Boolean),
+    );
   }
   return names;
 }

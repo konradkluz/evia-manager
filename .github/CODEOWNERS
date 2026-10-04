@@ -1,0 +1,17 @@
+# Właściciele plików wrażliwych (EVM-006, K3; SR-SUPPLY-05). Na planie GitHub Free CODEOWNERS NIE jest egzekwowany —
+# to dokumentacja: zmiana tych ścieżek wymaga jawnej uwagi Konrada w PR (checklista w pull_request_template.md).
+/.github/              @konradkluz
+/.claude/              @konradkluz
+/compose*.yaml         @konradkluz
+/lefthook.yml          @konradkluz
+/infra/                @konradkluz
+/.gitleaks.toml        @konradkluz
+/.gitleaksignore       @konradkluz
+/osv-scanner.toml      @konradkluz
+/trivy.yaml            @konradkluz
+/.trivyignore.yaml     @konradkluz
+/zizmor.yml            @konradkluz
+/.semgrepignore        @konradkluz
+/.semgrep/             @konradkluz
+/renovate.json         @konradkluz
+/pnpm-workspace.yaml   @konradkluz

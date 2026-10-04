@@ -93,9 +93,7 @@ export function readRegularFile(absolutePath, path, fs = { lstatSync, readFileSy
 export function loadRepository({ cwd, env, config, git = runGit }) {
   const top = git(['rev-parse', '--show-toplevel'], { cwd, env });
   if (top.status !== 0) {
-    throw new ToolError(
-      `brak repozytorium git w katalogu ${cwd} — uruchom polecenie w katalogu repozytorium (${firstLine(top.stderr)})`,
-    );
+    throw new ToolError(`brak repozytorium git w katalogu ${cwd} — uruchom polecenie w katalogu repozytorium (${firstLine(top.stderr)})`);
   }
   const root = resolve(top.stdout.trim());
   /** @param {string[]} args */

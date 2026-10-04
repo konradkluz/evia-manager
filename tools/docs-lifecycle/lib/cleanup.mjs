@@ -150,8 +150,6 @@ export function buildCleanupReport(analysis, target) {
     });
   }
 
-  items.sort(
-    (a, b) => Number(a.action !== ACTIONS.remove) - Number(b.action !== ACTIONS.remove) || compareCodeUnits(a.path, b.path),
-  );
+  items.sort((a, b) => Number(a.action !== ACTIONS.remove) - Number(b.action !== ACTIONS.remove) || compareCodeUnits(a.path, b.path));
   return { target, today: analysis.today, fileCount: analysis.files.length, errorCount: analysis.errorCount, items };
 }

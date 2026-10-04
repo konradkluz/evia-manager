@@ -1,0 +1,3 @@
+# zizmor (bramka 5a, D3): every finding from severity `low` up blocks (`--min-severity=low`, default persona).
+# Exceptions only here or as `# zizmor: ignore[<rule>]` with reason, owner and review_by (≤ 90 days) — tools/repo-policy.
+rules: {}

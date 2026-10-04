@@ -1,12 +1,39 @@
 {
   "name": "evia-manager",
   "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.8.1+sha512.f64ba907507f5ceafe06c8d38e6052d0179444580ec1279ddd5bfc11cb48aa8a2644b66598e07e761da84872a9fc57d5f902b87fa49d024198d558612aabbe45",
   "engines": {
-    "node": ">=22.15.0"
+    "node": ">=26.0.0 <27"
   },
   "scripts": {
     "docs:check": "node tools/docs-lifecycle/cli.mjs check",
     "docs:cleanup": "node tools/docs-lifecycle/cli.mjs cleanup-report",
-    "test:tools": "node --test --experimental-test-coverage --test-coverage-include=\"tools/**/*.mjs\" --test-coverage-exclude=\"tools/**/test/**\" --test-coverage-lines=90 --test-coverage-branches=90 \"tools/**/*.test.mjs\""
+    "test:tools": "node --test --experimental-test-coverage --test-coverage-include=\"tools/**/*.mjs\" --test-coverage-exclude=\"tools/**/test/**\" --test-coverage-lines=90 --test-coverage-branches=90 \"tools/**/*.test.mjs\"",
+    "prepare": "node tools/git-hooks/cli.mjs install",
+    "gate": "node tools/git-hooks/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff",
+    "gate:native": "pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check",
+    "gate:backend": "turbo run lint typecheck test:coverage --filter=./packages/*",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "deps:check": "depcruise --config .dependency-cruiser.cjs packages tools",
+    "coverage:diff": "node tools/diff-coverage/cli.mjs",
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "e2e": "turbo run e2e",
+    "scan": "node tools/scan/cli.mjs all"
+  },
+  "devDependencies": {
+    "dependency-cruiser": "18.5.0",
+    "eslint": "catalog:",
+    "lefthook": "2.1.15",
+    "prettier": "3.9.9",
+    "turbo": "2.11.5",
+    "typescript": "catalog:"
   }
 }

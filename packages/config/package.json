@@ -1,0 +1,35 @@
+{
+  "name": "@evia/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared quality configuration: TypeScript base, ESLint flat config, Vitest coverage preset, node:test coverage runner and coverage exclusions (EVM-006).",
+  "exports": {
+    "./coverage-exclusions": "./src/coverage-exclusions.ts",
+    "./coverage-exclusions.json": "./coverage-exclusions.json",
+    "./eslint": "./src/eslint.ts",
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./vitest": "./src/vitest.ts"
+  },
+  "bin": {
+    "evia-node-test": "./src/node-test.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@eslint/js": "10.0.1",
+    "globals": "17.12.0",
+    "typescript-eslint": "8.71.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

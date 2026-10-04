@@ -22,6 +22,7 @@
 | | `security/requirements.md` | wymagania bezpieczeństwa `SR-…` (ASVS 5.0 L2, MASVS 2.1) per moduł i epik, bramki CI |
 | | `security/policies.md` | polityki bezpieczeństwa P1–P12 do decyzji |
 | | `security/rodo.md` | RODO (szkic operacyjny): inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia |
+| Operacje | `ops/README.md` | runbooki: GitHub i CI (`ops/github-i-ci.md` — ustawienia repozytorium, scalanie PR, kontrole K1–K7, czerwony `main`), rotacja sekretów (`ops/rotacja-sekretow.md`) |
 | UX | `ux/README.md` | zasady UX, artefakty; styleguide 1.1.0 (`ux/styleguide.md`) |
 | | `ux/flows/README.md` | przepływy i makiety MVP: mapa nawigacji web i mobile, ekrany ze stanami i rolami, scenariusze A–D (EVM-004) |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |

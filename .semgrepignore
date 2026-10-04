@@ -1,0 +1,7 @@
+# Semgrep (bramka 2): only generated output is ignored, plus the deliberately vulnerable fixtures of our own rules in
+# .semgrep/ — scanned only by `semgrep --test` (W7). Keep this list narrow; tools/repo-policy checks it.
+node_modules/
+dist/
+coverage/
+.turbo/
+.semgrep/

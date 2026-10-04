@@ -1,0 +1,154 @@
+# Dev and CI tooling only (ADR-0015, ADR-0016; EVM-006) — never used on staging or production.
+# Always run with the explicit file: docker compose -f compose.yaml run --rm <service> …
+# Rules (tested in tools/repo-policy): images by tag + digest or built from a Dockerfile pinned by digest; no ports,
+# no privileged mode, no Docker socket, no env_file and no ${…} interpolation; read-only root file system, all
+# capabilities dropped, no-new-privileges, non-root user; bind mounts only from the allow-list, read-only except
+# output directories (coverage/backend-tests, .scratch/scans). No project `name:` — every clone gets its own volumes.
+# Scanners see only the paths they scan: .scratch/ (output and self-test fixtures) is never a scan target (W7).
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+
+x-scanner: &scanner
+  <<: *hardening
+  user: '65534:65534'
+  working_dir: /src
+  tmpfs:
+    - /tmp:noexec,nosuid,nodev,mode=1777
+
+x-backend: &backend
+  <<: *hardening
+  image: evia-backend-tests:local
+  build:
+    context: infra/docker/backend-tests
+  pull_policy: build
+  user: node
+  working_dir: /work/repo
+  tmpfs:
+    - /tmp:noexec,nosuid,nodev
+    - /home/node:uid=1000,gid=1000,mode=0700,noexec,nosuid,nodev
+  volumes:
+    - bt-work:/work
+    - ./coverage/backend-tests:/out
+    - ./package.json:/src/package.json:ro
+    - ./pnpm-lock.yaml:/src/pnpm-lock.yaml:ro
+    - ./pnpm-workspace.yaml:/src/pnpm-workspace.yaml:ro
+    - ./turbo.json:/src/turbo.json:ro
+    - ./.nvmrc:/src/.nvmrc:ro
+    - ./packages:/src/packages:ro
+    - ./tools:/src/tools:ro
+    - ./design/tokens:/src/design/tokens:ro
+
+services:
+  # Linux dependencies from the lockfile into the bt-work volume (network: npm registry). Run after a lockfile change.
+  backend-install:
+    <<: *backend
+    command: ['install']
+
+  # Lint, types and tests with coverage on Linux, without network (EVM-008: internal network with PostgreSQL).
+  backend-tests:
+    <<: *backend
+    network_mode: none
+
+  # Secrets (bramka 1): git history and staged changes; reads only .git. Always with --redact (tools/scan).
+  scan-gitleaks:
+    <<: *scanner
+    image: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    network_mode: none
+    working_dir: /repo
+    environment:
+      HOME: /tmp
+      GIT_OPTIONAL_LOCKS: '0'
+      GIT_CONFIG_COUNT: '1'
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: '*'
+    volumes:
+      - ./.git:/repo/.git:ro
+      - ./.gitleaks.toml:/config/gitleaks.toml:ro
+      - ./.gitleaksignore:/config/gitleaksignore:ro
+      - ./.scratch/scans:/out
+
+  # SAST (bramka 2): Semgrep CE with registry rules (network: rules only, --metrics=off) and our rules from .semgrep/.
+  scan-semgrep:
+    <<: *scanner
+    image: semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
+    entrypoint: ['semgrep'] # the image has no entrypoint; every call is a semgrep subcommand
+    environment:
+      HOME: /tmp
+      SEMGREP_SEND_METRICS: 'off'
+      SEMGREP_ENABLE_VERSION_CHECK: '0'
+    volumes:
+      - ./packages:/src/packages:ro
+      - ./tools:/src/tools:ro
+      - ./infra:/src/infra:ro
+      - ./.github:/src/.github:ro
+      - ./.semgrep:/src/.semgrep:ro
+      - ./.semgrepignore:/src/.semgrepignore:ro
+      - ./.gitignore:/src/.gitignore:ro
+      - ./.scratch/scans:/out
+
+  # Dependencies (bramka 3): OSV-Scanner on the lockfile (network: osv.dev receives package names and versions only).
+  scan-osv:
+    <<: *scanner
+    image: ghcr.io/google/osv-scanner:v2.6.0@sha256:afd838850ac1a0fcc15ff4a041dc9ba11123c3f0d2666217a5f0fcf9222b55fa
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./pnpm-lock.yaml:/src/pnpm-lock.yaml:ro
+      - ./osv-scanner.toml:/src/osv-scanner.toml:ro
+      - ./.scratch/scans:/out
+
+  # Configuration and licenses (bramki 4 i 5): Trivy without network — embedded checks; licenses of the Linux
+  # node_modules from the bt-work volume (read-only; run backend-install first).
+  scan-trivy:
+    <<: *scanner
+    image: ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+    network_mode: none
+    environment:
+      HOME: /tmp
+      TRIVY_CACHE_DIR: /tmp/trivy
+      TRIVY_NO_PROGRESS: 'true'
+      TRIVY_DISABLE_VEX_NOTICE: 'true'
+    volumes:
+      - ./infra:/src/infra:ro
+      - ./trivy.yaml:/src/trivy.yaml:ro
+      - ./.trivyignore.yaml:/src/.trivyignore.yaml:ro
+      - bt-work:/work:ro
+      - ./.scratch/scans:/out
+
+  # GitHub Actions workflows (bramka 5a, D3): zizmor offline.
+  scan-zizmor:
+    <<: *scanner
+    image: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+    network_mode: none
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./.github:/src/.github:ro
+      - ./zizmor.yml:/src/zizmor.yml:ro
+      - ./.scratch/scans:/out
+
+  # GitHub Actions workflows: syntax, expressions, needs, shellcheck in run: (ADR-0016).
+  scan-actionlint:
+    <<: *scanner
+    image: rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+    network_mode: none
+    volumes:
+      - ./.github:/src/.github:ro
+
+  # Renovate configuration (bramka 12): renovate-config-validator --strict.
+  renovate-validate:
+    <<: *scanner
+    image: ghcr.io/renovatebot/renovate:44.126.0@sha256:b07b6fe34bd80fe2ce035e2053d63a0205e5f99ba3ee799447e0439f2c728002
+    network_mode: none
+    entrypoint: ['renovate-config-validator']
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./renovate.json:/src/renovate.json:ro
+
+volumes:
+  bt-work:

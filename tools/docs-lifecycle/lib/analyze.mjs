@@ -325,7 +325,9 @@ function classify(path, ctx) {
     orphan: false,
   };
   /** @type {Report} */
-  const report = (code, reason, severity = 'error') => ctx.findings.push({ severity, code, path, class: record.class, reason });
+  const report = (code, reason, severity = 'error') => {
+    ctx.findings.push({ severity, code, path, class: record.class, reason });
+  };
   const scratch = `${ctx.config.scratchDir}/`;
   const ephemeralOutside = `plik roboczy (lifecycle: ephemeral) w części repozytorium śledzonej przez git — zapisuj go w ${scratch} (ignorowany przez git) albo w scratchpadzie sesji`;
   const unknownClass = `nieznana klasa ${quote(String(lifecycle))} w polu lifecycle — dozwolone wartości: ${CLASSES.join(', ')}`;
@@ -455,7 +457,10 @@ function milestoneFromSpike(record, fields, ctx, report) {
     const value = fields.get('milestone');
     const problem = milestoneProblem(value, ctx.milestones);
     if (problem === 'missing') {
-      report('milestone-missing', "kamień milowy bez M# — README spike'a wymaga pola milestone: M# (kamień, do którego potrzebny jest kod spike'a)");
+      report(
+        'milestone-missing',
+        "kamień milowy bez M# — README spike'a wymaga pola milestone: M# (kamień, do którego potrzebny jest kod spike'a)",
+      );
     } else if (problem !== null) {
       report('milestone-unknown', invalidMilestoneText(String(value), problem, ctx.milestones));
     } else {
@@ -499,7 +504,10 @@ function checkDates(record, fields, today, report) {
     const value = fields.get(field);
     if (value === undefined) continue;
     if (!isValidIsoDate(value)) {
-      report('date-invalid', `niepoprawna data w polu ${field}: ${quote(value)} — wymagany format YYYY-MM-DD i prawdziwa data kalendarzowa`);
+      report(
+        'date-invalid',
+        `niepoprawna data w polu ${field}: ${quote(value)} — wymagany format YYYY-MM-DD i prawdziwa data kalendarzowa`,
+      );
     } else if (!ALLOWED_DATE_FIELDS[cls].includes(field)) {
       report(
         'date-not-allowed',
