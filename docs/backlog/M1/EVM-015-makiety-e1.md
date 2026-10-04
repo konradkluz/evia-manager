@@ -4,7 +4,7 @@ title: Makiety ekranów E1 — reset hasła, zaproszenie, konto, użytkownicy i 
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -100,3 +100,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — ready → in-progress: start `/deliver` (orkiestrator; sesja w chmurze — gałąź robocza `claude/relaxed-franklin-7owvdc` zamiast `feature/EVM-015-…`)
