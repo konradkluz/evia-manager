@@ -97,7 +97,7 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
     expect(spawning).toEqual(['tools/scan/lib/compose.mjs']);
   });
 
-  it('EVM-006 AC1 (D4, RR-03): the committed agent settings ask before compose and settings edits and deny other Docker verbs', () => {
+  it('EVM-006 AC1 (D4, RR-03; K4, RR-02): the committed agent settings ask before compose and settings edits, deny other Docker verbs and printing the gh token', () => {
     // The index, not the working tree: an unstaged local edit is not checked here (see RR-03); a weakened commit is.
     const settings = JSON.parse(staged('.claude/settings.json')) as unknown;
     expect(agentPermissionProblems(settings, Object.keys(services))).toEqual([]);

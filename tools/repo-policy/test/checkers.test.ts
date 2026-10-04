@@ -20,6 +20,7 @@ import {
   agentPermissionProblems,
   ciGateProblems,
   dockerCommandProblems,
+  GH_TOKEN_DENY,
   renovateWorkflowProblems,
   REQUIRED_ASK,
   REQUIRED_DENY,
@@ -225,6 +226,65 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
       '.claude/settings.json: allow Bash(docker compose -f compose.yaml up) — Docker wyłącznie jako usługa compose.yaml',
     ]);
     expect(agentPermissionProblems({}, services)).toHaveLength(REQUIRED_ASK.length + REQUIRED_DENY.length);
+  });
+
+  it('EVM-006 AC1 (K4, RR-02): missing deny rules against printing the gh token are reported', () => {
+    const deny = REQUIRED_DENY.filter((rule) => !GH_TOKEN_DENY.includes(rule));
+    expect(agentPermissionProblems(settings({ deny }), services)).toEqual([
+      '.claude/settings.json: brak reguły deny Bash(*gh* auth token*)',
+      '.claude/settings.json: brak reguły deny Bash(*gh* auth status *-t*)',
+      '.claude/settings.json: brak reguły deny PowerShell(*gh* auth token*)',
+      '.claude/settings.json: brak reguły deny PowerShell(*gh* auth status *-t*)',
+    ]);
+  });
+
+  it('EVM-006 AC1 (K4, RR-02): the gh token rules deny gh, gh.exe and the full path in Git Bash and PowerShell, not other gh commands', () => {
+    // Rule matching as documented (code.claude.com/docs/en/permissions → "Wildcard patterns", "PowerShell"): `*` stands for
+    // any text, including spaces, quotes and path separators; the rest is literal; PowerShell rules ignore case.
+    const denies = (tool: 'Bash' | 'PowerShell', command: string): boolean =>
+      GH_TOKEN_DENY.filter((rule) => rule.startsWith(`${tool}(`)).some((rule) => {
+        const source = rule
+          .slice(tool.length + 1, -1)
+          .split('*')
+          .map((part) => part.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&'))
+          .join('[\\s\\S]*');
+        return new RegExp(`^${source}$`, tool === 'PowerShell' ? 'i' : '').test(command);
+      });
+    const bashPath = '/c/Program Files/GitHub CLI/gh.exe';
+    const windowsPath = 'C:\\Program Files\\GitHub CLI\\gh.exe';
+    const deniedInBash = [
+      'gh auth token',
+      'gh auth token --hostname github.com',
+      'gh.exe auth token',
+      `"${bashPath}" auth token`,
+      `'${bashPath}' auth token`,
+      '/c/Program\\ Files/GitHub\\ CLI/gh.exe auth token',
+      `"${windowsPath}" auth token`,
+      'gh auth status --show-token',
+      'gh auth status -t',
+      `"${bashPath}" auth status --hostname github.com -t`,
+      `"${bashPath}" auth status --show-token`,
+    ];
+    const deniedInPowerShell = [
+      'gh auth token',
+      'gh.exe auth status -t',
+      `& "${windowsPath}" auth token`,
+      `& '${windowsPath}' auth status --show-token`,
+      `& "${windowsPath.toUpperCase()}" auth status -t`,
+    ];
+    const allowedInBash = [
+      'gh auth status',
+      `"${bashPath}" auth status`,
+      `"${bashPath}" auth status --hostname github.com --active`,
+      `"${bashPath}" run list --branch feature/EVM-006-domkniecie`,
+      `"${bashPath}" api repos/{owner}/{repo}/actions/runs`,
+      `"${bashPath}" pr view 2 --json title,state`,
+    ];
+    const allowedInPowerShell = [`& "${windowsPath}" auth status`, `& "${windowsPath}" run list`, `& "${windowsPath}" pr checks 2`];
+    for (const command of deniedInBash) expect(denies('Bash', command), command).toBe(true);
+    for (const command of deniedInPowerShell) expect(denies('PowerShell', command), command).toBe(true);
+    for (const command of allowedInBash) expect(denies('Bash', command), command).toBe(false);
+    for (const command of allowedInPowerShell) expect(denies('PowerShell', command), command).toBe(false);
   });
 
   it('EVM-006 D4: the committed content is read from the git index; outside a git checkout from the file itself', () => {
