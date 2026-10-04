@@ -79,9 +79,28 @@ Jako **pracownik biura** chcę **widzieć na liście i w podsumowaniu zlecenia, 
 - W AC: SR-AUTHZ-03, SR-AUTHZ-05, SR-API-04. W sekcji: SR-API-02 (masowy odczyt — P10).
 
 ## Notatki techniczne
-- Moduły: zgodnie z ADR EVM-069 (wstępna rekomendacja — moduł odczytu z projekcją aktualizowaną w tej samej transakcji), `procedures`, `work-orders` + panel.
-- „Dziś” i „> X dni” — wstrzykiwany zegar; „po terminie” liczony w zapytaniu, niezapisywany.
-- Wartości filtrów i sortowań dodawane addytywnie do enumów z EVM-017.
+- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Zaakceptowana” 2026-10-04 — wariant (a), pytania 1–7 wg rekomendacji). Ta historyjka:
+  - **tworzy moduł `overview`:** schemat, `work_order_summaries` bez kolumn płatności i `work_order_waits`; przeliczenie w całości w transakcji zapisu (handlery zdarzeń `work-orders`, `procedures`, `sites` — `siteType`, `parties` — `kind`; rejestr działań przed zatwierdzeniem w `platform`); porty systemowe modułów źródłowych; polecenia `rebuild` i `verify` w kontenerze `worker`; nocny `verify` (pg-boss) z metryką i alertem;
+  - **klucze obce i blokady** (ADR-0017 → „Współbieżność”): łańcuch `work_orders` → `work_order_summaries` → `work_order_waits` z `ON DELETE CASCADE`; przegląd istniejących blokad wiersza `work_orders` (np. przejścia z EVM-030) — tryb `SELECT … FOR NO KEY UPDATE`, a nie `FOR UPDATE`; test 6 z przypadkiem blokady wiersza zlecenia;
+  - **przenosi `GET /api/v1/work-orders` i `POST /api/v1/work-orders/search`** z `work-orders` do `overview` bez zmiany kontraktu (ścieżka, `operationId`, tag, `x-evia-authz`). Testy EVM-017 i EVM-072 przechodzą bez zmian, w tym limity i licznik masowego odczytu P10 (T9);
+  - **dodaje zmiany kontraktu wyłącznie addytywnie:**
+    - `sort`: `longestWaitingSince`, `nextDueDate`;
+    - `view`: `waiting_on_dso_over_14_days`;
+    - filtry `waitingOn`, `waitingOnPartyKind`, `waitingLongerThanDays` (1–365);
+    - pola listy `waiting`, `nextDueDate`, `hasOverdueStage`;
+    - pola `ProcedureStage.isOverdue`, `ProcedureStage.waitingDays`, `Procedure.currentStageId`.
+
+    Enumy w odpowiedziach mają `x-extensible-enum`; jeśli EVM-008 nie wprowadzi tej konwencji, ta historyjka dopisuje ją do `api-guidelines.md`.
+- Definicje D1–D5 i D10–D12 z ADR-0017 → „Definicje wyliczeń”. „Otwarty etap” w AC4 czytamy jako „niezakończony” (`todo`, `in_progress`, `waiting`, `blocked`), jeśli Konrad potwierdzi pytanie 2 ADR-0017.
+- „Dziś” i „> X dni” — wstrzykiwany zegar; „po terminie” liczony w zapytaniu, niezapisywany; kolejne strony z `asOf` z kursora (W8).
+- Plan techniczny obejmuje wymagania W1–W12 i testy 1–8 oraz T1–T9 z ADR-0017 (AC6 = testy 1–3). Obejmuje też test „projekcja = przeliczenie” po każdym teście integracyjnym zmieniającym zlecenie.
+- Dokumenty do aktualizacji przy implementacji:
+  - `domain-model.md` — usunięcie oznaczeń „proponowany”, pola wyliczane w „Pola kontrolowane przez serwer”, reguła bieżącego etapu `Procedure` po decyzji o pytaniu 2;
+  - `docs/architecture/README.md` — węzeł `overview` na mapie modułów;
+  - `docs/security/rodo.md` — inwentaryzacja `ProcedureStage`: w kolumnie „Gdzie” miejsce „projekcja `overview` (serwer)” (W1);
+  - `docs/security/threat-model.md` — nowe pozycje TM: rozjazd kolumn autoryzacyjnych, wyrocznia przez sortowanie, agregaty przy polityce drobniejszej niż kotwica, przebudowa (albo przy `/milestone close M1`);
+  - reguły dependency-cruiser — `overview` bez zależności przychodzących, porty systemowe niedostępne z warstwy `api` (W5).
+- Rozmiar (ryzyko R8 README M1): przy `/refine` rozważyć wydzielenie enablera „moduł `overview` i przeniesienie listy” (pytanie 6 ADR-0017).
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
