@@ -1,6 +1,7 @@
 # ADR-0012: CI/CD, monorepo i narzędzia jakości — GitHub Actions, pnpm + Turborepo, EAS Build dla aplikacji mobilnej
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
+- **Częściowo zastąpiona przez:** [ADR-0016](0016-github-free-ochrona-main-kontrole-kompensujace.md) (2026-10-04) — zakres: plan GitHub (Free zamiast Pro) i weryfikacja ochrony `main` (procedura scalania i kontrole kompensujące K1–K7 zamiast rulesetu); lista narzędzi CI uzupełniona o zizmor i actionlint.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (lista skanów i progów), EVM-006, EVM-007; ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0011, ADR-0014

@@ -35,7 +35,13 @@
       "Bash(git commit --no-verify:*)",
       "Bash(git commit -n:*)",
       "Bash(git push --no-verify:*)",
-      "Read(~/.ssh/**)"
+      "Read(~/.ssh/**)",
+      "Bash(*gh* auth token*)",
+      "Bash(*gh* auth status *-t*)",
+      "Bash(*gh* auth git-credential*)",
+      "PowerShell(*gh* auth token*)",
+      "PowerShell(*gh* auth status *-t*)",
+      "PowerShell(*gh* auth git-credential*)"
     ],
     "allow": [
       "Bash(docker compose -f compose.yaml run --rm backend-install)",
