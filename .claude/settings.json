@@ -38,8 +38,10 @@
       "Read(~/.ssh/**)",
       "Bash(*gh* auth token*)",
       "Bash(*gh* auth status *-t*)",
+      "Bash(*gh* auth git-credential*)",
       "PowerShell(*gh* auth token*)",
-      "PowerShell(*gh* auth status *-t*)"
+      "PowerShell(*gh* auth status *-t*)",
+      "PowerShell(*gh* auth git-credential*)"
     ],
     "allow": [
       "Bash(docker compose -f compose.yaml run --rm backend-install)",

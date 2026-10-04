@@ -233,12 +233,14 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
     expect(agentPermissionProblems(settings({ deny }), services)).toEqual([
       '.claude/settings.json: brak reguły deny Bash(*gh* auth token*)',
       '.claude/settings.json: brak reguły deny Bash(*gh* auth status *-t*)',
+      '.claude/settings.json: brak reguły deny Bash(*gh* auth git-credential*)',
       '.claude/settings.json: brak reguły deny PowerShell(*gh* auth token*)',
       '.claude/settings.json: brak reguły deny PowerShell(*gh* auth status *-t*)',
+      '.claude/settings.json: brak reguły deny PowerShell(*gh* auth git-credential*)',
     ]);
   });
 
-  it('EVM-006 AC1 (K4, RR-02): the gh token rules deny gh, gh.exe and the full path in Git Bash and PowerShell, not other gh commands', () => {
+  it('EVM-006 AC1 (K4, RR-02): the gh token rules deny gh, gh.exe and the full path in Git Bash and PowerShell (token, status -t, git-credential), not other gh commands', () => {
     // Rule matching as documented (code.claude.com/docs/en/permissions → "Wildcard patterns", "PowerShell"): `*` stands for
     // any text, including spaces, quotes and path separators; the rest is literal; PowerShell rules ignore case.
     const denies = (tool: 'Bash' | 'PowerShell', command: string): boolean =>
@@ -264,6 +266,9 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
       'gh auth status -t',
       `"${bashPath}" auth status --hostname github.com -t`,
       `"${bashPath}" auth status --show-token`,
+      'gh auth git-credential get',
+      `"${bashPath}" auth git-credential get`,
+      '/c/Program\\ Files/GitHub\\ CLI/gh.exe auth git-credential get',
     ];
     const deniedInPowerShell = [
       'gh auth token',
@@ -271,6 +276,7 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
       `& "${windowsPath}" auth token`,
       `& '${windowsPath}' auth status --show-token`,
       `& "${windowsPath.toUpperCase()}" auth status -t`,
+      `& "${windowsPath}" auth git-credential get`,
     ];
     const allowedInBash = [
       'gh auth status',

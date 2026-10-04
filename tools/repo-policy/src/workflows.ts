@@ -122,9 +122,9 @@ export const REQUIRED_ASK = Object.freeze(
 );
 
 /**
- * `deny` rules against printing the token of the orchestrator's `gh` (K4, RR-02; Konrad 2026-10-04): `gh auth token` and
- * `gh auth status --show-token` / `-t` run as `gh`, `gh.exe` or a full path (quoted or escaped) in the Bash tool (Git Bash)
- * and in the PowerShell tool. `*` matches any text at any position, so `*gh*` covers every executable form and `-t` also
+ * `deny` rules against printing the token of the orchestrator's `gh` (K4, RR-02; Konrad 2026-10-04): `gh auth token`,
+ * `gh auth status --show-token` / `-t` and the credential helper `gh auth git-credential` (prints `password=<token>`) run as
+ * `gh`, `gh.exe` or a full path (quoted or escaped) in the Bash tool (Git Bash) and in the PowerShell tool. `*` matches any text at any position, so `*gh*` covers every executable form and `-t` also
  * covers `--show-token`. A command that only quotes these words (grep, echo, a commit message or PR body) is denied too —
  * use the Grep tool and message files. A hindrance against accidental output, not a boundary (RR-02): the boundary is the
  * token scope, its 30-day lifetime and revocation (docs/ops/rotacja-sekretow.md).
@@ -132,8 +132,10 @@ export const REQUIRED_ASK = Object.freeze(
 export const GH_TOKEN_DENY = Object.freeze([
   'Bash(*gh* auth token*)',
   'Bash(*gh* auth status *-t*)',
+  'Bash(*gh* auth git-credential*)',
   'PowerShell(*gh* auth token*)',
   'PowerShell(*gh* auth status *-t*)',
+  'PowerShell(*gh* auth git-credential*)',
 ]);
 
 /** `deny` rules of .claude/settings.json: no other Docker verbs (A6), no skipped hooks, no push to main, no SSH keys, no gh token. */
