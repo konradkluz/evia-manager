@@ -1,6 +1,6 @@
 # UX — zasady i styleguide
 
-> **Styleguide v1.1.0 obowiązuje** (EVM-003 — wersja 1.0.0 z 2026-10-02; EVM-004 — 1.1.0 z 2026-10-03; właściciel: `ux-designer`): [`styleguide.md`](styleguide.md) · tokeny [`design/tokens/`](../../design/tokens/README.md) · marka [`design/brand/`](../../design/brand/README.md) · przepływy i makiety MVP [`flows/README.md`](flows/README.md). Poniższe zasady są skrótem — w razie rozbieżności rozstrzyga styleguide.
+> **Styleguide v1.2.0 obowiązuje** (historia wersji: 1.0.0 — EVM-003, 2026-10-02; 1.1.0 — EVM-004, 2026-10-03; 1.2.0 — EVM-014, 2026-10-04 — propozycje P-1…P-13 jako komponenty i wzorce, formy bezosobowe, 6 nowych tokenów; właściciel: `ux-designer`): [`styleguide.md`](styleguide.md) · tokeny [`design/tokens/`](../../design/tokens/README.md) · marka [`design/brand/`](../../design/brand/README.md) · przepływy i makiety MVP [`flows/README.md`](flows/README.md). Poniższe zasady są skrótem — w razie rozbieżności rozstrzyga styleguide.
 
 ## Dwa konteksty
 | | Biuro (panel web) | Teren (aplikacja mobilna) |
@@ -25,8 +25,8 @@
 - Przegląd UX (zrzuty w kilku szerokościach, a11y, zgodność) jest bramką w `/deliver` dla każdej zmiany UI.
 
 ## Artefakty
-- `docs/ux/styleguide.md` — fundamenty, komponenty, wzorce, teren, treści, dostępność i egzekwowanie, changelog z propozycjami `[P-n]` do akceptacji (EVM-003, 1.1.0 — EVM-004).
-- `design/tokens/` — design tokens (W3C DTCG 2025.10, warstwy `base/` + `semantic/`) — jedno źródło prawdy dla web i mobile (EVM-003, 1.1.0 — EVM-004; transformacja do platform: EVM-006).
+- `docs/ux/styleguide.md` — fundamenty, komponenty, wzorce, teren, treści, dostępność i egzekwowanie, changelog (EVM-003; 1.1.0 — EVM-004; 1.2.0 — EVM-014: propozycje P-1…P-13 wdrożone jako § 3.2.1, § 3.9.1, § 3.15.1, § 3.20–§ 3.24 i § 4.14–§ 4.18, mapa P-n → § w § 8).
+- `design/tokens/` — design tokens (W3C DTCG 2025.10, warstwy `base/` + `semantic/`) — jedno źródło prawdy dla web i mobile (EVM-003; 1.1.0 — EVM-004; 1.2.0 — EVM-014; walidacja i transformacja do platform: pakiet `@evia/tokens`, EVM-006).
 - `design/brand/` — źródła marki EVia Charge (kolory, fonty, logo, licencje) (EVM-003, istnieje).
 - `docs/ux/flows/` — przepływy i makiety low-fi MVP (M1 panel web, M2 aplikacja mobilna): mapa nawigacji, ekrany W-xx / M-xx ze stanami i rolami, przejście scenariuszy A–D (EVM-004, istnieje; punkt wejścia: [`flows/README.md`](flows/README.md)).
 - `design/prototypes/` — prototypy HTML (opcjonalnie); w EVM-004 nie powstały (makiety w Markdown, bez zaszytych wartości przed transformacją tokenów — EVM-006).

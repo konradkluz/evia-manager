@@ -305,6 +305,14 @@
           "icon": {"$value": "{palette.neutral.0}"},
           "border": {"$value": "{palette.red.800}"}
         }
+      },
+      "unknown": {
+        "$extensions": {"pl.eviacharge.status": {"label": "Nieznany status", "icon": "circle-help", "tone": "neutral"}},
+        "$description": "Odznaka zastępcza dla wartości statusu nieznanej aplikacji (nowsza wersja API — ADR-0004, SR-MOB-10); wspólna dla grup order, stage i payment, nie jest kodem modelu (styleguide 1.2.0, § 3.9.1). Etykieta stała — UI nigdy nie pokazuje surowej wartości z API.",
+        "bg": {"$value": "{palette.neutral.100}"},
+        "text": {"$value": "{palette.neutral.800}"},
+        "icon": {"$value": "{palette.neutral.700}"},
+        "border": {"$value": "{palette.neutral.300}"}
       }
     },
     "sync": {
@@ -352,6 +360,11 @@
         "fill-done": {"$value": "{palette.green.700}"},
         "fill-error": {"$value": "{palette.red.700}"}
       }
+    },
+    "progress": {
+      "$description": "Postęp procesu („3 z 7 etapów”, styleguide 1.2.0, § 3.23) — nie wysyłanie (to color.sync.progress.*). Informację niesie tekst; pasek jest dekoracyjny, ale wypełnienie ma ≥ 3:1 do toru i do bg.surface.",
+      "track": {"$value": "{palette.neutral.200}", "$description": "Tor paska postępu procesu."},
+      "fill": {"$value": "{palette.teal.700}", "$description": "Wypełnienie paska (5,35:1 do track, 6,74:1 do bg.surface)."}
     }
   }
 }
