@@ -87,15 +87,15 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 | Nowe zlecenie | W-05 (`CreateWorkOrder`) | tak | tak | ukryte |
 | Eksport listy | — (poza MVP) | nie ma w UI | nie ma w UI | nie ma w UI |
 
-- **Responsywność:** `breakpoint.wide` — dodatkowe kolumny „Lokalizacja” (miasto i ulica), „Opiekun”, „Postęp” [P-6]; `breakpoint.expanded` — 6 kolumn priorytetowych (makieta); `breakpoint.medium` — Sidebar zwinięty, kolumny „Zlecenie”, „Status”, „Czekamy na”, „Płatność” (klient pod tytułem zlecenia); `breakpoint.compact` — lista kart (§ 3.6, § 3.8) z tymi samymi danymi priorytetowymi, filtry w arkuszu z „Pokaż wyniki (6)”, zapisane widoki przewijane poziomo.
-- **Komponenty i tokeny:** DataTable (§ 3.6) — nagłówek `color.bg.surface-subtle` + `text.label`, przyklejony (`elevation.sticky`, `layer.sticky`), wiersz `size.control.height.web.lg`, tekst `text.body-sm`, liczby `text.numeric` do prawej, `aria-sort`; FilterBar, FilterChip, SearchField, zapisane widoki (§ 3.7) — chipy `size.control.height.web.sm`, `radius.pill`; Select (§ 3.3); TextField liczba (§ 3.2); StatusBadge (§ 3.9) z `color.status.order.*`, `color.status.payment.overdue.*`; odznaka zastępcza [P-12]; ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`; Card (§ 3.8) na compact; Button primary (§ 3.1); EmptyState (§ 3.15); Skeleton (§ 3.16).
+- **Responsywność:** `breakpoint.wide` — dodatkowe kolumny „Lokalizacja” (miasto i ulica), „Opiekun”, „Postęp” (ProcedureProgress kompaktowy, § 3.23 — suma etapów procesów zlecenia); `breakpoint.expanded` — 6 kolumn priorytetowych (makieta); `breakpoint.medium` — Sidebar zwinięty, kolumny „Zlecenie”, „Status”, „Czekamy na”, „Płatność” (klient pod tytułem zlecenia); `breakpoint.compact` — lista kart (§ 3.6, § 3.8) z tymi samymi danymi priorytetowymi, filtry w arkuszu z „Pokaż wyniki (6)”, zapisane widoki przewijane poziomo.
+- **Komponenty i tokeny:** DataTable (§ 3.6) — nagłówek `color.bg.surface-subtle` + `text.label`, przyklejony (`elevation.sticky`, `layer.sticky`), wiersz `size.control.height.web.lg`, tekst `text.body-sm`, liczby `text.numeric` do prawej, `aria-sort`; FilterBar, FilterChip, SearchField, zapisane widoki (§ 3.7) — chipy `size.control.height.web.sm`, `radius.pill`; Select (§ 3.3); TextField liczba (§ 3.2); StatusBadge (§ 3.9) z `color.status.order.*`, `color.status.payment.overdue.*`; odznaka wartości nieznanej (§ 3.9.1, `color.status.unknown.*`); ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`; Card (§ 3.8) na compact; Button primary (§ 3.1); EmptyState (§ 3.15); Skeleton (§ 3.16).
 - **Mikrocopy:** „Zlecenia” · „Nowe zlecenie” · nazwy widoków z tabeli · „Szukaj: numer, tytuł, klient, adres…” · „Czekamy na” · „dłużej niż” · „dni” · „Więcej filtrów” · „Wyczyść filtry” · licznik „6 zleceń” (odmiana § 6.3) · „Najpilniejsze” · „Na stronie” · „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.”
 - **Dostępność:** wiersz jako link z nazwą „ZL-2026-0042, Garaż — pełny proces, W realizacji, czekamy na Stoen Operator (OSD) od 15 dni, płatność po terminie”; zmiana liczby wyników ogłaszana `aria-live="polite"`; filtry z etykietami; chipy aktywnych filtrów z przyciskiem „Usuń filtr …”; tytuł karty „Zlecenia · EVia Manager” — bez frazy wyszukiwania i nazw (zasady wspólne pkt 1).
 
 ## M-05 Lista zleceń
 - **Cel:** w terenie, bez zasięgu, szybko znaleźć zlecenie (po adresie, nazwisku, numerze) i wejść w nie, widząc, co jest niewysłane.
 - **Główna akcja:** wybór zlecenia (cała karta).
-- **Hierarchia treści:** 1) wyszukiwanie lokalne; 2) chipy „Wszystkie”, „Moje”, „Czekamy na…”; 3) karty: numer (albo „Oczekuje na numer” [P-8]), tytuł, status, adres (`text.body-lg`), „Czekamy na: …”, licznik niewysłanych; 4) informacja o zakresie urządzenia.
+- **Hierarchia treści:** 1) wyszukiwanie lokalne; 2) chipy „Wszystkie”, „Moje”, „Czekamy na…”; 3) karty: numer (albo „Oczekuje na numer” — § 4.15), tytuł, status, adres (`text.body-lg`), „Czekamy na: …”, licznik niewysłanych; 4) informacja o zakresie urządzenia.
 
 **Makieta (compact)**
 ```text
@@ -115,7 +115,7 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 │ │ ‹clock› 3 niewysłane         │ │ color.sync.queued.*
 │ └──────────────────────────────┘ │
 │ ┌──────────────────────────────┐ │
-│ │ ‹clock› Oczekuje na numer [P-8]│
+│ │ ‹clock› Oczekuje na numer    │ │ § 4.15
 │ │ Dom — sam montaż             │ │
 │ │ ul. Fikcyjna 12, Piaseczno   │ │
 │ │ Zapisano w telefonie 13:40   │ │
@@ -134,7 +134,7 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 | Ładowanie | Pierwsza synchronizacja po logowaniu — Skeleton kart i „Pobieramy zlecenia…”; później dane z lokalnej bazy od razu; odświeżenie pociągnięciem (spinner dozwolony — § 3.16). |
 | Błąd | Synchronizacja nieudana — SyncIndicator „Nie wysłano · Ponów” / baner „Nie udało się pobrać zmian. Pokazujemy dane z 14:05. [Spróbuj ponownie]”; lista z lokalnej bazy działa. |
 | Offline | SyncIndicator „Offline · 5” + baner § 5.4; wyszukiwanie i lista działają lokalnie. |
-| Brak uprawnień | Tylko odczyt — M-02. Tryb ukrytych danych [P-13] — zamiast listy: „Dane zleceń są ukryte — [powód]. Aparat i kolejka działają.” + akcja wyjścia (M-02). Zlecenie, do którego odebrano dostęp, znika po synchronizacji; jego niewysłane elementy zostają w Kolejce. |
+| Brak uprawnień | Tylko odczyt — M-02. Tryb ukrytych danych (§ 4.18) — zamiast listy EmptyState (dane nie są renderowane): „Dane zleceń są ukryte — [powód]. Aparat i kolejka działają.” + akcja wyjścia (M-02). Zlecenie, do którego odebrano dostęp, znika po synchronizacji; jego niewysłane elementy zostają w Kolejce. |
 
 **Role**
 | Akcja | Operacja | A | E | R |
@@ -143,6 +143,6 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 | Nowe zlecenie (z BottomNav „Dodaj”) | M-10 (`CreateQuickWorkOrder`) | tak | tak | — |
 
 - **Responsywność:** jedna kolumna kart; powiększenie czcionki do 200 % — adres zawijany, nie skracany; pozioma orientacja — karty na pełną szerokość.
-- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); SearchField i FilterChip (§ 3.7) — wysokość `size.touch-target.min`; Card zlecenia (§ 3.8) — `space.inset.md`, odstęp `space.stack.sm`, adres `text.body-lg`; StatusBadge (§ 3.9); odznaka „Oczekuje na numer” [P-8]; licznik niewysłanych `color.sync.queued.*` + `clock`; Banner (§ 3.19) — ostrzeżenie o poprawkach (M-02); EmptyState (§ 3.15); BottomNav (§ 3.18).
+- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); SearchField i FilterChip (§ 3.7) — wysokość `size.touch-target.min`; Card zlecenia (§ 3.8) — `space.inset.md`, odstęp `space.stack.sm`, adres `text.body-lg`; StatusBadge (§ 3.9; wartość nieznana — § 3.9.1, tylko odznaka na karcie); odznaka „Oczekuje na numer” (§ 4.15); licznik niewysłanych `color.sync.queued.*` + `clock`; Banner (§ 3.19) — ostrzeżenie o poprawkach (M-02); EmptyState (§ 3.15); BottomNav (§ 3.18).
 - **Mikrocopy:** „Zlecenia” · „Szukaj: adres, nazwisko, numer” · „Wszystkie” / „Moje” / „Czekamy na…” · „3 niewysłane” · „Oczekuje na numer” · „Pokazujemy zlecenia niezamknięte i zamknięte w ostatnich 30 dniach.” · „Szukamy tylko w zleceniach zapisanych w telefonie.”
 - **Dostępność:** karta jako jeden element z nazwą „ZL-2026-0042, W realizacji, ul. Testowa 7, Warszawa, czekamy na Stoen Operator od 15 dni, 3 niewysłane”; cele dotyku ≥ `size.touch-target.min`; wyszukiwanie z przyciskiem wyczyść `x`.
