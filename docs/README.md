@@ -24,7 +24,7 @@
 | | `security/rodo.md` | RODO (szkic operacyjny): inwentaryzacja, podstawy, retencja, podmioty przetwarzające, prawa osób, naruszenia |
 | Operacje | `ops/README.md` | runbooki: GitHub i CI (`ops/github-i-ci.md` — ustawienia repozytorium, scalanie PR, kontrole K1–K7, czerwony `main`), rotacja sekretów (`ops/rotacja-sekretow.md`) |
 | UX | `ux/README.md` | zasady UX, artefakty; styleguide 1.2.0 (`ux/styleguide.md`; 1.0.0 — EVM-003, 1.1.0 — EVM-004, 1.2.0 — EVM-014) |
-| | `ux/flows/README.md` | przepływy i makiety MVP: mapa nawigacji web i mobile, ekrany ze stanami i rolami, scenariusze A–D (EVM-004) |
+| | `ux/flows/README.md` | przepływy i makiety MVP: mapa nawigacji web i mobile, ekrany ze stanami i rolami, scenariusze A–D (EVM-004); makiety E1 — aktywacja i reset hasła, konto i administracja, treści e-maili (EVM-015) |
 | Backlog | `backlog/README.md` | typy, statusy, priorytety, szablon historyjki |
 | | `backlog/M0/` | fundamenty: EVM-001 … EVM-013 |
 | | `backlog/M1/` | MVP „Biuro”: EVM-014 … EVM-072; indeks `backlog/M1/README.md` — fazy, punkt pilota, pokrycie zakresu, decyzje dla Konrada |

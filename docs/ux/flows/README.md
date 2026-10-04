@@ -1,18 +1,19 @@
 # Przepływy i makiety MVP (M1–M2)
 
-> Dokument żywy (EVM-004; aktualizacja do styleguide'u 1.2.0 — EVM-014, 2026-10-04). Właściciel: `ux-designer`. Stan: **makiety low-fi zaakceptowane przez Konrada 2026-10-03 (demo EVM-004)** — wiążąca specyfikacja UI dla epików E1–E7 (panel web, M1) i E9–E13 (aplikacja mobilna, M2). Szczegóły ekranów doprecyzowujemy przy refinemencie epików; zmiana zachowania opisanego tutaj = zmiana tego dokumentu w historyjce.
+> Dokument żywy (EVM-004; aktualizacja do styleguide'u 1.2.0 — EVM-014, 2026-10-04; makiety E1 — EVM-015, 2026-10-04). Właściciel: `ux-designer`. Stan: **makiety low-fi zaakceptowane przez Konrada 2026-10-03 (demo EVM-004)** — wiążąca specyfikacja UI dla epików E1–E7 (panel web, M1) i E9–E13 (aplikacja mobilna, M2); makiety E1 z EVM-015 (przepływy 11–12, treści e-maili, warianty W-02, W-03 i W-04) — do akceptacji na demo EVM-015. Szczegóły ekranów doprecyzowujemy przy refinemencie epików; zmiana zachowania opisanego tutaj = zmiana tego dokumentu w historyjce.
 > Podstawa: styleguide **1.2.0** ([`../styleguide.md`](../styleguide.md); od 1.2.0 makiety odwołują się wyłącznie do § styleguide'u — dawne propozycje P-1…P-13 mają własne §, tabela [Propozycje do styleguide'u](#propozycje-do-styleguideu)), tokeny ([`design/tokens/`](../../../design/tokens/README.md)), model domeny ([`domain-model.md`](../../architecture/domain-model.md)), synchronizacja offline ([`offline-sync.md`](../../architecture/offline-sync.md)), polityki P1–P12 ([`policies.md`](../../security/policies.md)) i wymagania `SR-…` ([`requirements.md`](../../security/requirements.md)). Słownictwo UI: [`domain.md`](../../product/domain.md) i styleguide § 6.2.
 
 ## Spis treści
 1. [Jak czytać makiety](#jak-czytać-makiety)
 2. [Szkielet aplikacji](#szkielet-aplikacji)
 3. [Mapa nawigacji](#mapa-nawigacji) (AC1)
-4. [Ekrany](#ekrany)
+4. [Ekrany](#ekrany) — przepływy 1–10 (EVM-004) oraz przepływy E1 (EVM-015): [11 — aktywacja konta i reset hasła](11-aktywacja-i-reset-hasla.md), [12 — konto i administracja](12-konto-i-administracja.md); [treści e-maili](e-maile.md)
 5. [Macierz ekran × rola](#macierz-ekran--rola)
 6. [Zasady wspólne](#zasady-wspólne) — stany, bezpieczeństwo i prywatność w UI, dane w makietach
-7. [Pokrycie kryteriów AC2–AC5](#pokrycie-kryteriów-ac2ac5)
-8. [Zgodność z politykami P1–P7](#zgodność-z-politykami-p1p7)
-9. [Propozycje do styleguide'u](#propozycje-do-styleguideu) — od 1.2.0 mapa P-n → § styleguide'u
+7. [Pokrycie kryteriów AC2–AC5](#pokrycie-kryteriów-ac2ac5) (EVM-004)
+8. [Pokrycie EVM-015](#pokrycie-evm-015) — makiety E1 i treści e-maili
+9. [Zgodność z politykami](#zgodność-z-politykami) — P1–P7 i P9
+10. [Propozycje do styleguide'u](#propozycje-do-styleguideu) — od 1.2.0 mapa P-n → § styleguide'u
 
 ## Jak czytać makiety
 **Forma.** Diagram przepływu w Mermaid + dla każdego ekranu: cel, główna akcja, hierarchia treści, szkielet ASCII, tabela stanów, różnice ról, zachowanie responsywne, komponenty i tokeny, mikrocopy, dostępność. Makiety są low-fi: pokazują układ, hierarchię i treść, **nie** proporcje ani kolory. Wartości wizualne wynikają wyłącznie z tokenów i komponentów styleguide'u — w makietach nie ma literałów kolorów, rozmiarów ani fontów.
@@ -40,6 +41,8 @@
 **Role:** **A** — Administrator, **E** — Edytor, **R** — Tylko odczyt (słownik: [`domain.md`](../../product/domain.md)). W tabelach ról: „tak”, „tak ↑” (Administrator ze step-upem — dialog [W-04](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie)), „wyłączone” (przycisk wyłączony z podpowiedzią — styleguide § 4.13), „ukryte” (element niewidoczny — dla roli Tylko odczyt akcje edycji są zawsze ukryte). Każda akcja wskazuje komendę albo przejście z [`domain-model.md`](../../architecture/domain-model.md#stany-i-przejścia) lub [`offline-sync.md`](../../architecture/offline-sync.md#komendy-mobilne-mvp) — to wejście do testów macierzy ról (SR-AUTHZ-05). Aplikacja mobilna: Administrator = Edytor (kanał `mobile` bez funkcji administracyjnych i step-upu, SR-AUTHZ-12); Tylko odczyt — brak dostępu (P6).
 
 **Identyfikatory ekranów:** `W-xx` — panel web, `M-xx` — aplikacja mobilna. Ekrany oznaczone „bez makiety” występują tylko na mapie nawigacji; makietę dostają przy refinemencie swojego epiku.
+
+**Przepływy E1 (EVM-015):** [11](11-aktywacja-i-reset-hasla.md) — wejście z linku jednorazowego (W-13, W-12); [12](12-konto-i-administracja.md) — konto i administracja (W-15, W-16, W-18). Treści e-maili — [e-maile.md](e-maile.md): e-mail nie jest ekranem, więc plik nie ma numeru (jak [scenariusze-a-d.md](scenariusze-a-d.md)); kolejne epiki dopisują tam swoje e-maile. Przepływy EVM-071 numerujemy od 13.
 
 ## Szkielet aplikacji
 ### Panel web (M1)
@@ -93,8 +96,10 @@ flowchart LR
   subgraph wejscie["Wejście — bez nawigacji aplikacji"]
     W01["W-01 Logowanie"] --> W02["W-02 Drugi krok MFA"]
     W02 -->|"konto bez MFA"| W03["W-03 Konfiguracja MFA"]
-    W01 -.->|"Nie pamiętasz hasła?"| W12["W-12 Reset hasła · bez makiety"]
-    W13["W-13 Zaproszenie · bez makiety"] --> W03
+    W01 -.->|"Nie pamiętasz hasła?, link z e-maila"| W12["W-12 Ustaw nowe hasło"]
+    W12 -->|"reset nie omija drugiego kroku"| W02
+    W12 -->|"konto bez drugiego kroku, tylko w oknie konfiguracji po resecie przez administratora"| W03
+    W13["W-13 Ustaw hasło, zaproszenie i aktywacja"] --> W03
   end
   subgraph panel["Panel — Sidebar i TopBar"]
     subgraph zlecenia["Zlecenia"]
@@ -108,12 +113,14 @@ flowchart LR
     end
     W14["W-14 Klienci · bez makiety"]
     W11["W-11 Płatności — nieopłacone"]
-    subgraph admin["Administracja — tylko Administrator"]
-      W16["W-16 Użytkownicy · bez makiety"]
-      W17["W-17 Urządzenia użytkowników · bez makiety"]
-      W18["W-18 Dziennik audytu · bez makiety"]
+    subgraph admin["Administracja — tylko Administrator, zakładki"]
+      W16["W-16 Użytkownicy"]
+      W18["W-18 Dziennik audytu"]
+      W17["W-17 Urządzenia użytkowników · bez makiety — E9"]
+      W16 -->|"zakładka"| W18
+      W18 -->|"Osoba, Obiekt"| W16
     end
-    W15["W-15 Konto · bez makiety"]
+    W15["W-15 Konto"]
     W19["W-19 Prywatność i pomoc · bez makiety"]
   end
   W02 --> W10
@@ -125,10 +132,10 @@ flowchart LR
   W06 -.->|"przywrócenie, korekta"| W04
   W09 -.->|"skan ponowny, eksport ZIP"| W04
   W11 -.->|"korekta płatności"| W04
-  W15 -.-> W04
-  W16 -.-> W04
+  W15 -.->|"drugi krok i hasło, Moje sesje"| W04
+  W16 -.->|"każda z 7 operacji"| W04
   W17 -.-> W04
-  W18 -.-> W04
+  W18 -.->|"wejście"| W04
 ```
 
 ### Aplikacja mobilna (M2)
@@ -165,7 +172,7 @@ flowchart LR
 | W-01 | Logowanie | web | 1 | [tak](01-logowanie-mfa.md#w-01-logowanie) | E1 |
 | W-02 | Drugi krok MFA | web | 1 | [tak](01-logowanie-mfa.md#w-02-drugi-krok) | E1 |
 | W-03 | Konfiguracja MFA | web | 1 | [tak](01-logowanie-mfa.md#w-03-konfiguracja-mfa) | E1 |
-| W-04 | Ponowne uwierzytelnienie (step-up) — dialog | web | 1 (używany w 3, 6, 8) | [tak](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) | E1 |
+| W-04 | Ponowne uwierzytelnienie (step-up, pełne ponowne uwierzytelnienie, zmiana hasła) — dialog | web | 1 (używany w 3, 6, 8, 12) | [tak](01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie) | E1 |
 | W-05 | Nowe zlecenie z szablonu | web | 2 | [tak](02-nowe-zlecenie-z-szablonu.md#w-05-nowe-zlecenie) | E3 |
 | W-06 | Szczegóły zlecenia | web | 3 | [tak](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia) | E3, E4, E7 |
 | W-07 | Zmiana statusu etapu — menu i dialog | web | 4 | [tak](04-aktualizacja-etapu.md#w-07-zmiana-statusu-etapu) | E4 |
@@ -173,13 +180,13 @@ flowchart LR
 | W-09 | Media i dokumenty (zakładka zlecenia) | web | 6 | [tak](06-galeria-i-upload.md#w-09-media-i-dokumenty) | E6 |
 | W-10 | Lista zleceń z filtrami | web | 7 | [tak](07-lista-zlecen-i-filtry.md#w-10-lista-zleceń) | E3, E4 |
 | W-11 | Płatności — nieopłacone | web | 8 | [tak](08-nieoplacone.md#w-11-nieopłacone) | E7 |
-| W-12 | Reset hasła (nowe hasło z linku) | web | — | bez makiety — przy refinemencie E1 (prośba o link: W-01) | E1 |
-| W-13 | Zaproszenie — ustawienie hasła | web | — | bez makiety — przy refinemencie E1 | E1 |
+| W-12 | Ustaw nowe hasło (reset hasła z linku; prośba o link: W-01) | web | 11 | [tak](11-aktywacja-i-reset-hasla.md#w-12-ustaw-nowe-hasło) | E1 |
+| W-13 | Ustaw hasło (zaproszenie i aktywacja pierwszego Administratora) | web | 11 | [tak](11-aktywacja-i-reset-hasla.md#w-13-ustaw-hasło) | E1 |
 | W-14 | Klienci — lista i szczegóły | web | — | bez makiety — przy refinemencie E2 | E2 |
-| W-15 | Konto — profil, hasło, MFA („Drugi krok logowania”: m.in. dodanie kodu z aplikacji uwierzytelniającej do aplikacji na telefonie — cel stanu M-02 „Dodaj kod z aplikacji uwierzytelniającej”), moje sesje i urządzenia | web | — | bez makiety — przy refinemencie E1 / E9 | E1, E9 |
-| W-16 | Administracja — użytkownicy (zaproszenia, role, dezaktywacja, reset MFA) | web | — | bez makiety — przy refinemencie E1 | E1 |
-| W-17 | Administracja — urządzenia użytkowników („Wyloguj urządzenie”, „Zablokuj i wyczyść”, niewysłane elementy, poziom poprawek) | web | — | bez makiety — przy refinemencie E1 / E9 | E1, E9 |
-| W-18 | Administracja — dziennik audytu | web | — | bez makiety — przy refinemencie E1 | E1 |
+| W-15 | Konto — profil, hasło, drugi krok logowania (m.in. dodanie kodu z aplikacji uwierzytelniającej do aplikacji na telefonie — cel stanu M-02 „Dodaj kod z aplikacji uwierzytelniającej”), moje sesje; urządzenia — od E9 | web | 12 | [tak](12-konto-i-administracja.md#w-15-konto) (sekcja urządzeń — od E9) | E1, E9 |
+| W-16 | Administracja — użytkownicy (zaproszenia, role, dezaktywacja i reaktywacja, sesje, reset drugiego kroku) | web | 12 | [tak](12-konto-i-administracja.md#w-16-użytkownicy) | E1 |
+| W-17 | Administracja — urządzenia użytkowników („Wyloguj urządzenie”, „Zablokuj i wyczyść”, niewysłane elementy, poziom poprawek) | web | — | bez makiety — E9 (M2) | E9 |
+| W-18 | Administracja — dziennik audytu | web | 12 | [tak](12-konto-i-administracja.md#w-18-dziennik-audytu) | E1 |
 | W-19 | Prywatność i pomoc (klauzula informacyjna) | web | — | bez makiety — przy refinemencie E8 | E8 |
 | W-20 | Edycja lokalizacji i strony — dialog z karty „Lokalizacja” W-06 i z banera zlecenia z telefonu | web | — (używany w 3, 10) | bez makiety — przy refinemencie E3 / E4 (zachowanie i pola: [W-06 → karta „Lokalizacja”](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia); pola jak sekcja „2. Lokalizacja” i dialog „Dodaj stronę” w [W-05](02-nowe-zlecenie-z-szablonu.md#w-05-nowe-zlecenie)) | E3, E4 |
 | M-01 | Logowanie w aplikacji | mobile | 1 | [tak](01-logowanie-mfa.md#m-01-logowanie-w-aplikacji) | E9 |
@@ -202,7 +209,7 @@ Szczegóły akcji — tabele „Role” przy ekranach. „Pełny” = wszystkie 
 | Ekran | Administrator (A) | Edytor (E) | Tylko odczyt (R) |
 |---|---|---|---|
 | W-01, W-02, W-03 | passkey obowiązkowy (TOTP tylko do aplikacji mobilnej — opcjonalnie w W-03) | passkey lub TOTP; do aplikacji na telefonie TOTP (sam albo obok passkey — W-03 informuje) | passkey lub TOTP |
-| W-04 | tylko passkey | passkey lub TOTP (np. eksport ZIP) | nie występuje (rola nie ma operacji ze step-upem) |
+| W-04 | tylko passkey (step-up; w pełnym ponownym uwierzytelnieniu hasło + passkey) | passkey lub TOTP (np. eksport ZIP, W-15) | tylko własne konto w W-15: „Moje sesje” — step-up; drugi krok i hasło — pełne ponowne uwierzytelnienie |
 | W-05 | pełny | pełny | brak dostępu — przycisku „Nowe zlecenie” nie ma; wejście z linku → `403`: `lock` + „Nie możesz tworzyć zleceń.” |
 | W-06 | pełny; przywrócenie zlecenia, korekty płatności ↑ | pełny bez operacji ↑ (wyłączone z podpowiedzią) | podgląd wszystkich sekcji z płatnościami; akcje ukryte |
 | W-07 | pełny | pełny | odznaki statyczne, menu niedostępne |
@@ -210,9 +217,12 @@ Szczegóły akcji — tabele „Role” przy ekranach. „Pełny” = wszystkie 
 | W-09 | upload, edycja metadanych, oryginały, usunięcie, ponowny skan ↑, eksport ZIP ↑ | upload, edycja metadanych, oryginały, eksport ZIP ↑; usunięcie wyłączone; bez przyczyny kwarantanny | miniatury i podglądy, pliki `standard`; bez oryginałów, `identity_data`, `building_security`, eksportu |
 | W-10 | pełny | pełny | podgląd i filtry; bez „Nowe zlecenie” |
 | W-11 | wystaw, odnotuj, anuluj Planowaną; korekty ↑ | wystaw, odnotuj, anuluj Planowaną; korekty wyłączone | podgląd, sumy i filtry; akcje ukryte |
-| W-12, W-13, W-15 | tak | tak | tak |
+| W-12, W-13 | tak — bez logowania, tylko z ważnym linkiem (aktywacja: w W-03 tylko klucz dostępu) | tak — z ważnym linkiem | tak — z ważnym linkiem |
 | W-14 | pełny | pełny | podgląd |
-| W-16, W-17, W-18 | tak ↑ | brak (pozycja niewidoczna) | brak (pozycja niewidoczna) |
+| W-15 | własne konto; „Moje sesje” — step-up; drugi krok i hasło — pełne ponowne uwierzytelnienie; min. 1 klucz dostępu | jak A (min. 1 metoda: klucz dostępu lub kod z aplikacji) | jak E; blok kodu z aplikacji bez informacji o telefonie |
+| W-16 | lista; operacje ↑ (nie na własnym koncie) | brak (pozycja niewidoczna; wejście z adresu — `403` z `lock`) | brak (jw.) |
+| W-17 | bez makiety — E9 | — | — |
+| W-18 | wejście ↑ | brak (pozycja niewidoczna; wejście z adresu — `403` z `lock`) | brak (jw.) |
 | W-19 | tak | tak | tak |
 | W-20 | pełny | pełny | brak — akcje „Edytuj” ukryte (dane lokalizacji i stron widzi w karcie W-06) |
 | M-01 – M-11 | jak Edytor (kanał `mobile`: bez funkcji administracyjnych i step-upu) | pełny w zakresie „telefon tylko dodaje” | brak dostępu: [M-02](01-logowanie-mfa.md#m-02-stany-urządzenia) „Aplikacja niedostępna dla Twojej roli” (`403 channel_not_allowed`) |
@@ -246,9 +256,13 @@ Ustalenia z konsultacji `security-engineer` (EVM-004) i wymagania `SR-…`, obow
 11. **Telefon tylko dodaje** (decyzja Konrada z EVM-002): wpisy, komentarze, media, szybkie zlecenie; etapy, metadane dokumentów i dane zlecenia tylko do odczytu; bez płatności, PPE i historii lokalizacji (projekcja z `offline-sync.md`, SR-SYNC-04).
 12. **Powiadomienia systemowe** (upload w tle) bez danych osobowych: „Wysyłanie 3 z 12 plików” (SR-MOB-08); wymagają zgody (Android 13+) — prośba z ekranem wyjaśniającym, a bez zgody Banner w Kolejce ([M-07](09-mobile-zdjecia-filmy-offline.md#m-07-kolejka)).
 13. **„Cofnij”** tylko przez przejście odwrotne tej samej roli bez step-upu; operacje, których odwrócenie wymaga Administratora ze step-upem — dialog z podsumowaniem (styleguide § 4.11; lista: [04-aktualizacja-etapu.md](04-aktualizacja-etapu.md#cofnij--lista-przejść)).
+14. **Linki jednorazowe** (aktywacja, zaproszenie, reset hasła — [11](11-aktywacja-i-reset-hasla.md#zasady-wspólne-w-12-i-w-13); EVM-015): token tylko we fragmencie `#…`, usuwany z paska adresu po wczytaniu i wysyłany wyłącznie w `POST`; odświeżenie strony = link nieważny; jeden komunikat dla linku użytego, wygasłego, zastąpionego, zmienionego i bez tokenu; e-mail i rola konta dopiero po sprawdzeniu linku na serwerze; bez „Kopiuj link” i zasobów zewnętrznych (README M1 → „Tokeny w linkach jednorazowych”, SR-API-04; CWE-598).
+15. **O ponownym uwierzytelnieniu decyduje serwer** — panel pokazuje W-04 wyłącznie po odpowiedzi serwera i nie zapamiętuje, że step-up jest ważny; hasła i kody z W-04, W-12, W-13 i W-15 tylko w pamięci karty, czyszczone po sukcesie, „Anuluj” i wylogowaniu (SR-WEB-05). Błędne hasło i kod w ponownym uwierzytelnieniu liczą się do limitów logowania (SR-AUTH-05; EVM-015, ustalenie S7).
 
 ### Dane w makietach
 Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby („Jan Przykładowy”, „Anna Testowa”), adresy („ul. Testowa 7, 00-001 Warszawa”), telefony w formacie z § 6.3 z fikcyjnymi cyframi, e-maile tylko w domenach `example.com` i `*.test` (RFC 2606), numery zleceń w formacie modelu (`ZL-2026-0042`), numery faktur oznaczone `TEST`, bez numerów PESEL, NIP i tablic rejestracyjnych (także na podglądzie aparatu). **PPE wyłącznie w formie oznaczonej `TEST`**, której nie da się pomylić z prawdziwym kodem PPE (np. `PL-TEST-0001`), i tylko w makietach panelu — w makietach aplikacji mobilnej PPE nie występuje (projekcja telefonu jest bez PPE — zasada 11). Nazwa OSD jako firmy (np. „Stoen Operator”) jest dopuszczalna — to rodzaj strony, nie klient.
+
+Od EVM-015 także: **adresy IP wyłącznie z zakresów dokumentacyjnych** — IPv4 z RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), IPv6 z RFC 3849 (`2001:db8::/32`); **bez przykładowych wartości tokenów, kodów z aplikacji i kodów odzyskiwania** (w makietach i e-mailach — opis albo `[token]`); adres panelu w e-mailach — `[adres panelu]`. Diagramy Mermaid renderujemy wyłącznie lokalnie (bez serwisów online).
 
 ## Pokrycie kryteriów AC2–AC5
 | AC2 — przepływ | Plik | Diagram | Ekrany z makietą |
@@ -268,18 +282,37 @@ Wyłącznie dane syntetyczne (SR-PRIV-08, styleguide § 6.3): fikcyjne osoby (�
 - **AC4 — zgodność ze styleguide'em:** każdy ekran ma listę „Komponenty i tokeny” z odwołaniami do § styleguide'u 1.2.0 (EVM-014); elementy, które w EVM-004 były propozycjami P-1…P-13, wskazują teraz swoje § (§ 3.2.1, § 3.9.1, § 3.15.1, § 3.20–§ 3.24, § 4.14–§ 4.18).
 - **AC5 — scenariusze A–D:** [scenariusze-a-d.md](scenariusze-a-d.md).
 
-## Zgodność z politykami P1–P7
+## Pokrycie EVM-015
+Makiety ekranów E1 odłożonych w EVM-004 do refinementu epiku ([historyjka EVM-015](../../backlog/M1/EVM-015-makiety-e1.md)).
+
+| AC | Plik | Ekran / sekcja |
+|---|---|---|
+| AC1 — W-13 „Ustaw hasło” | [11-aktywacja-i-reset-hasla.md](11-aktywacja-i-reset-hasla.md) | [W-13](11-aktywacja-i-reset-hasla.md#w-13-ustaw-hasło), [Zasady wspólne W-12 i W-13](11-aktywacja-i-reset-hasla.md#zasady-wspólne-w-12-i-w-13), [Pole nowego hasła](11-aktywacja-i-reset-hasla.md#pole-nowego-hasła), diagram przepływu |
+| AC2 — W-12 „Ustaw nowe hasło” | [11-aktywacja-i-reset-hasla.md](11-aktywacja-i-reset-hasla.md), [01-logowanie-mfa.md](01-logowanie-mfa.md) | [W-12](11-aktywacja-i-reset-hasla.md#w-12-ustaw-nowe-hasło); W-01 (formularz „Zresetuj hasło” z pustym polem), W-02 (komunikat po resecie) |
+| AC3 — W-15 „Konto” | [12-konto-i-administracja.md](12-konto-i-administracja.md) | [W-15](12-konto-i-administracja.md#w-15-konto) — Profil, Hasło, Drugi krok logowania, Moje sesje; Urządzenia — od E9 |
+| AC4 — W-16 „Użytkownicy” | [12-konto-i-administracja.md](12-konto-i-administracja.md) | [W-16](12-konto-i-administracja.md#w-16-użytkownicy) — lista, 7 operacji z dialogami, ochrona ostatniego aktywnego Administratora |
+| AC5 — W-18 „Dziennik audytu” | [12-konto-i-administracja.md](12-konto-i-administracja.md) | [W-18](12-konto-i-administracja.md#w-18-dziennik-audytu), [Etykiety akcji E1](12-konto-i-administracja.md#etykiety-akcji-e1) |
+| AC6 — treści e-maili E1 | [e-maile.md](e-maile.md) | zasady treści, stopka, 9 szablonów z wariantami |
+| AC7 — spójność z EVM-004 | [01-logowanie-mfa.md](01-logowanie-mfa.md), ten plik | W-03 — warianty „przed EVM-023” i „od EVM-023”; W-04 — trzy zastosowania i tytuły operacji E1; W-02 — wariant zależny od decyzji 16; mapa nawigacji, tabela „Ekrany”, macierz ekran × rola (W-17 — „bez makiety — E9”); słownictwo — [`domain.md`](../../product/domain.md) |
+| AC8 — jakość | wszystkie pliki wyżej | dane syntetyczne ([Dane w makietach](#dane-w-makietach)), diagramy Mermaid renderowane lokalnie, `npm run docs:check` |
+
+Ekrany W-12–W-18 działają wyłącznie w panelu web; step-up, zmiana hasła i zmiany drugiego kroku nie występują w aplikacji mobilnej (SR-AUTHZ-12).
+
+## Zgodność z politykami
 | Polityka | Co w makietach | Gdzie |
 |---|---|---|
-| P1 — MFA | MFA dla wszystkich ról; Administrator w panelu — passkey; TOTP Administratora tylko w aplikacji; aplikacja na telefonie tylko z TOTP — W-03 informuje A i E i pozwala dodać TOTP obok passkey, konto bez TOTP na telefonie → M-02 z drogą do panelu (Konto → Drugi krok logowania), bez konfiguracji MFA na telefonie; kody odzyskiwania pokazane raz; step-up i funkcje administracyjne tylko w panelu; bez „Zapamiętaj mnie” | [01](01-logowanie-mfa.md) W-01–W-04, M-01, M-02 |
-| P2 — sesje i urządzenia | `401 session_revoked` („Wyloguj urządzenie” — kolejka zostaje), `401 device_wipe_required` („Zablokuj i wyczyść”), 7 dni offline (dane ukryte, aparat i kolejka działają), limit urządzeń, logowanie innej osoby = wyczyszczenie, ostrzeżenie o wygaśnięciu sesji web | [01](01-logowanie-mfa.md) M-02, [09](09-mobile-zdjecia-filmy-offline.md) M-09, zasady wspólne pkt 5 |
+| P1 — MFA | MFA dla wszystkich ról; Administrator w panelu — passkey; TOTP Administratora tylko w aplikacji; aplikacja na telefonie tylko z TOTP — W-03 informuje A i E i pozwala dodać TOTP obok passkey, konto bez TOTP na telefonie → M-02 z drogą do panelu (Konto → Drugi krok logowania), bez konfiguracji MFA na telefonie; kody odzyskiwania pokazane raz; step-up i funkcje administracyjne tylko w panelu; bez „Zapamiętaj mnie”. Od EVM-015: W-03 przed EVM-023 — tylko klucz dostępu; W-15 — zmiany drugiego kroku po pełnym ponownym uwierzytelnieniu, reguły ostatniej metody (Administrator — min. 1 klucz dostępu), nowe kody pokazane raz, zachęta do drugiego klucza (decyzja 3); W-16 — reset drugiego kroku po weryfikacji tożsamości (osobiście / wideo, bez notatki) z oknem konfiguracji (rekomendacja ≤ 24 h — [11](11-aktywacja-i-reset-hasla.md#konto-bez-drugiego-kroku)), ochrona ostatniego aktywnego Administratora i ostrzeżenie „jedyny aktywny administrator” (pkt 5); kod odzyskiwania przy step-upie niedostępny, przed dodaniem metody — zależnie od decyzji 16; alerty dla Administratorów | [01](01-logowanie-mfa.md) W-01–W-04, M-01, M-02; [12](12-konto-i-administracja.md) W-15, W-16; [e-maile](e-maile.md) |
+| P2 — hasła, sesje i urządzenia | `401 session_revoked` („Wyloguj urządzenie” — kolejka zostaje), `401 device_wipe_required` („Zablokuj i wyczyść”), 7 dni offline (dane ukryte, aparat i kolejka działają), limit urządzeń, logowanie innej osoby = wyczyszczenie, ostrzeżenie o wygaśnięciu sesji web. Od EVM-015: hasło min. 15 znaków bez reguł złożoności (W-12, W-13, W-15); linki jednorazowe 30 min / 72 h; reset kończy sesje i nie omija drugiego kroku — konto bez drugiego kroku konfiguruje go (W-03) tylko w oknie po resecie przez administratora, poza nim nie dostaje linku resetu; zmiana hasła — bieżące hasło i drugi krok, potem propozycja „Zakończ pozostałe sesje”; limit 5 sesji web z e-mailem o najstarszej; step-up dla operacji W-16, wejścia do W-18 i „Moje sesje”; skutki dla urządzeń w dialogach W-16 — od E9 | [01](01-logowanie-mfa.md) M-02, [09](09-mobile-zdjecia-filmy-offline.md) M-09, zasady wspólne pkt 5, 14, 15; [11](11-aktywacja-i-reset-hasla.md) W-12, W-13; [12](12-konto-i-administracja.md) W-15, W-16, W-18 |
 | P3 — EXIF / GPS | aparat bez wskaźnika lokalizacji, brak „Z galerii”; ostrzeżenie o metadanych przy „Pobierz oryginał”; lightbox bez panelu EXIF / GPS | [06](06-galeria-i-upload.md) W-09, [09](09-mobile-zdjecia-filmy-offline.md) M-06 |
 | P5 — skanowanie plików | stany „Sprawdzanie pliku”, „Wymaga uwagi” (przyczyna i „Skanuj ponownie” ↑ tylko Administrator), „Nieskanowany antywirusem — plik za duży”; brak podglądu i pobrania przed `clean` (styleguide § 4.14) | [06](06-galeria-i-upload.md) W-09, [09](09-mobile-zdjecia-filmy-offline.md) M-07, M-08 |
 | P6 — Tylko odczyt | widzi płatności i dokumenty `standard`; bez oryginałów, `identity_data`, `building_security`, eksportu i aplikacji mobilnej; bez akcji edycji; klasa poufności dokumentu przy uploadzie | wszystkie tabele ról; [06](06-galeria-i-upload.md) W-09; [01](01-logowanie-mfa.md) M-02 |
 | P7 — telefony | blokada ekranu (logowanie odrzucone, w trakcie sesji — dane ukryte), ostrzeżenie o poprawkach bezpieczeństwa (6 / 12 miesięcy, nieblokujące), blokada aplikacji po 5 min w tle, „Wyczyść dane firmowe”; uprawnienia: aparat i mikrofon (P7 pkt 3) oraz powiadomienia o wysyłaniu (Android 13+; poza listą P7 pkt 3 — uwaga dla `security-engineer` w historyjce), każde w momencie użycia z ekranem wyjaśniającym przed monitem systemu i stanem odmowy (brak mikrofonu wyłącza tylko film); bez lokalizacji, galerii i kontaktów | [01](01-logowanie-mfa.md) M-01, M-02; [09](09-mobile-zdjecia-filmy-offline.md) M-06, M-07, M-09 |
+| P9 — adres IP (EVM-015) | „Moje sesje” — pełny adres IP wyłącznie przy własnych sesjach, po step-upie; W-16 — bez adresów IP; W-18 — tylko prefiks IPv4 /24 albo IPv6 /48, bez łączenia z pełnym IP sesji; e-maile — bez IP i geolokalizacji; adresy w makietach z RFC 5737 / RFC 3849 | [12](12-konto-i-administracja.md) W-15, W-16, W-18; [e-maile](e-maile.md) |
 
 ## Propozycje do styleguide'u
 Propozycje z EVM-004 (zaakceptowane przez Konrada 2026-10-03) są **od styleguide'u 1.2.0 (EVM-014) jego częścią** — obowiązuje opis w § z kolumny „Od 1.2.0”; zapis akceptacji, rozstrzygnięcia projektowe i zmiany kolumny „Ekrany”: styleguide § 8 → 1.2.0 i „Propozycje (EVM-004)”. Kolumna „Ekrany” = ekrany, których makieta, tabela stanów lub lista „Komponenty i tokeny” używa elementu (także przez notację `⋮`, `▸` / `▾`, `«… ▾»`); jest taka sama jak w styleguide § 8.
+
+**Makiety E1 (EVM-015):** kolumna „Ekrany” tu i w styleguide § 8 to zapis makiet EVM-004 dla wersji 1.2.0 — nie obejmuje W-12–W-18. Użycie komponentów w makietach E1 (m.in. ActionMenu § 3.20 w W-16, pole kodu § 3.2.1 w W-04 i W-15) pokazują listy „Komponenty i tokeny” ekranów w [11](11-aktywacja-i-reset-hasla.md) i [12](12-konto-i-administracja.md). Odświeżenie kolumny — przy najbliższej wersji styleguide'u (EVM-015 → „Uwagi do rozważenia”). Makiety E1 nie wymagają nowych tokenów ani komponentów.
 
 | ID | Element | Od 1.2.0 | Ekrany |
 |---|---|---|---|
