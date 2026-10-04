@@ -1,7 +1,7 @@
 # Treści e-maili
 
 > Dokument żywy (EVM-015; kolejne epiki dopisują swoje e-maile). Prowadzi: `ux-designer`. E-mail nie jest ekranem, więc plik nie ma numeru przepływu (jak `scenariusze-a-d.md`). Indeks makiet: [README.md](README.md); ekrany, do których prowadzą linki: [11](11-aktywacja-i-reset-hasla.md) (W-13, W-12), [01](01-logowanie-mfa.md) (W-01), [12](12-konto-i-administracja.md) (W-15, W-18).
-> Źródła: SR-INPUT-07, SR-AUTH-05, -08, -10, -11, -12, -13, -15, SR-SESS-04, SR-LOG-07, SR-API-04; polityki P1, P2, P9 ([`policies.md`](../../security/policies.md)); README M1 → „Zasady wspólne” → „Tokeny w linkach jednorazowych”; konsultacja `security-engineer` w EVM-015 (S1, S6, kontrola 10). Historyjki: EVM-023, EVM-024, EVM-025, EVM-026, EVM-027, EVM-028.
+> Źródła: SR-INPUT-07, SR-AUTH-05, -08, -10, -11, -12, -13, -15, SR-SESS-04, SR-LOG-07, SR-API-04; polityki P1, P2, P9 ([`policies.md`](../../security/policies.md)); README M1 → „Zasady wspólne” → „Tokeny w linkach jednorazowych”; decyzja Konrada 16 (kod odzyskiwania tylko w logowaniu — potwierdzona na demo EVM-015 2026-10-04); konsultacja `security-engineer` w EVM-015 (S6, kontrola 10). Historyjki: EVM-023, EVM-024, EVM-025, EVM-026, EVM-027, EVM-028.
 
 ## Zasady treści e-maili
 1. **Zwykły tekst** — bez HTML, obrazów i pikseli śledzących. E-mail nie jest interfejsem panelu, więc nie korzysta z tokenów styleguide'u.
@@ -21,6 +21,11 @@
 11. **U dostawcy e-maili wyłączone śledzenie otwarć i kliknięć** — przepisanie linków przez dostawcę wysłałoby mu token z fragmentu adresu. Wymóg dla EVM-007 i EVM-024 (konfiguracja Scaleway TEM).
 12. **Stopka antyphishingowa** — w każdym e-mailu (niżej).
 13. **Środowiska:** staging — wyłącznie adresy z listy dozwolonych (decyzja 15), dev i testy — Mailpit; nigdy wysyłka przez dostawcę na domeny `example.com` ani `.test` (EVM-024 AC6).
+14. **Kodowanie** (SR-INPUT-07; ASVS V1.3.11, V1.3.7; CWE-93, CWE-116):
+    - `Content-Type: text/plain; charset=UTF-8`, `Content-Transfer-Encoding: quoted-printable` albo `base64`;
+    - temat z polskimi znakami jako encoded-word UTF-8 (RFC 2047);
+    - nagłówki i treść koduje biblioteka pocztowa — bez ręcznego składania nagłówków; walidacja odbiorcy i tematu bez CR/LF — zasada 2;
+    - test w Mailpit (EVM-007, EVM-024): polskie znaki w temacie i treści są poprawne, a link z tokenem we fragmencie zostaje nienaruszony i klikalny — nie dzieli go zawijanie wierszy.
 
 **Stopka (każdy e-mail)**
 ```text
@@ -42,7 +47,7 @@ wpisz adres panelu samodzielnie i skontaktuj się z administratorem.
 | 6 | Użycie kodu odzyskiwania | adres konta | W-15 `#drugi-krok` — bez tokenu | EVM-023 | SR-AUTH-08, SR-AUTH-15 |
 | 7 | Logowanie z nowej przeglądarki | adres konta | W-01 „Zresetuj hasło”, W-15 — bez tokenu | EVM-026 | SR-AUTH-15 |
 | 8 | Zakończenie najstarszej sesji | adres konta | W-15 — bez tokenu | EVM-028 | SR-SESS-04 |
-| 9 | Alert dla Administratorów (8 wariantów) | wszyscy aktywni Administratorzy | W-18 — bez tokenu | EVM-023, EVM-024, EVM-026, EVM-027, EVM-028 | SR-LOG-07, SR-AUTH-15 |
+| 9 | Alert dla Administratorów (7 wariantów) | wszyscy aktywni Administratorzy | W-18 — bez tokenu | EVM-024, EVM-026, EVM-027, EVM-028 | SR-LOG-07, SR-AUTH-15 |
 
 Logowanie z nowego urządzenia mobilnego (SR-AUTH-15) — od E9.
 
@@ -161,19 +166,20 @@ Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:
 Bez nazwy klucza dostępu i bez wskazania, kto wykonał reset. Termin w wariancie „Reset przez Administratora” to koniec okna konfiguracji — długość z planu EVM-027 (rekomendacja ≤ 24 h; przykład: reset 04.10.2026, 14:05 + 24 h); zasady okna — [11 → Konto bez drugiego kroku](11-aktywacja-i-reset-hasla.md#konto-bez-drugiego-kroku).
 
 ## 6. Użycie kodu odzyskiwania
-- **Kiedy:** logowanie kodem odzyskiwania w W-02 (EVM-023 AC5); przy przyjęciu S1 (decyzja 16) — także pełne ponowne uwierzytelnienie kodem przed dodaniem metody w W-15 (wtedy dodatkowo e-mail 5).
+- **Kiedy:** logowanie kodem odzyskiwania w W-02 (EVM-023 AC5). Kod odzyskiwania działa wyłącznie w logowaniu — w żadnym ponownym uwierzytelnieniu (decyzja 16), więc e-mail ma jeden wariant.
 - **Temat:** `EVia Manager: użyto kodu odzyskiwania`
 
 ```text
 Dzień dobry,
 
-do konta w EVia Manager użyto kodu odzyskiwania 04.10.2026, 14:05
-[przy logowaniu / przy potwierdzeniu tożsamości przed dodaniem metody].
-Pozostało 9 kodów.
+zalogowano się do konta w EVia Manager kodem odzyskiwania
+04.10.2026, 14:05. Pozostało 9 kodów.
 
 Każdy kod działa raz. Gdy zostaną 3 lub mniej, wygeneruj nowe:
 Konto → Drugi krok logowania
 [link: Drugi krok logowania]
+Jeśli nie masz już żadnej metody drugiego kroku, poproś administratora
+o reset drugiego kroku logowania.
 
 Jeśli to nie Ty, ktoś zna hasło i ma kody odzyskiwania — od razu
 ustaw nowe hasło i powiadom administratora:
@@ -181,6 +187,7 @@ ustaw nowe hasło i powiadom administratora:
 
 [stopka]
 ```
+Zmienne: czas zdarzenia, liczba pozostałych kodów. Zdanie o resecie przez administratora jest stałe — nowe kody wymagają działającej metody (pełne ponowne uwierzytelnienie bez kodu odzyskiwania); blok „Jeśli to nie Ty…” zostaje bez zmian.
 
 ## 7. Logowanie z nowej przeglądarki
 - **Kiedy:** udane logowanie z przeglądarki, z której konto wcześniej się nie logowało (EVM-026 AC4; mechanizm rozpoznania — plan EVM-026, bez odcisku przeglądarki). Konto Administratora — dodatkowo alert 9.
@@ -252,10 +259,9 @@ i skontaktuj się z pozostałymi administratorami.
 | Logowanie Administratora z nowej przeglądarki | nowa przeglądarka | „zalogowano się do konta administratora z nowej przeglądarki.” | EVM-026 AC4 |
 | Nadanie roli Administrator | nowy administrator | „nadano rolę Administrator jednemu z kont.” | EVM-027 AC7 |
 | Odebranie roli Administrator | odebrana rola | „odebrano rolę Administrator jednemu z kont.” | EVM-027 AC7 |
-| Zaproszenie z rolą Administrator | zaproszenie administratora | „wysłano zaproszenie z rolą Administrator.” | EVM-024 (kontrola 10, AB-02) |
-| Reaktywacja konta Administratora | reaktywacja administratora | „reaktywowano konto z rolą Administrator.” | EVM-027 (kontrola 10, AB-02) |
+| Zaproszenie z rolą Administrator (także wysłane ponownie) | zaproszenie administratora | „wysłano zaproszenie z rolą Administrator.” | EVM-024 AC1 |
+| Reaktywacja konta Administratora | reaktywacja administratora | „reaktywowano konto z rolą Administrator.” | EVM-027 AC7 |
 | Reset drugiego kroku Administratora | reset drugiego kroku | „zresetowano drugi krok logowania konta administratora.” | EVM-027 AC7 |
-| Zmiana drugiego kroku konta Administratora | zmiana drugiego kroku | „zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).” | EVM-023, EVM-028 (kontrola 10; przy S1 — kontrola kompensująca) |
-| Użycie kodu odzyskiwania przed dodaniem metody (tylko przy S1) | kod odzyskiwania administratora | „do konta administratora użyto kodu odzyskiwania przy dodawaniu metody drugiego kroku.” | EVM-023, EVM-028 (S1 b) |
+| Zmiana drugiego kroku konta Administratora | zmiana drugiego kroku | „zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).” | EVM-028 AC3 i AC5 (nowe kody — alert wymagany przez SR-LOG-07; wejście do planu EVM-028) |
 
 Bez wskazania osoby, nazwy konta, adresu e-mail i adresu IP — te dane zobaczy Administrator w W-18 po step-upie.

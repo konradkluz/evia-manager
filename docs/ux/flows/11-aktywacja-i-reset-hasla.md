@@ -11,7 +11,7 @@ flowchart TD
     A1["W-16 Zaproś użytkownika, e-mail z linkiem, EVM-024"] --> A2
     A2["Otwarcie linku: token z fragmentu do pamięci karty i usunięty z paska adresu"] --> A3{"Sprawdzenie linku: POST bez zużycia"}
     A3 -->|"ważny"| A4["W-13 Ustaw hasło: e-mail i rola konta"]
-    A3 -->|"użyty, wygasły, zastąpiony, zmieniony, bez tokenu, po odświeżeniu"| A5["W-13 Link jest nieważny lub wygasł"]
+    A3 -->|"użyty, wygasły, zastąpiony, zmieniony, unieważniony, bez tokenu, po odświeżeniu"| A5["W-13 Link jest nieważny lub wygasł"]
     A3 -->|"429"| A6["W-13 Zbyt wiele prób, czas z Retry-After"]
     A3 -->|"brak połączenia"| A7["W-13 baner offline"]
     A6 -->|"Spróbuj ponownie"| A3
@@ -52,7 +52,7 @@ Kontrole z konsultacji `security-engineer` (EVM-015 — kontrole 1, 3, 4, 9, 12 
 4. **Dane konta dopiero po sprawdzeniu** (S3): e-mail konta (W-12, W-13) i rola (W-13) wracają z serwera wyłącznie po sprawdzeniu ważnego tokenu. Stan przed odpowiedzią i stan linku nieważnego nie pokazują e-maila, nazwy ani roli. `displayName` nie pojawia się na tych ekranach w ogóle.
 5. **Samo otwarcie linku go nie zużywa** — skaner linków w poczcie go nie „spali”. Link przestaje działać po aktywacji konta (W-13: EVM-016 AC4, EVM-024 AC3) albo po ustawieniu nowego hasła (W-12). Po zapisie hasła token znika z pamięci karty. Przerwana konfiguracja drugiego kroku po W-13: logowanie nowym hasłem w W-01 prowadzi z powrotem do W-03 (`403 mfa_enrollment_required`).
 6. **Odświeżenie strony = link bez tokenu** → stan „Link jest nieważny lub wygasł.”. Ponowne otwarcie linku z wiadomości działa, dopóki link jest ważny.
-7. **Jeden komunikat** „Link jest nieważny lub wygasł.” dla linku użytego, wygasłego, zastąpionego (nowszy link albo nowe zaproszenie), zmienionego i bez tokenu — bez informacji o koncie (CWE-204).
+7. **Jeden komunikat** „Link jest nieważny lub wygasł.” dla linku użytego, wygasłego, zastąpionego (nowszy link albo nowe zaproszenie), zmienionego, bez tokenu i unieważnionego dezaktywacją konta (także po reaktywacji — reaktywacja nie przywraca linku) — bez informacji o koncie (CWE-204). W W-13 ta sama treść dla zaproszenia i linku z polecenia na serwerze: bez słów „zaproszenie” i „dezaktywowano”, bez roli i e-maila — rodzaj linku i stan konta też są informacjami o koncie. Plany EVM-016 i EVM-024: ten sam kod odpowiedzi, ta sama treść i porównywalny czas odpowiedzi dla wszystkich tych przypadków.
 8. **Bez „Kopiuj link”**, bez zasobów i linków zewnętrznych (fonty, obrazy, skrypty, analityka — tylko zasoby panelu). Stopka „Prywatność · Pomoc” prowadzi do stron panelu, jak w W-01.
 9. **Hasło i token tylko w pamięci karty** (SR-WEB-05) — nigdy w `localStorage`, `sessionStorage`, IndexedDB ani ciasteczkach; czyszczone po sukcesie i przy zamknięciu karty.
 10. **Inne konto zalogowane w tej przeglądarce** — InlineAlert informacyjny „Ustawienie hasła wyloguje bieżące konto w tej przeglądarce.” (bez nazwy tego konta). Po zapisie powstaje nowa sesja z nowym identyfikatorem (SR-SESS-02), a poprzednia się kończy.
@@ -114,12 +114,13 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
  │  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒                                 │
  │  ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒                       │
 
- Link nieważny (jeden stan dla wszystkich przypadków — bez danych konta):
+ Link nieważny (jeden stan dla wszystkich przypadków i obu rodzajów linku
+ — z W-16 i z polecenia na serwerze; bez danych konta):
  │            ‹link-2-off› (size.icon.2xl)          │
  │  Link jest nieważny lub wygasł.                  │
- │  Otwórz link jeszcze raz, prosto z wiadomości    │
- │  z zaproszeniem. Jeśli nadal nie działa, poproś  │
- │  administratora o nowe zaproszenie.              │
+ │  Otwórz link jeszcze raz — w całości, tak jak    │
+ │  go otrzymano. Jeśli nadal nie działa, poproś    │
+ │  o nowy link osobę, która go przekazała.         │
  │  [[ Przejdź do logowania ]]                      │
 ```
 
@@ -128,7 +129,7 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
 |---|---|
 | Pusty | Po sprawdzeniu linku: pole „Nowe hasło” puste z fokusem; e-mail i rola z odpowiedzi serwera. Bez pola nazwy wyświetlanej (ustala ją zaproszenie; zmiana — W-15). |
 | Ładowanie | Sprawdzanie linku — „Sprawdzamy link…” (`role="status"`) i Skeleton (§ 3.16) w kształcie pól, bez e-maila i roli; zapis — „Ustaw hasło” w stanie ładowania (§ 3.1), pole tylko do odczytu do odpowiedzi. |
-| Błąd | Link nieważny — stan „Link jest nieważny lub wygasł.” (makieta) z „Przejdź do logowania”; ten sam stan, gdy link przestał działać między sprawdzeniem a zapisem (hasło czyszczone). Hasło — komunikaty z [Pole nowego hasła](#pole-nowego-hasła). `429` przy sprawdzeniu albo zapisie — „Zbyt wiele prób. Spróbuj ponownie za 1 min.” (czas z `Retry-After`) i „Spróbuj ponownie” (token zostaje w pamięci karty). Błąd serwera — § 6.4 z kodem pomocniczym. |
+| Błąd | Link nieważny — stan „Link jest nieważny lub wygasł.” (makieta) z „Przejdź do logowania”: jedna neutralna treść dla obu rodzajów linku (z W-16 i z polecenia na serwerze), także dla linku unieważnionego dezaktywacją konta ([W-16](12-konto-i-administracja.md#w-16-użytkownicy), dialog 4) i po reaktywacji (dialog 5 — reaktywacja nie przywraca linku); ten sam stan, gdy link przestał działać między sprawdzeniem a zapisem (hasło czyszczone). Hasło — komunikaty z [Pole nowego hasła](#pole-nowego-hasła). `429` przy sprawdzeniu albo zapisie — „Zbyt wiele prób. Spróbuj ponownie za 1 min.” (czas z `Retry-After`) i „Spróbuj ponownie” (token zostaje w pamięci karty). Błąd serwera — § 6.4 z kodem pomocniczym. |
 | Offline | Przy wczytaniu — Banner § 4.10 „Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.” i „Spróbuj ponownie”, bez formularza (link niesprawdzony). Po sprawdzeniu — baner, „Ustaw hasło” wyłączony z podpowiedzią „Ustawisz hasło po powrocie połączenia.”; wpisane hasło zostaje w pamięci karty. |
 | Brak uprawnień | nd. przed zalogowaniem — dostęp daje wyłącznie ważny link (operacja publiczna z limitem P10); link nieważny to stan błędu wyżej, bez `403` / `404` i bez danych konta. Inne konto zalogowane w tej przeglądarce — InlineAlert z makiety (zasada wspólna 10). |
 
@@ -141,7 +142,7 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
 
 - **Responsywność:** jak W-01 — karta w kolumnie `size.form.max-width` na środku; `breakpoint.compact` — karta na całą szerokość z marginesem siatki, stopka pod kartą. Link otwarty na telefonie — ten sam układ compact.
 - **Komponenty i tokeny:** Card (§ 3.8) `color.bg.surface`, `radius.card`, `space.inset.lg` na tle `color.bg.brand`; logo i stopka `color.text.on-brand`; tytuł `text.heading-2`, rola `text.body` `color.text.secondary`; TextField (§ 3.2) — hasło (pokaż / ukryj) i e-mail tylko do odczytu (bez obrysu, `color.text.primary`); podpowiedź `text.body-sm` `color.text.tertiary`, błąd `color.text.error` + `circle-alert`; Button primary (§ 3.1) `size.control.height.web.lg`; InlineAlert (§ 3.19) `color.feedback.info.*` (inne konto zalogowane), `color.feedback.error.*` (`429`, błąd serwera); stan linku nieważnego — EmptyState (§ 3.15) w karcie: ikona `link-2-off` `size.icon.2xl` `color.icon.secondary`, tytuł `text.heading-3`, opis `text.body` `color.text.secondary`, Button primary; Skeleton (§ 3.16); Banner offline (§ 4.10); odstępy `space.stack.md`, `space.stack.lg`; fokus w karcie `color.focus.ring`, w stopce na tle marki `color.focus.ring-inverse`.
-- **Mikrocopy:** „Ustaw hasło” · „Aktywacja konta · rola: Edytor” (Administrator, Tylko odczyt) · „Ustawienie hasła wyloguje bieżące konto w tej przeglądarce.” · „E-mail” · „Nowe hasło” · „Pokaż” / „Ukryj” · „Co najmniej 15 znaków — może to być zdanie ze spacjami.” · „Następny krok: drugi krok logowania.” · „Sprawdzamy link…” · „Link jest nieważny lub wygasł.” · „Otwórz link jeszcze raz, prosto z wiadomości z zaproszeniem. Jeśli nadal nie działa, poproś administratora o nowe zaproszenie.” · „Przejdź do logowania” · „Zbyt wiele prób. Spróbuj ponownie za 1 min.” · „Spróbuj ponownie” · „Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.” · „Ustawisz hasło po powrocie połączenia.” · komunikaty hasła — [Pole nowego hasła](#pole-nowego-hasła).
+- **Mikrocopy:** „Ustaw hasło” · „Aktywacja konta · rola: Edytor” (Administrator, Tylko odczyt) · „Ustawienie hasła wyloguje bieżące konto w tej przeglądarce.” · „E-mail” · „Nowe hasło” · „Pokaż” / „Ukryj” · „Co najmniej 15 znaków — może to być zdanie ze spacjami.” · „Następny krok: drugi krok logowania.” · „Sprawdzamy link…” · „Link jest nieważny lub wygasł.” · „Otwórz link jeszcze raz — w całości, tak jak go otrzymano. Jeśli nadal nie działa, poproś o nowy link osobę, która go przekazała.” · „Przejdź do logowania” · „Zbyt wiele prób. Spróbuj ponownie za 1 min.” · „Spróbuj ponownie” · „Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.” · „Ustawisz hasło po powrocie połączenia.” · komunikaty hasła — [Pole nowego hasła](#pole-nowego-hasła).
 - **Dostępność:** tytuł karty „Aktywacja konta · EVia Manager”; po sprawdzeniu linku fokus na polu „Nowe hasło” (stan ważny) albo na tytule stanu nieważnego; „Sprawdzamy link…” w `role="status"`; błędy w `role="alert"` z fokusem na polu albo komunikacie; podpowiedź powiązana z polem (`aria-describedby`); „Pokaż” z `aria-pressed` i nazwą „Pokaż hasło”; e-mail jako `readonly` z `autocomplete="username"`, hasło z `autocomplete="new-password"`; wklejanie i menedżery haseł działają, bez CAPTCHA i testów poznawczych (WCAG 3.3.8); ikona `link-2-off` dekoracyjna (`aria-hidden`); brak limitu czasu poza ważnością linku (72 h).
 
 ## W-12 Ustaw nowe hasło
@@ -202,7 +203,7 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
 | Offline | Jak W-13: przy wczytaniu baner § 4.10 „Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.” i „Spróbuj ponownie”; po sprawdzeniu — „Ustaw nowe hasło” wyłączony z podpowiedzią, hasło zostaje w pamięci karty. Link działa 30 minut — tekst nie obiecuje dłuższej ważności. |
 | Brak uprawnień | nd. przed zalogowaniem — dostęp daje wyłącznie ważny link. Konto dezaktywowane nie dostaje linku (EVM-025 AC1); link wydany przed dezaktywacją — stan linku nieważnego. Konto bez drugiego kroku poza oknem konfiguracji też nie dostaje linku, a link wydany w oknie przestaje działać z jego końcem — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Konto zablokowane po nieudanych logowaniach — reset działa i zdejmuje blokadę (EVM-026 AC7). |
 
-**Po zapisie** (SR-AUTH-11, EVM-025 AC4–AC5): serwer kończy wszystkie sesje web konta (następne żądanie — `401 session_revoked`) i wysyła e-mail „Hasło zostało zmienione” ([e-maile.md](e-maile.md)). Panel przechodzi do W-02 z InlineAlert z makiety — dopiero po drugim kroku powstaje sesja. Konto bez drugiego kroku przechodzi do W-03 **wyłącznie w oknie konfiguracji** po resecie przez administratora — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Sesje urządzeń mobilnych — od E9.
+**Po zapisie** (SR-AUTH-11, EVM-025 AC4–AC5): serwer kończy wszystkie sesje web konta (następne żądanie — `401 session_revoked`) i wysyła e-mail „Hasło zostało zmienione” ([e-maile.md](e-maile.md)). Panel przechodzi do W-02 z InlineAlert z makiety — dopiero po drugim kroku powstaje sesja. Komunikat pochodzi wyłącznie ze stanu nawigacji w pamięci tej samej karty, nigdy z parametru adresu (CWE-451); odświeżenie → W-01 bez komunikatu ([01 → W-02](01-logowanie-mfa.md#w-02-drugi-krok)). Konto bez drugiego kroku przechodzi do W-03 **wyłącznie w oknie konfiguracji** po resecie przez administratora — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Sesje urządzeń mobilnych — od E9.
 
 **Role** (kolumny A / E / R — rola konta z linku; ekran działa bez logowania)
 | Akcja | Operacja | A | E | R | Niezalogowany |

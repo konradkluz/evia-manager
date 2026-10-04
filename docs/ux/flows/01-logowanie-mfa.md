@@ -1,7 +1,7 @@
 # 01 — Logowanie z MFA
 
 > Dokument żywy (EVM-004; makiety E1 — EVM-015, 2026-10-04) · przepływ AC2 nr 1 · kanały: web i mobile · ekrany: W-01, W-02, W-03, W-04, M-01, M-02 · indeks: [README.md](README.md) · dalej: aktywacja i reset hasła — [11](11-aktywacja-i-reset-hasla.md) (W-13, W-12), konto i administracja — [12](12-konto-i-administracja.md) (W-15, W-16, W-18), treści e-maili — [e-maile.md](e-maile.md)
-> Źródła: ADR-0005, polityki P1, P2, P6, P7 ([`policies.md`](../../security/policies.md)), SR-AUTH-01, -05, -06, -08, -10, SR-SESS-03, -04, -08, SR-MOB-04 – -06, -08, -09, -13, SR-AUTHZ-12; konsultacja `security-engineer` w EVM-015 (S1, S7 — warianty W-02 i W-04).
+> Źródła: ADR-0005, polityki P1, P2, P6, P7 ([`policies.md`](../../security/policies.md)), SR-AUTH-01, -05, -06, -08, -10, -11, -13, SR-SESS-03, -04, -08, SR-MOB-04 – -06, -08, -09, -13, SR-AUTHZ-12; decyzja Konrada 16 (README M1 → „Decyzje dla Konrada”; potwierdzona na demo EVM-015 2026-10-04) — kod odzyskiwania działa tylko w logowaniu (W-02), w żadnym ponownym uwierzytelnieniu (W-04); konsultacja `security-engineer` w EVM-015 (S7 — W-04).
 
 ## Przepływ
 ```mermaid
@@ -119,7 +119,7 @@ flowchart TD
 ## W-02 Drugi krok
 - **Cel:** potwierdzić tożsamość drugim czynnikiem dozwolonym dla roli.
 - **Główna akcja:** „Użyj klucza dostępu” (passkey) albo „Potwierdź” (kod TOTP).
-- **Hierarchia treści:** 1) tytuł „Potwierdź logowanie”, 2) metoda podstawowa (lista metod i kolejność **z serwera**, wg roli i zarejestrowanych czynników), 3) „Użyj innej metody” (gdy jest więcej niż jedna), 4) link drugorzędny „Nie masz dostępu do metody? Użyj kodu odzyskiwania”.
+- **Hierarchia treści:** 1) tytuł „Potwierdź logowanie”, 2) komunikat po resecie hasła (tylko po przejściu z W-12), 3) metoda podstawowa (lista metod i kolejność **z serwera**, wg roli i zarejestrowanych czynników), 4) „Użyj innej metody” (gdy jest więcej niż jedna), 5) link drugorzędny „Nie masz dostępu do metody? Użyj kodu odzyskiwania”.
 
 **Makieta**
 ```text
@@ -147,28 +147,33 @@ flowchart TD
  │ ┃‹triangle-alert› Zalogowano kodem odzyskiwania       │
  │ ┃ Pozostało 9 kodów. Wysłaliśmy e-mail z informacją   │
  │ ┃ o tym logowaniu.                                    │
- │ (A) — wariant zależny od decyzji 16 (ustalenie S1, EVM-015):
- │ wariant „S1 przyjęte” — kod przed dodaniem metody:   │
- │ ┃ Zarejestruj nowy klucz dostępu — bez niego          │
- │ ┃ kolejne logowanie znów wymaga kodu.                 │
- │ [[ Dodaj klucz dostępu ]]   [Przejdź dalej]           │ → W-15 #drugi-krok
- │ wariant „S1 odrzucone” — kod niedostępny:             │
- │ ┃ Bez klucza dostępu kolejne logowanie znów wymaga    │
- │ ┃ kodu. Poproś innego administratora o reset          │
+ │ ┃ (A) Bez klucza dostępu kolejne logowanie znów       │
+ │ ┃ wymaga kodu. Poproś innego administratora o reset   │
  │ ┃ drugiego kroku logowania.                           │
+ │ ┃ (E, R) Jeśli nie masz już żadnej metody, poproś     │
+ │ ┃ administratora o reset drugiego kroku logowania.    │
  │ [[ Przejdź dalej ]]                                   │
+
+ Po ustawieniu nowego hasła w W-12 (przepływ 11) — nad metodą:
+ │ ┃‹circle-check› Hasło zostało zmienione.              │
+ │ ┃ Zakończyliśmy wszystkie sesje tego konta.           │
+ │ ┃ Potwierdź logowanie drugim krokiem.                 │
 ```
 
-**Po zalogowaniu kodem odzyskiwania — Administrator** (decyzja 16, ustalenie S1 z konsultacji `security-engineer` w EVM-015; decyduje Konrad). Dodanie metody w [W-15](12-konto-i-administracja.md#w-15-konto) wymaga pełnego ponownego uwierzytelnienia (hasło i drugi krok — SR-AUTH-10), a Administrator, który stracił klucz, nie ma innej metody w panelu:
-- **S1 przyjęte** — w W-04 przed „Dodaj klucz dostępu” albo „Dodaj kod z aplikacji” można użyć kolejnego kodu odzyskiwania (zużywa go; e-maile „użyto kodu odzyskiwania” i „zmiana drugiego kroku”, audyt, alert do wszystkich administratorów). „Dodaj klucz dostępu” prowadzi do W-15 `#drugi-krok`.
-- **S1 odrzucone** — kod odzyskiwania nie działa w żadnym ponownym uwierzytelnieniu; zamiast „Dodaj klucz dostępu” podpowiedź „Poproś innego administratora o reset drugiego kroku logowania.” (SR-AUTH-13; bez drugiego Administratora — tryb awaryjny z runbooka, RR-16). Zachęta „Dodaj klucz dostępu” z EVM-023 AC5 zależy od tej decyzji.
+**Po zalogowaniu kodem odzyskiwania** (decyzja 16; EVM-023 AC5; SR-AUTH-08, SR-AUTH-13). Kod odzyskiwania działa wyłącznie tutaj, w logowaniu — w żadnym ponownym uwierzytelnieniu ([W-04](#w-04-ponowne-uwierzytelnienie): step-up, pełne ponowne uwierzytelnienie, zmiana hasła). Dodanie metody w [W-15](12-konto-i-administracja.md#w-15-konto) wymaga pełnego ponownego uwierzytelnienia z drugim krokiem (SR-AUTH-10), więc osoba bez działającej metody potrzebuje resetu drugiego kroku przez administratora — po weryfikacji tożsamości ([W-16](12-konto-i-administracja.md#w-16-użytkownicy), dialog 7). Podpowiedź — jedna, wg roli konta (w makiecie oznaczenia „(A)” i „(E, R)”) — jest w tym samym InlineAlert co liczba pozostałych kodów:
+- **Administrator** — „Bez klucza dostępu kolejne logowanie znów wymaga kodu. Poproś innego administratora o reset drugiego kroku logowania.” (EVM-023 AC5; drugi krok Administratora resetuje tylko inny Administrator — EVM-027 AC4). Bez drugiego Administratora — tryb awaryjny z runbooka (EVM-016 AC2, RR-16).
+- **Edytor, Tylko odczyt** — „Jeśli nie masz już żadnej metody, poproś administratora o reset drugiego kroku logowania.” Podpowiedź pojawia się zawsze, a warunek jest w treści: serwer nie wie, czy osoba ma jeszcze metodę (np. klucz zostawiony w domu), a tekst nie ujawnia stanu metod konta.
+- Jedyna akcja to „Przejdź dalej” — bez samoobsługowego odzyskania i bez innego kanału niż administrator (e-mail, SMS, pytania pomocnicze).
+- **Logowanie kodem odzyskiwania nie otwiera okna step-upu** (decyzja 16; SR-SESS-08, EVM-029 AC4; AB-01, TM-16). Sesja zapisuje, że drugi krok był kodem odzyskiwania, i nie dostaje czasu świeżego uwierzytelnienia. Pierwsza operacja z P2 i „Moje sesje” w [W-15](12-konto-i-administracja.md#w-15-konto) zawsze prowadzą do [W-04](#w-04-ponowne-uwierzytelnienie) (klucz dostępu albo kod z aplikacji) — także w pierwszych 15 min po zalogowaniu i tak samo po W-12 → W-02 z kodem odzyskiwania. Okno 15 min otwiera dopiero step-up w W-04 (EVM-029 AC3). Bez tej reguły kradzież hasła i wydrukowanych kodów dawałaby 15 min operacji wrażliwych bez W-04. InlineAlert nie dostaje osobnego zdania — W-04 sam pokazuje metodę i podpowiedź o resecie.
+
+**Po resecie hasła** (z [W-12](11-aktywacja-i-reset-hasla.md#w-12-ustaw-nowe-hasło), przepływ 11; SR-AUTH-11 — reset nie omija drugiego kroku). Nad metodą InlineAlert sukcesu „Hasło zostało zmienione. Zakończyliśmy wszystkie sesje tego konta. Potwierdź logowanie drugim krokiem.” Gdy drugi krok trwa za długo — „Logowanie trwało zbyt długo. Zaloguj się ponownie — nowe hasło już działa.” → W-01. Oba komunikaty panel pokazuje **tylko ze stanu nawigacji w pamięci tej samej karty**, ustawionego po udanym `POST` w W-12 — nigdy z parametru adresu ani fragmentu (podszyty komunikat — CWE-451). Odświeżenie strony → W-01 bez komunikatu.
 
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Metoda podstawowa z serwera; fokus na przycisku passkey albo na polu kodu. |
+| Pusty | Metoda podstawowa z serwera; fokus na przycisku passkey albo na polu kodu. Po resecie hasła z W-12 — InlineAlert sukcesu nad metodą (tylko ze stanu nawigacji w pamięci karty; odświeżenie → W-01 bez komunikatu). |
 | Ładowanie | Passkey — przycisk w stanie ładowania i tekst „Postępuj zgodnie z instrukcją systemu.”; TOTP — „Potwierdź” w stanie ładowania. |
-| Błąd | Passkey anulowany lub nieudany: „Nie udało się użyć klucza dostępu. Spróbuj ponownie albo użyj innej metody.”; zły kod: „Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.”; `429` / blokada — jak W-01 (ten sam komunikat); minął czas na drugi krok: „Logowanie trwało zbyt długo. Zaloguj się ponownie. [Wróć do logowania]”. |
+| Błąd | Passkey anulowany lub nieudany: „Nie udało się użyć klucza dostępu. Spróbuj ponownie albo użyj innej metody.”; zły kod: „Kod jest nieprawidłowy lub wygasł. Wpisz nowy kod z aplikacji.”; `429` / blokada — jak W-01 (ten sam komunikat); minął czas na drugi krok: „Logowanie trwało zbyt długo. Zaloguj się ponownie. [Wróć do logowania]”, a po resecie hasła z W-12: „Logowanie trwało zbyt długo. Zaloguj się ponownie — nowe hasło już działa.” → W-01. |
 | Offline | Baner § 4.10; przyciski wyłączone z podpowiedzią; wpisany kod zostaje. |
 | Brak uprawnień | nd. — każda rola ma drugi krok; konto bez MFA trafia na W-03 (`403 mfa_enrollment_required`). |
 
@@ -177,12 +182,12 @@ flowchart TD
 |---|---|---|---|---|
 | Klucz dostępu (passkey) | drugi krok WebAuthn | tak — **jedyna metoda w panelu** | tak, jeśli zarejestrowany | tak, jeśli zarejestrowany |
 | Kod TOTP | drugi krok TOTP | nie w panelu (TOTP Administratora działa tylko w aplikacji mobilnej — P1) | tak | tak |
-| Kod odzyskiwania | drugi krok kodem jednorazowym (SR-AUTH-08) | tak; po użyciu zachęta do rejestracji nowego klucza albo podpowiedź o resecie przez innego administratora (decyzja 16, S1) | tak | tak |
+| Kod odzyskiwania | drugi krok kodem jednorazowym (SR-AUTH-08) — wyłącznie w logowaniu, nigdy w W-04 (decyzja 16); nie otwiera okna step-upu | tak; po użyciu podpowiedź „Poproś innego administratora o reset drugiego kroku logowania.” (EVM-023 AC5) | tak; po użyciu podpowiedź „Jeśli nie masz już żadnej metody, poproś administratora…” | tak; jak Edytor |
 
 - **Responsywność:** jak W-01.
-- **Komponenty i tokeny:** Card (§ 3.8); Button primary (§ 3.1) z ikoną `key-round`; pole kodu jednorazowego i kodu odzyskiwania (TextField, § 3.2.1 — `text.numeric-lg`, `text.mono`); link `color.text.link`; InlineAlert (§ 3.19) `color.feedback.warning.*` po użyciu kodu odzyskiwania, `color.feedback.error.*` przy błędzie; `space.stack.md`.
-- **Mikrocopy:** „Potwierdź logowanie” · „Użyj klucza dostępu” · „Kod z aplikacji uwierzytelniającej” · „Potwierdź” · „Użyj innej metody” · „Nie masz dostępu do metody? Użyj kodu odzyskiwania” · „Kod odzyskiwania” · „Zalogowano kodem odzyskiwania. Pozostało 9 kodów. Wysłaliśmy e-mail z informacją o tym logowaniu.” · (A) „Zarejestruj nowy klucz dostępu — bez niego kolejne logowanie znów wymaga kodu.” · „Dodaj klucz dostępu” · (A, S1 odrzucone) „Bez klucza dostępu kolejne logowanie znów wymaga kodu. Poproś innego administratora o reset drugiego kroku logowania.” · „Przejdź dalej”.
-- **Dostępność:** `autocomplete="one-time-code"`, `inputmode="numeric"`, `spellcheck="false"`, `autocapitalize="off"` (§ 3.2.1); bez automatycznego wysłania po wpisaniu 6 cyfr (WCAG 3.2.2); kod można wkleić; wartość kodu nie trafia do URL, tytułu karty ani ogłoszeń czytnika; passkey nie wymaga przepisywania (WCAG 3.3.8); liczba pozostałych kodów jako tekst w `role="status"`.
+- **Komponenty i tokeny:** Card (§ 3.8); Button primary (§ 3.1) z ikoną `key-round`; pole kodu jednorazowego i kodu odzyskiwania (TextField, § 3.2.1 — `text.numeric-lg`, `text.mono`); link `color.text.link`; InlineAlert (§ 3.19) `color.feedback.warning.*` po użyciu kodu odzyskiwania (z podpowiedzią o resecie), `color.feedback.success.*` z ikoną `circle-check` po resecie hasła z W-12, `color.feedback.error.*` przy błędzie; `space.stack.md`.
+- **Mikrocopy:** „Potwierdź logowanie” · „Użyj klucza dostępu” · „Kod z aplikacji uwierzytelniającej” · „Potwierdź” · „Użyj innej metody” · „Nie masz dostępu do metody? Użyj kodu odzyskiwania” · „Kod odzyskiwania” · „Zalogowano kodem odzyskiwania. Pozostało 9 kodów. Wysłaliśmy e-mail z informacją o tym logowaniu.” · (A) „Bez klucza dostępu kolejne logowanie znów wymaga kodu. Poproś innego administratora o reset drugiego kroku logowania.” · (E, R) „Jeśli nie masz już żadnej metody, poproś administratora o reset drugiego kroku logowania.” · „Przejdź dalej” · po resecie hasła: „Hasło zostało zmienione. Zakończyliśmy wszystkie sesje tego konta. Potwierdź logowanie drugim krokiem.” · „Logowanie trwało zbyt długo. Zaloguj się ponownie — nowe hasło już działa.”
+- **Dostępność:** `autocomplete="one-time-code"`, `inputmode="numeric"`, `spellcheck="false"`, `autocapitalize="off"` (§ 3.2.1); bez automatycznego wysłania po wpisaniu 6 cyfr (WCAG 3.2.2); kod można wkleić; wartość kodu nie trafia do URL, tytułu karty ani ogłoszeń czytnika; passkey nie wymaga przepisywania (WCAG 3.3.8); liczba pozostałych kodów i podpowiedź o resecie jako tekst w `role="status"`; po resecie hasła komunikat sukcesu w `role="status"`, fokus na nagłówku „Potwierdź logowanie”.
 
 ## W-03 Konfiguracja MFA
 - **Cel:** skonfigurować obowiązkowy drugi czynnik przy pierwszym logowaniu (`403 mfa_enrollment_required`) — konto bez MFA nie widzi nawigacji ani danych (P1, SR-AUTH-06). Administrator i Edytor od razu wiedzą, że **aplikacja na telefonie wymaga kodu z aplikacji uwierzytelniającej** (P1, SR-AUTH-14 — klucz dostępu działa tylko w panelu), i mogą go dodać obok klucza dostępu.
@@ -300,17 +305,19 @@ Stany wariantu „przed EVM-023” — jak w tabeli „Stany” niżej, bez krok
 - **Dostępność:** postęp „Krok 2 z 3” w nagłówku i w tytule karty („Konfiguracja logowania · EVia Manager”); kod QR ma alternatywę tekstową („Pokaż klucz do wpisania”); kody czytelne dla czytnika jako lista; fokus po zmianie kroku na nagłówek kroku; „Dodaj kod z aplikacji” z `aria-expanded`, po rozwinięciu fokus na nagłówku bloku; informacja o telefonie jest tekstem przy wyborze metody (nie tylko podpowiedzią).
 
 ## W-04 Ponowne uwierzytelnienie
-- **Cel:** potwierdzić tożsamość przed operacją wrażliwą (step-up — ostatnie uwierzytelnienie ponad 15 min temu; lista operacji: P2) albo przed zmianą hasła i drugiego kroku własnego konta (SR-AUTH-10), tylko w panelu.
+- **Cel:** potwierdzić tożsamość przed operacją wrażliwą (step-up — ostatnie uwierzytelnienie kluczem dostępu albo kodem z aplikacji ponad 15 min temu albo sesja z logowania kodem odzyskiwania, [W-02](#w-02-drugi-krok); lista operacji: P2) albo przed zmianą hasła i drugiego kroku własnego konta (SR-AUTH-10), tylko w panelu.
 - **Główna akcja:** „Użyj klucza dostępu” (Administrator) albo „Potwierdź” (kod TOTP — Edytor, Tylko odczyt); w pełnym ponownym uwierzytelnieniu najpierw „Dalej” (hasło).
-- **Hierarchia treści:** 1) tytuł nazywający operację, 2) podsumowanie operacji (obiekt, skutek), 3) hasło (tylko pełne ponowne uwierzytelnienie), 4) metoda, 5) „Anuluj”.
+- **Hierarchia treści:** 1) tytuł nazywający operację, 2) podsumowanie operacji (obiekt, skutek), 3) hasło (tylko pełne ponowne uwierzytelnienie), 4) metoda, 5) podpowiedź o resecie drugiego kroku (zwykły tekst, bez akcji), 6) „Anuluj”.
 - **Kiedy:** po zatwierdzeniu operacji, gdy serwer odpowie `403 step_up_required` (albo kodem pełnego ponownego uwierzytelnienia z planu EVM-028); po sukcesie operacja jest wysyłana ponownie automatycznie (ten sam klucz idempotencji). Dane formularza operacji pozostają w pamięci karty. **O dialogu decyduje serwer** — panel nie zapamiętuje, że step-up jest ważny (EVM-015, ustalenie S4).
 
 **Trzy zastosowania jednego dialogu** (EVM-015, rozstrzygnięcie 6)
 | Zastosowanie | Kiedy | Co w dialogu | Kod odzyskiwania |
 |---|---|---|---|
-| **Step-up** | operacje z P2 — m.in. wszystkie operacje [W-16](12-konto-i-administracja.md#w-16-użytkownicy), wejście do [W-18](12-konto-i-administracja.md#w-18-dziennik-audytu), korekty płatności, eksport ZIP — oraz „Moje sesje” w [W-15](12-konto-i-administracja.md#w-15-konto) (lista i zakończenie sesji); gdy ostatnie uwierzytelnienie było ponad 15 min temu | drugi krok: Administrator — klucz dostępu; Edytor, Tylko odczyt — klucz dostępu albo kod z aplikacji | niedostępny (EVM-029 AC4) |
-| **Pełne ponowne uwierzytelnienie** | zmiany drugiego kroku w W-15 (dodanie i usunięcie klucza dostępu i kodu z aplikacji, nowe kody odzyskiwania) — **za każdym razem**, bez okna 15 min (SR-AUTH-10, ASVS V7.5.1) | krok 1 — hasło, krok 2 — drugi krok jak wyżej | tylko przed „Dodaj klucz dostępu” i „Dodaj kod z aplikacji” i tylko przy przyjęciu S1 (decyzja 16) — zużywa kod, e-maile, audyt, alert dla konta Administratora |
-| **Zmiana hasła** | „Zmień hasło” w W-15 — za każdym razem | tylko drugi krok (bieżące hasło jest w formularzu) | niedostępny |
+| **Step-up** | operacje z P2 — m.in. wszystkie operacje [W-16](12-konto-i-administracja.md#w-16-użytkownicy), wejście do [W-18](12-konto-i-administracja.md#w-18-dziennik-audytu), korekty płatności, eksport ZIP — oraz „Moje sesje” w [W-15](12-konto-i-administracja.md#w-15-konto) (lista i zakończenie sesji); gdy ostatnie uwierzytelnienie kluczem dostępu albo kodem z aplikacji było ponad 15 min temu albo sesja pochodzi z logowania kodem odzyskiwania i nie było jeszcze step-upu — takie logowanie okna nie otwiera ([W-02](#w-02-drugi-krok)) | drugi krok: Administrator — klucz dostępu; Edytor, Tylko odczyt — klucz dostępu albo kod z aplikacji | niedostępny (decyzja 16, EVM-029 AC4) |
+| **Pełne ponowne uwierzytelnienie** | zmiany drugiego kroku w W-15 (dodanie i usunięcie klucza dostępu i kodu z aplikacji, nowe kody odzyskiwania) — **za każdym razem**, bez okna 15 min (SR-AUTH-10, ASVS V7.5.1) | krok 1 — hasło, krok 2 — drugi krok jak wyżej | niedostępny (decyzja 16) — także przed „Dodaj klucz dostępu” i „Dodaj kod z aplikacji” |
+| **Zmiana hasła** | „Zmień hasło” w W-15 — za każdym razem | tylko drugi krok (bieżące hasło jest w formularzu) | niedostępny (decyzja 16) |
+
+**Kod odzyskiwania nie działa w W-04** (decyzja 16) — w żadnym z trzech zastosowań; działa wyłącznie w logowaniu ([W-02](#w-02-drugi-krok)). Logowanie kodem odzyskiwania nie zastępuje też step-upu: nie otwiera okna 15 min, więc pierwsza operacja z P2 po takim logowaniu zawsze prowadzi do W-04. W-04 nie ma też innej ścieżki zastępczej (e-mail, SMS, pytania pomocnicze): Administrator potwierdza tylko kluczem dostępu, Edytor i Tylko odczyt — kluczem dostępu albo kodem z aplikacji. Pod metodą jest zwykły tekst bez akcji: osoba bez działającej metody prosi administratora o reset drugiego kroku logowania (W-16, dialog 7 — po weryfikacji tożsamości, SR-AUTH-13).
 
 Błędne hasło i błędny kod w każdym zastosowaniu liczą się do limitów SR-AUTH-05 (ustalenie S7) — przejęta sesja nie może być wyrocznią do zgadywania hasła poza limitami logowania.
 
@@ -324,10 +331,16 @@ Błędne hasło i błędny kod w każdym zastosowaniu liczą się do limitów SR
 │                                              │
 │ Administrator:                               │
 │ [[ ‹key-round› Użyj klucza dostępu ]]        │
+│ Nie masz klucza dostępu? Poproś innego       │ ← zwykły tekst, bez akcji
+│ administratora o reset drugiego kroku        │
+│ logowania.                                   │
 │                                              │
 │ Edytor (np. eksport ZIP):                    │
 │ Klucz dostępu albo kod z aplikacji           │
 │ [______]                   § 3.2.1           │
+│ Nie masz dostępu do metody? Poproś           │ ← zwykły tekst, bez akcji
+│ administratora o reset drugiego kroku        │
+│ logowania.                                   │
 │                                              │
 │                        [Anuluj] [[Potwierdź]]│
 └──────────────────────────────────────────────┘
@@ -347,8 +360,9 @@ Błędne hasło i błędny kod w każdym zastosowaniu liczą się do limitów SR
 │ Krok 2 z 2                                   │
 │ [[ ‹key-round› Użyj klucza dostępu ]]        │
 │ (E, R) albo kod z aplikacji: [______] § 3.2.1│
-│ Nie masz dostępu do metody?                  │ ← tylko „Dodaj…”
-│ Użyj kodu odzyskiwania                       │   i tylko przy S1
+│ Nie masz dostępu do metody? Poproś           │ ← zwykły tekst, bez akcji;
+│ administratora o reset drugiego kroku        │   (A) „Nie masz klucza
+│ logowania.                                   │   dostępu? Poproś innego…”
 │                                     [Anuluj] │
 └──────────────────────────────────────────────┘
 ```
@@ -389,12 +403,13 @@ Przykładowe tytuły: „Potwierdź tożsamość, aby skorygować płatność”
 | Hasło | krok 1 pełnego ponownego uwierzytelnienia (W-15) | tak | tak | tak |
 | Klucz dostępu | step-up i drugi krok ponownego uwierzytelnienia — WebAuthn (SR-SESS-08, SR-AUTH-10) | tak — **jedyna metoda** | tak | tak — tylko W-15 |
 | Kod TOTP | step-up i drugi krok ponownego uwierzytelnienia — TOTP | nie | tak | tak — tylko W-15 |
-| Kod odzyskiwania | — | **niedostępny przy step-upie** (EVM-029 AC4); w pełnym ponownym uwierzytelnieniu tylko przed dodaniem metody i tylko przy przyjęciu S1 (decyzja 16) | jw. | jw. |
+| Kod odzyskiwania | — | **niedostępny w każdym zastosowaniu** (decyzja 16; step-up — EVM-029 AC4) | jw. | jw. |
+| Podpowiedź o resecie | zwykły tekst pod metodą, bez linku i akcji (SR-AUTH-13) | „Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.” | „Nie masz dostępu do metody? Poproś administratora o reset drugiego kroku logowania.” | jak Edytor |
 | Anuluj | brak operacji; hasło i kod czyszczone z pamięci karty | tak | tak | tak |
 
 - **Responsywność:** dialog `size.dialog.width.sm`; `breakpoint.compact` — dialog na pełną szerokość.
-- **Komponenty i tokeny:** Dialog (§ 3.13) `radius.dialog`, `elevation.dialog`, `layer.dialog`, scrim `color.bg.scrim`; tytuł `text.heading-3`; podsumowanie `text.body`, kwota `text.numeric`; Button primary / tertiary (§ 3.1); TextField (§ 3.2) — hasło (pokaż / ukryj) i e-mail tylko do odczytu w pełnym ponownym uwierzytelnieniu; pole kodu jednorazowego i kodu odzyskiwania (TextField, § 3.2.1); link `color.text.link`; InlineAlert `color.feedback.error.*`.
-- **Mikrocopy:** tytuł „Potwierdź tożsamość, aby [operacja]” · „Każda zmiana drugiego kroku wymaga hasła i drugiego kroku.” · „Krok 1 z 2” · „Hasło” · „Dalej” · „Hasło jest nieprawidłowe.” · „Zbyt wiele prób. Spróbuj ponownie za 15 min.” · „Użyj klucza dostępu” · „Klucz dostępu albo kod z aplikacji” · „Nie masz dostępu do metody? Użyj kodu odzyskiwania” (tylko przy S1) · „Potwierdź” · „Anuluj”.
+- **Komponenty i tokeny:** Dialog (§ 3.13) `radius.dialog`, `elevation.dialog`, `layer.dialog`, scrim `color.bg.scrim`; tytuł `text.heading-3`; podsumowanie `text.body`, kwota `text.numeric`; Button primary / tertiary (§ 3.1); TextField (§ 3.2) — hasło (pokaż / ukryj) i e-mail tylko do odczytu w pełnym ponownym uwierzytelnieniu; pole kodu jednorazowego (TextField, § 3.2.1 — wariant kodu z aplikacji, bez kodu odzyskiwania); podpowiedź o resecie `text.body-sm` `color.text.secondary` (zwykły tekst, bez linku); InlineAlert `color.feedback.error.*`.
+- **Mikrocopy:** tytuł „Potwierdź tożsamość, aby [operacja]” · „Każda zmiana drugiego kroku wymaga hasła i drugiego kroku.” · „Krok 1 z 2” · „Hasło” · „Dalej” · „Hasło jest nieprawidłowe.” · „Zbyt wiele prób. Spróbuj ponownie za 15 min.” · „Użyj klucza dostępu” · „Klucz dostępu albo kod z aplikacji” · (A) „Nie masz klucza dostępu? Poproś innego administratora o reset drugiego kroku logowania.” · (E, R) „Nie masz dostępu do metody? Poproś administratora o reset drugiego kroku logowania.” · „Potwierdź” · „Anuluj”.
 - **Dostępność:** pułapka fokusu, Esc = „Anuluj” (brak operacji), fokus wraca do przycisku operacji; tytuł dialogu jako `aria-labelledby`; dialog nie nakłada się na inny dialog — formularz operacji chowa się na czas W-04 i wraca z danymi (§ 3.13 „bez dialogu na dialogu”); pełne ponowne uwierzytelnienie — `autocomplete="current-password"` i e-mail `readonly` z `autocomplete="username"`, wklejanie i menedżer haseł działają (WCAG 3.3.8), po „Dalej” fokus na nagłówku „Krok 2 z 2”; hasło i kod tylko w pamięci karty, czyszczone po sukcesie, „Anuluj” i wylogowaniu (SR-WEB-05).
 
 ## M-01 Logowanie w aplikacji
