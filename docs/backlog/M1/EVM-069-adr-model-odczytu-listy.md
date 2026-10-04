@@ -219,14 +219,34 @@ Plan wyjścia (*contract*): usunięcie schematu po przejściu na (b2).
 - **Definicje D1–D13.** Kolumna „Czekamy na” (D3) i widok „Czekamy na OSD > 14 dni” (D2) mają osobne wiersze. Doszło pytanie 7: widoki tylko dla zleceń niezamkniętych.
 
 ## Decyzje
-_—_
+**Do decyzji Konrada na `/adr` (rano, AC6)** — rekomendacje architekta; pełne uzasadnienie w ADR-0017 → „Pytania do Konrada”:
+1. **Wariant (a)** — projekcja w module `overview`, aktualizowana w transakcji zapisu; ADR-0001 bez adnotacji. *Rekomendacja: tak.*
+2. **Etap „Zablokowany” jest niezakończony** w wyliczeniach (bieżący etap, „Termin”, „Po terminie”). *Rekomendacja: tak.* Konsekwencje: „otwarty etap” w EVM-034 AC4 = „niezakończony”; reguła `Procedure` w `domain-model.md` → „pierwszy niezakończony” (EVM-034).
+3. **„Najpilniejsze”:**
+   - 1) transza **lub** etap po terminie;
+   - 2) oczekiwanie > 14 dni;
+   - 3) najbliższy termin etapu;
+   - 4) pozostałe;
+   - sygnały tylko dla zleceń niezamkniętych.
+
+   *Rekomendacja: tak.*
+4. **Kolumna „Płatność”:** część transz opłacona, reszta planowana (bez wystawionych) → „Opłacone”. *Rekomendacja: tak.*
+5. **Pomiar p95 przed decyzją** — *rekomendacja: nie* (szacunek z zapasem ≥ 5×; pomiar w EVM-034 AC6 i EVM-056 AC6).
+6. **Lista i wyszukiwanie przenoszą się do `overview` w EVM-034** bez zmiany kontraktu. *Rekomendacja: tak.* Ze względu na R8 przy `/refine` warto rozważyć wydzielenie enablera „moduł `overview` i przeniesienie listy”.
+7. **Widoki „Czekamy na OSD > 14 dni”, „Po terminie”, „Nieopłacone”** obejmują tylko zlecenia niezamknięte. *Rekomendacja: tak.*
+
+Zależność bez rozstrzygania: reguła postępu procesu ([P-6], styleguide 1.2.0 § 3.23 — „Nie dotyczy” poza mianownikiem) to decyzja z demo EVM-014. Definicje ADR-0017 od niej nie zależą.
 
 ## Uwagi do rozważenia
-_—_
+- **EVM-008 (kontrakt):** wprowadzić konwencję `x-extensible-enum` dla enumów w odpowiedziach. Bez niej oasdiff (`response-property-enum-value-added`, poziom error) zablokuje każdą nową wartość enumu w odpowiedzi, także statusów. Enumy w żądaniach zostają zwykłym `enum` (dodanie wartości — info).
+- **EVM-072 (wyszukiwanie):** od początku ograniczyć rozmiar zbiorów ID zwracanych przez fasady `customers` i `sites` (start 10 000, konfiguracja). Przekroczenie → `400 validation_failed` z `errors[{ pointer: "/query", code: "too_broad" }]` (ADR-0017 W6). Wprowadzenie limitu dopiero w EVM-034 zaostrzyłoby walidację istniejącej operacji.
+- **Kolumna „Postęp” na W-10 (`breakpoint.wide`, [P-6])** nie ma historyjki w M1. Gdy powstanie, projekcja dostanie liczniki etapów (*expand*) wg reguły z decyzji EVM-014 — do `/refine` (product-owner).
+- **Nowe pozycje TM** w `threat-model.md` (rozjazd kolumn autoryzacyjnych, wyrocznia przez sortowanie, agregaty przy polityce drobniejszej niż kotwica, przebudowa) — w EVM-034 albo przy `/milestone close M1`.
+- **Słownik (`domain.md`):** po decyzji o pytaniu 2 rozważyć pojęcie „etap niezakończony” (product-owner).
 
 ## Definition of Done
 - [ ] AC1–AC6 spełnione
-- [ ] ADR w indeksie `docs/architecture/adr/README.md`; `npm run docs:check` — 0 błędów
+- [x] ADR w indeksie `docs/architecture/adr/README.md`; `npm run docs:check` — 0 błędów
 - [ ] Przeglądy: security-engineer, backend-developer — APPROVE
 - [ ] Decyzja Konrada (ADR zaakceptowany)
 
@@ -235,3 +255,11 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — ready → in-progress: start /deliver w nocy 3/4.10 (decyzja Konrada — kolejka EVM-006 → EVM-014 → EVM-069, demo rano); gałąź `feature/EVM-069-adr-model-odczytu-listy` **ułożona na `feature/EVM-006-repo-i-ci`** (EVM-006 w PR #2, jeszcze nie na `main`: hooki, `.gitignore`, numeracja ADR po ADR-0016); po scaleniu PR #2 orkiestrator wciąga `origin/main` merge'em (bez force-pusha). Decyzja Konrada o ADR (AC6) — rano (`/adr`)
 - 2026-10-04 — plan techniczny (solution-architect)
+- 2026-10-04 — implementacja (solution-architect):
+  - ADR-0017 „Model odczytu listy i podsumowania zlecenia” (status Proponowana) w indeksie ADR. Zawartość: warianty (a), (b1), (b2), (c) z kryteriami i ocenami (AC1); definicje D1–D13 (AC2); kontrakt addytywny z regułami oasdiff (AC3); plan testów 1–8 i T1–T9 (AC4); wpływ na backlog i model (AC5); W1–W12 z konsultacji `security-engineer`; pytania 1–7 do Konrada;
+  - `domain-model.md`: moduł `overview` (proponowany), zasada projekcji, wiersze w „Gotowości offline” i „Klasyfikacji danych”;
+  - „Notatki techniczne” EVM-034 i EVM-056;
+  - `CHANGELOG.md`;
+  - ADR-0001 bez adnotacji (rekomendacja (a)).
+
+  Zmiany względem planu — „Plan techniczny” → „Zmiany względem planu”. Weryfikacja w sieci 2026-10-04: PostgreSQL 18.6, oasdiff 1.33.0. Bramki: `npm run docs:check` — 0 błędów, 0 ostrzeżeń; `npm run test:tools` — zielone (327 pass, 1 skipped, 0 fail); `pnpm run gate` — zielone. Testów kodu brak (tylko dokumenty), AC weryfikuje QA inspekcją. AC6: przeglądy `security-engineer` i `backend-developer` — kolejny krok workflow; decyzja Konrada (`/adr`) — rano (manual)
