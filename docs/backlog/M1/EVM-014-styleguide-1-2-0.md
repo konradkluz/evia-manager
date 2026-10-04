@@ -4,7 +4,7 @@ title: Styleguide 1.2.0 — propozycje [P-1…P-13] i poprawki makiet z EVM-004
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: ux-designer
 contributors: [security-engineer]
@@ -214,7 +214,8 @@ Pozostałe pary nowych elementów są już w tabeli — wskazują je sekcje „D
 Uwagi nieblokujące `security-engineer` — w „Uwagach do rozważenia”.
 
 ## Decyzje
-_—_
+- 2026-10-04 — Konrad (demo EVM-014): **postęp procesu pomija etapy „Nie dotyczy”** (rekomendacja z „Uwagi do rozważenia” pkt 5 — TAK). Styleguide § 3.23: status reguły „potwierdzona”; `solution-architect` aktualizuje `domain-model.md` → `Procedure` najpóźniej w EVM-031.
+- 2026-10-04 — Konrad scalił PR #3 (2026-10-04 00:59 UTC), ale baza PR to była `feature/EVM-006-repo-i-ci`, więc squash trafił do tej gałęzi (`e84843e`, drzewo = `0b9f63f`), nie na `main`. Naprawa: `git merge origin/main` w gałęzi EVM-014 (bez force-pusha) i nowy PR z bazą `main`. Lekcja: PR zawsze z bazą `main` (stos PR-ów tylko po scaleniu poprzednika).
 
 ## Uwagi do rozważenia
 **Od `security-engineer` (konsultacja przed implementacją, nieblokujące — kandydaci do backlogu):**
@@ -225,7 +226,7 @@ _—_
 
 **Od `ux-designer` (implementacja 1.2.0):**
 5. **Rozstrzygnięcia projektowe 6–10 do wglądu na demo** (styleguide § 8 → 1.2.0): reguła liczenia postępu procesu („2 z 7 etapów” w W-06 i M-03 zamiast „3 z 7”), przyciski na ciemnym panelu aparatu, podpowiedź odznaki nieznanego statusu zależna od kanału, wariant „limit 12 h” 10 min przed końcem, ikony Disclosure. Kolumna „Postęp” w W-10 (`breakpoint.wide`) pokazuje sumę etapów wszystkich procesów zlecenia — do potwierdzenia przez `product-owner` przy refinemencie E3.
-   - **Pytanie do Konrada (demo EVM-014):** czy postęp procesu pomija etapy „Nie dotyczy”? Reguła ze styleguide'u to: n — etapy „Zakończony”, m — etapy bez „Nie dotyczy”. `domain-model.md` → `Procedure` mówi „etapy zakończone / wszystkie” — bez decyzji EVM-031 dostanie dwa różne kontrakty.
+   - **Pytanie do Konrada (demo EVM-014) — rozstrzygnięte 2026-10-04: TAK („Decyzje”).** Czy postęp procesu pomija etapy „Nie dotyczy”? Reguła ze styleguide'u to: n — etapy „Zakończony”, m — etapy bez „Nie dotyczy”. `domain-model.md` → `Procedure` mówi „etapy zakończone / wszystkie” — bez decyzji EVM-031 dostanie dwa różne kontrakty.
    - **Rekomendacja: TAK — wyłączamy „Nie dotyczy”.** To zgodne z EVM-071 („Nie dotyczy” zamiast usuwania etapu); na tej regule opiera się też scenariusz B11 (zbędny etap → „Nie dotyczy”, wynik „procesy zakończone”). Przypadek m = 0 (wszystkie etapy „Nie dotyczy”) jest już opisany w § 3.23: „Nie dotyczy”, bez paska i bez „Wszystkie zakończone”.
    - **Właściciel uzgodnienia:** `solution-architect` — po akceptacji aktualizuje `domain-model.md` → `Procedure`, najpóźniej w EVM-031. Przy odpowiedzi „NIE” `ux-designer` zmienia § 3.23 (m = wszystkie etapy) i wynik kroku B11.
 6. **Pary kontrastu banerów z 1.1.0:** dopisałem pary fokusu na `feedback.info.bg` i `feedback.warning.bg` (używane przez nowe wzorce); pełne pary Banner / InlineAlert dla tonów `success` i `error` z akcjami — przy pierwszej implementacji komponentu (EVM-008, przegląd UX).
@@ -247,7 +248,7 @@ _—_
 - [x] `npm run docs:check` — 0 błędów, 0 ostrzeżeń (orkiestrator 2026-10-04); diagramy Mermaid (12 w `flows/`) renderują się lokalnie (QA); dodatkowo `pnpm run build` (6 nowych zmiennych `--evm-color-progress-*` / `--evm-color-status-unknown-*`), `pnpm run gate` i `npm run test:tools` zielone (orkiestrator)
 - [x] Przeglądy: web-developer, mobile-developer, product-owner — APPROVE (runda 2)
 - [x] `CHANGELOG.md` zaktualizowany („Unreleased → Zmieniono”: styleguide i tokeny 1.1.0 → 1.2.0)
-- [ ] Demo i akceptacja Konrada (w tym decyzja: reguła postępu procesu bez etapów „Nie dotyczy” — „Uwagi do rozważenia” pkt 5)
+- [x] Demo i akceptacja Konrada — 2026-10-04: scalenie PR #3 (omyłkowo do gałęzi EVM-006) i decyzja o regule postępu (TAK); ponowny PR do `main`
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -267,3 +268,4 @@ _—_
   - styleguide § 8 → 1.2.0 — wpis „Poprawki po przeglądach (runda 1)”. Tokeny bez zmian. Bez powłoki: commit `docs(ux): apply review fixes round 1 [EVM-014]` i bramkę wykonuje QA
 - 2026-10-04 — weryfikacja: runda 1 — QA PASS, 3 × `changes_required` (po jednym major od web-developer, mobile-developer, product-owner); runda 2 — QA PASS (commit poprawek ux-designer `90210b1` przez QA), web-developer, mobile-developer, product-owner — APPROVE; workflow `deliver-story` `passed` (≈ 1 h 25 min)
 - 2026-10-04 — in-progress → in-review (orkiestrator): bramka orkiestratora zielona (`docs:check` 0/0, `build`, `gate`, `test:tools`); uwagi minor / nit z rundy 2 → „Uwagi do rozważenia” pkt 12–14; push gałęzi i PR z bazą `feature/EVM-006-repo-i-ci`; demo rano
+- 2026-10-04 — in-review → done: akceptacja Konrada (scalenie PR #3, decyzja o regule postępu); PR #3 trafił do `feature/EVM-006-repo-i-ci` zamiast na `main` — orkiestrator: `git merge origin/main` (konflikt `docs/README.md` rozwiązany wersją gałęzi, drzewo = `0b9f63f`), styleguide § 3.23 — reguła potwierdzona, nowy PR z bazą `main`
