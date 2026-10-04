@@ -1,6 +1,6 @@
 # Design tokens — EVia Manager
 
-> EVM-003, EVM-004 · Właściciel: `ux-designer` · Wersja tokenów: **1.1.0** (2026-10-03; pierwsza wersja 1.0.0 — 2026-10-02) · Zasady użycia: `docs/ux/styleguide.md` (zmiany: § 8 Changelog).
+> EVM-003, EVM-004, EVM-014 · Właściciel: `ux-designer` · Wersja tokenów: **1.2.0** (2026-10-04; poprzednie: 1.1.0 — 2026-10-03, 1.0.0 — 2026-10-02) · Zasady użycia: `docs/ux/styleguide.md` (zmiany: § 8 Changelog).
 > Jedno źródło prawdy dla panelu web i aplikacji mobilnej (iOS, Android). Tokeny są niezależne od frameworka — transformację do platform wdraża EVM-006.
 
 ## Format
@@ -24,7 +24,7 @@ design/tokens/
 │   ├── effects.tokens.json       shadow.*, duration.*, easing.*, z-layer.*, opacity.*
 │   └── breakpoints.tokens.json   breakpoint.*, grid.{compact|medium|expanded|wide}.*
 └── semantic/                     warstwa 2 — role (TYLKO te tokeny trafiają do kodu UI)
-    ├── color.light.tokens.json   color.{bg|text|icon|border|focus|nav|brand|action|control|feedback|status|sync}.*  (motyw jasny)
+    ├── color.light.tokens.json   color.{bg|text|icon|border|focus|nav|brand|action|control|feedback|status|sync|progress}.*  (motyw jasny)
     ├── size.tokens.json          space.*, size.*, radius.*, border-width.*
     ├── effects.tokens.json       elevation.*, motion.{duration|easing|transition}.*, layer.*
     └── typography.tokens.json    text.*  (style złożone `typography`)
@@ -41,7 +41,7 @@ Zasady warstw:
 - Stany: `-hover`, `-pressed`, `-disabled`, `-selected`; tło `bg`, tekst `text`, ikona `icon`, obrys `border`.
 - Skale bazowe nazwane wartością (`dimension.16`, `font.size.14`, `duration.200`) albo stopniem rampy (`palette.teal.700`).
 - Nazwy domenowe statusów po angielsku zgodnie ze słownikiem (`color.status.order.in-progress`, `color.status.payment.overdue`); etykiety PL w `$extensions`.
-- **Kod modelu → klucz tokenu (od 1.1.0):** klucz statusu = kod z `docs/architecture/domain-model.md` (`snake_case`) zapisany w `kebab-case` — podkreślnik zamieniamy na łącznik (`in_progress` → `color.status.order.in-progress`, `not_applicable` → `color.status.stage.not-applicable`, `invoiced` → `color.status.payment.invoiced`). Jedna reguła dla web i mobile, bez listy wyjątków. Wyjątek znaczeniowy: `color.status.payment.overdue` to oznaczenie wyliczane (`isOverdue`), nie kod statusu (styleguide § 4.4).
+- **Kod modelu → klucz tokenu (od 1.1.0):** klucz statusu = kod z `docs/architecture/domain-model.md` (`snake_case`) zapisany w `kebab-case` — podkreślnik zamieniamy na łącznik (`in_progress` → `color.status.order.in-progress`, `not_applicable` → `color.status.stage.not-applicable`, `invoiced` → `color.status.payment.invoiced`). Jedna reguła dla web i mobile, bez listy wyjątków. Wyjątki znaczeniowe: `color.status.payment.overdue` to oznaczenie wyliczane (`isOverdue`), nie kod statusu (styleguide § 4.4); `color.status.unknown` (od 1.2.0) nie jest kodem modelu — to odznaka wartości nieznanej, wspólna dla grup `order`, `stage` i `payment` (styleguide § 3.9.1), więc leży bezpośrednio w `color.status`, a nie w grupie statusów.
 
 ## Wycofywanie tokenów (`$deprecated`, od 1.1.0)
 - Token lub grupę, której nazwa ma zniknąć, oznaczamy `$deprecated` z wyjaśnieniem i następcą (DTCG 2025.10: § 5.2.4 — token, § 6.3.1 — grupa; oznaczenie grupy obejmuje wszystkie jej tokeny). Przykład: `color.status.order.quote` → `color.status.order.quoting`, `color.status.payment.issued` → `color.status.payment.invoiced`.
@@ -70,3 +70,12 @@ Sprawdzono 2026-10-02 skryptem pomocniczym (poza repozytorium): 9 plików, **479
 - `semantic/color.light.tokens.json`: nowe grupy `color.status.order.quoting`, `color.status.payment.invoiced`, `color.status.payment.cancelled` (po 4 tokeny: `bg`, `text`, `icon`, `border` — wyłącznie aliasy do `palette.*`); `color.status.order.quote` i `color.status.payment.issued` z `$deprecated`; etykieta `color.status.stage.waiting` → „Czekamy na…”; opis oznaczenia wyliczanego przy `color.status.payment.overdue`.
 - Liczba tokenów: **491** (base 184, semantic 307, w tym 8 wycofywanych).
 - Sprawdzenie 2026-10-03 (skrypt w przeglądarce na `about:blank`, bez sieci): aliasy nowych grup rozwiązywalne do istniejących stopni palety, klucze w `kebab-case`, każdy kod statusu z `domain-model.md` ma niewycofywany klucz, ikony i etykiety unikalne w grupach (z pominięciem wycofywanych), kontrasty nowych par jak w styleguide § 2.1.4. Pełną walidację wszystkich plików (JSON, `$type`, cykle, literały) powtarza orkiestrator przed scaleniem.
+
+## Zmiany w wersji 1.2.0 (EVM-014)
+- `semantic/color.light.tokens.json` — 6 nowych tokenów, wyłącznie aliasy do `palette.*`, `$type` dziedziczony z grupy `color`:
+  - `color.progress.track` → `{palette.neutral.200}`, `color.progress.fill` → `{palette.teal.700}` — postęp procesu „3 z 7 etapów” (ProcedureProgress, styleguide § 3.23); osobna grupa, bo `color.sync.progress.*` oznacza wysyłanie plików;
+  - `color.status.unknown.{bg,text,icon,border}` → `{palette.neutral.100}` / `{palette.neutral.800}` / `{palette.neutral.700}` / `{palette.neutral.300}` z `$extensions.pl.eviacharge.status` (`label` „Nieznany status”, `icon` `circle-help`, `tone` `neutral`) — odznaka wartości nieznanej (styleguide § 3.9.1).
+- `color.status.order.quote` i `color.status.payment.issued` — bez zmian, nadal z `$deprecated` (usunięcie w najbliższej wersji MAJOR).
+- Liczba tokenów: **497** (base 184, semantic 313, w tym 8 wycofywanych).
+- Pakiet `@evia/tokens` (`packages/tokens`, EVM-006) waliduje i buduje tokeny bez zmian w kodzie: nowe tokeny są w istniejącej grupie `color`, więc eksporty najwyższego poziomu (`color`, `space`, `size`, …) się nie zmieniają; nowe zmienne CSS: `--evm-color-progress-*`, `--evm-color-status-unknown-*`. Po zmianie: `pnpm run build` i `pnpm run gate`.
+- Sprawdzenie 2026-10-04 (skrypt w przeglądarce na `about:blank`, bez sieci): aliasy nowych tokenów wskazują istniejące stopnie palety, typ `color` zgodny, brak literałów; kontrasty nowych par — styleguide § 2.1.4 (`progress.fill` 5,35:1 do toru i 6,74:1 do `bg.surface`; `status.unknown.text` 12,99:1, `status.unknown.icon` 9,51:1).

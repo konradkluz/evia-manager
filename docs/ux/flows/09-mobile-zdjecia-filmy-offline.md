@@ -45,7 +45,7 @@ flowchart TD
 - **Główna akcja:** spust (`size.touch-target.shutter`).
 - **Hierarchia treści:** 1) podgląd z aparatu; 2) górny pasek: zamknij, numer zlecenia, SyncIndicator; 3) etap (opcjonalnie) i chipy kategorii nad spustem; 4) przełącznik Zdjęcie / Film; 5) latarka · spust · licznik serii i „Gotowe”.
 
-**Makieta (compact, ekran aparatu [P-10])**
+**Makieta (compact, ekran aparatu — CameraScreen, § 3.24)**
 ```text
 ┌──────────────────────────────────┐
 │ ✕  ZL-2026-0042    ⟨Offline · 5⟩ │ color.bg.brand-strong
@@ -66,7 +66,9 @@ flowchart TD
 │ ‹flashlight›   ( ◉ )   3 zdjęcia │
 │                        [Gotowe]  │ size.touch-target.field
 └──────────────────────────────────┘
- Nagrywanie filmu: spust wypełniony (color.action.danger.bg), czas „0:42 / 30:00”;
+ Nagrywanie filmu: ikona spustu ‹circle› → ‹square›, czas „0:42 / 30:00” nad spustem,
+ nazwa „Zatrzymaj nagrywanie”; wnętrze color.action.danger.bg tylko jako sygnał dodatkowy
+ (§ 3.24 — stan nie opiera się na kolorze);
  gdy miejsca w telefonie wystarczy na krócej niż 30 min — limit z miejsca: „0:42 / 3:00”.
 
  Po zatrzymaniu filmu — „Zapisywanie filmu…” (do końca trwałego zapisu):
@@ -103,9 +105,9 @@ flowchart TD
  │ Ostatnio otwierane                          │
  │ ZL-2026-0042 · Garaż — pełny proces         │
  │   ul. Testowa 7, Warszawa                   │
- │ Oczekuje na numer · Dom — sam montaż [P-8]  │
+ │ Oczekuje na numer · Dom — sam montaż § 4.15 │
  │   ul. Fikcyjna 12, Piaseczno                │
- │ W trybie ukrytych danych [P-13]: tylko numery zleceń, bez tytułów i adresów.│
+ │ W trybie ukrytych danych (§ 4.18): tylko numery zleceń, bez tytułów i adresów.│
 ```
 
 **Stany**
@@ -115,7 +117,7 @@ flowchart TD
 | Ładowanie | Uruchamianie aparatu — czarny podgląd z tekstem „Uruchamianie aparatu…” (bez spinnera); spust nieaktywny do gotowości. Zapis filmu po zatrzymaniu — „Zapisywanie filmu…” (tabela „Zapis i nagrywanie”). |
 | Błąd | Aparat zajęty / błąd systemu: „Nie udało się uruchomić aparatu. [Spróbuj ponownie]”. Nieudany zapis, mało miejsca, przerwane nagranie i maksymalna długość filmu — tabela „Zapis i nagrywanie” niżej (nigdy ciche niepowodzenie). |
 | Offline | Normalna praca — każde ujęcie od razu w telefonie i w kolejce; SyncIndicator „Offline · n”. |
-| Brak uprawnień | Uprawnienia systemowe — tabela „Uprawnienia systemowe” niżej: prośba z ekranem wyjaśniającym w momencie użycia; trwała odmowa aparatu → EmptyState „Brak dostępu do aparatu” [[Otwórz ustawienia]]; brak mikrofonu wyłącza tylko „Film” (zdjęcia działają). Aplikacja **nie prosi o lokalizację** i nie pokazuje wskaźnika lokalizacji (P3). Tylko odczyt — brak dostępu do aplikacji (M-02). Tryb ukrytych danych [P-13] — aparat działa; górny pasek i arkusz pokazują wyłącznie numer zlecenia. |
+| Brak uprawnień | Uprawnienia systemowe — tabela „Uprawnienia systemowe” niżej: prośba z ekranem wyjaśniającym w momencie użycia; trwała odmowa aparatu → EmptyState „Brak dostępu do aparatu” [[Otwórz ustawienia]]; brak mikrofonu wyłącza tylko „Film” (zdjęcia działają). Aplikacja **nie prosi o lokalizację** i nie pokazuje wskaźnika lokalizacji (P3). Tylko odczyt — brak dostępu do aplikacji (M-02). Tryb ukrytych danych (§ 4.18) — aparat działa; górny pasek i arkusz pokazują wyłącznie numer zlecenia. |
 
 **Zapis i nagrywanie („nic nie ginie”, styleguide § 5.4)**
 | Sytuacja | Zachowanie |
@@ -127,7 +129,7 @@ flowchart TD
 | Zabicie procesu w trakcie nagrania | Przy następnym uruchomieniu aplikacja odzyskuje nagranie (format odporny na przerwanie, np. fragmentowany MP4 — EVM-011; zlecenie i kategoria z wpisu „nagrywanie w toku” zapisanego w bazie przy starcie nagrania) → element w Kolejce i Banner (§ 3.19, `color.feedback.info.*`) „Nagrywanie przerwane — zapisano 2:13 filmu do ZL-2026-0042.” |
 | Nie udało się zapisać | Plik nie do odtworzenia albo błąd zapisu: Banner (§ 3.19, `color.feedback.error.*`) „Nie udało się zapisać filmu (03.10.2026, 14:05). Nagraj go ponownie, jeśli to możliwe.” / „Nie udało się zapisać zdjęcia. Zrób je ponownie.” — nigdy ciche niepowodzenie; kolejka i baza nienaruszone. |
 | Mało miejsca — ostrzeżenie | Banner (§ 3.19, `color.feedback.warning.*`) „Mało miejsca w telefonie: 1,2 GB. Wystarczy na ok. 3 min filmu.” — czas filmu liczony od miejsca **ponad progiem blokady filmu** (przykład: 1,2 GB − próg 1 GB = 200 MB, przy ok. 60 MB na minutę ≈ 3 min). |
-| Za mało miejsca na film | Wolne miejsce poniżej progu: chip „Film” wyłączony [P-10] z tekstem pod przełącznikiem „Za mało miejsca na film. Zwolnij miejsce w telefonie.”; zdjęcia działają; kolejka i baza nienaruszone (ADR-0007, ryzyko 10). |
+| Za mało miejsca na film | Wolne miejsce poniżej progu: chip „Film” wyłączony (wariant na ciemnym tle, § 3.24) z tekstem pod przełącznikiem „Za mało miejsca na film. Zwolnij miejsce w telefonie.”; zdjęcia działają; kolejka i baza nienaruszone (ADR-0007, ryzyko 10). |
 | Miejsce kończy się w trakcie nagrania | Licznik pokazuje limit z miejsca, gdy jest krótszy niż 30 min („0:42 / 3:00”); po dojściu do progu nagranie zatrzymuje się i zapisuje: „Film zapisany (za mało miejsca na dalsze nagrywanie).” |
 | Brak miejsca na zdjęcie | Poniżej minimalnej rezerwy na bazę i kolejkę (wartość — EVM-011): „Brak miejsca — zdjęcie nie zostało zapisane. Zwolnij miejsce w telefonie.” (nigdy ciche niepowodzenie). |
 | Maksymalna długość filmu | 30 min — zatrzymanie i zapis z komunikatem „Film zapisany (30 min — maksymalna długość). Nagraj kolejny, jeśli trzeba.” |
@@ -149,24 +151,24 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Wybór zlecenia | lokalna baza (zakres urządzenia) i szybkie zlecenia oczekujące | tak | tak | — |
 
 - **Responsywność:** orientacja pionowa i pozioma (WCAG 1.3.4) — w poziomej panel sterowania po prawej (spust w zasięgu kciuka), chipy pionowo; tryb „Leworęczny” (M-09) odwraca strony latarki i „Gotowe” (§ 5.2).
-- **Komponenty i tokeny:** CameraScreen [P-10]; AppBar / SyncIndicator (§ 3.18, § 5.4) — fokus `color.focus.ring-inverse`; FilterChip (§ 3.7) w wariancie na ciemnym tle [P-10] — `size.touch-target.min`, `space.inline.sm`; spust `size.touch-target.shutter`; IconButton latarki `size.touch-target.min`, ikona `flashlight` / `flashlight-off` `size.icon.lg` `color.icon.inverse`; „Gotowe” Button primary `size.touch-target.field` (stan ładowania podczas „Zapisywanie filmu…” — § 3.1, ikona `loader-circle`); tekst na panelu `color.text.on-brand` na `color.bg.brand-strong`; Toast (§ 3.14); BottomSheet (§ 3.13) `radius.sheet` — także prośba o mikrofon; EmptyState (§ 3.15) — prośba o dostęp do aparatu (ikona `camera`) i trwała odmowa; chip „Film” wyłączony — wariant na ciemnym tle [P-10] (obrys przerywany `color.border.inverse`, ikona powodu `mic-off` / `hard-drive`, bez zaznaczenia), pod przełącznikiem tekst powodu `color.text.on-brand` i Button tertiary `size.touch-target.min`; Banner (§ 3.19) — `color.feedback.warning.*` (mało miejsca), `color.feedback.info.*` (odzyskane nagranie), `color.feedback.error.*` (nieudany zapis); odznaka „Oczekuje na numer” [P-8].
+- **Komponenty i tokeny:** CameraScreen (§ 3.24); AppBar / SyncIndicator (§ 3.18, § 5.4) — fokus `color.focus.ring-inverse`; FilterChip (§ 3.7) w wariancie na ciemnym tle (§ 3.24) — `size.touch-target.min`, `space.inline.sm`; spust `size.touch-target.shutter` (obrys `color.border.inverse`, ikona `circle` / `square`); IconButton latarki `size.touch-target.min`, ikona `flashlight` / `flashlight-off` `size.icon.lg` `color.icon.inverse`; „Gotowe” Button primary `size.touch-target.field` z obrysem `color.border.inverse` (stan ładowania podczas „Zapisywanie filmu…” — § 3.1, ikona `loader-circle`); tekst na panelu `color.text.on-brand` na `color.bg.brand-strong`; Toast (§ 3.14); BottomSheet (§ 3.13) `radius.sheet` — także prośba o mikrofon; EmptyState (§ 3.15) — prośba o dostęp do aparatu (ikona `camera`) i trwała odmowa; chip „Film” wyłączony — wariant na ciemnym tle (§ 3.24: obrys przerywany `color.border.inverse`, ikona powodu `mic-off` / `hard-drive`, bez zaznaczenia), pod przełącznikiem tekst powodu `color.text.on-brand` i przycisk na ciemnym tle (§ 3.24: `color.text.on-brand`, obrys `color.border.inverse`) `size.touch-target.min`; Banner (§ 3.19) — `color.feedback.warning.*` (mało miejsca), `color.feedback.info.*` (odzyskane nagranie), `color.feedback.error.*` (nieudany zapis); odznaka „Oczekuje na numer” (§ 4.15); tryb ukrytych danych (§ 4.18).
 - **Mikrocopy:** kategorie: „Oględziny”, „Stan przed pracami”, „W trakcie prac”, „Po zakończeniu”, „Usterka / problem”, „Pomiary”, „Inne” (`service-catalog.md` § 7) · „Zdjęcie” / „Film” · „Zapisano w telefonie” · „3 zdjęcia” (odmiana § 6.3) · „Gotowe” · „Etap: …” · „Do którego zlecenia?” · „Aparat do zdjęć z prac” · „Zezwól na dostęp do aparatu” · „Nie teraz” · „Mikrofon do filmów” · „Zezwól na mikrofon” · „Film wymaga dostępu do mikrofonu.” · „Brak dostępu do aparatu…” · „Otwórz ustawienia” · „Zapisywanie filmu…” · „Nagrywanie przerwane — zapisano 2:13 filmu.” · „Nie udało się zapisać filmu (03.10.2026, 14:05). Nagraj go ponownie, jeśli to możliwe.” · „Mało miejsca w telefonie: 1,2 GB. Wystarczy na ok. 3 min filmu.” · „Za mało miejsca na film. Zwolnij miejsce w telefonie.” · „Film zapisany (za mało miejsca na dalsze nagrywanie).”
 - **Dostępność:** spust z nazwą „Zrób zdjęcie” / „Rozpocznij nagrywanie” / „Zatrzymaj nagrywanie”; zapis ogłaszany („Zapisano zdjęcie 3”, „Zapisywanie filmu…”, „Zapisano film, 2 min 13 s”) — dopiero po trwałym zapisie; chip „Film” wyłączony ma nazwę dostępną z powodem („Film, niedostępny — wymaga mikrofonu”), a powód jest też widocznym tekstem z przyciskiem obok (nie tylko podpowiedź — rękawice, § 5.1); brak gestów jako jedynej drogi — zoom przyciskami, wybór kategorii dotknięciem; latarka zawsze w zasięgu kciuka (§ 5.3); żadnych błysków poza aparatem; kontrast elementów panelu ≥ 3:1 (`color.border.inverse`, `color.text.on-brand` — § 2.1.4).
 
 ## M-07 Kolejka
 - **Cel:** w każdej chwili wiedzieć, co jest niewysłane, dlaczego, i móc to wysłać — „nic nie ginie”.
 - **Główna akcja:** zależna od sekcji — „Ponów wszystkie” (Błąd), „Wyślij teraz przez sieć komórkową” (Czeka na Wi-Fi), „Dodaj do innego zlecenia” (Wymaga uwagi).
-- **Hierarchia treści:** 1) podsumowanie „Wysłano 9 z 12 · 3 w kolejce” + pasek; 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **Wymaga uwagi** [P-9]; 4) Błąd; 5) Czeka na Wi-Fi; 6) Wysyłanie; 7) W kolejce; 8) Wysłane dziś (zwinięte).
+- **Hierarchia treści:** 1) podsumowanie „Wysłano 9 z 12 · 3 w kolejce” + pasek i stan przesyłania (§ 4.7 — widoczny także wtedy, gdy kapsuła pokazuje „Wymaga uwagi”); 2) Banner „Powiadomienia wyłączone” (tylko bez zgody na powiadomienia i przy niewysłanych elementach); 3) **Wymaga uwagi** (§ 4.16); 4) Błąd; 5) Czeka na Wi-Fi; 6) Wysyłanie; 7) W kolejce; 8) Wysłane dziś (zwinięte).
 
 **Makieta (compact)**
 ```text
 ┌──────────────────────────────────┐
-│ Kolejka      ⟨Wymaga uwagi · 1⟩  │ [P-9]
+│ Kolejka      ⟨Wymaga uwagi · 1⟩  │ § 4.16
 ├──────────────────────────────────┤
 │ Wysłano 9 z 12 · 3 w kolejce     │
 │ ████████████████░░░░             │
 │                                  │
-│ Wymaga uwagi (1)           [P-9] │
+│ Wymaga uwagi (1)          § 4.16 │
 │ ┃▣ Zdjęcie · ZL-2026-0017        │
 │ ┃ Zlecenie zostało usunięte      │
 │ ┃ albo nie masz do niego dostępu.│
@@ -231,9 +233,9 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Wysyłanie | `cloud-upload` „Wysyłanie 45%” + pasek | „Wstrzymaj” |
 | Błąd (sieć, serwer, `checksum_mismatch`) | `cloud-alert` „Nie wysłano — [powód]” | „Ponów” (nowa sesja z lokalnego pliku) |
 | Wysłano, serwer sprawdza plik | `cloud-check` „Wysłano · sprawdzanie” | — (lokalny oryginał zostaje do `clean`) |
-| Wymaga uwagi — odrzucona mutacja (`target_unavailable`, `forbidden`, `validation_failed`) | `triangle-alert` [P-9] | „Dodaj do innego zlecenia” (nowe `CreateMediaAsset` / `CreateNote` z nowym identyfikatorem — bez edycji) · „Usuń z telefonu” (dialog) |
+| Wymaga uwagi — odrzucona mutacja (`target_unavailable`, `forbidden`, `validation_failed`) | `triangle-alert` „Wymaga uwagi” (§ 4.16, `color.sync.error.*`) + powód | „Dodaj do innego zlecenia” (nowe `CreateMediaAsset` / `CreateNote` z nowym identyfikatorem — bez edycji) · „Usuń z telefonu” (dialog) |
 | Wymaga uwagi — plik w kwarantannie | `triangle-alert` „Plik zatrzymany przez skan bezpieczeństwa. Biuro sprawdzi plik.” (bez przyczyny — P5) | „Usuń z telefonu” (dialog) |
-| Szybkie zlecenie oczekujące | `clock` „Oczekuje na numer” [P-8] | — (elementy tego zlecenia czekają na jego wynik) |
+| Szybkie zlecenie oczekujące | `clock` „Oczekuje na numer” (§ 4.15) | — (elementy tego zlecenia czekają na jego wynik) |
 
 **Stany**
 | Stan | Zachowanie |
@@ -241,8 +243,8 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Pusty | „Wszystko wysłane. Zdjęcia i wpisy zrobione bez zasięgu pojawią się tutaj.” + „Zsynchronizowano 14:05”. |
 | Ładowanie | nd. — kolejka jest lokalna i dostępna od razu; postęp wysyłania aktualizowany na bieżąco. |
 | Błąd | Sekcje „Błąd” i „Wymaga uwagi”; automatyczne ponawianie z rosnącą przerwą, „Ponów” wymusza od razu; brak miejsca na urządzeniu przy pobieraniu miniatur nie dotyczy kolejki. |
-| Offline | SyncIndicator „Offline · 5” + baner § 5.4 „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.”; elementy w stanie „Czeka na połączenie”. |
-| Brak uprawnień | Tylko odczyt — M-02. Brak zgody na powiadomienia (Android 13+) przy niewysłanych elementach — Banner „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” [Włącz powiadomienia] (monit systemu, a po trwałej odmowie — ustawienia powiadomień aplikacji); wysyłanie działa dalej, Banner znika po wysłaniu wszystkiego albo po włączeniu powiadomień. Utrata dostępu do zlecenia — elementy trafiają do „Wymaga uwagi” (nie są kasowane). Tryb ukrytych danych [P-13] — kolejka działa, ale bez nazw, adresów, telefonów i miniatur: „Zdjęcie · ZL-2026-0042”, ikona typu pliku zamiast miniatury. Po „Wyloguj urządzenie” (`401 session_revoked`) kolejka jest zaszyfrowana i niewidoczna do ponownego zalogowania tego samego konta (M-02). |
+| Offline | SyncIndicator „Offline · 5” (albo „Wymaga uwagi · n”, gdy jest taki element — wtedy stan offline jest w nazwie dostępnej kapsuły) + baner § 5.4 „Brak zasięgu. Pracuj dalej — wyślemy wszystko, gdy wróci połączenie.” — widoczny zawsze bez połączenia; elementy w stanie „Czeka na połączenie”. |
+| Brak uprawnień | Tylko odczyt — M-02. Brak zgody na powiadomienia (Android 13+) przy niewysłanych elementach — Banner „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” [Włącz powiadomienia] (monit systemu, a po trwałej odmowie — ustawienia powiadomień aplikacji); wysyłanie działa dalej, Banner znika po wysłaniu wszystkiego albo po włączeniu powiadomień. Utrata dostępu do zlecenia — elementy trafiają do „Wymaga uwagi” (nie są kasowane). Tryb ukrytych danych (§ 4.18) — kolejka działa, ale bez nazw, adresów, telefonów i miniatur (dane nie są renderowane, także w nazwach dostępnych): „Zdjęcie · ZL-2026-0042”, ikona typu pliku zamiast miniatury. Po „Wyloguj urządzenie” (`401 session_revoked`) kolejka jest zaszyfrowana i niewidoczna do ponownego zalogowania tego samego konta (M-02). |
 
 **Role**
 | Akcja | Operacja | A | E | R |
@@ -255,7 +257,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 **Powiadomienie systemowe uploadu w tle** (SR-MOB-08): „EVia Manager · Wysyłanie 3 z 12 plików” / „Wysłano 12 plików” / „Nie wysłano 2 plików — otwórz aplikację” (komunikat ADR-0007 „wysyłanie wstrzymane — otwórz aplikację”) — **bez** numerów zleceń, nazwisk, adresów i miniatur. Wymaga zgody na powiadomienia (Android 13+): bez niej postęp zadania widać tylko w systemowym menedżerze zadań, a komunikatu o wstrzymaniu technik nie zobaczy — dlatego prośba z wyjaśnieniem i Banner w Kolejce.
 
 - **Responsywność:** jedna kolumna; sekcje zwijane (stan zwinięcia lokalnie); powiększenie czcionki do 200 % — przyciski akcji pod opisem, na pełną szerokość.
-- **Komponenty i tokeny:** UploadQueueItem (§ 3.12) — miniatura `size.thumbnail.sm`, stany `color.sync.queued.*`, `color.sync.offline.*`, `color.sync.waiting-wifi.*`, `color.sync.in-progress.*`, `color.sync.error.*`, `color.sync.done.*`, pasek `size.progress-bar.height` z `color.sync.progress.*`; sekcja „Wymaga uwagi” i stan SyncIndicator [P-9]; ProgressBar (§ 3.19); Button secondary / tertiary `size.touch-target.min`; AlertDialog (§ 3.13) z Button danger; BottomSheet (§ 3.13) — prośba o powiadomienia; Banner (§ 3.19) `color.feedback.warning.*`, ikona `bell-off` — powiadomienia wyłączone; Disclosure [P-2] dla „Wysłane dziś”; tryb ukrytych danych [P-13].
+- **Komponenty i tokeny:** UploadQueueItem (§ 3.12) — miniatura `size.thumbnail.sm`, stany `color.sync.queued.*`, `color.sync.offline.*`, `color.sync.waiting-wifi.*`, `color.sync.in-progress.*`, `color.sync.error.*`, `color.sync.done.*`, pasek `size.progress-bar.height` z `color.sync.progress.*`; sekcja „Wymaga uwagi” i stan SyncIndicator (§ 4.16 — `triangle-alert`, `color.sync.error.*`, obrys lewy `color.feedback.error.border`); ProgressBar (§ 3.19); Button secondary / tertiary `size.touch-target.min`; AlertDialog (§ 3.13) z Button danger; BottomSheet (§ 3.13) — prośba o powiadomienia; Banner (§ 3.19) `color.feedback.warning.*`, ikona `bell-off` — powiadomienia wyłączone; Disclosure (§ 3.21) dla „Wysłane dziś”; odznaka „Oczekuje na numer” (§ 4.15); tryb ukrytych danych (§ 4.18).
 - **Mikrocopy:** „Kolejka” · „Wysłano 9 z 12 · 3 w kolejce” · „Wymaga uwagi” · „Zlecenie zostało usunięte albo nie masz do niego dostępu.” · „Dodaj do innego zlecenia” · „Usuń z telefonu” · „Ponów wszystkie” · „Wyślij teraz przez sieć komórkową · 180 MB” · „Usunąć 1 niewysłane zdjęcie?” · „Zdjęcie nie zostało wysłane i zniknie z telefonu.” · „Usunąć niewysłany film?” · „Film zniknie z telefonu. W biurze zostanie wpis bez pliku („Czeka na plik z telefonu”) — usunąć go może administrator w panelu.” · „Powiadomienia o wysyłaniu” · „Włącz powiadomienia” · „Powiadomienia wyłączone — nie zobaczysz, że wysyłanie się zatrzymało.” · „Wszystko wysłane.” · liczby wg § 6.3 („1 film czeka”, „2 filmy czekają”).
 - **Dostępność:** każdy element z nazwą dostępną (typ, zlecenie, stan); zmiany stanów ogłaszane zbiorczo co kilka sekund (§ 5.4); akcje jako widoczne przyciski, nie gesty (§ 3.12, § 5.1); akcje niszczące oddzielone od częstych.
 
@@ -275,13 +277,13 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 │ W trakcie prac (24)              │
 │ ┌────┐┌────┐┌────┐               │
 │ │img ││img ││img │               │
-│ │ ‹clock›│ ‹wifi›│ ‹scan-search›│ ← W kolejce · Czeka na Wi-Fi · Sprawdzanie [P-7]
+│ │ ‹clock›│ ‹wifi›│ ‹scan-search›│ ← W kolejce · Czeka na Wi-Fi · Sprawdzanie (§ 5.4, § 4.14)
 │ └────┘└────┘└────┘               │
 │ ┌────┐┌────┐┌────┐               │
-│ │img ││ ▶  ││ ⚠  │ ← Wymaga uwagi [P-7]
+│ │img ││ ▶  ││ ⚠  │ ← Wymaga uwagi (§ 4.14 — z etykietą w kaflu)
 │ └────┘└────┘└────┘               │
 │ ┌──────────┐                     │
-│ │‹image›   │ ← plik z innego telefonu, który jeszcze nie dotarł [P-7]
+│ │‹image›   │ ← plik z innego telefonu, który jeszcze nie dotarł (§ 4.14)
 │ │‹clock›   │                     │
 │ │Czeka na  │                     │
 │ │plik      │                     │
@@ -294,7 +296,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 └──────────────────────────────────┘
 ```
 - **Źródło miniatur:** własne niewysłane zdjęcia — z pliku lokalnego; pliki z serwera — miniatury **na żądanie, tylko gdy `fileState = ready`** i jest połączenie (sandbox aplikacji, wykluczone z kopii, kasowane przy unieważnieniu); offline — ikona typu i „Podgląd po połączeniu”. Podgląd pełnoekranowy: własny plik lokalny albo podgląd z serwera — **bez pobierania oryginałów** i bez panelu EXIF / GPS.
-- **Plik z innego urządzenia, który jeszcze nie dotarł** (medium z serwera bez pliku albo `fileState = pending_upload`, spoza Kolejki tego telefonu — np. film kolegi czeka na Wi-Fi): kafel bez miniatury — ikona typu (`image` / `video`) i znacznik [P-7] `clock` „Czeka na plik” jako tekst w kaflu (`color.sync.queued.*`); szczegóły w podglądzie i nazwie dostępnej: „Czeka na plik z telefonu · Marek Testowy · od 14:05”. Bez procentów, paska i akcji — wysyłką steruje telefon autora. Własne elementy zawsze pokazują stan z lokalnej Kolejki (§ 5.4), nie z serwera.
+- **Plik z innego urządzenia, który jeszcze nie dotarł** (medium z serwera bez pliku albo `fileState = pending_upload`, spoza Kolejki tego telefonu — np. film kolegi czeka na Wi-Fi): kafel bez miniatury — ikona typu (`image` / `video`) i znacznik (§ 4.14) `clock` „Czeka na plik” jako tekst w kaflu (`color.sync.queued.*`); szczegóły w podglądzie i nazwie dostępnej: „Czeka na plik z telefonu · Marek Testowy · od 14:05”. Bez procentów, paska i akcji — wysyłką steruje telefon autora. Własne elementy zawsze pokazują stan z lokalnej Kolejki (§ 5.4), nie z serwera.
 
 **Stany**
 | Stan | Zachowanie |
@@ -303,7 +305,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Ładowanie | Skeleton kafli `size.thumbnail.md` dla miniatur z serwera; lokalne — od razu. |
 | Błąd | Miniatura się nie wczytała — `image` + „Nie można wyświetlić” (§ 3.11); plik „Wymaga uwagi” — opis jak w Kolejce. |
 | Offline | Znaczniki stanu z § 5.4; miniatury z serwera niepobrane — „Podgląd po połączeniu”; pliki z innych urządzeń — „Czeka na plik” wg ostatniej synchronizacji. |
-| Brak uprawnień | Tylko odczyt — M-02; tryb ukrytych danych [P-13] — ekran niedostępny (dane zleceń ukryte); pliki oczekujące widać w Kolejce bez miniatur. |
+| Brak uprawnień | Tylko odczyt — M-02; tryb ukrytych danych (§ 4.18) — ekran niedostępny (EmptyState, dane zleceń nie są renderowane); pliki oczekujące widać w Kolejce bez miniatur. |
 
 **Role**
 | Akcja | Operacja | A | E | R |
@@ -313,7 +315,7 @@ Wartości progów i bitrate to wynik EVM-011: próg blokady filmu roboczo 1 GB +
 | Edycja, usuwanie, pobranie oryginału | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
 
 - **Responsywność:** siatka 3 kolumny (§ 3.11); pozioma orientacja — więcej kolumn przy zachowaniu `size.thumbnail.md`.
-- **Komponenty i tokeny:** Gallery, Thumbnail (§ 3.11) — `size.thumbnail.md`, `radius.thumbnail`, `space.inline.xs`; znaczniki stanu § 5.4 (`color.sync.*`) i [P-7] (w tym „Czeka na plik” — `clock`, `color.sync.queued.*`, tekst `text.body-sm`); FilterChip (§ 3.7); Button primary `size.touch-target.field`; Skeleton (§ 3.16).
+- **Komponenty i tokeny:** Gallery, Thumbnail (§ 3.11) — `size.thumbnail.md`, `radius.thumbnail`, `space.inline.xs`; znaczniki stanu § 5.4 (`color.sync.*`) i § 4.14 (w tym „Czeka na plik” — `clock`, `color.sync.queued.*`, tekst `text.body-sm`; plik w kwarantannie — `triangle-alert`, `color.sync.error.*`, bez przyczyny); FilterChip (§ 3.7); Button primary `size.touch-target.field`; Skeleton (§ 3.16).
 - **Mikrocopy:** „48 zdjęć · 2 filmy · 3 niewysłane” · „Niewysłane (3)” · „Podgląd po połączeniu” · „Czeka na plik” · „Czeka na plik z telefonu · Marek Testowy · od 14:05” · „Zrób zdjęcie”.
 - **Dostępność:** miniatura z nazwą „Zdjęcie, W trakcie prac, 02.10.2026, 9:12, w kolejce”; plik z innego telefonu — „Film, W trakcie prac, czeka na plik z telefonu, Marek Testowy, od 14:05”; znacznik stanu jako tekst w nazwie dostępnej, nie tylko ikona; przyciski „Poprzednie / Następne” w podglądzie.
 

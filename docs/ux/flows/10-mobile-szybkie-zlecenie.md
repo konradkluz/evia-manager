@@ -50,7 +50,7 @@ flowchart TD
 │ Kod [05-500]  Miasto [Piaseczno] │
 │ (garaż: Nr miejsca postojowego)  │
 │                                  │
-│ Szablon                    [P-3] │
+│ Szablon                   § 3.22 │
 │ (•) Dom — sam montaż             │
 │     3 pozycje · 1 transza        │
 │ ( ) Dom — pełny pakiet           │
@@ -70,7 +70,7 @@ flowchart TD
 └──────────────────────────────────┘
 
  Po zapisie → M-03:
-│ ← ‹clock› Oczekuje na numer [P-8]  ⟨Offline · 6⟩ │
+│ ← ‹clock› Oczekuje na numer § 4.15 ⟨Offline · 6⟩ │
 │ Dom — sam montaż                                 │
 │ Jan Przykładowy · ul. Fikcyjna 12, Piaseczno     │
 │ ┃‹info› Zapisano w telefonie. Numer nadamy po    │
@@ -92,9 +92,9 @@ flowchart TD
 **Stany zlecenia z telefonu**
 | Stan | UI | Co można |
 |---|---|---|
-| Zapisane w telefonie, bez wyniku | odznaka „Oczekuje na numer” [P-8] zamiast numeru (M-03, M-05, arkusz wyboru zlecenia) | dodawać zdjęcia, filmy, wpisy (czekają w kolejce na wynik zlecenia: „Wyślemy po utworzeniu zlecenia”) |
+| Zapisane w telefonie, bez wyniku | odznaka „Oczekuje na numer” (§ 4.15) zamiast numeru (M-03, M-05, arkusz wyboru zlecenia) | dodawać zdjęcia, filmy, wpisy (czekają w kolejce na wynik zlecenia: „Wyślemy po utworzeniu zlecenia”) |
 | `applied` / `duplicate` | numer (np. `ZL-2026-0042`), ogłoszenie „Zlecenie dostało numer ZL-2026-0042.”, zależne elementy ruszają w kolejce | jak każde zlecenie (telefon tylko dodaje) |
-| `rejected` (`template_unavailable`, `validation_failed`, `id_conflict`, `forbidden`) | Kolejka → „Wymaga uwagi” [P-9]: „Zlecenie nie zostało utworzone — [powód prostymi słowami].” | „Utwórz ponownie” (formularz wypełniony danymi, nowe identyfikatory; zależne zdjęcia i wpisy przechodzą do nowego zlecenia przed wysłaniem) · „Usuń z telefonu” (dialog z liczbą zależnych elementów) |
+| `rejected` (`template_unavailable`, `validation_failed`, `id_conflict`, `forbidden`) | Kolejka → „Wymaga uwagi” (§ 4.16), a w M-03 zlecenia znacznik „Wymaga uwagi” z „Przejdź do kolejki”: „Zlecenie nie zostało utworzone — [powód prostymi słowami].” | „Utwórz ponownie” (formularz wypełniony danymi, nowe identyfikatory; zależne zdjęcia i wpisy przechodzą do nowego zlecenia przed wysłaniem) · „Usuń z telefonu” (dialog z liczbą zależnych elementów) |
 | Resync albo wyjście z zakresu przed wynikiem | bez zmian — obiekt oczekujący należy do kolejki (`offline-sync.md`, zasada 2) | jw. |
 
 **Stany ekranu**
@@ -104,7 +104,7 @@ flowchart TD
 | Ładowanie | nd. — zapis lokalny jest natychmiastowy; szablony i słowniki z lokalnej bazy. |
 | Błąd | Walidacja lokalna (te same reguły co kontrakt): podsumowanie błędów na górze + komunikaty pod polami („Podaj numer telefonu, np. 600 000 001.”, „Podaj adres lokalizacji.”); brak miejsca w telefonie — „Brak miejsca — zlecenie zostaje w szkicu.”; błędy synchronizacji — tabela wyżej. |
 | Offline | Normalna praca; toast „Zapisano w telefonie. Numer nadamy po synchronizacji.” |
-| Brak uprawnień | Tylko odczyt — M-02. Tryb ukrytych danych [P-13] — formularz niedostępny (wymaga danych klientów i lokalizacji z telefonu): „Nowe zlecenie założysz po ponownym zalogowaniu. Zdjęcia możesz robić dalej.” |
+| Brak uprawnień | Tylko odczyt — M-02. Tryb ukrytych danych (§ 4.18) — formularz niedostępny (EmptyState) (wymaga danych klientów i lokalizacji z telefonu): „Nowe zlecenie założysz po ponownym zalogowaniu. Zdjęcia możesz robić dalej.” |
 
 **Role**
 | Akcja | Komenda (`offline-sync.md`) | A | E | R |
@@ -113,9 +113,9 @@ flowchart TD
 | Zdjęcia i wpisy do zlecenia oczekującego | `CreateMediaAsset`, `CreateNote` (zależność w kolejce) | tak | tak | — |
 | Utwórz ponownie po odrzuceniu | nowa komenda `CreateQuickWorkOrder` z nowymi identyfikatorami | tak | tak | — |
 
-**Po synchronizacji — panel** ([W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)): zlecenie z `origin = mobile_quick` ma baner „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026). Uzupełnij dane: klienta · lokalizacji · kwoty transz” z odnośnikami do akcji — klient → W-14, lokalizacja → W-20 „Edytuj lokalizację” (OSD, zarządca, poziom, moc, PPE), kwoty → „Zmień kwotę” transzy „Planowana” (specyfikacja: [W-06 → baner „Zlecenie założone w terenie”](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)); na liście W-10 widoczne jak każde inne (status „Nowe”). Możliwe duplikaty klientów i lokalizacji scala biuro — funkcja scalania poza v1 (`offline-sync.md`, otwarte 9).
+**Po synchronizacji — panel** ([W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)): zlecenie z `origin = mobile_quick` ma baner „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026). Uzupełnij dane: klienta · lokalizacji · kwoty transz” z odnośnikami do akcji — klient → W-14, lokalizacja → W-20 „Edytuj lokalizację” (OSD, zarządca, poziom, moc, PPE), kwoty transz → sekcja „Płatności” z fokusem na menu `⋮` pierwszej transzy „Planowana” bez kwoty (pozycja „Zmień kwotę”; bez takiej transzy — nagłówek sekcji) (specyfikacja: [W-06 → baner „Zlecenie założone w terenie”](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)); na liście W-10 widoczne jak każde inne (status „Nowe”). Możliwe duplikaty klientów i lokalizacji scala biuro — funkcja scalania poza v1 (`offline-sync.md`, otwarte 9).
 
 - **Responsywność:** jedna kolumna; przy klawiaturze dolny pasek nad klawiaturą; powiększenie czcionki do 200 % — karty szablonów zawijane.
-- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); FilterChip (§ 3.7) jako wybór pojedynczy (`size.touch-target.min`); TextField (§ 3.2) — tekst, telefon (klawiatura `tel`), kod pocztowy; Select jako BottomSheet (§ 3.3, § 3.13); SelectableCard [P-3]; InlineAlert (§ 3.19) `color.feedback.info.*`; TextArea z dyktowaniem (§ 3.2, § 4.1); Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; odznaka „Oczekuje na numer” [P-8]; „Wymaga uwagi” [P-9]; Toast (§ 3.14).
+- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); FilterChip (§ 3.7) jako wybór pojedynczy (`size.touch-target.min`); TextField (§ 3.2) — tekst, telefon (klawiatura `tel`), kod pocztowy; Select jako BottomSheet (§ 3.3, § 3.13); SelectableCard (§ 3.22); InlineAlert (§ 3.19) `color.feedback.info.*`; TextArea z dyktowaniem (§ 3.2, § 4.1); Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; odznaka „Oczekuje na numer” (§ 4.15); „Wymaga uwagi” (§ 4.16); tryb ukrytych danych (§ 4.18); Toast (§ 3.14).
 - **Mikrocopy:** „Nowe zlecenie” · „Numer nadamy po synchronizacji.” · „Z telefonu” / „Nowy klient” / „Nowa” · „W telefonie jest podobny klient: … [Wybierz]” · „Pokaż wszystkie szablony” · „Możesz dyktować.” · „Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów.” · „Szkic zapisany w telefonie · 13:38” · „Zapisz zlecenie” · „Oczekuje na numer” · „Zapisano w telefonie. Numer nadamy po synchronizacji. Możesz już dodawać zdjęcia.” · „Zlecenie dostało numer ZL-2026-0042.” · „Zlecenie nie zostało utworzone — szablon został wycofany.” · „Utwórz ponownie”.
 - **Dostępność:** sekcje z nagłówkami; chipy jako grupy radio z etykietą; podsumowanie błędów z fokusem; nadanie numeru ogłaszane (TalkBack) bez przerywania pracy; cele dotyku ≥ `size.touch-target.min`; minimum pisania — wybór z telefonu przed nowym, dyktowanie w notatce (§ 5.1).

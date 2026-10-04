@@ -51,19 +51,20 @@ Zlecenia / ZL-2026-0042
 │ │ Zgody administracji:    ││ „Zielony Dziedziniec”         ││ Po terminie: ││ Planowane: 3        ││
 │ │  Zgoda administracji    ││ (Wspólnota / spółdzielnia)    ││ brak         ││ Opłacone: 0 z 4     ││
 │ │  «Czekamy na…»          ││ · od 3 dni                    ││              ││                     ││
-│ │ + 7 procesów            ││ klient: —                     ││              ││                     ││
+│ │ + 7 procesów            ││                               ││              ││                     ││
 │ └─────────────────────────┘└───────────────────────────────┘└──────────────┘└─────────────────────┘│
 ├───────────────────────────────────────────────────────────────┬──────────────────────────┤
 │ [Przegląd] [Dziennik (12)] [Media i dokumenty (48)]           │ Klient                   │
 │                                                               │ Jan Przykładowy          │
 │ Procesy i etapy (9)                        [Rozwiń wszystkie] │ +48 600 000 001          │
-│ ▾ Uzgodnienia z OSD        3 z 7 etapów [P-6]                 │ jan.przykladowy@example.com│
+│ ▾ Uzgodnienia z OSD        2 z 7 etapów § 3.23                │ jan.przykladowy@example.com│
 │    1 Pełnomocnictwo od klienta     «Zakończony»  02.09.2026   │ [Przejdź do klienta]     │
 │    2 Wniosek do OSD                «Zakończony»  05.09.2026   │                          │
 │    3 Warunki przyłączenia i        «Czekamy na… ▾»          ⋮ │ Lokalizacja   [Edytuj]   │
 │      projekt umowy                 Czekamy na: Stoen Operator │ Garaż w budynku          │
 │                                    (OSD) · od 15 dni ‹triangle-alert›                    │
-│                                    Odpowiedzialna: Anna Testowa│ wielorodzinnym           │
+│                                    Osoba odpowiedzialna:       │ wielorodzinnym           │
+│                                    Anna Testowa                │                          │
 │    4 Umowa z OSD podpisana…        «Do zrobienia ▾»         ⋮ │ ul. Testowa 7, 00-001    │
 │    5 Prace sieciowe po stronie OSD «Do zrobienia ▾»         ⋮ │ Warszawa                 │
 │    6 Zgłoszenie gotowości…         «Do zrobienia ▾»         ⋮ │ Miejsce nr 15, poziom −1 │
@@ -95,7 +96,7 @@ Zlecenia / ZL-2026-0042
 └───────────────────────────────────────────────────────────────┴──────────────────────────┘
 ```
 
-**Nagłówek — menu przejść zlecenia** (odznaka `«W realizacji ▾»`, ActionMenu [P-1]; tylko przejścia z tabeli „Zlecenie” w `domain-model.md`)
+**Nagłówek — menu przejść zlecenia** (odznaka `«W realizacji ▾»`, ActionMenu — § 3.20; tylko przejścia z tabeli „Zlecenie” w `domain-model.md`)
 | Ze stanu | Pozycje menu | Po wykonaniu |
 |---|---|---|
 | Nowe | „Rozpocznij wycenę”, „Zaakceptuj bez wyceny”, „Wstrzymaj…”, „Anuluj zlecenie…” | toast bez „Cofnij” (brak przejścia odwrotnego); „Wstrzymaj” — toast z „Cofnij” (wznowienie) |
@@ -115,14 +116,32 @@ Zlecenia / ZL-2026-0042
 **Baner „Zlecenie założone w terenie”** (`origin = mobile_quick`, [przepływ 10](10-mobile-szybkie-zlecenie.md)) — Banner (§ 3.19, `color.feedback.info.*`, ikona `info`) nad kartą podsumowania, z odnośnikiem do każdej akcji uzupełnienia. Widoczny, dopóki zlecenie ma status „Nowe” (wyliczane, bez nowego pola; po pierwszym przejściu zlecenia znika). Odnośniki tylko dla A i E — Tylko odczyt widzi sam pierwszy wiersz.
 ```text
 ┃‹info› Zlecenie założone w terenie (Piotr Testowy, 03.10.2026).
-┃ Uzupełnij dane: [klienta] · [lokalizacji] · [kwoty transz]
+┃ Uzupełnij dane: klienta · [lokalizacji] · kwoty transz ↓
+┃                 └ link     └ przycisk     └ link do sekcji
 ```
 
-| Odnośnik | Prowadzi do | Co biuro uzupełnia |
-|---|---|---|
-| klienta | W-14 — szczegóły klienta (jak „Przejdź do klienta”; bez makiety — przy refinemencie E2) | e-mail, NIP, osoba kontaktowa, adres korespondencyjny, notatki |
-| lokalizacji | W-20 „Edytuj lokalizację” (dialog z karty „Lokalizacja” — niżej) | poziom garażu, OSD, zarządca, moc przyłączeniowa, PPE, notatki |
-| kwoty transz | przewinięcie do sekcji „Płatności”, fokus na pierwszej transzy „Planowana” bez kwoty — akcja „Zmień kwotę” ([akcje płatności](08-nieoplacone.md#akcje-płatności--status--rola)) | kwoty transz |
+Trzy odnośniki robią trzy różne rzeczy, więc mają **trzy różne komponenty i nazwy dostępne** (WCAG 4.1.2, 2.4.4) — użytkownik czytnika i klawiatury wie przed aktywacją, czy przejdzie na inną stronę, otworzy dialog, czy przewinie stronę:
+
+| Odnośnik | Komponent | Prowadzi do | Nazwa dostępna i fokus | Co biuro uzupełnia |
+|---|---|---|---|---|
+| klienta | **Link** — nawigacja (`color.text.link`, podkreślony; `href` do szczegółów klienta) | W-14 — szczegóły klienta (jak „Przejdź do klienta”; bez makiety — przy refinemencie E2) | „Uzupełnij dane klienta — przejdź do klienta”; po przejściu fokus na nagłówku W-14 (zwykła nawigacja), „wstecz” wraca do W-06 | e-mail, NIP, osoba kontaktowa, adres korespondencyjny, notatki |
+| lokalizacji | **Button tertiary** (§ 3.1) z `aria-haspopup="dialog"` — wygląda jak przycisk tekstowy, bez podkreślenia | W-20 „Edytuj lokalizację” (dialog z karty „Lokalizacja” — niżej) | „Uzupełnij dane lokalizacji” (otwiera dialog); fokus w dialogu na pierwszym polu, po zamknięciu wraca do przycisku | poziom garażu, OSD, zarządca, moc przyłączeniowa, PPE, notatki |
+| kwoty transz | **Link do sekcji na tej stronie** (`href="#platnosci"`, podkreślony, ikona `arrow-down` `size.icon.sm`) | przewinięcie do sekcji „Płatności” na tej stronie (mechanizm — niżej) | „Uzupełnij kwoty transz — przejdź do sekcji Płatności”; fokus na wyzwalaczu `⋮` pierwszej transzy „Planowana” bez kwoty („Akcje transzy: Po uzyskaniu zgód (30%)”), a gdy takiej transzy nie ma — na nagłówku sekcji „Płatności” | kwoty transz — „Zmień kwotę” z menu `⋮` transzy ([akcje płatności](08-nieoplacone.md#akcje-płatności--status--rola)) |
+
+Kontrast odnośników na `color.feedback.info.bg` — 6,20:1 (styleguide § 2.1.4).
+
+**Odnośnik „kwoty transz” — cel fokusu i mechanizm**
+- **Dlaczego nie „Zmień kwotę”:** to pozycja menu `⋮` transzy (ActionMenu, § 3.20). Przy zamkniętym menu pozycji nie ma w drzewie dokumentu, więc nie może przyjąć fokusu. Sam `href="#platnosci"` przenosi tylko punkt startu nawigacji sekwencyjnej — nie ustawia fokusu na kontrolce.
+- **Cel fokusu (w tej kolejności):**
+  1. wyzwalacz `⋮` pierwszej wg kolejności w tabeli transzy „Planowana” bez kwoty — nazwa „Akcje transzy: Po uzyskaniu zgód (30%)”. Menu zostaje zamknięte. Enter albo Spacja otwiera je z fokusem na pierwszej pozycji — w menu transzy „Planowana” to „Zmień kwotę”, bo „Anuluj transzę…” i „Usuń transzę…” stoją na końcu, w osobnej grupie (§ 3.20);
+  2. gdy takiej transzy nie ma — nagłówek sekcji „Płatności” (h2, `id="platnosci"`, `tabindex="-1"`). Tak jest, gdy wszystkie kwoty są już wpisane albo zlecenie nie ma transz; baner jest widoczny do końca statusu „Nowe”, więc odnośnik musi działać także wtedy. Z nagłówka Tab prowadzi do akcji sekcji („Dodaj transzę”, akcje transz).
+- **Mechanizm:**
+  - element `<a href="#platnosci">` — semantyka odnośnika na tej stronie i zapas: bez obsługi zdarzenia przeglądarka przewija do kotwicy;
+  - obsługa aktywacji (kliknięcie, Enter): `preventDefault()`, potem przewinięcie nagłówka sekcji do widoku — `scroll-padding-top` kontenera przewijania równe wysokości przyklejonych pasków (WCAG 2.4.11); przewijanie płynne tylko bez `prefers-reduced-motion` (§ 2.9);
+  - na koniec `focus()` na celu, z `preventScroll`, gdy cel jest już w widoku pod nagłówkiem; w przeciwnym razie bez tej opcji — przewinięcie przy fokusie też uwzględnia `scroll-padding`;
+  - adres URL bez zmian i bez wpisu w historii — „wstecz” wraca do poprzedniej strony, jak wszędzie w W-06.
+- **Widoczny fokus:** wyzwalacz `⋮` — stany IconButton (§ 3.1, `color.focus.ring`); nagłówek — pierścień `color.focus.ring` przy `:focus-visible` (aktywacja z klawiatury).
+- **Responsywność:** na `breakpoint.compact` płatności to lista kart (§ 3.6). Celem jest `⋮` karty transzy, a menu otwiera się jako BottomSheet (§ 3.20).
 
 **Karta „Lokalizacja” — edycja lokalizacji i stron (W-20, dialog; bez makiety — przy refinemencie E3 / E4)**
 - **„Edytuj”** w nagłówku karty (nazwa dostępna „Edytuj lokalizację”) otwiera dialog (§ 3.13, `size.dialog.width.md`) z polami sekcji „2. Lokalizacja” z [W-05](02-nowe-zlecenie-z-szablonu.md#w-05-nowe-zlecenie), wypełnionymi bieżącymi danymi: typ obiektu, adres, nr miejsca i poziom, OSD i zarządca (combobox stron z „Dodaj stronę”), moc przyłączeniowa, PPE, notatki z podpowiedzią „Nie wpisuj PESEL…”. Nad polami InlineAlert (§ 3.19, `color.feedback.info.*`): „Zmiana dotyczy wszystkich zleceń w tej lokalizacji (2).” — licznik tą samą polityką co lista (SR-AUTHZ-03); lokalizacja bywa wspólna dla zleceń różnych klientów (scenariusz D4′).
@@ -131,7 +150,7 @@ Zlecenia / ZL-2026-0042
 
 **Karta podsumowania — reguły** (wszystko wyliczane z danych, bez nowych pól)
 - **Na jakim etapie:** dla każdego procesu z otwartym etapem — bieżący etap (pierwszy otwarty wg `position`) z odznaką; maksymalnie 3 procesy, reszta jako „+ 7 procesów” (przewija do sekcji).
-- **Na kogo czekamy:** wszystkie etapy w stanie `waiting`, sortowane od najdłuższego oczekiwania; format z § 4.4 („Czekamy na: Stoen Operator (OSD) · od 15 dni”, „Czekamy na: klient · od 3 dni”); powyżej 14 dni — `triangle-alert` + `color.text.warning`. Brak — „Piłka po naszej stronie — nie czekamy na nikogo.”
+- **Na kogo czekamy:** wszystkie etapy w stanie `waiting`, sortowane od najdłuższego oczekiwania; format z § 4.4 („Czekamy na: Stoen Operator (OSD) · od 15 dni”, „Czekamy na: klient · od 3 dni”); powyżej 14 dni — `triangle-alert` + `color.text.warning`. Kafel pokazuje tylko faktyczne oczekiwania — bez pustych wierszy dla klienta czy stron (PO-3). Brak oczekiwań — „Piłka po naszej stronie — nie czekamy na nikogo.”
 - **Terminy:** najbliższy `dueDate` otwartego etapu; etapy po terminie — `alarm-clock` + `color.text.error` (§ 4.2).
 - **Płatności:** nieopłacone (liczba i suma transz `invoiced`), „Po terminie” (mocna odznaka i liczba dni), planowane, opłacone „x z y”.
 
@@ -140,7 +159,7 @@ Zlecenia / ZL-2026-0042
 |---|---|
 | Pusty | Zlecenie bez szablonu: „Zlecenie nie ma jeszcze procesów. [Edytuj zakres]” i „Brak transz. [Dodaj transzę]”; bez innych zleceń w lokalizacji — sekcja ukryta. |
 | Ładowanie | Najpierw nagłówek (Skeleton tekstu), potem karta podsumowania (Skeleton czterech kafli) i sekcje (§ 4.12); zakładki doczytywane po wybraniu. |
-| Błąd | Nie wczytano zlecenia — EmptyState `circle-alert` „Nie udało się wczytać zlecenia. [Spróbuj ponownie]”; nie wczytano sekcji — alert w sekcji z „Spróbuj ponownie”, pozostałe sekcje działają; `412 version_conflict` przy edycji — § 6.4 „Ktoś zmienił to zlecenie w międzyczasie…”; `429` — wzór z README. |
+| Błąd | Nie wczytano zlecenia — EmptyState `circle-alert` „Nie udało się wczytać zlecenia. [Spróbuj ponownie]”; nie wczytano sekcji — alert w sekcji z „Spróbuj ponownie”, pozostałe sekcje działają; `412 version_conflict` przy edycji — komunikat konfliktu edycji z § 6.4; `429` — wzór z README. |
 | Offline | Baner § 4.10; dane widoczne z pamięci karty z banerem „Dane mogą być nieaktualne (z 14:05)”; akcje zmieniające dane wyłączone z podpowiedzią „Zmienisz po powrocie połączenia.” |
 | Brak uprawnień | `404` — EmptyState „Nie znaleziono zlecenia. Mogło zostać usunięte albo nie masz do niego dostępu. [Wróć do listy]”, bez danych z listy; tytuł karty „Nie znaleziono · EVia Manager”. Tylko odczyt — wszystkie sekcje (z płatnościami) bez akcji: odznaki statyczne, brak `⋮`, „Dodaj transzę”, „Edytuj zakres”, „Edytuj” w karcie „Lokalizacja” i odnośników w banerze „Zlecenie założone w terenie”. Edytor — akcje Administratora wyłączone z podpowiedzią. |
 
@@ -167,14 +186,14 @@ Zlecenia / ZL-2026-0042
 - Tylko panel; na telefonie sekcji nie ma. Pełna „historia lokalizacji” (dokumenty i zdjęcia poprzednich zleceń) — kandydat do backlogu (EVM-010).
 
 - **Responsywność:** `breakpoint.wide` — kolumna boczna szersza, tabela płatności ze wszystkimi kolumnami; `breakpoint.expanded` — jak makieta (treść 8 kolumn siatki + boczna 4); `breakpoint.medium` — jedna kolumna: nagłówek, podsumowanie (kafle 2 × 2), karty Klient i Lokalizacja pod podsumowaniem, tabela płatności bez kolumny „Nr faktury” (w szczegółach wiersza); `breakpoint.compact` — kafle podsumowania jeden pod drugim, zakładki przewijane poziomo, płatności jako lista kart (§ 3.6), etapy jako lista prosta.
-- **Komponenty i tokeny:** Breadcrumbs, Tabs (§ 3.17); nagłówek `text.heading-1` (numer i tytuł), metadane `text.body-sm` `color.text.secondary`; StatusBadge (§ 3.9) — statyczna i jako przycisk, wariant mocny „Rozliczone”, „Po terminie”, tokeny `color.status.order.*`, `color.status.stage.*`, `color.status.payment.*`; ActionMenu [P-1]; Card (§ 3.8) — karta podsumowania (`space.inset.lg`, `radius.card`, `color.border.default`), karty boczne; Disclosure [P-2]; postęp procesu [P-6]; DataTable (§ 3.6) — płatności, kwoty `text.numeric` do prawej, sumy `text.numeric-lg`; List (§ 3.6) — etapy; Banner / InlineAlert (§ 3.19) — także baner „Zlecenie założone w terenie” `color.feedback.info.*` z odnośnikami `color.text.link`; Button tertiary (§ 3.1) „Edytuj” w nagłówku karty „Lokalizacja”; Dialog (§ 3.13) — anulowanie, rozliczenie, wstrzymanie, W-20 (`size.dialog.width.md`, pola i Combobox z W-05); Toast (§ 3.14) z „Cofnij”; ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`, `circle-check` `color.icon.success`; odznaka zastępcza [P-12] dla nieznanej wartości statusu; odstępy `space.stack.md`, `space.inline.md`.
-- **Mikrocopy:** „Podsumowanie” · „Na jakim etapie” · „Na kogo czekamy” · „Czekamy na: Stoen Operator (OSD) · od 15 dni” · „Piłka po naszej stronie — nie czekamy na nikogo.” · „Terminy” · „Najbliższy:” · „Po terminie:” · „Płatności” · „Nieopłacone:” · „Opłacone: 0 z 4” · „Procesy i etapy (9)” · „3 z 7 etapów” · „Wszystkie zakończone” · „Rozwiń wszystkie” · „Inne zlecenia w tej lokalizacji (1)” · „Przejdź do klienta” · „Edytuj” (karta „Lokalizacja”) · „Edytuj lokalizację” · „Edytuj stronę” · „Zmiana dotyczy wszystkich zleceń w tej lokalizacji (2).” · „Strona jest wspólna — zmiana będzie widoczna we wszystkich lokalizacjach i zleceniach z tą stroną.” · „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026).” · „Uzupełnij dane: klienta · lokalizacji · kwoty transz” · toasty: „Wstrzymano zlecenie. [Cofnij]”, „Zakończono zlecenie. [Cofnij]”, „Zapisano zmiany lokalizacji.”, „Zapisano zmiany strony.”
-- **Dostępność:** nagłówki sekcji w hierarchii (h1 numer i tytuł, h2 sekcje, h3 procesy); karta podsumowania jako region z nazwą „Podsumowanie zlecenia”; odznaki z pełną nazwą dostępną („Status zlecenia: W realizacji, zmień status”); rozwinięcia `aria-expanded`; tabela płatności z `aria-sort` i nagłówkami wierszy; liczby dni jako tekst, nie tylko ikona; tytuł karty „ZL-2026-0042 · EVia Manager” (bez nazwiska i adresu); odnośniki banera z pełną nazwą dostępną („Uzupełnij dane lokalizacji”); `⋮` przy stronie z nazwą „Akcje strony: Stoen Operator (OSD)”; po zapisie W-20 fokus wraca do przycisku, który otworzył dialog.
+- **Komponenty i tokeny:** Breadcrumbs, Tabs (§ 3.17); nagłówek `text.heading-1` (numer i tytuł), metadane `text.body-sm` `color.text.secondary`; StatusBadge (§ 3.9) — statyczna i jako przycisk, wariant mocny „Rozliczone”, „Po terminie”, tokeny `color.status.order.*`, `color.status.stage.*`, `color.status.payment.*`; ActionMenu (§ 3.20); Card (§ 3.8) — karta podsumowania (`space.inset.lg`, `radius.card`, `color.border.default`), karty boczne; Disclosure (§ 3.21); ProcedureProgress (§ 3.23, `color.progress.*`); DataTable (§ 3.6) — płatności, kwoty `text.numeric` do prawej, sumy `text.numeric-lg`; List (§ 3.6) — etapy; Banner / InlineAlert (§ 3.19) — także baner „Zlecenie założone w terenie” `color.feedback.info.*` z odnośnikami: Link `color.text.link`, Button tertiary z `aria-haspopup="dialog"`, link do sekcji (tabela odnośników wyżej); Button tertiary (§ 3.1) „Edytuj” w nagłówku karty „Lokalizacja”; Dialog (§ 3.13) — anulowanie, rozliczenie, wstrzymanie, W-20 (`size.dialog.width.md`, pola i Combobox z W-05); Toast (§ 3.14) z „Cofnij”; ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`, `circle-check` `color.icon.success`; odznaka wartości nieznanej (§ 3.9.1, `color.status.unknown.*`) — zawsze statyczna, akcje zależne od statusu wyłączone z podpowiedzią; odstępy `space.stack.md`, `space.inline.md`.
+- **Mikrocopy:** „Podsumowanie” · „Na jakim etapie” · „Na kogo czekamy” · „Czekamy na: Stoen Operator (OSD) · od 15 dni” · „Piłka po naszej stronie — nie czekamy na nikogo.” · „Terminy” · „Najbliższy:” · „Po terminie:” · „Płatności” · „Nieopłacone:” · „Opłacone: 0 z 4” · „Procesy i etapy (9)” · „2 z 7 etapów” · „Wszystkie zakończone” · „Osoba odpowiedzialna: Anna Testowa” · „Rozwiń wszystkie” · „Inne zlecenia w tej lokalizacji (1)” · „Przejdź do klienta” · „Edytuj” (karta „Lokalizacja”) · „Edytuj lokalizację” · „Edytuj stronę” · „Zmiana dotyczy wszystkich zleceń w tej lokalizacji (2).” · „Strona jest wspólna — zmiana będzie widoczna we wszystkich lokalizacjach i zleceniach z tą stroną.” · „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026).” · „Uzupełnij dane: klienta · lokalizacji · kwoty transz” · toasty: „Wstrzymano zlecenie. [Cofnij]”, „Zakończono zlecenie. [Cofnij]”, „Zapisano zmiany lokalizacji.”, „Zapisano zmiany strony.”
+- **Dostępność:** nagłówki sekcji w hierarchii (h1 numer i tytuł, h2 sekcje, h3 procesy); karta podsumowania jako region z nazwą „Podsumowanie zlecenia”; odznaki z pełną nazwą dostępną („Status zlecenia: W realizacji, zmień status”); rozwinięcia `aria-expanded`; tabela płatności z `aria-sort` i nagłówkami wierszy; liczby dni jako tekst, nie tylko ikona; tytuł karty „ZL-2026-0042 · EVia Manager” (bez nazwiska i adresu); odnośniki banera — trzy komponenty z różnymi nazwami dostępnymi (tabela odnośników banera); nagłówki sekcji procesów z nazwą dostępną „Uzgodnienia z OSD, 2 z 7 etapów, czekamy na Stoen Operator (OSD) od 15 dni” (§ 3.21); `⋮` przy stronie z nazwą „Akcje strony: Stoen Operator (OSD)”; po zapisie W-20 fokus wraca do przycisku, który otworzył dialog.
 
 ## M-03 Szczegóły zlecenia
 - **Cel:** w terenie, także bez zasięgu, zobaczyć, co robimy w tym zleceniu, gdzie i z kim — i od razu dodać zdjęcie albo wpis.
 - **Główna akcja:** „Zrób zdjęcie” (dolny pasek, `size.touch-target.field`).
-- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer” [P-8]), tytuł, odznaka zlecenia; 2) klient (nazwa, telefon) i adres (`text.body-lg`) z miejscem postojowym i wskazówkami dojazdu (`Site.notes`); 3) na kogo czekamy i bieżące etapy (tylko podgląd) + „Status etapu zmienisz w panelu.”; 4) procesy (rozwijane, tylko podgląd); 5) media (liczniki) → M-08; 6) dziennik (ostatnie wpisy) + „Dodaj wpis”; 7) dokumenty — tylko metadane.
+- **Hierarchia treści:** 1) numer (albo „Oczekuje na numer” — § 4.15), tytuł, odznaka zlecenia; 2) klient (nazwa, telefon) i adres (`text.body-lg`) z miejscem postojowym i wskazówkami dojazdu (`Site.notes`); 3) na kogo czekamy i bieżące etapy (tylko podgląd) + „Status etapu zmienisz w panelu.”; 4) procesy (rozwijane, tylko podgląd); 5) media (liczniki) → M-08; 6) dziennik (ostatnie wpisy) + „Dodaj wpis”; 7) dokumenty — tylko metadane.
 
 **Makieta (compact)**
 ```text
@@ -196,8 +215,8 @@ Zlecenia / ZL-2026-0042
 │ ┃‹info› Status etapu zmienisz    │
 │ ┃ w panelu.                      │
 │                                  │
-│ Procesy                    [P-2] │
-│ ▸ Uzgodnienia z OSD  3 z 7 [P-6] │
+│ Procesy                   § 3.21 │
+│ ▸ Uzgodnienia z OSD  2 z 7 § 3.23│
 │ ▸ Zgody administracji 2 z 4      │
 │ ▸ Instalacja zasilająca 0 z 3    │
 │                                  │
@@ -235,9 +254,9 @@ Zlecenia / ZL-2026-0042
 |---|---|
 | Pusty | Brak procesów (szybkie zlecenie przed uzupełnieniem w biurze): „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.” Brak mediów: „To zlecenie nie ma jeszcze zdjęć. [Zrób zdjęcie]”. |
 | Ładowanie | Dane z lokalnej bazy od razu; miniatury — Skeleton kafli do czasu pobrania (tylko online). |
-| Błąd | Lokalny odczyt nieudany: „Nie udało się otworzyć zlecenia. [Spróbuj ponownie]”; zlecenie usunięte w biurze albo poza zakresem — „Nie znaleziono zlecenia. Twoje niewysłane zdjęcia i wpisy z tego zlecenia są w Kolejce. [Przejdź do kolejki]” (elementy oczekujące → „Wymaga uwagi” [P-9]). |
+| Błąd | Lokalny odczyt nieudany: „Nie udało się otworzyć zlecenia. [Spróbuj ponownie]”; zlecenie usunięte w biurze albo poza zakresem — „Nie znaleziono zlecenia. Twoje niewysłane zdjęcia i wpisy z tego zlecenia są w Kolejce. [Przejdź do kolejki]” (elementy oczekujące → „Wymaga uwagi”, § 4.16). |
 | Offline | SyncIndicator „Offline · 5” + baner § 5.4; wszystko z lokalnej bazy; miniatury niepobrane — kafel z ikoną typu i „Podgląd po połączeniu”; zapisy idą do kolejki („Zapisano w telefonie”). |
-| Brak uprawnień | Tylko odczyt nie ma dostępu do aplikacji (M-02). Utrata dostępu po synchronizacji (`rejected: forbidden`, `resync_required`) — zlecenie znika z listy, elementy oczekujące zostają w Kolejce („Wymaga uwagi”). Tryb ukrytych danych [P-13] — ekran niedostępny: „Dane zleceń są ukryte… Aparat i kolejka działają.” |
+| Brak uprawnień | Tylko odczyt nie ma dostępu do aplikacji (M-02). Utrata dostępu po synchronizacji (`rejected: forbidden`, `resync_required`) — zlecenie znika z listy, elementy oczekujące zostają w Kolejce („Wymaga uwagi”). Tryb ukrytych danych (§ 4.18) — ekran niedostępny (EmptyState, dane nie są renderowane): „Dane zleceń są ukryte… Aparat i kolejka działają.” |
 
 **Role**
 | Akcja | Komenda (`offline-sync.md`) | A | E | R |
@@ -248,6 +267,6 @@ Zlecenia / ZL-2026-0042
 | Zmiana statusu etapu, płatności, edycja danych | — (tylko panel; telefon tylko dodaje) | nie | nie | — |
 
 - **Responsywność:** jedna kolumna; obsługa powiększenia czcionki do 200 % (adres i telefon zawijane, nie skracane); pozioma orientacja — ten sam porządek, dolny pasek akcji zostaje.
-- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); StatusBadge (§ 3.9); odznaka „Oczekuje na numer” [P-8]; Card (§ 3.8) `space.inset.md`, odstęp `space.stack.sm`; adres `text.body-lg`, treść `text.body` (minimum mobile); link `tel:` jako Button tertiary z ikoną `phone` (`size.touch-target.min`); InlineAlert (§ 3.19) `color.feedback.info.*`; Disclosure [P-2]; postęp procesu [P-6]; Timeline (§ 3.10) — skrót dziennika; Button primary `size.touch-target.field` + secondary w dolnym pasku `elevation.bottom-bar`; BottomNav (§ 3.18).
+- **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4; stan „Wymaga uwagi” — § 4.16); StatusBadge (§ 3.9; wartość nieznana — § 3.9.1, podpowiedź „Zaktualizuj aplikację, aby zobaczyć szczegóły.”); odznaka „Oczekuje na numer” (§ 4.15); Card (§ 3.8) `space.inset.md`, odstęp `space.stack.sm`; adres `text.body-lg`, treść `text.body` (minimum mobile); link `tel:` jako Button tertiary z ikoną `phone` (`size.touch-target.min`); InlineAlert (§ 3.19) `color.feedback.info.*`; Disclosure (§ 3.21); ProcedureProgress (§ 3.23); tryb ukrytych danych (§ 4.18); Timeline (§ 3.10) — skrót dziennika; Button primary `size.touch-target.field` + secondary w dolnym pasku `elevation.bottom-bar`; BottomNav (§ 3.18).
 - **Mikrocopy:** „Status etapu zmienisz w panelu.” · „Na kogo czekamy” · „Wskazówki:” · „48 zdjęć · 3 niewysłane” · „Pokaż cały dziennik” · „Dokumenty (tylko informacja)” · „Zrób zdjęcie” · „Dodaj wpis” · „Biuro uzupełni procesy po synchronizacji. Możesz już dodawać zdjęcia i wpisy.”
 - **Dostępność:** cele dotyku ≥ `size.touch-target.min`; telefon klienta jako przycisk z nazwą „Zadzwoń: Jan Przykładowy”; odznaki ze statusem w nazwie dostępnej; brak gestów jako jedynej drogi (rozwinięcie procesu przyciskiem); kontrast tekstu ≥ 7:1 (§ 5.3).
