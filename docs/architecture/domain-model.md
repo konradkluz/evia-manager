@@ -94,7 +94,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 | `timeline` | `timeline` | `TimelineEntry` | `work-orders`, `procedures`; subskrybuje zdarzenia `procedures`, `payments`, `media` |
 | `media` | `media` | `MediaAsset`, `Document`, `DocumentVersion`, `StoredFile`, `UploadSession` | `work-orders`, `procedures`, `customers`, `sites`, `catalog`, `identity` |
 | `sync` | `sync` | `SyncChange`, `DeviceSyncState` | `identity` i fasady modułów w zakresie synchronizacji |
-| `overview` — **proponowany** ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md), status „Proponowana”; powstaje w EVM-034) | `overview` | projekcje odczytu `WorkOrderSummary` (`work_order_summaries`) i `WorkOrderWait` (`work_order_waits`) — bez encji domenowych | `work-orders` (klucz obcy z `ON DELETE CASCADE`), `procedures`, `payments`, `sites`, `parties`, `customers`, `identity`, `authorization` — fasady, porty systemowe i zdarzenia; **żaden moduł nie zależy od `overview`** |
+| `overview` — **proponowany** ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md), status „Zaakceptowana” 2026-10-04; powstaje w EVM-034) | `overview` | projekcje odczytu `WorkOrderSummary` (`work_order_summaries`) i `WorkOrderWait` (`work_order_waits`) — bez encji domenowych | `work-orders` (klucz obcy z `ON DELETE CASCADE`), `procedures`, `payments`, `sites`, `parties`, `customers`, `identity`, `authorization` — fasady, porty systemowe i zdarzenia; **żaden moduł nie zależy od `overview`** |
 | pg-boss | `pgboss` | kolejka zadań (ADR-0010) | — |
 
 **Zasady**

@@ -4,7 +4,7 @@ title: ADR — model odczytu listy i podsumowania zlecenia
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-progress
+status: done
 priority: P0
 owner: solution-architect
 contributors: []
@@ -237,6 +237,8 @@ Plan wyjścia (*contract*): usunięcie schematu po przejściu na (b2).
 
 Zależność bez rozstrzygania: reguła postępu procesu ([P-6], styleguide 1.2.0 § 3.23 — „Nie dotyczy” poza mianownikiem) to decyzja z demo EVM-014. Definicje ADR-0017 od niej nie zależą.
 
+- **2026-10-04 — Konrad (`/adr`, AC6): ADR-0017 zaakceptowany — wariant (a); pytania 1–7 zgodnie z rekomendacjami** (2: „Zablokowany” = niezakończony; 3: „Najpilniejsze” wg D9; 4: „Płatność” = „Opłacone”; 5: bez pomiaru p95 przed decyzją; 6: lista i wyszukiwanie do `overview` w EVM-034 — podział EVM-034 rozważyć przy `/refine`; 7: widoki tylko dla zleceń niezamkniętych). Zależność z EVM-014 rozstrzygnięta tego samego dnia: postęp procesu pomija etapy „Nie dotyczy”.
+
 ## Uwagi do rozważenia
 - **EVM-008 (kontrakt):** wprowadzić konwencję `x-extensible-enum` dla enumów w odpowiedziach. Bez niej oasdiff (`response-property-enum-value-added`, poziom error) zablokuje każdą nową wartość enumu w odpowiedzi, także statusów. Enumy w żądaniach zostają zwykłym `enum` (dodanie wartości — info).
 - **EVM-072 (wyszukiwanie):** od początku ograniczyć rozmiar zbiorów ID zwracanych przez fasady `customers` i `sites` (start 10 000, konfiguracja). Przekroczenie → `400 validation_failed` z `errors[{ pointer: "/query", code: "too_broad" }]` (ADR-0017 W6). Wprowadzenie limitu dopiero w EVM-034 zaostrzyłoby walidację istniejącej operacji.
@@ -246,10 +248,10 @@ Zależność bez rozstrzygania: reguła postępu procesu ([P-6], styleguide 1.2.
 - **Słownik (`domain.md`):** po decyzji o pytaniu 2 rozważyć pojęcie „etap niezakończony” (product-owner).
 
 ## Definition of Done
-- [ ] AC1–AC6 spełnione
+- [x] AC1–AC6 spełnione — QA runda 2: AC1–AC5 PASS (inspekcja ADR-0017, przeliczone sumy ważone, daty D1–D13, `git diff` AC5), AC6 — przeglądy w workflow + decyzja Konrada 2026-10-04
 - [x] ADR w indeksie `docs/architecture/adr/README.md`; `npm run docs:check` — 0 błędów
-- [ ] Przeglądy: security-engineer, backend-developer — APPROVE
-- [ ] Decyzja Konrada (ADR zaakceptowany)
+- [x] Przeglądy: security-engineer — APPROVE (rundy 1 i 2), backend-developer — APPROVE (runda 2; major z rundy 1 — cykl blokad przez klucz obcy — naprawiony)
+- [x] Decyzja Konrada (ADR zaakceptowany) — 2026-10-04, `/adr`
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; konsultacja solution-architect W1)
@@ -267,3 +269,6 @@ Zależność bez rozstrzygania: reguła postępu procesu ([P-6], styleguide 1.2.
 - 2026-10-04 — poprawki, runda 1 (solution-architect; ustalenia major `qa-engineer` i `backend-developer` — zakleszczenie przez kontrolę klucza obcego `work_order_waits` → `work_orders` przy blokadzie `FOR UPDATE` wiersza zlecenia):
   - ADR-0017: klucz obcy `work_order_waits.work_order_id` → `work_order_summaries` (łańcuch kaskady); reguła `FOR NO KEY UPDATE` dla blokad wiersza `work_orders`; poprawione zdanie o braku cyklu; opis pierwszego `INSERT` wiersza `work_order_summaries` w `rebuild` i purge w trakcie przebudowy (`23503`, ponowienie partii); diagram przeplotu; test 6 rozszerzony o blokadę wiersza zlecenia; W10, ryzyka, „Wpływ na backlog” (EVM-030, EVM-053) i źródła (PostgreSQL 18 § 13.3.2, § 13.3.4; Kysely);
   - `domain-model.md` (zasada projekcji) i notatki EVM-034 — klucze obce i tryb blokady; uwaga dla EVM-030 i EVM-053 w „Uwagach do rozważenia”
+- 2026-10-04 — weryfikacja: runda 1 — QA FAIL (major: cykl blokad przez kontrolę klucza obcego), security-engineer APPROVE, backend-developer `changes_required`; runda 2 — QA PASS, oba przeglądy APPROVE; workflow `deliver-story` `passed` (≈ 1 h 55 min). Uwagi minor / nit (QA, backend-developer: zakres twierdzenia o braku cyklu przy purge, długość partii `rebuild`, liczba zapytań na zapis, wstawianie wiersza przez handler) — do uwzględnienia przy planie EVM-034
+- 2026-10-04 — orkiestrator: `git merge origin/main` po scaleniu EVM-006 (PR #2; konflikty `CHANGELOG.md` i indeksu ADR rozwiązane wersją gałęzi — drzewo bez zmian); decyzja Konrada (`/adr`) zapisana w ADR-0017, indeksie, `domain-model.md`, notatkach EVM-034 / EVM-056 i `CHANGELOG.md`; bramka orkiestratora zielona
+- 2026-10-04 — in-progress → done: akceptacja Konrada (`/adr`); PR do `main` — scalenie „Squash and merge” klika Konrad

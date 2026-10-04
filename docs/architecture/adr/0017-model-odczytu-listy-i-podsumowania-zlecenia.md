@@ -1,6 +1,6 @@
 # ADR-0017: Model odczytu listy i podsumowania zlecenia — projekcja w module `overview` aktualizowana w transakcji zapisu
 
-- **Status:** Proponowana (decyzja Konrada na `/adr` — EVM-069 AC6)
+- **Status:** Zaakceptowana — 2026-10-04, Konrad (`/adr`, EVM-069 AC6); pytania 1–7 rozstrzygnięte zgodnie z rekomendacjami ([Pytania do Konrada](#pytania-do-konrada))
 - **Data:** 2026-10-04
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect
 - **Powiązane:** EVM-069 (luka L3 i uwaga 5 z EVM-004, konsultacja W1 z EVM-010), EVM-017, EVM-018, EVM-034, EVM-038, EVM-056, EVM-060, EVM-062, EVM-072; ADR-0001, ADR-0003, ADR-0004, ADR-0008, ADR-0010, ADR-0013
@@ -524,6 +524,8 @@ Testy powstają w EVM-034 i EVM-056 (TDD, oznaczenia `EVM-034 AC#` / `EVM-056 AC
 
 ## Pytania do Konrada
 Rekomendacje architekta. Decyzja zapada na `/adr` (EVM-069 AC6), a pytania powtarza historyjka EVM-069 → „Decyzje”.
+
+**Decyzja Konrada 2026-10-04:** wszystkie pytania 1–7 zgodnie z rekomendacjami — wariant (a); „Zablokowany” = niezakończony; „Najpilniejsze” wg D9; „Płatność” = „Opłacone” przy części opłaconej i reszcie planowanej; bez pomiaru p95 przed decyzją (pomiar w EVM-034 / EVM-056 AC6); lista i wyszukiwanie do `overview` w EVM-034, podział EVM-034 (enabler „moduł `overview` i przeniesienie listy”) do rozważenia przy `/refine`; widoki tylko dla zleceń niezamkniętych.
 1. **Wariant:** (a) — projekcja w module `overview`. *Rekomendacja: tak.*
 2. **Etap „Zablokowany” w wyliczeniach** (bieżący etap, „Termin”, „Po terminie”) traktujemy jak niezakończony. *Rekomendacja: tak* — termin nadal obowiązuje, a zablokowany etap jest faktycznie bieżącym krokiem procesu. Konsekwencje:
    - „otwarty etap” w EVM-034 AC4 czytamy jako „niezakończony”;

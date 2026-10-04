@@ -79,7 +79,7 @@ Jako **pracownik biura** chcę **widzieć na liście i w podsumowaniu zlecenia, 
 - W AC: SR-AUTHZ-03, SR-AUTHZ-05, SR-API-04. W sekcji: SR-API-02 (masowy odczyt — P10).
 
 ## Notatki techniczne
-- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Proponowana” — wariant zależy od decyzji Konrada na `/adr`). Ta historyjka:
+- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Zaakceptowana” 2026-10-04 — wariant (a), pytania 1–7 wg rekomendacji). Ta historyjka:
   - **tworzy moduł `overview`:** schemat, `work_order_summaries` bez kolumn płatności i `work_order_waits`; przeliczenie w całości w transakcji zapisu (handlery zdarzeń `work-orders`, `procedures`, `sites` — `siteType`, `parties` — `kind`; rejestr działań przed zatwierdzeniem w `platform`); porty systemowe modułów źródłowych; polecenia `rebuild` i `verify` w kontenerze `worker`; nocny `verify` (pg-boss) z metryką i alertem;
   - **klucze obce i blokady** (ADR-0017 → „Współbieżność”): łańcuch `work_orders` → `work_order_summaries` → `work_order_waits` z `ON DELETE CASCADE`; przegląd istniejących blokad wiersza `work_orders` (np. przejścia z EVM-030) — tryb `SELECT … FOR NO KEY UPDATE`, a nie `FOR UPDATE`; test 6 z przypadkiem blokady wiersza zlecenia;
   - **przenosi `GET /api/v1/work-orders` i `POST /api/v1/work-orders/search`** z `work-orders` do `overview` bez zmiany kontraktu (ścieżka, `operationId`, tag, `x-evia-authz`). Testy EVM-017 i EVM-072 przechodzą bez zmian, w tym limity i licznik masowego odczytu P10 (T9);

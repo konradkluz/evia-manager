@@ -73,7 +73,7 @@ Jako **pracownik biura** chcę **widzieć na liście zleceń i w podsumowaniu zl
 - W AC: SR-AUTHZ-03, SR-AUTHZ-05. W sekcji: SR-API-04 (parametry bez danych osobowych), SR-API-02. Polityka P6.
 
 ## Notatki techniczne
-- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Proponowana” — wariant zależy od decyzji Konrada na `/adr`): `overview` (moduł z EVM-034), `payments`, `work-orders` + panel. Wartości sortowania i widoków dodawane addytywnie do enumów z EVM-017.
+- Moduły: zgodnie z [ADR-0017](../../architecture/adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md) (EVM-069; status „Zaakceptowana” 2026-10-04 — wariant (a), pytania 1–7 wg rekomendacji): `overview` (moduł z EVM-034), `payments`, `work-orders` + panel. Wartości sortowania i widoków dodawane addytywnie do enumów z EVM-017.
 - **Projekcja `overview`** dostaje sygnały płatności jako zmianę *expand*:
   - kolumny `invoiced_count`, `paid_count`, `earliest_invoiced_due_date` z wartością domyślną;
   - wypełnienie poleceniem `rebuild`;
