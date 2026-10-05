@@ -8,7 +8,11 @@
  */
 
 const FENCE = /^---[ \t]*$/;
-const FIELD = /^([A-Za-z_][\w-]*)[ \t]*:(?:[ \t]+(.*))?$/;
+/** Key of a field; the rest of the line is checked in code (EVM-013 L3: no overlapping quantifiers — linear time). */
+const KEY = /^([A-Za-z_][\w-]*)[ \t]*:/;
+/** Characters that `.` in a regular expression does not match: a value containing one is not a field (as before). */
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+const LEADING_BLANKS = /^[ \t]*/;
 const QUOTED = /^(["'])(.*)\1(?:[ \t]+#.*)?$/;
 const COMMENT = /(?:^|[ \t])#.*$/;
 const NULL_VALUE = /^(?:~|null|Null|NULL)?$/;
@@ -34,13 +38,30 @@ export function parseFrontmatter(text) {
   const end = lines.findIndex((line, index) => index > 0 && FENCE.test(line));
   if (end === -1) return fields;
   for (const line of lines.slice(1, end)) {
-    const match = FIELD.exec(line);
-    if (!match) continue;
-    const value = cleanValue(match[2] ?? '');
-    if (value === null) fields.delete(match[1]);
-    else fields.set(match[1], value);
+    const field = fieldOf(line);
+    if (field === null) continue;
+    const [key, raw] = field;
+    const value = cleanValue(raw);
+    if (value === null) fields.delete(key);
+    else fields.set(key, value);
   }
   return fields;
+}
+
+/**
+ * One flat `key: value` line in linear time (EVM-013 L3; the former single pattern was quadratic for blanks before
+ * U+2028): a key, optional blanks and `:`, then nothing or a blank and a value without a line break.
+ * @param {string} line
+ * @returns {[string, string] | null} key and raw value (leading blanks removed); null when the line is not a field
+ */
+export function fieldOf(line) {
+  const match = KEY.exec(line);
+  if (!match) return null;
+  const rest = line.slice(match[0].length);
+  if (LINE_BREAK.test(rest)) return null;
+  const value = rest.replace(LEADING_BLANKS, '');
+  // `key:value` without a blank after the colon is not a field.
+  return rest === '' || value !== rest ? [match[1], value] : null;
 }
 
 /**

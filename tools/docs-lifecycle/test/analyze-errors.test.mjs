@@ -79,7 +79,7 @@ describe('walidator — błędy blokujące (EVM-012 AC3)', () => {
     assert.equal(fileOf(analysis, 'notatka.md').class, null);
   });
 
-  it('EVM-012 AC3: rozszerzenie .MD w dozwolonej lokalizacji — wskazówka „zmień rozszerzenie na .md”, nie przenoszenie', () => {
+  it('EVM-012 AC3, EVM-013 AC7: rozszerzenie .MD w dozwolonej lokalizacji — wskazówka „zmień rozszerzenie na .md” z regułą tej ścieżki, nie przenoszenie', () => {
     const analysis = analyzeFiles({
       'docs/product/Cennik.MD': '# C\n',
       'docs/notes/X.Md': doc({ lifecycle: 'living' }),
@@ -92,10 +92,14 @@ describe('walidator — błędy blokujące (EVM-012 AC3)', () => {
       'location-forbidden docs/notes/X.Md',
       'location-forbidden docs/product/Cennik.MD',
     ]);
-    for (const path of ['docs/product/Cennik.MD', 'docs/notes/X.Md']) {
-      const { reason } = findingOf(analysis, 'location-forbidden', path);
+    // Each path with its own rule number — a hint pointing to the wrong rule fails (EVM-013 AC7).
+    for (const [path, renamed, rule] of [
+      ['docs/product/Cennik.MD', 'docs/product/Cennik.md', 16],
+      ['docs/notes/X.Md', 'docs/notes/X.md', 14],
+    ]) {
+      const { reason } = findingOf(analysis, 'location-forbidden', String(path));
       assert.match(reason, /zmień rozszerzenie na \.md/);
-      assert.match(reason, /\(docs\/(product\/Cennik|notes\/X)\.md\): po tej zmianie plik pasuje do reguły (14|16)/);
+      assert.ok(reason.includes(`zmień rozszerzenie na .md (${renamed}): po tej zmianie plik pasuje do reguły ${rule};`), reason);
       assert.doesNotMatch(reason, /przenieś/);
     }
     // After renaming these would still be forbidden — the hint stays „przenieś”.

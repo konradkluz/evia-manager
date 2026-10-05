@@ -4,7 +4,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { exists, json, list, read, record, text, workspaces, yaml } from '../src/files.ts';
-import { ciGateProblems, dockerCommandProblems, renovateWorkflowProblems, workflowProblems } from '../src/workflows.ts';
+import {
+  ciGateProblems,
+  DOCS_CHECK_SCRIPT,
+  docsCheckStepProblems,
+  dockerCommandProblems,
+  renovateWorkflowProblems,
+  workflowProblems,
+} from '../src/workflows.ts';
 
 const WORKFLOWS = ['ci.yml', 'main-integrity.yml', 'nightly.yml', 'renovate.yml'];
 const ci = record(yaml('.github/workflows/ci.yml'));
@@ -50,8 +57,9 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     expect(ci['on']).toEqual({ push: { branches: ['**'] }, workflow_dispatch: null });
   });
 
-  it('EVM-006 AC4: the quality job runs the stages in order: install → format → lint → types → boundaries → tests and coverage → build', () => {
+  it('EVM-006 AC4, EVM-013 AC3: the quality job runs the stages in order: documentation validator → install → format → lint → types → boundaries → tests and coverage → build', () => {
     expect(runs('quality')).toEqual([
+      DOCS_CHECK_SCRIPT,
       'pnpm install --frozen-lockfile',
       'pnpm run format:check',
       'pnpm exec turbo run lint',
@@ -84,6 +92,18 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       .map(record)
       .find((step) => text(step['uses']).startsWith('actions/checkout@'));
     expect(record(checkout?.['with'])['fetch-depth']).toBe(0);
+  });
+
+  it('EVM-013 AC1, AC3: the documentation validator is the first step with a command of quality, fail-closed, with a fixed script', () => {
+    expect(docsCheckStepProblems(ci)).toEqual([]);
+    expect(DOCS_CHECK_SCRIPT).toBe(
+      'status=0\nnode tools/docs-lifecycle/cli.mjs check --summary >> "$GITHUB_STEP_SUMMARY" || status=$?\nexit "$status"\n',
+    );
+  });
+
+  it('EVM-013 AC3 (K6): ci.yml keeps its five jobs — the validator is a step of quality, not a new job — and quality stays in ci-gate', () => {
+    expect(Object.keys(jobs)).toEqual(['quality', 'backend', 'security', 'coverage', 'ci-gate']);
+    expect(list(job('ci-gate')['needs'])).toContain('quality');
   });
 
   it('EVM-006 AC4 (A2, W6): ci-gate is green only when every required job succeeded; K6 is not a job of ci.yml', () => {

@@ -68,7 +68,7 @@ flowchart LR
 | E7 Płatności etapowe | etapy płatności (kwota, nr faktury, termin, status), zestawienie nieopłaconych i po terminie |
 | E8 Gotowość produkcyjna | import istniejących danych (CSV/Excel, jeśli potrzebny), test odtworzenia backupu, monitoring i alerty, security sign-off z DAST, dokumentacja RODO, krótka instrukcja, wdrożenie produkcyjne |
 
-**Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 59 historyjek EVM-014 … EVM-072 (EVM-010, `/milestone plan M1`; zmiany w tej sekcji **zaakceptowane przez Konrada 2026-10-03** — decyzja 13 w planie). Kolejność w fazach:
+**Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 60 historyjek EVM-014 … EVM-073 (EVM-010, `/milestone plan M1`; zmiany w tej sekcji **zaakceptowane przez Konrada 2026-10-03** — decyzja 13 w planie; EVM-073 — dług narzędzia dokumentacji, P3, dopisana 2026-10-05 decyzją Konrada w EVM-013). Kolejność w fazach:
 
 0. przygotowanie — styleguide 1.2.0, makiety ekranów „bez makiety”, ADR modelu odczytu listy (równolegle z EVM-006–EVM-008);
 1. przyrost pionowy — logowanie → lista zleceń → utworzenie zlecenia → szczegóły;
@@ -77,7 +77,7 @@ flowchart LR
 4. dokumenty i media (E6);
 5. gotowość do realnych danych (E8: produkcja, test odtworzenia, RODO z DPIA, instrukcja w panelu, pentest i sign-off) → **pilot realny**;
 6. płatności (E7) i sign-off → **wydanie 1.0**;
-7. pozycje P2 (jeśli nie opóźniają 1.0).
+7. pozycje P2 i P3 (jeśli nie opóźniają 1.0).
 
 **Pilot wewnętrzny** (rekomendacja — decyzja 4 w planie): **pilot próbny** po E1–E5 na staging, wyłącznie na danych syntetycznych (zakaz wpisywania realnych zleceń); **pilot realny** na produkcji po E6 i części E8 z zewnętrznym pentestem i security sign-off (RR-10) — wybrane zlecenia, równolegle z dotychczasowymi narzędziami; płatności (E7) dochodzą w trakcie pilota, a zlecenia założone przed nimi dostają transze ręcznie; każde wdrożenie prod w trakcie pilota przechodzi bramkę bezpieczeństwa i wymaga zatwierdzenia wersji przez Konrada; telefon to panel w przeglądarce (zdjęcia z galerii, zasady pracy na prywatnym telefonie w instrukcji — decyzje 18 i 19 w planie).
 

@@ -13,4 +13,4 @@ Pakiet z EVM-006 (ADR-0012, ADR-0014). Każdy workspace korzysta z niego zamiast
 Zasady:
 - Progi działają jak zapadka — tylko w górę; obniżenie wymaga ADR i zgody Konrada (`docs/process/testing-strategy.md`).
 - Nowe wykluczenie pokrycia = nowy wpis w `coverage-exclusions.json` z polem `reason`.
-- Złagodzenie wspólnych reguł w workspace jest dozwolone wyłącznie dla workspace'ów z listy wyjątków w `tools/repo-policy` (dziś: `tools/docs-lifecycle`, dług EVM-013).
+- Złagodzenie wspólnych reguł w workspace jest dozwolone wyłącznie dla workspace'ów z listy wyjątków w `tools/repo-policy` (dziś: `tools/docs-lifecycle` — wyjątek znosi EVM-073).

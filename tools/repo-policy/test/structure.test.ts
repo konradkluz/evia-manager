@@ -22,7 +22,7 @@ const root = manifest('package.json');
 const WORKSPACES = workspaces();
 const PNPM = /^pnpm@(\d+\.\d+\.\d+)\+sha512\.[0-9a-f]{128}$/.exec(root.packageManager ?? '');
 
-/** Only this workspace may relax shared checks — debt for EVM-013 (W2). */
+/** Only this workspace may relax shared checks — EVM-006 W2 exception, lifted by EVM-073. */
 const RELAXED = new Set(['tools/docs-lifecycle']);
 /** Tools that run without installed dependencies (CI jobs and the container entry point run them before `pnpm install`). */
 const DEPENDENCY_FREE = [
@@ -124,7 +124,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     }
   });
 
-  it('EVM-006 AC2 (W2): shared checks are relaxed only in the listed workspace (EVM-013 debt)', () => {
+  it('EVM-006 AC2 (W2): shared checks are relaxed only in the listed workspace (exception lifted by EVM-073)', () => {
     for (const workspace of WORKSPACES) {
       const eslint = read(`${workspace}/eslint.config.js`);
       const tsconfig = record(jsonc(`${workspace}/tsconfig.json`));
@@ -145,12 +145,19 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
 
   it('EVM-006 AC3 (W3b, B7): the gate checks hooks, removes stale reports first, then runs native, container and changed-code stages', () => {
     expect(root.scripts?.['gate']).toBe(
-      'node tools/git-hooks/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff',
+      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
     expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/*');
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
+  });
+
+  it('EVM-013 AC8: the gate runs the documentation validator right after checking the hooks, like the first step of CI', () => {
+    const stages = (root.scripts?.['gate'] ?? '').split(' && ');
+    expect(stages[0]).toBe('node tools/git-hooks/cli.mjs check');
+    expect(stages[1]).toBe('node tools/docs-lifecycle/cli.mjs check');
+    expect(root.scripts?.['docs:check']).toBe(stages[1]);
   });
 
   it('EVM-006 AC2: tests reading the repository outside their workspace are never replayed from the Turborepo cache', () => {

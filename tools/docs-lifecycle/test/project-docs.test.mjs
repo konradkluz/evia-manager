@@ -11,7 +11,9 @@ import { analyze } from '../lib/analyze.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { todayInZone } from '../lib/dates.mjs';
 import { loadRepository } from '../lib/repository.mjs';
+import { analyzeEveryFinding } from './helpers/fixtures.mjs';
 import { parsePolicyRules, section } from './helpers/markdown.mjs';
+import { V1 } from './helpers/runner.mjs';
 
 const config = loadConfig();
 const repository = loadRepository({ cwd: fileURLToPath(new URL('.', import.meta.url)), env: process.env, config });
@@ -89,6 +91,45 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
     assert.deepEqual(parsePolicyRules(policy), fromConfig);
   });
 
+  it('EVM-013 AC7: polityka wylicza „błędy klasy” — te same co flaga classError w kodzie, każdy jest wierszem tabeli „Błędy”', () => {
+    /** Error codes of the validator → names of the rows in the policy table „Błędy”. */
+    const NAMES = /** @type {Record<string, string>} */ ({
+      'location-forbidden': 'plik poza dozwolonymi lokalizacjami',
+      'class-missing': 'brak klasy',
+      'class-unknown': 'nieznana klasa',
+      'class-conflict': 'klasa sprzeczna z lokalizacją',
+      'milestone-missing': 'kamień milowy bez M#',
+      'milestone-unknown': 'nieistniejący kamień milowy',
+      'date-invalid': 'niepoprawna data',
+      'date-not-allowed': 'data niedozwolona dla klasy',
+      'ephemeral-tracked': 'plik roboczy w części śledzonej',
+      'scratch-not-ignored': '`.scratch/` nieignorowany',
+      'spike-readme-missing': 'spike bez README',
+    });
+    const findings = analyzeEveryFinding().findings.filter((finding) => finding.severity === 'error');
+    assert.deepEqual(
+      [...new Set(findings.map((finding) => finding.code))].sort(),
+      Object.keys(NAMES).sort(),
+      'fikstura obejmuje każdy kod błędu',
+    );
+    const rows = String(section(policy, '### Błędy (kod wyjścia 1)'))
+      .split('\n')
+      .filter((line) => line.startsWith('| ') && !line.startsWith('| Błąd |'))
+      .map((line) => line.split('|')[1].trim());
+    assert.deepEqual([...rows].sort(), Object.values(NAMES).sort(), 'tabela „Błędy” = kody walidatora');
+    const line = String(section(policy, '### Ostrzeżenia (bez wpływu na kod wyjścia)'))
+      .split('\n')
+      .find((text) => text.startsWith('**Błędy klasy:** '));
+    assert.ok(line, 'brak linii „Błędy klasy” pod tabelą ostrzeżeń');
+    const listed = line.slice('**Błędy klasy:** '.length, line.indexOf(' — ')).split('; ');
+    const flagged = [...new Set(findings.filter((finding) => finding.classError).map((finding) => NAMES[finding.code]))];
+    assert.deepEqual([...listed].sort(), flagged.sort());
+    const orphanRow = String(section(policy, '### Ostrzeżenia (bez wpływu na kod wyjścia)'))
+      .split('\n')
+      .find((text) => text.startsWith('| osierocony |'));
+    assert.ok(orphanRow?.includes('„Błędy klasy”'), 'wiersz „osierocony” odwołuje się do listy błędów klasy');
+  });
+
   it('EVM-012 AC1: polityka podaje polecenia walidatora w formie bezpiecznej dla PowerShell', () => {
     const commands = String(section(policy, '## Walidator i raport sprzątania'));
     for (const command of [
@@ -128,6 +169,74 @@ describe('polecenia npm (EVM-012 AC3, AC8)', () => {
     for (const path of ['package-lock.json', 'yarn.lock']) {
       assert.ok(!repository.paths.includes(path), path);
     }
+  });
+});
+
+describe('bramka dokumentacji w CI — opis w dokumentach (EVM-013 AC8)', () => {
+  /** What every description of the gate says (AC8): where it runs, what blocks, where the result is, how to repeat it. */
+  const GATE_ANCHORS = [
+    /na każdym pushu/,
+    /jako pierwszy krok joba `quality`/,
+    /kod `2`/,
+    /ostrzeżenia[^.]*nie blokują/i,
+    /podsumowani\w* przebiegu/,
+    /w logu/,
+    /pozostałe kroki `quality` się nie wykonują/,
+    /npm run docs:check/,
+  ];
+
+  for (const [path, heading] of [
+    ['CLAUDE.md', '## Stack i komendy'],
+    ['docs/ops/github-i-ci.md', '## CI w skrócie'],
+    ['docs/process/document-lifecycle.md', '### W CI (bramka 11)'],
+    ['tools/docs-lifecycle/README.md', '## W CI (bramka 11)'],
+  ]) {
+    it(`EVM-013 AC8: ${path} → „${heading.replace(/^#+ /, '')}” opisuje bramkę dokumentacji w CI`, () => {
+      const text = section(read(path), heading);
+      assert.ok(text, `brak sekcji ${heading}`);
+      for (const anchor of GATE_ANCHORS) assert.match(text, anchor, `${path}: ${anchor.source}`);
+    });
+  }
+
+  it('EVM-013 AC8: polityka — wiersz „każdy push” w tabeli „Kiedy” i polecenie check --summary w tabeli poleceń; punkt DoD bez zmian', () => {
+    const policy = read(POLICY);
+    assert.ok(
+      String(section(policy, '### Kiedy'))
+        .split('\n')
+        .some((line) => line.startsWith('| każdy push (CI, bramka 11) |')),
+    );
+    assert.ok(!policy.includes('| po EVM-006 |'), 'wiersz „po EVM-006” zastąpiony');
+    assert.ok(String(section(policy, '### Polecenia')).includes('`node tools/docs-lifecycle/cli.mjs check --summary`'));
+    assert.ok(read('docs/process/definition-of-done.md').includes('npm run docs:check'));
+  });
+
+  it('EVM-013 AC8: odwołania do długu wskazują EVM-073 i nie zapowiadają migracji na TypeScript ani Vitest (6 miejsc z AC8)', () => {
+    const DEBT_EVM_013 =
+      /(?:dług|debt)[^.\n]*EVM-013|EVM-013[^.\n]*(?:dług|debt)|migra\w*[^.\n]*(?:TypeScript|Vitest)|TypeScript \+ Vitest/i;
+    for (const path of [
+      'packages/config/README.md',
+      'tools/repo-policy/README.md',
+      'tools/repo-policy/test/structure.test.ts',
+      'tools/docs-lifecycle/README.md',
+      'tools/docs-lifecycle/eslint.config.js',
+      'tools/docs-lifecycle/tsconfig.json',
+    ]) {
+      const text = read(path);
+      assert.ok(text.includes('EVM-073'), `${path}: brak odwołania do EVM-073`);
+      assert.doesNotMatch(text, DEBT_EVM_013, path);
+    }
+  });
+});
+
+describe('polecenia runnera poza testami i ścieżkami (EVM-013 AC7; security-engineer W2)', () => {
+  it('EVM-013 AC7: źródła testów i ścieżki repozytorium nie zawierają polecenia runnera w formacie V1 — reporter wypisuje testy do logu CI', () => {
+    assert.equal(repository.paths.filter((path) => path.includes(V1)).length, 0, 'ścieżki z poleceniem runnera');
+    const tests = repository.paths.filter((path) => /^(?:apps|packages|services|tools)\/[^/]+\/test\/.+\.(?:mjs|js|ts)$/.test(path));
+    assert.ok(tests.length > 0);
+    assert.deepEqual(
+      tests.filter((path) => String(repository.read(path)).includes(V1)),
+      [],
+    );
   });
 });
 

@@ -19,6 +19,8 @@ import { envExampleProblems, gitleaksConfigProblems } from '../src/secrets.ts';
 import {
   agentPermissionProblems,
   ciGateProblems,
+  DOCS_CHECK_SCRIPT,
+  docsCheckStepProblems,
   dockerCommandProblems,
   GH_TOKEN_DENY,
   renovateWorkflowProblems,
@@ -190,6 +192,349 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
       expect(dockerCommandProblems('s', command, services), command).toHaveLength(1);
     }
   });
+});
+
+interface Step {
+  name?: string;
+  uses?: string;
+  with?: Record<string, unknown>;
+  run?: string;
+  shell?: string;
+  'timeout-minutes'?: number;
+  if?: string;
+  env?: Record<string, string>;
+  'continue-on-error'?: boolean;
+  'working-directory'?: string;
+}
+
+interface Job {
+  permissions?: Record<string, string>;
+  'continue-on-error'?: boolean;
+  defaults?: unknown;
+  env?: Record<string, string>;
+  steps: Step[];
+}
+
+interface Workflow {
+  env?: Record<string, string>;
+  defaults?: unknown;
+  jobs: { quality?: Job; 'ci-gate': { needs: string[] } };
+}
+
+/** A minimal ci.yml with the documentation validator step as required (EVM-013 AC3). */
+function docsWorkflow(): Workflow {
+  return {
+    env: { TURBO_TELEMETRY_DISABLED: '1', DO_NOT_TRACK: '1' },
+    jobs: {
+      quality: {
+        permissions: { contents: 'read' },
+        steps: [
+          { uses: `actions/checkout@${SHA}`, with: { 'persist-credentials': false } },
+          { uses: `pnpm/action-setup@${SHA}` },
+          { uses: `actions/setup-node@${SHA}`, with: { 'node-version-file': '.nvmrc', cache: 'pnpm' } },
+          {
+            name: 'Documentation lifecycle validator (docs:check, bramka 11)',
+            shell: 'bash',
+            'timeout-minutes': 2,
+            run: DOCS_CHECK_SCRIPT,
+          },
+          { name: 'Install (frozen lockfile)', run: 'pnpm install --frozen-lockfile' },
+        ],
+      },
+      'ci-gate': { needs: ['quality'] },
+    },
+  };
+}
+
+const qualityOf = (workflow: Workflow): Job => {
+  if (!workflow.jobs.quality) throw new Error('no quality job');
+  return workflow.jobs.quality;
+};
+const stepOf = (workflow: Workflow, index: number): Step => {
+  const step = qualityOf(workflow).steps[index];
+  if (!step) throw new Error(`no step ${String(index)}`);
+  return step;
+};
+const docsStep = (workflow: Workflow): Step => stepOf(workflow, 3);
+const replaceInRun = (workflow: Workflow, from: string, to: string): void => {
+  docsStep(workflow).run = (docsStep(workflow).run ?? '').replace(from, to);
+};
+
+describe('documentation validator step checker (EVM-013 AC3; security-engineer controls 1–3, recommendations a–c)', () => {
+  it('EVM-013 AC3: the required step passes', () => {
+    expect(docsCheckStepProblems(docsWorkflow())).toEqual([]);
+  });
+
+  const cases: Array<[string, (workflow: Workflow) => void, string]> = [
+    [
+      'no quality job',
+      (w) => {
+        delete w.jobs.quality;
+      },
+      'ci.yml: brak joba quality',
+    ],
+    [
+      'no validator step',
+      (w) => {
+        qualityOf(w).steps.splice(3, 1);
+      },
+      'ci.yml: quality: brak kroku walidatora dokumentacji',
+    ],
+    [
+      'another step with a command first',
+      (w) => {
+        qualityOf(w).steps.splice(3, 0, { run: 'pnpm install --frozen-lockfile' });
+      },
+      'pierwszym krokiem z poleceniem',
+    ],
+    [
+      'another action before the validator',
+      (w) => {
+        qualityOf(w).steps.splice(1, 0, { uses: `actions/cache@${SHA}` });
+      },
+      'wyłącznie actions/checkout, pnpm/action-setup i actions/setup-node',
+    ],
+    [
+      'no setup-node before the validator',
+      (w) => {
+        qualityOf(w).steps.splice(2, 1);
+      },
+      'po actions/setup-node',
+    ],
+    [
+      'dependencies installed by pnpm/action-setup',
+      (w) => {
+        stepOf(w, 1).with = { run_install: true };
+      },
+      'run_install',
+    ],
+    [
+      'another command',
+      (w) => {
+        replaceInRun(w, 'node tools/docs-lifecycle/cli.mjs check', 'node tools/docs-lifecycle/cli.mjs cleanup-report M0');
+      },
+      'wyłącznie node tools/docs-lifecycle/cli.mjs check',
+    ],
+    [
+      'another program',
+      (w) => {
+        replaceInRun(w, 'node tools', 'npx tsx tools');
+      },
+      'wyłącznie node tools/docs-lifecycle/cli.mjs check',
+    ],
+    [
+      '--today',
+      (w) => {
+        replaceInRun(w, 'check --summary', 'check --today 2026-10-05 --summary');
+      },
+      'bez --today',
+    ],
+    [
+      '--list',
+      (w) => {
+        replaceInRun(w, 'check --summary', 'check --list --summary');
+      },
+      'bez --list',
+    ],
+    [
+      'if on the step',
+      (w) => {
+        docsStep(w).if = 'always()';
+      },
+      'krok walidatora dokumentacji bez if',
+    ],
+    [
+      'continue-on-error on the step',
+      (w) => {
+        docsStep(w)['continue-on-error'] = true;
+      },
+      'krok walidatora dokumentacji bez continue-on-error',
+    ],
+    [
+      'env on the step',
+      (w) => {
+        docsStep(w).env = { NODE_OPTIONS: '--require ./x.js' };
+      },
+      'krok walidatora dokumentacji bez env',
+    ],
+    [
+      'another key on the step',
+      (w) => {
+        docsStep(w)['working-directory'] = 'docs';
+      },
+      'klucz spoza listy (name, shell, timeout-minutes, run): working-directory',
+    ],
+    [
+      '|| true',
+      (w) => {
+        replaceInRun(w, '|| status=$?', '|| true');
+      },
+      'bez || true, || :, set +e i set +o errexit',
+    ],
+    [
+      '|| :',
+      (w) => {
+        replaceInRun(w, '|| status=$?', '|| :');
+      },
+      'bez || true, || :, set +e i set +o errexit',
+    ],
+    [
+      'set +e',
+      (w) => {
+        replaceInRun(w, 'status=0', 'set +e\nstatus=0');
+      },
+      'bez || true, || :, set +e i set +o errexit',
+    ],
+    [
+      'set +o errexit',
+      (w) => {
+        replaceInRun(w, 'status=0', 'set +o errexit\nstatus=0');
+      },
+      'bez || true, || :, set +e i set +o errexit',
+    ],
+    [
+      'a pipe without shell: bash',
+      (w) => {
+        delete docsStep(w).shell;
+        docsStep(w).run = 'node tools/docs-lifecycle/cli.mjs check --summary | tee -a "$GITHUB_STEP_SUMMARY"\n';
+      },
+      'potok bez shell: bash',
+    ],
+    [
+      'shell other than bash',
+      (w) => {
+        docsStep(w).shell = 'sh';
+      },
+      'wymaga shell: bash',
+    ],
+    [
+      'no timeout-minutes',
+      (w) => {
+        delete docsStep(w)['timeout-minutes'];
+      },
+      'timeout-minutes ≤ 5',
+    ],
+    [
+      'timeout-minutes above 5',
+      (w) => {
+        docsStep(w)['timeout-minutes'] = 20;
+      },
+      'timeout-minutes ≤ 5',
+    ],
+    [
+      'exit code not passed (exit 0)',
+      (w) => {
+        replaceInRun(w, 'exit "$status"', 'exit 0');
+      },
+      'kod wyjścia walidatora dokumentacji',
+    ],
+    [
+      'exit code not captured',
+      (w) => {
+        replaceInRun(w, ' || status=$?', '');
+      },
+      'kod wyjścia walidatora dokumentacji',
+    ],
+    [
+      'no step summary',
+      (w) => {
+        replaceInRun(w, ' >> "$GITHUB_STEP_SUMMARY"', '');
+      },
+      'GITHUB_STEP_SUMMARY',
+    ],
+    [
+      'an expression in run',
+      (w) => {
+        replaceInRun(w, 'status=0', 'status=0 # ${{ github.ref }}');
+      },
+      'bez wyrażeń ${{ }}',
+    ],
+    [
+      'a script other than DOCS_CHECK_SCRIPT',
+      (w) => {
+        replaceInRun(w, 'exit "$status"', 'echo gotowe\nexit "$status"');
+      },
+      'różny od DOCS_CHECK_SCRIPT',
+    ],
+    [
+      'a name without docs:check',
+      (w) => {
+        docsStep(w).name = 'Docs';
+      },
+      'nazwa kroku walidatora dokumentacji musi zawierać docs:check',
+    ],
+    [
+      'quality with other permissions',
+      (w) => {
+        qualityOf(w).permissions = { contents: 'write' };
+      },
+      'ci.yml: quality: permissions = { contents: read }',
+    ],
+    [
+      'checkout of another tree',
+      (w) => {
+        stepOf(w, 0).with = { 'persist-credentials': false, ref: 'main' };
+      },
+      'actions/checkout wyłącznie z with { persist-credentials: false }',
+    ],
+    [
+      'checkout with persisted credentials',
+      (w) => {
+        stepOf(w, 0).with = {};
+      },
+      'actions/checkout wyłącznie z with { persist-credentials: false }',
+    ],
+    [
+      'quality missing in ci-gate',
+      (w) => {
+        w.jobs['ci-gate'].needs = [];
+      },
+      'ci.yml: ci-gate: needs musi zawierać quality',
+    ],
+    [
+      'continue-on-error on the quality job',
+      (w) => {
+        qualityOf(w)['continue-on-error'] = true;
+      },
+      'continue-on-error joba',
+    ],
+    [
+      'defaults of the workflow',
+      (w) => {
+        w.defaults = { run: { 'working-directory': 'docs' } };
+      },
+      'ci.yml: zabronione defaults',
+    ],
+    [
+      'defaults of the quality job',
+      (w) => {
+        qualityOf(w).defaults = { run: { shell: 'sh' } };
+      },
+      'ci.yml: quality: zabronione defaults',
+    ],
+    [
+      'NODE_OPTIONS in the workflow env',
+      (w) => {
+        w.env = { ...w.env, NODE_OPTIONS: '--require ./x.js' };
+      },
+      'ci.yml: env workflowu: NODE_OPTIONS spoza listy dozwolonej',
+    ],
+    [
+      'GIT_DIR in the job env',
+      (w) => {
+        qualityOf(w).env = { GIT_DIR: '/tmp/x' };
+      },
+      'ci.yml: quality: env joba: GIT_DIR spoza listy dozwolonej',
+    ],
+  ];
+
+  for (const [name, weaken, message] of cases) {
+    it(`EVM-013 AC3: a weakened gate is reported — ${name}`, () => {
+      const workflow = docsWorkflow();
+      weaken(workflow);
+      expect(docsCheckStepProblems(workflow).join('\n')).toContain(message);
+    });
+  }
 });
 
 describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {

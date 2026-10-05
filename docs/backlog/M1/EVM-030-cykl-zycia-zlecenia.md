@@ -50,7 +50,7 @@ Jako **pracownik biura** chcę **przeprowadzać zlecenie przez statusy od „Now
 **AC6 — Zlecenie zamknięte**
 - Zakładając zlecenie „Rozliczone” albo „Anulowane”
 - Gdy je otwieram
-- Wtedy widzę baner „Zlecenie jest rozliczone — zakres, procesy i płatności są tylko do odczytu. Wpisy, zdjęcia i dokumenty nadal możesz dodawać.” (blokady po stronie serwera — `409 work_order_closed` w EVM-031, EVM-032, EVM-035, EVM-053).
+- Wtedy widzę baner zlecenia zamkniętego w wariancie zależnym od statusu i roli (komunikat z makiety W-06 (b); blokady po stronie serwera — `409 work_order_closed` w EVM-031, EVM-032, EVM-035, EVM-053).
 
 **AC7 — Uprawnienia i ścieżki (SR-AUTHZ-05, SR-AUTHZ-10)**
 - Zakładając role Administrator, Edytor, Tylko odczyt i niezalogowanego
@@ -106,3 +106,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik `payments` rejestruje się w EVM-053 i EVM-054 zamiast EVM-058 (Kontekst, Poza zakresem, Notatki techniczne)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC5 — komunikat `412` wg makiety W-06 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC6 — baner zlecenia zamkniętego wg makiety W-06 (b) (wariant zależny od statusu „Rozliczone” / „Anulowane” i roli; po decyzji 17 obejmuje też dane zlecenia) zamiast dosłownego cytatu sprzed decyzji 17

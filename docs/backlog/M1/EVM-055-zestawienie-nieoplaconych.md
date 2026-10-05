@@ -53,7 +53,7 @@ Jako **pracownik biura albo księgowa (Tylko odczyt)** chcę **jedno zestawienie
 - Wtedy A, E i R widzą zestawienie, niezalogowany dostaje `401`; operacja jest w macierzy ról.
 
 **AC8 — Stany**
-- Wtedy: brak nieopłaconych — „Wszystkie wystawione faktury są opłacone.” (`circle-check`); brak wyników filtrów — „Brak transz spełniających filtry. [Wyczyść filtry]”; offline — dane z pamięci karty z banerem, akcje wyłączone; `412` / `409` w dialogu wpłaty — „Ktoś zmienił tę transzę…”.
+- Wtedy: brak nieopłaconych — „Wszystkie wystawione faktury są opłacone.” (`circle-check`); brak wyników filtrów — „Brak transz spełniających filtry. [Wyczyść filtry]”; offline — dane z pamięci karty z banerem, akcje wyłączone; `412` / `409` w dialogu wpłaty — alert z bieżącym statusem transzy i „Odśwież” (komunikat z makiety W-11).
 
 ## Poza zakresem
 - Filtr „Do wystawienia” — EVM-059 (P2). Eksport zestawienia — M4 (Administrator). Przypomnienia o płatnościach — M3.
@@ -95,3 +95,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC8 — komunikat `412` / `409` w dialogu wpłaty wg makiety W-11 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”

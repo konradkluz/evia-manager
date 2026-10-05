@@ -56,7 +56,7 @@ Jako **Administrator** chcę **poprawiać błędy w płatnościach już wystawio
 - Wtedy API zwraca `409 work_order_closed`, a panel informuje „Zlecenie jest rozliczone — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.”
 
 **AC8 — Uprawnienia i stany**
-- Wtedy Edytor ma korekty wyłączone z podpowiedzią „Korektę płatności może wykonać tylko administrator.”, R nie widzi akcji (`403`), niezalogowany — `401`, transza zlecenia B ścieżką zlecenia A — `404`; korekty tylko w kanale `web`; offline — akcje wyłączone; `412` — „Ktoś zmienił tę transzę…”.
+- Wtedy Edytor ma korekty wyłączone z podpowiedzią „Korektę płatności może wykonać tylko administrator.”, R nie widzi akcji (`403`), niezalogowany — `401`, transza zlecenia B ścieżką zlecenia A — `404`; korekty tylko w kanale `web`; offline — akcje wyłączone; `412` — alert z bieżącym statusem transzy i „Odśwież” (komunikat z makiety W-11, wspólny z sekcją „Płatności” W-06).
 
 ## Poza zakresem
 - „Poproś administratora o korektę” z poziomu transzy — M3 (w MVP komentarz w dzienniku, scenariusz C8). Faktury korygujące w systemie fakturowym — M5.
@@ -98,3 +98,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC8 — komunikat `412` w dialogu korekty wg makiety W-11 (wspólny z sekcją „Płatności” W-06; forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
