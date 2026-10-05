@@ -1,6 +1,6 @@
 # 01 — Logowanie z MFA
 
-> Dokument żywy (EVM-004; makiety E1 — EVM-015, 2026-10-04) · przepływ AC2 nr 1 · kanały: web i mobile · ekrany: W-01, W-02, W-03, W-04, M-01, M-02 · indeks: [README.md](README.md) · dalej: aktywacja i reset hasła — [11](11-aktywacja-i-reset-hasla.md) (W-13, W-12), konto i administracja — [12](12-konto-i-administracja.md) (W-15, W-16, W-18), treści e-maili — [e-maile.md](e-maile.md)
+> Dokument żywy (EVM-004; makiety E1 — EVM-015, 2026-10-04; stopka W-01 i tytuł W-04 dla anonimizacji klienta — EVM-071, 2026-10-05) · przepływ AC2 nr 1 · kanały: web i mobile · ekrany: W-01, W-02, W-03, W-04, M-01, M-02 · indeks: [README.md](README.md) · dalej: aktywacja i reset hasła — [11](11-aktywacja-i-reset-hasla.md) (W-13, W-12), konto i administracja — [12](12-konto-i-administracja.md) (W-15, W-16, W-18), treści e-maili — [e-maile.md](e-maile.md), prywatność i pomoc — [15](15-prywatnosc-i-pomoc.md) (W-19)
 > Źródła: ADR-0005, polityki P1, P2, P6, P7 ([`policies.md`](../../security/policies.md)), SR-AUTH-01, -05, -06, -08, -10, -11, -13, SR-SESS-03, -04, -08, SR-MOB-04 – -06, -08, -09, -13, SR-AUTHZ-12; decyzja Konrada 16 (README M1 → „Decyzje dla Konrada”; potwierdzona na demo EVM-015 2026-10-04) — kod odzyskiwania działa tylko w logowaniu (W-02), w żadnym ponownym uwierzytelnieniu (W-04); konsultacja `security-engineer` w EVM-015 (S7 — W-04).
 
 ## Przepływ
@@ -60,7 +60,7 @@ flowchart TD
 ## W-01 Logowanie
 - **Cel:** zalogować się do panelu hasłem, bez ujawniania, czy konto istnieje.
 - **Główna akcja:** „Zaloguj się”.
-- **Hierarchia treści:** 1) logo „EVia Manager”, 2) tytuł „Zaloguj się”, 3) komunikat (tylko po błędzie lub po wygaśnięciu sesji), 4) e-mail, hasło, 5) „Zaloguj się”, 6) „Nie pamiętasz hasła?”, 7) stopka: „Prywatność” (klauzula informacyjna), „Pomoc”.
+- **Hierarchia treści:** 1) logo „EVia Manager”, 2) tytuł „Zaloguj się”, 3) komunikat (tylko po błędzie lub po wygaśnięciu sesji), 4) e-mail, hasło, 5) „Zaloguj się”, 6) „Nie pamiętasz hasła?”, 7) stopka: „Prywatność” (klauzule informacyjne), „Pomoc” — odnośniki do [W-19](15-prywatnosc-i-pomoc.md#w-19-prywatność-i-pomoc) przed zalogowaniem (niżej).
 
 **Makieta (expanded; ten sam układ na `breakpoint.compact`)**
 ```text
@@ -96,6 +96,11 @@ flowchart TD
  link z e-maila → W-12 „Ustaw nowe hasło” (przepływ 11)
 ```
 
+**Stopka „Prywatność · Pomoc”** (EVM-071, przepływ [15](15-prywatnosc-i-pomoc.md); EVM-063 AC1, SR-PRIV-05, WCAG 3.2.6)
+- Dwa odnośniki (Link, `color.text.on-brand`, podkreślone) rozdzielone kropką środkową: „Prywatność” → W-19, kotwica `#prywatnosc`; „Pomoc” → W-19, kotwica `#pomoc`. Ta sama stopka jest na W-01 (także w formularzu „Zresetuj hasło”) oraz na [W-12 i W-13](11-aktywacja-i-reset-hasla.md#zasady-wspólne-w-12-i-w-13) — przed zalogowaniem pomoc jest w tym samym miejscu.
+- W-19 otwiera się w tej samej karcie w układzie przed zalogowaniem (bez Sidebar, TopBar i danych użytkownika) z „Wróć do logowania”; wpisany e-mail nie przechodzi do W-19 i nie wraca z niego (formularz logowania startuje pusty — jak po odświeżeniu).
+- Kontakt do administratora na W-19 pochodzi z minimalnej publicznej konfiguracji (adres funkcyjny, `mailto:`) — strona nie wywołuje API wymagającego sesji ([15 → zasady wspólne](15-prywatnosc-i-pomoc.md#zasady-wspólne-przepływu-15)).
+
 **Stany**
 | Stan | Zachowanie |
 |---|---|
@@ -114,7 +119,7 @@ flowchart TD
 - **Responsywność:** karta w kolumnie `size.form.max-width` na środku; `breakpoint.compact` — karta na całą szerokość z marginesem siatki, stopka pod kartą.
 - **Komponenty i tokeny:** Card (§ 3.8) `color.bg.surface`, `radius.card`, `space.inset.lg` na tle `color.bg.brand`; logo i stopka `color.text.on-brand` (4,96:1 — § 2.1.4); tytuł `text.heading-2`; TextField (§ 3.2) wariant e-mail i hasło (pokaż / ukryj), etykiety `text.label`; Button primary (§ 3.1) `size.control.height.web.lg`; link `color.text.link`; InlineAlert (§ 3.19) `color.feedback.error.*` / `color.feedback.info.*`; Banner offline (§ 4.10); odstępy `space.stack.md`, `space.stack.lg`.
 - **Mikrocopy:** „Zaloguj się” · „E-mail” · „Hasło” · „Pokaż” / „Ukryj” · „Nie pamiętasz hasła?” · „Nieprawidłowy e-mail lub hasło.” · „Zbyt wiele prób logowania. Spróbuj ponownie za 15 min.” · „Konfiguracja drugiego kroku wygasła — poproś administratora o ponowny reset.” · „Zresetuj hasło” · „Wyślij link” · „Jeśli konto o tym adresie istnieje, wyślemy na nie link do ustawienia nowego hasła. Link jest ważny 30 minut.” · „Prywatność” · „Pomoc”.
-- **Dostępność:** `autocomplete="username"` i `autocomplete="current-password"`; wklejanie i menedżery haseł działają, brak CAPTCHA i testów poznawczych (WCAG 3.3.8, SR-AUTH-01); przycisk „Pokaż” z `aria-pressed` i nazwą „Pokaż hasło”; błąd w `role="alert"` z przeniesieniem fokusu na komunikat; tytuł karty „Logowanie · EVia Manager”.
+- **Dostępność:** `autocomplete="username"` i `autocomplete="current-password"`; wklejanie i menedżery haseł działają, brak CAPTCHA i testów poznawczych (WCAG 3.3.8, SR-AUTH-01); przycisk „Pokaż” z `aria-pressed` i nazwą „Pokaż hasło”; błąd w `role="alert"` z przeniesieniem fokusu na komunikat; tytuł karty „Logowanie · EVia Manager”; stopka jako `footer` z dwoma linkami, nazwy dostępne = widoczne etykiety („Prywatność”, „Pomoc”), kontrast `color.text.on-brand` na `color.bg.brand` 4,96:1 (§ 2.1.4), pierścień fokusu `color.focus.ring-inverse`.
 
 ## W-02 Drugi krok
 - **Cel:** potwierdzić tożsamość drugim czynnikiem dozwolonym dla roli.
@@ -387,6 +392,13 @@ Przykładowe tytuły: „Potwierdź tożsamość, aby skorygować płatność”
 | W-15 | usunięcie kodu z aplikacji | „…, aby usunąć kod z aplikacji” | pełne ponowne uwierzytelnienie |
 | W-15 | nowe kody odzyskiwania | „…, aby wygenerować nowe kody odzyskiwania” | pełne ponowne uwierzytelnienie |
 | W-15 | zmiana hasła | „…, aby zmienić hasło” | zmiana hasła (tylko drugi krok) |
+
+**Tytuły operacji M1 (EVM-071)**
+| Ekran | Operacja | Tytuł W-04 | Zastosowanie |
+|---|---|---|---|
+| [W-14](13-klienci.md#anonimizacja-administrator-ze-step-upem) | anonimizacja klienta (po AlertDialog „Anonimizuj klienta…”; Administrator, `channels: [web]`) | „Potwierdź tożsamość, aby zanonimizować klienta” | step-up |
+
+Podsumowanie operacji w W-04: „Anonimizacja klienta Jan Przykładowy — nieodwracalna.” „Anuluj” w W-04 — dialog anonimizacji wraca z alertem „Nie wykonano operacji.” (EVM-041 AC8). Pozostałe operacje EVM-071 (edycja klienta, lokalizacji, strony, zlecenia i zakresu, procesy i etapy, transze „Planowane”, usunięcie i przywrócenie klienta) nie wymagają step-upu.
 
 **Stany**
 | Stan | Zachowanie |

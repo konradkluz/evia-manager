@@ -1,7 +1,7 @@
 # 07 — Lista zleceń z filtrami
 
-> Dokument żywy (EVM-004) · przepływ AC2 nr 7 · kanały: web i mobile · ekrany: W-10, M-05 · indeks: [README.md](README.md)
-> Źródła: styleguide § 3.6, § 3.7, § 4.2, § 4.3; `domain-model.md` → `ProcedureStage` (reguła „czekamy na OSD > 14 dni”), „Zakres synchronizacji urządzenia” w `offline-sync.md`; `api-guidelines.md` (paginacja kursorowa, `limit` maks. 100, wyszukiwanie `POST …/search`); SR-API-04, SR-WEB-05, SR-AUTHZ-03, AB-16.
+> Dokument żywy (EVM-004; lokalizacja na liście i „Więcej filtrów” — EVM-071, 2026-10-05) · przepływ AC2 nr 7 · kanały: web i mobile · ekrany: W-10, M-05 · indeks: [README.md](README.md)
+> Źródła: styleguide § 3.6, § 3.7, § 4.2, § 4.3; `domain-model.md` → `ProcedureStage` (reguła „czekamy na OSD > 14 dni”), „Zakres synchronizacji urządzenia” w `offline-sync.md`; `api-guidelines.md` (paginacja kursorowa, `limit` maks. 100, wyszukiwanie `POST …/search`); SR-API-04, SR-WEB-05, SR-AUTHZ-03, AB-16. Od EVM-071: uwaga PO-6 z EVM-004 (miasto i ulica pod nazwą klienta), historyjka EVM-072 (AC1, AC4, AC8), SR-API-02 (wyszukiwanie 60 / min); konsultacja `security-engineer` w EVM-071 (A1).
 
 ## Przepływ
 ```mermaid
@@ -43,9 +43,13 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 ├──────────────────────┼───────────────┼───────────────┼──────────────────────────┼────────────┼──────────────────┤
 │ ZL-2026-0042         │ Jan           │ «W realizacji»│ Stoen Operator (OSD)     │ ‹alarm-clock›│ «Po terminie»  │
 │ Garaż — pełny proces │ Przykładowy   │               │ · od 15 dni ‹triangle-alert› +1 │ 30.09.2026 │ 3 600,00 zł    │
+│                      │ ul. Testowa 7,│               │                          │            │                  │
+│                      │ Warszawa      │               │                          │            │                  │
 ├──────────────────────┼───────────────┼───────────────┼──────────────────────────┼────────────┼──────────────────┤
 │ ZL-2026-0038         │ Firma Testowa │ «W realizacji»│ Stoen Operator (OSD)     │ 15.10.2026 │ Nieopłacone (1)  │
 │ Dom — pełny pakiet   │ sp. z o.o.    │               │ · od 22 dni ‹triangle-alert│            │ 4 500,00 zł      │
+│                      │ ul. Próbna 5, │               │                          │            │                  │
+│                      │ Warszawa      │               │                          │            │                  │
 ├──────────────────────┼───────────────┼───────────────┼──────────────────────────┼────────────┼──────────────────┤
 │ …                    │               │               │                          │            │                  │
 └──────────────────────┴───────────────┴───────────────┴──────────────────────────┴────────────┴──────────────────┘
@@ -62,7 +66,8 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 | Nieopłacone | zlecenie ma transzę w stanie `invoiced` (także po terminie) | ID widoku |
 | Moje | opiekun = zalogowana osoba (`WorkOrderAssignment` `coordinator`) | ID widoku (bez identyfikatora osoby) |
 | Status | wielokrotny wybór z § 4.4 | status |
-| Opiekun, typ obiektu, szablon (w „Więcej filtrów”) | pola zlecenia / lokalizacji | **nie** — w pamięci karty |
+| Opiekun (w pasku filtrów) | opiekun zlecenia — wybór osoby po identyfikatorze | **nie** — w pamięci karty |
+| Typ obiektu, szablon (w „Więcej filtrów” — [niżej](#w-10-lokalizacja-na-liście-i-więcej-filtrów-evm-071)) | `Site.siteType`, `WorkOrder.sourceTemplateId` (EVM-072 AC4) | **nie** — w pamięci karty |
 | Wyszukiwanie (numer, tytuł, klient, adres) | `POST …/work-orders/search` z frazą w treści | **nie** — w pamięci karty, także nie w tytule karty |
 
 - **Sortowanie domyślne „Najpilniejsze”** (§ 4.2): najpierw zlecenia z płatnością po terminie i etapem po terminie, potem najdłuższe oczekiwanie powyżej progu, potem najbliższy termin rosnąco. Inne: „Najdłużej czekamy”, „Termin”, „Numer”.
@@ -71,14 +76,42 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 - **Zapamiętywanie** filtrów i sortowania per użytkownik — poza magazynami przeglądarki (§ 4.3): do decyzji o preferencjach po stronie serwera tylko pamięć karty + URL w zakresie z tabeli.
 - **Bez eksportu CSV / XLSX w MVP** (eksport danych — Administrator ze step-upem, M4).
 
+### W-10: lokalizacja na liście i „Więcej filtrów” (EVM-071)
+**Kolumna „Klient” z lokalizacją** (PO-6; EVM-072 AC1)
+- Pod nazwą klienta druga linia z lokalizacją zlecenia: ulica z numerem i miasto, w kolejności z § 6.3, bez kodu pocztowego i miejsca postojowego — „ul. Testowa 7, Warszawa” (`text.body-sm`, `color.text.secondary`). Dane pobierane wsadowo raz na stronę (EVM-072 AC1).
+- Na `breakpoint.wide` lokalizacja przechodzi do osobnej kolumny „Lokalizacja” (miasto i ulica), a kolumna „Klient” ma jedną linię — bez powtórzenia. Na `breakpoint.medium` klient i lokalizacja są pod tytułem zlecenia; na `breakpoint.compact` — na karcie, pod tytułem.
+- **Klient usunięty** (dla Edytora i Tylko odczyt — ustalenie A1, [README → zasada wspólna 18](README.md#bezpieczeństwo-i-prywatność-w-ui)): w kolumnie „Klient” — „Klient usunięty” (`color.text.secondary`), bez linku i bez danych; lokalizacja zostaje (to nie są dane klienta). Wyszukiwanie po nazwisku takiego klienta nie znajduje zlecenia (warunek na serwerze). Administrator widzi nazwę klienta ze znacznikiem „Usunięty”.
+- Wyszukiwanie (pole na liście i w TopBar) obejmuje numer, tytuł, klienta i adres — `POST /api/v1/work-orders/search`, fraza od 3 znaków, poza URL, tytułem karty i logami (EVM-072 AC2).
+
+**„Więcej filtrów”** (§ 3.7 — panel „Więcej filtrów”; EVM-072 AC4)
+```text
+ [Więcej filtrów (2) ▾]   ← liczba aktywnych filtrów z panelu na przycisku
+ ┌─ Więcej filtrów ─────────────────────────────────────────────
+ │ Typ obiektu [Garaż w budynku wielorodzinnym ▾]
+ │ Szablon     [Garaż — pełny proces ▾]
+ │                                          [Wyczyść te filtry]
+ └──────────────────────────────────────────────────────────────
+ Aktywne: {Status: niezamknięte ✕} {Typ obiektu: Garaż w budynku wielorodzinnym ✕}
+          {Szablon: Garaż — pełny proces ✕}   Wyczyść filtry
+```
+- „Opiekun” zostaje w pasku filtrów (filtr częsty); w panelu są „Typ obiektu” (Select — etykiety `SiteType`, `service-catalog.md` § 7) i „Szablon” (Select — szablony zleceń, także wycofane, bo zlecenia je mają). Rozstrzygnięcie 10 w EVM-071.
+- Panel rozwija się pod paskiem filtrów (przycisk z `aria-expanded`), bez dialogu; wybór działa od razu (§ 3.7 — bez „Zastosuj” na web). Przycisk pokazuje liczbę aktywnych filtrów z panelu: „Więcej filtrów (2)”.
+- Każdy aktywny filtr ma chip z „✕” w wierszu „Aktywne”; „Wyczyść te filtry” czyści tylko filtry z panelu, „Wyczyść filtry” — wszystkie.
+- Filtry z panelu są w pamięci karty, nie w URL (EVM-072 AC4) — razem z frazą i opiekunem.
+- Na `breakpoint.compact` panel jest częścią arkusza filtrów z „Pokaż wyniki (6)”.
+
+**Stany wyszukiwania i panelu** (uzupełniają tabelę „Stany” niżej): offline — pole wyszukiwania wyłączone z podpowiedzią „Wyszukasz po powrocie połączenia.” (EVM-072 AC8); `429` wyszukiwania (60 / min — SR-API-02) — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.”, fraza i filtry zostają; brak wyników z filtrami panelu — „Brak zleceń spełniających filtry. [Wyczyść filtry]”; lista szablonów nie wczytana — Select z komunikatem „Nie udało się wczytać szablonów. [Spróbuj ponownie]”, pozostałe filtry działają.
+
+**Role:** filtry z panelu i lokalizacja w kolumnie „Klient” — A, E, R jak lista (odczyt listy `WorkOrder` tą samą polityką — SR-AUTHZ-03; EVM-072 AC7).
+
 **Stany**
 | Stan | Zachowanie |
 |---|---|
 | Pusty | Brak zleceń w systemie: „Nie masz jeszcze zleceń. [Nowe zlecenie]” (Tylko odczyt — bez przycisku); brak wyników filtrów: „Brak zleceń spełniających filtry. [Wyczyść filtry]”; widok „Czekamy na OSD > 14 dni” bez wyników: „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.” |
 | Ładowanie | Skeleton wierszy tabeli (§ 3.16); filtry pozostają aktywne (§ 3.7); po 10 s komunikat „Ładowanie trwa dłużej niż zwykle…”. |
 | Błąd | Nie wczytano listy — EmptyState `circle-alert` „Nie udało się wczytać zleceń. [Spróbuj ponownie]”; `429` — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.” (czas z `Retry-After`), filtry zostają; kursor nieważny (`400 invalid_cursor`) — powrót na pierwszą stronę z komunikatem „Lista się zmieniła — wróciliśmy na początek.” |
-| Offline | Baner § 4.10; ostatnio wczytana strona z pamięci karty z banerem „Dane mogą być nieaktualne (z 14:05)”; filtry i paginacja wyłączone z podpowiedzią. |
-| Brak uprawnień | Lista filtrowana tą samą polityką co odczyt zlecenia (SR-AUTHZ-03) — zlecenia spoza uprawnień nie istnieją w wynikach ani w licznikach. Tylko odczyt — bez „Nowe zlecenie”. Zapisany widok spoza uprawnień (np. link od Administratora) — „Nie znaleziono widoku. [Pokaż wszystkie zlecenia]”. |
+| Offline | Baner § 4.10; ostatnio wczytana strona z pamięci karty z banerem „Dane mogą być nieaktualne (z 14:05)”; filtry i paginacja wyłączone z podpowiedzią; pole wyszukiwania wyłączone z podpowiedzią „Wyszukasz po powrocie połączenia.” (EVM-072 AC8). |
+| Brak uprawnień | Lista filtrowana tą samą polityką co odczyt zlecenia (SR-AUTHZ-03) — zlecenia spoza uprawnień nie istnieją w wynikach ani w licznikach. Tylko odczyt — bez „Nowe zlecenie”. Zapisany widok spoza uprawnień (np. link od Administratora) — „Nie znaleziono widoku. [Pokaż wszystkie zlecenia]”. Klient usunięty — w kolumnie „Klient” „Klient usunięty” dla E i R (wyżej). |
 
 **Role**
 | Akcja | Operacja | A | E | R |
@@ -87,10 +120,10 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 | Nowe zlecenie | W-05 (`CreateWorkOrder`) | tak | tak | ukryte |
 | Eksport listy | — (poza MVP) | nie ma w UI | nie ma w UI | nie ma w UI |
 
-- **Responsywność:** `breakpoint.wide` — dodatkowe kolumny „Lokalizacja” (miasto i ulica), „Opiekun”, „Postęp” (ProcedureProgress kompaktowy, § 3.23 — suma etapów procesów zlecenia); `breakpoint.expanded` — 6 kolumn priorytetowych (makieta); `breakpoint.medium` — Sidebar zwinięty, kolumny „Zlecenie”, „Status”, „Czekamy na”, „Płatność” (klient pod tytułem zlecenia); `breakpoint.compact` — lista kart (§ 3.6, § 3.8) z tymi samymi danymi priorytetowymi, filtry w arkuszu z „Pokaż wyniki (6)”, zapisane widoki przewijane poziomo.
-- **Komponenty i tokeny:** DataTable (§ 3.6) — nagłówek `color.bg.surface-subtle` + `text.label`, przyklejony (`elevation.sticky`, `layer.sticky`), wiersz `size.control.height.web.lg`, tekst `text.body-sm`, liczby `text.numeric` do prawej, `aria-sort`; FilterBar, FilterChip, SearchField, zapisane widoki (§ 3.7) — chipy `size.control.height.web.sm`, `radius.pill`; Select (§ 3.3); TextField liczba (§ 3.2); StatusBadge (§ 3.9) z `color.status.order.*`, `color.status.payment.overdue.*`; odznaka wartości nieznanej (§ 3.9.1, `color.status.unknown.*`); ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`; Card (§ 3.8) na compact; Button primary (§ 3.1); EmptyState (§ 3.15); Skeleton (§ 3.16).
-- **Mikrocopy:** „Zlecenia” · „Nowe zlecenie” · nazwy widoków z tabeli · „Szukaj: numer, tytuł, klient, adres…” · „Czekamy na” · „dłużej niż” · „dni” · „Więcej filtrów” · „Wyczyść filtry” · licznik „6 zleceń” (odmiana § 6.3) · „Najpilniejsze” · „Na stronie” · „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.”
-- **Dostępność:** wiersz jako link z nazwą „ZL-2026-0042, Garaż — pełny proces, W realizacji, czekamy na Stoen Operator (OSD) od 15 dni, płatność po terminie”; zmiana liczby wyników ogłaszana `aria-live="polite"`; filtry z etykietami; chipy aktywnych filtrów z przyciskiem „Usuń filtr …”; tytuł karty „Zlecenia · EVia Manager” — bez frazy wyszukiwania i nazw (zasady wspólne pkt 1).
+- **Responsywność:** `breakpoint.wide` — dodatkowe kolumny „Lokalizacja” (miasto i ulica — wtedy bez drugiej linii w kolumnie „Klient”), „Opiekun”, „Postęp” (ProcedureProgress kompaktowy, § 3.23 — suma etapów procesów zlecenia); `breakpoint.expanded` — 6 kolumn priorytetowych (makieta), lokalizacja jako druga linia w kolumnie „Klient”; `breakpoint.medium` — Sidebar zwinięty, kolumny „Zlecenie”, „Status”, „Czekamy na”, „Płatność” (klient i lokalizacja pod tytułem zlecenia); `breakpoint.compact` — lista kart (§ 3.6, § 3.8) z tymi samymi danymi priorytetowymi (klient i „ul. Testowa 7, Warszawa” pod tytułem), filtry i „Więcej filtrów” w arkuszu z „Pokaż wyniki (6)”, zapisane widoki przewijane poziomo.
+- **Komponenty i tokeny:** DataTable (§ 3.6) — nagłówek `color.bg.surface-subtle` + `text.label`, przyklejony (`elevation.sticky`, `layer.sticky`), wiersz `size.control.height.web.lg`, tekst `text.body-sm`, lokalizacja `text.body-sm` `color.text.secondary`, liczby `text.numeric` do prawej, `aria-sort`; FilterBar, FilterChip, SearchField, zapisane widoki, panel „Więcej filtrów” (§ 3.7) — chipy `size.control.height.web.sm`, `radius.pill`, panel `color.bg.surface-subtle`, `space.inset.md`; Select (§ 3.3); TextField liczba (§ 3.2); StatusBadge (§ 3.9) z `color.status.order.*`, `color.status.payment.overdue.*`; odznaka wartości nieznanej (§ 3.9.1, `color.status.unknown.*`); ikony `triangle-alert` `color.icon.warning`, `alarm-clock` `color.icon.error`; Card (§ 3.8) na compact; Button primary (§ 3.1); EmptyState (§ 3.15); Skeleton (§ 3.16).
+- **Mikrocopy:** „Zlecenia” · „Nowe zlecenie” · nazwy widoków z tabeli · „Szukaj: numer, tytuł, klient, adres…” · „Czekamy na” · „dłużej niż” · „dni” · „Więcej filtrów” · „Więcej filtrów (2)” · „Typ obiektu” · „Szablon” · „Wyczyść te filtry” · „Wyczyść filtry” · „Lokalizacja” · „Klient usunięty” · „Wyszukasz po powrocie połączenia.” · licznik „6 zleceń” (odmiana § 6.3) · „Najpilniejsze” · „Na stronie” · „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.”
+- **Dostępność:** wiersz jako link z nazwą „ZL-2026-0042, Garaż — pełny proces, Jan Przykładowy, ul. Testowa 7, Warszawa, W realizacji, czekamy na Stoen Operator (OSD) od 15 dni, płatność po terminie”; „Więcej filtrów (2)” z `aria-expanded` i `aria-controls`, nazwa dostępna = widoczna etykieta, opis w `aria-describedby` („Aktywne filtry w panelu: 2”); zmiana liczby wyników ogłaszana `aria-live="polite"`; filtry z etykietami; chipy aktywnych filtrów z przyciskiem „Usuń filtr …”; tytuł karty „Zlecenia · EVia Manager” — bez frazy wyszukiwania i nazw (zasady wspólne pkt 1).
 
 ## M-05 Lista zleceń
 - **Cel:** w terenie, bez zasięgu, szybko znaleźć zlecenie (po adresie, nazwisku, numerze) i wejść w nie, widząc, co jest niewysłane.
