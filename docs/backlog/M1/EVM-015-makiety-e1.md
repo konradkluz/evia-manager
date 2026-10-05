@@ -395,15 +395,17 @@ Demo końcowe 2026-10-05 (Konrad):
    - (o) W-02 — spójny opis fokusu po resecie hasła (wiersz „Pusty” vs „Dostępność”) (`web-developer`, nit).
    - (p) W-16 — nazwa dostępna „Wyślij ponownie” z obiektem (WCAG 2.4.6, 2.5.3) (`web-developer`, nit).
    - (q) „Pozostało n kodów” (W-02, e-mail 6) — odmiana liczebnika wg § 6.3 (QA, nit).
-   - **Stan po poprawce 2026-10-05 (Decyzje 5):** (k), (m)–(q) — zrobione (`ux-designer`), (l) — zrobione (`product-owner`); (r) i (s) — wejście do planów E1.
-   - (s) Do planu EVM-028: odmiana liczebników w W-15 — „Pozostało 7 kodów” i „Konto ma jeszcze 2 inne aktywne sesje” (np. „1 inną aktywną sesję”, „5 innych aktywnych sesji”) oraz stan 0 kodów w W-15 (`ux-designer`, nit — zauważone przy (q)).
    - (r) Do planów: EVM-027 — jawna informacja, czy dezaktywowane konto było aktywowane (np. `activatedAt`), do wyboru wariantu dialogu 5, zamiast zgadywania po `lastLoginAt` (`web-developer`, minor); EVM-016 — status i kolumna „Zaproszenie” po trybie awaryjnym, brzmienie „wymaga aktywacji” w AC2 (QA, nit).
+   - (s) Do planu EVM-028: odmiana liczebników w W-15 — „Pozostało 7 kodów” i „Konto ma jeszcze 2 inne aktywne sesje” (np. „1 inną aktywną sesję”, „5 innych aktywnych sesji”) oraz stan 0 kodów w W-15 (`ux-designer`, nit — zauważone przy (q)).
+   - (t) Do planu EVM-008 (konfiguracja Sentry w panelu, SR-PRIV-09, ADR-0013): nazwy dostępne z obiektem (W-16 „Akcje konta: …”, „Wyślij ponownie zaproszenie: …”) zawierają e-mail pracownika, a breadcrumbs Sentry `ui.click` / `ui.input` i nazwy elementów INP dopisują `aria-label` — `beforeBreadcrumb` usuwa wartości atrybutów (albo `dom: false`), reguła scrubbingu e-maili po stronie serwera Sentry, kliknięcie w W-16 w przeglądzie próbek przed wydaniem (`security-engineer`, minor, Low; makiety bez zmian — nazwa dostępna z obiektem to wymóg a11y).
+   - (u) Do planów EVM-024 i EVM-025: dialog 2 otwarty z „Wyślij ponownie” w komórce — „Anuluj” / Esc wracają do tego przycisku, sukces przenosi fokus na `⋮` „Akcje konta: …” wiersza; w testach Playwright `exact: true` albo zawężenie do `getByRole('dialog')`; komunikat sukcesu po resecie w W-02 — kontener `role="status"` renderowany pusty i wypełniany po montażu, ogłoszenie sprawdzane czytnikiem (`web-developer`, nit).
+   - **Stan po poprawce 2026-10-05 (Decyzje 5):** (k), (m)–(q) — zrobione (`ux-designer`), (l) — zrobione (`product-owner`); celowane sprawdzenie: `qa-engineer` PASS, `security-engineer` APPROVE, `web-developer` APPROVE; (r)–(u) — wejście do planów E1.
 
 ## Definition of Done
 - [x] AC1–AC8 spełnione (weryfikacja QA przez inspekcję) — `qa-engineer` runda 2: PASS AC1–AC8; orkiestrator 2026-10-04: `npm run docs:check` 0 błędów / 0 ostrzeżeń (165 plików), `npm run test:tools` 328/328 (99,95% linii, 98,09% gałęzi), lokalny render Mermaid 7/7 (mermaid-cli 12.0.0, Chromium lokalnie), linki i kotwice — 0 zepsutych, tokeny 55 / 0 brakujących, § styleguide'u 29 / 0 brakujących, dane syntetyczne (`example.com`, `firma.test`, IP z RFC 5737 / 3849)
 - [x] Przeglądy: web-developer, security-engineer — APPROVE (runda 2; runda 1: 3 × major naprawione — jeden primary w W-15, własny wiersz W-16 bez menu, okno konfiguracji drugiego kroku po resecie); runda poprawek po demo: APPROVE w rundzie 2 (runda 1: 1 × major naprawiony — logowanie kodem odzyskiwania nie otwiera okna step-upu)
 - [x] `CHANGELOG.md` zaktualizowany (Unreleased → Dodano, wpis EVM-015)
-- [ ] Demo i akceptacja Konrada
+- [x] Demo i akceptacja Konrada — demo 2026-10-04 (poprawki), demo końcowe 2026-10-05: akceptacja z poprawką (k)–(q) przed PR („Decyzje” 5); poprawka zweryfikowana (QA PASS, `security-engineer` i `web-developer` APPROVE)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -426,3 +428,4 @@ Demo końcowe 2026-10-05 (Konrad):
 - 2026-10-04 — in-progress → in-review: weryfikacja orkiestratora (`docs:check` 0/0, `test:tools` 328/328, Mermaid 7/7, linki 0 zepsutych, tokeny 56 / 0 brakujących, frazy wariantu S1 — 0); demo końcowe z „Uwagą do rozważenia” 8 (EVM-029 AC2)
 - 2026-10-05 — demo końcowe (Konrad): EVM-029 AC2 zaakceptowane i naniesione, przyrost zaakceptowany z krótką poprawką (k)–(q) przed PR („Decyzje” 4–5)
 - 2026-10-05 — poprawka (k)–(q) przed PR („Decyzje” 5): `ux-designer` — (k) W-13 „poproś administratora o nowy link”, (m) W-15 sukces zmiany hasła bez innych sesji, (n) W-04 `aria-describedby` podpowiedzi, (o) W-02 fokus po resecie, (p) W-16 nazwa dostępna „Wyślij ponownie”, (q) odmiana liczby kodów (§ 6.3); `product-owner` — (l) `domain.md`: okno step-upu tylko od klucza dostępu albo kodu z aplikacji; nowe (s) → plan EVM-028
+- 2026-10-05 — celowane sprawdzenie poprawki (k)–(q) (`git diff 80873a9..HEAD`): `qa-engineer` PASS (AC1–AC8 bez zmian), `security-engineer` APPROVE ((k), (l) zamknięte; nowe (t) → plan EVM-008), `web-developer` APPROVE (3 × nit → (u) do planów EVM-024 / EVM-025); DoD kompletne; PR do „Squash and merge” przez Konrada
