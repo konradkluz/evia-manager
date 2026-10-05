@@ -6,7 +6,7 @@
 ## Zasady treści e-maili
 1. **Zwykły tekst** — bez HTML, obrazów i pikseli śledzących. E-mail nie jest interfejsem panelu, więc nie korzysta z tokenów styleguide'u.
 2. **Stałe szablony w kodzie** — temat i treść pochodzą ze stałych szablonów; odbiorca i temat wyłącznie z walidowanych pól bez CR/LF (SR-INPUT-07, CWE-93). Zmienne w szablonach to tylko wartości z listy niżej.
-3. **Wyłącznie informacja o zdarzeniu i link do panelu** — bez danych klientów, `displayName`, nazw kluczy dostępu, adresów IP i surowego User-Agent (TM-80). Dopuszczalne zmienne: rola konta (zaproszenie), czas zdarzenia i koniec ważności linku, koniec okna konfiguracji drugiego kroku (reset przez Administratora), przeglądarka i system ze słownika, liczba pozostałych kodów odzyskiwania.
+3. **Wyłącznie informacja o zdarzeniu i link do panelu** — bez danych klientów, `displayName`, nazw kluczy dostępu, adresów IP i surowego User-Agent (TM-80). Dopuszczalne zmienne: rola konta (zaproszenie), czas zdarzenia i koniec ważności linku, koniec okna konfiguracji drugiego kroku (reset przez Administratora), przeglądarka i system ze słownika, liczba pozostałych kodów odzyskiwania — z odmianą liczebnika razem z czasownikiem wg § 6.3 (kategoria `Intl.PluralRules('pl')`): „Pozostał 1 kod.”, „Pozostały 3 kody.”, „Pozostało 9 kodów.”; przy 0 — „To był ostatni kod.”.
 4. **Powitanie bez nazwy** — „Dzień dobry,”; formy bezosobowe (§ 6.1): „zaproszono Cię”, „zalogowano się”, „zmieniono”.
 5. **Link tylko do panelu**, budowany przez serwer z adresu panelu w konfiguracji — nigdy z nagłówka `Host` żądania (CWE-640). Token jednorazowy wyłącznie we fragmencie adresu (`#…`), nigdy w ścieżce ani query; wartości tokenu nie pokazujemy w makietach. Zapis w szablonach:
    - `[link]` — link jednorazowy z tokenem: `[adres panelu]/[ścieżka ekranu]#[token]` (W-13, W-12);
@@ -187,7 +187,7 @@ ustaw nowe hasło i powiadom administratora:
 
 [stopka]
 ```
-Zmienne: czas zdarzenia, liczba pozostałych kodów. Zdanie o resecie przez administratora jest stałe — nowe kody wymagają działającej metody (pełne ponowne uwierzytelnienie bez kodu odzyskiwania); blok „Jeśli to nie Ty…” zostaje bez zmian.
+Zmienne: czas zdarzenia, liczba pozostałych kodów (odmiana i treść przy 0 — zasada 3; tak samo jak w W-02). Zdanie o resecie przez administratora jest stałe — nowe kody wymagają działającej metody (pełne ponowne uwierzytelnienie bez kodu odzyskiwania); blok „Jeśli to nie Ty…” zostaje bez zmian.
 
 ## 7. Logowanie z nowej przeglądarki
 - **Kiedy:** udane logowanie z przeglądarki, z której konto wcześniej się nie logowało (EVM-026 AC4; mechanizm rozpoznania — plan EVM-026, bez odcisku przeglądarki). Konto Administratora — dodatkowo alert 9.
