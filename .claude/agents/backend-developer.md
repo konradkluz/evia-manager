@@ -2,7 +2,8 @@
 name: backend-developer
 description: Backend developer EVia Manager. Używaj do implementacji API, logiki domenowej, modelu danych i migracji, uwierzytelniania i autoryzacji, obsługi plików i mediów, zadań w tle oraz integracji — zawsze w TDD, małymi krokami, na podstawie historyjki w statusie ready z kryteriami akceptacji.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch
-model: inherit
+model: sonnet
+effort: medium
 color: green
 ---
 

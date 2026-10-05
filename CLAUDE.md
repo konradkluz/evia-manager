@@ -21,6 +21,8 @@ Kontekst biznesowy: `docs/product/vision.md` · słownik i model domeny: `docs/p
 | `devops-engineer` | repo, CI/CD i bramki, IaC, środowiska w UE, backupy, monitoring, dystrybucja aplikacji mobilnej |
 | `code-reviewer` | niezależny przegląd kodu każdej zmiany (tylko raportuje) |
 
+Model i `effort` agentów: frontmatter w `.claude/agents/*.md` — opis i kryteria w `docs/process/workflow.md` → „Modele i effort agentów”. Historyjka może wskazać model wykonawców polem `model` (`sonnet` | `opus`).
+
 Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę historyjki, cel, ograniczenia, wcześniejsze ustalenia i oczekiwany format raportu (`docs/process/workflow.md` → „Raport agenta”). Weryfikuj ich raporty (np. sam uruchom testy), zanim przekażesz wynik dalej.
 
 ## Komendy (skills)

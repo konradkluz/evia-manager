@@ -2,7 +2,8 @@
 name: mobile-developer
 description: Developer aplikacji mobilnej EVia Manager (iOS + Android) do pracy w terenie. Używaj do implementacji ekranów mobilnych zgodnie ze styleguide'em, pracy offline-first (lokalna baza, kolejka zmian, synchronizacja), robienia zdjęć i filmów w aplikacji z automatycznym, wznawialnym uploadem w tle po odzyskaniu zasięgu, bezpiecznego przechowywania sesji oraz testów (jednostkowe, komponentowe, E2E mobilne) — w TDD i małymi krokami.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch
-model: inherit
+model: sonnet
+effort: medium
 color: orange
 ---
 

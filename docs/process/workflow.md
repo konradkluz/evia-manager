@@ -84,6 +84,24 @@ Pytania zawsze z **rekomendowaną odpowiedzią** i konsekwencją wyboru.
 ## Delegowanie przez orkiestratora
 Agenci nie widzą rozmowy. W poleceniu podawaj: ID i ścieżkę historyjki, gałąź, cel kroku, ograniczenia, wcześniejsze ustalenia i decyzje, oczekiwany raport. Niezależne zadania uruchamiaj równolegle; zadania zapisujące te same pliki — sekwencyjnie (albo w osobnych worktree).
 
+## Modele i effort agentów
+Model i głębokość rozumowania (`effort`) każdego agenta ustawia frontmatter w `.claude/agents/*.md`. Wartości są jawne (bez `inherit`), więc model i effort sesji orkiestratora nie przechodzą na agentów. Tabela opisuje frontmatter; zgodność obu sprawdza test w `tools/repo-policy` (EVM-074).
+
+| Agent | Model | Effort | Dlaczego |
+|---|---|---|---|
+| `product-owner` | `sonnet` | `medium` | historyjki i backlog według szablonu |
+| `ux-designer` | `sonnet` | `medium` | specyfikacje i makiety według styleguide'u |
+| `backend-developer` · `web-developer` · `mobile-developer` · `devops-engineer` | `sonnet` | `medium` | implementacja w TDD; trudniejsza historyjka — `model: opus` w historyjce |
+| `qa-engineer` | `sonnet` | `medium` | macierz AC → testy, uruchamianie testów |
+| `code-reviewer` | `sonnet` | `high` | niezależny przegląd każdej zmiany |
+| `solution-architect` | `opus` | `high` | ADR i architektura — rzadko, duży wpływ |
+| `security-engineer` | `opus` | `high` | ocena ryzyka zmian wrażliwych |
+
+- **Model realizacji historyjki** — pole `model` we frontmatter historyjki: `sonnet` albo `opus`; brak pola = modele z tabeli. `/deliver` przekazuje je do workflow `deliver-story`, a ten — tylko wykonawcom (plan, implementacja, poprawki); QA, przeglądy i konsultacje pracują na modelach z tabeli. `opus` proponuje `product-owner` w `/refine`, gdy historyjka wprowadza nowy moduł albo wzorzec architektoniczny, dotyczy uwierzytelniania, uprawnień, synchronizacji offline, migracji danych lub złożonej logiki domenowej, albo gdy realizacja na `sonnet` utknęła. Decyzję zatwierdza Konrad razem z AC.
+- **Sesja orkiestratora** — model i effort wybiera Konrad w ustawieniach sesji Claude Code. Rekomendacja: `sonnet` dla `/deliver` i `/progress`; `opus` dla `/refine` złożonych historyjek, `/adr` i `/milestone`; effort `high`, a `max` tylko dla wyjątkowo trudnych problemów.
+- **Doraźnie** — orkiestrator może wywołać agenta na innym modelu (parametr `model` narzędzia Agent), np. tańszy przegląd w lżejszej realizacji; zapisuje to w „Decyzjach” historyjki.
+- **Zmiana modelu lub effortu agenta** — frontmatter i ta tabela w jednej zmianie.
+
 ## Raport agenta (format standardowy)
 ```
 Wynik: DONE | DONE z uwagami | BLOCKED

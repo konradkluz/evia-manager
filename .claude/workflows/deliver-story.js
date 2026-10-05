@@ -1,7 +1,7 @@
 export const meta = {
   name: 'deliver-story',
   description: 'EVia Manager: realizacja jednej historyjki (ready) — plan, implementacja TDD, weryfikacja QA, przeglądy i pętla poprawek aż do spełnienia bramek',
-  whenToUse: 'Uruchamiany przez /deliver dla historyjki w statusie ready. args: { storyId, storyPath, branch, owner, today?, contributors?, reviewers?, appUrl?, userNotes?, maxRounds? }',
+  whenToUse: 'Uruchamiany przez /deliver dla historyjki w statusie ready. args: { storyId, storyPath, branch, owner, today?, contributors?, reviewers?, appUrl?, userNotes?, model?, maxRounds? }',
   phases: [
     { title: 'Plan', detail: 'plan techniczny wykonawcy + konsultacje (architekt / UX / security)' },
     { title: 'Implementacja', detail: 'TDD: owner, potem contributors — sekwencyjnie' },
@@ -34,6 +34,14 @@ const implementers = [owner, ...contributors]
 const MAX_ROUNDS = a.maxRounds || 3
 const appUrl = a.appUrl || ''
 const userNotes = a.userNotes || ''
+// Story `model` (docs/process/workflow.md → „Modele i effort agentów”): only the implementers (plan, implementation,
+// fixes) get it; QA, reviews and consultations keep the model and effort of their agent definitions.
+const MODELS = ['sonnet', 'opus']
+const model = a.model || ''
+if (model && !MODELS.includes(model)) {
+  throw new Error(`deliver-story: nieobsługiwany model "${model}" (dozwolone: ${MODELS.join(', ')})`)
+}
+const implementerOpts = (opts) => (model ? Object.assign({}, opts, { model }) : opts)
 
 // ---------- schematy wyników ----------
 const str = { type: 'string' }
@@ -147,7 +155,7 @@ KROK: PLAN TECHNICZNY (bez implementacji).
 2. Uzupełnij w pliku historyjki sekcję „Plan techniczny”: zakres zmian (moduły / pliki / dokumenty), kontrakt API (jeśli dotyczy), migracje, plan testów AC → testy (dla dokumentów: jak sprawdzić każde AC), kolejność kroków. Dopisz w „Dziennik”: "${today} — plan techniczny (${owner})".
 3. Oceń: needsArchitectReview — nowy moduł, nowa zależność zewnętrzna, zmiana współdzielonego modelu danych, niekompatybilna zmiana API, nowa infrastruktura; needsUiSpec — historyjka ma UI bez kompletnej sekcji „UX / UI”; securityRelevant — uwierzytelnianie, autoryzacja, dane osobowe, pliki / media, nowe endpointy, zależności, infrastruktura, dane na urządzeniu.
 4. Gdy AC są niejasne lub sprzeczne albo brakuje decyzji użytkownika: status "blocked" i konkretne pytania (każde z rekomendowaną odpowiedzią).`,
-  { agentType: owner, label: `plan:${owner}`, phase: 'Plan', schema: PLAN_SCHEMA })
+  implementerOpts({ agentType: owner, label: `plan:${owner}`, phase: 'Plan', schema: PLAN_SCHEMA }))
 
 if (!plan) return { status: 'needs-attention', storyId, stage: 'plan', reason: `${owner} nie zwrócił planu` }
 if (plan.status === 'blocked') return { status: 'blocked', storyId, stage: 'plan', summary: plan.summary, questions: plan.questions }
@@ -206,7 +214,7 @@ ${consultBlock}
 ${prev}
 Na koniec uruchom lokalną bramkę jakości (komendy w CLAUDE.md) — musi być zielona. Dopisz wpis w „Dziennik” historyjki.
 Gdy nie da się kontynuować bez decyzji użytkownika: status "blocked" + questions (z rekomendacją).`,
-    { agentType: who, label: `impl:${who}`, phase: 'Implementacja', schema: IMPL_SCHEMA })
+    implementerOpts({ agentType: who, label: `impl:${who}`, phase: 'Implementacja', schema: IMPL_SCHEMA }))
   if (!r) return { status: 'needs-attention', storyId, stage: 'implementation', reason: `${who} nie zwrócił wyniku`, implementation: implReports }
   implReports.push(Object.assign({ who }, r))
   if (r.status === 'blocked') return { status: 'blocked', storyId, stage: 'implementation', implementation: implReports, questions: r.questions }
@@ -295,7 +303,7 @@ Do naprawy: ${JSON.stringify(mine)}
 Kontekst — pozostałe ustalenia tej rundy (naprawiają inni, nie ruszaj): ${JSON.stringify(others)}
 Jeśli uważasz ustalenie za błędne — nie zmieniaj kodu, uzasadnij to w summary (zostanie zweryfikowane w kolejnej rundzie).
 Uruchom bramkę jakości — musi być zielona.`,
-      { agentType: who, label: `fix:${who}:r${round}`, phase: 'Poprawki', schema: IMPL_SCHEMA })
+      implementerOpts({ agentType: who, label: `fix:${who}:r${round}`, phase: 'Poprawki', schema: IMPL_SCHEMA }))
     fixLog.push({ round, who, status: r ? r.status : 'error', summary: r ? r.summary : 'brak wyniku' })
     if (r && r.status === 'blocked') {
       return { status: 'blocked', storyId, stage: 'fixes', rounds: round, openBlocking: problems, fixes: fixLog, questions: r.questions }
@@ -318,6 +326,7 @@ for (const r of lastReviews) {
 return {
   status: passed ? 'passed' : 'needs-attention',
   storyId,
+  model: model || null,
   rounds: round,
   plan: plan.summary,
   consultations: consultResults.map((r) => ({ who: r.who, verdict: r.verdict, notes: r.notes })),

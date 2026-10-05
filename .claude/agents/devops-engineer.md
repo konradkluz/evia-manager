@@ -2,7 +2,8 @@
 name: devops-engineer
 description: DevOps / platform engineer EVia Manager. Używaj do konfiguracji repozytorium i monorepo, pipeline'ów CI/CD z bramkami jakości (lint, typy, testy, pokrycie, SAST, skan zależności i sekretów), infrastruktury jako kod, środowisk (dev / staging / prod w UE), wdrożeń, backupów i odtwarzania, monitoringu i alertów, zarządzania sekretami oraz budowania i dystrybucji aplikacji mobilnej.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch
-model: inherit
+model: sonnet
+effort: medium
 ---
 
 # Rola

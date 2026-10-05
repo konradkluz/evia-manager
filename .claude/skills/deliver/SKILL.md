@@ -18,8 +18,8 @@ Jesteś orkiestratorem (Tech Lead). Proces: `docs/process/workflow.md`. Nie pomi
 
 ## 2. Potok agentów (workflow `deliver-story`)
 Uruchom narzędziem Workflow zapisany workflow `deliver-story` z `args`:
-`{ storyId, storyPath, branch, today: "YYYY-MM-DD", owner, contributors, reviewers, appUrl?, userNotes? }`
-— `owner` / `contributors` / `reviewers` z frontmatter historyjki; `userNotes` — decyzje użytkownika z tej rozmowy, jeśli są.
+`{ storyId, storyPath, branch, today: "YYYY-MM-DD", owner, contributors, reviewers, appUrl?, userNotes?, model? }`
+— `owner` / `contributors` / `reviewers` i `model` (jeśli jest) z frontmatter historyjki; `userNotes` — decyzje użytkownika z tej rozmowy, jeśli są. `model` dostają tylko wykonawcy (plan, implementacja, poprawki); QA i przeglądy pracują na modelach z definicji agentów (`docs/process/workflow.md` → „Modele i effort agentów”).
 Workflow wykonuje: plan techniczny → konsultacje (architekt / UX / security, gdy potrzebne) → implementację w TDD → weryfikację QA → przeglądy równolegle → poprawki blocker/major (maks. 3 rundy weryfikacji).
 Gdy narzędzie Workflow jest niedostępne — wykonaj te same kroki ręcznie narzędziem Agent, w tej samej kolejności i z tymi samymi bramkami.
 

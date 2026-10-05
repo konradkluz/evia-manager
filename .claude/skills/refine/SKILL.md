@@ -7,7 +7,7 @@ argument-hint: <opis potrzeby | EVM-ID>
 # Refinement: $ARGUMENTS
 
 1. **Rozpoznaj wejście.** ID `EVM-###` → wczytaj plik historyjki. W przeciwnym razie to nowa potrzeba: sprawdź w `docs/backlog/`, czy podobna pozycja już nie istnieje.
-2. **product-owner** (Agent): przygotuj lub uzupełnij historyjkę wg `docs/backlog/_template.md` i `docs/process/definition-of-ready.md` — cel, AC (Zakładając / Gdy / Wtedy, z rolami i przypadkami negatywnymi), poza zakresem, zależności, kamień milowy i epik, sugerowany `owner`, `contributors`, `reviewers`. Za duża → propozycja podziału na kilka ID. Status `draft`.
+2. **product-owner** (Agent): przygotuj lub uzupełnij historyjkę wg `docs/backlog/_template.md` i `docs/process/definition-of-ready.md` — cel, AC (Zakładając / Gdy / Wtedy, z rolami i przypadkami negatywnymi), poza zakresem, zależności, kamień milowy i epik, sugerowany `owner`, `contributors`, `reviewers` i `model` wykonawców (`sonnet`; `opus` tylko wg kryteriów z `docs/process/workflow.md` → „Modele i effort agentów”, z uzasadnieniem w „Notatkach technicznych”). Za duża → propozycja podziału na kilka ID. Status `draft`.
 3. **Konsultacje równolegle — tylko gdy dotyczy:**
    - UI → `ux-designer`: treść sekcji „UX / UI” (ekrany, stany, komponenty, mikrocopy);
    - dane osobowe / uprawnienia / pliki / integracje / infrastruktura → `security-engineer`: treść sekcji „Bezpieczeństwo i prywatność”;

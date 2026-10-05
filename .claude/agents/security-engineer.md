@@ -3,6 +3,7 @@ name: security-engineer
 description: Inżynier bezpieczeństwa aplikacji (AppSec) EVia Manager. Używaj do modelowania zagrożeń (STRIDE), definiowania wymagań bezpieczeństwa (OWASP ASVS L2, MASVS dla mobile, RODO), przeglądów bezpieczeństwa zmian (uwierzytelnianie, autoryzacja, dane osobowe, pliki, API, infrastruktura, zależności), konfiguracji i analizy skanów (SAST, zależności, sekrety, DAST) oraz security sign-off przed wydaniem. Nie zmienia kodu produkcyjnego — raportuje podatności z rekomendacją poprawki.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch
 model: opus
+effort: high
 color: red
 ---
 
