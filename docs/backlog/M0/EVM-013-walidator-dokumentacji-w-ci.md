@@ -235,7 +235,299 @@ Bez `continue-on-error` i bez `${{ }}` w `run` (zizmor). Adnotacje `::warning` p
 **Obserwacje do backlogu (z EVM-012, poza zakresem):** zagnieżdżone repozytorium git w `spikes/` zgłaszane jako „spike bez README”; zbyt surowy test sąsiedztwa kroków w `test/qa-acceptance.test.mjs:632-639`.
 
 ## Plan techniczny
-_Uzupełnia wykonawca._
+_devops-engineer, 2026-10-05. Zakres: AC1–AC8, „Decyzje” 1–8, L1–L4, kontrole 1–9 i wzorzec kroku z „Notatek technicznych”. Bez nowych zależności, akcji GitHub, sekretów i jobów; API HTTP i migracje — nie dotyczy._
+
+_Sprawdzone przed planem (dane syntetyczne, scratchpad sesji):_
+- nowe `FIELD` i `HEADING` (p. 1) dają ten sam wynik co obecne wyrażenia na 200 000 losowych krótkich ciągów; dla 200 KB działają ok. 1 ms, a obecne `FIELD` dla 20 KB — 0,3 s na Node 26 i 1,1 s na Node 22;
+- `worker.terminate()` przerywa pętlę nieskończoną i katastrofalny backtracking w ok. 300 ms (Node 22.22 i 26.10), a `--experimental-test-coverage` liczy kod wykonany w workerze;
+- skrypt kroku z p. 2 pod `bash --noprofile --norc -eo pipefail` i `bash -e` kończy się kodem walidatora (0 / 1 / 2), a przy pustym `GITHUB_STEP_SUMMARY` — kodem 1;
+- L1, L2 i L4 odtworzone na repozytorium tymczasowym.
+
+### 1. Zakres zmian
+| Plik | Zmiana | AC |
+|---|---|---|
+| `.github/workflows/ci.yml` (plik wrażliwy K3) | nowy krok w `quality` po `actions/setup-node`, przed `Install (frozen lockfile)` (p. 2); komentarz nagłówka z regułami kroku. Nazwy `ci.yml`, `quality`, `ci-gate`, liczba jobów, `permissions` i `ci-gate` bez zmian | AC1–AC3 |
+| `package.json` | `gate`: `node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && …` (reszta bez zmian); `docs:check` bez zmian | AC8 |
+| `tools/docs-lifecycle/lib/text.mjs` | `safeLine()` (W1) = najpierw `escapeText` (Cc, Cf, Zl, Zp — także NEL i BOM), potem **każde** `##[` w dowolnym miejscu linii → `\u{23}#[`, na końcu `::` na początku linii (po białych znakach) → `\u{3A}:` (zapis jak dotychczasowe escapowanie); `shellQuote()` — cytowanie POSIX `'…'`, `'` → `'\''` | AC4 |
+| `lib/format.mjs` | `render()` przez `safeLine` (wszystkie formaty: `check`, `--list`, raport sprzątania, podsumowanie); `formatSummary()` (p. 2); wspólne teksty „Wynik: …” dla logu i podsumowania (tekst bez zmian; w podsumowaniu bez ścieżki polityki z konfiguracji — zalecenie e); `USAGE` z `--summary`. `codeCell` bez zmian — L5 poza zakresem, bo podsumowanie używa bloku kodu, a nie wspólnej funkcji code spanu | AC2, AC4, AC5 |
+| `lib/main.mjs` | opcja `--summary` (tylko `check`; z `cleanup-report` → kod 2). W trybie `--summary` raport (bajtowo ten sam co `check`) idzie na stderr, a podsumowanie na stdout. L1: komunikat `ToolError` w jednej linii przez `safeLine`; błąd nieoczekiwany — linie `inspect(error)` osobno, każda przez `safeLine`. Kody wyjścia bez zmian | AC3–AC5 |
+| `lib/analyze.mjs` | L4: wskazówka `git rm --cached -- ${shellQuote(path)}`. Nit: pole `classError` w rekordzie ustalenia, ustawiane w miejscu zgłoszenia (`location-forbidden`, `class-missing`, `class-unknown`, `class-conflict`, `ephemeral-tracked` — jak dziś lista kodów); `checkOrphans` czyta flagę, lista `CLASS_ERRORS` znika | AC4, AC7 |
+| `lib/frontmatter.mjs` | L3: `FIELD` → klucz `^([A-Za-z_][\w-]*)[ \t]*:`, a resztę linii sprawdza kod. Reszta jest pusta albo zaczyna się od spacji lub tabulatora i nie zawiera `\n`, `\r`, U+2028 ani U+2029 — linia z takim znakiem, jak dotąd, nie jest polem. Wartość jak dotąd przez `cleanValue` | AC6, AC7 |
+| `lib/milestones.mjs` | L3: `HEADING` → `^#{1,6}[ \t]([^\n\r\u2028\u2029]*)$`. Spacje i tabulatory na brzegach przycina pętla (nie `/[ \t]+$/`). Zachowane przypadki brzegowe, np. `#` + 2 spacje to nadal nagłówek | AC6, AC7 |
+| `tools/docs-lifecycle/test/…` | p. 5 | AC2, AC4–AC8 |
+| `tools/docs-lifecycle/README.md`, `eslint.config.js`, `tsconfig.json` | README: `--summary`, krok w CI, bezpieczne wyjście, testy czasu w wątku; dług → EVM-073, bez zapowiedzi `.ts` i Vitest. Komentarze konfiguracji → EVM-073 | AC8 |
+| `tools/repo-policy/src/workflows.ts` | `docsCheckStepProblems()` i `DOCS_CHECK_SCRIPT` (p. 4) | AC3 |
+| `tools/repo-policy/test/workflows.test.ts`, `checkers.test.ts`, `structure.test.ts`; `tools/repo-policy/README.md` | testy z p. 4–5. `RELAXED`: komentarz i nazwa testu → EVM-073. README: krok walidatora w opisie `workflows.test.ts`, dług → EVM-073 | AC3, AC8 |
+| `packages/config/README.md` | „dziś: `tools/docs-lifecycle`, dług EVM-073” | AC8 |
+| `docs/process/document-lifecycle.md`, `docs/ops/github-i-ci.md`, `CLAUDE.md` („Stack i komendy”) | p. 6 | AC7, AC8 |
+| `docs/process/testing-strategy.md` („Narzędzia”), `README.md` (krok 4 „Szybki start”) | spójność opisu `pnpm run gate`: walidator po sprawdzeniu hooków | AC8 |
+| `CHANGELOG.md` | „Unreleased → Dodano” [EVM-013] | DoD |
+
+**Bez zmian:**
+- `docs/process/definition-of-done.md`, format raportu agenta, `.claude/**` i `lefthook.yml` (bez hooka);
+- krok K3 w jobie `security` i `codeCell` (L5), `turbo.json`, lockfile;
+- reguły polityki i komunikaty walidatora — poza wskazówką L4 i neutralizacją.
+
+Poza tym planem: `docs/security/requirements.md` i `threat-model.md` aktualizuje `security-engineer` w przeglądzie, a `docs/qa/EVM-013/` tworzy `qa-engineer`.
+
+### 2. Kontrakt CLI, krok CI i podsumowanie
+**CLI** (zmiana addytywna): `node tools/docs-lifecycle/cli.mjs check [--list] [--today YYYY-MM-DD] [--summary]`.
+- Bez `--summary` zachowanie się nie zmienia (`npm run docs:check`).
+- Z `--summary`:
+  - stdout: podsumowanie Markdown dla Step Summary;
+  - stderr: raport bajtowo identyczny ze stdout `check` — ta sama analiza, więc liczniki w logu i podsumowaniu są zawsze równe;
+  - kody wyjścia 0 / 1 / 2 bez zmian;
+  - przy kodzie 2 podsumowanie nie powstaje — komunikat jest tylko w logu, a krok i `ci-gate` są czerwone.
+- Narzędzie czyta środowisko tylko po to, żeby przekazać `env` do gita. Nie zna `GITHUB_STEP_SUMMARY` i nie emituje adnotacji.
+
+**Krok w `quality`** (po `actions/setup-node`, przed `pnpm install`):
+```yaml
+      - name: Documentation lifecycle validator (npm run docs:check, bramka 11)
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          status=0
+          node tools/docs-lifecycle/cli.mjs check --summary >> "$GITHUB_STEP_SUMMARY" || status=$?
+          exit "$status"
+```
+- To wzorzec z „Notatek technicznych” bez pliku pośredniego w `$RUNNER_TEMP`:
+  - raport trafia do logu bezpośrednio (stderr), a podsumowanie — przekierowaniem do `$GITHUB_STEP_SUMMARY`;
+  - jedno uruchomienie: log i podsumowanie pochodzą z tej samej analizy;
+  - bez potoku, kod wyjścia przekazany jawnie przez `status` / `exit` (kontrola 2).
+- `shell: bash` (`-eo pipefail`) to obrona w głąb.
+- `timeout-minutes: 2`: przy regresji czasu krok kończy się błędem po 2 min, zamiast wisieć do 20 min (Z4, pula minut). Zwykle krok trwa kilka sekund.
+- W kroku nie ma `if:`, `continue-on-error`, `env`, `${{ … }}`, `--today` ani `--list`. Job `quality` zachowuje `permissions: contents: read` i `persist-credentials: false`.
+
+**Podsumowanie.** Stała struktura z tekstów zaufanych; wartości z repozytorium są wyłącznie wewnątrz bloku kodu:
+````markdown
+### Walidator dokumentacji (EVM-013)
+
+Wynik: błędy (2) — popraw je przed oddaniem przyrostu (docs/process/document-lifecycle.md)
+
+błędy: 2 · ostrzeżenia: 1
+
+Dzień: 2026-10-05 (Europe/Warsaw) · plików .md: 171
+
+#### Błędy (2)
+
+```text
+docs/notatka-evm-013.md · — · plik poza dozwolonymi lokalizacjami (brak pasującej reguły) — …
+.scratch/x.md · roboczy · plik roboczy widoczny dla gita … (git rm --cached -- '.scratch/x.md') …
+```
+
+#### Ostrzeżenia (1)
+
+```text
+docs/product/sierota.md · żywy · osierocony: …
+```
+
+Pełna lista ustaleń — w logu kroku. Powtórz sprawdzenie lokalnie: `npm run docs:check`.
+````
+- „Wynik: …” to te same trzy teksty co w logu, w tym „brak błędów i ostrzeżeń — dokumentacja zgodna z polityką”; w podsumowaniu tekst przy błędach kończy się przed odwołaniem do pliku polityki (ścieżka pochodzi z `lifecycle.config.json`, a poza blokiem kodu są tylko stałe i liczby — zalecenie e). Pusta lista → „brak”.
+- Pozycja ma postać `ścieżka · klasa · powód` (format logu bez etykiety BŁĄD / OSTRZEŻENIE) i przechodzi przez `safeLine`: jedna linia, znaki sterujące escapowane, `::` na początku i każde `##[` zneutralizowane.
+- Płotek bloku kodu: backticki, o jeden dłuższy od najdłuższej serii backticków w pozycjach (co najmniej 3). Linki, obrazy, HTML, `**`, `|` i wzmianki zostają zwykłym tekstem; poza blokiem nie ma wartości z repozytorium — tylko stałe teksty, liczby i data `YYYY-MM-DD` (kontrola 5, zalecenie e).
+- Limity:
+  - najwyżej 100 pozycji na listę i 400 KiB (UTF-8) na blok **łącznie z płotkami** — pozycje w kolejności logu, do pierwszej, która się nie mieści; dalej „… i N więcej — pełna lista w logu” (tekst z AC5);
+  - najgorszy przypadek: 2 × 400 KiB + stałe nagłówki < 1 MiB, także dla ścieżek o długości PATH_MAX złożonych ze znaków sterujących i dla serii backticków dowolnej długości.
+- Ścieżka zaczynająca się od `::`, zawierająca `##[` albo znaki sterujące jest pokazana po escapowaniu (np. `\u{3A}:error::x.md`), tak samo w logu i w podsumowaniu.
+
+### 3. Poprawki L1–L4, wyrażenia i nity
+- **L1** (`main.mjs`): komunikaty na stderr przez `safeLine`. `ToolError` mieści się w jednej linii; błąd nieoczekiwany — każda linia `inspect(error)` osobno i zneutralizowana, więc stos zostaje czytelny.
+- **L2** (`format.mjs`): `render()` przepuszcza przez `safeLine` każdą linię każdego formatu — `::` na początku linii i każde `##[` w dowolnym miejscu (W1: runner szuka `##[` przez `IndexOf`, więc ścieżka w środku linii ostrzeżenia też tworzyłaby adnotację).
+- **L3** (wyrażenia):
+  - `FIELD` i `HEADING` — jak w p. 1;
+  - przegląd pozostałych: `QUOTED`, `COMMENT`, `FENCE`, `TABLE_FIRST_CELL`, wzorce lokalizacji i `isMarkdown` są liniowe dla wartości bez znaków końca linii (gwarantuje to nowe `FIELD`), a `references.mjs` jest liniowe od EVM-012;
+  - wyrażenia neutralizacji (W1): `#(?=#\[)` z flagą `g` (każde wystąpienie, stała długość) i zakotwiczone `^(\s*):(?=:)` — oba liniowe; po `escapeText` z białych znaków zostają tylko Zs, a JS `\s` obejmuje wszystkie (z .NET `Char.IsWhiteSpace` zostają poza nim tylko znaki już escapowane: U+0085, U+2028, U+2029, Cc).
+- **L4** (`analyze.mjs`): `shellQuote` dla ścieżki we wskazówce `git rm --cached`, zawsze w `'…'`, także dla zwykłych ścieżek.
+- **Nity:**
+  - flaga `classError` (p. 1);
+  - lista „błędów klasy” w polityce (p. 6), zgodność z kodem sprawdza test;
+  - test `.MD` wiąże ścieżkę z regułą (`Cennik.MD` → 16, `X.Md` → 14).
+- **Ograniczenia:**
+  - tylko moduły `node:*` i API dostępne w Node 22.15 (bez `RegExp.escape`);
+  - w `lib/` bez identyfikatorów, które wyłapuje `test/readonly.test.mjs` (np. `truncate(`, `link(`), a `Buffer.byteLength` bez importu.
+
+### 4. Niezmienniki w `tools/repo-policy` (AC3, AC8)
+`docsCheckStepProblems(document)` zgłasza każde naruszenie osobnym komunikatem w formacie `ci.yml: quality: …`:
+1. brak joba `quality` albo kroku z `tools/docs-lifecycle/cli.mjs` w `run`;
+2. krok nie jest pierwszym krokiem z `run` w `quality`, przed nim jest krok inny niż `actions/checkout`, `pnpm/action-setup` lub `actions/setup-node`, albo przed nim nie ma `actions/setup-node`;
+3. walidator uruchomiony innym poleceniem niż `node tools/docs-lifecycle/cli.mjs check`, z jedyną dozwoloną opcją `--summary` (osobny komunikat dla `--today` i `--list`);
+4. w kroku jest `if:`, `continue-on-error`, `env` albo klucz spoza listy `name`, `shell`, `timeout-minutes`, `run`;
+5. w kroku jest `|| true`, `|| :`, `set +e` albo `set +o errexit`; potok bez `shell: bash`; `shell` inny niż `bash`; brak `timeout-minutes` ≤ 5;
+6. kod wyjścia nie jest przekazany: przy walidatorze brak `|| status=$?` albo ostatnia linia to nie `exit "$status"`;
+7. brak `--summary` z `>> "$GITHUB_STEP_SUMMARY"` albo wyrażenie `${{` w `run`;
+8. skrypt różni się od `DOCS_CHECK_SCRIPT` (3 linie z p. 2) — ostatnia linia obrony przed osłabieniem spoza listy; nazwa kroku bez `docs:check` (AC1: nazwa wskazuje walidator);
+9. `quality.permissions` ≠ `{ contents: read }`, `actions/checkout` w `quality` z `with` innym niż dokładnie `{ persist-credentials: false }` (zalecenie b: `ref`, `repository` albo `path` podsunęłyby walidatorowi inne drzewo niż commit) albo `ci-gate.needs` bez `quality`;
+10. job `quality` z `continue-on-error` (zalecenie a: wtedy `needs.quality.result == 'success'`, a `ci-gate` byłby zielony);
+11. `defaults` w workflowie albo w `quality`; `env` workflowu lub joba `quality` spoza listy dozwolonej (`TURBO_TELEMETRY_DISABLED`, `DO_NOT_TRACK`) — np. `NODE_OPTIONS` albo `GIT_*`, które narzędzie przekazuje do gita (zalecenie c);
+12. `pnpm/action-setup` przed walidatorem z `run_install` (instalacja zależności przed bramką).
+
+Testy:
+- prawdziwy `ci.yml` → `[]`;
+- `ci.yml` ma joby `quality, backend, security, coverage, ci-gate` (liczba jobów bez zmian);
+- test kolejności etapów `quality` (EVM-006): na początku skrypt walidatora, potem dotychczasowe 7 poleceń;
+- syntetyczne naruszenie każdego punktu daje oczekiwany komunikat (`checkers.test.ts`);
+- `gate`: test EVM-006 (pełny ciąg) i test `EVM-013 AC8` — po `split(' && ')` element [0] to sprawdzenie hooków, a [1] to `node tools/docs-lifecycle/cli.mjs check`.
+
+### 5. Plan testów AC → testy (`EVM-013 AC#` w nazwie)
+
+**AC1** — `manual`, wiążący dowód: przebieg CI (orkiestrator).
+- Dowód DoD 1: przebieg CI z syntetycznym błędem.
+- QA: symulacja skryptu `run` z `ci.yml` (p. 8) → kod 1, log z `BŁĄD · …`, podsumowanie z błędem i `npm run docs:check`.
+- Jednostkowo: `--summary` przy błędach (`summary.test.mjs`).
+
+**AC2** — lokalnie, plus `manual` (CI). `summary.test.mjs`:
+- same ostrzeżenia → kod 0, licznik `błędy: 0 · ostrzeżenia: N` i lista;
+- czyste repozytorium → komunikat o czystej dokumentacji;
+- stderr `--summary` jest równe stdout `check` (te same liczby);
+- `expires` przed i po dacie z `now` → kod 0 w obu przypadkach, zmienia się tylko licznik ostrzeżeń.
+
+Dowody CI 2 i 3 dostarcza orkiestrator.
+
+**AC3** — lokalnie (Vitest, Node 26) i w CI.
+- `tools/repo-policy`: testy z p. 4 (prawdziwy `ci.yml`, syntetyczne naruszenia, lista jobów).
+- `main.test.mjs`: kody 0 / 1 / 2 w trybie `--summary` przez proces CLI; `--summary` z `cleanup-report` i `--summary=x` → kod 2.
+- Czas kroku < 1 min — raport QA (CI).
+
+**AC4** — lokalnie; nazwy niemożliwe w Windows i testy z `sh` dostają `skip` na `win32` (sprawdza je Linux: chmura i CI).
+- **W2:** ładunki (`::…`, `##[…`) składane w kodzie (np. `'#'.repeat(2) + '['`) — ani w źródłach testów, ani w tytułach, ani w komunikatach asercji (reporter wypisuje tytuły do logu CI w każdym przebiegu); tytuły opisują przypadki słowami, a asercje o liniach wyjścia raportują tylko strumień i numer linii.
+- `output-safety.test.mjs`: `safeLine` dla `::` na początku, `##[` na początku i w środku linii (także kilka razy i w serii `#`), białych znaków przed `::` (spacja, tabulator, U+00A0, U+1680, U+2000, U+3000, U+0085, U+FEFF) oraz przypadków, które się nie zmieniają.
+- `check`, `check --list` i `check --summary` w pamięci i przez proces CLI na repozytorium tymczasowym z plikami `::error::x.md`, `##[error]x.md`, `::notice::root.md`, `x##[add-mask]y.md`, `x##[stop-commands]t.md`, nazwą z LF + `::warning title=OK::…` i `.scratch/$(id).md` (`git add -f`):
+  - kod 1;
+  - **żadna linia stdout ani stderr nie zawiera `##[`**, a po obcięciu białych znaków wg .NET `Char.IsWhiteSpace` żadna nie zaczyna się od `::` (W1);
+  - poza `\n` brak znaków sterujących.
+- **W1, kod 0:** sam osierocony `docs/notes/…##[error]….md` z polem `lifecycle` — kod 0, `##[` nie występuje w linii ostrzeżenia ani na liście „Klasa nadana ręcznie”.
+- Kod 2 i zneutralizowany stderr (`ToolError` i błąd nieoczekiwany; te same dwie reguły linii):
+  - nazwa w niepoprawnym UTF-8 z LF i `::warning…`;
+  - argument z LF i `::warning::` oraz z `##[error]`;
+  - błąd nieoczekiwany z `\n::error::` i `##[error]` w komunikacie.
+- `shellQuote` (`'` → `'\''`) oraz **W3**: polecenie wycięte z faktycznego wyjścia — z linii `check` (stdout) i z bloku `--summary` — dla `.scratch/$(id).md`, `.scratch/it's.md` i `.scratch/x'$(id)'.md`, wykonane przez `execFileSync('sh', ['-c', …])` z `printf %s` w miejsce `git rm --cached --`, zwraca dosłowną ścieżkę (bez `uid=`); pliki tworzone tylko przez `fs` i gita z tablicą argumentów.
+- `readonly.test.mjs`: w źródłach brak literałów `::warning`, `::error` i `::notice`.
+
+**AC5** — lokalnie. `summary.test.mjs`:
+- struktura (nagłówek, wynik, licznik, listy, podpowiedź) przy błędach, przy ostrzeżeniach i dla czystego repozytorium;
+- ścieżki z `` ` ``, ``` `` ```, `|`, `<img src=x>`, `[a](https://example.invalid)` i `**` są dosłownie w bloku; poza blokami są wyłącznie linie z szablonu, a żadna linia bloku nie zamyka płotka;
+- ponad 100 błędów i ponad 100 ostrzeżeń → 100 pozycji + „… i N więcej — pełna lista w logu”;
+- najgorszy przypadek (150 + 150 ścieżek po ok. 4 KB ze znakami sterującymi, backtickami i polskimi znakami, a także jedna bardzo długa seria backticków) < 1 MiB, każdy blok ≤ 400 KiB z płotkami;
+- poza blokami kodu wyłącznie linie szablonu ze stałym tekstem i liczbami (zalecenie e);
+- syntetyczny znacznik w treści i w polu `title` nie występuje w `check`, `--list`, `--summary` (stdout i stderr) ani w raporcie sprzątania;
+- proces z `GITHUB_STEP_SUMMARY` wskazującym plik tymczasowy → plik zostaje pusty.
+
+`readonly.test.mjs`: w `lib/` brak `GITHUB_STEP_SUMMARY` i `process.env`; test EVM-012 AC5 przechodzi bez wyjątków.
+
+**AC6** — lokalnie (Node 22 i 26) i w CI. `redos.test.mjs` z helperami `test/helpers/timed-worker.mjs` i `timed-task.mjs` (zalecenie d: stały moduł zadań, nazwa zadania i dane wyłącznie przez `workerData`, bez `eval: true`):
+- przypadki:
+  - frontmatter `klucz:` + 200 KB spacji i tabulatorów + U+2028 (i wariant z U+2029);
+  - roadmapa `#` + 200 KB spacji + U+2028;
+  - dla `parseFrontmatter`, `parseRoadmapMilestones` i pełnej analizy;
+- czas < 2 s mierzony w workerze, twardy termin 10 s z `terminate()`;
+- test kontrolny: pętla nieskończona i katastrofalne wyrażenie przerwane w terminie 300 ms z komunikatem;
+- `references.test.mjs`: dotychczasowe przypadki 200 KB przez ten sam mechanizm (oczekiwania bez zmian);
+- pokrycie `tools/docs-lifecycle` 100% (`npm run test:tools`, `evia-node-test`).
+
+**AC7** — lokalnie (Node 22 i 26).
+- Wszystkie dotychczasowe testy zielone (p. 9).
+- `frontmatter.test.mjs`, `milestones.test.mjs`: nowe parsery dają ten sam wynik co dotychczasowe wyrażenia (wyrocznia) na losowych krótkich ciągach z `[ \t]`, `:`, `#`, cudzysłowami, `\r`, `\n`, U+2028 i U+2029.
+- `analyze-warnings.test.mjs`: `classError` ustawione dokładnie dla 5 kodów.
+- `project-docs.test.mjs`: lista „błędów klasy” w polityce równa nazwom kodów z flagą, a każda nazwa jest wierszem tabeli „Błędy”.
+- `analyze-errors.test.mjs`: `.MD` → reguła 16 / 14.
+- `PATH=/opt/node22/bin:$PATH npm run test:tools`.
+
+**AC8** — lokalnie.
+- `structure.test.ts`: skrypt `gate`.
+- `project-docs.test.mjs`, kotwice opisu bramki w `document-lifecycle.md`, `github-i-ci.md`, `CLAUDE.md` i `tools/docs-lifecycle/README.md`:
+  - pierwszy krok `quality`;
+  - błędy i kod 2 blokują, ostrzeżenia nie;
+  - podsumowanie i log;
+  - `npm run docs:check`.
+- Odwołania do długu wskazują EVM-073, bez zapowiedzi TypeScript ani Vitest, w 6 plikach z AC8.
+- `npm run docs:check` — 0 błędów.
+
+### 6. Dokumentacja (AC7, AC8)
+**`docs/process/document-lifecycle.md`:**
+- Tabela „Kiedy”: wiersz „po EVM-006” zastępuje wiersz „każdy push (CI, bramka 11)” — walidator jest pierwszym krokiem `quality`, błędy (kod 1) i błąd narzędzia (kod 2) czerwienią `ci-gate`, więc scalenia nie ma (K2), a ostrzeżenia trafiają do podsumowania przebiegu i nie blokują.
+- „Walidator i raport sprzątania”: wiersz `check --summary` (CI) w tabeli poleceń i nowa podsekcja „W CI (bramka 11)”:
+  - walidator działa jako pierwszy krok `quality`, przed `pnpm install`;
+  - błędy blokują, ostrzeżenia nie — także „przeterminowany” zależny od daty, bo CI działa bez `--today`;
+  - wynik: podsumowanie przebiegu (wynik, licznik, do 100 pozycji na listę), pełna lista w logu;
+  - przy błędzie reszta `quality` się nie wykonuje, a `coverage` jest pominięty;
+  - lokalnie: `npm run docs:check` i `pnpm run gate`. CI sprawdza czysty checkout, a lokalnie walidator widzi też nieśledzone pliki;
+  - punkt DoD bez zmian.
+- „Wynik i kody wyjścia” oraz „Bezpieczeństwo”: neutralizacja `::` / `##[`, escapowanie, brak adnotacji, cytowanie ścieżki we wskazówce, podsumowanie przez stdout.
+- Po tabeli „Ostrzeżenia”: linia **Błędy klasy** z 5 nazwami i odwołanie do niej w wierszu „osierocony”.
+
+**`docs/ops/github-i-ci.md`:**
+- „CI w skrócie”: `quality` zaczyna się od walidatora dokumentacji (bramka 11), a akapit pod tabelą opisuje to samo co wyżej i podaje nazwę kroku.
+- „Minuty Actions i koszty”: krok w `quality` to 0 dodatkowych minut. Przy pomijaniu ciężkich jobów `docs:check` zostaje w jobie, który uruchamia się zawsze.
+
+**`CLAUDE.md`** (zmiana wymagana przez AC8, zaakceptowane przez Konrada):
+- „Bramka”: walidator dokumentacji po hookach. Zdanie „Do DoD osobno: `npm run docs:check`” zostaje, z dopiskiem, że w chmurze `gate` nie działa.
+- „CI i scalanie”: walidator jako pierwszy krok `quality` — błędy i kod 2 dają czerwony `ci-gate`, ostrzeżenia są w podsumowaniu, pełna lista w logu.
+
+**Pozostałe:**
+- `tools/docs-lifecycle/README.md`, `tools/repo-policy/README.md`, `packages/config/README.md`, komentarze w `eslint.config.js` i `tsconfig.json` oraz komentarz i nazwa testu `RELAXED` → EVM-073.
+- `docs/process/testing-strategy.md` i `README.md` → kolejność etapów `gate`.
+- `CHANGELOG.md` → wpis [EVM-013].
+
+### 7. Kolejność kroków i commity
+TDD, Conventional Commits z `[EVM-013]`, trailery wg polecenia orkiestratora.
+1. `docs(backlog): add EVM-013 technical plan [EVM-013]` — plan razem z „Ustaleniami z konsultacji”.
+2. Mechanizm pomiaru: helpery workera i przeniesienie testów 200 KB → `test(docs-lifecycle): measure parse time in a worker with a hard deadline [EVM-013]`.
+3. L3: testy ReDoS i wyrocznie (najpierw czerwone — przekroczenie terminu), potem nowe `FIELD` / `HEADING` → `fix(docs-lifecycle): parse frontmatter fields and headings in linear time [EVM-013]`.
+4. Nity: `classError`, test `.MD`, lista w polityce i test spójności → `refactor(docs-lifecycle): flag class errors on findings [EVM-013]`.
+5. L1, L2, L4 → `fix(docs-lifecycle): neutralise runner commands in output and quote the git rm hint [EVM-013]`.
+6. `--summary` → `feat(docs-lifecycle): add a GitHub step summary output [EVM-013]`.
+7. Najpierw testy `tools/repo-policy` (czerwone), potem krok w `ci.yml` i `gate` (zielone) → `ci: run the documentation validator first in the quality job [EVM-013]`.
+8. Dokumentacja i CHANGELOG → `docs: describe the documentation gate in CI [EVM-013]`.
+9. Weryfikacja (p. 8) i wpis w „Dzienniku”.
+
+### 8. Weryfikacja lokalna i dowody
+**Bramka sesji** (wg orkiestratora), bez `pnpm install` i bez instalacji hooków:
+- `node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && pnpm run coverage:diff`;
+- `npm run test:tools` (Node 26) i `PATH=/opt/node22/bin:$PATH npm run test:tools` (Node 22);
+- `npm run docs:check` — 0 błędów.
+
+**Tylko w CI:** `gate:backend` (kontener), `pnpm run scan` oraz zizmor i actionlint (z shellcheck) dla `ci.yml` w jobie `security`. Lokalnie nie ma tych binariów ani Dockera.
+
+**Symulacja kroku** (QA; wykonawca może ją powtórzyć przed oddaniem):
+- skrypt `run` wyjęty z `ci.yml` do pliku, uruchomiony przez `bash --noprofile --norc -eo pipefail <plik>` (jak `shell: bash`; kontrolnie także `bash -e`);
+- katalog roboczy: syntetyczne repozytorium w `.scratch/EVM-013/` z kopią `tools/docs-lifecycle/` (`cli.mjs`, `lib/`, `lifecycle.config.json`);
+- `GITHUB_STEP_SUMMARY` i `RUNNER_TEMP` wskazują pliki w `.scratch/EVM-013/`;
+- przypadki:
+  - (a) `docs/notatka-evm-013.md` → kod 1;
+  - (b) sam dokument osierocony → kod 0 z ostrzeżeniem;
+  - (c) czyste repozytorium → kod 0 i „brak błędów i ostrzeżeń”;
+  - (d) katalog bez gita → kod 2, puste podsumowanie;
+- sprawdzane: kod wyjścia, czas, log i podsumowanie.
+
+**Dowody CI 1–3 z DoD** zbiera orkiestrator po workflow, za zgodą Konrada; linki trafiają do raportu w `docs/qa/EVM-013/`.
+
+### 9. Zmiany oczekiwań istniejących testów (AC7)
+**Testy walidatora.** Neutralizacja i cytowanie nie zmieniają żadnego dotychczasowego oczekiwania: jedyny test wskazówki sprawdza `/git rm --cached/`, a żadna fikstura nie zaczyna się od `::` ani `##[`. Zmieniają się tylko:
+- dwa testy 200 KB w `references.test.mjs` — ten sam przypadek i limit < 2 s, ale pomiar w workerze (AC6);
+- test `.MD` w `analyze-errors.test.mjs` — ostrzejsza asercja z tymi samymi wartościami (AC7).
+
+`parseCli(['-h'])` zwraca dotychczasowy obiekt — pole `summary` pojawia się tylko poza pomocą.
+
+**`tools/repo-policy`** (zmiany wynikają z AC3 i AC8): lista kroków `quality` w `workflows.test.ts`, pełny ciąg `gate` w `structure.test.ts`, komentarz i nazwa testu `RELAXED` (EVM-073).
+
+### 10. Ryzyka
+- Wynik zizmor, actionlint i shellcheck dla `ci.yml` oraz to, jak GitHub renderuje podsumowanie, widać dopiero w CI — spodziewane 1–2 pushe (orkiestrator). Ryzyko ograniczają testy `repo-policy` i symulacja kroku.
+- Ścisły test wzorca kroku: każda przyszła zmiana kroku wymaga zmiany testu. To zamierzone, bo `ci.yml` jest plikiem wrażliwym (K3).
+- Ścieżki zaczynające się od `::`, zawierające `##[` (w dowolnym miejscu — W1) albo znaki sterujące są wyświetlane po escapowaniu (log i podsumowanie) — świadomie, jak dotychczasowe escapowanie.
+- Q1 (Medium, do decyzji Konrada): wskazówka `git rm --cached` z cytowaniem POSIX wklejona do Windows PowerShell 5.1 albo cmd.exe może wykonać kod ze złośliwej nazwy pliku. Do decyzji obowiązuje AC4 w obecnym brzmieniu, a ryzyko akceptuje Konrad przy sign-off; zmiana wskazówki dotyczy jednej funkcji (`analyze.mjs`, `checkScratch`) i jej testów.
+- Koszt: 0 nowych jobów i minut, krok trwa sekundy. Przebiegi dowodowe idą z puli GitHub Free.
+
+### Ustalenia z konsultacji (2026-10-05) — obowiązujące implementację
+**`security-engineer` — CHANGES REQUIRED (W1–W3 przed implementacją; Q1 do decyzji Konrada).** Zagrożenia Z1–Z6 bez zmian. Role aplikacji, macierz ról i dane klientów nie dotyczą (CI i narzędzie deweloperskie); RODO bez zmian. Źródła: `actions/runner` (`ActionCommand.cs`, `ActionCommandManager.cs`), specyfikacja PowerShell (rozdz. 2), `actions/toolkit` #581.
+- **W1 — `##[` w całej linii** (AC4; CWE-117, CWE-74; ASVS 5.0 V16.4.1). Runner rozpoznaje format V2 (`::`) tylko na początku linii (`TrimStart()` + `StartsWith`), a format V1 (`##[`) w dowolnym miejscu (`IndexOf`), w każdej linii stdout i stderr; zarejestrowane są m.in. `error`, `warning`, `add-mask`, `stop-commands`, `add-matcher`. Odtworzone: `docs/notes/a##[error]Wszystko OK.md` z polem `lifecycle` daje kod 0, a `##[error]` stoi w środku linii „osierocony” i listy „Klasa nadana ręcznie” — fałszywa adnotacja błędu w zielonym przebiegu; `##[add-mask]` maskuje resztę linii, `##[stop-commands]` wstrzymuje polecenia. Poprawka: `safeLine` = `escapeText`, potem każde `##[` → `\u{23}#[`, na końcu `::` na początku linii (po białych znakach) → `\u{3A}:`. Testy: w żadnym trybie (`check`, `--list`, `--summary`, `ToolError`, błąd nieoczekiwany) żadna linia stdout ani stderr nie zawiera `##[`; po obcięciu białych znaków wg .NET `Char.IsWhiteSpace` żadna nie zaczyna się od `::`; fikstury w przebiegu z kodem 0 (osierocony `docs/notes/…##[error]….md`) oraz `x##[add-mask]y.md`, `x##[stop-commands]t.md`; białe znaki przed `::`: U+00A0, U+1680, U+2000, U+3000, U+0085, U+FEFF. Opis w p. 1, 3, 5, 10 i w dokumentacji z AC8 poprawiony. To korekta kontroli 4 („żadna linia nie zaczyna się od `##[`” było nieprecyzyjne); AC4 bez zmian, bo jego „Wtedy” wymaga już braku adnotacji, maskowania i wstrzymania poleceń. AC7 bez zmian: ani testy, ani śledzone ścieżki nie zawierają `##[`.
+- **W2 — ładunki poza tytułami i komunikatami** (CWE-117). Reporter testów w jobie `quality` wypisuje tytuły do logu w każdym przebiegu — tytuł z `##[error]…` dawałby fałszywą adnotację w każdym przebiegu i zaśmiecał dowody AC1–AC3. Nazwy fikstur składane w kodzie (np. `'#'.repeat(2) + '[error]x.md'`), w tytułach opis słowami.
+- **W3 — test L4 na faktycznym wyjściu** (CWE-78). Polecenie wycięte z linii `check` (stdout) i z bloku `--summary`; przypadki `.scratch/$(id).md`, `.scratch/it's.md`, `.scratch/x'$(id)'.md`; wykonanie `execFileSync('sh', ['-c', …])` z `printf %s` w miejsce `git rm --cached --` → dosłowna ścieżka, bez `uid=`. Test pilnuje połączenia cytowania z `safeLine` (dziś bezpieczne, bo `escapeText` nie zmienia `'` ani `\`; gdyby zaczął escapować `\`, `$(id)` znów by się wykonało). Nazwy plików tylko przez `fs` i gita z tablicą argumentów (jak `test/helpers/temp-repo.mjs`), bez `execSync` i `shell: true`; ładunki tylko nieszkodliwe (`id`).
+- **Zalecane (Low, CWE-636 — „zmiana osłabia bramkę” z AC3; przyjęte w p. 2, 4 i 5):** (a) job `quality` bez `continue-on-error` — `continue-on-error: true` na poziomie joba daje `needs.quality.result == 'success'` i zielony `ci-gate` (dziś chroni przed tym tylko przypadkiem job `coverage`, który nie znajdzie artefaktu lcov); (b) `actions/checkout` w `quality` z `with` dokładnie `{ persist-credentials: false }`; (c) bez `defaults` w workflowie i w `quality`, `env` workflowu i joba tylko z listy dozwolonej (bez `NODE_OPTIONS` i `GIT_*`); (d) helper workera: stały moduł i `workerData`, bez `eval: true` z danymi; (e) poza blokiem kodu w podsumowaniu tylko stałe i liczby (`config.policy` w linii „Wynik”). **L6** (propozycja do „Uwag do rozważenia” albo historyjki P3 z „Decyzji” 8): ten sam zakaz `continue-on-error` dla jobów `backend`, `security` i `coverage` — zakres EVM-006.
+- **Q1 — wskazówka L4 a PowerShell i cmd (do decyzji Konrada;** Medium: P1 × W3 = 3; CWE-78; `lib/analyze.mjs:261`). Cytowanie POSIX z AC4 jest bezpieczne w bash i sh, ale nie w Windows PowerShell 5.1: apostrofem jest tam `'` oraz U+2018–U+201B (§2.3.5.2), a `$(` w argumencie zostaje wykonane (§2.3.3) — ścieżka z `'` albo `’` zamyka cudzysłów i wklejone polecenie wykona kod. W cmd.exe ten sam skutek dają `&`, `|`, `<`, `>`, `^`. Atak wymaga prawa zapisu do repozytorium i wklejenia wskazówki przez Konrada; skutek — wykonanie kodu na stacji właściciela. Q1 nie blokuje p. 7 kroków 2–4 ani 6–8, tylko krok 5 (L4); bez decyzji obowiązuje AC4 w obecnym brzmieniu, a ryzyko trzeba zaakceptować przy sign-off.
+- **W planie bez zmian:** krok fail-closed (kody 1 i 2, pusty lub nieustawiony `GITHUB_STEP_SUMMARY` → 1, sygnał → 128+n); `shell: bash` i `timeout-minutes: 2` (Z4, pula minut); krok bez `if`, `continue-on-error`, `env` i `${{ }}`, skrypt równy `DOCS_CHECK_SCRIPT`; przed walidatorem tylko przypięte akcje, bez kodu z zależności projektu; `contents: read`, `persist-credentials: false`, liczba jobów bez zmian; `lib/` bez `GITHUB_STEP_SUMMARY` i `process.env`, przy kodzie 2 puste podsumowanie; podsumowanie — wartości tylko w bloku kodu z płotkiem dłuższym od najdłuższej serii backticków, przez `safeLine`, ≤ 100 pozycji i 400 KiB na blok, całość < 1 MiB; L1 — każda linia `inspect` osobno przez `safeLine`; L3 — nowe `FIELD` i `HEADING` liniowe (przegląd pozostałych wyrażeń zgodny z planem), testy czasu w `worker_threads` z `terminate()`; dane wyłącznie syntetyczne (SR-PRIV-08); bez nowych zależności, akcji i sekretów; K3 i K6 bez zmian.
+- **Ryzyka rezydualne do sign-off:** (1) bramka wykrywa błąd, ale mu nie zapobiega; (2) walidator albo `lifecycle.config.json` można osłabić w tej samej gałęzi — chronią przegląd kodu i K3; (3) przy wariancie bez zmiany AC4 w Q1 — wklejenie wskazówki do PowerShell lub cmd (Medium); (4) ścieżka z danymi osobowymi (możliwa tylko przy złamaniu SR-PRIV-08) w logu CI przechowywanym 90 dni — Low; reakcja: usunięcie logów przebiegu i procedura naruszeń.
+- **Dokumenty bezpieczeństwa** (`security-engineer` przy przeglądzie, nie teraz): `requirements.md` — SR-SUPPLY-11, kolumna „Weryfikacja”; `threat-model.md` — wiersz C-17 (wstrzyknięcie do logu i podsumowania, Low, z uwagą o V1 `##[`) i dopisek o puli minut przy Z4; `rodo.md` bez zmian.
 
 ## Decyzje
 Refinement 2026-10-05 (Konrad):
@@ -257,6 +549,7 @@ Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 1. **L5** — `codeCell` w `tools/docs-lifecycle/lib/format.mjs` psuje się dla ścieżek z dwoma backtickami, a krok K3 w jobie `security` (`ci.yml`) wpisuje ścieżki z `git diff` do podsumowania bez escapowania Markdown (CWE-116, Low).
 2. **Zagnieżdżone repozytorium git w `spikes/`** zgłaszane jako „spike bez README” (obserwacja z EVM-012).
 3. **Test sąsiedztwa kroków** w `tools/docs-lifecycle/test/qa-acceptance.test.mjs` jest zbyt surowy (obserwacja z EVM-012).
+4. **L6** — zakaz `continue-on-error` na poziomie jobów `backend`, `security` i `coverage` w `ci.yml` (dla `quality` wprowadza EVM-013): `continue-on-error: true` daje `needs.<job>.result == 'success'`, więc `ci-gate` byłby zielony mimo czerwonego joba (CWE-636, Low; konsultacja `security-engineer` 2026-10-05) — zakres EVM-006, propozycja do historyjki P3 z „Decyzji” 8.
 
 ## Definition of Done
 - [ ] Warunek startu sprawdzony: `npm run docs:check` na `main` daje 0 błędów (w przeciwnym razie stop i pytanie do Konrada przed włączeniem bramki).
@@ -281,3 +574,4 @@ Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 - 2026-10-05 — AC i DoD dostosowane do „Decyzji” 1–5; szkic EVM-073 (product-owner)
 - 2026-10-05 — draft → ready: AC1–AC8 zaakceptowane przez Konrada; decyzje 6–8 (EVM-073 — faza 7; porządki walidatora — P3 po EVM-013)
 - 2026-10-05 — ready → in-progress: start `/deliver EVM-013` na gałęzi `feature/EVM-013-walidator-dokumentacji-w-ci` (orkiestrator). Warunek startu spełniony: `npm run docs:check` na `main` (`ee58da5`) — 168 plików, 0 błędów, 0 ostrzeżeń; na gałęzi — 169 plików, 0 błędów, 0 ostrzeżeń. Środowisko Claude Code web w tej sesji: Node 26.10.0 i pnpm 12.8.1 domyślnie (zależności zainstalowane), Node 22.22 w `/opt/node22/bin`, demon Dockera niedostępny. Bazowo na gałęzi `pnpm run gate:native` (Prettier, lint, typy, testy z pokryciem 27 zadań Turborepo, granice modułów) jest zielone natywnie (ok. 43 s); część kontenerowa `pnpm run gate` (`gate:backend`) i `pnpm run scan` — tylko w CI.
+- 2026-10-05 — plan techniczny (devops-engineer); konsultacja planu `security-engineer` — CHANGES REQUIRED: W1–W3 i zalecenia a–e wprowadzone do planu („Ustalenia z konsultacji”), Q1 (wskazówka L4 a PowerShell i cmd) do decyzji Konrada, L6 w „Uwagach do rozważenia”
