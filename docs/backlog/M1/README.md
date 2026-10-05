@@ -1,6 +1,6 @@
 # M1 — MVP „Biuro” (wydanie 1.0): plan i indeks historyjek
 
-> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan zaakceptowany przez Konrada 2026-10-03** (demo EVM-010) — 57 historyjek `ready`; EVM-053 i EVM-058 w `draft` do `/refine`. EVM-073 (P3, dług narzędzia dokumentacji z EVM-013 — „Decyzje” 1) dopisana 2026-10-05 jako `draft`. Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
+> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan zaakceptowany przez Konrada 2026-10-03** (demo EVM-010) — 57 historyjek `ready`; EVM-053 i EVM-058 w `draft` do `/refine`. EVM-073 (P3, dług narzędzia dokumentacji z EVM-013 — „Decyzje” 1) dopisana 2026-10-05 jako `draft` i **wstrzymana decyzją Konrada 2026-10-05** (EVM-075). Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
 
 ## Spis treści
 1. [Cel M1](#cel-m1)
@@ -136,6 +136,8 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 ## Kolejność i fazy
 Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace koncepcyjne (UX, ADR, RODO) idą równolegle.
 
+> **Rekomendacja (EVM-075, 2026-10-05):** pierwszym pionowym przyrostem produktu jest EVM-008 → EVM-016 → EVM-067 (jeszcze bez kodu produktu w repozytorium); EVM-008 podzielono (wdrożenie na staging → EVM-076, po EVM-007), pakiety historyjek — [propozycje do decyzji Konrada](../../notes/propozycje-po-evm-075.md). Historyjki dostają ścieżkę `path` (lekka/pełna) przy `/deliver` — `docs/process/workflow.md` → „Ścieżki realizacji”.
+
 | Faza | Historyjki (kolejność) | Efekt |
 |---|---|---|
 | **0 — przygotowanie** (równolegle z EVM-006–EVM-008) | EVM-014 → EVM-015, EVM-071; EVM-069 | styleguide 1.2.0, makiety, ADR modelu odczytu |
@@ -145,7 +147,7 @@ Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace
 | **4 — dokumenty i media (E6)** | EVM-044 → EVM-068 → EVM-045 → EVM-047 → EVM-048 → EVM-049 → EVM-050 → EVM-051 → EVM-046 | zdjęcia, filmy, dokumenty |
 | **5 — gotowość do realnych danych (E8)** | EVM-061 → EVM-062; EVM-063 → EVM-066; EVM-064 (koncepcyjnie od fazy 4); na końcu EVM-065 | → **pilot realny (B)** |
 | **6 — płatności (E7) i wydanie 1.0** | EVM-053 → EVM-054 → EVM-055 → EVM-056 → EVM-057 → EVM-058 → EVM-070 | → **wydanie 1.0**; EVM-053 i EVM-054 na prod w jednym wydaniu ([Punkt pilota](#punkt-pilota)) |
-| **7 — P2 i P3** (po P1, jeśli nie opóźnia 1.0) | EVM-042, EVM-043, EVM-052, EVM-059, EVM-060; EVM-073 (P3) | dodatki; EVM-052 i EVM-060 na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie security ([Punkt pilota](#punkt-pilota)); EVM-073 — dług narzędzia dokumentacji, wymaga Node 26 lokalnie albo w chmurze, wcześniej tylko decyzją Konrada |
+| **7 — P2 i P3** (po P1, jeśli nie opóźnia 1.0) | EVM-042, EVM-043, EVM-052, EVM-059, EVM-060; EVM-073 (P3) | dodatki; EVM-052 i EVM-060 na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie security ([Punkt pilota](#punkt-pilota)); EVM-073 — dług narzędzia dokumentacji, wymaga Node 26 lokalnie albo w chmurze; **wstrzymany decyzją Konrada 2026-10-05** (EVM-075), wznowienie tylko jego decyzją; planowana historyjka P3 „Porządki walidatora dokumentacji” nie powstaje |
 
 Graf zależności (strzałka: od zależności do historyjki zależnej; M0 — EVM-002, EVM-004, EVM-006, EVM-007, EVM-008, EVM-011, EVM-013):
 

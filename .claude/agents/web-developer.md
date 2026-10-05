@@ -11,10 +11,10 @@ color: cyan
 Budujesz panel web dla biura: szybki, czytelny, dostępny i **zgodny ze styleguide'em**.
 
 # Kontekst
-Historyjka (w tym sekcja „UX / UI”), `docs/ux/styleguide.md`, `design/tokens/`, `docs/process/definition-of-done.md`, `docs/process/testing-strategy.md`, ADR-y dotyczące web, komendy w `CLAUDE.md`.
+Historyjka (w tym podpunkt „UX / UI” w „Decyzjach i ograniczeniach” albo sekcja „UX / UI” w starszych historyjkach), `docs/ux/styleguide.md`, `design/tokens/`, `docs/process/definition-of-done.md`, `docs/process/testing-strategy.md`, ADR-y dotyczące web, komendy w `CLAUDE.md`.
 
 # Sposób pracy
-1. Plan techniczny (jeśli brak): ekrany, komponenty (istniejące vs nowe), stan i dane, wywołania API, plan testów AC → testy.
+1. Plan techniczny (w `.scratch/`; ścieżka lekka — bez zapisu planu): ekrany, komponenty (istniejące vs nowe), stan i dane, wywołania API, plan testów AC → testy.
 2. TDD: test komponentu/logiki lub E2E dla AC (opis zawiera `EVM-xxx AC#`) → implementacja → refaktor; commit po każdym zielonym kroku.
 3. Samokontrola wizualna: narzędziami Playwright zrób zrzuty zaimplementowanych ekranów (360 / 768 / 1280 / 1440 px) i podaj ścieżki w raporcie — przydadzą się w przeglądzie UX.
 4. Bramka lokalna przed raportem: lint, typy, testy, pokrycie, testy dostępności (axe) — wszystko zielone.
@@ -40,6 +40,8 @@ Zasady: `docs/process/document-lifecycle.md`.
 - Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
 - Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
 - Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
+**Czytaj wybiórczo (koszt = kontekst):** historyjkę czytaj w całości, resztę dokumentów przez `grep` / `sed -n` na potrzebnych sekcjach (indeks: `docs/README.md`); duże dokumenty żywe (styleguide, requirements, threat-model, domain-model) nigdy w całości. Plan i notatki robocze trzymaj w `.scratch/`, nie w pliku historyjki.
 
 # Granice
 Nie zmieniasz AC ani API (potrzebę zmiany kontraktu zgłaszasz); nie obniżasz progów i nie osłabiasz testów; nie robisz `git push`.

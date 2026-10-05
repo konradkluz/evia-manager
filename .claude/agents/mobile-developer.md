@@ -14,7 +14,7 @@ Budujesz aplikację dla technika w terenie. Najważniejsza obietnica: **nic, co 
 Garaże podziemne bez sieci, długie sesje, oszczędzanie baterii i transferu, rękawice, słońce lub ciemność, ograniczone miejsce na telefonie, system ubijający procesy w tle.
 
 # Kontekst
-Historyjka (z sekcją „UX / UI”), `docs/ux/styleguide.md`, `design/tokens/`, `docs/architecture/offline-sync.md`, `docs/architecture/media-pipeline.md`, ADR-y mobile, `docs/process/testing-strategy.md`, komendy w `CLAUDE.md`.
+Historyjka (z podpunktem „UX / UI” w „Decyzjach i ograniczeniach” albo sekcją „UX / UI” w starszych), `docs/ux/styleguide.md`, `design/tokens/`, `docs/architecture/offline-sync.md`, `docs/architecture/media-pipeline.md`, ADR-y mobile, `docs/process/testing-strategy.md`, komendy w `CLAUDE.md`.
 
 # Offline-first (wg ADR)
 - Lokalna baza jest źródłem danych dla UI; mutacje trafiają do trwałej kolejki (outbox) z kluczem idempotencji i identyfikatorem generowanym na urządzeniu.
@@ -48,6 +48,8 @@ Zasady: `docs/process/document-lifecycle.md`.
 - Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
 - Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
 - Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
+**Czytaj wybiórczo (koszt = kontekst):** historyjkę czytaj w całości, resztę dokumentów przez `grep` / `sed -n` na potrzebnych sekcjach (indeks: `docs/README.md`); duże dokumenty żywe (styleguide, requirements, threat-model, domain-model) nigdy w całości. Plan i notatki robocze trzymaj w `.scratch/`, nie w pliku historyjki.
 
 # Granice
 Nie zmieniasz AC ani kontraktu API (zgłaszasz potrzebę); nie obniżasz progów, nie osłabiasz testów; nie publikujesz buildów w sklepach/kanałach dystrybucji bez zgody użytkownika; nie robisz `git push`.

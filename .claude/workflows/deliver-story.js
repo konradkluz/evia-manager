@@ -1,7 +1,7 @@
 export const meta = {
   name: 'deliver-story',
   description: 'EVia Manager: realizacja jednej historyjki (ready) — plan, implementacja TDD, weryfikacja QA, przeglądy i pętla poprawek aż do spełnienia bramek',
-  whenToUse: 'Uruchamiany przez /deliver dla historyjki w statusie ready. args: { storyId, storyPath, branch, owner, today?, contributors?, reviewers?, appUrl?, userNotes?, model?, maxRounds? }',
+  whenToUse: 'Uruchamiany przez /deliver dla historyjki w statusie ready. args: { storyId, storyPath, branch, owner, today?, contributors?, reviewers?, appUrl?, userNotes?, model?, path?, maxRounds? }',
   phases: [
     { title: 'Plan', detail: 'plan techniczny wykonawcy + konsultacje (architekt / UX / security)' },
     { title: 'Implementacja', detail: 'TDD: owner, potem contributors — sekwencyjnie' },
@@ -31,7 +31,19 @@ for (const name of [owner, ...contributors, ...reviewers]) {
   if (!KNOWN_AGENTS.includes(name)) throw new Error(`deliver-story: nieznany agent "${name}"`)
 }
 const implementers = [owner, ...contributors]
-const MAX_ROUNDS = a.maxRounds || 3
+// Story `path` (docs/process/workflow.md → „Ścieżki realizacji”): `lekka` = one implementer, one reviewer, at most one
+// round of fixes without re-review, no plan, consultations or QA agent; `pelna` (default, also without the field) = full flow.
+const PATHS = ['lekka', 'pelna']
+const storyPath_ = a.path || 'pelna'
+if (!PATHS.includes(storyPath_)) {
+  throw new Error(`deliver-story: nieobsługiwana ścieżka "${storyPath_}" (dozwolone: ${PATHS.join(', ')})`)
+}
+const light = storyPath_ === 'lekka'
+if (light && reviewers.length !== 1) {
+  throw new Error('deliver-story: ścieżka lekka wymaga dokładnie jednego recenzenta')
+}
+const MAX_ROUNDS = light ? 1 : a.maxRounds || 3
+const PLAN_FILE = `.scratch/${storyId}/plan.md`
 const appUrl = a.appUrl || ''
 const userNotes = a.userNotes || ''
 // Story `model` (docs/process/workflow.md → „Modele i effort agentów”): the implementers (plan, implementation, fixes)
@@ -150,12 +162,14 @@ const CTX = [
 
 // ---------- 1. Plan ----------
 phase('Plan')
-const plan = await agent(`${CTX}
+const plan = light
+  ? { status: 'ready', summary: 'ścieżka lekka — bez osobnego planu', needsArchitectReview: false, needsUiSpec: false, securityRelevant: false, questions: [] }
+  : await agent(`${CTX}
 
 KROK: PLAN TECHNICZNY (bez implementacji).
-1. Przeczytaj historyjkę oraz powiązane ADR-y i dokumenty.
-2. Uzupełnij w pliku historyjki sekcję „Plan techniczny”: zakres zmian (moduły / pliki / dokumenty), kontrakt API (jeśli dotyczy), migracje, plan testów AC → testy (dla dokumentów: jak sprawdzić każde AC), kolejność kroków. Dopisz w „Dziennik”: "${today} — plan techniczny (${owner})".
-3. Oceń: needsArchitectReview — nowy moduł, nowa zależność zewnętrzna, zmiana współdzielonego modelu danych, niekompatybilna zmiana API, nowa infrastruktura; needsUiSpec — historyjka ma UI bez kompletnej sekcji „UX / UI”; securityRelevant — uwierzytelnianie, autoryzacja, dane osobowe, pliki / media, nowe endpointy, zależności, infrastruktura, dane na urządzeniu.
+1. Przeczytaj historyjkę oraz tylko istotne sekcje powiązanych ADR-ów i dokumentów (grep, sed -n — nie całe pliki).
+2. Zapisz plan w ${PLAN_FILE} (plik roboczy, NIE w pliku historyjki): zakres zmian (moduły / pliki / dokumenty), kontrakt API (jeśli dotyczy), migracje, plan testów AC → testy (dla dokumentów: jak sprawdzić każde AC), kolejność kroków. Dopisz w „Dziennik” jedną linię: "${today} — plan gotowy (${owner})".
+3. Oceń: needsArchitectReview — nowy moduł, nowa zależność zewnętrzna, zmiana współdzielonego modelu danych, niekompatybilna zmiana API, nowa infrastruktura; needsUiSpec — historyjka ma UI bez kompletnej specyfikacji UX / UI; securityRelevant — uwierzytelnianie, autoryzacja, dane osobowe, pliki / media, nowe endpointy, zależności, infrastruktura, dane na urządzeniu.
 4. Gdy AC są niejasne lub sprzeczne albo brakuje decyzji użytkownika: status "blocked" i konkretne pytania (każde z rekomendowaną odpowiedzią).`,
   implementerOpts({ agentType: owner, label: `plan:${owner}`, phase: 'Plan', schema: PLAN_SCHEMA }))
 
@@ -166,19 +180,20 @@ const consults = []
 if (plan.needsArchitectReview && owner !== 'solution-architect') {
   consults.push({ who: 'solution-architect', prompt: `${CTX}
 
-KROK: PRZEGLĄD PLANU TECHNICZNEGO. Przeczytaj sekcję „Plan techniczny” historyjki i ADR-y. Oceń granice modułów, model danych i migracje, kontrakt API i kompatybilność wsteczną, wpływ na offline-sync, wydajność i testowalność. Nie edytuj plików.
+KROK: PRZEGLĄD PLANU TECHNICZNEGO. Przeczytaj plan (${PLAN_FILE}) i tylko istotne ADR-y (wybiórczo). Oceń granice modułów, model danych i migracje, kontrakt API i kompatybilność wsteczną, wpływ na offline-sync, wydajność i testowalność. Nie edytuj plików; odpowiedz kilkoma punktami (bez zapisu konsultacji w historyjce).
 verdict: approve / changes (w notes — konkretne, obowiązujące wytyczne dla implementujących) / blocked (tylko gdy potrzebna decyzja użytkownika → questions).` })
 }
 if (plan.needsUiSpec && owner !== 'ux-designer') {
   consults.push({ who: 'ux-designer', prompt: `${CTX}
 
-KROK: SPECYFIKACJA UI. Uzupełnij w pliku historyjki wyłącznie sekcję „UX / UI”: ekrany i przepływ, komponenty i tokeny ze styleguide'u, stany (pusty / ładowanie / błąd / offline / brak uprawnień), zachowanie responsywne, mikrocopy po polsku, uwagi a11y. Brak wzorca w styleguide'zie → zaprojektuj zgodnie z jego zasadami i dopisz propozycję do changelogu styleguide'u.
+KROK: SPECYFIKACJA UI. Uzupełnij w pliku historyjki wyłącznie podpunkt „UX / UI” w „Decyzjach i ograniczeniach” (zwięźle): ekrany i przepływ, komponenty i tokeny ze styleguide'u, stany (pusty / ładowanie / błąd / offline / brak uprawnień), zachowanie responsywne, mikrocopy po polsku, uwagi a11y. Brak wzorca w styleguide'zie → zaprojektuj zgodnie z jego zasadami i dopisz propozycję do changelogu styleguide'u.
 verdict: approve (specyfikacja gotowa; w notes jej skrót) / blocked (potrzebna decyzja użytkownika → questions).` })
 }
 if (plan.securityRelevant && owner !== 'security-engineer') {
   consults.push({ who: 'security-engineer', prompt: `${CTX}
 
-KROK: WYMAGANIA BEZPIECZEŃSTWA PRZED IMPLEMENTACJĄ. Przeczytaj historyjkę, plan techniczny i docs/security/. Nie edytuj plików.
+KROK: WYMAGANIA BEZPIECZEŃSTWA PRZED IMPLEMENTACJĄ. Przeczytaj historyjkę, plan (${PLAN_FILE}) i tylko istotne sekcje docs/security/ (grep, nie całe pliki). Nie edytuj plików.
+Ustalenia Low w narzędziach wewnętrznych oznacz jako „do notatek” — nie są wymaganiami ani nowymi AC.
 W notes: zagrożenia istotne dla tej zmiany i obowiązkowe kontrole (np. testy macierzy ról dla konkretnych endpointów, walidacja, limity, audyt, dane osobowe) z odniesieniem do ASVS / MASVS.
 verdict: approve / changes (plan wymaga zmian) / blocked (potrzebna decyzja użytkownika → questions).` })
 }
@@ -197,7 +212,7 @@ if (consults.length) {
   }
 }
 const consultBlock = consultResults.length
-  ? 'Obowiązujące ustalenia z konsultacji (zapisz je w historyjce: „Plan techniczny” → „Ustalenia z konsultacji”):\n' +
+  ? `Obowiązujące ustalenia z konsultacji (zapisz skrót w ${PLAN_FILE}, nie w historyjce; do historyjki tylko decyzje zmieniające AC):\n` +
     consultResults.map((r) => `- ${r.who} (${r.verdict}): ${r.notes}`).join('\n')
   : ''
 
@@ -210,11 +225,13 @@ for (const who of implementers) {
     : ''
   const r = await agent(`${CTX}
 
-KROK: IMPLEMENTACJA (${who}).
-Zrealizuj SWOJĄ część historyjki zgodnie z AC i „Planem technicznym”: TDD (testy oznaczone "${storyId} AC#"), małe commity (Conventional Commits po angielsku z [${storyId}]). Jeśli rezultatem są dokumenty — zadbaj, by każde AC było jednoznacznie spełnione i łatwe do sprawdzenia.
+KROK: IMPLEMENTACJA (${who})${light ? ' — ścieżka lekka' : ''}.
+${light
+    ? 'Ścieżka lekka: bez osobnego planu i konsultacji — nie zapisuj planu w historyjce. Gdy w trakcie okaże się, że zmiana dotyka obszaru ryzyka (uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje, infrastruktura produkcyjna) albo wprowadza nowy endpoint, pliki/media, nową zależność lub dane na urządzeniu, zatrzymaj się: status "blocked" i pytanie, czy zmienić ścieżkę na pełną.\nZrealizuj historyjkę zgodnie z AC (czytaj tylko potrzebne sekcje dokumentów): TDD'
+    : `Zrealizuj SWOJĄ część historyjki zgodnie z AC i planem (${PLAN_FILE}): TDD`} (testy oznaczone "${storyId} AC#"), małe commity (Conventional Commits po angielsku z [${storyId}]). Jeśli rezultatem są dokumenty — zadbaj, by każde AC było jednoznacznie spełnione i łatwe do sprawdzenia.
 ${consultBlock}
 ${prev}
-Na koniec uruchom lokalną bramkę jakości (komendy w CLAUDE.md) — musi być zielona. Dopisz wpis w „Dziennik” historyjki.
+Na koniec uruchom lokalną bramkę jakości (komendy w CLAUDE.md) — musi być zielona. Dopisz jedną linię w „Dzienniku” historyjki.
 Gdy nie da się kontynuować bez decyzji użytkownika: status "blocked" + questions (z rekomendacją).`,
     implementerOpts({ agentType: who, label: `impl:${who}`, phase: 'Implementacja', schema: IMPL_SCHEMA }))
   if (!r) return { status: 'needs-attention', storyId, stage: 'implementation', reason: `${who} nie zwrócił wyniku`, implementation: implReports }
@@ -230,13 +247,20 @@ let lastReviews = []
 let blocking = []
 let prevQaFindings = []
 let prevReviewFindings = {}
+let fixedUnverified = false
+const reviewResults = {}
 const fixLog = []
 const history = []
 
 while (round < MAX_ROUNDS) {
   round++
   phase('Weryfikacja')
-  const qa = await agent(`${CTX}
+  // Full path: from the second round only the reviewers who reported blocker/major review again (a code review
+  // always runs when none did, e.g. only QA findings), the others approved earlier.
+  const again = reviewers.filter((rv) => (prevReviewFindings[rv] || []).length)
+  const activeReviewers = round === 1 ? reviewers : again.length ? again : reviewers.filter((rv) => rv === 'code-reviewer').concat(reviewers).slice(0, 1)
+  // The light path has no QA agent: the orchestrator checks AC → tests itself (docs/process/workflow.md).
+  const qa = light ? null : await agent(`${CTX}
 
 KROK: WERYFIKACJA QA — runda ${round}.
 Przeprowadź procedurę ze swojej definicji: macierz AC → testy, pełny zestaw testów i pokrycie (progi z docs/process/testing-strategy.md), macierz ról, przypadki brzegowe, krótka sesja eksploracyjna${appUrl ? ` (aplikacja: ${appUrl})` : ' (uruchom aplikację lokalnie wg CLAUDE.md, jeśli to możliwe)'}. Możesz dopisywać testy (commit z [${storyId}]); nie zmieniasz kodu produkcyjnego.
@@ -245,7 +269,7 @@ Status AC "manual" tylko dla kryteriów wymagających ręcznego sprawdzenia prze
 ${round > 1 ? `Ustalenia z poprzedniej rundy (sprawdź, czy naprawione): ${JSON.stringify(prevQaFindings)}` : ''}`,
     { agentType: 'qa-engineer', label: `qa:r${round}`, phase: 'Weryfikacja', schema: QA_SCHEMA })
 
-  const reviews = (await parallel(reviewers.map((rv) => () =>
+  const reviews = (await parallel(activeReviewers.map((rv) => () =>
     agent(`${CTX}
 
 KROK: PRZEGLĄD (${rv}) — runda ${round}.
@@ -256,9 +280,12 @@ Zwróć werdykt, krótkie podsumowanie i findings (severity, area, location plik
       .then((r) => r && Object.assign({ reviewer: rv }, r))))).filter(Boolean)
 
   lastQa = qa
-  lastReviews = reviews
+  for (const r of reviews) reviewResults[r.reviewer] = r
+  lastReviews = reviewers.map((rv) => reviewResults[rv]).filter(Boolean)
   const problems = []
-  if (!qa) {
+  if (!qa && light) {
+    // no QA agent on the light path
+  } else if (!qa) {
     problems.push({ severity: 'blocker', area: 'other', location: '-', issue: 'QA nie zwróciło wyniku', fix: 'Powtórz weryfikację', source: 'workflow' })
   } else {
     if (!qa.gatesPassed) {
@@ -269,7 +296,7 @@ Zwróć werdykt, krótkie podsumowanie i findings (severity, area, location plik
     }
     for (const f of qa.findings.filter(isBlocking)) problems.push(Object.assign({ source: 'qa-engineer' }, f))
   }
-  for (const rv of reviewers.filter((x) => !reviews.some((r) => r.reviewer === x))) {
+  for (const rv of activeReviewers.filter((x) => !reviews.some((r) => r.reviewer === x))) {
     problems.push({ severity: 'blocker', area: 'other', location: '-', issue: `${rv} nie zwrócił wyniku przeglądu`, fix: 'Powtórz przegląd', source: 'workflow' })
   }
   for (const r of reviews) {
@@ -279,12 +306,12 @@ Zwróć werdykt, krótkie podsumowanie i findings (severity, area, location plik
     }
   }
   blocking = problems
-  history.push({ round, qa: qa ? qa.verdict : 'brak', reviews: reviews.map((r) => `${r.reviewer}: ${r.verdict}`), blocking: problems.length })
+  history.push({ round, qa: qa ? qa.verdict : light ? 'orkiestrator' : 'brak', reviews: reviews.map((r) => `${r.reviewer}: ${r.verdict}`), blocking: problems.length })
   log(`Runda ${round}: ${problems.length} problemów blokujących`)
 
   if (!problems.length) { passed = true; break }
   if (problems.some((p) => p.source === 'workflow')) break
-  if (round >= MAX_ROUNDS) break
+  if (!light && round >= MAX_ROUNDS) break
 
   phase('Poprawki')
   const byFixer = {}
@@ -314,6 +341,11 @@ Uruchom bramkę jakości — musi być zielona.`,
   prevQaFindings = problems.filter((p) => p.source === 'qa-engineer')
   prevReviewFindings = {}
   for (const rv of reviewers) prevReviewFindings[rv] = problems.filter((p) => p.source === rv)
+  // Light path: one round of fixes, no re-review — the orchestrator verifies them. A fixer without a result is not a fix.
+  if (light) {
+    if (fixLog.some((f) => f.round === round && f.status !== 'done')) break
+    fixedUnverified = true
+  }
 }
 
 // ---------- wynik ----------
@@ -326,8 +358,9 @@ for (const r of lastReviews) {
 }
 
 return {
-  status: passed ? 'passed' : 'needs-attention',
+  status: passed ? 'passed' : fixedUnverified ? 'fixed' : 'needs-attention',
   storyId,
+  path: storyPath_,
   model: model || null,
   rounds: round,
   plan: plan.summary,
@@ -338,7 +371,8 @@ return {
     ? { verdict: lastQa.verdict, acceptanceCriteria: lastQa.acceptanceCriteria, gatesSummary: lastQa.gatesSummary, coverage: lastQa.coverage || '', howToVerify: lastQa.howToVerify }
     : null,
   reviews: lastReviews.map((r) => ({ reviewer: r.reviewer, verdict: r.verdict, summary: r.summary })),
-  openBlocking: passed ? [] : blocking,
+  openBlocking: passed || fixedUnverified ? [] : blocking,
+  unverifiedFixes: fixedUnverified ? blocking : [],
   nonBlocking,
   history,
 }

@@ -98,3 +98,4 @@ _—_
 
 ## Dziennik
 - 2026-10-05 — utworzono jako szkic z refinementu EVM-013 („Decyzje” 1) (product-owner)
+- 2026-10-05 — **wstrzymano decyzją Konrada** (EVM-075: priorytet to kod produktu); status zostaje `draft`, wznowienie tylko jego decyzją
