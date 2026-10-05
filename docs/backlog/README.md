@@ -22,5 +22,5 @@ Każda pozycja to plik `docs/backlog/<M#>/EVM-###-krotki-opis.md` utworzony z `_
 Kolejny numer = najwyższy istniejący `EVM-###` + 1 (bez ponownego użycia numerów, także po odrzuceniu).
 
 ## Kamienie milowe
-- `M0/` — fundamenty (EVM-001 … EVM-013)
+- `M0/` — fundamenty (EVM-001 … EVM-013, EVM-074)
 - `M1/` — MVP „Biuro” (EVM-014 … EVM-072); plan, kolejność, pilot i decyzje: `M1/README.md` (EVM-010, `/milestone plan M1`)
