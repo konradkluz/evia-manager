@@ -1,8 +1,9 @@
 /**
  * Structured JSON logger (pino; ADR-0013, SR-LOG-02, SR-LOG-05). Redaction is applied to every logged object at any
  * depth by normalised key names (pino path-based redaction would miss deeper or differently cased keys). Errors are
- * serialised to type, message, code and stack only: driver errors (pg `detail`, `where`, query, parameters) carry row
- * values. No hostname or pid; request bodies and headers are never logged.
+ * serialised to type, scrubbed message, code and stack frames only: driver errors (pg message, `detail`, `where`, query,
+ * parameters) carry row values, so they keep only SQLSTATE and object names. No hostname or pid; request bodies and
+ * headers are never logged.
  */
 import { pino, type DestinationStream, type Logger } from 'pino';
 import type { LogLevel } from '../config/config.ts';
@@ -66,17 +67,66 @@ export interface SerializedError {
   readonly type: string;
   readonly message: string;
   readonly code?: string;
+  /** Names of the database objects of a driver error (schema metadata, never row values). */
+  readonly constraint?: string;
+  readonly table?: string;
+  readonly column?: string;
+  /** Stack frames only — the first line of a stack repeats the message. */
   readonly stack?: string;
 }
 
+const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu;
+/** Phone numbers, PESEL, account numbers: 9+ digits, optionally grouped; not inside identifiers (UUID, hashes). */
+const LONG_NUMBER = /(?<![\p{L}\p{N}_-])(?:\+\d{1,3}[ -]?)?\d(?:[ -]?\d){8,}(?![\p{L}\p{N}_-])/gu;
+const QUOTED = /(["'„«])[^"'”»\n]*(["'”»])/gu;
+
+/**
+ * Replaces values that may come from users in free text (error messages): e-mail addresses, long numbers (phone,
+ * PESEL) and quoted text. Key-based redaction cannot see them (SR-LOG-02, CWE-532).
+ */
+export function scrubValues(text: string): string {
+  return text
+    .replace(EMAIL, REDACTED)
+    .replace(LONG_NUMBER, REDACTED)
+    .replace(QUOTED, (_match, open: string, close: string) => `${open}${REDACTED}${close}`);
+}
+
+const stackFrames = (stack: string | undefined): string | undefined => {
+  const frames = stack
+    ?.split('\n')
+    .filter((line) => /^\s+at /.test(line))
+    .join('\n');
+  return frames === undefined || frames === '' ? undefined : scrubValues(frames);
+};
+
+const stringField = (error: Error, key: string): Record<string, string> => {
+  const value = (error as unknown as Record<string, unknown>)[key];
+  return typeof value === 'string' ? { [key]: value } : {};
+};
+
+/** Errors of the PostgreSQL driver (pg DatabaseError): their message quotes input values (e.g. 22P02). */
+const isDatabaseError = (error: Error): boolean =>
+  typeof (error as { severity?: unknown }).severity === 'string' && typeof (error as { code?: unknown }).code === 'string';
+
 export function serializeError(error: unknown): SerializedError {
   if (!(error instanceof Error)) return { type: typeof error, message: 'non-error value thrown' };
-  const code = (error as { code?: unknown }).code;
+  const stack = stackFrames(error.stack);
+  if (isDatabaseError(error)) {
+    return {
+      type: 'DatabaseError',
+      message: 'database error',
+      ...stringField(error, 'code'),
+      ...stringField(error, 'constraint'),
+      ...stringField(error, 'table'),
+      ...stringField(error, 'column'),
+      ...(stack === undefined ? {} : { stack }),
+    };
+  }
   return {
     type: error.name,
-    message: error.message,
-    ...(typeof code === 'string' ? { code } : {}),
-    ...(error.stack === undefined ? {} : { stack: error.stack }),
+    message: scrubValues(error.message),
+    ...stringField(error, 'code'),
+    ...(stack === undefined ? {} : { stack }),
   };
 }
 

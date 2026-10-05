@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createLogger, isSensitiveKey, REDACTED, redactSensitive, serializeError } from '../../src/platform/logging/logger.ts';
+import { createLogger, isSensitiveKey, REDACTED, redactSensitive, scrubValues, serializeError } from '../../src/platform/logging/logger.ts';
 import { LogCapture } from '../support/app.ts';
 
 /** Synthetic values that must never reach the log output (ADR-0013 list). */
@@ -30,6 +30,10 @@ function capture(level: 'info' | 'warn' = 'info') {
   const destination = new LogCapture();
   return { logger: createLogger({ level, destination }), destination };
 }
+
+/** Shape of pg's DatabaseError (name 'error', severity, SQLSTATE) without importing the driver here (SR-INPUT-03 lint). */
+const databaseError = (message: string, fields: Record<string, string>) =>
+  Object.assign(new Error(message), { name: 'error', severity: 'ERROR', ...fields });
 
 describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', () => {
   it('EVM-008 AC4 logger redacts sensitive fields at the top level and nested one and two levels deep', () => {
@@ -80,7 +84,7 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     });
     const serialised = serializeError(error);
     expect(Object.keys(serialised)).toEqual(['type', 'message', 'code', 'stack']);
-    expect(serialised).toMatchObject({ type: 'Error', code: '23505' });
+    expect(serialised).toMatchObject({ type: 'Error', code: '23505', message: 'duplicate key value violates unique constraint' });
     const { logger, destination } = capture();
     logger.error({ err: error }, 'query failed');
     expect(destination.text).not.toContain('jan.przykladowy');
@@ -90,6 +94,55 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     const withoutStack = new RangeError('no stack');
     delete withoutStack.stack;
     expect(serializeError(withoutStack)).toEqual({ type: 'RangeError', message: 'no stack' });
+  });
+
+  it('EVM-008 AC4 error messages and stacks are scrubbed of values (e-mail, phone, PESEL, quoted text)', () => {
+    const error = new TypeError(
+      'failed for jan.przykladowy@example.invalid, tel. +48 600 000 000, PESEL 00000000000, name "Klient Przykładowy" and \'Ul. Przykładowa\'',
+    );
+    const serialised = serializeError(error);
+    expect(serialised.type).toBe('TypeError');
+    expect(serialised.message).toBe(`failed for ${REDACTED}, tel. ${REDACTED}, PESEL ${REDACTED}, name "${REDACTED}" and '${REDACTED}'`);
+    expect(serialised.stack).toMatch(/^\s+at /);
+    expect(serialised.stack).not.toContain('TypeError');
+    const { logger, destination } = capture();
+    logger.error({ err: error }, 'handler failed');
+    for (const value of ['jan.przykladowy', '600 000 000', '00000000000', 'Klient', 'Przykładowa'])
+      expect(destination.text).not.toContain(value);
+  });
+
+  it('EVM-008 AC4 scrubbing keeps technical identifiers (UUID, dates, ports, paths) readable', () => {
+    const text = 'work order 0190a1b2-0000-7000-8000-000000000000 at 2026-10-05 on 127.0.0.1:5432 in /srv/app/x.ts:31:11';
+    expect(scrubValues(text)).toBe(text);
+    expect(scrubValues('„Jan” and «Anna»')).toBe(`„${REDACTED}” and «${REDACTED}»`);
+  });
+
+  it('EVM-008 AC4 database driver errors are logged without their message (pg 22P02 with a quoted value)', () => {
+    const error = databaseError('invalid input syntax for type uuid: "jan.przykladowy-value"', {
+      code: '22P02',
+      routine: 'string_to_uuid',
+      table: 'work_orders',
+      column: 'id',
+      constraint: 'work_orders_pkey',
+      detail: 'synthetic detail with jan.przykladowy-value',
+    });
+    const serialised = serializeError(error);
+    expect(serialised).toMatchObject({
+      type: 'DatabaseError',
+      message: 'database error',
+      code: '22P02',
+      table: 'work_orders',
+      column: 'id',
+      constraint: 'work_orders_pkey',
+    });
+    expect(Object.keys(serialised)).not.toContain('detail');
+    const { logger, destination } = capture();
+    logger.error({ err: error }, 'query failed');
+    expect(destination.text).not.toContain('jan.przykladowy-value');
+    expect(destination.text).not.toContain('invalid input syntax');
+    const minimal = databaseError('relation "x" does not exist', { code: '42P01' });
+    delete minimal.stack;
+    expect(serializeError(minimal)).toEqual({ type: 'DatabaseError', message: 'database error', code: '42P01' });
   });
 
   it('EVM-008 AC4 log lines are single-line JSON with escaped control characters (log injection, SR-LOG-05)', () => {
