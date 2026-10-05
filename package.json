@@ -11,7 +11,7 @@
     "docs:cleanup": "node tools/docs-lifecycle/cli.mjs cleanup-report",
     "test:tools": "node --test --experimental-test-coverage --test-coverage-include=\"tools/**/*.mjs\" --test-coverage-exclude=\"tools/**/test/**\" --test-coverage-lines=90 --test-coverage-branches=90 \"tools/**/*.test.mjs\"",
     "prepare": "node tools/git-hooks/cli.mjs install",
-    "gate": "node tools/git-hooks/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff",
+    "gate": "node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff",
     "gate:native": "pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check",
     "gate:backend": "turbo run lint typecheck test:coverage --filter=./packages/*",
     "format": "prettier --write .",
