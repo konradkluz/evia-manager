@@ -250,7 +250,7 @@ flowchart TD
 | Planowana data (opcjonalnie) | DatePicker (§ 3.5) | `DD.MM.RRRR`; pole można wyczyścić |
 
 - **Zapis:** `PATCH` z `If-Match`; toast „Zapisano zmiany zlecenia.”; w dzienniku zlecenia wpis zdarzenia z nazwami zmienionych pól, bez wartości („Zmiana danych zlecenia: tytuł, planowana data” — EVM-035 AC7, § 4.5).
-- **Konflikt `412`** — „To zlecenie zmieniono w międzyczasie. Twoje zmiany zachowaliśmy — sprawdź aktualne wartości i zapisz ponownie.” (zasada wspólna 16; brzmienie EVM-035 AC1 „Ktoś zmienił…” — EVM-071 → „Uwagi do rozważenia”).
+- **Konflikt `412`** — „To zlecenie zmieniono w międzyczasie. Twoje zmiany zachowaliśmy — sprawdź aktualne wartości i zapisz ponownie.” (zasada wspólna 16; EVM-035 AC1).
 - **Zlecenie zamknięte w trakcie edycji** (`409 work_order_closed`): alert w dialogu „Zlecenie jest już rozliczone — dane zmienisz po przywróceniu zlecenia.” (albo „Zlecenie jest już anulowane — …”; Edytor: „…przez administratora.”), „Zapisz zmiany zlecenia” wyłączony, dane zostają do „Anuluj”.
 
 | Moment | Fokus |
