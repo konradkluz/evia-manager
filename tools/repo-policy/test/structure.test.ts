@@ -79,9 +79,11 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
   it('EVM-006 AC1: workspaces exist only where there is content (YAGNI) and follow apps/services/packages/tools', () => {
     expect(WORKSPACES).toEqual([
       'apps/api',
+      'apps/web',
       'packages/config',
       'packages/contracts',
       'packages/tokens',
+      'packages/ui-web',
       'tools/container',
       'tools/diff-coverage',
       'tools/docs-lifecycle',
@@ -119,9 +121,16 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       if (command.startsWith('vitest')) {
         expect(command, workspace).toBe('vitest run --coverage');
         const config = exists(`${workspace}/vitest.config.ts`) ? read(`${workspace}/vitest.config.ts`) : '';
-        // Layers and thresholds from testing-strategy.md: backend (apps/api) 85%, shared packages and tools 90%.
-        const layer = workspace === 'apps/api' ? 'backend' : 'shared';
-        expect(config, workspace).toContain(`coverage: coverage({ layer: '${layer}', include: ['src/**/*.ts'] })`);
+        // Layers and thresholds from testing-strategy.md: backend (apps/api) 85%, web (apps/web) 80%, shared packages
+        // (also packages/ui-web) and tools 90%. Web workspaces measure TSX too; apps/web also its security headers.
+        const expected: Record<string, string> = {
+          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts'] })",
+          'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
+          'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
+        };
+        expect(config, workspace).toContain(
+          `coverage: ${expected[workspace] ?? "coverage({ layer: 'shared', include: ['src/**/*.ts'] })"}`,
+        );
       } else {
         expect(command, workspace).toBe('evia-node-test');
       }

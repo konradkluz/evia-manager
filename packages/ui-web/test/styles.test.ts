@@ -35,8 +35,11 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'expanded:w-sidebar-width-expanded',
       'medium:max-expanded:opacity-0',
       'text-heading-3',
+      'font-display',
       'focus-visible:focus-ring',
       'px-grid-wide-margin',
+      'm-0',
+      'inset-y-0',
       // Not tokens — must generate nothing:
       'p-4',
       'text-red-500',
@@ -60,7 +63,8 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     const theme = /@theme inline \{([\s\S]*?)\n\}/.exec(withoutComments)?.[1] ?? '';
     const entries = [...theme.matchAll(/^\s*(--[\w-]+):\s*([^;]+);/gm)];
     expect(entries.length).toBeGreaterThan(30);
-    for (const [, name, value] of entries) expect(value, name).toMatch(/^var\(--evm-[\w-]+\)$/);
+    // Zero is the only literal allowed by styleguide § 7.2.
+    for (const [, name, value] of entries) expect(value, name).toMatch(name === '--spacing-0' ? /^0$/ : /^var\(--evm-[\w-]+\)$/);
     const used = [...withoutComments.matchAll(/var\((--evm-[\w-]+)\)/g)].map((match) => match[1]);
     for (const token of used) expect(definedTokens.has(token), token).toBe(true);
   });
@@ -72,8 +76,11 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('@media (width >= 1280px)');
     expect(css).toMatch(/@media \(width >= 768px\)[\s\S]*@media \(width < 1280px\)/);
     expect(css).toContain('font-size: var(--evm-text-heading-3-font-size)');
+    expect(css).toContain('font-family: var(--evm-text-heading-1-font-family)');
     expect(css).toContain('outline: var(--evm-size-focus-ring-width) solid var(--evm-color-focus-ring)');
     expect(css).toContain('padding-inline: var(--spacing-grid-wide-margin)');
+    expect(css).toMatch(/\.m-0 \{\s*margin: 0;/);
+    expect(css).toMatch(/\.inset-y-0 \{\s*inset-block: 0;/);
     for (const name of ['.p-4', '.text-red-500', '.bg-white', '.w-64', '.shadow-lg', '.md\\:flex']) expect(css, name).not.toContain(name);
   });
 });

@@ -1,4 +1,4 @@
-// Module boundaries (ADR-0001, ADR-0012; EVM-006 W13; apps/api module rules — EVM-008).
+// Module boundaries (ADR-0001, ADR-0012; EVM-006 W13; apps/api and web rules — EVM-008).
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
   forbidden: [
@@ -46,7 +46,8 @@ module.exports = {
         path: '^(apps|services|packages)/[^/]+/src/',
         pathNot: ['\.test\.[cm]?[jt]sx?$', '^packages/tokens/', '^packages/contracts/src/(build|redocly|redocly-plugin)\.ts$'],
       },
-      to: { dependencyTypes: ['npm-dev'], dependencyTypesNot: ['type-only'] },
+      // Peer dependencies (react in packages/ui-web) are provided by the consuming application at runtime.
+      to: { dependencyTypes: ['npm-dev'], dependencyTypesNot: ['type-only', 'npm-peer'] },
     },
     {
       name: 'api-platform-not-to-modules',
@@ -75,6 +76,20 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/api/src/modules/[^/]+/domain/' },
       to: { path: 'node_modules/(@nestjs|express|kysely|pg)(/|$)' },
+    },
+    {
+      name: 'web-ui-only-through-ui-web',
+      comment: 'The panel takes components and icons only from @evia/ui-web (styleguide § 7.2, ADR-0006).',
+      severity: 'error',
+      from: { path: '^apps/web/' },
+      to: { path: 'node_modules/(lucide-react|@base-ui|@radix-ui|tailwindcss)(/|$)' },
+    },
+    {
+      name: 'ui-web-without-application-concerns',
+      comment: 'The UI library takes texts and links as props: no router, i18n, data fetching or API contract (ADR-0006).',
+      severity: 'error',
+      from: { path: '^packages/ui-web/' },
+      to: { path: '(^packages/contracts/|node_modules/(@evia/contracts|@tanstack|i18next|react-i18next)(/|$))' },
     },
   ],
   options: {

@@ -38,6 +38,8 @@
   --color-feedback-warning-border: var(--evm-color-feedback-warning-border);
   --color-feedback-warning-icon: var(--evm-color-feedback-warning-icon);
 
+  /* Zero is the one literal allowed by styleguide § 7.2 (m-0, p-0, inset-y-0, start-0, min-w-0). */
+  --spacing-0: 0;
   --spacing-inset-xs: var(--evm-space-inset-xs);
   --spacing-inset-sm: var(--evm-space-inset-sm);
   --spacing-inset-md: var(--evm-space-inset-md);
@@ -63,6 +65,12 @@
      is the semibold weight of text.button (600). */
   --font-weight-semibold: var(--evm-text-button-font-weight);
 
+  /* Page title of the web (§ 2.2): text.heading-1 with its own (display) font family. */
+  --font-display: var(--evm-text-heading-1-font-family);
+  --text-heading-1: var(--evm-text-heading-1-font-size);
+  --text-heading-1--line-height: var(--evm-text-heading-1-line-height);
+  --text-heading-1--font-weight: var(--evm-text-heading-1-font-weight);
+  --text-heading-1--letter-spacing: var(--evm-text-heading-1-letter-spacing);
   --text-heading-3: var(--evm-text-heading-3-font-size);
   --text-heading-3--line-height: var(--evm-text-heading-3-line-height);
   --text-heading-3--font-weight: var(--evm-text-heading-3-font-weight);
