@@ -21,7 +21,7 @@ const TASKS = {
   /** @param {Record<string, string>} files added to the clean base repository of the fixtures */
   analyze: (files) => {
     const analysis = analyzeFiles(files);
-    return { codes: codes(analysis), references: Object.fromEntries(analysis.references) };
+    return { codes: codes(analysis), milestones: analysis.milestones, references: Object.fromEntries(analysis.references) };
   },
   // Controls of the mechanism: computations that never finish — only the hard deadline stops them.
   endlessLoop: () => {

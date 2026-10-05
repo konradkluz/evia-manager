@@ -6,7 +6,33 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { ROADMAP } from './helpers/fixtures.mjs';
 import { runTimed } from './helpers/timed-worker.mjs';
+
+/** Limit of one analysis measured inside the worker (AC6; the same as EVM-012 AC4). */
+const LIMIT_MS = 2000;
+const LONG = 200 * 1024;
+/** Line separators that `.` in a regular expression does not match — the trigger of the former backtracking. */
+const SEPARATORS = [
+  ['U+2028', '\u2028'],
+  ['U+2029', '\u2029'],
+];
+
+/**
+ * Frontmatter with a valid field and the field `klucz:` followed by ~200 KB of spaces and tabs and a line separator.
+ * @param {string} separator
+ */
+const frontmatterBomb = (separator) =>
+  ['---', 'lifecycle: living', `klucz:${' \t'.repeat(LONG / 2)}${separator}`, '---', '# Dokument', ''].join('\n');
+
+/**
+ * Roadmap of the fixtures with a heading `#` + ~200 KB of spaces + a line separator before and inside „Przegląd”.
+ * @param {string} separator
+ */
+function roadmapBomb(separator) {
+  const bomb = `#${' '.repeat(LONG)}${separator}`;
+  return `${bomb}\n${ROADMAP.replace('| M2 | Teren | Next |\n', `| M2 | Teren | Next |\n${bomb}\n`)}`;
+}
 
 /** Deadline of the control tests — the computation never finishes, only the deadline stops it. */
 const CONTROL_DEADLINE_MS = 300;
@@ -39,4 +65,32 @@ describe('pomiar czasu w wątku z twardym terminem (EVM-013 AC6)', () => {
     await assert.rejects(runTimed('frontmatter', null), { name: 'TypeError' });
     await assert.rejects(runTimed('brak-takiego-zadania', null), { message: 'nieznane zadanie: brak-takiego-zadania' });
   });
+});
+
+describe('wyrażenia bez katastrofalnego nawracania — pliki 200 KB (EVM-013 AC6, ustalenie L3)', () => {
+  for (const [name, separator] of SEPARATORS) {
+    it(`EVM-013 AC6: frontmatter — pole klucz: z ok. 200 KB spacji i tabulatorów zakończonych ${name} — analiza < 2 s (pomiar w wątku)`, async () => {
+      const { elapsed, result } = await runTimed('frontmatter', frontmatterBomb(separator));
+      assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+      // A line with a line separator inside the value is not a field — as before the fix.
+      assert.deepEqual(result, { lifecycle: 'living' });
+    });
+
+    it(`EVM-013 AC6: roadmapa — nagłówek # z ok. 200 KB spacji zakończonych ${name} — analiza < 2 s (pomiar w wątku)`, async () => {
+      const { elapsed, result } = await runTimed('roadmap', roadmapBomb(separator));
+      assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+      assert.deepEqual(result, ['M0', 'M1', 'M2']);
+    });
+
+    it(`EVM-013 AC6: pełna analiza repozytorium z oboma plikami (${name}) — < 2 s, wynik bez zmian`, async () => {
+      const { elapsed, result } = await runTimed('analyze', {
+        'docs/product/roadmap.md': roadmapBomb(separator),
+        'docs/product/dlugi.md': frontmatterBomb(separator),
+        'docs/README.md': '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n- product/dlugi.md\n',
+      });
+      assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+      assert.deepEqual(result.codes, []);
+      assert.deepEqual(result.milestones, ['M0', 'M1', 'M2']);
+    });
+  }
 });

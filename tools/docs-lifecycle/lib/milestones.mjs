@@ -7,7 +7,8 @@ import { matchPattern } from './patterns.mjs';
 import { compareCodeUnits } from './text.mjs';
 
 const MILESTONE_ID = /^M\d+$/;
-const HEADING = /^#{1,6}[ \t]+(.+?)[ \t]*$/;
+/** `#`–`######`, a blank and text without a line break (EVM-013 L3: one quantifier — linear time). */
+const HEADING = /^#{1,6}[ \t]([^\n\r\u2028\u2029]*)$/;
 const TABLE_FIRST_CELL = /^[ \t]*\|([^|]*)\|/;
 
 /**
@@ -28,13 +29,26 @@ export function compareMilestones(a, b) {
   return Number(a.slice(1)) - Number(b.slice(1)) || compareCodeUnits(a, b);
 }
 
+/** @param {string | undefined} char */
+const isBlank = (char) => char === ' ' || char === '\t';
+
 /**
+ * Heading text without the blanks around it; the blanks are trimmed by loops, not by a pattern (EVM-013 L3: the
+ * former pattern was cubic for blanks before U+2028).
  * @param {string} line
  * @returns {string | null} heading text or null when the line is not a heading
  */
-function headingText(line) {
+export function headingText(line) {
   const match = HEADING.exec(line);
-  return match ? match[1] : null;
+  if (!match) return null;
+  const text = match[1];
+  let start = 0;
+  let end = text.length;
+  while (start < end && isBlank(text[start])) start += 1;
+  while (end > start && isBlank(text[end - 1])) end -= 1;
+  if (start < end) return text.slice(start, end);
+  // Only blanks after `#`: the former pattern needed a second blank and took the last one as the text.
+  return text === '' ? null : text.slice(-1);
 }
 
 /**
