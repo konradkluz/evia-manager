@@ -98,7 +98,11 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     const upload = list(integration['steps'])
       .map(record)
       .find((step) => text(step['uses']).startsWith('actions/upload-artifact@'));
-    expect(record(upload?.['with'])).toMatchObject({ name: 'lcov-integration', path: 'apps/api/coverage/integration/lcov.info', 'if-no-files-found': 'error' });
+    expect(record(upload?.['with'])).toMatchObject({
+      name: 'lcov-integration',
+      path: 'apps/api/coverage/integration/lcov.info',
+      'if-no-files-found': 'error',
+    });
   });
 
   it('EVM-006 AC3 (W3c), EVM-008: changed-code coverage merges every report (quality, container, integration) with the full history', () => {
