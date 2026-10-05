@@ -62,6 +62,44 @@ describe('AppShell — Sidebar, TopBar, skip link and navigation drawer (stylegu
     expect(link.className).toContain('font-semibold');
   });
 
+  it('EVM-008 AC3 collapsed sidebar tooltip is hoverable (WCAG 1.4.13): padding instead of a gap, pointer events while shown', () => {
+    shell();
+    const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
+    const label = within(nav).getByText('Zlecenia');
+    const tooltip = label.parentElement as HTMLElement;
+    expect(tooltip.className).toContain('max-expanded:ps-inline-sm');
+    expect(tooltip.className).not.toContain('ms-inline-sm');
+    expect(tooltip.className).toContain('max-expanded:group-hover:pointer-events-auto');
+    expect(tooltip.className).toContain('max-expanded:group-focus-visible:pointer-events-auto');
+  });
+
+  it('EVM-008 AC3 collapsed sidebar tooltip is dismissed with Escape without moving focus and returns after blur', async () => {
+    shell();
+    const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
+    const link = within(nav).getByRole('link', { name: 'Zlecenia' });
+    const label = within(nav).getByText('Zlecenia');
+    act(() => link.focus());
+    await userEvent.keyboard('{Escape}');
+    expect(document.activeElement).toBe(link);
+    expect(label.className).not.toContain('group-focus-visible:opacity-100');
+    expect(label.className).not.toContain('group-hover:opacity-100');
+    expect((label.parentElement as HTMLElement).className).not.toContain('pointer-events-auto');
+    act(() => link.blur());
+    expect(label.className).toContain('max-expanded:group-focus-visible:opacity-100');
+    fireEvent.keyDown(link, { key: 'Escape' });
+    expect(label.className).not.toContain('group-hover:opacity-100');
+    fireEvent.mouseLeave(link);
+    expect(label.className).toContain('max-expanded:group-hover:opacity-100');
+  });
+
+  it('EVM-008 AC3 drawer links ignore Escape for the tooltip (no tooltip outside the collapsed sidebar)', () => {
+    shell();
+    const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
+    const link = within(nav).getByRole('link', { name: 'Zlecenia' });
+    fireEvent.keyDown(link, { key: 'Enter' });
+    expect(within(nav).getByText('Zlecenia').className).toContain('max-expanded:group-hover:opacity-100');
+  });
+
   it('EVM-008 AC3 an inactive item has no aria-current and no active indicator', () => {
     shell({ navigation: NAVIGATION.map((item) => ({ ...item, current: false })) });
     const link = within(screen.getByRole('navigation', { name: 'Główna nawigacja' })).getByRole('link', { name: 'Zlecenia' });

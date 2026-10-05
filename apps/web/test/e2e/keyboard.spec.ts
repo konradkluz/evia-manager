@@ -44,6 +44,37 @@ test.describe('keyboard and responsive shell (EVM-008 AC3, WCAG 2.2 AA)', () => 
     await expect(label).toHaveCSS('opacity', '1');
   });
 
+  test('EVM-008 AC3 at 768 px the tooltip closes with Esc while focus stays on the link (WCAG 1.4.13)', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 800 });
+    await page.goto('/work-orders');
+    const nav = page.getByRole('navigation', { name: 'Główna nawigacja' });
+    const link = nav.getByRole('link', { name: 'Zlecenia' });
+    const label = nav.getByText('Zlecenia');
+    await link.focus();
+    await expect(label).toHaveCSS('opacity', '1');
+    await page.keyboard.press('Escape');
+    await expect(label).toHaveCSS('opacity', '0');
+    await expect(link).toBeFocused();
+  });
+
+  test('EVM-008 AC3 at 768 px the tooltip stays visible when the pointer moves onto it (WCAG 1.4.13)', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 800 });
+    await page.goto('/work-orders');
+    const nav = page.getByRole('navigation', { name: 'Główna nawigacja' });
+    const link = nav.getByRole('link', { name: 'Zlecenia' });
+    const label = nav.getByText('Zlecenia');
+    await link.hover();
+    await expect(label).toHaveCSS('opacity', '1');
+    const linkBox = await link.boundingBox();
+    const labelBox = await label.boundingBox();
+    if (!linkBox || !labelBox) throw new Error('missing layout boxes');
+    // Move the pointer horizontally from the link, across the gap, onto the tooltip.
+    const y = labelBox.y + labelBox.height / 2;
+    await page.mouse.move(linkBox.x + linkBox.width - 1, y);
+    await page.mouse.move(labelBox.x + 2, y, { steps: 5 });
+    await expect(label).toHaveCSS('opacity', '1');
+  });
+
   test('EVM-008 AC3 at 1280 px the sidebar is expanded with the product name and the visible label', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/work-orders');
