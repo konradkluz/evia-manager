@@ -67,6 +67,8 @@ export function config({ tsconfigRootDir, ignores = [] }: { tsconfigRootDir: str
           { allowForKnownSafeCalls: [{ from: 'package', package: 'node:test', name: ['describe', 'it', 'suite', 'test'] }] },
         ],
         '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+        // NestJS modules are classes that exist for their decorator (@Module) — EVM-008.
+        '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
       },
     },
     ...sqlSafety(),

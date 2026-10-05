@@ -15,6 +15,7 @@ describe('ESLint flat config (EVM-006 AC2)', () => {
       { allowForKnownSafeCalls: [{ from: 'package', package: 'node:test', name: ['describe', 'it', 'suite', 'test'] }] },
     ]);
     expect(all['no-eval']).toBe('error');
+    expect(all['@typescript-eslint/no-extraneous-class']).toEqual(['error', { allowWithDecorator: true }]);
   });
 
   it('EVM-006 AC2: the project service is rooted in the workspace directory', () => {

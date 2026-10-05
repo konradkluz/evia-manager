@@ -78,6 +78,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
 
   it('EVM-006 AC1: workspaces exist only where there is content (YAGNI) and follow apps/services/packages/tools', () => {
     expect(WORKSPACES).toEqual([
+      'apps/api',
       'packages/config',
       'packages/contracts',
       'packages/tokens',
@@ -118,7 +119,9 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       if (command.startsWith('vitest')) {
         expect(command, workspace).toBe('vitest run --coverage');
         const config = exists(`${workspace}/vitest.config.ts`) ? read(`${workspace}/vitest.config.ts`) : '';
-        expect(config, workspace).toMatch(/coverage: coverage\(\{ layer: 'shared', include: \['src\/\*\*\/\*\.ts'\] \}\)/);
+        // Layers and thresholds from testing-strategy.md: backend (apps/api) 85%, shared packages and tools 90%.
+        const layer = workspace === 'apps/api' ? 'backend' : 'shared';
+        expect(config, workspace).toContain(`coverage: coverage({ layer: '${layer}', include: ['src/**/*.ts'] })`);
       } else {
         expect(command, workspace).toBe('evia-node-test');
       }
@@ -239,7 +242,8 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(settings['savePrefix']).toBe('');
     expect(settings['minimumReleaseAgeExclude'] ?? []).toEqual([]);
     for (const key of ['dangerouslyAllowAllBuilds', 'ignoreScripts', 'trustPolicyExclude']) expect(settings[key], key).toBeUndefined();
-    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false });
+    // Only explicit denials: lefthook (EVM-006 W1); ssh2 and cpu-features of Testcontainers (EVM-008, B11).
+    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false, 'cpu-features': false, ssh2: false });
   });
 
   it('EVM-006 AC1 (SR-SUPPLY-03, W4): dependencies are exact registry versions, catalog: or workspace:; @evia/* only via workspace:', () => {

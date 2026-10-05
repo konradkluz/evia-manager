@@ -81,6 +81,7 @@ services:
       SEMGREP_SEND_METRICS: 'off'
       SEMGREP_ENABLE_VERSION_CHECK: '0'
     volumes:
+      - ./apps:/src/apps:ro
       - ./packages:/src/packages:ro
       - ./tools:/src/tools:ro
       - ./infra:/src/infra:ro

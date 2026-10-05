@@ -87,6 +87,9 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     expect(destination.text).not.toContain('insert into');
     expect(serializeError('text')).toEqual({ type: 'string', message: 'non-error value thrown' });
     expect(serializeError(Object.assign(new TypeError('x'), { code: 7 }))).not.toHaveProperty('code');
+    const withoutStack = new RangeError('no stack');
+    delete withoutStack.stack;
+    expect(serializeError(withoutStack)).toEqual({ type: 'RangeError', message: 'no stack' });
   });
 
   it('EVM-008 AC4 log lines are single-line JSON with escaped control characters (log injection, SR-LOG-05)', () => {

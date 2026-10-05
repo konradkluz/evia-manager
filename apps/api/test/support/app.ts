@@ -3,6 +3,15 @@
  * passwords and versions below are synthetic.
  */
 import { Writable } from 'node:stream';
+import type { ModuleMetadata } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { Test, type TestingModuleBuilder } from '@nestjs/testing';
+import { AppModule } from '../../src/app.module.ts';
+import { configureApp, createHttpAdapter } from '../../src/app.ts';
+import { loadConfig, type AppConfig } from '../../src/platform/config/config.ts';
+import { requestContextMixin } from '../../src/platform/http/request-context.ts';
+import { createLogger } from '../../src/platform/logging/logger.ts';
+import { NestLoggerAdapter } from '../../src/platform/logging/nest-logger.ts';
 
 /** A database that refuses connections immediately (nothing listens on port 1) — no DNS, no waiting. */
 export const UNREACHABLE_DATABASE_URL = 'postgres://evia:synthetic-test-password@127.0.0.1:1/evia';
@@ -33,4 +42,33 @@ export class LogCapture extends Writable {
   get text(): string {
     return this.lines.join('\n');
   }
+}
+
+export interface TestApp {
+  readonly app: NestExpressApplication;
+  readonly logs: LogCapture;
+  readonly config: AppConfig;
+  close(): Promise<void>;
+}
+
+export interface TestAppOptions {
+  readonly env?: Record<string, string | undefined>;
+  /** Extra test-only modules (never part of AppModule in production). */
+  readonly imports?: ModuleMetadata['imports'];
+  readonly configure?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
+}
+
+/** Builds the API exactly like src/main.ts (AppModule + configureApp), without listening on a port. */
+export async function createTestApp({ env = {}, imports = [], configure = (builder) => builder }: TestAppOptions = {}): Promise<TestApp> {
+  const config = loadConfig(validEnv(env));
+  const logs = new LogCapture();
+  const logger = createLogger({ level: 'info', destination: logs, mixin: requestContextMixin });
+  const moduleRef = await configure(Test.createTestingModule({ imports: [AppModule.register({ config, logger }), ...imports] })).compile();
+  const app = moduleRef.createNestApplication<NestExpressApplication>(createHttpAdapter(), {
+    bodyParser: false,
+    logger: new NestLoggerAdapter(logger),
+  });
+  configureApp(app, logger);
+  await app.init();
+  return { app, logs, config, close: () => app.close() };
 }
