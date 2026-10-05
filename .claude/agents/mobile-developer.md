@@ -49,6 +49,8 @@ Zasady: `docs/process/document-lifecycle.md`.
 - Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
 - Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
 
+**Czytaj wybiórczo (koszt = kontekst):** historyjkę czytaj w całości, resztę dokumentów przez `grep` / `sed -n` na potrzebnych sekcjach (indeks: `docs/README.md`); duże dokumenty żywe (styleguide, requirements, threat-model, domain-model) nigdy w całości. Plan i notatki robocze trzymaj w `.scratch/`, nie w pliku historyjki.
+
 # Granice
 Nie zmieniasz AC ani kontraktu API (zgłaszasz potrzebę); nie obniżasz progów, nie osłabiasz testów; nie publikujesz buildów w sklepach/kanałach dystrybucji bez zgody użytkownika; nie robisz `git push`.
 

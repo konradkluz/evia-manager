@@ -14,7 +14,7 @@ Implementujesz backend zgodnie z historyjką, ADR-ami i wytycznymi architektury.
 Historyjka (plik w `docs/backlog/`), `docs/process/definition-of-done.md`, `docs/process/testing-strategy.md`, `docs/architecture/` (ADR, `api-guidelines.md`, `domain-model.md`), `docs/security/README.md`, komendy w `CLAUDE.md` → „Stack i komendy”.
 
 # Sposób pracy
-1. **Plan techniczny** (jeśli brak w historyjce): zmiany w modułach, kontrakt API (najpierw specyfikacja), migracje, plan testów AC → testy. Jeżeli plan wymaga zmiany architektury (nowy moduł, nowa zależność zewnętrzna, zmiana współdzielonego modelu danych, breaking change API, nowa infrastruktura) — zatrzymaj się i zgłoś potrzebę przeglądu architekta.
+1. **Plan techniczny** (w `.scratch/`; ścieżka lekka — bez zapisu planu): zmiany w modułach, kontrakt API (najpierw specyfikacja), migracje, plan testów AC → testy. Jeżeli plan wymaga zmiany architektury (nowy moduł, nowa zależność zewnętrzna, zmiana współdzielonego modelu danych, breaking change API, nowa infrastruktura) — zatrzymaj się i zgłoś potrzebę przeglądu architekta.
 2. **Gałąź:** pracuj na gałęzi podanej przez orkiestratora (`feature/EVM-xxx-…`).
 3. **TDD dla każdego AC:** czerwony test (nazwa/opis zawiera `EVM-xxx AC#`) → minimalny kod → refaktor. Commit po każdym zielonym kroku (Conventional Commits po angielsku z `[EVM-xxx]`).
 4. **Bezpieczeństwo domyślnie:**
@@ -26,7 +26,7 @@ Historyjka (plik w `docs/backlog/`), `docs/process/definition-of-done.md`, `docs
 5. **API:** zgodnie z `api-guidelines.md` (format błędów, paginacja, idempotencja mutacji z aplikacji mobilnej, wersjonowanie). Zaktualizuj specyfikację i wygenerowanych klientów. Bez breaking changes bez ADR.
 6. **Migracje:** kompatybilne wstecz (expand → migrate → contract), przetestowane.
 7. **Bramka lokalna przed raportem:** lint, formatowanie, typy, testy jednostkowe i integracyjne, pokrycie (progi z `testing-strategy.md`, w tym pokrycie zmienionego kodu). Wszystko zielone. Testy backendu uruchamiasz lokalnie wyłącznie w kontenerze `backend-tests` (ADR-0015); wynik natywny na Windows nie jest dowodem.
-8. **Dokumentacja:** specyfikacja API, `.env.example` przy nowych zmiennych, wpis w `CHANGELOG.md` (sekcja Unreleased), sekcja „Plan techniczny” w historyjce.
+8. **Dokumentacja:** specyfikacja API, `.env.example` przy nowych zmiennych, wpis w `CHANGELOG.md` (sekcja Unreleased).
 
 # Standardy kodu
 Nazwy domenowe po angielsku wg słownika (`domain.md`); małe, czytelne funkcje; logika domenowa niezależna od frameworka i testowalna jednostkowo; brak martwego kodu; brak TODO bez ID historyjki; nowa zależność tylko z uzasadnieniem (licencja, utrzymanie, podatności) — istotna wymaga zgody architekta.
@@ -37,6 +37,8 @@ Zasady: `docs/process/document-lifecycle.md`.
 - Nowy dokument `.md` tworzysz tylko w dozwolonej lokalizacji i z klasą cyklu życia zgodną z polityką; gdy żadna reguła nie pasuje — `docs/notes/` z polem `lifecycle`. Dowody QA i przeglądów UX (`docs/qa/<EVM-ID>/`, `docs/ux/reviews/<EVM-ID>/`) mają klasę „kamień milowy”.
 - Nie usuwasz, nie przenosisz i nie obniżasz klasy dokumentów istniejących na `main` — decyduje Konrad (`/milestone close` albo zaakceptowana historyjka).
 - Przed raportem końcowym: `npm run docs:check` — 0 błędów (ostrzeżenia wypisz w raporcie); bez dostępu do powłoki napisz w raporcie, że sprawdzenie wykona orkiestrator.
+
+**Czytaj wybiórczo (koszt = kontekst):** historyjkę czytaj w całości, resztę dokumentów przez `grep` / `sed -n` na potrzebnych sekcjach (indeks: `docs/README.md`); duże dokumenty żywe (styleguide, requirements, threat-model, domain-model) nigdy w całości. Plan i notatki robocze trzymaj w `.scratch/`, nie w pliku historyjki.
 
 # Granice
 - Nie zmieniasz AC — niejasność zgłaszasz jako pytanie.

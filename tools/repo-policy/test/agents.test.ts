@@ -2,6 +2,7 @@
  * Agent models and reasoning effort (EVM-074): every agent pins `model` and `effort` in its frontmatter (no `inherit`,
  * so the session's model and effort never leak into subagents), docs/process/workflow.md documents the same values,
  * and the deliver-story workflow applies a story's `model` to the implementers only.
+ * EVM-075 adds the story `path` (lekka | pelna): the workflow, the skills and the process documents follow it.
  */
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -223,7 +224,7 @@ describe('model field in the story process (EVM-074 AC3)', () => {
 
   it('EVM-074 AC3: /deliver checks and passes the story model, /refine and DoR point to the opus criteria', () => {
     const deliver = read('.claude/skills/deliver/SKILL.md');
-    expect(deliver).toContain('appUrl?, userNotes?, model? }');
+    expect(deliver).toContain('appUrl?, userNotes?, model?, path? }');
     expect(deliver).toContain('`model` (jeśli jest) ∈ {`sonnet`, `opus`}');
     expect(deliver).toContain('parametrem `model` narzędzia Agent');
     for (const path of ['.claude/skills/refine/SKILL.md', 'docs/process/definition-of-ready.md', 'docs/backlog/README.md']) {
@@ -256,5 +257,203 @@ describe('model field in the story process (EVM-074 AC3)', () => {
     expect(storyModelProblems({ owner: 'backend-developer', model: 'haiku' }, models)).toEqual(['model "haiku" spoza sonnet, opus']);
     expect(storyModelProblems({ owner: 'security-engineer', model: 'opus' }, models)).toEqual([]);
     expect(storyModelProblems({ owner: 'security-engineer' }, models)).toEqual([]);
+  });
+});
+
+/** Stub agents for the path tests: `reviews` per label returns findings; QA always passes. */
+interface Behaviour {
+  reviews?: Record<string, Record<string, unknown>[]>;
+}
+async function deliverWith(
+  extraArgs: Record<string, unknown>,
+  labels: string[],
+  behaviour: Behaviour = {},
+): Promise<Record<string, unknown>> {
+  const run = await loadDeliverStory();
+  const agent = (_prompt: string, opts: Record<string, unknown>): Promise<unknown> => {
+    const label = text(opts['label']);
+    labels.push(label);
+    if (label.startsWith('plan:')) {
+      return Promise.resolve({
+        status: 'ready',
+        summary: 'plan',
+        needsArchitectReview: true,
+        needsUiSpec: false,
+        securityRelevant: true,
+        questions: [],
+      });
+    }
+    if (label.startsWith('consult:')) return Promise.resolve({ verdict: 'approve', notes: '-', questions: [] });
+    if (label.startsWith('impl:') || label.startsWith('fix:')) return Promise.resolve(DONE);
+    if (label.startsWith('qa:')) return Promise.resolve(QA(true));
+    const findings = behaviour.reviews?.[label] ?? [];
+    const blocking = findings.some((finding) => finding['severity'] === 'major' || finding['severity'] === 'blocker');
+    return Promise.resolve({ verdict: blocking ? 'changes_required' : 'approve', summary: '-', findings });
+  };
+  const parallel = (thunks: (() => Promise<unknown>)[]): Promise<unknown[]> => Promise.all(thunks.map((thunk) => thunk()));
+  const args = {
+    storyId: 'EVM-999',
+    storyPath: 'docs/backlog/M0/EVM-999-synthetic.md',
+    branch: 'feature/EVM-999-synthetic',
+    owner: 'devops-engineer',
+    reviewers: ['code-reviewer'],
+    ...extraArgs,
+  };
+  return record(
+    await run(
+      args,
+      agent,
+      parallel,
+      () => undefined,
+      () => undefined,
+    ),
+  );
+}
+
+const MAJOR = { severity: 'major', area: 'infra', location: 'a.ts:1', issue: 'synthetic', fix: 'synthetic' };
+const MINOR = { severity: 'minor', area: 'infra', location: 'a.ts:2', issue: 'synthetic', fix: 'synthetic' };
+
+describe('story path in the workflow (EVM-075 AC2)', () => {
+  it('EVM-075 AC2: lekka — one implementer and one review; no plan, consultations or QA; minor does not trigger anything', async () => {
+    const labels: string[] = [];
+    const result = await deliverWith({ path: 'lekka' }, labels, { reviews: { 'code-reviewer:r1': [MINOR] } });
+    expect(labels).toEqual(['impl:devops-engineer', 'code-reviewer:r1']);
+    expect(result['status']).toBe('passed');
+    expect(result['path']).toBe('lekka');
+    expect(result['rounds']).toBe(1);
+    expect(result['qa']).toBeNull();
+    expect(result['nonBlocking']).toHaveLength(1);
+  });
+
+  it('EVM-075 AC2: lekka — a major finding gets one round of fixes without re-review and ends as fixed', async () => {
+    const labels: string[] = [];
+    const result = await deliverWith({ path: 'lekka' }, labels, { reviews: { 'code-reviewer:r1': [MAJOR] } });
+    expect(labels).toEqual(['impl:devops-engineer', 'code-reviewer:r1', 'fix:devops-engineer:r1']);
+    expect(result['status']).toBe('fixed');
+    expect(result['openBlocking']).toEqual([]);
+    expect(list(result['unverifiedFixes'])).toHaveLength(1);
+  });
+
+  it('EVM-075 AC2: lekka needs exactly one reviewer and an unknown path stops the workflow before any agent starts', async () => {
+    const labels: string[] = [];
+    await expect(deliverWith({ path: 'lekka', reviewers: ['code-reviewer', 'security-engineer'] }, labels)).rejects.toThrow(
+      'ścieżka lekka wymaga dokładnie jednego recenzenta',
+    );
+    await expect(deliverWith({ path: 'ekspresowa' }, labels)).rejects.toThrow(
+      'nieobsługiwana ścieżka "ekspresowa" (dozwolone: lekka, pelna)',
+    );
+    expect(labels).toEqual([]);
+  });
+
+  it('EVM-075 AC2: pelna and a missing path run the full flow (plan, consultations, QA, all reviewers)', async () => {
+    for (const extra of [{ path: 'pelna' }, {}]) {
+      const labels: string[] = [];
+      const result = await deliverWith({ ...extra, reviewers: ['code-reviewer', 'security-engineer'] }, labels);
+      expect(result['status']).toBe('passed');
+      expect(result['path']).toBe('pelna');
+      expect(labels).toEqual(
+        expect.arrayContaining([
+          'plan:devops-engineer',
+          'consult:solution-architect',
+          'consult:security-engineer',
+          'impl:devops-engineer',
+          'qa:r1',
+          'code-reviewer:r1',
+          'security-engineer:r1',
+        ]),
+      );
+    }
+  });
+
+  it('EVM-075 AC2: pelna — in the next round only the reviewers who reported blocker/major review again', async () => {
+    const labels: string[] = [];
+    const result = await deliverWith({ reviewers: ['code-reviewer', 'security-engineer'] }, labels, {
+      reviews: { 'security-engineer:r1': [MAJOR] },
+    });
+    expect(result['status']).toBe('passed');
+    expect(result['rounds']).toBe(2);
+    expect(labels).toContain('security-engineer:r2');
+    expect(labels).not.toContain('code-reviewer:r2');
+    expect(labels).toContain('qa:r2');
+    expect(
+      list(result['reviews'])
+        .map((review) => text(record(review)['reviewer']))
+        .sort(),
+    ).toEqual(['code-reviewer', 'security-engineer']);
+  });
+});
+
+describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
+  it('EVM-075 AC1: workflow.md describes both paths, their criteria and the escalation', () => {
+    const paths = section(read('docs/process/workflow.md'), '## Ścieżki realizacji');
+    for (const phrase of [
+      'LEKKA',
+      'PEŁNA',
+      '`path`',
+      'Brak pola = `pelna`',
+      'uwierzytelnianie',
+      'synchronizacja offline',
+      'migracje danych',
+      'infrastruktura produkcyjna',
+      'płatności',
+      'dane osobowe',
+      'uprawnienia',
+      'Eskalacja ścieżki',
+    ]) {
+      expect(paths, phrase).toContain(phrase);
+    }
+  });
+
+  it('EVM-075 AC1: /refine proposes the path, /deliver proposes it for stories without one and passes it to the workflow', () => {
+    expect(read('.claude/skills/refine/SKILL.md')).toContain('`path`');
+    const deliver = read('.claude/skills/deliver/SKILL.md');
+    for (const phrase of ['`path` ∈ {`lekka`, `pelna`}', 'Brak pola → zaproponuj ścieżkę', '`fixed`', 'wpis „Koszt”'])
+      expect(deliver, phrase).toContain(phrase);
+    for (const path of ['docs/process/definition-of-ready.md', 'docs/backlog/README.md']) expect(read(path), path).toContain('`path`');
+  });
+
+  it('EVM-075 AC1: every story with a path field uses lekka or pelna', () => {
+    for (const story of filesBelow('docs/backlog', (path) => /\/EVM-\d{3,}-[^/]+\.md$/.test(path))) {
+      const fields = frontmatter(read(story));
+      if ('path' in fields) expect(['lekka', 'pelna'], story).toContain(text(fields['path']));
+    }
+    expect(['lekka', 'pelna']).toContain(text(frontmatter(read('docs/backlog/_template.md'))['path']));
+  });
+
+  it('EVM-075 AC3: the story template is short and keeps plans and consultations out of the story file', () => {
+    const template = read('docs/backlog/_template.md');
+    expect(Buffer.byteLength(template)).toBeLessThanOrEqual(6144);
+    for (const heading of [
+      '## Cel',
+      '## Kryteria akceptacji',
+      '## Poza zakresem',
+      '## Decyzje i ograniczenia',
+      '## Notatki',
+      '## Dziennik',
+    ]) {
+      expect(template, heading).toContain(`${heading}\n`);
+    }
+    for (const gone of ['## Plan techniczny', '## Definition of Done', '## Uwagi do rozważenia'])
+      expect(template, gone).not.toContain(gone);
+    const paths = section(read('docs/process/workflow.md'), '## Ścieżki realizacji');
+    for (const phrase of [
+      'Konsultacje proporcjonalne do ryzyka',
+      'Low w narzędziach wewnętrznych',
+      '„Notatek”',
+      'Co zostaje poza plikiem historyjki',
+    ]) {
+      expect(paths, phrase).toContain(phrase);
+    }
+  });
+
+  it('EVM-075 AC4: CLAUDE.md stays small and every agent reads selectively', () => {
+    expect(Buffer.byteLength(read('CLAUDE.md'))).toBeLessThanOrEqual(10240);
+    for (const agent of AGENTS) expect(read(`.claude/agents/${agent}.md`), agent).toContain('Czytaj wybiórczo');
+    expect(section(read('docs/process/workflow.md'), '## Zespół agentów')).toContain('`code-reviewer`');
+  });
+
+  it('EVM-075 AC6: workflow.md holds the cost baseline and targets', () => {
+    const cost = section(read('docs/process/workflow.md'), '## Pomiar kosztu');
+    for (const phrase of ['EVM-013', '$59', 'lekka ≤ $12', 'pełna ≤ $30', 'Koszt']) expect(cost, phrase).toContain(phrase);
   });
 });

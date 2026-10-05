@@ -6,6 +6,7 @@ milestone: M1
 epic: E00 Nazwa epiku
 status: draft          # draft | ready | in-progress | in-review | done | blocked
 priority: P1           # P0 | P1 | P2 | P3
+path: lekka            # lekka | pelna — ścieżka realizacji (workflow.md → „Ścieżki realizacji”); brak pola = pelna
 owner: backend-developer
 contributors: []       # np. [web-developer]
 reviewers: [code-reviewer]
@@ -15,57 +16,32 @@ depends_on: []
 
 # EVM-000: Krótki tytuł
 
-## Historyjka
-Jako **<rola>** chcę **<cel>**, aby **<korzyść>**.
+> Szablon ma mieścić się w 1–2 stronach (ok. 6 KB). Plany, zapisy konsultacji i raporty agentów nie trafiają do tego pliku (`.scratch/`, raport w demo); „Dziennik” to jedna linia na zdarzenie. Definition of Done: `docs/process/definition-of-done.md` (nie kopiujemy go do historyjki).
 
-## Kontekst
-Dlaczego to robimy, powiązania z innymi historyjkami, istotne fakty z domeny.
+## Cel
+Jako **<rola>** chcę **<cel>**, aby **<korzyść>**. Jedno–dwa zdania kontekstu (powiązania, fakty z domeny).
 
 ## Kryteria akceptacji
+3–6 AC (Zakładając / Gdy / Wtedy), testowalne; przypadki negatywne i uprawnienia tam, gdzie dotyczą. Więcej niż 6 AC → podział (pełna ścieżka: ≤ 8).
+
 **AC1 — <nazwa>**
 - Zakładając, że …
 - Gdy …
 - Wtedy …
 
-**AC2 — Uprawnienia**
-- Zakładając, że jestem zalogowany jako *Tylko odczyt*
+**AC2 — <nazwa>**
+- Zakładając, że …
 - Gdy …
 - Wtedy …
 
 ## Poza zakresem
 - …
 
-## UX / UI
-Ekrany, komponenty ze styleguide'u, stany (pusty / ładowanie / błąd / offline / brak uprawnień), mikrocopy — albo „nie dotyczy”.
+## Decyzje i ograniczenia
+Decyzje użytkownika (data, decyzja) i twarde ograniczenia. Sekcje „UX / UI” (ekrany, stany, komponenty) i „Bezpieczeństwo i prywatność” (role → dostęp, dane, kontrole) dopisz tylko wtedy, gdy zmiana ich dotyczy — jako podpunkty tutaj.
 
-## Bezpieczeństwo i prywatność
-| Rola | Dostęp |
-|---|---|
-| Administrator | … |
-| Edytor | … |
-| Tylko odczyt | … |
-| Niezalogowany | brak |
-
-Dane, których dotyczy, i wymagane kontrole — albo „nie dotyczy”.
-
-## Notatki techniczne
-Ograniczenia, ryzyka, zależności techniczne (wypełnia architekt przy refinemencie, jeśli potrzeba).
-
-## Plan techniczny
-_Uzupełnia wykonawca przed implementacją: zakres zmian, kontrakt API, migracje, plan testów AC → testy, ustalenia z konsultacji._
-
-## Decyzje
-_Decyzje użytkownika podjęte w trakcie (data, pytanie, decyzja)._
-
-## Uwagi do rozważenia
-_Ustalenia nieblokujące z przeglądów (minor / nit) i propozycje pozycji backlogu._
-
-## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-000 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+## Notatki
+Maks. 5 linii: ustalenia nieblokujące (minor/nit, Low w narzędziach wewnętrznych) i pomysły do backlogu. Nie są kryteriami akceptacji.
 
 ## Dziennik
 - YYYY-MM-DD — utworzono (product-owner)

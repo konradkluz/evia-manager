@@ -4,7 +4,7 @@ Historyjka jest `done`, gdy spełnia **wszystkie** punkty (dla dokumentów — p
 
 ## Funkcjonalność
 - [ ] Wszystkie AC spełnione; każde pokryte co najmniej jednym testem automatycznym oznaczonym `EVM-xxx AC#` (wyjątek: AC oznaczone jako ręczne, np. test terenowy — sprawdzone przez użytkownika).
-- [ ] Raport QA: PASS dla każdego AC, macierz ról sprawdzona.
+- [ ] Weryfikacja AC: PASS dla każdego AC, macierz ról sprawdzona — ścieżka pełna: raport `qa-engineer`; ścieżka lekka: tabela AC → test sprawdzona przez orkiestratora w demo (bez osobnego raportu).
 
 ## Jakość i testy
 - [ ] Bramki CI zielone: lint, formatowanie, typy, testy jednostkowe, integracyjne i E2E.
@@ -23,9 +23,9 @@ Historyjka jest `done`, gdy spełnia **wszystkie** punkty (dla dokumentów — p
 - [ ] Teksty po polsku przez i18n, terminologia ze słownika domeny.
 
 ## Przeglądy i dokumentacja
-- [ ] `code-reviewer`: APPROVE; `security-engineer` / `ux-designer`: APPROVE (gdy dotyczy).
+- [ ] `code-reviewer`: APPROVE; `security-engineer` / `ux-designer`: APPROVE (ścieżka pełna, gdy dotyczy); ścieżka lekka — jeden przegląd, bez blocker/major po jednej rundzie poprawek.
 - [ ] Zaktualizowane: specyfikacja API, ADR (gdy była decyzja), `CHANGELOG.md` (Unreleased), `.env.example`, dokumentacja użytkownika (gdy zmienia się sposób pracy).
 - [ ] Walidator dokumentacji `npm run docs:check`: 0 błędów, ostrzeżenia przejrzane; nowe pliki `.md` mają klasę i lokalizację zgodną z `docs/process/document-lifecycle.md`, pliki robocze są poza repozytorium (`.scratch/`).
 
 ## Akceptacja
-- [ ] Demo przedstawione; użytkownik zaakceptował przyrost; squash merge do `main`; wpis w „Dziennik”.
+- [ ] Demo przedstawione; użytkownik zaakceptował przyrost; squash merge do `main`; wpis w „Dziennik”, w tym „Koszt” (`workflow.md` → „Pomiar kosztu”).

@@ -51,6 +51,7 @@ flowchart LR
 | EVM-012 | Polityka cyklu życia dokumentacji + walidator | product-owner + devops-engineer | 001 |
 | EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
 | EVM-074 | Model i effort agentów, model realizacji historyjki | devops-engineer | — |
+| EVM-075 | Lżejszy proces: ścieżki lekka i pełna, krótki szablon, pomiar kosztu | devops-engineer | — |
 
 **Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych z Androidem; spike potwierdza wykonalność uploadu w tle na Androidzie (iOS odłożony — ADR-0015); historyjki M1 w statusie `ready`.
 
@@ -67,6 +68,8 @@ flowchart LR
 | E6 Dokumenty i media (web) | upload zdjęć, filmów i PDF, galeria z miniaturami, kategorie, podgląd i pobieranie, bezpieczne linki, przypisanie do etapu |
 | E7 Płatności etapowe | etapy płatności (kwota, nr faktury, termin, status), zestawienie nieopłaconych i po terminie |
 | E8 Gotowość produkcyjna | import istniejących danych (CSV/Excel, jeśli potrzebny), test odtworzenia backupu, monitoring i alerty, security sign-off z DAST, dokumentacja RODO, krótka instrukcja, wdrożenie produkcyjne |
+
+**Priorytet (EVM-075, 2026-10-05):** pierwszy kod produktu — EVM-008 → EVM-016 → EVM-067; EVM-073 wstrzymany ([propozycje](../notes/propozycje-po-evm-075.md)).
 
 **Plan szczegółowy:** [`docs/backlog/M1/README.md`](../backlog/M1/README.md) — 60 historyjek EVM-014 … EVM-073 (EVM-010, `/milestone plan M1`; zmiany w tej sekcji **zaakceptowane przez Konrada 2026-10-03** — decyzja 13 w planie; EVM-073 — dług narzędzia dokumentacji, P3, dopisana 2026-10-05 decyzją Konrada w EVM-013). Kolejność w fazach:
 
