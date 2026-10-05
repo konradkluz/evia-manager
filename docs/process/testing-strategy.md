@@ -67,7 +67,7 @@ Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga A
 5. Wynik i obserwacje zapisane w historyjce wydania.
 
 ## Narzędzia
-Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: sprawdzenie hooków git, usunięcie starych raportów `lcov.info`, `gate:native` — format, lint, typy, testy z progami w każdym workspace, granice modułów — potem `gate:backend` w kontenerze `backend-tests` i `coverage:diff`). W CI te same polecenia (`.github/workflows/ci.yml`); skany bezpieczeństwa: `pnpm run scan` (`tools/scan/README.md`).
+Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: sprawdzenie hooków git, walidator dokumentacji `node tools/docs-lifecycle/cli.mjs check` — w CI pierwszy krok joba `quality`, bramka 11 — usunięcie starych raportów `lcov.info`, `gate:native` — format, lint, typy, testy z progami w każdym workspace, granice modułów — potem `gate:backend` w kontenerze `backend-tests` i `coverage:diff`). W CI te same polecenia (`.github/workflows/ci.yml`); skany bezpieczeństwa: `pnpm run scan` (`tools/scan/README.md`).
 
 | Warstwa / rodzaj | Narzędzie | Polecenie | Od |
 |---|---|---|---|

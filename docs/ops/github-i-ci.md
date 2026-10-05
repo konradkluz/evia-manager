@@ -5,10 +5,12 @@
 ## CI w skrócie
 | Workflow | Kiedy | Co |
 |---|---|---|
-| `.github/workflows/ci.yml` | każdy push każdej gałęzi, ręcznie | `quality` (instalacja z lockfile → format → lint → typy → granice modułów → testy z progami → build), `backend` (kontener `backend-tests`, licencje), `security` (sekrety, SAST, zależności, Dockerfile, workflowy, konfiguracja Renovate, samotest skanerów), `coverage` (pokrycie zmienionego kodu ≥ 90%), **`ci-gate`** (zielony tylko, gdy wszystkie powyższe mają `success`) |
+| `.github/workflows/ci.yml` | każdy push każdej gałęzi, ręcznie | `quality` (walidator dokumentacji — bramka 11 → instalacja z lockfile → format → lint → typy → granice modułów → testy z progami → build), `backend` (kontener `backend-tests`, licencje), `security` (sekrety, SAST, zależności, Dockerfile, workflowy, konfiguracja Renovate, samotest skanerów), `coverage` (pokrycie zmienionego kodu ≥ 90%), **`ci-gate`** (zielony tylko, gdy wszystkie powyższe mają `success`) |
 | `.github/workflows/main-integrity.yml` | każdy push na `main`, codziennie 02:45 UTC, ręcznie | K6 (niżej) — osobny workflow **bez grupy `concurrency`**: GitHub anuluje oczekujący przebieg grupy, gdy w kolejce pojawi się nowszy, a anulowanie nie wysyła e-maila |
 | `.github/workflows/nightly.yml` | codziennie 02:30 UTC na `main`, ręcznie | pełne skany + samotest, `pnpm audit` jako raport |
 | `.github/workflows/renovate.yml` | poniedziałek 05:00 UTC na `main`, ręcznie | Renovate — tylko gdy zmienna repozytorium `RENOVATE_ENABLED` = `true` (patrz „Renovate”) |
+
+**Walidator dokumentacji (bramka 11, SR-SUPPLY-11; EVM-013).** Działa na każdym pushu jako pierwszy krok joba `quality` — krok „Documentation lifecycle validator (docs:check, bramka 11)”, zanim cokolwiek zostanie zainstalowane. Błędy polityki cyklu życia dokumentów (kod `1`) i błąd narzędzia (kod `2`) czerwienią ten krok, a przez niego `ci-gate`: pozostałe kroki `quality` się nie wykonują, job `coverage` jest pominięty, a `backend` i `security` dają własne wyniki. Ostrzeżenia („osierocony”, „przeterminowany”) nie blokują. Wynik: sekcja „Walidator dokumentacji (EVM-013)” w podsumowaniu przebiegu (Summary) — wynik, licznik, do 100 pozycji na listę; pełna lista w logu kroku. Powtórzenie lokalnie: `npm run docs:check` albo `pnpm run gate`. Zasady: `docs/process/document-lifecycle.md` → „W CI (bramka 11)”.
 
 Te same polecenia działają lokalnie: `pnpm run gate`, `pnpm run scan` (`CLAUDE.md` → „Stack i komendy”). Agenci nie widzą wyników CI bez `gh` — wynik `ci-gate` i linki do przebiegów przekazuje Konrad albo orkiestrator przez `gh` (K4).
 
@@ -65,7 +67,8 @@ Każda zmiana na `main` przechodzi przez PR — także backlog, ADR i `/mileston
 
 ## Minuty Actions i koszty
 - Pula Free: 2000 min/mies. dla repozytoriów prywatnych; szacunek 700–1150 min/mies. (przebieg `ci.yml` ok. 12–14 min sumy jobów; nightly ok. 150 min/mies.; Renovate ok. 150 min/mies.).
-- Konrad raz w miesiącu: Settings → Billing → Actions usage. Powyżej ok. 1500 min/mies. — propozycja z „Uwag do rozważenia” EVM-006 (pomijanie ciężkich jobów przy zmianach wyłącznie w dokumentacji).
+- Walidator dokumentacji (EVM-013) to krok joba `quality`, nie osobny job — 0 dodatkowych rozliczanych minut (krok trwa kilka sekund, `timeout-minutes: 2`).
+- Konrad raz w miesiącu: Settings → Billing → Actions usage. Powyżej ok. 1500 min/mies. — propozycja z „Uwag do rozważenia” EVM-006 (pomijanie ciężkich jobów przy zmianach wyłącznie w dokumentacji). Gdy wejdzie, walidator dokumentacji musi zostać w jobie, który uruchamia się zawsze.
 
 ## Przegląd dostępów (SR-INFRA-09) — co kwartał
 - Konta z dostępem do repozytorium (Settings → Collaborators): wyłącznie Konrad.

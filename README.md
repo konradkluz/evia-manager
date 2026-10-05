@@ -31,7 +31,7 @@ Wymagania (Windows 11): **Git**, **Docker Desktop** (testy backendu i skany w ko
 1. Klon: `git clone git@github.com:konradkluz/evia-manager.git` (albo przez alias klucza SSH) i `cd evia-manager`.
 2. Zależności na Windows + hooki git (lefthook: format, lint, gitleaks): `pnpm install`. **Nie** używaj `npm install` (tworzy `package-lock.json`).
 3. Zależności Linux w wolumenie kontenera `backend-tests` (po każdej zmianie `pnpm-lock.yaml`): `docker compose -f compose.yaml run --rm backend-install`.
-4. Bramka jakości (format, lint, typy, testy z progami pokrycia natywnie i w kontenerze, granice modułów, pokrycie zmienionego kodu ≥ 90%): `pnpm run gate`.
+4. Bramka jakości (walidator dokumentacji, format, lint, typy, testy z progami pokrycia natywnie i w kontenerze, granice modułów, pokrycie zmienionego kodu ≥ 90%): `pnpm run gate`.
 5. Build (m.in. design tokens → `packages/tokens/dist/`): `pnpm run build`.
 6. Skany bezpieczeństwa i samotest skanerów (gitleaks, Semgrep, OSV-Scanner, Trivy, zizmor, actionlint, walidacja Renovate): `pnpm run scan`.
 7. Jednorazowo na hoście: `pnpm exec turbo telemetry disable` (w kontenerze i CI telemetria jest wyłączona zmienną środowiskową).

@@ -171,6 +171,62 @@ describe('polecenia npm (EVM-012 AC3, AC8)', () => {
   });
 });
 
+describe('bramka dokumentacji w CI — opis w dokumentach (EVM-013 AC8)', () => {
+  /** What every description of the gate says (AC8): where it runs, what blocks, where the result is, how to repeat it. */
+  const GATE_ANCHORS = [
+    /na każdym pushu/,
+    /jako pierwszy krok joba `quality`/,
+    /kod `2`/,
+    /ostrzeżenia[^.]*nie blokują/i,
+    /podsumowani\w* przebiegu/,
+    /w logu/,
+    /pozostałe kroki `quality` się nie wykonują/,
+    /npm run docs:check/,
+  ];
+
+  for (const [path, heading] of [
+    ['CLAUDE.md', '## Stack i komendy'],
+    ['docs/ops/github-i-ci.md', '## CI w skrócie'],
+    ['docs/process/document-lifecycle.md', '### W CI (bramka 11)'],
+    ['tools/docs-lifecycle/README.md', '## W CI (bramka 11)'],
+  ]) {
+    it(`EVM-013 AC8: ${path} → „${heading.replace(/^#+ /, '')}” opisuje bramkę dokumentacji w CI`, () => {
+      const text = section(read(path), heading);
+      assert.ok(text, `brak sekcji ${heading}`);
+      for (const anchor of GATE_ANCHORS) assert.match(text, anchor, `${path}: ${anchor.source}`);
+    });
+  }
+
+  it('EVM-013 AC8: polityka — wiersz „każdy push” w tabeli „Kiedy” i polecenie check --summary w tabeli poleceń; punkt DoD bez zmian', () => {
+    const policy = read(POLICY);
+    assert.ok(
+      String(section(policy, '### Kiedy'))
+        .split('\n')
+        .some((line) => line.startsWith('| każdy push (CI, bramka 11) |')),
+    );
+    assert.ok(!policy.includes('| po EVM-006 |'), 'wiersz „po EVM-006” zastąpiony');
+    assert.ok(String(section(policy, '### Polecenia')).includes('`node tools/docs-lifecycle/cli.mjs check --summary`'));
+    assert.ok(read('docs/process/definition-of-done.md').includes('npm run docs:check'));
+  });
+
+  it('EVM-013 AC8: odwołania do długu wskazują EVM-073 i nie zapowiadają migracji na TypeScript ani Vitest (6 miejsc z AC8)', () => {
+    const DEBT_EVM_013 =
+      /(?:dług|debt)[^.\n]*EVM-013|EVM-013[^.\n]*(?:dług|debt)|migra\w*[^.\n]*(?:TypeScript|Vitest)|TypeScript \+ Vitest/i;
+    for (const path of [
+      'packages/config/README.md',
+      'tools/repo-policy/README.md',
+      'tools/repo-policy/test/structure.test.ts',
+      'tools/docs-lifecycle/README.md',
+      'tools/docs-lifecycle/eslint.config.js',
+      'tools/docs-lifecycle/tsconfig.json',
+    ]) {
+      const text = read(path);
+      assert.ok(text.includes('EVM-073'), `${path}: brak odwołania do EVM-073`);
+      assert.doesNotMatch(text, DEBT_EVM_013, path);
+    }
+  });
+});
+
 describe('sprzątanie w /milestone close i zasady dla agentów (EVM-012 AC7, AC8)', () => {
   it('EVM-012 AC7: tryb close w SKILL.md ma krok „Sprzątanie dokumentacji” z raportem i zapisem w retrospektywie', () => {
     const close = String(section(read('.claude/skills/milestone/SKILL.md'), '## Tryb `close`'));
