@@ -25,7 +25,7 @@ export async function setup(project: TestProject): Promise<void> {
     .withEnvironment({ POSTGRES_INITDB_ARGS })
     .withDatabase('evia')
     .withUsername('evia')
-    .withPassword('synthetic-ci-password')
+    .withPassword('evia-ci')
     .start();
   project.provide('adminDatabaseUrl', container.getConnectionUri());
 }

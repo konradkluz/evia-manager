@@ -92,6 +92,41 @@ describe('compose.yaml checker (EVM-006 AC1; A6, W9)', () => {
     expect(problems.join('\n')).not.toContain('127.0.0.1:8080');
   });
 
+  it('EVM-008 AC1 (A1, RR-03): every network is internal, services join only defined networks and never publish ports there', () => {
+    const service = { ...HARDENED, image: `img:1.0@sha256:${DIGEST}` };
+    const good = {
+      networks: { db: { internal: true } },
+      services: { postgres: { ...service, networks: ['db'] }, 'backend-tests': { ...service, networks: ['db'] } },
+    };
+    expect(composeProblems(good, '', dockerfile)).toEqual([]);
+    const bad = {
+      networks: { open: {}, half: { internal: 'true' } },
+      services: {
+        a: { ...service, networks: ['open', 'missing'], ports: ['127.0.0.1:5432:5432'] },
+        b: { ...service, networks: { half: {} } },
+      },
+    };
+    const problems = composeProblems(bad, '', dockerfile).join('\n');
+    for (const fragment of [
+      'sieć open musi mieć internal: true',
+      'sieć half musi mieć internal: true',
+      'a: sieć missing nie jest zdefiniowana',
+      'a: usługa w sieci wewnętrznej nie publikuje portów',
+    ])
+      expect(problems).toContain(fragment);
+  });
+
+  it('EVM-008 AC1 (A1): backend-tests never reaches a network with egress — network_mode none or internal networks only', () => {
+    const service = { ...HARDENED, image: `img:1.0@sha256:${DIGEST}` };
+    const offline = { services: { 'backend-tests': { ...service, network_mode: 'none' } } };
+    expect(composeProblems(offline, '', dockerfile)).toEqual([]);
+    for (const backend of [{ ...service }, { ...service, network_mode: 'bridge' }, { ...service, networks: [] }]) {
+      expect(composeProblems({ services: { 'backend-tests': backend } }, '', dockerfile).join('\n'), JSON.stringify(backend)).toContain(
+        'backend-tests: wymagane network_mode: none albo wyłącznie sieci internal',
+      );
+    }
+  });
+
   it('EVM-006 AC1 (W9): a built image needs a Dockerfile whose every FROM has a digest', () => {
     const service = { ...HARDENED, build: { context: 'infra/x' }, image: 'local:dev' };
     expect(composeProblems({ services: { a: service } }, '', () => 'FROM node:26\n')).toEqual([

@@ -152,7 +152,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
-    expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/*');
+    expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api');
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
   });

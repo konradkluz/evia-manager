@@ -4,6 +4,8 @@
 # no privileged mode, no Docker socket, no env_file and no ${…} interpolation; read-only root file system, all
 # capabilities dropped, no-new-privileges, non-root user; bind mounts only from the allow-list, read-only except
 # output directories (coverage/backend-tests, .scratch/scans). No project `name:` — every clone gets its own volumes.
+# Networks (EVM-008): every network is internal (no egress); backend-tests runs with network_mode none or on internal
+# networks only.
 # Scanners see only the paths they scan: .scratch/ (output and self-test fixtures) is never a scan target (W7).
 
 x-hardening: &hardening
@@ -38,6 +40,7 @@ x-backend: &backend
     - ./pnpm-workspace.yaml:/src/pnpm-workspace.yaml:ro
     - ./turbo.json:/src/turbo.json:ro
     - ./.nvmrc:/src/.nvmrc:ro
+    - ./apps:/src/apps:ro
     - ./packages:/src/packages:ro
     - ./tools:/src/tools:ro
     - ./design/tokens:/src/design/tokens:ro
@@ -48,10 +51,41 @@ services:
     <<: *backend
     command: ['install']
 
-  # Lint, types and tests with coverage on Linux, without network (EVM-008: internal network with PostgreSQL).
+  # Lint, types and tests with coverage on Linux. No egress: only the internal network shared with postgres (EVM-008).
+  # Integration tests: … run --rm backend-tests pnpm --filter @evia/api run test:integration (EVIA_TEST_DATABASE_URL).
   backend-tests:
     <<: *backend
-    network_mode: none
+    networks: [backend-db]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      EVIA_TEST_DATABASE_URL: postgres://evia:evia-local@postgres:5432/evia
+
+  # PostgreSQL 18 for integration tests (EVM-008 AC1; ADR-0003, ADR-0015) — ephemeral (tmpfs), internal network, no
+  # ports. Image and initdb arguments = apps/api/test/support/postgres.ts (Testcontainers in CI); repo-policy checks
+  # they match. Runs directly as the postgres user (uid 999): no chown/gosu, so all capabilities stay dropped.
+  # The password is synthetic and local only (never trust authentication).
+  postgres:
+    <<: *hardening
+    image: postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    user: '999:999'
+    networks: [backend-db]
+    environment:
+      POSTGRES_USER: evia
+      POSTGRES_PASSWORD: evia-local
+      POSTGRES_DB: evia
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=pl-PL
+    tmpfs:
+      - /var/lib/postgresql:uid=999,gid=999,mode=0700,nosuid,nodev
+      - /var/run/postgresql:uid=999,gid=999,mode=0775,nosuid,nodev
+      - /tmp:noexec,nosuid,nodev,mode=1777
+    healthcheck:
+      # TCP, not the socket: during initdb the entrypoint runs a temporary server without TCP.
+      test: ['CMD', 'pg_isready', '--host=127.0.0.1', '--username=evia', '--dbname=evia']
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   # Secrets (bramka 1): git history and staged changes; reads only .git. Always with --redact (tools/scan).
   scan-gitleaks:
@@ -150,6 +184,11 @@ services:
       HOME: /tmp
     volumes:
       - ./renovate.json:/src/renovate.json:ro
+
+networks:
+  # backend-tests ↔ postgres only; internal: no route outside the host (EVM-008, A1).
+  backend-db:
+    internal: true
 
 volumes:
   bt-work:

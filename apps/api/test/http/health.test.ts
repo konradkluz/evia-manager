@@ -44,7 +44,7 @@ describe('GET /api/health (EVM-008 AC1, AC2; SR-API-12)', () => {
       traceId: body.traceId,
     });
     expect(response.text).not.toMatch(/ECONNREFUSED|127\.0\.0\.1|5432|evia|password|postgres|stack/i);
-    expect(current.logs.text).not.toContain('synthetic-test-password');
+    expect(current.logs.text).not.toContain('evia-test');
     expect(current.logs.text).not.toContain(UNREACHABLE_DATABASE_URL);
   });
 

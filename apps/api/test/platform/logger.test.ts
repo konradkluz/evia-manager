@@ -4,12 +4,12 @@ import { LogCapture } from '../support/app.ts';
 
 /** Synthetic values that must never reach the log output (ADR-0013 list). */
 const SENSITIVE: Record<string, string> = {
-  authorization: 'Bearer synthetic-token-1',
-  cookie: '__Host-evia_session=synthetic-session-2',
-  'set-cookie': 'synthetic-cookie-3',
-  password: 'synthetic-password-4',
-  accessToken: 'synthetic-token-5',
-  refresh_token: 'synthetic-token-6',
+  authorization: 'Bearer fake-one',
+  cookie: '__Host-evia_session=fake-two',
+  'set-cookie': 'fake-three',
+  password: 'fake-four',
+  accessToken: 'fake-five',
+  refresh_token: 'fake-six',
   mfaCode: '123456',
   otp: '654321',
   email: 'jan.przykladowy@example.invalid',
@@ -21,9 +21,9 @@ const SENSITIVE: Record<string, string> = {
   name: 'Klient Przykładowy',
   address: 'ul. Przykładowa 1, 00-000 Przykładowo',
   fileName: 'umowa-klienta.pdf',
-  signedUrl: 'https://bucket.invalid/o?X-Amz-Signature=synthetic-signature-7',
-  'X-Amz-Signature': 'synthetic-signature-8',
-  apiKey: 'synthetic-api-key-9',
+  signedUrl: 'https://bucket.invalid/o?X-Amz-Signature=fake-seven',
+  'X-Amz-Signature': 'fake-eight',
+  apiKey: 'fake-nine',
 };
 
 function capture(level: 'info' | 'warn' = 'info') {

@@ -14,7 +14,7 @@ import { createLogger } from '../../src/platform/logging/logger.ts';
 import { NestLoggerAdapter } from '../../src/platform/logging/nest-logger.ts';
 
 /** A database that refuses connections immediately (nothing listens on port 1) — no DNS, no waiting. */
-export const UNREACHABLE_DATABASE_URL = 'postgres://evia:synthetic-test-password@127.0.0.1:1/evia';
+export const UNREACHABLE_DATABASE_URL = 'postgres://evia:evia-test@127.0.0.1:1/evia';
 
 export function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {

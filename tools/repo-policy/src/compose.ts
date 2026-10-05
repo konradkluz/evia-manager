@@ -26,6 +26,9 @@ export function composeProblems(document: unknown, raw: string, dockerfile: (con
     problems.push('compose.yaml: interpolacja ${…} jest zabroniona (zmienne hosta zmieniłyby montaże lub obraz)');
   if ('name' in top) problems.push('compose.yaml: bez `name:` — każdy klon ma własne wolumeny');
   for (const key of ['include', 'extends']) if (key in top) problems.push(`compose.yaml: zabronione ${key}`);
+  const networks = record(top['networks']);
+  for (const [name, value] of Object.entries(networks))
+    if (record(value)['internal'] !== true) problems.push(`compose.yaml: sieć ${name} musi mieć internal: true (bez wyjścia na zewnątrz)`);
   for (const [name, value] of Object.entries(record(top['services']))) {
     const service = record(value);
     const where = `compose.yaml: ${name}`;
@@ -44,7 +47,23 @@ export function composeProblems(document: unknown, raw: string, dockerfile: (con
       if (!port.startsWith('127.0.0.1:')) problems.push(`${where}: port ${port} poza 127.0.0.1`);
     }
     problems.push(...volumeProblems(where, list(service['volumes']).map(String)));
+    problems.push(...networkProblems(name, service, networks));
   }
+  return problems;
+}
+
+/**
+ * EVM-008 (A1, RR-03): services join only defined (internal) networks and publish no ports there; backend-tests never
+ * reaches a network with egress — network_mode none or internal networks only (the default network has egress).
+ */
+function networkProblems(name: string, service: Record<string, unknown>, networks: Record<string, unknown>): string[] {
+  const where = `compose.yaml: ${name}`;
+  const value = service['networks'];
+  const joined = Array.isArray(value) ? value.map(String) : Object.keys(record(value));
+  const problems = joined.filter((network) => !(network in networks)).map((network) => `${where}: sieć ${network} nie jest zdefiniowana`);
+  if (joined.length > 0 && list(service['ports']).length > 0) problems.push(`${where}: usługa w sieci wewnętrznej nie publikuje portów`);
+  const offline = text(service['network_mode']) === 'none' || (joined.length > 0 && !('network_mode' in service));
+  if (name === 'backend-tests' && !offline) problems.push(`${where}: wymagane network_mode: none albo wyłącznie sieci internal`);
   return problems;
 }
 
