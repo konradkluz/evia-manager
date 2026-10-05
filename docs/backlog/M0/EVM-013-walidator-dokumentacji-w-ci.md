@@ -4,7 +4,7 @@ title: Walidator cyklu życia dokumentacji jako bramka CI
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P2
 owner: devops-engineer
 contributors: []
@@ -246,6 +246,12 @@ Refinement 2026-10-05 (Konrad):
 4. **Node 26 dla środowiska Claude Code web** — osobny krok poza EVM-013: `devops-engineer` przygotowuje i sprawdza polecenia do skryptu konfiguracji środowiska; Konrad wkleja je w ustawieniach środowiska.
 5. Bez hooka git (pre-commit / pre-push) — do rozważenia po powrocie do pracy lokalnej. Dowód czerwonego przebiegu — na gałęzi historyjki, commit z celowym błędem, potem `git revert` (squash nie przenosi go na `main`).
 
+Akceptacja 2026-10-05 (Konrad):
+
+6. **AC1–AC8 zaakceptowane** — status `ready`; realizacja (`/deliver EVM-013`) na tej samej gałęzi, refinement trafia do `main` razem z realizacją w jednym PR.
+7. **EVM-073 — faza 7 M1** (po historyjkach P1, jeśli nie opóźnia 1.0; wcześniej tylko decyzją Konrada, gdy środowisko chmury będzie miało Node 26).
+8. **Pozycje do backlogu (L5, obserwacje z EVM-012)** — jedna historyjka P3 „Porządki walidatora dokumentacji” tworzona po zakończeniu EVM-013, z `security-engineer` jako recenzentem (L5 zmienia `ci.yml`); do tego czasu — „Uwagi do rozważenia”. EVM-073 bez przeglądu `security-engineer` (zachowanie narzędzia bez zmian, poza listami K3/K6).
+
 ## Uwagi do rozważenia
 Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 1. **L5** — `codeCell` w `tools/docs-lifecycle/lib/format.mjs` psuje się dla ścieżek z dwoma backtickami, a krok K3 w jobie `security` (`ci.yml`) wpisuje ścieżki z `git diff` do podsumowania bez escapowania Markdown (CWE-116, Low).
@@ -273,3 +279,4 @@ Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 - 2026-10-05 — refinement (product-owner): historyjka i rezultat, kontekst (stan po EVM-006, warunek startu, praca wyłącznie w Claude Code web), AC1–AC7, „Poza zakresem” (dług z EVM-012 i lokalne wymuszenie — do decyzji Konrada), DoD z dowodami z przebiegów CI; dodany recenzent `security-engineer`. „Notatki techniczne” bez zmian, a „Bezpieczeństwo i prywatność” czeka na konsultację `solution-architect` i `security-engineer` (wkleja orkiestrator). Status `draft` do akceptacji Konrada.
 - 2026-10-05 — konsultacje `solution-architect` („Notatki techniczne”) i `security-engineer` („Bezpieczeństwo i prywatność”: L1–L5, kontrole 1–9) wklejone przez orkiestratora; decyzje Konrada 1–5 („Decyzje”)
 - 2026-10-05 — AC i DoD dostosowane do „Decyzji” 1–5; szkic EVM-073 (product-owner)
+- 2026-10-05 — draft → ready: AC1–AC8 zaakceptowane przez Konrada; decyzje 6–8 (EVM-073 — faza 7; porządki walidatora — P3 po EVM-013)
