@@ -1,12 +1,13 @@
 // @ts-check
 /**
  * Output of the validator and the cleanup report (Polish, UTF-8, `/` in paths, deterministic order).
- * Only paths and metadata are printed — never document content. Every line is escaped (finding I).
+ * Only paths and metadata are printed — never document content. Every line is escaped (finding I) and never a workflow
+ * command of the GitHub Actions runner (EVM-013 L2, W1).
  */
 import { CLASS_LABELS } from './analyze.mjs';
 import { ACTIONS } from './cleanup.mjs';
 import { CLASSES } from './config.mjs';
-import { escapeText } from './text.mjs';
+import { safeLine } from './text.mjs';
 
 const SEP = ' · ';
 const SEVERITY_LABELS = /** @type {Record<string, string>} */ ({ error: 'BŁĄD', warning: 'OSTRZEŻENIE' });
@@ -35,11 +36,12 @@ export function classLabel(cls) {
 }
 
 /**
+ * The only way text leaves the tool (stdout and stderr): every line through `safeLine`.
  * @param {string[]} lines
- * @returns {string} escaped lines, each terminated with LF
+ * @returns {string} safe lines, each terminated with LF
  */
-function render(lines) {
-  return lines.map((line) => `${escapeText(line)}\n`).join('');
+export function render(lines) {
+  return lines.map((line) => `${safeLine(line)}\n`).join('');
 }
 
 /**

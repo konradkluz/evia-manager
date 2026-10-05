@@ -11,7 +11,7 @@ import { normalizeText, parseFrontmatter } from './frontmatter.mjs';
 import { collectMilestones, isMilestoneId } from './milestones.mjs';
 import { matchPattern } from './patterns.mjs';
 import { buildReferenceIndex } from './references.mjs';
-import { compareCodeUnits, isMarkdown, quote } from './text.mjs';
+import { compareCodeUnits, isMarkdown, quote, shellQuote } from './text.mjs';
 
 /** Entry point in any directory — never „osierocony” (policy → „Dozwolone lokalizacje”). */
 const ENTRY_POINT = 'README.md';
@@ -263,7 +263,7 @@ function checkScratch(paths, scratchIgnored, ctx) {
     error(
       'ephemeral-tracked',
       path,
-      `plik roboczy widoczny dla gita (śledzony albo nieignorowany) — usuń go z indeksu (git rm --cached -- ${path}) i trzymaj tylko w ${prefix} ignorowanym przez git`,
+      `plik roboczy widoczny dla gita (śledzony albo nieignorowany) — usuń go z indeksu (git rm --cached -- ${shellQuote(path)}) i trzymaj tylko w ${prefix} ignorowanym przez git`,
       true,
     );
   }

@@ -11,7 +11,7 @@ import { buildCleanupReport } from './cleanup.mjs';
 import { loadConfig } from './config.mjs';
 import { isValidIsoDate, todayInZone } from './dates.mjs';
 import { errorMessage, ToolError } from './errors.mjs';
-import { formatCheck, formatCleanupReport, USAGE } from './format.mjs';
+import { formatCheck, formatCleanupReport, render, USAGE } from './format.mjs';
 import { loadRepository } from './repository.mjs';
 import { quote } from './text.mjs';
 
@@ -92,10 +92,11 @@ export function main(argv, io) {
   try {
     return run(argv, io);
   } catch (error) {
+    // Messages may quote file names and arguments: one escaped line each (EVM-013 L1); a stack line by line.
     if (error instanceof ToolError) {
-      io.stderr.write(`Nie można wykonać polecenia: ${error.message}\nPomoc: node tools/docs-lifecycle/cli.mjs --help\n`);
+      io.stderr.write(render([`Nie można wykonać polecenia: ${error.message}`, 'Pomoc: node tools/docs-lifecycle/cli.mjs --help']));
     } else {
-      io.stderr.write(`Nieoczekiwany błąd narzędzia: ${inspect(error)}\n`);
+      io.stderr.write(render(`Nieoczekiwany błąd narzędzia: ${inspect(error)}`.split('\n')));
     }
     return EXIT.usage;
   }
