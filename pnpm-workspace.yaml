@@ -29,3 +29,10 @@ catalog:
   eslint: 10.11.0
   typescript: 6.0.3
   vitest: 5.0.3
+
+# Security overrides — each with advisories and an exit condition (SR-SUPPLY-02).
+overrides:
+  # EVM-008: @hey-api/json-schema-ref-parser 1.4.4 (build-time dependency of @hey-api/openapi-ts) pins js-yaml 4.2.0
+  # (GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh: CPU exhaustion on crafted YAML). 4.3.2 is a
+  # compatible patch release. Remove when the generator ships js-yaml >= 4.3.2.
+  'js-yaml@4.2.0': 4.3.2
