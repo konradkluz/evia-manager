@@ -4,7 +4,7 @@ title: Walidator cyklu życia dokumentacji jako bramka CI
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P2
 owner: devops-engineer
 contributors: []
@@ -280,3 +280,4 @@ Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 - 2026-10-05 — konsultacje `solution-architect` („Notatki techniczne”) i `security-engineer` („Bezpieczeństwo i prywatność”: L1–L5, kontrole 1–9) wklejone przez orkiestratora; decyzje Konrada 1–5 („Decyzje”)
 - 2026-10-05 — AC i DoD dostosowane do „Decyzji” 1–5; szkic EVM-073 (product-owner)
 - 2026-10-05 — draft → ready: AC1–AC8 zaakceptowane przez Konrada; decyzje 6–8 (EVM-073 — faza 7; porządki walidatora — P3 po EVM-013)
+- 2026-10-05 — ready → in-progress: start `/deliver EVM-013` na gałęzi `feature/EVM-013-walidator-dokumentacji-w-ci` (orkiestrator). Warunek startu spełniony: `npm run docs:check` na `main` (`ee58da5`) — 168 plików, 0 błędów, 0 ostrzeżeń; na gałęzi — 169 plików, 0 błędów, 0 ostrzeżeń. Środowisko Claude Code web w tej sesji: Node 26.10.0 i pnpm 12.8.1 domyślnie (zależności zainstalowane), Node 22.22 w `/opt/node22/bin`, demon Dockera niedostępny. Bazowo na gałęzi `pnpm run gate:native` (Prettier, lint, typy, testy z pokryciem 27 zadań Turborepo, granice modułów) jest zielone natywnie (ok. 43 s); część kontenerowa `pnpm run gate` (`gate:backend`) i `pnpm run scan` — tylko w CI.
