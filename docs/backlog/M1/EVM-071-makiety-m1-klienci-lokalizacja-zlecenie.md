@@ -4,7 +4,7 @@ title: Makiety ekranów M1 — klienci, lokalizacja, edycja zlecenia i prywatno�
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -310,10 +310,21 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 15. **Styleguide (najbliższa wersja)** — kolumna „Ekrany” w § 8 bez W-14, W-19, W-20 i rozszerzeń EVM-071 (jak przy E1); nota w § 3.12, że zakaz „Z galerii” dotyczy aplikacji mobilnej, a W-09 w przeglądarce telefonu wybiera pliki z galerii (decyzja 18).
 16. **Słownik (`domain.md`)** — pojęcia z makiet M1 dopisuje `product-owner` (krok 10 planu): klient usunięty, klient zanonimizowany, filtr „Usunięci”, klauzula informacyjna, instrukcja dla biura, „Nie wysłano” (pliki z przeglądarki w telefonie), „Do wystawienia” (już jest), „Inna usługa”. **Zrealizowane 2026-10-05** — `domain.md` → „Pojęcia z makiet M1 (dodane w EVM-071)”, 12 pojęć; dodatkowo: historia zleceń klienta, lokalizacja i strona wspólna, usunięcie pozycji zakresu, procesu albo etapu (wobec „Nie dotyczy”), kontakt z administratorem, panel w przeglądarce telefonu, „Wysłano”. Wiersz „Zlecenie zamknięte — tylko do odczytu” doprecyzowany o rozstrzygnięcie 15 (lokalizacja i strony edytowalne także w zleceniu zamkniętym).
 
+17. **Ustalenia nieblokujące z weryfikacji (runda 2: `qa-engineer`) — do decyzji na demo:**
+   - (a) W-06 (b) — podpowiedzi przy etapach i płatnościach dla Administratora brzmią jak dla Edytora („…po przywróceniu zlecenia przez administratora”, „Przywrócić zlecenie może…”) → rozdzielić wg roli; wyrównać `04` i `08` (minor).
+   - (b) W-14 — wyłączona „Anonimizuj klienta…” przy niezamkniętych zleceniach ma podpowiedź usunięcia („Usuniesz go…”), a alert `409` anonimizacji nie mówi, co zrobić (§ 6.4) → „…Zanonimizujesz go, gdy wszystkie będą rozliczone albo anulowane.” w podpowiedzi i alercie; brzmienie EVM-041 AC2 → „(komunikat z makiety)” (minor).
+   - (c) W-19 „Pomoc” — link `mailto:`: nazwa dostępna „Napisz do administratora: …” nie zawiera widocznej etykiety, jeśli linkiem jest cała linia (WCAG 2.5.3) → tekst linku = adres, nazwa zaczyna się od widocznego tekstu; analogicznie telefon w W-14 (minor).
+   - (d) W-11 „Do wystawienia” — „Licznikowy Adam” (`sortName`) → „Adam Licznikowy” (`displayName`; `sortName` tylko w W-14) (nit).
+   - (e) W-06 (d) — ten sam etap jednocześnie aktywny i na liście „Usunięte procesy i etapy” → inny etap albo osobny stan „po usunięciu” (nit).
+   - (f) W-06 (a) — alert `409` tylko w wariancie „rozliczone” (brak „anulowane”); W-06 (b) → „Błąd” bez `429` (nit).
+   - (g) W-14 — diagram „Usunięcie, przywrócenie i anonimizacja”: wejście z listy „Usunięci” prowadzi do węzła z toastem usunięcia → osobny węzeł „Szczegóły: Banner Klient jest usunięty” (nit).
+   - (h) W-14 — AlertDialog anonimizacji: brak fokusu po „Anuluj” (→ wyzwalacz `⋮`) i po powrocie z W-04 (alert w dialogu) (nit).
+   - (i) W-19 — blok „Problem z logowaniem?” przed zalogowaniem wykracza poza EVM-063 AC3 („tylko kontakt”) i zasadę 4 w `15` → dopisać do pkt 10 jako (d) i doprecyzować zasadę 4 (nit).
+
 ## Definition of Done
-- [ ] AC1–AC8 spełnione (weryfikacja QA przez inspekcję)
-- [ ] Przeglądy: web-developer, security-engineer — APPROVE
-- [x] `CHANGELOG.md` zaktualizowany
+- [x] AC1–AC8 spełnione (weryfikacja QA przez inspekcję) — `qa-engineer` runda 2: PASS AC1–AC8; orkiestrator 2026-10-05: `npm run docs:check` 0 błędów / 0 ostrzeżeń (168 plików), `npm run test:tools` 328/328, lokalny render Mermaid 14/14, linki i kotwice w 16 plikach — 0 zepsutych, tokeny 82 / 0 brakujących, § — 0 brakujących, 0 literałów kolorów, jednostek i fontów; dane syntetyczne (`example.com`, `*.test`, telefony `+48 600 000 00x` jak w makietach EVM-004)
+- [x] Przeglądy: web-developer, security-engineer — APPROVE (runda 2; runda 1: `web-developer` 1 × major — nazwa dostępna wiersza W-14 zgodna z widoczną etykietą, WCAG 2.5.3 — naprawiony; konsultacja `security-engineer` A1–A6, B1–B10 wbudowana w makiety)
+- [x] `CHANGELOG.md` zaktualizowany (Unreleased → Dodano, wpis EVM-071)
 - [ ] Demo i akceptacja Konrada
 
 ## Dziennik
@@ -325,3 +336,5 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 - 2026-10-05 — konsultacja `security-engineer` (S1–S7): CHANGES — uzupełnienia A1–A6 i uwagi B1–B10 wpisane do „Ustaleń z konsultacji” i do makiet; bez decyzji Konrada
 - 2026-10-05 — implementacja (ux-designer): nowe przepływy `13-klienci.md` (W-14), `14-edycja-lokalizacji-i-strony.md` (W-20), `15-prywatnosc-i-pomoc.md` (W-19); rozszerzenia `03` (W-06 (a)–(d)), `06` (W-09 w przeglądarce telefonu), `07` (W-10), `08` (dialogi transz, W-11 „Do wystawienia”), `01` (stopka W-01, tytuł W-04); `flows/README.md` (mapa, „Ekrany”, macierz, zasady wspólne 16–20, „Pokrycie EVM-071”, polityki P3, P6, P7, P10); `scenariusze-a-d.md` (L7, L8, A1″), `10`; `docs/ux/README.md`, `docs/README.md`, `CHANGELOG.md`; rozstrzygnięcia 15–20 i „Uwagi do rozważenia”. Zmiany w drzewie roboczym (bez commita — agent bez powłoki); `npm run docs:check`, `npm run test:tools`, render Mermaid i skrypty kontroli (linki, tokeny) uruchamia orkiestrator. Pozostaje krok 10 — `product-owner`: `domain.md`
 - 2026-10-05 — implementacja, krok 10 (product-owner): `domain.md` — nowa sekcja „Pojęcia z makiet M1 (dodane w EVM-071)” (12 pojęć w brzmieniu z makiet `13`, `14`, `15`, `03`, `06` i zasad wspólnych 18–19; bez nowych encji; nazwy w kodzie wg `domain-model.md`, brakujące kody — plany EVM-041 i EVM-044), odnośnik w nagłówku słownika, doprecyzowany wiersz „Zlecenie zamknięte — tylko do odczytu” (decyzja 17, rozstrzygnięcie 15); `CHANGELOG.md` — pojęcia we wpisie EVM-071; „Uwagi do rozważenia” 16 — zrealizowane. Decyzje 17–19 sprawdzone w README M1 — jednoznaczne. Zmiany w drzewie roboczym (bez commita — agent bez powłoki); `npm run docs:check` uruchamia orkiestrator
+- 2026-10-05 — weryfikacja (workflow `deliver-story`, 2 rundy): runda 1 — QA PASS, `security-engineer` APPROVE, `web-developer` changes_required (1 × major, W-14 nazwa dostępna), poprawka `ux-designer`; runda 2 — QA PASS AC1–AC8, oba przeglądy APPROVE; 9 ustaleń nieblokujących → „Uwagi do rozważenia” 17
+- 2026-10-05 — in-progress → in-review: weryfikacja orkiestratora (`docs:check` 0/0, `test:tools` 328/328, Mermaid 14/14, linki, tokeny i § styleguide'u, dane syntetyczne), DoD bez demo
