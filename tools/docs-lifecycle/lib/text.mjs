@@ -55,8 +55,8 @@ export function safeLine(text) {
 }
 
 /**
- * Quotes a value for a POSIX shell — `'…'`, every `'` as `'\\''` — so a hint with a path can be pasted safely (EVM-013 L4,
- * CWE-78). Combined with `safeLine` it stays valid: escaping never changes `'` or `\\`.
+ * Quotes a value for a POSIX shell — `'…'`, every `'` as `'\''` — so a hint with a path can be pasted safely (EVM-013 L4,
+ * CWE-78). Combined with `safeLine` it stays valid: escaping never changes `'` or a backslash.
  * @param {string} value
  * @returns {string}
  */
