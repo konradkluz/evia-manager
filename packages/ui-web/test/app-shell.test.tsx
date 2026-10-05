@@ -78,13 +78,17 @@ describe('AppShell — Sidebar, TopBar, skip link and navigation drawer (stylegu
     const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
     const link = within(nav).getByRole('link', { name: 'Zlecenia' });
     const label = within(nav).getByText('Zlecenia');
-    act(() => link.focus());
+    act(() => {
+      link.focus();
+    });
     await userEvent.keyboard('{Escape}');
     expect(document.activeElement).toBe(link);
     expect(label.className).not.toContain('group-focus-visible:opacity-100');
     expect(label.className).not.toContain('group-hover:opacity-100');
     expect((label.parentElement as HTMLElement).className).not.toContain('pointer-events-auto');
-    act(() => link.blur());
+    act(() => {
+      link.blur();
+    });
     expect(label.className).toContain('max-expanded:group-focus-visible:opacity-100');
     fireEvent.keyDown(link, { key: 'Escape' });
     expect(label.className).not.toContain('group-hover:opacity-100');

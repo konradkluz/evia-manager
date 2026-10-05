@@ -54,7 +54,9 @@ export function NavigationLink({
   const { icon: IconComponent } = item;
   const [dismissed, setDismissed] = useState(false);
   const shown = collapsible && !dismissed;
-  const restore = () => setDismissed(false);
+  const restore = () => {
+    setDismissed(false);
+  };
   return (
     <Link
       href={item.href}
