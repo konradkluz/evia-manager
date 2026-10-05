@@ -63,9 +63,11 @@ _Uzupełnia wykonawca._
 
 ## Decyzje
 - 2026-10-05 — Konrad: model wykonawców `opus` (szkielet ustanawia wzorce całego produktu).
+- 2026-10-05 — Konrad (plan): (1) pusty stan: tytuł „Brak zleceń”, krótki opis od `ux-designer`, bez przycisku „Nowe zlecenie” (wariant dopisany do W-10); (2) `GET /api/health` → `{status:'ok', minSupportedAppVersion:{android, ios}}` ze zmiennych środowiska, 503 problem+json bez szczegółów; `meta/client-config` i 426 → EVM-009; (3) zakres bezpieczeństwa wąski: tylko to, czego wymagają AC; (4) nagłówki panelu z jednego pliku w `apps/web` przez `vite preview` (Caddy w EVM-076), `postgres` w `compose.yaml` i joby `backend-integration` i `e2e-web` w CI w tej historyjce, bez oasdiff i jobu Windows.
 
 ## Uwagi do rozważenia
-_—_
+- Odroczone z planu: limit treści 1 MB, 415, 405/TRACE, `x-extensible-enum`, lint `channels` → EVM-016 i dalej; CSRF i limity per użytkownik → EVM-016/EVM-067; macierz ról z IDOR → EVM-016; 426 → EVM-009.
+- Schemathesis → EVM-016; pg-boss → pierwsze zadanie w tle lub EVM-076; Sentry, Caddy, HSTS produkcyjny → EVM-076.
 
 ## Definition of Done
 - [ ] AC1–AC6 spełnione i pokryte testami (`EVM-008 AC#`)
