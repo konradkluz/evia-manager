@@ -86,7 +86,7 @@ Wspólna tabela dla W-11 i sekcji „Płatności” w [W-06](03-szczegoly-zlecen
 | Anulowana | Przywróć transzę… | `cancelled → planned` — korekta płatności | tak ↑ | wyłączone | ukryte |
 | każdy | Usuń transzę… | soft delete `PaymentMilestone` — korekta płatności | tak ↑ | wyłączone | ukryte |
 | — (zlecenie) | Dodaj transzę ([dialog](#dialogi-dodaj-transzę-i-zmień-kwotę)) | utworzenie `PaymentMilestone` (`planned`, na końcu listy; 21. — `422 limit_exceeded`) | tak | tak | ukryte |
-| zlecenie Rozliczone albo Anulowane | wszystkie powyższe | zmiany płatności zablokowane (`domain-model.md`) | wyłączone: „Zlecenie jest rozliczone — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.” | wyłączone (jw.) | ukryte |
+| zlecenie Rozliczone albo Anulowane | wszystkie powyższe | zmiany płatności zablokowane (`domain-model.md`) | wyłączone: „Zlecenie jest rozliczone — płatności są tylko do odczytu. Zmienisz je po przywróceniu zlecenia.” | wyłączone: „Zlecenie jest rozliczone — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.” | ukryte |
 
 **Transza „Planowana” w W-06 — rozmieszczenie akcji** (ActionMenu, § 3.20):
 - „Wystaw fakturę…” to widoczny przycisk wiersza;
@@ -226,7 +226,7 @@ Klient [Szukaj klienta… ‹search›]                   ← filtr „Termin”
  proces
  ZL-2026-0042 · Garaż — pełny      Jan Przykładowy             Płatność końcowa (20%)          —              [Wystaw fakturę…]
  proces
- ZL-2026-0051 · Dom — sam montaż   Licznikowy Adam             Płatność za montaż (100%)       1 230,00 zł    [Wystaw fakturę…]
+ ZL-2026-0051 · Dom — sam montaż   Adam Licznikowy             Płatność za montaż (100%)       1 230,00 zł    [Wystaw fakturę…]
                                                         ‹ Poprzednia   Następna ›
 ```
 
