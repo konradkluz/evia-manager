@@ -81,6 +81,15 @@ describe('narzędzie tylko czyta (EVM-012 AC5, ustalenie F)', () => {
     }
   });
 
+  it('EVM-013 AC5: narzędzie nie zna pliku podsumowania przebiegu — w kodzie brak GITHUB_STEP_SUMMARY, a lib/ nie czyta process.env', () => {
+    for (const path of SOURCES) {
+      const text = source(path);
+      assert.ok(!text.includes('GITHUB_STEP_SUMMARY'), `${path}: GITHUB_STEP_SUMMARY`);
+      if (path.startsWith('lib/')) assert.ok(!/process\.env\b/.test(text), `${path}: process.env`);
+    }
+    assert.match(source('cli.mjs'), /env: process\.env,/);
+  });
+
   it('EVM-012 AC3: process.exitCode zamiast process.exit() (pełne wyjście w potoku)', () => {
     for (const path of SOURCES) assert.doesNotMatch(source(path), /process\.exit\s*\(/, path);
     assert.match(source('cli.mjs'), /process\.exitCode = main\(/);

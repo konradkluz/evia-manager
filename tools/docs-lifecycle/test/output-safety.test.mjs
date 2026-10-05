@@ -108,6 +108,12 @@ describe('safeLine — linia wyjścia, której runner nie weźmie za polecenie (
     assert.equal(safeLine(text), escapeText(text));
     assert.ok(!safeLine(`x\n${V2}warning${V2}y`).includes('\n'), 'jedna linia');
   });
+
+  it('EVM-013 AC4: safeLine jest idempotentne — podwójne przejście (blok podsumowania i render) nie zmienia linii', () => {
+    for (const line of [...COMMAND_NAMES, ORPHAN, ...SCRATCH, `\t${V2}x`, `\u00a0${V2}x`, `${V2}${V1}x]`]) {
+      assert.equal(printable(safeLine(safeLine(line))), printable(safeLine(line)));
+    }
+  });
 });
 
 describe('shellQuote — ścieżka we wskazówce git rm --cached (EVM-013 AC4, L4)', () => {
@@ -145,13 +151,15 @@ describe('wyjście walidatora bez poleceń runnera — nazwy plików (EVM-013 AC
       const files = { ...baseFiles(), ...Object.fromEntries([...COMMAND_NAMES, ...SCRATCH].map((name) => [name, '# X\n'])) };
       const repo = createTempRepo({ files, tracked: SCRATCH });
       try {
-        for (const argv of [['check'], ['check', '--list']]) {
+        for (const argv of [['check'], ['check', '--list'], ['check', '--summary'], ['check', '--list', '--summary']]) {
           for (const result of [runCli(argv, { cwd: repo.root, env: repo.env }), runMain(argv, { cwd: repo.root, env: repo.env })]) {
             assert.equal(result.code, EXIT.findings, argv.join(' '));
             assert.deepEqual(commandLines(streams(result)), [], argv.join(' '));
             assert.deepEqual(controlLines(streams(result)), [], argv.join(' '));
-            assert.equal(result.stderr.length, 0, 'stderr pusty');
-            const errors = result.stdout.split('\n').filter((line) => line.startsWith('BŁĄD · '));
+            // With --summary the report goes to stderr (the log) and the summary to stdout.
+            const summary = argv.includes('--summary');
+            if (!summary) assert.equal(result.stderr.length, 0, 'stderr pusty');
+            const errors = (summary ? result.stderr : result.stdout).split('\n').filter((line) => line.startsWith('BŁĄD · '));
             assert.equal(errors.length, COMMAND_NAMES.length + SCRATCH.length, argv.join(' '));
           }
         }
@@ -164,11 +172,11 @@ describe('wyjście walidatora bez poleceń runnera — nazwy plików (EVM-013 AC
   it('EVM-013 AC4 (W1): osierocona notatka z dwoma krzyżykami i nawiasem w środku nazwy — kod 0, ostrzeżenie i lista „Klasa nadana ręcznie” bez polecenia runnera', () => {
     const repo = createTempRepo({ files: { ...baseFiles(), [ORPHAN]: doc({ lifecycle: 'living' }) } });
     try {
-      for (const argv of [['check'], ['check', '--list']]) {
+      for (const argv of [['check'], ['check', '--list'], ['check', '--summary']]) {
         for (const result of [runCli(argv, { cwd: repo.root, env: repo.env }), runMain(argv, { cwd: repo.root, env: repo.env })]) {
           assert.equal(result.code, EXIT.ok, argv.join(' '));
           assert.deepEqual(commandLines(streams(result)), [], argv.join(' '));
-          const lines = result.stdout.split('\n');
+          const lines = (argv.includes('--summary') ? result.stderr : result.stdout).split('\n');
           assert.ok(
             lines.some((line) => line.startsWith(`OSTRZEŻENIE · ${safeLine(ORPHAN)} · żywy · osierocony: `)),
             'ostrzeżenie „osierocony” z nazwą po neutralizacji',
@@ -254,7 +262,7 @@ describe('stderr bez poleceń runnera — błędy użycia, środowiska i nieocze
 
 describe('wskazówka git rm --cached wklejona do powłoki (EVM-013 AC4; L4, W3)', () => {
   it(
-    'EVM-013 AC4 (W3): polecenie wycięte z wiersza BŁĄD wyjścia check i uruchomione w sh zwraca dosłowną ścieżkę — nic z nazwy pliku się nie wykonuje',
+    'EVM-013 AC4 (W3): polecenie wycięte z wiersza BŁĄD wyjścia check i z bloku --summary, uruchomione w sh, zwraca dosłowną ścieżkę — nic z nazwy pliku się nie wykonuje',
     { skip: POSIX_ONLY },
     () => {
       const repo = createTempRepo({
@@ -263,13 +271,21 @@ describe('wskazówka git rm --cached wklejona do powłoki (EVM-013 AC4; L4, W3)'
       });
       try {
         const result = runCli(['check'], { cwd: repo.root, env: repo.env });
-        assert.equal(result.code, EXIT.findings);
+        const summary = runCli(['check', '--summary'], { cwd: repo.root, env: repo.env });
+        assert.deepEqual([result.code, summary.code], [EXIT.findings, EXIT.findings]);
         for (const path of SCRATCH) {
-          const line = result.stdout.split('\n').find((text) => text.startsWith(`BŁĄD · ${path} · roboczy · `));
-          assert.ok(line, `brak wiersza BŁĄD dla ${path}`);
-          const pasted = pastedPath(line);
-          assert.equal(pasted, path);
-          assert.ok(!pasted.includes('uid='), path);
+          // In the step summary the same entry is a line of the code block, without the BŁĄD label.
+          /** @type {Array<[string, string | undefined]>} */
+          const sources = [
+            ['check', result.stdout.split('\n').find((text) => text.startsWith(`BŁĄD · ${path} · roboczy · `))],
+            ['--summary', summary.stdout.split('\n').find((text) => text.startsWith(`${path} · roboczy · `))],
+          ];
+          for (const [where, line] of sources) {
+            assert.ok(line, `brak wskazówki dla ${path} (${where})`);
+            const pasted = pastedPath(line);
+            assert.equal(pasted, path, where);
+            assert.ok(!pasted.includes('uid='), `${path} (${where})`);
+          }
         }
       } finally {
         repo.cleanup();

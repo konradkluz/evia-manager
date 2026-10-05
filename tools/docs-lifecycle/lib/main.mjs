@@ -1,8 +1,9 @@
 // @ts-check
 /**
  * Command line of the document lifecycle validator (EVM-012):
- *   check [--list] [--today YYYY-MM-DD]       → exit 0 (no errors) / 1 (errors) / 2 (usage, environment)
- *   cleanup-report <M#> [--today YYYY-MM-DD]  → exit 0 (report printed) / 2
+ *   check [--list] [--today YYYY-MM-DD] [--summary]  → exit 0 (no errors) / 1 (errors) / 2 (usage, environment)
+ *   cleanup-report <M#> [--today YYYY-MM-DD]         → exit 0 (report printed) / 2
+ * `--summary` (EVM-013, the CI step): the report goes to stderr (the log) and Markdown for the step summary to stdout.
  * All side effects go through `io`, so the tests run it in-process with a fixed clock and environment.
  */
 import { inspect, parseArgs } from 'node:util';
@@ -11,7 +12,7 @@ import { buildCleanupReport } from './cleanup.mjs';
 import { loadConfig } from './config.mjs';
 import { isValidIsoDate, todayInZone } from './dates.mjs';
 import { errorMessage, ToolError } from './errors.mjs';
-import { formatCheck, formatCleanupReport, render, USAGE } from './format.mjs';
+import { formatCheck, formatCleanupReport, formatSummary, render, USAGE } from './format.mjs';
 import { loadRepository } from './repository.mjs';
 import { quote } from './text.mjs';
 
@@ -37,6 +38,7 @@ const POWERSHELL_HINT =
  * @property {string | null} target M# for cleanup-report
  * @property {string | null} today override of „today”
  * @property {boolean} list
+ * @property {boolean} [summary] step summary on stdout, report on stderr (`check` only; absent with `--help`)
  */
 
 /**
@@ -50,7 +52,12 @@ export function parseCli(argv) {
       args: argv,
       strict: true,
       allowPositionals: true,
-      options: { today: { type: 'string' }, list: { type: 'boolean' }, help: { type: 'boolean', short: 'h' } },
+      options: {
+        today: { type: 'string' },
+        list: { type: 'boolean' },
+        summary: { type: 'boolean' },
+        help: { type: 'boolean', short: 'h' },
+      },
     });
   } catch (error) {
     throw new ToolError(`niepoprawne argumenty (${errorMessage(error)})`);
@@ -69,6 +76,7 @@ export function parseCli(argv) {
       );
     }
     if (values.list === true) throw new ToolError('opcja --list dotyczy tylko polecenia check');
+    if (values.summary === true) throw new ToolError('opcja --summary dotyczy tylko polecenia check');
   } else {
     throw new ToolError(
       command === undefined
@@ -80,7 +88,7 @@ export function parseCli(argv) {
   if (today !== null && !isValidIsoDate(today)) {
     throw new ToolError(`niepoprawna data w --today: ${quote(today)} — wymagany format YYYY-MM-DD`);
   }
-  return { help: false, command, target: rest[0] ?? null, today, list: values.list === true };
+  return { help: false, command, target: rest[0] ?? null, today, list: values.list === true, summary: values.summary === true };
 }
 
 /**
@@ -117,7 +125,14 @@ function run(argv, io) {
   const repository = loadRepository({ cwd: io.cwd, env: io.env, config });
   const analysis = analyze(repository, { config, today: options.today ?? todayInZone(io.now()) });
   if (options.command === 'check') {
-    io.stdout.write(formatCheck(analysis, { list: options.list, policy: config.policy }));
+    const report = formatCheck(analysis, { list: options.list, policy: config.policy });
+    if (options.summary === true) {
+      // One analysis for both outputs, so the log and the step summary always show the same numbers.
+      io.stderr.write(report);
+      io.stdout.write(formatSummary(analysis));
+    } else {
+      io.stdout.write(report);
+    }
     return analysis.errorCount > 0 ? EXIT.findings : EXIT.ok;
   }
   const target = String(options.target);
