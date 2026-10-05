@@ -4,7 +4,7 @@ title: Makiety ekranów E1 — reset hasła, zaproszenie, konto, użytkownicy i 
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -429,3 +429,4 @@ Demo końcowe 2026-10-05 (Konrad):
 - 2026-10-05 — demo końcowe (Konrad): EVM-029 AC2 zaakceptowane i naniesione, przyrost zaakceptowany z krótką poprawką (k)–(q) przed PR („Decyzje” 4–5)
 - 2026-10-05 — poprawka (k)–(q) przed PR („Decyzje” 5): `ux-designer` — (k) W-13 „poproś administratora o nowy link”, (m) W-15 sukces zmiany hasła bez innych sesji, (n) W-04 `aria-describedby` podpowiedzi, (o) W-02 fokus po resecie, (p) W-16 nazwa dostępna „Wyślij ponownie”, (q) odmiana liczby kodów (§ 6.3); `product-owner` — (l) `domain.md`: okno step-upu tylko od klucza dostępu albo kodu z aplikacji; nowe (s) → plan EVM-028
 - 2026-10-05 — celowane sprawdzenie poprawki (k)–(q) (`git diff 80873a9..HEAD`): `qa-engineer` PASS (AC1–AC8 bez zmian), `security-engineer` APPROVE ((k), (l) zamknięte; nowe (t) → plan EVM-008), `web-developer` APPROVE (3 × nit → (u) do planów EVM-024 / EVM-025); DoD kompletne; PR do „Squash and merge” przez Konrada
+- 2026-10-05 — in-review → done: akceptacja Konrada (demo końcowe 2026-10-05, „Decyzje” 5); PR #7 do `main` — scalenie „Squash and merge” klika Konrad przy zielonym `ci-gate` (jak EVM-069: status w PR, bez osobnej zmiany po scaleniu)
