@@ -4,7 +4,7 @@ title: Makiety ekranów M1 — klienci, lokalizacja, edycja zlecenia i prywatno�
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -329,12 +329,20 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
    - (b) EVM-041 — AC4 i sekcja „UX / UI” mają „Anonimizuj…” (makieta: „Anonimizuj klienta…”), „UX / UI” — „Przywróć” i AlertDialog (danger) dla usunięcia (makieta: usunięcie z „Cofnij”, pkt 4 (e)) — wyrównać w planie EVM-041 (AC4 — za zgodą Konrada);
    - (c) EVM-044 — sekcja „UX / UI” nadal „Dodaj zdjęcia” — wyrównać w planie EVM-044;
    - (d) EVM-063 — „Poza zakresem” („Klauzula BYOD w aplikacji mobilnej — M2”) jest spójne z nowym AC2 (BYOD w panelu w przeglądarce telefonu), ale warto doprecyzować brzmienie w planie EVM-063.
+   - **Z celowanego sprawdzenia po demo (2026-10-05; `qa-engineer` PASS, `web-developer` APPROVE, `security-engineer` APPROVE — wszystkie nieblokujące):**
+   - (e) W-06 (b), wiersz „Przejdź do klienta” (`03`) — „dostępne” dla A, E i R; dla klienta usuniętego E i R: brak (zasada wspólna 18, EVM-041 AC1), A — link ze znacznikiem „Usunięty” → wyrównać w planach EVM-041 i EVM-072 (`security-engineer`, minor);
+   - (f) EVM-041 — „W AC” dopisać SR-AUTHZ-03 i testy: E i R szukają po nazwisku, telefonie, e-mailu i NIP klienta usuniętego — 0 trafień, liczniki W-10 bez tych zleceń; odpowiedzi GET zlecenia, listy, `POST …/search` i W-11 bez pól z AC4; Administrator nadal je znajduje (`security-engineer`, nit);
+   - (g) EVM-063 — `mailto:` w alercie o utracie sprzętu: tekst zastępczy bez adresu („…zgłoś to od razu administratorowi lub przełożonemu.”), walidacja adresu z konfiguracji (pojedynczy e-mail), `href` = stały prefiks `mailto:` + adres bez parametrów, z kodowaniem (CWE-74); treść klauzuli BYOD z perspektywy panelu w przeglądarce telefonu (kopia w galerii do „Wysłano”, „Pobrane” i kopia w chmurze, „Wyloguj teraz”, brak danych w magazynach przeglądarki) — `docs/security/rodo.md` opisuje BYOD z perspektywy aplikacji (`security-engineer`, nit / info);
+   - (h) nazwy dostępne linków `tel:` / `mailto:` zaczynają się od telefonu lub e-maila — przy `aria-label` trafiają do breadcrumbs Sentry (scrubbing w EVM-008, B10); kopiowanie numeru i adresu przez biuro — dopisek nie może kopiować się z zaznaczeniem; dwa linki o tej samej nazwie w W-19 — testy zawężają do regionu; karta „Klient” w W-06 — telefon i e-mail jako linki jak w W-14 (plan EVM-034 albo EVM-039) (`security-engineer`, `web-developer`, nit);
+   - (i) W-06 (j) — po automatycznym odświeżeniu w dialogu przejścia: `409 invalid_state_transition` jak `412`, przycisk operacji wyłączony z alertem o bieżącym statusie, gdy przejścia już nie ma, przycisk w stanie ładowania do końca odświeżenia; w dialogach nieodwracalnych po `412` fokus na „Anuluj” albo alercie i brzmienie „…Sprawdź podsumowanie i potwierdź ponownie.”; dialogi „Przywróć zlecenie…” i „Zakończ…” bez pełnej makiety — do planu EVM-030 (`web-developer`, minor / nit);
+   - (j) EVM-030 AC6 cytuje dosłownie banner zlecenia rozliczonego sprzed decyzji 17; makieta W-06 (b) ma brzmienie zależne od roli → rekomendacja: AC6 „(komunikat z makiety W-06 (b))” przy najbliższej akceptacji zmian AC przez Konrada albo w planie EVM-030 (`web-developer`, minor);
+   - (k) W-14 — fokus po błędach ponownego wysłania w AlertDialog anonimizacji (`409`, `412`) i po „Odśwież dane klienta” — jak w (j): alert `role="alert"`, fokus na „Anonimizuj klienta” (`web-developer`, nit); EVM-053 AC8 (draft) — `412` dotyczy tylko „Zmień kwotę” (`POST` „Dodaj transzę” bez `If-Match`) — przy `/refine` (`web-developer`, nit); M-03 (mobile) — nazwa „Zadzwoń: …” bez widocznego numeru (WCAG 2.5.3) — przy makietach mobile (`web-developer`, poza zakresem).
 
 ## Definition of Done
 - [x] AC1–AC8 spełnione (weryfikacja QA przez inspekcję) — `qa-engineer` runda 2: PASS AC1–AC8; orkiestrator 2026-10-05: `npm run docs:check` 0 błędów / 0 ostrzeżeń (168 plików), `npm run test:tools` 328/328, lokalny render Mermaid 14/14, linki i kotwice w 16 plikach — 0 zepsutych, tokeny 82 / 0 brakujących, § — 0 brakujących, 0 literałów kolorów, jednostek i fontów; dane syntetyczne (`example.com`, `*.test`, telefony `+48 600 000 00x` jak w makietach EVM-004)
 - [x] Przeglądy: web-developer, security-engineer — APPROVE (runda 2; runda 1: `web-developer` 1 × major — nazwa dostępna wiersza W-14 zgodna z widoczną etykietą, WCAG 2.5.3 — naprawiony; konsultacja `security-engineer` A1–A6, B1–B10 wbudowana w makiety)
 - [x] `CHANGELOG.md` zaktualizowany (Unreleased → Dodano, wpis EVM-071)
-- [ ] Demo i akceptacja Konrada
+- [x] Demo i akceptacja Konrada — demo 2026-10-05: akceptacja z poprawką (a)–(i) przed PR i zmianami AC w innych historyjkach („Decyzje” 1–2); poprawka zweryfikowana (`qa-engineer` PASS, `web-developer` i `security-engineer` APPROVE)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-015 planu wstępnego)
@@ -350,3 +358,5 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 - 2026-10-05 — demo (Konrad): przyrost zaakceptowany z krótką poprawką (a)–(i) przed PR; zmiany brzmienia AC w EVM-030, EVM-035, EVM-041, EVM-044, EVM-053, EVM-054, EVM-058, EVM-063 — teraz, w tym PR („Decyzje” 1–2)
 - 2026-10-05 — zmiany AC („Decyzje” 2) naniesione przez `product-owner`: EVM-030 AC5, EVM-035 AC1, EVM-053 AC8 (draft), EVM-054 AC7, EVM-058 AC6 (draft) — `412` jako komunikat z makiety; EVM-044 AC4 — etykiety z makiety W-09 compact; EVM-041 AC1 (klient usunięty w danych osadzonych w zleceniach), AC2, AC3; EVM-063 AC2 (BYOD); pozostałe rozbieżności → „Uwagi do rozważenia” 18; brakujący tekst `412` dla przejść zlecenia i dialogów „Rozlicz…” / „Anuluj zlecenie…” w W-06 — dopisany do poprawki `ux-designer` jako (j)
 - 2026-10-05 — poprawka (a)–(i) przed PR („Decyzje” 1) i (j) (`ux-designer`): (a) podpowiedzi zlecenia zamkniętego wg roli w `03`, `04`, `08`; (b) osobna podpowiedź i alert `409` anonimizacji (licznik w nawiasie jak w pozostałych makietach); (c) linki `mailto:` / `tel:` — tekst linku = adres lub numer, nazwa dostępna od widocznego tekstu; (d) W-11 `displayName`; (e) inny etap na liście usuniętych; (f) `409` „anulowane”, `429` w W-06 (b); (g) diagram W-14 — wejście z filtra „Usunięci”; (h) fokus AlertDialog anonimizacji; (i) zasada 4 w `15`; (j) `412` dla przejść zlecenia i dialogów „Wstrzymaj…”, „Anuluj zlecenie…”, „Rozlicz…”, „Zakończ”, „Przywróć zlecenie…” w W-06 (spójność z EVM-030 AC5, EVM-058 AC6)
+- 2026-10-05 — celowane sprawdzenie poprawki i zmian AC (`git diff 754f6ef..HEAD`): `qa-engineer` PASS ((a)–(j), 8 zmian AC — odesłania wskazują istniejący tekst makiet, AC1–AC8 bez zmian), `web-developer` APPROVE, `security-engineer` APPROVE (A1 i A5 poprawnie w EVM-041 AC1 i EVM-063 AC2); uwagi nieblokujące → „Uwagi do rozważenia” 18 (e)–(k); nieaktualny dopisek o `412` w `03` usunięty (orkiestrator)
+- 2026-10-05 — in-review → done: akceptacja Konrada (demo 2026-10-05, „Decyzje” 1); PR do `main` — scalenie „Squash and merge” klika Konrad przy zielonym `ci-gate` (jak EVM-015 i EVM-069: status w PR)
