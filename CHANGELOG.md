@@ -4,6 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie:
 
 ## [Unreleased]
 ### Dodano
+- Chodzący szkielet API [EVM-008]: kontrakt OpenAPI 3.1 jako źródło prawdy (`packages/contracts`: spec dzielona per moduł, `redocly bundle`, lint z regułami `x-evia-authz`, allow-listą operacji publicznych, zakazem danych osobowych w parametrach `query`/`path` i błędami tylko `application/problem+json`; generowane typy, klient `fetch`, schematy Zod i manifest autoryzacji); API NestJS 12 (`apps/api`): `GET /api/health` z minimalną wersją aplikacji mobilnej (503 bez szczegółów przy awarii bazy), globalny guard deny-by-default (polityka wyłącznie z kontraktu, test startowy tras, 401 dla każdego zasobu poza zdrowiem — także nieistniejącego), błędy RFC 9457 bez wycieków, nagłówki bezpieczeństwa API, logi pino z redakcją, konfiguracja walidowana przy starcie, Kysely + `pg` z krótkimi limitami czasu, migracja `0001` (unaccent, pg_trgm, `f_unaccent`, kolacja ICU pl-PL); reguła ESLint zakazu konkatenacji SQL; granice modułów `apps/api` w dependency-cruiser; PostgreSQL w `compose.yaml` (sieć wewnętrzna) i job CI `backend-integration` (Testcontainers) z pokryciem w `diff-coverage`.
 - Zespół agentów (`.claude/agents/`), komendy (`.claude/skills/`) i workflow `deliver-story` (`.claude/workflows/`).
 - Dokumentacja produktu (wizja, domena, roadmapa), procesu (workflow, DoR, DoD, strategia testów, konwencje), baseline bezpieczeństwa i zasady UX.
 - Backlog M0: EVM-001 … EVM-013.
