@@ -45,7 +45,7 @@ Jako **pracownik biura** chcę **przeprowadzać zlecenie przez statusy od „Now
 
 **AC5 — Zasady przejść (SR-API-07, SR-AUTHZ-04)**
 - Gdy wysyłam przejście spoza tabeli, `PATCH` z polem `status`, przejście bez `If-Match` albo z nieaktualną wersją
-- Wtedy API zwraca odpowiednio `409 invalid_state_transition`, `400 validation_failed` (`read_only_field`), `428 precondition_required`, `412 version_conflict`; panel przy `412` pokazuje „Ktoś zmienił to zlecenie w międzyczasie…” z odświeżeniem.
+- Wtedy API zwraca odpowiednio `409 invalid_state_transition`, `400 validation_failed` (`read_only_field`), `428 precondition_required`, `412 version_conflict`; panel przy `412` pokazuje alert konfliktu z odświeżeniem (komunikat z makiety W-06).
 
 **AC6 — Zlecenie zamknięte**
 - Zakładając zlecenie „Rozliczone” albo „Anulowane”
@@ -105,3 +105,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik `payments` rejestruje się w EVM-053 i EVM-054 zamiast EVM-058 (Kontekst, Poza zakresem, Notatki techniczne)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC5 — komunikat `412` wg makiety W-06 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”

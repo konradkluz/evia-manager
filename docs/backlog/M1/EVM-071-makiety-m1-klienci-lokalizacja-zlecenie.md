@@ -324,6 +324,12 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
    - (h) W-14 — AlertDialog anonimizacji: brak fokusu po „Anuluj” (→ wyzwalacz `⋮`) i po powrocie z W-04 (alert w dialogu) (nit).
    - (i) W-19 — blok „Problem z logowaniem?” przed zalogowaniem wykracza poza EVM-063 AC3 („tylko kontakt”) i zasadę 4 w `15` → dopisać do pkt 10 jako (d) i doprecyzować zasadę 4 (nit).
 
+18. **Po naniesieniu zmian AC („Decyzje” 2) — pozostałe rozbieżności (`product-owner`, 2026-10-05), poza zakresem decyzji 2:**
+   - (a) cytat „Ktoś zmienił…” przy `412` zostaje w EVM-055 (dialog wpłaty W-11 — makieta ma już formę bezosobową) i EVM-057 (korekty transz) — rekomendacja: ta sama zmiana jak w decyzji 2 przy najbliższej akceptacji zmian AC; EVM-032 (etap W-07) — po wyrównaniu makiety `04` (pkt 1);
+   - (b) EVM-041 — AC4 i sekcja „UX / UI” mają „Anonimizuj…” (makieta: „Anonimizuj klienta…”), „UX / UI” — „Przywróć” i AlertDialog (danger) dla usunięcia (makieta: usunięcie z „Cofnij”, pkt 4 (e)) — wyrównać w planie EVM-041 (AC4 — za zgodą Konrada);
+   - (c) EVM-044 — sekcja „UX / UI” nadal „Dodaj zdjęcia” — wyrównać w planie EVM-044;
+   - (d) EVM-063 — „Poza zakresem” („Klauzula BYOD w aplikacji mobilnej — M2”) jest spójne z nowym AC2 (BYOD w panelu w przeglądarce telefonu), ale warto doprecyzować brzmienie w planie EVM-063.
+
 ## Definition of Done
 - [x] AC1–AC8 spełnione (weryfikacja QA przez inspekcję) — `qa-engineer` runda 2: PASS AC1–AC8; orkiestrator 2026-10-05: `npm run docs:check` 0 błędów / 0 ostrzeżeń (168 plików), `npm run test:tools` 328/328, lokalny render Mermaid 14/14, linki i kotwice w 16 plikach — 0 zepsutych, tokeny 82 / 0 brakujących, § — 0 brakujących, 0 literałów kolorów, jednostek i fontów; dane syntetyczne (`example.com`, `*.test`, telefony `+48 600 000 00x` jak w makietach EVM-004)
 - [x] Przeglądy: web-developer, security-engineer — APPROVE (runda 2; runda 1: `web-developer` 1 × major — nazwa dostępna wiersza W-14 zgodna z widoczną etykietą, WCAG 2.5.3 — naprawiony; konsultacja `security-engineer` A1–A6, B1–B10 wbudowana w makiety)
@@ -342,3 +348,4 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 - 2026-10-05 — weryfikacja (workflow `deliver-story`, 2 rundy): runda 1 — QA PASS, `security-engineer` APPROVE, `web-developer` changes_required (1 × major, W-14 nazwa dostępna), poprawka `ux-designer`; runda 2 — QA PASS AC1–AC8, oba przeglądy APPROVE; 9 ustaleń nieblokujących → „Uwagi do rozważenia” 17
 - 2026-10-05 — in-progress → in-review: weryfikacja orkiestratora (`docs:check` 0/0, `test:tools` 328/328, Mermaid 14/14, linki, tokeny i § styleguide'u, dane syntetyczne), DoD bez demo
 - 2026-10-05 — demo (Konrad): przyrost zaakceptowany z krótką poprawką (a)–(i) przed PR; zmiany brzmienia AC w EVM-030, EVM-035, EVM-041, EVM-044, EVM-053, EVM-054, EVM-058, EVM-063 — teraz, w tym PR („Decyzje” 1–2)
+- 2026-10-05 — zmiany AC („Decyzje” 2) naniesione przez `product-owner`: EVM-030 AC5, EVM-035 AC1, EVM-053 AC8 (draft), EVM-054 AC7, EVM-058 AC6 (draft) — `412` jako komunikat z makiety; EVM-044 AC4 — etykiety z makiety W-09 compact; EVM-041 AC1 (klient usunięty w danych osadzonych w zleceniach), AC2, AC3; EVM-063 AC2 (BYOD); pozostałe rozbieżności → „Uwagi do rozważenia” 18; brakujący tekst `412` dla przejść zlecenia i dialogów „Rozlicz…” / „Anuluj zlecenie…” w W-06 — dopisany do poprawki `ux-designer` jako (j)

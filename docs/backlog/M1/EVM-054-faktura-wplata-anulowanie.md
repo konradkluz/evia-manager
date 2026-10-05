@@ -57,7 +57,7 @@ Jako **pracownik biura** chcę **odnotować wystawienie faktury, wpłatę i anul
 
 **AC7 — Zasady (SR-API-07, SR-INPUT-02)**
 - Gdy wysyłam przejście spoza tabeli, brak `If-Match`, nieaktualną wersję albo przejście w zleceniu zamkniętym
-- Wtedy API zwraca odpowiednio `409 invalid_state_transition`, `428`, `412` („Ktoś zmienił tę transzę w międzyczasie (teraz: «Opłacona»). [Odśwież]”), `409 work_order_closed`.
+- Wtedy API zwraca odpowiednio `409 invalid_state_transition`, `428`, `412` (alert z bieżącym statusem transzy i „Odśwież” — komunikat z makiety W-11, wspólny z sekcją „Płatności” W-06), `409 work_order_closed`.
 
 **AC8 — Uprawnienia (SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-05)**
 - Zakładając role Administrator, Edytor, Tylko odczyt i niezalogowanego
@@ -108,3 +108,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): blokada anulowania zlecenia z transzą „Wystawiona” z testem ścieżek i współbieżności przeniesiona tu z EVM-058 (AC6); zdarzenia dziennika transz dołączone do AC3
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC7 — komunikat `412` wg makiety W-11 (tabela akcji płatności wspólna z W-06; forma bezosobowa z bieżącym statusem i „Odśwież”, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”

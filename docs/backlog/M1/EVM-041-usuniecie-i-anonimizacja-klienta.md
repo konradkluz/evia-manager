@@ -27,16 +27,17 @@ Jako **Administrator** chcę **ukryć klienta dodanego przez pomyłkę i zanonim
 **AC1 — Usunięcie klienta bez niezamkniętych zleceń**
 - Zakładając klienta, którego wszystkie zlecenia są „Rozliczone” albo „Anulowane”
 - Gdy Administrator wybiera „Usuń klienta”
-- Wtedy klient znika dla Edytora i Tylko odczyt (`404`, brak na liście i w wyszukiwaniu), a zdarzenie trafia do audytu.
+- Wtedy klient znika dla Edytora i Tylko odczyt (`404`, brak na liście i w wyszukiwaniu), a zdarzenie trafia do audytu
+- Oraz w danych klienta osadzonych w zleceniach (W-06 — nagłówek i karta „Klient”, W-10 — kolumna „Klient” i wyszukiwanie zleceń, W-11) Edytor i Tylko odczyt widzą stan „Klient usunięty” bez danych klienta i bez linku do niego, a wyszukiwanie zleceń po danych tego klienta nie daje trafień — odpowiedzi serwera nie zawierają tych danych (ustalenie A1 `security-engineer` w EVM-071; `flows/README.md` → zasada wspólna 18).
 
 **AC2 — Klient z niezamkniętymi zleceniami**
 - Zakładając klienta ze zleceniem „W realizacji”
 - Gdy Administrator próbuje go usunąć albo zanonimizować
-- Wtedy API zwraca `409 has_active_dependents`, a panel pokazuje „Klient ma niezamknięte zlecenia (1).”
+- Wtedy API zwraca `409 has_active_dependents`, a panel pokazuje informację o niezamkniętych zleceniach z ich liczbą (komunikat z makiety W-14).
 
 **AC3 — Przywrócenie**
 - Zakładając usuniętego klienta
-- Gdy Administrator włącza filtr „Usunięci” w W-14 i wybiera „Przywróć”
+- Gdy Administrator włącza filtr „Usunięci” w W-14 i wybiera „Przywróć klienta”
 - Wtedy klient znów jest widoczny dla wszystkich ról, a zdarzenie trafia do audytu.
 
 **AC4 — Anonimizacja (SR-DATA-08, SR-SESS-08)**
@@ -102,3 +103,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 4 (a), 4 (f) i 17 (b); liczba AC bez zmian): AC1 — klient usunięty niewidoczny dla Edytora i Tylko odczyt także w danych osadzonych w zleceniach (W-06, W-10 z wyszukiwaniem zleceń, W-11 — stan „Klient usunięty” bez danych; ustalenie A1, zasada wspólna 18); AC2 — komunikat o niezamkniętych zleceniach wg makiety W-14; AC3 — etykieta „Przywróć klienta”
