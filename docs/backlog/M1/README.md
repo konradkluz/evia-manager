@@ -1,6 +1,6 @@
 # M1 — MVP „Biuro” (wydanie 1.0): plan i indeks historyjek
 
-> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan zaakceptowany przez Konrada 2026-10-03** (demo EVM-010) — 57 historyjek `ready`; EVM-053 i EVM-058 w `draft` do `/refine`. Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
+> Dokument żywy (EVM-010, `/milestone plan M1`). Właściciel: `product-owner`; decyzje: Konrad. Stan: **plan zaakceptowany przez Konrada 2026-10-03** (demo EVM-010) — 57 historyjek `ready`; EVM-053 i EVM-058 w `draft` do `/refine`. EVM-073 (P3, dług narzędzia dokumentacji z EVM-013 — „Decyzje” 1) dopisana 2026-10-05 jako `draft`. Zakres: [`roadmap.md`](../../product/roadmap.md) → M1, epiki E1–E8. Wejścia: model domeny i API (EVM-002), makiety (EVM-004), wymagania bezpieczeństwa (EVM-005), konsultacje `solution-architect` i `security-engineer` (historyjka [EVM-010](../M0/EVM-010-backlog-m1-gotowy.md) → „Plan techniczny” → „Ustalenia z konsultacji”).
 
 ## Spis treści
 1. [Cel M1](#cel-m1)
@@ -26,7 +26,7 @@
 Firma prowadzi **wszystkie nowe zlecenia w panelu web**: klienci, lokalizacje, zlecenia z szablonów, procesy i etapy z „Czekamy na…”, dziennik, zdjęcia, filmy i dokumenty, płatności etapowe — na produkcji w UE, po security sign-off. Telefon tymczasowo dodaje zdjęcia przez przeglądarkę (aplikacja mobilna — M2).
 
 ## Zasady planu
-- **Priorytety:** **P0** — fundament: enablery (styleguide, makiety, ADR, dane startowe) i logowanie (EVM-016, EVM-067); bez nich nie powstaje żaden ekran. **P1** — wymagane do wydania 1.0 i kryteriów wyjścia M1. **P2** — ważne, może przejść do M2/M3 bez utraty kryteriów wyjścia (decyzja 11).
+- **Priorytety:** **P0** — fundament: enablery (styleguide, makiety, ADR, dane startowe) i logowanie (EVM-016, EVM-067); bez nich nie powstaje żaden ekran. **P1** — wymagane do wydania 1.0 i kryteriów wyjścia M1. **P2** — ważne, może przejść do M2/M3 bez utraty kryteriów wyjścia (decyzja 11). **P3** — dług techniczny bez wpływu na kryteria wyjścia (EVM-073): faza 7 albo wcześniej decyzją Konrada.
 - **Rozmiar (INVEST):** ≤ 8 AC, ≤ 3 moduły backendu (+ panel); pionowe plasterki; operacje Administratora i P2 w osobnych historyjkach.
 - **Ścieżka pionowa** korzysta z makiet EVM-004 i jednego ekranu z EVM-015 (W-13 — aktywacja konta z linku).
 - **Status `ready`** ustawia orkiestrator po akceptacji Konrada dla historyjek z kompletem DoR — jak w M0 (np. EVM-008 jest `ready`, choć EVM-006 i EVM-007 nie są `done`). Punkt DoR „zależności `done`” orkiestrator sprawdza przed `/deliver`.
@@ -42,6 +42,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-015](EVM-015-makiety-e1.md) | Makiety ekranów E1 — reset hasła, zaproszenie, konto, użytkownicy i dziennik audytu | enabler | P0 | ux-designer | EVM-014 | W-12, W-13, W-15, W-16, W-18 |
 | [EVM-071](EVM-071-makiety-m1-klienci-lokalizacja-zlecenie.md) | Makiety ekranów M1 — klienci, lokalizacja, edycja zlecenia i prywatność | enabler | P0 | ux-designer | EVM-014 | W-14, W-19, W-20, W-06, W-10, W-11, W-09 (przeglądarka w telefonie) |
 | [EVM-069](EVM-069-adr-model-odczytu-listy.md) | ADR — model odczytu listy i podsumowania zlecenia | enabler | P0 | solution-architect | EVM-002 | luka L3 (W-06, W-10) |
+| [EVM-073](EVM-073-wyjatki-jakosci-docs-lifecycle.md) | Zniesienie wyjątków jakości w `tools/docs-lifecycle` | enabler | P3 | devops-engineer | EVM-013 | bez ekranów; dług z EVM-012 (EVM-013 → „Decyzje” 1); wymaga Node 26 lokalnie albo w chmurze |
 
 ### E1 Dostęp i użytkownicy
 | ID | Tytuł | Typ | Prio | `owner` | `depends_on` | Ekrany / uwagi |
@@ -130,7 +131,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-065](EVM-065-pentest-i-sign-off-pilota.md) | Pentest i security sign-off pilota | enabler | P1 | security-engineer | EVM-062, EVM-063, EVM-064, EVM-066 | RR-10 (zakup za zgodą); bramka wdrożeń w trakcie pilota B |
 | [EVM-070](EVM-070-security-sign-off-1-0.md) | Security sign-off wydania 1.0 | enabler | P1 | security-engineer | EVM-055, EVM-056, EVM-057, EVM-058, EVM-065 | po E7 |
 
-**Liczby:** 59 historyjek — P0: 7, P1: 47, P2: 5.
+**Liczby:** 60 historyjek — P0: 7, P1: 47, P2: 5, P3: 1.
 
 ## Kolejność i fazy
 Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace koncepcyjne (UX, ADR, RODO) idą równolegle.
@@ -144,13 +145,13 @@ Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace
 | **4 — dokumenty i media (E6)** | EVM-044 → EVM-068 → EVM-045 → EVM-047 → EVM-048 → EVM-049 → EVM-050 → EVM-051 → EVM-046 | zdjęcia, filmy, dokumenty |
 | **5 — gotowość do realnych danych (E8)** | EVM-061 → EVM-062; EVM-063 → EVM-066; EVM-064 (koncepcyjnie od fazy 4); na końcu EVM-065 | → **pilot realny (B)** |
 | **6 — płatności (E7) i wydanie 1.0** | EVM-053 → EVM-054 → EVM-055 → EVM-056 → EVM-057 → EVM-058 → EVM-070 | → **wydanie 1.0**; EVM-053 i EVM-054 na prod w jednym wydaniu ([Punkt pilota](#punkt-pilota)) |
-| **7 — P2** (po P1, jeśli nie opóźnia 1.0) | EVM-042, EVM-043, EVM-052, EVM-059, EVM-060 | dodatki; EVM-052 i EVM-060 na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie security ([Punkt pilota](#punkt-pilota)) |
+| **7 — P2 i P3** (po P1, jeśli nie opóźnia 1.0) | EVM-042, EVM-043, EVM-052, EVM-059, EVM-060; EVM-073 (P3) | dodatki; EVM-052 i EVM-060 na prod najwcześniej z sign-off EVM-070 albo po osobnym przeglądzie security ([Punkt pilota](#punkt-pilota)); EVM-073 — dług narzędzia dokumentacji, wymaga Node 26 lokalnie albo w chmurze, wcześniej tylko decyzją Konrada |
 
-Graf zależności (strzałka: od zależności do historyjki zależnej; M0 — EVM-002, EVM-004, EVM-006, EVM-007, EVM-008, EVM-011):
+Graf zależności (strzałka: od zależności do historyjki zależnej; M0 — EVM-002, EVM-004, EVM-006, EVM-007, EVM-008, EVM-011, EVM-013):
 
 ```mermaid
 flowchart TD
-  M0["M0: EVM-002, 004, 006, 007, 008, 011"]
+  M0["M0: EVM-002, 004, 006, 007, 008, 011, 013"]
   subgraph F0["Faza 0"]
     S014["014 Styleguide 1.2.0"]
     S015["015 Makiety E1"]
@@ -222,12 +223,13 @@ flowchart TD
     S070["070 Sign-off 1.0"]
   end
   R10(["Wydanie 1.0"])
-  subgraph F7["Faza 7 — P2"]
+  subgraph F7["Faza 7 — P2 i P3"]
     S042["042 Ręczne procesy"]
     S043["043 Podpowiedź lokalizacji"]
     S052["052 Eksport ZIP"]
     S059["059 Do wystawienia"]
     S060["060 Usunięcie zlecenia"]
+    S073["073 Wyjątki jakości docs-lifecycle"]
   end
   M0 --> S014
   M0 --> S069
@@ -239,6 +241,7 @@ flowchart TD
   M0 --> S046
   M0 --> S068
   M0 --> S061
+  M0 --> S073
   S014 --> S015
   S014 --> S071
   S014 --> S016

@@ -8,6 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { V1, V2 } from './helpers/runner.mjs';
 
 const TOOL_DIR = fileURLToPath(new URL('..', import.meta.url));
 const SOURCES = ['cli.mjs', ...readdirSync(join(TOOL_DIR, 'lib')).map((name) => `lib/${name}`)].filter((path) => path.endsWith('.mjs'));
@@ -69,6 +70,24 @@ describe('narzędzie tylko czyta (EVM-012 AC5, ustalenie F)', () => {
       assert.doesNotMatch(text, /shell\s*:\s*true/, path);
     }
     assert.match(source('lib/repository.mjs'), /new Set\(\['rev-parse', 'ls-files', 'check-ignore'\]\)/);
+  });
+
+  it('EVM-013 AC4: narzędzie nie emituje adnotacji ani poleceń runnera — w kodzie brak ich prefiksów (warning, error, notice)', () => {
+    const annotation = new RegExp(`${V2}(?:warning|error|notice)\\b`);
+    for (const path of SOURCES) {
+      const text = source(path);
+      assert.ok(!annotation.test(text), `${path}: adnotacja runnera`);
+      assert.ok(!text.includes(V1), `${path}: polecenie runnera w formacie V1`);
+    }
+  });
+
+  it('EVM-013 AC5: narzędzie nie zna pliku podsumowania przebiegu — w kodzie brak GITHUB_STEP_SUMMARY, a lib/ nie czyta process.env', () => {
+    for (const path of SOURCES) {
+      const text = source(path);
+      assert.ok(!text.includes('GITHUB_STEP_SUMMARY'), `${path}: GITHUB_STEP_SUMMARY`);
+      if (path.startsWith('lib/')) assert.ok(!/process\.env\b/.test(text), `${path}: process.env`);
+    }
+    assert.match(source('cli.mjs'), /env: process\.env,/);
   });
 
   it('EVM-012 AC3: process.exitCode zamiast process.exit() (pełne wyjście w potoku)', () => {

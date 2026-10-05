@@ -77,6 +77,118 @@ export function ciGateProblems(document: unknown): string[] {
   return problems;
 }
 
+/**
+ * The script of the documentation validator step in the quality job (EVM-013, bramka 11 — SR-SUPPLY-11): the same command
+ * as `npm run docs:check` with the step summary on stdout, no pipe, the validator's exit code as the step's result
+ * (0 green; 1 and 2 red; an unset summary file or a signal also red).
+ */
+export const DOCS_CHECK_SCRIPT =
+  'status=0\nnode tools/docs-lifecycle/cli.mjs check --summary >> "$GITHUB_STEP_SUMMARY" || status=$?\nexit "$status"\n';
+
+const VALIDATOR = 'tools/docs-lifecycle/cli.mjs';
+const QUALITY = 'ci.yml: quality';
+/** Actions allowed before the validator: they set up the runner and run no code of the project's dependencies. */
+const SETUP_ACTIONS = ['actions/checkout@', 'pnpm/action-setup@', 'actions/setup-node@'];
+const STEP_KEYS = ['name', 'shell', 'timeout-minutes', 'run'];
+/** Variables of the workflow and of the quality job — never NODE_OPTIONS or GIT_*, which reach node and git. */
+const ALLOWED_ENV = ['TURBO_TELEMETRY_DISABLED', 'DO_NOT_TRACK'];
+/** The validator exactly as `npm run docs:check`, optionally with the summary format, followed by an operator or the end. */
+const DOCS_CHECK_INVOCATION = /(?:^|\s)node tools\/docs-lifecycle\/cli\.mjs check(?: --summary)?\s*(?:>>|>|\|\||\||&&|;|$)/gm;
+const FAIL_OPEN = /\|\|\s*(?:true|:)(?=\s|;|$)|\bset\s+\+e\b|\bset\s+\+o\s+errexit\b/m;
+const PIPE = /(?:^|[^|])\|(?!\|)/m;
+
+const envProblems = (where: string, env: unknown): string[] =>
+  Object.keys(record(env))
+    .filter((key) => !ALLOWED_ENV.includes(key))
+    .map((key) => `${where}: ${key} spoza listy dozwolonej (${ALLOWED_ENV.join(', ')})`);
+
+/** The quality job (security-engineer recommendations a–c): permissions, job-level fail-open, defaults, env, checkout. */
+function qualityJobProblems(quality: Record<string, unknown>, steps: Array<Record<string, unknown>>): string[] {
+  const problems: string[] = [];
+  if (JSON.stringify(quality['permissions']) !== JSON.stringify({ contents: 'read' }))
+    problems.push(`${QUALITY}: permissions = { contents: read }`);
+  if ('continue-on-error' in quality)
+    problems.push(`${QUALITY}: zabronione continue-on-error joba (needs.quality.result byłby success, a ci-gate zielony)`);
+  if ('defaults' in quality) problems.push(`${QUALITY}: zabronione defaults (shell i katalog roboczy kroków)`);
+  problems.push(...envProblems(`${QUALITY}: env joba`, quality['env']));
+  for (const step of steps.filter((item) => text(item['uses']).startsWith('actions/checkout@'))) {
+    if (JSON.stringify(step['with']) !== JSON.stringify({ 'persist-credentials': false }))
+      problems.push(`${QUALITY}: actions/checkout wyłącznie z with { persist-credentials: false } (walidator sprawdza drzewo commita)`);
+  }
+  return problems;
+}
+
+/** Steps before the validator: setup actions only, setup-node among them, no dependency installation. */
+function setupProblems(before: Array<Record<string, unknown>>): string[] {
+  const problems: string[] = [];
+  if (before.some((step) => 'run' in step))
+    problems.push(`${QUALITY}: walidator dokumentacji musi być pierwszym krokiem z poleceniem (run)`);
+  if (before.some((step) => !('run' in step) && !SETUP_ACTIONS.some((action) => text(step['uses']).startsWith(action))))
+    problems.push(`${QUALITY}: przed walidatorem dokumentacji wyłącznie actions/checkout, pnpm/action-setup i actions/setup-node`);
+  if (!before.some((step) => text(step['uses']).startsWith('actions/setup-node@')))
+    problems.push(`${QUALITY}: walidator dokumentacji po actions/setup-node`);
+  if (before.some((step) => text(step['uses']).startsWith('pnpm/action-setup@') && 'run_install' in record(step['with'])))
+    problems.push(`${QUALITY}: pnpm/action-setup przed walidatorem bez run_install (instalacja zależności przed bramką)`);
+  return problems;
+}
+
+/** The step itself: keys, shell, timeout, name and the script (fail-closed, exact command, summary, no expressions). */
+function docsStepProblems(step: Record<string, unknown>): string[] {
+  const problems: string[] = [];
+  const run = text(step['run']);
+  if ('if' in step) problems.push(`${QUALITY}: krok walidatora dokumentacji bez if`);
+  if ('continue-on-error' in step) problems.push(`${QUALITY}: krok walidatora dokumentacji bez continue-on-error`);
+  if ('env' in step) problems.push(`${QUALITY}: krok walidatora dokumentacji bez env`);
+  const other = Object.keys(step).filter((key) => !STEP_KEYS.includes(key) && !['if', 'continue-on-error', 'env'].includes(key));
+  if (other.length > 0)
+    problems.push(`${QUALITY}: krok walidatora dokumentacji — klucz spoza listy (${STEP_KEYS.join(', ')}): ${other.join(', ')}`);
+  if (step['shell'] !== 'bash') problems.push(`${QUALITY}: krok walidatora dokumentacji wymaga shell: bash (-eo pipefail)`);
+  if (PIPE.test(run) && step['shell'] !== 'bash')
+    problems.push(`${QUALITY}: potok bez shell: bash gubi kod wyjścia walidatora dokumentacji`);
+  const timeout = step['timeout-minutes'];
+  if (typeof timeout !== 'number' || timeout > 5) problems.push(`${QUALITY}: krok walidatora dokumentacji wymaga timeout-minutes ≤ 5`);
+  if (!text(step['name']).includes('docs:check')) problems.push(`${QUALITY}: nazwa kroku walidatora dokumentacji musi zawierać docs:check`);
+  const invocations = run.split(VALIDATOR).length - 1;
+  if ((run.match(DOCS_CHECK_INVOCATION) ?? []).length !== invocations)
+    problems.push(
+      `${QUALITY}: walidator dokumentacji wyłącznie node tools/docs-lifecycle/cli.mjs check (jedyna dodatkowa opcja: --summary)`,
+    );
+  if (run.includes('--today')) problems.push(`${QUALITY}: walidator dokumentacji bez --today (wynik CI nie zależy od podanej daty)`);
+  if (run.includes('--list')) problems.push(`${QUALITY}: walidator dokumentacji bez --list`);
+  if (FAIL_OPEN.test(run)) problems.push(`${QUALITY}: krok walidatora dokumentacji bez || true, || :, set +e i set +o errexit`);
+  const lines = run.split('\n').filter((line) => line.trim() !== '');
+  if (!run.includes('|| status=$?') || lines.at(-1)?.trim() !== 'exit "$status"')
+    problems.push(`${QUALITY}: kod wyjścia walidatora dokumentacji musi być przekazany (|| status=$? i na końcu exit "$status")`);
+  if (!run.includes('check --summary') || !run.includes('>> "$GITHUB_STEP_SUMMARY"'))
+    problems.push(`${QUALITY}: podsumowanie walidatora dokumentacji do $GITHUB_STEP_SUMMARY (check --summary >> "$GITHUB_STEP_SUMMARY")`);
+  if (run.includes('${{')) problems.push(`${QUALITY}: bez wyrażeń \${{ }} w run kroku walidatora dokumentacji`);
+  if (run !== DOCS_CHECK_SCRIPT) problems.push(`${QUALITY}: skrypt kroku walidatora dokumentacji różny od DOCS_CHECK_SCRIPT`);
+  return problems;
+}
+
+/**
+ * EVM-013 AC1, AC3 (SR-SUPPLY-11; security-engineer controls 1–3, recommendations a–c): the documentation validator is the
+ * first step with a command of the quality job — after setting up Node, before `pnpm install` and any code of the project's
+ * dependencies — runs exactly like `npm run docs:check`, passes its exit code and writes the step summary; the quality job
+ * cannot turn its failure into success and stays in ci-gate. Every weakening is reported with its own message.
+ */
+export function docsCheckStepProblems(document: unknown): string[] {
+  const workflow = record(document);
+  const jobs = record(workflow['jobs']);
+  const problems: string[] = [];
+  if ('defaults' in workflow) problems.push('ci.yml: zabronione defaults (shell i katalog roboczy kroków)');
+  problems.push(...envProblems('ci.yml: env workflowu', workflow['env']));
+  if (!list(record(jobs['ci-gate'])['needs']).includes('quality')) problems.push('ci.yml: ci-gate: needs musi zawierać quality');
+  if (!('quality' in jobs)) return [...problems, 'ci.yml: brak joba quality'];
+  const quality = record(jobs['quality']);
+  const steps = list(quality['steps']).map(record);
+  problems.push(...qualityJobProblems(quality, steps));
+  const index = steps.findIndex((step) => text(step['run']).includes(VALIDATOR));
+  const step = steps[index];
+  if (step === undefined) return [...problems, `${QUALITY}: brak kroku walidatora dokumentacji (node tools/docs-lifecycle/cli.mjs check)`];
+  return [...problems, ...setupProblems(steps.slice(0, index)), ...docsStepProblems(step)];
+}
+
 /** A7: the Renovate token is visible to the Renovate step only. */
 export function renovateWorkflowProblems(raw: string, document: unknown): string[] {
   const problems: string[] = [];

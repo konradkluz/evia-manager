@@ -23,4 +23,4 @@ Kolejny numer = najwyższy istniejący `EVM-###` + 1 (bez ponownego użycia nume
 
 ## Kamienie milowe
 - `M0/` — fundamenty (EVM-001 … EVM-013)
-- `M1/` — MVP „Biuro” (EVM-014 … EVM-072); plan, kolejność, pilot i decyzje: `M1/README.md` (EVM-010, `/milestone plan M1`)
+- `M1/` — MVP „Biuro” (EVM-014 … EVM-073); plan, kolejność, pilot i decyzje: `M1/README.md` (EVM-010, `/milestone plan M1`)

@@ -4,6 +4,9 @@
 # concurrency group below would cancel its pending runs.
 # Rules (tested in tools/repo-policy): actions pinned to a full commit SHA with a version comment, explicit
 # permissions per job, checkout without persisted credentials, no secrets, timeouts on every job.
+# EVM-013 (bramka 11, SR-SUPPLY-11): the documentation lifecycle validator is the first step with a command of `quality`,
+# before anything is installed; its exit code is the step's result (errors and code 2 turn ci-gate red, warnings do not).
+# The step is fixed by tools/repo-policy (docsCheckStepProblems): no if, continue-on-error, env or expressions in run.
 name: ci
 
 on:
@@ -38,6 +41,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # Report to the log (stderr), summary to the step summary (stdout); no pipe — the validator's exit code is kept.
+      - name: Documentation lifecycle validator (docs:check, bramka 11)
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          status=0
+          node tools/docs-lifecycle/cli.mjs check --summary >> "$GITHUB_STEP_SUMMARY" || status=$?
+          exit "$status"
       - name: Install (frozen lockfile)
         run: pnpm install --frozen-lockfile
       - name: Format

@@ -11,7 +11,7 @@ import { normalizeText, parseFrontmatter } from './frontmatter.mjs';
 import { collectMilestones, isMilestoneId } from './milestones.mjs';
 import { matchPattern } from './patterns.mjs';
 import { buildReferenceIndex } from './references.mjs';
-import { compareCodeUnits, isMarkdown, quote } from './text.mjs';
+import { compareCodeUnits, isMarkdown, quote, shellQuote } from './text.mjs';
 
 /** Entry point in any directory — never „osierocony” (policy → „Dozwolone lokalizacje”). */
 const ENTRY_POINT = 'README.md';
@@ -40,6 +40,7 @@ const ALLOWED_DATE_FIELDS = /** @type {Record<string, string[]>} */ ({
  * @property {string} path repository-relative path (directories end with `/`)
  * @property {string | null} class lifecycle class of the file (null = none)
  * @property {string} reason Polish reason with a hint
+ * @property {boolean} classError an error of the file's class (policy → „Błędy klasy”): no „osierocony” warning then
  */
 
 /**
@@ -94,7 +95,11 @@ const ALLOWED_DATE_FIELDS = /** @type {Record<string, string[]>} */ ({
  * @property {Finding[]} findings
  */
 
-/** @typedef {(code: string, reason: string, severity?: 'error' | 'warning') => void} Report */
+/**
+ * `kind`: `error` (default), `class-error` — an error of the file's class, set where it is reported (policy → „Błędy
+ * klasy”), or `warning`.
+ * @typedef {(code: string, reason: string, kind?: 'error' | 'class-error' | 'warning') => void} Report
+ */
 
 /**
  * @param {RepositoryFiles} repository
@@ -135,9 +140,6 @@ export function analyze(repository, { config, today }) {
   };
 }
 
-/** Class errors — a file with one of them gets no additional „osierocony” warning. */
-const CLASS_ERRORS = new Set(['class-missing', 'class-unknown', 'class-conflict', 'ephemeral-tracked', 'location-forbidden']);
-
 /**
  * „Osierocony” (warning): rules marked „tak”, README.md excluded, only correctly classified files
  * (a file with a class error already has an error — policy, „Raport sprzątania” → „osierocony”).
@@ -146,7 +148,7 @@ const CLASS_ERRORS = new Set(['class-missing', 'class-unknown', 'class-conflict'
  * @param {Context} ctx
  */
 function checkOrphans(files, references, ctx) {
-  const classErrors = new Set(ctx.findings.filter((finding) => CLASS_ERRORS.has(finding.code)).map((finding) => finding.path));
+  const classErrors = new Set(ctx.findings.filter((finding) => finding.classError).map((finding) => finding.path));
   for (const record of files) {
     if (!record.orphanCheck || record.class === null || record.class === 'ephemeral' || classErrors.has(record.path)) continue;
     if (posix.basename(record.path) === ENTRY_POINT || references.has(record.path)) continue;
@@ -158,6 +160,7 @@ function checkOrphans(files, references, ctx) {
       class: record.class,
       reason:
         'osierocony: żaden inny plik .md się do niego nie odwołuje — dodaj odwołanie (np. w README katalogu albo w powiązanym dokumencie) albo zgłoś plik do przeglądu przy /milestone close',
+      classError: false,
     });
   }
 }
@@ -244,13 +247,15 @@ function fieldsOf(meta, path) {
  */
 function checkScratch(paths, scratchIgnored, ctx) {
   const prefix = `${ctx.config.scratchDir}/`;
-  /** @param {string} code @param {string} path @param {string} reason */
-  const error = (code, path, reason) => ctx.findings.push({ severity: 'error', code, path, class: 'ephemeral', reason });
+  /** @param {string} code @param {string} path @param {string} reason @param {boolean} classError */
+  const error = (code, path, reason, classError) =>
+    ctx.findings.push({ severity: 'error', code, path, class: 'ephemeral', reason, classError });
   if (!scratchIgnored) {
     error(
       'scratch-not-ignored',
       prefix,
       `katalog ${prefix} nie jest ignorowany przez git — przywróć wpis ${prefix} w .gitignore (pliki robocze nie mogą trafić do repozytorium)`,
+      false,
     );
   }
   for (const path of paths) {
@@ -258,7 +263,8 @@ function checkScratch(paths, scratchIgnored, ctx) {
     error(
       'ephemeral-tracked',
       path,
-      `plik roboczy widoczny dla gita (śledzony albo nieignorowany) — usuń go z indeksu (git rm --cached -- ${path}) i trzymaj tylko w ${prefix} ignorowanym przez git`,
+      `plik roboczy widoczny dla gita (śledzony albo nieignorowany) — usuń go z indeksu (git rm --cached -- ${shellQuote(path)}) i trzymaj tylko w ${prefix} ignorowanym przez git`,
+      true,
     );
   }
 }
@@ -273,6 +279,7 @@ function checkSpikeReadmes(ctx) {
       path: spike.dir,
       class: 'milestone',
       reason: `katalog spike'a bez README.md — dodaj ${spike.dir}README.md z polem milestone (M#) i ID historyjki spike'a`,
+      classError: false,
     });
   }
 }
@@ -325,8 +332,9 @@ function classify(path, ctx) {
     orphan: false,
   };
   /** @type {Report} */
-  const report = (code, reason, severity = 'error') => {
-    ctx.findings.push({ severity, code, path, class: record.class, reason });
+  const report = (code, reason, kind = 'error') => {
+    const severity = kind === 'warning' ? 'warning' : 'error';
+    ctx.findings.push({ severity, code, path, class: record.class, reason, classError: kind === 'class-error' });
   };
   const scratch = `${ctx.config.scratchDir}/`;
   const ephemeralOutside = `plik roboczy (lifecycle: ephemeral) w części repozytorium śledzonej przez git — zapisuj go w ${scratch} (ignorowany przez git) albo w scratchpadzie sesji`;
@@ -335,7 +343,7 @@ function classify(path, ctx) {
   if (rule.class === 'forbidden') {
     if (lifecycle === 'ephemeral') {
       record.class = 'ephemeral';
-      report('ephemeral-tracked', ephemeralOutside);
+      report('ephemeral-tracked', ephemeralOutside, 'class-error');
     } else {
       const where = rule.id === null ? 'brak pasującej reguły' : `reguła ${rule.id}: katalog o ściśle określonej strukturze`;
       const renamed = path.replace(/\.md$/i, '.md');
@@ -345,6 +353,7 @@ function classify(path, ctx) {
         allowedAfterRename && allowedAfterRename.class !== 'forbidden'
           ? `plik poza dozwolonymi lokalizacjami (${where}) — zmień rozszerzenie na .md (${renamed}): po tej zmianie plik pasuje do reguły ${allowedAfterRename.id}; lokalizacje: ${ctx.config.policy} → „Dozwolone lokalizacje”`
           : `plik poza dozwolonymi lokalizacjami (${where}) — przenieś go do docs/notes/ z polem lifecycle albo, jeśli to plik roboczy, do ${scratch}; lokalizacje: ${ctx.config.policy} → „Dozwolone lokalizacje”`,
+        'class-error',
       );
     }
     return record;
@@ -356,16 +365,16 @@ function classify(path, ctx) {
   }
   if (rule.class === 'lifecycle') {
     if (lifecycle === undefined) {
-      report('class-missing', 'brak klasy — plik w docs/notes/ wymaga pola lifecycle: permanent, living albo milestone');
+      report('class-missing', 'brak klasy — plik w docs/notes/ wymaga pola lifecycle: permanent, living albo milestone', 'class-error');
       return record;
     }
     if (!CLASSES.includes(lifecycle)) {
-      report('class-unknown', unknownClass);
+      report('class-unknown', unknownClass, 'class-error');
       return record;
     }
     if (lifecycle === 'ephemeral') {
       record.class = 'ephemeral';
-      report('ephemeral-tracked', ephemeralOutside);
+      report('ephemeral-tracked', ephemeralOutside, 'class-error');
       return record;
     }
     record.class = lifecycle;
@@ -374,12 +383,13 @@ function classify(path, ctx) {
     if (lifecycle === 'milestone') milestoneFromField(record, fields, ctx, report);
   } else {
     record.class = rule.class;
-    if (lifecycle !== undefined && !CLASSES.includes(lifecycle)) report('class-unknown', unknownClass);
-    else if (lifecycle === 'ephemeral') report('ephemeral-tracked', ephemeralOutside);
+    if (lifecycle !== undefined && !CLASSES.includes(lifecycle)) report('class-unknown', unknownClass, 'class-error');
+    else if (lifecycle === 'ephemeral') report('ephemeral-tracked', ephemeralOutside, 'class-error');
     else if (lifecycle !== undefined && lifecycle !== rule.class) {
       report(
         'class-conflict',
         `klasa sprzeczna z lokalizacją — pole lifecycle: ${quote(lifecycle)}, a ${ruleText} nadaje klasę ${CLASS_LABELS[rule.class]} (${rule.class}); klasę dokumentu zmienia tylko Konrad przez zmianę polityki`,
+        'class-error',
       );
     }
     if (rule.milestoneFrom === 'story') milestoneFromStory(record, String(captures.evmId), fields, ctx, report);
@@ -488,6 +498,7 @@ function checkOwnMilestone(record, fields, report) {
   report(
     'class-conflict',
     `kamień milowy sprzeczny z lokalizacją — pole milestone: ${quote(own)}, a z lokalizacji wynika ${record.milestone} (${record.milestoneSource})`,
+    'class-error',
   );
 }
 

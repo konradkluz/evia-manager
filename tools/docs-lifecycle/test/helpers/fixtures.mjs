@@ -85,6 +85,32 @@ export function analyzeFiles(files, { extraPaths, scratchIgnored, today = TODAY,
 }
 
 /**
+ * One synthetic violation of every error code and both warnings (EVM-013 AC7: the dictionary of errors and the
+ * „błędy klasy” flag), in a repository whose scratch directory is not ignored.
+ * @returns {import('../../lib/analyze.mjs').Analysis}
+ */
+export function analyzeEveryFinding() {
+  return analyzeFiles(
+    {
+      'notatka.md': '# Luźna notatka\n',
+      'docs/notes/bez-klasy.md': '# Notatka\n',
+      'docs/notes/archiwum.md': doc({ lifecycle: 'archiwum' }),
+      'docs/product/sprzeczny.md': doc({ lifecycle: 'permanent' }),
+      'docs/qa/EVM-001/raport.md': doc({ milestone: 'M1' }),
+      'docs/notes/szkic.md': doc({ lifecycle: 'ephemeral' }),
+      '.scratch/robocza.md': '# Robocza\n',
+      'docs/notes/plan.md': doc({ lifecycle: 'milestone' }),
+      'docs/notes/plan-m9.md': doc({ lifecycle: 'milestone', milestone: 'M9' }),
+      'docs/product/data.md': doc({ review_by: '2026-13-01' }),
+      'docs/product/cennik.md': doc({ expires: '2027-01-01' }),
+      'docs/product/przegląd.md': doc({ review_by: '2026-01-01' }),
+      'docs/README.md': '# D\n- process/workflow.md product/roadmap.md product/data.md product/cennik.md product/przegląd.md\n',
+    },
+    { extraPaths: ['spikes/kolejka/kolejka.ts'], scratchIgnored: false },
+  );
+}
+
+/**
  * Findings as `code path` strings for compact assertions (finding I: tests check code + path).
  * @param {import('../../lib/analyze.mjs').Analysis} analysis
  * @param {'error' | 'warning'} [severity]

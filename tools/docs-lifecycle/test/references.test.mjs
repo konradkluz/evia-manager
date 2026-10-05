@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildReferenceIndex, extractPathTokens, referenceCandidates } from '../lib/references.mjs';
-import { analyzeFiles, codes } from './helpers/fixtures.mjs';
+import { runTimed } from './helpers/timed-worker.mjs';
 
 /** The original backtracking token pattern — reference oracle, used only on short inputs. */
 const ORACLE = /\/?(?:[\p{L}\p{N}\p{M}._~%+@-]+\/)*[\p{L}\p{N}\p{M}._~%+@-]*\.md(?![\p{L}\p{N}\p{M}_-])/gu;
@@ -22,7 +22,10 @@ function random(seed) {
   };
 }
 
-/** Time limit for analysing one ≥ 200 KB line without spaces (finding QA: quadratic backtracking). */
+/**
+ * Time limit for analysing one ≥ 200 KB line without spaces (finding QA: quadratic backtracking). Measured inside a
+ * worker thread with a hard deadline (EVM-013 AC6): node:test `timeout` cannot stop synchronous code.
+ */
 const LIMIT_MS = 2000;
 const LONG = 200 * 1024;
 
@@ -148,7 +151,7 @@ describe('odwołania między dokumentami (EVM-012, ustalenie E)', () => {
     }
   });
 
-  it('EVM-012 AC4: ciągi ≥ 200 KB bez spacji (także z .md przed literą i z ukośnikami) — czas liniowy', { timeout: LIMIT_MS }, () => {
+  it('EVM-012 AC4: ciągi ≥ 200 KB bez spacji (także z .md przed literą i z ukośnikami) — czas liniowy', async () => {
     const letters = 'zażółćgęśląjaźń'.repeat(Math.ceil(LONG / 15)).slice(0, LONG);
     /** @type {Array<[string, string[]]>} */
     const cases = [
@@ -159,32 +162,24 @@ describe('odwołania między dokumentami (EVM-012, ustalenie E)', () => {
       [`${'.md'.repeat(Math.floor(LONG / 3))}ą`, ['.md'.repeat(Math.floor(LONG / 3) - 1)]],
     ];
     for (const [text, expected] of cases) {
-      const started = performance.now();
-      const tokens = extractPathTokens(text);
-      const elapsed = performance.now() - started;
+      const { elapsed, result: tokens } = await runTimed('pathTokens', text);
       assert.deepEqual(tokens, expected);
       assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
     }
   });
 
-  it(
-    'EVM-012 AC4: polski dokument z ciągiem ≥ 200 KB bez spacji jest analizowany w < 2 s, odwołania dalej działają',
-    { timeout: LIMIT_MS },
-    () => {
-      const long = 'ZażółćgęśląjaźńŁÓDŹ'.repeat(Math.ceil(LONG / 19)).slice(0, LONG);
-      const started = performance.now();
-      const analysis = analyzeFiles({
-        'docs/product/dlugi.md': `# Długi dokument\n\nOpis: ${long}\n\nZobacz docs/product/cennik.md oraz ${long}/docs/product/inny.md\n`,
-        'docs/product/cennik.md': '# Cennik\n',
-        'docs/product/inny.md': '# Inny\n',
-        'docs/README.md': '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n- product/dlugi.md\n- product/inny.md\n',
-      });
-      const elapsed = performance.now() - started;
-      assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
-      assert.deepEqual(codes(analysis), []);
-      assert.deepEqual(analysis.references.get('docs/product/cennik.md'), ['docs/product/dlugi.md']);
-      // The long run glued to the path is one token (a nonexistent path) — as before the fix.
-      assert.deepEqual(analysis.references.get('docs/product/inny.md'), ['docs/README.md']);
-    },
-  );
+  it('EVM-012 AC4: polski dokument z ciągiem ≥ 200 KB bez spacji jest analizowany w < 2 s, odwołania dalej działają', async () => {
+    const long = 'ZażółćgęśląjaźńŁÓDŹ'.repeat(Math.ceil(LONG / 19)).slice(0, LONG);
+    const { elapsed, result: analysis } = await runTimed('analyze', {
+      'docs/product/dlugi.md': `# Długi dokument\n\nOpis: ${long}\n\nZobacz docs/product/cennik.md oraz ${long}/docs/product/inny.md\n`,
+      'docs/product/cennik.md': '# Cennik\n',
+      'docs/product/inny.md': '# Inny\n',
+      'docs/README.md': '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n- product/dlugi.md\n- product/inny.md\n',
+    });
+    assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+    assert.deepEqual(analysis.codes, []);
+    assert.deepEqual(analysis.references['docs/product/cennik.md'], ['docs/product/dlugi.md']);
+    // The long run glued to the path is one token (a nonexistent path) — as before the fix.
+    assert.deepEqual(analysis.references['docs/product/inny.md'], ['docs/README.md']);
+  });
 });

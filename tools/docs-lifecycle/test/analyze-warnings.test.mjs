@@ -1,7 +1,7 @@
 // @ts-check
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { analyzeFiles, codes, doc, story } from './helpers/fixtures.mjs';
+import { analyzeEveryFinding, analyzeFiles, codes, doc, story } from './helpers/fixtures.mjs';
 
 const README = '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n';
 
@@ -107,6 +107,17 @@ describe('walidator — ostrzeżenia (EVM-012 AC4)', () => {
       analysis.files.some((file) => file.orphan),
       false,
     );
+  });
+
+  it('EVM-013 AC7: flaga classError ustawiona w miejscu zgłoszenia — dokładnie dla 5 kodów błędów klasy (także class-conflict pola milestone)', () => {
+    const CLASS_ERROR_CODES = ['class-conflict', 'class-missing', 'class-unknown', 'ephemeral-tracked', 'location-forbidden'];
+    const analysis = analyzeEveryFinding();
+    for (const finding of analysis.findings) {
+      assert.equal(finding.classError, CLASS_ERROR_CODES.includes(finding.code), `${finding.code} ${finding.path}`);
+    }
+    const flagged = new Set(analysis.findings.filter((finding) => finding.classError).map((finding) => finding.code));
+    assert.deepEqual([...flagged].sort(), CLASS_ERROR_CODES);
+    assert.ok(codes(analysis).includes('class-conflict docs/qa/EVM-001/raport.md'), 'class-conflict z pola milestone (reguły 11–13)');
   });
 
   it('EVM-012 AC4: inne błędy (np. niepoprawna data) nie wyłączają ostrzeżenia „osierocony”', () => {

@@ -126,7 +126,7 @@ expires: 2027-01-31
 | Definition of Done historyjki | `npm run docs:check` — 0 błędów; ostrzeżenia przejrzane (naprawione albo opisane w historyjce) | orkiestrator |
 | zastąpienie lub scalenie dokumentu żywego; wycofanie ADR (status „Zastąpiona”) | w historyjce lub ADR, które to obejmują | Konrad |
 | `/milestone close M#` | przegląd aktualności dokumentów żywych; raport sprzątania; wykonanie zaakceptowanych pozycji; zapis w retrospektywie | Konrad |
-| po EVM-006 | błędy walidatora blokują merge w CI (EVM-013) | — |
+| każdy push (CI, bramka 11) | walidator jako pierwszy krok joba `quality`: błędy (kod `1`) i błąd narzędzia (kod `2`) dają czerwony `ci-gate`, więc PR nie zostaje scalony (K2); ostrzeżenia nie blokują — trafiają do podsumowania przebiegu (szczegóły: „Walidator i raport sprzątania” → „W CI (bramka 11)”) | CI; scala Konrad przy zielonym `ci-gate` |
 
 ## Walidator i raport sprzątania
 ### Polecenia
@@ -138,13 +138,24 @@ Wymagane: Node.js ≥ 22.15 i git; **bez instalacji zależności** (nie uruchami
 | lista wszystkich plików z klasą i źródłem klasy (reguła # albo pole `lifecycle`) | `node tools/docs-lifecycle/cli.mjs check --list` |
 | walidacja na wskazany dzień (np. co się przeterminuje) | `node tools/docs-lifecycle/cli.mjs check --today YYYY-MM-DD` |
 | raport sprzątania dla kamienia milowego (tylko odczyt) | `npm run docs:cleanup -- M#` (na wskazany dzień: `node tools/docs-lifecycle/cli.mjs cleanup-report M# --today YYYY-MM-DD`) |
+| podsumowanie przebiegu w CI — Markdown na stdout, raport na stderr (używa go krok CI, patrz „W CI (bramka 11)”) | `node tools/docs-lifecycle/cli.mjs check --summary` |
 | testy walidatora i raportu (progi pokrycia linii i gałęzi ≥ 90%) | `npm run test:tools` |
 
 - **Windows PowerShell 5.1** usuwa „gołe” `--` przed przekazaniem argumentów do npm, więc opcje podane po nim giną albo zmieniają znaczenie. Opcje podawaj przez `node tools/docs-lifecycle/cli.mjs …` albo z `'--'` w cudzysłowie, np. `npm run docs:check '--' --list`. `npm run docs:cleanup -- M0` działa w każdej powłoce. Nadmiarowe lub brakujące argumenty kończą się kodem wyjścia `2` ze wskazówką.
+- **`pnpm run gate`** uruchamia walidator zaraz po sprawdzeniu hooków git — jak pierwszy krok CI. W chmurze (Claude Code web) `pnpm run gate` nie działa, więc punkt DoD to nadal `npm run docs:check`.
 - **Polskie znaki przy zapisie wyniku do pliku lub w potoku:** w konsoli wyświetlają się poprawnie, ale Windows PowerShell 5.1 przy przekierowaniu (`>`) i w potoku do swoich poleceń (np. `Select-String`) dekoduje wyjście programu wg `[Console]::OutputEncoding` (np. strona kodowa 852) i zniekształca je. W PowerShell 5.1 najpierw ustaw `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8` albo zapisuj z cmd.exe (bajty bez zmian) lub PowerShell 7.4+. Plik z wynikiem to plik roboczy — tylko w `.scratch/`.
+
+### W CI (bramka 11)
+Bramka 11 z `docs/security/requirements.md` (SR-SUPPLY-11), od EVM-013:
+- **Gdzie:** walidator działa na każdym pushu jako pierwszy krok joba `quality` w `.github/workflows/ci.yml` („Documentation lifecycle validator (docs:check, bramka 11)”), zanim cokolwiek zostanie zainstalowane. CI sprawdza czysty checkout commita; lokalnie walidator widzi też pliki nieśledzone, więc bywa surowszy.
+- **Co blokuje:** błędy (kod `1`) i błąd narzędzia (kod `2`) czerwienią krok, a przez niego `ci-gate` — PR nie zostaje scalony (K2). Przy błędzie dokumentacji pozostałe kroki `quality` się nie wykonują, a job `coverage` jest pominięty; joby `backend` i `security` dają własne wyniki.
+- **Czego nie blokuje:** ostrzeżenia nie blokują — także „przeterminowany” zależny od daty. CI działa bez `--today`, więc ten sam commit ma ten sam wynik `ci-gate` każdego dnia; zmienić się może tylko liczba ostrzeżeń.
+- **Wynik:** sekcja „Walidator dokumentacji (EVM-013)” w podsumowaniu przebiegu (Summary): wynik, licznik `błędy: N · ostrzeżenia: M`, listy błędów i ostrzeżeń (do 100 pozycji na listę, dalej „… i N więcej — pełna lista w logu”) i podpowiedź `npm run docs:check`. Pełna lista jest w logu kroku. Przy kodzie `2` podsumowanie jest puste, a komunikat jest w logu.
+- **Lokalnie:** `npm run docs:check` (ten sam wynik w tym samym dniu) albo `pnpm run gate`. Punkt DoD „`npm run docs:check` — 0 błędów” zostaje bez zmian.
 
 ### Wynik i kody wyjścia
 - Wyjście: stdout, UTF-8, ścieżki z `/`, kolejność deterministyczna; wyłącznie ścieżki i metadane — nigdy treść dokumentów.
+- **Bezpieczne wyjście (EVM-013):** każda linia jest jedną linią bez znaków sterujących (escapowane jako `\u{…}`), a w ścieżkach i argumentach polecenia runnera GitHub Actions są neutralizowane: `::` na początku linii i `##[` w dowolnym miejscu linii — pierwszy znak zapisany jak escapowanie (np. `\u{3A}:error::x.md`, `\u{23}#[error]`). Narzędzie nie emituje adnotacji (`::warning`, `::error`, `::notice`). Dotyczy stdout i stderr, także komunikatów błędów.
 - **Walidator:** wiersz na każde ustalenie — `BŁĄD · <ścieżka> · <klasa lub —> · <powód i wskazówka>` albo `OSTRZEŻENIE · …`; na końcu podsumowanie: liczba plików wg klas, lista „klasa nadana ręcznie”, `błędy: N · ostrzeżenia: M`. Gdy repozytorium jest czyste — jednoznaczny komunikat o braku błędów i ostrzeżeń.
 - **Raport sprzątania:** tabela Markdown (Ścieżka · Klasa · Proponowana akcja · Uzasadnienie), liczba pozycji i stopka „tylko odczyt — żaden plik nie został zmieniony; decyzję podejmuje Konrad w `/milestone close`”. Brak pozycji — jednoznaczny komunikat; przy błędach walidacji — ostrzeżenie na początku raportu.
 - **Kody wyjścia:** `0` — brak błędów (ostrzeżenia dozwolone) albo raport wygenerowany; `1` — błędy walidacji; `2` — błąd użycia lub środowiska (brak repozytorium git, nieznany argument, zła liczba argumentów, niepoprawna data w `--today`, M# spoza listy kamieni milowych).
@@ -168,7 +179,9 @@ Wymagane: Node.js ≥ 22.15 i git; **bez instalacji zależności** (nie uruchami
 | Ostrzeżenie | Kiedy |
 |---|---|
 | przeterminowany | `expires` lub `review_by` wcześniejsze niż dzisiaj (`Europe/Warsaw`); komunikat podaje datę |
-| osierocony | plik z reguły oznaczonej „tak” w kolumnie „Osierocony”, do którego nie odwołuje się żaden inny plik `.md` (plik z błędem klasy ma już błąd — bez dodatkowego ostrzeżenia) |
+| osierocony | plik z reguły oznaczonej „tak” w kolumnie „Osierocony”, do którego nie odwołuje się żaden inny plik `.md` (plik z błędem z listy „Błędy klasy” niżej ma już błąd — bez dodatkowego ostrzeżenia) |
+
+**Błędy klasy:** plik poza dozwolonymi lokalizacjami; brak klasy; nieznana klasa; klasa sprzeczna z lokalizacją; plik roboczy w części śledzonej — po takim błędzie plik nie dostaje ostrzeżenia „osierocony”; pozostałe błędy (np. niepoprawna data) go nie wyłączają. Listę wyznacza walidator (flaga przy ustaleniu), a test spójności porównuje ją z tą linią (EVM-013).
 
 ### Raport sprzątania — proponowane akcje
 | Akcja | Kiedy | Uwagi |
@@ -181,7 +194,10 @@ Wymagane: Node.js ≥ 22.15 i git; **bez instalacji zależności** (nie uruchami
 Pliki trwałe i żywe oraz pliki z błędami walidacji **nigdy** nie dostają „usuń” ani „archiwizuj” — najwyżej „przejrzyj”. Raport zawiera wyłącznie pliki przypisane do wskazanego M# oraz pliki przeterminowane i osierocone.
 
 ### Bezpieczeństwo
-- **Tylko odczyt:** walidator i raport nigdy nie zmieniają, nie przenoszą ani nie usuwają plików.
+- **Tylko odczyt:** walidator i raport nigdy nie zmieniają, nie przenoszą ani nie usuwają plików. Narzędzie nie zna pliku podsumowania przebiegu: pisze na stdout, a do podsumowania kieruje je krok workflowu.
+- **Wartości w podsumowaniu przebiegu** są wyłącznie w bloku kodu (płotek dłuższy od każdej serii backticków), więc nie tworzą linków, obrazów, HTML ani formatowania; poza blokiem są tylko stałe teksty i liczby; najwyżej 100 pozycji i 400 KiB na blok.
+- **Wskazówka `git rm --cached`** cytuje ścieżkę dla powłoki POSIX (`'…'`, `'` → `'\''`), więc wklejona do bash albo sh nie wykona poleceń z nazwy pliku.
+- **Dostępność bramki:** wyrażenia regularne działają w czasie liniowym, a testy czasu dla plików 200 KB mają twardy termin (wątek przerywany) — złośliwie zbudowany plik nie zawiesza CI.
 - Czytają wyłącznie pliki `.md` ze zbioru gita (śledzone i nieignorowane) oraz listę plików z gita; nie otwierają `.env*`, kluczy ani plików ignorowanych; ścieżek znalezionych w treści dokumentów nie otwierają.
 - Działają lokalnie, bez dostępu do sieci; wynik zawiera tylko ścieżki i metadane.
 
