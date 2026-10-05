@@ -544,6 +544,12 @@ Akceptacja 2026-10-05 (Konrad):
 7. **EVM-073 — faza 7 M1** (po historyjkach P1, jeśli nie opóźnia 1.0; wcześniej tylko decyzją Konrada, gdy środowisko chmury będzie miało Node 26).
 8. **Pozycje do backlogu (L5, obserwacje z EVM-012)** — jedna historyjka P3 „Porządki walidatora dokumentacji” tworzona po zakończeniu EVM-013, z `security-engineer` jako recenzentem (L5 zmienia `ci.yml`); do tego czasu — „Uwagi do rozważenia”. EVM-073 bez przeglądu `security-engineer` (zachowanie narzędzia bez zmian, poza listami K3/K6).
 
+Realizacja 2026-10-05 (Konrad):
+
+9. **Push gałęzi dla dowodów CI** — orkiestrator wypycha `feature/EVM-013-walidator-dokumentacji-w-ci` (bez force) dla dowodów 1–3 z DoD; kolejne pushe dopiero po zakończeniu poprzedniego przebiegu.
+10. **Q1 — wariant B: AC4 bez zmian.** Wskazówka `git rm --cached` jest cytowana dla powłoki POSIX. Ryzyko rezydualne — wklejenie wskazówki do PowerShell lub cmd (Medium; wymaga prawa zapisu do repozytorium i ręcznego wklejenia wskazówki) — zaakceptowane przez Konrada; przegląd nie zgłasza go jako blocker ani major.
+11. **Lżejsze dokończenie realizacji** — workflow `deliver-story` zatrzymany po implementacji. Zamiast agenta QA i do 3 rund przeglądów: weryfikacja orkiestratora (bramka lokalnie, symulacja kroku CI, raport QA w `docs/qa/EVM-013/` przygotowany przez orkiestratora), jedna runda przeglądów `code-reviewer` i `security-engineer` na tańszym modelu (`sonnet`) — tylko ustalenia blocker / major, dowody CI z DoD, demo. AC i pozostałe punkty DoD bez zmian.
+
 ## Uwagi do rozważenia
 Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 1. **L5** — `codeCell` w `tools/docs-lifecycle/lib/format.mjs` psuje się dla ścieżek z dwoma backtickami, a krok K3 w jobie `security` (`ci.yml`) wpisuje ścieżki z `git diff` do podsumowania bez escapowania Markdown (CWE-116, Low).
@@ -575,3 +581,4 @@ Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
 - 2026-10-05 — draft → ready: AC1–AC8 zaakceptowane przez Konrada; decyzje 6–8 (EVM-073 — faza 7; porządki walidatora — P3 po EVM-013)
 - 2026-10-05 — ready → in-progress: start `/deliver EVM-013` na gałęzi `feature/EVM-013-walidator-dokumentacji-w-ci` (orkiestrator). Warunek startu spełniony: `npm run docs:check` na `main` (`ee58da5`) — 168 plików, 0 błędów, 0 ostrzeżeń; na gałęzi — 169 plików, 0 błędów, 0 ostrzeżeń. Środowisko Claude Code web w tej sesji: Node 26.10.0 i pnpm 12.8.1 domyślnie (zależności zainstalowane), Node 22.22 w `/opt/node22/bin`, demon Dockera niedostępny. Bazowo na gałęzi `pnpm run gate:native` (Prettier, lint, typy, testy z pokryciem 27 zadań Turborepo, granice modułów) jest zielone natywnie (ok. 43 s); część kontenerowa `pnpm run gate` (`gate:backend`) i `pnpm run scan` — tylko w CI.
 - 2026-10-05 — plan techniczny (devops-engineer); konsultacja planu `security-engineer` — CHANGES REQUIRED: W1–W3 i zalecenia a–e wprowadzone do planu („Ustalenia z konsultacji”), Q1 (wskazówka L4 a PowerShell i cmd) do decyzji Konrada, L6 w „Uwagach do rozważenia”
+- 2026-10-05 — decyzje Konrada 9–11 („Decyzje”: push dowodów CI, Q1 → wariant B, lżejsze dokończenie realizacji); poza zakresem historyjki: po EVM-013 orkiestrator przygotuje propozycję zmiany procesu (osobny PR do akceptacji) (orkiestrator)
