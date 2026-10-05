@@ -13,6 +13,7 @@ import { todayInZone } from '../lib/dates.mjs';
 import { loadRepository } from '../lib/repository.mjs';
 import { analyzeEveryFinding } from './helpers/fixtures.mjs';
 import { parsePolicyRules, section } from './helpers/markdown.mjs';
+import { V1 } from './helpers/runner.mjs';
 
 const config = loadConfig();
 const repository = loadRepository({ cwd: fileURLToPath(new URL('.', import.meta.url)), env: process.env, config });
@@ -224,6 +225,18 @@ describe('bramka dokumentacji w CI — opis w dokumentach (EVM-013 AC8)', () => 
       assert.ok(text.includes('EVM-073'), `${path}: brak odwołania do EVM-073`);
       assert.doesNotMatch(text, DEBT_EVM_013, path);
     }
+  });
+});
+
+describe('polecenia runnera poza testami i ścieżkami (EVM-013 AC7; security-engineer W2)', () => {
+  it('EVM-013 AC7: źródła testów i ścieżki repozytorium nie zawierają polecenia runnera w formacie V1 — reporter wypisuje testy do logu CI', () => {
+    assert.equal(repository.paths.filter((path) => path.includes(V1)).length, 0, 'ścieżki z poleceniem runnera');
+    const tests = repository.paths.filter((path) => /^(?:apps|packages|services|tools)\/[^/]+\/test\/.+\.(?:mjs|js|ts)$/.test(path));
+    assert.ok(tests.length > 0);
+    assert.deepEqual(
+      tests.filter((path) => String(repository.read(path)).includes(V1)),
+      [],
+    );
   });
 });
 

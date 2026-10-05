@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * Output safety (EVM-013 AC4; security-engineer L1, L2, L4, W1–W3): file names and arguments never become workflow
- * commands of the GitHub Actions runner (`::` at the start of a line, `##[` anywhere in a line), control characters
+ * commands of the GitHub Actions runner (V2 prefix at the start of a line, V1 prefix anywhere in a line), control characters
  * are escaped and the `git rm --cached` hint quotes the path for a POSIX shell.
  * Payloads are composed in code (helpers/runner.mjs): never in test titles or assertion messages, and line checks report
  * only `stream:line` (W2). Synthetic data only; files are created only through `fs` and git with argument arrays.

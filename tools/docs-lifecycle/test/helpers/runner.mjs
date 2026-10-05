@@ -44,7 +44,7 @@ function linesWhere(streams, test) {
 }
 
 /**
- * Lines the runner could take for a workflow command: `##[` anywhere or `::` at the start after blanks.
+ * Lines the runner could take for a workflow command: the V1 prefix anywhere or the V2 prefix at the start after blanks.
  * @param {Record<string, string>} streams
  * @returns {string[]} `stream:line`
  */
