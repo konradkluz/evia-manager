@@ -272,6 +272,7 @@ describe('design tokens contract (EVM-006 AC6, W4)', () => {
     const pkg = manifest('packages/tokens/package.json');
     expect(pkg.exports).toEqual({
       './web.css': './dist/web/tokens.css',
+      './tailwind-theme.css': './dist/web/tailwind-theme.css',
       './mobile': { types: './dist/mobile/tokens.d.ts', default: './dist/mobile/tokens.js' },
     });
     expect(pkg.scripts?.['build']).toBe('node src/cli.ts');
