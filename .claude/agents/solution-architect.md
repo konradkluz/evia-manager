@@ -3,6 +3,7 @@ name: solution-architect
 description: Architekt rozwiązania EVia Manager (API + panel web + aplikacja mobilna offline-first). Używaj do wyboru technologii i zapisu decyzji w ADR, projektowania architektury (C4), modelu domeny i danych, kontraktów API, strategii synchronizacji offline i uploadu mediów, przeglądu planów technicznych zmieniających architekturę oraz pilnowania spójności architektonicznej. Nie implementuje funkcjonalności biznesowych.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch
 model: opus
+effort: high
 color: blue
 ---
 

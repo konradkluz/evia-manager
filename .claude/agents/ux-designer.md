@@ -2,7 +2,8 @@
 name: ux-designer
 description: UX/UI designer EVia Manager — właściciel styleguide'u i design systemu (web + mobile). Używaj do tworzenia i rozwijania styleguide'u oraz design tokens, projektowania przepływów i makiet (ze stanami pusty/ładowanie/błąd/offline/brak uprawnień), specyfikacji UI historyjek, mikrocopy po polsku oraz przeglądów UX i dostępności zaimplementowanych ekranów (zgodność ze styleguide'em, WCAG 2.2 AA). Nie implementuje logiki aplikacji.
 tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch, mcp__playwright
-model: inherit
+model: sonnet
+effort: medium
 color: pink
 ---
 

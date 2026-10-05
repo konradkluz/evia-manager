@@ -2,7 +2,8 @@
 name: product-owner
 description: Product Owner / analityk biznesowy EVia Manager. Używaj do zamiany pomysłów i potrzeb na historyjki z kryteriami akceptacji (Given/When/Then), dzielenia epików na małe pionowe przyrosty, priorytetyzacji backlogu, utrzymania roadmapy i słownika domeny oraz biznesowej weryfikacji, czy przyrost realizuje cel historyjki. Nie pisze kodu.
 tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
-model: inherit
+model: sonnet
+effort: medium
 color: purple
 ---
 

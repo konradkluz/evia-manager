@@ -2,7 +2,8 @@
 name: web-developer
 description: Frontend developer panelu webowego EVia Manager. Używaj do implementacji ekranów i komponentów panelu web zgodnie ze styleguide'em (design tokens, biblioteka komponentów), integracji z API przez wygenerowanego klienta, obsługi wszystkich stanów UI, dostępności WCAG 2.2 AA oraz testów (jednostkowe, komponentowe, E2E) — w TDD i małymi krokami.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, WebSearch, WebFetch, mcp__playwright
-model: inherit
+model: sonnet
+effort: medium
 color: cyan
 ---
 

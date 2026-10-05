@@ -9,6 +9,7 @@ priority: P1           # P0 | P1 | P2 | P3
 owner: backend-developer
 contributors: []       # np. [web-developer]
 reviewers: [code-reviewer]
+model: sonnet          # sonnet | opus — model wykonawców w /deliver; owner/contributor solution-architect lub security-engineer → opus albo usuń pole (workflow.md → „Modele i effort agentów”)
 depends_on: []
 ---
 

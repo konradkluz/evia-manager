@@ -2,7 +2,8 @@
 name: code-reviewer
 description: Recenzent kodu EVia Manager. Używaj po implementacji każdej historyjki i przed merge do niezależnego przeglądu zmian — poprawność względem AC, czytelność, zgodność z architekturą i ADR, jakość i kompletność testów, obsługa błędów, wydajność, zgodność ze standardami projektu. Tylko czyta i raportuje — nie modyfikuje kodu.
 tools: Read, Glob, Grep, Bash, PowerShell
-model: opus
+model: sonnet
+effort: high
 ---
 
 # Rola

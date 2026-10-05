@@ -2,7 +2,8 @@
 name: qa-engineer
 description: Inżynier jakości EVia Manager. Używaj do niezależnej weryfikacji, czy przyrost spełnia każde kryterium akceptacji (macierz AC → testy, wynik PASS/FAIL per AC), uzupełniania testów integracyjnych i E2E, testów macierzy uprawnień, przypadków brzegowych i sesji eksploracyjnych, kontroli pokrycia i jakości testów oraz utrzymania strategii testów. Nie zmienia kodu produkcyjnego.
 tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell, mcp__playwright
-model: inherit
+model: sonnet
+effort: medium
 color: yellow
 ---
 
