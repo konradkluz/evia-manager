@@ -17,76 +17,127 @@ depends_on: [EVM-006, EVM-012]
 ## Historyjka
 Jako **Konrad (właściciel produktu, jedyna osoba scalająca PR)** chcę, **aby walidator dokumentacji z EVM-012 działał w CI na każdym pushu: błędy polityki cyklu życia dokumentów czerwienią `ci-gate`, a ostrzeżenia widzę w podsumowaniu przebiegu**, aby **porządek w dokumentacji (w tym brak plików roboczych w repozytorium) nie zależał od pamięci agentów ani od ręcznego uruchomienia walidatora przed scaleniem**.
 
-**Rezultat (enabler):** `npm run docs:check` jest bramką 11 z `docs/security/requirements.md` (SR-SUPPLY-11). Błąd walidatora daje czerwony `ci-gate`, więc według procedury scalania K2 PR nie zostaje scalony. Ostrzeżenia są widoczne w podsumowaniu przebiegu i niczego nie blokują.
+**Rezultat (enabler):** `npm run docs:check` jest bramką 11 z `docs/security/requirements.md` (SR-SUPPLY-11): pierwszym krokiem joba `quality` w CI i częścią `pnpm run gate`. Błąd walidatora daje czerwony `ci-gate`, więc według procedury scalania K2 PR nie zostaje scalony. Ostrzeżenia są widoczne w podsumowaniu przebiegu i niczego nie blokują. Wyjście walidatora jest bezpieczne do odczytu: nazwy plików nie stają się poleceniami runnera ani formatowaniem podsumowania, a złośliwie zbudowany plik nie zawiesza bramki.
 
 ## Kontekst
 - **Dlaczego teraz.** Decyzja Konrada z 2026-10-02 (refinement EVM-012): do czasu CI walidator tylko raportuje, a blokada w CI powstaje po EVM-006. EVM-006 jest `done`. Ostatnie historyjki dokumentacyjne (EVM-015, EVM-071) dodały kilkadziesiąt plików `.md`, a `docs:check` uruchamiał tylko orkiestrator lokalnie. Błąd polityki (np. plik roboczy dodany do gita albo notatka poza dozwoloną lokalizacją) może dziś trafić na `main` niezauważony.
 - **Stan na 2026-10-05 (sprawdzony przez orkiestratora).** EVM-006 uruchamia w CI (`.github/workflows/ci.yml`, job `quality`) lint, typy i testy z pokryciem wszystkich workspace'ów. Obejmuje to testy walidatora (`@evia/docs-lifecycle`) na Linuksie, więc punkt „uruchomienie na Linuksie w CI” z długu EVM-012 jest już zrealizowany. CI **nie** uruchamia samego walidatora na repozytorium: błędy polityki nie czerwienią `ci-gate`, a ostrzeżenia nie są nigdzie widoczne.
+- **Zakres po decyzjach Konrada (2026-10-05, „Decyzje” 1–5).**
+  - Bramka CI to **krok w jobie `quality`** — pierwszy krok z poleceniem, przed `pnpm install` — a nie osobny job (0 nowych jobów).
+  - Bezpieczne wyjście narzędzia: poprawki L1–L4 z „Bezpieczeństwo i prywatność” (neutralizacja logu, bezpieczne podsumowanie z limitem pozycji, wyrażenia bez zawieszania, cytowanie ścieżki we wskazówce).
+  - Test 200 KB i testy ReDoS w `worker_threads` z twardym przerwaniem; nity z EVM-012; `docs:check` w `pnpm run gate`.
+  - Zniesienie wyjątków ESLint i TypeScript w `tools/docs-lifecycle` przechodzi do [EVM-073](../M1/EVM-073-wyjatki-jakosci-docs-lifecycle.md). Vitest i `.ts` — „nie robimy”. Hook git — nie teraz.
+- **Skutek kroku w `quality`.** Przy błędzie dokumentacji pozostałe kroki `quality` (format, lint, typy, testy, build) nie wykonują się w tym przebiegu, a job `coverage` zostaje pominięty — `ci-gate` jest czerwony (fail-closed). Joby `backend` i `security` działają niezależnie. Konrad zaakceptował ten skutek, bo `npm run docs:check` działa lokalnie, także w chmurze.
 - **Warunek startu.** Walidator sprawdza całe repozytorium, więc błąd obecny już na `main` czerwieniłby każdą gałąź. Na początku realizacji `npm run docs:check` na `main` musi dać 0 błędów. Jeśli tak nie jest, wykonawca się zatrzymuje i pyta Konrada (naprawa może wymagać przeniesienia dokumentów z `main`, a o tym decyduje Konrad).
 - **Ograniczenie środowiska (Konrad, 2026-10-05).** Do odwołania pracujemy wyłącznie w Claude Code web (kontener Linux w chmurze, Node 22, bez demona Dockera, bez Windows i emulatora).
   - Działają: `npm run docs:check`, `npm run test:tools`, push gałęzi `feature/EVM-*` i odczyt wyników CI.
-  - Tylko w CI: `pnpm install` (`engineStrict` wymaga Node 26), `pnpm run gate`, `pnpm run scan` i testy Vitest (`tools/repo-policy`).
+  - Tylko w CI (do czasu Node 26 w środowisku chmury — osobny krok, „Decyzje” 4): `pnpm install` (`engineStrict` wymaga Node 26), lint, typy, Prettier, `pnpm run gate`, `pnpm run scan` i testy Vitest (`tools/repo-policy`).
   - **Wiążącą weryfikacją są przebiegi GitHub Actions** — patrz „Definition of Done”.
 - **GitHub Free nie ma twardej blokady (ADR-0016).** „Blokuje merge” oznacza tu trzy rzeczy: czerwony `ci-gate`, procedurę scalania K2 (Konrad scala tylko przy zielonym `ci-gate`) i wykrywanie przez K6 (`docs/ops/github-i-ci.md`).
-- Powiązane dokumenty: polityka `docs/process/document-lifecycle.md`, narzędzie `tools/docs-lifecycle/README.md`, CI `docs/ops/github-i-ci.md`. Dług narzędzia z EVM-012 opisują „Notatki techniczne”; propozycja wydzielenia jest w sekcji „Poza zakresem”.
+- Powiązane dokumenty: polityka `docs/process/document-lifecycle.md`, narzędzie `tools/docs-lifecycle/README.md`, CI `docs/ops/github-i-ci.md`. Zagrożenia, ustalenia L1–L5 i kontrole 1–9 — „Bezpieczeństwo i prywatność”; stan długu z EVM-012, wzorzec kroku i weryfikacja w chmurze — „Notatki techniczne”.
 
 ## Kryteria akceptacji
+Testy automatyczne oznaczamy `EVM-013 AC#`. Przypadki z nazwami plików niemożliwymi w systemie plików Windows (znak nowej linii, niepoprawny UTF-8) sprawdzamy na Linuksie — w chmurze i w CI.
+
 **AC1 — Błąd dokumentacji czerwieni `ci-gate`**
 - Zakładając, że ostatni commit gałęzi zawiera plik `.md` łamiący politykę (np. syntetyczny `docs/notatka-evm-013.md` poza dozwolonymi lokalizacjami — przykład z SR-SUPPLY-11 — albo plik z `.scratch/` dodany do gita),
 - Gdy gałąź zostaje wypchnięta i przebieg `ci.yml` się kończy,
-- Wtedy check `ci-gate` tego commita jest czerwony, a nazwa kroku lub joba wskazuje walidator dokumentacji jako przyczynę. Log i podsumowanie przebiegu zawierają listę błędów w formacie walidatora (`BŁĄD · <ścieżka> · <klasa> · <powód i wskazówka>`) oraz podpowiedź, jak powtórzyć sprawdzenie lokalnie (`npm run docs:check`). Dowodem jest prawdziwy przebieg CI z celowo wprowadzonym błędem (DoD).
+- Wtedy:
+  - krok walidatora dokumentacji w jobie `quality` kończy się błędem, a jego nazwa wskazuje walidator dokumentacji jako przyczynę;
+  - log kroku zawiera listę błędów w formacie walidatora (`BŁĄD · <ścieżka> · <klasa> · <powód i wskazówka>`), a podsumowanie przebiegu — sekcję walidatora z błędami (AC5) i podpowiedzią, jak powtórzyć sprawdzenie lokalnie (`npm run docs:check`);
+  - pozostałe kroki `quality` się nie wykonują, job `coverage` jest pominięty, a check `ci-gate` tego commita jest czerwony; joby `backend` i `security` dają w tym przebiegu własne wyniki;
+  - dowodem jest prawdziwy przebieg CI z celowo wprowadzonym błędem (DoD).
 
-**AC2 — Ostrzeżenia widoczne, ale nieblokujące**
+**AC2 — Ostrzeżenia widoczne, ale nieblokujące; wynik zgodny z lokalnym**
 - Zakładając, że walidator zgłasza 0 błędów i co najmniej jedno ostrzeżenie (np. „osierocony” albo „przeterminowany”),
 - Gdy przebieg CI się kończy,
-- Wtedy walidator dokumentacji nie zmienia wyniku `ci-gate` (decydują pozostałe bramki). Podsumowanie przebiegu (GitHub Step Summary) ma sekcję walidatora z licznikiem `błędy: 0 · ostrzeżenia: N` i listą ostrzeżeń (ścieżka · klasa · powód). Przy braku błędów i ostrzeżeń sekcja pokazuje jednoznaczny komunikat o czystej dokumentacji. Ostrzeżenia zależne od daty („przeterminowany”) nigdy nie zmieniają wyniku bramki, więc ten sam commit ma ten sam wynik `ci-gate` niezależnie od dnia przebiegu.
-
-**AC3 — Wynik dotyczy commita i jest zawsze widoczny**
-- Zakładając dowolny przebieg CI, także taki, w którym czerwony jest inny etap (np. formatowanie, testy, skany),
-- Gdy przebieg się kończy,
-- Wtedy wynik walidatora jest dostępny w tym samym przebiegu, więc błędy dokumentacji widać bez naprawiania innych etapów. Liczby błędów i ostrzeżeń są takie same jak wynik `npm run docs:check` uruchomionego tego samego dnia na czystym klonie tego commita. Pliki wygenerowane przez inne etapy CI (np. zależności, raporty pokrycia i skanów) nie zmieniają wyniku.
-
-**AC4 — Brak fałszywej zieleni**
-- Zakładając, że walidator w CI nie dał wyniku „0 błędów”, bo zakończył się błędem użycia lub środowiska (kod `2`, np. brak repozytorium git), nie uruchomił się, został pominięty albo anulowany,
-- Gdy przebieg się kończy,
-- Wtedy `ci-gate` jest czerwony. Jeśli zmiana w gałęzi osłabia bramkę (usuwa walidator z CI, ignoruje jego kod wyjścia, np. przez `continue-on-error` albo `|| true`, albo wyłącza go z warunku `ci-gate`), automatyczny test w bramce CI (oznaczony `EVM-013 AC4`) kończy się błędem z komunikatem wskazującym naruszenie.
-
-**AC5 — Lekka bramka**
-- Zakładając obecny `ci.yml` jako punkt odniesienia,
-- Gdy walidator działa w CI,
-- Wtedy uruchamia się tym samym poleceniem co lokalnie i nie wymaga instalacji zależności projektu, nowych zależności npm, nowych akcji GitHub ani sekretów. Wydłuża czas od pushu do wyniku `ci-gate` o nie więcej niż 1 min i zwiększa zużycie minut Actions o nie więcej niż 1 min na przebieg. Pomiar porównuje przebieg przed zmianą i po niej; wynik trafia do raportu QA.
-
-**AC6 — Bezpieczny workflow i bezpieczne podsumowanie**
-- Zakładając, że zmieniony został `.github/workflows/ci.yml` (plik wrażliwy — K3),
-- Gdy przebiega CI,
 - Wtedy:
-  - wszystkie dotychczasowe kontrole workflowów przechodzą bez nowych wyjątków (testy niezmienników `tools/repo-policy`, zizmor, actionlint);
-  - walidator działa z uprawnieniami wyłącznie do odczytu treści repozytorium i bez sekretów;
-  - podsumowanie przebiegu zawiera wyłącznie ścieżki i metadane, nigdy treść dokumentów;
-  - ścieżka pliku ze znakami Markdown lub HTML (test na danych syntetycznych) jest wyświetlana dosłownie — nie tworzy linku, obrazka ani formatowania.
+  - krok walidatora jest zielony i nie zmienia wyniku `ci-gate` (decydują pozostałe bramki);
+  - podsumowanie przebiegu ma sekcję walidatora z licznikiem `błędy: 0 · ostrzeżenia: N` i listą ostrzeżeń (ścieżka · klasa · powód); przy braku błędów i ostrzeżeń sekcja pokazuje jednoznaczny komunikat o czystej dokumentacji;
+  - liczby błędów i ostrzeżeń są takie same jak wynik `npm run docs:check` uruchomionego tego samego dnia (`Europe/Warsaw`) na czystym klonie tego commita;
+  - ostrzeżenia zależne od daty („przeterminowany”) nigdy nie zmieniają wyniku bramki: ten sam commit ma ten sam wynik `ci-gate` niezależnie od dnia przebiegu (w CI bez `--today`).
 
-**AC7 — Dokumentacja i odwołania**
-- Zakładając, że Konrad albo agent chce wiedzieć, jak działa bramka dokumentacji,
-- Gdy czyta `CLAUDE.md` („Stack i komendy”), `docs/ops/github-i-ci.md` („CI w skrócie”), `tools/docs-lifecycle/README.md`, `docs/process/document-lifecycle.md` (tabela „Kiedy” i „Walidator i raport sprzątania”) oraz `docs/security/requirements.md` (bramka 11),
+**AC3 — Brak fałszywej zieleni i stała konfiguracja kroku**
+- Zakładając, że walidator w CI nie dał wyniku „0 błędów” — zakończył się kodem `1` albo `2` (np. brak repozytorium git), nie uruchomił się, został pominięty albo anulowany — albo że zmiana w gałęzi osłabia bramkę,
+- Gdy przebieg CI się kończy,
 - Wtedy:
-  - dowiaduje się, że walidator działa w CI na każdym pushu, co blokuje (błędy), czego nie blokuje (ostrzeżenia), gdzie zobaczyć wynik (podsumowanie przebiegu) i jak powtórzyć go lokalnie (`npm run docs:check`);
-  - lokalny punkt DoD i polecenie w raporcie agenta zostają bez zmian;
-  - `CHANGELOG.md` (Unreleased) ma wpis;
-  - odwołania do „długu EVM-013” w repozytorium (README narzędzi, komentarze w konfiguracji, nazwy testów) wskazują historyjkę, która przejmuje dług (jeśli Konrad zaakceptuje podział — patrz „Poza zakresem”);
+  - `ci-gate` jest czerwony: kod wyjścia kroku jest kodem wyjścia walidatora (`0` — zielony; `1` i `2` — czerwony), job `quality` zostaje w warunku `ci-gate`, a nazwy `ci.yml`, `quality` i `ci-gate` się nie zmieniają (K6);
+  - test niezmienników w `tools/repo-policy` kończy się błędem z komunikatem wskazującym naruszenie, gdy krok walidatora:
+    - nie istnieje albo nie jest pierwszym krokiem z poleceniem w jobie `quality` (po konfiguracji Node, przed `pnpm install` i przed jakimkolwiek kodem z zależności);
+    - uruchamia walidator innym poleceniem niż lokalne `npm run docs:check` (`node tools/docs-lifecycle/cli.mjs check`; dopuszczalny jest tylko wybór formatu podsumowania z AC5) albo z `--today` lub `--list`;
+    - ma warunek `if:`, `continue-on-error`, `|| true` lub `set +e`, używa potoku bez `shell: bash` albo nie przekazuje kodu wyjścia;
+    - nie zapisuje podsumowania do `$GITHUB_STEP_SUMMARY` albo zawiera wyrażenie `${{ … }}` w `run`;
+  - ten sam test kończy się błędem, gdy job `quality` ma uprawnienia inne niż `contents: read` albo pobiera repozytorium bez `persist-credentials: false`;
+  - krok nie wymaga instalacji zależności, nowych zależności npm, nowych akcji GitHub ani sekretów, a liczba jobów w `ci.yml` się nie zmienia; krok trwa krócej niż 1 min w każdym przebiegu dowodowym (raport QA);
+  - dotychczasowe kontrole workflowów (testy `tools/repo-policy`, zizmor, actionlint) przechodzą bez nowych wyjątków.
+
+**AC4 — Nazwy plików nie sterują logiem CI**
+- Zakładając repozytorium testowe z syntetycznymi plikami o nazwach `::error::x.md`, `##[error]x.md` i `::notice::root.md`, z nazwą zawierającą znak nowej linii i `::warning title=OK::…`, z nazwą w niepoprawnym UTF-8 oraz z plikiem `.scratch/$(id).md` dodanym do gita,
+- Gdy walidator działa w trybach `check` i `check --list` oraz gdy kończy się błędem użycia lub środowiska (komunikat na stderr, także przy błędzie nieoczekiwanym),
+- Wtedy:
+  - na stdout i stderr żadna linia (po pominięciu początkowych białych znaków) nie zaczyna się od `::` ani `##[`, a znaki sterujące są escapowane — runner nie tworzy fałszywych adnotacji, nie maskuje wartości i nie wstrzymuje przetwarzania poleceń;
+  - narzędzie nie emituje adnotacji (`::warning`, `::error`, `::notice`);
+  - kody wyjścia się nie zmieniają (`1` przy błędach walidacji, `2` przy błędzie użycia lub środowiska);
+  - wskazówka `git rm --cached` dla `.scratch/$(id).md` zawiera ścieżkę zacytowaną dla powłoki POSIX (`'…'`, `'` → `'\''`), więc wklejone polecenie nie wykona `id`.
+
+**AC5 — Bezpieczne podsumowanie przebiegu**
+- Zakładając wynik walidatora ze ścieżkami syntetycznymi zawierającymi `` ` ``, ``` `` ```, `|`, `<img src=x>`, `[a](https://example.invalid)` i `**`, z ponad 100 błędami i ponad 100 ostrzeżeniami oraz z syntetycznym znacznikiem w treści dokumentu i w jego polu `title`,
+- Gdy narzędzie wypisuje podsumowanie, a krok CI zapisuje je do podsumowania przebiegu (Step Summary),
+- Wtedy:
+  - podsumowanie ma stałą strukturę z zaufanych tekstów: nagłówek nazywający źródło (np. „Walidator dokumentacji (EVM-013)”), wynik, licznik `błędy: N · ostrzeżenia: M`, listy błędów i ostrzeżeń (ścieżka · klasa · powód) i podpowiedź `npm run docs:check`;
+  - każda wartość z repozytorium jest pokazana dosłownie — nie tworzy linku, obrazka, HTML ani formatowania i nie narusza struktury podsumowania (tabeli, nagłówków, wyniku);
+  - każda lista ma najwyżej 100 pozycji, a dalej dopisek „… i N więcej — pełna lista w logu”; całe podsumowanie ma mniej niż 1 MiB;
+  - syntetyczny znacznik z treści i z pola `title` nie występuje w żadnym wyjściu (log, podsumowanie) — wyjście zawiera tylko ścieżki i metadane;
+  - narzędzie nie czyta i nie zapisuje `GITHUB_STEP_SUMMARY` (pisze na stdout, a do pliku podsumowania kieruje je krok workflowu); test „tylko do odczytu” z EVM-012 AC5 przechodzi bez wyjątków.
+
+**AC6 — Złośliwie zbudowany plik nie zawiesza bramki**
+- Zakładając syntetyczne pliki:
+  - frontmatter z polem `klucz:` i ok. 200 KB spacji i tabulatorów zakończonych U+2028 (oraz wariant z U+2029);
+  - roadmapę z nagłówkiem `#`, ok. 200 KB spacji i U+2028;
+  - dotychczasowe przypadki 200 KB z testów odwołań (EVM-012 AC4),
+- Gdy testy walidatora mierzą czas analizy,
+- Wtedy:
+  - każda analiza kończy się w mniej niż 2 s (czas mierzony wewnątrz osobnego wątku, bez czasu jego startu);
+  - pomiar ma twardy termin (np. 10 s): po jego przekroczeniu wątek jest przerywany, a test kończy się błędem z komunikatem o przekroczeniu czasu, więc job CI nie wisi do `timeout-minutes`;
+  - test kontrolny z obliczeniem, które się nie kończy, potwierdza przerwanie w terminie;
+  - pokrycie linii i gałęzi `tools/docs-lifecycle` nie spada (próg ≥ 90%, dziś 100%).
+
+**AC7 — Porządki z EVM-012 bez zmiany reguł**
+- Zakładając dotychczasowe testy walidatora i politykę `docs/process/document-lifecycle.md`,
+- Gdy wprowadzone są poprawki z AC4–AC6 i nity z EVM-012 („Notatki techniczne” → „Nity”),
+- Wtedy:
+  - dotychczasowe testy przechodzą bez zmiany oczekiwań; wyjątkiem są oczekiwania dotyczące neutralizacji wyjścia i cytowania wskazówki (AC4), wymienione w „Plan techniczny”; nie zmienia się, co jest błędem, a co ostrzeżeniem;
+  - polityka wylicza „błędy klasy” (po których plik nie dostaje ostrzeżenia „osierocony”) — doprecyzowanie bez zmiany reguł, zgodne z jednym źródłem prawdy w kodzie;
+  - test rozszerzeń w innej wielkości liter wiąże każdą ścieżkę z numerem reguły (`Cennik.MD` → 16, `X.Md` → 14), więc błąd przypisany do złej reguły kończy test niepowodzeniem;
+  - narzędzie działa bez instalacji zależności na Node ≥ 22.15: `npm run test:tools` przechodzi na Node 22 (chmura), a testy `@evia/docs-lifecycle` — w CI na Node 26.
+
+**AC8 — Parytet z lokalną bramką i dokumentacja**
+- Zakładając, że Konrad albo agent uruchamia `pnpm run gate` albo chce wiedzieć, jak działa bramka dokumentacji,
+- Gdy uruchamia bramkę (Node 26) albo czyta `CLAUDE.md` („Stack i komendy”), `docs/ops/github-i-ci.md` („CI w skrócie”), `tools/docs-lifecycle/README.md` i `docs/process/document-lifecycle.md` (tabela „Kiedy”, „Walidator i raport sprzątania”),
+- Wtedy:
+  - `pnpm run gate` uruchamia walidator zaraz po sprawdzeniu hooków (`node tools/git-hooks/cli.mjs check`) i kończy się błędem przy błędach dokumentacji — potwierdza to test skryptu `gate` w `tools/repo-policy`;
+  - dokumenty mówią, że walidator działa w CI na każdym pushu jako pierwszy krok `quality`, co blokuje (błędy, także kod `2`), czego nie blokuje (ostrzeżenia), gdzie jest wynik (podsumowanie przebiegu, pełna lista w logu), że przy błędzie dokumentacji reszta `quality` się nie wykonuje i jak powtórzyć sprawdzenie lokalnie (`npm run docs:check`);
+  - punkt DoD `npm run docs:check` i polecenie w raporcie agenta zostają bez zmian (w chmurze `pnpm run gate` nie działa);
+  - odwołania do „długu EVM-013” wskazują EVM-073 i nie zapowiadają migracji na TypeScript ani Vitest: `packages/config/README.md`, `tools/repo-policy/README.md`, komentarz i nazwa testu listy wyjątków w `tools/repo-policy`, `tools/docs-lifecycle/README.md`, komentarze w `tools/docs-lifecycle/eslint.config.js` i `tsconfig.json`;
   - `npm run docs:check` daje 0 błędów.
 
 ## Poza zakresem
-- **Dług techniczny narzędzia z EVM-012** („Notatki techniczne”): Vitest zamiast `node:test` (także w pozostałych `tools/*` w `.mjs`), `.ts` albo `checkJs`, zniesienie wyjątku od wspólnych reguł ESLint i TypeScript dla `tools/docs-lifecycle`, test czasu 200 KB w `worker_threads`, nity (`classError`, lista „błędów klasy” w polityce, asercja testu `.MD`). Propozycja: osobna historyjka (decyzja Konrada). Ta historyjka zmienia tylko to, **gdzie** walidator działa i **gdzie** widać jego wynik.
-- Lokalne wymuszenie: hook pre-commit lub pre-push z walidatorem albo dopisanie `docs:check` do `pnpm run gate` (decyzja Konrada). Wiążące jest CI, a `npm run docs:check` zostaje w DoD i w raporcie agenta.
-- Zmiany reguł polityki i logiki walidacji (co jest błędem, a co ostrzeżeniem, nowe lokalizacje, treść komunikatów).
+- **Zniesienie wyjątków ESLint i TypeScript** w `tools/docs-lifecycle` (`noUncheckedIndexedAccess`, 9 reguł ESLint, lista `RELAXED` w `tools/repo-policy`) — [EVM-073](../M1/EVM-073-wyjatki-jakosci-docs-lifecycle.md) („Decyzje” 1). Tutaj tylko odwołania do długu wskazują EVM-073 (AC8).
+- **Vitest zamiast `node:test` i `.ts` zamiast `.mjs`** — zamknięte jako „nie robimy” („Decyzje” 1), także dla pozostałych `tools/*` w `.mjs`.
+- **Hook git** (pre-commit lub pre-push z walidatorem) — „Decyzje” 5; do rozważenia po powrocie do pracy lokalnej (`lefthook.yml` to plik wrażliwy K3).
+- **Osobny job walidatora** — odrzucony na rzecz kroku w `quality` („Decyzje” 2).
+- **L5** — `codeCell` dla ścieżek z dwoma backtickami oraz krok K3 w jobie `security` (ścieżki z `git diff` w podsumowaniu bez escapowania Markdown) — do backlogu przez `/refine` („Uwagi do rozważenia”). Wyjątek: jeśli wspólna funkcja code spanu z AC5 obejmie też `codeCell`, wykonawca zapisuje to w „Plan techniczny”; krok K3 zostaje bez zmian.
+- **Adnotacje `::warning` / `::error`** przy plikach i komentarze bota w PR — YAGNI, zwiększają powierzchnię Z2; wystarcza podsumowanie przebiegu.
+- **Zmiany reguł polityki i logiki walidacji**: co jest błędem, a co ostrzeżeniem (np. „przeterminowany” jako błąd), nowe lokalizacje, treść komunikatów. Wyjątki: doprecyzowanie listy „błędów klasy” (AC7), neutralizacja wyjścia i cytowanie ścieżki we wskazówce (AC4).
+- **Node 26 w środowisku Claude Code web** — osobny krok poza historyjką („Decyzje” 4).
+- **Obserwacje z EVM-012** — zagnieżdżone repozytorium git w `spikes/` zgłaszane jako „spike bez README” i zbyt surowy test sąsiedztwa kroków w `tools/docs-lifecycle/test/qa-acceptance.test.mjs` — do backlogu przez `/refine` („Uwagi do rozważenia”).
 - Twarda blokada scalenia po stronie GitHuba (ochrona gałęzi, ruleset) — niedostępna na GitHub Free (ADR-0016).
-- Pomijanie ciężkich jobów przy zmianach wyłącznie w dokumentacji (job `changes`) — EVM-006, „Uwagi do rozważenia”, po przekroczeniu ok. 1500 min/mies.
-- Adnotacje przy plikach w PR i komentarze bota — wystarcza podsumowanie przebiegu.
+- Pomijanie ciężkich jobów przy zmianach wyłącznie w dokumentacji (job `changes`) — EVM-006, „Uwagi do rozważenia”, po przekroczeniu ok. 1500 min/mies. Gdy wejdzie, `docs:check` musi zostać w jobie, który uruchamia się zawsze.
 - Nocne raportowanie przeterminowanych dokumentów lub zakładanie zgłoszeń — wystarczają przegląd w `/milestone close` i punkt DoD.
 - Sprawdzanie treści dokumentów (merytoryka, linki zewnętrzne, pisownia) — poza polityką z EVM-012.
 
 ## UX / UI
-Nie dotyczy, bo aplikacja się nie zmienia. Wynik odczytują Konrad i agenci w widoku przebiegu GitHub Actions. Komunikaty są po polsku, w formacie walidatora z EVM-012, bez nowych tekstów interfejsu.
+Nie dotyczy, bo aplikacja się nie zmienia. Wynik odczytują Konrad i agenci w widoku przebiegu GitHub Actions: log kroku i podsumowanie przebiegu. Komunikaty są po polsku, w formacie walidatora z EVM-012. Nowe teksty pojawiają się tylko w podsumowaniu przebiegu (nagłówek, wynik, licznik, dopisek o obcięciu listy, podpowiedź `npm run docs:check`).
 
 ## Bezpieczeństwo i prywatność
 Treść: konsultacja `security-engineer` (2026-10-05), z uwzględnieniem decyzji Konrada („Decyzje” 2 — krok w jobie `quality` zamiast osobnego joba). Role aplikacji (Administrator / Edytor / Tylko odczyt / niezalogowany) nie dotyczą tej historyjki — zmiana dotyczy CI i narzędzia deweloperskiego, nie aplikacji ani danych klientów. Wymaganie: **SR-SUPPLY-11**; powiązane: SR-SUPPLY-04, SR-SUPPLY-05 (K3, K6), SR-PRIV-08, SR-LOG-05 (analogicznie do logów CI).
@@ -196,25 +247,29 @@ Refinement 2026-10-05 (Konrad):
 5. Bez hooka git (pre-commit / pre-push) — do rozważenia po powrocie do pracy lokalnej. Dowód czerwonego przebiegu — na gałęzi historyjki, commit z celowym błędem, potem `git revert` (squash nie przenosi go na `main`).
 
 ## Uwagi do rozważenia
-_—_
+Propozycje pozycji backlogu (poza zakresem, przez `/refine` po decyzji Konrada):
+1. **L5** — `codeCell` w `tools/docs-lifecycle/lib/format.mjs` psuje się dla ścieżek z dwoma backtickami, a krok K3 w jobie `security` (`ci.yml`) wpisuje ścieżki z `git diff` do podsumowania bez escapowania Markdown (CWE-116, Low).
+2. **Zagnieżdżone repozytorium git w `spikes/`** zgłaszane jako „spike bez README” (obserwacja z EVM-012).
+3. **Test sąsiedztwa kroków** w `tools/docs-lifecycle/test/qa-acceptance.test.mjs` jest zbyt surowy (obserwacja z EVM-012).
 
 ## Definition of Done
 - [ ] Warunek startu sprawdzony: `npm run docs:check` na `main` daje 0 błędów (w przeciwnym razie stop i pytanie do Konrada przed włączeniem bramki).
-- [ ] AC1–AC7 spełnione. Testy automatyczne oznaczone `EVM-013 AC#` obejmują co najmniej AC4 i AC6. Nowy kod (jeśli powstanie, np. budowa podsumowania) ma pokrycie linii i gałęzi ≥ 90%.
-- [ ] Dowody z GitHub Actions (wiążące, bo pracujemy w Claude Code web). Każdy przebieg jest zakończony, nie anulowany, a linki leżą w `docs/qa/EVM-013/`:
-  1. commit z syntetycznym błędem dokumentacji → czerwony `ci-gate`, przyczyna w walidatorze (AC1, AC3);
-  2. commit z samymi ostrzeżeniami → zielony `ci-gate`, ostrzeżenia w podsumowaniu (AC2);
-  3. ostatni commit gałęzi → zielony `ci-gate`, podsumowanie zgodne z lokalnym `npm run docs:check` (AC2, AC3);
-  4. pomiar czasu i minut przed zmianą i po niej (AC5).
+- [ ] AC1–AC8 spełnione. Testy automatyczne oznaczone `EVM-013 AC#` obejmują AC3–AC7 i skrypt `gate` z AC8; AC1 i AC2 potwierdzają przebiegi CI. Nowy i zmieniony kod ma pokrycie linii i gałęzi ≥ 90%, a pokrycie `tools/docs-lifecycle` nie spada.
+- [ ] Natywnie w Claude Code web (Node 22): `npm run docs:check` daje 0 błędów (ostrzeżenia przejrzane), a `npm run test:tools` jest zielone (≥ 90%).
+- [ ] Bramki niedostępne w chmurze — lint, typy, Prettier, testy Vitest `tools/repo-policy`, testy `@evia/docs-lifecycle` na Node 26 i `pnpm run gate` — potwierdza zielony `ci-gate` na HEAD gałęzi. Raport QA wymienia wprost bramki sprawdzone tylko w CI. Każdą rozbieżność między wynikiem lokalnym a CI wyjaśniamy.
+- [ ] Dowody z GitHub Actions (wiążące, bo pracujemy w Claude Code web) — linki w raporcie QA w `docs/qa/EVM-013/`. Każdy przebieg jest zakończony, nie anulowany: kolejny push dopiero po zakończeniu poprzedniego przebiegu, bo `concurrency` anuluje przebiegi gałęzi.
+  1. Commit z syntetycznym błędem dokumentacji → czerwony `ci-gate`, przyczyna w kroku walidatora, błąd w podsumowaniu (AC1, AC5); potem `git revert`.
+  2. Commit z samymi ostrzeżeniami (np. syntetyczny dokument osierocony) → zielony `ci-gate`, ostrzeżenia w podsumowaniu (AC2); potem `git revert`.
+  3. HEAD gałęzi → zielony `ci-gate`, podsumowanie zgodne z lokalnym `npm run docs:check` z tego dnia, czas kroku krótszy niż 1 min (AC2, AC3).
 
-  Pliki syntetyczne (bez danych osobowych) usuwa commit `revert`, bez przepisywania historii, więc nie trafiają na `main`.
-- [ ] Lokalnie w Claude Code web: `npm run docs:check` daje 0 błędów (ostrzeżenia przejrzane), a `npm run test:tools` jest zielone (≥ 90%). Kroki niedostępne lokalnie (`pnpm run gate`, `pnpm run scan`, testy Vitest) zastępuje zielony `ci-gate` ostatniego commita gałęzi, co raport QA zaznacza wprost. Każdą rozbieżność między wynikiem lokalnym a CI wyjaśniamy.
-- [ ] Przeglądy `code-reviewer` i `security-engineer` — APPROVE (`ci.yml` to plik wrażliwy, K3).
-- [ ] Dokumentacja (AC7) i `CHANGELOG.md` zaktualizowane.
-- [ ] Demo i akceptacja Konrada w przeglądarce: PR → zakładka „Checks” → przebieg z dowodu 1 (czerwony `ci-gate`, błąd w podsumowaniu) → przebieg z dowodu 3 (zielony `ci-gate`, czysta dokumentacja); scalenie wg K2.
+  Pliki syntetyczne nie zawierają danych osobowych. Usuwa je commit `revert` bez przepisywania historii, a squash merge nie przenosi ich na `main`.
+- [ ] Przeglądy `code-reviewer` i `security-engineer` — APPROVE (`ci.yml` to plik wrażliwy, K3). `security-engineer` aktualizuje `docs/security/requirements.md` (SR-SUPPLY-11, kolumna „Weryfikacja”) i `docs/security/threat-model.md` (C-17, pula minut przy Z4).
+- [ ] Dokumentacja (AC8) i `CHANGELOG.md` (Unreleased) zaktualizowane.
+- [ ] Demo i akceptacja Konrada w przeglądarce: PR → zakładka „Checks” → przebieg z dowodu 1 (czerwony `ci-gate`, błąd w podsumowaniu) → przebieg z dowodu 3 (zielony `ci-gate`, podsumowanie walidatora). Konrad odhacza w checkliście PR plik wrażliwy `ci.yml` (K3) i scala wg K2. Po scaleniu K6 wypisze commit w logu (zmiana `.github/`), a Konrad potwierdza „Pull request merge” w Activity.
 
 ## Dziennik
 - 2026-10-02 — utworzono jako szkic (orkiestrator, refinement EVM-012)
 - 2026-10-03 — dopisano dług techniczny przekazany z EVM-012 („Notatki techniczne”) (product-owner)
 - 2026-10-05 — refinement (product-owner): historyjka i rezultat, kontekst (stan po EVM-006, warunek startu, praca wyłącznie w Claude Code web), AC1–AC7, „Poza zakresem” (dług z EVM-012 i lokalne wymuszenie — do decyzji Konrada), DoD z dowodami z przebiegów CI; dodany recenzent `security-engineer`. „Notatki techniczne” bez zmian, a „Bezpieczeństwo i prywatność” czeka na konsultację `solution-architect` i `security-engineer` (wkleja orkiestrator). Status `draft` do akceptacji Konrada.
 - 2026-10-05 — konsultacje `solution-architect` („Notatki techniczne”) i `security-engineer` („Bezpieczeństwo i prywatność”: L1–L5, kontrole 1–9) wklejone przez orkiestratora; decyzje Konrada 1–5 („Decyzje”)
+- 2026-10-05 — AC i DoD dostosowane do „Decyzji” 1–5; szkic EVM-073 (product-owner)
