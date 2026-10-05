@@ -18,6 +18,10 @@ strictDepBuilds: true
 allowBuilds:
   # Hooks are installed by the root prepare script (tools/git-hooks), never by the package postinstall (W1).
   lefthook: false
+  # EVM-008: optional native SSH acceleration of docker-modem (transitive dependency of @testcontainers/postgresql);
+  # Testcontainers talks to the local Docker socket, so the native builds are never needed (SR-SUPPLY-06, B11).
+  cpu-features: false
+  ssh2: false
 
 catalog:
   '@types/node': 26.6.3
