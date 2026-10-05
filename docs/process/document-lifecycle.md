@@ -96,7 +96,7 @@ expires: 2027-01-31
 ## Pliki robocze
 - **Miejsce:** katalog `.scratch/` w katalogu głównym repozytorium (wpis w `.gitignore`) albo scratchpad sesji Claude Code (poza repozytorium). Układ wewnątrz `.scratch/` jest dowolny; dobra praktyka: podkatalog z ID historyjki, np. `.scratch/EVM-012/`.
 - **Nie trafiają do commitu** — `git status` ich nie pokazuje. Walidator zgłasza błąd, gdy jakikolwiek plik w `.scratch/` jest widoczny dla gita (np. dodany przez `git add -f`), gdy `.scratch/` przestał być ignorowany albo gdy plik z `lifecycle: ephemeral` leży poza `.scratch/`.
-- **Nie są pamięcią projektu.** Nic ważnego nie może istnieć tylko w `.scratch/` — wnioski przenieś do historyjki („Plan techniczny”, „Dziennik”, „Uwagi do rozważenia”) albo do właściwego dokumentu. Dokumenty w repozytorium nie odwołują się do `.scratch/`.
+- **Nie są pamięcią projektu.** Nic ważnego nie może istnieć tylko w `.scratch/` — wnioski przenieś do historyjki („Decyzje i ograniczenia”, „Notatki”, „Dziennik”) albo do właściwego dokumentu; sam plan roboczy wykonawcy (`.scratch/<EVM-ID>/plan.md`) pamięcią projektu nie jest — liczy się jego efekt w kodzie, testach i historyjce. Dokumenty w repozytorium nie odwołują się do `.scratch/`.
 - **Bez sekretów i prawdziwych danych osobowych** — także tutaj (wyłącznie dane syntetyczne).
 - Pliki robocze usuwa ich autor (albo Konrad) po zakończeniu kroku — bez osobnej procedury.
 
@@ -106,7 +106,7 @@ expires: 2027-01-31
 - **Odtworzenie** (orkiestrator, na prośbę Konrada): `git log --diff-filter=D --oneline -- <ścieżka>` wskazuje commit usunięcia; `git restore --source=<commit>~1 -- <ścieżka>` przywraca plik, a `git show <commit>~1:<ścieżka>` pokazuje jego treść.
 - **Usunięcie z repozytorium ≠ usunięcie z historii git.** Sekrety lub dane osobowe, które trafiły do repozytorium, wymagają osobnej procedury incydentowej (przepisanie historii, rotacja sekretów) — poza tą polityką.
 - **Nie usuwamy:** historyjek (także `done` zostają w `docs/backlog/<M#>/` — decyzja Konrada z 2026-10-02), ADR-ów (status „Zastąpiona przez ADR-XXXX”), retrospektyw ani raportów spike'ów.
-- **Przed usunięciem** pliku „kamień milowy” wnioski z niego trafiają do historyjki („Uwagi do rozważenia”) i retrospektywy. Dowody QA/UX (raporty `.md` i zrzuty) trzymamy do zamknięcia kamienia milowego, w którym powstały (decyzja Konrada z 2026-10-02).
+- **Przed usunięciem** pliku „kamień milowy” wnioski z niego trafiają do historyjki („Notatki”) i retrospektywy. Dowody QA/UX (raporty `.md` i zrzuty) trzymamy do zamknięcia kamienia milowego, w którym powstały (decyzja Konrada z 2026-10-02).
 - **Plik „kamień milowy”, którego Konrad nie usuwa** przy zamknięciu kamienia, dostaje `expires: YYYY-MM-DD` (we frontmatterze; dla spike'a — w `spikes/<nazwa>/README.md`). Po tej dacie wróci w raporcie jako „przejrzyj”; bez `expires` nie pojawiłby się już w żadnym raporcie. Decyzja i termin trafiają do retrospektywy.
 
 ## Kto i kiedy decyduje

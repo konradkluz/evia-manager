@@ -8,7 +8,7 @@
 5. **Proporcjonalność:** proces ma kosztować tyle, ile wynosi ryzyko — domyślnie ścieżka lekka, pełna tylko dla obszarów ryzyka („Ścieżki realizacji”); koszt mierzymy („Pomiar kosztu”).
 
 ## Hierarchia pracy
-Kamień milowy `M#` → epik `E##` → historyjka `EVM-###` (story / enabler / spike / bug) → kroki w „Planie technicznym”.
+Kamień milowy `M#` → epik `E##` → historyjka `EVM-###` (story / enabler / spike / bug) → kroki planu wykonawcy (`.scratch/`).
 
 ## Cykl życia historyjki
 ```mermaid
@@ -57,18 +57,18 @@ R — wykonuje, A — zatwierdza, C — konsultowany, I — informowany.
 ## Ścieżki realizacji
 Ścieżkę wyznacza pole `path` we frontmatter historyjki: `product-owner` proponuje ją w `/refine`, a Konrad zatwierdza razem z AC. Brak pola = `pelna`; dla takiej historyjki `/deliver` proponuje ścieżkę z uzasadnieniem i po odpowiedzi Konrada zapisuje ją we frontmatter.
 
-| | LEKKA (domyślna) | PEŁNA |
+| | LEKKA (domyślna dla nowych historyjek) | PEŁNA |
 |---|---|---|
 | Kiedy | wszystko, co nie należy do obszarów ryzyka | uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje danych, infrastruktura produkcyjna |
 | Wykonawca | `owner` w TDD (ewentualni `contributors` po kolei); plan tylko w głowie lub w `.scratch/` | `owner` i `contributors`; plan zapisany w `.scratch/` |
 | Konsultacje | brak | architekt / UX / security wg potrzeby i ryzyka |
 | QA | orkiestrator: macierz AC → testy, bramka lokalna, `npm run docs:check` | `qa-engineer` w każdej rundzie |
-| Przegląd | jeden recenzent (zwykle `code-reviewer`) | recenzenci z `reviewers` |
+| Przegląd | jeden recenzent dobrany do ryzyka: `code-reviewer`; zmiana UI → `ux-designer`; nowy endpoint, plik/medium, zależność lub dane na urządzeniu → `security-engineer` (wtedy rozważ `pelna`) | recenzenci z `reviewers` |
 | Poprawki | najwyżej 1 runda blocker/major, bez ponownego przeglądu; poprawki sprawdza orkiestrator | do 3 rund; ponownie przeglądają tylko recenzenci, którzy zgłosili blocker/major |
 | Minor / nit | „Notatki” historyjki; nie wywołują poprawek ani przeglądu | jak w lekkiej |
 | Rozmiar | ≤ 6 AC | ≤ 8 AC, ≤ 3 moduły |
 
-- **Eskalacja ścieżki:** gdy w trakcie lekkiej wychodzi obszar ryzyka (np. dotyka danych osobowych), wykonawca zatrzymuje się, a orkiestrator pyta Konrada o zmianę na `pelna` (rekomendacja i konsekwencja kosztowa w pytaniu).
+- **Eskalacja ścieżki:** gdy w trakcie lekkiej wychodzi obszar ryzyka (np. dotyka danych osobowych) albo nowy endpoint, pliki/media, nowa zależność lub dane na urządzeniu, wykonawca zatrzymuje się, a orkiestrator pyta Konrada o zmianę na `pelna` (rekomendacja i konsekwencja kosztowa w pytaniu).
 - **Konsultacje proporcjonalne do ryzyka:** konsultant dostaje wąskie pytanie o ryzyko, które faktycznie występuje w historyjce, i zwraca najwyżej kilka punktów. Konsultacja nie dodaje AC; ustalenia Low w narzędziach wewnętrznych (CI, walidatory, skrypty) trafiają do „Notatek”, a AC rozszerza tylko ustalenie Medium lub wyższe albo zmiana zakresu zatwierdzona przez Konrada. Historyjka, która po konsultacjach przekracza limit AC, jest dzielona.
 - **Co zostaje poza plikiem historyjki:** plany, zapisy konsultacji i raporty agentów (raport QA zostaje w `docs/qa/<EVM-ID>/` tylko w ścieżce pełnej); „Dziennik” ma jedną linię na zdarzenie.
 
@@ -96,7 +96,7 @@ flowchart TD
 Diagram pokazuje ścieżkę pełną; lekka pomija plan, konsultacje i agenta QA („Ścieżki realizacji”). Środkową część (plan → poprawki) wykonuje deterministycznie workflow `.claude/workflows/deliver-story.js`; gotowość i demo prowadzi orkiestrator ze skilla `/deliver`. **Scalenie do `main` wykonuje Konrad** — „Squash and merge” w PR na GitHubie przy zielonym `ci-gate`, z tytułem PR w formacie Conventional Commit z ID (D2, EVM-006); orkiestrator wypycha gałąź za zgodą Konrada, a po scaleniu tylko `git fetch` + `git merge --ff-only origin/main` (`docs/process/conventions.md` → „Git”, `docs/ops/github-i-ci.md`).
 
 ### Kto przegląda
-Ścieżka lekka: jeden recenzent (zwykle `code-reviewer`). Ścieżka pełna:
+Ścieżka lekka: jeden recenzent dobrany do ryzyka (tabela w „Ścieżki realizacji”). Ścieżka pełna:
 - `code-reviewer` — każda zmiana kodu.
 - `security-engineer` — uwierzytelnianie, autoryzacja, dane osobowe, pliki i media, nowe endpointy, zależności, infrastruktura, dane na urządzeniu.
 - `ux-designer` — każda zmiana UI.

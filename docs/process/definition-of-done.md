@@ -23,7 +23,7 @@ Historyjka jest `done`, gdy spełnia **wszystkie** punkty (dla dokumentów — p
 - [ ] Teksty po polsku przez i18n, terminologia ze słownika domeny.
 
 ## Przeglądy i dokumentacja
-- [ ] `code-reviewer`: APPROVE; `security-engineer` / `ux-designer`: APPROVE (ścieżka pełna, gdy dotyczy); ścieżka lekka — jeden przegląd, bez blocker/major po jednej rundzie poprawek.
+- [ ] `code-reviewer`: APPROVE; `security-engineer` / `ux-designer`: APPROVE (ścieżka pełna, gdy dotyczy); ścieżka lekka — jeden przegląd (recenzent dobrany do ryzyka: UI → `ux-designer`, endpoint/pliki/zależność → `security-engineer`), bez blocker/major po jednej rundzie poprawek.
 - [ ] Zaktualizowane: specyfikacja API, ADR (gdy była decyzja), `CHANGELOG.md` (Unreleased), `.env.example`, dokumentacja użytkownika (gdy zmienia się sposób pracy).
 - [ ] Walidator dokumentacji `npm run docs:check`: 0 błędów, ostrzeżenia przejrzane; nowe pliki `.md` mają klasę i lokalizację zgodną z `docs/process/document-lifecycle.md`, pliki robocze są poza repozytorium (`.scratch/`).
 

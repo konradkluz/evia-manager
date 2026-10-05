@@ -263,6 +263,8 @@ describe('model field in the story process (EVM-074 AC3)', () => {
 /** Stub agents for the path tests: `reviews` per label returns findings; QA always passes. */
 interface Behaviour {
   reviews?: Record<string, Record<string, unknown>[]>;
+  fix?: unknown;
+  qa?: (round: number) => Record<string, unknown>;
 }
 async function deliverWith(
   extraArgs: Record<string, unknown>,
@@ -284,8 +286,9 @@ async function deliverWith(
       });
     }
     if (label.startsWith('consult:')) return Promise.resolve({ verdict: 'approve', notes: '-', questions: [] });
+    if (label.startsWith('fix:') && 'fix' in behaviour) return Promise.resolve(behaviour.fix);
     if (label.startsWith('impl:') || label.startsWith('fix:')) return Promise.resolve(DONE);
-    if (label.startsWith('qa:')) return Promise.resolve(QA(true));
+    if (label.startsWith('qa:')) return Promise.resolve(behaviour.qa ? behaviour.qa(Number(label.slice(-1))) : QA(true));
     const findings = behaviour.reviews?.[label] ?? [];
     const blocking = findings.some((finding) => finding['severity'] === 'major' || finding['severity'] === 'blocker');
     return Promise.resolve({ verdict: blocking ? 'changes_required' : 'approve', summary: '-', findings });
@@ -381,6 +384,24 @@ describe('story path in the workflow (EVM-075 AC2)', () => {
         .sort(),
     ).toEqual(['code-reviewer', 'security-engineer']);
   });
+  it('EVM-075 AC2: lekka — a fixer without a result is needs-attention, a blocked fixer is blocked (never fixed)', async () => {
+    const reviews = { 'code-reviewer:r1': [MAJOR] };
+    const missing = await deliverWith({ path: 'lekka' }, [], { reviews, fix: null });
+    expect(missing['status']).toBe('needs-attention');
+    expect(list(missing['openBlocking'])).toHaveLength(1);
+    expect(missing['unverifiedFixes']).toEqual([]);
+    const blocked = await deliverWith({ path: 'lekka' }, [], { reviews, fix: { ...DONE, status: 'blocked', questions: ['q'] } });
+    expect(blocked['status']).toBe('blocked');
+  });
+
+  it('EVM-075 AC2: pelna — when no reviewer reported blocker/major (only QA failed), the next round is reviewed by code-reviewer alone', async () => {
+    const labels: string[] = [];
+    const result = await deliverWith({ reviewers: ['security-engineer', 'code-reviewer'] }, labels, {
+      qa: (round) => QA(round > 1),
+    });
+    expect(result['status']).toBe('passed');
+    expect(labels.filter((label) => label.endsWith(':r2')).sort()).toEqual(['code-reviewer:r2', 'qa:r2']);
+  });
 });
 
 describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
@@ -446,10 +467,53 @@ describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
     }
   });
 
+  it('EVM-075 AC5: M1 index and roadmap hold the priorities; EVM-073 is on hold; the proposals note stays a proposal', () => {
+    const index = read('docs/backlog/M1/README.md');
+    for (const phrase of ['wstrzymana decyzją Konrada 2026-10-05', 'EVM-008 → EVM-016 → EVM-067', 'propozycje-po-evm-075.md']) {
+      expect(index, phrase).toContain(phrase);
+    }
+    expect(read('docs/product/roadmap.md')).toContain('EVM-008 → EVM-016 → EVM-067');
+    expect(read('docs/backlog/M1/EVM-073-wyjatki-jakosci-docs-lifecycle.md')).toContain('wstrzymano decyzją Konrada');
+    expect(filesBelow('docs/backlog', (path) => /Porz[aą]dki/i.test(path))).toEqual([]);
+    const note = read('docs/notes/propozycje-po-evm-075.md');
+    expect(text(frontmatter(note)['lifecycle'])).toBe('living');
+    expect(note).toContain('Nic z tego nie jest wdrożone');
+  });
+
+  it('EVM-075 AC3: /refine narrows consultations to the risk and the template has no consultation records', () => {
+    const refine = read('.claude/skills/refine/SKILL.md');
+    for (const phrase of ['proporcjonalnie do ryzyka', 'ustalenia Low w narzędziach wewnętrznych idą do „Notatek”', '3–6 AC']) {
+      expect(refine, phrase).toContain(phrase);
+    }
+    expect(read('docs/backlog/_template.md')).not.toMatch(/konsultacj\w+:/i);
+    expect(read('docs/backlog/_template.md')).toContain('3–6 AC');
+  });
+
+  it('EVM-075 AC3: process documents, skills, agents and the workflow refer only to sections of the new template', () => {
+    const stale = [
+      'Uwagi do rozważenia',
+      'Notatki techniczne',
+      'Notatkach technicznych',
+      'Planie technicznym',
+      'sekcja „Plan techniczny”',
+      'sekcję „Plan techniczny”',
+      'Ustalenia z konsultacji',
+    ];
+    const files = [
+      ...filesBelow('.claude', (path) => /\.(md|js)$/.test(path)),
+      ...filesBelow('docs/process', (path) => path.endsWith('.md') && !path.includes('/retros/')),
+    ];
+    for (const file of files) {
+      const content = read(file);
+      for (const phrase of stale) expect(content, `${file}: ${phrase}`).not.toContain(phrase);
+    }
+  });
+
   it('EVM-075 AC4: CLAUDE.md stays small and every agent reads selectively', () => {
     expect(Buffer.byteLength(read('CLAUDE.md'))).toBeLessThanOrEqual(10240);
     for (const agent of AGENTS) expect(read(`.claude/agents/${agent}.md`), agent).toContain('Czytaj wybiórczo');
-    expect(section(read('docs/process/workflow.md'), '## Zespół agentów')).toContain('`code-reviewer`');
+    const team = section(read('docs/process/workflow.md'), '## Zespół agentów');
+    for (const agent of AGENTS) expect(team, agent).toContain(`\`${agent}\``);
   });
 
   it('EVM-075 AC6: workflow.md holds the cost baseline and targets', () => {

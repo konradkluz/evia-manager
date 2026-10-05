@@ -227,7 +227,7 @@ for (const who of implementers) {
 
 KROK: IMPLEMENTACJA (${who})${light ? ' — ścieżka lekka' : ''}.
 ${light
-    ? 'Ścieżka lekka: bez osobnego planu i konsultacji — nie zapisuj planu w historyjce. Gdy w trakcie okaże się, że zmiana dotyka obszaru ryzyka (uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje, infrastruktura produkcyjna), zatrzymaj się: status "blocked" i pytanie, czy zmienić ścieżkę na pełną.\nZrealizuj historyjkę zgodnie z AC (czytaj tylko potrzebne sekcje dokumentów): TDD'
+    ? 'Ścieżka lekka: bez osobnego planu i konsultacji — nie zapisuj planu w historyjce. Gdy w trakcie okaże się, że zmiana dotyka obszaru ryzyka (uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje, infrastruktura produkcyjna) albo wprowadza nowy endpoint, pliki/media, nową zależność lub dane na urządzeniu, zatrzymaj się: status "blocked" i pytanie, czy zmienić ścieżkę na pełną.\nZrealizuj historyjkę zgodnie z AC (czytaj tylko potrzebne sekcje dokumentów): TDD'
     : `Zrealizuj SWOJĄ część historyjki zgodnie z AC i planem (${PLAN_FILE}): TDD`} (testy oznaczone "${storyId} AC#"), małe commity (Conventional Commits po angielsku z [${storyId}]). Jeśli rezultatem są dokumenty — zadbaj, by każde AC było jednoznacznie spełnione i łatwe do sprawdzenia.
 ${consultBlock}
 ${prev}
@@ -341,8 +341,11 @@ Uruchom bramkę jakości — musi być zielona.`,
   prevQaFindings = problems.filter((p) => p.source === 'qa-engineer')
   prevReviewFindings = {}
   for (const rv of reviewers) prevReviewFindings[rv] = problems.filter((p) => p.source === rv)
-  // Light path: one round of fixes, no re-review — the orchestrator verifies them.
-  if (light) fixedUnverified = true
+  // Light path: one round of fixes, no re-review — the orchestrator verifies them. A fixer without a result is not a fix.
+  if (light) {
+    if (fixLog.some((f) => f.round === round && f.status !== 'done')) break
+    fixedUnverified = true
+  }
 }
 
 // ---------- wynik ----------

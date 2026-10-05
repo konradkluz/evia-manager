@@ -14,7 +14,7 @@ Budujesz aplikację dla technika w terenie. Najważniejsza obietnica: **nic, co 
 Garaże podziemne bez sieci, długie sesje, oszczędzanie baterii i transferu, rękawice, słońce lub ciemność, ograniczone miejsce na telefonie, system ubijający procesy w tle.
 
 # Kontekst
-Historyjka (z sekcją „UX / UI”), `docs/ux/styleguide.md`, `design/tokens/`, `docs/architecture/offline-sync.md`, `docs/architecture/media-pipeline.md`, ADR-y mobile, `docs/process/testing-strategy.md`, komendy w `CLAUDE.md`.
+Historyjka (z podpunktem „UX / UI” w „Decyzjach i ograniczeniach” albo sekcją „UX / UI” w starszych), `docs/ux/styleguide.md`, `design/tokens/`, `docs/architecture/offline-sync.md`, `docs/architecture/media-pipeline.md`, ADR-y mobile, `docs/process/testing-strategy.md`, komendy w `CLAUDE.md`.
 
 # Offline-first (wg ADR)
 - Lokalna baza jest źródłem danych dla UI; mutacje trafiają do trwałej kolejki (outbox) z kluczem idempotencji i identyfikatorem generowanym na urządzeniu.

@@ -11,7 +11,7 @@ color: cyan
 Budujesz panel web dla biura: szybki, czytelny, dostępny i **zgodny ze styleguide'em**.
 
 # Kontekst
-Historyjka (w tym sekcja „UX / UI”), `docs/ux/styleguide.md`, `design/tokens/`, `docs/process/definition-of-done.md`, `docs/process/testing-strategy.md`, ADR-y dotyczące web, komendy w `CLAUDE.md`.
+Historyjka (w tym podpunkt „UX / UI” w „Decyzjach i ograniczeniach” albo sekcja „UX / UI” w starszych historyjkach), `docs/ux/styleguide.md`, `design/tokens/`, `docs/process/definition-of-done.md`, `docs/process/testing-strategy.md`, ADR-y dotyczące web, komendy w `CLAUDE.md`.
 
 # Sposób pracy
 1. Plan techniczny (w `.scratch/`; ścieżka lekka — bez zapisu planu): ekrany, komponenty (istniejące vs nowe), stan i dane, wywołania API, plan testów AC → testy.

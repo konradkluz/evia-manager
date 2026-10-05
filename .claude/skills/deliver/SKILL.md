@@ -12,7 +12,7 @@ Jesteś orkiestratorem (Tech Lead). Proces: `docs/process/workflow.md` (→ „�
 ## 1. Gotowość (DoR)
 1. Znajdź plik `docs/backlog/**/$ARGUMENTS-*.md`. Brak → zatrzymaj się.
 2. Sprawdź `docs/process/definition-of-ready.md`: status `ready`, numerowane AC, uzupełnione `owner` i `reviewers`, `model` (jeśli jest) ∈ {`sonnet`, `opus`}, wszystkie `depends_on` w statusie `done`. Niespełnione → wypisz braki i zaproponuj `/refine $ARGUMENTS`.
-   **Ścieżka:** `path` ∈ {`lekka`, `pelna`}. Brak pola → zaproponuj ścieżkę według kryteriów z `workflow.md` (AskUserQuestion, rekomendacja pierwsza, z konsekwencją kosztową) i po odpowiedzi zapisz `path` we frontmatter. `lekka` wymaga ≤ 6 AC i dokładnie jednego recenzenta w `reviewers`; obszar ryzyka (uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje, infrastruktura produkcyjna) → `pelna`.
+   **Ścieżka:** `path` ∈ {`lekka`, `pelna`}. Brak pola → zaproponuj ścieżkę według kryteriów z `workflow.md` (AskUserQuestion, rekomendacja pierwsza, z konsekwencją kosztową) i po odpowiedzi zapisz `path` we frontmatter. `lekka` wymaga ≤ 6 AC i dokładnie jednego recenzenta w `reviewers`; obszar ryzyka (uwierzytelnianie, uprawnienia, dane osobowe, płatności, synchronizacja offline, migracje, infrastruktura produkcyjna) → `pelna`; nowy endpoint, pliki/media, zależność, dane na urządzeniu lub UI → zapytaj o `pelna` albo o dobór recenzenta (`security-engineer` / `ux-designer`).
 3. WIP: jeśli inna historyjka z kodem ma status `in-progress` lub `in-review` — zapytaj użytkownika, czy kontynuować.
 4. Git: drzewo robocze czyste (`git status`); `git fetch` + `git merge --ff-only origin/main` na `main`. Utwórz gałąź `feature/$ARGUMENTS-<krótki-slug>` od aktualnego `main`.
 5. Ustaw w historyjce `status: in-progress`, dopisz wpis w „Dziennik”. Poinformuj użytkownika jednym zdaniem o starcie.
@@ -26,7 +26,7 @@ Uruchom narzędziem Workflow zapisany workflow `deliver-story` z `args`:
 Gdy narzędzie Workflow jest niedostępne — wykonaj te same kroki ręcznie narzędziem Agent, w tej samej kolejności i z tymi samymi bramkami (ścieżka `lekka`: jedno wywołanie wykonawcy, jedno recenzenta, ewentualnie jedno poprawiającego); `model` historyjki przekaż wykonawcom (a przy `opus` także przeglądom) parametrem `model` narzędzia Agent.
 
 ## 3. Obsługa wyniku workflow
-- `blocked` → przedstaw pytania (AskUserQuestion, rekomendowana odpowiedź jako pierwsza), zapisz decyzje w historyjce (sekcja „Decyzje”) i uruchom workflow ponownie **jako nowy przebieg** (bez resume) z decyzjami w `userNotes`.
+- `blocked` → przedstaw pytania (AskUserQuestion, rekomendowana odpowiedź jako pierwsza), zapisz decyzje w historyjce (sekcja „Decyzje i ograniczenia”) i uruchom workflow ponownie **jako nowy przebieg** (bez resume) z decyzjami w `userNotes`.
 - `needs-attention` → pokaż otwarte problemy i historię rund; zaproponuj: kolejna runda / podział historyjki / zmiana AC. Decyduje użytkownik.
 - `passed` → krok 4.
 - `fixed` (tylko `lekka`) → sam sprawdź poprawki z `fixes` (diff, bramka, test odtwarzający problem); niezałatwione blocker/major → `needs-attention`; załatwione → krok 4.
