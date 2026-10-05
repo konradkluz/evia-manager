@@ -4,11 +4,12 @@ title: Chodzący szkielet — API i panel web
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
 path: pelna
+model: opus
 reviewers: [code-reviewer, security-engineer, ux-designer]
 depends_on: [EVM-003, EVM-006]
 ---
@@ -61,7 +62,7 @@ _—_
 _Uzupełnia wykonawca._
 
 ## Decyzje
-_—_
+- 2026-10-05 — Konrad: model wykonawców `opus` (szkielet ustanawia wzorce całego produktu).
 
 ## Uwagi do rozważenia
 _—_
@@ -76,3 +77,4 @@ _—_
 - 2026-10-02 — utworzono (setup zespołu)
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
 - 2026-10-05 — podział decyzją Konrada (EVM-075): wdrożenie na staging (dawne AC6 i część AC5) → EVM-076; zależność od EVM-007 usunięta, `path: pelna`
+- 2026-10-05 — start `/deliver` (ścieżka `pelna`, gałąź `feature/EVM-008-szkielet-api-i-panel-web`); EVM-075 zamknięte w tej samej gałęzi

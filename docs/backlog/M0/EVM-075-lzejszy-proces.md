@@ -4,7 +4,7 @@ title: Lżejszy proces — ścieżki lekka i pełna, krótki szablon, mniej kont
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 path: lekka
 owner: devops-engineer
@@ -68,3 +68,4 @@ Jako **właściciel produktu** chcę **obniżyć koszt i czas realizacji history
 - 2026-10-05 — odchylenie od propozycji: `CLAUDE.md` 11,2 → 9,8 KB zamiast ok. 6 KB (sekcja „Stack i komendy” jest przypięta testami EVM-006/013); EVM-008 zależy od EVM-007 (staging) — rozstrzygnięcie w `docs/notes/propozycje-po-evm-075.md`
 - 2026-10-05 — przegląd `code-reviewer` (sonnet): 4 major, poprawione — M1 recenzent lekkiej dobierany do ryzyka (UI → `ux-designer`, endpoint/pliki/zależność → `security-engineer`) i rozszerzona eskalacja; M2 brak wyniku poprawiającego ≠ `fixed`; M3 usunięte odwołania do nieistniejących sekcji szablonu; M4 testy AC5, AC3 (`/refine`) i fallbacku recenzenta
 - 2026-10-05 — decyzje Konrada po przeglądzie: lekka z recenzentem dobieranym do ryzyka wystarczy; EVM-008 podzielony (wdrożenie → nowy EVM-076, `ready`); push i PR zatwierdzone
+- 2026-10-05 — PR #12 scalony przez Konrada (`c2e1d88`); `done`
