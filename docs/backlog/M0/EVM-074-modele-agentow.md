@@ -4,7 +4,7 @@ title: Model i effort agentów oraz model realizacji historyjki
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 owner: devops-engineer
 contributors: []
@@ -76,11 +76,13 @@ Po przeglądzie `code-reviewer` (orkiestrator; do akceptacji Konrada w PR):
 
 ## Definition of Done
 - [x] AC1–AC3 pokryte testami (`EVM-074 AC#`, `tools/repo-policy/test/agents.test.ts`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przegląd `code-reviewer` — APPROVE
+- [x] Bramki CI zielone, progi pokrycia spełnione (PR #9: przebiegi 41 i 46; `main`: przebieg 47)
+- [x] Przegląd `code-reviewer` — runda 1: CHANGES REQUIRED (1 major, minor) → poprawki w `d1a4f4a` z testami (10/10); bez rundy 2 — Konrad zaakceptował przyrost, scalając PR #9
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja Konrada (PR; `.claude/` — plik wrażliwy K3)
+- [x] Demo i akceptacja Konrada (PR; `.claude/` — plik wrażliwy K3)
 
 ## Dziennik
 - 2026-10-05 — utworzono na prośbę Konrada; realizacja w TDD i status `in-review` (orkiestrator)
 - 2026-10-05 — przegląd `code-reviewer` (model `sonnet`): CHANGES REQUIRED — 1 major (M1: `sonnet` obniżałby agentów na `opus`), minor; poprawione: reguła i test M1, przeglądy na `opus` w historyjkach `opus`, kontrola `model` w DoR `/deliver` i tryb ręczny, effort bez zmian, opis w indeksie backlogu, README `tools/repo-policy`, roadmapa, mocniejsze asercje testu (koniec `meta`, `effort`, kryteria `opus`) — test 10/10 (orkiestrator)
+- 2026-10-05 — PR #9 (`feat(agents): pin model and effort per agent and add the story model [EVM-074]`) z konfliktem indeksu backlogu po EVM-013 rozwiązanym merge'em `main` (`71cf5a6`); scalony przez Konrada (`2e0229e`); Konrad zaakceptował AC i przyrost razem z PR. in-review → done (orkiestrator)
+- 2026-10-05 — **incydent K6** (`docs/ops/github-i-ci.md` → „Czerwony `main`”): `main-integrity` (przebieg 10) czerwony dla `2e0229e` — „brak zielonego `ci-gate` dla HEAD PR `71cf5a6`”. Przyczyna: scalenie o 18:44:17 UTC, gdy przebieg `ci` na `71cf5a6` (po merge'u `main`) jeszcze trwał; zakończył się zielonym `ci-gate` o 18:45:24, a `ci` na `main` po scaleniu (przebieg 47) jest zielony — kod sprawdzony, revert niepotrzebny. K6 sprawdza stan `ci-gate` w chwili przebiegu, więc kolejny przebieg K6 (push na `main` albo nocny) jest zielony bez wpisu w `ACKNOWLEDGED`. Wniosek do retrospektywy M0: scalać dopiero przy zielonym `ci-gate` na **ostatnim** commicie (checklista PR), także po merge'u `main` do gałęzi (orkiestrator)
