@@ -130,8 +130,25 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     );
   });
 
-  it('EVM-013 AC3 (K6), EVM-008: ci.yml keeps its jobs (backend-integration added by EVM-008) — the validator is a step of quality, not a new job — and quality stays in ci-gate', () => {
-    expect(Object.keys(jobs)).toEqual(['quality', 'backend', 'backend-integration', 'security', 'coverage', 'ci-gate']);
+  it('EVM-008 AC5: e2e-web runs the Playwright E2E of the panel in Chromium and Firefox with read-only permissions', () => {
+    const e2e = job('e2e-web');
+    expect(e2e['permissions']).toEqual({ contents: 'read' });
+    expect(runs('e2e-web')).toEqual([
+      'pnpm install --frozen-lockfile',
+      'pnpm exec turbo run build --filter=@evia/web^...',
+      'pnpm --filter @evia/web exec playwright install --with-deps chromium firefox',
+      'pnpm --filter @evia/web run e2e',
+    ]);
+    expect(record(record(json('apps/web/package.json'))['scripts'])['e2e']).toBe('playwright test --grep-invert @screenshots');
+    const upload = list(e2e['steps'])
+      .map(record)
+      .find((step) => text(step['uses']).startsWith('actions/upload-artifact@'));
+    expect(upload?.['if']).toBe('failure()');
+    expect(Number(record(upload?.['with'])['retention-days'])).toBeLessThanOrEqual(7);
+  });
+
+  it('EVM-013 AC3 (K6), EVM-008: ci.yml keeps its jobs (backend-integration and e2e-web added by EVM-008) — the validator is a step of quality, not a new job — and quality stays in ci-gate', () => {
+    expect(Object.keys(jobs)).toEqual(['quality', 'backend', 'backend-integration', 'e2e-web', 'security', 'coverage', 'ci-gate']);
     expect(list(job('ci-gate')['needs'])).toContain('quality');
   });
 
