@@ -29,7 +29,7 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 
 **AC2 — Klauzule (SR-PRIV-05)**
 - Gdy otwieram W-19
-- Wtedy widzę klauzule dla klientów (do przekazania), osób kontaktowych stron i pracowników z danymi administratora z decyzji 9, wersją i datą, w treści przygotowanej przez `security-engineer` i zatwierdzonej przez Konrada; punkty `[PRAWNIK/IOD]` są rozstrzygnięte albo świadomie oznaczone w „Decyzje”.
+- Wtedy widzę klauzule dla klientów (do przekazania), osób kontaktowych stron oraz pracowników i pracy na prywatnym telefonie (BYOD) z danymi administratora z decyzji 9, wersją i datą, w treści przygotowanej przez `security-engineer` i zatwierdzonej przez Konrada; punkty `[PRAWNIK/IOD]` są rozstrzygnięte albo świadomie oznaczone w „Decyzje”.
 
 **AC3 — Pomoc**
 - Wtedy W-19 ma sekcję „Pomoc” z kontaktem do Administratora w stałym miejscu (WCAG 3.2.6); odnośnik do instrukcji dla biura dodaje w tej sekcji EVM-066 (instrukcja opublikowana w panelu) — do tego czasu sekcja pokazuje tylko kontakt.
@@ -86,3 +86,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): odnośnik do instrukcji przeniesiony do EVM-066 (AC3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 10 (b); liczba AC bez zmian): AC2 — klauzula „pracowników i pracy na prywatnym telefonie (BYOD)” zamiast „pracowników” (ustalenie A5 `security-engineer` w EVM-071; makieta W-19 — panel w przeglądarce prywatnego telefonu, decyzja 19)

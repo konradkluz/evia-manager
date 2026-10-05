@@ -42,7 +42,7 @@ Jako **pracownik biura albo technik z przeglądarką w telefonie** chcę **wysł
 
 **AC4 — Wysyłanie z przeglądarki w telefonie (makieta W-09 compact z EVM-071)**
 - Zakładając Edytora w przeglądarce telefonu z Androidem (szerokość `breakpoint.compact`) i 12 zdjęć zrobionych aparatem systemowym — zdjęcia są w galerii telefonu (wariant z decyzji 18)
-- Gdy wybiera „Dodaj zdjęcia” → „Wybierz z galerii”, zaznacza 12 zdjęć i je wysyła
+- Gdy wybiera „Dodaj zdjęcia lub filmy” → „Wybierz z galerii” (etykiety z makiety W-09 compact), zaznacza 12 zdjęć i je wysyła
 - Wtedy każdy plik ma własny status (w kolejce, wysyłanie z postępem, „Sprawdzanie pliku”, „Wysłano”, „Nie wysłano”), wszystkie cele dotyku mają co najmniej `size.touch-target.min`, a po zakończeniu panel pokazuje „Wysłano 12 zdjęć — możesz je usunąć z telefonu.”; zdjęcia zostają w galerii jako kopia do tego potwierdzenia
 - Oraz po zablokowaniu ekranu i powrocie wysyłanie wznawia się od ostatniej potwierdzonej części, a gdy karta została zamknięta albo wyładowana z pamięci przed końcem, po ponownym otwarciu zlecenia panel pokazuje „Nie wysłano 3 zdjęć — wybierz je ponownie z galerii.” z nazwami tych plików (na podstawie niedokończonych sesji uploadu użytkownika — bez zapisu danych w pamięci przeglądarki, SR-WEB-05).
 
@@ -112,3 +112,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; część (a) podziału EVM-044 — konsultacja solution-architect W3)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer, security-engineer): AC3 i AC4 połączone (skan), nowe AC4 — wysyłanie z przeglądarki w telefonie; zależność od EVM-071 (makieta W-09 compact); decyzje 18 i 19
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 2 (f); liczba AC bez zmian): AC4 — akcja główna „Dodaj zdjęcia lub filmy” zamiast „Dodaj zdjęcia” (etykieta z makiety W-09 compact; obejmuje filmy z EVM-046)

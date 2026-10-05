@@ -52,7 +52,7 @@ Jako **pracownik biura** chcę **przed rozliczeniem i anulowaniem zlecenia widzi
 **AC6 — Zmiana w międzyczasie**
 - Zakładając otwarty dialog „Rozlicz…” albo „Anuluj zlecenie…”, a w tym czasie inna osoba wystawia fakturę albo odnotowuje wpłatę
 - Gdy potwierdzam dialog
-- Wtedy dialog pokazuje komunikat z odpowiedzi serwera (`422` — jak w AC2 albo AC4; `412` — „Ktoś zmienił to zlecenie w międzyczasie…” z odświeżeniem), odświeża podsumowanie, a wpisany powód zostaje.
+- Wtedy dialog pokazuje komunikat z odpowiedzi serwera (`422` — jak w AC2 albo AC4; `412` — alert konfliktu z odświeżeniem, komunikat z makiety W-06), odświeża podsumowanie, a wpisany powód zostaje.
 
 **AC7 — Role i stany (SR-AUTHZ-05)**
 - Zakładając role Administrator, Edytor, Tylko odczyt
@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): reguły serwera przeniesione do EVM-053 (uczestnik `payments`, warunek rozliczenia, skutek anulowania, spójność SR-API-06) i EVM-054 (blokada anulowania przy transzy „Wystawiona”, testy ścieżek); zostają dialogi z podsumowaniem, stany przed wysłaniem, AC5 i spójność UI; `owner` → web-developer
 - 2026-10-03 — plan M1 zaakceptowany przez Konrada (EVM-010); historyjka zostaje w `draft` do `/refine` — doprecyzować podział ostrzeżenia o transzach przy anulowaniu zlecenia między EVM-053 AC6 a EVM-058 AC3 (EVM-010 → „Uwagi do rozważenia” 1)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC6 — komunikat `412` wg makiety W-06 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”; historyjka zostaje w `draft` (zmiana brzmienia przed `/refine`, status bez zmian)

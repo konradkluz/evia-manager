@@ -137,7 +137,7 @@ Zasada (styleguide § 4.11, M2 z konsultacji security): **„Cofnij” wywołuje
 | Ładowanie | Pozycja menu / „Zapisz” w stanie ładowania; odznaka pokazuje stary status do odpowiedzi (bez optymistycznej zmiany). |
 | Błąd | `412 version_conflict` / `409 invalid_state_transition`: alert w dialogu (albo pod odznaką przy przejściu bez dialogu) „Ktoś zmienił ten etap w międzyczasie (teraz: «Zakończony»). [Odśwież etap]” — wpisane pola zostają; `422 transition_condition_not_met` — komunikat pod polem („Wybierz stronę, na którą czekamy.”, „Data nie może być późniejsza niż dziś.”); błąd serwera — § 6.4. |
 | Offline | Baner § 4.10; odznaki wyłączone z podpowiedzią „Status zmienisz po powrocie połączenia.”; otwarty dialog zachowuje dane w pamięci karty. |
-| Brak uprawnień | Tylko odczyt — odznaki statyczne (bez `chevron-down`, bez menu). Zlecenie Rozliczone / Anulowane — odznaki wyłączone z podpowiedzią „Zlecenie jest rozliczone — status etapu zmienisz po przywróceniu zlecenia przez administratora.” Etap usunięty w międzyczasie — `404`: alert „Nie znaleziono etapu. Mógł zostać usunięty. [Odśwież zlecenie]”. Telefon — tylko odczyt: „Status etapu zmienisz w panelu.” (M-03). |
+| Brak uprawnień | Tylko odczyt — odznaki statyczne (bez `chevron-down`, bez menu). Zlecenie Rozliczone / Anulowane — odznaki wyłączone z podpowiedzią: Administrator — „Zlecenie jest rozliczone — status etapu zmienisz po przywróceniu zlecenia.”, Edytor — „Zlecenie jest rozliczone — status etapu zmienisz po przywróceniu zlecenia przez administratora.” Etap usunięty w międzyczasie — `404`: alert „Nie znaleziono etapu. Mógł zostać usunięty. [Odśwież zlecenie]”. Telefon — tylko odczyt: „Status etapu zmienisz w panelu.” (M-03). |
 
 **Role**
 | Akcja | Przejście / operacja | A | E | R |

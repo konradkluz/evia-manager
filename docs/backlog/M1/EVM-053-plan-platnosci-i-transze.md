@@ -63,7 +63,7 @@ Jako **pracownik biura** chcę **żeby nowe zlecenie miało transze z planu pła
 - Oraz niezalogowany dostaje `401`, transza zlecenia B ścieżką zlecenia A — `404`, a pola serwera (`status`, `sharePercent` z szablonu) są odrzucane (`read_only_field`).
 
 **AC8 — Stany**
-- Wtedy: zlecenie bez transz — „Brak transz. [Dodaj transzę]”; offline — akcje wyłączone; `412` — „Ktoś zmienił tę transzę w międzyczasie…”, dane zostają.
+- Wtedy: zlecenie bez transz — „Brak transz. [Dodaj transzę]”; offline — akcje wyłączone; `412` — alert konfliktu, dane zostają (komunikat z makiety dialogów „Dodaj transzę” i „Zmień kwotę” — W-06).
 
 ## Poza zakresem
 - Wystawienie faktury, wpłata, anulowanie transzy planowanej, blokada anulowania zlecenia z transzą „Wystawiona” i zdarzenia dziennika o zmianie statusu transzy — EVM-054. Korekty — EVM-057.
@@ -112,3 +112,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie transz i „Planu płatności” w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054
 - 2026-10-03 — plan M1 zaakceptowany przez Konrada (EVM-010); historyjka zostaje w `draft` do `/refine` — doprecyzować podział ostrzeżenia o transzach przy anulowaniu zlecenia między EVM-053 AC6 a EVM-058 AC3 (EVM-010 → „Uwagi do rozważenia” 1)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC8 — komunikat `412` wg makiety dialogów transz W-06 w `08-nieoplacone.md` (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”; historyjka zostaje w `draft` (zmiana brzmienia przed `/refine`, status bez zmian)

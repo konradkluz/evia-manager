@@ -27,7 +27,7 @@ Jako **pracownik biura** chcę **zmienić dane zlecenia i jego zakres — dodać
 **AC1 — Dane zlecenia**
 - Zakładając zlecenie „W realizacji”
 - Gdy w „Edytuj dane zlecenia” zmieniam tytuł, opis, opiekuna albo planowaną datę
-- Wtedy zmiana zapisuje się z `If-Match`, a przy `412` widzę „Ktoś zmienił to zlecenie w międzyczasie…” z zachowanymi wpisanymi danymi.
+- Wtedy zmiana zapisuje się z `If-Match`, a przy `412` widzę alert konfliktu z zachowanymi wpisanymi danymi (komunikat z makiety W-06 (a)).
 
 **AC2 — Dodanie pozycji z procesami**
 - Zakładając zlecenie z szablonu „Dom — sam montaż”
@@ -102,3 +102,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC1 — komunikat `412` wg makiety W-06 (a) „Edytuj dane zlecenia” (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”

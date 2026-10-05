@@ -85,9 +85,9 @@ flowchart TD
 **Pola nowego klienta i lokalizacji** (wyłącznie pola komendy `CreateQuickWorkOrder` — minimalizacja na telefonie)
 | Obiekt | Pola na telefonie | Uzupełnia biuro w panelu |
 |---|---|---|
-| Nowy klient | rodzaj (osoba / firma), nazwa (imię i nazwisko albo nazwa firmy), telefon | W-14: e-mail, NIP, osoba kontaktowa, adres korespondencyjny, notatki |
-| Nowa lokalizacja | typ obiektu, adres (ulica, nr budynku, nr lokalu, kod pocztowy, miasto), nr miejsca postojowego (garaż) | W-20 „Edytuj lokalizację” (z W-06): poziom garażu, OSD, zarządca, moc przyłączeniowa, PPE, notatki |
-| Zlecenie | szablon, tytuł, notatka (opcjonalnie) | W-06: opiekun, planowana data, opis („Edytuj dane zlecenia”), kwoty transz („Zmień kwotę”), korekty zakresu i procesów |
+| Nowy klient | rodzaj (osoba / firma), nazwa (imię i nazwisko albo nazwa firmy), telefon | [W-14](13-klienci.md#dialog-edytuj-dane-klienta) „Edytuj dane klienta”: e-mail, NIP, osoba kontaktowa, adres korespondencyjny, notatki |
+| Nowa lokalizacja | typ obiektu, adres (ulica, nr budynku, nr lokalu, kod pocztowy, miasto), nr miejsca postojowego (garaż) | [W-20 „Edytuj lokalizację”](14-edycja-lokalizacji-i-strony.md#dialog-edytuj-lokalizację) (z W-06): poziom garażu, OSD, zarządca, moc przyłączeniowa, PPE, notatki |
+| Zlecenie | szablon, tytuł, notatka (opcjonalnie) | W-06: opiekun, planowana data, opis ([„Edytuj dane zlecenia”](03-szczegoly-zlecenia.md#w-06-a-edytuj-dane-zlecenia)), kwoty transz ([„Zmień kwotę”](08-nieoplacone.md#dialogi-dodaj-transzę-i-zmień-kwotę)), korekty zakresu i procesów ([„Edytuj zakres”](03-szczegoly-zlecenia.md#w-06-c-edytuj-zakres)) |
 
 **Stany zlecenia z telefonu**
 | Stan | UI | Co można |
@@ -113,7 +113,7 @@ flowchart TD
 | Zdjęcia i wpisy do zlecenia oczekującego | `CreateMediaAsset`, `CreateNote` (zależność w kolejce) | tak | tak | — |
 | Utwórz ponownie po odrzuceniu | nowa komenda `CreateQuickWorkOrder` z nowymi identyfikatorami | tak | tak | — |
 
-**Po synchronizacji — panel** ([W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)): zlecenie z `origin = mobile_quick` ma baner „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026). Uzupełnij dane: klienta · lokalizacji · kwoty transz” z odnośnikami do akcji — klient → W-14, lokalizacja → W-20 „Edytuj lokalizację” (OSD, zarządca, poziom, moc, PPE), kwoty transz → sekcja „Płatności” z fokusem na menu `⋮` pierwszej transzy „Planowana” bez kwoty (pozycja „Zmień kwotę”; bez takiej transzy — nagłówek sekcji) (specyfikacja: [W-06 → baner „Zlecenie założone w terenie”](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)); na liście W-10 widoczne jak każde inne (status „Nowe”). Możliwe duplikaty klientów i lokalizacji scala biuro — funkcja scalania poza v1 (`offline-sync.md`, otwarte 9).
+**Po synchronizacji — panel** ([W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)): zlecenie z `origin = mobile_quick` ma baner „Zlecenie założone w terenie (Piotr Testowy, 03.10.2026). Uzupełnij dane: klienta · lokalizacji · kwoty transz” z odnośnikami do akcji — klient → [W-14](13-klienci.md#w-14-klienci), lokalizacja → [W-20 „Edytuj lokalizację”](14-edycja-lokalizacji-i-strony.md#w-20-edycja-lokalizacji-i-strony) (OSD, zarządca, poziom, moc, PPE), kwoty transz → sekcja „Płatności” z fokusem na menu `⋮` pierwszej transzy „Planowana” bez kwoty (pozycja „Zmień kwotę”; bez takiej transzy — nagłówek sekcji) (specyfikacja: [W-06 → baner „Zlecenie założone w terenie”](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)); na liście W-10 widoczne jak każde inne (status „Nowe”). Możliwe duplikaty klientów i lokalizacji scala biuro — funkcja scalania poza v1 (`offline-sync.md`, otwarte 9).
 
 - **Responsywność:** jedna kolumna; przy klawiaturze dolny pasek nad klawiaturą; powiększenie czcionki do 200 % — karty szablonów zawijane.
 - **Komponenty i tokeny:** AppBar z SyncIndicator (§ 3.18, § 5.4); FilterChip (§ 3.7) jako wybór pojedynczy (`size.touch-target.min`); TextField (§ 3.2) — tekst, telefon (klawiatura `tel`), kod pocztowy; Select jako BottomSheet (§ 3.3, § 3.13); SelectableCard (§ 3.22); InlineAlert (§ 3.19) `color.feedback.info.*`; TextArea z dyktowaniem (§ 3.2, § 4.1); Button primary `size.touch-target.field` w dolnym pasku `elevation.bottom-bar`; odznaka „Oczekuje na numer” (§ 4.15); „Wymaga uwagi” (§ 4.16); tryb ukrytych danych (§ 4.18); Toast (§ 3.14).
