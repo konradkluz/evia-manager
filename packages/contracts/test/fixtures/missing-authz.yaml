@@ -1,0 +1,34 @@
+# EVM-008 AC2 negative fixture: an operation without x-evia-authz.
+openapi: 3.1.0
+info:
+  title: Fixture
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security: []
+tags:
+  - name: platform
+    description: Fixture.
+paths:
+  /api/v1/work-orders:
+    get:
+      operationId: listWorkOrders
+      tags: [platform]
+      summary: Lista
+      description: Lista.
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Brak sesji.
+          content:
+            application/problem+json:
+              schema:
+                type: object

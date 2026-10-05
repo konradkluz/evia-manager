@@ -36,6 +36,8 @@ docs/qa/**/*.png
 node_modules/
 dist/
 build/
+# Code generated from the OpenAPI contract (EVM-008, packages/contracts build)
+packages/contracts/generated/
 .turbo/
 *.tsbuildinfo
 .eslintcache

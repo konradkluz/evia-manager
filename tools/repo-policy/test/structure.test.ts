@@ -79,6 +79,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
   it('EVM-006 AC1: workspaces exist only where there is content (YAGNI) and follow apps/services/packages/tools', () => {
     expect(WORKSPACES).toEqual([
       'packages/config',
+      'packages/contracts',
       'packages/tokens',
       'tools/container',
       'tools/diff-coverage',

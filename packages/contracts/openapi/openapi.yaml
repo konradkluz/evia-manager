@@ -1,0 +1,33 @@
+# EVia Manager API — source of truth (ADR-0004, docs/architecture/api-guidelines.md). One file per module under
+# paths/ and shared components under components/; `pnpm --filter @evia/contracts run build` bundles them into
+# dist/openapi.json, the only input of the generator (types, fetch client, Zod schemas, authorization manifest).
+openapi: 3.1.0
+info:
+  title: EVia Manager API
+  version: 1.0.0
+  description: >-
+    API panelu web i aplikacji mobilnej EVia Manager. Każda operacja deklaruje politykę autoryzacji
+    w `x-evia-authz` (deny-by-default). Błędy w formacie `application/problem+json` (RFC 9457).
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+    description: Ta sama domena co panel web (CORS wyłączony).
+security: []
+tags:
+  - name: platform
+    description: Operacje techniczne platformy (zdrowie usługi).
+paths:
+  /api/health:
+    $ref: paths/platform.yaml#/health
+components:
+  schemas:
+    Health:
+      $ref: components/platform.yaml#/Health
+    MinSupportedAppVersion:
+      $ref: components/platform.yaml#/MinSupportedAppVersion
+    Semver:
+      $ref: components/common.yaml#/Semver
+    Problem:
+      $ref: components/problem.yaml#/Problem
