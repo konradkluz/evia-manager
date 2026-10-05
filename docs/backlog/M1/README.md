@@ -136,7 +136,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 ## Kolejność i fazy
 Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace koncepcyjne (UX, ADR, RODO) idą równolegle.
 
-> **Rekomendacja (EVM-075, 2026-10-05):** pierwszym pionowym przyrostem produktu jest EVM-008 → EVM-016 → EVM-067 (jeszcze bez kodu produktu w repozytorium); zależność EVM-008 od EVM-007 (staging) i pakiety historyjek — [propozycje do decyzji Konrada](../../notes/propozycje-po-evm-075.md). Historyjki dostają ścieżkę `path` (lekka/pełna) przy `/deliver` — `docs/process/workflow.md` → „Ścieżki realizacji”.
+> **Rekomendacja (EVM-075, 2026-10-05):** pierwszym pionowym przyrostem produktu jest EVM-008 → EVM-016 → EVM-067 (jeszcze bez kodu produktu w repozytorium); EVM-008 podzielono (wdrożenie na staging → EVM-076, po EVM-007), pakiety historyjek — [propozycje do decyzji Konrada](../../notes/propozycje-po-evm-075.md). Historyjki dostają ścieżkę `path` (lekka/pełna) przy `/deliver` — `docs/process/workflow.md` → „Ścieżki realizacji”.
 
 | Faza | Historyjki (kolejność) | Efekt |
 |---|---|---|

@@ -44,7 +44,7 @@ flowchart LR
 | EVM-005 | Model zagrożeń v1, wymagania bezpieczeństwa, RODO | security-engineer | 001 |
 | EVM-006 | Repozytorium, monorepo i CI z bramkami jakości | devops-engineer | 001 |
 | EVM-007 | Staging w UE, wdrożenia, backupy, monitoring | devops-engineer | 006 |
-| EVM-008 | Chodzący szkielet: API + panel web | backend-developer + web-developer | 003, 006, 007 |
+| EVM-008 | Chodzący szkielet: API + panel web (lokalnie i w CI) | backend-developer + web-developer | 003, 006 |
 | EVM-009 | Chodzący szkielet: aplikacja mobilna | mobile-developer | 003, 006, 008 |
 | EVM-010 | Backlog M1 gotowy do realizacji | product-owner | 002, 004, 005 |
 | EVM-011 | Spike: kolejka offline i upload w tle | mobile-developer | 001 |
@@ -52,6 +52,7 @@ flowchart LR
 | EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
 | EVM-074 | Model i effort agentów, model realizacji historyjki | devops-engineer | — |
 | EVM-075 | Lżejszy proces: ścieżki lekka i pełna, krótki szablon, pomiar kosztu | devops-engineer | — |
+| EVM-076 | Szkielet na staging: wdrożenie i test dymny (wydzielone z EVM-008) | devops-engineer | 007, 008 |
 
 **Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych z Androidem; spike potwierdza wykonalność uploadu w tle na Androidzie (iOS odłożony — ADR-0015); historyjki M1 w statusie `ready`.
 

@@ -5,13 +5,13 @@ review_by: 2026-12-31
 
 # Propozycje po EVM-075: pierwszy przyrost, pakiety historyjek, podział dużych dokumentów
 
-> Notatka robocza do decyzji Konrada (EVM-075, AC4 i AC5). **Nic z tego nie jest wdrożone** — przenoszenie treści dokumentów z `main` i zmiany historyjek wymagają Twojej decyzji (`CLAUDE.md` → „Bezpieczeństwo pracy agentów”).
+> Notatka robocza do decyzji Konrada (EVM-075, AC4 i AC5). **Nic z tego nie jest wdrożone** (poza podziałem EVM-008 z pkt 1) — przenoszenie treści dokumentów z `main` i zmiany historyjek wymagają Twojej decyzji (`CLAUDE.md` → „Bezpieczeństwo pracy agentów”).
 
 ## 1. Pierwszy pionowy przyrost produktu z M1 (rekomendacja)
 Po 14 historyjkach `done` w repozytorium nie ma kodu produktu. Rekomendowana kolejność: **EVM-008 → EVM-016 → EVM-067** (szkielet API + panel → pierwszy Administrator → logowanie i sesje); dalej faza 1 z `docs/backlog/M1/README.md`.
 
-- **Zależność, którą trzeba rozstrzygnąć:** EVM-008 ma `depends_on: EVM-007` (staging, wdrożenia, backupy — płatna infrastruktura, wymaga Twojej zgody na koszty), a z tego wynikają tylko AC5 (E2E po wdrożeniu) i AC6 (działa na staging). Opcje: (a) **podzielić EVM-008** — część lokalna (AC1–AC4, AC7) od razu, wdrożenie po EVM-007 (rekomendacja: pierwszy kod bez czekania na infrastrukturę); (b) najpierw EVM-007 (ścieżka pełna, infrastruktura); (c) świadomie zastąpić EVM-007 atrapą wg DoR.
-- **Ścieżki:** EVM-008 — `lekka` (model `opus`, nowy wzorzec architektoniczny; recenzenci do ograniczenia do jednego, np. `code-reviewer`); EVM-016 i EVM-067 — `pelna` (uwierzytelnianie).
+- **Rozstrzygnięte 2026-10-05 (Konrad):** EVM-008 podzielono — część lokalna zostaje w EVM-008 bez zależności od EVM-007, wdrożenie na staging i test dymny po wdrożeniu to EVM-076 (zależy od EVM-007 i EVM-008; płatna infrastruktura tylko za Twoją zgodą na koszty).
+- **Ścieżki:** EVM-008 — `pelna` (nowy wzorzec architektoniczny, nagłówki bezpieczeństwa, deny-by-default; model `opus` do rozważenia); EVM-016 i EVM-067 — `pelna` (uwierzytelnianie).
 
 ## 2. Pakiety zamiast scalania historyjek (propozycja, opcjonalna)
 Historyjki fazy 1 mają po 7–8 AC (limit: lekka ≤ 6, pełna ≤ 8), więc ich łączenie w jedną historyjkę przekroczyłoby limit. Zamiast tego można realizować kilka historyjek **jednym przebiegiem `/deliver`** (jedna gałąź, jeden PR, jeden przegląd na pakiet; AC i testy `EVM-xxx AC#` zostają osobne). Kandydaci:
