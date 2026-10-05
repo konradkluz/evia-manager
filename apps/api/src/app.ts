@@ -1,11 +1,14 @@
 /**
  * HTTP pipeline of the API, shared by src/main.ts and the tests (EVM-008 AC4). Order matters: request context,
- * security headers (first, so every response has them), request log, JSON body parser (Nest default limit 100 kB),
- * then Nest routing with the guard and the problem filter.
+ * security headers (first, so every response has them), request log, JSON body parser only for requests with a principal
+ * (default limit 100 kB; anonymous bodies are never parsed, so the guard answers 401), then Nest routing with the guard
+ * and the problem filter.
  */
 import { ExpressAdapter, type NestExpressApplication } from '@nestjs/platform-express';
 import express from 'express';
 import type { Logger } from './platform/logging/logger.ts';
+import { authenticatedJsonBody } from './platform/http/json-body.ts';
+import { PRINCIPAL_RESOLVER, type PrincipalResolver } from './platform/http/principal.ts';
 import { requestContext } from './platform/http/request-context.ts';
 import { requestLogging } from './platform/http/request-logging.ts';
 import { securityHeaders } from './platform/http/security-headers.ts';
@@ -28,5 +31,5 @@ export function configureApp(app: NestExpressApplication, logger: Logger): void 
   app.use(requestContext);
   app.use(securityHeaders);
   app.use(requestLogging(logger));
-  app.useBodyParser('json');
+  app.use(authenticatedJsonBody(app.get<PrincipalResolver>(PRINCIPAL_RESOLVER, { strict: false })));
 }

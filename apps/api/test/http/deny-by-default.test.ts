@@ -52,6 +52,23 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
     }
   });
 
+  it('EVM-008 AC4 unauthenticated request with malformed, oversized or badly encoded body returns 401', async () => {
+    current = await healthy();
+    const server = current.app.getHttpServer();
+    const bodies: Array<[string, string, string]> = [
+      ['malformed JSON', 'application/json', '{"a":'],
+      ['oversized JSON', 'application/json', JSON.stringify({ a: 'x'.repeat(110_000) })],
+      ['unsupported charset', 'application/json; charset=latin9', '{}'],
+    ];
+    for (const path of ['/api/v1/work-orders', '/api/v1/x', '/api/health']) {
+      for (const [label, contentType, body] of bodies) {
+        const response = await request(server).post(path).set('Content-Type', contentType).send(body);
+        expect(response.status, `${label} → POST ${path}`).toBe(401);
+        expect(response.body, `${label} → POST ${path}`).toMatchObject({ code: 'unauthenticated', status: 401 });
+      }
+    }
+  });
+
   it('EVM-008 AC4 credentials sent by the client do not open anything before sessions exist (no bypass)', async () => {
     current = await healthy();
     const server = current.app.getHttpServer();
@@ -104,5 +121,10 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
         }),
     });
     await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(401);
+    await request(current.app.getHttpServer())
+      .post('/api/v1/work-orders')
+      .set('Content-Type', 'application/json')
+      .send('{"a":')
+      .expect(401);
   });
 });

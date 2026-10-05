@@ -2,6 +2,7 @@ import { zProblem } from '@evia/contracts/zod';
 import request, { type Response } from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RoutePolicyCheck } from '../../src/modules/authorization/index.ts';
+import { PRINCIPAL_RESOLVER } from '../../src/platform/http/principal.ts';
 import { DATABASE_PROBE } from '../../src/platform/tokens.ts';
 import { createTestApp, type TestApp } from '../support/app.ts';
 import { FailingRouteModule, RouteWithoutPolicyModule } from '../support/test-routes.ts';
@@ -25,6 +26,17 @@ const withTestRoutes = (env: Record<string, string> = {}) =>
         .useValue({ ping: () => Promise.resolve() }),
   });
 
+/** The API with a synthetic signed-in user: request bodies are parsed only for a principal (deny-by-default). */
+const withSyntheticPrincipal = () =>
+  createTestApp({
+    configure: (builder) =>
+      builder
+        .overrideProvider(PRINCIPAL_RESOLVER)
+        .useValue({ resolve: () => ({ userId: 'synthetic-user' }) })
+        .overrideProvider(DATABASE_PROBE)
+        .useValue({ ping: () => Promise.resolve() }),
+  });
+
 function expectSecurityHeaders(response: Response, label: string): void {
   expect(response.headers['cache-control'], label).toBe('no-store');
   expect(response.headers['x-content-type-options'], label).toBe('nosniff');
@@ -44,21 +56,35 @@ describe('API security headers (EVM-008 AC4; SR-API-03)', () => {
     const server = current.app.getHttpServer();
     const cases: Array<[string, () => Promise<Response>, number]> = [
       ['200 health', () => request(server).get('/api/health'), 200],
-      ['400 malformed JSON', () => request(server).post('/api/v1/work-orders').set('Content-Type', 'application/json').send('{"a":'), 400],
       ['401 unknown route', () => request(server).get('/api/v1/work-orders').set('Origin', 'https://attacker.invalid'), 401],
       ['403 route without policy', () => request(server).get('/test/no-policy'), 403],
+      ['500 unhandled error', () => request(server).get('/test/failure'), 500],
+    ];
+    for (const [label, send, status] of cases) {
+      const response = await send();
+      expect(response.status, label).toBe(status);
+      expectSecurityHeaders(response, label);
+    }
+    await current.close();
+    current = await withSyntheticPrincipal();
+    const signedIn = current.app.getHttpServer();
+    const bodyCases: Array<[string, () => Promise<Response>, number]> = [
+      [
+        '400 malformed JSON',
+        () => request(signedIn).post('/api/v1/work-orders').set('Content-Type', 'application/json').send('{"a":'),
+        400,
+      ],
       [
         '413 body over the parser limit',
         () =>
-          request(server)
-            .post('/api/health')
+          request(signedIn)
+            .post('/api/v1/work-orders')
             .set('Content-Type', 'application/json')
             .send(JSON.stringify({ a: 'x'.repeat(110_000) })),
         413,
       ],
-      ['500 unhandled error', () => request(server).get('/test/failure'), 500],
     ];
-    for (const [label, send, status] of cases) {
+    for (const [label, send, status] of bodyCases) {
       const response = await send();
       expect(response.status, label).toBe(status);
       expectSecurityHeaders(response, label);
@@ -78,13 +104,14 @@ describe('problem+json without internals (EVM-008 AC4; SR-API-01, SR-ERR-01)', (
       expect(response.text).not.toMatch(/synthetic failure|TypeError|secret-module|\/srv\/|at |example\.invalid/);
       const logged = current.logs.entries.find((entry) => entry['msg'] === 'unhandled error');
       expect(logged, nodeEnv).toMatchObject({ level: 'error', traceId: body.traceId, err: { type: 'TypeError' } });
+      expect(current.logs.text, nodeEnv).not.toContain('jan.przykladowy@example.invalid');
       await current.close();
       current = undefined;
     }
   });
 
-  it('EVM-008 AC4 body parser errors are problems without the parser message', async () => {
-    current = await withTestRoutes();
+  it('EVM-008 AC4 body parser errors (signed-in user) are problems without the parser message', async () => {
+    current = await withSyntheticPrincipal();
     const server = current.app.getHttpServer();
     const malformed = await request(server)
       .post('/api/v1/work-orders')
@@ -94,13 +121,13 @@ describe('problem+json without internals (EVM-008 AC4; SR-API-01, SR-ERR-01)', (
     expect(malformed.body).toMatchObject({ code: 'malformed_json', status: 400 });
     expect(malformed.text).not.toMatch(/Unexpected|token|position|jan/);
     const charset = await request(server)
-      .post('/api/health')
+      .post('/api/v1/work-orders')
       .set('Content-Type', 'application/json; charset=latin9')
       .send('{}')
       .expect(415);
     expect(charset.body).toMatchObject({ code: 'unsupported_media_type', status: 415 });
     const tooLarge = await request(server)
-      .post('/api/health')
+      .post('/api/v1/work-orders')
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ a: 'x'.repeat(110_000) }))
       .expect(413);
