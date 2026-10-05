@@ -29,9 +29,9 @@ Jako **Administrator** chcę **przeglądać dziennik audytu po ponownym potwierd
 - Wtedy API zwraca `403 step_up_required`, panel pokazuje W-04 „Potwierdź tożsamość, aby przejrzeć dziennik audytu”, a po użyciu klucza dostępu żądanie jest wysyłane ponownie automatycznie.
 
 **AC2 — Okno 15 minut**
-- Zakładając ostatnie uwierzytelnienie 14 min temu
+- Zakładając ostatnie uwierzytelnienie kluczem dostępu 14 min temu
 - Gdy Administrator otwiera dziennik audytu
-- Wtedy W-04 się nie pojawia.
+- Wtedy W-04 się nie pojawia; a gdy sesja pochodzi z logowania kodem odzyskiwania (bez późniejszego step-upu), W-04 pojawia się także w ciągu 15 min.
 
 **AC3 — Nowa sesja po step-upie (SR-SESS-02)**
 - Gdy Administrator potwierdza tożsamość w W-04
@@ -103,3 +103,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; step-up wydzielony z EVM-024 — konsultacja security-engineer pkt 3d)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo końcowym EVM-015 (EVM-015 → „Uwagi do rozważenia” 8; ustalenie `security-engineer`; liczba AC bez zmian): AC2 — okno step-upu liczone od uwierzytelnienia kluczem dostępu; logowanie kodem odzyskiwania go nie otwiera (decyzja 16)

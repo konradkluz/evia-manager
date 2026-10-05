@@ -27,7 +27,7 @@ Jako **Konrad (pierwszy Administrator)** chcę **aktywować swoje konto jednoraz
 **AC1 — Link aktywacyjny z polecenia na serwerze (SR-AUTH-12, SR-LOG-02)**
 - Zakładając, że w systemie nie ma aktywnego Administratora
 - Gdy osoba z dostępem SSH uruchamia polecenie aktywacji z adresem e-mail w terminalu interaktywnym (`docker exec -it`; bez hasła w argumentach i zmiennych środowiskowych)
-- Wtedy polecenie wypisuje jednorazowy link ważny 72 h z tokenem wyłącznie we fragmencie adresu (`#…` — README M1 → „Zasady wspólne” → „Bezpieczeństwo i dane”; w bazie tylko skrót tokenu), konto ma status „Zaproszony” i rolę Administrator, a w audycie jest zdarzenie wydania linku bez adresu e-mail; API nie ma endpointu „setup”, a polecenie nie wysyła e-maili
+- Wtedy polecenie wypisuje jednorazowy link ważny 72 h z tokenem wyłącznie we fragmencie adresu (`#…` — README M1 → „Zasady wspólne” → „Bezpieczeństwo i dane”; w bazie tylko skrót tokenu), konto ma status „Oczekuje na aktywację” (`invited`) i rolę Administrator, a w audycie jest zdarzenie wydania linku bez adresu e-mail; API nie ma endpointu „setup”, a polecenie nie wysyła e-maili
 - Oraz polecenie uruchomione bez terminala interaktywnego (TTY) kończy się odmową bez wydania linku, a token nie występuje w logach kontenera (`docker logs`) ani w logach zebranych przez Alloy (test).
 
 **AC2 — Blokada polecenia i tryb awaryjny (RR-16)**
@@ -119,3 +119,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; podział EVM-016 planu wstępnego — konsultacja solution-architect W2)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token linku tylko we fragmencie URL, otwarcie nie zużywa linku, polecenie wypisuje link wyłącznie na TTY (AC1, AC5)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`), brzmienie z makiety W-16 i słownika („Status konta”)
