@@ -4,7 +4,7 @@ title: Makiety ekranów M1 — klienci, lokalizacja, edycja zlecenia i prywatno�
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 owner: ux-designer
 contributors: [product-owner]
@@ -96,3 +96,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-015 planu wstępnego)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): AC4 i AC5 połączone (W-06), nowe AC5 — makieta W-09 w przeglądarce telefonu
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-05 — ready → in-progress: start `/deliver` (orkiestrator; sesja w chmurze, gałąź `feature/EVM-071-makiety-m1` — zgoda Konrada na push gałęzi bez force)
