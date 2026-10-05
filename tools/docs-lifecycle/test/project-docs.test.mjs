@@ -11,6 +11,7 @@ import { analyze } from '../lib/analyze.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { todayInZone } from '../lib/dates.mjs';
 import { loadRepository } from '../lib/repository.mjs';
+import { analyzeEveryFinding } from './helpers/fixtures.mjs';
 import { parsePolicyRules, section } from './helpers/markdown.mjs';
 
 const config = loadConfig();
@@ -87,6 +88,45 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
       orphanCheck: rule.orphanCheck,
     }));
     assert.deepEqual(parsePolicyRules(policy), fromConfig);
+  });
+
+  it('EVM-013 AC7: polityka wylicza „błędy klasy” — te same co flaga classError w kodzie, każdy jest wierszem tabeli „Błędy”', () => {
+    /** Error codes of the validator → names of the rows in the policy table „Błędy”. */
+    const NAMES = /** @type {Record<string, string>} */ ({
+      'location-forbidden': 'plik poza dozwolonymi lokalizacjami',
+      'class-missing': 'brak klasy',
+      'class-unknown': 'nieznana klasa',
+      'class-conflict': 'klasa sprzeczna z lokalizacją',
+      'milestone-missing': 'kamień milowy bez M#',
+      'milestone-unknown': 'nieistniejący kamień milowy',
+      'date-invalid': 'niepoprawna data',
+      'date-not-allowed': 'data niedozwolona dla klasy',
+      'ephemeral-tracked': 'plik roboczy w części śledzonej',
+      'scratch-not-ignored': '`.scratch/` nieignorowany',
+      'spike-readme-missing': 'spike bez README',
+    });
+    const findings = analyzeEveryFinding().findings.filter((finding) => finding.severity === 'error');
+    assert.deepEqual(
+      [...new Set(findings.map((finding) => finding.code))].sort(),
+      Object.keys(NAMES).sort(),
+      'fikstura obejmuje każdy kod błędu',
+    );
+    const rows = String(section(policy, '### Błędy (kod wyjścia 1)'))
+      .split('\n')
+      .filter((line) => line.startsWith('| ') && !line.startsWith('| Błąd |'))
+      .map((line) => line.split('|')[1].trim());
+    assert.deepEqual([...rows].sort(), Object.values(NAMES).sort(), 'tabela „Błędy” = kody walidatora');
+    const line = String(section(policy, '### Ostrzeżenia (bez wpływu na kod wyjścia)'))
+      .split('\n')
+      .find((text) => text.startsWith('**Błędy klasy:** '));
+    assert.ok(line, 'brak linii „Błędy klasy” pod tabelą ostrzeżeń');
+    const listed = line.slice('**Błędy klasy:** '.length, line.indexOf(' — ')).split('; ');
+    const flagged = [...new Set(findings.filter((finding) => finding.classError).map((finding) => NAMES[finding.code]))];
+    assert.deepEqual([...listed].sort(), flagged.sort());
+    const orphanRow = String(section(policy, '### Ostrzeżenia (bez wpływu na kod wyjścia)'))
+      .split('\n')
+      .find((text) => text.startsWith('| osierocony |'));
+    assert.ok(orphanRow?.includes('„Błędy klasy”'), 'wiersz „osierocony” odwołuje się do listy błędów klasy');
   });
 
   it('EVM-012 AC1: polityka podaje polecenia walidatora w formie bezpiecznej dla PowerShell', () => {

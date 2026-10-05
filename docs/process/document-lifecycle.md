@@ -168,7 +168,9 @@ Wymagane: Node.js ≥ 22.15 i git; **bez instalacji zależności** (nie uruchami
 | Ostrzeżenie | Kiedy |
 |---|---|
 | przeterminowany | `expires` lub `review_by` wcześniejsze niż dzisiaj (`Europe/Warsaw`); komunikat podaje datę |
-| osierocony | plik z reguły oznaczonej „tak” w kolumnie „Osierocony”, do którego nie odwołuje się żaden inny plik `.md` (plik z błędem klasy ma już błąd — bez dodatkowego ostrzeżenia) |
+| osierocony | plik z reguły oznaczonej „tak” w kolumnie „Osierocony”, do którego nie odwołuje się żaden inny plik `.md` (plik z błędem z listy „Błędy klasy” niżej ma już błąd — bez dodatkowego ostrzeżenia) |
+
+**Błędy klasy:** plik poza dozwolonymi lokalizacjami; brak klasy; nieznana klasa; klasa sprzeczna z lokalizacją; plik roboczy w części śledzonej — po takim błędzie plik nie dostaje ostrzeżenia „osierocony”; pozostałe błędy (np. niepoprawna data) go nie wyłączają. Listę wyznacza walidator (flaga przy ustaleniu), a test spójności porównuje ją z tą linią (EVM-013).
 
 ### Raport sprzątania — proponowane akcje
 | Akcja | Kiedy | Uwagi |
