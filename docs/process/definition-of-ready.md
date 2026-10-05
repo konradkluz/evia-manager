@@ -10,5 +10,5 @@ Historyjka może przejść do `ready` (i do `/deliver`), gdy:
 - [ ] **Bezpieczeństwo i prywatność:** dane, których dotyczy, i wymagane kontrole albo „nie dotyczy”.
 - [ ] **Zależności:** wszystkie `depends_on` są `done` lub jawnie zastąpione atrapą.
 - [ ] **Rozmiar:** mieści się w jednym cyklu `/deliver` (orientacyjnie ≤ 8 AC, ≤ 3 moduły); większa → podział.
-- [ ] **Przypisanie:** `owner`, `contributors` (jeśli są) i `reviewers` we frontmatter; opcjonalnie `model` wykonawców (`sonnet` albo `opus` — kryteria: `workflow.md` → „Modele i effort agentów”; brak pola = modele z definicji agentów).
+- [ ] **Przypisanie:** `owner`, `contributors` (jeśli są) i `reviewers` we frontmatter; opcjonalnie `model` wykonawców (`sonnet` albo `opus` — kryteria: `workflow.md` → „Modele i effort agentów”; brak pola = modele z definicji agentów; przy `solution-architect` albo `security-engineer` wśród wykonawców — `opus` albo bez pola).
 - [ ] **Akceptacja użytkownika:** Konrad zatwierdził AC (wpis w „Dziennik”).

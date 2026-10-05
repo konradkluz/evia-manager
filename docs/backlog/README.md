@@ -17,6 +17,7 @@ Każda pozycja to plik `docs/backlog/<M#>/EVM-###-krotki-opis.md` utworzony z `_
 ## Przypisanie (frontmatter)
 - `owner` — główny wykonawca (agent), `contributors` — kolejni wykonawcy w podanej kolejności.
 - `reviewers` — wymagane przeglądy; domyślnie `code-reviewer` dla kodu, `security-engineer` dla zmian wrażliwych, `ux-designer` dla UI; dla dokumentów — agenci, którzy będą z nich korzystać.
+- `model` — model wykonawców w `/deliver`: `sonnet` (domyślnie) albo `opus`; kryteria `opus` i zasady: `docs/process/workflow.md` → „Modele i effort agentów”.
 
 ## Numeracja
 Kolejny numer = najwyższy istniejący `EVM-###` + 1 (bez ponownego użycia numerów, także po odrzuceniu).

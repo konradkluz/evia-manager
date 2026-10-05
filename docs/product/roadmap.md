@@ -50,6 +50,7 @@ flowchart LR
 | EVM-011 | Spike: kolejka offline i upload w tle | mobile-developer | 001 |
 | EVM-012 | Polityka cyklu życia dokumentacji + walidator | product-owner + devops-engineer | 001 |
 | EVM-013 | Walidator dokumentacji jako bramka CI | devops-engineer | 006, 012 |
+| EVM-074 | Model i effort agentów, model realizacji historyjki | devops-engineer | — |
 
 **Kryteria wyjścia:** ADR-y stacku i hostingu zaakceptowane; styleguide v1 zaakceptowany; model zagrożeń i wymagania bezpieczeństwa opisane; CI z bramkami (lint, typy, testy, pokrycie, skany) blokuje merge; szkielet web + API wdrożony automatycznie na staging; szkielet mobile instalowalny na telefonach testowych z Androidem; spike potwierdza wykonalność uploadu w tle na Androidzie (iOS odłożony — ADR-0015); historyjki M1 w statusie `ready`.
 

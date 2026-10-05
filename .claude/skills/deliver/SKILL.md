@@ -11,7 +11,7 @@ Jesteś orkiestratorem (Tech Lead). Proces: `docs/process/workflow.md`. Nie pomi
 
 ## 1. Gotowość (DoR)
 1. Znajdź plik `docs/backlog/**/$ARGUMENTS-*.md`. Brak → zatrzymaj się.
-2. Sprawdź `docs/process/definition-of-ready.md`: status `ready`, numerowane AC, uzupełnione `owner` i `reviewers`, wszystkie `depends_on` w statusie `done`. Niespełnione → wypisz braki i zaproponuj `/refine $ARGUMENTS`.
+2. Sprawdź `docs/process/definition-of-ready.md`: status `ready`, numerowane AC, uzupełnione `owner` i `reviewers`, `model` (jeśli jest) ∈ {`sonnet`, `opus`}, wszystkie `depends_on` w statusie `done`. Niespełnione → wypisz braki i zaproponuj `/refine $ARGUMENTS`.
 3. WIP: jeśli inna historyjka z kodem ma status `in-progress` lub `in-review` — zapytaj użytkownika, czy kontynuować.
 4. Git: drzewo robocze czyste (`git status`); `git fetch` + `git merge --ff-only origin/main` na `main`. Utwórz gałąź `feature/$ARGUMENTS-<krótki-slug>` od aktualnego `main`.
 5. Ustaw w historyjce `status: in-progress`, dopisz wpis w „Dziennik”. Poinformuj użytkownika jednym zdaniem o starcie.
@@ -21,7 +21,7 @@ Uruchom narzędziem Workflow zapisany workflow `deliver-story` z `args`:
 `{ storyId, storyPath, branch, today: "YYYY-MM-DD", owner, contributors, reviewers, appUrl?, userNotes?, model? }`
 — `owner` / `contributors` / `reviewers` i `model` (jeśli jest) z frontmatter historyjki; `userNotes` — decyzje użytkownika z tej rozmowy, jeśli są. `model` dostają tylko wykonawcy (plan, implementacja, poprawki); QA i przeglądy pracują na modelach z definicji agentów (`docs/process/workflow.md` → „Modele i effort agentów”).
 Workflow wykonuje: plan techniczny → konsultacje (architekt / UX / security, gdy potrzebne) → implementację w TDD → weryfikację QA → przeglądy równolegle → poprawki blocker/major (maks. 3 rundy weryfikacji).
-Gdy narzędzie Workflow jest niedostępne — wykonaj te same kroki ręcznie narzędziem Agent, w tej samej kolejności i z tymi samymi bramkami.
+Gdy narzędzie Workflow jest niedostępne — wykonaj te same kroki ręcznie narzędziem Agent, w tej samej kolejności i z tymi samymi bramkami; `model` historyjki przekaż wykonawcom (a przy `opus` także przeglądom) parametrem `model` narzędzia Agent.
 
 ## 3. Obsługa wyniku workflow
 - `blocked` → przedstaw pytania (AskUserQuestion, rekomendowana odpowiedź jako pierwsza), zapisz decyzje w historyjce (sekcja „Decyzje”) i uruchom workflow ponownie **jako nowy przebieg** (bez resume) z decyzjami w `userNotes`.

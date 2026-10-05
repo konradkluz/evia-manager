@@ -34,14 +34,16 @@ const implementers = [owner, ...contributors]
 const MAX_ROUNDS = a.maxRounds || 3
 const appUrl = a.appUrl || ''
 const userNotes = a.userNotes || ''
-// Story `model` (docs/process/workflow.md → „Modele i effort agentów”): only the implementers (plan, implementation,
-// fixes) get it; QA, reviews and consultations keep the model and effort of their agent definitions.
+// Story `model` (docs/process/workflow.md → „Modele i effort agentów”): the implementers (plan, implementation, fixes)
+// get it; `opus` also raises the reviews, `sonnet` never lowers them. QA and consultations keep their agent definitions,
+// and effort always comes from the definitions.
 const MODELS = ['sonnet', 'opus']
 const model = a.model || ''
 if (model && !MODELS.includes(model)) {
   throw new Error(`deliver-story: nieobsługiwany model "${model}" (dozwolone: ${MODELS.join(', ')})`)
 }
 const implementerOpts = (opts) => (model ? Object.assign({}, opts, { model }) : opts)
+const reviewerOpts = (opts) => (model === 'opus' ? Object.assign({}, opts, { model }) : opts)
 
 // ---------- schematy wyników ----------
 const str = { type: 'string' }
@@ -250,7 +252,7 @@ KROK: PRZEGLĄD (${rv}) — runda ${round}.
 Przejrzyj zmiany gałęzi względem main (git diff main...HEAD) zgodnie ze swoją checklistą${rv === 'ux-designer' ? `; przegląd UX / a11y na działającej aplikacji${appUrl ? ` (${appUrl})` : ''}, zrzuty w docs/ux/reviews/${storyId}/` : ''}. Nie modyfikuj kodu produkcyjnego.
 ${round > 1 ? `Twoje ustalenia z poprzedniej rundy: ${JSON.stringify(prevReviewFindings[rv] || [])}. Sprawdź, czy są naprawione, i przejrzyj zmiany od tamtej rundy. Nowe ustalenia zgłaszaj tylko, jeśli są istotne (blocker / major) albo wprowadzone poprawkami.` : ''}
 Zwróć werdykt, krótkie podsumowanie i findings (severity, area, location plik:linia, issue, fix).`,
-      { agentType: rv, label: `${rv}:r${round}`, phase: 'Weryfikacja', schema: REVIEW_SCHEMA })
+      reviewerOpts({ agentType: rv, label: `${rv}:r${round}`, phase: 'Weryfikacja', schema: REVIEW_SCHEMA }))
       .then((r) => r && Object.assign({ reviewer: rv }, r))))).filter(Boolean)
 
   lastQa = qa
