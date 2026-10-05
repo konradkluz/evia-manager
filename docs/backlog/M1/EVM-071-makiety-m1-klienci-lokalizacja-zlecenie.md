@@ -288,7 +288,10 @@ Kontrakt API, migracje, model danych i zależności — nie dotyczy. Makiety są
     - commit robi agent z powłoką: tylko jawne ścieżki z „Zakresu zmian”, hook pre-commit bez `--no-verify`.
 
 ## Decyzje
-_—_
+Demo 2026-10-05 (Konrad):
+
+1. **Przyrost — akceptacja z krótką poprawką przed PR:** ustalenia (a)–(i) z „Uwag do rozważenia” 17 poprawia `ux-designer`, potem celowane sprawdzenie przez `qa-engineer`, `web-developer` i `security-engineer` bez kolejnego demo; przy braku blocker / major — PR i „Squash and merge” przez Konrada.
+2. **Zmiany brzmienia AC w innych historyjkach — teraz, w tym PR** (rekomendacje z „Uwag do rozważenia” 1, 2 (f), 4 i 10 (b) oraz 17 (b)): `412` jako „(komunikat z makiety)” w EVM-030, EVM-035, EVM-053, EVM-054, EVM-058; EVM-044 AC4 — etykieta z makiety; EVM-041 AC1 (dane klienta usuniętego osadzone w zleceniach), AC2 (komunikat z makiety), AC3 („Przywróć klienta”); EVM-063 AC2 (klauzula pracowników i pracy na prywatnym telefonie — BYOD). Nanosi `product-owner` z wpisami w „Dziennikach” tamtych historyjek; liczba AC bez zmian.
 
 ## Uwagi do rozważenia
 Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmienia AC (ux-designer, 2026-10-05). Żadna nie blokuje EVM-071; decyzje zapadają w planach tamtych historyjek albo przy `/refine`.
@@ -302,7 +305,7 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 7. **EVM-036** — edycja lokalizacji i strony także w zleceniu zamkniętym (rozstrzygnięcie 15); „Dodaj stronę” jako widok w dialogu W-20; licznik zawsze widoczny; rodzaj strony tylko do odczytu w „Edytuj stronę”.
 8. **EVM-053** (`draft`) — dialogi „Dodaj transzę” i „Zmień kwotę…” gotowe na `/refine`; etykieta „Zmień kwotę…” z wielokropkiem (rozstrzygnięcie 19); AC8 — brzmienie `412` (pkt 1).
 9. **EVM-059** — kafle sum bez zmian, bez sumy kwot planowanych (AC3 — „ewentualne sumy”).
-10. **EVM-063** — (a) kontakt do administratora z minimalnej publicznej konfiguracji (B9) i tekst zastępczy, gdy adresu nie ma; (b) AC2 wymienia trzy klauzule — klauzula pracowników obejmuje BYOD (A5), rekomendacja: brzmienie „pracowników i pracy na prywatnym telefonie (BYOD)”; (c) zgłaszanie utraty sprzętu w „Pomoc” także przed zalogowaniem (A6).
+10. **EVM-063** — (a) kontakt do administratora z minimalnej publicznej konfiguracji (B9) i tekst zastępczy, gdy adresu nie ma; (b) AC2 wymienia trzy klauzule — klauzula pracowników obejmuje BYOD (A5), rekomendacja: brzmienie „pracowników i pracy na prywatnym telefonie (BYOD)”; (c) zgłaszanie utraty sprzętu w „Pomoc” także przed zalogowaniem (A6). (d) blok „Problem z logowaniem?” w „Pomoc” przed zalogowaniem (makieta `15`, zasada 4) wykracza poza AC3 („do tego czasu sekcja pokazuje tylko kontakt”) — do potwierdzenia w planie EVM-063 (QA, „Uwagi do rozważenia” 17 (i)).
 11. **EVM-066** — strona „Instrukcja dla biura” w układzie W-19 z tą samą sekcją „Pomoc” na początku (WCAG 3.2.6), dostępna także przed zalogowaniem.
 12. **EVM-072 i EVM-034** — maskowanie klienta usuniętego na liście, w wyszukiwaniu i w nagłówku W-06 dla E i R (A1, zasada wspólna 18); druga linia z lokalizacją pod klientem.
 13. **EVM-008** — scrubbing nazw dostępnych z danymi osobowymi w breadcrumbs Sentry (B10, SR-PRIV-09).
@@ -338,3 +341,4 @@ Wejścia do planów historyjek korzystających z makiet i rozbieżności brzmien
 - 2026-10-05 — implementacja, krok 10 (product-owner): `domain.md` — nowa sekcja „Pojęcia z makiet M1 (dodane w EVM-071)” (12 pojęć w brzmieniu z makiet `13`, `14`, `15`, `03`, `06` i zasad wspólnych 18–19; bez nowych encji; nazwy w kodzie wg `domain-model.md`, brakujące kody — plany EVM-041 i EVM-044), odnośnik w nagłówku słownika, doprecyzowany wiersz „Zlecenie zamknięte — tylko do odczytu” (decyzja 17, rozstrzygnięcie 15); `CHANGELOG.md` — pojęcia we wpisie EVM-071; „Uwagi do rozważenia” 16 — zrealizowane. Decyzje 17–19 sprawdzone w README M1 — jednoznaczne. Zmiany w drzewie roboczym (bez commita — agent bez powłoki); `npm run docs:check` uruchamia orkiestrator
 - 2026-10-05 — weryfikacja (workflow `deliver-story`, 2 rundy): runda 1 — QA PASS, `security-engineer` APPROVE, `web-developer` changes_required (1 × major, W-14 nazwa dostępna), poprawka `ux-designer`; runda 2 — QA PASS AC1–AC8, oba przeglądy APPROVE; 9 ustaleń nieblokujących → „Uwagi do rozważenia” 17
 - 2026-10-05 — in-progress → in-review: weryfikacja orkiestratora (`docs:check` 0/0, `test:tools` 328/328, Mermaid 14/14, linki, tokeny i § styleguide'u, dane syntetyczne), DoD bez demo
+- 2026-10-05 — demo (Konrad): przyrost zaakceptowany z krótką poprawką (a)–(i) przed PR; zmiany brzmienia AC w EVM-030, EVM-035, EVM-041, EVM-044, EVM-053, EVM-054, EVM-058, EVM-063 — teraz, w tym PR („Decyzje” 1–2)
