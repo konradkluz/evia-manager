@@ -3,6 +3,8 @@
 Pakiet z EVM-008 (AC2–AC6; ADR-0006, ADR-0015). React 19 + Vite 8 (SPA), TanStack Router i TanStack Query, `i18next` (tylko `pl`), komponenty i style wyłącznie z `@evia/ui-web`, klient API wygenerowany z kontraktu (`@evia/contracts`).
 
 ## Polecenia (z katalogu głównego repozytorium)
+Przed pierwszym `dev` i po każdej zmianie w `design/tokens` zbuduj zależności: `pnpm install` i `pnpm run build` (m.in. `@evia/tokens` generuje `tailwind-theme.css`; bez tego Vite zgłasza błąd „Package path ./tailwind-theme.css is exported … but no valid target file was found”).
+
 | Polecenie | Co robi |
 |---|---|
 | `pnpm --filter @evia/web run dev` | serwer deweloperski Vite na `http://127.0.0.1:5173` (proxy `/api` → `http://localhost:${API_PORT:-3000}`); nagłówki bezpieczeństwa bez CSP (wariant `dev`) |
