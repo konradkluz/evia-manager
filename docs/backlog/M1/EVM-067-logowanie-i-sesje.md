@@ -4,7 +4,7 @@ title: Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -118,7 +118,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione — gate natywny + kontener zielone; coverage:diff po test:integration: linie 501/501, gałęzie 291/303 (orkiestrator powtórzył)
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE — r2: code-reviewer, security-engineer APPROVE; ux-designer APPROVE (r1)
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`) — docs:check 0 błędów
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika (2026-10-06, PR #19)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-016 planu wstępnego — konsultacja solution-architect W2)
@@ -128,3 +128,4 @@ _—_
 - 2026-10-06 — backend zaimplementowany (backend-developer): kontrakt, migracja 0006, logowanie dwukrokowe, wygasanie i przedłużanie sesji, testy `EVM-067 AC#`; panel web (W-01, W-02, P-11) czeka na web-developera
 - 2026-10-06 — panel web zaimplementowany (web-developer): W-01, W-02, P-11 (`AlertDialog` w `@evia/ui-web`), `returnTo`, szkice i `loginToken` tylko w pamięci karty, E2E z inspekcją magazynów, axe i zrzuty do `docs/ux/reviews/EVM-067/`
 - 2026-10-06 — przeglądy i weryfikacja QA: 2 rundy, 0 blokujących (workflow deliver-story); orkiestrator powtórzył bramkę i pokrycie → in-progress → in-review
+- 2026-10-06 — in-review → done: akceptacja Konrada, PR #19 scalony do main (squash)
