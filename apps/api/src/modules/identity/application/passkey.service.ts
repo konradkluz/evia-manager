@@ -90,7 +90,6 @@ export class PasskeyService {
   }
 
   async registrationOptions(principal: Principal): Promise<PublicKeyCredentialCreationOptionsJSON> {
-    requireEnrolment(principal);
     const tx = identityTables(this.#db);
     const user = await tx
       .selectFrom('identity.users')
@@ -268,7 +267,10 @@ export class PasskeyService {
   }
 }
 
-/** Registration belongs to the enrolment session; adding a further key to an active account is EVM-028. */
+/**
+ * Registration belongs to the enrolment session; adding a further key to an active account is EVM-028 (the options of the
+ * ceremony are harmless for any session — they only store a challenge — so only the registration itself is refused).
+ */
 function requireEnrolment(principal: Principal): void {
   if (principal.state !== 'mfa_enrollment') throw new ProblemException('forbidden');
 }
