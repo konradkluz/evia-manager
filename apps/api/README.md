@@ -37,10 +37,28 @@ Granice (dependency-cruiser): `platform` nie importuje `modules`; moduły i korz
 Każdy handler ma `@OperationId('<operationId z kontraktu>')`; polityka pochodzi wyłącznie z manifestu `@evia/contracts/authz`:
 Kolejność kontroli jest stała (szczegóły: `docs/architecture/api-guidelines.md` → Autoryzacja): manifest → operacja publiczna (Origin + Sec-Fetch-Site + limit) → sesja → CSRF → limit logowania i MFA → stan `mfa_enrollment` → kanał → rola → polityka obiektowa w przypadku użycia (`404`).
 1. brak `operationId` lub polityki w manifeście → `403 forbidden` (a przy starcie — błąd: aplikacja nie wstaje, gdy trasa nie ma polityki albo „pożycza” operację o innej metodzie lub ścieżce);
-2. `x-evia-authz: { public: true }` → przepuszczone tylko dla operacji z `PUBLIC_OPERATIONS` (dziś `getHealth`, `checkActivationLink`, `setActivationPassword`);
-3. brak sesji → `401 unauthenticated` (sesja unieważniona → `401 session_revoked`); nieistniejąca trasa bez sesji też `401` (bez ujawniania mapy tras);
+2. `x-evia-authz: { public: true }` → przepuszczone tylko dla operacji z `PUBLIC_OPERATIONS` (dziś `getHealth`, `checkActivationLink`, `setActivationPassword`, `login`, `getLoginPasskeyOptions`, `verifyLoginPasskey`);
+3. brak sesji → `401 unauthenticated` (sesja unieważniona → `401 session_revoked`, sesja, której minął czas → `401 session_expired`); nieistniejąca trasa bez sesji też `401` (bez ujawniania mapy tras);
 4. mutacja sesji bez poprawnego `Origin`, `Sec-Fetch-Site` i `X-CSRF-Token` → `403 csrf_failed`; sesja `mfa_enrollment` poza operacjami z `MFA_ENROLLMENT_OPERATIONS` → `403 mfa_enrollment_required`; rola lub kanał spoza polityki → `403 forbidden`.
-Testy macierzy ról są generowane z kontraktu (`test/authorization/role-matrix.ts`): każda operacja × Administrator / Edytor / Tylko odczyt × `web` / `mobile` × stan sesji + niezalogowany + unieważniona sesja, przypadek IDOR dla operacji z parametrem ścieżki, test kompletności i test testu z „dziurawą” polityką.
+Testy macierzy ról są generowane z kontraktu (`test/authorization/role-matrix.ts`): każda operacja × Administrator / Edytor / Tylko odczyt × `web` / `mobile` × stan sesji + niezalogowany + unieważniona i wygasła sesja, przypadek IDOR dla operacji z parametrem ścieżki, test kompletności i test testu z „dziurawą” polityką.
+
+## Logowanie i sesje (moduł `identity`, EVM-067)
+Dwa kroki, wszystkie operacje publiczne, kanał `web` nadaje ścieżka (nie klient). Wartości i mechanizmy (ASVS V6.1.1, V7.1.1):
+
+| Co | Wartość | Gdzie |
+|---|---|---|
+| bezczynność sesji | **60 min** od ostatniej aktywności | `SESSION_IDLE_MS` (`domain/constants.ts`) |
+| limit bezwzględny sesji | **12 h** od zalogowania, nie przesuwa się | `SESSION_ABSOLUTE_MS` |
+| zapis aktywności | co najwyżej co 30 s; odczyt sesji (`getCurrentSession`) i `extendSession` nie są aktywnością | `SESSION_TOUCH_INTERVAL_MS`, `PASSIVE_OPERATIONS` |
+| `loginToken` (pierwszy krok) | 256 bitów, w bazie tylko SHA-256, **5 min**, jednorazowy, maks. 5 nieudanych kluczy | `LOGIN_ATTEMPT_TTL_MS`, `LOGIN_MAX_FAILED_PASSKEYS` |
+| wyzwanie WebAuthn | ≥ 128 bitów (256), w bazie SHA-256, **5 min**, jednorazowe; zużywane przy każdej weryfikacji, nowe opcje unieważniają poprzednie | `CHALLENGE_TTL_MS` |
+| wiersze prób logowania | usuwane przy następnym pierwszym kroku, najpóźniej 24 h po wygaśnięciu; brak adresu IP i user agenta w tabeli (RODO — dane klienta tylko w sesji i prefiks w audycie) | `LOGIN_ATTEMPT_RETENTION_MS`, migracja `0006` |
+| limit prób | 20 na minutę z jednego IP dla `login`, `getLoginPasskeyOptions`, `verifyLoginPasskey` (wspólny), liczony w guardzie przed dostępem do bazy; IP tylko z `request.ip` (`TRUSTED_PROXIES`), nigdy z surowego `X-Forwarded-For`; `429 rate_limited` z `Retry-After` | `AUTHENTICATION_OPERATIONS`, `platform/http/rate-limiter.ts` |
+
+- **Jednakowe odpowiedzi (SR-AUTH-05):** zły e-mail, złe hasło, konto zaproszone i dezaktywowane → ten sam `401 invalid_credentials` (kod, treść, nagłówki) i dokładnie jedna weryfikacja Argon2id — dla konta aktywnego względem jego hasha, w pozostałych przypadkach względem hasha-wabika wygenerowanego przy starcie bieżącymi `ARGON2_PARAMETERS` i weryfikowanego tą samą ścieżką `verify`. Hasło jest normalizowane do NFC (jak przy aktywacji), bez przycinania i zmiany wielkości liter; polityka długości nie obowiązuje przy logowaniu, schemat sprawdza kształt (e-mail ≤ 254, hasło ≤ 1024). Powód porażki trafia tylko do audytu (`login.failed`: `bad_password`, `unknown_user`, `not_active`, `passkey_failed`, `login_expired`; bez hasła, e-maila i jego skrótu) i do metryki `evia_login_failures_total{reason}` (`platform/metrics`; wystawienie do Prometheusa — EVM-007).
+- **Drugi krok (SR-AUTH-09):** klucz szukany po `credential_id` **i** koncie z `loginToken` (klucz innego konta = `401 passkey_failed`), `userHandle` musi być kontem, `allowCredentials` tylko z jego kluczami, `userVerification: required`, origin i RP ID z konfiguracji. Sukces w jednej transakcji: atomowe zużycie wyzwania i `loginToken`, ponowna kontrola `users.status` pod blokadą `FOR SHARE`, licznik i `last_used_at` klucza, `lastLoginAt`, nowa sesja (token z CSPRNG), unieważnienie sesji z ciasteczka żądania (`rotated`; przy podwójnym ciasteczku nic) i audyt `login.succeeded`. Dwa równoległe żądania z tą samą asercją dają jedną sesję.
+- **Wygasanie (SR-SESS-03):** wszystkie stany sesji (`active`, `mfa_enrollment` z linkiem i bez); kolejność: unieważniona → wygasła → dopiero potem przesunięcie bezczynności warunkowym `UPDATE` (wygasła sesja nie wraca). Wygasła sesja: `401 session_expired`, `session.expired` w audycie dokładnie raz (`revoke_reason = 'expired'`). Czas rzeczywisty z wstrzykiwanego zegara.
+- **Sesja `mfa_enrollment` po samym haśle** (konto aktywne bez klucza): bez linku, nie może zarejestrować czynnika (`registerPasskey` odrzucone); rejestracja czynnika po samym haśle — EVM-023 / SR-AUTH-13.
 
 ## Konfiguracja
 Zmienne i przykłady: `.env.example` (`DATABASE_URL`, `API_PORT`, `LOG_LEVEL`, `NODE_ENV`, `MIN_SUPPORTED_APP_VERSION_ANDROID`, `MIN_SUPPORTED_APP_VERSION_IOS`, `PANEL_ORIGIN`, `WEBAUTHN_RP_ID`, `WEBAUTHN_RP_NAME`, `TRUSTED_PROXIES`). `LOG_LEVEL` `debug`/`trace` tylko przy `NODE_ENV=development`.

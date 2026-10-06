@@ -31,6 +31,26 @@ describe('where an audit event came from (EVM-016 AC7; P9)', () => {
 });
 
 describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
+  it('EVM-067 AC2 a failed sign-in with an unknown e-mail is an anonymous actor with a reason code and no object, no account and no e-mail', () => {
+    const failed: IdentityEvent = {
+      type: 'login.failed',
+      actor: { type: 'anonymous' },
+      outcome: 'failed',
+      reasonCode: 'unknown_user',
+      objectType: 'user',
+    };
+    const record = toAuditRecord(failed, { origin: 'web', traceId, ip: '203.0.113.200' }, at);
+    expect(record).toMatchObject({
+      actorType: 'anonymous',
+      actorUserId: null,
+      objectId: null,
+      reasonCode: 'unknown_user',
+      outcome: 'failed',
+      ipPrefix: '203.0.113.0/24',
+    });
+    expect(Object.keys(record).sort()).toEqual(Object.keys(auditRecordSchema.shape).sort());
+  });
+
   it('EVM-016 AC7 a web event has who, what, when (UTC), where (a prefix, never the full address), outcome and trace id', () => {
     const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
     const record = toAuditRecord(event({ reasonCode: 'logout', type: 'session.revoked' }), context, at);

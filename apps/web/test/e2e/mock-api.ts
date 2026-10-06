@@ -49,6 +49,8 @@ function sessionBody(kind: Exclude<SessionKind, 'none'>) {
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
     csrfToken: kind === 'active' ? 'csrf-active' : 'csrf-enrollment',
+    idleExpiresAt: '2099-01-01T09:00:00.000Z',
+    absoluteExpiresAt: '2099-01-01T20:00:00.000Z',
   };
 }
 

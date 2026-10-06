@@ -226,7 +226,6 @@ export interface LoginAttemptRecord {
   readonly userId: string;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
-  readonly failedAttempts: number;
 }
 
 export async function insertLoginAttempt(
@@ -252,14 +251,13 @@ export async function deleteStaleLoginAttempts(db: IdentityDb, cutoff: Date): Pr
   await db.deleteFrom('identity.login_attempts').where('expires_at', '<', cutoff).execute();
 }
 
-/** The attempt of a token hash; `lock` serialises concurrent verifications of the same attempt (FOR UPDATE). */
-export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LoginAttemptRecord | undefined> {
-  let query = db
+/** The attempt of a token hash (single use is decided by the atomic `consumeLoginAttempt`, not by this read). */
+export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer): Promise<LoginAttemptRecord | undefined> {
+  return db
     .selectFrom('identity.login_attempts')
-    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'failed_attempts as failedAttempts'])
-    .where('token_hash', '=', tokenHash);
-  if (lock) query = query.forUpdate();
-  return query.executeTakeFirst();
+    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt'])
+    .where('token_hash', '=', tokenHash)
+    .executeTakeFirst();
 }
 
 export async function storeLoginChallenge(
