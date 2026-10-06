@@ -109,6 +109,17 @@ describe('input validation at the boundary (EVM-016 AC3; SR-INPUT-01, SR-ERR-02)
     expect(errorsOf(schema, { name: 'x', other: true })?.errors).toEqual([{ pointer: '/other', code: 'unknown_field' }]);
   });
 
+  it('EVM-016 AC4 limits of the contract survive closing the objects (array above maxItems, refinements)', () => {
+    const schema = strictObjects(zRegisterPasskeyRequest);
+    const transports = Array.from({ length: 5000 }, () => 'usb');
+    expect(errorsOf(schema, { credential: { ...credential, response: { ...credential.response, transports } } })?.errors).toEqual([
+      { pointer: '/credential/response/transports', code: 'too_long' },
+    ]);
+    const refined = strictObjects(z.object({ a: z.number() }).refine((value) => value.a > 5));
+    expect(errorsOf(refined, { a: 3 })?.errors).toEqual([{ pointer: '', code: 'invalid' }]);
+    expect(errorsOf(refined, { a: 9 })).toBeUndefined();
+  });
+
   it('EVM-016 AC4 a request that never went through the session middleware is anonymous (fail closed)', async () => {
     const { authenticationOf, principalOf, ANONYMOUS } = await import('../../src/platform/http/principal.ts');
     expect(authenticationOf({} as never)).toBe(ANONYMOUS);

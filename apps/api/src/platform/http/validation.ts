@@ -46,11 +46,17 @@ export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.ou
  * silently ignored (CWE-915, CWE-1321). Open dictionaries (`z.record`) stay open.
  */
 export function strictObjects(schema: z.ZodType): z.ZodType {
+  // The definition is cloned, not rebuilt: the checks of the contract (`.max()`, `.min()`, refinements) stay in force.
   if (schema instanceof z.ZodObject) {
     const shape = schema.shape as Record<string, z.ZodType>;
-    return z.strictObject(Object.fromEntries(Object.entries(shape).map(([key, value]) => [key, strictObjects(value)])));
+    const closed = Object.fromEntries(Object.entries(shape).map(([key, value]) => [key, strictObjects(value)]));
+    return z.core.clone(schema, { ...schema._zod.def, shape: closed, catchall: z.never() });
   }
-  if (schema instanceof z.ZodOptional) return strictObjects(schema.unwrap() as z.ZodType).optional();
-  if (schema instanceof z.ZodArray) return z.array(strictObjects(schema.element as z.ZodType));
+  if (schema instanceof z.ZodOptional) {
+    return z.core.clone(schema, { ...schema._zod.def, innerType: strictObjects(schema.unwrap() as z.ZodType) });
+  }
+  if (schema instanceof z.ZodArray) {
+    return z.core.clone(schema, { ...schema._zod.def, element: strictObjects(schema.element as z.ZodType) });
+  }
   return schema;
 }

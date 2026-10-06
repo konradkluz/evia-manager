@@ -47,6 +47,7 @@ export class SecurityAlertEmitter {
   readonly #db: Kysely<Database>;
   readonly #logger: Logger;
   readonly #clock: Clock;
+  #stop: (() => void) | undefined;
 
   constructor(db: Kysely<Database>, logger: Logger, clock: Clock) {
     this.#db = db;
@@ -62,9 +63,17 @@ export class SecurityAlertEmitter {
       });
     }, intervalMs);
     timer.unref();
-    return () => {
+    this.#stop?.();
+    const stop = (): void => {
       clearInterval(timer);
     };
+    this.#stop = stop;
+    return stop;
+  }
+
+  /** Nest lifecycle hook: the timer stops with the application (graceful shutdown). */
+  onApplicationShutdown(): void {
+    this.#stop?.();
   }
 
   /** Emits pending alerts to the log and marks them emitted. @returns the number of alerts emitted */

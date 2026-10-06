@@ -88,3 +88,26 @@ describe('security alerts through the outbox (EVM-016 AC2; SR-LOG-07, CWE-778)',
     expect(failures[0]).toMatchObject({ level: 'warn' });
   });
 });
+
+describe('the running API process emits alerts (EVM-016 AC2)', () => {
+  it('EVM-016 AC2 an alert in the outbox reaches the log of the API process through createApiApp, with no manual emitPending()', async () => {
+    const { createApiApp } = await import('../../src/app.ts');
+    const { loadConfig } = await import('../../src/platform/config/config.ts');
+    const { validEnv } = await import('../support/app.ts');
+    await enqueue('9'.repeat(32));
+    const apiApp = await createApiApp(
+      loadConfig(validEnv({ DATABASE_URL: database.appUrl })),
+      createLogger({ level: 'info', destination: logs }),
+      {
+        alertPollMs: 20,
+      },
+    );
+    try {
+      await vi.waitFor(() => {
+        expect(logs.entries.filter((entry) => entry['alert'] === 'security' && entry['alertTraceId'] === '9'.repeat(32))).toHaveLength(1);
+      });
+    } finally {
+      await apiApp.close();
+    }
+  });
+});
