@@ -75,6 +75,18 @@ describe('setting the password with a link (EVM-016 AC3; SR-AUTH-01, SR-AUTH-02,
     expect(session.user_agent).toHaveLength(512);
   });
 
+  it('EVM-016 AC3 a client without a user agent still gets a session (the agent is optional data)', async () => {
+    const { user, link } = await current.pendingAdministrator();
+    const response = await current.panel().post(PATHS.password, { token: link.token, password: PASSWORD }).unset('User-Agent');
+    expect(response.status).toBe(200);
+    const session = await db()
+      .selectFrom('identity.sessions')
+      .select('user_agent')
+      .where('user_id', '=', user.id)
+      .executeTakeFirstOrThrow();
+    expect(session.user_agent).toBeNull();
+  });
+
   it.each([
     ['14 characters', 'Zq9-lamp-Orbi4', 'too_short'],
     ['an empty password', '', 'too_short'],
@@ -176,6 +188,22 @@ describe('setting the password with a link (EVM-016 AC3; SR-AUTH-01, SR-AUTH-02,
       { state: 'mfa_enrollment', revoke_reason: 'rotated' },
       { state: 'mfa_enrollment', revoke_reason: null },
     ]);
+  });
+
+  it('EVM-016 AC3 a link that disappears while the password is hashed is refused as invalid, nothing is stored', async () => {
+    await current.close();
+    const vanishing: PasswordHasher = {
+      hash: async (password) => {
+        await db().deleteFrom('identity.one_time_links').execute();
+        return hash(password);
+      },
+    };
+    current = await createIdentityApp({ configure: (builder) => builder.overrideProvider(PASSWORD_HASHER).useValue(vanishing) });
+    const { link } = await current.pendingAdministrator();
+    const response = await setPassword(current.panel(), link.token);
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ code: 'activation_link_invalid' });
+    expect(await db().selectFrom('identity.password_credentials').selectAll().execute()).toEqual([]);
   });
 
   it('EVM-016 AC3 a link that stops being valid while the password is hashed is re-checked under a row lock: no credentials, no session (W8)', async () => {

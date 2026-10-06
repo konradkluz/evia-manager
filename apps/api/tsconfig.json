@@ -5,6 +5,6 @@
     "checkJs": true,
     "experimentalDecorators": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js", "coverage-layout.ts"],
   "exclude": ["node_modules", "dist", "coverage"]
 }

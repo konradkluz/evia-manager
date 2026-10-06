@@ -263,6 +263,35 @@ describe('registering the passkey (EVM-016 AC4; SR-AUTH-09, SR-SESS-02, ASVS V6.
     expect((await audit()).at(-1)).toMatchObject({ action: 'passkey.registered', outcome: 'failed' });
   });
 
+  it('EVM-016 AC4 a response without a readable challenge is refused as a failed verification and audited', async () => {
+    const { panel } = await enrolling();
+    await passkeyOptions(panel);
+    const credential = new VirtualAuthenticator().register((await passkeyOptions(panel)).options, { origin: 'https://panel.evia.test' });
+    const response = await panel.post(PATHS.passkeys, {
+      credential: { ...credential, response: { ...credential.response, clientDataJSON: 'e30' } },
+    });
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ code: 'passkey_verification_failed' });
+    expect((await audit()).at(-1)).toMatchObject({ action: 'passkey.registered', outcome: 'failed' });
+  });
+
+  it('EVM-016 AC4 an unexpected failure while saving (here the audit write) is a 500 without details and changes nothing at all', async () => {
+    const { panel, user, link } = await enrolling();
+    const { options } = await passkeyOptions(panel);
+    await sql`alter table audit.events add constraint audit_always_fails check (false) not valid`.execute(current.database.admin);
+    const before = await db().selectFrom('identity.users').selectAll().where('id', '=', user.id).executeTakeFirstOrThrow();
+    const response = await registerPasskey(panel, options);
+    expect(response.status).toBe(500);
+    expect(response.body).toMatchObject({ code: 'internal_error' });
+    expect(response.text).not.toMatch(/audit|constraint|check/i);
+    expect(await db().selectFrom('identity.users').selectAll().where('id', '=', user.id).executeTakeFirstOrThrow()).toEqual(before);
+    expect(await db().selectFrom('identity.passkeys').selectAll().execute()).toEqual([]);
+    expect(
+      (await db().selectFrom('identity.one_time_links').select('used_at').where('id', '=', link.id).executeTakeFirstOrThrow()).used_at,
+    ).toBeNull();
+    expect((await db().selectFrom('identity.webauthn_challenges').select('used_at').execute())[0]?.used_at).toBeNull();
+  });
+
   it('EVM-016 AC4 an active account cannot register a further key here (that is EVM-028)', async () => {
     const { panel } = await activateAdministrator(current);
     const { options } = await passkeyOptions(panel);

@@ -1,7 +1,7 @@
 import { zRegisterPasskeyRequest } from '@evia/contracts/zod';
 import type { RegisterPasskeyRequest } from '@evia/contracts';
 import { describe, expect, it } from 'vitest';
-import { claimedChallenge, toRegistrationResponse } from '../../src/modules/identity/application/passkey.service.ts';
+import { claimedChallenge, toRegistrationResponse } from '../../src/modules/identity/domain/webauthn-input.ts';
 import { CEREMONY_TIMEOUT_MS, SimpleWebAuthnPasskeys } from '../../src/modules/identity/infrastructure/simplewebauthn-passkeys.ts';
 import { VirtualAuthenticator } from '../support/virtual-authenticator.ts';
 

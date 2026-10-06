@@ -1,6 +1,8 @@
+import type { Request, Response } from 'express';
 import request from 'supertest';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { AuthController } from '../../src/modules/identity/http/auth.controller.ts';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import { activateAdministrator, passkeyOptions, PATHS, registerPasskey, setPassword, PASSWORD } from '../support/flows.ts';
 import { createSession, createUser } from '../support/identity-fixtures.ts';
@@ -139,6 +141,27 @@ describe('the session cookie as the only credential (EVM-016 AC6; SR-SESS-01, SR
     for (const response of [await mobile.get(PATHS.session), await mobile.post(PATHS.logout)]) {
       expect(response.status).toBe(403);
       expect(response.body).toMatchObject({ code: 'forbidden' });
+    }
+  });
+});
+
+describe('handlers do not trust the guard blindly (EVM-016 AC6; defence in depth)', () => {
+  it('EVM-016 AC6 an authenticated handler called without a principal fails closed (401) instead of acting on nobody', async () => {
+    const controller = current.app.get(AuthController);
+    const failure = async (call: () => unknown): Promise<unknown> => {
+      try {
+        await call();
+      } catch (error) {
+        return error;
+      }
+      return undefined;
+    };
+    for (const call of [
+      () => controller.getCurrentSession({} as Request),
+      () => controller.logout({} as Request, {} as Response),
+      () => controller.getPasskeyRegistrationOptions({} as Request),
+    ]) {
+      expect(await failure(call)).toMatchObject({ code: 'unauthenticated' });
     }
   });
 });

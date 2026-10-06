@@ -11,7 +11,7 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { Passkey, RegisterPasskeyRequest } from '@evia/contracts';
-import type { PublicKeyCredentialCreationOptionsJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
+import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/server';
 import { sql, type Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
@@ -21,6 +21,7 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { CHALLENGE_TTL_MS, SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../domain/constants.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
+import { claimedChallenge, toRegistrationResponse } from '../domain/webauthn-input.ts';
 import type { IdentityEvent } from '../events.ts';
 import { PASSKEY_VERIFIER, type PasskeyVerifier, type VerifiedPasskey } from '../infrastructure/ports.ts';
 import { insertSession, revokeSessions } from '../infrastructure/queries.ts';
@@ -36,39 +37,7 @@ export interface RegisteredPasskey extends NewSessionResult {
   readonly passkey: Passkey;
 }
 
-const CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{22,128}$/;
 const UNIQUE_VIOLATION = '23505';
-
-/** The challenge the authenticator signed, read from `clientDataJSON` (a hint — the stored challenge decides). */
-export function claimedChallenge(clientDataJson: string): string | undefined {
-  try {
-    const parsed: unknown = JSON.parse(Buffer.from(clientDataJson, 'base64url').toString('utf8'));
-    const challenge = typeof parsed === 'object' && parsed !== null ? (parsed as { challenge?: unknown }).challenge : undefined;
-    return typeof challenge === 'string' && CHALLENGE_PATTERN.test(challenge) ? challenge : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The contract body (already schema-checked) as the library's `RegistrationResponseJSON`. */
-export function toRegistrationResponse({ credential }: RegisterPasskeyRequest): RegistrationResponseJSON {
-  const { response } = credential;
-  return {
-    id: credential.id,
-    rawId: credential.rawId,
-    type: 'public-key',
-    clientExtensionResults: credential.clientExtensionResults ?? {},
-    ...(credential.authenticatorAttachment === undefined ? {} : { authenticatorAttachment: credential.authenticatorAttachment }),
-    response: {
-      clientDataJSON: response.clientDataJSON,
-      attestationObject: response.attestationObject,
-      ...(response.authenticatorData === undefined ? {} : { authenticatorData: response.authenticatorData }),
-      ...(response.publicKey === undefined ? {} : { publicKey: response.publicKey }),
-      ...(response.publicKeyAlgorithm === undefined ? {} : { publicKeyAlgorithm: response.publicKeyAlgorithm }),
-      ...(response.transports === undefined ? {} : { transports: response.transports }),
-    },
-  };
-}
 
 @Injectable()
 export class PasskeyService {
