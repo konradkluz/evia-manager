@@ -197,6 +197,8 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     expect(scrubValues('anchor #short-one stays')).toBe('anchor #short-one stays');
   });
 
+  // Budget for 1 MB inputs under CI coverage instrumentation (measured 330-350 ms there); a quadratic scrubber would need minutes, so 2 s still catches a ReDoS regression.
+  const LINEAR_TIME_BUDGET_MS = 2000;
   it('EVM-016 AC4 attacker-controlled text of any length is scrubbed in linear time and truncated (CWE-1333, SR-LOG-02)', () => {
     const hostile = [
       'a'.repeat(1_000_000),
@@ -208,7 +210,7 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     for (const text of hostile) {
       const started = performance.now();
       const scrubbed = scrubValues(text);
-      expect(performance.now() - started, text.slice(0, 8)).toBeLessThan(250);
+      expect(performance.now() - started, text.slice(0, 8)).toBeLessThan(LINEAR_TIME_BUDGET_MS);
       // bounded by the truncation (quoted text grows when replaced pair by pair, never with the input length)
       expect(scrubbed.length).toBeLessThan(MAX_SCRUBBED_LENGTH * 8);
     }
@@ -218,7 +220,7 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     });
     const started = performance.now();
     const serialized = serializeError(error);
-    expect(performance.now() - started).toBeLessThan(250);
+    expect(performance.now() - started).toBeLessThan(LINEAR_TIME_BUDGET_MS);
     expect(serialized.message.length).toBeLessThan(MAX_SCRUBBED_LENGTH + 40);
     expect((serialized.stack ?? '').length).toBeLessThan(9000);
   });
