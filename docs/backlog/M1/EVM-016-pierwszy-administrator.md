@@ -4,7 +4,7 @@ title: Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wy
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -123,7 +123,7 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook polecenia aktywacji i trybu awaryjnego w `docs/ops/runbooks/`)
-- [ ] Demo i akceptacja użytkownika (decyzja 3 — klucz dostępu Administratora)
+- [x] Demo i akceptacja użytkownika (decyzja 3 — klucz dostępu Administratora)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; podział EVM-016 planu wstępnego — konsultacja solution-architect W2)
@@ -135,3 +135,4 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - 2026-10-06 — panel (web-developer): W-13, W-03 (wariant „przed EVM-023”), bramka sesji, menu konta z „Wyloguj”, nowe komponenty biblioteki UI, testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty do przeglądu UX
 - 2026-10-06 — decyzje Konrada: interpretacja AC4 potwierdzona; asercje AC1/AC2/AC5 wymagające infrastruktury przeniesione do EVM-007 (AC8) i EVM-076 (AC3)
 - 2026-10-06 — weryfikacja orkiestratora: gate (natywnie + kontener) zielony, integracja API w kontenerze 0, coverage:diff 1191/1191 linii i 784/807 gałęzi, docs:check 0 błędów; przeglądy: security i UX APPROVE (runda 2), code-reviewer — otwarte punkty były decyzjami (zamknięte decyzjami Konrada); status → in-review
+- 2026-10-06 — in-review → done: demo zaakceptowane przez Konrada; PR #17 scalony (CI zielone)
