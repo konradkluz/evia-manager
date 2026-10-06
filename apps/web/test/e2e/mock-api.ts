@@ -29,11 +29,25 @@ export interface MockApi {
   tokenValid: (token: string) => boolean;
   /** Answers of the next calls, to rehearse failures. */
   failNext: Map<string, { status: number; code: string; headers?: Record<string, string> }>;
+  /** EVM-067: the account of the synthetic server has a passkey (`second_step`) or none (`mfa_enrollment`). */
+  loginMode: 'second_step' | 'mfa_enrollment';
+  /** EVM-067: id (base64url) of the passkey the test registered in the virtual authenticator; the login accepts only it. */
+  credentialId: string | null;
+  /** EVM-067: the server has ended the session (`GET /session` answers `401 session_expired`). */
+  expired: boolean;
+  /** EVM-067: minutes from the first read of a session to the end of inactivity and to the absolute end. */
+  sessionMinutes: { idle: number; absolute: number };
+  /** EVM-067: how far the clock of the tab was moved (`page.clock`), so that the server counts in the tab's time. */
+  clockOffsetMs: number;
+  /** EVM-067: the deadlines of the current session (fixed at its first read; moved only by the extension). */
+  deadlines: { idle: number; absolute: number } | null;
+  /** EVM-067: the first-step token that was issued, to check it never travels anywhere but the POST bodies. */
+  loginToken: string | null;
 }
 
-const problem = (status: number, code: string, extra: object = {}) => ({
+const problem = (status: number, code: string, extra: object = {}, headers: Record<string, string> = {}) => ({
   status,
-  headers: { 'Content-Type': 'application/problem+json' },
+  headers: { 'Content-Type': 'application/problem+json', ...headers },
   body: JSON.stringify({ type: `/problems/${code}`, title: code, status, code, traceId: '0123456789abcdef0123456789abcdef', ...extra }),
 });
 
@@ -43,14 +57,20 @@ const ok = (status: number, body: unknown, headers: Record<string, string> = {})
   body: JSON.stringify(body),
 });
 
-function sessionBody(kind: Exclude<SessionKind, 'none'>) {
+const MINUTE = 60_000;
+export const LOGIN_TOKEN = 'Lg7-_Qz2'.repeat(5) + 'abc';
+
+function sessionBody(
+  kind: Exclude<SessionKind, 'none'>,
+  deadlines = { idle: Date.now() + 60 * MINUTE, absolute: Date.now() + 720 * MINUTE },
+) {
   return {
     user: { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME, role: 'administrator' },
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
     csrfToken: kind === 'active' ? 'csrf-active' : 'csrf-enrollment',
-    idleExpiresAt: '2099-01-01T09:00:00.000Z',
-    absoluteExpiresAt: '2099-01-01T20:00:00.000Z',
+    idleExpiresAt: new Date(deadlines.idle).toISOString(),
+    absoluteExpiresAt: new Date(deadlines.absolute).toISOString(),
   };
 }
 
@@ -59,7 +79,21 @@ function decodeBase64Url(value: string): string {
 }
 
 export async function installMockApi(page: Page, session: SessionKind, origin: string): Promise<MockApi> {
-  const api: MockApi = { seen: [], session, tokenValid: (token) => token === VALID_TOKEN, failNext: new Map() };
+  const api: MockApi = {
+    seen: [],
+    session,
+    tokenValid: (token) => token === VALID_TOKEN,
+    failNext: new Map(),
+    loginMode: 'second_step',
+    credentialId: null,
+    expired: false,
+    sessionMinutes: { idle: 60, absolute: 720 },
+    clockOffsetMs: 0,
+    deadlines: null,
+    loginToken: null,
+  };
+  let loginChallenge = '';
+  let loginTokenUsed = false;
   let challenge = '';
 
   const answer = async (route: Route, request: Request) => {
@@ -71,7 +105,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     const failure = api.failNext.get(key);
     if (failure) {
       api.failNext.delete(key);
-      return route.fulfill(problem(failure.status, failure.code));
+      return route.fulfill(problem(failure.status, failure.code, {}, failure.headers));
     }
     const mutation = request.method() !== 'GET';
     // `Sec-Fetch-Site` is added after Playwright's interception, so only `Origin` is visible here; the full pair is
@@ -82,7 +116,80 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
 
     switch (key) {
       case 'GET /api/v1/auth/session':
-        return api.session === 'none' ? route.fulfill(problem(401, 'unauthenticated')) : route.fulfill(ok(200, sessionBody(api.session)));
+        if (api.session !== 'none' && api.expired) {
+          api.session = 'none';
+          return route.fulfill(problem(401, 'session_expired'));
+        }
+        if (api.session === 'none') return route.fulfill(problem(401, 'unauthenticated'));
+        api.deadlines ??= {
+          idle: Date.now() + api.clockOffsetMs + api.sessionMinutes.idle * MINUTE,
+          absolute: Date.now() + api.clockOffsetMs + api.sessionMinutes.absolute * MINUTE,
+        };
+        return route.fulfill(ok(200, sessionBody(api.session, api.deadlines)));
+      case 'POST /api/v1/auth/login': {
+        const { email, password } = body() as { email?: string; password?: string };
+        if (email !== EMAIL || password !== PASSWORD) return route.fulfill(problem(401, 'invalid_credentials'));
+        if (api.loginMode === 'mfa_enrollment') {
+          api.session = 'enrollment';
+          return route.fulfill(ok(200, { state: 'mfa_enrollment', csrfToken: 'csrf-enrollment' }));
+        }
+        api.loginToken = LOGIN_TOKEN;
+        loginTokenUsed = false;
+        return route.fulfill(ok(200, { state: 'second_step', loginToken: LOGIN_TOKEN, methods: ['passkey'] }));
+      }
+      case 'POST /api/v1/auth/login/passkey/options': {
+        const { loginToken } = body() as { loginToken?: string };
+        if (loginToken !== api.loginToken || loginTokenUsed || api.credentialId === null)
+          return route.fulfill(problem(401, 'unauthenticated'));
+        loginChallenge = Buffer.from(`login-challenge-${String(api.seen.length)}-0123456789abcdef`).toString('base64url');
+        return route.fulfill(
+          ok(200, {
+            challenge: loginChallenge,
+            rpId: RP_ID,
+            timeout: 300_000,
+            userVerification: 'required',
+            allowCredentials: [{ id: api.credentialId, type: 'public-key' }],
+          }),
+        );
+      }
+      case 'POST /api/v1/auth/login/passkey': {
+        const { loginToken, credential } = body() as {
+          loginToken?: string;
+          credential: { id: string; response: { clientDataJSON: string } };
+        };
+        if (loginToken !== api.loginToken || loginTokenUsed) return route.fulfill(problem(401, 'unauthenticated'));
+        const client = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
+          type: string;
+          challenge: string;
+          origin: string;
+        };
+        const verified =
+          client.type === 'webauthn.get' &&
+          client.challenge === loginChallenge &&
+          client.origin === origin &&
+          credential.id === api.credentialId;
+        if (!verified) return route.fulfill(problem(401, 'passkey_failed'));
+        loginTokenUsed = true;
+        api.session = 'active';
+        api.deadlines = null;
+        return route.fulfill(ok(200, { state: 'active', csrfToken: 'csrf-active' }));
+      }
+      case 'POST /api/v1/auth/session/extend': {
+        if (api.session === 'none') return route.fulfill(problem(401, 'unauthenticated'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.deadlines === null) return route.fulfill(problem(401, 'unauthenticated'));
+        // Inactivity counts from now (in the time of the tab), never beyond the absolute end.
+        api.deadlines = {
+          idle: Math.min(Date.now() + api.clockOffsetMs + api.sessionMinutes.idle * MINUTE, api.deadlines.absolute),
+          absolute: api.deadlines.absolute,
+        };
+        return route.fulfill(
+          ok(200, {
+            idleExpiresAt: new Date(api.deadlines.idle).toISOString(),
+            absoluteExpiresAt: new Date(api.deadlines.absolute).toISOString(),
+          }),
+        );
+      }
       case 'POST /api/v1/auth/activation/check': {
         const { token } = body() as { token?: string };
         return api.tokenValid(token ?? '')

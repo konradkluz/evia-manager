@@ -1,7 +1,6 @@
-import type { CDPSession, Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import { DISPLAY_NAME, PASSWORD, VALID_TOKEN, type MockApi } from './mock-api.ts';
-import { watchPage } from './support.ts';
+import { virtualAuthenticator, watchPage } from './support.ts';
 
 // First Administrator in the browser (EVM-016 AC3–AC6): the one-time link, the password, the passkey and the logout,
 // against the synthetic API of mock-api.ts, under the real strict CSP. WebAuthn needs a domain name for the relying
@@ -11,22 +10,6 @@ test.use({ baseURL: 'http://localhost:4173', session: 'none' });
 
 const ORIGIN = 'http://localhost:4173';
 const OFFLINE = 'Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.';
-
-async function virtualAuthenticator(page: Page): Promise<CDPSession> {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('WebAuthn.enable');
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: {
-      protocol: 'ctap2',
-      transport: 'internal',
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-    },
-  });
-  return cdp;
-}
 
 function everywhere(api: MockApi, token: string) {
   const leaked: string[] = [];
@@ -231,7 +214,7 @@ test.describe('logout (EVM-016 AC6)', () => {
     await page.keyboard.press('Enter');
 
     await expect(page).toHaveURL(`${ORIGIN}/login`);
-    await expect(page.getByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeVisible();
     const request = api.seen.find((entry) => entry.url.endsWith('/api/v1/auth/logout'));
     expect(request?.method).toBe('POST');
     expect(request?.headers['x-csrf-token']).toBe('csrf-active');
