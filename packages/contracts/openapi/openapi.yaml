@@ -20,6 +20,8 @@ tags:
     description: Operacje techniczne platformy (zdrowie usługi).
   - name: identity
     description: Aktywacja konta, sesja i klucze dostępu (moduł identity).
+  - name: catalog
+    description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -43,6 +45,16 @@ paths:
     $ref: paths/identity.yaml#/passkeyOptions
   /api/v1/account/passkeys:
     $ref: paths/identity.yaml#/passkeys
+  /api/v1/catalog/work-order-templates:
+    $ref: paths/catalog.yaml#/workOrderTemplates
+  /api/v1/catalog/work-order-templates/{templateId}:
+    $ref: paths/catalog.yaml#/workOrderTemplate
+  /api/v1/catalog/service-items:
+    $ref: paths/catalog.yaml#/serviceItems
+  /api/v1/catalog/procedure-templates:
+    $ref: paths/catalog.yaml#/procedureTemplates
+  /api/v1/catalog/document-kinds:
+    $ref: paths/catalog.yaml#/documentKinds
 components:
   schemas:
     Health:
@@ -73,3 +85,43 @@ components:
       $ref: components/identity.yaml#/LoginToken
     SessionExpiry:
       $ref: components/identity.yaml#/SessionExpiry
+    SiteType:
+      $ref: components/catalog.yaml#/SiteType
+    PartyKind:
+      $ref: components/catalog.yaml#/PartyKind
+    ServiceCategory:
+      $ref: components/catalog.yaml#/ServiceCategory
+    ParameterSetCode:
+      $ref: components/catalog.yaml#/ParameterSetCode
+    WaitingOn:
+      $ref: components/catalog.yaml#/WaitingOn
+    Confidentiality:
+      $ref: components/catalog.yaml#/Confidentiality
+    ConfigCode:
+      $ref: components/catalog.yaml#/ConfigCode
+    DefaultParameters:
+      $ref: components/catalog.yaml#/DefaultParameters
+    ServiceItem:
+      $ref: components/catalog.yaml#/ServiceItem
+    ServiceItemList:
+      $ref: components/catalog.yaml#/ServiceItemList
+    ProcedureStageTemplate:
+      $ref: components/catalog.yaml#/ProcedureStageTemplate
+    ProcedureTemplate:
+      $ref: components/catalog.yaml#/ProcedureTemplate
+    ProcedureTemplateList:
+      $ref: components/catalog.yaml#/ProcedureTemplateList
+    DocumentKind:
+      $ref: components/catalog.yaml#/DocumentKind
+    DocumentKindList:
+      $ref: components/catalog.yaml#/DocumentKindList
+    WorkOrderTemplateItem:
+      $ref: components/catalog.yaml#/WorkOrderTemplateItem
+    WorkOrderTemplateProcedure:
+      $ref: components/catalog.yaml#/WorkOrderTemplateProcedure
+    PaymentMilestoneTemplate:
+      $ref: components/catalog.yaml#/PaymentMilestoneTemplate
+    WorkOrderTemplate:
+      $ref: components/catalog.yaml#/WorkOrderTemplate
+    WorkOrderTemplateList:
+      $ref: components/catalog.yaml#/WorkOrderTemplateList

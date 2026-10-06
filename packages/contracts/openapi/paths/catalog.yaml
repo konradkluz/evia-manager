@@ -1,0 +1,147 @@
+# Module `catalog` — read-only configuration for the new work order (W-05), processes, payments and documents
+# (EVM-019). There is no operation that changes the configuration in M1 (the editor is M4, step-up for the
+# Administrator); changing the starting data is a new data migration. Every operation: the three roles, web only
+# (mobile arrives with the offline configuration in M2), no audit (reading configuration is not a sensitive event).
+workOrderTemplates:
+  get:
+    operationId: listWorkOrderTemplates
+    tags: [catalog]
+    summary: Aktywne szablony zleceń z podglądem
+    description: >-
+      Aktywne szablony zleceń (wycofane — `isActive = false` — pomijane), każdy z podglądem: pozycje, procesy z liczbą
+      etapów i transze planu płatności z udziałami. Opcjonalny filtr typu obiektu `siteTypeHint`; wartość spoza słownika
+      daje `400 validation_failed`, nieznany parametr — `400 unknown_parameter`. Zbiór jest mały i zwracany w całości
+      (`nextCursor` zawsze `null`).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - name: siteTypeHint
+        in: query
+        required: false
+        description: Typ obiektu (podpowiedź szablonu).
+        schema:
+          $ref: ../components/catalog.yaml#/SiteType
+    responses:
+      '200':
+        description: Aktywne szablony zleceń.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/catalog.yaml#/WorkOrderTemplateList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderTemplate:
+  get:
+    operationId: getWorkOrderTemplate
+    tags: [catalog]
+    summary: Szablon zlecenia po identyfikatorze (także wycofany)
+    description: >-
+      Zwraca szablon z podglądem jak lista — także wycofany (`isActive = false`; podstawa `422 template_unavailable`
+      przy tworzeniu zlecenia). Nieznany `templateId` — `404 not_found`, zły format — `400 validation_failed`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - name: templateId
+        in: path
+        required: true
+        description: Identyfikator szablonu zlecenia.
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Szablon zlecenia.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/catalog.yaml#/WorkOrderTemplate
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+serviceItems:
+  get:
+    operationId: listServiceItems
+    tags: [catalog]
+    summary: Pozycje katalogu usług
+    description: >-
+      Aktywne pozycje katalogu usług z kategorią, zestawem parametrów technicznych i procesami, które wnoszą.
+      Zbiór jest mały i zwracany w całości (`nextCursor` zawsze `null`).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    responses:
+      '200':
+        description: Pozycje katalogu.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/catalog.yaml#/ServiceItemList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+procedureTemplates:
+  get:
+    operationId: listProcedureTemplates
+    tags: [catalog]
+    summary: Szablony procesów z etapami
+    description: >-
+      Aktywne szablony procesów z etapami (kolejność, domyślne „na kogo czekamy”, dokumenty wynikowe). Zbiór jest mały
+      i zwracany w całości (`nextCursor` zawsze `null`).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    responses:
+      '200':
+        description: Szablony procesów.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/catalog.yaml#/ProcedureTemplateList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+documentKinds:
+  get:
+    operationId: listDocumentKinds
+    tags: [catalog]
+    summary: Rodzaje dokumentów z klasą poufności
+    description: >-
+      Rodzaje dokumentów z klasą poufności (podstawa polityk roli Tylko odczyt i telefonu). Zbiór jest mały i zwracany
+      w całości (`nextCursor` zawsze `null`).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    responses:
+      '200':
+        description: Rodzaje dokumentów.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/catalog.yaml#/DocumentKindList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

@@ -1,0 +1,272 @@
+# Module `catalog` — service catalogue, process and work order templates, document kinds (EVM-019). Read only in M1
+# (the editor comes in M4): responses only, no request bodies. Codes are stable and match `^[a-z][a-z0-9_]{1,63}$`;
+# values of the vocabularies are `snake_case` (Polish labels live in the i18n of the panel, never in the API).
+ConfigCode:
+  type: string
+  description: Stały kod elementu konfiguracji (`snake_case`, po angielsku). Nazwy można zmieniać, kodów nie.
+  pattern: '^[a-z][a-z0-9_]{1,63}$'
+  minLength: 2
+  maxLength: 64
+ConfigName:
+  type: string
+  description: Nazwa elementu po polsku (dane startowe; zmienia się nową migracją danych).
+  minLength: 1
+  maxLength: 200
+Position:
+  type: integer
+  description: Pozycja na liście, od 1.
+  minimum: 1
+  maximum: 100
+SiteType:
+  type: string
+  description: Typ obiektu (słownik domeny; etykiety w panelu).
+  enum: [single_family_house, multi_family_garage, commercial, other]
+PartyKind:
+  type: string
+  description: Rodzaj strony (kontrahenta) — słownik domeny; etykiety w panelu.
+  enum:
+    - building_administration
+    - property_manager
+    - housing_community
+    - designer
+    - fire_safety_expert
+    - technical_expert
+    - distribution_system_operator
+    - subcontractor
+    - supplier
+    - other
+ServiceCategory:
+  type: string
+  description: Kategoria usługi katalogu.
+  enum: [equipment, installation, formal, engineering, acceptance, other]
+ParameterSetCode:
+  type: string
+  description: Kod zestawu parametrów technicznych — schemat jest w kodzie API (`null` = pozycja bez parametrów).
+  enum: [charger_spec, charger_installation, supply_circuit, connection_power, dso_request]
+WaitingOn:
+  type: string
+  description: Na kogo domyślnie czekamy w etapie — klient albo strona (kontrahent) wskazanego rodzaju.
+  enum: [customer, party]
+Confidentiality:
+  type: string
+  description: >-
+    Klasa poufności rodzaju dokumentu: `identity_data` — dane identyfikacyjne osób, `building_security` — informacje
+    istotne dla bezpieczeństwa budynku, `standard` — pozostałe.
+  enum: [identity_data, building_security, standard]
+DefaultParameters:
+  type: object
+  description: >-
+    Domyślne parametry techniczne pozycji (tylko wartości techniczne; ścisły schemat zestawu parametrów jest w kodzie API,
+    do 16 KB). Bez danych osobowych i identyfikatorów (PPE, numerów liczników, adresów).
+  maxProperties: 20
+  additionalProperties:
+    oneOf:
+      - type: string
+        maxLength: 100
+      - type: number
+      - type: boolean
+ServiceItem:
+  type: object
+  required: [code, name, category, parameterSetCode, procedureTemplateCodes]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    category:
+      $ref: '#/ServiceCategory'
+    parameterSetCode:
+      oneOf:
+        - $ref: '#/ParameterSetCode'
+        - type: 'null'
+    procedureTemplateCodes:
+      type: array
+      description: Procesy, które wnosi pozycja (kolejno).
+      maxItems: 20
+      items:
+        $ref: '#/ConfigCode'
+ServiceItemList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/ServiceItem'
+    nextCursor:
+      type: 'null'
+      description: Zbiór konfiguracji jest mały i zwracany w całości — zawsze `null`.
+ProcedureStageTemplate:
+  type: object
+  required: [code, name, position, defaultWaitingOn, defaultWaitingOnPartyKind, outputDocumentKindCodes]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    position:
+      $ref: '#/Position'
+    defaultWaitingOn:
+      oneOf:
+        - $ref: '#/WaitingOn'
+        - type: 'null'
+    defaultWaitingOnPartyKind:
+      oneOf:
+        - $ref: '#/PartyKind'
+        - type: 'null'
+    outputDocumentKindCodes:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/ConfigCode'
+ProcedureTemplate:
+  type: object
+  required: [code, name, stages]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    stages:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/ProcedureStageTemplate'
+ProcedureTemplateList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/ProcedureTemplate'
+    nextCursor:
+      type: 'null'
+      description: Zbiór konfiguracji jest mały i zwracany w całości — zawsze `null`.
+DocumentKind:
+  type: object
+  required: [code, name, confidentiality]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    confidentiality:
+      $ref: '#/Confidentiality'
+DocumentKindList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DocumentKind'
+    nextCursor:
+      type: 'null'
+      description: Zbiór konfiguracji jest mały i zwracany w całości — zawsze `null`.
+WorkOrderTemplateItem:
+  type: object
+  required: [code, name, position, defaultQuantity, parameterSetCode, defaultParameters]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    position:
+      $ref: '#/Position'
+    defaultQuantity:
+      type: integer
+      minimum: 1
+      maximum: 100
+    parameterSetCode:
+      oneOf:
+        - $ref: '#/ParameterSetCode'
+        - type: 'null'
+    defaultParameters:
+      $ref: '#/DefaultParameters'
+WorkOrderTemplateProcedure:
+  type: object
+  description: Proces wniesiony przez pozycje szablonu (ten sam proces z kilku pozycji — raz), z liczbą etapów.
+  required: [code, name, stageCount]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    stageCount:
+      type: integer
+      minimum: 0
+      maximum: 50
+PaymentMilestoneTemplate:
+  type: object
+  required: [code, name, position, sharePercent, invoiceHint, paymentTermDays]
+  properties:
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    position:
+      $ref: '#/Position'
+    sharePercent:
+      type: integer
+      description: Udział transzy w procentach (1–100); udziały planu sumują się do 100. Bez kwot.
+      minimum: 1
+      maximum: 100
+    invoiceHint:
+      type: string
+      description: Podpowiedź, kiedy wystawiamy fakturę (nie automatyka).
+      minLength: 1
+      maxLength: 200
+    paymentTermDays:
+      type: integer
+      description: Termin płatności w dniach od daty wystawienia faktury.
+      minimum: 0
+      maximum: 365
+WorkOrderTemplate:
+  type: object
+  required: [id, code, name, siteTypeHint, isActive, items, procedures, paymentMilestones]
+  properties:
+    id:
+      type: string
+      format: uuid
+    code:
+      $ref: '#/ConfigCode'
+    name:
+      $ref: '#/ConfigName'
+    siteTypeHint:
+      oneOf:
+        - $ref: '#/SiteType'
+        - type: 'null'
+    isActive:
+      type: boolean
+      description: Szablon wycofany (`false`) nie jest na liście aktywnych, ale odczyt po `id` go zwraca.
+    items:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/WorkOrderTemplateItem'
+    procedures:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/WorkOrderTemplateProcedure'
+    paymentMilestones:
+      type: array
+      maxItems: 20
+      items:
+        $ref: '#/PaymentMilestoneTemplate'
+WorkOrderTemplateList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/WorkOrderTemplate'
+    nextCursor:
+      type: 'null'
+      description: Zbiór konfiguracji jest mały i zwracany w całości — zawsze `null`.
