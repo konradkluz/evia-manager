@@ -120,3 +120,4 @@ _—_
 - 2026-10-06 — ready → in-progress: start realizacji (/deliver), gałąź feature/EVM-067-logowanie-i-sesje
 - 2026-10-06 — plan gotowy (backend-developer)
 - 2026-10-06 — backend zaimplementowany (backend-developer): kontrakt, migracja 0006, logowanie dwukrokowe, wygasanie i przedłużanie sesji, testy `EVM-067 AC#`; panel web (W-01, W-02, P-11) czeka na web-developera
+- 2026-10-06 — panel web zaimplementowany (web-developer): W-01, W-02, P-11 (`AlertDialog` w `@evia/ui-web`), `returnTo`, szkice i `loginToken` tylko w pamięci karty, E2E z inspekcją magazynów, axe i zrzuty do `docs/ux/reviews/EVM-067/`
