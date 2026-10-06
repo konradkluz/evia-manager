@@ -38,6 +38,7 @@ x-backend: &backend
     - ./package.json:/src/package.json:ro
     - ./pnpm-lock.yaml:/src/pnpm-lock.yaml:ro
     - ./pnpm-workspace.yaml:/src/pnpm-workspace.yaml:ro
+    - ./patches:/src/patches:ro
     - ./turbo.json:/src/turbo.json:ro
     - ./.nvmrc:/src/.nvmrc:ro
     - ./apps:/src/apps:ro

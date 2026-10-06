@@ -74,6 +74,7 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
       'package.json',
       'pnpm-lock.yaml',
       'pnpm-workspace.yaml',
+      'patches',
       'turbo.json',
       'apps',
       'packages',
