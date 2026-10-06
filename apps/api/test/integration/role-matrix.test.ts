@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CONTRACT_POLICIES, POLICY_SOURCE, RoutePolicyCheck, type PolicySource } from '../../src/modules/authorization/index.ts';
 import { toRouteTemplate } from '../../src/modules/authorization/route-policies.ts';
 import { buildMatrix, runMatrix, type MatrixLists } from '../authorization/role-matrix.ts';
+import { catalogObjects } from '../support/catalog-objects.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { LeakyThingModule, THING_OBJECTS, THING_OPERATION, ThingModule } from '../support/test-routes.ts';
 
@@ -27,8 +28,10 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
   it('EVM-016 AC8 every cell of the matrix generated from the contract is answered as expected: roles x channels x enrolment state, anonymous, revoked and expired', async () => {
     current = await createIdentityApp();
     const cells = buildMatrix(AUTHZ_MANIFEST, lists);
-    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 15);
-    expect(await runMatrix(current, cells)).toEqual([]);
+    // 15 callers per operation, plus the IDOR cell of every entitled caller (3 roles, web) of an operation with a path parameter
+    const addressing = Object.values(AUTHZ_MANIFEST).filter((operation) => /{[^}]+}/.test(operation.path)).length;
+    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 15 + addressing * 3);
+    expect(await runMatrix(current, cells, await catalogObjects(current))).toEqual([]);
   });
 
   it('EVM-016 AC8 completeness: the operations of the matrix, of the contract and of the router are the same set (100%)', async () => {
@@ -52,7 +55,7 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
     const anonymous = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.caller.kind === 'anonymous');
     const open = anonymous.filter((cell) => cell.expectation.outcome === 'allowed').map((cell) => cell.operationId);
     expect(open.sort()).toEqual([...PUBLIC_OPERATIONS].sort());
-    expect(await runMatrix(current, anonymous)).toEqual([]);
+    expect(await runMatrix(current, anonymous, await catalogObjects(current))).toEqual([]);
   });
 });
 
@@ -63,8 +66,8 @@ describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
     const cells = buildMatrix(withThing, lists);
-    expect(cells.filter((cell) => cell.idor)).toHaveLength(2);
-    expect(await runMatrix(current, cells, { getTestThing: THING_OBJECTS })).toEqual([]);
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(5); // 2 of the synthetic thing, 3 of the catalogue template
+    expect(await runMatrix(current, cells, { ...(await catalogObjects(current)), getTestThing: THING_OBJECTS })).toEqual([]);
   });
 
   it('EVM-016 AC8 an operation with a path parameter and no IDOR case is an error of the matrix', async () => {
@@ -91,7 +94,10 @@ describe('the matrix catches holes (EVM-016 AC8 — a test of the test)', () => 
       imports: [ThingModule],
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(holey)),
     });
-    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), { getTestThing: THING_OBJECTS });
+    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), {
+      ...(await catalogObjects(current)),
+      getTestThing: THING_OBJECTS,
+    });
     expect(mismatches).toEqual([
       { operationId: 'getTestThing', caller: 'read_only/web/active', expected: '403 forbidden', actual: '200 ' },
     ]);
@@ -106,7 +112,10 @@ describe('the matrix catches holes (EVM-016 AC8 — a test of the test)', () => 
       imports: [ThingModule],
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(holey)),
     });
-    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), { getTestThing: THING_OBJECTS });
+    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), {
+      ...(await catalogObjects(current)),
+      getTestThing: THING_OBJECTS,
+    });
     expect(mismatches.map((mismatch) => `${mismatch.operationId} ${mismatch.caller}`)).toEqual(
       expect.arrayContaining(['logout administrator/mobile/active', 'logout editor/mobile/active']),
     );
@@ -117,7 +126,10 @@ describe('the matrix catches holes (EVM-016 AC8 — a test of the test)', () => 
       imports: [LeakyThingModule],
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
-    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), { getTestThing: THING_OBJECTS });
+    const mismatches = await runMatrix(current, buildMatrix(withThing, lists), {
+      ...(await catalogObjects(current)),
+      getTestThing: THING_OBJECTS,
+    });
     expect(mismatches).toHaveLength(2);
     expect(
       mismatches.every(

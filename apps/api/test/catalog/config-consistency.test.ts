@@ -10,16 +10,18 @@ import { isConfigCode } from '../../src/modules/catalog/domain/vocabularies.ts';
 
 const seed: CatalogConfig = CATALOG_SEED_2026_10;
 
-type DeepMutable<T> = T extends readonly (infer U)[]
-  ? DeepMutable<U>[]
-  : T extends object
-    ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
-    : T;
+type DeepMutable<T> = T extends string
+  ? string
+  : T extends readonly (infer U)[]
+    ? DeepMutable<U>[]
+    : T extends object
+      ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+      : T;
 type Mutable = DeepMutable<CatalogSeed>;
 
 /** The starting data with one change, to see which finding it causes. */
 const changed = (change: (copy: Mutable) => void): CatalogConfig => {
-  const copy: Mutable = structuredClone(CATALOG_SEED_2026_10);
+  const copy = structuredClone(CATALOG_SEED_2026_10) as Mutable;
   change(copy);
   return copy;
 };
@@ -174,6 +176,16 @@ describe('configuration consistency (EVM-019 AC3; SR-INPUT-02)', () => {
         'site_survey duplicate_code',
       ]),
     );
+  });
+
+  it('EVM-019 AC3 default parameters over 16 KB are a finding of the template item, and a template without a site type hint is consistent', () => {
+    const broken = changed((copy) => {
+      at(template(copy, 'house_full_package').items, 1).defaultParameters = { dedicatedCircuit: true, filler: 'x'.repeat(17_000) };
+      template(copy, 'house_installation_only').siteTypeHint = null;
+    });
+    expect(validateCatalogConfig(broken)).toEqual([
+      { elementCode: 'house_full_package.supply_installation', rule: 'invalid_default_parameters', detail: '(value): too_large' },
+    ]);
   });
 
   it('EVM-019 AC3 a list longer than the API returns at once is a finding', () => {
