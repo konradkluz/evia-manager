@@ -1,5 +1,11 @@
 /**
  * Paths of the panel. English, because a URL is an identifier that must survive a second UI language (architect,
- * EVM-008 point 19); only visible texts are translated. No personal data in paths (styleguide § 3.7).
+ * EVM-008 point 19); only visible texts are translated. No personal data in paths (styleguide § 3.7), and no tokens:
+ * a link token lives only in a fragment that is removed on load (EVM-016 AC5).
  */
 export const WORK_ORDERS_PATH = '/work-orders';
+export const ACTIVATE_PATH = '/activate';
+export const MFA_SETUP_PATH = '/mfa-setup';
+export const LOGIN_PATH = '/login';
+/** Pages reachable without a session (the gate does not ask for one). */
+export const PUBLIC_PATHS: readonly string[] = [ACTIVATE_PATH, LOGIN_PATH];

@@ -37,17 +37,17 @@ describe('panel shell and the work orders page (EVM-008 AC3)', () => {
 
   it('EVM-008 AC3 offline: the banner "Brak połączenia…" appears while the shell and the empty state stay visible', async () => {
     await renderPanel('/work-orders');
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByText('Brak połączenia. Panel działa po jego powrocie.')).toBeNull();
     const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     act(() => {
       globalThis.dispatchEvent(new Event('offline'));
     });
-    expect(screen.getByRole('status').textContent).toBe('Brak połączenia. Panel działa po jego powrocie.');
+    expect(screen.getByText('Brak połączenia. Panel działa po jego powrocie.').closest('[role="status"]')).not.toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
     onLine.mockReturnValue(true);
     act(() => {
       globalThis.dispatchEvent(new Event('online'));
     });
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByText('Brak połączenia. Panel działa po jego powrocie.')).toBeNull();
   });
 });
