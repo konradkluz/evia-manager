@@ -100,17 +100,19 @@ export class SessionService {
 
   async #expire(record: SessionRecord, now: Date, context: EventContext): Promise<void> {
     await this.#db.transaction().execute(async (transaction) => {
+      // The conditional UPDATE revokes a session once: the request that did it audits it, the others find nothing.
       const revoked = await revokeSessions(identityTables(transaction), { sessionId: record.sessionId }, 'expired', now);
-      if (revoked.length === 0) return; // another request audited it first
-      const event: IdentityEvent = {
-        type: 'session.expired',
-        actor: { type: 'user', userId: record.userId },
-        outcome: 'success',
-        reasonCode: 'expired',
-        objectType: 'session',
-        objectId: record.sessionId,
-      };
-      await this.#events.publish(transaction, event, { ...context, sessionId: record.sessionId });
+      for (const sessionId of revoked) {
+        const event: IdentityEvent = {
+          type: 'session.expired',
+          actor: { type: 'user', userId: record.userId },
+          outcome: 'success',
+          reasonCode: 'expired',
+          objectType: 'session',
+          objectId: sessionId,
+        };
+        await this.#events.publish(transaction, event, { ...context, sessionId });
+      }
     });
   }
 

@@ -2,7 +2,8 @@
  * The role and channel matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01, SR-AUTHZ-05, SR-AUTHZ-12; ADR-0014).
  *
  * `buildMatrix` derives, from `x-evia-authz` alone, what every operation must answer to every kind of caller: the three
- * roles on both channels and in both session states, an anonymous caller and a revoked session — plus an IDOR case for every
+ * roles on both channels and in both session states, an anonymous caller, a revoked session and a session that ran out of
+ * time (EVM-067) — plus an IDOR case for every
  * operation that addresses an object. The expectation is computed here, independently of the guard (a second
  * implementation of the same table in the api-guidelines), so a hole in the guard is a failed cell, not a silent pass.
  * `runMatrix` sends the real requests through the application and returns the cells whose answer differs.
@@ -21,6 +22,8 @@ import { createLink, createSession, createUser, type Role } from '../support/ide
 export type Caller =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'revoked'; readonly role: Role; readonly channel: 'web' }
+  /** A session past its idle deadline (EVM-067): 401 session_expired on every operation that needs a session. */
+  | { readonly kind: 'expired'; readonly role: Role; readonly channel: 'web' }
   | { readonly kind: 'session'; readonly role: Role; readonly channel: 'web' | 'mobile'; readonly state: 'active' | 'mfa_enrollment' };
 
 export type Expectation =
@@ -58,6 +61,7 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   if (authz.public === true) return { outcome: 'allowed' };
   if (caller.kind === 'anonymous') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
   if (caller.kind === 'revoked') return { outcome: 'denied', status: 401, code: 'session_revoked' };
+  if (caller.kind === 'expired') return { outcome: 'denied', status: 401, code: 'session_expired' };
   if (
     caller.state === 'mfa_enrollment' &&
     !(lists.mfaEnrollmentOperations.includes(operationId) && authz.allowDuringMfaEnrollment === true)
@@ -75,6 +79,7 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
   const callers: Caller[] = [
     { kind: 'anonymous' },
     { kind: 'revoked', role: 'administrator', channel: 'web' },
+    { kind: 'expired', role: 'administrator', channel: 'web' },
     ...ROLES.flatMap((role) =>
       CHANNELS.flatMap((channel) =>
         (['active', 'mfa_enrollment'] as const).map((state): Caller => ({ kind: 'session', role, channel, state })),
@@ -116,7 +121,9 @@ const describeCaller = (caller: Caller): string =>
     ? `${caller.role}/${caller.channel}/${caller.state}`
     : caller.kind === 'revoked'
       ? 'revoked session'
-      : 'anonymous';
+      : caller.kind === 'expired'
+        ? 'expired session'
+        : 'anonymous';
 
 const describeExpectation = (expectation: Expectation): string =>
   expectation.outcome === 'allowed'
@@ -165,6 +172,11 @@ export async function runMatrix(
       });
       if (caller.kind === 'revoked') {
         await sql`update identity.sessions set revoked_at = ${app.clock.now()}, revoke_reason = 'logout' where id = ${session.id}`.execute(
+          db,
+        );
+      }
+      if (caller.kind === 'expired') {
+        await sql`update identity.sessions set idle_expires_at = ${new Date(app.clock.now().getTime() - 1)} where id = ${session.id}`.execute(
           db,
         );
       }

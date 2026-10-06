@@ -87,7 +87,7 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
     expect(() => auditRecordSchema.parse({ ...toAuditRecord(event(), context, at), email: 'jan@evia.invalid' })).toThrow();
   });
 
-  it('EVM-016 AC7 the closed lists contain the events of the story and no free-text reason', () => {
+  it('EVM-016 AC7 the closed lists contain the events of the stories (EVM-016, EVM-067) and no free-text reason', () => {
     expect([...IDENTITY_EVENT_TYPES]).toEqual([
       'activation_link.issued',
       'account.password_set',
@@ -95,6 +95,9 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'account.activated',
       'session.created',
       'session.revoked',
+      'session.expired',
+      'login.succeeded',
+      'login.failed',
       'account.emergency_reset',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
