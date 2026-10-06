@@ -4,7 +4,7 @@ title: Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wy
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -120,3 +120,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token linku tylko we fragmencie URL, otwarcie nie zużywa linku, polecenie wypisuje link wyłącznie na TTY (AC1, AC5)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`), brzmienie z makiety W-16 i słownika („Status konta”)
+- 2026-10-06 — start `/deliver` (ścieżka `pelna`, gałąź `feature/EVM-016-pierwszy-administrator`); EVM-008 done na main
