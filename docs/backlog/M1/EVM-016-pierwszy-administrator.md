@@ -4,7 +4,7 @@ title: Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wy
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -119,10 +119,10 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - Wymagania dla EVM-007 i EVM-076: Alloy zbiera logi tylko z usług z listy dozwolonych; reguła alertu na polach `alert: "security"` / `alertCode`; Caddy bez `log_credentials` i z filtrem `X-CSRF-Token`; Sentry bez treści żądań `/api/v1/auth/activation/*` i z czyszczeniem fragmentu URL; API łączy się rolą `evia_app` (członek roli, nie właściciel); lista `TRUSTED_PROXIES`.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-016 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook polecenia aktywacji i trybu awaryjnego w `docs/ops/runbooks/`)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-016 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook polecenia aktywacji i trybu awaryjnego w `docs/ops/runbooks/`)
 - [ ] Demo i akceptacja użytkownika (decyzja 3 — klucz dostępu Administratora)
 
 ## Dziennik
@@ -134,3 +134,4 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - 2026-10-06 — implementacja backendu (backend-developer): kontrakt, moduły `identity`/`audit`/`authorization`, migracje, polecenie na serwerze z trybem awaryjnym, macierz ról; panel (W-13, W-03, menu konta) — do `web-developer`
 - 2026-10-06 — panel (web-developer): W-13, W-03 (wariant „przed EVM-023”), bramka sesji, menu konta z „Wyloguj”, nowe komponenty biblioteki UI, testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty do przeglądu UX
 - 2026-10-06 — decyzje Konrada: interpretacja AC4 potwierdzona; asercje AC1/AC2/AC5 wymagające infrastruktury przeniesione do EVM-007 (AC8) i EVM-076 (AC3)
+- 2026-10-06 — weryfikacja orkiestratora: gate (natywnie + kontener) zielony, integracja API w kontenerze 0, coverage:diff 1191/1191 linii i 784/807 gałęzi, docs:check 0 błędów; przeglądy: security i UX APPROVE (runda 2), code-reviewer — otwarte punkty były decyzjami (zamknięte decyzjami Konrada); status → in-review
