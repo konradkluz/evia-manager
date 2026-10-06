@@ -4,7 +4,7 @@ title: Chodzący szkielet — API i panel web
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -97,3 +97,4 @@ _Uzupełnia wykonawca._
 - 2026-10-05 — weryfikacja orkiestratora: format, lint, typy, build, testy z pokryciem (pnpm -r), `deps:check`, `coverage:diff` 430/430 linii i 237/237 gałęzi, `test:tools`, `docs:check` 0 błędów — zielone; `in-review`
 - 2026-10-05 — Koszt: $ n/d (nie do odczytu w sesji — do uzupełnienia z `/cost`); 16 agentów w przebiegu końcowym + 1 w przebiegu planu (łącznie ok. 1,7 mln tokenów podagentów, ok. 650 wywołań narzędzi, ok. 100 min); rundy poprawek 1; ścieżka pelna; model opus; plik historyjki 8 KB (przed: ok. 3 KB) — porównanie z baseline $59 po uzupełnieniu kwoty
 - 2026-10-06 — CI czerwone: `allowBuilds` bez `protobufjs` (strictDepBuilds, zależność z dockerode) i fałszywe wykrycie gitleaks w historii (db948ee, syntetyczny klucz w teście) — dodano `protobufjs: false` i wyjątek w `.gitleaksignore`
+- 2026-10-06 — in-review → done: demo panelu obejrzane i przyrost zaakceptowany przez Konrada; PR #13 scalony (CI zielone)
