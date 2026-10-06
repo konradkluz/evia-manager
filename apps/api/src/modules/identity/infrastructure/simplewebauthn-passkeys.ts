@@ -4,9 +4,20 @@
  * when asking the authenticator and when verifying the result; attestation is `none` (no FIDO MDS, SR-API-13). The
  * user handle is the random value stored with the account, not the e-mail address.
  */
-import { generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server';
-import type { PublicKeyCredentialCreationOptionsJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
-import type { PasskeyVerifier, RegistrationOptionsInput, VerifiedPasskey } from './ports.ts';
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from '@simplewebauthn/server';
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransport,
+  PublicKeyCredentialCreationOptionsJSON,
+  PublicKeyCredentialRequestOptionsJSON,
+  RegistrationResponseJSON,
+} from '@simplewebauthn/server';
+import type { PasskeyVerifier, RegistrationOptionsInput, StoredPasskey, VerifiedAssertion, VerifiedPasskey } from './ports.ts';
 
 /** EdDSA, ES256, RS256 — fixed on both sides of the ceremony (the library default adds post-quantum algorithms at runtime). */
 const SUPPORTED_ALGORITHMS = [-8, -7, -257];
@@ -38,6 +49,42 @@ export class SimpleWebAuthnPasskeys implements PasskeyVerifier {
       authenticatorSelection: { residentKey: 'preferred', userVerification: 'required' },
       supportedAlgorithmIDs: SUPPORTED_ALGORITHMS,
     });
+  }
+
+  authenticationOptions(
+    credentials: readonly Pick<StoredPasskey, 'credentialId' | 'transports'>[],
+  ): Promise<PublicKeyCredentialRequestOptionsJSON> {
+    return generateAuthenticationOptions({
+      rpID: this.#config.rpId,
+      timeout: CEREMONY_TIMEOUT_MS,
+      userVerification: 'required',
+      allowCredentials: credentials.map(({ credentialId, transports }) => ({ id: credentialId, transports: [...transports] })),
+    });
+  }
+
+  async verifyAuthentication(
+    response: AuthenticationResponseJSON,
+    expectedChallenge: string,
+    key: StoredPasskey,
+  ): Promise<VerifiedAssertion | null> {
+    try {
+      const result = await verifyAuthenticationResponse({
+        response,
+        expectedChallenge,
+        expectedOrigin: this.#config.origin,
+        expectedRPID: this.#config.rpId,
+        requireUserVerification: true,
+        credential: {
+          id: key.credentialId,
+          publicKey: new Uint8Array(key.publicKey),
+          counter: key.counter,
+          transports: [...key.transports] as AuthenticatorTransport[],
+        },
+      });
+      return result.verified ? { newCounter: result.authenticationInfo.newCounter } : null;
+    } catch {
+      return null;
+    }
   }
 
   async verifyRegistration(response: RegistrationResponseJSON, expectedChallenge: string): Promise<VerifiedPasskey | null> {

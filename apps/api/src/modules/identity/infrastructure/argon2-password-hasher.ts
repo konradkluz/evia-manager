@@ -3,7 +3,7 @@
  * one lane. The asynchronous API runs on the libuv thread pool and never blocks the event loop; the PHC string carries
  * its own random salt and parameters (so the parameters can be raised later and old hashes still verify).
  */
-import { hash } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
 import type { PasswordHasher } from './ports.ts';
 
 export const ARGON2_PARAMETERS = Object.freeze({ memoryCost: 19_456, timeCost: 2, parallelism: 1 });
@@ -15,5 +15,14 @@ export class Argon2PasswordHasher implements PasswordHasher {
   hash(password: string): Promise<string> {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-enum-assignment -- ambient const enum of the binding: 2 is Algorithm.Argon2id
     return hash(password, { ...ARGON2_PARAMETERS, algorithm: ARGON2ID });
+  }
+
+  async verify(hashed: string, password: string): Promise<boolean> {
+    try {
+      return await verify(hashed, password);
+    } catch {
+      // A malformed hash is a wrong password: the caller must not tell the two apart (SR-AUTH-05).
+      return false;
+    }
   }
 }

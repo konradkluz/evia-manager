@@ -121,6 +121,7 @@ describe('roles and privileges (EVM-016 AC7; ADR-0003, W7)', () => {
       select n.nspname as schema, c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname in ('identity', 'platform') and c.relkind in ('r', 'p') order by 1, 2`.execute(database.admin);
     expect(tables.map((table) => `${table.schema}.${table.name}`)).toEqual([
+      'identity.login_attempts',
       'identity.one_time_links',
       'identity.passkeys',
       'identity.password_credentials',

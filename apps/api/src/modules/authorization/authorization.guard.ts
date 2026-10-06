@@ -2,6 +2,8 @@
  * Global guard (APP_GUARD): every request to an existing route passes decideAccess(); a denial throws a problem.
  * After an allow it checks the query string against the parameters declared in the contract (duplicate or unknown
  * parameter → 400) — late on purpose, so an anonymous client learns nothing about operations before authentication.
+ * Last, an allowed request of a session that is not a passive operation records the activity (EVM-067): the idle
+ * deadline of the session moves on.
  */
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -36,7 +38,7 @@ export class AuthorizationGuard implements CanActivate {
     this.#panelOrigin = config.panelOrigin;
   }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const operationId = this.#reflector.get<string | undefined>(OPERATION_ID, context.getHandler());
     const declaredQuery = (operationId === undefined ? undefined : this.#policies.manifest[operationId])?.query ?? [];
@@ -62,6 +64,14 @@ export class AuthorizationGuard implements CanActivate {
       );
     }
     assertQueryParameters(request.query, declaredQuery);
+    const authentication = authenticationOf(request);
+    if (authentication.principal !== null && this.#recordsActivity(operationId)) await authentication.touch?.();
     return true;
+  }
+
+  /** Public operations (a sign-in with an old cookie) and passive ones do not count as activity of the session. */
+  #recordsActivity(operationId: string | undefined): boolean {
+    const { publicOperations, passiveOperations } = this.#policies;
+    return ![...publicOperations, ...passiveOperations].some((id) => id === operationId);
   }
 }

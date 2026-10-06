@@ -50,6 +50,10 @@ export interface SessionRecord {
   readonly channel: SessionsTable['channel'];
   readonly state: SessionsTable['state'];
   readonly revokedAt: Date | null;
+  readonly revokeReason: RevokeReason | null;
+  readonly lastSeenAt: Date;
+  readonly idleExpiresAt: Date;
+  readonly absoluteExpiresAt: Date;
   readonly role: UsersTable['role'];
   readonly userStatus: UsersTable['status'];
   readonly link: { readonly usedAt: Date | null; readonly supersededAt: Date | null; readonly expiresAt: Date } | null;
@@ -67,6 +71,10 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
       's.channel',
       's.state',
       's.revoked_at as revokedAt',
+      's.revoke_reason as revokeReason',
+      's.last_seen_at as lastSeenAt',
+      's.idle_expires_at as idleExpiresAt',
+      's.absolute_expires_at as absoluteExpiresAt',
       'u.role',
       'u.status as userStatus',
       'l.id as linkId',
@@ -83,6 +91,10 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
     channel: row.channel,
     state: row.state,
     revokedAt: row.revokedAt,
+    revokeReason: row.revokeReason,
+    lastSeenAt: row.lastSeenAt,
+    idleExpiresAt: row.idleExpiresAt,
+    absoluteExpiresAt: row.absoluteExpiresAt,
     role: row.role,
     userStatus: row.userStatus,
     link:
@@ -150,6 +162,156 @@ export async function revokeSessions(
   return rows.map((row) => row.id);
 }
 
+/** Revokes the open session of a session token (the cookie of a request) — rotation at sign-in; @returns the ids revoked. */
+export async function revokeSessionByTokenHash(db: IdentityDb, tokenHash: Buffer, reason: RevokeReason, now: Date): Promise<string[]> {
+  const rows = await db
+    .updateTable('identity.sessions')
+    .set({ revoked_at: now, revoke_reason: reason })
+    .where('token_hash', '=', tokenHash)
+    .where('revoked_at', 'is', null)
+    .returning('id')
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/**
+ * Moves the idle deadline of a session that is still alive. The deadlines are part of the condition, so a session that
+ * has run out never comes back (it is not decided from a value read earlier — SR-SESS-03, CWE-613).
+ * @returns the deadlines after the change, or undefined when the session is over (revoked or expired)
+ */
+export async function slideSession(
+  db: IdentityDb,
+  sessionId: string,
+  now: Date,
+  idleExpiresAt: Date,
+): Promise<{ idleExpiresAt: Date; absoluteExpiresAt: Date } | undefined> {
+  const row = await db
+    .updateTable('identity.sessions')
+    .set({ last_seen_at: now, idle_expires_at: idleExpiresAt })
+    .where('id', '=', sessionId)
+    .where('revoked_at', 'is', null)
+    .where('idle_expires_at', '>', now)
+    .where('absolute_expires_at', '>', now)
+    .returning(['idle_expires_at', 'absolute_expires_at'])
+    .executeTakeFirst();
+  return row === undefined ? undefined : { idleExpiresAt: row.idle_expires_at, absoluteExpiresAt: row.absolute_expires_at };
+}
+
+export interface LoginUser {
+  readonly userId: string;
+  readonly role: UsersTable['role'];
+  readonly status: UsersTable['status'];
+  readonly passwordHash: string | null;
+}
+
+/** The account of a normalised e-mail with its password hash — one query, the same work for every outcome. */
+export async function findLoginUser(db: IdentityDb, email: string): Promise<LoginUser | undefined> {
+  const row = await db
+    .selectFrom('identity.users as u')
+    .leftJoin('identity.password_credentials as c', 'c.user_id', 'u.id')
+    .select(['u.id as userId', 'u.role', 'u.status', 'c.password_hash as passwordHash'])
+    .where('u.email', '=', email)
+    .where('u.deleted_at', 'is', null)
+    .executeTakeFirst();
+  return row;
+}
+
+export async function hasPasskey(db: IdentityDb, userId: string): Promise<boolean> {
+  const row = await db.selectFrom('identity.passkeys').select('id').where('user_id', '=', userId).limit(1).executeTakeFirst();
+  return row !== undefined;
+}
+
+export interface LoginAttemptRecord {
+  readonly id: string;
+  readonly userId: string;
+  readonly expiresAt: Date;
+  readonly usedAt: Date | null;
+  readonly failedAttempts: number;
+}
+
+export async function insertLoginAttempt(
+  db: IdentityDb,
+  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date },
+): Promise<string> {
+  const row = await db
+    .insertInto('identity.login_attempts')
+    .values({
+      user_id: attempt.userId,
+      token_hash: attempt.tokenHash,
+      created_at: attempt.now,
+      expires_at: attempt.expiresAt,
+      used_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return row.id;
+}
+
+/** Deletes the attempts that expired before `cutoff` (their challenges go with them: ON DELETE CASCADE). */
+export async function deleteStaleLoginAttempts(db: IdentityDb, cutoff: Date): Promise<void> {
+  await db.deleteFrom('identity.login_attempts').where('expires_at', '<', cutoff).execute();
+}
+
+/** The attempt of a token hash; `lock` serialises concurrent verifications of the same attempt (FOR UPDATE). */
+export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LoginAttemptRecord | undefined> {
+  let query = db
+    .selectFrom('identity.login_attempts')
+    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'failed_attempts as failedAttempts'])
+    .where('token_hash', '=', tokenHash);
+  if (lock) query = query.forUpdate();
+  return query.executeTakeFirst();
+}
+
+export async function storeLoginChallenge(
+  db: IdentityDb,
+  challenge: { userId: string; attemptId: string; challengeHash: Buffer; now: Date; expiresAt: Date },
+): Promise<void> {
+  // One open challenge per attempt: asking for new options retires the earlier ones.
+  await db
+    .updateTable('identity.webauthn_challenges')
+    .set({ used_at: challenge.now })
+    .where('login_attempt_id', '=', challenge.attemptId)
+    .where('used_at', 'is', null)
+    .execute();
+  await db
+    .insertInto('identity.webauthn_challenges')
+    .values({
+      user_id: challenge.userId,
+      session_id: null,
+      login_attempt_id: challenge.attemptId,
+      purpose: 'passkey_authentication',
+      challenge_hash: challenge.challengeHash,
+      created_at: challenge.now,
+      expires_at: challenge.expiresAt,
+      used_at: null,
+    })
+    .execute();
+}
+
+/** Atomically consumes every open challenge of the attempt; @returns their hashes (at most one is ever open). */
+export async function consumeLoginChallenges(db: IdentityDb, attemptId: string, now: Date): Promise<Buffer[]> {
+  const rows = await db
+    .updateTable('identity.webauthn_challenges')
+    .set({ used_at: now })
+    .where('login_attempt_id', '=', attemptId)
+    .where('purpose', '=', 'passkey_authentication')
+    .where('used_at', 'is', null)
+    .where('expires_at', '>', now)
+    .returning('challenge_hash')
+    .execute();
+  return rows.map((row) => row.challenge_hash);
+}
+
+/** The key of this account (never of another one: the credential id alone is not an identity — SR-AUTH-09). */
+export async function findPasskeyOfUser(db: IdentityDb, userId: string, credentialId: string) {
+  return db
+    .selectFrom('identity.passkeys')
+    .select(['id', 'credential_id', 'public_key', 'counter', 'transports'])
+    .where('user_id', '=', userId)
+    .where('credential_id', '=', credentialId)
+    .executeTakeFirst();
+}
+
 export async function insertLink(
   db: IdentityDb,
   link: { userId: string; tokenHash: Buffer; issuedAt: Date; expiresAt: Date },
@@ -182,6 +344,41 @@ export async function supersedeOpenLinks(db: IdentityDb, now: Date): Promise<str
     .returning('id')
     .execute();
   return rows.map((row) => row.id);
+}
+
+/** Counts a failed key; the attempt that reaches `limit` is ended at once (the next call finds it used). */
+export async function recordFailedKey(db: IdentityDb, attemptId: string, now: Date, limit: number): Promise<void> {
+  await db
+    .updateTable('identity.login_attempts')
+    .set({
+      failed_attempts: sql<number>`failed_attempts + 1`,
+      used_at: sql<Date | null>`case when failed_attempts + 1 >= ${limit} then ${now}::timestamptz else used_at end`,
+    })
+    .where('id', '=', attemptId)
+    .execute();
+}
+
+/** Atomically spends the attempt (single use, within its lifetime); @returns false when it was already spent or has expired. */
+export async function consumeLoginAttempt(db: IdentityDb, attemptId: string, now: Date): Promise<boolean> {
+  const row = await db
+    .updateTable('identity.login_attempts')
+    .set({ used_at: now })
+    .where('id', '=', attemptId)
+    .where('used_at', 'is', null)
+    .where('expires_at', '>', now)
+    .returning('id')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+/** The sign-in with a key: the counter the authenticator reported and the time of use. */
+export async function recordKeyUse(db: IdentityDb, passkeyId: string, counter: number, now: Date): Promise<void> {
+  await db.updateTable('identity.passkeys').set({ counter, last_used_at: now }).where('id', '=', passkeyId).execute();
+}
+
+/** The account signed in: `lastLoginAt` only (the row is not edited by a person, so `version` stays). */
+export async function recordLogin(db: IdentityDb, userId: string, now: Date): Promise<void> {
+  await db.updateTable('identity.users').set({ last_login_at: now }).where('id', '=', userId).execute();
 }
 
 /** Takes a transaction-scoped advisory lock (released at commit or rollback). */

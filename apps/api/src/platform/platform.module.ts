@@ -1,5 +1,5 @@
 /**
- * Module `platform` (ADR-0001): configuration, logger, database, clock, event bus, rate limiter, error boundary and technical operations (health).
+ * Module `platform` (ADR-0001): configuration, logger, database, clock, event bus, metrics, rate limiter, error boundary and technical operations (health).
  * Global, so every module can inject APP_CONFIG and LOGGER. It never imports modules from src/modules.
  */
 import { Module, type DynamicModule } from '@nestjs/common';
@@ -15,7 +15,8 @@ import { EventBus } from './events/event-bus.ts';
 import { ProblemFilter } from './http/problem.filter.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
 import type { Logger } from './logging/logger.ts';
-import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, LOGGER, SECURITY_ALERT_EMITTER } from './tokens.ts';
+import { MetricsRegistry } from './metrics/metrics.ts';
+import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS, SECURITY_ALERT_EMITTER } from './tokens.ts';
 
 export interface PlatformDependencies {
   readonly config: AppConfig;
@@ -36,6 +37,7 @@ export class PlatformModule {
         { provide: APP_FILTER, useClass: ProblemFilter },
         { provide: CLOCK, useClass: SystemClock },
         { provide: EVENT_BUS, useValue: new EventBus() },
+        { provide: METRICS, useValue: new MetricsRegistry() },
         {
           provide: SECURITY_ALERT_EMITTER,
           inject: [DATABASE, LOGGER, CLOCK],
@@ -43,7 +45,7 @@ export class PlatformModule {
         },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },
       ],
-      exports: [DatabaseModule, APP_CONFIG, LOGGER, CLOCK, EVENT_BUS, RATE_LIMITER, SECURITY_ALERT_EMITTER],
+      exports: [DatabaseModule, APP_CONFIG, LOGGER, CLOCK, EVENT_BUS, METRICS, RATE_LIMITER, SECURITY_ALERT_EMITTER],
     };
   }
 }

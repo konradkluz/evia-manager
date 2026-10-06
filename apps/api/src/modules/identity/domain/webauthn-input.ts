@@ -1,9 +1,9 @@
 /**
- * The parts of a WebAuthn registration request that need no database (EVM-016 AC4): reading the challenge the browser
- * claims to have signed, and mapping the body of the contract onto the library's response type.
+ * The parts of a WebAuthn request that need no database (EVM-016 AC4, EVM-067 AC4): reading the challenge the browser
+ * claims to have signed, and mapping the bodies of the contract onto the library's response types.
  */
-import type { RegisterPasskeyRequest } from '@evia/contracts';
-import type { RegistrationResponseJSON } from '@simplewebauthn/server';
+import type { AuthenticationCredential, RegisterPasskeyRequest } from '@evia/contracts';
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 
 const CHALLENGE_PATTERN = /^[A-Za-z0-9_-]{22,128}$/;
 
@@ -34,6 +34,24 @@ export function toRegistrationResponse({ credential }: RegisterPasskeyRequest): 
       ...(response.publicKey === undefined ? {} : { publicKey: response.publicKey }),
       ...(response.publicKeyAlgorithm === undefined ? {} : { publicKeyAlgorithm: response.publicKeyAlgorithm }),
       ...(response.transports === undefined ? {} : { transports: response.transports }),
+    },
+  };
+}
+
+/** The contract body of a sign-in (already schema-checked) as the library's `AuthenticationResponseJSON`. */
+export function toAuthenticationResponse(credential: AuthenticationCredential): AuthenticationResponseJSON {
+  const { response } = credential;
+  return {
+    id: credential.id,
+    rawId: credential.rawId,
+    type: 'public-key',
+    clientExtensionResults: credential.clientExtensionResults ?? {},
+    ...(credential.authenticatorAttachment === undefined ? {} : { authenticatorAttachment: credential.authenticatorAttachment }),
+    response: {
+      clientDataJSON: response.clientDataJSON,
+      authenticatorData: response.authenticatorData,
+      signature: response.signature,
+      ...(response.userHandle === undefined ? {} : { userHandle: response.userHandle }),
     },
   };
 }

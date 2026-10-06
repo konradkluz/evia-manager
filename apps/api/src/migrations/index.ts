@@ -5,6 +5,7 @@ import * as roles from './0002_roles.ts';
 import * as audit from './0003_audit.ts';
 import * as identity from './0004_identity.ts';
 import * as securityAlerts from './0005_security_alerts.ts';
+import * as login from './0006_login.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -12,4 +13,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0003_audit': audit,
   '0004_identity': identity,
   '0005_security_alerts': securityAlerts,
+  '0006_login': login,
 });

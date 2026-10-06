@@ -13,6 +13,9 @@ export const IDENTITY_EVENT_TYPES = [
   'account.activated',
   'session.created',
   'session.revoked',
+  'session.expired',
+  'login.succeeded',
+  'login.failed',
   'account.emergency_reset',
 ] as const;
 
@@ -29,6 +32,14 @@ export const REASON_CODES = [
   'suspected_compromise',
   'other',
   'verification_failed',
+  // Why a sign-in failed (EVM-067): the first step (password) and the second (key). Never shown to the client (SR-AUTH-05).
+  'bad_password',
+  'unknown_user',
+  'not_active',
+  'passkey_failed',
+  'login_expired',
+  // A session ran out of idle time or of its absolute lifetime (SR-SESS-03).
+  'expired',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
@@ -50,5 +61,6 @@ export interface IdentityEvent extends DomainEvent {
   readonly outcome: 'success' | 'denied' | 'failed';
   readonly reasonCode?: ReasonCode;
   readonly objectType: 'user' | 'session' | 'passkey';
-  readonly objectId: string;
+  /** Absent when the event has no object to point at (a sign-in with an unknown e-mail address). */
+  readonly objectId?: string;
 }

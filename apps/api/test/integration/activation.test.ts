@@ -194,9 +194,11 @@ describe('setting the password with a link (EVM-016 AC3; SR-AUTH-01, SR-AUTH-02,
     await current.close();
     const vanishing: PasswordHasher = {
       hash: async (password) => {
-        await db().deleteFrom('identity.one_time_links').execute();
+        // the dummy hash of the sign-in is created at start through the same port: only the activation password is the scenario
+        if (password === PASSWORD) await db().deleteFrom('identity.one_time_links').execute();
         return hash(password);
       },
+      verify: () => Promise.resolve(false),
     };
     current = await createIdentityApp({ configure: (builder) => builder.overrideProvider(PASSWORD_HASHER).useValue(vanishing) });
     const { link } = await current.pendingAdministrator();
@@ -211,9 +213,10 @@ describe('setting the password with a link (EVM-016 AC3; SR-AUTH-01, SR-AUTH-02,
     const slow: PasswordHasher = {
       hash: async (password) => {
         // the administrator issues a new link while this request is hashing
-        await db().updateTable('identity.one_time_links').set({ superseded_at: current.clock.now() }).execute();
+        if (password === PASSWORD) await db().updateTable('identity.one_time_links').set({ superseded_at: current.clock.now() }).execute();
         return hash(password);
       },
+      verify: () => Promise.resolve(false),
     };
     current = await createIdentityApp({ configure: (builder) => builder.overrideProvider(PASSWORD_HASHER).useValue(slow) });
     const { link } = await current.pendingAdministrator();

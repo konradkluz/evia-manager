@@ -23,7 +23,14 @@ function recordingDb() {
 
 describe('first migration (EVM-008 AC1; ADR-0003)', () => {
   it('EVM-008 AC1 migrations are forward only and start with 0001_foundation', () => {
-    expect(Object.keys(MIGRATIONS)).toEqual(['0001_foundation', '0002_roles', '0003_audit', '0004_identity', '0005_security_alerts']);
+    expect(Object.keys(MIGRATIONS)).toEqual([
+      '0001_foundation',
+      '0002_roles',
+      '0003_audit',
+      '0004_identity',
+      '0005_security_alerts',
+      '0006_login',
+    ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });
 
