@@ -4,7 +4,7 @@ title: Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -105,13 +105,19 @@ Jako **użytkownik panelu** chcę **zalogować się hasłem i kluczem dostępu, 
 _—_
 
 ## Uwagi do rozważenia
+- (code-reviewer, minor) `session-expiry-warning.tsx:67-76`: w etapie `ended` zapytania do serwera mogą iść częściej niż co 15 s (zależność efektu od `now`) — użyć `localNow`.
+- (ux-designer, minor) W-02 po „Logowanie trwało zbyt długo” fokus przepada na `body` — przenieść na „Wróć do logowania”.
+- (ux-designer, minor) Dowody UX niepełne: offline w 768/1280/1440 i na W-02, W-02 „klucz nie zadziałał”, P-11 błąd przedłużenia/offline, notatka z przejścia klawiaturą.
+- (qa, nit) `pnpm run gate` bez przebiegu `test:integration` kończy się czerwonym `coverage:diff` (opisane w testing-strategy); rozważyć włączenie do gate.
+- (qa, nit) Nieobjęte pojedyncze gałęzie: `use-now.ts`, `alert-dialog.tsx`, `draft-store.ts`.
+- Przycisk „Pokaż” hasła (TextField) bez `aria-pressed` / nazwy „Pokaż hasło” wg makiety W-01 — dotyczy też W-13; poza zakresem.
 - AC3 mówi o „próbach”; pobranie opcji klucza (`getLoginPasskeyOptions`) liczy się do tego samego limitu 20/min/IP, więc jedno logowanie zużywa 3 jednostki (za wspólnym NAT biura ok. 6 logowań na minutę). Rekomendacja `security-engineer` (Low, do backlogu): przenieść opcje do limitu `anonymous` (60/min).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-067 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-067 AC#`) — QA r2: AC1–AC8 PASS
+- [x] Bramki CI zielone, progi pokrycia spełnione — gate natywny + kontener zielone; coverage:diff po test:integration: linie 501/501, gałęzie 291/303 (orkiestrator powtórzył)
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE — r2: code-reviewer, security-engineer APPROVE; ux-designer APPROVE (r1)
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`) — docs:check 0 błędów
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -121,3 +127,4 @@ _—_
 - 2026-10-06 — plan gotowy (backend-developer)
 - 2026-10-06 — backend zaimplementowany (backend-developer): kontrakt, migracja 0006, logowanie dwukrokowe, wygasanie i przedłużanie sesji, testy `EVM-067 AC#`; panel web (W-01, W-02, P-11) czeka na web-developera
 - 2026-10-06 — panel web zaimplementowany (web-developer): W-01, W-02, P-11 (`AlertDialog` w `@evia/ui-web`), `returnTo`, szkice i `loginToken` tylko w pamięci karty, E2E z inspekcją magazynów, axe i zrzuty do `docs/ux/reviews/EVM-067/`
+- 2026-10-06 — przeglądy i weryfikacja QA: 2 rundy, 0 blokujących (workflow deliver-story); orkiestrator powtórzył bramkę i pokrycie → in-progress → in-review
