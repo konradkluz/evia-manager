@@ -5,9 +5,9 @@ Pakiet z EVM-008 (AC2–AC6; ADR-0006, ADR-0015). React 19 + Vite 8 (SPA), TanSt
 ## Polecenia (z katalogu głównego repozytorium)
 | Polecenie | Co robi |
 |---|---|
-| `pnpm --filter @evia/web run dev` | serwer deweloperski Vite na `http://localhost:5173` (proxy `/api` → `http://localhost:${API_PORT:-3000}`); nagłówki bezpieczeństwa bez CSP (wariant `dev`) |
+| `pnpm --filter @evia/web run dev` | serwer deweloperski Vite na `http://127.0.0.1:5173` (proxy `/api` → `http://localhost:${API_PORT:-3000}`); nagłówki bezpieczeństwa bez CSP (wariant `dev`) |
 | `pnpm --filter @evia/web run build` | build produkcyjny do `dist/` (bez map źródeł) |
-| `pnpm --filter @evia/web run preview` | podgląd buildu na `http://localhost:4173` z pełnymi nagłówkami i ścisłą CSP (wariant `strict`) |
+| `pnpm --filter @evia/web run preview` | podgląd buildu na `http://127.0.0.1:4173` z pełnymi nagłówkami i ścisłą CSP (wariant `strict`) |
 | `pnpm --filter @evia/web run test:coverage` | testy komponentów i jednostkowe (Vitest + jsdom + Testing Library + `axe-core`), próg 80% (warstwa web) |
 | `pnpm run e2e` / `pnpm --filter @evia/web run e2e` | Playwright na `vite preview`: Chromium i Firefox, na Windows także Edge (`msedge`) — dowód E2E wg ADR-0015 |
 | `pnpm --filter @evia/web run e2e:screenshots` | zrzuty do przeglądu UX: 360 / 768 / 1280 / 1440 px, szuflada, podpowiedź, offline → `docs/ux/reviews/EVM-008/` (PNG poza gitem) |

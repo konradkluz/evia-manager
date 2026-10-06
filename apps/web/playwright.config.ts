@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test';
 // ADR-0015. Screenshots for the UX review are a separate project (`pnpm run e2e:screenshots`), not visual assertions.
 const CI = Boolean(process.env['CI']);
 const PORT = 4173;
-const baseURL = `http://localhost:${String(PORT)}`;
+const baseURL = `http://127.0.0.1:${String(PORT)}`;
 const regular = { testIgnore: /screenshots\.spec\.ts$/ };
 // Screenshots for the UX review (PNG files are ignored by git).
 const uxReviewDir = fileURLToPath(new URL('../../docs/ux/reviews/EVM-008/', import.meta.url));
