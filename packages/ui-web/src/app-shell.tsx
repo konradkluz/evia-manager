@@ -73,7 +73,7 @@ export function AppShell({ brand, navigation, labels, banner, account, linkCompo
             onClick={() => {
               setDrawerOpen(true);
             }}
-            className="medium:hidden"
+            className="shrink-0 medium:hidden"
           />
           <p className="expanded:hidden text-label-lg font-semibold">{brand}</p>
           {account ? <div className="ms-auto">{account}</div> : null}
