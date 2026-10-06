@@ -20,6 +20,9 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       logLevel: 'info',
       databaseUrl: validEnv()['DATABASE_URL'],
       minSupportedAppVersion: { android: '1.2.0', ios: '1.1.0' },
+      panelOrigin: 'https://panel.evia.test',
+      webauthn: { rpId: 'panel.evia.test', rpName: 'EVia Manager' },
+      trustedProxies: [],
     });
     expect(loadConfig({ ...validEnv(), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' })).toMatchObject({
       nodeEnv: 'production',

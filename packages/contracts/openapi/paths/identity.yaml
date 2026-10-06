@@ -1,0 +1,212 @@
+# Module `identity` — activation of the first Administrator, passkeys, session (EVM-016). Authentication flows live
+# under /api/v1/auth (one prefix for proxy rules and limits); passkeys are a resource of the account (EVM-028 reuses it).
+# The session cookie `__Host-evia_session` (Secure, HttpOnly, SameSite=Strict, Path=/) is set and cleared by the server;
+# mutations of an authenticated session send `X-CSRF-Token`, anonymous mutations are checked by Origin + Sec-Fetch-Site.
+activationCheck:
+  post:
+    operationId: checkActivationLink
+    tags: [identity]
+    summary: Sprawdzenie linku aktywacyjnego (nie zużywa linku)
+    description: >-
+      Publiczna operacja: token linku (z fragmentu adresu `#…`, usuniętego z paska przez panel) trafia wyłącznie w treści
+      `POST`. Zwraca e-mail i rolę konta do wyświetlenia w W-13. Nie zużywa linku — skaner linków w poczcie go nie „spali”.
+      Link użyty, zmieniony, zastąpiony, wygasły i nieznany dają tę samą odpowiedź `400 activation_link_invalid`.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/CheckActivationLinkRequest
+    responses:
+      '200':
+        description: Link jest ważny.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/ActivationLinkInfo
+            example:
+              email: jan.przykladowy@example.invalid
+              role: administrator
+      '400':
+        $ref: ../components/responses.yaml#/ActivationLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+activationPassword:
+  post:
+    operationId: setActivationPassword
+    tags: [identity]
+    summary: Ustawienie hasła przy aktywacji konta
+    description: >-
+      Publiczna operacja: ważny link + nowe hasło (min. 15 znaków Unicode, nie z listy popularnych, bez słów
+      kontekstowych, nie z wycieku — Pwned Passwords wyłącznie k-anonimowo; przy niedostępności tej usługi kontrola lokalna).
+      Odrzucone hasło daje `400 validation_failed` z `errors[{pointer:/password, code: too_short|too_long|too_weak}]`.
+      Sukces tworzy sesję w stanie `mfa_enrollment` (ciasteczko `__Host-evia_session`) — link nie jest zużyty do
+      rejestracji klucza dostępu. Ponowne ustawienie hasła tym samym linkiem zastępuje hasło i kończy wszystkie sesje konta.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/SetActivationPasswordRequest
+    responses:
+      '200':
+        description: Hasło ustawione; sesja `mfa_enrollment`.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/ActivationPasswordResult
+      '400':
+        $ref: ../components/responses.yaml#/ActivationLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+session:
+  get:
+    operationId: getCurrentSession
+    tags: [identity]
+    summary: Bieżąca sesja (użytkownik, stan, token CSRF)
+    description: >-
+      Dla panelu: powłoka i menu konta. Dostępne także w stanie `mfa_enrollment` (ekran W-03 po odświeżeniu strony odzyskuje
+      token CSRF); zwraca wtedy `state: mfa_enrollment`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+    responses:
+      '200':
+        description: Sesja istnieje.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/CurrentSession
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+logout:
+  post:
+    operationId: logout
+    tags: [identity]
+    summary: Wylogowanie
+    description: >-
+      Unieważnia sesję w bazie, wygasza ciasteczko i odpowiada `Clear-Site-Data: "cache", "storage"`. Dostępne także w stanie
+      `mfa_enrollment` (W-03 ma „Wyloguj”). Wymaga `X-CSRF-Token`; żądanie ze starym ciasteczkiem daje `401 session_revoked`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+      audit: true
+    responses:
+      '204':
+        description: Sesja unieważniona.
+        headers:
+          Clear-Site-Data:
+            description: 'Dokładnie `"cache", "storage"`.'
+            schema:
+              type: string
+              maxLength: 64
+          Set-Cookie:
+            description: 'Wygaszenie ciasteczka `__Host-evia_session` z tymi samymi atrybutami i `Max-Age=0`.'
+            schema:
+              type: string
+              maxLength: 512
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passkeyOptions:
+  post:
+    operationId: getPasskeyRegistrationOptions
+    tags: [identity]
+    summary: Opcje rejestracji klucza dostępu
+    description: >-
+      Zwraca opcje WebAuthn (`userVerification: required`, `attestation: none`) i zapisuje jednorazowe wyzwanie
+      (≥ 128 bitów, TTL 5 min) powiązane z sesją, użytkownikiem i celem. Bez treści żądania. Dozwolone w stanie `mfa_enrollment`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+    responses:
+      '200':
+        description: Opcje rejestracji.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasskeyRegistrationOptions
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passkeys:
+  post:
+    operationId: registerPasskey
+    tags: [identity]
+    summary: Rejestracja klucza dostępu
+    description: >-
+      Weryfikuje odpowiedź WebAuthn (origin i RP ID z konfiguracji, `userVerification: required`, wyzwanie jednorazowe).
+      Sukces w jednej transakcji: zapis klucza, aktywacja konta, zużycie linku aktywacyjnego, nowa sesja `active`
+      z nowym identyfikatorem (nowe ciasteczko; stara sesja unieważniona) i zdarzenia audytu. Odpowiedź nie zawiera danych
+      sesji — panel wywołuje `getCurrentSession`. Dozwolone w stanie `mfa_enrollment`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+      audit: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/RegisterPasskeyRequest
+    responses:
+      '201':
+        description: Klucz zarejestrowany.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…` — nowy identyfikator sesji `active`.'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/Passkey
+      '400':
+        $ref: ../components/responses.yaml#/PasskeyVerificationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

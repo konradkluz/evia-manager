@@ -27,3 +27,24 @@ Problem:
       description: Identyfikator korelacji z logami serwera.
       pattern: '^[0-9a-f]{32}$'
       maxLength: 32
+    errors:
+      type: array
+      description: Błędy pól — tylko wskaźnik JSON Pointer i kod, nigdy wartość (SR-ERR-02).
+      maxItems: 20
+      items:
+        $ref: '#/FieldError'
+FieldError:
+  type: object
+  required: [pointer, code]
+  properties:
+    pointer:
+      type: string
+      description: JSON Pointer (RFC 6901) pola, którego dotyczy błąd.
+      maxLength: 200
+      examples: [/password]
+    code:
+      type: string
+      description: Stały kod błędu pola (np. `too_short`, `too_long`, `too_weak`, `required`).
+      pattern: '^[a-z][a-z0-9_]{0,63}$'
+      maxLength: 64
+      examples: [too_short]

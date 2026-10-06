@@ -1,0 +1,111 @@
+# Shared error responses (application/problem+json, api-guidelines.md → Format błędów). Examples use catalogue codes.
+ValidationFailed:
+  description: Treść niezgodna ze schematem (`validation_failed`, szczegóły w `errors[]` — wskaźnik i kod, bez wartości) albo nieprawidłowy JSON.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/validation_failed
+        title: Request validation failed
+        status: 400
+        code: validation_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: /password
+            code: too_short
+Unauthenticated:
+  description: Brak sesji (`unauthenticated`) albo sesja unieważniona (`session_revoked`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/unauthenticated
+        title: Authentication required
+        status: 401
+        code: unauthenticated
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+Forbidden:
+  description: >-
+    Brak uprawnienia (`forbidden`), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
+    (`mfa_enrollment_required`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/csrf_failed
+        title: Cross-site request check failed
+        status: 403
+        code: csrf_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PayloadTooLarge:
+  description: Treść większa niż limit (`payload_too_large`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/payload_too_large
+        title: Payload too large
+        status: 413
+        code: payload_too_large
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+UnsupportedMediaType:
+  description: Treść inna niż `application/json` (`unsupported_media_type`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/unsupported_media_type
+        title: Unsupported media type
+        status: 415
+        code: unsupported_media_type
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+RateLimited:
+  description: Przekroczony limit żądań (`rate_limited`), z nagłówkiem `Retry-After`.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/rate_limited
+        title: Too many requests
+        status: 429
+        code: rate_limited
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+ActivationLinkInvalid:
+  description: >-
+    Link jest użyty, zmieniony, zastąpiony, wygasły albo nieznany (`activation_link_invalid`) — jedna odpowiedź dla
+    wszystkich przypadków, bez informacji o koncie — albo treść niezgodna ze schematem (`validation_failed`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/activation_link_invalid
+        title: Activation link is invalid or expired
+        status: 400
+        code: activation_link_invalid
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PasskeyVerificationFailed:
+  description: Weryfikacja klucza dostępu nie powiodła się (`passkey_verification_failed`) albo treść niezgodna ze schematem (`validation_failed`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/passkey_verification_failed
+        title: Passkey verification failed
+        status: 400
+        code: passkey_verification_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

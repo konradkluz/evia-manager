@@ -1,0 +1,255 @@
+# Module `identity` — activation of the first Administrator, passkeys, session (EVM-016). Request schemas are strict
+# (`additionalProperties: false`, every string has `maxLength`): an unknown field is rejected, so identifiers such as
+# `userId` or `sessionId` cannot be injected into a body (SR-AUTHZ-01, CWE-915).
+UserRole:
+  type: string
+  description: Rola użytkownika (słownik domeny — Administrator, Edytor, Tylko odczyt).
+  enum: [administrator, editor, read_only]
+Channel:
+  type: string
+  description: Kanał sesji. W M1 wszystkie sesje są `web`; `mobile` od E9 (SR-AUTHZ-12).
+  enum: [web, mobile]
+SessionState:
+  type: string
+  description: >-
+    `mfa_enrollment` — hasło ustawione, brak klucza dostępu (dopuszczone tylko operacje rejestracji klucza,
+    wylogowania i odczytu sesji); `active` — pełna sesja.
+  enum: [mfa_enrollment, active]
+ActivationToken:
+  type: string
+  description: Jednorazowy token linku aktywacyjnego (256 bitów, base64url) — wyłącznie w treści POST, nigdy w adresie.
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  minLength: 43
+  maxLength: 43
+CsrfToken:
+  type: string
+  description: Token CSRF sesji (nagłówek `X-CSRF-Token` w mutacjach) — zmienia się razem z sesją.
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  maxLength: 43
+CheckActivationLinkRequest:
+  type: object
+  additionalProperties: false
+  required: [token]
+  properties:
+    token:
+      $ref: '#/ActivationToken'
+ActivationLinkInfo:
+  type: object
+  required: [email, role]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 254
+    role:
+      $ref: '#/UserRole'
+SetActivationPasswordRequest:
+  type: object
+  additionalProperties: false
+  required: [token, password]
+  properties:
+    token:
+      $ref: '#/ActivationToken'
+    password:
+      type: string
+      description: >-
+        Nowe hasło — minimum 15 znaków Unicode po normalizacji NFC (polityka P2, błąd `too_short`), maksimum 256.
+        Spacje i wklejanie są dozwolone, hasło nie jest przycinane.
+      maxLength: 256
+      writeOnly: true
+ActivationPasswordResult:
+  type: object
+  required: [csrfToken]
+  properties:
+    csrfToken:
+      $ref: '#/CsrfToken'
+PasskeyRegistrationOptions:
+  type: object
+  description: >-
+    Opcje rejestracji klucza dostępu (WebAuthn `PublicKeyCredentialCreationOptionsJSON`, `userVerification: required`).
+    Pola definiuje standard WebAuthn Level 3 — schemat jest otwarty.
+  required: [rp, user, challenge, pubKeyCredParams]
+  properties:
+    rp:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          maxLength: 253
+        name:
+          type: string
+          maxLength: 64
+    user:
+      type: object
+      required: [id, name, displayName]
+      properties:
+        id:
+          type: string
+          maxLength: 128
+        name:
+          type: string
+          maxLength: 254
+        displayName:
+          type: string
+          maxLength: 200
+    challenge:
+      type: string
+      maxLength: 256
+    pubKeyCredParams:
+      type: array
+      maxItems: 16
+      items:
+        type: object
+        required: [type, alg]
+        properties:
+          type:
+            type: string
+            maxLength: 32
+          alg:
+            type: integer
+    timeout:
+      type: integer
+    excludeCredentials:
+      type: array
+      maxItems: 32
+      items:
+        type: object
+        required: [id, type]
+        properties:
+          id:
+            type: string
+            maxLength: 1024
+          type:
+            type: string
+            maxLength: 32
+          transports:
+            type: array
+            maxItems: 8
+            items:
+              type: string
+              maxLength: 32
+    authenticatorSelection:
+      type: object
+      properties:
+        residentKey:
+          type: string
+          maxLength: 32
+        requireResidentKey:
+          type: boolean
+        userVerification:
+          type: string
+          maxLength: 32
+        authenticatorAttachment:
+          type: string
+          maxLength: 32
+    attestation:
+      type: string
+      maxLength: 32
+    hints:
+      type: array
+      maxItems: 8
+      items:
+        type: string
+        maxLength: 32
+RegisterPasskeyRequest:
+  type: object
+  additionalProperties: false
+  required: [credential]
+  properties:
+    credential:
+      $ref: '#/RegistrationCredential'
+RegistrationCredential:
+  type: object
+  description: Wynik `PublicKeyCredential.toJSON()` (WebAuthn `RegistrationResponseJSON`).
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      pattern: '^[A-Za-z0-9_-]*$'
+      maxLength: 1024
+    rawId:
+      type: string
+      pattern: '^[A-Za-z0-9_-]*$'
+      maxLength: 1024
+    type:
+      type: string
+      const: public-key
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+    clientExtensionResults:
+      type: object
+      description: Wyniki rozszerzeń WebAuthn — otwarty słownik zdefiniowany przez przeglądarkę (serwer ich nie interpretuje).
+      additionalProperties: true
+      maxProperties: 16
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, attestationObject]
+      properties:
+        clientDataJSON:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 4096
+        attestationObject:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 16384
+        authenticatorData:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 16384
+        publicKey:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 2048
+        publicKeyAlgorithm:
+          type: integer
+        transports:
+          type: array
+          maxItems: 8
+          items:
+            type: string
+            enum: [ble, cable, hybrid, internal, nfc, smart-card, usb]
+Passkey:
+  type: object
+  required: [id, createdAt, deviceType, backedUp]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    deviceType:
+      type: string
+      enum: [single_device, multi_device]
+    backedUp:
+      type: boolean
+CurrentSession:
+  type: object
+  required: [user, state, channel, csrfToken]
+  properties:
+    user:
+      type: object
+      required: [id, displayName, role]
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        displayName:
+          type: string
+          maxLength: 200
+        role:
+          $ref: '#/UserRole'
+    state:
+      $ref: '#/SessionState'
+    channel:
+      $ref: '#/Channel'
+    csrfToken:
+      $ref: '#/CsrfToken'

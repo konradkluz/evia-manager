@@ -17,9 +17,35 @@ export interface AppConfig {
   readonly logLevel: LogLevel;
   readonly databaseUrl: string;
   readonly minSupportedAppVersion: { readonly android: string; readonly ios: string };
+  /** Origin of the panel (`https://panel.example`): expected by CSRF checks and WebAuthn, and used in activation links. */
+  readonly panelOrigin: string;
+  readonly webauthn: { readonly rpId: string; readonly rpName: string };
+  /** Addresses or CIDR ranges of reverse proxies whose X-Forwarded-For is trusted (empty: none; SR-API-02, CWE-348). */
+  readonly trustedProxies: readonly string[];
 }
 
 const postgresUrl = z.string().refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol));
+
+/** An origin is scheme + host (+ port) only: no path, query, fragment or credentials. */
+const origin = z.string().refine((value) => {
+  if (!URL.canParse(value)) return false;
+  const url = new URL(value);
+  return (url.protocol === 'https:' || url.protocol === 'http:') && url.origin === value && url.username === '' && url.password === '';
+});
+const hostname = z.string().regex(/^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/);
+const proxyList = z
+  .string()
+  .default('')
+  .transform((value) =>
+    value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item !== ''),
+  )
+  .refine((items) => items.every((item) => /^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(item)));
+
+const hostOf = (value: string): string => (URL.canParse(value) ? new URL(value).hostname : '');
+const isLocalHost = (host: string): boolean => host === 'localhost' || host.endsWith('.localhost');
 
 const schema = z
   .object({
@@ -29,8 +55,24 @@ const schema = z
     DATABASE_URL: postgresUrl,
     MIN_SUPPORTED_APP_VERSION_ANDROID: zSemver,
     MIN_SUPPORTED_APP_VERSION_IOS: zSemver,
+    PANEL_ORIGIN: origin,
+    WEBAUTHN_RP_ID: hostname,
+    WEBAUTHN_RP_NAME: z.string().trim().min(1).max(64).default('EVia Manager'),
+    TRUSTED_PROXIES: proxyList,
   })
-  .refine((env) => env.NODE_ENV === 'development' || !VERBOSE_LEVELS.includes(env.LOG_LEVEL), { path: ['LOG_LEVEL'] });
+  .refine((env) => env.NODE_ENV === 'development' || !VERBOSE_LEVELS.includes(env.LOG_LEVEL), { path: ['LOG_LEVEL'] })
+  // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
+  .refine(
+    (env) => {
+      const host = hostOf(env.PANEL_ORIGIN);
+      return host === env.WEBAUTHN_RP_ID || host.endsWith(`.${env.WEBAUTHN_RP_ID}`);
+    },
+    { path: ['WEBAUTHN_RP_ID'] },
+  )
+  // Production: https only and no localhost — cookies are always Secure with the __Host- prefix, there is no switch.
+  .refine((env) => env.NODE_ENV !== 'production' || (env.PANEL_ORIGIN.startsWith('https://') && !isLocalHost(hostOf(env.PANEL_ORIGIN))), {
+    path: ['PANEL_ORIGIN'],
+  });
 
 export class ConfigError extends Error {
   readonly keys: readonly string[];
@@ -55,5 +97,8 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
     logLevel: value.LOG_LEVEL,
     databaseUrl: value.DATABASE_URL,
     minSupportedAppVersion: { android: value.MIN_SUPPORTED_APP_VERSION_ANDROID, ios: value.MIN_SUPPORTED_APP_VERSION_IOS },
+    panelOrigin: value.PANEL_ORIGIN,
+    webauthn: { rpId: value.WEBAUTHN_RP_ID, rpName: value.WEBAUTHN_RP_NAME },
+    trustedProxies: value.TRUSTED_PROXIES,
   };
 }

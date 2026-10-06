@@ -1,9 +1,10 @@
 import request from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RoutePolicyCheck } from '../../src/modules/authorization/index.ts';
-import { PRINCIPAL_RESOLVER } from '../../src/platform/http/principal.ts';
+import { SESSION_RESOLVER } from '../../src/platform/http/principal.ts';
 import { DATABASE_PROBE } from '../../src/platform/tokens.ts';
 import { createTestApp, type TestApp } from '../support/app.ts';
+import { principal, resolverOf } from '../support/principals.ts';
 import { FailingRouteModule, RouteWithoutPolicyModule } from '../support/test-routes.ts';
 
 let current: TestApp | undefined;
@@ -105,20 +106,16 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
     );
   });
 
-  it('EVM-008 AC4 with a principal an unknown route is 404 and a failing principal lookup is 401 (fail closed)', async () => {
+  it('EVM-008 AC4 with a principal an unknown route is 404 and a failing session lookup is 401 (fail closed)', async () => {
     current = await createTestApp({
-      configure: (builder) => builder.overrideProvider(PRINCIPAL_RESOLVER).useValue({ resolve: () => ({ userId: 'synthetic-user' }) }),
+      configure: (builder) => builder.overrideProvider(SESSION_RESOLVER).useValue(resolverOf({ principal: principal() })),
     });
     const response = await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(404);
     expect(response.body).toMatchObject({ type: '/problems/not_found', status: 404, code: 'not_found' });
     await current.close();
     current = await createTestApp({
       configure: (builder) =>
-        builder.overrideProvider(PRINCIPAL_RESOLVER).useValue({
-          resolve: () => {
-            throw new Error('session store unavailable');
-          },
-        }),
+        builder.overrideProvider(SESSION_RESOLVER).useValue(resolverOf(() => Promise.reject(new Error('session store unavailable')))),
     });
     await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(401);
     await request(current.app.getHttpServer())

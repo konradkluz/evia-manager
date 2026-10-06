@@ -36,6 +36,12 @@ export const SENSITIVE_KEY_FRAGMENTS = Object.freeze([
   'signedurl',
   'signature',
   'credential',
+  // EVM-016: WebAuthn ceremony data and the CSRF token (the latter also matches `token`; listed for the record).
+  'challenge',
+  'clientdata',
+  'attestation',
+  'assertion',
+  'csrf',
 ]);
 /** Keys sensitive only as a whole word (as a fragment they would hide e.g. `operationName`). */
 const SENSITIVE_KEYS = new Set(['name']);
@@ -75,7 +81,12 @@ export interface SerializedError {
   readonly stack?: string;
 }
 
-const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu;
+/** The local part is bounded (RFC 5321: 64, with margin): an unbounded `+` before `@` costs O(n²) on text without `@` (CWE-1333). */
+const EMAIL = /[\p{L}\p{N}._%+-]{1,254}@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu;
+/** A URL fragment that looks like a one-time token (`#` + 20 or more base64url characters; the activation link, SR-LOG-02). */
+const FRAGMENT_TOKEN = /#[A-Za-z0-9_-]{20,}/g;
+/** Messages may contain attacker-controlled text (e.g. an origin from WebAuthn clientDataJSON): bound the work before scrubbing. */
+export const MAX_SCRUBBED_LENGTH = 2048;
 /** Phone numbers, PESEL, account numbers: 9+ digits, optionally grouped; not inside identifiers (UUID, hashes). */
 const LONG_NUMBER = /(?<![\p{L}\p{N}_-])(?:\+\d{1,3}[ -]?)?\d(?:[ -]?\d){8,}(?![\p{L}\p{N}_-])/gu;
 const QUOTED = /(["'„«])[^"'”»\n]*(["'”»])/gu;
@@ -84,19 +95,23 @@ const QUOTED = /(["'„«])[^"'”»\n]*(["'”»])/gu;
  * Replaces values that may come from users in free text (error messages): e-mail addresses, long numbers (phone,
  * PESEL) and quoted text. Key-based redaction cannot see them (SR-LOG-02, CWE-532).
  */
-export function scrubValues(text: string): string {
-  return text
+export function scrubValues(text: string, maxLength: number = MAX_SCRUBBED_LENGTH): string {
+  const bounded = text.length > maxLength ? `${text.slice(0, maxLength)}…[truncated]` : text;
+  return bounded
+    .replace(FRAGMENT_TOKEN, `#${REDACTED}`)
     .replace(EMAIL, REDACTED)
     .replace(LONG_NUMBER, REDACTED)
     .replace(QUOTED, (_match, open: string, close: string) => `${open}${REDACTED}${close}`);
 }
+
+const MAX_SCRUBBED_STACK_LENGTH = 8192;
 
 const stackFrames = (stack: string | undefined): string | undefined => {
   const frames = stack
     ?.split('\n')
     .filter((line) => /^\s+at /.test(line))
     .join('\n');
-  return frames === undefined || frames === '' ? undefined : scrubValues(frames);
+  return frames === undefined || frames === '' ? undefined : scrubValues(frames, MAX_SCRUBBED_STACK_LENGTH);
 };
 
 const stringField = (error: Error, key: string): Record<string, string> => {

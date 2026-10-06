@@ -3,6 +3,8 @@
  * "routes equal contract operations" proves that production has no such routes.
  */
 import { Controller, Get, Module } from '@nestjs/common';
+import { AUTHZ_MANIFEST, type AuthzManifest } from '@evia/contracts/authz';
+import { CONTRACT_POLICIES, type PolicySource } from '../../src/modules/authorization/index.ts';
 import { OperationId } from '../../src/platform/http/operation-id.ts';
 
 @Controller()
@@ -56,10 +58,10 @@ export class ProtectedRouteController {
 @Module({ controllers: [ProtectedRouteController] })
 export class ProtectedRouteModule {}
 
-export const TEST_POLICIES = Object.freeze({
-  manifest: {
-    getHealth: { method: 'get', path: '/api/health', authz: { public: true } },
-    listWorkOrders: { method: 'get', path: '/api/v1/work-orders', authz: { roles: ['administrator'] } },
-  },
-  publicOperations: ['getHealth'],
-});
+/** The policies of the contract plus a synthetic protected operation (the contract has none for work orders yet). */
+const syntheticManifest: AuthzManifest = {
+  ...AUTHZ_MANIFEST,
+  listWorkOrders: { method: 'get', path: '/api/v1/work-orders', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
+};
+
+export const TEST_POLICIES: PolicySource = Object.freeze({ ...CONTRACT_POLICIES, manifest: syntheticManifest });

@@ -60,7 +60,8 @@ describe('contract build (EVM-008 AC2)', () => {
     const output = join(mkdtempSync(join(tmpdir(), 'evia-contracts-')), 'openapi.json');
     expect(bundleContract(output).status).toBe(0);
     const bundle = JSON.parse(readFileSync(output, 'utf8')) as { paths: Record<string, unknown>; components: { schemas: object } };
-    expect(Object.keys(bundle.paths)).toEqual(['/api/health']);
+    expect(Object.keys(bundle.paths)).toContain('/api/health');
+    expect(Object.keys(bundle.paths)).toHaveLength(7);
     expect(Object.keys(bundle.components.schemas)).toEqual(expect.arrayContaining(['Health', 'Problem', 'Semver']));
   });
 });
