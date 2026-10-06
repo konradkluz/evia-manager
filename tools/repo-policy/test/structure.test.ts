@@ -251,8 +251,8 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(settings['savePrefix']).toBe('');
     expect(settings['minimumReleaseAgeExclude'] ?? []).toEqual([]);
     for (const key of ['dangerouslyAllowAllBuilds', 'ignoreScripts', 'trustPolicyExclude']) expect(settings[key], key).toBeUndefined();
-    // Only explicit denials: lefthook (EVM-006 W1); ssh2 and cpu-features of Testcontainers (EVM-008, B11).
-    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false, 'cpu-features': false, ssh2: false });
+    // Only explicit denials: lefthook (EVM-006 W1); ssh2, cpu-features and protobufjs of Testcontainers (EVM-008, B11).
+    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false, 'cpu-features': false, ssh2: false, protobufjs: false });
   });
 
   it('EVM-006 AC1 (SR-SUPPLY-03, W4): dependencies are exact registry versions, catalog: or workspace:; @evia/* only via workspace:', () => {
