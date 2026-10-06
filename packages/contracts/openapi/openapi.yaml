@@ -27,8 +27,16 @@ paths:
     $ref: paths/identity.yaml#/activationCheck
   /api/v1/auth/activation/password:
     $ref: paths/identity.yaml#/activationPassword
+  /api/v1/auth/login:
+    $ref: paths/identity.yaml#/login
+  /api/v1/auth/login/passkey/options:
+    $ref: paths/identity.yaml#/loginPasskeyOptions
+  /api/v1/auth/login/passkey:
+    $ref: paths/identity.yaml#/loginPasskey
   /api/v1/auth/session:
     $ref: paths/identity.yaml#/session
+  /api/v1/auth/session/extend:
+    $ref: paths/identity.yaml#/sessionExtend
   /api/v1/auth/logout:
     $ref: paths/identity.yaml#/logout
   /api/v1/account/passkeys/registration-options:
@@ -61,3 +69,7 @@ components:
       $ref: components/identity.yaml#/CurrentSession
     Passkey:
       $ref: components/identity.yaml#/Passkey
+    LoginToken:
+      $ref: components/identity.yaml#/LoginToken
+    SessionExpiry:
+      $ref: components/identity.yaml#/SessionExpiry

@@ -81,6 +81,164 @@ activationPassword:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+login:
+  post:
+    operationId: login
+    tags: [identity]
+    summary: Logowanie — pierwszy krok (e-mail i hasło)
+    description: >-
+      Publiczna operacja (kanał `web`). Poprawne hasło aktywnego konta z kluczem dostępu → `200 { state: second_step, loginToken,
+      methods: [passkey] }` (`loginToken` jest jednorazowy, ważny 5 min, trzymany w pamięci karty); aktywne konto bez klucza dostępu →
+      `200 { state: mfa_enrollment, csrfToken }` z ciasteczkiem sesji ograniczonej (`403 mfa_enrollment_required` na resztę).
+      Zły e-mail, złe hasło, konto zaproszone i dezaktywowane dają tę samą odpowiedź `401 invalid_credentials` (kod, treść,
+      nagłówki) w porównywalnym czasie (równoważna weryfikacja Argon2id). Limit 20 prób na minutę z jednego adresu IP
+      (wspólny z drugim krokiem) liczony przed dostępem do bazy → `429 rate_limited` z `Retry-After`. Ciasteczko poprzedniej
+      sesji z żądania jest unieważniane (rotacja).
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginRequest
+    responses:
+      '200':
+        description: Pierwszy krok zaliczony.
+        headers:
+          Set-Cookie:
+            description: >-
+              Tylko przy `state: mfa_enrollment`: `__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict`
+              (nowy identyfikator sesji).
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/LoginResult
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/InvalidCredentials
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+loginPasskeyOptions:
+  post:
+    operationId: getLoginPasskeyOptions
+    tags: [identity]
+    summary: Opcje uwierzytelnienia kluczem dostępu (drugi krok)
+    description: >-
+      Publiczna operacja: wymaga ważnego `loginToken`. Zwraca opcje WebAuthn (`userVerification: required`,
+      `allowCredentials` tylko z kluczami tego konta) i zapisuje jednorazowe wyzwanie (≥ 128 bitów, TTL 5 min) powiązane
+      z próbą logowania; poprzednie wyzwania tej próby tracą ważność. Brak lub nieznany `loginToken` → `401 unauthenticated`,
+      wygasły → `401 login_expired`. Ten sam limit prób co pierwszy krok.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginPasskeyOptionsRequest
+    responses:
+      '200':
+        description: Opcje uwierzytelnienia.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasskeyAuthenticationOptions
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+loginPasskey:
+  post:
+    operationId: verifyLoginPasskey
+    tags: [identity]
+    summary: Logowanie — drugi krok (klucz dostępu)
+    description: >-
+      Publiczna operacja (kanał `web`). Weryfikuje odpowiedź WebAuthn: klucz musi należeć do konta z `loginToken`, origin i RP ID
+      z konfiguracji, `userVerification: required`, wyzwanie jednorazowe (zużywane przy każdej weryfikacji, także nieudanej).
+      Sukces w jednej transakcji: zużycie `loginToken` i wyzwania, nowa sesja `active` z nowym identyfikatorem (poprzednia
+      z ciasteczka żądania unieważniona), `lastLoginAt`, licznik klucza i audyt. Nieudany klucz → `401 passkey_failed`
+      (`loginToken` nie jest zużywany — można ponowić; po 5 nieudanych próbach próba logowania wygasa), po upływie 5 min →
+      `401 login_expired`, bez poprawnego pierwszego kroku → `401 unauthenticated`.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/VerifyLoginPasskeyRequest
+    responses:
+      '200':
+        description: Zalogowano.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+sessionExtend:
+  post:
+    operationId: extendSession
+    tags: [identity]
+    summary: Przedłużenie sesji (ostrzeżenie P-11)
+    description: >-
+      Odnawia czas bezczynności (60 min od teraz), nigdy ponad bezwzględny limit 12 h od zalogowania. Przedłuża wyłącznie sesję
+      z ciasteczka (bez identyfikatora w żądaniu — treść musi być pusta). Wymaga `X-CSRF-Token`. Dozwolone w stanie
+      `mfa_enrollment`. Sesja już wygasła → `401 session_expired`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+    responses:
+      '200':
+        description: Sesja przedłużona.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionExpiry
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/SessionExpired
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 session:
   get:
     operationId: getCurrentSession
