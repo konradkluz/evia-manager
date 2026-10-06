@@ -1,0 +1,10 @@
+{
+  "extends": "@evia/config/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["es2024", "dom"]
+  },
+  "include": ["src/**/*.ts", "generated/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 export const SERVICES = Object.freeze([
   'backend-install',
   'backend-tests',
+  'postgres',
   'scan-gitleaks',
   'scan-semgrep',
   'scan-osv',

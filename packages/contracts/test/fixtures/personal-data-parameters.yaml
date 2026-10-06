@@ -1,0 +1,48 @@
+# EVM-008 AC2 negative fixture: personal data in query and path parameter names (SR-API-04).
+openapi: 3.1.0
+info:
+  title: Fixture
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security: []
+tags:
+  - name: platform
+    description: Fixture.
+paths:
+  /api/v1/customers/{customer_email}:
+    get:
+      operationId: getCustomer
+      tags: [platform]
+      summary: Klient
+      description: Klient.
+      x-evia-authz:
+        roles: [administrator]
+      parameters:
+        - name: customer_email
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 254
+        - name: phoneNumber
+          in: query
+          schema:
+            type: string
+            maxLength: 16
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Brak sesji.
+          content:
+            application/problem+json:
+              schema:
+                type: object

@@ -15,6 +15,7 @@ describe('ESLint flat config (EVM-006 AC2)', () => {
       { allowForKnownSafeCalls: [{ from: 'package', package: 'node:test', name: ['describe', 'it', 'suite', 'test'] }] },
     ]);
     expect(all['no-eval']).toBe('error');
+    expect(all['@typescript-eslint/no-extraneous-class']).toEqual(['error', { allowWithDecorator: true }]);
   });
 
   it('EVM-006 AC2: the project service is rooted in the workspace directory', () => {
@@ -22,8 +23,8 @@ describe('ESLint flat config (EVM-006 AC2)', () => {
     expect(withParser?.languageOptions?.parserOptions).toMatchObject({ projectService: true, tsconfigRootDir: '/repo/packages/x' });
   });
 
-  it('EVM-006 AC2: build output, coverage and dependencies are never linted; extra ignores are appended', () => {
-    const ignored = config({ tsconfigRootDir: '/r', ignores: ['generated/**'] })[0]?.ignores;
-    expect(ignored).toEqual(['dist/**', 'coverage/**', 'node_modules/**', 'generated/**']);
+  it('EVM-006 AC2: build output, generated code (EVM-008 contract client), coverage and dependencies are never linted; extra ignores are appended', () => {
+    const ignored = config({ tsconfigRootDir: '/r', ignores: ['legacy/**'] })[0]?.ignores;
+    expect(ignored).toEqual(['dist/**', 'coverage/**', 'node_modules/**', 'generated/**', 'legacy/**']);
   });
 });

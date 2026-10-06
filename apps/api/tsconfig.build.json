@@ -1,0 +1,14 @@
+{
+  "$comment": "Emits the API (src/) to dist/ for `node dist/src/main.js`; NestJS needs legacy decorators, which Node type stripping cannot run.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "allowJs": false,
+    "checkJs": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts"]
+}

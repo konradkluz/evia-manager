@@ -5,7 +5,7 @@ Pakiet z EVM-006 (ADR-0012, ADR-0014). Każdy workspace korzysta z niego zamiast
 | Eksport | Co | Użycie w workspace |
 |---|---|---|
 | `@evia/config/tsconfig.base.json` | TypeScript 6.0 w trybie `strict` (+ `noUncheckedIndexedAccess`, `erasableSyntaxOnly`, `verbatimModuleSyntax`), bez emisji | `tsconfig.json` → `"extends"`; narzędzia `.mjs` dodają `allowJs` i `checkJs` (typy w JSDoc) |
-| `@evia/config/eslint` | ESLint flat config: `typescript-eslint` `strictTypeChecked`, `no-explicit-any` = błąd, zakaz `eval` / `new Function` | `eslint.config.js`: `export default config({ tsconfigRootDir: import.meta.dirname })` |
+| `@evia/config/eslint` | ESLint flat config: `typescript-eslint` `strictTypeChecked`, `no-explicit-any` = błąd, zakaz `eval` / `new Function`; zakaz konkatenacji SQL (EVM-008, SR-INPUT-03): `sql.raw`, `sql.lit`, `CompiledQuery.raw`, `sql.ref`/`id`/`table` z argumentem innym niż literał, import `pg`/`pg-pool` poza `src/platform/database/**` (także w migracjach); katalogi `generated/` pomijane | `eslint.config.js`: `export default config({ tsconfigRootDir: import.meta.dirname })` |
 | `@evia/config/vitest` | preset pokrycia V8 z progami per warstwa (`shared` 90, `backend` 85, `web` 80, `mobile` 80 — linie i gałęzie) i raportem `lcov` | `vitest.config.*`: `coverage: coverage({ layer, include })` |
 | `evia-node-test` (bin) | `node:test` z pokryciem dla narzędzi `.mjs` bez zależności: progi 90%, wszystkie pliki źródłowe, raport `coverage/lcov.info` | skrypt `test:coverage` w `tools/*` |
 | `coverage-exclusions.json` | **jedno źródło** wykluczeń pokrycia (każde z uzasadnieniem) — czytają je preset Vitest, `evia-node-test` i `tools/diff-coverage` | — |

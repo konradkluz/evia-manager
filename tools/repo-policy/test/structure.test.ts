@@ -78,8 +78,12 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
 
   it('EVM-006 AC1: workspaces exist only where there is content (YAGNI) and follow apps/services/packages/tools', () => {
     expect(WORKSPACES).toEqual([
+      'apps/api',
+      'apps/web',
       'packages/config',
+      'packages/contracts',
       'packages/tokens',
+      'packages/ui-web',
       'tools/container',
       'tools/diff-coverage',
       'tools/docs-lifecycle',
@@ -117,7 +121,16 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       if (command.startsWith('vitest')) {
         expect(command, workspace).toBe('vitest run --coverage');
         const config = exists(`${workspace}/vitest.config.ts`) ? read(`${workspace}/vitest.config.ts`) : '';
-        expect(config, workspace).toMatch(/coverage: coverage\(\{ layer: 'shared', include: \['src\/\*\*\/\*\.ts'\] \}\)/);
+        // Layers and thresholds from testing-strategy.md: backend (apps/api) 85%, web (apps/web) 80%, shared packages
+        // (also packages/ui-web) and tools 90%. Web workspaces measure TSX too; apps/web also its security headers.
+        const expected: Record<string, string> = {
+          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts'] })",
+          'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
+          'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
+        };
+        expect(config, workspace).toContain(
+          `coverage: ${expected[workspace] ?? "coverage({ layer: 'shared', include: ['src/**/*.ts'] })"}`,
+        );
       } else {
         expect(command, workspace).toBe('evia-node-test');
       }
@@ -148,7 +161,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
-    expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/*');
+    expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api');
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
   });
@@ -238,7 +251,8 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(settings['savePrefix']).toBe('');
     expect(settings['minimumReleaseAgeExclude'] ?? []).toEqual([]);
     for (const key of ['dangerouslyAllowAllBuilds', 'ignoreScripts', 'trustPolicyExclude']) expect(settings[key], key).toBeUndefined();
-    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false });
+    // Only explicit denials: lefthook (EVM-006 W1); ssh2, cpu-features and protobufjs of Testcontainers (EVM-008, B11).
+    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false, 'cpu-features': false, ssh2: false, protobufjs: false });
   });
 
   it('EVM-006 AC1 (SR-SUPPLY-03, W4): dependencies are exact registry versions, catalog: or workspace:; @evia/* only via workspace:', () => {
@@ -267,6 +281,7 @@ describe('design tokens contract (EVM-006 AC6, W4)', () => {
     const pkg = manifest('packages/tokens/package.json');
     expect(pkg.exports).toEqual({
       './web.css': './dist/web/tokens.css',
+      './tailwind-theme.css': './dist/web/tailwind-theme.css',
       './mobile': { types: './dist/mobile/tokens.d.ts', default: './dist/mobile/tokens.js' },
     });
     expect(pkg.scripts?.['build']).toBe('node src/cli.ts');

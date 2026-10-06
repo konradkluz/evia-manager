@@ -1,0 +1,3 @@
+/* Panel styles: only the theme of @evia/ui-web (design tokens, styleguide § 7.2); classes of src/ are scanned too. */
+@import '@evia/ui-web/styles.css';
+@source './';

@@ -1,0 +1,124 @@
+/*
+ * @evia/ui-web — Tailwind CSS 4 theme of EVia Manager (ADR-0006; styleguide § 2, § 7.2; EVM-008 AC3).
+ * Tailwind's default theme is NOT imported: only the names below exist, so utilities outside design tokens
+ * (`p-4`, `text-red-500`, …) generate nothing. Every value is a `var(--evm-…)` of @evia/tokens/web.css (semantic
+ * tokens) or a layout token of @evia/tokens/tailwind-theme.css. Naming: `--<namespace>-<token path without the
+ * category>`, e.g. color.bg.canvas → `bg-bg-canvas`, space.stack.md → `gap-stack-md`, size.icon.md → `size-icon-md`.
+ * Checked by test/styles.test.ts (no literal values, every token exists).
+ */
+@layer theme, base, components, utilities;
+@import '@evia/tokens/web.css' layer(theme);
+@import '@evia/tokens/tailwind-theme.css';
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@source './';
+
+@theme inline {
+  --color-bg-canvas: var(--evm-color-bg-canvas);
+  --color-bg-surface: var(--evm-color-bg-surface);
+  --color-bg-brand: var(--evm-color-bg-brand);
+  --color-bg-brand-strong: var(--evm-color-bg-brand-strong);
+  --color-bg-inverse: var(--evm-color-bg-inverse);
+  --color-bg-scrim: var(--evm-color-bg-scrim);
+  --color-text-primary: var(--evm-color-text-primary);
+  --color-text-secondary: var(--evm-color-text-secondary);
+  --color-text-inverse: var(--evm-color-text-inverse);
+  --color-text-on-brand: var(--evm-color-text-on-brand);
+  --color-icon-primary: var(--evm-color-icon-primary);
+  --color-icon-secondary: var(--evm-color-icon-secondary);
+  --color-icon-inverse: var(--evm-color-icon-inverse);
+  --color-brand-accent: var(--evm-color-brand-accent);
+  --color-action-primary-bg: var(--evm-color-action-primary-bg);
+  --color-action-primary-bg-hover: var(--evm-color-action-primary-bg-hover);
+  --color-action-primary-bg-pressed: var(--evm-color-action-primary-bg-pressed);
+  --color-action-primary-text: var(--evm-color-action-primary-text);
+  --color-action-tertiary-bg-hover: var(--evm-color-action-tertiary-bg-hover);
+  --color-action-tertiary-bg-pressed: var(--evm-color-action-tertiary-bg-pressed);
+  --color-feedback-warning-bg: var(--evm-color-feedback-warning-bg);
+  --color-feedback-warning-border: var(--evm-color-feedback-warning-border);
+  --color-feedback-warning-icon: var(--evm-color-feedback-warning-icon);
+
+  /* Zero is the one literal allowed by styleguide § 7.2 (m-0, p-0, inset-y-0, start-0, min-w-0). */
+  --spacing-0: 0;
+  --spacing-inset-xs: var(--evm-space-inset-xs);
+  --spacing-inset-sm: var(--evm-space-inset-sm);
+  --spacing-inset-md: var(--evm-space-inset-md);
+  --spacing-stack-xs: var(--evm-space-stack-xs);
+  --spacing-stack-sm: var(--evm-space-stack-sm);
+  --spacing-stack-md: var(--evm-space-stack-md);
+  --spacing-stack-lg: var(--evm-space-stack-lg);
+  --spacing-stack-2xl: var(--evm-space-stack-2xl);
+  --spacing-inline-sm: var(--evm-space-inline-sm);
+  --spacing-inline-md: var(--evm-space-inline-md);
+  --spacing-icon-md: var(--evm-size-icon-md);
+  --spacing-icon-2xl: var(--evm-size-icon-2xl);
+  --spacing-touch-target-min: var(--evm-size-touch-target-min);
+  --spacing-control-height-web-md: var(--evm-size-control-height-web-md);
+  --spacing-app-bar-height-web: var(--evm-size-app-bar-height-web);
+  --spacing-sidebar-width-expanded: var(--evm-size-sidebar-width-expanded);
+  --spacing-sidebar-width-collapsed: var(--evm-size-sidebar-width-collapsed);
+  --spacing-border-width-indicator: var(--evm-border-width-indicator);
+
+  --radius-control: var(--evm-radius-control);
+
+  /* font.weight.semibold has no semantic token of its own: the label weight of the active navigation item (§ 3.17)
+     is the semibold weight of text.button (600). */
+  --font-weight-semibold: var(--evm-text-button-font-weight);
+
+  /* Page title of the web (§ 2.2): text.heading-1 with its own (display) font family. */
+  --font-display: var(--evm-text-heading-1-font-family);
+  --text-heading-1: var(--evm-text-heading-1-font-size);
+  --text-heading-1--line-height: var(--evm-text-heading-1-line-height);
+  --text-heading-1--font-weight: var(--evm-text-heading-1-font-weight);
+  --text-heading-1--letter-spacing: var(--evm-text-heading-1-letter-spacing);
+  --text-heading-3: var(--evm-text-heading-3-font-size);
+  --text-heading-3--line-height: var(--evm-text-heading-3-line-height);
+  --text-heading-3--font-weight: var(--evm-text-heading-3-font-weight);
+  --text-heading-3--letter-spacing: var(--evm-text-heading-3-letter-spacing);
+  --text-body: var(--evm-text-body-font-size);
+  --text-body--line-height: var(--evm-text-body-line-height);
+  --text-body--font-weight: var(--evm-text-body-font-weight);
+  --text-label-lg: var(--evm-text-label-lg-font-size);
+  --text-label-lg--line-height: var(--evm-text-label-lg-line-height);
+  --text-label-lg--font-weight: var(--evm-text-label-lg-font-weight);
+  --text-label: var(--evm-text-label-font-size);
+  --text-label--line-height: var(--evm-text-label-line-height);
+  --text-label--font-weight: var(--evm-text-label-font-weight);
+  --text-button: var(--evm-text-button-font-size);
+  --text-button--line-height: var(--evm-text-button-line-height);
+  --text-button--font-weight: var(--evm-text-button-font-weight);
+}
+
+/* Focus ring (§ 3: color.focus.ring, size.focus-ring.width, size.focus-ring.offset; on dark surfaces ring-inverse). */
+@utility focus-ring {
+  outline: var(--evm-size-focus-ring-width) solid var(--evm-color-focus-ring);
+  outline-offset: var(--evm-size-focus-ring-offset);
+}
+
+@utility focus-ring-inverse {
+  outline: var(--evm-size-focus-ring-width) solid var(--evm-color-focus-ring-inverse);
+  outline-offset: var(--evm-size-focus-ring-offset);
+}
+
+/* Leading indicator of a Banner (§ 3.19: border-width.indicator in the colour of the tone). */
+@utility border-s-indicator {
+  border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-warning-border);
+}
+
+@layer base {
+  html {
+    font-family: var(--evm-text-body-font-family);
+    color: var(--evm-color-text-primary);
+    background-color: var(--evm-color-bg-canvas);
+  }
+
+  /* Styleguide § 2.9: with reduced motion every duration becomes motion.duration.instant. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: var(--evm-motion-duration-instant) !important;
+      animation-duration: var(--evm-motion-duration-instant) !important;
+    }
+  }
+}

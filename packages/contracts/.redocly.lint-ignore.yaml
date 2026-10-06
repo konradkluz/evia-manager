@@ -1,0 +1,6 @@
+# Explicit, reviewed exceptions to Redocly rules (EVM-008). Every entry needs a reason.
+# getHealth is public and has no client error: there is no session (no 401), no input (no 400) and no object (no 404);
+# its only error is 503 service_unavailable.
+openapi/paths/platform.yaml:
+  operation-4xx-response:
+    - '#/health/get/responses'

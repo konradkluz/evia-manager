@@ -35,12 +35,52 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
       expect(record(service(name)['build'])['context'], name).toBe('infra/docker/backend-tests');
     }
     expect(service('backend-install')['command']).toEqual(['install']);
-    expect(service('backend-tests')['network_mode']).toBe('none');
+  });
+
+  it('EVM-008 AC1 (A1): backend-tests reaches only PostgreSQL on an internal network; postgres is ephemeral and hardened', () => {
+    expect(service('backend-tests')['networks']).toEqual(['backend-db']);
+    expect(service('backend-tests')['network_mode']).toBeUndefined();
+    expect(record(record(compose['networks'])['backend-db'])['internal']).toBe(true);
+    const members = Object.entries(services).filter(([, value]) => list(record(value)['networks']).includes('backend-db'));
+    expect(members.map(([name]) => name).sort()).toEqual(['backend-tests', 'postgres']);
+    expect(record(record(service('backend-tests')['depends_on'])['postgres'])['condition']).toBe('service_healthy');
+    const postgres = service('postgres');
+    expect(postgres['user']).toBe('999:999');
+    expect(postgres['volumes']).toBeUndefined();
+    expect(postgres['ports']).toBeUndefined();
+    expect(
+      list(postgres['tmpfs'])
+        .map(String)
+        .map((mount) => mount.split(':')[0]),
+    ).toEqual(['/var/lib/postgresql', '/var/run/postgresql', '/tmp']);
+    expect(list(record(postgres['healthcheck'])['test'])).toContain('pg_isready');
+    const environment = record(postgres['environment']);
+    expect(environment['POSTGRES_HOST_AUTH_METHOD']).toBeUndefined();
+    expect(environment['POSTGRES_PASSWORD']).toBe('evia-local');
+  });
+
+  it('EVM-008 AC1: compose postgres uses the image and initdb arguments of the integration tests (one source)', () => {
+    const source = read('apps/api/test/support/postgres.ts');
+    const constant = (name: string): string => new RegExp(`export const ${name} = '([^']+)'`).exec(source)?.[1] ?? '';
+    expect(constant('POSTGRES_IMAGE')).toMatch(/^postgres:\d+\.\d+-\w+@sha256:[0-9a-f]{64}$/);
+    expect(service('postgres')['image']).toBe(constant('POSTGRES_IMAGE'));
+    expect(record(service('postgres')['environment'])['POSTGRES_INITDB_ARGS']).toBe(constant('POSTGRES_INITDB_ARGS'));
+    expect(constant('POSTGRES_INITDB_ARGS')).toBe('--locale-provider=icu --icu-locale=pl-PL');
   });
 
   it('EVM-006 AC2: the backend container mounts every workspace directory and the lockfile read-only, writes only to bt-work and /out', () => {
     const mounts = volumes('backend-tests');
-    for (const path of ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'turbo.json', 'packages', 'tools', 'design/tokens']) {
+    for (const path of [
+      'package.json',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      'patches',
+      'turbo.json',
+      'apps',
+      'packages',
+      'tools',
+      'design/tokens',
+    ]) {
       expect(mounts, path).toContain(`./${path}:/src/${path}:ro`);
     }
     expect(mounts).toContain('bt-work:/work');

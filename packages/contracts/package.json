@@ -1,0 +1,42 @@
+{
+  "name": "@evia/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenAPI 3.1 contract (source of truth, ADR-0004): Redocly lint rules, bundle and generated TypeScript types, fetch client, Zod schemas and the authorization manifest (EVM-008).",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./zod": {
+      "types": "./dist/src/zod.d.ts",
+      "default": "./dist/src/zod.js"
+    },
+    "./authz": {
+      "types": "./dist/src/authz.d.ts",
+      "default": "./dist/src/authz.js"
+    },
+    "./openapi.json": "./dist/openapi.json"
+  },
+  "scripts": {
+    "build": "node src/build.ts",
+    "lint": "eslint . && node src/redocly.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@hey-api/openapi-ts": "0.99.0",
+    "@redocly/cli": "2.57.0",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

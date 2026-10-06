@@ -1,6 +1,6 @@
 # Model zagrożeń EVia Manager — v1
 
-> Dokument żywy (EVM-005). Właściciel: `security-engineer`. Wersja **v1 (M0), 2026-10-03** — ryzyka rezydualne i polityki **zaakceptowane przez Konrada 2026-10-03** na demo EVM-005. Wejścia: C4 L2, mapa modułów i ADR-0001…0015 ([`../architecture/README.md`](../architecture/README.md)), model domeny z EVM-002 ([`../architecture/domain-model.md`](../architecture/domain-model.md), [`../architecture/offline-sync.md`](../architecture/offline-sync.md), [`../architecture/api-guidelines.md`](../architecture/api-guidelines.md)). Wymagania `SR-…`: [`requirements.md`](requirements.md); polityki P1–P12: [`policies.md`](policies.md); RODO: [`rodo.md`](rodo.md); baseline: [`README.md`](README.md). **Aktualizacja 2026-10-05 (EVM-013):** TM-103…TM-105 (wyjście walidatora dokumentacji w CI) i RR-22; RR-22 zaakceptowane przez Konrada 2026-10-05 („Decyzje” 10 w EVM-013).
+> Dokument żywy (EVM-005). Właściciel: `security-engineer`. Wersja **v1 (M0), 2026-10-03** — ryzyka rezydualne i polityki **zaakceptowane przez Konrada 2026-10-03** na demo EVM-005. Wejścia: C4 L2, mapa modułów i ADR-0001…0015 ([`../architecture/README.md`](../architecture/README.md)), model domeny z EVM-002 ([`../architecture/domain-model.md`](../architecture/domain-model.md), [`../architecture/offline-sync.md`](../architecture/offline-sync.md), [`../architecture/api-guidelines.md`](../architecture/api-guidelines.md)). Wymagania `SR-…`: [`requirements.md`](requirements.md); polityki P1–P12: [`policies.md`](policies.md); RODO: [`rodo.md`](rodo.md); baseline: [`README.md`](README.md). **Aktualizacja 2026-10-05 (EVM-013):** TM-103…TM-105 (wyjście walidatora dokumentacji w CI) i RR-22; RR-22 zaakceptowane przez Konrada 2026-10-05 („Decyzje” 10 w EVM-013). **Aktualizacja 2026-10-05 (EVM-008):** weryfikacje AB-02 (lint `channels`) i AB-06 (macierz ról z IDOR) przeniesione do EVM-016 zgodnie z zawężeniem zakresu EVM-008 (decyzja Konrada 2026-10-05); bez nowych RR.
 
 ## Spis treści
 1. [Zakres i metoda](#1-zakres-i-metoda)
@@ -298,7 +298,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
   - Edytor (panel, aplikacja) i Tylko odczyt (panel), hasło + TOTP: 2 × 2 = 4 Medium — uprawnienia roli bez funkcji administracyjnych; eksport danych tylko Administrator, masowe pobranie ograniczają limity i alerty P10 (jak AB-08).
 - **Mitygacje:** SR-AUTH-06 (passkey obowiązkowy dla Administratora w panelu — odporny na phishing), SR-AUTHZ-12 (funkcje administracyjne i operacje ze step-upem tylko w kanale `web`), SR-INFRA-12 (DMARC `p=reject`), SR-WEB-06, SR-SESS-08 (step-up dla operacji wrażliwych), SR-API-02 i SR-FILE-10 (limity P10), SR-PRIV-10 (instrukcja). Opcja: wariant F z P1 (Administrator tylko w panelu) zamyka ścieżkę mobilną Administratora także przy błędzie w oznaczeniu kanałów.
 - **Wykrywanie:** alert „logowanie Administratora z nowego urządzenia”, e-mail o logowaniu z nowego urządzenia (SR-AUTH-15), alerty masowego odczytu i pobrań (P10).
-- **Weryfikacja:** przegląd konfiguracji DNS i poczty (EVM-007), test wymuszenia passkey dla Administratora (E1), lint `channels` i macierz ról z wymiarem kanału — operacja administracyjna tokenem mobilnym Administratora → `403 channel_not_allowed` (EVM-008, E1, E9).
+- **Weryfikacja:** przegląd konfiguracji DNS i poczty (EVM-007), test wymuszenia passkey dla Administratora (E1), lint `channels` i macierz ról z wymiarem kanału — operacja administracyjna tokenem mobilnym Administratora → `403 channel_not_allowed` (EVM-016, E1, E9; przeniesione z EVM-008 decyzją Konrada 2026-10-05).
 
 ### AB-03 — Były pracownik z aktywną sesją lub urządzeniem
 - **Aktor:** TA-3. **Cel:** A-01, A-04.
@@ -338,7 +338,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P3 × W3 = 9 Critical → 1 × 3 = 3 Medium (RR-10).
 - **Mitygacje:** SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05 (przypadek IDOR generowany dla każdej operacji), SR-FILE-07, SR-SYNC-02.
 - **Wykrywanie:** metryka `404`/`403` z polityk per użytkownik (SR-LOG-06).
-- **Weryfikacja:** macierz ról z przypadkiem IDOR (bramka CI) — EVM-008 i każda historyjka z endpointem.
+- **Weryfikacja:** macierz ról z przypadkiem IDOR (bramka CI) — od EVM-016 (pierwsza operacja z sesją; przeniesione z EVM-008 decyzją Konrada 2026-10-05) i każda historyjka z endpointem.
 
 ### AB-07 — Wyciek podpisanego URL-a
 - **Aktor:** TA-1, TA-4. **Cel:** A-04.
@@ -560,7 +560,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 | **Razem** | **105** | **27** | **105** | **27** |
 
 - Po mitygacjach **nie zostaje żadne ryzyko High ani Critical**. Ryzyka Medium wynikają z wpływu W3, którego nie da się obniżyć mitygacjami (prawdopodobieństwo już minimalne), albo z cech zaakceptowanych w ADR — wszystkie są w [rozdziale 8](#8-ryzyka-rezydualne-do-akceptacji-ac6).
-- Największe ryzyka bazowe (Critical): credential stuffing (TM-16, AB-01) i IDOR (TM-17, AB-06) — dlatego MFA dla wszystkich (P1) i generowana macierz ról z przypadkiem IDOR są wymaganiami od pierwszego endpointu (EVM-008, E1).
+- Największe ryzyka bazowe (Critical): credential stuffing (TM-16, AB-01) i IDOR (TM-17, AB-06) — dlatego MFA dla wszystkich (P1) i generowana macierz ról z przypadkiem IDOR są wymaganiami od pierwszego endpointu z sesją (EVM-016, E1; EVM-008 ma tylko publiczne `/api/health` i deny-by-default).
 - Mitygacje zależne od decyzji Konrada (polityki P1–P12): TM-01, TM-11, TM-16, TM-38, TM-90, AB-01, AB-02, AB-04, AB-08 — przy innym wyborze ich ryzyko rezydualne rośnie (konsekwencje opisane w [`policies.md`](policies.md)).
 
 ## 8. Ryzyka rezydualne do akceptacji (AC6)

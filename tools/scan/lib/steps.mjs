@@ -102,7 +102,7 @@ export const SECURITY_STEPS = [
     id: 'semgrep',
     label: 'Semgrep CE — SAST (bramka 2)',
     service: 'scan-semgrep',
-    args: [...SEMGREP_COMMON, ...SEMGREP_RULES, '--json', '--output', '/out/semgrep.json', 'packages', 'tools', 'infra', '.github'],
+    args: [...SEMGREP_COMMON, ...SEMGREP_RULES, '--json', '--output', '/out/semgrep.json', 'apps', 'packages', 'tools', 'infra', '.github'],
     okExit: [0],
     report: 'semgrep.json',
     verdict: (report) => semgrepVerdict(report),

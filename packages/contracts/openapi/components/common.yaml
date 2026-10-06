@@ -1,0 +1,6 @@
+Semver:
+  type: string
+  description: Wersja w formacie semver MAJOR.MINOR.PATCH (bez prefiksu i sufiksów).
+  pattern: '^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$'
+  maxLength: 32
+  examples: [1.0.0]

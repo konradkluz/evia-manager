@@ -1089,6 +1089,11 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Propozycja do 1.3.0 — 2026-10-05 (EVM-008, do akceptacji Konrada)
+PATCH/MINOR bez nowych tokenów i komponentów: doprecyzowanie użycia istniejących wzorców dla powłoki panelu przed E1.
+- **§ 3.15 EmptyState — wariant „bez akcji”:** pusty stan pierwszego uruchomienia bez przycisku, gdy nie ma jeszcze funkcji, która mogłaby go wypełnić (EVM-008, W-10: „Brak zleceń”). Tytuł jako nagłówek drugiego poziomu pod `h1` strony; reszta anatomii bez zmian.
+- **§ 3.17 Sidebar / TopBar — powłoka przed logowaniem (E1):** TopBar bez wyszukiwania i konta (nie ma ich jeszcze co zasilić — pozycji bez funkcji nie pokazujemy); jedna pozycja główna „Zlecenia”. Na `< breakpoint.medium` (web, 360 px) Sidebar zastąpiony przyciskiem „Menu” w TopBar otwierającym szufladę z tymi samymi pozycjami (BottomNav jest tylko w aplikacji mobilnej). To doprecyzowanie, nie nowy komponent — do zatwierdzenia przy 1.3.0.
+
 ### 1.2.0 — 2026-10-04 (EVM-014)
 MINOR (§ 7.2 pkt 5): nowe komponenty, warianty, wzorce i 6 tokenów; żadna nazwa tokenu ani komponentu nie znika; numeracja istniejących § bez zmian (nowe sekcje na końcu rozdziałów, warianty jako podsekcje), więc odwołania w makietach i historyjkach M1 pozostają ważne. Źródła: propozycje P-1…P-13 z EVM-004 (zaakceptowane przez Konrada 2026-10-03), uwagi PO-2–PO-5 i „runda 2” pkt 1, 2, 8–10 z EVM-004, konsultacja `security-engineer` w EVM-014.
 - **Nowe komponenty i warianty (§ 3):** § 3.2.1 pole kodu jednorazowego i kodu odzyskiwania (P-4), § 3.9.1 odznaka wartości nieznanej (P-12), § 3.15.1 pusty stan blokujący (P-5), § 3.20 ActionMenu (P-1), § 3.21 Disclosure (P-2), § 3.22 SelectableCard (P-3), § 3.23 ProcedureProgress (P-6), § 3.24 CameraScreen (P-10). Każda sekcja: anatomia, warianty, stany, tokeny, dostępność, mikrocopy, web / mobile.

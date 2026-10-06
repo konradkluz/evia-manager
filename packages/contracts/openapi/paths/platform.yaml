@@ -1,0 +1,35 @@
+# Module `platform` — technical operations outside /api/v1 (api-guidelines.md → Minimalna wersja aplikacji).
+health:
+  get:
+    operationId: getHealth
+    tags: [platform]
+    summary: Stan usługi i minimalna wersja aplikacji mobilnej
+    description: >-
+      Publiczna operacja techniczna: potwierdza, że API i baza danych działają, oraz zwraca minimalną
+      wspieraną wersję aplikacji mobilnej per platforma. Bez danych wrażliwych (wersji bibliotek, hosta, nazwy bazy).
+    x-evia-authz:
+      public: true
+    responses:
+      '200':
+        description: Usługa działa.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/platform.yaml#/Health
+            example:
+              status: ok
+              minSupportedAppVersion:
+                android: 1.0.0
+                ios: 1.0.0
+      '503':
+        description: Usługa niedostępna (np. brak połączenia z bazą). Bez szczegółów technicznych.
+        content:
+          application/problem+json:
+            schema:
+              $ref: ../components/problem.yaml#/Problem
+            example:
+              type: /problems/service_unavailable
+              title: Service unavailable
+              status: 503
+              code: service_unavailable
+              traceId: 4bf92f3577b34da6a3ce929d0e0e4736

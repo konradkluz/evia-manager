@@ -79,7 +79,7 @@ Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: 
 | Wykluczenia z pokrycia | jedno źródło: `packages/config/coverage-exclusions.json` (każde z uzasadnieniem) — czytają je Vitest, `evia-node-test` i `diff-coverage` | — | EVM-006 |
 | Backend (API, worker, media-processor, migracje), integracyjne z PostgreSQL | Vitest + Testcontainers (CI) / usługi Compose (lokalnie) w kontenerze **`backend-tests`** | `docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend` (po `docker compose -f compose.yaml run --rm backend-install`) | EVM-008 |
 | Lint, format, typy, granice modułów | ESLint 10 + typescript-eslint (`strictTypeChecked`), Prettier 3, TypeScript 6 (`strict`), dependency-cruiser | `pnpm run lint`, `pnpm run format:check`, `pnpm run typecheck`, `pnpm run deps:check` | EVM-006 |
-| Web — komponentowe i E2E | Vitest + Testing Library + axe; **Playwright** (Chrome, Edge, Firefox na Windows; CI Linux) | `pnpm run e2e` (zadania od EVM-008) | EVM-008 |
+| Web — komponentowe i E2E | Vitest + jsdom + Testing Library + `axe-core`; **Playwright** na `vite preview` (Chromium, Firefox, na Windows także Edge `msedge`; CI Linux — job `e2e-web`: Chromium, Firefox); zrzuty do przeglądu UX osobnym projektem, bez asercji wizualnych | `pnpm --filter @evia/web run test:coverage`, `pnpm run e2e`, `pnpm --filter @evia/web run e2e:screenshots` | EVM-008 |
 | Mobile — komponentowe i E2E Android | Jest + jest-expo; **Maestro** na emulatorze Androida na Windows | od EVM-009 | EVM-009 |
 | Bezpieczeństwo (SAST, zależności, licencje, sekrety, Dockerfile, workflowy) | Semgrep CE, OSV-Scanner, Trivy, gitleaks, zizmor, actionlint + samotest skanerów | `pnpm run scan`; gitleaks także w hookach `pre-commit` / `pre-push` | EVM-006 |
 

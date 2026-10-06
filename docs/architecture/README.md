@@ -212,9 +212,11 @@ Potwierdzona w EVM-006 bez zmian względem [ADR-0012](adr/0012-ci-cd-monorepo-na
 | `compose.yaml` (katalog główny) | kontener `backend-tests` (ADR-0015) i skanery uruchamiane przez `docker compose -f compose.yaml run --rm …` | EVM-006 |
 | `infra/docker/backend-tests/` | obraz środowiska testów backendu (Node 26 po digeście + pnpm) | EVM-006 |
 | `.github/workflows/` | `ci.yml`, `nightly.yml`, `renovate.yml` | EVM-006 |
-| `apps/api`, `apps/web` · `apps/mobile` · `infra/` (OpenTofu) · `services/media-processor`, `packages/{contracts,sync-core,ui-web}` | aplikacje, infrastruktura i pakiety domenowe | EVM-008 · EVM-009 · EVM-007 · przy pierwszej potrzebie |
+| `packages/contracts` | `@evia/contracts` — kontrakt OpenAPI 3.1 (spec per moduł → `redocly bundle`), lint Redocly z pluginem `evia`, generowane typy, klient `fetch`, schematy Zod i manifest autoryzacji | EVM-008 |
+| `apps/api` | `@evia/api` — NestJS: `platform` (konfiguracja, logi, błędy RFC 9457, nagłówki, baza, `GET /api/health`), moduł `authorization` (guard deny-by-default), migracje Kysely | EVM-008 |
+| `apps/web` · `apps/mobile` · `infra/` (OpenTofu) · `services/media-processor`, `packages/{sync-core,ui-web}` | aplikacje, infrastruktura i pakiety domenowe | EVM-008 · EVM-009 · EVM-007 · przy pierwszej potrzebie |
 
-Kierunek zależności (dependency-cruiser, bramka lokalna i CI): `apps/*`, `services/*` i `packages/*` nie importują `tools/*`; `packages/*` nie importują `apps/*` ani `services/*`; `tools/*` nie importują `apps/*` ani `services/*`; bez cykli. Granice modułów `apps/api` (ADR-0001) — od EVM-008.
+Kierunek zależności (dependency-cruiser, bramka lokalna i CI): `apps/*`, `services/*` i `packages/*` nie importują `tools/*`; `packages/*` nie importują `apps/*` ani `services/*`; `tools/*` nie importują `apps/*` ani `services/*`; bez cykli. Granice modułów `apps/api` (ADR-0001, od EVM-008): `platform` nie importuje `modules/*`; moduł → moduł i korzeń kompozycji → moduł tylko przez `modules/<nazwa>/index.ts`; warstwa `domain` bez NestJS, Express, Kysely i `pg`; sterownik `pg` tylko w `src/platform/database` (ESLint).
 
 ## Wymagania niefunkcjonalne — wartości docelowe
 Wartości bezpieczeństwa są propozycją do potwierdzenia polityk w EVM-005.

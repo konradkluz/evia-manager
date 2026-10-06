@@ -79,7 +79,7 @@ Jednolity **`application/problem+json`** (RFC 9457) dla każdego błędu:
 }
 ```
 
-- `code` — stały kod maszynowy (kontrakt), `title` — stały opis po angielsku dla danego `code`, `type` — URI dokumentacji kodu w domenie API (domena — EVM-007), `traceId` — korelacja z logami (ADR-0013), `errors[]` — tylko **ścieżka (JSON Pointer) i kod**.
+- `code` — stały kod maszynowy (kontrakt), `title` — stały opis po angielsku dla danego `code`, `type` — URI dokumentacji kodu w domenie API (domena — EVM-007; do tego czasu odwołanie względne `/problems/{code}`, `format: uri-reference` — EVM-008), klienci rozpoznają błąd po `code`, `traceId` — korelacja z logami (ADR-0013), `errors[]` — tylko **ścieżka (JSON Pointer) i kod**.
 - **Nigdy:** stack trace'ów, zapytań SQL, nazw klas, ścieżek plików, **wartości pól** ani danych innych użytkowników (ASVS 16.5.1). `detail` — opcjonalny, ogólny, bez danych. `500` zawsze jako `internal_error` z `traceId`.
 - **404 czy 403:** obiekt spoza uprawnień użytkownika **albo** soft-deleted (dla ról innych niż Administrator) → `404 not_found` — samo istnienie obiektu jest informacją. `403 forbidden` tylko wtedy, gdy użytkownik może odczytać obiekt (albo kolekcję), ale nie ma uprawnienia do tej operacji (np. Tylko odczyt wysyła `PATCH`).
 
@@ -174,6 +174,7 @@ Wyniki mutacji synchronizacji (`applied`, `duplicate`, `conflict`, `rejected` z 
 - Aplikacja wysyła w każdym żądaniu **`X-Client-Platform`** (`ios` / `android` / `web`) i **`X-Client-Version`** (semver); panel web — wersję buildu.
 - Serwer ma konfigurację **`minSupportedVersion`** i `recommendedVersion` per platforma, zmienialną bez wdrożenia kodu (ADR-0004).
 - Wersja niższa niż minimalna (albo brak lub niepoprawny nagłówek w kanale mobilnym) → **`426 Upgrade Required`** z kodem **`client_version_unsupported`** dla wszystkich operacji poza `GET /api/v1/meta/client-config` i `/api/health`. Aplikacja blokuje pracę online, **zachowuje kolejkę offline** i prosi o aktualizację.
+- `GET /api/health` (operacja `getHealth`, publiczna, poza `/v1`, EVM-008) zwraca wyłącznie `{ "status": "ok", "minSupportedAppVersion": { "android": "1.0.0", "ios": "1.0.0" } }` (wartości z konfiguracji serwera); niedostępna baza → `503 service_unavailable` bez szczegółów. Kształt jest kontraktem czytanym przez aplikację mobilną — zmiany tylko addytywne.
 - `GET /api/v1/meta/client-config` (bez danych osobowych, dostępny przed zalogowaniem) zwraca m.in. `minSupportedVersion`, `recommendedVersion` i parametry pracy offline (np. N dni zakresu zamkniętych zleceń, limit dni offline).
 - **Nagłówki `X-Client-*` służą wyłącznie kompatybilności** — klient może je podrobić, więc nigdy nie wpływają na autoryzację. Odpowiedź `426` jest też **narzędziem odcięcia wersji z podatnością**: wymusza aktualizację uczciwych klientów, a ochrona przed klientem złośliwym opiera się na kontrolach serwera.
 
@@ -193,6 +194,8 @@ Wyniki mutacji synchronizacji (`applied`, `duplicate`, `conflict`, `rejected` z 
       read_only: []
     audit: true
   ```
+- **Operacje publiczne (wyjątek):** `x-evia-authz: { public: true }` — operacja dostępna bez sesji. Dozwolone wyłącznie dla operacji z allow-listy `PUBLIC_OPERATIONS` w `packages/contracts/src/public-operations.ts` (dziś tylko `getHealth`); sprawdzają to lint kontraktu (`evia/public-allow-list`) i guard API w czasie działania. Rozszerzenie listy wymaga przeglądu `security-engineer` (EVM-008).
+- **Jedno źródło polityki:** handler NestJS wskazuje operację dekoratorem `@OperationId('<operationId>')`, a polityka pochodzi wyłącznie z manifestu generowanego z kontraktu (bez lokalnych dekoratorów typu „public”). Test startowy odrzuca trasę bez operacji w kontrakcie oraz trasę, której metoda lub ścieżka nie zgadza się z kontraktem. Nieistniejąca trasa bez sesji → `401 unauthenticated` (mapa tras nie jest ujawniana), z sesją → `404 not_found` (EVM-008).
 - **Żadnych decyzji na podstawie danych od klienta:** rola, właściciel, `userId`, `deviceId`, nagłówki `X-Client-*` ani identyfikatory w treści nie dają dostępu — użytkownik i urządzenie pochodzą wyłącznie z sesji.
 - **Listy i wyszukiwanie** filtruje ta sama polityka co odczyt pojedynczego obiektu (warunek w zapytaniu, nie odsiewanie po pobraniu strony); liczniki i sumy — tylko na zbiorze dostępnym dla użytkownika.
 - **Ścieżki zagnieżdżone:** obiekt podrzędny spoza kotwicy z URL → `404` (CWE-639). Obiekt soft-deleted dla ról innych niż Administrator → `404`.
@@ -256,7 +259,7 @@ Wartości z ADR (ASVS 2.1.3, 2.4.1, 15.1.3); przekroczenie limitu żądań → `
 - `Content-Type: application/json; charset=utf-8` albo `application/problem+json; charset=utf-8` (ASVS 4.1.1 — parametr `charset` jest wymagany naszą regułą, parsery JSON go ignorują);
 - **brak nagłówków CORS** (CORS wyłączony, ADR-0004);
 - `ETag` (zasób), `Retry-After` (`429`, `503`, `409 idempotency_in_progress`), `Deprecation` / `Sunset` / `Link` (wycofanie), `Idempotent-Replayed` (powtórka).
-- **CSP i HSTS** ustawia reverse proxy dla panelu i API — konfiguracja w EVM-008, wartości wg EVM-005.
+- `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'` na każdej odpowiedzi API ustawia samo API (EVM-008, SR-API-03), razem z nagłówkami wyżej — także na błędach 400/401/403/404/413/500; brak `X-Powered-By`. **HSTS** i nagłówki panelu na produkcji ustawia reverse proxy (EVM-076), wartości wg EVM-005 (P11).
 
 **Żądania:** `Idempotency-Key`, `If-Match`, `X-Client-Platform`, `X-Client-Version`, `X-CSRF-Token` (web); sesja — ciasteczko `__Host-evia_session` (web) albo `Authorization: Bearer` z nieprzezroczystym tokenem dostępu (mobile, ADR-0005).
 

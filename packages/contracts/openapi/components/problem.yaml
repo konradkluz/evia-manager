@@ -1,0 +1,29 @@
+# RFC 9457 problem details (api-guidelines.md → Format błędów). Clients recognise errors by `code`; `type` is a
+# reference relative to the API origin (/problems/{code}) until the API domain exists (EVM-007).
+Problem:
+  type: object
+  required: [type, title, status, code, traceId]
+  properties:
+    type:
+      type: string
+      format: uri-reference
+      maxLength: 200
+      examples: [/problems/internal_error]
+    title:
+      type: string
+      description: Stały opis kodu po angielsku (nie dla użytkownika — UI buduje komunikat z `code`).
+      maxLength: 200
+    status:
+      type: integer
+      minimum: 400
+      maximum: 599
+    code:
+      type: string
+      description: Stały kod maszynowy błędu (katalog w api-guidelines.md).
+      pattern: '^[a-z][a-z0-9_]{0,63}$'
+      maxLength: 64
+    traceId:
+      type: string
+      description: Identyfikator korelacji z logami serwera.
+      pattern: '^[0-9a-f]{32}$'
+      maxLength: 32

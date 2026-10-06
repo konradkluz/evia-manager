@@ -6,6 +6,7 @@
   "description": "Design tokens from design/tokens (W3C DTCG) built with Style Dictionary into web CSS variables and mobile constants (EVM-006 AC6).",
   "exports": {
     "./web.css": "./dist/web/tokens.css",
+    "./tailwind-theme.css": "./dist/web/tailwind-theme.css",
     "./mobile": {
       "types": "./dist/mobile/tokens.d.ts",
       "default": "./dist/mobile/tokens.js"

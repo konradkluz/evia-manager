@@ -1,0 +1,10 @@
+{
+  "extends": "@evia/config/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "experimentalDecorators": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js"],
+  "exclude": ["node_modules", "dist", "coverage"]
+}

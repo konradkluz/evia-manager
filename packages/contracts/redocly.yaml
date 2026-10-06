@@ -1,0 +1,32 @@
+# Redocly CLI configuration (ADR-0004; EVM-008 AC2). Telemetry is off: no data leaves the machine or CI.
+telemetry: off
+plugins:
+  - ./src/redocly-plugin.ts
+extends:
+  - recommended-strict
+rules:
+  evia/authz-required: error
+  evia/public-allow-list: error
+  evia/no-personal-data-parameters: error
+  operation-operationId: error
+  operation-summary: error
+  operation-description: error
+  operation-tag-defined: error
+  tags-alphabetical: off
+  info-contact: off
+  no-server-example.com: error
+  # Every error response is problem+json and only problem+json (api-guidelines.md → Format błędów).
+  rule/error-responses-are-problem-json:
+    subject:
+      type: MediaTypesMap
+    where:
+      - subject:
+          type: Response
+          filterInParentKeys: ['400', '401', '403', '404', '409', '412', '413', '415', '422', '426', '428', '429', '500', '503']
+        assertions:
+          defined: true
+    assertions:
+      required: ['application/problem+json']
+      disallowed: ['application/json']
+    message: Odpowiedzi błędów muszą używać application/problem+json.
+    severity: error

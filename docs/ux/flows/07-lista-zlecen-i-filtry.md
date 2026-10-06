@@ -107,7 +107,7 @@ Widoki: {Wszystkie niezamknięte} {✓ Czekamy na OSD > 14 dni} {Po terminie} {N
 **Stany**
 | Stan | Zachowanie |
 |---|---|
-| Pusty | Brak zleceń w systemie: „Nie masz jeszcze zleceń. [Nowe zlecenie]” (Tylko odczyt — bez przycisku); brak wyników filtrów: „Brak zleceń spełniających filtry. [Wyczyść filtry]”; widok „Czekamy na OSD > 14 dni” bez wyników: „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.” |
+| Pusty | Brak zleceń w systemie: „Nie masz jeszcze zleceń. [Nowe zlecenie]” (Tylko odczyt — bez przycisku); wariant szkieletu EVM-008 (decyzja Konrada 2026-10-05, przed E1 i listą zleceń): tytuł „Brak zleceń”, opis „Zlecenia pojawią się tutaj, gdy zostaną dodane do systemu.”, bez przycisku „Nowe zlecenie”, bez filtrów i wyszukiwania; brak wyników filtrów: „Brak zleceń spełniających filtry. [Wyczyść filtry]”; widok „Czekamy na OSD > 14 dni” bez wyników: „Nie czekamy na OSD dłużej niż 14 dni. Dobra wiadomość.” |
 | Ładowanie | Skeleton wierszy tabeli (§ 3.16); filtry pozostają aktywne (§ 3.7); po 10 s komunikat „Ładowanie trwa dłużej niż zwykle…”. |
 | Błąd | Nie wczytano listy — EmptyState `circle-alert` „Nie udało się wczytać zleceń. [Spróbuj ponownie]”; `429` — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.” (czas z `Retry-After`), filtry zostają; kursor nieważny (`400 invalid_cursor`) — powrót na pierwszą stronę z komunikatem „Lista się zmieniła — wróciliśmy na początek.” |
 | Offline | Baner § 4.10; ostatnio wczytana strona z pamięci karty z banerem „Dane mogą być nieaktualne (z 14:05)”; filtry i paginacja wyłączone z podpowiedzią; pole wyszukiwania wyłączone z podpowiedzią „Wyszukasz po powrocie połączenia.” (EVM-072 AC8). |

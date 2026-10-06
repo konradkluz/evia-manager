@@ -1,0 +1,20 @@
+# Response schemas are open (no additionalProperties: false): v1 changes are additive and clients ignore unknown
+# fields (ADR-0004). The exact set of keys sent by the server is guarded by API tests, not by the schema.
+Health:
+  type: object
+  required: [status, minSupportedAppVersion]
+  properties:
+    status:
+      type: string
+      const: ok
+    minSupportedAppVersion:
+      $ref: '#/MinSupportedAppVersion'
+MinSupportedAppVersion:
+  type: object
+  description: Minimalna wspierana wersja aplikacji mobilnej per platforma (konfiguracja serwera).
+  required: [android, ios]
+  properties:
+    android:
+      $ref: common.yaml#/Semver
+    ios:
+      $ref: common.yaml#/Semver
