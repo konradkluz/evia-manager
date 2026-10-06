@@ -1,0 +1,89 @@
+{
+  "_comment": "Reviewed licenses of optional platform binaries that are in pnpm-lock.yaml but not installed in the Linux container, so Trivy has no license for them (EVM-016, SR-SUPPLY-06). Each entry is one exact name@version, must be a lockfile package with os/cpu; expires <= 90 days after verified; owner: devops-engineer. Source: npm registry metadata (npm view <name>@<version> license).",
+  "entries": [
+    {
+      "name": "@node-rs/argon2-android-arm-eabi",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-android-arm64",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-darwin-arm64",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-darwin-x64",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-freebsd-x64",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-linux-arm-gnueabihf",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-linux-arm64-gnu",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-linux-arm64-musl",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-linux-x64-musl",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-win32-arm64-msvc",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-win32-ia32-msvc",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    },
+    {
+      "name": "@node-rs/argon2-win32-x64-msvc",
+      "version": "2.2.1",
+      "license": "MIT",
+      "verified": "2026-10-06",
+      "expires": "2027-01-04"
+    }
+  ]
+}

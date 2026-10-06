@@ -1,5 +1,6 @@
 // @ts-check
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import {
   actionlintVerdict,
@@ -161,6 +162,71 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
     assert.equal(known.passed, true, known.problems.join('\n'));
     // No package list (e.g. changed Trivy flags) is an empty scan — red, never a silent pass.
     assert.equal(trivyLicenseVerdict(report([])).summary, 'pusty cel skanu (0 pakietów pnpm)');
+  });
+
+  describe('EVM-016: reviewed licenses of optional platform packages', () => {
+    const lockfile = [
+      'packages:',
+      '',
+      "  '@node-rs/argon2-linux-x64-musl@2.2.1':",
+      '    resolution: {integrity: sha512-x}',
+      '    cpu: [x64]',
+      '    os: [linux]',
+      '',
+      "  'plain@1.0.0':",
+      '    resolution: {integrity: sha512-y}',
+      '',
+      'snapshots:',
+      '',
+      "  'other@1.0.0':",
+      '    os: [linux]',
+      '',
+    ].join('\n');
+    const entry = { name: '@node-rs/argon2-linux-x64-musl', version: '2.2.1', license: 'MIT', expires: '2027-01-04' };
+    /** @param {string} name */
+    const scan = (name) => ({
+      Results: [{ Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: [{ Name: name, Version: name.startsWith('@') ? '2.2.1' : '1.0.0' }] }],
+    });
+    const options = { lockfile, entries: [entry], today: '2026-10-06' };
+
+    it('EVM-016: a lockfile-only platform package with a reviewed license passes; the same without the entry is unknown', () => {
+      const name = '@node-rs/argon2-linux-x64-musl';
+      assert.equal(trivyLicenseVerdict(scan(name), options).passed, true);
+      assert.deepEqual(trivyLicenseVerdict(scan(name)).problems, [`licencja nieznana · ${name}@2.2.1`]);
+    });
+
+    it('EVM-016: every entry of platform-licenses.json is an exact, unexpired, allowed lockfile platform package', () => {
+      const raw = /** @type {unknown} */ (JSON.parse(readFileSync(new URL('../platform-licenses.json', import.meta.url), 'utf8')));
+      const reviewed = /** @type {{ entries: { name: string, version: string }[] }} */ (raw);
+      const lock = readFileSync(new URL('../../../pnpm-lock.yaml', import.meta.url), 'utf8');
+      const packages = reviewed.entries.map((item) => ({
+        Name: item.name,
+        Version: item.version,
+      }));
+      assert.ok(packages.length > 0);
+      const verdict = trivyLicenseVerdict(
+        { Results: [{ Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: packages }] },
+        { lockfile: lock, entries: reviewed.entries, today: '2026-10-06' },
+      );
+      assert.equal(verdict.passed, true, verdict.problems.join(', '));
+    });
+
+    it('EVM-016: an expired entry, another version, a disallowed license or a non-platform package stay red', () => {
+      const name = '@node-rs/argon2-linux-x64-musl';
+      assert.equal(trivyLicenseVerdict(scan(name), { ...options, today: '2027-01-05' }).passed, false);
+      assert.equal(trivyLicenseVerdict(scan(name), { ...options, entries: [{ ...entry, version: '2.2.2' }] }).passed, false);
+      const gpl = trivyLicenseVerdict(scan(name), { ...options, entries: [{ ...entry, license: 'GPL-3.0-only' }] });
+      assert.deepEqual(gpl.problems, ['GPL-3.0-only · @node-rs/argon2-linux-x64-musl@2.2.1']);
+      // `plain` has an entry but no os/cpu in the lockfile; `other` has os only in snapshots (not a package entry).
+      assert.equal(
+        trivyLicenseVerdict(scan('plain'), { ...options, entries: [{ ...entry, name: 'plain', version: '1.0.0' }] }).passed,
+        false,
+      );
+      assert.equal(
+        trivyLicenseVerdict(scan('other'), { ...options, entries: [{ ...entry, name: 'other', version: '1.0.0' }] }).passed,
+        false,
+      );
+    });
   });
 
   it('EVM-006 AC4: SPDX expressions — OR needs one allowed alternative, AND needs all', () => {

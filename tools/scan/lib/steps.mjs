@@ -5,8 +5,9 @@
  * Container paths: /src — read-only sources (only what the step scans), /out — .scratch/scans (output and self-test
  * fixtures), /repo/.git — the git database for gitleaks, /work — the Linux dependencies from backend-install.
  */
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { evaluateOsv } from './osv.mjs';
 import {
   actionlintVerdict,
@@ -177,6 +178,17 @@ export const SECURITY_STEPS = [
   },
 ];
 
+/**
+ * Lockfile and reviewed platform-package licenses of this repository (see trivyLicenseVerdict).
+ * @returns {import('./reports.mjs').LicenseOptions}
+ */
+function platformLicenseOptions() {
+  const repo = fileURLToPath(new URL('../../../', import.meta.url));
+  const raw = /** @type {unknown} */ (JSON.parse(readFileSync(join(repo, 'tools', 'scan', 'platform-licenses.json'), 'utf8')));
+  const reviewed = /** @type {{ entries?: import('./reports.mjs').LicenseOptions['entries'] }} */ (raw);
+  return { lockfile: readFileSync(join(repo, 'pnpm-lock.yaml'), 'utf8'), entries: reviewed.entries ?? [] };
+}
+
 /** @type {Step[]} */
 export const LICENSE_STEPS = [
   {
@@ -186,7 +198,7 @@ export const LICENSE_STEPS = [
     args: [...TRIVY_LICENSE, '--output', '/out/trivy-license.json', '/work/repo'],
     okExit: [0],
     report: 'trivy-license.json',
-    verdict: (report) => trivyLicenseVerdict(report),
+    verdict: (report) => trivyLicenseVerdict(report, platformLicenseOptions()),
   },
 ];
 

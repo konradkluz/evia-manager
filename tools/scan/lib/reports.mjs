@@ -148,10 +148,13 @@ export function trivyConfigVerdict(report) {
  * license finding for such a package, so it is judged from the package list). The scan must have read a pnpm lockfile
  * with packages. Exceptions: only .trivyignore.yaml → licenses (by license name, with expired_at) — Trivy cannot bind a
  * license exception to a package, so an unknown license has no exception; such a dependency needs a story.
+ * Single exception to "unknown": optional platform packages (os/cpu in the lockfile) that the Linux container does not
+ * install — their license is taken from the reviewed, expiring list tools/scan/platform-licenses.json (EVM-016).
  * @param {unknown} report
+ * @param {LicenseOptions} [options]
  * @returns {Verdict}
  */
-export function trivyLicenseVerdict(report) {
+export function trivyLicenseVerdict(report, options = {}) {
   const results = list(record(report)['Results']).map(record);
   const pnpm = results.filter((result) => text(result['Type']) === 'pnpm');
   if (pnpm.length === 0) {
@@ -162,21 +165,76 @@ export function trivyLicenseVerdict(report) {
   const licenses = results.flatMap((result) => list(result['Licenses']).map(record));
   const violations = licenses.filter((license) => !licenseAllowed(text(license['Name'])));
   const licensed = new Set(licenses.map((license) => text(license['PkgName'])));
-  const unknown = [
-    ...new Set(
-      packages
-        .filter((pkg) => !list(pkg['Licenses']).some((name) => text(name).trim() !== '') && !licensed.has(text(pkg['Name'])))
-        .map((pkg) => `${text(pkg['Name'])}@${text(pkg['Version'])}`),
-    ),
-  ];
+  const reviewed = reviewedPlatformLicenses(options);
+  const reviewedViolations = [];
+  const unknown = [];
+  for (const pkg of packages) {
+    const id = `${text(pkg['Name'])}@${text(pkg['Version'])}`;
+    if (list(pkg['Licenses']).some((name) => text(name).trim() !== '') || licensed.has(text(pkg['Name']))) continue;
+    const license = reviewed.get(id);
+    if (license === undefined) unknown.push(id);
+    else if (!licenseAllowed(license)) reviewedViolations.push(`${license} · ${id}`);
+  }
+  const uniqueUnknown = [...new Set(unknown)];
+  const uniqueReviewed = [...new Set(reviewedViolations)];
   return {
-    passed: violations.length === 0 && unknown.length === 0,
-    summary: `pakiety: ${packages.length}, licencje: ${licenses.length} (spoza listy dozwolonych: ${violations.length}, nieznane: ${unknown.length})`,
+    passed: violations.length === 0 && uniqueUnknown.length === 0 && uniqueReviewed.length === 0,
+    summary: `pakiety: ${packages.length}, licencje: ${licenses.length} (spoza listy dozwolonych: ${violations.length + uniqueReviewed.length}, nieznane: ${uniqueUnknown.length})`,
     problems: [
       ...violations.map((license) => `${text(license['Name'])} · ${text(license['PkgName'])}`),
-      ...unknown.map((name) => `licencja nieznana · ${name}`),
+      ...uniqueReviewed,
+      ...uniqueUnknown.map((name) => `licencja nieznana · ${name}`),
     ],
   };
+}
+
+/**
+ * @typedef {object} LicenseOptions
+ * @property {string} [lockfile] pnpm-lock.yaml text
+ * @property {{ name?: unknown, version?: unknown, license?: unknown, expires?: unknown }[]} [entries] reviewed licenses
+ * @property {string} [today] ISO date (default: today, UTC)
+ */
+
+/**
+ * Reviewed licenses (tools/scan/platform-licenses.json) of optional platform packages (lockfile entry with os/cpu):
+ * Trivy has no license for them, because only the host platform is installed. One entry = one exact name@version,
+ * valid up to its `expires` date; a package that is not platform-specific in the lockfile never gets an entry applied.
+ * @param {LicenseOptions} options
+ * @returns {Map<string, string>} name@version → reviewed license
+ */
+function reviewedPlatformLicenses(options) {
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const platform = platformPackages(options.lockfile ?? '');
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  for (const entry of options.entries ?? []) {
+    const id = `${text(entry.name)}@${text(entry.version)}`;
+    if (platform.has(id) && text(entry.expires) >= today && text(entry.license) !== '') map.set(id, text(entry.license));
+  }
+  return map;
+}
+
+/**
+ * Packages of the `packages:` section of pnpm-lock.yaml that declare `os:` or `cpu:` (line-based, no YAML dependency).
+ * @param {string} lockfile
+ * @returns {Set<string>} name@version
+ */
+function platformPackages(lockfile) {
+  /** @type {Set<string>} */
+  const found = new Set();
+  let inPackages = false;
+  let current = '';
+  for (const line of lockfile.split(/\r?\n/)) {
+    if (/^\S/.test(line)) {
+      inPackages = line.startsWith('packages:');
+      current = '';
+    } else if (inPackages) {
+      const key = /^ {2}'?([^'\s][^']*?)'?:\s*$/.exec(line);
+      if (key !== null) current = key[1] ?? '';
+      else if (current !== '' && /^ {4}(os|cpu):/.test(line)) found.add(current);
+    }
+  }
+  return found;
 }
 
 /**
