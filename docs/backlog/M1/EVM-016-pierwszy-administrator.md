@@ -109,8 +109,9 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - **Panel (W-13, W-03, menu konta):** część `web-developer` — poza tym krokiem; backend dostarcza kontrakt i klienta.
 
 ## Decyzje
-- **2026-10-06 (backend-developer, do potwierdzenia przez Konrada):** `getCurrentSession` jest dozwolone także w stanie `mfa_enrollment` (obok opcji i rejestracji klucza oraz wylogowania). Bez tego odświeżenie ekranu W-03 gubi token CSRF (w pamięci karty) i nie ma jak go odzyskać — AC4 („każde inne żądanie API zwraca `403 mfa_enrollment_required`”) rozumiemy jako „każde żądanie biznesowe”; odczyt sesji nie ujawnia nic, czego użytkownik nie zna. Lista operacji jest w kodzie (`MFA_ENROLLMENT_OPERATIONS`) i w lincie kontraktu.
+- **2026-10-06 (backend-developer; **potwierdzone przez Konrada 2026-10-06**):** `getCurrentSession` jest dozwolone także w stanie `mfa_enrollment` (obok opcji i rejestracji klucza oraz wylogowania). Bez tego odświeżenie ekranu W-03 gubi token CSRF (w pamięci karty) i nie ma jak go odzyskać — AC4 („każde inne żądanie API zwraca `403 mfa_enrollment_required`”) rozumiemy jako „każde żądanie biznesowe”; odczyt sesji nie ujawnia nic, czego użytkownik nie zna. Lista operacji jest w kodzie (`MFA_ENROLLMENT_OPERATIONS`) i w lincie kontraktu.
 - **2026-10-06:** opcje rejestracji klucza są dostępne dla każdej sesji, a sama rejestracja tylko dla sesji `mfa_enrollment` (drugi klucz = EVM-028).
+- **2026-10-06 (zaakceptowane przez Konrada):** asercje AC1, AC2 i AC5 wymagające infrastruktury (brak tokenu w logach Alloy i Caddy oraz w Sentry; alert w kanale alertów) przenosimy do EVM-007 (AC8) i EVM-076 (AC3); w EVM-016 pozostają testy na poziomie procesu API (log procesu, outbox alertów).
 - **2026-10-06:** pokrycie backendu: kod związany z bazą mierzy przebieg integracyjny (próg 85%), reszta — jednostkowy; żaden próg nie jest obniżony (`docs/process/testing-strategy.md` → Progi).
 
 ## Uwagi do rozważenia
@@ -132,3 +133,4 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - 2026-10-06 — start `/deliver` (ścieżka `pelna`, gałąź `feature/EVM-016-pierwszy-administrator`); EVM-008 done na main
 - 2026-10-06 — implementacja backendu (backend-developer): kontrakt, moduły `identity`/`audit`/`authorization`, migracje, polecenie na serwerze z trybem awaryjnym, macierz ról; panel (W-13, W-03, menu konta) — do `web-developer`
 - 2026-10-06 — panel (web-developer): W-13, W-03 (wariant „przed EVM-023”), bramka sesji, menu konta z „Wyloguj”, nowe komponenty biblioteki UI, testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty do przeglądu UX
+- 2026-10-06 — decyzje Konrada: interpretacja AC4 potwierdzona; asercje AC1/AC2/AC5 wymagające infrastruktury przeniesione do EVM-007 (AC8) i EVM-076 (AC3)
