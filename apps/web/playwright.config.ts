@@ -12,6 +12,7 @@ const regular = { testIgnore: /screenshots\.spec\.ts$/ };
 // Screenshots for the UX review (PNG files are ignored by git).
 const uxReviewDir = fileURLToPath(new URL('../../docs/ux/reviews/EVM-008/', import.meta.url));
 const uxReviewDirIdentity = fileURLToPath(new URL('../../docs/ux/reviews/EVM-016/', import.meta.url));
+const uxReviewDirLogin = fileURLToPath(new URL('../../docs/ux/reviews/EVM-067/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -30,7 +31,7 @@ export default defineConfig({
       name: 'screenshots',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /screenshots\.spec\.ts$/,
-      metadata: { uxReviewDir, uxReviewDirIdentity },
+      metadata: { uxReviewDir, uxReviewDirIdentity, uxReviewDirLogin },
     },
   ],
 });

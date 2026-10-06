@@ -94,11 +94,14 @@
   --spacing-sidebar-width-expanded: var(--evm-size-sidebar-width-expanded);
   --spacing-sidebar-width-collapsed: var(--evm-size-sidebar-width-collapsed);
   --spacing-border-width-indicator: var(--evm-border-width-indicator);
+  --spacing-dialog-width-sm: var(--evm-size-dialog-width-sm);
 
   --radius-control: var(--evm-radius-control);
   --radius-card: var(--evm-radius-card);
+  --radius-dialog: var(--evm-radius-dialog);
   --shadow-dropdown: var(--evm-elevation-dropdown);
   --shadow-toast: var(--evm-elevation-toast);
+  --shadow-dialog: var(--evm-elevation-dialog);
 
   /* font.weight.semibold has no semantic token of its own: the label weight of the active navigation item (§ 3.17)
      is the semibold weight of text.button (600). */

@@ -8,7 +8,14 @@
  * Operations reachable without a session (`x-evia-authz: { public: true }`). Mutations among them are protected by
  * Origin + Sec-Fetch-Site checks and per-IP limits instead of a session.
  */
-export const PUBLIC_OPERATIONS: readonly string[] = Object.freeze(['getHealth', 'checkActivationLink', 'setActivationPassword']);
+export const PUBLIC_OPERATIONS: readonly string[] = Object.freeze([
+  'getHealth',
+  'checkActivationLink',
+  'setActivationPassword',
+  'login',
+  'getLoginPasskeyOptions',
+  'verifyLoginPasskey',
+]);
 
 /**
  * Operations a session in the `mfa_enrollment` state may call (`x-evia-authz.allowDuringMfaEnrollment: true`): the
@@ -19,6 +26,7 @@ export const MFA_ENROLLMENT_OPERATIONS: readonly string[] = Object.freeze([
   'getCurrentSession',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
+  'extendSession',
   'logout',
 ]);
 

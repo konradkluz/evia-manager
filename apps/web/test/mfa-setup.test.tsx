@@ -221,7 +221,7 @@ describe('W-03 Wyloguj (EVM-016 AC6; SR-SESS-05)', () => {
     const api = enrollmentApi();
     const { history } = await renderPanel('/mfa-setup', api);
     await userEvent.click(screen.getByRole('button', { name: 'Wyloguj' }));
-    expect(await screen.findByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(history.location.pathname).toBe('/login');
     expect(api.calls(LOGOUT_ROUTE)[0]?.headers.get('X-CSRF-Token')).toBe('csrf-enrollment');
   });

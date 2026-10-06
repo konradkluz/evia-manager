@@ -5,10 +5,12 @@ import { ApiError, unwrap } from '../api/client.ts';
 import { useApi } from '../api/api-context.tsx';
 import { LOGIN_PATH } from '../paths.ts';
 import { setCsrfToken } from './csrf.ts';
+import { clearDrafts } from './draft-store.ts';
+import { setLoginFlow, setLoginNotice } from './login-flow.ts';
 
 /**
  * Logout (AC6, SR-SESS-05): the session is revoked on the server (the answer carries `Clear-Site-Data`), then the query
- * cache and the CSRF token of the tab are cleared and the panel leaves for the login page. A session that is already
+ * cache, the drafts and the CSRF token of the tab are cleared and the panel leaves for the login page. A session that is already
  * gone (`401`) counts as logged out. Any other failure keeps the page and reports an error — we never pretend.
  */
 export function useLogout() {
@@ -26,6 +28,10 @@ export function useLogout() {
   });
   function finish() {
     setCsrfToken(null);
+    // "Wyloguj" drops the drafts of the tab too (SR-SESS-05, § 4.1) and any notice or unfinished login of this tab.
+    clearDrafts();
+    setLoginFlow(null);
+    setLoginNotice(null);
     queryClient.clear();
     void navigate({ to: LOGIN_PATH, replace: true });
   }

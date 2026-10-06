@@ -16,6 +16,9 @@ export const ACTIVE_SESSION: CurrentSession = {
   state: 'active',
   channel: 'web',
   csrfToken: 'csrf-active',
+  // EVM-067: the deadlines of the session (60 minutes idle, 12 hours absolute) — the panel reads them for the warning P-11
+  idleExpiresAt: '2099-01-01T09:00:00.000Z',
+  absoluteExpiresAt: '2099-01-01T20:00:00.000Z',
 };
 
 export const ENROLLMENT_SESSION: CurrentSession = { ...ACTIVE_SESSION, state: 'mfa_enrollment', csrfToken: 'csrf-enrollment' };

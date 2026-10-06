@@ -15,7 +15,7 @@ ValidationFailed:
           - pointer: /password
             code: too_short
 Unauthenticated:
-  description: Brak sesji (`unauthenticated`) albo sesja unieważniona (`session_revoked`).
+  description: Brak sesji (`unauthenticated`), sesja unieważniona (`session_revoked`) albo wygasła (`session_expired`).
   content:
     application/problem+json:
       schema:
@@ -96,6 +96,48 @@ ActivationLinkInvalid:
         title: Activation link is invalid or expired
         status: 400
         code: activation_link_invalid
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+InvalidCredentials:
+  description: >-
+    Nieprawidłowy e-mail lub hasło (`invalid_credentials`) — jedna odpowiedź (kod, treść i nagłówki) dla złego hasła,
+    nieistniejącego konta, konta zaproszonego i dezaktywowanego (SR-AUTH-05).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/invalid_credentials
+        title: Invalid email or password
+        status: 401
+        code: invalid_credentials
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+LoginSecondStepFailed:
+  description: >-
+    Drugi krok nie powiódł się: klucz dostępu odrzucony (`passkey_failed` — można ponowić z tym samym `loginToken`),
+    czas na drugi krok minął (`login_expired`) albo brak ważnego pierwszego kroku (`unauthenticated`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/passkey_failed
+        title: Passkey sign-in failed
+        status: 401
+        code: passkey_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+SessionExpired:
+  description: >-
+    Brak sesji (`unauthenticated`), sesja unieważniona (`session_revoked`) albo wygasła z powodu bezczynności lub limitu
+    12 godzin (`session_expired`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/session_expired
+        title: Session expired
+        status: 401
+        code: session_expired
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 PasskeyVerificationFailed:
   description: Weryfikacja klucza dostępu nie powiodła się (`passkey_verification_failed`) albo treść niezgodna ze schematem (`validation_failed`).

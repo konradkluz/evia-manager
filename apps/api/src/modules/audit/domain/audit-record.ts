@@ -38,7 +38,7 @@ export function toAuditRecord(event: IdentityEvent, context: EventContext, occur
     outcome: event.outcome,
     reasonCode: event.reasonCode ?? null,
     objectType: event.objectType,
-    objectId: event.objectId,
+    objectId: event.objectId ?? null,
     traceId: context.traceId,
   });
 }

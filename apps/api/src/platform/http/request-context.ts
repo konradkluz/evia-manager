@@ -36,6 +36,13 @@ export function traceIdOf(response: Response): string {
   return typeof traceId === 'string' ? traceId : newTraceId();
 }
 
+/** Context of an event raised before a handler runs (the session lookup of the middleware): the trace identifier comes from the request scope. */
+export const requestEventContext = (request: Request): EventContext => ({
+  origin: 'web',
+  traceId: currentTraceId() ?? newTraceId(),
+  ip: request.ip,
+});
+
 /** The explicit context a use case receives from an HTTP request: origin, trace identifier, client address (memory only). */
 export const webEventContext = (request: Request, response: Response): EventContext => ({
   origin: 'web',

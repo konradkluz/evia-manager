@@ -48,8 +48,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     for (const operationId of Object.keys(AUTHZ_MANIFEST)) {
       const own = cells.filter((cell) => cell.operationId === operationId);
       const callers = new Set(own.map((cell) => JSON.stringify(cell.caller)));
-      // anonymous, revoked, 3 roles x 2 channels x 2 states
-      expect(callers.size, operationId).toBe(14);
+      // anonymous, revoked, expired, 3 roles x 2 channels x 2 states
+      expect(callers.size, operationId).toBe(15);
     }
   });
 
@@ -124,6 +124,12 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
       status: 401,
       code: 'session_revoked',
     });
+    expect(expect_('readThing', { kind: 'expired', role: 'administrator', channel: 'web' })).toEqual({
+      outcome: 'denied',
+      status: 401,
+      code: 'session_expired',
+    });
+    expect(expect_('openThing', { kind: 'expired', role: 'administrator', channel: 'web' })).toEqual(allowed);
   });
 
   it('EVM-016 AC4 enrolment: an operation must be on the list and declare the flag; the role is checked after the state', () => {

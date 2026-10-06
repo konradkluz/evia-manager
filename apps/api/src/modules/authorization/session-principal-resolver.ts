@@ -6,6 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
 import type { Authentication, SessionResolver } from '../../platform/http/principal.ts';
+import { requestEventContext } from '../../platform/http/request-context.ts';
 import { SessionService } from '../identity/index.ts';
 
 @Injectable()
@@ -17,6 +18,6 @@ export class SessionPrincipalResolver implements SessionResolver {
   }
 
   resolve(request: Request): Promise<Authentication> {
-    return this.#sessions.authenticate(request.headers.cookie);
+    return this.#sessions.authenticate(request.headers.cookie, requestEventContext(request));
   }
 }

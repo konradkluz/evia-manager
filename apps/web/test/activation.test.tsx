@@ -179,7 +179,7 @@ describe('W-13 Ustaw hasło: link check (EVM-016 AC5; flows/11)', () => {
     await waitFor(() => {
       expect(history.location.pathname).toBe('/login');
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(document.title).toBe('Logowanie · EVia Manager');
   });
 

@@ -1,5 +1,5 @@
 /**
- * Module `identity` (ADR-0001, ADR-0005): accounts, credentials, passkeys, one-time links and sessions; owner of the
+ * Module `identity` (ADR-0001, ADR-0005): accounts, credentials, passkeys, one-time links, sign-in and sessions; owner of the
  * `identity` schema. Publishes its events through the platform event bus (audit subscribes) and never imports `audit`.
  * The slow and external capabilities sit behind ports; tests replace them with fakes (never with switches in the code).
  */
@@ -8,6 +8,9 @@ import type { AppConfig } from '../../platform/config/config.ts';
 import { APP_CONFIG } from '../../platform/tokens.ts';
 import { ActivationService } from './application/activation.service.ts';
 import { AdministratorBootstrap } from './application/administrator-bootstrap.service.ts';
+import { LoginFailures } from './application/login-failures.ts';
+import { LoginPasskeyService } from './application/login-passkey.service.ts';
+import { LoginService } from './application/login.service.ts';
 import { PasskeyService } from './application/passkey.service.ts';
 import { SessionService } from './application/session.service.ts';
 import { AuthController } from './http/auth.controller.ts';
@@ -20,6 +23,9 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
   controllers: [AuthController],
   providers: [
     ActivationService,
+    LoginFailures,
+    LoginPasskeyService,
+    LoginService,
     PasskeyService,
     SessionService,
     AdministratorBootstrap,

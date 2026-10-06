@@ -94,6 +94,15 @@ describe('access decision order (EVM-016 AC4, AC8; SR-AUTHZ-12, SR-SESS-10)', ()
     expect(decide({ operationId: 'noRoles', authentication: () => signedIn() })).toEqual({ allowed: false, code: 'forbidden' });
   });
 
+  it('EVM-067 AC5 a session that ran out is 401 session_expired, decided before any CSRF, limit, state or role check', () => {
+    const authentication = () => ({ principal: null, reason: 'expired' }) as const;
+    expect(decide({ operationId: 'listWorkOrders', authentication })).toEqual({ allowed: false, code: 'session_expired' });
+    expect(decide({ operationId: 'createThing', authentication, mutating: true, origin: 'https://attacker.invalid' })).toEqual({
+      allowed: false,
+      code: 'session_expired',
+    });
+  });
+
   it('EVM-016 AC8 a revoked session is 401 session_revoked, an unknown one 401 unauthenticated', () => {
     expect(decide({ operationId: 'listWorkOrders', authentication: () => ({ principal: null, reason: 'revoked' }) })).toEqual({
       allowed: false,

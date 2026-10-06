@@ -49,6 +49,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'border-s-indicator-error',
       'max-w-form-max-width',
       'shadow-dropdown',
+      'max-w-dialog-width-sm',
+      'rounded-dialog',
+      'shadow-dialog',
       'text-body-sm',
       // Not tokens — must generate nothing:
       'p-4',
@@ -100,6 +103,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-error-border)');
     expect(css).toContain('max-width: var(--evm-size-form-max-width)');
     expect(css).toContain('--tw-shadow: var(--evm-elevation-dropdown)');
+    expect(css).toContain('max-width: var(--evm-size-dialog-width-sm)');
+    expect(css).toContain('border-radius: var(--evm-radius-dialog)');
+    expect(css).toContain('--tw-shadow: var(--evm-elevation-dialog)');
     for (const name of ['.p-4', '.text-red-500', '.bg-white', '.w-64', '.shadow-lg', '.md\\:flex']) expect(css, name).not.toContain(name);
   });
 });

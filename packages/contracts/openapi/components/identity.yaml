@@ -232,7 +232,7 @@ Passkey:
       type: boolean
 CurrentSession:
   type: object
-  required: [user, state, channel, csrfToken]
+  required: [user, state, channel, csrfToken, idleExpiresAt, absoluteExpiresAt]
   properties:
     user:
       type: object
@@ -253,3 +253,184 @@ CurrentSession:
       $ref: '#/Channel'
     csrfToken:
       $ref: '#/CsrfToken'
+    idleExpiresAt:
+      type: string
+      format: date-time
+      description: Koniec sesji z powodu bezczynności (60 min od ostatniej aktywności); odczyt tej operacji go nie przesuwa.
+      maxLength: 40
+    absoluteExpiresAt:
+      type: string
+      format: date-time
+      description: Bezwzględny koniec sesji (12 h od zalogowania; nie przesuwa się).
+      maxLength: 40
+LoginToken:
+  type: string
+  description: >-
+    Jednorazowy token pierwszego kroku logowania (256 bitów, base64url, ważny 5 min) — wyłącznie w treści `POST`, trzymany
+    w pamięci karty; w bazie tylko jego SHA-256.
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  minLength: 43
+  maxLength: 43
+LoginRequest:
+  type: object
+  additionalProperties: false
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      description: Adres e-mail konta. Przy logowaniu sprawdzany jest tylko kształt danych (nie ma polityki jak przy aktywacji).
+      minLength: 1
+      maxLength: 254
+    password:
+      type: string
+      description: >-
+        Hasło — normalizowane do NFC, bez przycinania i zmiany wielkości liter; maksimum 1024 znaki (ochrona przed
+        kosztownym haszowaniem), bez polityki minimalnej długości.
+      minLength: 1
+      maxLength: 1024
+      writeOnly: true
+LoginSecondStep:
+  type: object
+  description: Hasło poprawne, konto ma klucz dostępu — wymagany drugi krok (W-02).
+  required: [state, loginToken, methods]
+  properties:
+    state:
+      type: string
+      const: second_step
+    loginToken:
+      $ref: '#/LoginToken'
+    methods:
+      type: array
+      description: Dostępne metody drugiego kroku. Do EVM-023 wyłącznie klucz dostępu.
+      maxItems: 4
+      items:
+        type: string
+        enum: [passkey]
+SessionStarted:
+  type: object
+  description: Sesja rozpoczęta (ciasteczko w `Set-Cookie`) — pełna (`active`) albo ograniczona do konfiguracji drugiego kroku (`mfa_enrollment`).
+  required: [state, csrfToken]
+  properties:
+    state:
+      $ref: '#/SessionState'
+    csrfToken:
+      $ref: '#/CsrfToken'
+LoginResult:
+  description: >-
+    Wynik pierwszego kroku: drugi krok (`second_step`) albo od razu sesja ograniczona `mfa_enrollment` (konto aktywne bez
+    skonfigurowanego drugiego kroku).
+  oneOf:
+    - $ref: '#/LoginSecondStep'
+    - $ref: '#/SessionStarted'
+LoginPasskeyOptionsRequest:
+  type: object
+  additionalProperties: false
+  required: [loginToken]
+  properties:
+    loginToken:
+      $ref: '#/LoginToken'
+PasskeyAuthenticationOptions:
+  type: object
+  description: >-
+    Opcje uwierzytelnienia kluczem dostępu (WebAuthn `PublicKeyCredentialRequestOptionsJSON`, `userVerification: required`,
+    `allowCredentials` tylko z kluczami konta pierwszego kroku). Wyzwanie ≥ 128 bitów, jednorazowe, ważne 5 min.
+  required: [challenge, rpId, allowCredentials, userVerification]
+  properties:
+    challenge:
+      type: string
+      maxLength: 256
+    rpId:
+      type: string
+      maxLength: 253
+    timeout:
+      type: integer
+    userVerification:
+      type: string
+      maxLength: 32
+    allowCredentials:
+      type: array
+      maxItems: 32
+      items:
+        type: object
+        required: [id, type]
+        properties:
+          id:
+            type: string
+            maxLength: 1024
+          type:
+            type: string
+            maxLength: 32
+          transports:
+            type: array
+            maxItems: 8
+            items:
+              type: string
+              maxLength: 32
+VerifyLoginPasskeyRequest:
+  type: object
+  additionalProperties: false
+  required: [loginToken, credential]
+  properties:
+    loginToken:
+      $ref: '#/LoginToken'
+    credential:
+      $ref: '#/AuthenticationCredential'
+AuthenticationCredential:
+  type: object
+  description: Wynik `PublicKeyCredential.toJSON()` dla `navigator.credentials.get()` (WebAuthn `AuthenticationResponseJSON`).
+  additionalProperties: false
+  required: [id, rawId, type, response]
+  properties:
+    id:
+      type: string
+      pattern: '^[A-Za-z0-9_-]*$'
+      maxLength: 1024
+    rawId:
+      type: string
+      pattern: '^[A-Za-z0-9_-]*$'
+      maxLength: 1024
+    type:
+      type: string
+      const: public-key
+    authenticatorAttachment:
+      type: string
+      enum: [platform, cross-platform]
+    clientExtensionResults:
+      type: object
+      description: Wyniki rozszerzeń WebAuthn — otwarty słownik zdefiniowany przez przeglądarkę (serwer ich nie interpretuje).
+      additionalProperties: true
+      maxProperties: 16
+    response:
+      type: object
+      additionalProperties: false
+      required: [clientDataJSON, authenticatorData, signature]
+      properties:
+        clientDataJSON:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 4096
+        authenticatorData:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 16384
+        signature:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 2048
+        userHandle:
+          type: string
+          pattern: '^[A-Za-z0-9_-]*$'
+          maxLength: 256
+SessionExpiry:
+  type: object
+  description: Czas końca sesji po przedłużeniu. Bez identyfikatora sesji.
+  required: [idleExpiresAt, absoluteExpiresAt]
+  properties:
+    idleExpiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    absoluteExpiresAt:
+      type: string
+      format: date-time
+      maxLength: 40

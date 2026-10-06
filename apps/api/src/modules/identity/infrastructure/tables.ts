@@ -56,7 +56,7 @@ export interface OneTimeLinksTable {
   superseded_at: Date | null;
 }
 
-export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded';
+export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired';
 
 export interface SessionsTable {
   id: Generated<string>;
@@ -76,11 +76,24 @@ export interface SessionsTable {
   user_agent: string | null;
 }
 
+/** The first step of a sign-in waiting for the second one (EVM-067). No address and no user agent are stored (RODO). */
+export interface LoginAttemptsTable {
+  id: Generated<string>;
+  user_id: string;
+  token_hash: Buffer;
+  created_at: Date;
+  expires_at: Date;
+  used_at: Date | null;
+  failed_attempts: Generated<number>;
+}
+
+/** Exactly one of `session_id` (enrolment) and `login_attempt_id` (sign-in) is set — a CHECK of the database. */
 export interface WebauthnChallengesTable {
   id: Generated<string>;
   user_id: string;
-  session_id: string;
-  purpose: 'passkey_registration';
+  session_id: string | null;
+  login_attempt_id: string | null;
+  purpose: 'passkey_registration' | 'passkey_authentication';
   challenge_hash: Buffer;
   created_at: Date;
   expires_at: Date;
@@ -94,6 +107,7 @@ export type IdentityTables = {
   'identity.one_time_links': OneTimeLinksTable;
   'identity.sessions': SessionsTable;
   'identity.webauthn_challenges': WebauthnChallengesTable;
+  'identity.login_attempts': LoginAttemptsTable;
 };
 
 /** A handle (pool or transaction) narrowed to the identity tables. */

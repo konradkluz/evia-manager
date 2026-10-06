@@ -7,5 +7,7 @@ export const WORK_ORDERS_PATH = '/work-orders';
 export const ACTIVATE_PATH = '/activate';
 export const MFA_SETUP_PATH = '/mfa-setup';
 export const LOGIN_PATH = '/login';
+/** W-02: reachable only in the tab that did the first step (the `loginToken` is in memory), otherwise back to W-01. */
+export const LOGIN_SECOND_STEP_PATH = '/login/second-step';
 /** Pages reachable without a session (the gate does not ask for one). */
-export const PUBLIC_PATHS: readonly string[] = [ACTIVATE_PATH, LOGIN_PATH];
+export const PUBLIC_PATHS: readonly string[] = [ACTIVATE_PATH, LOGIN_PATH, LOGIN_SECOND_STEP_PATH];

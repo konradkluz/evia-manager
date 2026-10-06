@@ -24,10 +24,10 @@ const operation = (operationId: string): AuthzManifest[string] => {
 const policiesOf = (manifest: AuthzManifest): PolicySource => ({ ...CONTRACT_POLICIES, manifest });
 
 describe('role and channel matrix against the real application (EVM-016 AC8; SR-AUTHZ-01, SR-AUTHZ-05, SR-AUTHZ-12)', () => {
-  it('EVM-016 AC8 every cell of the matrix generated from the contract is answered as expected: roles x channels x enrolment state, anonymous and revoked', async () => {
+  it('EVM-016 AC8 every cell of the matrix generated from the contract is answered as expected: roles x channels x enrolment state, anonymous, revoked and expired', async () => {
     current = await createIdentityApp();
     const cells = buildMatrix(AUTHZ_MANIFEST, lists);
-    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 14);
+    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 15);
     expect(await runMatrix(current, cells)).toEqual([]);
   });
 

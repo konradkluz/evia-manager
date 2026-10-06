@@ -54,6 +54,9 @@ describe('only the passkey while the account has none (EVM-016 AC4; SR-AUTH-06, 
       state: 'mfa_enrollment',
       channel: 'web',
       csrfToken,
+      // EVM-067: the deadlines of the session are part of the view (60 minutes idle, 12 hours absolute)
+      idleExpiresAt: '2026-10-01T09:00:00.000Z',
+      absoluteExpiresAt: '2026-10-01T20:00:00.000Z',
     });
   });
 
@@ -343,6 +346,8 @@ describe('the link and the enrolment session live and die together (EVM-016 AC4,
         current.clock.advance(4 * 60_000); // the link expires while the response was being verified
         return verified;
       },
+      authenticationOptions: () => Promise.reject(new Error('not used by this scenario')),
+      verifyAuthentication: () => Promise.resolve(null),
     };
     current = await createIdentityApp({ configure: (builder) => builder.overrideProvider(PASSKEY_VERIFIER).useValue(racing) });
     // the link lives 3 minutes, the challenge 5: verification outlasts the link but not the challenge

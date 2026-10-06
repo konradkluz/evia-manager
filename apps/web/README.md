@@ -12,7 +12,7 @@ Przed pierwszym `dev` i po każdej zmianie w `design/tokens` zbuduj zależności
 | `pnpm --filter @evia/web run preview` | podgląd buildu na `http://127.0.0.1:4173` z pełnymi nagłówkami i ścisłą CSP (wariant `strict`) |
 | `pnpm --filter @evia/web run test:coverage` | testy komponentów i jednostkowe (Vitest + jsdom + Testing Library + `axe-core`), próg 80% (warstwa web) |
 | `pnpm run e2e` / `pnpm --filter @evia/web run e2e` | Playwright na `vite preview`: Chromium i Firefox, na Windows także Edge (`msedge`) — dowód E2E wg ADR-0015 |
-| `pnpm --filter @evia/web run e2e:screenshots` | zrzuty do przeglądu UX: 360 / 768 / 1280 / 1440 px, szuflada, podpowiedź, offline → `docs/ux/reviews/EVM-008/`; ekrany EVM-016 (W-13, W-03, menu konta, stany błędów i offline) → `docs/ux/reviews/EVM-016/` (PNG poza gitem) |
+| `pnpm --filter @evia/web run e2e:screenshots` | zrzuty do przeglądu UX: 360 / 768 / 1280 / 1440 px, szuflada, podpowiedź, offline → `docs/ux/reviews/EVM-008/`; ekrany EVM-016 (W-13, W-03, menu konta, stany błędów i offline) → `docs/ux/reviews/EVM-016/`, ekrany EVM-067 (W-01, W-02, P-11) → `docs/ux/reviews/EVM-067/` (PNG poza gitem) |
 
 Przeglądarki Playwright instaluje się raz: `pnpm --filter @evia/web exec playwright install chromium firefox` (Edge — systemowy).
 
@@ -28,12 +28,15 @@ Przeglądarki Playwright instaluje się raz: `pnpm --filter @evia/web exec playw
 | `src/passkey/create-passkey.ts` | klucz dostępu natywnymi `PublicKeyCredential.parseCreationOptionsFromJSON()` i `toJSON()` (Chrome 129+, Edge, Firefox 119+) — bez `@simplewebauthn/browser` |
 | `src/pages/activation-page.tsx` | W-13 „Ustaw hasło” (`/activate`): sprawdzenie linku bez zużycia, jeden stan nieważnego linku, pole hasła wg flows/11, stany ładowania, offline, `429`, błąd serwera |
 | `src/pages/mfa-setup-page.tsx` | W-03 w wariancie „przed EVM-023” (`/mfa-setup`): tylko klucz dostępu, „Wyloguj”, toast po rejestracji |
-| `src/pages/login-page.tsx` | strona zastępcza W-01 (`/login`) do EVM-067: cel „Przejdź do logowania”, wylogowania i braku sesji |
+| `src/pages/login-page.tsx` | W-01 „Zaloguj się” (`/login`, EVM-067): jeden komunikat dla każdej porażki, `429` z `Retry-After`, offline, „Sesja wygasła…”; `returnTo` z adresu (`?returnTo=`) walidowany w `session/return-to.ts` |
+| `src/pages/second-step-page.tsx` | W-02 „Potwierdź logowanie” (`/login/second-step`, EVM-067): tylko klucz dostępu (`passkey/get-passkey.ts`); `loginToken` z pamięci karty (`session/login-flow.ts`), bez niego → W-01 |
+| `src/shell/session-expiry-warning.tsx` | P-11 „Sesja wkrótce wygaśnie” (EVM-067): terminy z serwera, pasywny odczyt sesji przed dialogiem i na końcu, „Przedłuż sesję” (`extendSession`) przedłuża tylko bezczynność; brak `refetchInterval` i pingu |
+| `src/session/` | `csrf.ts`, `session.ts`; EVM-067: `complete-login.ts` (wspólny koniec logowania), `login-flow.ts` (token i komunikat tylko w pamięci karty), `draft-store.ts` (szkice przypisane do osoby, tylko pamięć karty), `return-to.ts`, `open-path.ts` |
 | `src/shell/session-gate.tsx` | bramka sesji: brak sesji → `/login`; `mfa_enrollment` → W-03 pod każdym adresem; aktywna → powłoka z menu konta |
 | `src/pages/work-orders-page.tsx` | W-10 w wariancie szkieletu: `h1` „Zlecenia” + pusty stan „Brak zleceń” bez akcji |
 | `src/i18n/` | katalog `pl` (klucze typowane w `t()`), bez wykrywania języka i bez zapisu w magazynach przeglądarki |
 | `src/api/client.ts` | klient z kontraktu (same-origin `/api`, `X-CSRF-Token` z pamięci karty dla mutacji sesji), `ApiError` (status, kod, błędy pól, `Retry-After`) i `unwrap`; zapytania i mutacje bez wstrzymywania offline (`networkMode: 'always'` — stan offline pokazuje panel sam) |
-| `test/e2e/` | Playwright: dymny (AC5), nagłówki i CSP (AC4), klawiatura i responsywność, axe z kontrastem, zrzuty (AC6); EVM-016: `identity.spec.ts` (token tylko w treści `POST`, jeden stan nieważnego linku, hasło, klucz dostępu z wirtualnym uwierzytelniaczem w Chromium i Edge, wylogowanie), `identity-accessibility.spec.ts` (axe W-13, W-03, menu konta), `identity-screenshots.spec.ts` (zrzuty do `docs/ux/reviews/EVM-016/`); `mock-api.ts` — syntetyczne API przed panelem (pełny stos testują testy integracyjne API); testy identity chodzą na `http://localhost:4173`, bo RP ID WebAuthn nie może być adresem IP |
+| `test/e2e/` | Playwright: dymny (AC5), nagłówki i CSP (AC4), klawiatura i responsywność, axe z kontrastem, zrzuty (AC6); EVM-016: `identity.spec.ts` (token tylko w treści `POST`, jeden stan nieważnego linku, hasło, klucz dostępu z wirtualnym uwierzytelniaczem w Chromium i Edge, wylogowanie), `identity-accessibility.spec.ts` (axe W-13, W-03, menu konta), `identity-screenshots.spec.ts` (zrzuty do `docs/ux/reviews/EVM-016/`); EVM-067: `login.spec.ts` (hasło + klucz dostępu, `returnTo`, inspekcja magazynów, adresu i historii, P-11 z `page.clock`), `login-accessibility.spec.ts`, `login-screenshots.spec.ts`; `mock-api.ts` — syntetyczne API przed panelem (pełny stos testują testy integracyjne API); testy identity chodzą na `http://localhost:4173`, bo RP ID WebAuthn nie może być adresem IP |
 
 ## Zasady
 - Style wyłącznie z tokenów (`@evia/ui-web/styles.css`), teksty wyłącznie przez `t()`; lint `webUi()` z `@evia/config/eslint` blokuje wartości arbitralne Tailwind, `style`, literały kolorów i długości, teksty w JSX i `dangerouslySetInnerHTML`.

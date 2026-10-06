@@ -4,7 +4,7 @@ title: Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -92,21 +92,39 @@ Jako **użytkownik panelu** chcę **zalogować się hasłem i kluczem dostępu, 
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+**Backend (backend-developer, zrealizowany):** moduł `identity` bez zmian architektury i bez nowych zależności ani zmiennych środowiska.
+- **Kontrakt** (`packages/contracts`, najpierw specyfikacja): publiczne `login` (`POST /api/v1/auth/login`), `getLoginPasskeyOptions`, `verifyLoginPasskey` oraz `extendSession` (`POST /api/v1/auth/session/extend`, wszystkie role, także `mfa_enrollment`); `CurrentSession` + `idleExpiresAt`, `absoluteExpiresAt` (addytywnie); kody `invalid_credentials`, `passkey_failed`, `login_expired`, `session_expired`.
+- **Dwa kroki:** pierwszy krok (e-mail + hasło, jednakowe odpowiedzi, jedna weryfikacja Argon2id także dla nieistniejącego konta) wydaje jednorazowy `loginToken` (5 min, w bazie tylko hash) albo — dla konta bez klucza — sesję `mfa_enrollment` bez linku (nie może zarejestrować czynnika); drugi krok weryfikuje klucz konta z tokenu (userVerification wymagane, origin i RP ID z konfiguracji) i w jednej transakcji zużywa wyzwanie i token, tworzy sesję (rotacja), zapisuje `lastLoginAt` i audyt.
+- **Wygasanie:** 60 min bezczynności i 12 h bezwzględnie we wszystkich stanach sesji (`401 session_expired`, audyt raz); aktywność zapisywana przez guard po dopuszczeniu żądania (co najwyżej co 30 s), odczyt sesji i `extendSession` są pasywne.
+- **Migracja `0006_login`** (expand): `identity.login_attempts` (bez IP i user agenta), wyzwania także dla logowania (`login_attempt_id`), powód unieważnienia `expired`.
+- **Limity i CSRF:** trzy operacje logowania w buckecie 20/min/IP (liczone przed bazą), CSRF publicznych mutacji (Origin + Sec-Fetch-Site) bez zmian.
+- **Testy** (`EVM-067 AC#`): integracyjne w kontenerze `backend-tests` (`login`, `login-passkey`, `session-expiry`, `login-migration`, macierz ról z kolumną „sesja wygasła”), jednostkowe (polityka sesji, adaptery, metryki, guard).
+- **Panel web (web-developer, do zrobienia po API):** W-01, W-02, P-11 (ostrzeżenie 2 min przed końcem, bez żądań podtrzymujących), szkice tylko w pamięci karty, `returnTo` walidowany przez `new URL` względem originu panelu, baner offline; wymagania security z § 4.17 styleguide'u (TM-10, SR-WEB-05).
 
 ## Decyzje
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- (code-reviewer, minor) `session-expiry-warning.tsx:67-76`: w etapie `ended` zapytania do serwera mogą iść częściej niż co 15 s (zależność efektu od `now`) — użyć `localNow`.
+- (ux-designer, minor) W-02 po „Logowanie trwało zbyt długo” fokus przepada na `body` — przenieść na „Wróć do logowania”.
+- (ux-designer, minor) Dowody UX niepełne: offline w 768/1280/1440 i na W-02, W-02 „klucz nie zadziałał”, P-11 błąd przedłużenia/offline, notatka z przejścia klawiaturą.
+- (qa, nit) `pnpm run gate` bez przebiegu `test:integration` kończy się czerwonym `coverage:diff` (opisane w testing-strategy); rozważyć włączenie do gate.
+- (qa, nit) Nieobjęte pojedyncze gałęzie: `use-now.ts`, `alert-dialog.tsx`, `draft-store.ts`.
+- Przycisk „Pokaż” hasła (TextField) bez `aria-pressed` / nazwy „Pokaż hasło” wg makiety W-01 — dotyczy też W-13; poza zakresem.
+- AC3 mówi o „próbach”; pobranie opcji klucza (`getLoginPasskeyOptions`) liczy się do tego samego limitu 20/min/IP, więc jedno logowanie zużywa 3 jednostki (za wspólnym NAT biura ok. 6 logowań na minutę). Rekomendacja `security-engineer` (Low, do backlogu): przenieść opcje do limitu `anonymous` (60/min).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-067 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-067 AC#`) — QA r2: AC1–AC8 PASS
+- [x] Bramki CI zielone, progi pokrycia spełnione — gate natywny + kontener zielone; coverage:diff po test:integration: linie 501/501, gałęzie 291/303 (orkiestrator powtórzył)
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE — r2: code-reviewer, security-engineer APPROVE; ux-designer APPROVE (r1)
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (wartości sesji w dokumentacji modułu `identity`) — docs:check 0 błędów
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-016 planu wstępnego — konsultacja solution-architect W2)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-06 — ready → in-progress: start realizacji (/deliver), gałąź feature/EVM-067-logowanie-i-sesje
+- 2026-10-06 — plan gotowy (backend-developer)
+- 2026-10-06 — backend zaimplementowany (backend-developer): kontrakt, migracja 0006, logowanie dwukrokowe, wygasanie i przedłużanie sesji, testy `EVM-067 AC#`; panel web (W-01, W-02, P-11) czeka na web-developera
+- 2026-10-06 — panel web zaimplementowany (web-developer): W-01, W-02, P-11 (`AlertDialog` w `@evia/ui-web`), `returnTo`, szkice i `loginToken` tylko w pamięci karty, E2E z inspekcją magazynów, axe i zrzuty do `docs/ux/reviews/EVM-067/`
+- 2026-10-06 — przeglądy i weryfikacja QA: 2 rundy, 0 blokujących (workflow deliver-story); orkiestrator powtórzył bramkę i pokrycie → in-progress → in-review

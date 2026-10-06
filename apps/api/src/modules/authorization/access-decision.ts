@@ -4,7 +4,8 @@
  * 1. a handler without operationId, or an operation without a policy in the manifest → 403 forbidden;
  * 2. a public operation (on the allow-list, checked again here): for a mutation first Origin + Sec-Fetch-Site
  *    (403 csrf_failed), then the per-IP limit (429); then allowed;
- * 3. no principal → 401 unauthenticated, or 401 session_revoked for a recognised but revoked session;
+ * 3. no principal → 401 unauthenticated, 401 session_revoked for a recognised but revoked session, or 401 session_expired
+ *    for one that ran out of idle time or of its absolute lifetime (EVM-067);
  * 4. a mutation: CSRF — Origin, Sec-Fetch-Site and X-CSRF-Token (403 csrf_failed);
  * 5. the per-IP limit of sign-in and MFA operations (429);
  * 6. a session in `mfa_enrollment` may call only the operations on the enrolment list that also declare it
@@ -18,7 +19,8 @@ import type { AuthzManifest } from '@evia/contracts/authz';
 import type { Authentication, Principal } from '../../platform/http/principal.ts';
 import type { RateDecision } from '../../platform/http/rate-limiter.ts';
 
-export type DenyCode = 'unauthenticated' | 'session_revoked' | 'forbidden' | 'csrf_failed' | 'mfa_enrollment_required' | 'rate_limited';
+export type DenyCode =
+  'unauthenticated' | 'session_revoked' | 'session_expired' | 'forbidden' | 'csrf_failed' | 'mfa_enrollment_required' | 'rate_limited';
 
 export type AccessDecision =
   { readonly allowed: true } | { readonly allowed: false; readonly code: DenyCode; readonly retryAfterSeconds?: number };
@@ -43,6 +45,12 @@ export interface AccessRequest {
   readonly channelAllowed: (role: UserRole, channel: Channel) => boolean;
 }
 
+const UNAUTHENTICATED_CODES = {
+  anonymous: 'unauthenticated',
+  revoked: 'session_revoked',
+  expired: 'session_expired',
+} as const satisfies Record<string, DenyCode>;
+
 const ALLOW: AccessDecision = Object.freeze({ allowed: true });
 const deny = (code: DenyCode): AccessDecision => ({ allowed: false, code });
 const limited = ({ allowed, retryAfterSeconds }: RateDecision): AccessDecision | undefined =>
@@ -65,7 +73,7 @@ export function decideAccess(request: AccessRequest): AccessDecision {
 
   const authentication = request.authentication();
   const { principal } = authentication;
-  if (principal === null) return deny(authentication.reason === 'revoked' ? 'session_revoked' : 'unauthenticated');
+  if (principal === null) return deny(UNAUTHENTICATED_CODES[authentication.reason]);
 
   if (request.mutating && !(sameOrigin(request) && request.csrfMatches(principal))) return deny('csrf_failed');
   if (request.authenticationOperations.includes(operationId)) {
