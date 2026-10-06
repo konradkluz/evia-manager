@@ -1,0 +1,40 @@
+diff --git a/package.json b/package.json
+index ac2577fe2c5873d1f171955eecce4caa5578fdbd..f1c460b567cd0ff8bee879161507267d89d95f78 100644
+--- a/package.json
++++ b/package.json
+@@ -1,4 +1,5 @@
+-{ "name": "busboy",
++{
++  "name": "busboy",
+   "version": "1.6.0",
+   "author": "Brian White <mscdex@mscdex.net>",
+   "description": "A streaming parser for HTML form data for node.js",
+@@ -15,8 +16,24 @@
+     "lint": "eslint --cache --report-unused-disable-directives --ext=.js .eslintrc.js lib test bench",
+     "lint:fix": "npm run lint -- --fix"
+   },
+-  "engines": { "node": ">=10.16.0" },
+-  "keywords": [ "uploads", "forms", "multipart", "form-data" ],
+-  "licenses": [ { "type": "MIT", "url": "http://github.com/mscdex/busboy/raw/master/LICENSE" } ],
+-  "repository": { "type": "git", "url": "http://github.com/mscdex/busboy.git" }
++  "engines": {
++    "node": ">=10.16.0"
++  },
++  "keywords": [
++    "uploads",
++    "forms",
++    "multipart",
++    "form-data"
++  ],
++  "licenses": [
++    {
++      "type": "MIT",
++      "url": "http://github.com/mscdex/busboy/raw/master/LICENSE"
++    }
++  ],
++  "repository": {
++    "type": "git",
++    "url": "http://github.com/mscdex/busboy.git"
++  },
++  "license": "MIT"
+ }

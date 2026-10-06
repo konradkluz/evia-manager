@@ -16,7 +16,8 @@ export default defineConfig({
   testDir: 'test/e2e',
   fullyParallel: true,
   forbidOnly: CI,
-  retries: 0,
+  // One retry on CI only: Firefox on the runner sometimes hangs a navigation (page.goto 30 s); traces are kept.
+  retries: CI ? 1 : 0,
   reporter: CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: { baseURL, trace: 'retain-on-failure' },
   webServer: { command: 'pnpm run build && pnpm run preview', url: baseURL, reuseExistingServer: !CI, timeout: 120_000 },

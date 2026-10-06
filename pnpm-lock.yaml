@@ -183,6 +183,10 @@ catalogs:
 overrides:
   js-yaml@4.2.0: 4.3.2
 
+patchedDependencies:
+  busboy@1.6.0: 7e3962db7da481bb1048a03752a5a5b57312f0facdf8296dc3267f423316715f
+  streamsearch@1.1.0: b54b9a1bf9acc715c18231daa27b92f095a22b4b5c8bafc35560df599068ca26
+
 importers:
 
   .:
@@ -4949,7 +4953,7 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
 
-  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@26.6.3)(jiti@2.7.0))':
+  '@vitest/mocker@5.0.3(vite@8.3.2(@types/node@26.6.3)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.3
@@ -5178,9 +5182,9 @@ snapshots:
     dependencies:
       run-applescript: 7.1.0
 
-  busboy@1.6.0:
+  busboy@1.6.0(patch_hash=7e3962db7da481bb1048a03752a5a5b57312f0facdf8296dc3267f423316715f):
     dependencies:
-      streamsearch: 1.1.0
+      streamsearch: 1.1.0(patch_hash=b54b9a1bf9acc715c18231daa27b92f095a22b4b5c8bafc35560df599068ca26)
 
   byline@5.0.0: {}
 
@@ -6245,7 +6249,7 @@ snapshots:
   multer@2.4.0:
     dependencies:
       append-field: 1.0.0
-      busboy: 1.6.0
+      busboy: 1.6.0(patch_hash=7e3962db7da481bb1048a03752a5a5b57312f0facdf8296dc3267f423316715f)
       type-is: 1.6.18
 
   nan@2.29.0:
@@ -6793,7 +6797,7 @@ snapshots:
     dependencies:
       component-emitter: 2.0.0
 
-  streamsearch@1.1.0: {}
+  streamsearch@1.1.0(patch_hash=b54b9a1bf9acc715c18231daa27b92f095a22b4b5c8bafc35560df599068ca26): {}
 
   streamx@2.28.1:
     dependencies:
@@ -7136,7 +7140,7 @@ snapshots:
   vitest@5.0.3(@types/node@26.6.3)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@1.8.0))(vite@8.3.2(@types/node@26.6.3)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@26.6.3)(jiti@2.7.0))
+      '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@26.6.3)(jiti@2.7.0)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0

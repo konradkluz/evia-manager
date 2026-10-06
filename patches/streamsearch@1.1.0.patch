@@ -1,0 +1,25 @@
+diff --git a/package.json b/package.json
+index 51df8f9707cebd8469d793a8d90050baac1c4d1d..936eb960d93823702cd8ad1d12bc3672295897df 100644
+--- a/package.json
++++ b/package.json
+@@ -23,12 +23,15 @@
+     "boyer-moore",
+     "search"
+   ],
+-  "licenses": [{
+-    "type": "MIT",
+-    "url": "http://github.com/mscdex/streamsearch/raw/master/LICENSE"
+-  }],
++  "licenses": [
++    {
++      "type": "MIT",
++      "url": "http://github.com/mscdex/streamsearch/raw/master/LICENSE"
++    }
++  ],
+   "repository": {
+     "type": "git",
+     "url": "http://github.com/mscdex/streamsearch.git"
+-  }
++  },
++  "license": "MIT"
+ }
