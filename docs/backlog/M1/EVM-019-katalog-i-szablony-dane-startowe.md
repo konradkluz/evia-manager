@@ -4,8 +4,9 @@ title: Katalog usług i szablony — dane startowe i odczyt konfiguracji
 type: enabler
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
 priority: P0
+path: pelna
 owner: backend-developer
 contributors: []
 reviewers: [code-reviewer, security-engineer]
@@ -99,3 +100,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-06 — ready → in-progress: start /deliver, ścieżka pelna (wybór Konrada), gałąź feature/EVM-019-katalog-i-szablony
