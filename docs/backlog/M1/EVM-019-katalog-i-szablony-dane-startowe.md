@@ -101,3 +101,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-06 — ready → in-progress: start /deliver, ścieżka pelna (wybór Konrada), gałąź feature/EVM-019-katalog-i-szablony
+- 2026-10-06 — implementacja (backend-developer): moduł `catalog`, migracje `0007`/`0008`, 5 operacji `GET`, zestawy parametrów i test spójności; testy `EVM-019 AC1–AC7`, bramka lokalna zielona
