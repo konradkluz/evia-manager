@@ -116,8 +116,11 @@ describe('backend-tests source sync (EVM-006 AC1, AC2; W10)', () => {
     put(join(base, 'repo'), 'tools/t/coverage/lcov.info', 'SF:t');
     put(join(base, 'repo'), 'packages/a/coverage/index.html', 'not exported');
     put(join(base, 'repo'), 'node_modules/x/coverage/lcov.info', 'never');
+    put(join(base, 'repo'), 'packages/a/coverage/integration/lcov.info', 'SF:integration');
     const exported = exportCoverage(join(base, 'repo'), out);
-    assert.deepEqual(exported, ['packages/a/coverage/lcov.info', 'tools/t/coverage/lcov.info']);
+    // the integration report (SF paths relative to the repository root) goes where CI puts its artifact (EVM-016)
+    assert.deepEqual(exported, ['integration-a/lcov.info', 'packages/a/coverage/lcov.info', 'tools/t/coverage/lcov.info']);
+    assert.equal(read(out, 'integration-a/lcov.info'), 'SF:integration');
     assert.equal(read(out, 'packages/a/coverage/lcov.info'), 'SF:a');
     assert.equal(existsSync(join(out, 'packages/gone')), false);
     assert.equal(existsSync(join(out, 'packages/a/coverage/index.html')), false);

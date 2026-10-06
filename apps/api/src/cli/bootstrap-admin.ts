@@ -5,7 +5,7 @@
  */
 import { interactiveRefusal } from './tty-guard.ts';
 
-/* v8 ignore start -- process wiring of the command entry point; the guard, the arguments and the run are covered by tests */
+/* v8 ignore start -- process wiring of the command entry point; the guard, the arguments, the run and the wiring are covered by tests */
 if (import.meta.main) {
   const refusal = interactiveRefusal({
     stdinIsTTY: process.stdin.isTTY,
@@ -17,8 +17,8 @@ if (import.meta.main) {
     process.stderr.write(`${refusal}\n`);
     process.exitCode = 2;
   } else {
-    const { runFromProcess } = await import('./run.ts');
-    process.exitCode = await runFromProcess(process.argv.slice(2));
+    const { runFromProcess } = await import('./process-run.ts');
+    process.exitCode = await runFromProcess(process.argv.slice(2), process.env, process);
   }
 }
 /* v8 ignore stop */

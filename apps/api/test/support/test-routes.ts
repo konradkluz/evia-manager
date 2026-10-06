@@ -2,7 +2,7 @@
  * Test-only controllers (EVM-008 AC4). They are imported by single tests and never by AppModule — the test
  * "routes equal contract operations" proves that production has no such routes.
  */
-import { Controller, Get, Module, Param, Req } from '@nestjs/common';
+import { Controller, Get, Module, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AUTHZ_MANIFEST, type AuthzManifest } from '@evia/contracts/authz';
 import { CONTRACT_POLICIES, type PolicySource } from '../../src/modules/authorization/index.ts';
@@ -52,6 +52,13 @@ export class ProtectedRouteController {
     return { reached: true };
   }
 
+  @Post('/api/v1/work-orders')
+  @OperationId('createWorkOrder')
+  create(): { created: true } {
+    this.calls += 1;
+    return { created: true };
+  }
+
   /** Not a route: the startup check skips methods without a route decorator. */
   helper(): number {
     return this.calls;
@@ -65,6 +72,7 @@ export class ProtectedRouteModule {}
 const syntheticManifest: AuthzManifest = {
   ...AUTHZ_MANIFEST,
   listWorkOrders: { method: 'get', path: '/api/v1/work-orders', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
+  createWorkOrder: { method: 'post', path: '/api/v1/work-orders', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
 };
 
 export const TEST_POLICIES: PolicySource = Object.freeze({ ...CONTRACT_POLICIES, manifest: syntheticManifest });

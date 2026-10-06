@@ -42,7 +42,7 @@ export class PwnedPasswordsCheck implements BreachedPasswordCheck {
   }
 
   async check(password: string): Promise<BreachResult> {
-    // nosemgrep: SHA-1 is the fixed identifier of the Pwned Passwords range API (k-anonymity), not a security control (ASVS V11.4.1).
+    // SHA-1 is the fixed identifier of the range API (k-anonymity), not a security control (ASVS V11.4.1).
     const digest = createHash('sha1').update(password, 'utf8').digest('hex').toUpperCase();
     const prefix = digest.slice(0, 5);
     const suffix = digest.slice(5);

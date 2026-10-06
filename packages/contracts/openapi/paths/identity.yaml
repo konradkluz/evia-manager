@@ -124,7 +124,7 @@ logout:
         description: Sesja unieważniona.
         headers:
           Clear-Site-Data:
-            description: 'Dokładnie `"cache", "storage"`.'
+            description: Dokładnie wartość "cache", "storage" (cudzysłowy należą do wartości nagłówka).
             schema:
               type: string
               maxLength: 64

@@ -1,15 +1,17 @@
 import { AUTHZ_MANIFEST } from '@evia/contracts/authz';
+import { PassThrough } from 'node:stream';
 import { sql } from 'kysely';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { executeBootstrap, EXIT_OK, EXIT_REFUSED, type TerminalIo } from '../../src/cli/run.ts';
+import { runFromProcess } from '../../src/cli/process-run.ts';
+import { executeBootstrap, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, type TerminalIo } from '../../src/cli/run.ts';
 import { RoutePolicyCheck } from '../../src/modules/authorization/index.ts';
 import { AdministratorBootstrap } from '../../src/modules/identity/index.ts';
 import { hashToken } from '../../src/modules/identity/domain/tokens.ts';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import { CLOCK, DATABASE, EVENT_BUS, SECURITY_ALERT_EMITTER } from '../../src/platform/tokens.ts';
 import type { SecurityAlertEmitter } from '../../src/platform/alerts/security-alerts.ts';
-import { PANEL_ORIGIN } from '../support/app.ts';
+import { PANEL_ORIGIN, UNREACHABLE_DATABASE_URL, validEnv } from '../support/app.ts';
 import { activateAdministrator, passkeyOptions, PATHS, registerPasskey, setPassword } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createLink, createSession, createUser } from '../support/identity-fixtures.ts';
@@ -380,5 +382,81 @@ describe('the command with an active Administrator (EVM-016 AC2; RR-16, SR-LOG-0
     expect(
       await sql`select 1 from platform.security_alert_outbox`.execute(current.database.admin).then((result) => result.rows),
     ).toHaveLength(1);
+  });
+});
+
+/** The whole command as the process runs it: real wiring, real database, in-memory terminal. */
+async function runCommand(
+  argv: string[],
+  answers: string[],
+  env: Record<string, string | undefined> = validEnv({ DATABASE_URL: current.database.appUrl }),
+) {
+  const stdin = new PassThrough();
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const out: string[] = [];
+  const err: string[] = [];
+  stdout.on('data', (chunk: Buffer) => out.push(chunk.toString('utf8')));
+  stderr.on('data', (chunk: Buffer) => err.push(chunk.toString('utf8')));
+  const outcome = runFromProcess(argv, env, { stdin, stdout, stderr });
+  for (const answer of answers) {
+    await vi.waitFor(() => {
+      expect(out.join('')).toMatch(/: $/);
+    });
+    out.length = 0;
+    stdin.write(`${answer}
+`);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  const code = await outcome;
+  return { code, stdout: out.join(''), stderr: err.join('') };
+}
+
+describe('the command as a process (EVM-016 AC1, AC2; SR-AUTH-12)', () => {
+  it('EVM-016 AC1 the whole command with the real wiring prints the link on the terminal only and the link opens W-13', async () => {
+    const result = await runCommand([], [ADMIN]);
+    expect(result.code).toBe(EXIT_OK);
+    const token = tokenOf(result.stdout);
+    expect(result.stdout).toContain(`${PANEL_ORIGIN}/activate#${token}`);
+    expect(result.stderr).not.toContain(token);
+    expect(current.logs.text).not.toContain(token);
+    const check = await current.panel().post(PATHS.check, { token });
+    expect(check.body).toEqual({ email: ADMIN, role: 'administrator' });
+    expect(await db().selectFrom('identity.users').select(['status', 'role']).execute()).toEqual([
+      { status: 'invited', role: 'administrator' },
+    ]);
+  });
+
+  it('EVM-016 AC2 the emergency mode through the real wiring asks for the address twice and resets the account', async () => {
+    await activateAdministrator(current, ADMIN);
+    const result = await runCommand(['--emergency', '--reason', 'lost_device'], [ADMIN, ADMIN]);
+    expect(result.code).toBe(EXIT_OK);
+    expect(tokenOf(result.stdout)).toHaveLength(43);
+    expect((await db().selectFrom('identity.users').select('status').executeTakeFirstOrThrow()).status).toBe('invited');
+    expect(await sql`select 1 from platform.security_alert_outbox`.execute(current.database.admin).then((r) => r.rows)).toHaveLength(1);
+  });
+
+  it('EVM-016 AC2 a refusal through the real wiring leaves the database untouched', async () => {
+    await activateAdministrator(current, ADMIN);
+    const before = await current.snapshot();
+    const result = await runCommand([], ['inny@evia.invalid']);
+    expect(result.code).toBe(EXIT_REFUSED);
+    expect(result.stdout).toMatch(/aktywny Administrator/);
+    expect(await current.snapshot()).toBe(before);
+  });
+
+  it('EVM-016 AC1 a bad argument ends the command before the application starts: no database connection is attempted', async () => {
+    const started = Date.now();
+    const result = await runCommand(['--password', 'hunter2'], [], validEnv({ DATABASE_URL: UNREACHABLE_DATABASE_URL }));
+    expect(result.code).toBe(EXIT_USAGE);
+    expect(result.stdout).toMatch(/Nieznany argument/);
+    expect(`${result.stdout}${result.stderr}`).not.toContain('hunter2');
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it('EVM-016 AC1 invalid configuration stops the command with the names of the variables only', async () => {
+    await expect(runCommand([], [], validEnv({ PANEL_ORIGIN: 'not an origin', DATABASE_URL: UNREACHABLE_DATABASE_URL }))).rejects.toThrow(
+      'PANEL_ORIGIN',
+    );
   });
 });

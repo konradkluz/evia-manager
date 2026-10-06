@@ -1,11 +1,11 @@
 import { COVERAGE_THRESHOLDS } from '@evia/config/vitest';
 import { defineConfig } from 'vitest/config';
-import { DATABASE_BOUND } from './coverage-layout.ts';
+import { DATABASE_BOUND } from './coverage.config.ts';
 
 // Integration tests with PostgreSQL (EVM-008 AC1): Testcontainers, or the database from EVIA_TEST_DATABASE_URL
 // (compose service `postgres`). CI job backend-integration; the lcov report (paths relative to the repository root)
 // is merged by the coverage job into the changed-code gate. This run measures the database-bound code of the API
-// (coverage-layout.ts) against the backend threshold; the unit run measures everything else (EVM-016).
+// (coverage.config.ts) against the backend threshold; the unit run measures everything else (EVM-016).
 export default defineConfig({
   test: {
     include: ['test/integration/**/*.test.ts'],

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { POLICY_SOURCE } from '../../src/modules/authorization/index.ts';
 import { ANONYMOUS, SESSION_RESOLVER } from '../../src/platform/http/principal.ts';
 import { principal, resolverOf } from '../support/principals.ts';
-import { createTestApp, type TestApp } from '../support/app.ts';
+import { createTestApp, PANEL_ORIGIN, type TestApp } from '../support/app.ts';
 import { ProtectedRouteController, ProtectedRouteModule, TEST_POLICIES } from '../support/test-routes.ts';
 
 let current: TestApp | undefined;
@@ -90,6 +90,28 @@ describe('authorization guard on a protected operation (EVM-008 AC4; SR-AUTHZ-01
       code: 'unknown_parameter',
     });
     expect((await request(served).get('/api/v1/work-orders?filter[a]=1').expect(400)).body).toMatchObject({ code: 'unknown_parameter' });
+  });
+
+  it('EVM-016 AC6 a mutation of a session passes the guard only with the Origin of the panel, Sec-Fetch-Site and the CSRF token of the session', async () => {
+    current = await withProtectedRoute(resolverOf({ principal: principal() }));
+    const server = current.app.getHttpServer();
+    const token = principal().csrfToken;
+    const post = (headers: Record<string, string>) =>
+      request(server).post('/api/v1/work-orders').set(headers).set('Content-Type', 'application/json').send('{}');
+    const good = { Origin: PANEL_ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-CSRF-Token': token };
+    expect((await post(good)).status).toBe(201);
+    expect(calls(current)).toBe(1);
+    for (const headers of [
+      { ...good, 'X-CSRF-Token': `${token}x` },
+      { Origin: PANEL_ORIGIN, 'Sec-Fetch-Site': 'same-origin' },
+      { ...good, Origin: 'https://attacker.invalid' },
+      { ...good, 'Sec-Fetch-Site': 'cross-site' },
+    ]) {
+      const response = await post(headers);
+      expect(response.status, JSON.stringify(headers)).toBe(403);
+      expect(response.body).toMatchObject({ code: 'csrf_failed' });
+    }
+    expect(calls(current)).toBe(1);
   });
 
   it('EVM-008 AC4 an error while resolving the session denies the request (401, fail closed) and is logged without details', async () => {

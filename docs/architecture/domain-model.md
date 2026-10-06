@@ -81,7 +81,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 | Moduł | Schemat | Encje (tabele) | Zależy od (publiczne API, klucze obce) |
 |---|---|---|---|
 | `platform` | `platform` | `IdempotencyRecord`; jądro: UUIDv7, czas, pieniądze, błędy, outbox, `crypto` | — |
-| `identity` | `identity` | `User`, `Session`, `Device`; dane uwierzytelniające (hasła, TOTP, passkeys, kody odzyskiwania, zaproszenia, tokeny resetu) | — |
+| `identity` | `identity` | `User`, `Session`, `Device`; dane uwierzytelniające: hasła (`password_credentials`), klucze dostępu (`passkeys`), wyzwania WebAuthn (`webauthn_challenges`), linki jednorazowe — aktywacja, zaproszenie, reset (`one_time_links`), TOTP i kody odzyskiwania (EVM-023) | — |
 | `authorization` | — (polityki w kodzie) | — | `identity` |
 | `audit` | `audit` | `AuditEvent` | subskrybuje zdarzenia wszystkich modułów |
 | `parties` | `parties` | `Party` | — |
@@ -100,6 +100,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 **Zasady**
 - Moduł korzysta z innego modułu wyłącznie przez fasadę; tabele innego schematu czyta tylko przez klucz obcy zgodny z kierunkiem zależności — nigdy przez zapytania z joinem do cudzych tabel (ADR-0001, reguła 2).
 - **Utworzenie zlecenia z szablonu** wymaga zapisu w `work-orders`, `procedures` i `payments` w jednej transakcji, a `work-orders` nie może zależeć od `procedures` ani `payments`. Rozwiązanie: `work-orders` definiuje port `WorkOrderCompositionContributor`, a `procedures` i `payments` rejestrują jego implementacje (odwrócenie zależności, bez cykli).
+- **Audyt i zdarzenia (EVM-016):** moduł domenowy nie importuje `audit` (reguła `no-module-imports-audit` w dependency-cruiser; wyjątek: korzeń kompozycji). Publikuje zdarzenia domenowe przez synchroniczny dispatcher w procesie z `platform/events` — `publish(tx, event, context)` w transakcji zmiany — a `audit` rejestruje handlery typów zdarzeń eksportowanych z `index.ts` publikującego modułu. Handler pisze tą samą transakcją; jego błąd cofa całą zmianę, a zdarzenie bez handlera jest błędem (fail closed). Kontekst (aktor, `sessionId`, `origin`, `traceId`, pełny IP wyłącznie w pamięci) przekazują jawnie przypadki użycia; adres do /24 i /48 skraca tylko `audit`. Tego samego mechanizmu użyje `timeline`. Kody akcji audytu to zamknięta lista w kodzie (`<obiekt>.<czas przeszły>`: `activation_link.issued`, `account.password_set`, `passkey.registered`, `account.activated`, `session.created`, `session.revoked`, `account.emergency_reset`), a `reason_code` — zamknięta lista kodów bez wolnego tekstu. Każdy moduł ma własne typy tabel (`IdentityTables`, `AuditTables`) i używa `db.$extendTables<…>()`; typ `Database` w `platform` nie zna tabel modułów.
 - **Dziennik zmian synchronizacji** zapisuje w tej samej transakcji generyczny trigger na tabelach objętych synchronizacją (instalowany migracją), więc moduły domenowe nie zależą od `sync`. Alternatywa (port w `platform`) — do potwierdzenia w EVM-011.
 - **Uprawnienia ról bazy per schemat** (ADR-0003): `evia_app` — DML na schematach domenowych; na `audit` wyłącznie `INSERT` i `SELECT` (bez `UPDATE`, `DELETE`, `TRUNCATE`) + trigger odrzucający zmiany; `evia_readonly` — tylko widoki uzgodnione w EVM-005; `evia_migrator` — właściciel schematów.
 - **Projekcja listy zleceń — proponowana ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md)).**
@@ -494,6 +495,7 @@ erDiagram
     text display_name
     text role "UserRole"
     text status "invited | active | deactivated"
+    bytea webauthn_user_handle UK "losowe 32 B, nigdy się nie zmienia"
     timestamptz last_login_at
     timestamptz deactivated_at
   }
@@ -502,6 +504,8 @@ erDiagram
     uuid user_id FK
     uuid device_id FK "mobile"
     text channel "web | mobile"
+    text state "mfa_enrollment | active"
+    uuid one_time_link_id FK "sesja mfa_enrollment żyje tak długo jak link"
     text token_hash "tylko skrót"
     timestamptz last_seen_at
     timestamptz last_authenticated_at "step-up"
@@ -688,8 +692,18 @@ Każda encja: moduł-właściciel, nazwa polska (słownik), kluczowe atrybuty, r
 
 ### `AuditEvent`
 - **Moduł:** `audit`. **Słownik:** zdarzenie audytu.
-- **Atrybuty:** `occurredAt`, `actorType` (`user` / `system` / `anonymous`), `actorUserId`, `sessionId`, `deviceId`, `ipAddress`, `userAgent`, `action` (kod, np. `work_order.cancelled`), `outcome` (`success` / `denied` / `failed`), `reasonCode`, `objectType`, `objectId`, `workOrderId`, `changedFields` (nazwy pól), `fromCode`, `toCode`, `traceId`; **wyjątek opisany:** `amountMinor` + `currency` dla zmian płatności.
+- **Atrybuty:** `occurredAt`, `actorType` (`user` / `system` / `anonymous`), `actorUserId`, `sessionId`, `deviceId`, `ipAddress` (zapisywany jako prefiks `/24` albo `/48`, kolumna `ip_prefix`), `origin` (`web` / `cli` — polecenie na serwerze nie ma adresu IP), `userAgent`, `action` (kod, np. `work_order.cancelled`), `outcome` (`success` / `denied` / `failed`), `reasonCode`, `objectType`, `objectId`, `workOrderId`, `changedFields` (nazwy pól), `fromCode`, `toCode`, `traceId`; **wyjątek opisany:** `amountMinor` + `currency` dla zmian płatności.
 - **Reguły:** tylko do dopisywania (uprawnienia bazy + trigger, ADR-0003); **bez wartości danych osobowych** — kopia w audycie byłaby nieusuwalna (RODO art. 17). Zakres audytu: ADR-0001 oraz [przejścia wrażliwe](#przejścia-audytowane).
+
+### Dane uwierzytelniające (EVM-016)
+- **Moduł:** `identity`; tabele techniczne bez kolumn wspólnych i bez soft delete (poświadczenia usuwamy twardo — w trybie awaryjnym).
+- **`password_credentials`:** `user_id` (PK), skrót Argon2id w formacie PHC (19 MiB, 2 przebiegi, 1 wątek), `updated_at`.
+- **`passkeys`:** `credential_id` (unikalny globalnie), `public_key`, `counter`, `transports`, `device_type` (`single_device` | `multi_device`), `backed_up`, `created_at`, `last_used_at`.
+- **`webauthn_challenges`:** `user_id`, `session_id`, `purpose` (`passkey_registration`), `challenge_hash` (tylko SHA-256; wyzwanie ≥ 128 bitów), `expires_at` (TTL 5 min), `used_at` — zużywane atomowo (`UPDATE … WHERE used_at IS NULL AND expires_at > :now RETURNING`).
+- **`one_time_links`:** `user_id`, `purpose` (dziś `account_activation` — cel, nie źródło; `password_reset` dopisze EVM-025 jako *expand*), `token_hash` (SHA-256 tokenu 256-bitowego; sam token tylko we fragmencie adresu `#…`), `issued_by` (`cli`; źródło), `issued_at`, `expires_at` (72 h), `used_at`, `superseded_at`. Link zużywa rejestracja klucza dostępu, nie samo ustawienie hasła; każde wydanie linku unieważnia wszystkie niezużyte linki aktywacyjne oraz sesje `mfa_enrollment` i wyzwania zbudowane na nich.
+- **`sessions` (rozszerzenie):** `state` (`mfa_enrollment` | `active`), `one_time_link_id`, `revoke_reason` (`logout` | `rotated` | `emergency_reset` | `link_superseded`); adres IP w całości 30 dni (P9), `user_agent` do 512 znaków. Token CSRF nie ma kolumny — jest wyliczany z tokenu sesji.
+- **`users` (rozszerzenie):** `email` zapisany znormalizowany (NFC, przycięty, małe litery; `CHECK (email = lower(email))`, zwykły `UNIQUE`), `webauthn_user_handle` (losowe 32 B — nie e-mail; zmiana psułaby logowanie kluczami).
+- **`platform.security_alert_outbox`:** trwały rekord alertu zapisany w transakcji zmiany (`alert_code`, `occurred_at`, `trace_id`, `emitted_at`) — proces API emituje go do logów (pole `alert: "security"`) i oznacza jako wyemitowany; polecenie na serwerze nie widzi kolektora logów.
 
 ### `IdempotencyRecord` i `SyncChange`
 - **Moduł:** `platform` (`IdempotencyRecord`), `sync` (`SyncChange`). **Słownik:** rekord idempotencji, zmiana w dzienniku zmian synchronizacji.

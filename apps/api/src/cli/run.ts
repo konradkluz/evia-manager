@@ -1,25 +1,11 @@
 /**
  * The body of the server command (AC1, AC2; SR-AUTH-12, RR-16): reads the address at the terminal, runs the bootstrap use
  * case and prints the link — only to the terminal, never through the logger. Terminal and use case are injected so the
- * whole flow is tested without a TTY; `runFromProcess` is the wiring of the real process.
+ * whole flow is tested without a TTY; `process-run.ts` wires the real application and terminal.
  */
-import 'reflect-metadata';
-import { createInterface } from 'node:readline/promises';
-import { NestFactory } from '@nestjs/core';
-import { pino } from 'pino';
 import { z } from 'zod';
-import { AppModule } from '../app.module.ts';
-import {
-  AdministratorBootstrap,
-  EMERGENCY_REASONS,
-  normalizeEmail,
-  type BootstrapRequest,
-  type BootstrapResult,
-} from '../modules/identity/index.ts';
-import { loadConfig } from '../platform/config/config.ts';
+import { EMERGENCY_REASONS, normalizeEmail, type BootstrapRequest, type BootstrapResult } from '../modules/identity/index.ts';
 import { newTraceId } from '../platform/http/request-context.ts';
-import { createLogger } from '../platform/logging/logger.ts';
-import { NestLoggerAdapter } from '../platform/logging/nest-logger.ts';
 import { parseArguments } from './args.ts';
 
 /** The terminal of the operator — the only place the link is ever written to. */
@@ -102,28 +88,3 @@ export async function executeBootstrap(
   );
   return EXIT_OK;
 }
-
-/* v8 ignore start -- process wiring: environment, the application context and the readline terminal */
-export async function runFromProcess(argv: readonly string[]): Promise<number> {
-  const config = loadConfig(process.env);
-  // Anything the application logs goes to stderr of the terminal and only at warn level; the link is never logged.
-  const logger = createLogger({ level: 'warn', destination: pino.destination(2) });
-  const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger }), { logger: new NestLoggerAdapter(logger) });
-  const terminal = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-  try {
-    const io: TerminalIo = {
-      question: (prompt) => terminal.question(prompt),
-      write: (text) => {
-        process.stdout.write(text);
-      },
-    };
-    return await executeBootstrap(argv, io, {
-      bootstrap: app.get(AdministratorBootstrap, { strict: false }),
-      panelOrigin: config.panelOrigin,
-    });
-  } finally {
-    terminal.close();
-    await app.close();
-  }
-}
-/* v8 ignore stop */

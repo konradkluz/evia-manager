@@ -14,4 +14,5 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/identity/http/auth.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  'src/cli/process-run.ts',
 ];

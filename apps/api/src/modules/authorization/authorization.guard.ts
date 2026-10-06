@@ -39,6 +39,7 @@ export class AuthorizationGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const operationId = this.#reflector.get<string | undefined>(OPERATION_ID, context.getHandler());
+    const declaredQuery = (operationId === undefined ? undefined : this.#policies.manifest[operationId])?.query ?? [];
     const decision = decideAccess({
       operationId,
       manifest: this.#policies.manifest,
@@ -60,7 +61,7 @@ export class AuthorizationGuard implements CanActivate {
         decision.retryAfterSeconds === undefined ? {} : { retryAfterSeconds: decision.retryAfterSeconds },
       );
     }
-    assertQueryParameters(request.query, this.#policies.manifest[operationId ?? '']?.query ?? []);
+    assertQueryParameters(request.query, declaredQuery);
     return true;
   }
 }

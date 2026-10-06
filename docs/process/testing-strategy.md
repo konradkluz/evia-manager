@@ -50,7 +50,9 @@ Zasady: rozbieżność lokalnie/CI to błąd do wyjaśnienia (dla backendu rozst
 | Mobile — synchronizacja i kolejka uploadu | ≥ 95% |
 | Macierz ról | 100% endpointów |
 
-Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga ADR i zgody użytkownika. Wykluczenia z pokrycia (kod generowany, konfiguracja) są jawnie wypisane w konfiguracji; każde inne wymaga komentarza z uzasadnieniem.
+Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga ADR i zgody użytkownika.
+
+**Backend — dwa przebiegi, jeden próg (EVM-016).** Kod, którego zachowaniem jest wykonywane SQL (przypadki użycia modułu, zapytania, zapis audytu, outbox alertów, kontrolery, które je wołają — lista `DATABASE_BOUND` w `apps/api/coverage.config.ts`), da się sprawdzić tylko na prawdziwej bazie (blokady, atomowe `UPDATE … RETURNING`, uprawnienia, triggery). Mierzy go przebieg integracyjny (`pnpm --filter @evia/api run test:integration`, kontener `backend-tests` albo CI `backend-integration`) z progiem 85% linii i gałęzi; resztę — przebieg jednostkowy (`test:coverage`, bez bazy, wszędzie). Każdy plik jest mierzony przez dokładnie jeden przebieg i żaden próg nie jest obniżony; `coverage:diff` scala oba. Wykluczenia z pokrycia (kod generowany, konfiguracja) są jawnie wypisane w konfiguracji; każde inne wymaga komentarza z uzasadnieniem.
 
 ## Przypadki brzegowe specyficzne dla domeny
 - Polskie znaki (ąćęłńóśźż) w nazwach, wyszukiwaniu („Lodz” → „Łódź”), sortowaniu i nazwach plików.
