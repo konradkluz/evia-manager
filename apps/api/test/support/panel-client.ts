@@ -1,0 +1,40 @@
+/**
+ * A tiny stand-in for the browser of the panel in API tests: it keeps the session cookie and the CSRF token the way the
+ * panel does, sends the headers a same-origin `fetch` carries (Origin, Sec-Fetch-Site) and nothing a browser would not
+ * send. Tests that attack (cross-site, no Origin, no token) build their requests by hand with supertest instead.
+ */
+import request, { type Test } from 'supertest';
+import { SESSION_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
+
+export class PanelClient {
+  readonly #server: Parameters<typeof request>[0];
+  readonly #origin: string;
+  cookie: string | undefined;
+  csrfToken: string | undefined;
+
+  constructor(server: Parameters<typeof request>[0], origin: string) {
+    this.#server = server;
+    this.#origin = origin;
+  }
+
+  /** Mutation as the panel sends it: JSON, same-origin headers, session cookie, CSRF token when it has one. */
+  post(path: string, body?: unknown): Test {
+    let call = request(this.#server).post(path).set('Origin', this.#origin).set('Sec-Fetch-Site', 'same-origin');
+    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
+    return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
+  }
+
+  get(path: string): Test {
+    const call = request(this.#server).get(path);
+    return this.cookie === undefined ? call : call.set('Cookie', this.cookie);
+  }
+
+  /** Keeps the cookie of a response (`Set-Cookie`), as the browser would. */
+  adopt(setCookie: string[] | string | undefined): void {
+    const header = (Array.isArray(setCookie) ? setCookie : [setCookie ?? '']).find((value) => value.startsWith(`${SESSION_COOKIE_NAME}=`));
+    if (header === undefined) return;
+    const pair = header.split(';')[0] ?? '';
+    this.cookie = pair.endsWith('=') ? undefined : pair;
+  }
+}

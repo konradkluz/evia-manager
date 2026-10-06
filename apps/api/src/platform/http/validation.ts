@@ -35,7 +35,7 @@ function fieldErrors(issues: readonly z.core.$ZodIssue[]): FieldError[] {
 }
 
 export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.output<S> {
-  const result = schema.safeParse(input);
+  const result = schema.safeParse(input, { reportInput: true });
   if (!result.success) throw new ProblemException('validation_failed', { errors: fieldErrors(result.error.issues) });
   return result.data;
 }

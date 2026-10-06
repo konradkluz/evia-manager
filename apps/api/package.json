@@ -9,6 +9,7 @@
     "start": "node dist/src/main.js",
     "dev": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/src/main.js",
     "db:migrate": "node --env-file-if-exists=../../.env src/migrate.ts",
+    "admin:activate": "tsc -p tsconfig.build.json && node --env-file-if-exists=../../.env dist/src/cli/bootstrap-admin.js",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
