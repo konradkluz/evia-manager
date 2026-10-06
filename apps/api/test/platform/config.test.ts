@@ -20,6 +20,9 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       logLevel: 'info',
       databaseUrl: validEnv()['DATABASE_URL'],
       minSupportedAppVersion: { android: '1.2.0', ios: '1.1.0' },
+      panelOrigin: 'https://panel.evia.test',
+      webauthn: { rpId: 'panel.evia.test', rpName: 'EVia Manager' },
+      trustedProxies: [],
     });
     expect(loadConfig({ ...validEnv(), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' })).toMatchObject({
       nodeEnv: 'production',
@@ -61,6 +64,55 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       expect(errorOf({ ...validEnv(), NODE_ENV: 'production', LOG_LEVEL: level }).keys, level).toEqual(['LOG_LEVEL']);
       expect(errorOf({ ...validEnv(), NODE_ENV: 'test', LOG_LEVEL: level }).keys, level).toEqual(['LOG_LEVEL']);
       expect(loadConfig({ ...validEnv(), NODE_ENV: 'development', LOG_LEVEL: level }).logLevel).toBe(level);
+    }
+  });
+
+  it('EVM-016 AC4 the panel origin is a bare origin: https or http, no path, query, fragment or credentials', () => {
+    for (const value of [
+      undefined,
+      '',
+      'panel.evia.test',
+      'ftp://panel.evia.test',
+      'https://panel.evia.test/',
+      'https://panel.evia.test/x',
+      'https://u:p@panel.evia.test',
+      'https://panel.evia.test?x=1',
+    ]) {
+      expect(errorOf({ ...validEnv(), PANEL_ORIGIN: value }).keys, String(value)).toContain('PANEL_ORIGIN');
+    }
+    expect(loadConfig({ ...validEnv(), PANEL_ORIGIN: 'https://panel.evia.test:8443' }).panelOrigin).toBe('https://panel.evia.test:8443');
+  });
+
+  it('EVM-016 AC4 the relying party id is a domain that is the host of the panel or a parent of it, never taken from a request', () => {
+    expect(loadConfig({ ...validEnv(), WEBAUTHN_RP_ID: 'evia.test' }).webauthn.rpId).toBe('evia.test');
+    for (const value of [undefined, '', 'other.test', 'anel.evia.test', 'https://panel.evia.test', 'Panel.Evia.Test', 'a_b.test']) {
+      expect(errorOf({ ...validEnv(), WEBAUTHN_RP_ID: value }).keys, String(value)).toEqual(['WEBAUTHN_RP_ID']);
+    }
+    expect(loadConfig({ ...validEnv(), WEBAUTHN_RP_NAME: ' Panel EVia ' }).webauthn.rpName).toBe('Panel EVia');
+    expect(errorOf({ ...validEnv(), WEBAUTHN_RP_NAME: 'x'.repeat(65) }).keys).toEqual(['WEBAUTHN_RP_NAME']);
+  });
+
+  it('EVM-016 AC6 production accepts only an https panel that is not localhost: there is no switch for Secure or __Host-', () => {
+    const production = { ...validEnv(), NODE_ENV: 'production' };
+    expect(loadConfig(production).nodeEnv).toBe('production');
+    expect(errorOf({ ...production, PANEL_ORIGIN: 'http://panel.evia.test' }).keys).toEqual(['PANEL_ORIGIN']);
+    expect(errorOf({ ...production, PANEL_ORIGIN: 'https://localhost:5173', WEBAUTHN_RP_ID: 'localhost' }).keys).toEqual(['PANEL_ORIGIN']);
+    expect(errorOf({ ...production, PANEL_ORIGIN: 'https://panel.localhost', WEBAUTHN_RP_ID: 'panel.localhost' }).keys).toEqual([
+      'PANEL_ORIGIN',
+    ]);
+    const development = { ...validEnv(), NODE_ENV: 'development', PANEL_ORIGIN: 'http://localhost:5173', WEBAUTHN_RP_ID: 'localhost' };
+    expect(loadConfig(development).panelOrigin).toBe('http://localhost:5173');
+  });
+
+  it('EVM-016 AC5 trusted proxies default to none and accept addresses and CIDR ranges only (SR-API-02, CWE-348)', () => {
+    expect(loadConfig(validEnv()).trustedProxies).toEqual([]);
+    expect(loadConfig({ ...validEnv(), TRUSTED_PROXIES: ' 10.0.0.0/8 , 172.16.0.5,fd00::/8 ' }).trustedProxies).toEqual([
+      '10.0.0.0/8',
+      '172.16.0.5',
+      'fd00::/8',
+    ]);
+    for (const value of ['loopback', 'proxy.evia.test', '10.0.0.1;rm', '*']) {
+      expect(errorOf({ ...validEnv(), TRUSTED_PROXIES: value }).keys, value).toEqual(['TRUSTED_PROXIES']);
     }
   });
 });

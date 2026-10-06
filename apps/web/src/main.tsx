@@ -1,3 +1,5 @@
+// Must stay the first import: it removes the token of a one-time link from the address before anything else runs (AC5).
+import './activation/capture-fragment.ts';
 import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { App } from './app.tsx';

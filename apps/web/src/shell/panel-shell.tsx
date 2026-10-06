@@ -1,7 +1,9 @@
-import { AppShell, Banner, ClipboardList, WifiOff, type LinkComponent, type NavigationItem } from '@evia/ui-web';
+import type { CurrentSession } from '@evia/contracts';
+import { AccountMenu, AppShell, Banner, ClipboardList, InlineAlert, WifiOff, type LinkComponent, type NavigationItem } from '@evia/ui-web';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
+import { useLogout } from '../session/use-logout.ts';
 import { useOnline } from './use-online.ts';
 
 /** Router link for the UI library (typed paths of the panel). */
@@ -11,11 +13,15 @@ const RouterLink: LinkComponent = ({ href, children, ...rest }) => (
   </Link>
 );
 
-/** Layout of every page: AppShell with the translated navigation and the offline banner (§ 4.10). */
-export function PanelShell() {
+/**
+ * Layout of every page behind the session: AppShell with the translated navigation, the offline banner (§ 4.10) and
+ * the account menu with "Wyloguj" on every screen (EVM-016 AC6).
+ */
+export function PanelShell({ session }: { readonly session: CurrentSession }) {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const online = useOnline();
+  const { logout, failed: logoutFailed } = useLogout();
   const navigation: NavigationItem[] = [
     {
       id: 'work-orders',
@@ -36,8 +42,16 @@ export function PanelShell() {
         closeMenu: t('shell.closeMenu'),
       }}
       banner={online ? undefined : <Banner icon={WifiOff}>{t('shell.offline')}</Banner>}
+      account={
+        <AccountMenu
+          triggerText={session.user.displayName}
+          triggerLabel={t('shell.accountMenu', { name: session.user.displayName })}
+          items={[{ id: 'logout', label: t('shell.logout'), onSelect: logout }]}
+        />
+      }
       linkComponent={RouterLink}
     >
+      {logoutFailed ? <InlineAlert tone="error">{t('shell.logoutError')}</InlineAlert> : null}
       <Outlet />
     </AppShell>
   );

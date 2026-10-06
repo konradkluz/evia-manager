@@ -5,6 +5,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomBytes } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
+import type { EventContext } from '../events/event-bus.ts';
 
 export interface RequestContext {
   readonly traceId: string;
@@ -34,3 +35,10 @@ export function traceIdOf(response: Response): string {
   const traceId: unknown = response.locals['traceId'];
   return typeof traceId === 'string' ? traceId : newTraceId();
 }
+
+/** The explicit context a use case receives from an HTTP request: origin, trace identifier, client address (memory only). */
+export const webEventContext = (request: Request, response: Response): EventContext => ({
+  origin: 'web',
+  traceId: traceIdOf(response),
+  ip: request.ip,
+});

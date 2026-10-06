@@ -23,7 +23,15 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
   it('EVM-008 AC2 the generator input is the bundle of the source specification', () => {
     const bundle = JSON.parse(readFileSync('dist/openapi.json', 'utf8')) as { openapi: string; paths: Record<string, unknown> };
     expect(bundle.openapi).toBe('3.1.0');
-    expect(Object.keys(bundle.paths)).toEqual(['/api/health']);
+    expect(Object.keys(bundle.paths)).toEqual([
+      '/api/health',
+      '/api/v1/auth/activation/check',
+      '/api/v1/auth/activation/password',
+      '/api/v1/auth/session',
+      '/api/v1/auth/logout',
+      '/api/v1/account/passkeys/registration-options',
+      '/api/v1/account/passkeys',
+    ]);
   });
 
   it('EVM-008 AC2 response schemas tolerate unknown fields (additive v1, ADR-0004)', () => {

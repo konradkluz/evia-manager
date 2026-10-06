@@ -19,12 +19,12 @@ describe('route policies (EVM-008 AC2, AC4; ADR-0004)', () => {
   it('EVM-008 AC2 routes equal contract operations (every route has an operation and every operation a route)', async () => {
     current = await createTestApp();
     const routes = current.app.get(RoutePolicyCheck).routes();
-    expect(routes.map(({ operationId, method, path }) => ({ operationId, method, path }))).toEqual(
-      Object.entries(AUTHZ_MANIFEST).map(([operationId, operation]) => ({
-        operationId,
-        method: operation.method,
-        path: toRouteTemplate(operation.path),
-      })),
+    const byOperation = (a: { operationId?: string }, b: { operationId?: string }) =>
+      (a.operationId ?? '').localeCompare(b.operationId ?? '');
+    expect(routes.map(({ operationId, method, path }) => ({ operationId, method, path })).sort(byOperation)).toEqual(
+      Object.entries(AUTHZ_MANIFEST)
+        .map(([operationId, operation]) => ({ operationId, method: operation.method, path: toRouteTemplate(operation.path) }))
+        .sort(byOperation),
     );
     expect(routeProblems(routes, AUTHZ_MANIFEST)).toEqual([]);
   });
@@ -37,14 +37,16 @@ describe('route policies (EVM-008 AC2, AC4; ADR-0004)', () => {
       .get(RoutePolicyCheck)
       .routes()
       .map((route) => route.handler);
-    expect(handlers).toEqual(['HealthController.getHealth', 'ProtectedRouteController.list']);
+    expect(handlers).toContain('HealthController.getHealth');
+    expect(handlers).toContain('ProtectedRouteController.list');
+    expect(handlers).not.toContain('ProtectedRouteController.helper');
     expect(() => {
       moduleRef.get(RoutePolicyCheck).onApplicationBootstrap();
     }).toThrow(/ProtectedRouteController\.list/);
   });
 
   it('EVM-008 AC4 route problems name handlers without a policy and handlers borrowing another operation', () => {
-    const manifest = { getHealth: { method: 'get', path: '/api/health', authz: { public: true } } };
+    const manifest = { getHealth: { method: 'get', path: '/api/health', query: [], authz: { public: true as const } } };
     expect(routeProblems([{ handler: 'A.a', method: 'get', path: '/x', operationId: undefined }], manifest)[0]).toContain('A.a');
     expect(routeProblems([{ handler: 'B.b', method: 'get', path: '/x', operationId: 'hasOwnProperty' }], manifest)[0]).toContain('B.b');
     expect(routeProblems([{ handler: 'C.c', method: 'post', path: '/api/health', operationId: 'getHealth' }], manifest)[0]).toContain(

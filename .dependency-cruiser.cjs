@@ -64,6 +64,14 @@ module.exports = {
       to: { path: '^apps/api/src/modules/([^/]+)/', pathNot: ['^apps/api/src/modules/$1/', '^apps/api/src/modules/[^/]+/index\\.ts$'] },
     },
     {
+      name: 'no-module-imports-audit',
+      comment:
+        'Audited modules never import `audit`: the dependency points from audit to the exported events of the publisher, delivered through the platform event bus (ADR-0001 rule 4; EVM-016 W1). Only the composition root registers AuditModule.',
+      severity: 'error',
+      from: { path: '^apps/api/src/modules/(?!audit/)[^/]+/' },
+      to: { path: '^apps/api/src/modules/audit/' },
+    },
+    {
       name: 'api-composition-through-index',
       comment: 'The composition root and platform code reach modules only through modules/<name>/index.ts (ADR-0001).',
       severity: 'error',

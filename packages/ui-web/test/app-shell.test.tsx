@@ -8,13 +8,16 @@ import { axeViolations } from './a11y.ts';
 const LABELS = { skipToContent: 'Przejdź do treści', navigation: 'Główna nawigacja', openMenu: 'Menu', closeMenu: 'Zamknij menu' };
 const NAVIGATION: NavigationItem[] = [{ id: 'work-orders', label: 'Zlecenia', href: '/work-orders', icon: ClipboardList, current: true }];
 
-function shell(props: { banner?: ReactNode; navigation?: NavigationItem[]; linkComponent?: (props: LinkProps) => ReactNode } = {}) {
+function shell(
+  props: { banner?: ReactNode; account?: ReactNode; navigation?: NavigationItem[]; linkComponent?: (props: LinkProps) => ReactNode } = {},
+) {
   return render(
     <AppShell
       brand="EVia Manager"
       labels={LABELS}
       navigation={props.navigation ?? NAVIGATION}
       banner={props.banner}
+      account={props.account}
       linkComponent={props.linkComponent}
     >
       <h1>Zlecenia</h1>
@@ -173,5 +176,14 @@ describe('AppShell — Sidebar, TopBar, skip link and navigation drawer (stylegu
     shell({ banner: <div role="status">Brak połączenia.</div> });
     expect(screen.getByRole('status').textContent).toBe('Brak połączenia.');
     expect(screen.getByRole('status').compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('EVM-016 AC6 the account slot sits at the end of the TopBar and is absent without a session', () => {
+    const { unmount } = shell();
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: 'Konto' })).toBeNull();
+    unmount();
+    shell({ account: <button type="button">Konto</button> });
+    const account = within(screen.getByRole('banner')).getByRole('button', { name: 'Konto' });
+    expect(account.parentElement?.className).toContain('ms-auto');
   });
 });

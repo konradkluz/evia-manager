@@ -21,6 +21,8 @@ export interface AppShellProps {
   readonly labels: AppShellLabels;
   /** E.g. the offline banner (§ 4.10), shown above the content. */
   readonly banner?: ReactNode;
+  /** Account menu at the end of the TopBar (shown once there is a session, E1). */
+  readonly account?: ReactNode;
   readonly linkComponent?: LinkComponent | undefined;
   readonly children: ReactNode;
 }
@@ -30,7 +32,7 @@ export interface AppShellProps {
  * breakpoint.medium, hidden below) → TopBar (size.app-bar.height.web, without search and account before E1; "Menu"
  * opening the drawer below breakpoint.medium) → banner → main (grid margins per breakpoint).
  */
-export function AppShell({ brand, navigation, labels, banner, linkComponent = PlainLink, children }: AppShellProps) {
+export function AppShell({ brand, navigation, labels, banner, account, linkComponent = PlainLink, children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
 
@@ -71,9 +73,10 @@ export function AppShell({ brand, navigation, labels, banner, linkComponent = Pl
             onClick={() => {
               setDrawerOpen(true);
             }}
-            className="medium:hidden"
+            className="shrink-0 medium:hidden"
           />
           <p className="expanded:hidden text-label-lg font-semibold">{brand}</p>
+          {account ? <div className="ms-auto">{account}</div> : null}
         </header>
         {banner}
         <main

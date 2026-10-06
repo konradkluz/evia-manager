@@ -20,6 +20,12 @@ describe('Vitest preset (EVM-006 AC3)', () => {
     });
   });
 
+  it('EVM-016: files measured by another run are excluded in addition to the shared exclusions, never instead of them', () => {
+    const config = coverage({ layer: 'backend', include: ['src/**/*.ts'], exclude: ['src/database-bound/**'] });
+    expect(config.exclude).toEqual([...coverageExclusions(), 'src/database-bound/**']);
+    expect(config.thresholds).toEqual({ lines: 85, branches: 85 });
+  });
+
   it('EVM-006 AC3: an unknown layer is rejected instead of falling back to a lower threshold', () => {
     // @ts-expect-error — the layer is checked at runtime as well
     expect(() => coverage({ layer: 'other', include: ['src/**'] })).toThrow(/layer/);

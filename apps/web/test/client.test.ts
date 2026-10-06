@@ -38,7 +38,16 @@ describe('API client of the panel generated from the contract (EVM-008 AC2)', ()
     await expect(queryClient.query(healthQueryOptions(createApiClient(fetch)))).rejects.toMatchObject({ code: 'service_unavailable' });
   });
 
-  it('EVM-008 AC2 by default the client uses the browser fetch', () => {
-    expect(createApiClient().getConfig().fetch).toBe(globalThis.fetch);
+  it('EVM-008 AC2 by default the client uses the browser fetch, resolved at call time', async () => {
+    const browserFetch = vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify(HEALTH), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    );
+    vi.stubGlobal('fetch', browserFetch);
+    try {
+      await healthQueryOptions(createApiClient()).queryFn?.({ signal: new AbortController().signal } as never);
+      expect(browserFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

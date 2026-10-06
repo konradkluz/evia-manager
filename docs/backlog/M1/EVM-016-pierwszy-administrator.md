@@ -4,7 +4,7 @@ title: Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wy
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
 priority: P0
 owner: backend-developer
 contributors: [web-developer]
@@ -100,19 +100,29 @@ Jako **Konrad (pierwszy Administrator)** chcę **aktywować swoje konto jednoraz
 - Testy: klucze dostępu w E2E — Chromium i Edge (wirtualny uwierzytelniacz), Firefox — testy integracyjne. Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `security-engineer` A1–A7 — pełny tekst w notatce roboczej; ADR nie jest potrzebny, wszystko wynika z ADR-0001/0003/0004/0005).
+- **Kontrakt** (`packages/contracts`): `checkActivationLink`, `setActivationPassword` (publiczne), `getCurrentSession`, `logout`, `getPasskeyRegistrationOptions`, `registerPasskey` pod `/api/v1/auth/*` i `/api/v1/account/passkeys`; ścisła walidacja `x-evia-authz` przy budowie manifestu, lint kanałów (`mobile` zakazane przed E9) i stanu `mfa_enrollment`; kody `activation_link_invalid`, `passkey_verification_failed`, `method_not_allowed`; wyłącznie zmiany addytywne.
+- **Moduły:** `platform` (zegar, dispatcher zdarzeń, limiter per IP, walidacja, potok treści 415/413/405, outbox alertów), `identity` (konta, hasła Argon2id + polityka P2, klucze dostępu, linki, sesje, polecenie na serwerze), `audit` (subskrybuje zdarzenia `identity`; `identity` nie importuje `audit` — reguła dependency-cruiser), `authorization` (stała kolejność kontroli w guardzie, resolver sesji przez fasadę `identity`).
+- **Migracje** (expand): `0002` rola `evia_app` (NOLOGIN), `0003` schemat `audit` append-only (uprawnienia + triggery), `0004` schemat `identity`, `0005` outbox alertów w `platform`.
+- **Link i sesja:** link zużywany atomowo dopiero przy rejestracji klucza (razem z aktywacją, rotacją sesji i audytem); sesja `mfa_enrollment` jest powiązana z linkiem i żyje tylko tak długo, jak on; każde wydanie linku unieważnia wszystkie niezużyte linki i ich sesje.
+- **Testy:** jednostkowe (domena, adaptery, potok HTTP, wirtualny uwierzytelniacz WebAuthn) i integracyjne z PostgreSQL rolą `evia_app` (aktywacja, klucz dostępu, wylogowanie, audyt, polecenie na serwerze także przez prawdziwe okablowanie procesu, macierz ról generowana z kontraktu z IDOR i testem testu).
+- **Panel (W-13, W-03, menu konta):** część `web-developer` — poza tym krokiem; backend dostarcza kontrakt i klienta.
 
 ## Decyzje
-_—_
+- **2026-10-06 (backend-developer; **potwierdzone przez Konrada 2026-10-06**):** `getCurrentSession` jest dozwolone także w stanie `mfa_enrollment` (obok opcji i rejestracji klucza oraz wylogowania). Bez tego odświeżenie ekranu W-03 gubi token CSRF (w pamięci karty) i nie ma jak go odzyskać — AC4 („każde inne żądanie API zwraca `403 mfa_enrollment_required`”) rozumiemy jako „każde żądanie biznesowe”; odczyt sesji nie ujawnia nic, czego użytkownik nie zna. Lista operacji jest w kodzie (`MFA_ENROLLMENT_OPERATIONS`) i w lincie kontraktu.
+- **2026-10-06:** opcje rejestracji klucza są dostępne dla każdej sesji, a sama rejestracja tylko dla sesji `mfa_enrollment` (drugi klucz = EVM-028).
+- **2026-10-06 (zaakceptowane przez Konrada):** asercje AC1, AC2 i AC5 wymagające infrastruktury (brak tokenu w logach Alloy i Caddy oraz w Sentry; alert w kanale alertów) przenosimy do EVM-007 (AC8) i EVM-076 (AC3); w EVM-016 pozostają testy na poziomie procesu API (log procesu, outbox alertów).
+- **2026-10-06:** pokrycie backendu: kod związany z bazą mierzy przebieg integracyjny (próg 85%), reszta — jednostkowy; żaden próg nie jest obniżony (`docs/process/testing-strategy.md` → Progi).
 
 ## Uwagi do rozważenia
-_—_
+- Dług techniczny (ID do nadania): zadanie czyszczące retencję (sesje z pełnym IP 30 dni — P9, wyzwania WebAuthn, linki jednorazowe) przed wydaniem produkcyjnym; Schemathesis na kontrakcie; testy mutacyjne `identity` (od M1 cyklicznie); wygasanie sesji (idle 60 min, absolutne 12 h — EVM-067, do tego czasu bez wydania produkcyjnego).
+- Wymagania dla EVM-007 i EVM-076: Alloy zbiera logi tylko z usług z listy dozwolonych; reguła alertu na polach `alert: "security"` / `alertCode`; Caddy bez `log_credentials` i z filtrem `X-CSRF-Token`; Sentry bez treści żądań `/api/v1/auth/activation/*` i z czyszczeniem fragmentu URL; API łączy się rolą `evia_app` (członek roli, nie właściciel); lista `TRUSTED_PROXIES`.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-016 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook polecenia aktywacji i trybu awaryjnego w `docs/ops/runbooks/`)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-016 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook polecenia aktywacji i trybu awaryjnego w `docs/ops/runbooks/`)
 - [ ] Demo i akceptacja użytkownika (decyzja 3 — klucz dostępu Administratora)
 
 ## Dziennik
@@ -120,3 +130,8 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token linku tylko we fragmencie URL, otwarcie nie zużywa linku, polecenie wypisuje link wyłącznie na TTY (AC1, AC5)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`), brzmienie z makiety W-16 i słownika („Status konta”)
+- 2026-10-06 — start `/deliver` (ścieżka `pelna`, gałąź `feature/EVM-016-pierwszy-administrator`); EVM-008 done na main
+- 2026-10-06 — implementacja backendu (backend-developer): kontrakt, moduły `identity`/`audit`/`authorization`, migracje, polecenie na serwerze z trybem awaryjnym, macierz ról; panel (W-13, W-03, menu konta) — do `web-developer`
+- 2026-10-06 — panel (web-developer): W-13, W-03 (wariant „przed EVM-023”), bramka sesji, menu konta z „Wyloguj”, nowe komponenty biblioteki UI, testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty do przeglądu UX
+- 2026-10-06 — decyzje Konrada: interpretacja AC4 potwierdzona; asercje AC1/AC2/AC5 wymagające infrastruktury przeniesione do EVM-007 (AC8) i EVM-076 (AC3)
+- 2026-10-06 — weryfikacja orkiestratora: gate (natywnie + kontener) zielony, integracja API w kontenerze 0, coverage:diff 1191/1191 linii i 784/807 gałęzi, docs:check 0 błędów; przeglądy: security i UX APPROVE (runda 2), code-reviewer — otwarte punkty były decyzjami (zamknięte decyzjami Konrada); status → in-review

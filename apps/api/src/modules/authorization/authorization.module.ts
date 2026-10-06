@@ -4,7 +4,8 @@
  */
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD, DiscoveryModule } from '@nestjs/core';
-import { PRINCIPAL_RESOLVER } from '../../platform/http/principal.ts';
+import { SESSION_RESOLVER } from '../../platform/http/principal.ts';
+import { IdentityModule } from '../identity/index.ts';
 import { AuthorizationGuard } from './authorization.guard.ts';
 import { CONTRACT_POLICIES, POLICY_SOURCE } from './policy-source.ts';
 import { RoutePolicyCheck } from './route-policies.ts';
@@ -12,13 +13,13 @@ import { SessionPrincipalResolver } from './session-principal-resolver.ts';
 
 @Global()
 @Module({
-  imports: [DiscoveryModule],
+  imports: [DiscoveryModule, IdentityModule],
   providers: [
     { provide: POLICY_SOURCE, useValue: CONTRACT_POLICIES },
-    { provide: PRINCIPAL_RESOLVER, useClass: SessionPrincipalResolver },
+    { provide: SESSION_RESOLVER, useClass: SessionPrincipalResolver },
     { provide: APP_GUARD, useClass: AuthorizationGuard },
     RoutePolicyCheck,
   ],
-  exports: [PRINCIPAL_RESOLVER],
+  exports: [SESSION_RESOLVER, POLICY_SOURCE],
 })
 export class AuthorizationModule {}

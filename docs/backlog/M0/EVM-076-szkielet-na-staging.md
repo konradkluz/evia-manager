@@ -30,6 +30,11 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 - Gdy kończy się wdrożenie
 - Wtedy test dymny E2E z EVM-008 (otwarcie panelu, widoczny pusty stan) przechodzi na staging, a nieudany test blokuje uznanie wdrożenia za udane.
 
+**AC3 — Test dymny aktywacji i konfiguracji (z EVM-016, zaakceptowane przez Konrada 2026-10-06)**
+- Zakładając, że na staging działa polecenie aktywacji z EVM-016
+- Gdy wykonujemy aktywację na staging
+- Wtedy test dymny potwierdza: brak tokenu w logach Caddy i Alloy oraz w Sentry, alert bezpieczeństwa dociera do kanału alertów, API używa roli `evia_app`, a `TRUSTED_PROXIES` zgadza się z proxy.
+
 ## Poza zakresem
 - Logowanie, dane zleceń (M1); zmiany samego staging (EVM-007).
 
@@ -42,3 +47,4 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 
 ## Dziennik
 - 2026-10-05 — utworzono i `ready` po podziale EVM-008 zaakceptowanym przez Konrada (orkiestrator, EVM-075)
+- 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada

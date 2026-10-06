@@ -11,6 +11,7 @@ const baseURL = `http://127.0.0.1:${String(PORT)}`;
 const regular = { testIgnore: /screenshots\.spec\.ts$/ };
 // Screenshots for the UX review (PNG files are ignored by git).
 const uxReviewDir = fileURLToPath(new URL('../../docs/ux/reviews/EVM-008/', import.meta.url));
+const uxReviewDirIdentity = fileURLToPath(new URL('../../docs/ux/reviews/EVM-016/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -25,6 +26,11 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, ...regular },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] }, ...regular },
     ...(process.platform === 'win32' ? [{ name: 'msedge', use: { ...devices['Desktop Edge'], channel: 'msedge' }, ...regular }] : []),
-    { name: 'screenshots', use: { ...devices['Desktop Chrome'] }, testMatch: /screenshots\.spec\.ts$/, metadata: { uxReviewDir } },
+    {
+      name: 'screenshots',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /screenshots\.spec\.ts$/,
+      metadata: { uxReviewDir, uxReviewDirIdentity },
+    },
   ],
 });

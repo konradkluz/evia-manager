@@ -106,8 +106,22 @@ export function syncTree(src, dest) {
 }
 
 /**
- * Copies `<apps|packages|services|tools>/<workspace>/coverage/lcov.info` from the working copy to out, after
- * clearing out (no stale report may survive — W3b).
+ * Reports of a workspace: the unit run and (apps/api, EVM-016) the integration run with PostgreSQL. The integration
+ * report has `SF:` paths relative to the repository root (lcov projectRoot), so it goes to `integration-<workspace>/`
+ * — the same place CI downloads its artifact to (`coverage/backend-tests/integration/`), where diff-coverage reads its
+ * workspace as ".".
+ */
+const COVERAGE_REPORTS = [
+  { from: join('coverage', 'lcov.info'), to: (/** @type {string} */ path) => path },
+  {
+    from: join('coverage', 'integration', 'lcov.info'),
+    to: (/** @type {string} */ _path, /** @type {string} */ workspace) => `integration-${workspace}/lcov.info`,
+  },
+];
+
+/**
+ * Copies `<apps|packages|services|tools>/<workspace>/coverage/lcov.info` and `…/coverage/integration/lcov.info` from the
+ * working copy to out, after clearing out (no stale report may survive — W3b).
  * @param {string} repo
  * @param {string} out
  * @returns {string[]} exported repository paths
@@ -119,13 +133,15 @@ export function exportCoverage(repo, out) {
   for (const dir of WORKSPACE_ROOTS) {
     for (const workspace of entries(join(repo, dir))) {
       if (!workspace.isDirectory()) continue;
-      const report = join(repo, dir, workspace.name, 'coverage', 'lcov.info');
-      if (!stat(report)?.isFile()) continue;
-      const path = relative(repo, report).split(sep).join('/');
-      const target = assertInside(out, join(out, path));
-      mkdirSync(join(target, '..'), { recursive: true });
-      copyFileSync(report, target);
-      exported.push(path);
+      for (const { from, to } of COVERAGE_REPORTS) {
+        const report = join(repo, dir, workspace.name, from);
+        if (!stat(report)?.isFile()) continue;
+        const path = to(relative(repo, report).split(sep).join('/'), workspace.name);
+        const target = assertInside(out, join(out, path));
+        mkdirSync(join(target, '..'), { recursive: true });
+        copyFileSync(report, target);
+        exported.push(path);
+      }
     }
   }
   return exported.sort();

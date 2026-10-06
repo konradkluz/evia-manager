@@ -1,17 +1,27 @@
 /**
  * RFC 9457 problem details (api-guidelines.md → Format błędów; SR-API-01). Fixed English titles per code, a relative
  * `type` (/problems/{code}) until the API domain exists (EVM-007), the trace identifier — never details, values,
- * stack traces or class names.
+ * stack traces or class names. `errors[]` carries only a JSON Pointer and a code per field, never the value.
  */
 import type { Response } from 'express';
 
 export const PROBLEMS = Object.freeze({
   malformed_json: { status: 400, title: 'Malformed request body' },
+  validation_failed: { status: 400, title: 'Request validation failed' },
+  duplicate_parameter: { status: 400, title: 'Duplicate query parameter' },
+  unknown_parameter: { status: 400, title: 'Unknown query parameter' },
+  activation_link_invalid: { status: 400, title: 'Activation link is invalid or expired' },
+  passkey_verification_failed: { status: 400, title: 'Passkey verification failed' },
   unauthenticated: { status: 401, title: 'Authentication required' },
+  session_revoked: { status: 401, title: 'Session revoked' },
   forbidden: { status: 403, title: 'Forbidden' },
+  mfa_enrollment_required: { status: 403, title: 'Multi-factor enrollment required' },
+  csrf_failed: { status: 403, title: 'Cross-site request check failed' },
   not_found: { status: 404, title: 'Not found' },
+  method_not_allowed: { status: 405, title: 'Method not allowed' },
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },
+  rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
 });
@@ -20,14 +30,29 @@ export type ProblemCode = keyof typeof PROBLEMS;
 
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json; charset=utf-8';
 
+export interface FieldError {
+  /** JSON Pointer (RFC 6901) of the offending field. */
+  readonly pointer: string;
+  /** Stable machine code, e.g. `too_short`. */
+  readonly code: string;
+}
+
+export interface ProblemExtras {
+  readonly errors?: readonly FieldError[];
+  /** Sent as the Retry-After header (429, 503). */
+  readonly retryAfterSeconds?: number;
+}
+
 /** Thrown by handlers and guards to answer with a problem of the given code. */
 export class ProblemException extends Error {
   readonly code: ProblemCode;
+  readonly extras: ProblemExtras;
 
-  constructor(code: ProblemCode) {
+  constructor(code: ProblemCode, extras: ProblemExtras = {}) {
     super(code);
     this.name = 'ProblemException';
     this.code = code;
+    this.extras = extras;
   }
 }
 
@@ -37,14 +62,16 @@ export interface ProblemBody {
   readonly status: number;
   readonly code: ProblemCode;
   readonly traceId: string;
+  readonly errors?: readonly FieldError[];
 }
 
-export function problemBody(code: ProblemCode, traceId: string): ProblemBody {
+export function problemBody(code: ProblemCode, traceId: string, errors?: readonly FieldError[]): ProblemBody {
   const { status, title } = PROBLEMS[code];
-  return { type: `/problems/${code}`, title, status, code, traceId };
+  return { type: `/problems/${code}`, title, status, code, traceId, ...(errors === undefined ? {} : { errors }) };
 }
 
-export function sendProblem(response: Response, code: ProblemCode, traceId: string): void {
-  const body = problemBody(code, traceId);
+export function sendProblem(response: Response, code: ProblemCode, traceId: string, extras: ProblemExtras = {}): void {
+  const body = problemBody(code, traceId, extras.errors);
+  if (extras.retryAfterSeconds !== undefined) response.set('Retry-After', String(extras.retryAfterSeconds));
   response.status(body.status).set('Content-Type', PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
 }

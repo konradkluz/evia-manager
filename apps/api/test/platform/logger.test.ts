@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createLogger, isSensitiveKey, REDACTED, redactSensitive, scrubValues, serializeError } from '../../src/platform/logging/logger.ts';
+import {
+  createLogger,
+  isSensitiveKey,
+  MAX_SCRUBBED_LENGTH,
+  REDACTED,
+  redactSensitive,
+  scrubValues,
+  serializeError,
+} from '../../src/platform/logging/logger.ts';
 import { LogCapture } from '../support/app.ts';
 
 /** Synthetic values that must never reach the log output (ADR-0013 list). */
@@ -161,5 +169,62 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     expect(destination.entries[0]).toHaveProperty('time');
     expect(destination.entries[0]).not.toHaveProperty('hostname');
     expect(destination.entries[0]).not.toHaveProperty('pid');
+  });
+
+  it('EVM-016 AC1 WebAuthn ceremony data, CSRF and activation tokens are redacted by key (SR-LOG-02)', () => {
+    const { logger, destination } = capture();
+    logger.info({
+      challenge: 'fake-challenge',
+      clientDataJSON: 'fake-client-data',
+      attestationObject: 'fake-attestation',
+      csrfToken: 'fake-csrf',
+      'X-CSRF-Token': 'fake-csrf-header',
+      activationToken: 'fake-activation',
+      nested: { assertion: 'fake-assertion' },
+    });
+    expect(destination.text).not.toMatch(/fake-/);
+    for (const key of ['challenge', 'clientDataJSON', 'attestationObject', 'csrfToken', 'X-CSRF-Token', 'activationToken']) {
+      expect(isSensitiveKey(key), key).toBe(true);
+    }
+    expect(isSensitiveKey('traceId')).toBe(false);
+  });
+
+  it('EVM-016 AC5 a URL fragment that looks like a one-time token is scrubbed from error messages (SR-LOG-02)', () => {
+    const token = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
+    const message = scrubValues(`failed to load https://panel.evia.test/activate#${token} twice`);
+    expect(message).not.toContain(token);
+    expect(message).toContain(`#${REDACTED}`);
+    expect(scrubValues('anchor #short-one stays')).toBe('anchor #short-one stays');
+  });
+
+  it('EVM-016 AC4 attacker-controlled text of any length is scrubbed in linear time and truncated (CWE-1333, SR-LOG-02)', () => {
+    const hostile = [
+      'a'.repeat(1_000_000),
+      `${'1 '.repeat(500_000)}x`,
+      '"'.repeat(500_000),
+      `${'a.'.repeat(500_000)}@`,
+      `${'9'.repeat(1_000_000)}z`,
+    ];
+    for (const text of hostile) {
+      const started = performance.now();
+      const scrubbed = scrubValues(text);
+      expect(performance.now() - started, text.slice(0, 8)).toBeLessThan(250);
+      // bounded by the truncation (quoted text grows when replaced pair by pair, never with the input length)
+      expect(scrubbed.length).toBeLessThan(MAX_SCRUBBED_LENGTH * 8);
+    }
+    const error = Object.assign(new Error(`origin mismatch ${'x'.repeat(500_000)}`), {
+      stack: `Error: boom
+    at ${'y'.repeat(500_000)}`,
+    });
+    const started = performance.now();
+    const serialized = serializeError(error);
+    expect(performance.now() - started).toBeLessThan(250);
+    expect(serialized.message.length).toBeLessThan(MAX_SCRUBBED_LENGTH + 40);
+    expect((serialized.stack ?? '').length).toBeLessThan(9000);
+  });
+
+  it('EVM-016 AC4 an e-mail address in a long message is still redacted after truncation and a long local part is covered', () => {
+    expect(scrubValues(`${'z'.repeat(100)}@example.invalid failed`)).toBe(`${REDACTED} failed`);
+    expect(scrubValues('mail jan.przykladowy@example.invalid sent')).toBe(`mail ${REDACTED} sent`);
   });
 });

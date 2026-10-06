@@ -16,12 +16,17 @@ import { NestLoggerAdapter } from '../../src/platform/logging/nest-logger.ts';
 /** A database that refuses connections immediately (nothing listens on port 1) — no DNS, no waiting. */
 export const UNREACHABLE_DATABASE_URL = 'postgres://evia:evia-test@127.0.0.1:1/evia';
 
+/** Synthetic origin of the panel in tests (an HTTPS origin, as in production). */
+export const PANEL_ORIGIN = 'https://panel.evia.test';
+
 export function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     NODE_ENV: 'test',
     DATABASE_URL: UNREACHABLE_DATABASE_URL,
     MIN_SUPPORTED_APP_VERSION_ANDROID: '1.2.0',
     MIN_SUPPORTED_APP_VERSION_IOS: '1.1.0',
+    PANEL_ORIGIN: PANEL_ORIGIN,
+    WEBAUTHN_RP_ID: 'panel.evia.test',
     ...overrides,
   };
 }
@@ -64,7 +69,7 @@ export async function createTestApp({ env = {}, imports = [], configure = (build
   const logs = new LogCapture();
   const logger = createLogger({ level: 'info', destination: logs, mixin: requestContextMixin });
   const moduleRef = await configure(Test.createTestingModule({ imports: [AppModule.register({ config, logger }), ...imports] })).compile();
-  const app = moduleRef.createNestApplication<NestExpressApplication>(createHttpAdapter(), {
+  const app = moduleRef.createNestApplication<NestExpressApplication>(createHttpAdapter(config.trustedProxies), {
     bodyParser: false,
     logger: new NestLoggerAdapter(logger),
   });

@@ -2,8 +2,9 @@ import { zProblem } from '@evia/contracts/zod';
 import request, { type Response } from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RoutePolicyCheck } from '../../src/modules/authorization/index.ts';
-import { PRINCIPAL_RESOLVER } from '../../src/platform/http/principal.ts';
+import { SESSION_RESOLVER } from '../../src/platform/http/principal.ts';
 import { DATABASE_PROBE } from '../../src/platform/tokens.ts';
+import { principal, resolverOf } from '../support/principals.ts';
 import { createTestApp, type TestApp } from '../support/app.ts';
 import { FailingRouteModule, RouteWithoutPolicyModule } from '../support/test-routes.ts';
 
@@ -31,8 +32,8 @@ const withSyntheticPrincipal = () =>
   createTestApp({
     configure: (builder) =>
       builder
-        .overrideProvider(PRINCIPAL_RESOLVER)
-        .useValue({ resolve: () => ({ userId: 'synthetic-user' }) })
+        .overrideProvider(SESSION_RESOLVER)
+        .useValue(resolverOf({ principal: principal() }))
         .overrideProvider(DATABASE_PROBE)
         .useValue({ ping: () => Promise.resolve() }),
   });
@@ -80,7 +81,7 @@ describe('API security headers (EVM-008 AC4; SR-API-03)', () => {
           request(signedIn)
             .post('/api/v1/work-orders')
             .set('Content-Type', 'application/json')
-            .send(JSON.stringify({ a: 'x'.repeat(110_000) })),
+            .send(JSON.stringify({ a: 'x'.repeat(1_100_000) })),
         413,
       ],
     ];
@@ -129,7 +130,7 @@ describe('problem+json without internals (EVM-008 AC4; SR-API-01, SR-ERR-01)', (
     const tooLarge = await request(server)
       .post('/api/v1/work-orders')
       .set('Content-Type', 'application/json')
-      .send(JSON.stringify({ a: 'x'.repeat(110_000) }))
+      .send(JSON.stringify({ a: 'x'.repeat(1_100_000) }))
       .expect(413);
     expect(tooLarge.body).toMatchObject({ code: 'payload_too_large', status: 413 });
   });
@@ -139,11 +140,12 @@ describe('request log (EVM-008 AC4; ADR-0013, SR-LOG-02)', () => {
   it('EVM-008 AC4 request log has method, route template, status, duration and trace id — no query, body or headers', async () => {
     current = await withTestRoutes();
     const server = current.app.getHttpServer();
+    // The contract declares no query parameter for the health operation: the unknown one is answered 400 (SR-INPUT-06).
     const response = await request(server)
       .get('/api/health?email=jan.przykladowy%40example.invalid')
       .set('Authorization', 'Bearer synthetic-token')
-      .expect(200);
-    expect(response.body).toMatchObject({ status: 'ok' });
+      .expect(400);
+    expect(response.body).toMatchObject({ code: 'unknown_parameter' });
     await request(server).post('/api/v1/work-orders').send({ name: 'Klient Przykładowy' }).expect(401);
     const requests = current.logs.entries.filter((entry) => entry['msg'] === 'request completed');
     expect(requests).toEqual([
@@ -151,7 +153,7 @@ describe('request log (EVM-008 AC4; ADR-0013, SR-LOG-02)', () => {
         level: 'info',
         method: 'GET',
         route: '/api/health',
-        status: 200,
+        status: 400,
         traceId: expect.stringMatching(/^[0-9a-f]{32}$/) as unknown,
       }),
       expect.objectContaining({ method: 'POST', route: '(unmatched)', status: 401 }),

@@ -1,23 +1,35 @@
-import { createRootRoute, createRoute, createRouter, Navigate, type RouterHistory } from '@tanstack/react-router';
+import { createRootRoute, createRoute, createRouter, Navigate, Outlet, useRouterState, type RouterHistory } from '@tanstack/react-router';
+import { ActivationPage } from './pages/activation-page.tsx';
+import { LoginPage } from './pages/login-page.tsx';
+import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
-import { WORK_ORDERS_PATH } from './paths.ts';
+import { ACTIVATE_PATH, LOGIN_PATH, MFA_SETUP_PATH, PUBLIC_PATHS, WORK_ORDERS_PATH } from './paths.ts';
 import { ErrorState } from './shell/error-state.tsx';
-import { PanelShell } from './shell/panel-shell.tsx';
+import { SessionGate } from './shell/session-gate.tsx';
 
-const rootRoute = createRootRoute({ component: PanelShell });
+/** Public pages (link activation, login) render without a session; everything else sits behind the session gate. */
+function Root() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return PUBLIC_PATHS.includes(pathname) ? <Outlet /> : <SessionGate />;
+}
+
+const rootRoute = createRootRoute({ component: Root });
 
 const ToWorkOrders = () => <Navigate to={WORK_ORDERS_PATH} replace />;
 
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: ToWorkOrders });
 
 const workOrdersRoute = createRoute({ getParentRoute: () => rootRoute, path: WORK_ORDERS_PATH, component: WorkOrdersPage });
+const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
+const mfaSetupRoute = createRoute({ getParentRoute: () => rootRoute, path: MFA_SETUP_PATH, component: MfaSetupPage });
+const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_PATH, component: LoginPage });
 
-const routeTree = rootRoute.addChildren([indexRoute, workOrdersRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, workOrdersRoute, activateRoute, mfaSetupRoute, loginRoute]);
 
 /**
  * Router of the panel (ADR-0006): `/` → `/work-orders`; an unknown path also lands on the list (no other pages
- * yet); a rendering error of a page shows the error state inside the shell — never the router's default error screen
- * with technical details.
+ * yet) — behind the session gate, so without a session it ends on the login page; a rendering error of a page shows
+ * the error state inside the shell — never the router's default error screen with technical details.
  */
 export function createAppRouter(history?: RouterHistory) {
   return createRouter({

@@ -25,5 +25,15 @@ Pakiet nie ma kroku `build`: aplikacja importuje źródła TypeScript i `styles.
 | `Banner` | § 3.19, § 4.10 | ton ostrzeżenia, ikona + tekst, `role="status"` |
 | `Button` | § 3.1 | primary md: domyślny, hover, wciśnięty, fokus |
 | `IconButton` | § 3.1 | `surface` / `brand` (ciemne tło), nazwa dostępna wymagana, cel ≥ `size.touch-target.min` |
+| `Button` — warianty | § 3.1 | primary / secondary / tertiary, rozmiary md i lg, ikona wiodąca; ładowanie (`loader-circle` zamiast ikony, etykieta zostaje, `aria-busy`, klik zablokowany); wyłączony przez `aria-disabled` (zostaje fokusowalny, klik i wysłanie formularza zablokowane) |
+| `TextField` | § 3.2 | etykieta zawsze widoczna; domyślny, hover, fokus, wyłączony, tylko do odczytu (bez obrysu), błąd (`circle-alert` + tekst, `role="alert"`, zastępuje podpowiedź); wariant hasła z „Pokaż” / „Ukryj” (`reveal`) i wariant e-mail |
+| `InlineAlert` | § 3.19 | ton `error` (`role="alert"`) i `info` (zwykła treść), ikona + tekst, wskaźnik lewy w kolorze tonu, opcjonalna akcja wyjścia |
+| `Card` | § 3.8 | karta informacyjna web (`space.inset.lg`, `radius.card`), region nazwany przez `labelledBy` |
+| `Skeleton` | § 3.16 | linia i pole; dekoracyjny (`aria-hidden`), przejście koloru w cyklu `motion.duration.skeleton`, przy ograniczonym ruchu statyczny |
+| `Toast` | § 3.14 | informacja / sukces na `color.bg.inverse`; strefa `role="status"` zawsze w DOM, zamknięcie `x`, 6 s z pauzą przy najechaniu i fokusie |
+| `AccountMenu` | § 3.17, § 3.20 | menu konta w TopBar: wyzwalacz z `aria-haspopup="menu"`, `aria-expanded`, `aria-controls`; fokus na pierwszej pozycji, strzałki z zawijaniem, Home / End, litera, Enter / Spacja, Esc i Tab zamykają i zwracają fokus, kliknięcie poza menu zamyka |
+| `BlockingState` | § 3.15.1 | pusty stan blokujący całego ekranu (W-03): nazwa produktu, ikona, tytuł `h1` z fokusem, opis, alerty, jedna akcja primary i akcja tertiary w prawym górnym rogu; bez Sidebar i TopBar |
+| `EmptyState` — `titleRef` | § 3.15 | tytuł może przyjąć fokus programowo (po sprawdzeniu linku) |
+| `AppShell` — `account` | § 3.17 | miejsce na menu konta na końcu TopBar (po zalogowaniu) |
 
 Ikony: Lucide (ISC) re-eksportowane z `src/icons.ts` — aplikacja nie importuje `lucide-react` bezpośrednio.

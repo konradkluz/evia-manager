@@ -1,0 +1,37 @@
+# EVM-016 AC8 negative fixture: the mobile channel before E9 (SR-AUTHZ-12).
+openapi: 3.1.0
+info:
+  title: Fixture
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security: []
+tags:
+  - name: platform
+    description: Fixture.
+paths:
+  /api/v1/work-orders:
+    get:
+      operationId: listWorkOrders
+      tags: [platform]
+      summary: Lista
+      description: Lista.
+      x-evia-authz:
+        roles: [administrator]
+        channels: [web, mobile]
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Brak sesji.
+          content:
+            application/problem+json:
+              schema:
+                type: object

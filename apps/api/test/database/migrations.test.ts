@@ -23,13 +23,13 @@ function recordingDb() {
 
 describe('first migration (EVM-008 AC1; ADR-0003)', () => {
   it('EVM-008 AC1 migrations are forward only and start with 0001_foundation', () => {
-    expect(Object.keys(MIGRATIONS)).toEqual(['0001_foundation']);
+    expect(Object.keys(MIGRATIONS)).toEqual(['0001_foundation', '0002_roles', '0003_audit', '0004_identity', '0005_security_alerts']);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });
 
   it('EVM-008 AC1 0001 creates search extensions, a hijack-safe immutable f_unaccent and revokes CREATE on public', async () => {
     const { db, statements } = recordingDb();
-    const { applied } = await migrateToLatest(db, MIGRATIONS);
+    const { applied } = await migrateToLatest(db, { '0001_foundation': MIGRATIONS['0001_foundation'] as never });
     expect(applied).toEqual(['0001_foundation']);
     expect(statements).toEqual(
       expect.arrayContaining([
@@ -61,5 +61,29 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
         },
       }),
     ).rejects.toThrow('migration failed');
+  });
+});
+
+describe('identity and audit migrations (EVM-016 AC7; ADR-0003)', () => {
+  it('EVM-016 AC7 the migrations never touch the database clock, drop data or create default privileges', async () => {
+    const { db, statements } = recordingDb();
+    await migrateToLatest(db, MIGRATIONS);
+    const all = statements.join(' ; ');
+    expect(all).not.toMatch(/\bnow\(\)|current_timestamp|alter default privileges|drop table|drop schema/i);
+    expect(all).toContain('create role evia_app nologin');
+    expect(all).not.toMatch(/create role evia_migrator|\blogin\b/i);
+  });
+
+  it('EVM-016 AC7 audit.events is append-only for evia_app and rejected by triggers for everybody else', async () => {
+    const { db, statements } = recordingDb();
+    await migrateToLatest(db, MIGRATIONS);
+    expect(statements).toEqual(
+      expect.arrayContaining([
+        'grant insert, select on audit.events to evia_app',
+        'create trigger events_reject_row_change before update or delete on audit.events for each row execute function audit.reject_change()',
+        'create trigger events_reject_truncate before truncate on audit.events for each statement execute function audit.reject_change()',
+      ]),
+    );
+    expect(statements.join(' ; ')).not.toMatch(/grant [^;]*(update|delete|truncate|all)[^;]* on audit\./i);
   });
 });

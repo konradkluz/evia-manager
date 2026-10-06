@@ -18,9 +18,23 @@ security: []
 tags:
   - name: platform
     description: Operacje techniczne platformy (zdrowie usługi).
+  - name: identity
+    description: Aktywacja konta, sesja i klucze dostępu (moduł identity).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
+  /api/v1/auth/activation/check:
+    $ref: paths/identity.yaml#/activationCheck
+  /api/v1/auth/activation/password:
+    $ref: paths/identity.yaml#/activationPassword
+  /api/v1/auth/session:
+    $ref: paths/identity.yaml#/session
+  /api/v1/auth/logout:
+    $ref: paths/identity.yaml#/logout
+  /api/v1/account/passkeys/registration-options:
+    $ref: paths/identity.yaml#/passkeyOptions
+  /api/v1/account/passkeys:
+    $ref: paths/identity.yaml#/passkeys
 components:
   schemas:
     Health:
@@ -31,3 +45,19 @@ components:
       $ref: components/common.yaml#/Semver
     Problem:
       $ref: components/problem.yaml#/Problem
+    FieldError:
+      $ref: components/problem.yaml#/FieldError
+    UserRole:
+      $ref: components/identity.yaml#/UserRole
+    Channel:
+      $ref: components/identity.yaml#/Channel
+    SessionState:
+      $ref: components/identity.yaml#/SessionState
+    CsrfToken:
+      $ref: components/identity.yaml#/CsrfToken
+    ActivationToken:
+      $ref: components/identity.yaml#/ActivationToken
+    CurrentSession:
+      $ref: components/identity.yaml#/CurrentSession
+    Passkey:
+      $ref: components/identity.yaml#/Passkey

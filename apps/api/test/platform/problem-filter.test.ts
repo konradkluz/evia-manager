@@ -8,7 +8,7 @@ import { LogCapture } from '../support/app.ts';
 
 function harness(headersSent = false) {
   const logs = new LogCapture();
-  const filter = new ProblemFilter(createLogger({ level: 'info', destination: logs }), { resolve: () => null });
+  const filter = new ProblemFilter(createLogger({ level: 'info', destination: logs }));
   const response = { headersSent, locals: { traceId: 'c'.repeat(32) }, status: vi.fn(), set: vi.fn(), send: vi.fn() };
   response.status.mockReturnValue(response);
   response.set.mockReturnValue(response);

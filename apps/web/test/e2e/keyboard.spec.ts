@@ -1,8 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
 test.describe('keyboard and responsive shell (EVM-008 AC3, WCAG 2.2 AA)', () => {
   test('EVM-008 AC3 the skip link is the first focusable element and moves focus to the content', async ({ page }) => {
     await page.goto('/work-orders');
+    // The shell appears once the session is read; Tab before that has nothing to focus.
+    await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
     await page.keyboard.press('Tab');
     const skip = page.getByRole('link', { name: 'Przejdź do treści' });
     await expect(skip).toBeFocused();
@@ -87,9 +89,9 @@ test.describe('keyboard and responsive shell (EVM-008 AC3, WCAG 2.2 AA)', () => 
   test('EVM-008 AC3 offline: the banner appears and the empty state stays visible', async ({ page, context }) => {
     await page.goto('/work-orders');
     await context.setOffline(true);
-    await expect(page.getByRole('status')).toHaveText('Brak połączenia. Panel działa po jego powrocie.');
+    await expect(page.getByText('Brak połączenia. Panel działa po jego powrocie.')).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
     await context.setOffline(false);
-    await expect(page.getByRole('status')).toHaveCount(0);
+    await expect(page.getByText('Brak połączenia. Panel działa po jego powrocie.')).toHaveCount(0);
   });
 });

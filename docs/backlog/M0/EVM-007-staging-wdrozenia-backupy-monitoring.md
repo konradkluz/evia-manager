@@ -43,6 +43,12 @@ Hosting i region: ADR z EVM-001. Wymagania: `docs/security/README.md` (backupy, 
 **AC7 — Runbooki**
 - Wtedy w `docs/ops/runbooks/` są procedury: wdrożenie, rollback, odtworzenie backupu, rotacja sekretów.
 
+**AC8 — Wymagania z EVM-016 (zaakceptowane przez Konrada 2026-10-06)**
+- Wtedy Alloy zbiera logi tylko z usług z listy dozwolonych, a reguła alertu działa na polach `alert: "security"` / `alertCode` i dostarcza alert do kanału alertów (AC5);
+- Caddy działa bez `log_credentials` i z filtrem nagłówka `X-CSRF-Token`; Sentry nie przechowuje treści żądań `/api/v1/auth/activation/*` i czyści fragment URL;
+- API łączy się rolą `evia_app` (członek roli, nie właściciel), a `TRUSTED_PROXIES` jest ustawione na adresy proxy;
+- test na staging potwierdza brak tokenu aktywacyjnego w logach Alloy i Caddy oraz w zdarzeniach i breadcrumbach Sentry.
+
 ## Poza zakresem
 Środowisko produkcyjne (powstaje przed wydaniem 1.0 w E8, według tych samych skryptów).
 
@@ -77,3 +83,4 @@ _—_
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
+- 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada

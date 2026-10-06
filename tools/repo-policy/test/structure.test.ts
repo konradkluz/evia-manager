@@ -123,8 +123,9 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
         const config = exists(`${workspace}/vitest.config.ts`) ? read(`${workspace}/vitest.config.ts`) : '';
         // Layers and thresholds from testing-strategy.md: backend (apps/api) 85%, web (apps/web) 80%, shared packages
         // (also packages/ui-web) and tools 90%. Web workspaces measure TSX too; apps/web also its security headers.
+        // apps/api: the code that needs PostgreSQL is measured by the integration run instead (coverage.config.ts, EVM-016).
         const expected: Record<string, string> = {
-          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts'] })",
+          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts'], exclude: [...DATABASE_BOUND] })",
           'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
           'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
         };
