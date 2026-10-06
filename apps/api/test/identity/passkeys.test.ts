@@ -54,6 +54,14 @@ describe('registration verification (EVM-016 AC4; SR-AUTH-09, ASVS V6.3.3)', () 
     expect(verified?.transports).toEqual(['internal']);
   });
 
+  it('EVM-016 AC4 a synced credential is recorded as multi-device and backed up, and a browser that reports no transports is fine', async () => {
+    const authenticator = new VirtualAuthenticator();
+    const issued = await options();
+    const response = authenticator.register(issued, { origin: ORIGIN, multiDevice: true, transports: null });
+    const verified = await passkeys.verifyRegistration(response, issued.challenge);
+    expect(verified).toMatchObject({ deviceType: 'multi_device', backedUp: true, transports: [] });
+  });
+
   it.each([
     ['another origin (phishing site)', { origin: 'https://panel.evia.invalid' }],
     ['the origin of a subdomain', { origin: 'https://evil.panel.evia.test' }],

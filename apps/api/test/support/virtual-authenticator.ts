@@ -15,6 +15,10 @@ export interface RegistrationKnobs {
   readonly userPresent?: boolean;
   readonly challenge?: string;
   readonly type?: string;
+  /** A synced (multi-device) credential: backup eligible and backed up. */
+  readonly multiDevice?: boolean;
+  /** `null`: the browser reports no transports. */
+  readonly transports?: readonly string[] | null;
 }
 
 const b64 = (data: Buffer | Uint8Array): string => Buffer.from(data).toString('base64url');
@@ -32,7 +36,11 @@ export class VirtualAuthenticator {
   /** The `navigator.credentials.create()` result for the options, as `PublicKeyCredential.toJSON()` returns it. */
   register(options: PublicKeyCredentialCreationOptionsJSON, knobs: RegistrationKnobs = {}): RegistrationResponseJSON {
     const rpId = knobs.rpId ?? options.rp.id ?? '';
-    const flags = (knobs.userPresent === false ? 0 : 0x01) | (knobs.userVerified === false ? 0 : 0x04) | 0x40;
+    const flags =
+      (knobs.userPresent === false ? 0 : 0x01) |
+      (knobs.userVerified === false ? 0 : 0x04) |
+      0x40 |
+      (knobs.multiDevice === true ? 0x08 | 0x10 : 0);
     const coseKey = Buffer.from(
       isoCBOR.encode(
         new Map<number, number | Uint8Array>([
@@ -79,7 +87,7 @@ export class VirtualAuthenticator {
       response: {
         clientDataJSON: b64(Buffer.from(JSON.stringify(clientData), 'utf8')),
         attestationObject: b64(attestationObject),
-        transports: ['internal'],
+        ...(knobs.transports === null ? {} : { transports: [...(knobs.transports ?? ['internal'])] as Array<'internal'> }),
       },
     };
   }

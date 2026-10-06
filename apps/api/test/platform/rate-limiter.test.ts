@@ -49,4 +49,10 @@ describe('per-IP rate limits (EVM-016 AC4, AC5; SR-API-02, P10)', () => {
     for (const last of [5, 6, 7]) expect(target.consume('anonymous', `192.0.2.${last}`, 1).allowed).toBe(true);
     expect(target.consume('anonymous', '192.0.2.7', 1).allowed).toBe(false);
   });
+
+  it('EVM-016 AC5 a limiter that may track no key at all still answers (nothing to evict, nothing counted across requests)', () => {
+    const { limiter: target } = limiter(0);
+    expect(target.consume('anonymous', '192.0.2.1', 1).allowed).toBe(true);
+    expect(target.consume('anonymous', '192.0.2.1', 1).allowed).toBe(false);
+  });
 });

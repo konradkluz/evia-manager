@@ -30,14 +30,20 @@ const CONTEXT_WORDS = ['evia', 'eviacharge', 'evia charge', 'charge', 'wallbox',
 
 type Fold = (text: string) => string;
 
-const LEET: Readonly<Record<string, string>> = { '0': 'o', '3': 'e', '4': 'a', '5': 's', '@': 'a', $: 's' };
-
 const strip: Fold = (text) => text.replace(/[^a-z0-9]/g, '');
 const lower: Fold = (text) => text.normalize('NFKC').toLowerCase().replaceAll('ł', 'l').normalize('NFD').replace(/\p{M}/gu, '');
+/** `0 o`, `1 i|l`, `3 e`, `4 a`, `5 s`, `@ a`, `$ s` — the substitutions of a password that only looks different. */
 const leet =
   (one: 'i' | 'l'): Fold =>
   (text) =>
-    text.replace(/[01345@$]/g, (character) => (character === '1' ? one : (LEET[character] ?? character)));
+    text
+      .replaceAll('0', 'o')
+      .replaceAll('1', one)
+      .replaceAll('3', 'e')
+      .replaceAll('4', 'a')
+      .replaceAll('5', 's')
+      .replaceAll('@', 'a')
+      .replaceAll('$', 's');
 
 /** The folds a comparison is tried with: plain, and with `1` read as `i` or as `l`. */
 const FOLDS: readonly Fold[] = [(text) => strip(text), (text) => strip(leet('i')(text)), (text) => strip(leet('l')(text))];
@@ -54,7 +60,7 @@ const businessYear = (now: Date): number =>
   Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw', year: 'numeric' }).format(now));
 
 function contextFragments({ email, displayName, now }: PasswordContext): string[] {
-  const localPart = email.split('@')[0] ?? '';
+  const localPart = email.split('@', 1).join('');
   const year = businessYear(now);
   return [...CONTEXT_WORDS, localPart, ...segments(localPart), displayName, ...segments(displayName), String(year), String(year - 1)];
 }

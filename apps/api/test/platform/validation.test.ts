@@ -108,4 +108,10 @@ describe('input validation at the boundary (EVM-016 AC3; SR-INPUT-01, SR-ERR-02)
     expect(errorsOf(schema, { list: [{ id: 'a', extra: 1 }] })?.errors).toEqual([{ pointer: '/list/0/extra', code: 'unknown_field' }]);
     expect(errorsOf(schema, { name: 'x', other: true })?.errors).toEqual([{ pointer: '/other', code: 'unknown_field' }]);
   });
+
+  it('EVM-016 AC4 a request that never went through the session middleware is anonymous (fail closed)', async () => {
+    const { authenticationOf, principalOf, ANONYMOUS } = await import('../../src/platform/http/principal.ts');
+    expect(authenticationOf({} as never)).toBe(ANONYMOUS);
+    expect(principalOf({} as never)).toBeNull();
+  });
 });
