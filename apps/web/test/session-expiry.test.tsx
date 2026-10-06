@@ -4,6 +4,7 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveDraft, readDraft, clearDrafts } from '../src/session/draft-store.ts';
 import { setLoginNotice } from '../src/session/login-flow.ts';
+import { resetServerClock } from '../src/session/server-clock.ts';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, ENROLLMENT_SESSION, createFakeApi, json, problem, SESSION_ROUTE } from './api-fake.ts';
 import { renderPanel } from './render.tsx';
@@ -23,14 +24,22 @@ function sessionIn(idle: number, absolute: number, base: CurrentSession = ACTIVE
 /** A fake server whose session can be swapped while a test runs (the answer of the passive read of the session). */
 function serverWith(session: CurrentSession, overrides: Record<string, () => Response | Promise<Response>> = {}) {
   let current: Response | CurrentSession = session;
+  let skewMs = 0;
   const api = createFakeApi({
-    [SESSION_ROUTE]: () => (current instanceof Response ? current.clone() : json(200, current)),
+    [SESSION_ROUTE]: () =>
+      current instanceof Response
+        ? current.clone()
+        : json(200, current, skewMs === 0 ? {} : { Date: new Date(Date.now() + skewMs).toUTCString() }),
     [LOGOUT_ROUTE]: () => new Response(null, { status: 204 }),
     ...overrides,
   });
   return Object.assign(api, {
     answerSessionWith(next: Response | CurrentSession) {
       current = next;
+    },
+    /** The clock of the server runs this far ahead of the clock of the tab (the `Date` header of the answers). */
+    serverAheadBy(ms: number) {
+      skewMs = ms;
     },
   });
 }
@@ -50,6 +59,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  resetServerClock();
   setLoginNotice(null);
   clearDrafts();
 });
@@ -286,6 +296,40 @@ describe('Expiry in the tab (EVM-067 AC5, AC6; styleguide 4.17; TM-10, SR-WEB-05
       expect(history.location.pathname).toBe('/login');
     });
     expect(await screen.findByText(/^Sesja wygasła\./)).toBeTruthy();
+  });
+
+  it('EVM-067 AC5 after the end a server that still says "alive" does not silence the tab: it asks on every tick until 401', async () => {
+    const api = serverWith(sessionIn(60, 720));
+    const { history } = await renderPanel('/work-orders', api);
+    await pass(58.5);
+    await screen.findByRole('alertdialog');
+    // The end is reached; the server still answers 200 with the same deadlines (a fast local clock).
+    await pass(2);
+    const asked = api.calls(SESSION_ROUTE).length;
+    await pass(0.5);
+    await waitFor(() => {
+      expect(api.calls(SESSION_ROUTE).length).toBeGreaterThan(asked);
+    });
+    expect(history.location.pathname).toBe('/work-orders');
+    api.answerSessionWith(problem(401, 'session_expired'));
+    await pass(0.5);
+    await waitFor(() => {
+      expect(history.location.pathname).toBe('/login');
+    });
+    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(await screen.findByText(/^Sesja wygasła\./)).toBeTruthy();
+  });
+
+  it('EVM-067 AC6 the warning counts from the time of the server (Date header), not from a tab clock that is 5 min behind', async () => {
+    const api = serverWith(sessionIn(60, 720));
+    api.serverAheadBy(5 * MINUTE);
+    await renderPanel('/work-orders', api);
+    // By the clock of the tab the end is 60 min away; by the clock of the server only 55.
+    await pass(52);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await pass(1.5);
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('Sesja wygaśnie za 2 min');
   });
 
   it('EVM-067 AC5 the same at the 12 h limit', async () => {

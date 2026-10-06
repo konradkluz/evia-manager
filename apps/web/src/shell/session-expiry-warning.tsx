@@ -1,10 +1,11 @@
 import { extendSession, type CurrentSession } from '@evia/contracts';
 import { AlertDialog, Button, InlineAlert } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
+import { serverNow } from '../session/server-clock.ts';
 import { SESSION_KEY, sessionQueryOptions } from '../session/session.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { useNow } from './use-now.ts';
@@ -33,7 +34,10 @@ export function SessionExpiryWarning({ session }: { readonly session: CurrentSes
   const queryClient = useQueryClient();
   const online = useOnline();
   const { logout, pending: loggingOut } = useLogout();
-  const now = useNow(TICK_MS);
+  const localNow = useNow(TICK_MS);
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  // The deadlines are the server's: they are compared with the time of the server (the `Date` header of the last read).
+  const now = serverNow(localNow);
 
   const idleMs = Date.parse(session.idleExpiresAt);
   const absoluteMs = Date.parse(session.absoluteExpiresAt);
@@ -59,6 +63,11 @@ export function SessionExpiryWarning({ session }: { readonly session: CurrentSes
       .query({ ...sessionQueryOptions(client), staleTime: 0 })
       .then(() => {
         setConfirmed(key);
+        // The read may have taught the tab a new difference to the clock of the server: draw again with it.
+        refresh();
+        // After the end the server said "still alive" (a clock that runs fast, an extension elsewhere): keep asking on
+        // every tick until it says `401`, so the data never stays on the screen of an expired session.
+        if (stage === 'ended' && asked.current === mark) asked.current = null;
       })
       .catch(() => {
         // `401` is handled by the cache (data cleared, the gate leaves); any other failure is asked again on a later tick.

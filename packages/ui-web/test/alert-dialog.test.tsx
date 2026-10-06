@@ -64,6 +64,24 @@ describe('AlertDialog (styleguide § 3.13, § 4.17; EVM-067 AC6)', () => {
     expect(element.hasAttribute('open')).toBe(true);
     rerender(dialog(false, onDismiss).ui);
     expect(screen.queryByRole('alertdialog')).toBeNull();
+    // Closed, the element stays attached (so `close()` can return the focus) but has no content and is not open.
+    expect(element.isConnected).toBe(true);
+    expect(element.hasAttribute('open')).toBe(false);
+    expect(element.textContent).toBe('');
+  });
+
+  it('EVM-067 AC6 closing closes the dialog on an attached element (the condition for returning the focus)', () => {
+    const { ui } = dialog();
+    const { rerender } = render(ui);
+    const element = screen.getByRole<HTMLDialogElement>('alertdialog');
+    let attachedOnClose: boolean | undefined;
+    const original = element.close.bind(element);
+    element.close = () => {
+      attachedOnClose = element.isConnected;
+      original();
+    };
+    rerender(dialog(false).ui);
+    expect(attachedOnClose).toBe(true);
   });
 
   it('EVM-067 AC6 the actions are reachable and run', async () => {

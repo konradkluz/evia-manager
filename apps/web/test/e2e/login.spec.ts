@@ -312,6 +312,33 @@ test.describe('P-11 Sesja wygasa in the browser (EVM-067 AC5, AC6; styleguide 4.
     expect(api.seen.filter((entry) => entry.url.endsWith('/session/extend'))).toEqual([]);
   });
 
+  for (const exit of ['Przedłuż sesję', 'Escape'] as const) {
+    test(`EVM-067 AC6 focus returns to the field that had it when the dialog closes with ${exit}`, async ({ page, api }) => {
+      await page.clock.install();
+      await page.goto('/work-orders');
+      await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
+      // A field outside the React tree stands for "the person was typing in a form" (WCAG 2.4.3).
+      await page.evaluate(() => {
+        const field = document.createElement('input');
+        field.id = 'probe';
+        field.setAttribute('aria-label', 'Pole próbne');
+        document.body.append(field);
+        field.focus();
+      });
+      await expect(page.getByLabel('Pole próbne')).toBeFocused();
+      await page.clock.fastForward(58.5 * MINUTE);
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      if (exit === 'Escape') await page.keyboard.press('Escape');
+      else {
+        // The mock server runs on the real clock, the tab on the fast-forwarded one: the new deadlines follow the tab.
+        api.clockOffsetMs = 58.5 * MINUTE;
+        await page.getByRole('button', { name: exit }).click();
+      }
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      await expect(page.getByLabel('Pole próbne')).toBeFocused();
+    });
+  }
+
   test('EVM-067 AC6 "Wyloguj" in the dialog ends the session on the server and leaves for W-01', async ({ page, api }) => {
     api.sessionMinutes = { idle: 2.5, absolute: 700 };
     await page.clock.install();
