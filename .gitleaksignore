@@ -1,3 +1,6 @@
 # gitleaks exceptions (bramka 1) — false positives only, one fingerprint per line, each preceded by a comment line:
 # "# reason: <why it is not a secret> · owner: <role> · review_by: YYYY-MM-DD" (at most 90 days ahead).
 # A real secret is never an exception: revoke and rotate it at once (docs/ops/rotacja-sekretow.md).
+
+# reason: synthetic placeholder in a log-redaction test (replaced by 'fake-nine' in a later commit), not a secret · owner: devops-engineer · review_by: 2026-12-05
+db948eecc86005ecc8d36b56614642b63a22b6c3:apps/api/test/platform/logger.test.ts:generic-api-key:26

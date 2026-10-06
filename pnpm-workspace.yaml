@@ -22,6 +22,9 @@ allowBuilds:
   # Testcontainers talks to the local Docker socket, so the native builds are never needed (SR-SUPPLY-06, B11).
   cpu-features: false
   ssh2: false
+  # EVM-008: protobufjs (transitive via dockerode -> testcontainers) has a legacy postinstall that only tries to run
+  # the CLI dependency installer; it is unused here, so the script stays blocked (SR-SUPPLY-06).
+  protobufjs: false
 
 catalog:
   '@types/node': 26.6.3
