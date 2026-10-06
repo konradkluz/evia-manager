@@ -154,6 +154,24 @@ describe('W-13 Ustaw hasło: link check (EVM-016 AC5; flows/11)', () => {
     expect(getActivationToken()).toBeNull();
   });
 
+  it('EVM-016 AC5 a second link opened in the same tab replaces the first: the new check, a fresh form, the old token gone', async () => {
+    const SECOND = 'N'.repeat(43);
+    const { api } = anonymousApi({
+      [CHECK]: (request) => json(200, { email: parseBody(request.body) && EMAIL, role: 'administrator' }),
+    });
+    await openForm(api);
+    await userEvent.type(screen.getByLabelText('Nowe hasło'), 'wpisane');
+    act(() => {
+      openLink(SECOND);
+    });
+    await waitFor(() => {
+      expect(api.calls(CHECK)).toHaveLength(2);
+    });
+    expect(api.calls(CHECK).map((request) => parseBody(request.body))).toEqual([{ token: TOKEN }, { token: SECOND }]);
+    expect(await screen.findByLabelText<HTMLInputElement>('Nowe hasło')).toHaveProperty('value', '');
+    expect(getActivationToken()).toBe(SECOND);
+  });
+
   it('EVM-016 AC5 "Przejdź do logowania" leads to the login page', async () => {
     openLink(null);
     const { history } = await renderPanel('/activate', anonymousApi().api, { heading: false });

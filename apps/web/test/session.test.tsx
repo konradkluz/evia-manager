@@ -9,7 +9,7 @@ const LOGOUT_ROUTE = 'POST /api/v1/auth/logout';
 
 async function openAccountMenu() {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Menu konta: Anna Testowa' }));
+  await user.click(screen.getByRole('button', { name: 'Konto: Anna Testowa' }));
   return user;
 }
 
@@ -56,7 +56,7 @@ describe('session gate (EVM-016 AC4, AC6; SR-AUTH-06)', () => {
 describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
   it('EVM-016 AC6 the account menu is in the TopBar of the panel and offers "Wyloguj"', async () => {
     await renderPanel('/work-orders');
-    const trigger = screen.getByRole('button', { name: 'Menu konta: Anna Testowa' });
+    const trigger = screen.getByRole('button', { name: 'Konto: Anna Testowa' });
     expect(trigger.textContent).toBe('Anna Testowa');
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     await openAccountMenu();
@@ -71,7 +71,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     const { history } = await renderPanel('/work-orders', api);
     expect(api.calls(SESSION_ROUTE)).toHaveLength(1);
     const user = userEvent.setup();
-    screen.getByRole('button', { name: 'Menu konta: Anna Testowa' }).focus();
+    screen.getByRole('button', { name: 'Konto: Anna Testowa' }).focus();
     await user.keyboard('{Enter}');
     await user.keyboard('{Enter}');
     expect(await screen.findByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeTruthy();
@@ -118,6 +118,6 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     await waitFor(() => {
       expect(history.location.pathname).toBe('/work-orders');
     });
-    expect(screen.getByRole('button', { name: 'Menu konta: Anna Testowa' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Konto: Anna Testowa' })).toBeTruthy();
   });
 });

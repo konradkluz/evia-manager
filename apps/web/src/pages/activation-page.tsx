@@ -3,9 +3,9 @@ import { Banner, Button, Card, InlineAlert, Link2Off, EmptyState, Skeleton, Text
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import type { TFunction } from 'i18next';
-import { useEffect, useId, useRef, useState, type SyntheticEvent } from 'react';
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { clearActivationToken, getActivationToken } from '../activation/activation-token.ts';
+import { clearActivationToken, getTokenSnapshot, subscribeToken } from '../activation/activation-token.ts';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
 import { LOGIN_PATH, MFA_SETUP_PATH } from '../paths.ts';
@@ -16,6 +16,8 @@ import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 
 /** Password rules of P2 as the server counts them: Unicode code points after NFC (SR-AUTH-01). */
+/** First element of the key of the link check; the token itself is never part of a key. */
+const LINK_KEY = 'activation-link';
 const MIN_LENGTH = 15;
 const MAX_LENGTH = 256;
 
@@ -112,20 +114,21 @@ export function ActivationPage() {
   const client = useApi();
   const navigate = useNavigate();
   const online = useOnline();
-  const [token] = useState(getActivationToken);
-  const [linkInvalid, setLinkInvalid] = useState(token === null);
+  // The token lives in memory only; a link opened later in this tab changes the generation and starts over.
+  const { token, generation } = useSyncExternalStore(subscribeToken, getTokenSnapshot);
   const session = useSession();
   const check = useQuery({
-    queryKey: ['activation-link'],
     // The token is never part of the key: keys are visible in tools and caches.
+    queryKey: [LINK_KEY, generation],
     queryFn: ({ signal }) => unwrap(checkActivationLink({ client, body: { token: token ?? '' }, signal })),
-    enabled: token !== null && !linkInvalid,
+    enabled: token !== null,
     retry: false,
     staleTime: Infinity,
     gcTime: 0,
   });
   const invalidFromCheck = check.error instanceof ApiError && check.error.status === 400;
-  const showInvalid = linkInvalid || invalidFromCheck;
+  // No token = refresh, used link, or a link dropped after a rejected save: always the one invalid-link state.
+  const showInvalid = token === null || invalidFromCheck;
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (showInvalid) {
@@ -138,35 +141,35 @@ export function ActivationPage() {
   let content;
   if (showInvalid) {
     content = (
-      <EmptyState
-        icon={Link2Off}
-        headingLevel={1}
-        titleRef={titleRef}
-        title={t('activation.invalid.title')}
-        description={t('activation.invalid.description')}
-        action={
-          <Button
-            size="lg"
-            onClick={() => {
-              void navigate({ to: LOGIN_PATH });
-            }}
-          >
-            {t('activation.invalid.action')}
-          </Button>
-        }
-      />
+      <Card>
+        <EmptyState
+          icon={Link2Off}
+          headingLevel={1}
+          titleRef={titleRef}
+          title={t('activation.invalid.title')}
+          description={t('activation.invalid.description')}
+          action={
+            <Button
+              size="lg"
+              onClick={() => {
+                void navigate({ to: LOGIN_PATH });
+              }}
+            >
+              {t('activation.invalid.action')}
+            </Button>
+          }
+        />
+      </Card>
     );
-  } else if (check.data !== undefined && token !== null) {
+  } else if (check.data !== undefined) {
     content = (
       <ActivationForm
+        key={generation}
         token={token}
         email={check.data.email}
         role={check.data.role}
         otherAccount={session.data !== undefined}
         online={online}
-        onInvalid={() => {
-          setLinkInvalid(true);
-        }}
       />
     );
   } else if (check.isError) {
@@ -225,10 +228,9 @@ interface ActivationFormProps {
   readonly role: UserRole;
   readonly otherAccount: boolean;
   readonly online: boolean;
-  readonly onInvalid: () => void;
 }
 
-function ActivationForm({ token, email, role, otherAccount, online, onInvalid }: ActivationFormProps) {
+function ActivationForm({ token, email, role, otherAccount, online }: ActivationFormProps) {
   const { t } = useTranslation();
   const client = useApi();
   const queryClient = useQueryClient();
@@ -246,15 +248,13 @@ function ActivationForm({ token, email, role, otherAccount, online, onInvalid }:
   const submit = useMutation({
     mutationFn: async (value: string) => {
       const result = await unwrap(setActivationPassword({ client, body: { token, password: value } }));
-      // Success: the token and the password leave memory, data of another account is dropped, the new session is read.
-      clearActivationToken();
+      // Success: data of another account is dropped, the new session is read, W-03 opens; only then the token leaves
+      // memory (clearing it earlier would swap this page for the invalid-link state under the user's eyes).
       setCsrfToken(result.csrfToken);
-      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== SESSION_KEY[0] });
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== SESSION_KEY[0] && query.queryKey[0] !== LINK_KEY });
       await queryClient.query({ ...sessionQueryOptions(client), staleTime: 0 }).catch(() => undefined);
-    },
-    onSuccess: () => {
-      setPassword('');
-      void navigate({ to: MFA_SETUP_PATH, replace: true });
+      await navigate({ to: MFA_SETUP_PATH, replace: true });
+      clearActivationToken();
     },
     onError: (error) => {
       const field = error instanceof ApiError ? error.errors.find((entry) => entry.pointer === '/password') : undefined;
@@ -265,7 +265,7 @@ function ActivationForm({ token, email, role, otherAccount, online, onInvalid }:
       } else if (error instanceof ApiError && error.status === 400) {
         // activation_link_invalid, or the token itself was rejected: one state for every invalid link.
         setPassword('');
-        onInvalid();
+        clearActivationToken();
       } else {
         setFailure(describeFailure(error));
       }

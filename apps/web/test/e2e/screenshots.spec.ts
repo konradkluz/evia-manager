@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { expect, test as base } from '@playwright/test';
+import { expect, test as base } from './fixtures.ts';
 
 // Screenshots for the UX review (EVM-008 AC6; styleguide § 7.2 pkt 3) — evidence, not visual assertions (ADR-0015).
 // Target directory from the project metadata (playwright.config.ts → docs/ux/reviews/EVM-008, PNG ignored by git);
@@ -34,6 +34,7 @@ test.describe('UX review screenshots (EVM-008 AC6) @screenshots', () => {
   test('EVM-008 AC6 collapsed sidebar tooltip at 768 px (keyboard focus)', async ({ page, shot }) => {
     await page.setViewportSize({ width: 768, height: 800 });
     await page.goto('/work-orders');
+    await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Zlecenia' })).toBeFocused();
@@ -45,7 +46,7 @@ test.describe('UX review screenshots (EVM-008 AC6) @screenshots', () => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/work-orders');
       await context.setOffline(true);
-      await expect(page.getByRole('status')).toBeVisible();
+      await expect(page.getByText('Brak połączenia. Panel działa po jego powrocie.')).toBeVisible();
       await shot(`shell-${String(width)}-offline`);
     });
   }

@@ -8,6 +8,20 @@ afterEach(() => {
 });
 
 describe('the entry point strips the fragment before the router exists (EVM-016 AC5)', () => {
+  // First on purpose: every import of the capture module adds a listener to the (shared) window.
+  it('EVM-016 AC5 a link opened in the tab that already shows the page (fragment-only navigation) is taken in and stripped too', async () => {
+    await import('../src/activation/capture-fragment.ts');
+    const { getActivationToken } = await import('../src/activation/activation-token.ts');
+    globalThis.history.replaceState(null, '', '/activate');
+    expect(getActivationToken()).toBeNull();
+    globalThis.location.hash = `#${TOKEN}`;
+    await vi.waitFor(() => {
+      expect(globalThis.location.hash).toBe('');
+    });
+    expect(getActivationToken()).toBe(TOKEN);
+    expect(globalThis.location.href).not.toContain(TOKEN);
+  });
+
   it('EVM-016 AC5 importing the capture module alone removes the token from the address and keeps it in memory', async () => {
     globalThis.history.replaceState(null, '', `/activate#${TOKEN}`);
     await import('../src/activation/capture-fragment.ts');

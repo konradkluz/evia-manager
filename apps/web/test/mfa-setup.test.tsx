@@ -109,11 +109,11 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     // The registration answer has no session: the panel reads it, so the token of the new session is in use.
     expect(api.calls(SESSION_ROUTE)).toHaveLength(2);
     expect(screen.getByText('Drugi krok logowania jest skonfigurowany.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Menu konta: Anna Testowa' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Konto: Anna Testowa' })).toBeTruthy();
     expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Dodaj klucz dostępu' })).toBeNull();
     // After the new session, mutations use the rotated token.
-    await userEvent.click(screen.getByRole('button', { name: 'Menu konta: Anna Testowa' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Konto: Anna Testowa' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Wyloguj' }));
     await waitFor(() => {
       expect(api.calls(LOGOUT_ROUTE)[0]?.headers.get('X-CSRF-Token')).toBe('csrf-rotated');

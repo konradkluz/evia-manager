@@ -9,7 +9,31 @@ import { ACTIVATE_PATH } from '../paths.ts';
 /** 256 bits in base64url — the same shape the server and the contract accept. */
 export const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
-let token: string | null = null;
+/** What the page sees: the token (or none) and a generation that changes whenever another link is taken in. */
+export interface TokenSnapshot {
+  readonly token: string | null;
+  readonly generation: number;
+}
+
+let snapshot: TokenSnapshot = { token: null, generation: 0 };
+const listeners = new Set<() => void>();
+
+function publish(token: string | null): void {
+  snapshot = { token, generation: snapshot.generation + 1 };
+  for (const listener of listeners) listener();
+}
+
+/** For `useSyncExternalStore`: the page re-reads the token when a new link is opened in the same tab. */
+export function subscribeToken(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function getTokenSnapshot(): TokenSnapshot {
+  return snapshot;
+}
 
 /**
  * Takes the token out of the fragment. Only the activation page and fragments shaped like a token are touched, so
@@ -23,15 +47,15 @@ export function captureActivationToken(
   if (fragment === '') return;
   const isToken = TOKEN_PATTERN.test(fragment);
   if (location.pathname !== ACTIVATE_PATH && !isToken) return;
-  token = isToken ? fragment : null;
+  publish(isToken ? fragment : null);
   history.replaceState(history.state, '', `${location.pathname}${location.search}`);
 }
 
 export function getActivationToken(): string | null {
-  return token;
+  return snapshot.token;
 }
 
 /** After the password is set or the link turns out invalid the token must not stay in memory. */
 export function clearActivationToken(): void {
-  token = null;
+  if (snapshot.token !== null) publish(null);
 }

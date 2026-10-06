@@ -131,3 +131,4 @@ Backend (ścieżka `pelna`, konsultacje `solution-architect` W1–W12 i `securit
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`), brzmienie z makiety W-16 i słownika („Status konta”)
 - 2026-10-06 — start `/deliver` (ścieżka `pelna`, gałąź `feature/EVM-016-pierwszy-administrator`); EVM-008 done na main
 - 2026-10-06 — implementacja backendu (backend-developer): kontrakt, moduły `identity`/`audit`/`authorization`, migracje, polecenie na serwerze z trybem awaryjnym, macierz ról; panel (W-13, W-03, menu konta) — do `web-developer`
+- 2026-10-06 — panel (web-developer): W-13, W-03 (wariant „przed EVM-023”), bramka sesji, menu konta z „Wyloguj”, nowe komponenty biblioteki UI, testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty do przeglądu UX

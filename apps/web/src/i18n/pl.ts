@@ -16,7 +16,7 @@ export const pl = {
     menu: 'Menu',
     closeMenu: 'Zamknij menu',
     offline: 'Brak połączenia. Panel działa po jego powrocie.',
-    accountMenu: 'Menu konta: {{name}}',
+    accountMenu: 'Konto: {{name}}',
     logout: 'Wyloguj',
     logoutError: 'Nie udało się wylogować. Spróbuj ponownie.',
     closeToast: 'Zamknij powiadomienie',

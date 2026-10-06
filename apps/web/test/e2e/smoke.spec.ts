@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 import { watchPage } from './support.ts';
 
 test.describe('panel smoke (EVM-008 AC5)', () => {

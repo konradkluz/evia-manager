@@ -3,3 +3,8 @@
 import { captureActivationToken } from './activation-token.ts';
 
 captureActivationToken(globalThis.location, globalThis.history);
+
+// A link opened in a tab that already shows the activation page only changes the fragment (no reload): take it in too.
+globalThis.addEventListener('hashchange', () => {
+  captureActivationToken(globalThis.location, globalThis.history);
+});
