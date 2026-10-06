@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ApiError, createApiClient, unwrap } from '../src/api/client.ts';
 import { createQueryClient } from '../src/app.tsx';
 import { getCsrfToken, setCsrfToken } from '../src/session/csrf.ts';
+import { getLoginNotice, setLoginNotice } from '../src/session/login-flow.ts';
 import { SESSION_KEY } from '../src/session/session.ts';
 import { createFakeApi, json, problem } from './api-fake.ts';
 import { logout, getCurrentSession } from '@evia/contracts';
@@ -58,20 +59,25 @@ describe('API client: CSRF header and problem handling (EVM-016 AC4, AC6; SR-SES
     expect(failure).toMatchObject({ status: 0, code: 'network_error' });
   });
 
-  it('EVM-016 AC6 a 401 of any data query clears the whole cache and the CSRF token; the session query itself keeps the cache', async () => {
+  it('EVM-067 AC5 a 401 of any query drops the data and the CSRF token of the tab and reads the session again; a visitor without a session drops nothing', async () => {
     const client: QueryClient = createQueryClient();
     setCsrfToken('csrf-1');
     client.setQueryData(['work-orders'], ['synthetic']);
+    // First read of a visitor without a session: nothing of a session to drop.
     await client
       .query({ queryKey: SESSION_KEY, queryFn: () => Promise.reject(new ApiError(401, undefined)), retry: false })
       .catch(() => undefined);
     expect(client.getQueryData(['work-orders'])).toEqual(['synthetic']);
     expect(getCsrfToken()).toBe('csrf-1');
+    // A data query that is refused: the data goes, the session is read again (the gate then leaves for W-01).
+    client.setQueryData(SESSION_KEY, { synthetic: true });
     await client
       .query({ queryKey: ['other'], queryFn: () => Promise.reject(new ApiError(401, undefined)), retry: false })
       .catch(() => undefined);
-    expect(client.getQueryCache().getAll()).toHaveLength(0);
+    expect(client.getQueryData(['work-orders'])).toBeUndefined();
+    expect(client.getQueryData(['other'])).toBeUndefined();
     expect(getCsrfToken()).toBeNull();
+    expect(client.getQueryState(SESSION_KEY)?.isInvalidated).toBe(true);
     // Other failures (server error, an unrelated exception) leave the session alone.
     setCsrfToken('csrf-2');
     client.setQueryData(['work-orders'], ['synthetic']);
@@ -81,6 +87,32 @@ describe('API client: CSRF header and problem handling (EVM-016 AC4, AC6; SR-SES
     await client.query({ queryKey: ['again-2'], queryFn: () => Promise.reject(new Error('x')), retry: false }).catch(() => undefined);
     expect(client.getQueryData(['work-orders'])).toEqual(['synthetic']);
     expect(getCsrfToken()).toBe('csrf-2');
+  });
+
+  it('EVM-067 AC5 a session that was read and is then refused (expired) drops the other data but keeps its own error for the gate', async () => {
+    const client = createQueryClient();
+    setCsrfToken('csrf-1');
+    client.setQueryData(['work-orders'], ['synthetic']);
+    client.setQueryData(SESSION_KEY, { synthetic: true });
+    await client
+      .query({ queryKey: SESSION_KEY, queryFn: () => Promise.reject(new ApiError(401, undefined)), retry: false, staleTime: 0 })
+      .catch(() => undefined);
+    expect(client.getQueryData(['work-orders'])).toBeUndefined();
+    expect(getCsrfToken()).toBeNull();
+    expect(client.getQueryState(SESSION_KEY)?.status).toBe('error');
+  });
+
+  it('EVM-067 AC5 "session_expired" is noted for W-01, any other 401 is not', async () => {
+    const client = createQueryClient();
+    await client
+      .query({ queryKey: ['a'], queryFn: () => Promise.reject(new ApiError(401, { code: 'unauthenticated' })), retry: false })
+      .catch(() => undefined);
+    expect(getLoginNotice()).toBeNull();
+    await client
+      .query({ queryKey: ['b'], queryFn: () => Promise.reject(new ApiError(401, { code: 'session_expired' })), retry: false })
+      .catch(() => undefined);
+    expect(getLoginNotice()).toBe('expired');
+    setLoginNotice(null);
   });
 
   it('EVM-016 AC6 a 401 of a mutation clears the cache too', async () => {

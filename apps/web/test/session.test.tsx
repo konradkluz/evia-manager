@@ -18,7 +18,7 @@ describe('session gate (EVM-016 AC4, AC6; SR-AUTH-06)', () => {
     const api = createFakeApi({ [SESSION_ROUTE]: () => problem(401, 'unauthenticated') });
     const { history } = await renderPanel('/work-orders', api);
     expect(history.location.pathname).toBe('/login');
-    expect(screen.getByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(screen.queryByRole('navigation')).toBeNull();
     expect(screen.queryByText('Zlecenia')).toBeNull();
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
@@ -74,7 +74,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     screen.getByRole('button', { name: 'Konto: Anna Testowa' }).focus();
     await user.keyboard('{Enter}');
     await user.keyboard('{Enter}');
-    expect(await screen.findByRole('heading', { level: 1, name: 'Logowanie nie jest jeszcze dostępne' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(history.location.pathname).toBe('/login');
     const [request] = api.calls(LOGOUT_ROUTE);
     expect(request?.headers.get('X-CSRF-Token')).toBe('csrf-active');

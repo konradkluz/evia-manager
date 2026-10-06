@@ -2,8 +2,9 @@ import { createRootRoute, createRoute, createRouter, Navigate, Outlet, useRouter
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
+import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
-import { ACTIVATE_PATH, LOGIN_PATH, MFA_SETUP_PATH, PUBLIC_PATHS, WORK_ORDERS_PATH } from './paths.ts';
+import { ACTIVATE_PATH, LOGIN_PATH, LOGIN_SECOND_STEP_PATH, MFA_SETUP_PATH, PUBLIC_PATHS, WORK_ORDERS_PATH } from './paths.ts';
 import { ErrorState } from './shell/error-state.tsx';
 import { SessionGate } from './shell/session-gate.tsx';
 
@@ -22,9 +23,17 @@ const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', com
 const workOrdersRoute = createRoute({ getParentRoute: () => rootRoute, path: WORK_ORDERS_PATH, component: WorkOrdersPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
 const mfaSetupRoute = createRoute({ getParentRoute: () => rootRoute, path: MFA_SETUP_PATH, component: MfaSetupPage });
-const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_PATH, component: LoginPage });
+/** `returnTo` is read as a plain text only; the page resolves it against the origin of the panel (SR-WEB-06). */
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: LOGIN_PATH,
+  component: LoginPage,
+  validateSearch: (search: Record<string, unknown>): { returnTo?: string } =>
+    typeof search['returnTo'] === 'string' ? { returnTo: search['returnTo'] } : {},
+});
+const secondStepRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_SECOND_STEP_PATH, component: SecondStepPage });
 
-const routeTree = rootRoute.addChildren([indexRoute, workOrdersRoute, activateRoute, mfaSetupRoute, loginRoute]);
+const routeTree = rootRoute.addChildren([indexRoute, workOrdersRoute, activateRoute, mfaSetupRoute, loginRoute, secondStepRoute]);
 
 /**
  * Router of the panel (ADR-0006): `/` → `/work-orders`; an unknown path also lands on the list (no other pages

@@ -9,6 +9,7 @@ import { ApiError, createApiClient } from './api/client.ts';
 import { createI18n } from './i18n/i18n.ts';
 import { createAppRouter } from './router.tsx';
 import { setCsrfToken } from './session/csrf.ts';
+import { setLoginNotice } from './session/login-flow.ts';
 import { SESSION_KEY } from './session/session.ts';
 import { ErrorBoundary } from './shell/error-boundary.tsx';
 import { ErrorState } from './shell/error-state.tsx';
@@ -24,26 +25,35 @@ export interface AppProps {
 const isUnauthorized = (error: unknown): boolean => error instanceof ApiError && error.status === 401;
 
 /**
- * Query cache of the panel: no persistence, no devtools (SR-WEB-05). A `401` from anything but the session query means
- * the session is gone — the whole cache and the CSRF token of the tab are cleared (data of the previous session must
- * not stay on a shared computer); the session query is read again by the gate and sends the tab to the login page.
+ * Query cache of the panel: no persistence, no devtools (SR-WEB-05). A `401` means the session is gone (expired, ended
+ * elsewhere) — the data of the session and its CSRF token are dropped from the tab at once (data of the previous session
+ * must not stay on a shared computer; TM-10, styleguide § 4.17), "Sesja wygasła…" is noted for W-01 when the server said
+ * the session expired, and the session is read again, so that the gate sends the tab to W-01 without waiting for a click.
+ * The session query itself keeps its error state (the gate reads it), a drop caused by it only removes the other data;
+ * the very first read of a visitor without a session drops nothing (there is nothing of a session to drop).
  */
 export function createQueryClient(): QueryClient {
-  const dropSession = () => {
+  /** `anonymous`: the failed query is the first read of the session (a visitor without a session) — nothing to drop yet. */
+  const dropSession = (error: unknown, fromSessionQuery: boolean, anonymous = false) => {
+    if (!isUnauthorized(error)) return;
+    if ((error as ApiError).code === 'session_expired') setLoginNotice('expired');
+    if (anonymous) return;
     setCsrfToken(null);
-    queryClient.clear();
+    queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== SESSION_KEY[0] });
+    if (!fromSessionQuery) void queryClient.invalidateQueries({ queryKey: SESSION_KEY });
   };
   const queryClient: QueryClient = new QueryClient({
     // The panel decides itself what offline looks like (banner, retry); a request is never silently paused.
     defaultOptions: { queries: { networkMode: 'always' }, mutations: { networkMode: 'always' } },
     queryCache: new QueryCache({
       onError: (error, query) => {
-        if (isUnauthorized(error) && query.queryKey[0] !== SESSION_KEY[0]) dropSession();
+        const fromSessionQuery = query.queryKey[0] === SESSION_KEY[0];
+        dropSession(error, fromSessionQuery, fromSessionQuery && query.state.data === undefined);
       },
     }),
     mutationCache: new MutationCache({
       onError: (error) => {
-        if (isUnauthorized(error)) dropSession();
+        dropSession(error, false);
       },
     }),
   });
