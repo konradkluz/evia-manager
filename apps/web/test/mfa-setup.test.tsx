@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
@@ -187,6 +187,32 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     const { history } = await renderPanel('/mfa-setup');
     expect(history.location.pathname).toBe('/work-orders');
     expect(screen.queryByRole('button', { name: 'Dodaj klucz dostępu' })).toBeNull();
+  });
+});
+
+describe('W-03 offline (EVM-016 AC4; flows/01, § 4.10)', () => {
+  it('EVM-016 AC4 offline: the banner, the key and logout are unavailable with the reason, back online they work again', async () => {
+    const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    const api = enrollmentApi();
+    await renderPanel('/mfa-setup', api);
+    expect(
+      screen.getByText('Brak połączenia. Dodanie klucza dostępu wymaga połączenia z internetem.').closest('[role="status"]'),
+    ).not.toBeNull();
+    expect(screen.getByText('Dodasz klucz po powrocie połączenia.')).toBeTruthy();
+    const add = screen.getByRole('button', { name: 'Dodaj klucz dostępu' });
+    expect(add.getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Wyloguj' }).getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(add);
+    await userEvent.click(screen.getByRole('button', { name: 'Wyloguj' }));
+    expect(api.requests.map((request) => request.path)).toEqual(['/api/v1/auth/session']);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+    onLine.mockReturnValue(true);
+    act(() => {
+      globalThis.dispatchEvent(new Event('online'));
+    });
+    expect(screen.queryByText('Dodasz klucz po powrocie połączenia.')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }).getAttribute('aria-disabled')).not.toBe('true');
   });
 });
 

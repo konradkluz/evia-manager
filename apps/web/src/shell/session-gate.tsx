@@ -16,7 +16,9 @@ export function SessionGate() {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const session = useSession();
-  if (session.isError) {
+  // A failed refresh in the background keeps the data: the shell stays (the offline banner does its part). Only 401 or
+  // a session that was never read ends the panel.
+  if (session.isError && (session.data === undefined || (session.error instanceof ApiError && session.error.status === 401))) {
     return session.error instanceof ApiError && session.error.status === 401 ? <Navigate to={LOGIN_PATH} replace /> : <ErrorState />;
   }
   if (session.isPending) {

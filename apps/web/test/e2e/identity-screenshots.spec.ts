@@ -62,6 +62,16 @@ test.describe('UX review screenshots (EVM-016) @screenshots', () => {
     });
   }
 
+  test('EVM-016 W-03 offline at 360 px', async ({ page, context, api, shot }) => {
+    api.session = 'enrollment';
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/mfa-setup');
+    await expect(page.getByRole('heading', { level: 1, name: 'Skonfiguruj drugi krok logowania' })).toBeVisible();
+    await context.setOffline(true);
+    await expect(page.getByText('Dodasz klucz po powrocie połączenia.')).toBeVisible();
+    await shot('w03-offline-360');
+  });
+
   test('EVM-016 W-13 offline after the check at 360 px', async ({ page, context, shot }) => {
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto(`/activate#${VALID_TOKEN}`);

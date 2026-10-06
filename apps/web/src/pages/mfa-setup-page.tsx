@@ -1,5 +1,5 @@
 import { getPasskeyRegistrationOptions, registerPasskey } from '@evia/contracts';
-import { BlockingState, Button, InlineAlert, KeyRound } from '@evia/ui-web';
+import { Banner, BlockingState, Button, InlineAlert, KeyRound, WifiOff } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
@@ -8,9 +8,10 @@ import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
 import { createPasskey } from '../passkey/create-passkey.ts';
 import { WORK_ORDERS_PATH } from '../paths.ts';
-import { sessionQueryOptions } from '../session/session.ts';
+import { SESSION_KEY, sessionQueryOptions } from '../session/session.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { useToast } from '../shell/toast-context.tsx';
+import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 
 /**
@@ -25,6 +26,7 @@ export function MfaSetupPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const showToast = useToast();
+  const online = useOnline();
   const { logout, pending: loggingOut, failed: logoutFailed } = useLogout();
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -37,7 +39,10 @@ export function MfaSetupPage() {
       const credential = await createPasskey(options);
       await unwrap(registerPasskey({ client, body: { credential } }));
       // The answer has no session data (contract): read the new `active` session; a failure here is handled by the gate.
-      await queryClient.query({ ...sessionQueryOptions(client), staleTime: 0 }).catch(() => undefined);
+      // The cached `mfa_enrollment` session is outdated then: drop it, so that the gate reports the failure, not W-03.
+      await queryClient
+        .query({ ...sessionQueryOptions(client), staleTime: 0 })
+        .catch(() => queryClient.resetQueries({ queryKey: SESSION_KEY }));
     },
     onSuccess: () => {
       showToast(t('mfa.done'));
@@ -53,7 +58,7 @@ export function MfaSetupPage() {
       description={t('mfa.description')}
       titleRef={titleRef}
       topAction={
-        <Button variant="tertiary" loading={loggingOut} onClick={logout}>
+        <Button variant="tertiary" loading={loggingOut} disabled={!online} onClick={logout}>
           {t('shell.logout')}
         </Button>
       }
@@ -62,6 +67,7 @@ export function MfaSetupPage() {
           size="lg"
           icon={KeyRound}
           loading={register.isPending}
+          disabled={!online}
           onClick={() => {
             register.mutate();
           }}
@@ -70,6 +76,8 @@ export function MfaSetupPage() {
         </Button>
       }
     >
+      {online ? null : <Banner icon={WifiOff}>{t('mfa.offline')}</Banner>}
+      {online ? null : <p className="text-body-sm text-text-tertiary">{t('mfa.offlineHint')}</p>}
       {register.isError ? <InlineAlert tone="error">{t('mfa.failed')}</InlineAlert> : null}
       {logoutFailed ? <InlineAlert tone="error">{t('shell.logoutError')}</InlineAlert> : null}
     </BlockingState>

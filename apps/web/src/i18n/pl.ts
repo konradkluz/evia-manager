@@ -70,6 +70,8 @@ export const pl = {
     add: 'Dodaj klucz dostępu',
     inProgress: 'Postępuj zgodnie z instrukcją systemu.',
     failed: 'Nie udało się dodać klucza dostępu. Spróbuj ponownie.',
+    offline: 'Brak połączenia. Dodanie klucza dostępu wymaga połączenia z internetem.',
+    offlineHint: 'Dodasz klucz po powrocie połączenia.',
     done: 'Drugi krok logowania jest skonfigurowany.',
   },
   workOrders: {
