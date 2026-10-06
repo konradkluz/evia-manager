@@ -40,6 +40,16 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'px-grid-wide-margin',
       'm-0',
       'inset-y-0',
+      'border-w-default',
+      'border-w-strong',
+      'animate-skeleton',
+      'z-dropdown',
+      'z-toast',
+      'focus-visible:focus-ring-inner',
+      'border-s-indicator-error',
+      'max-w-form-max-width',
+      'shadow-dropdown',
+      'text-body-sm',
       // Not tokens — must generate nothing:
       'p-4',
       'text-red-500',
@@ -81,6 +91,15 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('padding-inline: var(--spacing-grid-wide-margin)');
     expect(css).toMatch(/\.m-0 \{\s*margin: 0;/);
     expect(css).toMatch(/\.inset-y-0 \{\s*inset-block: 0;/);
+    expect(css).toMatch(/\.border-w-default \{[^}]*border-width: var\(--evm-border-width-default\)/);
+    expect(css).toMatch(/\.border-w-strong \{[^}]*border-width: var\(--evm-border-width-strong\)/);
+    expect(css).toContain('animation: skeleton var(--evm-motion-duration-skeleton) var(--evm-motion-easing-linear) infinite');
+    expect(css).toMatch(/@keyframes skeleton \{[^}]*background-color: var\(--evm-color-bg-skeleton-highlight\)/);
+    expect(css).toContain('z-index: var(--evm-layer-dropdown)');
+    expect(css).toContain('outline-offset: calc(var(--evm-size-focus-ring-width) * -1)');
+    expect(css).toContain('border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-error-border)');
+    expect(css).toContain('max-width: var(--evm-size-form-max-width)');
+    expect(css).toContain('--tw-shadow: var(--evm-elevation-dropdown)');
     for (const name of ['.p-4', '.text-red-500', '.bg-white', '.w-64', '.shadow-lg', '.md\\:flex']) expect(css, name).not.toContain(name);
   });
 });

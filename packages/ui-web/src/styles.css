@@ -32,6 +32,37 @@
   --color-action-primary-bg-hover: var(--evm-color-action-primary-bg-hover);
   --color-action-primary-bg-pressed: var(--evm-color-action-primary-bg-pressed);
   --color-action-primary-text: var(--evm-color-action-primary-text);
+  --color-text-tertiary: var(--evm-color-text-tertiary);
+  --color-text-disabled: var(--evm-color-text-disabled);
+  --color-text-error: var(--evm-color-text-error);
+  --color-border-default: var(--evm-color-border-default);
+  --color-border-subtle: var(--evm-color-border-subtle);
+  --color-border-strong: var(--evm-color-border-strong);
+  --color-border-strong-hover: var(--evm-color-border-strong-hover);
+  --color-border-selected: var(--evm-color-border-selected);
+  --color-border-error: var(--evm-color-border-error);
+  --color-control-bg: var(--evm-color-control-bg);
+  --color-control-bg-disabled: var(--evm-color-control-bg-disabled);
+  --color-control-border-disabled: var(--evm-color-control-border-disabled);
+  --color-control-placeholder: var(--evm-color-control-placeholder);
+  --color-bg-surface-hover: var(--evm-color-bg-surface-hover);
+  --color-bg-surface-pressed: var(--evm-color-bg-surface-pressed);
+  --color-bg-skeleton: var(--evm-color-bg-skeleton);
+  --color-action-primary-bg-disabled: var(--evm-color-action-primary-bg-disabled);
+  --color-action-primary-text-disabled: var(--evm-color-action-primary-text-disabled);
+  --color-action-secondary-bg-hover: var(--evm-color-action-secondary-bg-hover);
+  --color-action-secondary-bg-pressed: var(--evm-color-action-secondary-bg-pressed);
+  --color-action-secondary-border: var(--evm-color-action-secondary-border);
+  --color-action-secondary-border-disabled: var(--evm-color-action-secondary-border-disabled);
+  --color-action-secondary-text: var(--evm-color-action-secondary-text);
+  --color-action-secondary-text-disabled: var(--evm-color-action-secondary-text-disabled);
+  --color-action-tertiary-text: var(--evm-color-action-tertiary-text);
+  --color-action-tertiary-text-disabled: var(--evm-color-action-tertiary-text-disabled);
+  --color-feedback-error-bg: var(--evm-color-feedback-error-bg);
+  --color-feedback-error-icon: var(--evm-color-feedback-error-icon);
+  --color-feedback-info-bg: var(--evm-color-feedback-info-bg);
+  --color-feedback-info-icon: var(--evm-color-feedback-info-icon);
+  --color-icon-success: var(--evm-color-icon-success);
   --color-action-tertiary-bg-hover: var(--evm-color-action-tertiary-bg-hover);
   --color-action-tertiary-bg-pressed: var(--evm-color-action-tertiary-bg-pressed);
   --color-feedback-warning-bg: var(--evm-color-feedback-warning-bg);
@@ -43,6 +74,7 @@
   --spacing-inset-xs: var(--evm-space-inset-xs);
   --spacing-inset-sm: var(--evm-space-inset-sm);
   --spacing-inset-md: var(--evm-space-inset-md);
+  --spacing-inset-lg: var(--evm-space-inset-lg);
   --spacing-stack-xs: var(--evm-space-stack-xs);
   --spacing-stack-sm: var(--evm-space-stack-sm);
   --spacing-stack-md: var(--evm-space-stack-md);
@@ -50,6 +82,10 @@
   --spacing-stack-2xl: var(--evm-space-stack-2xl);
   --spacing-inline-sm: var(--evm-space-inline-sm);
   --spacing-inline-md: var(--evm-space-inline-md);
+  --spacing-icon-sm: var(--evm-size-icon-sm);
+  --spacing-form-max-width: var(--evm-size-form-max-width);
+  --spacing-toast-max-width: var(--evm-size-toast-max-width);
+  --spacing-control-height-web-lg: var(--evm-size-control-height-web-lg);
   --spacing-icon-md: var(--evm-size-icon-md);
   --spacing-icon-2xl: var(--evm-size-icon-2xl);
   --spacing-touch-target-min: var(--evm-size-touch-target-min);
@@ -60,6 +96,9 @@
   --spacing-border-width-indicator: var(--evm-border-width-indicator);
 
   --radius-control: var(--evm-radius-control);
+  --radius-card: var(--evm-radius-card);
+  --shadow-dropdown: var(--evm-elevation-dropdown);
+  --shadow-toast: var(--evm-elevation-toast);
 
   /* font.weight.semibold has no semantic token of its own: the label weight of the active navigation item (§ 3.17)
      is the semibold weight of text.button (600). */
@@ -71,6 +110,13 @@
   --text-heading-1--line-height: var(--evm-text-heading-1-line-height);
   --text-heading-1--font-weight: var(--evm-text-heading-1-font-weight);
   --text-heading-1--letter-spacing: var(--evm-text-heading-1-letter-spacing);
+  --text-heading-2: var(--evm-text-heading-2-font-size);
+  --text-heading-2--line-height: var(--evm-text-heading-2-line-height);
+  --text-heading-2--font-weight: var(--evm-text-heading-2-font-weight);
+  --text-heading-2--letter-spacing: var(--evm-text-heading-2-letter-spacing);
+  --text-body-sm: var(--evm-text-body-sm-font-size);
+  --text-body-sm--line-height: var(--evm-text-body-sm-line-height);
+  --text-body-sm--font-weight: var(--evm-text-body-sm-font-weight);
   --text-heading-3: var(--evm-text-heading-3-font-size);
   --text-heading-3--line-height: var(--evm-text-heading-3-line-height);
   --text-heading-3--font-weight: var(--evm-text-heading-3-font-weight);
@@ -95,9 +141,55 @@
   outline-offset: var(--evm-size-focus-ring-offset);
 }
 
+/* Inner ring of menu items (§ 3.20): no offset, drawn inside the item. */
+@utility focus-ring-inner {
+  outline: var(--evm-size-focus-ring-width) solid var(--evm-color-focus-ring);
+  outline-offset: calc(var(--evm-size-focus-ring-width) * -1);
+}
+
 @utility focus-ring-inverse {
   outline: var(--evm-size-focus-ring-width) solid var(--evm-color-focus-ring-inverse);
   outline-offset: var(--evm-size-focus-ring-offset);
+}
+
+/* Layers (§ 2.8): menus and toasts above the page. */
+@utility z-dropdown {
+  z-index: var(--evm-layer-dropdown);
+}
+
+@utility z-toast {
+  z-index: var(--evm-layer-toast);
+}
+
+/* Border widths (§ 2.7): Tailwind's own `border` is a literal 1px, so widths come from tokens here. */
+@utility border-w-default {
+  border-style: solid;
+  border-width: var(--evm-border-width-default);
+}
+
+@utility border-w-strong {
+  border-style: solid;
+  border-width: var(--evm-border-width-strong);
+}
+
+/* Leading indicators of Banner and InlineAlert (§ 3.19: border-width.indicator in the colour of the tone). */
+@utility border-s-indicator-error {
+  border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-error-border);
+}
+
+@utility border-s-indicator-info {
+  border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-info-border);
+}
+
+/* Skeleton (§ 3.16): the highlight sweeps by changing colour, one cycle = motion.duration.skeleton, linear. */
+@keyframes skeleton {
+  50% {
+    background-color: var(--evm-color-bg-skeleton-highlight);
+  }
+}
+
+@utility animate-skeleton {
+  animation: skeleton var(--evm-motion-duration-skeleton) var(--evm-motion-easing-linear) infinite;
 }
 
 /* Leading indicator of a Banner (§ 3.19: border-width.indicator in the colour of the tone). */
