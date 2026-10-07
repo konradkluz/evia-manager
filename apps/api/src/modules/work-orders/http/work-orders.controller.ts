@@ -9,6 +9,7 @@ import type { Request } from 'express';
 import { OperationId } from '../../../platform/http/operation-id.ts';
 import { principalOf } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
+import { requestEventContext } from '../../../platform/http/request-context.ts';
 import { ListWorkOrdersService } from '../application/list-work-orders.service.ts';
 
 @Controller()
@@ -24,6 +25,6 @@ export class WorkOrdersController {
   listWorkOrders(@Query() query: unknown, @Req() request: Request): Promise<WorkOrderList> {
     const principal = principalOf(request);
     if (principal === null) throw new ProblemException('unauthenticated');
-    return this.#lists.list(principal, query);
+    return this.#lists.list(principal, query, requestEventContext(request));
   }
 }

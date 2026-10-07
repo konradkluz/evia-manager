@@ -5,6 +5,7 @@
  * The audited modules never import this module (rule `no-module-imports-audit` of the module boundaries check).
  */
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
+import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../platform/bulk-read/bulk-read-event.ts';
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { EventBus } from '../../platform/events/event-bus.ts';
 import { CLOCK, EVENT_BUS } from '../../platform/tokens.ts';
@@ -27,6 +28,11 @@ export class AuditSubscriber implements OnModuleInit {
   onModuleInit(): void {
     for (const type of IDENTITY_EVENT_TYPES) {
       this.#events.subscribe<IdentityEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of BULK_READ_EVENT_TYPES) {
+      this.#events.subscribe<BulkReadEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

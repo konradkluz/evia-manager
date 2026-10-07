@@ -18,6 +18,8 @@ AuditAction:
     - step_up.succeeded
     - step_up.failed
     - audit.read
+    - bulk_read.alerted
+    - bulk_read.rejected
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -25,7 +27,7 @@ AuditOutcome:
 AuditObjectType:
   type: string
   description: Typ obiektu, którego dotyczy zdarzenie.
-  enum: [user, session, passkey, audit]
+  enum: [user, session, passkey, audit, work_order]
 AuditReasonCode:
   type: string
   description: Kod powodu (zamknięta lista, bez wolnego tekstu).

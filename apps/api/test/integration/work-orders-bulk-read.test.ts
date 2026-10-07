@@ -1,3 +1,4 @@
+import { sql } from 'kysely';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemoryBulkReadMeter } from '../../src/platform/bulk-read/bulk-read-meter.ts';
@@ -98,5 +99,41 @@ describe('mass read (EVM-017 AC5; SR-API-02, SR-LOG-06, SR-LOG-07, P10, RR-13)',
     expect((await user.get('?limit=25')).status).toBe(200);
     const anonymous = await request(app.app.getHttpServer()).get(PATH);
     expect(anonymous.status).toBe(401);
+  });
+});
+
+describe('mass read leaves a trace of the person (EVM-017 AC5; SR-LOG-03, SR-LOG-06, RR-13)', () => {
+  const trail = async (userId: string) =>
+    (
+      await sql<{
+        action: string;
+        outcome: string;
+        object_type: string;
+        object_id: string | null;
+        actor_type: string;
+        session_id: string | null;
+        trace_id: string;
+      }>`
+        select action, outcome, object_type, object_id, actor_type, session_id, trace_id from audit.events
+        where actor_user_id = ${userId} and action like 'bulk_read.%' order by occurred_at, id`.execute(app.database.admin)
+    ).rows;
+
+  it('EVM-017 AC5 alert and 429 leave one audit event each, with the actor, the session and the trace — and no filter value', async () => {
+    const user = await newUser();
+    for (let index = 0; index < 3; index += 1) expect((await user.get('?view=all_open&limit=25')).status).toBe(200);
+    expect((await user.get('?view=all_open&limit=25')).status).toBe(429);
+    expect((await user.get('?view=all_open&limit=25')).status).toBe(429);
+    const events = await trail(user.userId);
+    expect(events.map((event) => [event.action, event.outcome])).toEqual([
+      ['bulk_read.alerted', 'success'],
+      ['bulk_read.rejected', 'denied'],
+    ]);
+    for (const event of events) {
+      expect(event).toMatchObject({ actor_type: 'user', object_type: 'work_order', object_id: null });
+      expect(event.session_id).not.toBeNull();
+      expect(event.trace_id).toMatch(/^[0-9a-f]{32}$/);
+    }
+    app.clock.advance(10 * MINUTE);
+    expect((await user.get('?view=all_open&limit=25')).status).toBe(200);
   });
 });

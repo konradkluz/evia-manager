@@ -49,8 +49,8 @@ describe('mass-read meter (EVM-017 AC5; SR-API-02, P10, RR-13)', () => {
     clock.advance(MINUTE);
     meter.record(user, 4000); // 10 000 in the window
     clock.advance(30_000); // 10:01:30
-    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 510, alert: false }); // minute 0 leaves at 10:10:00
-    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 510, alert: false });
+    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 510, alert: false, firstRejection: true }); // minute 0 leaves at 10:10:00
+    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 510, alert: false, firstRejection: false });
     clock.advance(510_000 - 1000);
     expect(meter.check(user)).toMatchObject({ allowed: false, retryAfterSeconds: 1 });
     clock.advance(1000);
@@ -65,7 +65,7 @@ describe('mass-read meter (EVM-017 AC5; SR-API-02, P10, RR-13)', () => {
     clock.advance(MINUTE);
     meter.record(user, 40); // minute 2: 120 in the window; once minute 0 leaves, 80 remain, below the limit
     clock.advance(MINUTE - 1);
-    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 7 * 60 + 1, alert: false }); // minute 0 leaves after 7 min 0.001 s
+    expect(meter.check(user)).toEqual({ allowed: false, retryAfterSeconds: 7 * 60 + 1, alert: false, firstRejection: true }); // minute 0 leaves after 7 min 0.001 s
   });
 
   it('EVM-017 AC5 the window slides: records older than 10 minutes do not count', () => {

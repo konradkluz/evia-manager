@@ -21,10 +21,10 @@ export interface BulkReadLimits {
 /** P10: an alert at 2000 records in 10 minutes, a block at 10 000. */
 export const BULK_READ_LIMITS: BulkReadLimits = Object.freeze({ alertAt: 2000, blockAt: 10_000 });
 
-/** `alert` is true once per window and user: the caller emits the security alert. */
+/** `alert` is true once per window and user: the caller emits the security alert. `firstRejection` is true once per window and user too. */
 export type BulkReadDecision =
   | { readonly allowed: true; readonly alert: boolean }
-  | { readonly allowed: false; readonly retryAfterSeconds: number; readonly alert: false };
+  | { readonly allowed: false; readonly retryAfterSeconds: number; readonly alert: false; readonly firstRejection: boolean };
 
 export interface BulkReadMeter {
   /** Asks, before the query, whether the user may read now. */
@@ -41,6 +41,7 @@ const WINDOW_MS = BULK_READ_WINDOW_MINUTES * MINUTE_MS;
 interface UserWindow {
   readonly buckets: Map<number, number>;
   alertedAt: number;
+  rejectedAt: number;
 }
 
 export class InMemoryBulkReadMeter implements BulkReadMeter {
@@ -62,7 +63,9 @@ export class InMemoryBulkReadMeter implements BulkReadMeter {
     const live = liveBuckets(window, now);
     const sum = live.reduce((total, [, count]) => total + count, 0);
     if (sum >= this.#limits.blockAt) {
-      return { allowed: false, retryAfterSeconds: retryAfter(live, sum, this.#limits.blockAt, now), alert: false };
+      const firstRejection = now - window.rejectedAt >= WINDOW_MS;
+      if (firstRejection) window.rejectedAt = now;
+      return { allowed: false, retryAfterSeconds: retryAfter(live, sum, this.#limits.blockAt, now), alert: false, firstRejection };
     }
     if (sum >= this.#limits.alertAt && now - window.alertedAt >= WINDOW_MS) {
       window.alertedAt = now;
@@ -81,14 +84,15 @@ export class InMemoryBulkReadMeter implements BulkReadMeter {
 
   #open(userId: string, now: number): UserWindow {
     if (this.#users.size >= this.#maxUsers) this.#makeRoom(now);
-    const window: UserWindow = { buckets: new Map(), alertedAt: Number.NEGATIVE_INFINITY };
+    const window: UserWindow = { buckets: new Map(), alertedAt: Number.NEGATIVE_INFINITY, rejectedAt: Number.NEGATIVE_INFINITY };
     this.#users.set(userId, window);
     return window;
   }
 
   #makeRoom(now: number): void {
     for (const [userId, window] of this.#users) {
-      if (liveBuckets(window, now).length === 0 && now - window.alertedAt >= WINDOW_MS) this.#users.delete(userId);
+      if (liveBuckets(window, now).length === 0 && now - window.alertedAt >= WINDOW_MS && now - window.rejectedAt >= WINDOW_MS)
+        this.#users.delete(userId);
     }
     if (this.#users.size >= this.#maxUsers) {
       const oldest = this.#users.keys().next();

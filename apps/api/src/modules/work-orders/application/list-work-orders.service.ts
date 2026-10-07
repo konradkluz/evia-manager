@@ -14,6 +14,7 @@ import type { Kysely } from 'kysely';
 import type { BulkReadControl } from '../../../platform/bulk-read/bulk-read-control.ts';
 import { scopeOf, type CursorCodec } from '../../../platform/crypto/opaque-cursor.ts';
 import type { Database } from '../../../platform/database/database.ts';
+import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput } from '../../../platform/http/validation.ts';
@@ -52,11 +53,11 @@ export class ListWorkOrdersService {
   }
 
   /** @param rawQuery the query string as parsed by the framework (strings only) */
-  async list(principal: Principal, rawQuery: unknown): Promise<WorkOrderList> {
+  async list(principal: Principal, rawQuery: unknown, context: EventContext): Promise<WorkOrderList> {
     const query = parseInput(resolveWorkOrderListQuery, rawQuery);
     const scope = scopeOf(filterPartsOf(query));
     const position = this.#positionOf(query, principal, scope);
-    this.#bulkRead.before(principal.userId);
+    await this.#bulkRead.before(principal.userId, { ...context, sessionId: principal.sessionId });
 
     const rows = await readWorkOrderPage(this.#db, principal, query, position);
     const shown = rows.slice(0, query.limit);

@@ -65,8 +65,11 @@ export class PlatformModule {
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
         {
           provide: BULK_READ_CONTROL,
-          inject: [BULK_READ_METER, LOGGER, METRICS],
-          useFactory: (meter: BulkReadMeter, logger: Logger, metrics: MetricsRegistry) => new BulkReadControl(meter, logger, metrics),
+          inject: [BULK_READ_METER, LOGGER, METRICS, DATABASE, EVENT_BUS],
+          useFactory: (meter: BulkReadMeter, logger: Logger, metrics: MetricsRegistry, db: Kysely<Database>, events: EventBus) =>
+            new BulkReadControl(meter, logger, metrics, (event, context) =>
+              db.transaction().execute((transaction) => events.publish(transaction, event, context)),
+            ),
         },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },
       ],
