@@ -4,7 +4,7 @@ title: Klient w nowym zleceniu — wyszukiwanie i dodanie
 type: story
 milestone: M1
 epic: E2 Klienci
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -120,3 +120,4 @@ _—_
 - 2026-10-07 — SR-DATA-01 potwierdzone (security-engineer): klasyfikacja `Customer` i `IdempotencyRecord` w `domain-model.md`, inwentaryzacja i retencja w `rodo.md`; SR-API-05 w `requirements.md`, wpis EVM-020 w `threat-model.md` (bez nowych RR)
 - 2026-10-07 — bramki i przeglądy zaliczone (QA pass; runda 1: security i ux — changes, runda 2: approve; code-reviewer approve); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,5% / gałęzie 94,7%; → in-review
 - 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,44 mln tokenów subagentów, 15 agentów, 478 wywołań narzędzi, 2 rundy, ok. 91 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-07 — zaakceptowane przez Konrada, scalone do main (PR #27) → done
