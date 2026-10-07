@@ -4,7 +4,7 @@ title: Lista zleceń — widok podstawowy
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 path: pelna
 priority: P1
 owner: backend-developer
@@ -101,11 +101,18 @@ _—_
 ## Uwagi do rozważenia
 _—_
 
+## Notatki
+- Limit masowego odczytu (P10) sprawdza licznik przed zapytaniem — równoległe żądania mogą chwilowo przekroczyć próg (ryzyko szczątkowe; poprawka: rezerwacja `limit` w `before`).
+- `created_at` bez wymuszonej precyzji ms w bazie — dodać CHECK przed EVM-020/022 (keyset AC3).
+- `CURSOR_KEY` wymagany także przez `db:migrate`; przekazać devops przed wdrożeniem. Kursor audytu (EVM-029) jest jawny base64 — do backlogu.
+- Kopia offline listy bez klucza filtrów; wiersz prowadzi do trasy szczegółów, która powstaje w EVM-018 (do tego czasu wraca na listę).
+- E2E W-10 na mock-api; ścieżka na żywym API przy EVM-020.
+
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-017 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-017 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -115,3 +122,5 @@ _—_
 - 2026-10-07 — plan gotowy (backend-developer)
 - 2026-10-07 — backend gotowy (backend-developer): kontrakt `listWorkOrders`, migracja `0010`, moduł `work-orders`, kursor i licznik masowego odczytu; testy integracyjne zielone w kontenerze; do zrobienia: panel W-10 (web-developer)
 - 2026-10-07 — panel W-10 gotowy (web-developer): lista, filtry, kursor, stany, `StatusBadge` i wiersz-link w `ui-web`, testy komponentów i E2E, zrzuty w `docs/ux/reviews/EVM-017/`; do przeglądu UX: widok kart poniżej 768 px i źródło opcji „Opiekun”
+- 2026-10-07 — bramki i przeglądy zaliczone (QA pass; runda 1: security i ux — changes, runda 2: approve; code-reviewer approve); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,0% / gałęzie 97,4%; → in-review
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,37 mln tokenów subagentów, 14 agentów, 461 wywołań narzędzi, 2 rundy, ok. 89 min; ścieżka pelna; vs baseline: brak danych
