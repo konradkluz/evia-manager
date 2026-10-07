@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe('panel shell and the work orders page (EVM-008 AC3)', () => {
-  it('EVM-008 AC3 shell renders navigation with "Zlecenia" and empty state "Nie masz jeszcze zleceń." without "Nowe zlecenie"', async () => {
+  it('EVM-008 AC3 shell renders navigation with "Zlecenia" and empty state "Nie masz jeszcze zleceń." without an action of its own ("Nowe zlecenie" is in the header, EVM-020)', async () => {
     const { history } = await renderPanel('/work-orders');
     expect(history.location.pathname).toBe('/work-orders');
     const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
@@ -17,7 +17,9 @@ describe('panel shell and the work orders page (EVM-008 AC3)', () => {
     expect(screen.getAllByRole('heading', { level: 1 }).map((heading) => heading.textContent)).toEqual(['Zlecenia']);
     expect(await screen.findByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
     expect(screen.getByText('Zlecenia pojawią się tutaj, gdy zostaną dodane do systemu.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /nowe zlecenie/i })).toBeNull();
+    const emptyState = screen.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' }).closest('section');
+    expect(emptyState?.querySelector('button')).toBeNull();
+    expect(screen.getAllByRole('button', { name: 'Nowe zlecenie' })).toHaveLength(1);
     expect(screen.queryByRole('link', { name: /nowe zlecenie/i })).toBeNull();
     expect(screen.getByRole('link', { name: 'Przejdź do treści' })).toBeTruthy();
     expect(document.title).toBe('Zlecenia · EVia Manager');

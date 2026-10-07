@@ -341,10 +341,13 @@ describe('W-10 mass reading and errors (EVM-017 AC5, AC8)', () => {
 });
 
 describe('W-10 states (EVM-017 AC8)', () => {
-  it('EVM-017 AC8 no orders at all: "Nie masz jeszcze zleceń." without a button and without "Nowe zlecenie"', async () => {
+  it('EVM-017 AC8 no orders at all: "Nie masz jeszcze zleceń." without a button of its own ("Nowe zlecenie" of an Administrator is in the header, EVM-020)', async () => {
     await renderPanel(PATH, listApi(ok([])));
     expect(await screen.findByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /nowe zlecenie|wyczyść filtry/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /wyczyść filtry/i })).toBeNull();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' }).closest('section')?.querySelector('button'),
+    ).toBeNull();
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 

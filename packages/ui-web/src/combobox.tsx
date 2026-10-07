@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode, type Ref } from 'react';
 import { classNames } from './class-names.ts';
 import { ChevronDown } from './icons.ts';
 import { Skeleton } from './skeleton.tsx';
@@ -29,6 +29,8 @@ export interface ComboboxProps {
   readonly announcement?: string;
   readonly hint?: string;
   readonly disabled?: boolean;
+  /** Lets the page move the focus into the field (e.g. after "Zmień klienta"). */
+  readonly inputRef?: Ref<HTMLInputElement>;
 }
 
 /**
@@ -50,6 +52,7 @@ export function Combobox({
   announcement,
   hint,
   disabled = false,
+  inputRef,
 }: ComboboxProps) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -78,6 +81,7 @@ export function Combobox({
       <div className="relative flex items-center">
         <input
           id={id}
+          ref={inputRef}
           type="text"
           role="combobox"
           autoComplete="off"

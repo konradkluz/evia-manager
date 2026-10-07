@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
-import { WORK_ORDERS_PATH } from '../paths.ts';
+import { NEW_WORK_ORDER_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { SESSION_KEY } from '../session/session.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
@@ -68,7 +68,10 @@ export function WorkOrdersPage() {
   const client = useApi();
   const online = useOnline();
   // The state of the session is only read (no observer): logout clears the cache and an observer here would read it again.
-  const sessionState = useQueryClient().getQueryData<CurrentSession>(SESSION_KEY)?.state;
+  const session = useQueryClient().getQueryData<CurrentSession>(SESSION_KEY);
+  const sessionState = session?.state;
+  // Only Administrator and Edytor create work orders (R does not see the button; the server decides — EVM-020 AC7).
+  const canCreate = session?.user.role === 'administrator' || session?.user.role === 'editor';
   const navigate = useNavigate();
   const search: WorkOrderSearch = useSearch({ strict: false });
   // What the address does not carry (coordinator, sort order). A change that also changes the address waits in `pending`
@@ -174,7 +177,21 @@ export function WorkOrdersPage() {
     void query.refetch();
   };
 
-  const title = <h1 className="font-display text-heading-1 text-text-primary">{t('workOrders.title')}</h1>;
+  const heading1 = <h1 className="font-display text-heading-1 text-text-primary">{t('workOrders.title')}</h1>;
+  const title = canCreate ? (
+    <div className="flex flex-wrap items-center justify-between gap-inline-md">
+      {heading1}
+      <Button
+        onClick={() => {
+          void navigate({ to: NEW_WORK_ORDER_PATH });
+        }}
+      >
+        {t('workOrders.create')}
+      </Button>
+    </div>
+  ) : (
+    heading1
+  );
 
   if (view === 'unknown') {
     return (
