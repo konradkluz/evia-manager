@@ -2,8 +2,8 @@
  * The phrase of a customer search (EVM-020 AC1, AC3; SR-API-04, SR-INPUT-03, SR-INPUT-05): NFC once, trimmed, white space
  * collapsed, 3–100 characters. A phrase made only of digits, `+`, spaces, brackets and hyphens (with at least 3 digits) is a
  * TELEPHONE phrase and is reduced to its digits (a `00` prefix cut), so "+48 600 000 001", "600000001" and "600 000 001" meet
- * the digits the search text holds. The phrase is compared with `ILIKE … ESCAPE '\'`: `%`, `_` and `\` are escaped here, so
- * they match literally. The errors name the field and the code — never the phrase (SR-ERR-02).
+ * the digits the search text holds. The phrase is compared with `ILIKE … ESCAPE '\'`: `%`, `_` and `\` are escaped in the SQL,
+ * AFTER the normalisation of the database (which maps full-width look-alikes to them), so they match literally. The errors name the field and the code — never the phrase (SR-ERR-02).
  */
 import type { FieldIssue } from './customer.ts';
 
@@ -28,6 +28,3 @@ export function resolveSearchQuery(raw: string): SearchQueryResult {
   }
   return { ok: true, term: phrase };
 }
-
-/** Escapes the three characters that mean something to `LIKE`, for `ESCAPE '\'`. */
-export const escapeLike = (term: string): string => term.replace(/[\\%_]/g, (character) => `\\${character}`);

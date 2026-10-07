@@ -3,7 +3,7 @@ import { normalizeNewCustomer, type CustomerInput } from '../../src/modules/cust
 import { normalizeEmail } from '../../src/modules/customers/domain/email.ts';
 import { normalizePhone } from '../../src/modules/customers/domain/phone.ts';
 import { plainText } from '../../src/modules/customers/domain/plain-text.ts';
-import { escapeLike, resolveSearchQuery } from '../../src/modules/customers/domain/search-query.ts';
+import { resolveSearchQuery } from '../../src/modules/customers/domain/search-query.ts';
 import { normalizeTaxId } from '../../src/modules/customers/domain/tax-id.ts';
 
 const ID = '0198b0a0-0000-7000-8000-000000000001';
@@ -208,10 +208,5 @@ describe('the search phrase (EVM-020 AC1, AC3; SR-INPUT-03)', () => {
     expect(resolveSearchQuery('001')).toEqual({ ok: true, term: '001' });
     expect(resolveSearchQuery('+ +')).toEqual({ ok: true, term: '+ +' });
     expect(resolveSearchQuery('3M Polska')).toEqual({ ok: true, term: '3M Polska' });
-  });
-
-  it('EVM-020 AC1 % _ and the backslash are escaped for ILIKE ... ESCAPE', () => {
-    expect(escapeLike('50%_off\\x')).toBe('50\\%\\_off\\\\x');
-    expect(escapeLike('jan')).toBe('jan');
   });
 });

@@ -37,16 +37,19 @@ export interface SearchRow {
 }
 
 /**
- * Customers whose search text contains the phrase. The phrase is ESCAPED by the caller (`%`, `_`, `\`) and normalised here by the
- * same function as the column (`f_unaccent(lower(…))`), so "Lodz" meets "Łódź" and nothing in it is a pattern. A hard LIMIT and
+ * Customers whose search text contains the phrase. The phrase is normalised here by the same function as the column
+ * (`f_unaccent(lower(…))`), so "Lodz" meets "Łódź", and ESCAPED AFTER that (`%`, `_`, `\`): unaccent maps full-width `％＿＼` to the
+ * ASCII pattern characters, so escaping before it would leave a pattern (CWE-180). A hard LIMIT and
  * the statement timeout of the pool bound the cost (TM-22); the order is fixed (`sort_name`, `id` in the ICU collation of the database).
  */
-export function searchVisibleCustomers(db: CustomersDb, principal: Principal, escapedTerm: string, limit: number): Promise<SearchRow[]> {
+export function searchVisibleCustomers(db: CustomersDb, principal: Principal, term: string, limit: number): Promise<SearchRow[]> {
   return db
     .selectFrom('customers.customers')
     .select(['id', 'display_name', 'phone'])
     .where(visibleCustomers(principal))
-    .where(sql<boolean>`search_text ilike '%' || public.f_unaccent(lower(${escapedTerm})) || '%' escape '\\'`)
+    .where(
+      sql<boolean>`search_text ilike '%' || replace(replace(replace(public.f_unaccent(lower(${term})), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' escape '\\'`,
+    )
     .orderBy('sort_name')
     .orderBy('id')
     .limit(limit)

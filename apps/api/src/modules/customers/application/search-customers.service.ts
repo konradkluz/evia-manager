@@ -22,7 +22,7 @@ import { RATE_LIMITER, RATE_LIMITS, type RateLimiter } from '../../../platform/h
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { BULK_READ_CONTROL, DATABASE, METRICS } from '../../../platform/tokens.ts';
-import { escapeLike, resolveSearchQuery } from '../domain/search-query.ts';
+import { resolveSearchQuery } from '../domain/search-query.ts';
 import { searchVisibleCustomers } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 
@@ -62,7 +62,7 @@ export class SearchCustomersService {
     if (!phrase.ok) throw new ProblemException('validation_failed', { errors: phrase.errors });
 
     await this.#bulkRead.before(principal.userId, { ...context, sessionId: principal.sessionId }, 'customer');
-    const rows = await searchVisibleCustomers(customerTables(this.#db), principal, escapeLike(phrase.term), SEARCH_LIMIT);
+    const rows = await searchVisibleCustomers(customerTables(this.#db), principal, phrase.term, SEARCH_LIMIT);
     const result = zCustomerSearchResult.safeParse({
       items: rows.map((row) => ({ id: row.id, displayName: row.display_name, phone: row.phone })),
       nextCursor: null,

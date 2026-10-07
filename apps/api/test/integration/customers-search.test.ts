@@ -131,6 +131,14 @@ describe('search by a phrase (EVM-020 AC1, AC3; SR-API-04, SR-INPUT-03)', () => 
     expect(await found(browser, 'moto\\_bis')).toEqual([]);
   });
 
+  it('EVM-020 AC1 full-width look-alikes of % _ and the backslash (which unaccent maps to ASCII) are literal, never a pattern', async () => {
+    await insertCustomer(current.database.admin, { kind: 'company', companyName: 'Moto_Bis', phone: '+48600000011' });
+    await insertCustomer(current.database.admin, { kind: 'company', companyName: 'MotoXBis', phone: '+48600000012' });
+    const browser = await signIn();
+    for (const phrase of ['％％％', '﹪﹪﹪', '＿＿＿', 'abc＼', 'abc﹨']) expect(await found(browser, phrase), phrase).toEqual([]);
+    expect(names(await found(browser, 'moto＿bis'))).toEqual(['Moto_Bis']);
+  });
+
   it('EVM-020 AC1 a phrase shorter than 3 characters (after NFC and trim) is 400 validation_failed with the code too_short — and the phrase is not in the answer', async () => {
     const browser = await signIn();
     for (const phrase of ['ab', '  ab ', '', '   ']) {
