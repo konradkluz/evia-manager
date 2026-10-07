@@ -4,7 +4,8 @@ title: Klient w nowym zleceniu — wyszukiwanie i dodanie
 type: story
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -93,7 +94,8 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Dług techniczny: sprzątanie wygasłych `idempotency_records` (retencja 30 dni) wymaga zadania z jobem pg-boss — ID zadania do nadania przez product-ownera; do tego czasu odczyt filtruje po `expires_at`, a wygasły rekord jest nadpisywany, więc tabela tylko rośnie (`evia_app` nie ma `DELETE`).
+- Ogólny limit 300 żądań/min/użytkownika (P10) nie jest egzekwowany; tworzenie klientów przez Edytora ogranicza dziś tylko 1200/min/IP — do backlogu, bez wpływu na AC.
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-020 AC#`)
@@ -105,3 +107,5 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-020-customer-in-work-order)
+- 2026-10-07 — API gotowe (backend-developer): kontrakt, moduł `customers`, idempotencja, limit 60/min, migracje 0011–0012; panel W-05 — krok web-developera

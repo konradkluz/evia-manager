@@ -185,8 +185,14 @@ erDiagram
     text contact_person_name
     text phone "E.164"
     text email
-    text postal_address "ulica, nr, kod, miasto (opcjonalnie)"
+    text street "adres korespondencyjny (opcjonalnie; razem z building_number, postal_code, city)"
+    text building_number
+    text apartment_number
+    text postal_code
+    text city
     text notes "pole swobodne"
+    text display_name "generowana"
+    text sort_name "generowana"
     text search_text "generowana"
   }
   Site {
@@ -566,13 +572,13 @@ erDiagram
     timestamptz recorded_at
   }
   IdempotencyRecord {
-    uuid user_id PK
-    uuid device_id PK "web: brak"
-    uuid idempotency_key PK
+    uuid id PK "UUIDv7"
+    uuid user_id
+    uuid device_id "web: brak; unikalność (user_id, device_id, idempotency_key) NULLS NOT DISTINCT"
+    uuid idempotency_key
     text scope "metoda + ścieżka lub komenda"
     text request_hash "SHA-256 treści"
-    text state "in_progress | completed"
-    int result_status
+    int result_status "tylko 2xx"
     text result_code
     uuid result_resource_id
     timestamptz expires_at "30 dni"
@@ -707,7 +713,7 @@ Każda encja: moduł-właściciel, nazwa polska (słownik), kluczowe atrybuty, r
 
 ### `IdempotencyRecord` i `SyncChange`
 - **Moduł:** `platform` (`IdempotencyRecord`), `sync` (`SyncChange`). **Słownik:** rekord idempotencji, zmiana w dzienniku zmian synchronizacji.
-- **Atrybuty:** rekord idempotencji — klucz (`userId`, `deviceId`, `idempotencyKey`), `scope` (metoda + szablon ścieżki albo typ komendy synchronizacji), `requestHash` (SHA-256 treści), `state`, **wynik minimalny** (`resultStatus`, `resultCode`, `resultResourceId`) — nie pełna odpowiedź; `expiresAt` (30 dni). Zmiana — `seq`, `txid` (`xid8`; pozycja w dzienniku i kursor to para (`txid`, `seq`), indeks (`txid`, `seq`) — [zasada 3](offline-sync.md#3-wersjonowanie-i-dziennik-zmian)), `entityType`, `entityId`, `operation` (`upsert` / `delete`), `workOrderId` (pusta dla encji bez kotwicy zlecenia — `Customer`, `Site`, `Charger`, `Party`, dokumenty klienta lub lokalizacji; filtr zakresu ocenia je przy odczycie, [zakres](offline-sync.md#zakres-synchronizacji-urządzenia)), `recordedAt`; retencja 90 dni.
+- **Atrybuty:** rekord idempotencji — klucz (`userId`, `deviceId`, `idempotencyKey` — unikalny razem, `deviceId` puste dla web; klucz główny to osobny `id`), `scope` (metoda + szablon ścieżki albo typ komendy synchronizacji), `requestHash` (SHA-256 treści), **wynik minimalny** (`resultStatus`, `resultCode`, `resultResourceId`) — nie pełna odpowiedź; rekord powstaje w transakcji operacji, tylko dla wyniku `2xx`, stanu „w toku” nie ma (równoległość rozstrzyga blokada doradcza transakcji); `expiresAt` (30 dni). Zmiana — `seq`, `txid` (`xid8`; pozycja w dzienniku i kursor to para (`txid`, `seq`), indeks (`txid`, `seq`) — [zasada 3](offline-sync.md#3-wersjonowanie-i-dziennik-zmian)), `entityType`, `entityId`, `operation` (`upsert` / `delete`), `workOrderId` (pusta dla encji bez kotwicy zlecenia — `Customer`, `Site`, `Charger`, `Party`, dokumenty klienta lub lokalizacji; filtr zakresu ocenia je przy odczycie, [zakres](offline-sync.md#zakres-synchronizacji-urządzenia)), `recordedAt`; retencja 90 dni.
 - **Reguły:** tylko identyfikatory i kody, bez danych osobowych. Szczegóły: [`offline-sync.md`](offline-sync.md).
 
 ## Kompozycja zlecenia z szablonu
