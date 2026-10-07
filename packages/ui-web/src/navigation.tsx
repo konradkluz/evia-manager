@@ -15,6 +15,7 @@ export interface LinkProps {
   readonly href: string;
   readonly className: string;
   readonly 'aria-current'?: 'page';
+  readonly 'aria-label'?: string;
   readonly onClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
   readonly onKeyDown?: (event: KeyboardEvent<HTMLAnchorElement>) => void;
   readonly onBlur?: (event: FocusEvent<HTMLAnchorElement>) => void;

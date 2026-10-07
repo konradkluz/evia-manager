@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react';
 import { classNames } from './class-names.ts';
+import { PlainLink, type LinkComponent } from './navigation.tsx';
 
 export interface DataTableColumn {
   readonly id: string;
   readonly header: string;
   /** Times and numbers use tabular figures (`text.numeric`) so that they line up. */
   readonly numeric?: boolean;
+  /** The column the rows are sorted by (`aria-sort`, § 3.6); the other columns carry no attribute. */
+  readonly sort?: 'ascending' | 'descending';
 }
 
 export interface DataTableRow {
@@ -14,6 +17,11 @@ export interface DataTableRow {
   readonly cells: readonly ReactNode[];
   /** Accessible name of the row (e.g. the full time and the outcome in words) — § 3.6. */
   readonly label?: string;
+  /**
+   * The whole row leads to the details (§ 3.6): the first cell holds the link (named by `label`) and its target covers
+   * the row; the focus ring is drawn around the row.
+   */
+  readonly href?: string;
 }
 
 export interface DataTableProps {
@@ -21,6 +29,8 @@ export interface DataTableProps {
   readonly caption: string;
   readonly columns: readonly DataTableColumn[];
   readonly rows: readonly DataTableRow[];
+  /** Router link for the rows with `href` (the library has no router); a plain anchor by default. */
+  readonly link?: LinkComponent;
 }
 
 /**
@@ -29,7 +39,7 @@ export interface DataTableProps {
  * `color.bg.surface-hover`, `text.body-sm`. Below `breakpoint.medium` the table scrolls inside its frame (the card list
  * of § 3.6 is not built yet).
  */
-export function DataTable({ caption, columns, rows }: DataTableProps) {
+export function DataTable({ caption, columns, rows, link: Link = PlainLink }: DataTableProps) {
   // The scrollable frame must be reachable by keyboard (WCAG 2.1.1): it is a focusable region named after the table.
   return (
     <div
@@ -43,7 +53,7 @@ export function DataTable({ caption, columns, rows }: DataTableProps) {
         <thead className="bg-bg-surface-subtle text-label text-text-primary">
           <tr>
             {columns.map((column) => (
-              <th key={column.id} scope="col" className="px-inset-md py-inset-sm text-start font-semibold">
+              <th key={column.id} scope="col" aria-sort={column.sort} className="px-inset-md py-inset-sm text-start font-semibold">
                 {column.header}
               </th>
             ))}
@@ -51,13 +61,26 @@ export function DataTable({ caption, columns, rows }: DataTableProps) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.id} aria-label={row.label} className="border-t-default hover:bg-bg-surface-hover">
+            <tr
+              key={row.id}
+              aria-label={row.href === undefined ? row.label : undefined}
+              className={classNames(
+                'border-t-default hover:bg-bg-surface-hover',
+                row.href !== undefined && 'relative has-focus-visible:focus-ring-inner',
+              )}
+            >
               {row.cells.map((cell, index) => (
                 <td
                   key={columns[index]?.id ?? index}
                   className={classNames('px-inset-md py-inset-sm align-top', columns[index]?.numeric === true && 'tabular-nums')}
                 >
-                  {cell}
+                  {index === 0 && row.href !== undefined ? (
+                    <Link href={row.href} aria-label={row.label} className="after:absolute after:inset-0 focus-visible:outline-none">
+                      {cell}
+                    </Link>
+                  ) : (
+                    cell
+                  )}
                 </td>
               ))}
             </tr>

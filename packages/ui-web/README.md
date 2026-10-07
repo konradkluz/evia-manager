@@ -39,6 +39,8 @@ Pakiet nie ma kroku `build`: aplikacja importuje źródła TypeScript i `styles.
 | `AccountMenu` | § 3.17, § 3.20 | menu konta w TopBar: wyzwalacz z `aria-haspopup="menu"`, `aria-expanded`, `aria-controls`; fokus na pierwszej pozycji, strzałki z zawijaniem, Home / End, litera, Enter / Spacja, Esc i Tab zamykają i zwracają fokus, kliknięcie poza menu zamyka |
 | `BlockingState` | § 3.15.1 | pusty stan blokujący całego ekranu (W-03): nazwa produktu, ikona, tytuł `h1` z fokusem, opis, alerty, jedna akcja primary i akcja tertiary w prawym górnym rogu; bez Sidebar i TopBar |
 | `EmptyState` — `titleRef` | § 3.15 | tytuł może przyjąć fokus programowo (po sprawdzeniu linku) |
+| `StatusBadge` | § 3.9, § 3.9.1, § 4.4 (EVM-017) | subtelna odznaka statusu zlecenia (`new` … `cancelled`) i wartości nieznanej (`unknown`): ikona `size.icon.sm` (inna dla każdego statusu) + pełna etykieta `text.label`, `color.status.order.*` / `color.status.unknown.*`, `radius.pill`, `size.badge.height`; statyczna (bez hover i fokusu); `hint` = podpowiedź (`title`) i opis dostępny odznaki nieznanej |
+| `DataTable` — wiersz jako link, `sort` | § 3.6 (EVM-017) | `href` wiersza: pierwsza komórka zawiera link (nazwa = `label` wiersza), jego cel pokrywa cały wiersz, pierścień fokusu wokół wiersza (`focus-ring-inner`); `link` — komponent linku routera aplikacji; `sort` kolumny → `aria-sort` |
 | `AppShell` — `account` | § 3.17 | miejsce na menu konta na końcu TopBar (po zalogowaniu) |
 
 Ikony: Lucide (ISC) re-eksportowane z `src/icons.ts` — aplikacja nie importuje `lucide-react` bezpośrednio.

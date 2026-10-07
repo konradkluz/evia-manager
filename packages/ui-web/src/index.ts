@@ -5,6 +5,7 @@
 export { AlertDialog, type AlertDialogProps } from './alert-dialog.tsx';
 export { AppShell, MAIN_CONTENT_ID, type AppShellLabels, type AppShellProps } from './app-shell.tsx';
 export { AccountMenu, type AccountMenuItem, type AccountMenuProps } from './account-menu.tsx';
+export { StatusBadge, type StatusBadgeProps, type OrderStatusKey } from './status-badge.tsx';
 export { Banner } from './banner.tsx';
 export { BlockingState, type BlockingStateProps } from './blocking-state.tsx';
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './button.tsx';
@@ -15,6 +16,9 @@ export { FilterChip, type FilterChipProps } from './filter-chip.tsx';
 export { Select, type SelectGroup, type SelectOption, type SelectProps } from './select.tsx';
 export { EmptyState, type EmptyStateProps } from './empty-state.tsx';
 export {
+  Ban,
+  Banknote,
+  Calculator,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -22,7 +26,9 @@ export {
   CircleAlert,
   CircleCheck,
   CircleHelp,
+  CirclePause,
   ClipboardList,
+  Inbox,
   Info,
   KeyRound,
   Link2Off,
@@ -32,7 +38,9 @@ export {
   Shield,
   ShieldCheck,
   ShieldX,
+  ThumbsUp,
   WifiOff,
+  Wrench,
   X,
   type Icon,
 } from './icons.ts';

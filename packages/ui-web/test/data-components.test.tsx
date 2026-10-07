@@ -126,3 +126,50 @@ describe('DataTable (styleguide § 3.6; EVM-029 AC5)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 });
+
+describe('DataTable rows as links and sorting (styleguide § 3.6; EVM-017 AC1)', () => {
+  const columns = [
+    { id: 'order', header: 'Zlecenie', sort: 'descending' as const },
+    { id: 'status', header: 'Status' },
+  ];
+
+  it('EVM-017 AC1 a row with a target holds one link named after the row, and the sorted column has aria-sort', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={columns}
+        rows={[
+          { id: 'a', cells: ['ZL-2026-0042 Garaż', 'W realizacji'], label: 'ZL-2026-0042, Garaż, W realizacji', href: '/work-orders/a' },
+          { id: 'b', cells: ['ZL-2026-0041 Dom', 'Nowe'] },
+        ]}
+      />,
+    );
+    const link = screen.getByRole('link', { name: 'ZL-2026-0042, Garaż, W realizacji' });
+    expect(link.getAttribute('href')).toBe('/work-orders/a');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(link.closest('td')).toBe(screen.getAllByRole('cell')[0]);
+    expect(screen.getByRole('columnheader', { name: 'Zlecenie' }).getAttribute('aria-sort')).toBe('descending');
+    expect(screen.getByRole('columnheader', { name: 'Status' }).hasAttribute('aria-sort')).toBe(false);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-017 AC1 the link component of the application is used and the row is reachable by keyboard', async () => {
+    const Router = ({ href, children, ...rest }: { href: string; children: React.ReactNode; className: string }) => (
+      <a data-router="yes" href={href} {...rest}>
+        {children}
+      </a>
+    );
+    render(
+      <DataTable
+        caption="Zlecenia"
+        columns={columns}
+        rows={[{ id: 'a', cells: ['x', 'y'], label: 'Wiersz', href: '/w/a' }]}
+        link={Router}
+      />,
+    );
+    await userEvent.tab();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Wiersz' }));
+    expect(screen.getByRole('link', { name: 'Wiersz' }).getAttribute('data-router')).toBe('yes');
+  });
+});
