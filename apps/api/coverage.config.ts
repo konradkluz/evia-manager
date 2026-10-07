@@ -31,6 +31,7 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  'src/platform/database/search-text.ts',
   'src/platform/idempotency/idempotency.ts',
   'src/cli/process-run.ts',
 ];
