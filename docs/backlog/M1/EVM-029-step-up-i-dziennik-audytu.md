@@ -108,3 +108,4 @@ _—_
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: uwierzytelnianie i uprawnienia; gałąź feature/EVM-029-step-up-audit-log)
 - 2026-10-07 — plan gotowy (backend-developer)
 - 2026-10-07 — implementacja API (backend-developer): kontrakt, migracja 0009, step-up, dziennik audytu, macierz ról; panel W-04 / W-18 — web-developer
+- 2026-10-07 — panel W-04 (dialog step-up) i W-18 (dziennik audytu) gotowy (web-developer): nowe komponenty Select, DateField, FilterChip, DataTable; testy Vitest i Playwright (Chromium, Edge, Firefox), axe, zrzuty w docs/ux/reviews/EVM-029

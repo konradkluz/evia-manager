@@ -43,6 +43,14 @@ export interface MockApi {
   deadlines: { idle: number; absolute: number } | null;
   /** EVM-067: the first-step token that was issued, to check it never travels anywhere but the POST bodies. */
   loginToken: string | null;
+  /** EVM-029: the role of the account (the audit log is for the Administrator only). */
+  role: 'administrator' | 'editor';
+  /** EVM-029: `required` — the audit log answers `403 step_up_required` until the passkey step-up; `fresh` — the window is open. */
+  stepUp: 'required' | 'fresh';
+  /** EVM-029: the CSRF token of the active session; the step-up rotates it. */
+  csrf: string;
+  /** EVM-029: how many events the synthetic audit log holds (newest first). */
+  auditEvents: number;
 }
 
 const problem = (status: number, code: string, extra: object = {}, headers: Record<string, string> = {}) => ({
@@ -63,14 +71,35 @@ export const LOGIN_TOKEN = 'Lg7-_Qz2'.repeat(5) + 'abc';
 function sessionBody(
   kind: Exclude<SessionKind, 'none'>,
   deadlines = { idle: Date.now() + 60 * MINUTE, absolute: Date.now() + 720 * MINUTE },
+  active: { csrf: string; role: string } = { csrf: 'csrf-active', role: 'administrator' },
 ) {
   return {
-    user: { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME, role: 'administrator' },
+    user: { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME, role: active.role },
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
-    csrfToken: kind === 'active' ? 'csrf-active' : 'csrf-enrollment',
+    csrfToken: kind === 'active' ? active.csrf : 'csrf-enrollment',
     idleExpiresAt: new Date(deadlines.idle).toISOString(),
     absoluteExpiresAt: new Date(deadlines.absolute).toISOString(),
+  };
+}
+
+const AUDIT_ACTIONS = ['audit.read', 'login.succeeded', 'login.failed', 'session.created', 'step_up.succeeded'] as const;
+
+/** One synthetic event of the audit log (newest first; no real data): the same index always gives the same event. */
+function auditEvent(index: number) {
+  const action = AUDIT_ACTIONS[index % AUDIT_ACTIONS.length] ?? 'audit.read';
+  const failed = action === 'login.failed';
+  const suffix = String(index).padStart(12, '0');
+  return {
+    id: `00000000-0000-4000-8000-${suffix}`,
+    occurredAt: new Date(Date.UTC(2026, 9, 4, 12, 0) - index * 7 * MINUTE).toISOString(),
+    actor: failed ? null : { userId: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME },
+    action,
+    outcome: failed ? 'denied' : 'success',
+    reasonCode: failed ? 'bad_password' : null,
+    objectType: action === 'audit.read' ? 'audit' : action === 'session.created' ? 'session' : 'user',
+    objectId: action === 'audit.read' ? null : `33333333-3333-4333-8333-${suffix}`,
+    ipPrefix: index % 7 === 6 ? '2001:db8:1234::/48' : '198.51.100.0/24',
   };
 }
 
@@ -91,7 +120,13 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     clockOffsetMs: 0,
     deadlines: null,
     loginToken: null,
+    role: 'administrator',
+    stepUp: 'required',
+    csrf: 'csrf-active',
+    auditEvents: 40,
   };
+  let stepUpChallenge = '';
+  const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
   let loginTokenUsed = false;
   let challenge = '';
@@ -111,7 +146,8 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     // `Sec-Fetch-Site` is added after Playwright's interception, so only `Origin` is visible here; the full pair is
     // checked by the API tests.
     if (mutation && headers['origin'] !== origin) return route.fulfill(problem(403, 'csrf_failed'));
-    const csrfOk = headers['x-csrf-token'] === sessionBody(api.session === 'none' ? 'enrollment' : api.session).csrfToken;
+    const csrfOk =
+      headers['x-csrf-token'] === sessionBody(api.session === 'none' ? 'enrollment' : api.session, undefined, active()).csrfToken;
     const body = (): unknown => JSON.parse(request.postData() ?? '{}');
 
     switch (key) {
@@ -125,7 +161,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           idle: Date.now() + api.clockOffsetMs + api.sessionMinutes.idle * MINUTE,
           absolute: Date.now() + api.clockOffsetMs + api.sessionMinutes.absolute * MINUTE,
         };
-        return route.fulfill(ok(200, sessionBody(api.session, api.deadlines)));
+        return route.fulfill(ok(200, sessionBody(api.session, api.deadlines, active())));
       case 'POST /api/v1/auth/login': {
         const { email, password } = body() as { email?: string; password?: string };
         if (email !== EMAIL || password !== PASSWORD) return route.fulfill(problem(401, 'invalid_credentials'));
@@ -249,6 +285,57 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
             backedUp: true,
           }),
         );
+      }
+      case 'POST /api/v1/auth/step-up/options': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        stepUpChallenge = Buffer.from(`step-up-challenge-${String(api.seen.length)}-0123456789abcdef`).toString('base64url');
+        return route.fulfill(
+          ok(200, {
+            challenge: stepUpChallenge,
+            rpId: RP_ID,
+            timeout: 300_000,
+            userVerification: 'required',
+            allowCredentials: api.credentialId === null ? [] : [{ id: api.credentialId, type: 'public-key' }],
+          }),
+        );
+      }
+      case 'POST /api/v1/auth/step-up': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const { credential } = body() as { credential: { id: string; response: { clientDataJSON: string } } };
+        const client = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
+          type: string;
+          challenge: string;
+          origin: string;
+        };
+        const verified =
+          client.type === 'webauthn.get' &&
+          client.challenge === stepUpChallenge &&
+          client.origin === origin &&
+          credential.id === api.credentialId;
+        stepUpChallenge = '';
+        if (!verified) return route.fulfill(problem(401, 'passkey_failed'));
+        // The session is rotated: the new token replaces the old one (the cookie of the old session is dead on the real server).
+        api.stepUp = 'fresh';
+        api.csrf = 'csrf-rotated';
+        return route.fulfill(ok(200, { csrfToken: api.csrf }));
+      }
+      case 'GET /api/v1/audit/events': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+        const query = url.searchParams;
+        const matching = Array.from({ length: api.auditEvents }, (_, index) => auditEvent(index)).filter(
+          (entry) =>
+            (query.get('action') === null || entry.action === query.get('action')) &&
+            (query.get('outcome') === null || entry.outcome === query.get('outcome')),
+        );
+        const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
+        const limit = Number(query.get('limit') ?? '50');
+        const nextCursor = start + limit < matching.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
+        return route.fulfill(ok(200, { items: matching.slice(start, start + limit), nextCursor }));
       }
       case 'POST /api/v1/auth/logout':
         if (api.session === 'none') return route.fulfill(problem(401, 'session_revoked'));

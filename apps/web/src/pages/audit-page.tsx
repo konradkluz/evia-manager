@@ -55,6 +55,7 @@ function AccessDenied() {
   return (
     <EmptyState
       icon={Lock}
+      headingLevel={1}
       title={t('audit.denied.title')}
       description={t('audit.denied.description')}
       action={

@@ -83,9 +83,6 @@ export function StepUpDialog({ title, onDone }: { readonly title: string; readon
       onDismiss={cancel}
       actions={
         <>
-          <Button variant="tertiary" onClick={cancel}>
-            {t('stepUp.cancel')}
-          </Button>
           <Button
             data-initial-focus
             icon={KeyRound}
@@ -97,6 +94,9 @@ export function StepUpDialog({ title, onDone }: { readonly title: string; readon
             }}
           >
             {confirm.isPending ? t('stepUp.inProgress') : t('stepUp.useKey')}
+          </Button>
+          <Button variant="tertiary" onClick={cancel}>
+            {t('stepUp.cancel')}
           </Button>
         </>
       }

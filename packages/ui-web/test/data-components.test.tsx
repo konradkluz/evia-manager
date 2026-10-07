@@ -107,6 +107,10 @@ describe('DataTable (styleguide § 3.6; EVM-029 AC5)', () => {
       />,
     );
     const table = screen.getByRole('table', { name: 'Dziennik audytu — zdarzenia od najnowszych' });
+    // The frame that scrolls below the medium breakpoint is a named region that the keyboard reaches.
+    const region = screen.getByRole('region', { name: 'Dziennik audytu — zdarzenia od najnowszych' });
+    expect(region.getAttribute('tabindex')).toBe('0');
+    expect(region.contains(table)).toBe(true);
     expect(
       within(table)
         .getAllByRole('columnheader')

@@ -82,7 +82,7 @@ export function AuditFilterBar({ filters, people, disabled, now, onChange }: Aud
   }
   return (
     <section aria-label={t('audit.filters.label')} className="flex flex-col gap-stack-md p-inset-md rounded-card bg-bg-surface-subtle">
-      <div className="flex flex-wrap items-start gap-inline-md">
+      <div className="grid grid-cols-2 items-start gap-inline-md medium:grid-cols-3 expanded:grid-cols-5">
         <Select
           label={t('audit.filters.action')}
           value={filters.action}

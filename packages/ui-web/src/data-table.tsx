@@ -30,8 +30,14 @@ export interface DataTableProps {
  * of § 3.6 is not built yet).
  */
 export function DataTable({ caption, columns, rows }: DataTableProps) {
+  // The scrollable frame must be reachable by keyboard (WCAG 2.1.1): it is a focusable region named after the table.
   return (
-    <div className="overflow-x-auto rounded-card border-w-default border-border-default bg-bg-surface">
+    <div
+      role="region"
+      aria-label={caption}
+      tabIndex={0}
+      className="overflow-x-auto rounded-card border-w-default border-border-default bg-bg-surface focus-visible:focus-ring"
+    >
       <table className="w-full text-body-sm text-text-primary">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-bg-surface-subtle text-label text-text-primary">

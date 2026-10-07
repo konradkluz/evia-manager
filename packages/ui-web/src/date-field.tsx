@@ -38,7 +38,7 @@ export function DateField({ label, value, onChange, min, max, disabled = false, 
           onChange(event.target.value);
         }}
         className={classNames(
-          'h-control-height-web-md px-inset-sm rounded-control text-body text-text-primary bg-control-bg focus-visible:focus-ring',
+          'w-full h-control-height-web-md px-inset-sm rounded-control text-body text-text-primary bg-control-bg focus-visible:focus-ring',
           'disabled:bg-control-bg-disabled disabled:border-control-border-disabled disabled:text-text-disabled',
           error === undefined
             ? 'border-w-default border-border-strong hover:border-border-strong-hover focus-visible:border-border-selected'
