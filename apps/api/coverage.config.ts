@@ -15,6 +15,8 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/catalog/application/**/*.ts',
   'src/modules/catalog/infrastructure/**/*.ts',
   'src/modules/catalog/http/catalog.controller.ts',
+  'src/modules/audit/application/**/*.ts',
+  'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
   'src/cli/process-run.ts',

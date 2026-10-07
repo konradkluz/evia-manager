@@ -95,7 +95,13 @@ export async function createSession(
   db: Kysely<Database>,
   clock: Clock,
   user: UserFixture,
-  options: { channel?: 'web' | 'mobile'; state?: 'mfa_enrollment' | 'active'; linkId?: string } = {},
+  options: {
+    channel?: 'web' | 'mobile';
+    state?: 'mfa_enrollment' | 'active';
+    linkId?: string;
+    /** The last authentication with a passkey of this session (default: none — a session of a password, activation or recovery code). */
+    passkeyAuthenticatedAt?: Date | null;
+  } = {},
 ): Promise<SessionFixture> {
   const token = newToken();
   const now = clock.now();
@@ -110,6 +116,7 @@ export async function createSession(
       created_at: now,
       last_seen_at: now,
       last_authenticated_at: now,
+      passkey_authenticated_at: options.passkeyAuthenticatedAt ?? null,
       idle_expires_at: new Date(now.getTime() + 3_600_000),
       absolute_expires_at: new Date(now.getTime() + 12 * 3_600_000),
       revoked_at: null,
@@ -120,4 +127,22 @@ export async function createSession(
     .returning('id')
     .executeTakeFirstOrThrow();
   return { id: row.id, token, cookie: `${SESSION_COOKIE_NAME}=${token}`, csrfToken: deriveCsrfToken(token) };
+}
+
+/** A passkey of the account written straight into the database (a synthetic public key — it never verifies anything). */
+export async function createPasskey(db: Kysely<Database>, clock: Clock, user: UserFixture): Promise<void> {
+  await identityTables(db)
+    .insertInto('identity.passkeys')
+    .values({
+      user_id: user.id,
+      credential_id: randomBytes(32).toString('base64url'),
+      public_key: randomBytes(77),
+      counter: 0,
+      transports: ['internal'],
+      device_type: 'multi_device',
+      backed_up: true,
+      created_at: clock.now(),
+      last_used_at: null,
+    })
+    .execute();
 }

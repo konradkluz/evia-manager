@@ -75,11 +75,12 @@ export class PasskeyService {
     const now = this.#clock.now();
     await this.#db.transaction().execute(async (transaction) => {
       const handle = identityTables(transaction);
-      // One open challenge per session: asking for new options retires the earlier ones.
+      // One open registration challenge per session: asking for new options retires the earlier ones.
       await handle
         .updateTable('identity.webauthn_challenges')
         .set({ used_at: now })
         .where('session_id', '=', principal.sessionId)
+        .where('purpose', '=', 'passkey_registration')
         .where('used_at', 'is', null)
         .execute();
       await handle
