@@ -109,3 +109,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-020-customer-in-work-order)
 - 2026-10-07 — API gotowe (backend-developer): kontrakt, moduł `customers`, idempotencja, limit 60/min, migracje 0011–0012; panel W-05 — krok web-developera
+- 2026-10-07 — panel W-05 gotowy (web-developer): sekcja „1. Klient”, dialog „Dodaj klienta”, szkic w pamięci karty, komponenty `Combobox`, `Dialog`, `RadioGroup`, `TextArea`, `Disclosure` w `@evia/ui-web`; zrzuty w `docs/ux/reviews/EVM-020/`

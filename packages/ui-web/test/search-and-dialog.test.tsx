@@ -168,6 +168,7 @@ describe('Dialog (styleguide § 3.13; EVM-020 AC2)', () => {
           }}
           actions={<Button>Zapisz</Button>}
         >
+          <RadioGroup legend="Rodzaj" value="person" onChange={vi.fn()} options={[{ value: 'person', label: 'Osoba' }]} />
           <TextField label="Imię" value="" />
         </Dialog>
       </>

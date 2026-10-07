@@ -14,12 +14,14 @@ export interface DialogProps {
   readonly onDismiss: () => void;
 }
 
-const FIRST_FIELD = '[data-initial-focus], input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)';
+const FIRST_FIELD =
+  '[data-initial-focus], input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)';
 
 /**
  * Form dialog (styleguide § 3.13; `size.dialog.width.md`): a native modal <dialog>, so the page behind is inert, focus is
  * trapped inside and returns to the opener on closing; the title is its name (`aria-labelledby`). Focus lands on the element
- * marked `data-initial-focus` or on the first field. Not animated and without injected styles (CSP `style-src 'self'`).
+ * marked `data-initial-focus` or on the first text field (a group of radios before it does not take the focus — typing is
+ * the next step). Not animated and without injected styles (CSP `style-src 'self'`).
  * The content is rendered only while open — the state of a form lives in the parent, so closing never loses it by itself.
  */
 export function Dialog({ open, title, closeLabel, children, actions, onDismiss }: DialogProps) {

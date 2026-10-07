@@ -44,7 +44,7 @@ export interface MockApi {
   /** EVM-067: the first-step token that was issued, to check it never travels anywhere but the POST bodies. */
   loginToken: string | null;
   /** EVM-029: the role of the account (the audit log is for the Administrator only). */
-  role: 'administrator' | 'editor';
+  role: 'administrator' | 'editor' | 'read_only';
   /** EVM-029: `required` — the audit log answers `403 step_up_required` until the passkey step-up; `fresh` — the window is open. */
   stepUp: 'required' | 'fresh';
   /** EVM-029: the CSRF token of the active session; the step-up rotates it. */
@@ -53,6 +53,18 @@ export interface MockApi {
   auditEvents: number;
   /** EVM-017: how many work orders the synthetic list holds (0 = the empty state; the shell specs of EVM-008 expect it). */
   workOrders: number;
+  /** EVM-020: the customers of the synthetic server (searched by name, city or phone; saved ones are added). */
+  customers: MockCustomer[];
+  /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
+  dropResponseNext: Set<string>;
+}
+
+export interface MockCustomer {
+  readonly id: string;
+  readonly displayName: string;
+  readonly phone: string;
+  /** What the search looks at: name, city, e-mail (lower case, no diacritics). */
+  readonly text: string;
 }
 
 const problem = (status: number, code: string, extra: object = {}, headers: Record<string, string> = {}) => ({
@@ -124,6 +136,24 @@ function workOrder(index: number) {
   };
 }
 
+/** The search folds case and Polish letters like the server does ("Lodz" finds "Łódź"). */
+const fold = (text: string): string =>
+  text
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .replaceAll('ł', 'l')
+    .replaceAll('Ł', 'l')
+    .toLowerCase();
+
+/** The phone as E.164 (nine national digits get +48), or null when it is not a number. */
+function e164(text: string): string | null {
+  const digits = text.replaceAll(/\D/g, '');
+  if (!/^[+\d\s()-]+$/.test(text)) return null;
+  if (digits.length === 9) return `+48${digits}`;
+  if (digits.length === 11 && digits.startsWith('48')) return `+${digits}`;
+  return null;
+}
+
 function decodeBase64Url(value: string): string {
   return Buffer.from(value, 'base64url').toString('utf8');
 }
@@ -146,7 +176,18 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     csrf: 'csrf-active',
     auditEvents: 40,
     workOrders: 0,
+    customers: [
+      { id: '01968f3e-0000-7000-8000-00000000aaa1', displayName: 'Jan Przykładowy', phone: '+48600000001', text: 'jan przykladowy lodz' },
+      {
+        id: '01968f3e-0000-7000-8000-00000000aaa2',
+        displayName: 'Firma Testowa sp. z o.o.',
+        phone: '+48600000002',
+        text: 'firma testowa sp. z o.o. warszawa',
+      },
+    ],
+    dropResponseNext: new Set(),
   };
+  const customerKeys = new Map<string, string>();
   let stepUpChallenge = '';
   const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
@@ -375,6 +416,66 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         const limit = Number(query.get('limit') ?? '25');
         const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
         return route.fulfill(ok(200, { items: ordered.slice(start, start + limit), nextCursor }));
+      }
+      case 'POST /api/v1/customers/search': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const { query } = body() as { query?: string };
+        const phrase = (query ?? '').normalize('NFC').trim();
+        if (Array.from(phrase).length < 3) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] }));
+        }
+        const phoneLike = /^[+\d\s()-]+$/.test(phrase);
+        const digits = phrase.replaceAll(/\D/g, '').replace(/^00/, '');
+        const items = api.customers
+          .filter((entry) => (phoneLike ? entry.phone.includes(digits) : entry.text.includes(fold(phrase))))
+          .slice(0, 20)
+          .map(({ id, displayName, phone }) => ({ id, displayName, phone }));
+        return route.fulfill(ok(200, { items, nextCursor: null }, { 'Cache-Control': 'no-store' }));
+      }
+      case 'POST /api/v1/customers': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.role === 'read_only') return route.fulfill(problem(403, 'forbidden'));
+        const input = body() as {
+          id: string;
+          kind: 'person' | 'company';
+          firstName?: string;
+          lastName?: string;
+          companyName?: string;
+          phone?: string;
+          email?: string;
+        };
+        const idempotencyKey = headers['idempotency-key'];
+        const hash = request.postData() ?? '';
+        if (idempotencyKey !== undefined) {
+          const seen = customerKeys.get(idempotencyKey);
+          if (seen !== undefined && seen !== hash) return route.fulfill(problem(422, 'idempotency_mismatch'));
+          const replayed = seen === undefined ? undefined : api.customers.find((entry) => entry.id === input.id);
+          if (replayed !== undefined) {
+            return route.fulfill(
+              ok(
+                201,
+                { ...input, phone: replayed.phone, displayName: replayed.displayName, version: 1 },
+                { 'Idempotent-Replayed': 'true', ETag: '"1"' },
+              ),
+            );
+          }
+        }
+        if (api.customers.some((entry) => entry.id === input.id)) return route.fulfill(problem(409, 'id_conflict'));
+        const errors: Array<{ pointer: string; code: string }> = [];
+        const person = input.kind === 'person';
+        if (person && !input.firstName) errors.push({ pointer: '/firstName', code: 'required' });
+        if (person && !input.lastName) errors.push({ pointer: '/lastName', code: 'required' });
+        if (!person && !input.companyName) errors.push({ pointer: '/companyName', code: 'required' });
+        const phone = e164(input.phone ?? '');
+        if (phone === null) errors.push({ pointer: '/phone', code: 'invalid_format' });
+        if (errors.length > 0 || phone === null) return route.fulfill(problem(400, 'validation_failed', { errors }));
+        const displayName = person ? `${input.firstName ?? ''} ${input.lastName ?? ''}` : (input.companyName ?? '');
+        api.customers.push({ id: input.id, displayName, phone, text: fold(`${displayName} ${input.email ?? ''}`) });
+        if (idempotencyKey !== undefined) customerKeys.set(idempotencyKey, hash);
+        if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
+        return route.fulfill(ok(201, { ...input, phone, displayName, version: 1 }, { ETag: '"1"' }));
       }
       case 'POST /api/v1/auth/logout':
         if (api.session === 'none') return route.fulfill(problem(401, 'session_revoked'));

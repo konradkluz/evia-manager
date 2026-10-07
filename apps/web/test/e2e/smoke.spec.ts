@@ -11,7 +11,8 @@ test.describe('panel smoke (EVM-008 AC5)', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
     await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeVisible();
     await expect(page.getByText('Zlecenia pojawią się tutaj, gdy zostaną dodane do systemu.')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Nowe zlecenie' })).toHaveCount(0);
+    // The empty state has no action of its own; "Nowe zlecenie" of an Administrator sits in the header (EVM-020).
+    await expect(page.getByRole('button', { name: 'Nowe zlecenie' })).toHaveCount(1);
     const nav = page.getByRole('navigation', { name: 'Główna nawigacja' });
     await expect(nav.getByRole('link', { name: 'Zlecenia' })).toHaveAttribute('aria-current', 'page');
     // Styles come from the token theme (the stylesheet is loaded under the strict CSP).
