@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 export interface Recorded {
   readonly method: string;
   readonly path: string;
+  readonly query: URLSearchParams;
   readonly headers: Headers;
   readonly body: string;
 }
@@ -50,6 +51,7 @@ export function createFakeApi(routes: Record<string, Handler>) {
     const recorded: Recorded = {
       method: request.method,
       path: new URL(request.url).pathname,
+      query: new URL(request.url).searchParams,
       headers: request.headers,
       body: await request.clone().text(),
     };

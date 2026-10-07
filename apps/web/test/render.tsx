@@ -6,9 +6,13 @@ import { ACTIVE_SESSION, createFakeApi, json, SESSION_ROUTE } from './api-fake.t
 
 type FakeApi = ReturnType<typeof createFakeApi>;
 
-/** A fake API that has an active session (the default of every panel test). */
+/** A fake API that has an active session and no work orders (the default of every panel test: W-10 is the first page). */
 export function activeSessionApi(routes: Parameters<typeof createFakeApi>[0] = {}): FakeApi {
-  return createFakeApi({ [SESSION_ROUTE]: () => json(200, ACTIVE_SESSION), ...routes });
+  return createFakeApi({
+    [SESSION_ROUTE]: () => json(200, ACTIVE_SESSION),
+    'GET /api/v1/work-orders': () => json(200, { items: [], nextCursor: null }),
+    ...routes,
+  });
 }
 
 /** Renders the whole panel at a path (memory history) against a fake API and waits for the page heading. */

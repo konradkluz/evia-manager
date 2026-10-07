@@ -110,7 +110,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Wyloguj' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Nie udało się wylogować. Spróbuj ponownie.');
     expect(history.location.pathname).toBe('/work-orders');
-    expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
   });
 
   it('EVM-016 AC6 the account menu is on every screen of the panel, also on the redirect from an unknown address', async () => {
