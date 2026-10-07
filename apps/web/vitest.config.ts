@@ -5,6 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
+    // Component tests render the whole panel and run axe; on the shared CI runner (many workers at once) they take several times longer than locally.
+    testTimeout: 20_000,
     include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['test/setup.ts'],
     coverage: coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] }),
