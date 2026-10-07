@@ -113,3 +113,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: migracje, dane osobowe, nowy endpoint i UI; gałąź feature/EVM-022-work-order-from-template)
 - 2026-10-07 — backend gotowy (backend-developer): kontrakt createWorkOrder i listAssignableUsers, migracja 0015, fasady CustomerDirectory / SiteDirectory / TemplateDirectory, port WorkOrderCompositionContributor, testy EVM-022 AC1–AC7 (API); panel — web-developer
+- 2026-10-07 — panel gotowy (web-developer): W-05 sekcje „3. Szablon” i „4. Zlecenie”, „Utwórz zlecenie”, nagłówek W-06, szkic, stany; komponenty SelectableCardGroup, ErrorSummary, FieldError w ui-web; testy EVM-022 AC1–AC4, AC7, AC8 (Vitest + axe, E2E, zrzuty w docs/ux/reviews/EVM-022)
