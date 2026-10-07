@@ -9,6 +9,7 @@ import * as login from './0006_login.ts';
 import * as catalog from './0007_catalog.ts';
 import * as catalogSeed from './0008_catalog_seed.ts';
 import * as stepUp from './0009_step_up.ts';
+import * as workOrders from './0010_work_orders.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -20,4 +21,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0007_catalog': catalog,
   '0008_catalog_seed': catalogSeed,
   '0009_step_up': stepUp,
+  '0010_work_orders': workOrders,
 });

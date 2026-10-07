@@ -51,6 +51,8 @@ export interface MockApi {
   csrf: string;
   /** EVM-029: how many events the synthetic audit log holds (newest first). */
   auditEvents: number;
+  /** EVM-017: how many work orders the synthetic list holds (0 = the empty state; the shell specs of EVM-008 expect it). */
+  workOrders: number;
 }
 
 const problem = (status: number, code: string, extra: object = {}, headers: Record<string, string> = {}) => ({
@@ -103,6 +105,25 @@ function auditEvent(index: number) {
   };
 }
 
+const ORDER_STATUSES = ['new', 'quoting', 'accepted', 'in_progress', 'completed', 'settled', 'on_hold', 'cancelled'] as const;
+const COORDINATORS = [
+  { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME },
+  { id: '22222222-2222-4222-8222-222222222222', displayName: 'Jan Przykładowy' },
+  null,
+] as const;
+
+/** A synthetic work order (EVM-017): number from 1, statuses and coordinators in turn, newest created last. */
+function workOrder(index: number) {
+  return {
+    id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+    number: `ZL-2026-${String(index + 1).padStart(4, '0')}`,
+    title: index % 4 === 0 ? 'Garaż — pełny proces z bardzo długim tytułem, który zawija się w komórce tabeli' : 'Dom — pełny pakiet',
+    status: ORDER_STATUSES[index % ORDER_STATUSES.length] ?? 'new',
+    coordinator: COORDINATORS[index % COORDINATORS.length] ?? null,
+    createdAt: new Date(Date.UTC(2026, 8, 1, 8, 0) + index * 60 * MINUTE).toISOString(),
+  };
+}
+
 function decodeBase64Url(value: string): string {
   return Buffer.from(value, 'base64url').toString('utf8');
 }
@@ -124,6 +145,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     stepUp: 'required',
     csrf: 'csrf-active',
     auditEvents: 40,
+    workOrders: 0,
   };
   let stepUpChallenge = '';
   const active = () => ({ csrf: api.csrf, role: api.role });
@@ -336,6 +358,23 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         const limit = Number(query.get('limit') ?? '50');
         const nextCursor = start + limit < matching.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
         return route.fulfill(ok(200, { items: matching.slice(start, start + limit), nextCursor }));
+      }
+      case 'GET /api/v1/work-orders': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        const query = url.searchParams;
+        const statuses = query.get('status')?.split(',') ?? null;
+        const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index))
+          .filter((entry) => query.get('view') !== 'all_open' || (entry.status !== 'settled' && entry.status !== 'cancelled'))
+          .filter((entry) => query.get('view') !== 'mine' || entry.coordinator?.id === COORDINATORS[0].id)
+          .filter((entry) => statuses === null || statuses.includes(entry.status))
+          .filter((entry) => query.get('coordinatorId') === null || entry.coordinator?.id === query.get('coordinatorId'));
+        const sort = query.get('sort') ?? '-number';
+        // Numbers and creation times rise together, so "newest first" is the reverse order for both keys.
+        const ordered = sort.startsWith('-') ? matching.toReversed() : matching;
+        const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
+        const limit = Number(query.get('limit') ?? '25');
+        const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
+        return route.fulfill(ok(200, { items: ordered.slice(start, start + limit), nextCursor }));
       }
       case 'POST /api/v1/auth/logout':
         if (api.session === 'none') return route.fulfill(problem(401, 'session_revoked'));

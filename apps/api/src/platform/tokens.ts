@@ -7,3 +7,6 @@ export const CLOCK = Symbol('CLOCK');
 export const EVENT_BUS = Symbol('EVENT_BUS');
 export const METRICS = Symbol('METRICS');
 export const SECURITY_ALERT_EMITTER = Symbol('SECURITY_ALERT_EMITTER');
+export const CURSOR_CODEC = Symbol('CURSOR_CODEC');
+export const BULK_READ_METER = Symbol('BULK_READ_METER');
+export const BULK_READ_CONTROL = Symbol('BULK_READ_CONTROL');

@@ -3,6 +3,9 @@
  * set stays consistent with the styleguide's icon dictionary (dependency-cruiser: apps/web does not import lucide-react).
  */
 export {
+  Ban,
+  Banknote,
+  Calculator,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -10,7 +13,9 @@ export {
   CircleAlert,
   CircleCheck,
   CircleHelp,
+  CirclePause,
   ClipboardList,
+  Inbox,
   Info,
   KeyRound,
   Link2Off,
@@ -20,7 +25,9 @@ export {
   Shield,
   ShieldCheck,
   ShieldX,
+  ThumbsUp,
   WifiOff,
+  Wrench,
   X,
 } from 'lucide-react';
 export type { LucideIcon as Icon } from 'lucide-react';

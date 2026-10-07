@@ -58,6 +58,15 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'h-control-height-web-sm',
       'border-t-default',
       'font-mono',
+      'bg-status-order-settled-bg',
+      'text-status-unknown-text',
+      'h-badge-height',
+      'gap-inline-xs',
+      'relative',
+      'has-focus-visible:focus-ring-inner',
+      'after:absolute',
+      'after:inset-0',
+      'focus-visible:outline-none',
       'text-text-link',
       // Not tokens — must generate nothing:
       'p-4',
@@ -117,6 +126,11 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('height: var(--evm-size-control-height-web-sm)');
     expect(css).toContain('border-top: var(--evm-border-width-default) solid var(--evm-color-border-subtle)');
     expect(css).toContain('font-family: var(--evm-text-mono-font-family)');
+    expect(css).toContain('background-color: var(--evm-color-status-order-settled-bg)');
+    expect(css).toContain('color: var(--evm-color-status-unknown-text)');
+    expect(css).toContain('height: var(--evm-size-badge-height)');
+    expect(css).toMatch(/has-focus-visible[^{]*\{[^}]*outline-offset: calc/);
+    expect(css).toMatch(/:has\(\*:focus-visible\)|:has\(:focus-visible\)/);
     for (const name of ['.p-4', '.text-red-500', '.bg-white', '.w-64', '.shadow-lg', '.md\\:flex']) expect(css, name).not.toContain(name);
   });
 });

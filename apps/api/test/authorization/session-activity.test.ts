@@ -34,14 +34,14 @@ describe('activity of the session is recorded by the guard once a request is all
   it('EVM-067 AC5 an allowed request of a session records the activity exactly once', async () => {
     const touch = vi.fn(() => Promise.resolve());
     current = await withSession({ principal: principal(), touch });
-    await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(200);
+    await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(200);
     expect(touch).toHaveBeenCalledTimes(1);
   });
 
   it('EVM-067 AC5 a passive operation does not record activity: reading the session must not keep it alive', async () => {
     const touch = vi.fn(() => Promise.resolve());
-    current = await withSession({ principal: principal(), touch }, { ...TEST_POLICIES, passiveOperations: ['listWorkOrders'] });
-    await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(200);
+    current = await withSession({ principal: principal(), touch }, { ...TEST_POLICIES, passiveOperations: ['listTestWidgets'] });
+    await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(200);
     expect(touch).not.toHaveBeenCalled();
   });
 
@@ -49,13 +49,13 @@ describe('activity of the session is recorded by the guard once a request is all
     for (const denied of [{ role: 'editor' }, { state: 'mfa_enrollment' }] as const) {
       const touch = vi.fn(() => Promise.resolve());
       current = await withSession({ principal: principal(denied), touch });
-      await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(403);
+      await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(403);
       expect(touch).not.toHaveBeenCalled();
       await current.close();
     }
     const touch = vi.fn(() => Promise.resolve());
     current = await withSession({ principal: principal(), touch });
-    await request(current.app.getHttpServer()).get('/api/v1/work-orders?limit=5').expect(400);
+    await request(current.app.getHttpServer()).get('/api/v1/test-widgets?limit=5').expect(400);
     expect(touch).not.toHaveBeenCalled();
   });
 
@@ -68,7 +68,7 @@ describe('activity of the session is recorded by the guard once a request is all
 
   it('EVM-067 AC5 a session resolver without an activity hook (a synthetic principal) is served without one', async () => {
     current = await withSession({ principal: principal() });
-    await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(200);
+    await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(200);
   });
 });
 

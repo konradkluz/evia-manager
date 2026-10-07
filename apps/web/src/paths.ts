@@ -4,6 +4,8 @@
  * a link token lives only in a fragment that is removed on load (EVM-016 AC5).
  */
 export const WORK_ORDERS_PATH = '/work-orders';
+/** W-06 (EVM-018): the details of a work order; the identifier is a UUID of the API, never text typed by a person. */
+export const workOrderPath = (id: string): string => `${WORK_ORDERS_PATH}/${encodeURIComponent(id)}`;
 /** Administration (W-16, W-18; EVM-029): the audit log is the first page of it; only an Administrator sees it in the menu. */
 export const ADMINISTRATION_PATH = '/administration';
 export const AUDIT_PATH = '/administration/audit';

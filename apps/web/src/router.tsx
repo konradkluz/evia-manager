@@ -15,6 +15,7 @@ import {
   PUBLIC_PATHS,
   WORK_ORDERS_PATH,
 } from './paths.ts';
+import { validateSearch } from './work-orders/filters.ts';
 import { ErrorState } from './shell/error-state.tsx';
 import { SessionGate } from './shell/session-gate.tsx';
 
@@ -32,7 +33,13 @@ const ToAudit = () => <Navigate to={AUDIT_PATH} replace />;
 
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: ToWorkOrders });
 
-const workOrdersRoute = createRoute({ getParentRoute: () => rootRoute, path: WORK_ORDERS_PATH, component: WorkOrdersPage });
+/** The address of W-10 carries only `status` and `view` (EVM-017 AC2); anything else in it is dropped. */
+const workOrdersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: WORK_ORDERS_PATH,
+  component: WorkOrdersPage,
+  validateSearch,
+});
 const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
 const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });

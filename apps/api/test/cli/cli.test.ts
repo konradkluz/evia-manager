@@ -193,6 +193,7 @@ describe('the process without a terminal (EVM-016 AC1; SR-LOG-02)', () => {
         DATABASE_URL: 'postgres://nobody:nothing@127.0.0.1:1/none',
         PANEL_ORIGIN: PANEL,
         WEBAUTHN_RP_ID: 'panel.evia.test',
+        CURSOR_KEY: 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc', // synthetic, test only
         MIN_SUPPORTED_APP_VERSION_ANDROID: '1.0.0',
         MIN_SUPPORTED_APP_VERSION_IOS: '1.0.0',
       },

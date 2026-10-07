@@ -1,0 +1,75 @@
+# Module `work-orders` — the list of work orders (EVM-017; W-10). The list item carries only what the table shows: no customer, no
+# site, no description (they arrive with the stories that own them, additively). `title` is free text and may name a customer —
+# it never reaches a URL, a log or a metric. The coordinator is `{id, displayName}` only (SR-DATA-03): no e-mail, role or account status.
+WorkOrderStatus:
+  type: string
+  description: >-
+    Status zlecenia (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12). „Niezamknięte” to wszystkie
+    poza `settled` i `cancelled`.
+  enum: [new, quoting, accepted, in_progress, completed, settled, on_hold, cancelled]
+WorkOrderSort:
+  type: string
+  description: >-
+    Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`. Kolejne epiki dodają wartości
+    (`longestWaitingSince`, `nextDueDate`, `urgency`) addytywnie; serwer odrzuca wartość spoza listy (`400 validation_failed`).
+  enum: [-number, number, -createdAt, createdAt]
+WorkOrderView:
+  type: string
+  description: >-
+    Widok: `all_open` (status poza `settled` i `cancelled`) albo `mine` (opiekun to zalogowany użytkownik — zawsze z sesji).
+    Brak parametru oznacza brak predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie.
+  enum: [all_open, mine]
+WorkOrderCoordinator:
+  type: object
+  description: Opiekun zlecenia — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
+  required: [id, displayName]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+WorkOrderListItem:
+  type: object
+  required: [id, number, title, status, coordinator, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    number:
+      type: string
+      description: Numer zlecenia nadany przez serwer (np. `ZL-2026-0042`).
+      maxLength: 32
+    title:
+      type: string
+      description: Krótki opis (pole swobodne — może zawierać dane klienta).
+      maxLength: 200
+    status:
+      $ref: '#/WorkOrderStatus'
+    coordinator:
+      description: Aktywny opiekun albo `null`.
+      oneOf:
+        - $ref: '#/WorkOrderCoordinator'
+        - type: 'null'
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+WorkOrderList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/WorkOrderListItem'
+    nextCursor:
+      description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie. Bez licznika wyników.
+      oneOf:
+        - type: string
+          maxLength: 512
+        - type: 'null'

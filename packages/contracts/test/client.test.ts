@@ -43,6 +43,7 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/catalog/service-items',
       '/api/v1/catalog/procedure-templates',
       '/api/v1/catalog/document-kinds',
+      '/api/v1/work-orders',
     ]);
   });
 

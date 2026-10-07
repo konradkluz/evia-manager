@@ -16,7 +16,21 @@ import { ProblemFilter } from './http/problem.filter.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
-import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS, SECURITY_ALERT_EMITTER } from './tokens.ts';
+import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
+import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
+import { CursorCodec } from './crypto/opaque-cursor.ts';
+import {
+  APP_CONFIG,
+  BULK_READ_CONTROL,
+  BULK_READ_METER,
+  CLOCK,
+  CURSOR_CODEC,
+  DATABASE,
+  EVENT_BUS,
+  LOGGER,
+  METRICS,
+  SECURITY_ALERT_EMITTER,
+} from './tokens.ts';
 
 export interface PlatformDependencies {
   readonly config: AppConfig;
@@ -43,9 +57,34 @@ export class PlatformModule {
           inject: [DATABASE, LOGGER, CLOCK],
           useFactory: (db: Kysely<Database>, logger: Logger, clock: Clock) => new SecurityAlertEmitter(db, logger, clock),
         },
+        {
+          provide: CURSOR_CODEC,
+          inject: [CLOCK],
+          useFactory: (clock: Clock) => new CursorCodec(config.cursorKey, clock),
+        },
+        { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
+        {
+          provide: BULK_READ_CONTROL,
+          inject: [BULK_READ_METER, LOGGER, METRICS, DATABASE, EVENT_BUS],
+          useFactory: (meter: BulkReadMeter, logger: Logger, metrics: MetricsRegistry, db: Kysely<Database>, events: EventBus) =>
+            new BulkReadControl(meter, logger, metrics, (event, context) =>
+              db.transaction().execute((transaction) => events.publish(transaction, event, context)),
+            ),
+        },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },
       ],
-      exports: [DatabaseModule, APP_CONFIG, LOGGER, CLOCK, EVENT_BUS, METRICS, RATE_LIMITER, SECURITY_ALERT_EMITTER],
+      exports: [
+        DatabaseModule,
+        APP_CONFIG,
+        LOGGER,
+        CLOCK,
+        EVENT_BUS,
+        METRICS,
+        RATE_LIMITER,
+        SECURITY_ALERT_EMITTER,
+        CURSOR_CODEC,
+        BULK_READ_CONTROL,
+      ],
     };
   }
 }

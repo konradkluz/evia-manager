@@ -8,6 +8,7 @@ import type { Response } from 'express';
 export const PROBLEMS = Object.freeze({
   malformed_json: { status: 400, title: 'Malformed request body' },
   validation_failed: { status: 400, title: 'Request validation failed' },
+  invalid_cursor: { status: 400, title: 'Invalid cursor' },
   duplicate_parameter: { status: 400, title: 'Duplicate query parameter' },
   unknown_parameter: { status: 400, title: 'Unknown query parameter' },
   activation_link_invalid: { status: 400, title: 'Activation link is invalid or expired' },

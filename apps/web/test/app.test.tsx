@@ -9,13 +9,13 @@ afterEach(() => {
 });
 
 describe('panel shell and the work orders page (EVM-008 AC3)', () => {
-  it('EVM-008 AC3 shell renders navigation with "Zlecenia" and empty state "Brak zleceń" without "Nowe zlecenie"', async () => {
+  it('EVM-008 AC3 shell renders navigation with "Zlecenia" and empty state "Nie masz jeszcze zleceń." without "Nowe zlecenie"', async () => {
     const { history } = await renderPanel('/work-orders');
     expect(history.location.pathname).toBe('/work-orders');
     const nav = screen.getByRole('navigation', { name: 'Główna nawigacja' });
     expect(within(nav).getByRole('link', { name: 'Zlecenia' }).getAttribute('aria-current')).toBe('page');
     expect(screen.getAllByRole('heading', { level: 1 }).map((heading) => heading.textContent)).toEqual(['Zlecenia']);
-    expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
     expect(screen.getByText('Zlecenia pojawią się tutaj, gdy zostaną dodane do systemu.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /nowe zlecenie/i })).toBeNull();
     expect(screen.queryByRole('link', { name: /nowe zlecenie/i })).toBeNull();
@@ -44,7 +44,7 @@ describe('panel shell and the work orders page (EVM-008 AC3)', () => {
       globalThis.dispatchEvent(new Event('offline'));
     });
     expect(screen.getByText('Brak połączenia. Panel działa po jego powrocie.').closest('[role="status"]')).not.toBeNull();
-    expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
     onLine.mockReturnValue(true);
     act(() => {
       globalThis.dispatchEvent(new Event('online'));
@@ -78,7 +78,7 @@ describe('panel shell and the work orders page (EVM-008 AC3)', () => {
       expect(screen.queryByRole('heading', { level: 1, name: 'Coś poszło nie tak' })).toBeNull();
       expect(screen.getByRole('button', { name: 'Konto: Anna Testowa' })).toBeTruthy();
       expect(screen.getByText('Brak połączenia. Panel działa po jego powrocie.')).toBeTruthy();
-      expect(screen.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeTruthy();
+      expect(screen.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeTruthy();
     } finally {
       vi.useRealTimers();
     }

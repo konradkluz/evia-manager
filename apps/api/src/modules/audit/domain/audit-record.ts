@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../identity/index.ts';
+import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../../platform/bulk-read/bulk-read-event.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import { truncateIp } from './ip-prefix.ts';
 
@@ -17,8 +18,8 @@ export interface AuditReadEvent {
 }
 
 /** Every action the trail knows: the events of identity and the read of the log itself. */
-export const AUDIT_ACTIONS = [...IDENTITY_EVENT_TYPES, 'audit.read'] as const;
-export const AUDIT_OBJECT_TYPES = ['user', 'session', 'passkey', 'audit'] as const;
+export const AUDIT_ACTIONS = [...IDENTITY_EVENT_TYPES, 'audit.read', ...BULK_READ_EVENT_TYPES] as const;
+export const AUDIT_OBJECT_TYPES = ['user', 'session', 'passkey', 'audit', 'work_order'] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
 export const auditRecordSchema = z.strictObject({
@@ -39,7 +40,7 @@ export const auditRecordSchema = z.strictObject({
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
 /** Maps an identity event and its request context to the record; throws when something is outside the closed lists. */
-export function toAuditRecord(event: IdentityEvent | AuditReadEvent, context: EventContext, occurredAt: Date): AuditRecord {
+export function toAuditRecord(event: IdentityEvent | AuditReadEvent | BulkReadEvent, context: EventContext, occurredAt: Date): AuditRecord {
   return auditRecordSchema.parse({
     occurredAt,
     actorType: event.actor.type,

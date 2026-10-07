@@ -75,6 +75,37 @@
   --color-icon-error: var(--evm-color-icon-error);
   --color-icon-info: var(--evm-color-icon-info);
 
+  /* Status badges (§ 3.9, § 4.4): the order statuses and the unknown value (§ 3.9.1). */
+  --color-status-order-new-bg: var(--evm-color-status-order-new-bg);
+  --color-status-order-new-text: var(--evm-color-status-order-new-text);
+  --color-status-order-new-icon: var(--evm-color-status-order-new-icon);
+  --color-status-order-quoting-bg: var(--evm-color-status-order-quoting-bg);
+  --color-status-order-quoting-text: var(--evm-color-status-order-quoting-text);
+  --color-status-order-quoting-icon: var(--evm-color-status-order-quoting-icon);
+  --color-status-order-accepted-bg: var(--evm-color-status-order-accepted-bg);
+  --color-status-order-accepted-text: var(--evm-color-status-order-accepted-text);
+  --color-status-order-accepted-icon: var(--evm-color-status-order-accepted-icon);
+  --color-status-order-in-progress-bg: var(--evm-color-status-order-in-progress-bg);
+  --color-status-order-in-progress-text: var(--evm-color-status-order-in-progress-text);
+  --color-status-order-in-progress-icon: var(--evm-color-status-order-in-progress-icon);
+  --color-status-order-completed-bg: var(--evm-color-status-order-completed-bg);
+  --color-status-order-completed-text: var(--evm-color-status-order-completed-text);
+  --color-status-order-completed-icon: var(--evm-color-status-order-completed-icon);
+  --color-status-order-settled-bg: var(--evm-color-status-order-settled-bg);
+  --color-status-order-settled-text: var(--evm-color-status-order-settled-text);
+  --color-status-order-settled-icon: var(--evm-color-status-order-settled-icon);
+  --color-status-order-on-hold-bg: var(--evm-color-status-order-on-hold-bg);
+  --color-status-order-on-hold-text: var(--evm-color-status-order-on-hold-text);
+  --color-status-order-on-hold-icon: var(--evm-color-status-order-on-hold-icon);
+  --color-status-order-cancelled-bg: var(--evm-color-status-order-cancelled-bg);
+  --color-status-order-cancelled-text: var(--evm-color-status-order-cancelled-text);
+  --color-status-order-cancelled-icon: var(--evm-color-status-order-cancelled-icon);
+  --color-status-unknown-bg: var(--evm-color-status-unknown-bg);
+  --color-status-unknown-text: var(--evm-color-status-unknown-text);
+  --color-status-unknown-icon: var(--evm-color-status-unknown-icon);
+  --spacing-badge-height: var(--evm-size-badge-height);
+  --spacing-inline-xs: var(--evm-space-inline-xs);
+
   /* Zero is the one literal allowed by styleguide § 7.2 (m-0, p-0, inset-y-0, start-0, min-w-0). */
   --spacing-0: 0;
   --spacing-inset-xs: var(--evm-space-inset-xs);

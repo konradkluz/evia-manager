@@ -71,8 +71,12 @@ describe('P-11 Sesja wygasa: when it shows (EVM-067 AC6, AC5; styleguide 4.17)',
     expect(api.calls(SESSION_ROUTE)).toHaveLength(1);
     await pass(55);
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    // Ticks of the clock only: not one request more than the first read of the session, not one POST of any kind.
-    expect(api.requests.map((entry) => `${entry.method} ${entry.path}`)).toEqual([`GET ${SESSION_ROUTE.slice(4)}`]);
+    // Ticks of the clock only: not one request more than the first read of the session and the one read of the list of the
+    // page (W-10), not one POST of any kind.
+    expect(api.requests.map((entry) => `${entry.method} ${entry.path}`)).toEqual([
+      `GET ${SESSION_ROUTE.slice(4)}`,
+      'GET /api/v1/work-orders',
+    ]);
   });
 
   it('EVM-067 AC6 2 min before the end of inactivity the server is asked first, then the dialog shows with the time as text and focus on "Przedłuż sesję"', async () => {
