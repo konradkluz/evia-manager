@@ -4,7 +4,7 @@ title: Lokalizacja i strony w nowym zleceniu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 path: pelna
 priority: P1
 owner: backend-developer
@@ -89,11 +89,18 @@ _—_
 ## Uwagi do rozważenia
 _—_
 
+## Notatki
+- Zakres mocy przyłączeniowej (0 < kW ≤ 1000, 2 miejsca) to założenie wykonawcy — do potwierdzenia przez Konrada (CHECK w bazie, kontrakt, UI).
+- UX (minor): brak przycisku „Zapisz lokalizację” i stanu po zapisie w makiecie W-05; fokus ląduje na body po zapisie (WCAG 2.4.3); offline bez własnej podpowiedzi przy przyciskach; Select „Rodzaj strony” dla OSD ma jedną pozycję; brak zrzutów z działającej aplikacji.
+- Formularz lokalizacji pozostaje edytowalny w trakcie zapisu (po sukcesie wartości wpisane w międzyczasie przepadają); podwójna spacja w `search_text` bez numeru lokalu.
+- Rodzaj strony sprawdzany bez blokady wiersza — przy EVM-036 (edycja) / EVM-060 (soft delete) dodać blokadę; `search_text` strony obejmuje osobę kontaktową (DO-3) bez zwracania jej w wyniku.
+- E2E na mock-api; sesja eksploracyjna na pełnym stosie niewykonana.
+
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-021 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja danych potwierdzone (SR-DATA-01)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-021 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja danych potwierdzone (SR-DATA-01)
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -104,3 +111,5 @@ _—_
 - 2026-10-07 — implementacja API gotowa (backend-developer): kontrakt, migracje 0013 i 0014, moduły parties i sites, testy EVM-021 AC1–AC7; panel W-05 — web-developer
 - 2026-10-07 — panel W-05 gotowy (web-developer): sekcja „2. Lokalizacja”, dialog „Dodaj stronę”, testy komponentów i E2E EVM-021 AC1–AC7, warianty `TextField` (sufiks) i `Select` (błąd); do potwierdzenia przez ux-designer: przycisk „Zapisz lokalizację” i zawężenie rodzajów w dialogu do rodzajów pola
 - 2026-10-07 — SR-DATA-01 potwierdzone (security-engineer): klasyfikacja `Site` i `Party` w `domain-model.md`, inwentaryzacja w `rodo.md`, wzmianki EVM-021 w `threat-model.md` i `requirements.md`; skany lokalne
+- 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,4% / gałęzie 95,4%; → in-review
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,19 mln tokenów subagentów, 9 agentów, 397 wywołań narzędzi, 1 runda, ok. 91 min; ścieżka pelna; vs baseline: brak danych
