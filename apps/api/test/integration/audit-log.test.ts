@@ -275,6 +275,18 @@ describe('what the log may show (EVM-029 AC5; SR-DATA-03, SR-LOG-03, P9; ASVS V1
   });
 });
 
+describe('Polish characters in the person shown in the log (EVM-029 AC5)', () => {
+  it('EVM-029 AC5 a displayName with Polish letters (ąćęłńóśźż) comes back unchanged and the person filter finds the events', async () => {
+    const { reader } = await scenario();
+    const name = 'Zażółć Gęślą Jaźń';
+    const person = await createUser(admin(), current.clock, { displayName: name, email: 'polish.letters@evia.invalid', role: 'editor' });
+    await seed({ at: new Date(current.clock.now().getTime() - 60_000), actor: person, action: 'login.succeeded' });
+    const items = (await list(reader, `?actorUserId=${person.id}`)).body.items;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.actor).toEqual({ userId: person.id, displayName: name });
+  });
+});
+
 describe('the input of the query (EVM-029 AC5; SR-API-02, SR-API-04, ASVS V2.2.1, CWE-89, CWE-20)', () => {
   it('EVM-029 AC5 anything outside the schema is 400, with the field named and the value never echoed', async () => {
     const { reader } = await scenario();
