@@ -1,4 +1,4 @@
-# Module `work-orders` — the list of work orders (EVM-017; W-10). Reading only; the creation of an order arrives with EVM-020–EVM-022.
+# Module `work-orders` — the list of work orders (EVM-017; W-10) and the creation of an order from a template (EVM-022; W-05).
 workOrders:
   get:
     operationId: listWorkOrders
@@ -78,5 +78,84 @@ workOrders:
         $ref: ../components/responses.yaml#/Unauthenticated
       '403':
         $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  post:
+    operationId: createWorkOrder
+    tags: [work-orders]
+    summary: Utworzenie zlecenia z szablonu (albo pustego)
+    description: >-
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden` dla dowolnej treści, także pustej i nieprawidłowej; niezalogowany —
+      `401`), kanał `web`, z audytem (`work_order.created` — identyfikatory, bez tytułu i opisu). Wymaga `X-CSRF-Token`.
+      Jedna transakcja: klient i lokalizacja (odczyt przez fasady modułów, tą samą transakcją co zapis) → szablon → numer z licznika
+      rocznego (`ZL-RRRR-NNNN`, rok wg `Europe/Warsaw`, bez luk: wycofanie transakcji cofa zużycie numeru) → zlecenie w statusie
+      `new` → pozycje zakresu skopiowane z szablonu (kod, nazwa, zestaw i parametry domyślne, ilość) → opiekun (`coordinator`) →
+      kontrybutorzy kompozycji (procesy — EVM-031, transze — EVM-053) → audyt; błąd któregokolwiek kroku cofa całość (nie powstaje
+      zlecenie, pozycja, przypisanie, wpis audytu ani rekord idempotencji, numer nie jest zużyty). `customerId` albo `siteId`
+      nieistniejące lub usunięte (także dla Administratora) — `404 not_found`, ta sama odpowiedź w obu przypadkach;
+      `templateId` wycofany albo nieistniejący — `422 template_unavailable`; `assigneeUserId` spoza aktywnych użytkowników —
+      `400 validation_failed` (`/assigneeUserId`, `assignee_unavailable`). Pole spoza schematu — `400 unknown_field`, pole serwera
+      (`number`, `status`, `scopeItems` …) — `400 read_only_field`; błędy to wskaźnik i kod, nigdy wartość. `id` (UUIDv7)
+      nadaje klient; istniejące `id` (także zlecenia usuniętego) — `409 id_conflict` bez danych istniejącego zasobu.
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny; panel wysyła go zawsze, a przy
+      ponowieniu używa tego samego `id` i klucza. Powtórka (ten sam klucz i treść) — to samo zlecenie z tym samym numerem,
+      bieżąca reprezentacja i `Idempotent-Replayed: true`, bez nowego zdarzenia audytu; ten sam klucz z inną treścią albo na innej
+      operacji — `422 idempotency_mismatch`; równoległe żądanie z tym samym kluczem — `409 idempotency_in_progress` z `Retry-After`.
+      Klucz obowiązuje 30 dni, osobno dla każdego użytkownika.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/CreateWorkOrderRequest
+    responses:
+      '201':
+        description: >-
+          Zlecenie utworzone (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrder
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ResourceConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/CreateWorkOrderUnprocessable
       '429':
         $ref: ../components/responses.yaml#/RateLimited

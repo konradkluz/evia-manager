@@ -23,6 +23,7 @@ AuditAction:
     - customer.created
     - site.created
     - party.created
+    - work_order.created
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.

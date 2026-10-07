@@ -447,3 +447,27 @@ stepUp:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+assignableUsers:
+  get:
+    operationId: listAssignableUsers
+    tags: [identity]
+    summary: Lista użytkowników do wyboru opiekuna zlecenia
+    description: >-
+      Role Administrator i Edytor, kanał `web`, bez audytu odczytu. Aktywni użytkownicy (nie zaproszeni, nie dezaktywowani, nie
+      usunięci) posortowani po nazwie wyświetlanej i identyfikatorze, najwyżej 100. Każda pozycja to wyłącznie `id` i `displayName`
+      — bez e-maila, roli, ostatniego logowania i statusu MFA (SR-DATA-03). Operacja nie przyjmuje parametrów.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: false
+    responses:
+      '200':
+        description: Aktywni użytkownicy (pole `nextCursor` jest zawsze `null`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/AssignableUserList
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
