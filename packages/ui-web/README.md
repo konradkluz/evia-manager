@@ -46,6 +46,7 @@ Pakiet nie ma kroku `build`: aplikacja importuje źródła TypeScript i `styles.
 | `RadioGroup` | § 3.4 (EVM-020) | `fieldset` z legendą, natywne radia (strzałki), etykieta po prawej, cały wiersz klikalny (≥ `size.touch-target.min`), `color.control.checked`, błąd pod grupą (`role="alert"`) |
 | `TextArea` | § 3.2 (EVM-020) | pole wieloliniowe jak `TextField` (etykieta, podpowiedź, błąd zastępujący podpowiedź); wysokość z `rows` — bez autowzrostu do 6 linii (odstępstwo od § 3.2, do decyzji UX) |
 | `Disclosure` | § 3.21 (EVM-020) | nagłówek = `button` w nagłówku `h2`–`h4` z `aria-expanded` i `aria-controls`, podsumowanie obok tytułu, ikona `chevron-down`/`chevron-up`; treść zostaje w DOM (`hidden`), więc wpisane dane nie giną; Enter / Spacja przełączają, fokus zostaje na nagłówku |
+| `TextField` — `suffix`, `inputMode` | § 3.2 (EVM-021) | wariant liczby z jednostką (np. „kW”): widoczny sufiks po polu, część opisu pola (`aria-describedby`); `inputMode="decimal"` daje klawiaturę liczbową bez `type="number"` |
 | `TextField` — `type="tel"` | § 3.2 (EVM-020) | wariant telefonu (klawiatura numeryczna na mobile) |
 | `AppShell` — `account` | § 3.17 | miejsce na menu konta na końcu TopBar (po zalogowaniu) |
 

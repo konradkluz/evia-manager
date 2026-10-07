@@ -73,6 +73,17 @@ describe('TextField (styleguide § 3.2; EVM-016 AC3)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-021 AC2 a unit suffix ("kW") is visible after the field, part of its description, and the number keyboard is asked for', async () => {
+    const { container } = render(
+      <TextField label="Moc przyłączeniowa (opcjonalnie)" value="11" suffix="kW" inputMode="decimal" hint="Do 2 miejsc po przecinku." />,
+    );
+    const field = screen.getByLabelText('Moc przyłączeniowa (opcjonalnie)');
+    const suffix = screen.getByText('kW');
+    expect(field.getAttribute('inputmode')).toBe('decimal');
+    expect(field.getAttribute('aria-describedby')).toBe(`${suffix.id} ${screen.getByText('Do 2 miejsc po przecinku.').id}`);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-016 AC3 password show and hide toggles the input type and the button text', async () => {
     const onChange = vi.fn();
     const ref = createRef<HTMLInputElement>();

@@ -18,6 +18,10 @@ export interface TextFieldProps {
   /** Texts of the show/hide button of a password field. */
   readonly reveal?: { readonly show: string; readonly hide: string };
   readonly disabled?: boolean;
+  /** Unit after the field ("kW", "zł"; § 3.2 numeric variant): visible text read as a part of the description of the field. */
+  readonly suffix?: string;
+  /** Keyboard of a touch device for numbers (`decimal`) without changing the field into `type="number"`. */
+  readonly inputMode?: 'decimal' | 'numeric' | 'tel' | 'email';
   readonly onChange?: ChangeEventHandler<HTMLInputElement>;
   readonly onBlur?: FocusEventHandler<HTMLInputElement>;
   readonly inputRef?: Ref<HTMLInputElement>;
@@ -38,13 +42,17 @@ export function TextField({
   error,
   reveal,
   disabled = false,
+  suffix,
+  inputMode,
   onChange,
   onBlur,
   inputRef,
 }: TextFieldProps) {
   const id = useId();
   const [revealed, setRevealed] = useState(false);
-  const describedBy = error === undefined ? (hint === undefined ? undefined : `${id}-hint`) : `${id}-error`;
+  const message = error === undefined ? (hint === undefined ? undefined : `${id}-hint`) : `${id}-error`;
+  const describedBy =
+    [suffix === undefined ? undefined : `${id}-suffix`, message].filter((part) => part !== undefined).join(' ') || undefined;
   const isPassword = type === 'password';
   const border = readOnly
     ? 'border-0 px-0'
@@ -64,6 +72,7 @@ export function TextField({
           type={isPassword && revealed ? 'text' : type}
           value={value}
           autoComplete={autoComplete}
+          inputMode={inputMode}
           readOnly={readOnly}
           disabled={disabled}
           aria-invalid={error === undefined ? undefined : true}
@@ -78,6 +87,11 @@ export function TextField({
             border,
           )}
         />
+        {suffix === undefined ? null : (
+          <span id={`${id}-suffix`} className="text-body text-text-secondary">
+            {suffix}
+          </span>
+        )}
         {isPassword && reveal ? (
           <Button
             variant="tertiary"
