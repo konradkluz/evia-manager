@@ -4,7 +4,7 @@ title: Nowe zlecenie z szablonu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 path: pelna
 priority: P1
 owner: backend-developer
@@ -100,11 +100,18 @@ _—_
 ## Uwagi do rozważenia
 _—_
 
+## Notatki
+- Brak limitu żądań na użytkownika dla zapisów (SR-API-02: 300/min/użytkownika; działa tylko limit IP 1200/min) — do backlogu; wyścig check→use klienta/lokalizacji/szablonu bez blokady wiersza (soft delete i wycofanie szablonu dopiero w EVM-039–041).
+- Szkic z wycofanym szablonem może wysłać nieaktualne id (panel); `insertScopeItems` bez ORDER BY przy RETURNING; przy 404 panel pokazuje błąd przy obu polach (świadomie, SR-AUTHZ-02).
+- UX (minor/nit): ucięty adres przy 1280 px, numer łamany w toaście na 360 px, podwójny baner offline, aria-live na całym podglądzie, brak zrzutów części stanów.
+- Flaky E2E Firefox (timeout page.goto 30 s) w pełnym przebiegu równoległym; 3× powtórka OK.
+- Poprawiono uszkodzony wpis o migracji 0015 w apps/api/README.md (artefakt powłoki).
+
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-022 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-022 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (scenariusze A1, C1, D1 na staging)
 
 ## Dziennik
@@ -114,3 +121,5 @@ _—_
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: migracje, dane osobowe, nowy endpoint i UI; gałąź feature/EVM-022-work-order-from-template)
 - 2026-10-07 — backend gotowy (backend-developer): kontrakt createWorkOrder i listAssignableUsers, migracja 0015, fasady CustomerDirectory / SiteDirectory / TemplateDirectory, port WorkOrderCompositionContributor, testy EVM-022 AC1–AC7 (API); panel — web-developer
 - 2026-10-07 — panel gotowy (web-developer): W-05 sekcje „3. Szablon” i „4. Zlecenie”, „Utwórz zlecenie”, nagłówek W-06, szkic, stany; komponenty SelectableCardGroup, ErrorSummary, FieldError w ui-web; testy EVM-022 AC1–AC4, AC7, AC8 (Vitest + axe, E2E, zrzuty w docs/ux/reviews/EVM-022)
+- 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 98,5% / gałęzie 94,4%; → in-review
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,13 mln tokenów subagentów, 8 agentów, 388 wywołań narzędzi, 1 runda, ok. 84 min; ścieżka pelna; vs baseline: brak danych
