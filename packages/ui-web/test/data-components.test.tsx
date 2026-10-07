@@ -1,0 +1,124 @@
+import { render, screen, within } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import { DataTable, DateField, FilterChip, Select } from '../src/index.ts';
+import { axeViolations } from './a11y.ts';
+
+const describedBy = (element: Element): string | undefined =>
+  document.getElementById(element.getAttribute('aria-describedby') ?? '')?.textContent ?? undefined;
+
+describe('Select (styleguide § 3.3; EVM-029 AC5)', () => {
+  const options = [
+    { value: '', label: 'Wszystkie akcje' },
+    { label: 'Logowanie i sesje', options: [{ value: 'login.succeeded', label: 'Logowanie' }] },
+  ];
+
+  it('EVM-029 AC5 it has a visible label, groups and reports the chosen value', async () => {
+    const onChange = vi.fn();
+    const { container } = render(<Select label="Akcja" value="" options={options} onChange={onChange} />);
+    const select = screen.getByRole('combobox', { name: 'Akcja' });
+    expect(within(select).getByRole('group', { name: 'Logowanie i sesje' })).toBeTruthy();
+    await userEvent.selectOptions(select, 'Logowanie');
+    expect(onChange).toHaveBeenCalledWith('login.succeeded');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-029 AC8 disabled explains why through the hint', () => {
+    render(<Select label="Wynik" value="" options={options} onChange={vi.fn()} disabled hint="Brak połączenia." />);
+    const select = screen.getByRole('combobox', { name: 'Wynik' });
+    expect((select as HTMLSelectElement).disabled).toBe(true);
+    expect(describedBy(select)).toBe('Brak połączenia.');
+  });
+});
+
+describe('DateField (styleguide § 3.5; EVM-029 AC5)', () => {
+  it('EVM-029 AC5 it is a labelled date input that reports the typed date', async () => {
+    const onChange = vi.fn();
+    const { container } = render(<DateField label="Od" value="" onChange={onChange} min="2024-10-07" max="2026-10-07" />);
+    const input = screen.getByLabelText('Od');
+    expect(input.getAttribute('type')).toBe('date');
+    await userEvent.type(input, '2026-10-01');
+    expect(onChange).toHaveBeenCalled();
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-029 AC5 an error is announced as an alert, tied to the field and not carried by colour only', () => {
+    render(<DateField label="Do" value="2026-10-01" onChange={vi.fn()} error="Data końcowa jest wcześniejsza." />);
+    const input = screen.getByLabelText('Do');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByRole('alert').textContent).toBe('Data końcowa jest wcześniejsza.');
+    expect(describedBy(input)).toBe('Data końcowa jest wcześniejsza.');
+  });
+});
+
+describe('FilterChip (styleguide § 3.7; EVM-029 AC5)', () => {
+  it('EVM-029 AC5 a choice chip is a toggle: selected shows the check icon and aria-pressed', async () => {
+    const onClick = vi.fn();
+    const { rerender } = render(<FilterChip variant="choice" label="Dziś" onClick={onClick} />);
+    const chip = screen.getByRole('button', { name: 'Dziś' });
+    expect(chip.getAttribute('aria-pressed')).toBe('false');
+    expect(chip.querySelector('svg')).toBeNull();
+    await userEvent.click(chip);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    rerender(<FilterChip variant="choice" label="Dziś" selected onClick={onClick} />);
+    expect(screen.getByRole('button', { name: 'Dziś' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Dziś' }).querySelector('svg')).not.toBeNull();
+  });
+
+  it('EVM-029 AC5 an active chip removes its filter and is named "Usuń filtr …"', async () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <FilterChip variant="active" label="Wynik: Odmowa" removeLabel="Usuń filtr Wynik: Odmowa" onClick={onClick} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Usuń filtr Wynik: Odmowa' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-029 AC8 disabled stays focusable and does nothing', async () => {
+    const onClick = vi.fn();
+    render(
+      <>
+        <FilterChip variant="choice" label="7 dni" disabled onClick={onClick} />
+        <FilterChip variant="active" label="Wynik: Błąd" removeLabel="Usuń filtr Wynik: Błąd" disabled onClick={onClick} />
+      </>,
+    );
+    await userEvent.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '7 dni' }));
+    await userEvent.click(screen.getByRole('button', { name: '7 dni' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Usuń filtr Wynik: Błąd' }));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+describe('DataTable (styleguide § 3.6; EVM-029 AC5)', () => {
+  it('EVM-029 AC5 it is a captioned table with column headers, named rows and cells in the order of the columns', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Dziennik audytu — zdarzenia od najnowszych"
+        columns={[
+          { id: 'time', header: 'Czas', numeric: true },
+          { id: 'action', header: 'Akcja' },
+        ]}
+        rows={[
+          { id: 'a', cells: ['04.10.2026, 14:05', 'Logowanie'], label: 'Logowanie, 04.10.2026, 14:05, udane' },
+          { id: 'b', cells: ['04.10.2026, 13:58', 'Zmiana roli'] },
+        ]}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Dziennik audytu — zdarzenia od najnowszych' });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Czas', 'Akcja']);
+    expect(within(table).getByRole('row', { name: 'Logowanie, 04.10.2026, 14:05, udane' })).toBeTruthy();
+    expect(
+      within(table)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual(['04.10.2026, 14:05', 'Logowanie', '04.10.2026, 13:58', 'Zmiana roli']);
+    expect(within(table).getAllByRole('cell')[0]?.className).toContain('tabular-nums');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+});
