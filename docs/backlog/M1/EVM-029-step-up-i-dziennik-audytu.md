@@ -4,7 +4,7 @@ title: Ponowne uwierzytelnienie (step-up) i dziennik audytu dla Administratora
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -114,3 +114,4 @@ _—_
 - 2026-10-07 — panel W-04 (dialog step-up) i W-18 (dziennik audytu) gotowy (web-developer): nowe komponenty Select, DateField, FilterChip, DataTable; testy Vitest i Playwright (Chromium, Edge, Firefox), axe, zrzuty w docs/ux/reviews/EVM-029
 - 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 99,4% / gałęzie 95,6%; → in-review
 - 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,16 mln tokenów subagentów, 8 agentów, 354 wywołania narzędzi, 1 runda, ok. 65 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-07 — zaakceptowane przez Konrada, scalone do main (PR #23) → done
