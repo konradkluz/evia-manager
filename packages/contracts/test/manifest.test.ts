@@ -28,6 +28,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listProcedureTemplates',
       'listServiceItems',
       'listWorkOrderTemplates',
+      'listWorkOrders',
       'login',
       'logout',
       'registerPasskey',

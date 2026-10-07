@@ -24,6 +24,8 @@ tags:
     description: Dziennik audytu tylko do odczytu dla Administratora po ponownym uwierzytelnieniu (moduł audit).
   - name: catalog
     description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
+  - name: work-orders
+    description: Zlecenia — lista z filtrami i paginacją kursorem (moduł work-orders).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -63,6 +65,8 @@ paths:
     $ref: paths/catalog.yaml#/procedureTemplates
   /api/v1/catalog/document-kinds:
     $ref: paths/catalog.yaml#/documentKinds
+  /api/v1/work-orders:
+    $ref: paths/work-orders.yaml#/workOrders
 components:
   schemas:
     Health:
@@ -143,3 +147,15 @@ components:
       $ref: components/catalog.yaml#/WorkOrderTemplate
     WorkOrderTemplateList:
       $ref: components/catalog.yaml#/WorkOrderTemplateList
+    WorkOrderStatus:
+      $ref: components/work-orders.yaml#/WorkOrderStatus
+    WorkOrderSort:
+      $ref: components/work-orders.yaml#/WorkOrderSort
+    WorkOrderView:
+      $ref: components/work-orders.yaml#/WorkOrderView
+    WorkOrderCoordinator:
+      $ref: components/work-orders.yaml#/WorkOrderCoordinator
+    WorkOrderListItem:
+      $ref: components/work-orders.yaml#/WorkOrderListItem
+    WorkOrderList:
+      $ref: components/work-orders.yaml#/WorkOrderList

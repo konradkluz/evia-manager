@@ -192,3 +192,18 @@ StepUpFailed:
         status: 401
         code: passkey_failed
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+InvalidListQuery:
+  description: >-
+    Parametry zapytania niezgodne ze schematem (`validation_failed`, `errors[]` — wskaźnik i kod, bez wartości), nieznany
+    (`unknown_parameter`) albo powtórzony parametr (`duplicate_parameter`), albo kursor zmieniony, wygasły, wydany komu innemu
+    lub użyty z innymi filtrami (`invalid_cursor` — jedna odpowiedź dla wszystkich przypadków, bez szczegółów).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/invalid_cursor
+        title: Invalid cursor
+        status: 400
+        code: invalid_cursor
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
