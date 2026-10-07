@@ -4,6 +4,7 @@ import { AuditModule } from './modules/audit/index.ts';
 import { AuthorizationModule } from './modules/authorization/index.ts';
 import { CatalogModule } from './modules/catalog/index.ts';
 import { IdentityModule } from './modules/identity/index.ts';
+import { WorkOrdersModule } from './modules/work-orders/index.ts';
 import { PlatformModule, type PlatformDependencies } from './platform/platform.module.ts';
 
 @Module({})
@@ -11,7 +12,7 @@ export class AppModule {
   static register(dependencies: PlatformDependencies): DynamicModule {
     return {
       module: AppModule,
-      imports: [PlatformModule.register(dependencies), IdentityModule, CatalogModule, AuditModule, AuthorizationModule],
+      imports: [PlatformModule.register(dependencies), IdentityModule, CatalogModule, WorkOrdersModule, AuditModule, AuthorizationModule],
     };
   }
 }
