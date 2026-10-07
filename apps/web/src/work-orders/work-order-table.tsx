@@ -27,10 +27,16 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
   const direction = sort.startsWith('-') ? 'descending' : 'ascending';
   const byNumber = sort === 'number' || sort === '-number';
   const columns: DataTableColumn[] = [
-    { id: 'order', header: t('workOrders.table.order'), ...(byNumber ? { sort: direction } : {}) },
-    { id: 'status', header: t('workOrders.table.status') },
-    { id: 'coordinator', header: t('workOrders.table.coordinator') },
-    { id: 'created', header: t('workOrders.table.created'), numeric: true, ...(byNumber ? {} : { sort: direction }) },
+    { id: 'order', card: 'primary' as const, header: t('workOrders.table.order'), ...(byNumber ? { sort: direction } : {}) },
+    { id: 'status', card: 'badge' as const, header: t('workOrders.table.status') },
+    { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator') },
+    {
+      id: 'created',
+      card: 'meta' as const,
+      header: t('workOrders.table.created'),
+      numeric: true,
+      ...(byNumber ? {} : { sort: direction }),
+    },
   ];
   const rows: DataTableRow[] = items.map((item) => {
     const known = isKnown(item.status);
@@ -57,10 +63,15 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
         ) : (
           <StatusBadge key="status" status="unknown" label={status} hint={t('workOrders.status.unknownHint')} />
         ),
-        <span key="coordinator" className={item.coordinator === null ? 'text-text-secondary' : undefined}>
+        <span
+          key="coordinator"
+          className={item.coordinator === null ? 'medium:whitespace-nowrap text-text-secondary' : 'medium:whitespace-nowrap'}
+        >
           {coordinator}
         </span>,
-        created,
+        <span key="created" className="medium:whitespace-nowrap">
+          {created}
+        </span>,
       ],
     };
   });
