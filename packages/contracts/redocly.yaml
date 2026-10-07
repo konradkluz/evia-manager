@@ -10,6 +10,7 @@ rules:
   evia/no-personal-data-parameters: error
   evia/channels-required: error
   evia/mobile-channel-allow-list: error
+  evia/step-up-web-only: error
   evia/mfa-enrollment-allow-list: error
   operation-operationId: error
   operation-summary: error

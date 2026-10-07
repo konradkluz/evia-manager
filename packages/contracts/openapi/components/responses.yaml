@@ -163,3 +163,32 @@ NotFound:
         status: 404
         code: not_found
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+StepUpRequired:
+  description: >-
+    Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatnie uwierzytelnienie kluczem dostępu w tej sesji
+    było 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji lub kodu odzyskiwania). Zwracane dopiero po
+    kontroli kanału i roli — rola bez prawa do operacji dostaje `forbidden`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/step_up_required
+        title: Re-authentication required
+        status: 403
+        code: step_up_required
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+StepUpFailed:
+  description: >-
+    Klucz dostępu odrzucony (`passkey_failed` — sesja bez zmian, wyzwanie zużyte; trzeba poprosić o nowe opcje), brak sesji
+    (`unauthenticated`), sesja unieważniona (`session_revoked`) albo wygasła (`session_expired`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/passkey_failed
+        title: Passkey sign-in failed
+        status: 401
+        code: passkey_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

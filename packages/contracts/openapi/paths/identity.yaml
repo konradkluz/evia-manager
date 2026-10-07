@@ -368,3 +368,82 @@ passkeys:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+stepUpOptions:
+  post:
+    operationId: getStepUpPasskeyOptions
+    tags: [identity]
+    summary: Opcje ponownego uwierzytelnienia kluczem dostępu (step-up)
+    description: >-
+      Tylko Administrator, kanał `web`, sesja `active`; bez treści żądania. Zwraca opcje WebAuthn (`userVerification: required`,
+      `allowCredentials` tylko z kluczami zalogowanego użytkownika) i zapisuje jednorazowe wyzwanie (≥ 128 bitów, TTL 5 min)
+      o celu `passkey_step_up` powiązane z bieżącą sesją; wcześniejsze otwarte wyzwania tej sesji z tym celem tracą ważność.
+      Wyzwanie rejestracji klucza i wyzwanie step-upu nie są wymienne. Wymaga `X-CSRF-Token`. Limit 20 żądań na minutę z jednego
+      adresu IP (wspólny z logowaniem). Nie wymaga świeżego uwierzytelnienia (to jest ta ścieżka).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+    responses:
+      '200':
+        description: Opcje uwierzytelnienia.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasskeyAuthenticationOptions
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/SessionExpired
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+stepUp:
+  post:
+    operationId: stepUp
+    tags: [identity]
+    summary: Ponowne uwierzytelnienie kluczem dostępu (step-up)
+    description: >-
+      Tylko Administrator, kanał `web`, sesja `active`. Jedyną metodą jest klucz dostępu — kod odzyskiwania nie jest obsługiwany
+      (treść jest ścisła: tylko `credential`, każde inne pole daje `400 validation_failed`). Weryfikuje odpowiedź WebAuthn: klucz
+      musi należeć do użytkownika sesji, origin i RP ID z konfiguracji, `userVerification: required`, licznik podpisów,
+      wyzwanie jednorazowe o celu `passkey_step_up` powiązane z bieżącą sesją (zużywane przy każdej weryfikacji, także nieudanej).
+      Sukces w jednej transakcji: poprzednia sesja unieważniona (`rotated`, warunkowy `UPDATE`), nowa sesja z nowym tokenem i nowym
+      `csrfToken`, ten sam użytkownik, kanał i stan, bezwzględny limit 12 h bez zmian, czas uwierzytelnienia kluczem = teraz,
+      zdarzenia audytu `session.revoked`, `session.created`, `step_up.succeeded`. Sesja już nieważna → `401 session_revoked`
+      bez nowej sesji. Nieudany klucz → `401 passkey_failed` (sesja bez zmian, bez rotacji, zdarzenie `step_up.failed`). Wymaga
+      `X-CSRF-Token`. Limit 20 żądań na minutę z jednego adresu IP.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/StepUpRequest
+    responses:
+      '200':
+        description: Tożsamość potwierdzona.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/StepUpResult
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/StepUpFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

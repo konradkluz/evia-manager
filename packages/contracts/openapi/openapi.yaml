@@ -20,6 +20,8 @@ tags:
     description: Operacje techniczne platformy (zdrowie usługi).
   - name: identity
     description: Aktywacja konta, sesja i klucze dostępu (moduł identity).
+  - name: audit
+    description: Dziennik audytu tylko do odczytu dla Administratora po ponownym uwierzytelnieniu (moduł audit).
   - name: catalog
     description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
 paths:
@@ -41,6 +43,12 @@ paths:
     $ref: paths/identity.yaml#/sessionExtend
   /api/v1/auth/logout:
     $ref: paths/identity.yaml#/logout
+  /api/v1/auth/step-up/options:
+    $ref: paths/identity.yaml#/stepUpOptions
+  /api/v1/auth/step-up:
+    $ref: paths/identity.yaml#/stepUp
+  /api/v1/audit/events:
+    $ref: paths/audit.yaml#/events
   /api/v1/account/passkeys/registration-options:
     $ref: paths/identity.yaml#/passkeyOptions
   /api/v1/account/passkeys:
@@ -85,6 +93,16 @@ components:
       $ref: components/identity.yaml#/LoginToken
     SessionExpiry:
       $ref: components/identity.yaml#/SessionExpiry
+    StepUpResult:
+      $ref: components/identity.yaml#/StepUpResult
+    AuditAction:
+      $ref: components/audit.yaml#/AuditAction
+    AuditOutcome:
+      $ref: components/audit.yaml#/AuditOutcome
+    AuditEvent:
+      $ref: components/audit.yaml#/AuditEvent
+    AuditEventList:
+      $ref: components/audit.yaml#/AuditEventList
     SiteType:
       $ref: components/catalog.yaml#/SiteType
     PartyKind:

@@ -6,6 +6,7 @@
  * - `evia/channels-required` — every non-public operation lists its channels (`web`, `mobile`) (SR-AUTHZ-12);
  * - `evia/mobile-channel-allow-list` — `mobile` only for MOBILE_OPERATIONS (empty in M1: the mobile channel starts with
  *   E9) and never together with `stepUp: true`;
+ * - `evia/step-up-web-only` — an operation with `stepUp: true` lists exactly `[web]` (EVM-029 AC7; SR-AUTHZ-12);
  * - `evia/mfa-enrollment-allow-list` — `allowDuringMfaEnrollment: true` only for MFA_ENROLLMENT_OPERATIONS (AC4).
  * Loaded by redocly.yaml; the rule functions are plain visitors, unit-tested without the CLI.
  */
@@ -131,6 +132,23 @@ export function MobileChannelAllowList() {
   };
 }
 
+export function StepUpWebOnly() {
+  return {
+    Operation(operation: OperationNode, ctx: RuleContext) {
+      const authz = operation['x-evia-authz'];
+      if (!isRecord(authz) || authz['stepUp'] !== true) return;
+      const channels = authz['channels'];
+      if (!Array.isArray(channels) || channels.length !== 1 || channels[0] !== 'web') {
+        const id = typeof operation.operationId === 'string' ? operation.operationId : '';
+        ctx.report({
+          message: `Operacja ${id || '(bez operationId)'} z stepUp: true musi mieć dokładnie channels: [web] (SR-AUTHZ-12).`,
+          location: ctx.location.child('x-evia-authz').child('channels'),
+        });
+      }
+    },
+  };
+}
+
 export function MfaEnrollmentAllowList() {
   return {
     Operation(operation: OperationNode, ctx: RuleContext) {
@@ -174,6 +192,7 @@ export default function eviaPlugin() {
         'no-personal-data-parameters': NoPersonalDataParameters,
         'channels-required': ChannelsRequired,
         'mobile-channel-allow-list': MobileChannelAllowList,
+        'step-up-web-only': StepUpWebOnly,
         'mfa-enrollment-allow-list': MfaEnrollmentAllowList,
       },
     },

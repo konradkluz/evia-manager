@@ -8,6 +8,7 @@ import eviaPlugin, {
   NoPersonalDataParameters,
   normalizeName,
   PublicAllowList,
+  StepUpWebOnly,
   type RuleContext,
 } from '../src/redocly-plugin.ts';
 
@@ -35,6 +36,7 @@ describe('contract lint (EVM-008 AC2)', () => {
     ['error-not-problem-json', 'rule/error-responses-are-problem-json'],
     ['mobile-in-m1', 'evia/mobile-channel-allow-list'],
     ['mobile-with-step-up', 'evia/mobile-channel-allow-list'],
+    ['step-up-not-web-only', 'evia/step-up-web-only'],
     ['missing-channels', 'evia/channels-required'],
     ['mfa-enrollment-outside-allow-list', 'evia/mfa-enrollment-allow-list'],
   ])('EVM-008 AC2 negative fixture %s fails lint with %s (EVM-016 AC8 for the channel rules)', (name, rule) => {
@@ -58,6 +60,7 @@ describe('Redocly plugin rules (EVM-008 AC2, SR-AUTHZ-01, SR-API-04)', () => {
       'no-personal-data-parameters',
       'channels-required',
       'mobile-channel-allow-list',
+      'step-up-web-only',
       'mfa-enrollment-allow-list',
     ]);
   });
@@ -128,6 +131,20 @@ describe('Redocly plugin channel and enrollment rules (EVM-016 AC4, AC8; SR-AUTH
     expect(run(rule, { operationId: 'listWorkOrders', 'x-evia-authz': { channels: ['web', 'mobile'] } })).toHaveLength(1);
     expect(run(rule, { 'x-evia-authz': { channels: ['mobile'] } })[0]).toContain('(bez operationId)');
     expect(run(rule, { operationId: 'x', 'x-evia-authz': { channels: ['mobile'], stepUp: true } })).toHaveLength(2);
+  });
+
+  it('EVM-029 AC7 step-up-web-only wants channels exactly [web] on an operation with stepUp: true', () => {
+    const rule = StepUpWebOnly();
+    expect(
+      run(rule, { operationId: 'listAuditEvents', 'x-evia-authz': { roles: ['administrator'], channels: ['web'], stepUp: true } }),
+    ).toEqual([]);
+    expect(run(rule, { operationId: 'x', 'x-evia-authz': { channels: ['web', 'mobile'] } })).toEqual([]);
+    expect(run(rule, { 'x-evia-authz': { channels: ['mobile'], stepUp: false } })).toEqual([]);
+    expect(run(rule, {})).toEqual([]);
+    for (const channels of [undefined, [], ['mobile'], ['web', 'mobile'], 'web']) {
+      expect(run(rule, { operationId: 'x', 'x-evia-authz': { channels, stepUp: true } }), JSON.stringify(channels)).toHaveLength(1);
+    }
+    expect(run(rule, { 'x-evia-authz': { stepUp: true } })[0]).toContain('(bez operationId)');
   });
 
   it('EVM-016 AC4 mfa-enrollment-allow-list accepts the flag only on the listed operations', () => {
