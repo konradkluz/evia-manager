@@ -49,7 +49,7 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
       }),
       cells: [
         <span key="order" className="flex flex-col">
-          <span className="font-semibold tabular-nums">{item.number}</span>
+          <span className="font-semibold tabular-nums whitespace-nowrap">{item.number}</span>
           <span className="break-words text-text-secondary">{item.title}</span>
         </span>,
         known ? (

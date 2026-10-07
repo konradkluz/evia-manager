@@ -229,6 +229,27 @@ describe('W-10 filters, views and sorting (EVM-017 AC2)', () => {
   });
 });
 
+describe('W-10 one request for one change (EVM-017 AC2, AC5)', () => {
+  it('EVM-017 AC5 a change of the view and of the coordinator together asks the server once — never for a mix of the old and the new filters', async () => {
+    const api = listApi(ok([order(1, { coordinator: JAN }), order(2)]));
+    await renderPanel(`${PATH}?view=mine`, api);
+    await screen.findByRole('table');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Opiekun' }), 'Jan Przykładowy');
+    await waitFor(() => {
+      expect(lastQuery(api).get('coordinatorId')).toBe(JAN.id);
+    });
+    const before = reads(api).length;
+    await userEvent.click(screen.getByRole('button', { name: 'Wyczyść filtry' }));
+    await waitFor(() => {
+      expect(lastQuery(api).get('view')).toBe('all_open');
+    });
+    await screen.findByRole('table');
+    expect(reads(api)).toHaveLength(before + 1);
+    expect(lastQuery(api).has('coordinatorId')).toBe(false);
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Opiekun' }).value).toBe('');
+  });
+});
+
 describe('W-10 pages by cursor (EVM-017 AC3)', () => {
   const pages = (calls: Recorded[] = []): Handler => {
     return (request) => {

@@ -54,7 +54,7 @@ test.describe('UX review screenshots (EVM-016) @screenshots', () => {
       api.session = 'active';
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/work-orders');
-      await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeVisible();
       await shot(`shell-${String(width)}`);
       await page.getByRole('button', { name: `Konto: ${DISPLAY_NAME}` }).click();
       await expect(page.getByRole('menuitem', { name: 'Wyloguj' })).toBeFocused();

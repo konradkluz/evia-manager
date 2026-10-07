@@ -18,7 +18,7 @@ test.describe('UX review screenshots (EVM-008 AC6) @screenshots', () => {
     test(`EVM-008 AC6 shell at ${String(width)} px`, async ({ page, shot }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/work-orders');
-      await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeVisible();
       await shot(`shell-${String(width)}`);
     });
   }
@@ -34,7 +34,7 @@ test.describe('UX review screenshots (EVM-008 AC6) @screenshots', () => {
   test('EVM-008 AC6 collapsed sidebar tooltip at 768 px (keyboard focus)', async ({ page, shot }) => {
     await page.setViewportSize({ width: 768, height: 800 });
     await page.goto('/work-orders');
-    await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeVisible();
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await expect(page.getByRole('navigation').getByRole('link', { name: 'Zlecenia' })).toBeFocused();

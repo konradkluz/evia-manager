@@ -1,4 +1,4 @@
-import { listWorkOrders, type CurrentSession, type WorkOrderListItem } from '@evia/contracts';
+import { listWorkOrders, type CurrentSession, type WorkOrderListItem, type WorkOrderSort } from '@evia/contracts';
 import {
   Banner,
   Button,
@@ -45,6 +45,12 @@ const SLOW_MS = 10_000;
 /** The server did not accept the cursor (changed list, expired, other filters): `invalid_cursor`. */
 const isBadCursor = (error: unknown): boolean => error instanceof ApiError && error.status === 400 && error.code === 'invalid_cursor';
 
+/** The filters that live only in the memory of the tab. */
+interface LocalFilters {
+  readonly coordinatorId: string;
+  readonly sort: WorkOrderSort;
+}
+
 interface LoadedPage {
   readonly items: readonly WorkOrderListItem[];
   readonly at: number;
@@ -65,8 +71,10 @@ export function WorkOrdersPage() {
   const sessionState = useQueryClient().getQueryData<CurrentSession>(SESSION_KEY)?.state;
   const navigate = useNavigate();
   const search: WorkOrderSearch = useSearch({ strict: false });
-  const [coordinatorId, setCoordinatorId] = useState('');
-  const [sort, setSort] = useState(DEFAULT_SORT);
+  // What the address does not carry (coordinator, sort order). A change that also changes the address waits in `pending`
+  // until the address has changed, so that the list is never asked for a mix of the old and the new filters (one request).
+  const [local, setLocal] = useState<LocalFilters>({ coordinatorId: '', sort: DEFAULT_SORT });
+  const [pending, setPending] = useState<{ readonly key: string; readonly values: LocalFilters } | null>(null);
   // Cursors of the pages passed through (empty = the first page, the last = the current one) with the filters they belong to.
   const [paging, setPaging] = useState<{ readonly key: string; readonly cursors: readonly string[] }>({ key: '', cursors: [] });
   const [people, setPeople] = useState<ReadonlyMap<string, string>>(new Map());
@@ -77,7 +85,10 @@ export function WorkOrdersPage() {
   const moved = useRef<'next' | 'previous' | null>(null);
 
   const view = viewOf(search);
-  const filters: WorkOrderFilters = { view, statuses: statusesOf(search), coordinatorId, sort };
+  const statuses = statusesOf(search);
+  const addressKey = JSON.stringify([view, statuses]);
+  const { coordinatorId, sort } = pending !== null && pending.key === addressKey ? pending.values : local;
+  const filters: WorkOrderFilters = { view, statuses, coordinatorId, sort };
   const filterKey = JSON.stringify([filters.view, filters.statuses, filters.coordinatorId, filters.sort]);
   const cursors = paging.key === filterKey ? paging.cursors : [];
   const cursor = cursors.at(-1);
@@ -117,6 +128,13 @@ export function WorkOrdersPage() {
     heading.current?.focus();
   }, [data, t]);
 
+  // The address has changed to the one a pending change waits for: the change becomes the state of the page.
+  useEffect(() => {
+    if (pending === null || pending.key !== addressKey) return;
+    setLocal(pending.values);
+    setPending(null);
+  }, [pending, addressKey]);
+
   // A cursor the server no longer accepts: back to the first page with a message (AC3); the filters stay.
   const badCursor = cursors.length > 0 && isBadCursor(error);
   useEffect(() => {
@@ -135,8 +153,14 @@ export function WorkOrdersPage() {
   const change = (next: WorkOrderFilters) => {
     moved.current = null;
     setNotice(null);
-    setCoordinatorId(next.coordinatorId);
-    setSort(next.sort);
+    const values = { coordinatorId: next.coordinatorId, sort: next.sort };
+    const nextKey = JSON.stringify([next.view, next.statuses]);
+    if (nextKey === addressKey) {
+      setPending(null);
+      setLocal(values);
+      return;
+    }
+    setPending({ key: nextKey, values });
     void navigate({ to: WORK_ORDERS_PATH, search: searchOf(next) });
   };
   const go = (direction: 'next' | 'previous') => {

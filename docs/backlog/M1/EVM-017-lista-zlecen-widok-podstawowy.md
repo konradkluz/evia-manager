@@ -114,3 +114,4 @@ _—_
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: uprawnienia, masowy odczyt, nowy endpoint i UI; gałąź feature/EVM-017-work-orders-list)
 - 2026-10-07 — plan gotowy (backend-developer)
 - 2026-10-07 — backend gotowy (backend-developer): kontrakt `listWorkOrders`, migracja `0010`, moduł `work-orders`, kursor i licznik masowego odczytu; testy integracyjne zielone w kontenerze; do zrobienia: panel W-10 (web-developer)
+- 2026-10-07 — panel W-10 gotowy (web-developer): lista, filtry, kursor, stany, `StatusBadge` i wiersz-link w `ui-web`, testy komponentów i E2E, zrzuty w `docs/ux/reviews/EVM-017/`; do przeglądu UX: widok kart poniżej 768 px i źródło opcji „Opiekun”

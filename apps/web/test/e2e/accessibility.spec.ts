@@ -9,7 +9,7 @@ test.describe('accessibility in the browser, with colour contrast (EVM-008 AC3, 
     test(`EVM-008 AC3 no axe violations at ${String(width)} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/work-orders');
-      await expect(page.getByRole('heading', { level: 2, name: 'Brak zleceń' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze zleceń.' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
     });
   }
