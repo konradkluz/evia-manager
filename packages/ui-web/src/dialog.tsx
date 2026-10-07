@@ -50,17 +50,17 @@ export function Dialog({ open, title, closeLabel, children, actions, onDismiss }
         event.preventDefault();
         onDismiss();
       }}
-      className="m-auto p-inset-lg w-full max-w-dialog-width-md overflow-y-auto rounded-dialog shadow-dialog bg-bg-surface text-text-primary backdrop:bg-bg-scrim"
+      className="m-auto p-inset-lg w-full max-w-dialog-width-md overflow-hidden open:flex open:flex-col rounded-dialog shadow-dialog bg-bg-surface text-text-primary backdrop:bg-bg-scrim"
     >
       {open ? (
-        <div className="flex flex-col gap-stack-md">
+        <div className="flex min-h-0 flex-1 flex-col gap-stack-md">
           <div className="flex items-start justify-between gap-inline-md">
             <h2 id={`${id}-title`} className="text-heading-3">
               {title}
             </h2>
             <IconButton icon={X} label={closeLabel} onClick={onDismiss} />
           </div>
-          <div className="flex flex-col gap-stack-md text-body">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col gap-stack-md overflow-y-auto text-body">{children}</div>
           <div className="flex flex-wrap justify-end gap-inline-sm">{actions}</div>
         </div>
       ) : null}

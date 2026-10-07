@@ -290,6 +290,29 @@ export function AddCustomerDialog({ open, onClose, onCreated, onPick }: AddCusto
           {text('phone', t('customers.dialog.phone'), { type: 'tel', autoComplete: 'off' })}
           {text('email', t('customers.dialog.email'), { type: 'email' })}
         </div>
+        <div role="status" className="flex flex-col gap-stack-sm">
+          {online
+            ? similar.map((item) => (
+                <InlineAlert
+                  key={item.id}
+                  tone="info"
+                  action={
+                    <Button
+                      variant="tertiary"
+                      onClick={() => {
+                        reset();
+                        onPick({ id: item.id, displayName: item.displayName, phone: item.phone });
+                      }}
+                    >
+                      {t('customers.similar.choose')}
+                    </Button>
+                  }
+                >
+                  {t('customers.similar.text', { name: item.displayName, phone: formatPhone(item.phone) })}
+                </InlineAlert>
+              ))
+            : null}
+        </div>
         <Disclosure
           title={t('customers.dialog.address')}
           summary={addressStarted(form) ? undefined : t('customers.dialog.addressSummary')}
@@ -316,29 +339,6 @@ export function AddCustomerDialog({ open, onClose, onCreated, onPick }: AddCusto
             change('notes', event.target.value);
           }}
         />
-        <div role="status" className="flex flex-col gap-stack-sm">
-          {online
-            ? similar.map((item) => (
-                <InlineAlert
-                  key={item.id}
-                  tone="info"
-                  action={
-                    <Button
-                      variant="tertiary"
-                      onClick={() => {
-                        reset();
-                        onPick({ id: item.id, displayName: item.displayName, phone: item.phone });
-                      }}
-                    >
-                      {t('customers.similar.choose')}
-                    </Button>
-                  }
-                >
-                  {t('customers.similar.text', { name: item.displayName, phone: formatPhone(item.phone) })}
-                </InlineAlert>
-              ))
-            : null}
-        </div>
       </form>
     </Dialog>
   );

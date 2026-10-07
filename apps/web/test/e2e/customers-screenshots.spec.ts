@@ -71,6 +71,7 @@ test.describe('UX review screenshots (EVM-020) @screenshots', () => {
       await dialog.getByRole('textbox', { name: 'Nazwisko' }).fill('Przykładowy');
       await dialog.getByRole('textbox', { name: 'Telefon' }).fill('+48 600 000 001');
       await expect(dialog.getByText('Podobny klient: Jan Przykładowy · +48 600 000 001')).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Dodaj klienta' })).toBeInViewport();
       await dialog.getByRole('button', { name: /Adres korespondencyjny/ }).click();
       await shot(`w05-dialog-similar-address-${px}`);
       await dialog.getByRole('radio', { name: 'Firma' }).check();
