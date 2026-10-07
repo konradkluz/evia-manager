@@ -129,3 +129,4 @@ _—_
 - 2026-10-06 — panel web zaimplementowany (web-developer): W-01, W-02, P-11 (`AlertDialog` w `@evia/ui-web`), `returnTo`, szkice i `loginToken` tylko w pamięci karty, E2E z inspekcją magazynów, axe i zrzuty do `docs/ux/reviews/EVM-067/`
 - 2026-10-06 — przeglądy i weryfikacja QA: 2 rundy, 0 blokujących (workflow deliver-story); orkiestrator powtórzył bramkę i pokrycie → in-progress → in-review
 - 2026-10-06 — in-review → done: akceptacja Konrada, PR #19 scalony do main (squash)
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,81 mln tokenów subagentów, 12 agentów, 593 wywołania narzędzi, 2 rundy, ok. 105 min; ścieżka pelna; vs baseline: brak danych

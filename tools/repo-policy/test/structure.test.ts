@@ -159,10 +159,13 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
 
   it('EVM-006 AC3 (W3b, B7): the gate checks hooks, removes stale reports first, then runs native, container and changed-code stages', () => {
     expect(root.scripts?.['gate']).toBe(
-      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run coverage:diff',
+      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
     expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api');
+    expect(root.scripts?.['gate:integration']).toBe(
+      'docker compose -f compose.yaml run --rm backend-tests pnpm --filter @evia/api run test:integration',
+    );
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
   });

@@ -4,7 +4,7 @@ title: Katalog usług i szablony — dane startowe i odczyt konfiguracji
 type: enabler
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 priority: P0
 path: pelna
 owner: backend-developer
@@ -99,7 +99,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione — gate natywny + kontener; coverage:diff po test:integration: linie 269/269, gałęzie 117/121
 - [x] Przeglądy: code-reviewer, security-engineer — APPROVE (runda 1)
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane — docs:check 0 błędów
-- [ ] Demo (podgląd szablonów przez API na staging) i akceptacja użytkownika
+- [x] Demo (podgląd szablonów przez API na staging) i akceptacja użytkownika (2026-10-07, PR #21; bez demo na staging)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -107,3 +107,5 @@ _—_
 - 2026-10-06 — ready → in-progress: start /deliver, ścieżka pelna (wybór Konrada), gałąź feature/EVM-019-katalog-i-szablony
 - 2026-10-06 — implementacja (backend-developer): moduł `catalog`, migracje `0007`/`0008`, 5 operacji `GET`, zestawy parametrów i test spójności; testy `EVM-019 AC1–AC7`, bramka lokalna zielona
 - 2026-10-06 — workflow passed (1 runda, 0 blokujących); orkiestrator powtórzył gate, test:integration i coverage:diff → in-review; push i PR za wcześniejszą zgodą Konrada (noc, bez demo)
+- 2026-10-07 — in-review → done: akceptacja Konrada, PR #21 scalony do main (squash)
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); wykonawcy i recenzenci 0,66 mln tokenów subagentów, 6 agentów, 208 wywołań narzędzi, 1 runda, ok. 32 min; ścieżka pelna; vs baseline: brak danych
