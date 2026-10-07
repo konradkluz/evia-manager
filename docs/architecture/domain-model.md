@@ -230,7 +230,7 @@ erDiagram
   }
   WorkOrder {
     uuid id PK
-    text number UK "nadaje serwer"
+    text number UK "nadaje serwer; COLLATE C"
     text title
     uuid customer_id FK
     uuid site_id FK
@@ -604,13 +604,13 @@ Każda encja: moduł-właściciel, nazwa polska (słownik), kluczowe atrybuty, r
 
 ### `WorkOrder`
 - **Moduł:** `work-orders`. **Słownik:** zlecenie — jednostka pracy dla klienta w lokalizacji.
-- **Atrybuty:** `number` **(serwer)** — propozycja formatu `ZL-2026-0042` (rok wg daty utworzenia w `Europe/Warsaw`, licznik roczny bez luk; pytanie 7 na demo); `title` (krótki opis); `customerId`, `siteId`; `sourceTemplateId`; `status` **(serwer, tylko komendą przejścia)**; `resumeStatus` **(serwer)** — stan, do którego wraca wstrzymane lub przywrócone zlecenie; `statusReason` (powód wstrzymania lub anulowania); `statusChangedAt`, `closedAt` **(serwer)**; `origin` (`office` / `mobile_quick`); `plannedDate`; `completedOn`; `description`; `searchText` (numer i tytuł).
+- **Atrybuty:** `number` **(serwer)** — kolumna `COLLATE "C"` (sortowanie i porównania keyset bajtowo, niezależnie od kolacji ICU bazy; format o stałej szerokości sortuje się poprawnie przy najwyżej 9999 zleceń na rok) — propozycja formatu `ZL-2026-0042` (rok wg daty utworzenia w `Europe/Warsaw`, licznik roczny bez luk; pytanie 7 na demo); `title` (krótki opis); `customerId`, `siteId`; `sourceTemplateId`; `status` **(serwer, tylko komendą przejścia)**; `resumeStatus` **(serwer)** — stan, do którego wraca wstrzymane lub przywrócone zlecenie; `statusReason` (powód wstrzymania lub anulowania); `statusChangedAt`, `closedAt` **(serwer)**; `origin` (`office` / `mobile_quick`); `plannedDate`; `completedOn`; `description`; `searchText` (numer i tytuł).
 - **Reguły:** kotwica autoryzacji wszystkich encji podrzędnych. Zlecenie w stanie `settled` lub `cancelled` jest tylko do odczytu dla zakresu, procesów i płatności (zmiany wyłącznie po przywróceniu przez Administratora), ale **nadal przyjmuje wpisy dziennika, media i dokumenty** — dane z terenu docierające z opóźnieniem nie są odrzucane („nic nie ginie”). Postęp zlecenia niosą etapy procesów, nie status. Soft delete zlecenia (Administrator) — tylko bez transz w `invoiced`, jak przy anulowaniu (inaczej `409 has_active_dependents`); usunięcie nie może ukryć wystawionej faktury z pominięciem [korekty płatności](#paymentmilestone).
 
 ### `WorkOrderAssignment`
 - **Moduł:** `work-orders`. **Słownik:** przypisanie do zlecenia (opiekun, technik).
 - **Atrybuty:** `workOrderId`, `userId`, `role` (`coordinator` — opiekun, co najwyżej jeden aktywny; `technician`).
-- **Reguły:** w v1 informacyjne (opiekun na liście zleceń, filtr „moje”); w M4 podstawa polityki roli Monter (tylko przypisane zlecenia) i zawężenia zakresu synchronizacji — bez migracji niszczącej.
+- **Reguły:** „aktywne” przypisanie to `deleted_at IS NULL` (kolumny wspólne; bez osobnej kolumny zakończenia), co najwyżej jedno aktywne `coordinator` na zlecenie (częściowy indeks unikalny). W v1 informacyjne (opiekun na liście zleceń, filtr „moje”); w M4 podstawa polityki roli Monter (tylko przypisane zlecenia) i zawężenia zakresu synchronizacji — bez migracji niszczącej.
 
 ### `ScopeItem`
 - **Moduł:** `work-orders`. **Słownik:** pozycja zakresu — wystąpienie klocka usługi w zleceniu.

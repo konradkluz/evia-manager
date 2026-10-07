@@ -4,7 +4,8 @@ title: Lista zleceń — widok podstawowy
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -110,3 +111,6 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: uprawnienia, masowy odczyt, nowy endpoint i UI; gałąź feature/EVM-017-work-orders-list)
+- 2026-10-07 — plan gotowy (backend-developer)
+- 2026-10-07 — backend gotowy (backend-developer): kontrakt `listWorkOrders`, migracja `0010`, moduł `work-orders`, kursor i licznik masowego odczytu; testy integracyjne zielone w kontenerze; do zrobienia: panel W-10 (web-developer)
