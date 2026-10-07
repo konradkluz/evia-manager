@@ -19,8 +19,8 @@ const PATHS = [
   '/api',
   '/api/',
   '/api/v1',
-  '/api/v1/work-orders',
-  '/api/v1/work-orders/0190a1b2-0000-7000-8000-000000000000',
+  '/api/v1/test-widgets',
+  '/api/v1/test-widgets/0190a1b2-0000-7000-8000-000000000000',
   '/api/nieistniejaca',
   '/api/health/',
   '/API/health',
@@ -61,7 +61,7 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
       ['oversized JSON', 'application/json', JSON.stringify({ a: 'x'.repeat(110_000) })],
       ['unsupported charset', 'application/json; charset=latin9', '{}'],
     ];
-    for (const path of ['/api/v1/work-orders', '/api/v1/x', '/api/health']) {
+    for (const path of ['/api/v1/test-widgets', '/api/v1/x', '/api/health']) {
       for (const [label, contentType, body] of bodies) {
         const response = await request(server).post(path).set('Content-Type', contentType).send(body);
         expect(response.status, `${label} → POST ${path}`).toBe(401);
@@ -80,7 +80,7 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
       'X-User-Role': 'administrator',
       traceparent: '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01',
     };
-    const denied = await request(server).get('/api/v1/work-orders').set(forged).expect(401);
+    const denied = await request(server).get('/api/v1/test-widgets').set(forged).expect(401);
     expect((denied.body as { traceId: string }).traceId).not.toBe('4bf92f3577b34da6a3ce929d0e0e4736');
     await request(server).get('/api/health').set(forged).expect(200);
   });
@@ -110,16 +110,16 @@ describe('deny-by-default (EVM-008 AC4; SR-AUTHZ-01, ADR-0001)', () => {
     current = await createTestApp({
       configure: (builder) => builder.overrideProvider(SESSION_RESOLVER).useValue(resolverOf({ principal: principal() })),
     });
-    const response = await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(404);
+    const response = await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(404);
     expect(response.body).toMatchObject({ type: '/problems/not_found', status: 404, code: 'not_found' });
     await current.close();
     current = await createTestApp({
       configure: (builder) =>
         builder.overrideProvider(SESSION_RESOLVER).useValue(resolverOf(() => Promise.reject(new Error('session store unavailable')))),
     });
-    await request(current.app.getHttpServer()).get('/api/v1/work-orders').expect(401);
+    await request(current.app.getHttpServer()).get('/api/v1/test-widgets').expect(401);
     await request(current.app.getHttpServer())
-      .post('/api/v1/work-orders')
+      .post('/api/v1/test-widgets')
       .set('Content-Type', 'application/json')
       .send('{"a":')
       .expect(401);

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { zProblem } from '@evia/contracts/zod';
 import request, { type Response } from 'supertest';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -57,7 +58,7 @@ describe('API security headers (EVM-008 AC4; SR-API-03)', () => {
     const server = current.app.getHttpServer();
     const cases: Array<[string, () => Promise<Response>, number]> = [
       ['200 health', () => request(server).get('/api/health'), 200],
-      ['401 unknown route', () => request(server).get('/api/v1/work-orders').set('Origin', 'https://attacker.invalid'), 401],
+      ['401 unknown route', () => request(server).get('/api/v1/test-widgets').set('Origin', 'https://attacker.invalid'), 401],
       ['403 route without policy', () => request(server).get('/test/no-policy'), 403],
       ['500 unhandled error', () => request(server).get('/test/failure'), 500],
     ];
@@ -72,14 +73,14 @@ describe('API security headers (EVM-008 AC4; SR-API-03)', () => {
     const bodyCases: Array<[string, () => Promise<Response>, number]> = [
       [
         '400 malformed JSON',
-        () => request(signedIn).post('/api/v1/work-orders').set('Content-Type', 'application/json').send('{"a":'),
+        () => request(signedIn).post('/api/v1/test-widgets').set('Content-Type', 'application/json').send('{"a":'),
         400,
       ],
       [
         '413 body over the parser limit',
         () =>
           request(signedIn)
-            .post('/api/v1/work-orders')
+            .post('/api/v1/test-widgets')
             .set('Content-Type', 'application/json')
             .send(JSON.stringify({ a: 'x'.repeat(1_100_000) })),
         413,
@@ -96,7 +97,7 @@ describe('API security headers (EVM-008 AC4; SR-API-03)', () => {
 describe('problem+json without internals (EVM-008 AC4; SR-API-01, SR-ERR-01)', () => {
   it('EVM-008 AC4 errors are problem+json without stack traces or internals', async () => {
     for (const nodeEnv of ['production', 'development']) {
-      current = await withTestRoutes({ NODE_ENV: nodeEnv });
+      current = await withTestRoutes({ NODE_ENV: nodeEnv, CURSOR_KEY: randomBytes(32).toString('base64url') }); // production refuses the placeholder of the tests
       const response = await request(current.app.getHttpServer()).get('/test/failure').expect(500);
       const body = zProblem.parse(response.body);
       expect(Object.keys(response.body as object).sort()).toEqual(['code', 'status', 'title', 'traceId', 'type']);
@@ -115,20 +116,20 @@ describe('problem+json without internals (EVM-008 AC4; SR-API-01, SR-ERR-01)', (
     current = await withSyntheticPrincipal();
     const server = current.app.getHttpServer();
     const malformed = await request(server)
-      .post('/api/v1/work-orders')
+      .post('/api/v1/test-widgets')
       .set('Content-Type', 'application/json')
       .send('{"email": jan}')
       .expect(400);
     expect(malformed.body).toMatchObject({ code: 'malformed_json', status: 400 });
     expect(malformed.text).not.toMatch(/Unexpected|token|position|jan/);
     const charset = await request(server)
-      .post('/api/v1/work-orders')
+      .post('/api/v1/test-widgets')
       .set('Content-Type', 'application/json; charset=latin9')
       .send('{}')
       .expect(415);
     expect(charset.body).toMatchObject({ code: 'unsupported_media_type', status: 415 });
     const tooLarge = await request(server)
-      .post('/api/v1/work-orders')
+      .post('/api/v1/test-widgets')
       .set('Content-Type', 'application/json')
       .send(JSON.stringify({ a: 'x'.repeat(1_100_000) }))
       .expect(413);
@@ -146,7 +147,7 @@ describe('request log (EVM-008 AC4; ADR-0013, SR-LOG-02)', () => {
       .set('Authorization', 'Bearer synthetic-token')
       .expect(400);
     expect(response.body).toMatchObject({ code: 'unknown_parameter' });
-    await request(server).post('/api/v1/work-orders').send({ name: 'Klient Przykładowy' }).expect(401);
+    await request(server).post('/api/v1/test-widgets').send({ name: 'Klient Przykładowy' }).expect(401);
     const requests = current.logs.entries.filter((entry) => entry['msg'] === 'request completed');
     expect(requests).toEqual([
       expect.objectContaining({

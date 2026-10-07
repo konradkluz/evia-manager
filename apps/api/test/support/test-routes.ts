@@ -45,15 +45,15 @@ export class FailingRouteModule {}
 export class ProtectedRouteController {
   calls = 0;
 
-  @Get('/api/v1/work-orders')
-  @OperationId('listWorkOrders')
+  @Get('/api/v1/test-widgets')
+  @OperationId('listTestWidgets')
   list(): { reached: true } {
     this.calls += 1;
     return { reached: true };
   }
 
-  @Post('/api/v1/work-orders')
-  @OperationId('createWorkOrder')
+  @Post('/api/v1/test-widgets')
+  @OperationId('createTestWidget')
   create(): { created: true } {
     this.calls += 1;
     return { created: true };
@@ -71,8 +71,8 @@ export class ProtectedRouteModule {}
 /** The policies of the contract plus a synthetic protected operation (the contract has none for work orders yet). */
 const syntheticManifest: AuthzManifest = {
   ...AUTHZ_MANIFEST,
-  listWorkOrders: { method: 'get', path: '/api/v1/work-orders', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
-  createWorkOrder: { method: 'post', path: '/api/v1/work-orders', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
+  listTestWidgets: { method: 'get', path: '/api/v1/test-widgets', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
+  createTestWidget: { method: 'post', path: '/api/v1/test-widgets', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
 };
 
 export const TEST_POLICIES: PolicySource = Object.freeze({ ...CONTRACT_POLICIES, manifest: syntheticManifest });
