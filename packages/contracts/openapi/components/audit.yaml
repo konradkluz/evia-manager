@@ -20,6 +20,7 @@ AuditAction:
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
+    - customer.created
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -27,7 +28,7 @@ AuditOutcome:
 AuditObjectType:
   type: string
   description: Typ obiektu, którego dotyczy zdarzenie.
-  enum: [user, session, passkey, audit, work_order]
+  enum: [user, session, passkey, audit, work_order, customer]
 AuditReasonCode:
   type: string
   description: Kod powodu (zamknięta lista, bez wolnego tekstu).

@@ -1,0 +1,115 @@
+# Module `customers` — search and creation of a customer in the new-work-order form (EVM-020; W-05).
+customersSearch:
+  post:
+    operationId: searchCustomers
+    tags: [customers]
+    summary: Wyszukiwanie klientów (fraza w treści)
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza zawiera dane osobowe i nie może
+      trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga `Idempotency-Key`.
+      Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje klienta z Łodzi). Wyszukiwanie obejmuje imię, nazwisko,
+      nazwę firmy, NIP, telefon (same cyfry), e-mail i miasto; w wyniku są tylko `id`, `displayName` i `phone`, najwyżej 20 pozycji.
+      Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika
+      (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do progu
+      masowego odczytu (P10). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/customers.yaml#/CustomerSearchRequest
+    responses:
+      '200':
+        description: Pasujący klienci (brak wyników to pusta tablica `items`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/CustomerSearchResult
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+customers:
+  post:
+    operationId: createCustomer
+    tags: [customers]
+    summary: Dodanie klienta
+    description: >-
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden`), kanał `web`, z audytem (`customer.created`, bez wartości danych
+      osobowych). `id` (UUIDv7) nadaje klient; istniejące `id` (także klienta usuniętego) — `409 id_conflict` bez żadnych danych
+      istniejącego zasobu. Telefon jest normalizowany do E.164, e-mail zapisywany małymi literami, NIP do 10 cyfr z sumą kontrolną.
+      Pole spoza schematu — `400 validation_failed` (`unknown_field`), pole kontrolowane przez serwer — `400` z kodem `read_only_field`,
+      błąd reguły — `400` z `errors[]` (wskaźnik i kod, nigdy wartość). Idempotencja (api-guidelines.md → Idempotencja):
+      `Idempotency-Key` (UUIDv7) jest opcjonalny; panel wysyła go zawsze, a przy ponowieniu używa tego samego `id` i klucza.
+      Powtórka (ten sam klucz i treść) — ten sam status i `id`, bieżąca reprezentacja i `Idempotent-Replayed: true`, bez nowego zdarzenia
+      audytu; ten sam klucz z inną treścią albo na innej operacji — `422 idempotency_mismatch`; równoległe żądanie z tym samym kluczem —
+      `409 idempotency_in_progress` z `Retry-After`. Klucz obowiązuje 30 dni, osobno dla każdego użytkownika. Wymaga `X-CSRF-Token`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/customers.yaml#/Customer
+    responses:
+      '201':
+        description: >-
+          Klient zapisany (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/Customer
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/CustomerConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

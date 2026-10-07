@@ -11,7 +11,19 @@ const MAX_ERRORS = 20;
 const escapePointerToken = (token: PropertyKey): string => String(token).replaceAll('~', '~0').replaceAll('/', '~1');
 const pointerOf = (path: readonly PropertyKey[]): string => path.map((token) => `/${escapePointerToken(token)}`).join('');
 
-function fieldErrors(issues: readonly z.core.$ZodIssue[]): FieldError[] {
+/** Keys of a resource that only the server sets (`readOnly: true` in the contract); naming one in an input is `read_only_field`. */
+export type ReadOnlyKeys = ReadonlySet<string>;
+
+/**
+ * The `readOnly` keys of a resource, DERIVED from the contract: the generator emits the full schema of a resource and its
+ * writable variant (without the `readOnly` properties) — the keys of the first that the second lacks are the fields of the server.
+ * No module keeps a list by hand, so a field added to the contract as `readOnly` is refused with the right code at once.
+ */
+export function readOnlyKeys(full: z.ZodObject, writable: z.ZodObject): ReadOnlyKeys {
+  return new Set(Object.keys(full.shape).filter((key) => !(key in writable.shape)));
+}
+
+function fieldErrors(issues: readonly z.core.$ZodIssue[], readOnly: ReadOnlyKeys): FieldError[] {
   const errors = issues.flatMap((issue): FieldError[] => {
     switch (issue.code) {
       case 'too_big':
@@ -23,7 +35,10 @@ function fieldErrors(issues: readonly z.core.$ZodIssue[]): FieldError[] {
       case 'invalid_value':
         return [{ pointer: pointerOf(issue.path), code: 'invalid_value' }];
       case 'unrecognized_keys':
-        return issue.keys.map((key) => ({ pointer: pointerOf([...issue.path, key]), code: 'unknown_field' }));
+        return issue.keys.map((key) => ({
+          pointer: pointerOf([...issue.path, key]),
+          code: issue.path.length === 0 && readOnly.has(key) ? 'read_only_field' : 'unknown_field',
+        }));
       case 'invalid_type':
         return [{ pointer: pointerOf(issue.path), code: issue.input === undefined ? 'required' : 'invalid_type' }];
       default:
@@ -34,9 +49,10 @@ function fieldErrors(issues: readonly z.core.$ZodIssue[]): FieldError[] {
   return [...unique.values()].slice(0, MAX_ERRORS);
 }
 
-export function parseInput<S extends z.ZodType>(schema: S, input: unknown): z.output<S> {
+/** @param readOnly the fields of the server of the resource at the root of the input (see `readOnlyKeys`) */
+export function parseInput<S extends z.ZodType>(schema: S, input: unknown, readOnly: ReadOnlyKeys = new Set()): z.output<S> {
   const result = schema.safeParse(input, { reportInput: true });
-  if (!result.success) throw new ProblemException('validation_failed', { errors: fieldErrors(result.error.issues) });
+  if (!result.success) throw new ProblemException('validation_failed', { errors: fieldErrors(result.error.issues, readOnly) });
   return result.data;
 }
 

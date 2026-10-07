@@ -1,5 +1,6 @@
 /**
- * Per-IP request limits (SR-API-02, P10; ASVS V2.4.1): fixed windows of one minute held in memory — the API runs as one
+ * Request limits (SR-API-02, P10; ASVS V2.4.1) per client address — and per SUBJECT (the user) where the limit is a user's, not a
+ * network's: fixed windows of one minute held in memory — the API runs as one
  * instance in v1, the counters reset on restart (accepted residual risk R6). The map is bounded: expired windows are
  * swept periodically and, when the table is still full, the oldest entry is evicted, so a flood of addresses cannot
  * exhaust memory (CWE-770). IPv6 clients share a bucket per /64 (a single host owns the whole prefix).
@@ -15,11 +16,16 @@ export interface RateDecision {
 export interface RateLimiter {
   /** Counts one request of `address` in the bucket; `limit` requests per minute are allowed. */
   consume(bucket: string, address: string | undefined, limit: number): RateDecision;
+  /**
+   * Counts one request of a SUBJECT (a user identifier) in the bucket. The key is the subject itself: it is never parsed as an
+   * address (an identifier is not one — all users would share a single bucket and one user could block everybody, CWE-770).
+   */
+  consumeSubject(bucket: string, subject: string, limit: number): RateDecision;
 }
 
 export const RATE_LIMITER = Symbol('RATE_LIMITER');
 
-/** Limits per client address and minute (api-guidelines.md → Limity; P10). */
+/** Limits per minute: per client address, or per user for `search` (api-guidelines.md → Limity; P10). */
 export const RATE_LIMITS = Object.freeze({
   /** every request */
   global: 1200,
@@ -27,6 +33,8 @@ export const RATE_LIMITS = Object.freeze({
   anonymous: 60,
   /** sign-in and MFA operations */
   authentication: 20,
+  /** customer searches, per user (EVM-020 AC6; applied with `consumeSubject`) */
+  search: 60,
 });
 
 export type RateBucket = keyof typeof RATE_LIMITS;
@@ -51,8 +59,15 @@ export class InMemoryRateLimiter implements RateLimiter {
   }
 
   consume(bucket: string, address: string | undefined, limit: number): RateDecision {
+    return this.#count(`${bucket}|${(address === undefined ? null : ipPrefix(address, 32, 64)) ?? 'unknown'}`, limit);
+  }
+
+  consumeSubject(bucket: string, subject: string, limit: number): RateDecision {
+    return this.#count(`${bucket}|subject:${subject}`, limit);
+  }
+
+  #count(key: string, limit: number): RateDecision {
     const now = this.#clock.now().getTime();
-    const key = `${bucket}|${(address === undefined ? null : ipPrefix(address, 32, 64)) ?? 'unknown'}`;
     let window = this.#windows.get(key);
     if (window === undefined || now - window.startedAt >= WINDOW_MS) {
       this.#makeRoom(now);

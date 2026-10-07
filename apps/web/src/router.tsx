@@ -3,6 +3,7 @@ import { AuditPage } from './pages/audit-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
+import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
 import {
@@ -12,6 +13,7 @@ import {
   LOGIN_PATH,
   LOGIN_SECOND_STEP_PATH,
   MFA_SETUP_PATH,
+  NEW_WORK_ORDER_PATH,
   PUBLIC_PATHS,
   WORK_ORDERS_PATH,
 } from './paths.ts';
@@ -40,6 +42,7 @@ const workOrdersRoute = createRoute({
   component: WorkOrdersPage,
   validateSearch,
 });
+const newWorkOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: NEW_WORK_ORDER_PATH, component: NewWorkOrderPage });
 const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
 const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
@@ -57,6 +60,7 @@ const secondStepRoute = createRoute({ getParentRoute: () => rootRoute, path: LOG
 const routeTree = rootRoute.addChildren([
   indexRoute,
   workOrdersRoute,
+  newWorkOrderRoute,
   administrationRoute,
   auditRoute,
   activateRoute,

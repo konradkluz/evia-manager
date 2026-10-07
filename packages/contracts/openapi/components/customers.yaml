@@ -1,0 +1,173 @@
+# Module `customers` — clients of the company (EVM-020; W-05 section "1. Klient"). `Customer` is DO-K (personal data): it is returned
+# only to the author of a creation and never to a search (the search item has `id`, `displayName` and `phone` only, SR-DATA-03).
+# The fields the server controls are `readOnly`: a request that names one is answered `400 validation_failed` with the code
+# `read_only_field` (the list of such fields is derived from this schema, not kept by hand — EVM-020 AC5, SR-AUTHZ-04).
+CustomerKind:
+  type: string
+  description: Rodzaj klienta — osoba (imię i nazwisko) albo firma (nazwa firmy).
+  enum: [person, company]
+CustomerPostalAddress:
+  type: object
+  description: Adres korespondencyjny (opcjonalny — tylko gdy potrzebny do dokumentów formalnych). Ulica, numer budynku, kod i miasto są wymagane razem.
+  required: [street, buildingNumber, postalCode, city]
+  properties:
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      type: string
+      maxLength: 20
+    postalCode:
+      type: string
+      description: Kod pocztowy w formacie `00-000`.
+      pattern: '^\d{2}-\d{3}$'
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+Customer:
+  type: object
+  description: >-
+    Klient (osoba albo firma). Wejście: `id` (UUIDv7 nadany przez klienta), `kind` i pola właściwe dla rodzaju — osoba: `firstName`,
+    `lastName`; firma: `companyName`, opcjonalnie `taxId` (NIP) i `contactPersonName`; wspólne: `phone` (wymagany), `email`,
+    `postalAddress`, `notes`. Reguły zależne od `kind` sprawdza serwer (`required`, `not_allowed_for_kind` w `errors[]`).
+    Pola `readOnly` ustawia wyłącznie serwer.
+  required: [id, kind, phone, displayName, version, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    kind:
+      $ref: '#/CustomerKind'
+    firstName:
+      type: string
+      maxLength: 200
+    lastName:
+      type: string
+      maxLength: 200
+    companyName:
+      type: string
+      maxLength: 200
+    taxId:
+      type: string
+      description: NIP firmy; przyjmowany z prefiksem `PL`, spacjami i myślnikami, zapisywany jako 10 cyfr (z sumą kontrolną).
+      maxLength: 20
+    contactPersonName:
+      type: string
+      maxLength: 200
+    phone:
+      type: string
+      description: >-
+        Telefon w dowolnym zapisie (spacje, myślniki, nawiasy, `+48`, `0048`, 9 cyfr krajowych); serwer normalizuje do E.164
+        (`^\+[1-9]\d{7,14}$`). W odpowiedzi — zawsze E.164.
+      maxLength: 32
+    email:
+      type: string
+      description: Adres e-mail; zapisywany małymi literami.
+      maxLength: 254
+    postalAddress:
+      $ref: '#/CustomerPostalAddress'
+    notes:
+      type: string
+      description: Notatki (zwykły tekst). Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      maxLength: 2000
+    displayName:
+      type: string
+      description: Nazwa wyświetlana (osoba — „Imię Nazwisko”, firma — nazwa firmy). Ustawia serwer.
+      readOnly: true
+      maxLength: 400
+    sortName:
+      type: string
+      description: Klucz sortowania (nazwisko przed imieniem). Ustawia serwer; nie jest zwracany.
+      readOnly: true
+      maxLength: 400
+    searchText:
+      type: string
+      description: Tekst wyszukiwania (zawiera telefon i e-mail). Ustawia serwer; nigdy nie jest zwracany.
+      readOnly: true
+      maxLength: 2000
+    version:
+      type: integer
+      description: Wersja zasobu (ETag). Ustawia serwer.
+      readOnly: true
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    createdBy:
+      type: string
+      description: Autor — ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    updatedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    deletedAt:
+      type: string
+      description: Znacznik usunięcia (soft delete). Ustawia serwer; nie jest zwracany.
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    deletedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+CustomerSearchRequest:
+  type: object
+  description: >-
+    Fraza wyszukiwania w treści (nigdy w adresie URL, SR-API-04). Serwer normalizuje ją do NFC, przycina i wymaga 3–100 znaków
+    (`400 validation_failed`, kod `too_short` albo `too_long`). Fraza zbudowana z cyfr, `+`, spacji, nawiasów i myślników
+    jest traktowana jak telefon (porównanie po samych cyfrach).
+  required: [query]
+  properties:
+    query:
+      type: string
+      maxLength: 200
+CustomerSearchItem:
+  type: object
+  description: Wynik wyszukiwania — nazwa wyświetlana i telefon (bez e-maila, NIP, adresu i notatek, SR-DATA-03).
+  required: [id, displayName, phone]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 400
+    phone:
+      type: string
+      description: Telefon w formacie E.164.
+      maxLength: 16
+CustomerSearchResult:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Do 20 klientów, posortowanych po kluczu sortowania (nazwisko, imię) i identyfikatorze.
+      maxItems: 20
+      items:
+        $ref: '#/CustomerSearchItem'
+    nextCursor:
+      description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
+      type: 'null'

@@ -8,8 +8,8 @@ const limiter = (maxKeys?: number) => {
 };
 
 describe('per-IP rate limits (EVM-016 AC4, AC5; SR-API-02, P10)', () => {
-  it('EVM-016 AC5 the limits are the ones of the guidelines: 1200 per minute overall, 60 anonymous, 20 for sign-in and MFA', () => {
-    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20 });
+  it('EVM-016 AC5 the limits are the ones of the guidelines: 1200 per minute overall, 60 anonymous, 20 for sign-in and MFA, 60 searches per user', () => {
+    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20, search: 60 });
   });
 
   it('EVM-016 AC5 the 21st request of a minute is denied with the seconds left, the next window starts clean', () => {
@@ -54,5 +54,35 @@ describe('per-IP rate limits (EVM-016 AC4, AC5; SR-API-02, P10)', () => {
     const { limiter: target } = limiter(0);
     expect(target.consume('anonymous', '192.0.2.1', 1).allowed).toBe(true);
     expect(target.consume('anonymous', '192.0.2.1', 1).allowed).toBe(false);
+  });
+});
+
+describe('per-subject rate limits (EVM-020 AC6; SR-API-02, P10, CWE-770)', () => {
+  const alice = '0198b0a0-0000-7000-8000-00000000a001';
+  const bob = '0198b0a0-0000-7000-8000-00000000a002';
+
+  it('EVM-020 AC6 the 61st search of a user in a minute is denied with the seconds left and the next window starts clean', () => {
+    const { clock, limiter: target } = limiter();
+    for (let index = 0; index < RATE_LIMITS.search; index += 1)
+      expect(target.consumeSubject('search', alice, RATE_LIMITS.search).allowed).toBe(true);
+    clock.advance(20_000);
+    expect(target.consumeSubject('search', alice, RATE_LIMITS.search)).toEqual({ allowed: false, retryAfterSeconds: 40 });
+    clock.advance(WINDOW_MS - 20_000);
+    expect(target.consumeSubject('search', alice, RATE_LIMITS.search).allowed).toBe(true);
+  });
+
+  it('EVM-020 AC6 another user is not blocked: the subject is the key, not an address (an identifier would fall into one shared bucket)', () => {
+    const { limiter: target } = limiter();
+    expect(target.consumeSubject('search', alice, 1).allowed).toBe(true);
+    expect(target.consumeSubject('search', alice, 1).allowed).toBe(false);
+    expect(target.consumeSubject('search', bob, 1).allowed).toBe(true);
+    expect(target.consumeSubject('search', bob, 1).allowed).toBe(false);
+  });
+
+  it('EVM-020 AC6 a subject bucket does not touch the address buckets or the buckets of other operations', () => {
+    const { limiter: target } = limiter();
+    expect(target.consumeSubject('search', alice, 1).allowed).toBe(true);
+    expect(target.consume('search', alice, 1).allowed).toBe(true); // an "address" that is no address: its own bucket
+    expect(target.consumeSubject('export', alice, 1).allowed).toBe(true);
   });
 });

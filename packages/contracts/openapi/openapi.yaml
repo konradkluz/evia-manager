@@ -26,6 +26,8 @@ tags:
     description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
   - name: work-orders
     description: Zlecenia — lista z filtrami i paginacją kursorem (moduł work-orders).
+  - name: customers
+    description: Klienci — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -67,6 +69,10 @@ paths:
     $ref: paths/catalog.yaml#/documentKinds
   /api/v1/work-orders:
     $ref: paths/work-orders.yaml#/workOrders
+  /api/v1/customers:
+    $ref: paths/customers.yaml#/customers
+  /api/v1/customers/search:
+    $ref: paths/customers.yaml#/customersSearch
 components:
   schemas:
     Health:
@@ -159,3 +165,15 @@ components:
       $ref: components/work-orders.yaml#/WorkOrderListItem
     WorkOrderList:
       $ref: components/work-orders.yaml#/WorkOrderList
+    CustomerKind:
+      $ref: components/customers.yaml#/CustomerKind
+    CustomerPostalAddress:
+      $ref: components/customers.yaml#/CustomerPostalAddress
+    Customer:
+      $ref: components/customers.yaml#/Customer
+    CustomerSearchRequest:
+      $ref: components/customers.yaml#/CustomerSearchRequest
+    CustomerSearchItem:
+      $ref: components/customers.yaml#/CustomerSearchItem
+    CustomerSearchResult:
+      $ref: components/customers.yaml#/CustomerSearchResult

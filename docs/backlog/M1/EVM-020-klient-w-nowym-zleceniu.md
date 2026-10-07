@@ -4,7 +4,8 @@ title: Klient w nowym zleceniu — wyszukiwanie i dodanie
 type: story
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-review
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -93,15 +94,29 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Dług techniczny: sprzątanie wygasłych `idempotency_records` (retencja 30 dni) wymaga zadania z jobem pg-boss — ID zadania do nadania przez product-ownera; do tego czasu odczyt filtruje po `expires_at`, a wygasły rekord jest nadpisywany, więc tabela tylko rośnie (`evia_app` nie ma `DELETE`).
+- Ogólny limit 300 żądań/min/użytkownika (P10) nie jest egzekwowany; tworzenie klientów przez Edytora ogranicza dziś tylko 1200/min/IP — do backlogu, bez wpływu na AC.
+
+## Notatki
+- Błąd graniczny: imię i nazwisko po 200 znaków dają `display_name` 401 znaków > `maxLength: 400` → `internal_error` (500) zamiast 400; poprawić limity pól albo kontrakt.
+- Dług: brak zadania sprzątania wygasłych `idempotency_records` (retencja M4) — dopisać ID do backlogu; limity i licznik masowego odczytu w pamięci procesu.
+- `search` bez `cursor`/`limit` (stałe 20, `nextCursor: null`) — świadome YAGNI; „podobny klient” dopasowuje frazę w całym `search_text`, nie tylko po nazwisku (możliwe fałszywe trafienia).
+- Fasada `CustomerDirectory` przeniesiona do EVM-022; sekcje „Plan techniczny” i „Decyzje” do uzupełnienia z dziennika.
+- E2E panelu na mock-api; ścieżka na żywym API do rozważenia przy EVM-021/022.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-020 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja danych potwierdzone (SR-DATA-01)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-020 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja danych potwierdzone (SR-DATA-01)
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-020-customer-in-work-order)
+- 2026-10-07 — API gotowe (backend-developer): kontrakt, moduł `customers`, idempotencja, limit 60/min, migracje 0011–0012; panel W-05 — krok web-developera
+- 2026-10-07 — panel W-05 gotowy (web-developer): sekcja „1. Klient”, dialog „Dodaj klienta”, szkic w pamięci karty, komponenty `Combobox`, `Dialog`, `RadioGroup`, `TextArea`, `Disclosure` w `@evia/ui-web`; zrzuty w `docs/ux/reviews/EVM-020/`
+- 2026-10-07 — SR-DATA-01 potwierdzone (security-engineer): klasyfikacja `Customer` i `IdempotencyRecord` w `domain-model.md`, inwentaryzacja i retencja w `rodo.md`; SR-API-05 w `requirements.md`, wpis EVM-020 w `threat-model.md` (bez nowych RR)
+- 2026-10-07 — bramki i przeglądy zaliczone (QA pass; runda 1: security i ux — changes, runda 2: approve; code-reviewer approve); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,5% / gałęzie 94,7%; → in-review
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,44 mln tokenów subagentów, 15 agentów, 478 wywołań narzędzi, 2 rundy, ok. 91 min; ścieżka pelna; vs baseline: brak danych

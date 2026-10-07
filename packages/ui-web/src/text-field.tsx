@@ -7,7 +7,7 @@ export interface TextFieldProps {
   /** Always visible; a placeholder never replaces it (§ 3.2). */
   readonly label: string;
   readonly value: string;
-  readonly type?: 'text' | 'email' | 'password';
+  readonly type?: 'text' | 'email' | 'password' | 'tel';
   readonly name?: string;
   readonly autoComplete?: string;
   /** Read-only: no outline, primary text; the value stays in the form (password managers pair it with the password). */

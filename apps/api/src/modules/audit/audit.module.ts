@@ -9,6 +9,7 @@ import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../platform/bulk-r
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { EventBus } from '../../platform/events/event-bus.ts';
 import { CLOCK, EVENT_BUS } from '../../platform/tokens.ts';
+import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, IdentityModule, type IdentityEvent } from '../identity/index.ts';
 import { AuditReadService } from './application/audit-read.service.ts';
 import { toAuditRecord } from './domain/audit-record.ts';
@@ -28,6 +29,11 @@ export class AuditSubscriber implements OnModuleInit {
   onModuleInit(): void {
     for (const type of IDENTITY_EVENT_TYPES) {
       this.#events.subscribe<IdentityEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of CUSTOMER_EVENT_TYPES) {
+      this.#events.subscribe<CustomerEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

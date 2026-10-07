@@ -1,6 +1,6 @@
 # RODO — szkic operacyjny EVia Manager
 
-> Dokument żywy (EVM-005). Właściciel: `security-engineer`; decyzje i dane rejestrowe: Konrad. Wersja **v1, 2026-10-03**.
+> Dokument żywy (EVM-005). Właściciel: `security-engineer`; decyzje i dane rejestrowe: Konrad. Wersja **v1, 2026-10-03**. **Aktualizacja 2026-10-07 (EVM-020, SR-DATA-01):** potwierdzona inwentaryzacja `Customer` (kolumna `search_text`, dane w pamięci karty panelu, minimalny wynik wyszukiwania) i `IdempotencyRecord` (skrót treści, retencja 30 dni) — zgodnie z klasyfikacją w `domain-model.md`.
 >
 > **To szkic operacyjny, nie porada prawna.** Opisuje, jakie dane osobowe przetwarza system, gdzie, jak długo i jak realizujemy obowiązki z RODO — tak, żeby zespół mógł to wbudować w system. Punkty wymagające oceny prawnika lub inspektora ochrony danych są oznaczone **`[PRAWNIK/IOD]`** i zebrane w [ostatnim rozdziale](#punkty-do-konsultacji-z-prawnikiem-lub-iod). Dane rejestrowe firmy to pola do uzupełnienia przez Konrada — dokument nie zawiera prawdziwych danych osobowych.
 
@@ -51,7 +51,7 @@ Klasy (z EVM-002): **DO-K** — dane klientów, **DO-3** — osób trzecich, **D
 **Dane w systemie — per encja** (każda encja z tabeli klasyfikacji EVM-002)
 | Encja | Kategorie osób | Kategorie danych | Gdzie | Źródło | Odbiorcy w systemie |
 |---|---|---|---|---|---|
-| `Customer` | klienci | imię i nazwisko lub nazwa firmy, NIP, osoba kontaktowa, telefon, e-mail, adres korespondencyjny, notatki | baza, kopie bazy; telefon — nazwa i telefon | klient | A, E, R |
+| `Customer` | klienci; osoby kontaktowe klientów-firm | imię i nazwisko lub nazwa firmy, NIP, osoba kontaktowa, telefon, e-mail, adres korespondencyjny, notatki; kolumna generowana `search_text` (DO-K: znormalizowane imię, nazwisko, nazwa firmy, NIP, cyfry telefonu, e-mail, miasto — tylko do wyszukiwania, nie trafia do odpowiedzi API, logów, audytu ani telemetrii) | baza, kopie bazy; panel — dane dialogu „Dodaj klienta” i szkic W-05 wyłącznie w pamięci karty (bez `localStorage`, `sessionStorage`, URL i cache zapytań), wynik wyszukiwania tylko `id`, nazwa wyświetlana i telefon (EVM-020); telefon — nazwa i telefon | klient | A, E, R (R tylko wyszukiwanie) |
 | `Site` | klienci | adres, nr miejsca postojowego, poziom garażu, PPE, moc przyłączeniowa, notatki | baza, kopie; telefon — bez PPE | klient, administracja, OSD | A, E, R |
 | `Charger` | klienci (pośrednio) | numer seryjny urządzenia w domu klienta | baza, kopie, telefon | klient, technik | A, E, R |
 | `Party` | osoby trzecie | imię i nazwisko (osoba fizyczna, osoba kontaktowa), telefon, e-mail, notatki | baza, kopie; telefon — bez e-maila i notatek | strona, klient | A, E, R |
@@ -69,7 +69,7 @@ Klasy (z EVM-002): **DO-K** — dane klientów, **DO-3** — osób trzecich, **D
 | `Session`, `Device`, `DeviceSyncState` | pracownicy | IP (P9), przeglądarka, model telefonu, wersja systemu i aplikacji, poziom poprawek, czasy aktywności, liczba niewysłanych elementów | baza, kopie | system | użytkownik (własne), A |
 | dane uwierzytelniające | pracownicy | skróty haseł i kodów, sekrety TOTP (szyfrowane — P12), klucze publiczne passkeys, skróty tokenów; refresh token na telefonie | baza, kopie, Keystore telefonu | system, pracownik | nikt (tylko weryfikacja) |
 | `AuditEvent` | pracownicy | kto, co, kiedy, skąd (prefiks IP — P9), wynik; bez wartości danych (wyjątek: kwoty płatności) | baza, kopie | system | A (step-up) |
-| `IdempotencyRecord` | pracownicy (pośrednio) | identyfikatory użytkownika i urządzenia, skrót treści | baza, kopie | system | system |
+| `IdempotencyRecord` | pracownicy (pośrednio); klienci (pośrednio, tylko przez skrót) | klasa WEW: identyfikatory użytkownika i urządzenia, klucz, zakres operacji, skrót SHA-256 treści żądania i wynik minimalny (status, kod, `id` zasobu) — bez wartości danych; treść z danymi klienta zawiera losowy `id` UUIDv7 nadany w panelu (CSPRNG), więc skrótu nie da się odwrócić słownikiem ani po anonimizacji klienta (EVM-020) | baza, kopie | system | system |
 | `SyncChange` | — | identyfikatory i kody (bez danych osobowych) | baza, kopie | system | system |
 
 **Dane poza bazą**
@@ -125,7 +125,7 @@ Wartości wspólne z [`policies.md` → P4](policies.md#p4--retencja-mediów-dok
 | Urządzenia i stan synchronizacji | 90 dni | unieważnienia albo ostatniego kontaktu | bezpieczeństwo |
 | Dane uwierzytelniające (hasła, sekrety TOTP, kody, passkeys, tokeny) | do zmiany, usunięcia lub wygaśnięcia | — | |
 | Dziennik audytu | 2 lata | zdarzenia | ADR-0013; rozliczalność |
-| Klucze idempotencji | 30 dni | zapisu | ADR-0004 |
+| Klucze idempotencji | 30 dni | zapisu | ADR-0004; od EVM-020 rekord wygasły jest pomijany przy odczycie i nadpisywany przy ponownym użyciu klucza; usuwanie partiami — zadanie retencji (pg-boss), dług zapisany w EVM-020 |
 | Dziennik zmian synchronizacji i znaczniki usunięcia | 90 dni | zapisu | ADR-0008 |
 | Rejestr usunięć (identyfikatory purge, anonimizacji i redakcji; poza bazą) | 40 dni | zapisu | ponowne zastosowanie usunięć po odtworzeniu kopii bazy i mediów (SR-PRIV-04) |
 | Logi operacyjne (Grafana Cloud) | 14 dni | zapisu | ADR-0013 |
