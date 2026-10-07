@@ -1,6 +1,6 @@
 import { AlertDialog, Button, EmptyState, Lock } from '@evia/ui-web';
 import { useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AddCustomerDialog } from '../customers/add-customer-dialog.tsx';
 import { CustomerPicker, type PickedCustomer } from '../customers/customer-picker.tsx';
@@ -9,6 +9,7 @@ import { discardDraft, readDraft, saveDraft } from '../session/draft-store.ts';
 import { useSession } from '../session/session.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { EMPTY_LOCATION, LocationSection, locationStarted, type LocationState } from '../sites/location-section.tsx';
 import { formatClock } from '../work-orders/format.ts';
 
 /** Name of the draft of this form in the memory of the tab (`session/draft-store.ts`; never any other store, SR-WEB-05). */
@@ -16,7 +17,30 @@ const DRAFT = 'work-order-new';
 
 interface Draft {
   readonly customer: PickedCustomer | null;
-  readonly savedAt: number;
+  readonly location: LocationState;
+  /** When the draft last changed; `null` until the first change (a form that was never touched has no draft). */
+  readonly savedAt: number | null;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+const hasId = (value: unknown): boolean => value === null || (isObject(value) && typeof value.id === 'string');
+
+function restoreCustomer(value: unknown): PickedCustomer | null | undefined {
+  if (value === null) return null;
+  if (!isObject(value) || typeof value.id !== 'string' || typeof value.displayName !== 'string' || typeof value.phone !== 'string') {
+    return undefined;
+  }
+  return { id: value.id, displayName: value.displayName, phone: value.phone };
+}
+
+/** The section "2. Lokalizacja" as it was saved; a draft from before the section existed has none, a broken one is dropped. */
+function restoreLocation(value: unknown): LocationState | undefined {
+  if (value === undefined) return EMPTY_LOCATION;
+  if (!isObject(value) || (value.mode !== 'existing' && value.mode !== 'new') || !isObject(value.form)) return undefined;
+  const form = value.form;
+  if (!Object.keys(EMPTY_LOCATION.form).every((key) => typeof form[key] === 'string')) return undefined;
+  if (!hasId(value.site) || !hasId(value.osd) || !hasId(value.manager)) return undefined;
+  return value as unknown as LocationState;
 }
 
 /** The draft as it was saved; anything else (a broken text) is no draft. */
@@ -24,19 +48,11 @@ function restore(userId: string): Draft | null {
   const stored = readDraft(userId, DRAFT);
   if (stored === undefined) return null;
   try {
-    const value = JSON.parse(stored) as Partial<Draft> | null;
-    const customer = value?.customer;
-    if (
-      customer === null ||
-      customer === undefined ||
-      typeof customer.id !== 'string' ||
-      typeof customer.displayName !== 'string' ||
-      typeof customer.phone !== 'string' ||
-      typeof value?.savedAt !== 'number'
-    ) {
-      return null;
-    }
-    return { customer, savedAt: value.savedAt };
+    const value = JSON.parse(stored) as unknown;
+    if (!isObject(value) || typeof value.savedAt !== 'number') return null;
+    const customer = restoreCustomer(value.customer);
+    const location = restoreLocation(value.location);
+    return customer === undefined || location === undefined ? null : { customer, location, savedAt: value.savedAt };
   } catch {
     return null;
   }
@@ -44,7 +60,7 @@ function restore(userId: string): Draft | null {
 
 /**
  * W-05 "Nowe zlecenie" (EVM-020): so far the section "1. Klient" — the search of customers and the dialog "Dodaj klienta";
- * the location (EVM-021) and the template with the save (EVM-022) come next. Only Administrator and Edytor create work orders:
+ * the section "2. Lokalizacja" (EVM-021) comes with it; the template with the save (EVM-022) come next. Only Administrator and Edytor create work orders:
  * Tylko odczyt gets the state "Nie możesz tworzyć zleceń." — the UI is a convenience, the server decides (`403`).
  */
 export function NewWorkOrderPage() {
@@ -83,21 +99,24 @@ function NewWorkOrderForm({ userId }: { readonly userId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const toast = useToast();
-  const [draft, setDraft] = useState<Draft | null>(() => restore(userId));
+  const [draft, setDraft] = useState<Draft>(() => restore(userId) ?? { customer: null, location: EMPTY_LOCATION, savedAt: null });
   const [adding, setAdding] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const customer = draft?.customer ?? null;
+  const { customer, location } = draft;
+  const started = customer !== null || locationStarted(location);
 
   // The draft lives in the memory of the tab, owned by this person; it is saved at every change (§ 4.1).
+  useEffect(() => {
+    if (draft.savedAt === null) return;
+    if (started) saveDraft(userId, DRAFT, JSON.stringify(draft));
+    else discardDraft(DRAFT);
+  }, [draft, started, userId]);
+
   const choose = (picked: PickedCustomer | null) => {
-    if (picked === null) {
-      discardDraft(DRAFT);
-      setDraft(null);
-      return;
-    }
-    const next = { customer: picked, savedAt: Date.now() };
-    saveDraft(userId, DRAFT, JSON.stringify(next));
-    setDraft(next);
+    setDraft((current) => ({ ...current, customer: picked, savedAt: Date.now() }));
+  };
+  const changeLocation = (update: (current: LocationState) => LocationState) => {
+    setDraft((current) => ({ ...current, location: update(current.location), savedAt: Date.now() }));
   };
 
   const leave = () => {
@@ -109,7 +128,7 @@ function NewWorkOrderForm({ userId }: { readonly userId: string }) {
       <header className="flex flex-col gap-stack-xs">
         <h1 className="font-display text-heading-1 text-text-primary">{t('newWorkOrder.title')}</h1>
         <p className="text-body text-text-secondary">{t('newWorkOrder.numberHint')}</p>
-        {draft === null ? null : (
+        {draft.savedAt === null || !started ? null : (
           <p className="text-body-sm text-text-secondary">
             {t('newWorkOrder.draft', { time: formatClock(draft.savedAt) })}
             <span className="block text-text-tertiary">{t('newWorkOrder.draftInfo')}</span>
@@ -129,11 +148,15 @@ function NewWorkOrderForm({ userId }: { readonly userId: string }) {
           }}
         />
       </fieldset>
+      <fieldset className="flex flex-col gap-stack-md">
+        <legend className="mb-stack-sm text-heading-4 text-text-primary">{t('sites.section')}</legend>
+        <LocationSection value={location} onChange={changeLocation} />
+      </fieldset>
       <div className="flex flex-wrap justify-start gap-inline-md">
         <Button
           variant="tertiary"
           onClick={() => {
-            if (customer === null) leave();
+            if (!started) leave();
             else setConfirmingCancel(true);
           }}
         >

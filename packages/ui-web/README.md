@@ -32,7 +32,7 @@ Pakiet nie ma kroku `build`: aplikacja importuje źródła TypeScript i `styles.
 | `Card` | § 3.8 | karta informacyjna web (`space.inset.lg`, `radius.card`), region nazwany przez `labelledBy` |
 | `Skeleton` | § 3.16 | linia i pole; dekoracyjny (`aria-hidden`), przejście koloru w cyklu `motion.duration.skeleton`, przy ograniczonym ruchu statyczny |
 | `Toast` | § 3.14 | informacja / sukces na `color.bg.inverse`; strefa `role="status"` zawsze w DOM, zamknięcie `x`, 6 s z pauzą przy najechaniu i fokusie |
-| `Select` | § 3.3 (EVM-029) | natywny `<select>` z widoczną etykietą, grupami (`<optgroup>`), podpowiedzią przy wyłączeniu (`aria-describedby`); tokeny pola tekstowego |
+| `Select` | § 3.3 (EVM-029) | natywny `<select>` z widoczną etykietą, grupami (`<optgroup>`), podpowiedzią przy wyłączeniu (`aria-describedby`); tokeny pola tekstowego; `error` (EVM-021) — komunikat pod polem jak w `TextField` (`role="alert"`, `aria-invalid`, obrys błędu), `selectRef` do fokusu |
 | `DateField` | § 3.5 (EVM-029) | wariant „data” — natywny `<input type="date">` z etykietą, `min` / `max`, błąd jak w `TextField` (`role="alert"`); zakres to dwa pola „Od” i „Do” |
 | `FilterChip` | § 3.7 (EVM-029) | `choice` (przełącznik, wybrany: `aria-pressed` + ikona `check`) i `active` (filtr w mocy z `x`, nazwa „Usuń filtr …”); wyłączony zostaje fokusowalny |
 | `DataTable` | § 3.6 (EVM-029) | tabela tylko do odczytu: `caption`, nagłówki `scope="col"`, nazwa dostępna wiersza, nagłówek `color.bg.surface-subtle`, separator `color.border.subtle`, hover; poniżej `breakpoint.medium` przewija się w ramce (lista kartowa — później) |

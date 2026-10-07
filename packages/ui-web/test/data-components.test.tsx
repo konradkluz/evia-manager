@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { createRef } from 'react';
 import { userEvent } from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { DataTable, DateField, FilterChip, Select } from '../src/index.ts';
@@ -28,6 +29,32 @@ describe('Select (styleguide § 3.3; EVM-029 AC5)', () => {
     const select = screen.getByRole('combobox', { name: 'Wynik' });
     expect((select as HTMLSelectElement).disabled).toBe(true);
     expect(describedBy(select)).toBe('Brak połączenia.');
+  });
+});
+
+describe('Select error (styleguide § 3.2; EVM-021 AC2)', () => {
+  it('EVM-021 AC2 an error replaces the hint, is an alert tied to the field, marks it invalid and the page can focus the field', async () => {
+    const ref = createRef<HTMLSelectElement>();
+    const { container } = render(
+      <Select
+        label="Typ obiektu"
+        value=""
+        options={[{ value: '', label: 'Wybierz typ obiektu' }]}
+        onChange={vi.fn()}
+        hint="Podpowiedź."
+        error="Uzupełnij to pole."
+        selectRef={ref}
+      />,
+    );
+    const select = screen.getByRole('combobox', { name: 'Typ obiektu' });
+    expect(screen.queryByText('Podpowiedź.')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toBe('Uzupełnij to pole.');
+    expect(select.getAttribute('aria-invalid')).toBe('true');
+    expect(describedBy(select)).toBe('Uzupełnij to pole.');
+    expect(select.className).toContain('border-border-error');
+    ref.current?.focus();
+    expect(document.activeElement).toBe(select);
+    expect(await axeViolations(container)).toEqual([]);
   });
 });
 
