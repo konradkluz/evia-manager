@@ -17,14 +17,24 @@ import { sql } from 'kysely';
 import request from 'supertest';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import type { IdentityApp } from '../support/identity-app.ts';
-import { createLink, createSession, createUser, type Role } from '../support/identity-fixtures.ts';
+import { createLink, createPasskey, createSession, createUser, type Role } from '../support/identity-fixtures.ts';
 
 export type Caller =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'revoked'; readonly role: Role; readonly channel: 'web' }
   /** A session past its idle deadline (EVM-067): 401 session_expired on every operation that needs a session. */
   | { readonly kind: 'expired'; readonly role: Role; readonly channel: 'web' }
-  | { readonly kind: 'session'; readonly role: Role; readonly channel: 'web' | 'mobile'; readonly state: 'active' | 'mfa_enrollment' };
+  | {
+      readonly kind: 'session';
+      readonly role: Role;
+      readonly channel: 'web' | 'mobile';
+      readonly state: 'active' | 'mfa_enrollment';
+      /**
+       * The last authentication with a passkey of the session (EVM-029): `fresh` — just now, `stale` — 16 minutes ago. Absent: none
+       * at all (a session of a password, activation or recovery code), which asks for a step-up as well.
+       */
+      readonly passkey?: 'fresh' | 'stale';
+    };
 
 export type Expectation =
   | { readonly outcome: 'allowed' }
@@ -72,7 +82,10 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
     authz.roles?.includes(caller.role) === true &&
     authz.channels?.includes(caller.channel) === true &&
     roleMayUseChannel(caller.role, caller.channel);
-  return entitled ? { outcome: 'allowed' } : { outcome: 'denied', status: 403, code: 'forbidden' };
+  if (!entitled) return { outcome: 'denied', status: 403, code: 'forbidden' };
+  // SR-SESS-08: after the role (a role that may not call the operation never learns it is protected), only a fresh passkey passes
+  if (authz.stepUp === true && caller.passkey !== 'fresh') return { outcome: 'denied', status: 403, code: 'step_up_required' };
+  return { outcome: 'allowed' };
 }
 
 export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): MatrixCell[] {
@@ -84,6 +97,16 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
       CHANNELS.flatMap((channel) =>
         (['active', 'mfa_enrollment'] as const).map((state): Caller => ({ kind: 'session', role, channel, state })),
       ),
+    ),
+    // the Administrator with a fresh and with a stale authentication by a passkey (the step-up window, EVM-029)
+    ...CHANNELS.flatMap((channel) =>
+      (['fresh', 'stale'] as const).map((passkey): Caller => ({
+        kind: 'session',
+        role: 'administrator',
+        channel,
+        state: 'active',
+        passkey,
+      })),
     ),
   ];
   return Object.entries(manifest).flatMap(([operationId, { method, path, authz }]) => {
@@ -98,7 +121,9 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
     }));
     if (!addressesObject || authz.public === true) return cells;
     // IDOR: every caller entitled to the operation, asking for an object of somebody else, gets 404 (never 403: the object is not disclosed)
-    const entitled = cells.filter((cell) => cell.expectation.outcome === 'allowed');
+    const entitled = cells.filter(
+      (cell) => cell.expectation.outcome === 'allowed' && !(cell.caller.kind === 'session' && cell.caller.passkey !== undefined),
+    );
     return [...cells, ...entitled.map((cell): MatrixCell => ({ ...cell, expectation: { outcome: 'not_found' }, idor: true }))];
   });
 }
@@ -118,7 +143,7 @@ export interface Mismatch {
 
 const describeCaller = (caller: Caller): string =>
   caller.kind === 'session'
-    ? `${caller.role}/${caller.channel}/${caller.state}`
+    ? `${caller.role}/${caller.channel}/${caller.state}${caller.passkey === undefined ? '' : `/key ${caller.passkey}`}`
     : caller.kind === 'revoked'
       ? 'revoked session'
       : caller.kind === 'expired'
@@ -154,6 +179,7 @@ export async function runMatrix(
       let account = accounts.get(key);
       if (account === undefined) {
         account = await createUser(db, app.clock, { role: caller.role, status: waiting ? 'invited' : 'active' });
+        if (!waiting) await createPasskey(db, app.clock, account); // the options of a step-up need a key to name
         accounts.set(key, account);
       }
       let linkId: string | undefined;
@@ -165,10 +191,14 @@ export async function runMatrix(
         }
         linkId = link.linkId;
       }
+      const passkey = caller.kind === 'session' ? caller.passkey : undefined;
       const session = await createSession(db, app.clock, account, {
         channel: caller.channel,
         state: waiting ? 'mfa_enrollment' : 'active',
         ...(linkId === undefined ? {} : { linkId }),
+        ...(passkey === undefined
+          ? {}
+          : { passkeyAuthenticatedAt: new Date(app.clock.now().getTime() - (passkey === 'fresh' ? 0 : 16 * 60_000)) }),
       });
       if (caller.kind === 'revoked') {
         await sql`update identity.sessions set revoked_at = ${app.clock.now()}, revoke_reason = 'logout' where id = ${session.id}`.execute(

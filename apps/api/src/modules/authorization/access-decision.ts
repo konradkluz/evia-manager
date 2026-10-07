@@ -11,7 +11,10 @@
  * 6. a session in `mfa_enrollment` may call only the operations on the enrolment list that also declare it
  *    (403 mfa_enrollment_required);
  * 7. channel, then role (403 forbidden). A channel outside the policy is forbidden too — there is no separate code;
- * 8. object policies are decided by the use case (404) — never here.
+ * 8. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a passkey authentication of the session within
+ *    the last 15 minutes (403 step_up_required). Last on purpose: a role that may not call the operation at all is
+ *    forbidden and never learns that the operation exists and is protected (SR-AUTHZ-11);
+ * 9. object policies are decided by the use case (404) — never here.
  * A policy without roles or channels is forbidden (fail closed).
  */
 import type { Channel, UserRole } from '@evia/contracts';
@@ -20,7 +23,14 @@ import type { Authentication, Principal } from '../../platform/http/principal.ts
 import type { RateDecision } from '../../platform/http/rate-limiter.ts';
 
 export type DenyCode =
-  'unauthenticated' | 'session_revoked' | 'session_expired' | 'forbidden' | 'csrf_failed' | 'mfa_enrollment_required' | 'rate_limited';
+  | 'unauthenticated'
+  | 'session_revoked'
+  | 'session_expired'
+  | 'forbidden'
+  | 'csrf_failed'
+  | 'mfa_enrollment_required'
+  | 'step_up_required'
+  | 'rate_limited';
 
 export type AccessDecision =
   { readonly allowed: true } | { readonly allowed: false; readonly code: DenyCode; readonly retryAfterSeconds?: number };
@@ -43,6 +53,8 @@ export interface AccessRequest {
   readonly rateLimit: (bucket: 'anonymous' | 'authentication') => RateDecision;
   /** Role × channel rule of `identity` (SR-AUTHZ-06). */
   readonly channelAllowed: (role: UserRole, channel: Channel) => boolean;
+  /** Does the passkey authentication of the session still open the step-up window at the (injected) clock's now? */
+  readonly stepUpFresh: (principal: Principal) => boolean;
 }
 
 const UNAUTHENTICATED_CODES = {
@@ -90,5 +102,6 @@ export function decideAccess(request: AccessRequest): AccessDecision {
   if (channels?.includes(principal.channel) !== true || !request.channelAllowed(principal.role, principal.channel))
     return deny('forbidden');
   if (roles?.includes(principal.role) !== true) return deny('forbidden');
+  if (policy.stepUp === true && !request.stepUpFresh(principal)) return deny('step_up_required');
   return ALLOW;
 }

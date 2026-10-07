@@ -17,6 +17,8 @@ export const IDENTITY_EVENT_TYPES = [
   'login.succeeded',
   'login.failed',
   'account.emergency_reset',
+  'step_up.succeeded',
+  'step_up.failed',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];

@@ -7,6 +7,7 @@ import { LOGIN_PATH } from '../paths.ts';
 import { setCsrfToken } from './csrf.ts';
 import { clearDrafts } from './draft-store.ts';
 import { setLoginFlow, setLoginNotice } from './login-flow.ts';
+import { resetStepUp } from './step-up.ts';
 
 /**
  * Logout (AC6, SR-SESS-05): the session is revoked on the server (the answer carries `Clear-Site-Data`), then the query
@@ -32,6 +33,8 @@ export function useLogout() {
     clearDrafts();
     setLoginFlow(null);
     setLoginNotice(null);
+    // Nothing of the confirmation or of the audit log outlives the session (SR-SESS-05).
+    resetStepUp();
     queryClient.clear();
     void navigate({ to: LOGIN_PATH, replace: true });
   }

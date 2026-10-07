@@ -3,15 +3,23 @@
  * set stays consistent with the styleguide's icon dictionary (dependency-cruiser: apps/web does not import lucide-react).
  */
 export {
+  Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   ClipboardList,
   Info,
   KeyRound,
   Link2Off,
   LoaderCircle,
+  Lock,
   Menu,
+  Shield,
+  ShieldCheck,
+  ShieldX,
   WifiOff,
   X,
 } from 'lucide-react';

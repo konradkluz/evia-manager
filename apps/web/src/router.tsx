@@ -1,10 +1,20 @@
 import { createRootRoute, createRoute, createRouter, Navigate, Outlet, useRouterState, type RouterHistory } from '@tanstack/react-router';
+import { AuditPage } from './pages/audit-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
-import { ACTIVATE_PATH, LOGIN_PATH, LOGIN_SECOND_STEP_PATH, MFA_SETUP_PATH, PUBLIC_PATHS, WORK_ORDERS_PATH } from './paths.ts';
+import {
+  ACTIVATE_PATH,
+  ADMINISTRATION_PATH,
+  AUDIT_PATH,
+  LOGIN_PATH,
+  LOGIN_SECOND_STEP_PATH,
+  MFA_SETUP_PATH,
+  PUBLIC_PATHS,
+  WORK_ORDERS_PATH,
+} from './paths.ts';
 import { ErrorState } from './shell/error-state.tsx';
 import { SessionGate } from './shell/session-gate.tsx';
 
@@ -18,9 +28,13 @@ const rootRoute = createRootRoute({ component: Root });
 
 const ToWorkOrders = () => <Navigate to={WORK_ORDERS_PATH} replace />;
 
+const ToAudit = () => <Navigate to={AUDIT_PATH} replace />;
+
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: ToWorkOrders });
 
 const workOrdersRoute = createRoute({ getParentRoute: () => rootRoute, path: WORK_ORDERS_PATH, component: WorkOrdersPage });
+const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
+const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
 const mfaSetupRoute = createRoute({ getParentRoute: () => rootRoute, path: MFA_SETUP_PATH, component: MfaSetupPage });
 /** `returnTo` is read as a plain text only; the page resolves it against the origin of the panel (SR-WEB-06). */
@@ -33,7 +47,16 @@ const loginRoute = createRoute({
 });
 const secondStepRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_SECOND_STEP_PATH, component: SecondStepPage });
 
-const routeTree = rootRoute.addChildren([indexRoute, workOrdersRoute, activateRoute, mfaSetupRoute, loginRoute, secondStepRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  workOrdersRoute,
+  administrationRoute,
+  auditRoute,
+  activateRoute,
+  mfaSetupRoute,
+  loginRoute,
+  secondStepRoute,
+]);
 
 /**
  * Router of the panel (ADR-0006): `/` → `/work-orders`; an unknown path also lands on the list (no other pages

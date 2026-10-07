@@ -19,6 +19,12 @@ const synthetic: AuthzManifest = {
     query: [],
     authz: { roles: ['administrator'], channels: ['web'], allowDuringMfaEnrollment: true },
   },
+  stepThing: {
+    method: 'get',
+    path: '/api/protected',
+    query: [],
+    authz: { roles: ['administrator', 'editor'], channels: ['web'], stepUp: true },
+  },
   getThing: {
     method: 'get',
     path: '/api/things/{thingId}',
@@ -48,8 +54,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     for (const operationId of Object.keys(AUTHZ_MANIFEST)) {
       const own = cells.filter((cell) => cell.operationId === operationId);
       const callers = new Set(own.map((cell) => JSON.stringify(cell.caller)));
-      // anonymous, revoked, expired, 3 roles x 2 channels x 2 states
-      expect(callers.size, operationId).toBe(15);
+      // anonymous, revoked, expired, 3 roles x 2 channels x 2 states, the Administrator with a fresh and a stale key on both channels
+      expect(callers.size, operationId).toBe(19);
     }
   });
 
@@ -159,8 +165,8 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
     expect(idor.map((cell) => JSON.stringify(cell.caller)).sort()).toEqual(
       [JSON.stringify(session('administrator', 'web')), JSON.stringify(session('editor', 'web'))].sort(),
     );
-    // the entitled callers also have a normal "own object" cell
-    expect(cells.filter((cell) => cell.operationId === 'getThing' && !cell.idor && cell.expectation.outcome === 'allowed')).toHaveLength(2);
+    // the entitled callers also have a normal "own object" cell (the two Administrator variants with a key too, which have no IDOR cell of their own)
+    expect(cells.filter((cell) => cell.operationId === 'getThing' && !cell.idor && cell.expectation.outcome === 'allowed')).toHaveLength(4);
     // an operation with an anchor but without a path parameter is an object operation too
     const anchored: AuthzManifest = {
       search: {
@@ -171,5 +177,63 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
       },
     };
     expect(buildMatrix(anchored, syntheticLists).filter((cell) => cell.idor)).toHaveLength(1);
+  });
+});
+
+describe('the step-up in the matrix (EVM-029 AC7; SR-AUTHZ-05, SR-AUTHZ-11, SR-SESS-08)', () => {
+  const expect_ = (operationId: string, caller: Caller) => expectationFor(operationId, synthetic, syntheticLists, caller);
+  const withKey = (role: 'administrator' | 'editor' | 'read_only', channel: 'web' | 'mobile', passkey: 'fresh' | 'stale'): Caller => ({
+    kind: 'session',
+    role,
+    channel,
+    state: 'active',
+    passkey,
+  });
+  const stepUpRequired = { outcome: 'denied', status: 403, code: 'step_up_required' };
+  const forbidden = { outcome: 'denied', status: 403, code: 'forbidden' };
+
+  it('EVM-029 AC7 an operation with stepUp: a fresh key passes, a stale key and no key at all (recovery code, password) ask for a step-up', () => {
+    expect(expect_('stepThing', withKey('administrator', 'web', 'fresh'))).toEqual({ outcome: 'allowed' });
+    expect(expect_('stepThing', withKey('administrator', 'web', 'stale'))).toEqual(stepUpRequired);
+    expect(expect_('stepThing', session('administrator', 'web'))).toEqual(stepUpRequired);
+  });
+
+  it('EVM-029 AC7 the role comes first: a role outside the policy is forbidden whatever its key, and so is a channel outside the policy', () => {
+    expect(expect_('stepThing', withKey('read_only', 'web', 'stale'))).toEqual(forbidden);
+    expect(expect_('stepThing', withKey('read_only', 'web', 'fresh'))).toEqual(forbidden);
+    expect(expect_('stepThing', withKey('administrator', 'mobile', 'fresh'))).toEqual(forbidden);
+    expect(expect_('stepThing', session('editor', 'web'))).toEqual(stepUpRequired);
+  });
+
+  it('EVM-029 AC7 an operation without stepUp ignores the key: a session without a key is allowed, a fresh key changes nothing', () => {
+    expect(expect_('adminThing', session('administrator', 'web'))).toEqual({ outcome: 'allowed' });
+    expect(expect_('adminThing', withKey('administrator', 'web', 'fresh'))).toEqual({ outcome: 'allowed' });
+  });
+
+  it('EVM-029 AC7 the audit log in the real contract: Administrator after a fresh key only, Editor and Read-only forbidden in every variant, never a step-up', () => {
+    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'listAuditEvents');
+    const allowed = cells.filter((cell) => cell.expectation.outcome === 'allowed');
+    expect(allowed.map((cell) => JSON.stringify(cell.caller))).toEqual([JSON.stringify(withKey('administrator', 'web', 'fresh'))]);
+    for (const cell of cells.filter((item) => item.caller.kind === 'session' && item.caller.role !== 'administrator')) {
+      expect(cell.expectation, JSON.stringify(cell.caller)).not.toMatchObject({ code: 'step_up_required' });
+    }
+    const stepUp = cells.filter((cell) => JSON.stringify(cell.expectation) === JSON.stringify(stepUpRequired));
+    expect(stepUp.map((cell) => JSON.stringify(cell.caller)).sort()).toEqual(
+      [JSON.stringify(withKey('administrator', 'web', 'stale')), JSON.stringify(session('administrator', 'web'))].sort(),
+    );
+  });
+
+  it('EVM-029 AC7 the two operations of the step-up itself need no fresh key (an Administrator on the web channel may call them from any session)', () => {
+    for (const operationId of ['getStepUpPasskeyOptions', 'stepUp']) {
+      expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('administrator', 'web')), operationId).toEqual({
+        outcome: 'allowed',
+      });
+      expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('editor', 'web')), operationId).toEqual(forbidden);
+      expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('administrator', 'web', 'mfa_enrollment')), operationId).toEqual({
+        outcome: 'denied',
+        status: 403,
+        code: 'mfa_enrollment_required',
+      });
+    }
   });
 });

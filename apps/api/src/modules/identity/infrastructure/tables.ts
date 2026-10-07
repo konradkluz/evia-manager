@@ -68,6 +68,8 @@ export interface SessionsTable {
   created_at: Date;
   last_seen_at: Date;
   last_authenticated_at: Date;
+  /** The last authentication with a passkey in this session (sign-in with a key, step-up); null for every other origin of a session (0009). */
+  passkey_authenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   idle_expires_at: Date;
   absolute_expires_at: Date;
   revoked_at: Date | null;
@@ -87,13 +89,13 @@ export interface LoginAttemptsTable {
   failed_attempts: Generated<number>;
 }
 
-/** Exactly one of `session_id` (enrolment) and `login_attempt_id` (sign-in) is set — a CHECK of the database. */
+/** Exactly one of `session_id` (enrolment, step-up) and `login_attempt_id` (sign-in) is set, matching the purpose — a CHECK of the database. */
 export interface WebauthnChallengesTable {
   id: Generated<string>;
   user_id: string;
   session_id: string | null;
   login_attempt_id: string | null;
-  purpose: 'passkey_registration' | 'passkey_authentication';
+  purpose: 'passkey_registration' | 'passkey_authentication' | 'passkey_step_up';
   challenge_hash: Buffer;
   created_at: Date;
   expires_at: Date;

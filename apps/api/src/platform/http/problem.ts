@@ -20,6 +20,7 @@ export const PROBLEMS = Object.freeze({
   session_revoked: { status: 401, title: 'Session revoked' },
   forbidden: { status: 403, title: 'Forbidden' },
   mfa_enrollment_required: { status: 403, title: 'Multi-factor enrollment required' },
+  step_up_required: { status: 403, title: 'Re-authentication required' },
   csrf_failed: { status: 403, title: 'Cross-site request check failed' },
   not_found: { status: 404, title: 'Not found' },
   method_not_allowed: { status: 405, title: 'Method not allowed' },

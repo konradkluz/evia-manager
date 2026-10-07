@@ -99,6 +99,7 @@ export class ActivationService {
         tokenHash: hashToken(sessionToken),
         linkId: locked.linkId,
         now,
+        passkeyAuthenticatedAt: null,
         idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
         absoluteExpiresAt: new Date(Math.min(now.getTime() + SESSION_ABSOLUTE_MS, locked.expiresAt.getTime())),
         ip: client.context.ip,

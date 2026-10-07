@@ -30,6 +30,18 @@ const manifest: AuthzManifest = {
     authz: { roles: ['administrator'], channels: ['web'], allowDuringMfaEnrollment: true },
   },
   flaggedOnly: { method: 'post', path: '/api/v1/flagged', query: [], authz: { roles: ['administrator'], channels: ['web'] } },
+  readAudit: {
+    method: 'get',
+    path: '/api/v1/audit/events',
+    query: [],
+    authz: { roles: ['administrator'], channels: ['web'], stepUp: true },
+  },
+  eraseThing: {
+    method: 'post',
+    path: '/api/v1/erase',
+    query: [],
+    authz: { roles: ['administrator', 'editor'], channels: ['web'], stepUp: true },
+  },
   noChannels: { method: 'get', path: '/api/v1/no-channels', query: [], authz: { roles: ['administrator'] } },
   noRoles: { method: 'get', path: '/api/v1/no-roles', query: [], authz: { channels: ['web'] } },
 };
@@ -50,6 +62,7 @@ function request(overrides: Partial<AccessRequest> & { operationId: string | und
     csrfMatches: () => true,
     rateLimit: allow,
     channelAllowed: () => true,
+    stepUpFresh: () => true,
     ...overrides,
   };
 }
@@ -213,5 +226,72 @@ describe('access decision order (EVM-016 AC4, AC8; SR-AUTHZ-12, SR-SESS-10)', ()
     const other = vi.fn(allow);
     decide({ operationId: 'listWorkOrders', authentication: () => signedIn(), rateLimit: other });
     expect(other).not.toHaveBeenCalled();
+  });
+});
+
+describe('step-up in the access decision (EVM-029 AC1, AC2, AC7; SR-SESS-08, SR-AUTHZ-11, SR-AUTHZ-12)', () => {
+  const stale = { stepUpFresh: () => false };
+
+  it('EVM-029 AC1 an Administrator without a fresh passkey authentication is 403 step_up_required, with a fresh one allowed', () => {
+    expect(decide({ operationId: 'readAudit', authentication: () => signedIn(), ...stale })).toEqual({
+      allowed: false,
+      code: 'step_up_required',
+    });
+    expect(decide({ operationId: 'readAudit', authentication: () => signedIn() })).toEqual({ allowed: true });
+  });
+
+  it('EVM-029 AC1 the decision asks about the principal of the request (the clock is injected by the guard)', () => {
+    const stepUpFresh = vi.fn(() => true);
+    const current = principal({ passkeyAuthenticatedAt: new Date('2026-10-07T08:00:00Z') });
+    decide({ operationId: 'readAudit', authentication: () => ({ principal: current }), stepUpFresh });
+    expect(stepUpFresh).toHaveBeenCalledWith(current);
+  });
+
+  it('EVM-029 AC7 Editor and Read-only get forbidden, never step_up_required — the operation does not show it is protected', () => {
+    for (const role of ['editor', 'read_only'] as const) {
+      expect(decide({ operationId: 'readAudit', authentication: () => signedIn({ role }), ...stale }), role).toEqual({
+        allowed: false,
+        code: 'forbidden',
+      });
+    }
+  });
+
+  it('EVM-029 AC7 a mobile session is forbidden before the step-up is considered (a step-up operation is web only)', () => {
+    const mobile = signedIn({ channel: 'mobile' });
+    expect(decide({ operationId: 'readAudit', authentication: () => mobile, ...stale })).toEqual({ allowed: false, code: 'forbidden' });
+    const channelAllowed = () => false;
+    expect(decide({ operationId: 'readAudit', authentication: () => signedIn(), channelAllowed, ...stale })).toEqual({
+      allowed: false,
+      code: 'forbidden',
+    });
+  });
+
+  it('EVM-029 AC7 an anonymous caller is 401 and a session in mfa_enrollment is 403 mfa_enrollment_required, both before the step-up', () => {
+    expect(decide({ operationId: 'readAudit', ...stale })).toEqual({ allowed: false, code: 'unauthenticated' });
+    const enrolling = signedIn({ state: 'mfa_enrollment' });
+    expect(decide({ operationId: 'readAudit', authentication: () => enrolling, ...stale })).toEqual({
+      allowed: false,
+      code: 'mfa_enrollment_required',
+    });
+  });
+
+  it('EVM-029 AC1 a mutation with a step-up is checked for CSRF first, then for the role, then for the step-up', () => {
+    const base = { operationId: 'eraseThing', mutating: true };
+    expect(decide({ ...base, authentication: () => signedIn(), ...stale })).toEqual({ allowed: false, code: 'csrf_failed' });
+    expect(decide({ ...base, ...sameOrigin, authentication: () => signedIn({ role: 'read_only' }), ...stale })).toEqual({
+      allowed: false,
+      code: 'forbidden',
+    });
+    expect(decide({ ...base, ...sameOrigin, authentication: () => signedIn({ role: 'editor' }), ...stale })).toEqual({
+      allowed: false,
+      code: 'step_up_required',
+    });
+    expect(decide({ ...base, ...sameOrigin, authentication: () => signedIn({ role: 'editor' }) })).toEqual({ allowed: true });
+  });
+
+  it('EVM-029 AC2 an operation without stepUp never asks for the step-up (the window concerns the protected operations only)', () => {
+    const stepUpFresh = vi.fn(() => false);
+    expect(decide({ operationId: 'listWorkOrders', authentication: () => signedIn(), stepUpFresh })).toEqual({ allowed: true });
+    expect(stepUpFresh).not.toHaveBeenCalled();
   });
 });

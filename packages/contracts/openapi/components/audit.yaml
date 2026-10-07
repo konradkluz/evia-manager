@@ -1,0 +1,117 @@
+# Module `audit` — the read model of the audit trail (EVM-029). Every field comes from a closed list, an identifier or a time;
+# there is no free text, no e-mail address, no user agent, no session or trace identifier (SR-DATA-03, P9). The lists below are
+# kept equal to the lists of the code by a test (apps/api/test/audit/contract-sync.test.ts).
+AuditAction:
+  type: string
+  description: Akcja zdarzenia audytu (zamknięta lista; etykiety w panelu).
+  enum:
+    - activation_link.issued
+    - account.password_set
+    - passkey.registered
+    - account.activated
+    - session.created
+    - session.revoked
+    - session.expired
+    - login.succeeded
+    - login.failed
+    - account.emergency_reset
+    - step_up.succeeded
+    - step_up.failed
+    - audit.read
+AuditOutcome:
+  type: string
+  description: Wynik zdarzenia.
+  enum: [success, denied, failed]
+AuditObjectType:
+  type: string
+  description: Typ obiektu, którego dotyczy zdarzenie.
+  enum: [user, session, passkey, audit]
+AuditReasonCode:
+  type: string
+  description: Kod powodu (zamknięta lista, bez wolnego tekstu).
+  enum:
+    - logout
+    - rotated
+    - emergency_reset
+    - link_superseded
+    - lost_device
+    - lost_credentials
+    - suspected_compromise
+    - other
+    - verification_failed
+    - bad_password
+    - unknown_user
+    - not_active
+    - passkey_failed
+    - login_expired
+    - expired
+AuditActor:
+  type: object
+  description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).
+  required: [userId, displayName]
+  properties:
+    userId:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      description: Nazwa wyświetlana; `null`, gdy konto nie istnieje już w katalogu użytkowników.
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+AuditEvent:
+  type: object
+  required: [id, occurredAt, actor, action, outcome, reasonCode, objectType, objectId, ipPrefix]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    occurredAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    actor:
+      description: Osoba; `null` dla zdarzeń systemu i osoby niezalogowanej.
+      oneOf:
+        - $ref: '#/AuditActor'
+        - type: 'null'
+    action:
+      $ref: '#/AuditAction'
+    outcome:
+      $ref: '#/AuditOutcome'
+    reasonCode:
+      oneOf:
+        - $ref: '#/AuditReasonCode'
+        - type: 'null'
+    objectType:
+      $ref: '#/AuditObjectType'
+    objectId:
+      description: Identyfikator obiektu; numer zlecenia dołączy historyjka zleceń bez zmiany łamiącej.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    ipPrefix:
+      description: Adres IP wyłącznie jako prefiks (/24 dla IPv4, /48 dla IPv6) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 43
+        - type: 'null'
+AuditEventList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/AuditEvent'
+    nextCursor:
+      description: Kursor następnej strony albo `null` na ostatniej stronie.
+      oneOf:
+        - type: string
+          maxLength: 256
+        - type: 'null'

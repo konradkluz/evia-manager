@@ -68,6 +68,12 @@
   --color-feedback-warning-bg: var(--evm-color-feedback-warning-bg);
   --color-feedback-warning-border: var(--evm-color-feedback-warning-border);
   --color-feedback-warning-icon: var(--evm-color-feedback-warning-icon);
+  --color-bg-surface-subtle: var(--evm-color-bg-surface-subtle);
+  --color-bg-selected: var(--evm-color-bg-selected);
+  --color-text-link: var(--evm-color-text-link);
+  --color-icon-warning: var(--evm-color-icon-warning);
+  --color-icon-error: var(--evm-color-icon-error);
+  --color-icon-info: var(--evm-color-icon-info);
 
   /* Zero is the one literal allowed by styleguide § 7.2 (m-0, p-0, inset-y-0, start-0, min-w-0). */
   --spacing-0: 0;
@@ -95,10 +101,12 @@
   --spacing-sidebar-width-collapsed: var(--evm-size-sidebar-width-collapsed);
   --spacing-border-width-indicator: var(--evm-border-width-indicator);
   --spacing-dialog-width-sm: var(--evm-size-dialog-width-sm);
+  --spacing-control-height-web-sm: var(--evm-size-control-height-web-sm);
 
   --radius-control: var(--evm-radius-control);
   --radius-card: var(--evm-radius-card);
   --radius-dialog: var(--evm-radius-dialog);
+  --radius-pill: var(--evm-radius-pill);
   --shadow-dropdown: var(--evm-elevation-dropdown);
   --shadow-toast: var(--evm-elevation-toast);
   --shadow-dialog: var(--evm-elevation-dialog);
@@ -109,6 +117,11 @@
 
   /* Page title of the web (§ 2.2): text.heading-1 with its own (display) font family. */
   --font-display: var(--evm-text-heading-1-font-family);
+  /* text.mono (§ 2.2): address prefixes and identifiers. */
+  --font-mono: var(--evm-text-mono-font-family);
+  --text-mono: var(--evm-text-mono-font-size);
+  --text-mono--line-height: var(--evm-text-mono-line-height);
+  --text-mono--font-weight: var(--evm-text-mono-font-weight);
   --text-heading-1: var(--evm-text-heading-1-font-size);
   --text-heading-1--line-height: var(--evm-text-heading-1-line-height);
   --text-heading-1--font-weight: var(--evm-text-heading-1-font-weight);
@@ -173,6 +186,11 @@
 @utility border-w-strong {
   border-style: solid;
   border-width: var(--evm-border-width-strong);
+}
+
+/* Row separator of a table (§ 3.6: color.border.subtle, border-width.default). */
+@utility border-t-default {
+  border-top: var(--evm-border-width-default) solid var(--evm-color-border-subtle);
 }
 
 /* Leading indicators of Banner and InlineAlert (§ 3.19: border-width.indicator in the colour of the tone). */

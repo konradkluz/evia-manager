@@ -10,6 +10,8 @@ export const CHALLENGE_TTL_MS = 5 * MINUTE;
 /** Session lifetimes (P1, P2; enforced since EVM-067): 60 minutes without activity, 12 hours from the sign-in. */
 export const SESSION_IDLE_MS = 60 * MINUTE;
 export const SESSION_ABSOLUTE_MS = 12 * HOUR;
+/** A passkey authentication opens the window of step-up operations for 15 minutes (ADR-0005, P2; SR-SESS-08). */
+export const STEP_UP_WINDOW_MS = 15 * MINUTE;
 /** An authenticated request moves the idle deadline, but is written at most this often (the cost of a write per request). */
 export const SESSION_TOUCH_INTERVAL_MS = 30_000;
 

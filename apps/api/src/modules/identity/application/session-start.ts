@@ -30,9 +30,11 @@ export async function startSession(
     readonly previousSessionToken: string | undefined;
     readonly client: ClientInfo;
     readonly now: Date;
+    /** `now` for the sign-in with a passkey; null for every other way (password only, recovery code — SR-SESS-08). */
+    readonly passkeyAuthenticatedAt: Date | null;
   },
 ): Promise<StartedSession> {
-  const { userId, state, previousSessionToken, client, now } = request;
+  const { userId, state, previousSessionToken, client, now, passkeyAuthenticatedAt } = request;
   const tx = identityTables(transaction);
   const actor = { type: 'user', userId } as const;
   const sessionToken = newToken();
@@ -58,6 +60,7 @@ export async function startSession(
     tokenHash: hashToken(sessionToken),
     linkId: null,
     now,
+    passkeyAuthenticatedAt,
     ...deadlinesAt(now),
     ip: client.context.ip,
     userAgent: client.userAgent,

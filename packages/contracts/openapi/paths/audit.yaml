@@ -1,0 +1,90 @@
+# Module `audit` — read-only view of the append-only audit trail for the Administrator (EVM-029; W-18). There is NO operation
+# that changes or deletes an event (the trail is append-only: INSERT and SELECT only; deletion after 2 years is a retention
+# task of M4, not an API operation). Reading is itself audited (`audit.read`, SR-LOG-03).
+events:
+  get:
+    operationId: listAuditEvents
+    tags: [audit]
+    summary: Dziennik audytu (lista zdarzeń, od najnowszych)
+    description: >-
+      Tylko Administrator, kanał `web`, po step-upie (ostatnie uwierzytelnienie kluczem dostępu < 15 min, w przeciwnym razie
+      `403 step_up_required`); Edytor i Tylko odczyt dostają `403 forbidden` (nigdy `step_up_required`), niezalogowany `401`.
+      Zdarzenia od najnowszych (`occurredAt`, potem `id` malejąco), domyślnie ostatnie 30 dni (zakres `from`–`to` do 2 lat,
+      `from` ≤ `to`), filtry: `action`, `actorUserId`, `outcome`; paginacja kursorem nieprzezroczystym (`limit` 1–100, domyślnie
+      50; zły kursor → `400 validation_failed`). Odpowiedź zawiera tylko dozwolone pola: osobę jako `userId` i `displayName`,
+      adres IP wyłącznie jako prefiks /24 lub /48 — bez e-maila, user agenta, identyfikatora sesji i identyfikatora śladu.
+      Każdy udany odczyt (także z filtrem) zapisuje zdarzenie `audit.read` (bez wartości filtrów) w tej samej transakcji co odczyt.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - name: action
+        in: query
+        required: false
+        description: Filtr akcji (zamknięta lista).
+        schema:
+          $ref: ../components/audit.yaml#/AuditAction
+      - name: actorUserId
+        in: query
+        required: false
+        description: Filtr osoby (identyfikator użytkownika).
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+      - name: outcome
+        in: query
+        required: false
+        description: Filtr wyniku.
+        schema:
+          $ref: ../components/audit.yaml#/AuditOutcome
+      - name: from
+        in: query
+        required: false
+        description: Początek okresu (ISO 8601, włącznie). Domyślnie 30 dni przed `to`.
+        schema:
+          type: string
+          format: date-time
+          maxLength: 40
+      - name: to
+        in: query
+        required: false
+        description: Koniec okresu (ISO 8601, włącznie). Domyślnie teraz.
+        schema:
+          type: string
+          format: date-time
+          maxLength: 40
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 256
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona zdarzeń audytu (pusta lista to pusta tablica `items` i `nextCursor` równy `null`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/audit.yaml#/AuditEventList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/StepUpRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

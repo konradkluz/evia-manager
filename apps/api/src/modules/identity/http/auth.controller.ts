@@ -10,6 +10,7 @@ import {
   zLoginRequestWritable,
   zRegisterPasskeyRequest,
   zSetActivationPasswordRequestWritable,
+  zStepUpRequest,
   zVerifyLoginPasskeyRequest,
 } from '@evia/contracts/zod';
 import type {
@@ -23,6 +24,8 @@ import type {
   RegisterPasskeyRequest,
   SessionExpiry,
   SessionStarted,
+  StepUpRequest,
+  StepUpResult,
   VerifyLoginPasskeyRequest,
 } from '@evia/contracts';
 import type { Request, Response } from 'express';
@@ -37,6 +40,7 @@ import { LoginPasskeyService } from '../application/login-passkey.service.ts';
 import { LoginService } from '../application/login.service.ts';
 import { PasskeyService } from '../application/passkey.service.ts';
 import { SessionService } from '../application/session.service.ts';
+import { StepUpService } from '../application/step-up.service.ts';
 import { clearedSessionCookie, readSessionCookie, sessionCookie } from './session-cookie.ts';
 
 const checkLinkBody = strictObjects(zCheckActivationLinkRequest);
@@ -45,6 +49,8 @@ const registerPasskeyBody = strictObjects(zRegisterPasskeyRequest);
 const loginBody = strictObjects(zLoginRequestWritable);
 const loginOptionsBody = strictObjects(zLoginPasskeyOptionsRequest);
 const verifyLoginBody = strictObjects(zVerifyLoginPasskeyRequest);
+/** Only the credential: a recovery code (or any other field) is a 400 — the passkey is the only method of a step-up (decision 16). */
+const stepUpBody = strictObjects(zStepUpRequest);
 /** `extendSession` takes no input: a body naming a session (or anything else) is refused, the session is the cookie's. */
 const emptyBody = strictObjects(z.object({}));
 
@@ -73,6 +79,7 @@ export class AuthController {
   readonly #passkeyLogins: LoginPasskeyService;
   readonly #passkeys: PasskeyService;
   readonly #sessions: SessionService;
+  readonly #stepUps: StepUpService;
 
   constructor(
     @Inject(ActivationService) activation: ActivationService,
@@ -80,12 +87,14 @@ export class AuthController {
     @Inject(LoginPasskeyService) passkeyLogins: LoginPasskeyService,
     @Inject(PasskeyService) passkeys: PasskeyService,
     @Inject(SessionService) sessions: SessionService,
+    @Inject(StepUpService) stepUps: StepUpService,
   ) {
     this.#activation = activation;
     this.#logins = logins;
     this.#passkeyLogins = passkeyLogins;
     this.#passkeys = passkeys;
     this.#sessions = sessions;
+    this.#stepUps = stepUps;
   }
 
   @Post('/api/v1/auth/activation/check')
@@ -168,6 +177,24 @@ export class AuthController {
     await this.#sessions.logout(requirePrincipal(request), webEventContext(request, response));
     response.set('Clear-Site-Data', '"cache", "storage"');
     response.set('Set-Cookie', clearedSessionCookie());
+  }
+
+  @Post('/api/v1/auth/step-up/options')
+  @OperationId('getStepUpPasskeyOptions')
+  @HttpCode(200)
+  getStepUpPasskeyOptions(@Body() body: unknown, @Req() request: Request): Promise<PasskeyAuthenticationOptions> {
+    parseInput(emptyBody, body ?? {});
+    return this.#stepUps.options(requirePrincipal(request));
+  }
+
+  @Post('/api/v1/auth/step-up')
+  @OperationId('stepUp')
+  @HttpCode(200)
+  async stepUp(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<StepUpResult> {
+    const input = parseInput(stepUpBody, body) as StepUpRequest;
+    const session = await this.#stepUps.verify(requirePrincipal(request), input, clientOf(request, response));
+    response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
+    return { csrfToken: session.csrfToken };
   }
 
   @Post('/api/v1/account/passkeys/registration-options')

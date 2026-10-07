@@ -434,3 +434,18 @@ SessionExpiry:
       type: string
       format: date-time
       maxLength: 40
+StepUpRequest:
+  type: object
+  description: Odpowiedź klucza dostępu na wyzwanie step-upu. Jedyna metoda (kod odzyskiwania nie jest obsługiwany — decyzja 16).
+  additionalProperties: false
+  required: [credential]
+  properties:
+    credential:
+      $ref: '#/AuthenticationCredential'
+StepUpResult:
+  type: object
+  description: Nowy token CSRF (ciasteczko nowej sesji w `Set-Cookie`) — panel podmienia token i ponawia żądanie, które dostało `step_up_required`.
+  required: [csrfToken]
+  properties:
+    csrfToken:
+      $ref: '#/CsrfToken'

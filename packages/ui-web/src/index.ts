@@ -9,17 +9,29 @@ export { Banner } from './banner.tsx';
 export { BlockingState, type BlockingStateProps } from './blocking-state.tsx';
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './button.tsx';
 export { Card } from './card.tsx';
+export { DataTable, type DataTableColumn, type DataTableProps, type DataTableRow } from './data-table.tsx';
+export { DateField, type DateFieldProps } from './date-field.tsx';
+export { FilterChip, type FilterChipProps } from './filter-chip.tsx';
+export { Select, type SelectGroup, type SelectOption, type SelectProps } from './select.tsx';
 export { EmptyState, type EmptyStateProps } from './empty-state.tsx';
 export {
+  Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   ClipboardList,
   Info,
   KeyRound,
   Link2Off,
   LoaderCircle,
+  Lock,
   Menu,
+  Shield,
+  ShieldCheck,
+  ShieldX,
   WifiOff,
   X,
   type Icon,

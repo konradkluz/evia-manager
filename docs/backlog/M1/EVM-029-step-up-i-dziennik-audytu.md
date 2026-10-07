@@ -4,7 +4,8 @@ title: Ponowne uwierzytelnienie (step-up) i dziennik audytu dla Administratora
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -91,16 +92,25 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Filtr „Osoba” (W-18) pokazuje tylko osoby z wczytanych stron — brak listy kont do M1/EVM-024 (W-16); dopisać w EVM-024 źródło listy osób.
+- `isForbidden` w audit-page traktuje każde 403 ≠ step_up_required jako „Brak dostępu” (też csrf_failed) — zawęzić do `forbidden`.
+- Ukrycie wczytanej strony po 15 min opiera się na step-upie w tej karcie; rozważyć `passkeyAuthenticatedAt` w `getCurrentSession`.
+- `AuditReadEvent.outcome` dopuszcza martwe `denied` (YAGNI); kilka niepokrytych gałęzi web (nit).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-029 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-029 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; step-up wydzielony z EVM-024 — konsultacja security-engineer pkt 3d)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo końcowym EVM-015 (EVM-015 → „Uwagi do rozważenia” 8; ustalenie `security-engineer`; liczba AC bez zmian): AC2 — okno step-upu liczone od uwierzytelnienia kluczem dostępu; logowanie kodem odzyskiwania go nie otwiera (decyzja 16)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: uwierzytelnianie i uprawnienia; gałąź feature/EVM-029-step-up-audit-log)
+- 2026-10-07 — plan gotowy (backend-developer)
+- 2026-10-07 — implementacja API (backend-developer): kontrakt, migracja 0009, step-up, dziennik audytu, macierz ról; panel W-04 / W-18 — web-developer
+- 2026-10-07 — panel W-04 (dialog step-up) i W-18 (dziennik audytu) gotowy (web-developer): nowe komponenty Select, DateField, FilterChip, DataTable; testy Vitest i Playwright (Chromium, Edge, Firefox), axe, zrzuty w docs/ux/reviews/EVM-029
+- 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 99,4% / gałęzie 95,6%; → in-review
+- 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,16 mln tokenów subagentów, 8 agentów, 354 wywołania narzędzi, 1 runda, ok. 65 min; ścieżka pelna; vs baseline: brak danych

@@ -1,14 +1,24 @@
 import type { CurrentSession } from '@evia/contracts';
-import { AccountMenu, AppShell, Banner, ClipboardList, InlineAlert, WifiOff, type LinkComponent, type NavigationItem } from '@evia/ui-web';
+import {
+  AccountMenu,
+  AppShell,
+  Banner,
+  ClipboardList,
+  InlineAlert,
+  ShieldCheck,
+  WifiOff,
+  type LinkComponent,
+  type NavigationItem,
+} from '@evia/ui-web';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { WORK_ORDERS_PATH } from '../paths.ts';
+import { ADMINISTRATION_PATH, AUDIT_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { useOnline } from './use-online.ts';
 
 /** Router link for the UI library (typed paths of the panel). */
 const RouterLink: LinkComponent = ({ href, children, ...rest }) => (
-  <Link to={href as typeof WORK_ORDERS_PATH} {...rest}>
+  <Link to={href as typeof WORK_ORDERS_PATH | typeof AUDIT_PATH} {...rest}>
     {children}
   </Link>
 );
@@ -30,6 +40,18 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
       icon: ClipboardList,
       current: pathname.startsWith(WORK_ORDERS_PATH),
     },
+    // Only an Administrator sees the administration; the server authorizes every operation anyway (SR-AUTHZ-11).
+    ...(session.user.role === 'administrator'
+      ? [
+          {
+            id: 'administration',
+            label: t('nav.administration'),
+            href: AUDIT_PATH,
+            icon: ShieldCheck,
+            current: pathname.startsWith(ADMINISTRATION_PATH),
+          },
+        ]
+      : []),
   ];
   return (
     <AppShell

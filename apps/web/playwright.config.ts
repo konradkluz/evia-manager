@@ -13,6 +13,7 @@ const regular = { testIgnore: /screenshots\.spec\.ts$/ };
 const uxReviewDir = fileURLToPath(new URL('../../docs/ux/reviews/EVM-008/', import.meta.url));
 const uxReviewDirIdentity = fileURLToPath(new URL('../../docs/ux/reviews/EVM-016/', import.meta.url));
 const uxReviewDirLogin = fileURLToPath(new URL('../../docs/ux/reviews/EVM-067/', import.meta.url));
+const uxReviewDirAudit = fileURLToPath(new URL('../../docs/ux/reviews/EVM-029/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -31,7 +32,7 @@ export default defineConfig({
       name: 'screenshots',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /screenshots\.spec\.ts$/,
-      metadata: { uxReviewDir, uxReviewDirIdentity, uxReviewDirLogin },
+      metadata: { uxReviewDir, uxReviewDirIdentity, uxReviewDirLogin, uxReviewDirAudit },
     },
   ],
 });

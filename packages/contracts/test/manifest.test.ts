@@ -21,7 +21,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getHealth',
       'getLoginPasskeyOptions',
       'getPasskeyRegistrationOptions',
+      'getStepUpPasskeyOptions',
       'getWorkOrderTemplate',
+      'listAuditEvents',
       'listDocumentKinds',
       'listProcedureTemplates',
       'listServiceItems',
@@ -30,6 +32,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'logout',
       'registerPasskey',
       'setActivationPassword',
+      'stepUp',
       'verifyLoginPasskey',
     ]);
   });
@@ -47,6 +50,15 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       .filter(([, operation]) => operation.authz.allowDuringMfaEnrollment === true)
       .map(([id]) => id);
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
+  });
+
+  it('EVM-029 AC7 every operation with stepUp: true lists exactly the web channel; the audit log is the one in M1', () => {
+    const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
+    expect(stepUp.map(([id]) => id)).toEqual(['listAuditEvents']);
+    for (const [id, operation] of stepUp) {
+      expect(operation.authz.channels, id).toEqual(['web']);
+      expect(operation.authz.roles, id).toEqual(['administrator']);
+    }
   });
 
   it('EVM-016 AC8 no operation of the contract lists the mobile channel in M1', () => {

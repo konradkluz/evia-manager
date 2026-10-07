@@ -13,6 +13,7 @@ import { setLoginNotice } from './session/login-flow.ts';
 import { SESSION_KEY } from './session/session.ts';
 import { ErrorBoundary } from './shell/error-boundary.tsx';
 import { ErrorState } from './shell/error-state.tsx';
+import { StepUpProvider } from './session/step-up-context.tsx';
 import { ToastProvider } from './shell/toast-context.tsx';
 
 export interface AppProps {
@@ -22,7 +23,8 @@ export interface AppProps {
   readonly client?: Client;
 }
 
-const isUnauthorized = (error: unknown): boolean => error instanceof ApiError && error.status === 401;
+/** A 401 that ends the session; a key the server did not accept (`passkey_failed`, step-up) leaves the session as it is. */
+const isUnauthorized = (error: unknown): boolean => error instanceof ApiError && error.status === 401 && error.code !== 'passkey_failed';
 
 /**
  * Query cache of the panel: no persistence, no devtools (SR-WEB-05). A `401` means the session is gone (expired, ended
@@ -74,7 +76,9 @@ export function App({ history, i18n, client }: AppProps) {
         <ApiProvider client={instances.client}>
           <QueryClientProvider client={instances.queryClient}>
             <ToastProvider>
-              <RouterProvider router={instances.router} />
+              <StepUpProvider>
+                <RouterProvider router={instances.router} />
+              </StepUpProvider>
             </ToastProvider>
           </QueryClientProvider>
         </ApiProvider>

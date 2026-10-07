@@ -28,9 +28,9 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
   it('EVM-016 AC8 every cell of the matrix generated from the contract is answered as expected: roles x channels x enrolment state, anonymous, revoked and expired', async () => {
     current = await createIdentityApp();
     const cells = buildMatrix(AUTHZ_MANIFEST, lists);
-    // 15 callers per operation, plus the IDOR cell of every entitled caller (3 roles, web) of an operation with a path parameter
+    // 19 callers per operation, plus the IDOR cell of every entitled caller (3 roles, web) of an operation with a path parameter
     const addressing = Object.values(AUTHZ_MANIFEST).filter((operation) => /{[^}]+}/.test(operation.path)).length;
-    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 15 + addressing * 3);
+    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 19 + addressing * 3);
     expect(await runMatrix(current, cells, await catalogObjects(current))).toEqual([]);
   });
 
