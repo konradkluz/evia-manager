@@ -4,7 +4,7 @@ title: Lokalizacja i strony w nowym zleceniu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -113,3 +113,4 @@ _—_
 - 2026-10-07 — SR-DATA-01 potwierdzone (security-engineer): klasyfikacja `Site` i `Party` w `domain-model.md`, inwentaryzacja w `rodo.md`, wzmianki EVM-021 w `threat-model.md` i `requirements.md`; skany lokalne
 - 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,4% / gałęzie 95,4%; → in-review
 - 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,19 mln tokenów subagentów, 9 agentów, 397 wywołań narzędzi, 1 runda, ok. 91 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-07 — zaakceptowane przez Konrada, scalone do main (PR #29) → done
