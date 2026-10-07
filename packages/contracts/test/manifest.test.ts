@@ -16,6 +16,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(manifest['getHealth']).toEqual({ method: 'get', path: '/api/health', query: [], authz: { public: true } });
     expect(Object.keys(manifest).sort()).toEqual([
       'checkActivationLink',
+      'createCustomer',
       'extendSession',
       'getCurrentSession',
       'getHealth',
@@ -32,6 +33,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'login',
       'logout',
       'registerPasskey',
+      'searchCustomers',
       'setActivationPassword',
       'stepUp',
       'verifyLoginPasskey',
