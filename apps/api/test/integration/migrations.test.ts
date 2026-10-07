@@ -128,6 +128,7 @@ describe('roles and privileges (EVM-016 AC7; ADR-0003, W7)', () => {
       'identity.sessions',
       'identity.users',
       'identity.webauthn_challenges',
+      'platform.idempotency_records',
       'platform.security_alert_outbox',
     ]);
     for (const table of tables) {
