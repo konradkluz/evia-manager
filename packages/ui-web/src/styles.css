@@ -42,6 +42,7 @@
   --color-border-selected: var(--evm-color-border-selected);
   --color-border-error: var(--evm-color-border-error);
   --color-control-bg: var(--evm-color-control-bg);
+  --color-control-checked: var(--evm-color-control-checked);
   --color-control-bg-disabled: var(--evm-color-control-bg-disabled);
   --color-control-border-disabled: var(--evm-color-control-border-disabled);
   --color-control-placeholder: var(--evm-color-control-placeholder);
@@ -132,6 +133,7 @@
   --spacing-sidebar-width-collapsed: var(--evm-size-sidebar-width-collapsed);
   --spacing-border-width-indicator: var(--evm-border-width-indicator);
   --spacing-dialog-width-sm: var(--evm-size-dialog-width-sm);
+  --spacing-dialog-width-md: var(--evm-size-dialog-width-md);
   --spacing-control-height-web-sm: var(--evm-size-control-height-web-sm);
 
   --radius-control: var(--evm-radius-control);
@@ -161,6 +163,10 @@
   --text-heading-2--line-height: var(--evm-text-heading-2-line-height);
   --text-heading-2--font-weight: var(--evm-text-heading-2-font-weight);
   --text-heading-2--letter-spacing: var(--evm-text-heading-2-letter-spacing);
+  --text-heading-4: var(--evm-text-heading-4-font-size);
+  --text-heading-4--line-height: var(--evm-text-heading-4-line-height);
+  --text-heading-4--font-weight: var(--evm-text-heading-4-font-weight);
+  --text-heading-4--letter-spacing: var(--evm-text-heading-4-letter-spacing);
   --text-body-sm: var(--evm-text-body-sm-font-size);
   --text-body-sm--line-height: var(--evm-text-body-sm-line-height);
   --text-body-sm--font-weight: var(--evm-text-body-sm-font-weight);
