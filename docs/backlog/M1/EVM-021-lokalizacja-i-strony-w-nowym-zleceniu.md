@@ -4,7 +4,8 @@ title: Lokalizacja i strony w nowym zleceniu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -98,3 +99,6 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-021-site-and-parties)
+- 2026-10-07 — plan gotowy (backend-developer)
+- 2026-10-07 — implementacja API gotowa (backend-developer): kontrakt, migracje 0013 i 0014, moduły parties i sites, testy EVM-021 AC1–AC7; panel W-05 — web-developer
