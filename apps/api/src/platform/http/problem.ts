@@ -25,8 +25,11 @@ export const PROBLEMS = Object.freeze({
   csrf_failed: { status: 403, title: 'Cross-site request check failed' },
   not_found: { status: 404, title: 'Not found' },
   method_not_allowed: { status: 405, title: 'Method not allowed' },
+  id_conflict: { status: 409, title: 'Identifier already in use' },
+  idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },
+  idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
@@ -45,7 +48,7 @@ export interface FieldError {
 
 export interface ProblemExtras {
   readonly errors?: readonly FieldError[];
-  /** Sent as the Retry-After header (429, 503). */
+  /** Sent as the Retry-After header (429, 503, 409 idempotency_in_progress). */
   readonly retryAfterSeconds?: number;
 }
 

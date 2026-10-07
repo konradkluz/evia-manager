@@ -18,9 +18,13 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/work-orders/application/**/*.ts',
   'src/modules/work-orders/infrastructure/**/*.ts',
   'src/modules/work-orders/http/work-orders.controller.ts',
+  'src/modules/customers/application/**/*.ts',
+  'src/modules/customers/infrastructure/**/*.ts',
+  'src/modules/customers/http/customers.controller.ts',
   'src/modules/audit/application/**/*.ts',
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  'src/platform/idempotency/idempotency.ts',
   'src/cli/process-run.ts',
 ];

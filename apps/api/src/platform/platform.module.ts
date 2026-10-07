@@ -13,6 +13,7 @@ import type { Kysely } from 'kysely';
 import { HealthController } from './health/health.controller.ts';
 import { EventBus } from './events/event-bus.ts';
 import { ProblemFilter } from './http/problem.filter.ts';
+import { IDEMPOTENCY, PgIdempotency } from './idempotency/idempotency.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
@@ -72,6 +73,11 @@ export class PlatformModule {
             ),
         },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },
+        {
+          provide: IDEMPOTENCY,
+          inject: [CLOCK, METRICS],
+          useFactory: (clock: Clock, metrics: MetricsRegistry) => new PgIdempotency(clock, metrics),
+        },
       ],
       exports: [
         DatabaseModule,
@@ -81,6 +87,7 @@ export class PlatformModule {
         EVENT_BUS,
         METRICS,
         RATE_LIMITER,
+        IDEMPOTENCY,
         SECURITY_ALERT_EMITTER,
         CURSOR_CODEC,
         BULK_READ_CONTROL,

@@ -1,8 +1,8 @@
-import { zRegisterPasskeyRequest, zSetActivationPasswordRequestWritable } from '@evia/contracts/zod';
+import { zCustomer, zCustomerWritable, zRegisterPasskeyRequest, zSetActivationPasswordRequestWritable } from '@evia/contracts/zod';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ProblemException } from '../../src/platform/http/problem.ts';
-import { parseInput, strictObjects } from '../../src/platform/http/validation.ts';
+import { parseInput, readOnlyKeys, strictObjects } from '../../src/platform/http/validation.ts';
 
 const errorsOf = (schema: z.ZodType, input: unknown) => {
   try {
@@ -124,5 +124,74 @@ describe('input validation at the boundary (EVM-016 AC3; SR-INPUT-01, SR-ERR-02)
     const { authenticationOf, principalOf, ANONYMOUS } = await import('../../src/platform/http/principal.ts');
     expect(authenticationOf({} as never)).toBe(ANONYMOUS);
     expect(principalOf({} as never)).toBeNull();
+  });
+});
+
+describe('the fields of the server (EVM-020 AC5; SR-AUTHZ-04, CWE-915)', () => {
+  const customer = {
+    id: '0198b0a0-0000-7000-8000-000000000001',
+    kind: 'person',
+    firstName: 'Jan',
+    lastName: 'Przykładowy',
+    phone: '600000001',
+  };
+  const schema = strictObjects(zCustomerWritable);
+  const serverFields = readOnlyKeys(zCustomer, zCustomerWritable);
+  const codesOf = (input: unknown, readOnly = serverFields) => {
+    try {
+      parseInput(schema, input, readOnly);
+    } catch (error) {
+      if (error instanceof ProblemException) return error.extras.errors;
+      throw error;
+    }
+    return undefined;
+  };
+
+  it('EVM-020 AC5 the readOnly keys are what the resource has and its writable variant lacks — derived from the contract, not listed by hand', () => {
+    expect([...serverFields].sort()).toEqual(
+      [
+        'createdAt',
+        'createdBy',
+        'deletedAt',
+        'deletedBy',
+        'displayName',
+        'searchText',
+        'sortName',
+        'updatedAt',
+        'updatedBy',
+        'version',
+      ].sort(),
+    );
+  });
+
+  it('EVM-020 AC5 a field of the server is read_only_field, a field nobody knows is unknown_field; neither value appears', () => {
+    const errors = codesOf({
+      ...customer,
+      searchText: 'sekret-wartosc',
+      version: 7,
+      createdAt: '2026-10-07T08:00:00Z',
+      surplus: 'obca-wartosc',
+    });
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        { pointer: '/searchText', code: 'read_only_field' },
+        { pointer: '/version', code: 'read_only_field' },
+        { pointer: '/createdAt', code: 'read_only_field' },
+        { pointer: '/surplus', code: 'unknown_field' },
+      ]),
+    );
+    expect(JSON.stringify(errors)).not.toMatch(/sekret-wartosc|obca-wartosc/);
+  });
+
+  it('EVM-020 AC5 only a key at the root can be a field of the server: the same name inside a nested object is an unknown field', () => {
+    const errors = codesOf({
+      ...customer,
+      postalAddress: { street: 'Piotrkowska', buildingNumber: '1', postalCode: '90-001', city: 'Łódź', version: 2 },
+    });
+    expect(errors).toEqual([{ pointer: '/postalAddress/version', code: 'unknown_field' }]);
+  });
+
+  it('EVM-020 AC5 without the set of server fields every unknown key stays unknown_field (the default of the other operations)', () => {
+    expect(codesOf({ ...customer, version: 7 }, new Set())).toEqual([{ pointer: '/version', code: 'unknown_field' }]);
   });
 });
