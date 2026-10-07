@@ -5,6 +5,8 @@ import { AuthorizationModule } from './modules/authorization/index.ts';
 import { CatalogModule } from './modules/catalog/index.ts';
 import { CustomersModule } from './modules/customers/index.ts';
 import { IdentityModule } from './modules/identity/index.ts';
+import { PartiesModule } from './modules/parties/index.ts';
+import { SitesModule } from './modules/sites/index.ts';
 import { WorkOrdersModule } from './modules/work-orders/index.ts';
 import { PlatformModule, type PlatformDependencies } from './platform/platform.module.ts';
 
@@ -18,6 +20,8 @@ export class AppModule {
         IdentityModule,
         CatalogModule,
         CustomersModule,
+        PartiesModule,
+        SitesModule,
         WorkOrdersModule,
         AuditModule,
         AuthorizationModule,
