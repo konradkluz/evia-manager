@@ -10,6 +10,8 @@ import * as catalog from './0007_catalog.ts';
 import * as catalogSeed from './0008_catalog_seed.ts';
 import * as stepUp from './0009_step_up.ts';
 import * as workOrders from './0010_work_orders.ts';
+import * as customers from './0011_customers.ts';
+import * as idempotency from './0012_idempotency.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -22,4 +24,6 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0008_catalog_seed': catalogSeed,
   '0009_step_up': stepUp,
   '0010_work_orders': workOrders,
+  '0011_customers': customers,
+  '0012_idempotency': idempotency,
 });
