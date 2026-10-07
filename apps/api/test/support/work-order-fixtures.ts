@@ -4,7 +4,7 @@
  * to run when `NODE_ENV=production` (SR-INFRA-08). Everything is synthetic and deterministic: titles are made of a fixed word list
  * and a counter, people are the fixture users of the identity tests, numbers follow `ZL-YYYY-NNNN`.
  */
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
 import { workOrderTables } from '../../src/modules/work-orders/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
@@ -120,4 +120,13 @@ export async function generateWorkOrders(
   coordinators: readonly string[],
 ): Promise<Map<string, string>> {
   return insertWorkOrders(db, syntheticSpecs(count, coordinators));
+}
+
+/** Empties the tables the creation of an order writes to (children first: the keys are RESTRICT), the counter and the idempotency records. */
+export async function clearWorkOrderCreation(db: Kysely<Database>): Promise<void> {
+  await sql`delete from work_orders.scope_items`.execute(db);
+  await sql`delete from work_orders.work_order_assignments`.execute(db);
+  await sql`delete from work_orders.work_orders`.execute(db);
+  await sql`delete from work_orders.number_counters`.execute(db);
+  await sql`delete from platform.idempotency_records`.execute(db);
 }

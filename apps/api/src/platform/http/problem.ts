@@ -30,6 +30,7 @@ export const PROBLEMS = Object.freeze({
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },
   idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
+  template_unavailable: { status: 422, title: 'Work order template is not available' },
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
