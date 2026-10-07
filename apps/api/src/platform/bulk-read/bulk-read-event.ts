@@ -5,6 +5,9 @@
  */
 import type { DomainEvent } from '../events/event-bus.ts';
 
+/** What was read in bulk: work orders (EVM-017) or customers (EVM-020). */
+export type BulkReadObjectType = 'work_order' | 'customer';
+
 export const BULK_READ_EVENT_TYPES = ['bulk_read.alerted', 'bulk_read.rejected'] as const;
 
 export interface BulkReadEvent extends DomainEvent {
@@ -12,5 +15,5 @@ export interface BulkReadEvent extends DomainEvent {
   readonly actor: { readonly type: 'user'; readonly userId: string };
   /** `success` for the alert (the read was served), `denied` for the refusal (`429`). */
   readonly outcome: 'success' | 'denied';
-  readonly objectType: 'work_order';
+  readonly objectType: BulkReadObjectType;
 }

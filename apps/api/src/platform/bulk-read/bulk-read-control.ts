@@ -14,7 +14,7 @@ import type { Logger } from '../logging/logger.ts';
 import type { Counter, MetricsRegistry } from '../metrics/metrics.ts';
 import type { EventContext } from '../events/event-bus.ts';
 import { ProblemException } from '../http/problem.ts';
-import type { BulkReadEvent } from './bulk-read-event.ts';
+import type { BulkReadEvent, BulkReadObjectType } from './bulk-read-event.ts';
 import type { BulkReadMeter } from './bulk-read-meter.ts';
 
 /** Alerts raised by the API process while it serves a request (never stored in the outbox). */
@@ -26,12 +26,12 @@ export const BULK_READ_REJECTED_METRIC = 'bulk_read_rejected';
 /** Publishes an event in a transaction of its own (the audit subscriber writes with it); an audit failure fails the request. */
 export type BulkReadPublisher = (event: BulkReadEvent, context: EventContext) => Promise<void>;
 
-const eventOf = (type: BulkReadEvent['type'], outcome: BulkReadEvent['outcome'], userId: string): BulkReadEvent => ({
-  type,
-  actor: { type: 'user', userId },
-  outcome,
-  objectType: 'work_order',
-});
+const eventOf = (
+  type: BulkReadEvent['type'],
+  outcome: BulkReadEvent['outcome'],
+  userId: string,
+  objectType: BulkReadObjectType,
+): BulkReadEvent => ({ type, actor: { type: 'user', userId }, outcome, objectType });
 
 export class BulkReadControl {
   readonly #meter: BulkReadMeter;
@@ -49,18 +49,18 @@ export class BulkReadControl {
   }
 
   /** @throws ProblemException `rate_limited` with the seconds to wait, when the user has read too much in the window */
-  async before(userId: string, context: EventContext): Promise<void> {
+  async before(userId: string, context: EventContext, objectType: BulkReadObjectType = 'work_order'): Promise<void> {
     const decision = this.#meter.check(userId);
     if (!decision.allowed) {
       this.#rejections.increment({});
-      if (decision.firstRejection) await this.#publish(eventOf('bulk_read.rejected', 'denied', userId), context);
+      if (decision.firstRejection) await this.#publish(eventOf('bulk_read.rejected', 'denied', userId, objectType), context);
       throw new ProblemException('rate_limited', { retryAfterSeconds: decision.retryAfterSeconds });
     }
     if (decision.alert) {
       const code: RequestSecurityAlertCode = 'bulk_read';
       this.#alerts.increment({});
       this.#logger.error({ alert: 'security', alertCode: code }, 'security alert');
-      await this.#publish(eventOf('bulk_read.alerted', 'success', userId), context);
+      await this.#publish(eventOf('bulk_read.alerted', 'success', userId, objectType), context);
     }
   }
 

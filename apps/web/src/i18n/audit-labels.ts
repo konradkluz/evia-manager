@@ -23,6 +23,7 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
   'bulk_read.rejected': 'Odrzucony masowy odczyt',
+  'customer.created': 'Dodanie klienta',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -42,6 +43,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   { label: 'Hasło i drugi krok', actions: ['account.password_set', 'passkey.registered'] },
   { label: 'Użytkownicy', actions: ['activation_link.issued', 'account.activated', 'account.emergency_reset'] },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
+  { label: 'Klienci', actions: ['customer.created'] },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {
@@ -56,6 +58,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   passkey: 'Klucz dostępu',
   audit: 'Dziennik audytu',
   work_order: 'Zlecenie',
+  customer: 'Klient',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
