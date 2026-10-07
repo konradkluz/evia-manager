@@ -33,7 +33,7 @@ export const RATE_LIMITS = Object.freeze({
   anonymous: 60,
   /** sign-in and MFA operations */
   authentication: 20,
-  /** customer searches, per user (EVM-020 AC6; applied with `consumeSubject`) */
+  /** searches of customers, sites and parties, per user and per search bucket (EVM-020 AC6, EVM-021 AC7; `consumeSubject`) */
   search: 60,
 });
 

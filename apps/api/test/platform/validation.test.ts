@@ -195,3 +195,18 @@ describe('the fields of the server (EVM-020 AC5; SR-AUTHZ-04, CWE-915)', () => {
     expect(codesOf({ ...customer, version: 7 }, new Set())).toEqual([{ pointer: '/version', code: 'unknown_field' }]);
   });
 });
+
+describe('a bound on a number is a range, a bound on a text a length (EVM-021 AC2; SR-INPUT-01)', () => {
+  const schema = z.object({ power: z.number().gt(0).lte(1000), count: z.int().gte(1), name: z.string().max(3) });
+
+  it('EVM-021 AC2 a number outside its bounds is out_of_range, a text over its bound is too_long — never the value', () => {
+    const result = errorsOf(schema, { power: 0, count: 0, name: 'sekret' });
+    expect(result?.errors).toEqual([
+      { pointer: '/power', code: 'out_of_range' },
+      { pointer: '/count', code: 'out_of_range' },
+      { pointer: '/name', code: 'too_long' },
+    ]);
+    expect(errorsOf(schema, { power: 1000.5, count: 1, name: 'abc' })?.errors).toEqual([{ pointer: '/power', code: 'out_of_range' }]);
+    expect(JSON.stringify(result)).not.toContain('sekret');
+  });
+});

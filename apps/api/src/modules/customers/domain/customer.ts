@@ -4,9 +4,9 @@
  * either the normalised customer or the list of field errors: a JSON Pointer and a code, NEVER the value (SR-ERR-02). The
  * pointers and the codes are the vocabulary of `errors[]` of the contract.
  */
-import { normalizeEmail } from './email.ts';
-import { normalizePhone } from './phone.ts';
-import { plainText } from './plain-text.ts';
+import { normalizeEmail } from '../../../platform/input/email.ts';
+import { Collector, type FieldIssue } from '../../../platform/input/field-issues.ts';
+import { normalizePhone } from '../../../platform/input/phone.ts';
 import { normalizeTaxId } from './tax-id.ts';
 
 export type CustomerKind = 'person' | 'company';
@@ -54,40 +54,10 @@ export interface NewCustomer {
   readonly notes: string | null;
 }
 
-export interface FieldIssue {
-  readonly pointer: string;
-  readonly code: string;
-}
-
 export type NewCustomerResult =
   { readonly ok: true; readonly customer: NewCustomer } | { readonly ok: false; readonly errors: readonly FieldIssue[] };
 
 const NAME = { maxLength: 200 } as const;
-
-class Collector {
-  readonly errors: FieldIssue[] = [];
-
-  fail(pointer: string, code: string): void {
-    this.errors.push({ pointer, code });
-  }
-
-  /** Normalises an optional text; a refused one is an error and `null`. */
-  text(pointer: string, raw: string | undefined, rules: { maxLength: number; multiline?: boolean }): string | null {
-    const result = plainText(raw, rules);
-    if (!result.ok) {
-      this.fail(pointer, result.code);
-      return null;
-    }
-    return result.value ?? null;
-  }
-
-  required(pointer: string, raw: string | undefined, rules: { maxLength: number }): string | null {
-    const result = plainText(raw, rules);
-    if (!result.ok) this.fail(pointer, result.code);
-    else if (result.value === undefined) this.fail(pointer, 'required');
-    return result.ok ? (result.value ?? null) : null;
-  }
-}
 
 export function normalizeNewCustomer(input: CustomerInput): NewCustomerResult {
   const issues = new Collector();
@@ -105,7 +75,7 @@ export function normalizeNewCustomer(input: CustomerInput): NewCustomerResult {
 
   const phone = normalizePhone(input.phone);
   if (phone === undefined) issues.fail('/phone', 'invalid_format');
-  const email = normalizedEmail(issues, input.email);
+  const email = issues.shaped('/email', input.email, normalizeEmail);
   const address = normalizedAddress(issues, input.postalAddress);
   const notes = issues.text('/notes', input.notes, { maxLength: 2000, multiline: true });
 
@@ -127,13 +97,6 @@ function normalizedTaxId(issues: Collector, raw: string | undefined): string | n
   const taxId = normalizeTaxId(raw);
   if (taxId === undefined) issues.fail('/taxId', 'invalid_format');
   return taxId ?? null;
-}
-
-function normalizedEmail(issues: Collector, raw: string | undefined): string | null {
-  if (raw === undefined || raw.trim() === '') return null;
-  const email = normalizeEmail(raw);
-  if (email === undefined) issues.fail('/email', 'invalid_format');
-  return email ?? null;
 }
 
 function normalizedAddress(issues: Collector, address: PostalAddressInput | undefined): NewCustomer['address'] {
