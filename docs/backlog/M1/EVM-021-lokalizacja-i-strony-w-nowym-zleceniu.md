@@ -102,3 +102,4 @@ _—_
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-021-site-and-parties)
 - 2026-10-07 — plan gotowy (backend-developer)
 - 2026-10-07 — implementacja API gotowa (backend-developer): kontrakt, migracje 0013 i 0014, moduły parties i sites, testy EVM-021 AC1–AC7; panel W-05 — web-developer
+- 2026-10-07 — panel W-05 gotowy (web-developer): sekcja „2. Lokalizacja”, dialog „Dodaj stronę”, testy komponentów i E2E EVM-021 AC1–AC7, warianty `TextField` (sufiks) i `Select` (błąd); do potwierdzenia przez ux-designer: przycisk „Zapisz lokalizację” i zawężenie rodzajów w dialogu do rodzajów pola
