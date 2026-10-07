@@ -1,0 +1,139 @@
+# Module `parties` — counterparties of the company: distribution system operators (OSD), building managers, experts (EVM-021; W-05
+# dialog "Dodaj stronę"). `Party` is DO-3 for natural persons and contact persons: it is returned only to the author of a creation
+# and never to a search (the search item has `id`, `kind`, `legalForm` and `displayName` only — no telephone, e-mail or contact
+# person, SR-DATA-03). The fields the server controls are `readOnly` (`400 read_only_field`, EVM-021 AC5; SR-AUTHZ-04).
+PartyLegalForm:
+  type: string
+  description: Forma — firma lub instytucja (`organization`) albo osoba fizyczna (`natural_person`, dane osobowe).
+  enum: [organization, natural_person]
+Party:
+  type: object
+  description: >-
+    Strona (kontrahent). Wejście: `id` (UUIDv7 nadany przez klienta), `kind`, `legalForm`, `displayName` (wymagane) oraz opcjonalnie
+    `contactPersonName`, `phone`, `email`, `notes`. Pola `readOnly` ustawia wyłącznie serwer.
+  required: [id, kind, legalForm, displayName, version, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    kind:
+      $ref: catalog.yaml#/PartyKind
+    legalForm:
+      $ref: '#/PartyLegalForm'
+    displayName:
+      type: string
+      description: Nazwa strony (firma, instytucja albo imię i nazwisko osoby fizycznej).
+      maxLength: 200
+    contactPersonName:
+      type: string
+      maxLength: 200
+    phone:
+      type: string
+      description: >-
+        Telefon w dowolnym zapisie (spacje, myślniki, nawiasy, `+48`, `0048`, 9 cyfr krajowych); serwer normalizuje do E.164
+        (`^\+[1-9]\d{7,14}$`). W odpowiedzi — zawsze E.164.
+      maxLength: 32
+    email:
+      type: string
+      description: Adres e-mail; zapisywany małymi literami.
+      maxLength: 254
+    notes:
+      type: string
+      description: Notatki (zwykły tekst). Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      maxLength: 2000
+    searchText:
+      type: string
+      description: Tekst wyszukiwania (nazwa i osoba kontaktowa). Ustawia serwer; nigdy nie jest zwracany.
+      readOnly: true
+      maxLength: 2000
+    version:
+      type: integer
+      description: Wersja zasobu (ETag). Ustawia serwer.
+      readOnly: true
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    createdBy:
+      type: string
+      description: Autor — ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    updatedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    deletedAt:
+      type: string
+      description: Znacznik usunięcia (soft delete). Ustawia serwer; nie jest zwracany.
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    deletedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+PartySearchRequest:
+  type: object
+  description: >-
+    Fraza wyszukiwania w treści (nigdy w adresie URL, SR-API-04). Serwer normalizuje ją do NFC, przycina i wymaga 3–100 znaków
+    (`400 validation_failed`, kod `too_short` albo `too_long`). Opcjonalny filtr `kinds` zawęża wynik do podanych rodzajów
+    (combobox OSD — `distribution_system_operator`; combobox zarządcy — `building_administration`, `property_manager`,
+    `housing_community`).
+  required: [query]
+  properties:
+    query:
+      type: string
+      maxLength: 200
+    kinds:
+      type: array
+      description: Rodzaje stron do wyszukania (bez powtórzeń); brak pola — wszystkie rodzaje.
+      minItems: 1
+      maxItems: 10
+      uniqueItems: true
+      items:
+        $ref: catalog.yaml#/PartyKind
+PartySearchItem:
+  type: object
+  description: Wynik wyszukiwania — rodzaj, forma i nazwa (bez telefonu, e-maila, osoby kontaktowej i notatek, SR-DATA-03).
+  required: [id, kind, legalForm, displayName]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    kind:
+      $ref: catalog.yaml#/PartyKind
+    legalForm:
+      $ref: '#/PartyLegalForm'
+    displayName:
+      type: string
+      maxLength: 200
+PartySearchResult:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Do 20 stron, posortowanych po nazwie i identyfikatorze.
+      maxItems: 20
+      items:
+        $ref: '#/PartySearchItem'
+    nextCursor:
+      description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
+      type: 'null'

@@ -1,0 +1,173 @@
+# Module `sites` — places where work is done (EVM-021; W-05 section "2. Lokalizacja"). `Site` is DO-K (the address of a home, the
+# parking spot, the metering point, the connection power, notes): it is returned only to the author of a creation and never to a
+# search (the search item has the type, the address and the parking spot only — no notes, no PPE, no power, no parties, SR-DATA-03).
+# The fields the server controls are `readOnly`: a request that names one is answered `400 validation_failed` with the code
+# `read_only_field` (EVM-021 AC5, SR-AUTHZ-04). A `Site` is independent of any customer: `customerId` is not a field (`unknown_field`).
+Site:
+  type: object
+  description: >-
+    Lokalizacja. Wejście: `id` (UUIDv7 nadany przez klienta), `siteType`, `street`, `buildingNumber`, `postalCode`, `city`
+    (wymagane); opcjonalnie `apartmentNumber`, `parkingSpotNumber` i `garageLevel` (tylko `multi_family_garage` — inaczej
+    `not_allowed_for_site_type`), `connectionPowerKw` (większa od 0, najwyżej 1000, do 2 miejsc po przecinku), `meteringPointId` (PPE),
+    `distributionSystemOperatorPartyId` (strona rodzaju OSD) i `managerPartyId` (administracja, zarządca albo wspólnota /
+    spółdzielnia), `notes`. Strona innego rodzaju — `400` z kodem `wrong_party_kind`, strona nieistniejąca albo usunięta —
+    `400` z kodem `unknown_party` (ten sam dla każdej roli). Pola `readOnly` ustawia wyłącznie serwer.
+  required: [id, siteType, street, buildingNumber, postalCode, city, version, createdAt, updatedAt]
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    siteType:
+      $ref: catalog.yaml#/SiteType
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      type: string
+      maxLength: 20
+    postalCode:
+      type: string
+      description: Kod pocztowy w formacie `00-000`.
+      pattern: '^\d{2}-\d{3}$'
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+    parkingSpotNumber:
+      type: string
+      description: Numer miejsca postojowego (tylko garaż w budynku wielorodzinnym).
+      maxLength: 20
+    garageLevel:
+      type: string
+      description: Poziom garażu, np. „-1” (tylko garaż w budynku wielorodzinnym).
+      maxLength: 20
+    connectionPowerKw:
+      type: number
+      description: Moc przyłączeniowa w kW — większa od 0, najwyżej 1000, do 2 miejsc po przecinku (skalę sprawdza domena).
+      exclusiveMinimum: 0
+      maximum: 1000
+    meteringPointId:
+      type: string
+      description: PPE (punkt poboru energii), najwyżej 40 znaków.
+      maxLength: 40
+    distributionSystemOperatorPartyId:
+      type: string
+      description: Strona rodzaju `distribution_system_operator`.
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    managerPartyId:
+      type: string
+      description: Strona rodzaju `building_administration`, `property_manager` albo `housing_community`.
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    notes:
+      type: string
+      description: Notatki (zwykły tekst, zobaczą je technicy w aplikacji). Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      maxLength: 2000
+    searchText:
+      type: string
+      description: Tekst wyszukiwania (adres i numer miejsca; bez PPE i notatek). Ustawia serwer; nigdy nie jest zwracany.
+      readOnly: true
+      maxLength: 2000
+    version:
+      type: integer
+      description: Wersja zasobu (ETag). Ustawia serwer.
+      readOnly: true
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    createdBy:
+      type: string
+      description: Autor — ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    updatedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+    deletedAt:
+      type: string
+      description: Znacznik usunięcia (soft delete). Ustawia serwer; nie jest zwracany.
+      format: date-time
+      readOnly: true
+      maxLength: 40
+    deletedBy:
+      type: string
+      description: Ustawia serwer; nie jest zwracany.
+      format: uuid
+      readOnly: true
+      maxLength: 36
+SiteSearchRequest:
+  type: object
+  description: >-
+    Fraza wyszukiwania w treści (nigdy w adresie URL, SR-API-04). Serwer normalizuje ją do NFC, przycina i wymaga 3–100 znaków
+    (`400 validation_failed`, kod `too_short` albo `too_long`).
+  required: [query]
+  properties:
+    query:
+      type: string
+      maxLength: 200
+SiteSearchItem:
+  type: object
+  description: Wynik wyszukiwania — typ obiektu, adres i numer miejsca (bez notatek, PPE, mocy i stron, SR-DATA-03).
+  required: [id, siteType, street, buildingNumber, postalCode, city]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    siteType:
+      $ref: catalog.yaml#/SiteType
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      type: string
+      maxLength: 20
+    postalCode:
+      type: string
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+    parkingSpotNumber:
+      type: string
+      maxLength: 20
+    garageLevel:
+      type: string
+      maxLength: 20
+SiteSearchResult:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Do 20 lokalizacji, posortowanych po mieście, ulicy, numerze budynku i identyfikatorze.
+      maxItems: 20
+      items:
+        $ref: '#/SiteSearchItem'
+    nextCursor:
+      description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
+      type: 'null'

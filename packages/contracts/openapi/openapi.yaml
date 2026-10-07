@@ -28,6 +28,10 @@ tags:
     description: Zlecenia — lista z filtrami i paginacją kursorem (moduł work-orders).
   - name: customers
     description: Klienci — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
+  - name: sites
+    description: Lokalizacje — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł sites).
+  - name: parties
+    description: Strony (OSD, zarządcy, eksperci) — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł parties).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -73,6 +77,14 @@ paths:
     $ref: paths/customers.yaml#/customers
   /api/v1/customers/search:
     $ref: paths/customers.yaml#/customersSearch
+  /api/v1/sites:
+    $ref: paths/sites.yaml#/sites
+  /api/v1/sites/search:
+    $ref: paths/sites.yaml#/sitesSearch
+  /api/v1/parties:
+    $ref: paths/parties.yaml#/parties
+  /api/v1/parties/search:
+    $ref: paths/parties.yaml#/partiesSearch
 components:
   schemas:
     Health:
@@ -177,3 +189,21 @@ components:
       $ref: components/customers.yaml#/CustomerSearchItem
     CustomerSearchResult:
       $ref: components/customers.yaml#/CustomerSearchResult
+    Site:
+      $ref: components/sites.yaml#/Site
+    SiteSearchRequest:
+      $ref: components/sites.yaml#/SiteSearchRequest
+    SiteSearchItem:
+      $ref: components/sites.yaml#/SiteSearchItem
+    SiteSearchResult:
+      $ref: components/sites.yaml#/SiteSearchResult
+    PartyLegalForm:
+      $ref: components/parties.yaml#/PartyLegalForm
+    Party:
+      $ref: components/parties.yaml#/Party
+    PartySearchRequest:
+      $ref: components/parties.yaml#/PartySearchRequest
+    PartySearchItem:
+      $ref: components/parties.yaml#/PartySearchItem
+    PartySearchResult:
+      $ref: components/parties.yaml#/PartySearchResult
