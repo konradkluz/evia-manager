@@ -22,6 +22,8 @@ export interface AppConfig {
   readonly webauthn: { readonly rpId: string; readonly rpName: string };
   /** Addresses or CIDR ranges of reverse proxies whose X-Forwarded-For is trusted (empty: none; SR-API-02, CWE-348). */
   readonly trustedProxies: readonly string[];
+  /** 32-byte key of the opaque cursors (AES-256-GCM, EVM-017). A secret: never logged, rotation invalidates cursors. */
+  readonly cursorKey: Buffer;
 }
 
 const postgresUrl = z.string().refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol));
@@ -44,6 +46,16 @@ const proxyList = z
   )
   .refine((items) => items.every((item) => /^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(item)));
 
+const CURSOR_KEY_BYTES = 32;
+/** 32 random bytes as 43 characters of base64url (no padding); the round trip rejects a value with stray trailing bits. */
+const cursorKey = z.string().refine((value) => {
+  const bytes = Buffer.from(value, 'base64url');
+  return /^[A-Za-z0-9_-]{43}$/.test(value) && bytes.length === CURSOR_KEY_BYTES && bytes.toString('base64url') === value;
+});
+/** A key with few distinct bytes is a placeholder (all zeros, a repeated byte), never the output of a random generator. */
+const MIN_DISTINCT_KEY_BYTES = 16;
+const isPlaceholderKey = (value: string): boolean => new Set(Buffer.from(value, 'base64url')).size < MIN_DISTINCT_KEY_BYTES;
+
 const hostOf = (value: string): string => (URL.canParse(value) ? new URL(value).hostname : '');
 const isLocalHost = (host: string): boolean => host === 'localhost' || host.endsWith('.localhost');
 
@@ -59,6 +71,7 @@ const schema = z
     WEBAUTHN_RP_ID: hostname,
     WEBAUTHN_RP_NAME: z.string().trim().min(1).max(64).default('EVia Manager'),
     TRUSTED_PROXIES: proxyList,
+    CURSOR_KEY: cursorKey,
   })
   .refine((env) => env.NODE_ENV === 'development' || !VERBOSE_LEVELS.includes(env.LOG_LEVEL), { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
@@ -72,7 +85,9 @@ const schema = z
   // Production: https only and no localhost — cookies are always Secure with the __Host- prefix, there is no switch.
   .refine((env) => env.NODE_ENV !== 'production' || (env.PANEL_ORIGIN.startsWith('https://') && !isLocalHost(hostOf(env.PANEL_ORIGIN))), {
     path: ['PANEL_ORIGIN'],
-  });
+  })
+  // Production never runs with a development or test key.
+  .refine((env) => env.NODE_ENV !== 'production' || !isPlaceholderKey(env.CURSOR_KEY), { path: ['CURSOR_KEY'] });
 
 export class ConfigError extends Error {
   readonly keys: readonly string[];
@@ -100,5 +115,6 @@ export function loadConfig(env: Readonly<Record<string, string | undefined>>): A
     panelOrigin: value.PANEL_ORIGIN,
     webauthn: { rpId: value.WEBAUTHN_RP_ID, rpName: value.WEBAUTHN_RP_NAME },
     trustedProxies: value.TRUSTED_PROXIES,
+    cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
   };
 }

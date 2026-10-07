@@ -19,6 +19,9 @@ export const UNREACHABLE_DATABASE_URL = 'postgres://evia:evia-test@127.0.0.1:1/e
 /** Synthetic origin of the panel in tests (an HTTPS origin, as in production). */
 export const PANEL_ORIGIN = 'https://panel.evia.test';
 
+/** Synthetic test key of the cursors (32 identical bytes — a placeholder the production configuration refuses). Test use only. */
+export const TEST_CURSOR_KEY = 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc';
+
 export function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     NODE_ENV: 'test',
@@ -27,6 +30,7 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): Re
     MIN_SUPPORTED_APP_VERSION_IOS: '1.1.0',
     PANEL_ORIGIN: PANEL_ORIGIN,
     WEBAUTHN_RP_ID: 'panel.evia.test',
+    CURSOR_KEY: TEST_CURSOR_KEY,
     ...overrides,
   };
 }

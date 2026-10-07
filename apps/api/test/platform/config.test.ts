@@ -1,6 +1,10 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from '../../src/platform/config/config.ts';
 import { validEnv } from '../support/app.ts';
+
+/** A key that looks random (production refuses the placeholders of development and tests). Generated per run, never committed. */
+const randomKey = (): string => randomBytes(32).toString('base64url');
 
 const errorOf = (env: Record<string, string | undefined>): ConfigError => {
   try {
@@ -23,8 +27,11 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       panelOrigin: 'https://panel.evia.test',
       webauthn: { rpId: 'panel.evia.test', rpName: 'EVia Manager' },
       trustedProxies: [],
+      cursorKey: Buffer.alloc(32, 7),
     });
-    expect(loadConfig({ ...validEnv(), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' })).toMatchObject({
+    expect(
+      loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),
+    ).toMatchObject({
       nodeEnv: 'production',
       port: 8080,
       logLevel: 'warn',
@@ -61,7 +68,9 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
 
   it('EVM-008 AC1 debug and trace log levels are rejected outside development (SR-LOG-02)', () => {
     for (const level of ['debug', 'trace']) {
-      expect(errorOf({ ...validEnv(), NODE_ENV: 'production', LOG_LEVEL: level }).keys, level).toEqual(['LOG_LEVEL']);
+      expect(errorOf({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production', LOG_LEVEL: level }).keys, level).toEqual([
+        'LOG_LEVEL',
+      ]);
       expect(errorOf({ ...validEnv(), NODE_ENV: 'test', LOG_LEVEL: level }).keys, level).toEqual(['LOG_LEVEL']);
       expect(loadConfig({ ...validEnv(), NODE_ENV: 'development', LOG_LEVEL: level }).logLevel).toBe(level);
     }
@@ -93,7 +102,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
   });
 
   it('EVM-016 AC6 production accepts only an https panel that is not localhost: there is no switch for Secure or __Host-', () => {
-    const production = { ...validEnv(), NODE_ENV: 'production' };
+    const production = { ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production' };
     expect(loadConfig(production).nodeEnv).toBe('production');
     expect(errorOf({ ...production, PANEL_ORIGIN: 'http://panel.evia.test' }).keys).toEqual(['PANEL_ORIGIN']);
     expect(errorOf({ ...production, PANEL_ORIGIN: 'https://localhost:5173', WEBAUTHN_RP_ID: 'localhost' }).keys).toEqual(['PANEL_ORIGIN']);
@@ -114,5 +123,35 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
     for (const value of ['loopback', 'proxy.evia.test', '10.0.0.1;rm', '*']) {
       expect(errorOf({ ...validEnv(), TRUSTED_PROXIES: value }).keys, value).toEqual(['TRUSTED_PROXIES']);
     }
+  });
+
+  it('EVM-017 AC3 the cursor key is exactly 32 bytes of base64url (43 characters); the error names the key, never the value (SR-LOG-02)', () => {
+    const key = randomKey();
+    expect(loadConfig(validEnv({ CURSOR_KEY: key })).cursorKey.equals(Buffer.from(key, 'base64url'))).toBe(true);
+    const invalid = [
+      undefined,
+      '',
+      'short',
+      randomBytes(31).toString('base64url'),
+      randomBytes(33).toString('base64url'),
+      `${key}=`,
+      `${key.slice(0, 42)}+`,
+    ];
+    for (const value of invalid) {
+      const error = errorOf(validEnv({ CURSOR_KEY: value }));
+      expect(error.keys, String(value)).toEqual(['CURSOR_KEY']);
+      if (value !== undefined && value !== '') expect(JSON.stringify({ message: error.message, keys: error.keys })).not.toContain(value);
+    }
+  });
+
+  it('EVM-017 AC3 the key is required in every environment, and production refuses a placeholder (all zeros, a repeated byte) but takes a random key', () => {
+    for (const nodeEnv of ['development', 'test', 'production'])
+      expect(errorOf({ ...validEnv(), NODE_ENV: nodeEnv, CURSOR_KEY: undefined }).keys, nodeEnv).toEqual(['CURSOR_KEY']);
+    for (const placeholder of [Buffer.alloc(32), Buffer.alloc(32, 7), Buffer.from('abcdefgh'.repeat(4))]) {
+      const env = validEnv({ CURSOR_KEY: placeholder.toString('base64url') });
+      expect(errorOf({ ...env, NODE_ENV: 'production' }).keys).toEqual(['CURSOR_KEY']);
+      expect(loadConfig({ ...env, NODE_ENV: 'development' }).nodeEnv).toBe('development');
+    }
+    expect(loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production' }).nodeEnv).toBe('production');
   });
 });
