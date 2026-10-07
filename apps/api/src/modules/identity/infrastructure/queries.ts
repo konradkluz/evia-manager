@@ -52,6 +52,7 @@ export interface SessionRecord {
   readonly revokedAt: Date | null;
   readonly revokeReason: RevokeReason | null;
   readonly lastSeenAt: Date;
+  readonly passkeyAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly role: UsersTable['role'];
@@ -73,6 +74,7 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
       's.revoked_at as revokedAt',
       's.revoke_reason as revokeReason',
       's.last_seen_at as lastSeenAt',
+      's.passkey_authenticated_at as passkeyAuthenticatedAt',
       's.idle_expires_at as idleExpiresAt',
       's.absolute_expires_at as absoluteExpiresAt',
       'u.role',
@@ -93,6 +95,7 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
     revokedAt: row.revokedAt,
     revokeReason: row.revokeReason,
     lastSeenAt: row.lastSeenAt,
+    passkeyAuthenticatedAt: row.passkeyAuthenticatedAt,
     idleExpiresAt: row.idleExpiresAt,
     absoluteExpiresAt: row.absoluteExpiresAt,
     role: row.role,
@@ -111,6 +114,8 @@ export interface NewSession {
   readonly tokenHash: Buffer;
   readonly linkId: string | null;
   readonly now: Date;
+  /** Set only by an authentication with a passkey (sign-in with a key, step-up); null for every other origin of a session (SR-SESS-08). */
+  readonly passkeyAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly ip: string | undefined;
@@ -132,6 +137,7 @@ export async function insertSession(db: IdentityDb, session: NewSession): Promis
       created_at: session.now,
       last_seen_at: session.now,
       last_authenticated_at: session.now,
+      passkey_authenticated_at: session.passkeyAuthenticatedAt,
       idle_expires_at: session.idleExpiresAt,
       absolute_expires_at: session.absoluteExpiresAt,
       revoked_at: null,
@@ -382,4 +388,81 @@ export async function recordLogin(db: IdentityDb, userId: string, now: Date): Pr
 /** Takes a transaction-scoped advisory lock (released at commit or rollback). */
 export async function lockAdministrators(db: IdentityDb, key: number): Promise<void> {
   await sql`select pg_advisory_xact_lock(${key})`.execute(db);
+}
+
+/**
+ * The challenge of a step-up, tied to the session of the request (purpose `passkey_step_up` — never mixed with an
+ * enrolment or a sign-in challenge). One open challenge per session and purpose: asking for new options retires the
+ * earlier one.
+ */
+export async function storeStepUpChallenge(
+  db: IdentityDb,
+  challenge: { userId: string; sessionId: string; challengeHash: Buffer; now: Date; expiresAt: Date },
+): Promise<void> {
+  await db
+    .updateTable('identity.webauthn_challenges')
+    .set({ used_at: challenge.now })
+    .where('session_id', '=', challenge.sessionId)
+    .where('purpose', '=', 'passkey_step_up')
+    .where('used_at', 'is', null)
+    .execute();
+  await db
+    .insertInto('identity.webauthn_challenges')
+    .values({
+      user_id: challenge.userId,
+      session_id: challenge.sessionId,
+      login_attempt_id: null,
+      purpose: 'passkey_step_up',
+      challenge_hash: challenge.challengeHash,
+      created_at: challenge.now,
+      expires_at: challenge.expiresAt,
+      used_at: null,
+    })
+    .execute();
+}
+
+/** Atomically spends every open step-up challenge of the session of the user; @returns their hashes (at most one is ever open). */
+export async function consumeStepUpChallenges(db: IdentityDb, sessionId: string, userId: string, now: Date): Promise<Buffer[]> {
+  const rows = await db
+    .updateTable('identity.webauthn_challenges')
+    .set({ used_at: now })
+    .where('session_id', '=', sessionId)
+    .where('user_id', '=', userId)
+    .where('purpose', '=', 'passkey_step_up')
+    .where('used_at', 'is', null)
+    .where('expires_at', '>', now)
+    .returning('challenge_hash')
+    .execute();
+  return rows.map((row) => row.challenge_hash);
+}
+
+export interface RotatedSession {
+  readonly channel: SessionsTable['channel'];
+  readonly state: SessionsTable['state'];
+  readonly absoluteExpiresAt: Date;
+}
+
+/**
+ * Ends the session of the user for good (reason `rotated`) in one conditional UPDATE: only a session that is still alive —
+ * not revoked, not past an idle or absolute deadline — is taken, so of two parallel rotations exactly one wins and a session
+ * that ran out never comes back (SR-SESS-02, SR-SESS-03; CWE-384).
+ * @returns what the replacement session inherits, or undefined when the session was already over
+ */
+export async function rotateSession(db: IdentityDb, sessionId: string, userId: string, now: Date): Promise<RotatedSession | undefined> {
+  const row = await db
+    .updateTable('identity.sessions')
+    .set({ revoked_at: now, revoke_reason: 'rotated' })
+    .where('id', '=', sessionId)
+    .where('user_id', '=', userId)
+    .where('revoked_at', 'is', null)
+    .where('idle_expires_at', '>', now)
+    .where('absolute_expires_at', '>', now)
+    .returning(['channel', 'state', 'absolute_expires_at'])
+    .executeTakeFirst();
+  return row === undefined ? undefined : { channel: row.channel, state: row.state, absoluteExpiresAt: row.absolute_expires_at };
+}
+
+/** The keys of an account in the form the options of a ceremony need. */
+export async function listPasskeysOfUser(db: IdentityDb, userId: string) {
+  return db.selectFrom('identity.passkeys').select(['credential_id', 'transports']).where('user_id', '=', userId).execute();
 }

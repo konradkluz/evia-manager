@@ -13,6 +13,8 @@ import { LoginPasskeyService } from './application/login-passkey.service.ts';
 import { LoginService } from './application/login.service.ts';
 import { PasskeyService } from './application/passkey.service.ts';
 import { SessionService } from './application/session.service.ts';
+import { StepUpService } from './application/step-up.service.ts';
+import { UserDirectory } from './application/user-directory.ts';
 import { AuthController } from './http/auth.controller.ts';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.ts';
 import { BREACHED_PASSWORD_CHECK, PASSKEY_VERIFIER, PASSWORD_HASHER } from './infrastructure/ports.ts';
@@ -28,6 +30,8 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
     LoginService,
     PasskeyService,
     SessionService,
+    StepUpService,
+    UserDirectory,
     AdministratorBootstrap,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: BREACHED_PASSWORD_CHECK, useFactory: () => new PwnedPasswordsCheck() },
@@ -38,6 +42,6 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
         new SimpleWebAuthnPasskeys({ rpId: config.webauthn.rpId, rpName: config.webauthn.rpName, origin: config.panelOrigin }),
     },
   ],
-  exports: [SessionService, AdministratorBootstrap],
+  exports: [SessionService, AdministratorBootstrap, UserDirectory],
 })
 export class IdentityModule {}

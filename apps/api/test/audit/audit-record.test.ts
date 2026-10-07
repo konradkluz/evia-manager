@@ -107,7 +107,7 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
     expect(() => auditRecordSchema.parse({ ...toAuditRecord(event(), context, at), email: 'jan@evia.invalid' })).toThrow();
   });
 
-  it('EVM-016 AC7 the closed lists contain the events of the stories (EVM-016, EVM-067) and no free-text reason', () => {
+  it('EVM-016 AC7 the closed lists contain the events of the stories (EVM-016, EVM-067, EVM-029) and no free-text reason', () => {
     expect([...IDENTITY_EVENT_TYPES]).toEqual([
       'activation_link.issued',
       'account.password_set',
@@ -119,6 +119,8 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'login.succeeded',
       'login.failed',
       'account.emergency_reset',
+      'step_up.succeeded',
+      'step_up.failed',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
   });
@@ -140,5 +142,32 @@ describe('audit subscription (EVM-016 AC7, W1)', () => {
       }),
     );
     expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
+  });
+});
+
+describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () => {
+  const read = { type: 'audit.read', actor: { type: 'user', userId: user }, outcome: 'success', objectType: 'audit' } as const;
+
+  it('EVM-029 AC6 audit.read is an event of the audit module itself: who, when, from where — the object is the log, there is no object id', () => {
+    const record = toAuditRecord(read, { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session }, at);
+    expect(record).toEqual({
+      occurredAt: at,
+      actorType: 'user',
+      actorUserId: user,
+      sessionId: session,
+      ipPrefix: '203.0.113.0/24',
+      origin: 'web',
+      action: 'audit.read',
+      outcome: 'success',
+      reasonCode: null,
+      objectType: 'audit',
+      objectId: null,
+      traceId,
+    });
+  });
+
+  it('EVM-029 AC6 a free-text reason or an object id cannot be smuggled into the record of a read', () => {
+    expect(() => toAuditRecord({ ...read, objectId: 'jan@evia.invalid' } as never, { origin: 'web', traceId }, at)).toThrow();
+    expect(() => toAuditRecord({ ...read, type: 'audit.exported' } as never, { origin: 'web', traceId }, at)).toThrow();
   });
 });

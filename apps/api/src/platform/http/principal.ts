@@ -21,6 +21,8 @@ export interface Principal {
   readonly state: SessionState;
   /** The CSRF token this session expects (derived from the session token, never stored). */
   readonly csrfToken: string;
+  /** The last authentication with a passkey in this session; null when there was none (SR-SESS-08: a step-up is then required). */
+  readonly passkeyAuthenticatedAt: Date | null;
   /** Session clock (EVM-067): the last recorded activity and the two deadlines — the guard and `getCurrentSession` read them. */
   readonly lastSeenAt: Date;
   readonly idleExpiresAt: Date;

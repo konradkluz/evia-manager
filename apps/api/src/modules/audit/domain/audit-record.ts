@@ -8,6 +8,19 @@ import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../id
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import { truncateIp } from './ip-prefix.ts';
 
+/** The event of the audit module itself: the Administrator read the log (SR-LOG-03). The object is the log — no object id. */
+export interface AuditReadEvent {
+  readonly type: 'audit.read';
+  readonly actor: IdentityEvent['actor'];
+  readonly outcome: 'success' | 'denied';
+  readonly objectType: 'audit';
+}
+
+/** Every action the trail knows: the events of identity and the read of the log itself. */
+export const AUDIT_ACTIONS = [...IDENTITY_EVENT_TYPES, 'audit.read'] as const;
+export const AUDIT_OBJECT_TYPES = ['user', 'session', 'passkey', 'audit'] as const;
+export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
+
 export const auditRecordSchema = z.strictObject({
   occurredAt: z.date(),
   actorType: z.enum(['user', 'system', 'anonymous']),
@@ -15,10 +28,10 @@ export const auditRecordSchema = z.strictObject({
   sessionId: z.uuid().nullable(),
   ipPrefix: z.string().max(43).nullable(),
   origin: z.enum(['web', 'cli']),
-  action: z.enum(IDENTITY_EVENT_TYPES),
-  outcome: z.enum(['success', 'denied', 'failed']),
+  action: z.enum(AUDIT_ACTIONS),
+  outcome: z.enum(AUDIT_OUTCOMES),
   reasonCode: z.enum(REASON_CODES).nullable(),
-  objectType: z.enum(['user', 'session', 'passkey']),
+  objectType: z.enum(AUDIT_OBJECT_TYPES),
   objectId: z.uuid().nullable(),
   traceId: z.string().regex(/^[0-9a-f]{32}$/),
 });
@@ -26,7 +39,7 @@ export const auditRecordSchema = z.strictObject({
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
 /** Maps an identity event and its request context to the record; throws when something is outside the closed lists. */
-export function toAuditRecord(event: IdentityEvent, context: EventContext, occurredAt: Date): AuditRecord {
+export function toAuditRecord(event: IdentityEvent | AuditReadEvent, context: EventContext, occurredAt: Date): AuditRecord {
   return auditRecordSchema.parse({
     occurredAt,
     actorType: event.actor.type,
@@ -36,9 +49,9 @@ export function toAuditRecord(event: IdentityEvent, context: EventContext, occur
     origin: context.origin,
     action: event.type,
     outcome: event.outcome,
-    reasonCode: event.reasonCode ?? null,
+    reasonCode: 'reasonCode' in event ? (event.reasonCode ?? null) : null,
     objectType: event.objectType,
-    objectId: event.objectId ?? null,
+    objectId: 'objectId' in event ? (event.objectId ?? null) : null,
     traceId: context.traceId,
   });
 }

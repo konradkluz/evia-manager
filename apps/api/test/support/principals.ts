@@ -9,6 +9,7 @@ export function principal(overrides: Partial<Principal> = {}): Principal {
     sessionId: '0190a1b2-0000-7000-8000-00000000b001',
     state: 'active',
     csrfToken: 'synthetic-csrf-token',
+    passkeyAuthenticatedAt: null,
     lastSeenAt: new Date('2026-10-05T06:00:00Z'),
     idleExpiresAt: new Date('2026-10-05T07:00:00Z'),
     absoluteExpiresAt: new Date('2026-10-05T18:00:00Z'),

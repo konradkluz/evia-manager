@@ -26,7 +26,6 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { CHALLENGE_TTL_MS, LOGIN_MAX_FAILED_PASSKEYS } from '../domain/constants.ts';
 import { hashToken } from '../domain/tokens.ts';
-import { claimedChallenge, toAuthenticationResponse } from '../domain/webauthn-input.ts';
 import type { IdentityEvent } from '../events.ts';
 import { PASSKEY_VERIFIER, type PasskeyVerifier } from '../infrastructure/ports.ts';
 import {
@@ -43,6 +42,7 @@ import {
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures } from './login-failures.ts';
+import { verifyAssertionOfKey } from './passkey-assertion.ts';
 import { startSession, type StartedSession } from './session-start.ts';
 
 /** How a transaction that created no session ended: the refusal is raised after it commits (its audit rows stay). */
@@ -131,7 +131,12 @@ export class LoginPasskeyService {
     // The challenge is spent by every verification, the failed ones too (a replayed assertion finds nothing open).
     const open = await consumeLoginChallenges(tx, attempt.id, now);
     const key = await findPasskeyOfUser(tx, attempt.userId, body.credential.id);
-    const assertion = await this.#assert(body, key, account.webauthn_user_handle, open);
+    const assertion = await verifyAssertionOfKey(this.#verifier, {
+      credential: body.credential,
+      key,
+      userHandle: account.webauthn_user_handle,
+      open,
+    });
     if (assertion === null) {
       await recordFailedKey(tx, attempt.id, now, LOGIN_MAX_FAILED_PASSKEYS);
       await this.#failures.record(transaction, 'passkey_failed', attempt.userId, client.context);
@@ -151,6 +156,7 @@ export class LoginPasskeyService {
       previousSessionToken,
       client,
       now,
+      passkeyAuthenticatedAt: now,
     });
     const succeeded: IdentityEvent = {
       type: 'login.succeeded',
@@ -161,31 +167,6 @@ export class LoginPasskeyService {
     };
     await this.#events.publish(transaction, succeeded, { ...client.context, sessionId: session.sessionId });
     return session;
-  }
-
-  /**
-   * The cryptographic check, only for a key of this account, a readable challenge that was open for this attempt and a
-   * `userHandle` (when sent) that is the account's.
-   */
-  async #assert(
-    body: VerifyLoginPasskeyRequest,
-    key: Awaited<ReturnType<typeof findPasskeyOfUser>>,
-    userHandle: Buffer,
-    open: readonly Buffer[],
-  ): Promise<{ readonly passkeyId: string; readonly newCounter: number } | null> {
-    const claimed = claimedChallenge(body.credential.response.clientDataJSON);
-    if (key === undefined || claimed === undefined) return null;
-    const handle = body.credential.response.userHandle;
-    if (handle !== undefined && handle !== userHandle.toString('base64url')) return null;
-    const claimedHash = hashToken(claimed);
-    if (!open.some((hash) => hash.equals(claimedHash))) return null;
-    const verified = await this.#verifier.verifyAuthentication(toAuthenticationResponse(body.credential), claimed, {
-      credentialId: key.credential_id,
-      publicKey: key.public_key,
-      counter: Number(key.counter),
-      transports: key.transports,
-    });
-    return verified === null ? null : { passkeyId: key.id, newCounter: verified.newCounter };
   }
 
   /**

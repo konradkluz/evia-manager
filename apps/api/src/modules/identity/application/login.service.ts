@@ -68,11 +68,16 @@ export class LoginService {
 
     const now = this.#clock.now();
     if (!(await hasPasskey(identityTables(this.#db), user.userId))) {
-      const session = await this.#db
-        .transaction()
-        .execute((transaction) =>
-          startSession(transaction, this.#events, { userId: user.userId, state: 'mfa_enrollment', previousSessionToken, client, now }),
-        );
+      const session = await this.#db.transaction().execute((transaction) =>
+        startSession(transaction, this.#events, {
+          userId: user.userId,
+          state: 'mfa_enrollment',
+          previousSessionToken,
+          client,
+          now,
+          passkeyAuthenticatedAt: null,
+        }),
+      );
       return { kind: 'session', session };
     }
     const loginToken = newToken();

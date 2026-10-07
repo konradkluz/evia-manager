@@ -185,6 +185,8 @@ export class PasskeyService {
         tokenHash: hashToken(sessionToken),
         linkId: null,
         now,
+        // Enrolling a key does not open the step-up window (conservative: the key was registered, not asserted).
+        passkeyAuthenticatedAt: null,
         idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
         absoluteExpiresAt: new Date(now.getTime() + SESSION_ABSOLUTE_MS),
         ip: client.context.ip,
