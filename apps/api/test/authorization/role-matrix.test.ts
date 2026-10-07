@@ -92,8 +92,15 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-016 AC8 the real contract has no operation with an object parameter yet, so it has no IDOR cells (the synthetic contract below does)', () => {
-    expect(cells.filter((cell) => cell.idor)).toEqual([]);
+  it('EVM-019 AC7 the only operation of the real contract with an object parameter is getWorkOrderTemplate: its IDOR cells are the three roles on the web channel', () => {
+    const idor = cells.filter((cell) => cell.idor);
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(['getWorkOrderTemplate']));
+    expect(idor.map((cell) => JSON.stringify(cell.caller)).sort()).toEqual(
+      ['administrator', 'editor', 'read_only']
+        .map((role) => JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }))
+        .sort(),
+    );
+    for (const cell of idor) expect(cell.expectation).toEqual({ outcome: 'not_found' });
   });
 });
 

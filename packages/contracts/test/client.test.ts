@@ -35,6 +35,11 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/auth/logout',
       '/api/v1/account/passkeys/registration-options',
       '/api/v1/account/passkeys',
+      '/api/v1/catalog/work-order-templates',
+      '/api/v1/catalog/work-order-templates/{templateId}',
+      '/api/v1/catalog/service-items',
+      '/api/v1/catalog/procedure-templates',
+      '/api/v1/catalog/document-kinds',
     ]);
   });
 

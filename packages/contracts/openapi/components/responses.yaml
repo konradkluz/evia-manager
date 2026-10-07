@@ -151,3 +151,15 @@ PasskeyVerificationFailed:
         status: 400
         code: passkey_verification_failed
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+NotFound:
+  description: Zasób nie istnieje albo nie jest dostępny dla wywołującego (`not_found`) — jedna odpowiedź, bez szczegółów.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/not_found
+        title: Not found
+        status: 404
+        code: not_found
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

@@ -4,8 +4,9 @@ title: Katalog usług i szablony — dane startowe i odczyt konfiguracji
 type: enabler
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-review
 priority: P0
+path: pelna
 owner: backend-developer
 contributors: []
 reviewers: [code-reviewer, security-engineer]
@@ -87,15 +88,22 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- (code-reviewer, minor) Podgląd szablonu (`brought`) nie filtruje `is_active` procesów/pozycji — może pokazać nieaktywny proces.
+- (code-reviewer, minor) Wyjątek „evia_app tylko SELECT na schemacie catalog” nie zapisany w `domain-model.md` / ADR-0003 — dopisać przed edytorem katalogu (M4).
+- (code-reviewer, minor) Plan/Decyzje historyjki: zapadłe decyzje (zamrożona kopia danych, brak paginacji, kanał tylko `web`) do spisania.
+- (security, nit) Wolny tekst `manufacturer`/`model` w parametrach — w EVM-022 walidacja i kodowanie wyjścia obowiązkowe (SR-DATA-01).
+- (nit) `pnpm run gate` bez `test:integration` czerwony na `coverage:diff` (komunikat „brak raportu” myli); pojedyncze gałęzie obronne.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-019 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: code-reviewer, security-engineer — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-019 AC#`) — QA: AC1–AC7 PASS
+- [x] Bramki CI zielone, progi pokrycia spełnione — gate natywny + kontener; coverage:diff po test:integration: linie 269/269, gałęzie 117/121
+- [x] Przeglądy: code-reviewer, security-engineer — APPROVE (runda 1)
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane — docs:check 0 błędów
 - [ ] Demo (podgląd szablonów przez API na staging) i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-06 — ready → in-progress: start /deliver, ścieżka pelna (wybór Konrada), gałąź feature/EVM-019-katalog-i-szablony
+- 2026-10-06 — implementacja (backend-developer): moduł `catalog`, migracje `0007`/`0008`, 5 operacji `GET`, zestawy parametrów i test spójności; testy `EVM-019 AC1–AC7`, bramka lokalna zielona
+- 2026-10-06 — workflow passed (1 runda, 0 blokujących); orkiestrator powtórzył gate, test:integration i coverage:diff → in-review; push i PR za wcześniejszą zgodą Konrada (noc, bez demo)

@@ -30,6 +30,8 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0004_identity',
       '0005_security_alerts',
       '0006_login',
+      '0007_catalog',
+      '0008_catalog_seed',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });
@@ -92,5 +94,42 @@ describe('identity and audit migrations (EVM-016 AC7; ADR-0003)', () => {
       ]),
     );
     expect(statements.join(' ; ')).not.toMatch(/grant [^;]*(update|delete|truncate|all)[^;]* on audit\./i);
+  });
+});
+
+describe('catalog migrations (EVM-019 AC1, AC6; ADR-0003)', () => {
+  it('EVM-019 AC6 evia_app gets USAGE on the schema and an explicit SELECT on every catalog table, and nothing that changes data', async () => {
+    const { db, statements } = recordingDb();
+    await migrateToLatest(db, MIGRATIONS);
+    const grants = statements.filter((statement) => /^grant .* on catalog\./.test(statement));
+    expect(grants.sort()).toEqual(
+      [
+        'document_kinds',
+        'payment_milestone_templates',
+        'procedure_stage_templates',
+        'procedure_templates',
+        'service_catalog_item_procedures',
+        'service_catalog_items',
+        'work_order_template_items',
+        'work_order_templates',
+      ].map((table) => `grant select on catalog.${table} to evia_app`),
+    );
+    expect(statements).toEqual(
+      expect.arrayContaining(['revoke all on schema catalog from public', 'grant usage on schema catalog to evia_app']),
+    );
+    expect(statements.join(' ; ')).not.toMatch(/grant [^;]*(insert|update|delete|truncate|all)[^;]* on catalog\./i);
+    expect(statements.join(' ; ')).not.toMatch(/alter default privileges/i);
+  });
+
+  it('EVM-019 AC1 the data migration inserts every value as a bound parameter and never reads the database clock', async () => {
+    const { db, statements } = recordingDb();
+    await migrateToLatest(db, { '0008_catalog_seed': MIGRATIONS['0008_catalog_seed'] as never });
+    const inserts = statements.filter((statement) => statement.startsWith('insert into catalog.'));
+    expect(inserts).toHaveLength(12 + 11 + 10 + 32 + 16 + 5 + 26 + 11);
+    for (const insert of inserts) {
+      expect(insert).toMatch(/^insert into catalog\.[a-z_]+ \(.*\) values \(.*\)$/);
+      expect(insert).not.toMatch(/'/);
+      expect(insert).not.toMatch(/now\(\)|current_timestamp/i);
+    }
   });
 });
