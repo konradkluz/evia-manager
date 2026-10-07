@@ -33,12 +33,11 @@ import {
   type WorkOrderSearch,
 } from '../work-orders/filters.ts';
 import { formatClock } from '../work-orders/format.ts';
+import { WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
 import { WorkOrderFilterBar } from '../work-orders/work-order-filter-bar.tsx';
 import { WorkOrderTable } from '../work-orders/work-order-table.tsx';
 import { retryMinutes } from './login-failure.tsx';
 
-/** Query key root: the loaded pages are dropped from the cache together (logout, a `401`). */
-const WORK_ORDERS_KEY = 'work-orders' as const;
 /** After this long a load is called slow (styleguide § 4.12; the story: "po 10 s"). */
 const SLOW_MS = 10_000;
 
