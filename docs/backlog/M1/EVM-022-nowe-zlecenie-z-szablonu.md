@@ -4,7 +4,8 @@ title: Nowe zlecenie z szablonu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -110,3 +111,5 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): karta i podgląd szablonu bez procesów i transz do EVM-031 / EVM-053 (AC1)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: migracje, dane osobowe, nowy endpoint i UI; gałąź feature/EVM-022-work-order-from-template)
+- 2026-10-07 — backend gotowy (backend-developer): kontrakt createWorkOrder i listAssignableUsers, migracja 0015, fasady CustomerDirectory / SiteDirectory / TemplateDirectory, port WorkOrderCompositionContributor, testy EVM-022 AC1–AC7 (API); panel — web-developer
