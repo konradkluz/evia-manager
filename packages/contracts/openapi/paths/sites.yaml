@@ -1,0 +1,119 @@
+# Module `sites` — search and creation of a site in the new-work-order form (EVM-021; W-05 section "2. Lokalizacja").
+sitesSearch:
+  post:
+    operationId: searchSites
+    tags: [sites]
+    summary: Wyszukiwanie lokalizacji (fraza w treści)
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza zawiera adres (dane osobowe)
+      i nie może trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga
+      `Idempotency-Key`. Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje lokalizację w Łodzi). Wyszukiwanie
+      obejmuje ulicę, numer budynku i lokalu, kod pocztowy, miasto oraz numer miejsca postojowego (nie PPE i nie notatki); w wyniku
+      są tylko typ obiektu, adres i numer miejsca (z poziomem), najwyżej 20 pozycji. Lokalizacje usunięte (soft delete) nie
+      występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika, osobno dla lokalizacji
+      (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do
+      progu masowego odczytu (P10). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/sites.yaml#/SiteSearchRequest
+    responses:
+      '200':
+        description: Pasujące lokalizacje (brak wyników to pusta tablica `items`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/sites.yaml#/SiteSearchResult
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+sites:
+  post:
+    operationId: createSite
+    tags: [sites]
+    summary: Dodanie lokalizacji
+    description: >-
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden`), kanał `web`, z audytem (`site.created`, bez wartości danych
+      adresowych). Lokalizacja jest niezależna od klienta (`customerId` — `unknown_field`). `id` (UUIDv7) nadaje klient; istniejące
+      `id` (także lokalizacji usuniętej) — `409 id_conflict` bez żadnych danych istniejącego zasobu. Pole spoza schematu —
+      `400 validation_failed` (`unknown_field`), pole kontrolowane przez serwer — `400` z kodem `read_only_field`, błąd reguły —
+      `400` z `errors[]` (wskaźnik i kod, nigdy wartość): `not_allowed_for_site_type` (miejsce lub poziom poza garażem),
+      `invalid_format` (moc z więcej niż 2 miejscami po przecinku), `wrong_party_kind` (strona innego rodzaju niż wymaga pole
+      `…PartyId`) i `unknown_party` (strona nie istnieje albo jest usunięta — ten sam kod dla każdej roli). Rodzaj strony jest
+      sprawdzany w tej samej transakcji co zapis. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest
+      opcjonalny; panel wysyła go zawsze, a przy ponowieniu używa tego samego `id` i klucza. Powtórka (ten sam klucz i treść) —
+      ten sam status i `id`, bieżąca reprezentacja i `Idempotent-Replayed: true`, bez nowego zdarzenia audytu; ten sam klucz
+      z inną treścią albo na innej operacji — `422 idempotency_mismatch`; równoległe żądanie z tym samym kluczem —
+      `409 idempotency_in_progress` z `Retry-After`. Klucz obowiązuje 30 dni, osobno dla każdego użytkownika. Wymaga `X-CSRF-Token`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/sites.yaml#/Site
+    responses:
+      '201':
+        description: >-
+          Lokalizacja zapisana (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/sites.yaml#/Site
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ResourceConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

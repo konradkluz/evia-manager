@@ -117,7 +117,7 @@ describe('W-05 section "1. Klient": search (EVM-020 AC1)', () => {
     await renderPanel(NEW, api);
     await userEvent.type(combobox(), 'przykl');
     await userEvent.click(await screen.findByRole('option', { name: /Jan Przykładowy/ }));
-    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Klient' })).toBeNull();
     const line = screen.getByText(JAN_TEXT);
     expect(document.activeElement).toBe(line);
     await userEvent.click(screen.getByRole('button', { name: 'Zmień klienta' }));

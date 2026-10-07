@@ -5,8 +5,8 @@
  */
 import type { DomainEvent } from '../events/event-bus.ts';
 
-/** What was read in bulk: work orders (EVM-017) or customers (EVM-020). */
-export type BulkReadObjectType = 'work_order' | 'customer';
+/** What was read in bulk: work orders (EVM-017), customers (EVM-020), sites and parties (EVM-021). */
+export type BulkReadObjectType = 'work_order' | 'customer' | 'site' | 'party';
 
 export const BULK_READ_EVENT_TYPES = ['bulk_read.alerted', 'bulk_read.rejected'] as const;
 

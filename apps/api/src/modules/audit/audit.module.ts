@@ -11,6 +11,8 @@ import type { EventBus } from '../../platform/events/event-bus.ts';
 import { CLOCK, EVENT_BUS } from '../../platform/tokens.ts';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, IdentityModule, type IdentityEvent } from '../identity/index.ts';
+import { PARTY_EVENT_TYPES, type PartyEvent } from '../parties/index.ts';
+import { SITE_EVENT_TYPES, type SiteEvent } from '../sites/index.ts';
 import { AuditReadService } from './application/audit-read.service.ts';
 import { toAuditRecord } from './domain/audit-record.ts';
 import { AuditController } from './http/audit.controller.ts';
@@ -34,6 +36,16 @@ export class AuditSubscriber implements OnModuleInit {
     }
     for (const type of CUSTOMER_EVENT_TYPES) {
       this.#events.subscribe<CustomerEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of SITE_EVENT_TYPES) {
+      this.#events.subscribe<SiteEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of PARTY_EVENT_TYPES) {
+      this.#events.subscribe<PartyEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

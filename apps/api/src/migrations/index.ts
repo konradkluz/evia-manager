@@ -12,6 +12,8 @@ import * as stepUp from './0009_step_up.ts';
 import * as workOrders from './0010_work_orders.ts';
 import * as customers from './0011_customers.ts';
 import * as idempotency from './0012_idempotency.ts';
+import * as parties from './0013_parties.ts';
+import * as sites from './0014_sites.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -26,4 +28,6 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0010_work_orders': workOrders,
   '0011_customers': customers,
   '0012_idempotency': idempotency,
+  '0013_parties': parties,
+  '0014_sites': sites,
 });

@@ -228,6 +228,27 @@ CustomerConflict:
         status: 409
         code: id_conflict
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+ResourceConflict:
+  description: >-
+    Identyfikator zajęty (`id_conflict` — bez danych istniejącego zasobu) albo żądanie z tym samym kluczem idempotencji
+    jest w toku (`idempotency_in_progress`, z `Retry-After`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/id_conflict
+        title: Identifier already in use
+        status: 409
+        code: id_conflict
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 IdempotencyMismatch:
   description: Ten sam klucz idempotencji z inną treścią albo na innej operacji (`idempotency_mismatch`).
   content:

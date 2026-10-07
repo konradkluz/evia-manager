@@ -23,13 +23,16 @@ export function readOnlyKeys(full: z.ZodObject, writable: z.ZodObject): ReadOnly
   return new Set(Object.keys(full.shape).filter((key) => !(key in writable.shape)));
 }
 
+/** A bound on a NUMBER is a range (`out_of_range`); a bound on a text or a list is a length (`too_short`, `too_long`). */
+const isNumeric = (origin: string): boolean => origin === 'number' || origin === 'int';
+
 function fieldErrors(issues: readonly z.core.$ZodIssue[], readOnly: ReadOnlyKeys): FieldError[] {
   const errors = issues.flatMap((issue): FieldError[] => {
     switch (issue.code) {
       case 'too_big':
-        return [{ pointer: pointerOf(issue.path), code: 'too_long' }];
+        return [{ pointer: pointerOf(issue.path), code: isNumeric(issue.origin) ? 'out_of_range' : 'too_long' }];
       case 'too_small':
-        return [{ pointer: pointerOf(issue.path), code: 'too_short' }];
+        return [{ pointer: pointerOf(issue.path), code: isNumeric(issue.origin) ? 'out_of_range' : 'too_short' }];
       case 'invalid_format':
         return [{ pointer: pointerOf(issue.path), code: 'invalid_format' }];
       case 'invalid_value':

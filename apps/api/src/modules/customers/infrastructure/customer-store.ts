@@ -2,7 +2,7 @@
  * Queries of the `customers` module (EVM-020). Every value reaches the database as a bound parameter; the read policy is a
  * condition of the query, never a filter of the result (SR-AUTHZ-03).
  */
-import { sql } from 'kysely';
+import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { NewCustomer } from '../domain/customer.ts';
 import { visibleCustomers } from './read-policy.ts';
@@ -47,9 +47,7 @@ export function searchVisibleCustomers(db: CustomersDb, principal: Principal, te
     .selectFrom('customers.customers')
     .select(['id', 'display_name', 'phone'])
     .where(visibleCustomers(principal))
-    .where(
-      sql<boolean>`search_text ilike '%' || replace(replace(replace(public.f_unaccent(lower(${term})), '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' escape '\\'`,
-    )
+    .where(searchTextMatches(term))
     .orderBy('sort_name')
     .orderBy('id')
     .limit(limit)

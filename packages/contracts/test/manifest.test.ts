@@ -17,6 +17,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(Object.keys(manifest).sort()).toEqual([
       'checkActivationLink',
       'createCustomer',
+      'createParty',
+      'createSite',
       'extendSession',
       'getCurrentSession',
       'getHealth',
@@ -34,6 +36,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'logout',
       'registerPasskey',
       'searchCustomers',
+      'searchParties',
+      'searchSites',
       'setActivationPassword',
       'stepUp',
       'verifyLoginPasskey',

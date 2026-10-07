@@ -55,6 +55,10 @@ export interface MockApi {
   workOrders: number;
   /** EVM-020: the customers of the synthetic server (searched by name, city or phone; saved ones are added). */
   customers: MockCustomer[];
+  /** EVM-021: the sites of the synthetic server (searched by address; saved ones are added). */
+  sites: MockSite[];
+  /** EVM-021: the parties of the synthetic server (searched by name and kind; saved ones are added). */
+  parties: MockParty[];
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
   dropResponseNext: Set<string>;
 }
@@ -66,6 +70,27 @@ export interface MockCustomer {
   /** What the search looks at: name, city, e-mail (lower case, no diacritics). */
   readonly text: string;
 }
+
+export interface MockSite {
+  readonly id: string;
+  readonly siteType: string;
+  readonly street: string;
+  readonly buildingNumber: string;
+  readonly apartmentNumber?: string;
+  readonly postalCode: string;
+  readonly city: string;
+  readonly parkingSpotNumber?: string;
+  readonly garageLevel?: string;
+}
+
+export interface MockParty {
+  readonly id: string;
+  readonly kind: string;
+  readonly legalForm: string;
+  readonly displayName: string;
+}
+
+const MANAGER_KINDS = ['building_administration', 'property_manager', 'housing_community'];
 
 const problem = (status: number, code: string, extra: object = {}, headers: Record<string, string> = {}) => ({
   status,
@@ -185,9 +210,45 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         text: 'firma testowa sp. z o.o. warszawa',
       },
     ],
+    sites: [
+      {
+        id: '01968f3e-0000-7000-8000-00000000bbb1',
+        siteType: 'multi_family_garage',
+        street: 'ul. Testowa',
+        buildingNumber: '7',
+        postalCode: '00-001',
+        city: 'Warszawa',
+        parkingSpotNumber: '15',
+        garageLevel: '-1',
+      },
+      {
+        id: '01968f3e-0000-7000-8000-00000000bbb2',
+        siteType: 'single_family_house',
+        street: 'ul. Przykładowa',
+        buildingNumber: '2',
+        postalCode: '90-001',
+        city: 'Łódź',
+      },
+    ],
+    parties: [
+      {
+        id: '01968f3e-0000-7000-8000-00000000ddd1',
+        kind: 'distribution_system_operator',
+        legalForm: 'organization',
+        displayName: 'Operator Testowy',
+      },
+      {
+        id: '01968f3e-0000-7000-8000-00000000ddd2',
+        kind: 'housing_community',
+        legalForm: 'organization',
+        displayName: 'Wspólnota Testowa',
+      },
+    ],
     dropResponseNext: new Set(),
   };
   const customerKeys = new Map<string, string>();
+  const siteKeys = new Map<string, string>();
+  const partyKeys = new Map<string, string>();
   let stepUpChallenge = '';
   const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
@@ -476,6 +537,110 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (idempotencyKey !== undefined) customerKeys.set(idempotencyKey, hash);
         if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
         return route.fulfill(ok(201, { ...input, phone, displayName, version: 1 }, { ETag: '"1"' }));
+      }
+      case 'POST /api/v1/sites/search': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const phrase = ((body() as { query?: string }).query ?? '').normalize('NFC').trim();
+        if (Array.from(phrase).length < 3) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] }));
+        }
+        const items = api.sites
+          .filter((entry) =>
+            fold(`${entry.street} ${entry.buildingNumber} ${entry.postalCode} ${entry.city} ${entry.parkingSpotNumber ?? ''}`).includes(
+              fold(phrase),
+            ),
+          )
+          .slice(0, 20);
+        return route.fulfill(ok(200, { items, nextCursor: null }, { 'Cache-Control': 'no-store' }));
+      }
+      case 'POST /api/v1/sites': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.role === 'read_only') return route.fulfill(problem(403, 'forbidden'));
+        const input = body() as MockSite & {
+          distributionSystemOperatorPartyId?: string;
+          managerPartyId?: string;
+          connectionPowerKw?: number;
+        };
+        const idempotencyKey = headers['idempotency-key'];
+        const hash = request.postData() ?? '';
+        if (idempotencyKey !== undefined) {
+          const seen = siteKeys.get(idempotencyKey);
+          if (seen !== undefined && seen !== hash) return route.fulfill(problem(422, 'idempotency_mismatch'));
+          if (seen !== undefined && api.sites.some((entry) => entry.id === input.id)) {
+            return route.fulfill(ok(201, { ...input, version: 1 }, { 'Idempotent-Replayed': 'true', ETag: '"1"' }));
+          }
+        }
+        if (api.sites.some((entry) => entry.id === input.id)) return route.fulfill(problem(409, 'id_conflict'));
+        const errors: Array<{ pointer: string; code: string }> = [];
+        if (!/^\d{2}-\d{3}$/.test(input.postalCode)) errors.push({ pointer: '/postalCode', code: 'invalid_format' });
+        if (input.connectionPowerKw !== undefined && !(input.connectionPowerKw > 0 && input.connectionPowerKw <= 1000)) {
+          errors.push({ pointer: '/connectionPowerKw', code: 'out_of_range' });
+        }
+        const checks: Array<[string, string | undefined, readonly string[]]> = [
+          ['/distributionSystemOperatorPartyId', input.distributionSystemOperatorPartyId, ['distribution_system_operator']],
+          ['/managerPartyId', input.managerPartyId, MANAGER_KINDS],
+        ];
+        for (const [pointer, id, kinds] of checks) {
+          if (id === undefined) continue;
+          const party = api.parties.find((entry) => entry.id === id);
+          if (party === undefined) errors.push({ pointer, code: 'unknown_party' });
+          else if (!kinds.includes(party.kind)) errors.push({ pointer, code: 'wrong_party_kind' });
+        }
+        if (errors.length > 0) return route.fulfill(problem(400, 'validation_failed', { errors }));
+        api.sites.push({
+          id: input.id,
+          siteType: input.siteType,
+          street: input.street,
+          buildingNumber: input.buildingNumber,
+          postalCode: input.postalCode,
+          city: input.city,
+          ...(input.apartmentNumber === undefined ? {} : { apartmentNumber: input.apartmentNumber }),
+          ...(input.parkingSpotNumber === undefined ? {} : { parkingSpotNumber: input.parkingSpotNumber }),
+          ...(input.garageLevel === undefined ? {} : { garageLevel: input.garageLevel }),
+        });
+        if (idempotencyKey !== undefined) siteKeys.set(idempotencyKey, hash);
+        if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
+        return route.fulfill(ok(201, { ...input, version: 1 }, { ETag: '"1"' }));
+      }
+      case 'POST /api/v1/parties/search': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const { query, kinds } = body() as { query?: string; kinds?: string[] };
+        const phrase = (query ?? '').normalize('NFC').trim();
+        if (Array.from(phrase).length < 3) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] }));
+        }
+        const items = api.parties
+          .filter((entry) => (kinds === undefined || kinds.includes(entry.kind)) && fold(entry.displayName).includes(fold(phrase)))
+          .slice(0, 20);
+        return route.fulfill(ok(200, { items, nextCursor: null }, { 'Cache-Control': 'no-store' }));
+      }
+      case 'POST /api/v1/parties': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.role === 'read_only') return route.fulfill(problem(403, 'forbidden'));
+        const input = body() as MockParty & { phone?: string };
+        const idempotencyKey = headers['idempotency-key'];
+        const hash = request.postData() ?? '';
+        if (idempotencyKey !== undefined) {
+          const seen = partyKeys.get(idempotencyKey);
+          if (seen !== undefined && seen !== hash) return route.fulfill(problem(422, 'idempotency_mismatch'));
+          if (seen !== undefined && api.parties.some((entry) => entry.id === input.id)) {
+            return route.fulfill(ok(201, { ...input, version: 1 }, { 'Idempotent-Replayed': 'true', ETag: '"1"' }));
+          }
+        }
+        if (api.parties.some((entry) => entry.id === input.id)) return route.fulfill(problem(409, 'id_conflict'));
+        const errors: Array<{ pointer: string; code: string }> = [];
+        if (!input.displayName) errors.push({ pointer: '/displayName', code: 'required' });
+        const phone = input.phone === undefined ? undefined : e164(input.phone);
+        if (input.phone !== undefined && phone === null) errors.push({ pointer: '/phone', code: 'invalid_format' });
+        if (errors.length > 0) return route.fulfill(problem(400, 'validation_failed', { errors }));
+        api.parties.push({ id: input.id, kind: input.kind, legalForm: input.legalForm, displayName: input.displayName });
+        if (idempotencyKey !== undefined) partyKeys.set(idempotencyKey, hash);
+        if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
+        return route.fulfill(ok(201, { ...input, version: 1 }, { ETag: '"1"' }));
       }
       case 'POST /api/v1/auth/logout':
         if (api.session === 'none') return route.fulfill(problem(401, 'session_revoked'));

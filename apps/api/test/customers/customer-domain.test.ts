@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeNewCustomer, type CustomerInput } from '../../src/modules/customers/domain/customer.ts';
-import { normalizeEmail } from '../../src/modules/customers/domain/email.ts';
-import { normalizePhone } from '../../src/modules/customers/domain/phone.ts';
-import { plainText } from '../../src/modules/customers/domain/plain-text.ts';
+import { normalizeEmail } from '../../src/platform/input/email.ts';
+import { normalizePhone } from '../../src/platform/input/phone.ts';
+import { plainText } from '../../src/platform/input/plain-text.ts';
 import { resolveSearchQuery } from '../../src/modules/customers/domain/search-query.ts';
 import { normalizeTaxId } from '../../src/modules/customers/domain/tax-id.ts';
 
