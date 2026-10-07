@@ -110,3 +110,4 @@ _—_
 - 2026-10-07 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-020-customer-in-work-order)
 - 2026-10-07 — API gotowe (backend-developer): kontrakt, moduł `customers`, idempotencja, limit 60/min, migracje 0011–0012; panel W-05 — krok web-developera
 - 2026-10-07 — panel W-05 gotowy (web-developer): sekcja „1. Klient”, dialog „Dodaj klienta”, szkic w pamięci karty, komponenty `Combobox`, `Dialog`, `RadioGroup`, `TextArea`, `Disclosure` w `@evia/ui-web`; zrzuty w `docs/ux/reviews/EVM-020/`
+- 2026-10-07 — SR-DATA-01 potwierdzone (security-engineer): klasyfikacja `Customer` i `IdempotencyRecord` w `domain-model.md`, inwentaryzacja i retencja w `rodo.md`; SR-API-05 w `requirements.md`, wpis EVM-020 w `threat-model.md` (bez nowych RR)
