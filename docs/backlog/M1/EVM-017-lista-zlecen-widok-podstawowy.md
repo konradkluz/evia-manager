@@ -4,7 +4,7 @@ title: Lista zleceń — widok podstawowy
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -124,3 +124,4 @@ _—_
 - 2026-10-07 — panel W-10 gotowy (web-developer): lista, filtry, kursor, stany, `StatusBadge` i wiersz-link w `ui-web`, testy komponentów i E2E, zrzuty w `docs/ux/reviews/EVM-017/`; do przeglądu UX: widok kart poniżej 768 px i źródło opcji „Opiekun”
 - 2026-10-07 — bramki i przeglądy zaliczone (QA pass; runda 1: security i ux — changes, runda 2: approve; code-reviewer approve); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,0% / gałęzie 97,4%; → in-review
 - 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,37 mln tokenów subagentów, 14 agentów, 461 wywołań narzędzi, 2 rundy, ok. 89 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-07 — zaakceptowane przez Konrada, scalone do main (PR #25) → done
