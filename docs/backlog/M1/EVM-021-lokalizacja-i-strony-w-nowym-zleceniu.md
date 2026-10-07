@@ -90,7 +90,7 @@ _—_
 _—_
 
 ## Notatki
-- Zakres mocy przyłączeniowej (0 < kW ≤ 1000, 2 miejsca) to założenie wykonawcy — do potwierdzenia przez Konrada (CHECK w bazie, kontrakt, UI).
+- Zakres mocy przyłączeniowej (0 < kW ≤ 1000, 2 miejsca) — założenie wykonawcy, potwierdzone przez Konrada 2026-10-07 (CHECK w bazie, kontrakt, UI).
 - UX (minor): brak przycisku „Zapisz lokalizację” i stanu po zapisie w makiecie W-05; fokus ląduje na body po zapisie (WCAG 2.4.3); offline bez własnej podpowiedzi przy przyciskach; Select „Rodzaj strony” dla OSD ma jedną pozycję; brak zrzutów z działającej aplikacji.
 - Formularz lokalizacji pozostaje edytowalny w trakcie zapisu (po sukcesie wartości wpisane w międzyczasie przepadają); podwójna spacja w `search_text` bez numeru lokalu.
 - Rodzaj strony sprawdzany bez blokady wiersza — przy EVM-036 (edycja) / EVM-060 (soft delete) dodać blokadę; `search_text` strony obejmuje osobę kontaktową (DO-3) bez zwracania jej w wyniku.
