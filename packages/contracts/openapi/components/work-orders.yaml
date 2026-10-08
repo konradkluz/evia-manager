@@ -227,9 +227,10 @@ WorkOrderDetails:
   type: object
   description: >-
     Nagłówek zlecenia (W-06): numer, tytuł, status, klient i adres lokalizacji (z fasad modułów, tylko nazwa i adres), opiekun,
-    data utworzenia. Bez zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
+    data utworzenia oraz cykl życia (EVM-030): `allowedTransitions` dla wołającego, `resumeStatus`, `statusChangedAt`, `closedAt`, `completedOn`.
+    Bez powodu wstrzymania i anulowania (pole swobodne — może zawierać dane osobowe; nie jest zwracany), zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
     gdy zlecenie go nie ma albo rekord został usunięty (żywe zlecenie nie ujawnia usuniętego rekordu).
-  required: [id, number, title, status, customer, site, coordinator, version, createdAt]
+  required: [id, number, title, status, customer, site, coordinator, version, createdAt, allowedTransitions]
   additionalProperties: false
   properties:
     id:
@@ -265,6 +266,35 @@ WorkOrderDetails:
       type: string
       format: date-time
       maxLength: 40
+    allowedTransitions:
+      type: array
+      description: >-
+        Statusy, do których WOŁAJĄCY może teraz przenieść zlecenie (menu odznaki W-06): zależą od roli — Tylko odczyt dostaje pustą
+        listę, Edytor nie dostaje celów przywrócenia, Administrator dostaje je (przywrócenie wymaga jeszcze ponownego uwierzytelnienia).
+        Dla zlecenia „Wstrzymane” cel wznowienia to `resumeStatus`. To podpowiedź dla UI — serwer rozstrzyga przy każdym przejściu.
+      maxItems: 8
+      items:
+        $ref: '#/WorkOrderStatus'
+    resumeStatus:
+      description: >-
+        Status aktywny, do którego wraca zlecenie „Wstrzymane” po wznowieniu (i z którego przywrócono „Anulowane”). Ustawia serwer;
+        brak, gdy zlecenie nie było wstrzymane ani anulowane z aktywnego statusu.
+      $ref: '#/WorkOrderStatus'
+    statusChangedAt:
+      type: string
+      description: Chwila ostatniej zmiany statusu. Ustawia serwer.
+      format: date-time
+      maxLength: 40
+    closedAt:
+      type: string
+      description: Data zamknięcia („Rozliczone” albo „Anulowane”); czyszczona przez przywrócenie. Ustawia serwer.
+      format: date-time
+      maxLength: 40
+    completedOn:
+      type: string
+      description: Dzień zakończenia prac (`RRRR-MM-DD`, `Europe/Warsaw`); czyszczony przez ponowne otwarcie.
+      format: date
+      maxLength: 10
 ScopeItemList:
   type: object
   description: Aktywne pozycje zakresu zlecenia w kolejności `position` (brak pozycji to pusta tablica).
@@ -358,3 +388,26 @@ SiteCard:
       oneOf:
         - $ref: '#/SitePartyRef'
         - type: 'null'
+TransitionWorkOrderRequest:
+  type: object
+  description: >-
+    Komenda przejścia statusu zlecenia (EVM-030). `to` — docelowy status z listy (tabela przejść w `domain-model.md`; przejścia spoza
+    tabeli — `409 invalid_state_transition`). `reason` jest wymagany przy wstrzymaniu i anulowaniu (zwykły tekst, NFC, przycięty,
+    1–500 znaków; kody `required`, `too_long`, `invalid_characters`) i niedozwolony w pozostałych przejściach (`not_allowed`);
+    to pole swobodne, które może zawierać dane osobowe — nie trafia do audytu, logów ani odpowiedzi. `completedOn` (dzień
+    zakończenia prac, `Europe/Warsaw`, nie z przyszłości, od 2000-01-01; kod `out_of_range`) tylko przy „Zakończ”; domyślnie dziś.
+    Pola serwera (`status`, `resumeStatus`, `closedAt`, `statusChangedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
+  required: [to]
+  additionalProperties: false
+  properties:
+    to:
+      $ref: '#/WorkOrderStatus'
+    reason:
+      type: string
+      description: Powód wstrzymania albo anulowania (pole swobodne — może zawierać dane osobowe).
+      maxLength: 500
+    completedOn:
+      type: string
+      description: Dzień zakończenia prac, `RRRR-MM-DD` (tylko przy przejściu „Zakończ”).
+      format: date
+      maxLength: 10
