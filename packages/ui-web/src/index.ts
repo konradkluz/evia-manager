@@ -42,6 +42,7 @@ export {
   Lock,
   Menu,
   Search,
+  SearchX,
   Shield,
   ShieldCheck,
   ShieldX,
@@ -54,7 +55,10 @@ export {
 export { InlineAlert, type InlineAlertProps } from './inline-alert.tsx';
 export { ErrorSummary, type ErrorSummaryItem, type ErrorSummaryProps } from './error-summary.tsx';
 export { FieldError, SelectableCardGroup, type SelectableCardGroupProps, type SelectableCardOption } from './selectable-card.tsx';
+export { List, ListItem } from './list.tsx';
 export { Skeleton } from './skeleton.tsx';
+export { Tabs, type TabItem, type TabsProps } from './tabs.tsx';
+export { TextLink } from './text-link.tsx';
 export { TextField, type TextFieldProps } from './text-field.tsx';
 export { Toast, type ToastProps } from './toast.tsx';
 export { PlainLink, type LinkComponent, type LinkProps, type NavigationItem } from './navigation.tsx';

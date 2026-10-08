@@ -46,9 +46,9 @@ test.describe('a new work order from a template W-05 (EVM-022)', () => {
     await expect(page.getByText('Utworzono zlecenie ZL-2026-0042.')).toBeVisible();
     const main = page.getByRole('main');
     await expect(main.getByText('Nowe', { exact: true })).toBeVisible();
-    await expect(main.getByText('Jan Przykładowy')).toBeVisible();
-    await expect(main.getByText('ul. Testowa 7, 00-001 Warszawa')).toBeVisible();
-    await expect(page).toHaveTitle('Zlecenie ZL-2026-0042 · EVia Manager');
+    await expect(main.getByText('Jan Przykładowy').first()).toBeVisible();
+    await expect(main.getByText('ul. Testowa 7, 00-001 Warszawa').first()).toBeVisible();
+    await expect(page).toHaveTitle('ZL-2026-0042 · EVia Manager');
     const posts = api.seen.filter((entry) => entry.method === 'POST' && entry.url.endsWith('/api/v1/work-orders'));
     expect(posts).toHaveLength(1);
     expect(posts[0]?.headers['x-csrf-token']).toBe('csrf-active');

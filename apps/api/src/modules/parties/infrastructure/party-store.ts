@@ -95,3 +95,15 @@ export async function findVisiblePartyKinds(db: PartiesDb, principal: Principal,
 }
 
 export type PartyRow = NonNullable<Awaited<ReturnType<typeof findVisibleParty>>>;
+
+/** The display names of the visible parties among `ids` — ONE query; an unknown or deleted party is not in the answer. */
+export async function findVisiblePartyNames(db: PartiesDb, principal: Principal, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('parties.parties')
+    .select(['id', 'display_name'])
+    .where('id', 'in', ids)
+    .where(visibleParties(principal))
+    .execute();
+  return new Map(rows.map((row) => [row.id, row.display_name]));
+}

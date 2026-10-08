@@ -23,6 +23,7 @@ WorkOrderCoordinator:
   type: object
   description: Opiekun zlecenia — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
   required: [id, displayName]
+  additionalProperties: false
   properties:
     id:
       type: string
@@ -81,6 +82,7 @@ WorkOrderCustomer:
   type: object
   description: Klient zlecenia — identyfikator i nazwa wyświetlana (bez telefonu, e-maila, NIP, adresu i notatek, SR-DATA-03).
   required: [id, displayName]
+  additionalProperties: false
   properties:
     id:
       type: string
@@ -95,6 +97,7 @@ ScopeItem:
     Pozycja zakresu zlecenia — kopia pozycji szablonu (kod, nazwa, zestaw parametrów, parametry domyślne i ilość; zmiana szablonu
     nie zmienia zlecenia). Parametry to wyłącznie wartości techniczne.
   required: [id, position, code, name, parameterSetCode, parameters, quantity]
+  additionalProperties: false
   properties:
     id:
       type: string
@@ -216,3 +219,142 @@ WorkOrder:
       type: string
       format: date-time
       maxLength: 40
+# Reading a work order (EVM-018; W-06). Four reads anchored in the order, no collective endpoint: the header, the scope, the customer
+# card and the site card. Every answer is an explicit list of fields (`additionalProperties: false`, SR-DATA-03): the customer card has
+# the display name, the telephone and the e-mail; the parties of a site are `{id, displayName}`; the keeper is `{id, displayName}`.
+# The customer and the site come from the facades of their modules — they are never copied into the order.
+WorkOrderDetails:
+  type: object
+  description: >-
+    Nagłówek zlecenia (W-06): numer, tytuł, status, klient i adres lokalizacji (z fasad modułów, tylko nazwa i adres), opiekun,
+    data utworzenia. Bez zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
+    gdy zlecenie go nie ma albo rekord został usunięty (żywe zlecenie nie ujawnia usuniętego rekordu).
+  required: [id, number, title, status, customer, site, coordinator, version, createdAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    number:
+      type: string
+      description: Numer zlecenia nadany przez serwer (np. `ZL-2026-0042`).
+      maxLength: 32
+    title:
+      type: string
+      maxLength: 200
+    status:
+      $ref: '#/WorkOrderStatus'
+    customer:
+      oneOf:
+        - $ref: '#/WorkOrderCustomer'
+        - type: 'null'
+    site:
+      oneOf:
+        - $ref: sites.yaml#/SiteSearchItem
+        - type: 'null'
+    coordinator:
+      description: Aktywny opiekun albo `null`.
+      oneOf:
+        - $ref: '#/WorkOrderCoordinator'
+        - type: 'null'
+    version:
+      type: integer
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+ScopeItemList:
+  type: object
+  description: Aktywne pozycje zakresu zlecenia w kolejności `position` (brak pozycji to pusta tablica).
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/ScopeItem'
+CustomerCard:
+  type: object
+  description: Karta „Klient” (DO-K) — nazwa wyświetlana, telefon (E.164) i e-mail (`null`, gdy brak). Bez NIP, adresu i notatek.
+  required: [displayName, phone, email]
+  additionalProperties: false
+  properties:
+    displayName:
+      type: string
+      maxLength: 400
+    phone:
+      type: string
+      description: Telefon w formacie E.164.
+      maxLength: 32
+    email:
+      oneOf:
+        - type: string
+          maxLength: 254
+        - type: 'null'
+SitePartyRef:
+  type: object
+  description: Strona (OSD, zarządca) na karcie lokalizacji — identyfikator i nazwa wyświetlana (DO-3), bez kontaktu i notatek.
+  required: [id, displayName]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 400
+SiteCard:
+  type: object
+  description: >-
+    Karta „Lokalizacja” (DO-K): typ obiektu, adres, miejsce i poziom, moc przyłączeniowa, PPE, notatki oraz OSD i zarządca jako
+    `{id, displayName}` (`null`, gdy brak albo strona usunięta). Pola opcjonalne są pomijane, gdy lokalizacja ich nie ma.
+  required: [siteType, street, buildingNumber, postalCode, city, distributionSystemOperator, manager]
+  additionalProperties: false
+  properties:
+    siteType:
+      $ref: catalog.yaml#/SiteType
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      type: string
+      maxLength: 20
+    postalCode:
+      type: string
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+    parkingSpotNumber:
+      type: string
+      maxLength: 20
+    garageLevel:
+      type: string
+      maxLength: 20
+    connectionPowerKw:
+      type: number
+      exclusiveMinimum: 0
+      maximum: 1000
+    meteringPointId:
+      type: string
+      description: PPE (punkt poboru energii).
+      maxLength: 40
+    notes:
+      type: string
+      description: Notatki lokalizacji — zwykły tekst; panel nigdy nie traktuje ich jako HTML.
+      maxLength: 2000
+    distributionSystemOperator:
+      oneOf:
+        - $ref: '#/SitePartyRef'
+        - type: 'null'
+    manager:
+      oneOf:
+        - $ref: '#/SitePartyRef'
+        - type: 'null'

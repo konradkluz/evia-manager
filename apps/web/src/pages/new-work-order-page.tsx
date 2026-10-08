@@ -51,6 +51,7 @@ import {
   type OrderFieldErrors,
 } from '../work-orders/order-form.ts';
 import { WORK_ORDER_HEADER_KEY, WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
+import { headerOf } from '../work-orders/header-of.ts';
 import { TemplatePreview, TemplateSection } from '../work-orders/template-section.tsx';
 import { ASSIGNABLE_USERS_KEY, TEMPLATES_KEY, useAssignableUsers, useTemplates } from '../work-orders/use-order-lookups.ts';
 
@@ -273,7 +274,7 @@ function NewWorkOrderForm({ userId, userName }: { readonly userId: string; reado
       {
         onSuccess: (order: WorkOrder) => {
           attempt.forget();
-          queryClient.setQueryData([WORK_ORDER_HEADER_KEY, order.id], order);
+          queryClient.setQueryData([WORK_ORDER_HEADER_KEY, order.id], headerOf(order));
           void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
           discardDraft(DRAFT);
           toast(t('newWorkOrder.created', { number: order.number }));

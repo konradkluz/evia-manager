@@ -159,3 +159,146 @@ workOrders:
         $ref: ../components/responses.yaml#/CreateWorkOrderUnprocessable
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+WorkOrderIdParameter:
+  name: workOrderId
+  in: path
+  required: true
+  description: Identyfikator zlecenia (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
+workOrder:
+  get:
+    operationId: getWorkOrder
+    tags: [work-orders]
+    summary: Szczegóły zlecenia — nagłówek
+    description: >-
+      Nagłówek W-06: numer, tytuł, status, klient i adres lokalizacji (nazwa i adres z fasad modułów `customers` i `sites`),
+      opiekun, data utworzenia; odpowiedź ma `ETag` (`"<version>"`). Role Administrator, Edytor i Tylko odczyt, kanał `web`
+      (aplikacja mobilna korzysta z synchronizacji; token mobilny — `403 channel_not_allowed`), bez audytu odczytu. Zlecenie
+      jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu: nieistniejące albo usunięte (soft delete — także dla
+      Administratora; podgląd usuniętych to EVM-060) daje `404 not_found` — ta sama odpowiedź w obu przypadkach, bez wartości.
+      Zły format `workOrderId` — `400 validation_failed`. Każda odpowiedź ma `Cache-Control: no-store` (dane osobowe).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+    responses:
+      '200':
+        description: Nagłówek zlecenia.
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderScopeItems:
+  get:
+    operationId: listWorkOrderScopeItems
+    tags: [work-orders]
+    summary: Zakres zlecenia — pozycje z parametrami
+    description: >-
+      Aktywne pozycje zakresu zlecenia w kolejności `position` (`work_order_id` i `deleted_at is null` w tym samym zapytaniu co
+      pozycja — pozycja innego zlecenia nigdy nie występuje). Parametry to płaska mapa wartości skalarnych (najwyżej 20 kluczy,
+      tekst do 100 znaków); nieznany zestaw albo wartość panel pokazuje jako wartość nieznaną. Uprawnienia, kanał i błędy jak
+      w `getWorkOrder` (zlecenie jest rozwiązywane najpierw, polityką odczytu w zapytaniu).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+    responses:
+      '200':
+        description: Pozycje zakresu (pusta tablica `items`, gdy zlecenie nie ma pozycji).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/ScopeItemList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderCustomer:
+  get:
+    operationId: getWorkOrderCustomer
+    tags: [work-orders]
+    summary: Zlecenie — karta klienta
+    description: >-
+      Karta „Klient” (DO-K): nazwa wyświetlana, telefon i e-mail. `customerId` pochodzi wyłącznie z wiersza zlecenia po polityce
+      odczytu — nigdy z wejścia klienta; klient usunięty albo zlecenie bez klienta — `404 not_found`. Uprawnienia, kanał
+      i błędy jak w `getWorkOrder`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+    responses:
+      '200':
+        description: Karta klienta.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/CustomerCard
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderSite:
+  get:
+    operationId: getWorkOrderSite
+    tags: [work-orders]
+    summary: Zlecenie — karta lokalizacji
+    description: >-
+      Karta „Lokalizacja” (DO-K): typ obiektu, adres, miejsce i poziom, moc przyłączeniowa, PPE, notatki oraz OSD i zarządca
+      (`{id, displayName}`, jednym zapytaniem do fasady stron). `siteId` pochodzi wyłącznie z wiersza zlecenia po polityce odczytu;
+      lokalizacja usunięta albo zlecenie bez lokalizacji — `404 not_found`. Uprawnienia, kanał i błędy jak w `getWorkOrder`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+    responses:
+      '200':
+        description: Karta lokalizacji.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/SiteCard
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

@@ -237,6 +237,19 @@
   border-top: var(--evm-border-width-default) solid var(--evm-color-border-subtle);
 }
 
+/* Tabs (§ 3.17): the line under the tab list and the indicator of the selected tab (border-width.indicator, color.border.selected). */
+@utility border-b-default {
+  border-bottom: var(--evm-border-width-default) solid var(--evm-color-border-subtle);
+}
+
+@utility border-b-indicator {
+  border-bottom: var(--evm-border-width-indicator) solid var(--evm-color-border-selected);
+}
+
+@utility border-b-transparent {
+  border-bottom: var(--evm-border-width-indicator) solid transparent;
+}
+
 /* Leading indicators of Banner and InlineAlert (§ 3.19: border-width.indicator in the colour of the tone). */
 @utility border-s-indicator-error {
   border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-error-border);

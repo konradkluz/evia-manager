@@ -25,7 +25,7 @@ tags:
   - name: catalog
     description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
   - name: work-orders
-    description: Zlecenia — lista z filtrami i paginacją kursorem oraz utworzenie z szablonu (moduł work-orders).
+    description: Zlecenia — lista z filtrami i paginacją kursorem, utworzenie z szablonu oraz odczyt szczegółów (moduł work-orders).
   - name: customers
     description: Klienci — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
   - name: sites
@@ -73,6 +73,14 @@ paths:
     $ref: paths/catalog.yaml#/documentKinds
   /api/v1/work-orders:
     $ref: paths/work-orders.yaml#/workOrders
+  /api/v1/work-orders/{workOrderId}:
+    $ref: paths/work-orders.yaml#/workOrder
+  /api/v1/work-orders/{workOrderId}/scope-items:
+    $ref: paths/work-orders.yaml#/workOrderScopeItems
+  /api/v1/work-orders/{workOrderId}/customer:
+    $ref: paths/work-orders.yaml#/workOrderCustomer
+  /api/v1/work-orders/{workOrderId}/site:
+    $ref: paths/work-orders.yaml#/workOrderSite
   /api/v1/users/assignable:
     $ref: paths/identity.yaml#/assignableUsers
   /api/v1/customers:
@@ -187,6 +195,16 @@ components:
       $ref: components/work-orders.yaml#/CreateWorkOrderRequest
     WorkOrder:
       $ref: components/work-orders.yaml#/WorkOrder
+    WorkOrderDetails:
+      $ref: components/work-orders.yaml#/WorkOrderDetails
+    ScopeItemList:
+      $ref: components/work-orders.yaml#/ScopeItemList
+    CustomerCard:
+      $ref: components/work-orders.yaml#/CustomerCard
+    SitePartyRef:
+      $ref: components/work-orders.yaml#/SitePartyRef
+    SiteCard:
+      $ref: components/work-orders.yaml#/SiteCard
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:

@@ -130,6 +130,7 @@ SiteSearchItem:
   type: object
   description: Wynik wyszukiwania — typ obiektu, adres i numer miejsca (bez notatek, PPE, mocy i stron, SR-DATA-03).
   required: [id, siteType, street, buildingNumber, postalCode, city]
+  additionalProperties: false
   properties:
     id:
       type: string

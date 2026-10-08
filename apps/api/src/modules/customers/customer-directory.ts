@@ -16,7 +16,16 @@ export interface CustomerSummary {
   readonly displayName: string;
 }
 
+/** The card "Klient" of a work order (EVM-018): the name, the telephone and the e-mail — nothing else (SR-DATA-03). */
+export interface CustomerCard {
+  readonly displayName: string;
+  readonly phone: string;
+  readonly email: string | null;
+}
+
 export interface CustomerDirectory {
   /** @returns the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined>;
+  /** @returns the card of the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
+  getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined>;
 }

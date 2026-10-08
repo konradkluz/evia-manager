@@ -2,6 +2,7 @@ import type { Page, Request, Route } from '@playwright/test';
 import {
   answerAssignable,
   answerCreate,
+  answerOrderRead,
   answerTemplates,
   createdListItems,
   INITIAL_TEMPLATES,
@@ -265,11 +266,14 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       customers: [],
       sites: [],
       keys: new Map(),
+      parties: [],
+      gone: new Set(),
+      notes: 'Wjazd od ul. Fikcyjnej, klucz u administratora.',
     },
     dropResponseNext: new Set(),
   };
   // The server of orders reads the same customers and sites that the searches use.
-  Object.assign(api.orders, { customers: api.customers, sites: api.sites });
+  Object.assign(api.orders, { customers: api.customers, sites: api.sites, parties: api.parties });
   const customerKeys = new Map<string, string>();
   const siteKeys = new Map<string, string>();
   const partyKeys = new Map<string, string>();
@@ -298,6 +302,19 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       headers['x-csrf-token'] === sessionBody(api.session === 'none' ? 'enrollment' : api.session, undefined, active()).csrfToken;
     const body = (): unknown => JSON.parse(request.postData() ?? '{}');
 
+    // EVM-018: the four reads of one order (W-06) — the order is anchored in the path (a malformed id is 400, a missing or gone one 404).
+    const orderRead =
+      request.method() === 'GET' ? /^\/api\/v1\/work-orders\/([^/]+)(?:\/(scope-items|customer|site))?$/.exec(url.pathname) : null;
+    if (orderRead !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const [, id = '', part = ''] = orderRead;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) {
+        return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/workOrderId', code: 'invalid_format' }] }));
+      }
+      return route.fulfill({
+        ...answerOrderRead(api.orders, id, part as Parameters<typeof answerOrderRead>[2]),
+      });
+    }
     switch (key) {
       case 'GET /api/v1/auth/session':
         if (api.session !== 'none' && api.expired) {

@@ -6,6 +6,7 @@ import { clearDrafts } from '../src/session/draft-store.ts';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE, type Handler } from './api-fake.ts';
 import { activeSessionApi, renderPanel } from './render.tsx';
+import { CUSTOMER, SITE, workOrderRoutes } from './work-order-api.ts';
 
 // No pause between keystrokes: typing many characters per test would otherwise run close to the 5 s limit on a slow CI runner.
 const userEvent = userEventDefault.setup({ delay: null });
@@ -88,16 +89,33 @@ const items =
 
 const roleSession = (role: 'editor' | 'read_only'): CurrentSession => ({ ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role } });
 
+/** Registers the four reads of W-06 (EVM-018) for the order just created, so the page opened after the creation can ask for them. */
+function registerReads(api: ReturnType<typeof activeSessionApi>, created: Record<string, unknown>) {
+  const header = Object.fromEntries(Object.entries(created).filter(([key]) => key !== 'scopeItems'));
+  const routes = workOrderRoutes(String(created['id']), {
+    header: () => json(200, header, { ETag: '"1"' }),
+    scope: () => json(200, { items: [] }),
+    customer: () => json(200, { ...CUSTOMER, displayName: JAN.displayName }),
+    site: () => json(200, SITE),
+  });
+  for (const [route, handler] of Object.entries(routes)) api.set(route, handler);
+}
+
 function orderApi(routes: Record<string, Handler> = {}, session: CurrentSession = ACTIVE_SESSION) {
-  return activeSessionApi({
+  const api: ReturnType<typeof activeSessionApi> = activeSessionApi({
     [SESSION_ROUTE]: () => json(200, session),
     [CUSTOMER_SEARCH]: items(JAN),
     [SITE_SEARCH]: items(GARAGE),
     [TEMPLATES]: () => json(200, { items: [FULL, INSTALL, HOUSE], nextCursor: null }),
     [USERS]: items({ id: ME, displayName: 'Anna Testowa' }, { id: PIOTR, displayName: 'Piotr Testowy' }),
-    [CREATE]: (request) => json(201, order(parseBody(request.body) as Record<string, unknown>), { ETag: '"1"' }),
+    [CREATE]: (request) => {
+      const created = order(parseBody(request.body) as Record<string, unknown>);
+      registerReads(api, created);
+      return json(201, created, { ETag: '"1"' });
+    },
     ...routes,
   });
+  return api;
 }
 
 afterEach(() => {
@@ -291,11 +309,12 @@ describe('W-05 "Utwórz zlecenie" (EVM-022 AC1, AC3, AC4)', () => {
     expect(screen.getByText('Garaż — pełny proces')).toBeTruthy();
     expect(screen.getByText('Nowe')).toBeTruthy();
     const main = within(screen.getByRole('main'));
-    expect(main.getByText('Jan Przykładowy')).toBeTruthy();
-    expect(main.getByText('ul. Testowa 7, 00-001 Warszawa')).toBeTruthy();
+    expect(main.getAllByText('Jan Przykładowy').length).toBeGreaterThan(0);
+    expect(main.getAllByText('ul. Testowa 7, 00-001 Warszawa').length).toBeGreaterThan(0);
     expect(main.getByText('Anna Testowa')).toBeTruthy();
     expect(main.getByText('07.10.2026')).toBeTruthy();
-    expect(document.title).toBe('Zlecenie ZL-2026-0042 · EVia Manager');
+    // EVM-018 AC5: the tab title is the number of the order and never a name or an address
+    expect(document.title).toBe('ZL-2026-0042 · EVia Manager');
     expect(screen.queryByText(/Szkic w tej karcie/)).toBeNull();
     expect(await axeViolations(document.body)).toEqual([]);
   });
@@ -598,9 +617,14 @@ describe('W-05 and W-06 permissions and the page of the order (EVM-022 AC1, AC7)
     expect(await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeTruthy();
   });
 
-  it('EVM-022 AC1 an address of an order opened without the answer of the creation says the details come later and leads back to the list', async () => {
-    const { history } = await renderPanel('/work-orders/01968f3e-0000-7000-8000-00000000f009', orderApi());
-    expect(screen.getByRole('heading', { level: 1, name: 'Szczegóły tego zlecenia pokażemy w kolejnej wersji panelu.' })).toBeTruthy();
+  it('EVM-018 AC3 an address of an order the API does not know (it replaced the placeholder of EVM-022) says "Nie znaleziono zlecenia." and leads back to the list', async () => {
+    const id = '01968f3e-0000-7000-8000-00000000f009';
+    const gone = () => problem(404, 'not_found');
+    const { history } = await renderPanel(
+      `/work-orders/${id}`,
+      orderApi(workOrderRoutes(id, { header: gone, scope: gone, customer: gone, site: gone })),
+    );
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nie znaleziono zlecenia.' })).toBeTruthy();
     await userEvent.click(screen.getByRole('button', { name: 'Wróć do listy' }));
     await waitFor(() => {
       expect(history.location.pathname).toBe('/work-orders');
@@ -608,9 +632,12 @@ describe('W-05 and W-06 permissions and the page of the order (EVM-022 AC1, AC7)
   });
 
   it('EVM-022 AC1 the free texts of the order are shown as text, never as markup', async () => {
-    const api = orderApi({
-      [CREATE]: (request) =>
-        json(201, order(parseBody(request.body) as Record<string, unknown>, { title: '<img src=x onerror=alert(1)> Zlecenie' })),
+    const api: ReturnType<typeof orderApi> = orderApi({
+      [CREATE]: (request) => {
+        const created = order(parseBody(request.body) as Record<string, unknown>, { title: '<img src=x onerror=alert(1)> Zlecenie' });
+        registerReads(api, created);
+        return json(201, created);
+      },
     });
     await renderPanel(NEW, api);
     await fillAndChoose();

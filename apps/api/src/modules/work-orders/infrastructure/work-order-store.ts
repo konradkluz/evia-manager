@@ -153,3 +153,19 @@ export async function findCoordinatorUserId(db: WorkOrdersDb, workOrderId: strin
     .executeTakeFirst();
   return row?.user_id;
 }
+
+/**
+ * The order as the READ operations of one order see it (EVM-018): the read policy is in the query and the columns are named — only
+ * what the header and the anchors of the cards need (no description, no planned date, no author). `customer_id` and `site_id` of the
+ * cards come from THIS row only, never from the request (SR-AUTHZ-02, CWE-639).
+ */
+export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'number', 'title', 'status', 'customer_id', 'site_id', 'version', 'created_at'])
+    .where('id', '=', id)
+    .where(visibleWorkOrders(principal))
+    .executeTakeFirst();
+}
+
+export type ReadableWorkOrderRow = NonNullable<Awaited<ReturnType<typeof findReadableWorkOrder>>>;
