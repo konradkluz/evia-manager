@@ -1,19 +1,17 @@
-import type { WorkOrderDetails, WorkOrderStatus } from '@evia/contracts';
-import { Card, StatusBadge, type OrderStatusKey } from '@evia/ui-web';
+import type { WorkOrderDetails } from '@evia/contracts';
+import { Card } from '@evia/ui-web';
 import type { Ref } from 'react';
 import { useTranslation } from 'react-i18next';
-import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { formatAddress, formatSpot } from '../sites/format.ts';
 import { formatDate } from './format.ts';
-
-const isKnown = (status: string): status is WorkOrderStatus => Object.hasOwn(workOrderStatusLabels, status);
-const keyOf = (status: WorkOrderStatus): OrderStatusKey => status.replaceAll('_', '-') as OrderStatusKey;
+import { StatusTransitions } from './status-transitions.tsx';
 
 /**
  * The header of W-06 (EVM-018 AC1): the number as the page heading (`h1`, focused when the page opens — WCAG 2.4.3), the title,
- * the static status badge (P-12 for a status this panel does not know), the customer, the address with the spot and the level,
- * the keeper and the date of creation. All of it is React text; a customer, a site or a keeper that is gone is "Brak danych".
- * The menu of transitions (EVM-030) and "Edytuj dane zlecenia" (EVM-071) are not shown: the UI shows only what the system does.
+ * the status badge (a button with the menu of transitions for the Administrator and the Editor — EVM-030; static for Tylko
+ * odczyt and P-12 for a status this panel does not know), the customer, the address with the spot and the level, the keeper
+ * and the date of creation. All of it is React text; a customer, a site or a keeper that is gone is "Brak danych".
+ * "Edytuj dane zlecenia" (EVM-071) is not shown: the UI shows only what the system does.
  */
 export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrderDetails; readonly headingRef: Ref<HTMLHeadingElement> }) {
   const { t } = useTranslation();
@@ -32,13 +30,7 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
         {order.number}
       </h1>
       <p className="break-words text-heading-4 text-text-primary">{order.title}</p>
-      <div>
-        {isKnown(order.status) ? (
-          <StatusBadge status={keyOf(order.status)} label={workOrderStatusLabels[order.status]} />
-        ) : (
-          <StatusBadge status="unknown" label={t('workOrders.status.unknown')} hint={t('workOrders.status.unknownHint')} />
-        )}
-      </div>
+      <StatusTransitions order={order} />
       <Card>
         <dl className="grid grid-cols-1 gap-x-inline-md gap-y-stack-sm medium:grid-cols-2">
           {rows.map(([label, value]) => (
