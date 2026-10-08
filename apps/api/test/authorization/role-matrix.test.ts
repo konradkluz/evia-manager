@@ -98,14 +98,22 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 the only operation of the real contract with an object parameter is getWorkOrderTemplate: its IDOR cells are the three roles on the web channel', () => {
+  it('EVM-019 AC7 EVM-018 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate and the four reads of a work order: the IDOR cells of each are the three roles on the web channel', () => {
     const idor = cells.filter((cell) => cell.idor);
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(['getWorkOrderTemplate']));
-    expect(idor.map((cell) => JSON.stringify(cell.caller)).sort()).toEqual(
-      ['administrator', 'editor', 'read_only']
-        .map((role) => JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }))
-        .sort(),
-    );
+    const operations = ['getWorkOrderTemplate', 'getWorkOrder', 'listWorkOrderScopeItems', 'getWorkOrderCustomer', 'getWorkOrderSite'];
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(operations));
+    for (const operationId of operations) {
+      expect(
+        idor
+          .filter((cell) => cell.operationId === operationId)
+          .map((cell) => JSON.stringify(cell.caller))
+          .sort(),
+      ).toEqual(
+        ['administrator', 'editor', 'read_only']
+          .map((role) => JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }))
+          .sort(),
+      );
+    }
     for (const cell of idor) expect(cell.expectation).toEqual({ outcome: 'not_found' });
   });
 });
