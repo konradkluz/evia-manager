@@ -19,6 +19,14 @@ export interface WorkOrdersTable {
   /** `date`: written as `YYYY-MM-DD` and read through `to_char` (the driver would turn a `date` into a local midnight). */
   planned_date: Generated<string | null>;
   description: Generated<string | null>;
+  /** The active status to return to after a hold; set on a hold or a cancellation from an active status (EVM-030). */
+  resume_status: Generated<WorkOrderStatus | null>;
+  /** Free text — may name a person: never audited, logged or returned (EVM-030; the journal of the order is EVM-038). */
+  status_reason: Generated<string | null>;
+  status_changed_at: Generated<Date | null>;
+  closed_at: Generated<Date | null>;
+  /** `date`: written as `YYYY-MM-DD` and read through `to_char`, like `planned_date`. */
+  completed_on: Generated<string | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;
