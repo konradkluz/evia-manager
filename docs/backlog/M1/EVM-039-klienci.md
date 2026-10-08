@@ -111,3 +111,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-039-customers)
 - 2026-10-08 — plan gotowy (backend-developer)
 - 2026-10-08 — backend gotowy (backend-developer): kontrakt, migracja 0017, lista / szczegóły / edycja, filtr `customerId`, licznik różnych klientów; panel (W-14) czeka na web-developera
+- 2026-10-09 — panel gotowy (web-developer): W-14 lista, szczegóły z historią zleceń, dialog edycji (`If-Match`, `412`), „Przejdź do klienta” w W-06, stany AC8; testy komponentów i E2E (Chromium, Edge, Firefox), axe, zrzuty w `docs/ux/reviews/EVM-039/`
