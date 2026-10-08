@@ -4,7 +4,7 @@ title: Szczegóły zlecenia — nagłówek, klient, lokalizacja i zakres
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 path: pelna
 priority: P1
 owner: web-developer
@@ -87,13 +87,16 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Przy EVM-039: reguła P10 „> 300 różnych klientów w 1 h” ma liczyć też `getWorkOrderCustomer` i `getWorkOrderSite` (karty nie zasilają dziś licznika; zalecenie security-engineer).
+- `gone` w `work-order-page.tsx` nie jest powiązane z id zlecenia — po 404 nawigacja wstecz/dalej do innego zlecenia pokaże „Nie znaleziono”; powiązać z id i dodać test (przy EVM-030 / EVM-036).
+- `listScopeItems` bez limitu — dodać `maxItems`/`limit` i test IDOR pojedynczej pozycji przy EVM-035; `header()` może pobierać klienta, lokalizację i opiekuna równolegle (`Promise.all`).
+- E2E W-06 działa na mocku API; ręczny test na żywym stosie (API + baza + web) — przy demo.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-018 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-018 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -102,3 +105,5 @@ _—_
 - 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klienta, uprawnienia, nowy endpoint i UI; gałąź feature/EVM-018-work-order-details)
 - 2026-10-08 — implementacja (web-developer): kontrakt (4 odczyty), API (fasady `getCard` / `namesOf`), W-06 „Przegląd”, `Tabs` / `List` / `TextLink`; testy EVM-018 AC1–AC7 (API integracyjne, komponenty, E2E Chromium / Firefox / Edge, axe), zrzuty w `docs/ux/reviews/EVM-018/`
 - 2026-10-08 — weryfikacja backendu (backend-developer): bramka lokalna `pnpm run gate` zielona (kontener Linux, integracja, pokrycie zmienionego kodu 100% linii / 96,7% gałęzi); bez zmian w kodzie
+- 2026-10-08 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 100% / gałęzie 96,7%; → in-review
+- 2026-10-08 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 0,90 mln tokenów subagentów, 8 agentów, 320 wywołań narzędzi, 1 runda, ok. 62 min; ścieżka pelna; vs baseline: brak danych
