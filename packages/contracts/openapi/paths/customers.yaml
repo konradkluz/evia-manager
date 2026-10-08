@@ -181,7 +181,7 @@ customer:
     tags: [customers]
     summary: Szczegóły klienta
     description: >-
-      Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), bez audytu odczytu.
+      Role Administrator, Edytor i Tylko odczyt, kanał `web` (sesja mobilna — `403 forbidden`: kanał poza polityką), bez audytu odczytu.
       Odpowiedź ma `ETag` (`"<version>"`) i komplet danych klienta (telefon, e-mail, adres korespondencyjny, notatki; bez tekstu
       wyszukiwania, klucza sortowania i znaczników usunięcia). Klient jest rozwiązywany przez politykę odczytu w zapytaniu:
       nieistniejący i usunięty (soft delete — także dla Administratora; podgląd usuniętych to EVM-041) dają tę samą odpowiedź

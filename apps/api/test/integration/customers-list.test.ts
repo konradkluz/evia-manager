@@ -60,7 +60,7 @@ const searchPage = async (browser: Browser, body: Record<string, unknown>): Prom
   return response.body as Page;
 };
 /** Every page of a walk through the list, following `nextCursor` until it is null. */
-async function walk(browser: Browser, fetchPage: (cursor: string | undefined) => Promise<Page>): Promise<Page[]> {
+async function walk(fetchPage: (cursor: string | undefined) => Promise<Page>): Promise<Page[]> {
   const pages: Page[] = [];
   let cursor: string | undefined;
   do {
@@ -113,7 +113,7 @@ describe('the list of customers (EVM-039 AC1; SR-API-04, SR-AUTHZ-03)', () => {
     for (let index = 0; index < 7; index += 1)
       await insertCustomer(admin(), { lastName: `Seria${String(index).padStart(2, '0')}`, firstName: 'Ola' });
     const browser = await signIn();
-    const pages = await walk(browser, async (cursor) => list(browser, `?limit=3${cursor === undefined ? '' : `&cursor=${cursor}`}`));
+    const pages = await walk(async (cursor) => list(browser, `?limit=3${cursor === undefined ? '' : `&cursor=${cursor}`}`));
     expect(pages.map((page) => page.items.length)).toEqual([3, 3, 1]);
     expect(pages.flatMap(sortNames)).toEqual(Array.from({ length: 7 }, (_, index) => `Seria0${index} Ola`));
     expect(pages.at(-1)?.nextCursor).toBeNull();
@@ -159,7 +159,7 @@ describe('the list of customers (EVM-039 AC1; SR-API-04, SR-AUTHZ-03)', () => {
   it('EVM-039 AC1 a customer with the same sort name as another is told apart by the id: no duplicate and no gap between pages', async () => {
     for (let index = 0; index < 5; index += 1) await insertCustomer(admin(), { firstName: 'Jan', lastName: 'Powtorzony' });
     const browser = await signIn();
-    const pages = await walk(browser, async (cursor) => list(browser, `?limit=2${cursor === undefined ? '' : `&cursor=${cursor}`}`));
+    const pages = await walk(async (cursor) => list(browser, `?limit=2${cursor === undefined ? '' : `&cursor=${cursor}`}`));
     const ids = pages.flatMap((page) => page.items.map((item) => item.id));
     expect(ids).toHaveLength(5);
     expect(new Set(ids).size).toBe(5);
@@ -192,7 +192,7 @@ describe('the list of customers (EVM-039 AC1; SR-API-04, SR-AUTHZ-03)', () => {
     await insertCustomer(admin(), { lastName: 'Widoczny' });
     await insertCustomer(admin(), { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
     const browser = await signIn('administrator');
-    const pages = await walk(browser, async (cursor) => list(browser, `?limit=1${cursor === undefined ? '' : `&cursor=${cursor}`}`));
+    const pages = await walk(async (cursor) => list(browser, `?limit=1${cursor === undefined ? '' : `&cursor=${cursor}`}`));
     expect(pages.flatMap(sortNames)).toEqual(['Widoczny Jan']);
   });
 
@@ -290,7 +290,7 @@ describe('the search with pages (EVM-039 AC1; SR-API-04, SR-INPUT-03)', () => {
     }
     await insertCustomer(admin(), { lastName: 'Gdanski', city: 'Gdańsk' });
     const browser = await signIn();
-    const pages = await walk(browser, async (cursor) =>
+    const pages = await walk(async (cursor) =>
       searchPage(browser, { query: 'Lodz', limit: 2, ...(cursor === undefined ? {} : { cursor }) }),
     );
     expect(pages.map((page) => page.items.length)).toEqual([2, 2, 1]);
