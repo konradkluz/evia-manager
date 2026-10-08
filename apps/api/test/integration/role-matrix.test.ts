@@ -28,9 +28,11 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
   it('EVM-016 AC8 every cell of the matrix generated from the contract is answered as expected: roles x channels x enrolment state, anonymous, revoked and expired', async () => {
     current = await createIdentityApp();
     const cells = buildMatrix(AUTHZ_MANIFEST, lists);
-    // 19 callers per operation, plus the IDOR cell of every entitled caller (3 roles, web) of an operation with a path parameter
-    const addressing = Object.values(AUTHZ_MANIFEST).filter((operation) => /{[^}]+}/.test(operation.path)).length;
-    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 19 + addressing * 3);
+    // 19 callers per operation, plus the IDOR cell of every entitled caller (the roles of the operation, web) of an operation with a path parameter
+    const idorCells = Object.values(AUTHZ_MANIFEST)
+      .filter((operation) => /{[^}]+}/.test(operation.path))
+      .reduce((total, operation) => total + (operation.authz.roles?.length ?? 0), 0);
+    expect(cells.length).toBe(Object.keys(AUTHZ_MANIFEST).length * 19 + idorCells);
     expect(await runMatrix(current, cells, await matrixObjects(current))).toEqual([]);
   });
 
@@ -72,6 +74,22 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
   });
 });
 
+describe('the status command in the matrix (EVM-030 AC7; SR-AUTHZ-01, SR-AUTHZ-05, SR-AUTHZ-12)', () => {
+  it('EVM-030 AC7 transitionWorkOrder: Administrator and Editor on the web channel are let in, Tylko odczyt, the mobile channel, mfa_enrollment and anonymous callers are not, and the soft-deleted order of somebody else is 404 for both entitled roles', async () => {
+    current = await createIdentityApp();
+    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'transitionWorkOrder');
+    const allowed = cells.filter((cell) => !cell.idor && cell.expectation.outcome === 'allowed');
+    expect(allowed.every((cell) => cell.caller.kind === 'session' && cell.caller.channel === 'web' && cell.caller.state === 'active')).toBe(
+      true,
+    );
+    expect(new Set(allowed.map((cell) => (cell.caller.kind === 'session' ? cell.caller.role : '')))).toEqual(
+      new Set(['administrator', 'editor']),
+    );
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(2);
+    expect(await runMatrix(current, cells, await matrixObjects(current))).toEqual([]);
+  });
+});
+
 describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
   it('EVM-016 AC8 an entitled caller gets the own object and 404 (not 403) for the object of somebody else', async () => {
     current = await createIdentityApp({
@@ -79,7 +97,7 @@ describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
     const cells = buildMatrix(withThing, lists);
-    expect(cells.filter((cell) => cell.idor)).toHaveLength(17); // 2 of the synthetic thing, 3 of the catalogue template, 12 of the four reads of a work order (EVM-018)
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(19); // 2 of the synthetic thing, 3 of the catalogue template, 12 of the four reads of a work order (EVM-018), 2 of the status command (EVM-030)
     expect(await runMatrix(current, cells, { ...(await matrixObjects(current)), getTestThing: THING_OBJECTS })).toEqual([]);
   });
 

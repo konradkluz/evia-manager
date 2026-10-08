@@ -61,11 +61,15 @@ const row = (
 const restore = (from: WorkOrderStatus, to: WorkOrderStatus): TransitionRule =>
   row(from, to, { roles: ADMIN_ONLY, stepUp: true, closedAt: 'clear', audit: 'work_order.restored' });
 
+/** The order of the rows is the order of the menu of the badge: the way forward first, then the hold, the cancellation and the restoration. */
 export const TRANSITION_TABLE: readonly TransitionRule[] = Object.freeze([
   row('new', 'quoting'),
   row('new', 'accepted'),
   row('quoting', 'accepted'),
   row('accepted', 'in_progress'),
+  row('in_progress', 'completed', { completedOn: 'set' }),
+  row('completed', 'in_progress', { completedOn: 'clear' }),
+  row('completed', 'settled', { closedAt: 'set' }),
   ...ACTIVE_STATUSES.map((status) => row(status, 'on_hold', { reason: true, resumeStatus: 'record' })),
   row('on_hold', RESUME, { resumeStatus: 'clear' }),
   ...ACTIVE_STATUSES.map((status) =>
@@ -73,9 +77,6 @@ export const TRANSITION_TABLE: readonly TransitionRule[] = Object.freeze([
   ),
   row('on_hold', 'cancelled', { reason: true, closedAt: 'set', audit: 'work_order.cancelled' }),
   restore('cancelled', 'on_hold'),
-  row('in_progress', 'completed', { completedOn: 'set' }),
-  row('completed', 'in_progress', { completedOn: 'clear' }),
-  row('completed', 'settled', { closedAt: 'set' }),
   restore('settled', 'completed'),
 ]);
 

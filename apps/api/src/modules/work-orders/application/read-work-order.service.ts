@@ -23,6 +23,7 @@ import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/inde
 import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
+import { allowedTransitions } from '../domain/work-order-transitions.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
 import {
   findCoordinatorUserId,
@@ -66,11 +67,25 @@ export class ReadWorkOrderService {
 
   /** The header (AC1, AC5). @param rawParams the path parameters as parsed by the framework */
   async header(principal: Principal, rawParams: unknown): Promise<WorkOrderDetails> {
-    const order = await this.#order(principal, rawParams);
-    const customer = order.customer_id === null ? undefined : await this.#customers.findVisible(this.#db, principal, order.customer_id);
-    const site = order.site_id === null ? undefined : await this.#sites.findVisible(this.#db, principal, order.site_id);
-    const coordinatorId = await findCoordinatorUserId(workOrderTables(this.#db), order.id);
-    const names = await this.#users.displayNamesOf(coordinatorId === undefined ? [] : [coordinatorId]);
+    return this.#details(this.#db, principal, await this.#order(principal, rawParams));
+  }
+
+  /**
+   * The header as the caller may read it NOW, through the handle given — the transaction of a command reads what it has just
+   * written (EVM-030: the answer of a transition). The order is resolved with the read policy in the query like any read; one
+   * that is missing or deleted is `404 not_found`.
+   */
+  async detailsOf(db: Kysely<Database>, principal: Principal, workOrderId: string): Promise<WorkOrderDetails> {
+    const order = await findReadableWorkOrder(workOrderTables(db), principal, workOrderId);
+    if (order === undefined) throw new ProblemException('not_found');
+    return this.#details(db, principal, order);
+  }
+
+  async #details(db: Kysely<Database>, principal: Principal, order: ReadableWorkOrderRow): Promise<WorkOrderDetails> {
+    const customer = order.customer_id === null ? undefined : await this.#customers.findVisible(db, principal, order.customer_id);
+    const site = order.site_id === null ? undefined : await this.#sites.findVisible(db, principal, order.site_id);
+    const coordinatorId = await findCoordinatorUserId(workOrderTables(db), order.id);
+    const names = await this.#users.displayNamesOf(coordinatorId === undefined ? [] : [coordinatorId], db);
     const coordinatorName = coordinatorId === undefined ? undefined : names.get(coordinatorId);
     return checked(
       zWorkOrderDetails.safeParse({
@@ -95,6 +110,11 @@ export class ReadWorkOrderService {
               },
         coordinator:
           coordinatorId === undefined || coordinatorName === undefined ? null : { id: coordinatorId, displayName: coordinatorName },
+        allowedTransitions: allowedTransitions({ status: order.status, resumeStatus: order.resume_status }, principal.role),
+        ...(order.resume_status === null ? {} : { resumeStatus: order.resume_status }),
+        ...(order.status_changed_at === null ? {} : { statusChangedAt: order.status_changed_at.toISOString() }),
+        ...(order.closed_at === null ? {} : { closedAt: order.closed_at.toISOString() }),
+        ...present('completedOn', order.completed_on),
         version: order.version,
         createdAt: order.created_at.toISOString(),
       }),

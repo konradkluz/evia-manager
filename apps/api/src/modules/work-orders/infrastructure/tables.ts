@@ -7,6 +7,7 @@
 import type { ColumnType, Generated, Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import type { WorkOrderStatus } from '../domain/work-order-list-query.ts';
+import type { ActiveStatus } from '../domain/work-order-transitions.ts';
 
 export interface WorkOrdersTable {
   id: Generated<string>;
@@ -20,7 +21,7 @@ export interface WorkOrdersTable {
   planned_date: Generated<string | null>;
   description: Generated<string | null>;
   /** The active status to return to after a hold; set on a hold or a cancellation from an active status (EVM-030). */
-  resume_status: Generated<WorkOrderStatus | null>;
+  resume_status: Generated<ActiveStatus | null>;
   /** Free text — may name a person: never audited, logged or returned (EVM-030; the journal of the order is EVM-038). */
   status_reason: Generated<string | null>;
   status_changed_at: Generated<Date | null>;

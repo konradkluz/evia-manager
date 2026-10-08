@@ -9,6 +9,7 @@
  * value: the reason is free text that may name a person (it reaches neither a log nor the audit trail nor an answer).
  */
 import { Collector, type FieldIssue } from '../../../platform/input/field-issues.ts';
+import type { WorkOrderStatus } from './work-order-list-query.ts';
 import type { ResolvedTransition, TransitionFields } from './work-order-transitions.ts';
 
 export const REASON_MAX_LENGTH = 500;
@@ -18,7 +19,7 @@ export const COMPLETED_ON_MIN = '2000-01-01';
 
 /** The body after the schema of the contract. */
 export interface TransitionBody {
-  readonly to: string;
+  readonly to: WorkOrderStatus;
   readonly reason?: string | undefined;
   readonly completedOn?: string | undefined;
 }
