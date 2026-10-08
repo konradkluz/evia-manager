@@ -7,12 +7,14 @@ export interface ToastProps {
   readonly message: string | null;
   readonly closeLabel: string;
   readonly onClose: () => void;
-  /** Display time in ms (styleguide § 3.14: at least 6 s); paused on hover and focus. */
+  /** Optional action of the toast ("Cofnij", "Ponów"): the toast is closed after it runs. */
+  readonly action?: { readonly label: string; readonly onSelect: () => void };
+  /** Display time in ms (styleguide § 3.14: at least 6 s, with an action 10 s); paused on hover and focus. */
   readonly duration?: number;
 }
 
 /** Toast (styleguide § 3.14): success information on the inverse surface in a polite live region, closable. */
-export function Toast({ message, closeLabel, onClose, duration = 6000 }: ToastProps) {
+export function Toast({ message, closeLabel, onClose, action, duration = action === undefined ? 6000 : 10_000 }: ToastProps) {
   const [paused, setPaused] = useState(false);
   useEffect(() => {
     if (message === null || paused) return;
@@ -39,6 +41,18 @@ export function Toast({ message, closeLabel, onClose, duration = 6000 }: ToastPr
         >
           <CircleCheck aria-hidden="true" className="size-icon-md shrink-0 text-icon-inverse" />
           <span>{message}</span>
+          {action === undefined ? null : (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                action.onSelect();
+              }}
+              className="h-control-height-web-md px-inset-sm rounded-control text-button text-text-inverse underline hover:bg-bg-brand focus-visible:focus-ring-inverse"
+            >
+              {action.label}
+            </button>
+          )}
           <IconButton icon={X} label={closeLabel} tone="brand" onClick={onClose} />
         </div>
       )}

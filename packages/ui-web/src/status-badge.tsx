@@ -1,6 +1,18 @@
-import { useId } from 'react';
+import { useId, type ButtonHTMLAttributes, type Ref } from 'react';
 import { classNames } from './class-names.ts';
-import { Ban, Banknote, Calculator, CircleCheck, CircleHelp, CirclePause, Inbox, ThumbsUp, Wrench, type Icon } from './icons.ts';
+import {
+  Ban,
+  Banknote,
+  Calculator,
+  ChevronDown,
+  CircleCheck,
+  CircleHelp,
+  CirclePause,
+  Inbox,
+  ThumbsUp,
+  Wrench,
+  type Icon,
+} from './icons.ts';
 
 /** Token key of a work order status (`color.status.order.*`; styleguide § 4.4: the model code in kebab-case) or `unknown` (§ 3.9.1). */
 export type OrderStatusKey = 'new' | 'quoting' | 'accepted' | 'in-progress' | 'completed' | 'settled' | 'on-hold' | 'cancelled' | 'unknown';
@@ -86,5 +98,57 @@ export function StatusBadge({ status, label, hint }: StatusBadgeProps) {
         </span>
       )}
     </span>
+  );
+}
+
+export interface StatusBadgeButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'disabled' | 'title'> {
+  readonly status: OrderStatusKey;
+  /** The full label of the status ("W realizacji"); the accessible name of the button comes from `aria-label`. */
+  readonly label: string;
+  /** Disabled stays focusable (`aria-disabled`, no `chevron-down`); the hint says why (§ 3.9, § 4.13). */
+  readonly disabledHint?: string;
+  readonly ref?: Ref<HTMLButtonElement>;
+}
+
+/**
+ * StatusBadge as a button (styleguide § 3.9, § 3.20: the trigger of the menu of transitions): the look of the badge plus
+ * `chevron-down` and the focus ring. Disabled, it drops the chevron and explains why through a tooltip and the accessible
+ * description; clicks are blocked, the focus is kept.
+ */
+export function StatusBadgeButton({ status, label, disabledHint, onClick, ref, ...rest }: StatusBadgeButtonProps) {
+  const id = useId();
+  const { icon: IconComponent, classes, iconClasses } = LOOKS[status];
+  const disabled = disabledHint !== undefined;
+  return (
+    <button
+      type="button"
+      ref={ref}
+      {...rest}
+      title={disabledHint}
+      aria-disabled={disabled || undefined}
+      aria-describedby={disabled ? id : undefined}
+      onClick={(event) => {
+        if (disabled) {
+          event.preventDefault();
+          return;
+        }
+        onClick?.(event);
+      }}
+      className={classNames(
+        'inline-flex items-center gap-inline-xs h-badge-height px-inset-sm rounded-pill text-label whitespace-nowrap focus-visible:focus-ring',
+        classes,
+        disabled ? 'cursor-not-allowed' : 'cursor-pointer',
+      )}
+    >
+      <IconComponent aria-hidden="true" className={classNames('size-icon-sm shrink-0', iconClasses)} />
+      {label}
+      {disabled ? (
+        <span id={id} className="sr-only">
+          {disabledHint}
+        </span>
+      ) : (
+        <ChevronDown aria-hidden="true" className="size-icon-sm shrink-0" />
+      )}
+    </button>
   );
 }
