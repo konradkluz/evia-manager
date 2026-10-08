@@ -3,6 +3,7 @@ import {
   answerAssignable,
   answerCreate,
   answerOrderRead,
+  answerTransition,
   answerTemplates,
   createdListItems,
   INITIAL_TEMPLATES,
@@ -268,6 +269,8 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       keys: new Map(),
       parties: [],
       gone: new Set(),
+      states: new Map(),
+      transitionKeys: new Map(),
       notes: 'Wjazd od ul. Fikcyjnej, klucz u administratora.',
     },
     dropResponseNext: new Set(),
@@ -312,8 +315,23 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/workOrderId', code: 'invalid_format' }] }));
       }
       return route.fulfill({
-        ...answerOrderRead(api.orders, id, part as Parameters<typeof answerOrderRead>[2]),
+        ...answerOrderRead(api.orders, id, part as Parameters<typeof answerOrderRead>[2], api.role),
       });
+    }
+    // EVM-030: the transition of one order (the status menu of W-06).
+    const transition = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname) : null;
+    if (transition !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerTransition(api.orders, transition[1] ?? '', {
+          role: api.role,
+          stepUpFresh: api.stepUp === 'fresh',
+          ifMatch: headers['if-match'],
+          key: headers['idempotency-key'],
+          raw: request.postData() ?? '{}',
+        }),
+      );
     }
     switch (key) {
       case 'GET /api/v1/auth/session':

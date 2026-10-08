@@ -280,7 +280,9 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   };
 
   const alertFor = (source: Source) => {
-    if (failure === null || failure.source !== source || failure.failure.kind === 'fields') return null;
+    // Errors of the fields are shown under the fields; one that has no field to show it (the server named an unexpected pointer) is told here.
+    if (failure === null || failure.source !== source) return null;
+    if (failure.failure.kind === 'fields' && Object.keys(fieldErrors).length > 0) return null;
     const conflict = failure.failure.kind === 'conflict';
     return (
       <InlineAlert

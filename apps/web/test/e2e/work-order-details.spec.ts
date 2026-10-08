@@ -186,7 +186,8 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       await expect(page.getByRole('region', { name: 'Klient' }).getByText('Jan Przykładowy')).toBeVisible();
       await expect(page.getByRole('region', { name: 'Lokalizacja' }).getByText('Operator Testowy')).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(0);
+      // the only control is the badge of the status (EVM-030): the menu of transitions for the Editor, nothing for Tylko odczyt
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 1 : 0);
     });
   }
 
@@ -195,6 +196,9 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
     await page.getByRole('heading', { level: 1 }).focus();
+    // the badge of the status is a button now (EVM-030) and comes first
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: /Zmień status/ })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     await page.keyboard.press('ArrowRight');
