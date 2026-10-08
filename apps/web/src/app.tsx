@@ -21,6 +21,8 @@ export interface AppProps {
   readonly i18n?: i18n;
   /** API client (tests pass one with a fake `fetch`). */
   readonly client?: Client;
+  /** Query client (tests pass one to look into the cache of the tab). */
+  readonly queryClient?: QueryClient;
 }
 
 /** A 401 that ends the session; a key the server did not accept (`passkey_failed`, step-up) leaves the session as it is. */
@@ -63,11 +65,11 @@ export function createQueryClient(): QueryClient {
 }
 
 /** The panel: i18n (pl) → error boundary → API client → TanStack Query → toasts → router. */
-export function App({ history, i18n, client }: AppProps) {
+export function App({ history, i18n, client, queryClient }: AppProps) {
   const [instances] = useState(() => ({
     i18n: i18n ?? createI18n(),
     router: createAppRouter(history),
-    queryClient: createQueryClient(),
+    queryClient: queryClient ?? createQueryClient(),
     client: client ?? createApiClient(),
   }));
   return (

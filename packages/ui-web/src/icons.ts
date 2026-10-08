@@ -26,6 +26,7 @@ export {
   Search,
   Shield,
   ShieldCheck,
+  SearchX,
   ShieldX,
   ThumbsUp,
   WifiOff,

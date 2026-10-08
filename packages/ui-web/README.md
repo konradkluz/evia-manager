@@ -51,6 +51,9 @@ Pakiet nie ma kroku `build`: aplikacja importuje źródła TypeScript i `styles.
 | `FieldError` | § 3.2 (EVM-022) | linia błędu pola lub grupy (`circle-alert` + `color.text.error`, `role="alert"`) dla sekcji, które nie mają własnego pola z błędem (klient, lokalizacja) |
 | `TextField` — `suffix`, `inputMode` | § 3.2 (EVM-021) | wariant liczby z jednostką (np. „kW”): widoczny sufiks po polu, część opisu pola (`aria-describedby`); `inputMode="decimal"` daje klawiaturę liczbową bez `type="number"` |
 | `TextField` — `type="tel"` | § 3.2 (EVM-020) | wariant telefonu (klawiatura numeryczna na mobile) |
+| `Tabs` | § 3.17 (EVM-018) | `tablist` nazwany etykietą, `tab` jako przyciski z `aria-selected` i `aria-controls`, jeden `tabpanel` (fokusowalny) nazwany zakładką; aktywna — dolny wskaźnik `border-width.indicator` w `color.border.selected` i pogrubienie (stan nie tylko kolorem); w kolejności Tab tylko aktywna, strzałki z zawijaniem, Home / End wybierają i przenoszą fokus; hover `color.bg.surface-hover`, wciśnięty `color.bg.surface-pressed`, fokus pierścień wewnętrzny |
+| `List`, `ListItem` | § 3.6 (EVM-018) | lista prosta: semantyczne `ul` / `li` nazwane `label` albo nagłówkiem (`labelledBy`), pozycje rozdzielone `color.border.subtle` (`border-width.default`), `space.inset.sm`, `text.body` |
+| `TextLink` | § 3.17 (EVM-018) | link w tekście: `color.text.link`, podkreślony, pierścień fokusu, `rel="noopener noreferrer"` zawsze; które adresy mogą być linkami, decyduje aplikacja (`safeHref`: tylko `https:`, `tel:`, `mailto:`) |
 | `AppShell` — `account` | § 3.17 | miejsce na menu konta na końcu TopBar (po zalogowaniu) |
 
 Ikony: Lucide (ISC) re-eksportowane z `src/icons.ts` — aplikacja nie importuje `lucide-react` bezpośrednio.

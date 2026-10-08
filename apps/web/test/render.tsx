@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { createMemoryHistory } from '@tanstack/react-router';
 import { render, screen } from '@testing-library/react';
 import { App } from '../src/app.tsx';
@@ -22,9 +23,15 @@ export function activeSessionApi(routes: Parameters<typeof createFakeApi>[0] = {
 }
 
 /** Renders the whole panel at a path (memory history) against a fake API and waits for the page heading. */
-export async function renderPanel(path = '/', api: FakeApi = activeSessionApi(), { heading = true } = {}) {
+export async function renderPanel(
+  path = '/',
+  api: FakeApi = activeSessionApi(),
+  { heading = true, queryClient }: { heading?: boolean; queryClient?: QueryClient } = {},
+) {
   const history = createMemoryHistory({ initialEntries: [path] });
-  const result = render(<App history={history} client={createApiClient(api.fetch)} />);
+  const result = render(
+    <App history={history} client={createApiClient(api.fetch)} {...(queryClient === undefined ? {} : { queryClient })} />,
+  );
   if (heading) await screen.findByRole('heading', { level: 1 });
   return { ...result, history, api };
 }
