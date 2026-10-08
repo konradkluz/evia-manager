@@ -112,3 +112,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-08 — plan gotowy (backend-developer)
 - 2026-10-08 — backend gotowy (backend-developer): kontrakt, migracja 0017, lista / szczegóły / edycja, filtr `customerId`, licznik różnych klientów; panel (W-14) czeka na web-developera
 - 2026-10-09 — panel gotowy (web-developer): W-14 lista, szczegóły z historią zleceń, dialog edycji (`If-Match`, `412`), „Przejdź do klienta” w W-06, stany AC8; testy komponentów i E2E (Chromium, Edge, Firefox), axe, zrzuty w `docs/ux/reviews/EVM-039/`
+- 2026-10-09 — część bezpieczeństwa gotowa (security-engineer): SR-DATA-01 potwierdzone w `rodo.md` i `domain-model.md` (weryfikacja kodu i testów), aktualizacja EVM-039 w `threat-model.md` (AB-08 — drugi próg P10) i `requirements.md` (SR-API-05 — klucz związany z zasobem, SR-API-04, SR-AUTHZ-02)
