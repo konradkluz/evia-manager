@@ -4,7 +4,8 @@ title: Cykl życia zlecenia — zmiana statusu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -92,7 +93,10 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+1. Test `PATCH` zlecenia z polem `status` (`400 read_only_field`, AC5) dopisze EVM-035 — `PATCH` powstaje tam; tu `status`, `resumeStatus`, `closedAt` i `statusChangedAt` w treści komendy przejścia dają `read_only_field` (test integracyjny).
+2. Luka platformy: brak limitu mutacji na użytkownika (SR-API-02) — jest tylko ogólny limit na adres IP; do EVM-067.
+3. Audyt odmów przywrócenia (`outcome: denied`) — dziś żadna operacja nie audytuje odmów autoryzacji; temat do przeglądu modelu zagrożeń w M1.
+4. Powtórka idempotentna po wygaśnięciu step-upu zwraca zapisany wynik bez ponownego step-upu — akceptowalne (skutek nie powstaje drugi raz).
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-030 AC#`)
@@ -107,3 +111,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC5 — komunikat `412` wg makiety W-06 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC6 — baner zlecenia zamkniętego wg makiety W-06 (b) (wariant zależny od statusu „Rozliczone” / „Anulowane” i roli; po decyzji 17 obejmuje też dane zlecenia) zamiast dosłownego cytatu sprzed decyzji 17
+- 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, uprawnienia i zmiany stanu, nowy endpoint i UI; gałąź feature/EVM-030-work-order-status)
+- 2026-10-08 — backend (backend-developer): migracja `0016`, tabela przejść, komenda `transitionWorkOrder` (`If-Match`, step-up przy przywróceniu, audyt, port uczestnika), kontrakt i testy; panel — kolejny krok

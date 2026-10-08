@@ -120,6 +120,7 @@ describe('work order header (EVM-018 AC1, AC5)', () => {
         garageLevel: '-1',
       },
       coordinator: { id: s.coordinator.userId, displayName: 'Anna Testowa' },
+      allowedTransitions: [], // Tylko odczyt: no transition (EVM-030 AC7)
       version: 1,
       createdAt: expect.stringMatching(/^2026-01-01T08:00:00\.000Z$/) as string,
     });
