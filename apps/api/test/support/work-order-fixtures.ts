@@ -26,6 +26,9 @@ export interface WorkOrderSpec {
   readonly status?: WorkOrderStatus;
   readonly createdAt?: Date;
   readonly deletedAt?: Date;
+  /** the customer and the site of the order (EVM-018) — ids of rows inserted by the customer and site fixtures */
+  readonly customerId?: string;
+  readonly siteId?: string;
   /** the active coordinator (a user id) */
   readonly coordinatorId?: string;
   /** a coordinator assignment that was ended (soft deleted) — the order has no active coordinator through it */
@@ -56,6 +59,8 @@ export async function insertWorkOrders(db: Kysely<Database>, specs: readonly Wor
             number: spec.number,
             title: spec.title ?? `Zlecenie syntetyczne ${spec.number}`,
             status: spec.status ?? 'new',
+            customer_id: spec.customerId ?? null,
+            site_id: spec.siteId ?? null,
             created_at: createdAt,
             created_by: null,
             updated_at: createdAt,
@@ -129,4 +134,43 @@ export async function clearWorkOrderCreation(db: Kysely<Database>): Promise<void
   await sql`delete from work_orders.work_orders`.execute(db);
   await sql`delete from work_orders.number_counters`.execute(db);
   await sql`delete from platform.idempotency_records`.execute(db);
+}
+
+export interface ScopeItemSpec {
+  readonly position: number;
+  readonly code?: string;
+  readonly name?: string;
+  readonly parameterSetCode?: string | null;
+  readonly parameters?: Record<string, string | number | boolean>;
+  readonly quantity?: number;
+  readonly deletedAt?: Date;
+}
+
+/** Inserts scope items of an order (EVM-018); returns their identifiers in the order given. */
+export async function insertScopeItems(db: Kysely<Database>, workOrderId: string, specs: readonly ScopeItemSpec[]): Promise<string[]> {
+  assertSyntheticDataAllowed();
+  const at = new Date(BASE);
+  const rows = await workOrderTables(db)
+    .insertInto('work_orders.scope_items')
+    .values(
+      specs.map((spec) => ({
+        work_order_id: workOrderId,
+        source_catalog_item_id: null,
+        position: spec.position,
+        code: spec.code ?? `item_${spec.position}`,
+        name: spec.name ?? `Pozycja ${spec.position}`,
+        parameter_set_code: spec.parameterSetCode ?? null,
+        parameters: JSON.stringify(spec.parameters ?? {}),
+        quantity: spec.quantity ?? 1,
+        created_at: at,
+        created_by: null,
+        updated_at: at,
+        updated_by: null,
+        deleted_at: spec.deletedAt ?? null,
+        deleted_by: null,
+      })),
+    )
+    .returning(['id', 'position'])
+    .execute();
+  return specs.map((spec) => rows.find((row) => row.position === spec.position)?.id ?? '');
 }

@@ -18,7 +18,7 @@ const TRANSACTION = { marker: 'the transaction of the insert' } as unknown as Ky
 
 function setup(kinds: ReadonlyMap<string, PartyKind>) {
   const kindsOf = vi.fn<PartyDirectory['kindsOf']>(() => Promise.resolve(kinds));
-  const directory: PartyDirectory = { kindsOf };
+  const directory: PartyDirectory = { kindsOf, namesOf: () => Promise.resolve(new Map()) };
   const publish = vi.fn();
   const run = vi.fn(async (_tx: unknown, _request: unknown, operation: () => Promise<{ value: unknown; result: unknown }>) => ({
     replayed: false,

@@ -14,4 +14,6 @@ export const PARTY_DIRECTORY = Symbol('PARTY_DIRECTORY');
 export interface PartyDirectory {
   /** The kind of every party among `ids` that exists and is visible to the caller; the others are absent from the map. */
   kindsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, PartyKind>>;
+  /** The display name of every party among `ids` that exists and is visible to the caller (ONE query); the others are absent (EVM-018). */
+  namesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }

@@ -104,3 +104,13 @@ export function findVisibleCustomerSummary(db: CustomersDb, principal: Principal
     .where(visibleCustomers(principal))
     .executeTakeFirst();
 }
+
+/** The columns of the card "Klient" only (the facade `CustomerDirectory`): the name, the telephone and the e-mail (SR-DATA-03). */
+export function findVisibleCustomerCard(db: CustomersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('customers.customers')
+    .select(['display_name', 'phone', 'email'])
+    .where('id', '=', id)
+    .where(visibleCustomers(principal))
+    .executeTakeFirst();
+}

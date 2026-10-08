@@ -128,3 +128,30 @@ export function findVisibleSiteSummary(db: SitesDb, principal: Principal, id: st
     .where(visibleSites(principal))
     .executeTakeFirst();
 }
+
+/**
+ * The columns of the card "Lokalizacja" (the facade `SiteDirectory`): the address, the spot, the power, the PPE, the notes and the
+ * keys of the two parties — named columns, never the entity (SR-DATA-03). `connection_power_kw` is `numeric(6,2)` (a string here).
+ */
+export function findVisibleSiteCard(db: SitesDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('sites.sites')
+    .select([
+      'site_type',
+      'street',
+      'building_number',
+      'apartment_number',
+      'postal_code',
+      'city',
+      'parking_spot_number',
+      'garage_level',
+      'connection_power_kw',
+      'metering_point_id',
+      'distribution_system_operator_party_id',
+      'manager_party_id',
+      'notes',
+    ])
+    .where('id', '=', id)
+    .where(visibleSites(principal))
+    .executeTakeFirst();
+}

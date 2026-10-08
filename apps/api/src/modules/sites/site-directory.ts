@@ -25,7 +25,29 @@ export interface SiteSummary {
   readonly garageLevel: string | null;
 }
 
+/**
+ * The card "Lokalizacja" of a work order (EVM-018): the address, the spot, the power, the PPE, the notes and the KEYS of the OSD
+ * and the manager (the caller asks `parties` for their names, in one query). `connectionPowerKw` is a number of kW.
+ */
+export interface SiteCard {
+  readonly siteType: SiteType;
+  readonly street: string;
+  readonly buildingNumber: string;
+  readonly apartmentNumber: string | null;
+  readonly postalCode: string;
+  readonly city: string;
+  readonly parkingSpotNumber: string | null;
+  readonly garageLevel: string | null;
+  readonly connectionPowerKw: number | null;
+  readonly meteringPointId: string | null;
+  readonly notes: string | null;
+  readonly distributionSystemOperatorPartyId: string | null;
+  readonly managerPartyId: string | null;
+}
+
 export interface SiteDirectory {
   /** @returns the site when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<SiteSummary | undefined>;
+  /** @returns the card of the site when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
+  getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<SiteCard | undefined>;
 }
