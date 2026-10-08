@@ -34,8 +34,23 @@ export interface OrderServer {
   readonly templates: MockTemplate[];
   readonly assignable: MockAssignable[];
   readonly created: MockCreatedOrder[];
-  readonly customers: ReadonlyArray<{ id: string; displayName: string }>;
-  readonly sites: ReadonlyArray<{ id: string }>;
+  readonly customers: ReadonlyArray<{ id: string; displayName: string; phone: string }>;
+  readonly sites: ReadonlyArray<{
+    id: string;
+    siteType: string;
+    street: string;
+    buildingNumber: string;
+    apartmentNumber?: string;
+    postalCode: string;
+    city: string;
+    parkingSpotNumber?: string;
+    garageLevel?: string;
+  }>;
+  readonly parties: ReadonlyArray<{ id: string; kind: string; displayName: string }>;
+  /** EVM-018: orders that are gone (deleted) — every read of them is `404 not_found`, like an order that never existed. */
+  readonly gone: Set<string>;
+  /** EVM-018: the notes of every site on the card "Lokalizacja" (free text — a test puts markup in it). */
+  notes: string;
   /** `Idempotency-Key` → the body it was first used with. */
   readonly keys: Map<string, string>;
 }
@@ -221,4 +236,69 @@ export function answerCreate(
   if (idempotencyKey !== undefined) server.keys.set(idempotencyKey, rawBody);
   if (loseAnswer) return 'abort';
   return json(201, represent(server, created), { ETag: '"1"' });
+}
+
+const NOT_FOUND = problem(404, 'not_found');
+
+/** The items of the scope of a created order: the first one with parameters (AC, 11 kW, 3 fazy), the rest plain. */
+function scopeItemsOf(created: MockCreatedOrder) {
+  return Array.from({ length: created.scopeItems }, (_, index) => ({
+    id: '01968f3e-0000-7000-8000-' + String(index).padStart(12, '0'),
+    position: index + 1,
+    code: 'item_' + String(index),
+    name: 'Pozycja ' + String(index + 1),
+    parameterSetCode: index === 0 ? 'charger_spec' : null,
+    parameters: index === 0 ? { currentType: 'ac', powerKw: 11, phases: 3 } : {},
+    quantity: 1,
+  }));
+}
+
+/**
+ * The four reads of one order (EVM-018; W-06): `''` the header, `scope-items`, `customer`, `site`. An order that was not created in this
+ * run, and one that is `gone`, are the same `404 not_found`. Every answer has only the fields of the contract.
+ */
+export function answerOrderRead(server: OrderServer, id: string, part: '' | 'scope-items' | 'customer' | 'site'): Answer {
+  const created = server.created.find((entry) => entry.id === id);
+  if (created === undefined || server.gone.has(id)) return NOT_FOUND;
+  const customer = server.customers.find((entry) => entry.id === created.customerId);
+  const site = server.sites.find((entry) => entry.id === created.siteId);
+  if (part === '') {
+    const order = represent(server, created);
+    const header = {
+      id: order.id,
+      number: order.number,
+      title: order.title,
+      status: order.status,
+      customer: order.customer,
+      site: order.site,
+      coordinator: order.coordinator,
+      version: order.version,
+      createdAt: order.createdAt,
+    };
+    return json(200, header, { ETag: '"1"' });
+  }
+  if (part === 'scope-items') return json(200, { items: scopeItemsOf(created) });
+  if (part === 'customer') {
+    return customer === undefined
+      ? NOT_FOUND
+      : json(200, { displayName: customer.displayName, phone: customer.phone, email: 'jan.przykladowy@example.com' });
+  }
+  if (site === undefined) return NOT_FOUND;
+  const osd = server.parties.find((entry) => entry.kind === 'distribution_system_operator');
+  const manager = server.parties.find((entry) => entry.kind === 'housing_community');
+  return json(200, {
+    siteType: site.siteType,
+    street: site.street,
+    buildingNumber: site.buildingNumber,
+    ...(site.apartmentNumber === undefined ? {} : { apartmentNumber: site.apartmentNumber }),
+    postalCode: site.postalCode,
+    city: site.city,
+    ...(site.parkingSpotNumber === undefined ? {} : { parkingSpotNumber: site.parkingSpotNumber }),
+    ...(site.garageLevel === undefined ? {} : { garageLevel: site.garageLevel }),
+    connectionPowerKw: 40,
+    meteringPointId: 'PL-TEST-0001',
+    notes: server.notes,
+    distributionSystemOperator: osd === undefined ? null : { id: osd.id, displayName: osd.displayName },
+    manager: manager === undefined ? null : { id: manager.id, displayName: manager.displayName },
+  });
 }

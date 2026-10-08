@@ -28,7 +28,7 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
   ];
   return (
     <header className="flex flex-col gap-stack-sm">
-      <h1 ref={headingRef} tabIndex={-1} className="font-display text-heading-1 text-text-primary focus-visible:focus-ring">
+      <h1 ref={headingRef} tabIndex={-1} className="self-start font-display text-heading-1 text-text-primary focus-visible:focus-ring">
         {order.number}
       </h1>
       <p className="break-words text-heading-4 text-text-primary">{order.title}</p>

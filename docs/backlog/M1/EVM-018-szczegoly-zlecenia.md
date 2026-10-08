@@ -4,7 +4,8 @@ title: Szczegóły zlecenia — nagłówek, klient, lokalizacja i zakres
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: web-developer
 contributors: [backend-developer]
@@ -98,3 +99,5 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klienta, uprawnienia, nowy endpoint i UI; gałąź feature/EVM-018-work-order-details)
+- 2026-10-08 — implementacja (web-developer): kontrakt (4 odczyty), API (fasady `getCard` / `namesOf`), W-06 „Przegląd”, `Tabs` / `List` / `TextLink`; testy EVM-018 AC1–AC7 (API integracyjne, komponenty, E2E Chromium / Firefox / Edge, axe), zrzuty w `docs/ux/reviews/EVM-018/`
