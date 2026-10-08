@@ -78,7 +78,8 @@ describe('W-14 the list (EVM-039 AC1)', () => {
       'Osoba',
       '+48 600 000 004',
       '—',
-      'Ładowarkowa Ewa',
+      // below the wide breakpoint the e-mail is the second line of the first cell, from it — a column of its own
+      'Ładowarkowa Ewaewa.ladowarkowa@example.com',
       'Osoba',
       '+48 600 000 002',
       'ewa.ladowarkowa@example.com',

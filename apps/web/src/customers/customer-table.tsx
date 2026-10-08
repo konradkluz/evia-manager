@@ -14,9 +14,10 @@ export function CustomerTable({ items }: { readonly items: readonly CustomerSear
   const { t } = useTranslation();
   const columns: DataTableColumn[] = [
     { id: 'customer', card: 'primary', header: t('customerList.table.customer'), sort: 'ascending' },
-    { id: 'kind', card: 'meta', header: t('customerList.table.kind') },
-    { id: 'phone', card: 'meta', header: t('customerList.table.phone'), numeric: true },
-    { id: 'email', card: 'meta', header: t('customerList.table.email') },
+    { id: 'kind', card: 'badge', header: t('customerList.table.kind') },
+    { id: 'phone', card: 'meta', header: t('customerList.table.phone') },
+    // the e-mail is a column from `breakpoint.wide`; below it, it is the second line of the first cell (styleguide § 3.6, W-14)
+    { id: 'email', header: t('customerList.table.email'), wideOnly: true },
   ];
   const rows: DataTableRow[] = items.map((item) => {
     const kind = item.kind === 'company' ? t('customerList.table.company') : t('customerList.table.person');
@@ -29,11 +30,12 @@ export function CustomerTable({ items }: { readonly items: readonly CustomerSear
           ? t('customerList.table.row', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone })
           : t('customerList.table.rowEmail', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone, email: item.email }),
       cells: [
-        <span key="customer" className="break-words font-semibold">
-          {item.sortName}
+        <span key="customer" className="flex flex-col">
+          <span className="break-words font-semibold">{item.sortName}</span>
+          {item.email === null ? null : <span className="break-all text-body-sm text-text-secondary wide:hidden">{item.email}</span>}
         </span>,
         <span key="kind">{kind}</span>,
-        <span key="phone" className="whitespace-nowrap">
+        <span key="phone" className="whitespace-nowrap tabular-nums">
           {phone}
         </span>,
         <span key="email" className={item.email === null ? 'text-text-secondary' : 'break-all'}>

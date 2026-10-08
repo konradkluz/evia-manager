@@ -15,6 +15,11 @@ export interface DataTableColumn {
    * a role the rows become cards there; without roles the table scrolls inside its frame.
    */
   readonly card?: 'primary' | 'badge' | 'meta';
+  /**
+   * The column is shown only from `breakpoint.wide` (header and cells); below it the caller shows the same fact elsewhere
+   * (e.g. a second line in the first cell, `wide:hidden`) — the table of a list of people keeps the e-mail out of the narrow views (§ 3.6).
+   */
+  readonly wideOnly?: boolean;
 }
 
 const CARD_CELL = {
@@ -66,7 +71,15 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
         <thead className={classNames('bg-bg-surface-subtle text-label text-text-primary', cards && 'max-medium:sr-only')}>
           <tr>
             {columns.map((column) => (
-              <th key={column.id} scope="col" aria-sort={column.sort} className="px-inset-md py-inset-sm text-start font-semibold">
+              <th
+                key={column.id}
+                scope="col"
+                aria-sort={column.sort}
+                className={classNames(
+                  'px-inset-md py-inset-sm text-start font-semibold',
+                  column.wideOnly === true && 'hidden wide:table-cell',
+                )}
+              >
                 {column.header}
               </th>
             ))}
@@ -86,13 +99,15 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
             >
               {row.cells.map((cell, index) => {
                 const role = columns[index]?.card;
+                const wideOnly = columns[index]?.wideOnly === true;
                 return (
                   <td
                     key={columns[index]?.id ?? index}
                     className={classNames(
                       'px-inset-md py-inset-sm align-top',
+                      wideOnly && 'hidden wide:table-cell',
                       columns[index]?.numeric === true && 'tabular-nums',
-                      cards && 'max-medium:block max-medium:p-0',
+                      cards && !wideOnly && 'max-medium:block max-medium:p-0',
                       cards && role !== undefined && CARD_CELL[role],
                       cards &&
                         role === 'meta' &&
