@@ -1,4 +1,4 @@
-# Module `customers` — search and creation of a customer in the new-work-order form (EVM-020; W-05).
+# Module `customers` — search and creation of a customer in the new-work-order form (EVM-020; W-05); list, detail and edit (EVM-039; W-14).
 customersSearch:
   post:
     operationId: searchCustomers
@@ -8,10 +8,13 @@ customersSearch:
       Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza zawiera dane osobowe i nie może
       trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga `Idempotency-Key`.
       Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje klienta z Łodzi). Wyszukiwanie obejmuje imię, nazwisko,
-      nazwę firmy, NIP, telefon (same cyfry), e-mail i miasto; w wyniku są tylko `id`, `displayName` i `phone`, najwyżej 20 pozycji.
-      Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika
+      nazwę firmy, NIP, telefon (same cyfry), e-mail i miasto; w wyniku są `id`, `kind`, `displayName`, `sortName`, `phone` i `email`
+      (nigdy NIP, adres, notatki ani tekst wyszukiwania). Paginacja (EVM-039): opcjonalne `limit` (1–100, domyślnie 25) i `cursor` w
+      treści — kursor jest związany z frazą i użytkownikiem i nie zawiera żadnych danych (sama pozycja identyfikatora); zmieniony,
+      wygasły, cudzy albo użyty z inną frazą — `400 invalid_cursor`. Porządek stały: klucz sortowania w kolacji ICU `pl-PL`
+      (nazwisko przed imieniem, „Ł” po „L”), potem `id`. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika
       (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do progu
-      masowego odczytu (P10). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.
+      masowego odczytu (P10) i do licznika różnych klientów (alert przy 301. różnym kliencie w ciągu godziny). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
@@ -24,13 +27,13 @@ customersSearch:
             $ref: ../components/customers.yaml#/CustomerSearchRequest
     responses:
       '200':
-        description: Pasujący klienci (brak wyników to pusta tablica `items`).
+        description: Pasujący klienci (brak wyników to pusta tablica `items` i `nextCursor` równy `null`).
         content:
           application/json:
             schema:
               $ref: ../components/customers.yaml#/CustomerSearchResult
       '400':
-        $ref: ../components/responses.yaml#/ValidationFailed
+        $ref: ../components/responses.yaml#/InvalidListQuery
       '401':
         $ref: ../components/responses.yaml#/Unauthenticated
       '403':
@@ -42,6 +45,56 @@ customersSearch:
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 customers:
+  get:
+    operationId: listCustomers
+    tags: [customers]
+    summary: Lista klientów (kursor)
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Porządek
+      stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id` — bez parametru sortowania.
+      Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu, nie w odsiewaniu strony. `limit` 1–100 (domyślnie 25);
+      zły `limit`, nieznany parametr (`400 unknown_parameter`) albo powtórzony (`400 duplicate_parameter`) — `400`. Paginacja kursorem
+      nieprzezroczystym bez danych (sama pozycja identyfikatora, bez licznika wyników): zmieniony, wygasły albo wydany komu innemu —
+      `400 invalid_cursor`. Frazy wyszukiwania nie ma w adresie (SR-API-04): do tego służy `searchCustomers`. Masowy odczyt (P10):
+      rekordy wliczają się do progu 2000 w 10 minut (alert) i 10 000 (`429 rate_limited` z `Retry-After`), a 301. różny klient odczytany
+      w ciągu godziny (lista, wyszukiwanie, szczegóły, karta klienta zlecenia) wywołuje alert bezpieczeństwa.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    parameters:
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona klientów (pusta lista to pusta tablica `items` i `nextCursor` równy `null`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/CustomerList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
   post:
     operationId: createCustomer
     tags: [customers]
@@ -111,5 +164,143 @@ customers:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '422':
         $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+CustomerIdParameter:
+  name: customerId
+  in: path
+  required: true
+  description: Identyfikator klienta (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
+customer:
+  get:
+    operationId: getCustomer
+    tags: [customers]
+    summary: Szczegóły klienta
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), bez audytu odczytu.
+      Odpowiedź ma `ETag` (`"<version>"`) i komplet danych klienta (telefon, e-mail, adres korespondencyjny, notatki; bez tekstu
+      wyszukiwania, klucza sortowania i znaczników usunięcia). Klient jest rozwiązywany przez politykę odczytu w zapytaniu:
+      nieistniejący i usunięty (soft delete — także dla Administratora; podgląd usuniętych to EVM-041) dają tę samą odpowiedź
+      `404 not_found`. Zły format `customerId` — `400 validation_failed`. Odczyt wlicza się do progu masowego odczytu (rekordy: 10 000
+      w 10 minut → `429 rate_limited` z `Retry-After`) i do licznika różnych klientów (P10). Każda odpowiedź ma `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    parameters:
+      - $ref: '#/CustomerIdParameter'
+    responses:
+      '200':
+        description: Dane klienta.
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/Customer
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  patch:
+    operationId: updateCustomer
+    tags: [customers]
+    summary: Zmiana danych klienta (merge-patch, If-Match)
+    description: >-
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany —
+      `401`), kanał `web`, z audytem (`customer.updated` — aktor, identyfikator klienta, wynik i `traceId`; bez wartości pól). Wymaga
+      `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo
+      zniekształcony — `400 validation_failed` (`/headers/If-Match`) — niezależnie od istnienia klienta; nieaktualna wersja —
+      `412 version_conflict` (odpowiedź nie zawiera bieżących wartości; klient pobiera klienta ponownie). Treść to `CustomerPatch`:
+      pole spoza schematu — `400 unknown_field`, pole kontrolowane przez serwer — `400 read_only_field`, błąd reguły (jak przy
+      dodaniu: telefon E.164, e-mail, NIP, pola zależne od rodzaju) — `400` z `errors[]` (wskaźnik i kod, nigdy wartość).
+      Kolejność: guard (rola, CSRF, kanał), `If-Match` i treść (kształt), blokada wiersza `SELECT … FOR UPDATE` z polityką odczytu
+      w zapytaniu (nieistniejący i usunięty klient — `404 not_found`, także z nieaktualnym `If-Match`), powtórka idempotentna,
+      wersja (`412`), reguły domeny (`400`), zapis `version + 1`, audyt i rekord idempotencji w jednej transakcji; błąd cofa całość.
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest
+      związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta: ten sam klucz z tą samą treścią dla innego klienta
+      — `422 idempotency_mismatch`. Powtórka (ten sam klucz, klient i treść) — `200` z bieżącą reprezentacją odczytaną z polityką
+      odczytu (usunięty w międzyczasie — `404`) i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu, także
+      gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/CustomerIdParameter'
+      - name: If-Match
+        in: header
+        required: true
+        description: Silny ETag wersji klienta, na której użytkownik podjął decyzję (`"<version>"`, z `ETag` odczytu).
+        schema:
+          type: string
+          pattern: '^"[1-9][0-9]{0,9}"$'
+          maxLength: 12
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/customers.yaml#/CustomerPatch
+    responses:
+      '200':
+        description: >-
+          Klient po zmianie (albo powtórka wcześniejszej zmiany — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, klientem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/Customer
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited

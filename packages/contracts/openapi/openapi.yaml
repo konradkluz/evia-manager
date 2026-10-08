@@ -27,7 +27,7 @@ tags:
   - name: work-orders
     description: Zlecenia — lista z filtrami i paginacją kursorem, utworzenie z szablonu oraz odczyt szczegółów (moduł work-orders).
   - name: customers
-    description: Klienci — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
+    description: Klienci — lista, szczegóły, edycja, wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
   - name: sites
     description: Lokalizacje — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł sites).
   - name: parties
@@ -89,6 +89,8 @@ paths:
     $ref: paths/customers.yaml#/customers
   /api/v1/customers/search:
     $ref: paths/customers.yaml#/customersSearch
+  /api/v1/customers/{customerId}:
+    $ref: paths/customers.yaml#/customer
   /api/v1/sites:
     $ref: paths/sites.yaml#/sites
   /api/v1/sites/search:
@@ -225,6 +227,10 @@ components:
       $ref: components/customers.yaml#/CustomerSearchItem
     CustomerSearchResult:
       $ref: components/customers.yaml#/CustomerSearchResult
+    CustomerList:
+      $ref: components/customers.yaml#/CustomerList
+    CustomerPatch:
+      $ref: components/customers.yaml#/CustomerPatch
     Site:
       $ref: components/sites.yaml#/Site
     SiteSearchRequest:

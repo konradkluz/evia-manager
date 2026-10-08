@@ -1,5 +1,5 @@
-# Module `customers` — clients of the company (EVM-020; W-05 section "1. Klient"). `Customer` is DO-K (personal data): it is returned
-# only to the author of a creation and never to a search (the search item has `id`, `displayName` and `phone` only, SR-DATA-03).
+# Module `customers` — clients of the company (EVM-020; W-05 section "1. Klient"; EVM-039; W-14). `Customer` is DO-K (personal data):
+# it is returned by the creation, the detail and the edit; a list or a search item is smaller (`CustomerSearchItem`, SR-DATA-03).
 # The fields the server controls are `readOnly`: a request that names one is answered `400 validation_failed` with the code
 # `read_only_field` (the list of such fields is derived from this schema, not kept by hand — EVM-020 AC5, SR-AUTHZ-04).
 CustomerKind:
@@ -136,38 +136,136 @@ CustomerSearchRequest:
   description: >-
     Fraza wyszukiwania w treści (nigdy w adresie URL, SR-API-04). Serwer normalizuje ją do NFC, przycina i wymaga 3–100 znaków
     (`400 validation_failed`, kod `too_short` albo `too_long`). Fraza zbudowana z cyfr, `+`, spacji, nawiasów i myślników
-    jest traktowana jak telefon (porównanie po samych cyfrach).
+    jest traktowana jak telefon (porównanie po samych cyfrach). `cursor` i `limit` (EVM-039) są opcjonalne: kursor jest związany z
+    frazą i użytkownikiem; użyty z inną frazą, wygasły albo cudzy — `400 invalid_cursor`.
   required: [query]
   properties:
     query:
       type: string
       maxLength: 200
+    limit:
+      type: integer
+      description: Liczba pozycji na stronie (domyślnie 25).
+      minimum: 1
+      maximum: 100
+      default: 25
+    cursor:
+      type: string
+      description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta, bez danych.
+      maxLength: 512
+      pattern: '^[A-Za-z0-9_-]+$'
 CustomerSearchItem:
   type: object
-  description: Wynik wyszukiwania — nazwa wyświetlana i telefon (bez e-maila, NIP, adresu i notatek, SR-DATA-03).
-  required: [id, displayName, phone]
+  description: >-
+    Pozycja listy albo wyniku wyszukiwania (W-14, picker W-05): nazwa wyświetlana, klucz sortowania, rodzaj, telefon i e-mail (bez NIP,
+    adresu i notatek, SR-DATA-03). Dostęp do listy mają te same trzy role, które mają szczegóły.
+  required: [id, kind, displayName, sortName, phone, email]
   properties:
     id:
       type: string
       format: uuid
       maxLength: 36
+    kind:
+      $ref: '#/CustomerKind'
     displayName:
       type: string
+      maxLength: 400
+    sortName:
+      type: string
+      description: Klucz sortowania (nazwisko przed imieniem; firma — nazwa firmy).
       maxLength: 400
     phone:
       type: string
       description: Telefon w formacie E.164.
       maxLength: 16
+    email:
+      description: Adres e-mail albo `null`, gdy go nie podano.
+      oneOf:
+        - type: string
+          maxLength: 254
+        - type: 'null'
 CustomerSearchResult:
   type: object
   required: [items, nextCursor]
   properties:
     items:
       type: array
-      description: Do 20 klientów, posortowanych po kluczu sortowania (nazwisko, imię) i identyfikatorze.
-      maxItems: 20
+      description: Klienci posortowani po kluczu sortowania (nazwisko, imię) i identyfikatorze.
+      maxItems: 100
       items:
         $ref: '#/CustomerSearchItem'
     nextCursor:
-      description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
-      type: 'null'
+      description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie. Bez licznika wyników.
+      oneOf:
+        - type: string
+          maxLength: 512
+        - type: 'null'
+CustomerList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Klienci posortowani po kluczu sortowania (nazwisko, imię) i identyfikatorze.
+      maxItems: 100
+      items:
+        $ref: '#/CustomerSearchItem'
+    nextCursor:
+      description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie. Bez licznika wyników.
+      oneOf:
+        - type: string
+          maxLength: 512
+        - type: 'null'
+CustomerPatch:
+  type: object
+  description: >-
+    Zmiana danych klienta (EVM-039; merge-patch): pole nieobecne zostaje bez zmian, pole opcjonalne (`email`, `notes`, `taxId`,
+    `contactPersonName`, `postalAddress`) z wartością `null` jest czyszczone. Zmiana `kind` odrzuca pola poprzedniego rodzaju.
+    Obowiązują te same reguły co przy dodaniu (telefon E.164, e-mail małymi literami, NIP z sumą, zwykły tekst). Pole spoza schematu —
+    `unknown_field`, pole kontrolowane przez serwer (m.in. `id`, `displayName`, `version`) — `read_only_field`.
+  additionalProperties: false
+  properties:
+    kind:
+      $ref: '#/CustomerKind'
+    firstName:
+      type: string
+      maxLength: 200
+    lastName:
+      type: string
+      maxLength: 200
+    companyName:
+      type: string
+      maxLength: 200
+    taxId:
+      description: NIP firmy (jak w `Customer`) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 20
+        - type: 'null'
+    contactPersonName:
+      description: Osoba kontaktowa firmy albo `null`, by ją usunąć.
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+    phone:
+      type: string
+      description: Telefon w dowolnym zapisie; serwer normalizuje do E.164. Nie można go usunąć.
+      maxLength: 32
+    email:
+      description: Adres e-mail (zapisywany małymi literami) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 254
+        - type: 'null'
+    postalAddress:
+      description: Adres korespondencyjny (wszystkie pola wymagane razem) albo `null`, by go usunąć.
+      oneOf:
+        - $ref: '#/CustomerPostalAddress'
+        - type: 'null'
+    notes:
+      description: Notatki (zwykły tekst) albo `null`, by je usunąć. Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'

@@ -8,7 +8,9 @@ workOrders:
       Role Administrator, Edytor i Tylko odczyt, kanał `web` (mobile — M2), bez audytu odczytu (masowy odczyt pilnuje licznik
       poniżej). Zlecenia usunięte (soft delete) nie występują w wyniku — warunek jest w zapytaniu, nie w odsiewaniu strony.
       Wszystkie filtry łączą się przez AND: `status` (lista po przecinku, do 8 różnych wartości z zamkniętej listy), `view`
-      (`all_open` albo `mine`; brak = bez predykatu widoku), `coordinatorId` (UUID; nieistniejący identyfikator daje pustą listę).
+      (`all_open` albo `mine`; brak = bez predykatu widoku), `coordinatorId` (UUID; nieistniejący identyfikator daje pustą listę),
+      `customerId` (UUID klienta — „Historia zleceń” w W-14, EVM-039; ta sama polityka odczytu i paginacja; nieistniejący albo usunięty
+      klient daje pustą listę, bo filtr nie jest sprawdzeniem istnienia klienta).
       `mine` bierze opiekuna wyłącznie z sesji — parametru z identyfikatorem użytkownika nie ma. `sort`: `-number` (domyślne),
       `number`, `-createdAt`, `createdAt`; wartość spoza listy, zły `limit` (1–100, domyślnie 25) albo zły format `status` —
       `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`.
@@ -38,6 +40,14 @@ workOrders:
         in: query
         required: false
         description: Filtr opiekuna (UUID; „Więcej filtrów”). Nie trafia do adresu panelu.
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+      - name: customerId
+        in: query
+        required: false
+        description: Filtr klienta (UUID; historia zleceń klienta). Nie trafia do adresu panelu.
         schema:
           type: string
           format: uuid
