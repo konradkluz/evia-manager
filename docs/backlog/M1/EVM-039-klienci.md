@@ -92,7 +92,7 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Reguła P10 „> 300 różnych klientów w 1 h” ma liczyć także `getWorkOrderCustomer` i `getWorkOrderSite` (karty W-06 z EVM-018 nie zasilają dziś licznika; zalecenie security-engineer).
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-039 AC#`)

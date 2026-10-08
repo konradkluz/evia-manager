@@ -45,6 +45,7 @@ Jako **właściciel systemu** chcę **by kursor paginacji dziennika audytu był 
 - Rotacja `CURSOR_KEY` i zmiana algorytmu; kursory innych list (jeśli istnieją — osobna pozycja).
 
 ## Decyzje i ograniczenia
+- `CURSOR_KEY` trzeba przekazać devopsowi (sekret, tylko serwer API) przed pierwszym wdrożeniem — bez niego API się nie uruchomi; dopisać do konfiguracji środowisk (EVM-007 / wdrożenie).
 - Wzorzec do ponownego użycia: kursor z EVM-017. Obszar ryzyka: bezpieczeństwo (integralność paginacji audytu) i konfiguracja.
 - Kursory wydane przed zmianą stają się nieważne — akceptowalne (stary format nie był kontraktem wydania produkcyjnego; do potwierdzenia).
 

@@ -90,7 +90,7 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Lista pozycji zakresu (`listWorkOrderScopeItems`, EVM-018) nie ma limitu — dodać `maxItems`/`limit` w kontrakcie; przy odczycie pojedynczej pozycji dodać test IDOR `/work-orders/{A}/scope-items/{B-item}` = 404.
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-035 AC#`)
