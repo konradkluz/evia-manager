@@ -90,7 +90,10 @@ Jako **pracownik biura** chcę **przeglądać klientów, poprawiać ich dane i w
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-08 — kontrakt `searchCustomers` rozszerzony addytywnie: pozycja wyniku ma teraz `kind`, `sortName` i `email` (kolumny W-14; dostęp mają te same trzy role, co szczegóły), domyślny `limit` 25 (było 20), `cursor` i `limit` w treści. Asercje testu EVM-020 („najwyżej 20”, „bez e-maila”) zmieniono świadomie jako uzgodnioną zmianę kontraktu, nie osłabienie testu (security-engineer, konsultacja przed implementacją).
+- 2026-10-08 — kursor listy i wyszukiwania zawiera wyłącznie `id` ostatniego klienta (bez `sort_name`): nazwa może mieć ~400 znaków, nie mieści się w limicie pozycji kursora i trafiałaby do adresu oraz dziennika dostępu (SR-API-04).
+- 2026-10-08 — klucz idempotencji `PATCH /customers/{customerId}` jest związany z `customerId` (jak w EVM-030); `maxLength` nazw wyświetlanych klienta (`displayName`, `sortName`) podniesiony z 400 do 401 znaków (imię 200 + spacja + nazwisko 200 — wcześniej taki klient dawał `500`).
+- 2026-10-08 — P10: osobny licznik RÓŻNYCH klientów na użytkownika (okno 60 min, `alertCode: bulk_read_customers`), obok licznika rekordów; zasilają go też lista, wyszukiwanie i karta „Klient” zlecenia (`getWorkOrderCustomer`); `getWorkOrderSite` nie (to lokalizacje).
 
 ## Uwagi do rozważenia
 - Reguła P10 „> 300 różnych klientów w 1 h” ma liczyć także `getWorkOrderCustomer` i `getWorkOrderSite` (karty W-06 z EVM-018 nie zasilają dziś licznika; zalecenie security-engineer).
@@ -107,3 +110,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-039-customers)
 - 2026-10-08 — plan gotowy (backend-developer)
+- 2026-10-08 — backend gotowy (backend-developer): kontrakt, migracja 0017, lista / szczegóły / edycja, filtr `customerId`, licznik różnych klientów; panel (W-14) czeka na web-developera
