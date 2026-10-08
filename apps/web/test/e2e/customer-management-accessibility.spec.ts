@@ -42,15 +42,16 @@ test.describe('accessibility of W-14 "Klienci" in the browser, with colour contr
       await page.getByRole('searchbox', { name: 'Szukaj klientów' }).fill('Przy');
       await expect(page.getByRole('alert').filter({ hasText: 'Zbyt wiele zapytań' })).toBeVisible();
       expect(await violations(page)).toEqual([]);
-      api.customers.length = 0;
       await page.goto('/customers');
-      await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze klientów.' })).toBeVisible();
-      expect(await violations(page)).toEqual([]);
-      await page.goto('/customers');
+      await expect(page.getByRole('table', { name: 'Klienci' })).toBeVisible();
       await context.setOffline(true);
       await expect(page.getByText(/Dane mogą być nieaktualne/)).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await context.setOffline(false);
+      api.customers.length = 0;
+      await page.goto('/customers');
+      await expect(page.getByRole('heading', { level: 2, name: 'Nie masz jeszcze klientów.' })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
     });
 
     test(`EVM-039 AC2 AC3 AC6 the details with a history, the edit dialog, a conflict, the discard question and not found at ${px} px`, async ({

@@ -36,7 +36,7 @@ function seedPolishAlphabet(api: MockApi): void {
   );
 }
 
-const names = (page: Page) => page.getByRole('table', { name: 'Klienci' }).locator('tbody tr td:first-child');
+const names = (page: Page) => page.getByRole('table', { name: 'Klienci' }).locator('tbody tr td:first-child .font-semibold');
 
 /** The stores of the browser that must stay empty (SR-WEB-05): local and session storage, IndexedDB, Cache Storage. */
 async function stores(page: Page): Promise<{ local: number; session: number; databases: number; caches: number }> {
