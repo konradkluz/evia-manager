@@ -14,11 +14,13 @@ import { zCustomerCard, zGetWorkOrderPath, zScopeItemList, zSiteCard, zWorkOrder
 import type { CustomerCard, ScopeItemList, SiteCard, WorkOrderDetails } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
+import type { BulkReadControl } from '../../../platform/bulk-read/bulk-read-control.ts';
 import type { Database } from '../../../platform/database/database.ts';
+import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
-import { DATABASE } from '../../../platform/tokens.ts';
+import { BULK_READ_CONTROL, DATABASE } from '../../../platform/tokens.ts';
 import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
 import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
@@ -50,6 +52,7 @@ export class ReadWorkOrderService {
   readonly #sites: SiteDirectory;
   readonly #parties: PartyDirectory;
   readonly #users: UserDirectory;
+  readonly #bulkRead: BulkReadControl;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -57,12 +60,14 @@ export class ReadWorkOrderService {
     @Inject(SITE_DIRECTORY) sites: SiteDirectory,
     @Inject(PARTY_DIRECTORY) parties: PartyDirectory,
     @Inject(UserDirectory) users: UserDirectory,
+    @Inject(BULK_READ_CONTROL) bulkRead: BulkReadControl,
   ) {
     this.#db = db;
     this.#customers = customers;
     this.#sites = sites;
     this.#parties = parties;
     this.#users = users;
+    this.#bulkRead = bulkRead;
   }
 
   /** The header (AC1, AC5). @param rawParams the path parameters as parsed by the framework */
@@ -140,12 +145,19 @@ export class ReadWorkOrderService {
     );
   }
 
-  /** The card "Klient" (AC1, AC5): a customer that is missing or deleted is `404` (no data of a deleted record). */
-  async customerCard(principal: Principal, rawParams: unknown): Promise<CustomerCard> {
+  /**
+   * The card "Klient" (AC1, AC5): a customer that is missing or deleted is `404` (no data of a deleted record). The card shows the
+   * telephone and the e-mail of a customer, so it counts towards policy P10 (EVM-039 AC5: more than 300 different customers in an
+   * hour) — once the answer is built, so a `404` counts nothing.
+   */
+  async customerCard(principal: Principal, rawParams: unknown, context: EventContext): Promise<CustomerCard> {
     const order = await this.#order(principal, rawParams);
-    const card = order.customer_id === null ? undefined : await this.#customers.getCard(this.#db, principal, order.customer_id);
-    if (card === undefined) throw new ProblemException('not_found');
-    return checked(zCustomerCard.safeParse({ displayName: card.displayName, phone: card.phone, email: card.email }));
+    const customerId = order.customer_id;
+    const card = customerId === null ? undefined : await this.#customers.getCard(this.#db, principal, customerId);
+    if (card === undefined || customerId === null) throw new ProblemException('not_found');
+    const answer = checked(zCustomerCard.safeParse({ displayName: card.displayName, phone: card.phone, email: card.email }));
+    await this.#bulkRead.afterDistinct(principal.userId, 'customer', [customerId], { ...context, sessionId: principal.sessionId });
+    return answer;
   }
 
   /** The card "Lokalizacja" (AC1, AC4, AC5): the OSD and the manager are named by ONE batch query to `parties`. */

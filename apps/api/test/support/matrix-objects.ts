@@ -45,7 +45,22 @@ export async function workOrderObjects(app: IdentityApp): Promise<Record<string,
   };
 }
 
+const CUSTOMERS = '/api/v1/customers';
+
+/**
+ * The IDOR fixture of the detail and the edit of one customer (EVM-039 AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): "own" is a live
+ * customer; "foreign" is an EXISTING customer that is soft deleted — the row is in the table and only the read policy keeps it from
+ * the caller (a random identifier would not prove that the policy runs).
+ */
+export async function customerObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const own = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const foreign = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
+  const paths: ObjectPaths = { own: () => `${CUSTOMERS}/${own}`, foreign: () => `${CUSTOMERS}/${foreign}` };
+  return { getCustomer: paths, updateCustomer: paths };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
-  return { ...(await catalogObjects(app)), ...(await workOrderObjects(app)) };
+  return { ...(await catalogObjects(app)), ...(await workOrderObjects(app)), ...(await customerObjects(app)) };
 }

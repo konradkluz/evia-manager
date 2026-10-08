@@ -69,7 +69,7 @@ export class WorkOrdersController {
   @Get('/api/v1/work-orders/:workOrderId/customer')
   @OperationId('getWorkOrderCustomer')
   getWorkOrderCustomer(@Param() params: unknown, @Req() request: Request): Promise<CustomerCard> {
-    return this.#reads.customerCard(requirePrincipal(request), params);
+    return this.#reads.customerCard(requirePrincipal(request), params, requestEventContext(request));
   }
 
   @Get('/api/v1/work-orders/:workOrderId/site')

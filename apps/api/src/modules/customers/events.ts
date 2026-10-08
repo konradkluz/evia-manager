@@ -6,7 +6,7 @@
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
 
-export const CUSTOMER_EVENT_TYPES = ['customer.created'] as const;
+export const CUSTOMER_EVENT_TYPES = ['customer.created', 'customer.updated'] as const;
 
 export interface CustomerEvent extends DomainEvent {
   readonly type: (typeof CUSTOMER_EVENT_TYPES)[number];

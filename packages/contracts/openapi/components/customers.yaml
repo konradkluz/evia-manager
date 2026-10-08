@@ -81,12 +81,12 @@ Customer:
       type: string
       description: Nazwa wyświetlana (osoba — „Imię Nazwisko”, firma — nazwa firmy). Ustawia serwer.
       readOnly: true
-      maxLength: 400
+      maxLength: 401
     sortName:
       type: string
       description: Klucz sortowania (nazwisko przed imieniem). Ustawia serwer; nie jest zwracany.
       readOnly: true
-      maxLength: 400
+      maxLength: 401
     searchText:
       type: string
       description: Tekst wyszukiwania (zawiera telefon i e-mail). Ustawia serwer; nigdy nie jest zwracany.
@@ -169,11 +169,11 @@ CustomerSearchItem:
       $ref: '#/CustomerKind'
     displayName:
       type: string
-      maxLength: 400
+      maxLength: 401
     sortName:
       type: string
       description: Klucz sortowania (nazwisko przed imieniem; firma — nazwa firmy).
-      maxLength: 400
+      maxLength: 401
     phone:
       type: string
       description: Telefon w formacie E.164.
