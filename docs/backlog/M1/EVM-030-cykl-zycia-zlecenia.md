@@ -4,7 +4,7 @@ title: Cykl życia zlecenia — zmiana statusu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 path: pelna
 priority: P1
 owner: backend-developer
@@ -87,22 +87,28 @@ Jako **pracownik biura** chcę **przeprowadzać zlecenie przez statusy od „Now
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Jedna operacja `POST /api/v1/work-orders/{workOrderId}/transitions` (`transitionWorkOrder`; treść `{to, reason?, completedOn?}`, `If-Match` wymagany, `Idempotency-Key` opcjonalny); czysta tabela przejść w domenie zgodna z `domain-model.md`; migracja `0016` (expand, kolumny nullable); port `WorkOrderTransitionParticipant` (check → 422, apply w tej samej transakcji); panel: menu odznaki statusu, dialogi, toasty „Cofnij”, baner zlecenia zamkniętego. Pełny plan: `.scratch/EVM-030/plan.md` (roboczy).
 
 ## Decyzje
-_—_
+1. Przywrócenie (settled→completed, cancelled→on_hold) kontroluje serwis, nie `stepUp` operacji: Edytor `403 forbidden`, Administrator bez świeżego step-upu `403 step_up_required` (granica 15 min).
+2. Klucz idempotencji jest związany z konkretnym zleceniem (ten sam klucz na innym zleceniu → `422 idempotency_mismatch`); powtórka przed porównaniem `If-Match`.
+3. Decyzje o krawędzi, wersji i warunkach zapadają na wierszu zablokowanym `FOR UPDATE`; powód nie trafia do audytu, logów, odpowiedzi ani rekordu idempotencji.
+4. „Cofnij” po „Wznów” jest dostępne tylko, gdy powód wpisano w tej karcie (API nie zwraca powodu) — odchylenie od makiety do akceptacji na demo.
 
 ## Uwagi do rozważenia
 1. Test `PATCH` zlecenia z polem `status` (`400 read_only_field`, AC5) dopisze EVM-035 — `PATCH` powstaje tam; tu `status`, `resumeStatus`, `closedAt` i `statusChangedAt` w treści komendy przejścia dają `read_only_field` (test integracyjny).
 2. Luka platformy: brak limitu mutacji na użytkownika (SR-API-02) — jest tylko ogólny limit na adres IP; do EVM-067.
 3. Audyt odmów przywrócenia (`outcome: denied`) — dziś żadna operacja nie audytuje odmów autoryzacji; temat do przeglądu modelu zagrożeń w M1.
 4. Powtórka idempotentna po wygaśnięciu step-upu zwraca zapisany wynik bez ponownego step-upu — akceptowalne (skutek nie powstaje drugi raz).
+5. „Cofnij”: po nawigacji nieudane cofnięcie (np. 412) nie pokazuje alertu — pokazać błąd w toaście (przeglądy: code-reviewer).
+6. UX (minor): widoczna podpowiedź offline przy wyłączonej odznace; odstępy i kontrast wyłączonej pozycji menu; w dialogu po 412 zablokować zatwierdzenie do odświeżenia.
+7. Rozliczenie (completed→settled) nie jest audytowane — potwierdzić w EVM-038, że wpis dziennika je pokrywa; 5xx w panelu zawsze „Sprawdź połączenie” (spójnie z resztą panelu).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-030 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-030 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -114,3 +120,5 @@ _—_
 - 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, uprawnienia i zmiany stanu, nowy endpoint i UI; gałąź feature/EVM-030-work-order-status)
 - 2026-10-08 — backend (backend-developer): migracja `0016`, tabela przejść, komenda `transitionWorkOrder` (`If-Match`, step-up przy przywróceniu, audyt, port uczestnika), kontrakt i testy; panel — kolejny krok
 - 2026-10-08 — panel (web-developer): menu przejść odznaki (ActionMenu, StatusBadgeButton), dialogi, toasty „Cofnij”, baner zlecenia zamkniętego, 412/429/offline, W-04 po `step_up_required`; testy komponentów i E2E (Chromium, Edge, Firefox); zrzuty w docs/ux/reviews/EVM-030
+- 2026-10-08 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,7% / gałęzie 95,7%; → in-review
+- 2026-10-08 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,15 mln tokenów subagentów, 8 agentów, 368 wywołań narzędzi, 1 runda, ok. 81 min; ścieżka pelna; vs baseline: brak danych
