@@ -4,7 +4,7 @@ title: Nowe zlecenie z szablonu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -123,3 +123,4 @@ _—_
 - 2026-10-07 — panel gotowy (web-developer): W-05 sekcje „3. Szablon” i „4. Zlecenie”, „Utwórz zlecenie”, nagłówek W-06, szkic, stany; komponenty SelectableCardGroup, ErrorSummary, FieldError w ui-web; testy EVM-022 AC1–AC4, AC7, AC8 (Vitest + axe, E2E, zrzuty w docs/ux/reviews/EVM-022)
 - 2026-10-07 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 98,5% / gałęzie 94,4%; → in-review
 - 2026-10-07 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,13 mln tokenów subagentów, 8 agentów, 388 wywołań narzędzi, 1 runda, ok. 84 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-08 — zaakceptowane przez Konrada, scalone do main (PR #32) → done
