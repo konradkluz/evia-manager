@@ -140,6 +140,7 @@
   --radius-card: var(--evm-radius-card);
   --radius-dialog: var(--evm-radius-dialog);
   --radius-pill: var(--evm-radius-pill);
+  --shadow-card: var(--evm-elevation-card);
   --shadow-dropdown: var(--evm-elevation-dropdown);
   --shadow-toast: var(--evm-elevation-toast);
   --shadow-dialog: var(--evm-elevation-dialog);
@@ -223,6 +224,12 @@
 @utility border-w-strong {
   border-style: solid;
   border-width: var(--evm-border-width-strong);
+}
+
+/* Selected SelectableCard (§ 3.22): the outline in border-width.indicator (the colour comes from border-border-selected). */
+@utility border-w-indicator {
+  border-style: solid;
+  border-width: var(--evm-border-width-indicator);
 }
 
 /* Row separator of a table (§ 3.6: color.border.subtle, border-width.default). */

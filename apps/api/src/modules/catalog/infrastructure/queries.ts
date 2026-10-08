@@ -5,6 +5,7 @@
  * by `MAX_LIST_ITEMS` (the sets are small and returned whole).
  */
 import { MAX_LIST_ITEMS } from '../domain/vocabularies.ts';
+import type { TemplateForCopy } from '../template-directory.ts';
 import type { CatalogDb } from './tables.ts';
 
 export interface DocumentKindRow {
@@ -267,4 +268,39 @@ export async function findWorkOrderTemplates(db: CatalogDb, filter: TemplateFilt
       paymentTermDays: milestone.paymentTermDays,
     })),
   }));
+}
+
+/**
+ * An ACTIVE, not deleted template with the items a new work order copies (EVM-022): the same items, in the same order, as the
+ * preview of the card ("9 pozycji") — an item whose service is deleted is not copied, so the scope matches what the user saw.
+ * `undefined` for a template that is missing, retired or deleted.
+ */
+export async function findActiveTemplateItems(db: CatalogDb, id: string): Promise<TemplateForCopy | undefined> {
+  const template = await db
+    .selectFrom('catalog.work_order_templates')
+    .select(['id', 'name'])
+    .where('id', '=', id)
+    .where('deleted_at', 'is', null)
+    .where('is_active', '=', true)
+    .executeTakeFirst();
+  if (template === undefined) return undefined;
+  const items = await db
+    .selectFrom('catalog.work_order_template_items as item')
+    .innerJoin('catalog.service_catalog_items as service', 'service.id', 'item.catalog_item_id')
+    .select([
+      'item.catalog_item_id as catalogItemId',
+      'item.position',
+      'service.code',
+      'service.name',
+      'service.parameter_set_code as parameterSetCode',
+      'item.default_quantity as quantity',
+      'item.default_parameters as parameters',
+    ])
+    .where('item.work_order_template_id', '=', id)
+    .where('item.deleted_at', 'is', null)
+    .where('service.deleted_at', 'is', null)
+    .orderBy('item.position')
+    .limit(MAX_LIST_ITEMS)
+    .execute();
+  return { id: template.id, name: template.name, items };
 }

@@ -35,28 +35,44 @@ const fails = async (statement: Promise<unknown>, code: string): Promise<void> =
 };
 
 describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, ADR-0017; expand only)', () => {
-  it('EVM-017 AC1 the schema holds exactly the two tables, with no customer and no site column (EVM-022 adds them with their keys)', async () => {
+  it('EVM-017 AC1 the schema holds the two tables of the list and the two of the creation (EVM-022 adds the customer, the site and the template with their keys)', async () => {
     const { rows } = await sql<{ table_name: string; column_name: string }>`
       select table_name, column_name from information_schema.columns where table_schema = 'work_orders' order by table_name, ordinal_position`.execute(
       admin(),
     );
     const columns = (table: string) => rows.filter((row) => row.table_name === table).map((row) => row.column_name);
     const common = ['created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'deleted_at', 'deleted_by'];
-    expect(columns('work_orders')).toEqual(['id', 'number', 'title', 'status', ...common]);
+    expect(columns('work_orders')).toEqual([
+      'id',
+      'number',
+      'title',
+      'status',
+      ...common,
+      'customer_id',
+      'site_id',
+      'source_template_id',
+      'planned_date',
+      'description',
+    ]);
     expect(columns('work_order_assignments')).toEqual(['id', 'work_order_id', 'user_id', 'role', ...common]);
-    expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual(['work_order_assignments', 'work_orders']);
+    expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([
+      'number_counters',
+      'scope_items',
+      'work_order_assignments',
+      'work_orders',
+    ]);
   });
 
   it('EVM-017 AC1 the status is one of the eight values of WorkOrderStatus (CHECK); the number is unique, not empty and at most 32 characters; the title 1..200', async () => {
-    for (const status of ['new', 'quoting', 'accepted', 'in_progress', 'completed', 'settled', 'on_hold', 'cancelled'])
-      await insertOrder(`ZL-S-${status}`, { status });
-    await fails(insertOrder('ZL-X-1', { status: 'archived' }), '23514');
-    await fails(insertOrder('ZL-S-new'), '23505');
+    const statuses = ['new', 'quoting', 'accepted', 'in_progress', 'completed', 'settled', 'on_hold', 'cancelled'];
+    for (const [index, status] of statuses.entries()) await insertOrder(`ZL-2026-${String(9100 + index)}`, { status });
+    await fails(insertOrder('ZL-2026-9201', { status: 'archived' }), '23514');
+    await fails(insertOrder('ZL-2026-9100'), '23505');
     await fails(insertOrder(''), '23514');
     await fails(insertOrder('N'.repeat(33)), '23514');
-    await fails(insertOrder('ZL-X-2', { title: '' }), '23514');
-    await fails(insertOrder('ZL-X-3', { title: 'T'.repeat(201) }), '23514');
-    await insertOrder('ZL-X-4', { title: 'T'.repeat(200) });
+    await fails(insertOrder('ZL-2026-9202', { title: '' }), '23514');
+    await fails(insertOrder('ZL-2026-9203', { title: 'T'.repeat(201) }), '23514');
+    await insertOrder('ZL-2026-9204', { title: 'T'.repeat(200) });
   });
 
   it('EVM-017 AC2 the number is compared bytewise (COLLATE "C"), not by the ICU collation pl-PL of the database', async () => {
@@ -70,7 +86,7 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
   });
 
   it('EVM-017 AC1 the assignment role is coordinator or technician, the user and the order must exist, and an order has at most ONE active coordinator', async () => {
-    const order = await idOf('ZL-A-1');
+    const order = await idOf('ZL-2026-9301');
     await assign(order, 'technician');
     await assign(order, 'technician');
     await assign(order, 'coordinator');
@@ -89,7 +105,7 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
   });
 
   it('EVM-017 AC1 an ended (soft deleted) coordinator makes room for the next one', async () => {
-    const order = await idOf('ZL-A-2');
+    const order = await idOf('ZL-2026-9302');
     await assign(order, 'coordinator', '2026-10-07T09:00:00Z');
     await assign(order, 'coordinator');
     await assign(order, 'coordinator', '2026-10-07T10:00:00Z');
@@ -140,14 +156,16 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
   });
 
   it('EVM-017 AC6 through the application role a work order is written and soft deleted, and a hard DELETE is refused (42501)', async () => {
-    await sql`insert into work_orders.work_orders (number, title, status, created_at, updated_at) values ('ZL-P-1', 'x', 'new', ${T}, ${T})`.execute(
+    await sql`insert into work_orders.work_orders (number, title, status, created_at, updated_at) values ('ZL-2026-9401', 'x', 'new', ${T}, ${T})`.execute(
       app,
     );
-    await sql`update work_orders.work_orders set deleted_at = ${T}, version = version + 1 where number = 'ZL-P-1'`.execute(app);
-    const { rows } = await sql<{ deleted_at: Date | null }>`select deleted_at from work_orders.work_orders where number = 'ZL-P-1'`.execute(
-      app,
-    );
+    await sql`update work_orders.work_orders set deleted_at = ${T}, version = version + 1 where number = 'ZL-2026-9401'`.execute(app);
+    const { rows } = await sql<{
+      deleted_at: Date | null;
+    }>`select deleted_at from work_orders.work_orders where number = 'ZL-2026-9401'`.execute(app);
     expect(rows[0]?.deleted_at).not.toBeNull();
-    await expect(sql`delete from work_orders.work_orders where number = 'ZL-P-1'`.execute(app)).rejects.toMatchObject({ code: '42501' });
+    await expect(sql`delete from work_orders.work_orders where number = 'ZL-2026-9401'`.execute(app)).rejects.toMatchObject({
+      code: '42501',
+    });
   });
 });

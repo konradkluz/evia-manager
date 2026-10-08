@@ -26,6 +26,7 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'customer.created': 'Dodanie klienta',
   'site.created': 'Dodanie lokalizacji',
   'party.created': 'Dodanie strony',
+  'work_order.created': 'Utworzenie zlecenia',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -47,6 +48,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
   { label: 'Klienci', actions: ['customer.created'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'party.created'] },
+  { label: 'Zlecenia', actions: ['work_order.created'] },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {

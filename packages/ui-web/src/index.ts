@@ -52,6 +52,8 @@ export {
   type Icon,
 } from './icons.ts';
 export { InlineAlert, type InlineAlertProps } from './inline-alert.tsx';
+export { ErrorSummary, type ErrorSummaryItem, type ErrorSummaryProps } from './error-summary.tsx';
+export { FieldError, SelectableCardGroup, type SelectableCardGroupProps, type SelectableCardOption } from './selectable-card.tsx';
 export { Skeleton } from './skeleton.tsx';
 export { TextField, type TextFieldProps } from './text-field.tsx';
 export { Toast, type ToastProps } from './toast.tsx';

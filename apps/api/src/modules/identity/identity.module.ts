@@ -16,13 +16,14 @@ import { SessionService } from './application/session.service.ts';
 import { StepUpService } from './application/step-up.service.ts';
 import { UserDirectory } from './application/user-directory.ts';
 import { AuthController } from './http/auth.controller.ts';
+import { UsersController } from './http/users.controller.ts';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.ts';
 import { BREACHED_PASSWORD_CHECK, PASSKEY_VERIFIER, PASSWORD_HASHER } from './infrastructure/ports.ts';
 import { PwnedPasswordsCheck } from './infrastructure/pwned-passwords.ts';
 import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys.ts';
 
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     ActivationService,
     LoginFailures,

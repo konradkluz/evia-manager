@@ -449,3 +449,28 @@ StepUpResult:
   properties:
     csrfToken:
       $ref: '#/CsrfToken'
+AssignableUser:
+  type: object
+  description: Użytkownik, którego można wskazać jako opiekuna zlecenia — wyłącznie identyfikator i nazwa wyświetlana (bez e-maila, roli, ostatniego logowania i statusu MFA, SR-DATA-03).
+  required: [id, displayName]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+AssignableUserList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Aktywni użytkownicy posortowani po nazwie wyświetlanej i identyfikatorze (najwyżej 100).
+      maxItems: 100
+      items:
+        $ref: '#/AssignableUser'
+    nextCursor:
+      description: Zawsze `null` — lista ma jedną stronę (kursor dojdzie addytywnie, gdy użytkowników będzie więcej niż 100).
+      type: 'null'

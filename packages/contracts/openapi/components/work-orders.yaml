@@ -73,3 +73,146 @@ WorkOrderList:
         - type: string
           maxLength: 512
         - type: 'null'
+# Creation of a work order from a template (EVM-022; W-05, header of W-06). The request is its own schema: the fields of the server
+# (`number`, `status`, `customer`, `site`, `coordinator`, `scopeItems`, `version`, `createdAt`) are not in it, so naming one is
+# `400 validation_failed` with the code `read_only_field` (the validation derives the list: the keys of `WorkOrder` that the request
+# lacks, SR-AUTHZ-04); a stranger is `unknown_field`. The client never sends scope items — the server copies them from the template.
+WorkOrderCustomer:
+  type: object
+  description: Klient zlecenia — identyfikator i nazwa wyświetlana (bez telefonu, e-maila, NIP, adresu i notatek, SR-DATA-03).
+  required: [id, displayName]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 400
+ScopeItem:
+  type: object
+  description: >-
+    Pozycja zakresu zlecenia — kopia pozycji szablonu (kod, nazwa, zestaw parametrów, parametry domyślne i ilość; zmiana szablonu
+    nie zmienia zlecenia). Parametry to wyłącznie wartości techniczne.
+  required: [id, position, code, name, parameterSetCode, parameters, quantity]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    position:
+      $ref: catalog.yaml#/Position
+    code:
+      $ref: catalog.yaml#/ConfigCode
+    name:
+      $ref: catalog.yaml#/ConfigName
+    parameterSetCode:
+      oneOf:
+        - $ref: catalog.yaml#/ParameterSetCode
+        - type: 'null'
+    parameters:
+      $ref: catalog.yaml#/DefaultParameters
+    quantity:
+      type: integer
+      minimum: 1
+      maximum: 100
+CreateWorkOrderRequest:
+  type: object
+  description: >-
+    Nowe zlecenie. `id` (UUIDv7) nadaje klient; `customerId`, `siteId` i `templateId` są wymagane — `templateId: null` oznacza
+    puste zlecenie bez pozycji zakresu (brak pola to `400 required`). `title` jest opcjonalny (domyślnie nazwa szablonu albo
+    „Nowe zlecenie”), `assigneeUserId` (opiekun) — domyślnie zalogowany użytkownik; musi to być aktywny użytkownik, w innym
+    wypadku `400` z kodem `assignee_unavailable` (jeden kod dla konta nieistniejącego, dezaktywowanego i usuniętego).
+    `plannedDate` to data z zakresu 2000-01-01 … 2100-12-31 (`out_of_range`). Pola swobodne to zwykły tekst (NFC, przycięty).
+  required: [id, customerId, siteId, templateId]
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    customerId:
+      type: string
+      description: Klient (musi istnieć i nie być usunięty — inaczej `404 not_found`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    siteId:
+      type: string
+      description: Lokalizacja (musi istnieć i nie być usunięta — inaczej `404 not_found`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    templateId:
+      description: Aktywny szablon zlecenia albo `null` (puste zlecenie). Szablon wycofany albo nieistniejący — `422 template_unavailable`.
+      oneOf:
+        - type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          maxLength: 36
+        - type: 'null'
+    title:
+      type: string
+      description: Tytuł (pole swobodne, może zawierać dane klienta). Pusty po przycięciu = brak.
+      maxLength: 200
+    assigneeUserId:
+      type: string
+      description: Opiekun zlecenia (aktywny użytkownik); brak = zalogowany użytkownik.
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+    plannedDate:
+      type: string
+      description: Planowana data (dzień w strefie `Europe/Warsaw`), `RRRR-MM-DD`.
+      format: date
+      maxLength: 10
+    description:
+      type: string
+      description: Opis (zwykły tekst, pole swobodne — może zawierać dane klienta).
+      maxLength: 2000
+WorkOrder:
+  type: object
+  description: >-
+    Zlecenie po utworzeniu — nagłówek W-06: numer, tytuł, status, klient, adres lokalizacji, opiekun, data utworzenia, oraz
+    pozycje zakresu skopiowane z szablonu. Bez danych kontaktowych klienta i bez pól technicznych.
+  required: [id, number, title, status, customer, site, coordinator, scopeItems, version, createdAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    number:
+      type: string
+      description: Numer zlecenia nadany przez serwer (np. `ZL-2026-0042`; rok wg `Europe/Warsaw`).
+      maxLength: 32
+    title:
+      type: string
+      maxLength: 200
+    status:
+      $ref: '#/WorkOrderStatus'
+    customer:
+      $ref: '#/WorkOrderCustomer'
+    site:
+      $ref: sites.yaml#/SiteSearchItem
+    coordinator:
+      $ref: '#/WorkOrderCoordinator'
+    plannedDate:
+      type: string
+      format: date
+      maxLength: 10
+    description:
+      type: string
+      maxLength: 2000
+    scopeItems:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/ScopeItem'
+    version:
+      type: integer
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40

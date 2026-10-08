@@ -25,7 +25,7 @@ tags:
   - name: catalog
     description: Katalog usług, szablony procesów i zleceń, rodzaje dokumentów — odczyt konfiguracji (moduł catalog).
   - name: work-orders
-    description: Zlecenia — lista z filtrami i paginacją kursorem (moduł work-orders).
+    description: Zlecenia — lista z filtrami i paginacją kursorem oraz utworzenie z szablonu (moduł work-orders).
   - name: customers
     description: Klienci — wyszukiwanie i dodanie w formularzu nowego zlecenia (moduł customers).
   - name: sites
@@ -73,6 +73,8 @@ paths:
     $ref: paths/catalog.yaml#/documentKinds
   /api/v1/work-orders:
     $ref: paths/work-orders.yaml#/workOrders
+  /api/v1/users/assignable:
+    $ref: paths/identity.yaml#/assignableUsers
   /api/v1/customers:
     $ref: paths/customers.yaml#/customers
   /api/v1/customers/search:
@@ -177,6 +179,18 @@ components:
       $ref: components/work-orders.yaml#/WorkOrderListItem
     WorkOrderList:
       $ref: components/work-orders.yaml#/WorkOrderList
+    WorkOrderCustomer:
+      $ref: components/work-orders.yaml#/WorkOrderCustomer
+    ScopeItem:
+      $ref: components/work-orders.yaml#/ScopeItem
+    CreateWorkOrderRequest:
+      $ref: components/work-orders.yaml#/CreateWorkOrderRequest
+    WorkOrder:
+      $ref: components/work-orders.yaml#/WorkOrder
+    AssignableUser:
+      $ref: components/identity.yaml#/AssignableUser
+    AssignableUserList:
+      $ref: components/identity.yaml#/AssignableUserList
     CustomerKind:
       $ref: components/customers.yaml#/CustomerKind
     CustomerPostalAddress:

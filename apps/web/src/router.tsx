@@ -4,6 +4,7 @@ import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
+import { WorkOrderPage } from './pages/work-order-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
 import {
@@ -43,6 +44,8 @@ const workOrdersRoute = createRoute({
   validateSearch,
 });
 const newWorkOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: NEW_WORK_ORDER_PATH, component: NewWorkOrderPage });
+/** W-06: the identifier is a UUID of the API (EVM-022: the header of the order just created; the details come with EVM-018). */
+const workOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: `${WORK_ORDERS_PATH}/$workOrderId`, component: WorkOrderPage });
 const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
 const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
@@ -61,6 +64,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   workOrdersRoute,
   newWorkOrderRoute,
+  workOrderRoute,
   administrationRoute,
   auditRoute,
   activateRoute,

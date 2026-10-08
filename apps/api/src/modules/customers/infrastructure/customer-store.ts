@@ -94,3 +94,13 @@ export function findVisibleCustomer(db: CustomersDb, principal: Principal, id: s
 }
 
 export type CustomerRow = NonNullable<Awaited<ReturnType<typeof findVisibleCustomer>>>;
+
+/** The identifier and the display name only (the facade `CustomerDirectory`): no contact data is selected (SR-DATA-03). */
+export function findVisibleCustomerSummary(db: CustomersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('customers.customers')
+    .select(['id', 'display_name'])
+    .where('id', '=', id)
+    .where(visibleCustomers(principal))
+    .executeTakeFirst();
+}

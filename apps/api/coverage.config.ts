@@ -12,6 +12,7 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/identity/infrastructure/queries.ts',
   'src/modules/identity/infrastructure/tables.ts',
   'src/modules/identity/http/auth.controller.ts',
+  'src/modules/identity/http/users.controller.ts',
   'src/modules/catalog/application/**/*.ts',
   'src/modules/catalog/infrastructure/**/*.ts',
   'src/modules/catalog/http/catalog.controller.ts',

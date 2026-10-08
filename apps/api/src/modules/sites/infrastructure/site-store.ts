@@ -108,3 +108,23 @@ export function findVisibleSite(db: SitesDb, principal: Principal, id: string) {
 }
 
 export type SiteRow = NonNullable<Awaited<ReturnType<typeof findVisibleSite>>>;
+
+/** The address columns only (the facade `SiteDirectory`): no notes, PPE, power or parties are selected (SR-DATA-03). */
+export function findVisibleSiteSummary(db: SitesDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('sites.sites')
+    .select([
+      'id',
+      'site_type',
+      'street',
+      'building_number',
+      'apartment_number',
+      'postal_code',
+      'city',
+      'parking_spot_number',
+      'garage_level',
+    ])
+    .where('id', '=', id)
+    .where(visibleSites(principal))
+    .executeTakeFirst();
+}

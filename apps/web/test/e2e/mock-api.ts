@@ -1,4 +1,12 @@
 import type { Page, Request, Route } from '@playwright/test';
+import {
+  answerAssignable,
+  answerCreate,
+  answerTemplates,
+  createdListItems,
+  INITIAL_TEMPLATES,
+  type OrderServer,
+} from './mock-work-orders.ts';
 
 /**
  * A synthetic API for the panel's browser tests (EVM-016 AC3–AC6). It plays the server side of the contract closely
@@ -59,6 +67,8 @@ export interface MockApi {
   sites: MockSite[];
   /** EVM-021: the parties of the synthetic server (searched by name and kind; saved ones are added). */
   parties: MockParty[];
+  /** EVM-022: the catalogue of templates, the users who can be a coordinator and the orders created so far (W-05, W-10). */
+  orders: OrderServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
   dropResponseNext: Set<string>;
 }
@@ -244,8 +254,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         displayName: 'Wspólnota Testowa',
       },
     ],
+    orders: {
+      templates: INITIAL_TEMPLATES.map((entry) => ({ ...entry })),
+      assignable: [
+        { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME },
+        { id: '22222222-2222-4222-8222-222222222222', displayName: 'Piotr Testowy' },
+      ],
+      created: [],
+      // The customers and sites are the lists above (the same objects: saved ones appear in both).
+      customers: [],
+      sites: [],
+      keys: new Map(),
+    },
     dropResponseNext: new Set(),
   };
+  // The server of orders reads the same customers and sites that the searches use.
+  Object.assign(api.orders, { customers: api.customers, sites: api.sites });
   const customerKeys = new Map<string, string>();
   const siteKeys = new Map<string, string>();
   const partyKeys = new Map<string, string>();
@@ -472,7 +496,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           .filter((entry) => query.get('coordinatorId') === null || entry.coordinator?.id === query.get('coordinatorId'));
         const sort = query.get('sort') ?? '-number';
         // Numbers and creation times rise together, so "newest first" is the reverse order for both keys.
-        const ordered = sort.startsWith('-') ? matching.toReversed() : matching;
+        const ordered: object[] = [...(sort.startsWith('-') ? matching.toReversed() : matching)];
+        // The orders created in this run come first (the newest number is the highest).
+        if (query.get('view') !== 'mine') ordered.unshift(...createdListItems(api.orders));
         const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
         const limit = Number(query.get('limit') ?? '25');
         const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
@@ -641,6 +667,26 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (idempotencyKey !== undefined) partyKeys.set(idempotencyKey, hash);
         if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
         return route.fulfill(ok(201, { ...input, version: 1 }, { ETag: '"1"' }));
+      }
+      case 'GET /api/v1/catalog/work-order-templates':
+      case 'GET /api/v1/users/assignable': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (key.endsWith('assignable') && api.role === 'read_only') return route.fulfill(problem(403, 'forbidden'));
+        return route.fulfill(key.endsWith('assignable') ? answerAssignable(api.orders) : answerTemplates(api.orders));
+      }
+      case 'POST /api/v1/work-orders': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (api.role === 'read_only') return route.fulfill(problem(403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const result = answerCreate(
+          api.orders,
+          body() as Parameters<typeof answerCreate>[1],
+          headers['idempotency-key'],
+          request.postData() ?? '',
+          sessionBody('active', undefined, active()).user.id,
+          api.dropResponseNext.delete(key),
+        );
+        return result === 'abort' ? route.abort('connectionreset') : route.fulfill(result);
       }
       case 'POST /api/v1/auth/logout':
         if (api.session === 'none') return route.fulfill(problem(401, 'session_revoked'));

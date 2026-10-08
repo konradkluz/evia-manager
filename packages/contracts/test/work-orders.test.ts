@@ -13,13 +13,13 @@ const bundled = JSON.parse(readFileSync('dist/openapi.json', 'utf8')) as {
 };
 
 describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPUT-01, SR-API-04)', () => {
-  it('EVM-017 AC7 listWorkOrders is a GET for the three roles on the web channel, with no step-up and no audit', () => {
+  it('EVM-017 AC7 listWorkOrders is a GET (the same path also carries createWorkOrder, EVM-022) for the three roles on the web channel, with no step-up and no audit', () => {
     expect(AUTHZ_MANIFEST['listWorkOrders']).toMatchObject({
       method: 'get',
       path: '/api/v1/work-orders',
       authz: { roles: ['administrator', 'editor', 'read_only'], channels: ['web'] },
     });
-    expect(Object.keys(bundled.paths['/api/v1/work-orders'] ?? {})).toEqual(['get']);
+    expect(Object.keys(bundled.paths['/api/v1/work-orders'] ?? {})).toEqual(['get', 'post']);
   });
 
   it('EVM-017 AC2 the query declares status, view, coordinatorId, sort, limit and cursor and no parameter that names a user for `mine`', () => {

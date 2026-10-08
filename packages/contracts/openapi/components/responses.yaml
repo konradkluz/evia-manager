@@ -261,3 +261,17 @@ IdempotencyMismatch:
         status: 422
         code: idempotency_mismatch
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+CreateWorkOrderUnprocessable:
+  description: >-
+    Szablon wycofany albo nieistniejący (`template_unavailable` — jednakowa odpowiedź w obu przypadkach) albo ten sam klucz
+    idempotencji z inną treścią lub na innej operacji (`idempotency_mismatch`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/template_unavailable
+        title: Work order template is not available
+        status: 422
+        code: template_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
