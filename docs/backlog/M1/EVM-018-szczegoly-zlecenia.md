@@ -101,3 +101,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: dane osobowe klienta, uprawnienia, nowy endpoint i UI; gałąź feature/EVM-018-work-order-details)
 - 2026-10-08 — implementacja (web-developer): kontrakt (4 odczyty), API (fasady `getCard` / `namesOf`), W-06 „Przegląd”, `Tabs` / `List` / `TextLink`; testy EVM-018 AC1–AC7 (API integracyjne, komponenty, E2E Chromium / Firefox / Edge, axe), zrzuty w `docs/ux/reviews/EVM-018/`
+- 2026-10-08 — weryfikacja backendu (backend-developer): bramka lokalna `pnpm run gate` zielona (kontener Linux, integracja, pokrycie zmienionego kodu 100% linii / 96,7% gałęzi); bez zmian w kodzie
