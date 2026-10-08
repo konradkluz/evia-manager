@@ -4,7 +4,8 @@ title: Klienci — lista, szczegóły, edycja i historia zleceń
 type: story
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -104,3 +105,5 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-039-customers)
+- 2026-10-08 — plan gotowy (backend-developer)

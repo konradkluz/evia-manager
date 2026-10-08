@@ -16,9 +16,14 @@ import type { EventContext } from '../events/event-bus.ts';
 import { ProblemException } from '../http/problem.ts';
 import type { BulkReadEvent, BulkReadObjectType } from './bulk-read-event.ts';
 import type { BulkReadMeter } from './bulk-read-meter.ts';
+import type { DistinctReadMeter } from './distinct-read-meter.ts';
 
 /** Alerts raised by the API process while it serves a request (never stored in the outbox). */
-export type RequestSecurityAlertCode = 'bulk_read';
+export type RequestSecurityAlertCode = 'bulk_read' | 'bulk_read_customers';
+
+/** What the distinct-object meter watches, and the code of the alert it raises (EVM-039: more than 300 different customers in an hour). */
+export type DistinctObjectType = Extract<BulkReadObjectType, 'customer'>;
+const DISTINCT_ALERT_CODES: Readonly<Record<DistinctObjectType, RequestSecurityAlertCode>> = { customer: 'bulk_read_customers' };
 
 export const BULK_READ_ALERT_METRIC = 'bulk_read_alert';
 export const BULK_READ_REJECTED_METRIC = 'bulk_read_rejected';
@@ -35,14 +40,16 @@ const eventOf = (
 
 export class BulkReadControl {
   readonly #meter: BulkReadMeter;
+  readonly #distinct: DistinctReadMeter;
   readonly #logger: Logger;
   readonly #alerts: Counter;
   readonly #rejections: Counter;
   readonly #publish: BulkReadPublisher;
 
-  constructor(meter: BulkReadMeter, logger: Logger, metrics: MetricsRegistry, publish: BulkReadPublisher) {
+  constructor(meter: BulkReadMeter, distinct: DistinctReadMeter, logger: Logger, metrics: MetricsRegistry, publish: BulkReadPublisher) {
     this.#publish = publish;
     this.#meter = meter;
+    this.#distinct = distinct;
     this.#logger = logger;
     this.#alerts = metrics.counter(BULK_READ_ALERT_METRIC, []);
     this.#rejections = metrics.counter(BULK_READ_REJECTED_METRIC, []);
@@ -66,5 +73,17 @@ export class BulkReadControl {
 
   after(userId: string, returned: number): void {
     this.#meter.record(userId, returned);
+  }
+
+  /**
+   * Notes the objects served by a response (P10: more than 300 DIFFERENT customers in an hour). Called AFTER the answer is built, so a
+   * refused or invalid request counts nothing. The alert is raised once per window and user, in the same shape as the record alert
+   * but with a code of its own; the entry carries no user, no identifier and no value — the person is named only in the audit trail.
+   */
+  async afterDistinct(userId: string, objectType: DistinctObjectType, ids: readonly string[], context: EventContext): Promise<void> {
+    if (!this.#distinct.record(userId, objectType, ids)) return;
+    this.#alerts.increment({});
+    this.#logger.error({ alert: 'security', alertCode: DISTINCT_ALERT_CODES[objectType] }, 'security alert');
+    await this.#publish(eventOf('bulk_read.alerted', 'success', userId, objectType), context);
   }
 }
