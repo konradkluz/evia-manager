@@ -6,6 +6,8 @@
 import { sql } from 'kysely';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
+import type { ActiveStatus } from '../domain/work-order-transitions.ts';
+import type { WorkOrderStatus } from '../domain/work-order-list-query.ts';
 import { visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
 
@@ -162,10 +164,89 @@ export async function findCoordinatorUserId(db: WorkOrdersDb, workOrderId: strin
 export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id: string) {
   return db
     .selectFrom('work_orders.work_orders')
-    .select(['id', 'number', 'title', 'status', 'customer_id', 'site_id', 'version', 'created_at'])
+    .select([
+      'id',
+      'number',
+      'title',
+      'status',
+      'customer_id',
+      'site_id',
+      'resume_status',
+      'status_changed_at',
+      'closed_at',
+      sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on'),
+      'version',
+      'created_at',
+    ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
     .executeTakeFirst();
 }
 
 export type ReadableWorkOrderRow = NonNullable<Awaited<ReturnType<typeof findReadableWorkOrder>>>;
+
+/**
+ * The order of a status command, LOCKED (`SELECT … FOR UPDATE`) with the read policy in the query (EVM-030 AC5, AC7; SR-API-06, SR-API-07):
+ * every decision of the command — the row of the table, the role, the step-up, the version, the conditions — is taken on THIS row,
+ * which no other transaction can change until this one ends. Never a decision on an earlier read. Only the columns the decision
+ * needs; the reason of an earlier hold or cancellation is not among them (it is overwritten, never read back).
+ */
+export function lockWorkOrderForTransition(db: WorkOrdersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('work_orders.work_orders')
+    .select([
+      'id',
+      'status',
+      'resume_status',
+      'closed_at',
+      sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on'),
+      'version',
+    ])
+    .where('id', '=', id)
+    .where(visibleWorkOrders(principal))
+    .forUpdate()
+    .executeTakeFirst();
+}
+
+export type LockedWorkOrderRow = NonNullable<Awaited<ReturnType<typeof lockWorkOrderForTransition>>>;
+
+export interface StatusColumns {
+  readonly status: WorkOrderStatus;
+  readonly resumeStatus: ActiveStatus | null;
+  readonly statusReason: string | null;
+  readonly closedAt: Date | null;
+  readonly completedOn: string | null;
+}
+
+/**
+ * Writes the new status and its companions and raises the version by one — only for the version the command decided on (the lock
+ * already guarantees it; the condition is the second line of defence). `undefined` — nothing was updated.
+ */
+export async function updateWorkOrderStatus(
+  db: WorkOrdersDb,
+  id: string,
+  expectedVersion: number,
+  columns: StatusColumns,
+  actorUserId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('work_orders.work_orders')
+    .set({
+      status: columns.status,
+      resume_status: columns.resumeStatus,
+      status_reason: columns.statusReason,
+      status_changed_at: now,
+      closed_at: columns.closedAt,
+      completed_on: columns.completedOn,
+      updated_at: now,
+      updated_by: actorUserId,
+      version: sql<number>`version + 1`,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is', null)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
+}

@@ -75,6 +75,8 @@ paths:
     $ref: paths/work-orders.yaml#/workOrders
   /api/v1/work-orders/{workOrderId}:
     $ref: paths/work-orders.yaml#/workOrder
+  /api/v1/work-orders/{workOrderId}/transitions:
+    $ref: paths/work-orders.yaml#/workOrderTransitions
   /api/v1/work-orders/{workOrderId}/scope-items:
     $ref: paths/work-orders.yaml#/workOrderScopeItems
   /api/v1/work-orders/{workOrderId}/customer:
@@ -197,6 +199,8 @@ components:
       $ref: components/work-orders.yaml#/WorkOrder
     WorkOrderDetails:
       $ref: components/work-orders.yaml#/WorkOrderDetails
+    TransitionWorkOrderRequest:
+      $ref: components/work-orders.yaml#/TransitionWorkOrderRequest
     ScopeItemList:
       $ref: components/work-orders.yaml#/ScopeItemList
     CustomerCard:

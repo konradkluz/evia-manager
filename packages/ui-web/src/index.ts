@@ -4,14 +4,21 @@
  */
 export { AlertDialog, type AlertDialogProps } from './alert-dialog.tsx';
 export { AppShell, MAIN_CONTENT_ID, type AppShellLabels, type AppShellProps } from './app-shell.tsx';
+export { ActionMenu, type ActionMenuItem, type ActionMenuProps, type ActionMenuTriggerProps } from './action-menu.tsx';
 export { AccountMenu, type AccountMenuItem, type AccountMenuProps } from './account-menu.tsx';
-export { StatusBadge, type StatusBadgeProps, type OrderStatusKey } from './status-badge.tsx';
+export {
+  StatusBadge,
+  StatusBadgeButton,
+  type StatusBadgeButtonProps,
+  type StatusBadgeProps,
+  type OrderStatusKey,
+} from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
 export { Dialog, type DialogProps } from './dialog.tsx';
 export { Disclosure, type DisclosureProps } from './disclosure.tsx';
 export { RadioGroup, type RadioGroupProps, type RadioOption } from './radio-group.tsx';
 export { TextArea, type TextAreaProps } from './text-area.tsx';
-export { Banner } from './banner.tsx';
+export { Banner, type BannerProps } from './banner.tsx';
 export { BlockingState, type BlockingStateProps } from './blocking-state.tsx';
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './button.tsx';
 export { Card } from './card.tsx';

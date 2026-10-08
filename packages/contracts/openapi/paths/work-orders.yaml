@@ -302,3 +302,105 @@ workOrderSite:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+workOrderTransitions:
+  post:
+    operationId: transitionWorkOrder
+    tags: [work-orders]
+    summary: Zmiana statusu zlecenia (komenda przejścia)
+    description: >-
+      Jedyna droga zmiany statusu (`PATCH` pola `status` jest odrzucany, EVM-035): `{ "to": "on_hold", "reason": "…" }` wg tabeli
+      przejść z `domain-model.md`. Role Administrator i Edytor (Tylko odczyt — `403 forbidden`, niezalogowany — `401`), kanał `web`,
+      z audytem (`work_order.cancelled`, `work_order.restored` — identyfikatory, bez powodu). Wymaga `X-CSRF-Token` i `If-Match`
+      (silny ETag `"<version>"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony —
+      `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict`.
+      Przywrócenie (`settled → completed`, `cancelled → on_hold`) tylko Administrator i tylko z uwierzytelnieniem kluczem dostępu w
+      ostatnich 15 minutach: Edytor — `403 forbidden`, Administrator bez świeżego uwierzytelnienia — `403 step_up_required` (po roli;
+      to kontrola obiektowa przypadku użycia, bo zależy od statusu źródłowego, a nie od operacji — dlatego `stepUp` operacji jest
+      `false`). Operacja jest tylko dla kanału `web`, bo step-up istnieje tylko w panelu (SR-AUTHZ-12).
+      Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT … FOR UPDATE`, w jednej transakcji): zlecenie nieistniejące albo
+      usunięte — `404 not_found` (ta sama odpowiedź); `If-Match`; treść (`400`); powtórka idempotentna (zapisany wynik, bez
+      ponownej kontroli wersji); brak przejścia w tabeli — `409 invalid_state_transition` (gdy wersja jest nieaktualna — `412`, bo klient
+      i tak musi pobrać zlecenie); rola; step-up; wersja (`412`); pola przejścia (`reason`, `completedOn` — `400`); warunki modułów
+      (`422 transition_condition_not_met`, `errors[]` z `/to` i kodem powodu), potem zapis, skutki modułów w tej samej transakcji i
+      audyt. Błąd któregokolwiek kroku cofa całość (status, skutki modułów, audyt i rekord idempotencji).
+      Skutki: wstrzymanie i anulowanie zapisują powód i status źródłowy (`resumeStatus`); wznowienie wraca do `resumeStatus` (inny
+      cel — `409`); anulowanie i rozliczenie ustawiają `closedAt`, przywrócenie je czyści; „Zakończ” ustawia `completedOn` (domyślnie
+      dziś w `Europe/Warsaw`), ponowne otwarcie czyści. `reason` jest polem swobodnym i nigdy nie trafia do audytu, logów, odpowiedzi
+      ani komunikatów błędów (tylko kody).
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest
+      związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem zlecenia: ten sam klucz z tą samą treścią na innym
+      zleceniu — `422 idempotency_mismatch`. Powtórka (ten sam klucz, zlecenie i treść) — `200` z bieżącą reprezentacją i
+      `Idempotent-Replayed: true`, bez drugiego przejścia i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny.
+      Odpowiedź `200` ma nowy `ETag`. Limit żądań: ogólny limit na adres IP (`429 rate_limited` z `Retry-After`).
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      stepUp: false
+      transitions: workOrderStatus
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - name: If-Match
+        in: header
+        required: true
+        description: Silny ETag wersji zlecenia, na której klient podjął decyzję (`"<version>"`, z `ETag` odczytu).
+        schema:
+          type: string
+          pattern: '^"[1-9][0-9]{0,9}"$'
+          maxLength: 12
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/TransitionWorkOrderRequest
+    responses:
+      '200':
+        description: >-
+          Zlecenie po przejściu (albo powtórka wcześniejszego przejścia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/TransitionForbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/TransitionConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/TransitionUnprocessable
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

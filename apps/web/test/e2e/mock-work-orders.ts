@@ -30,6 +30,15 @@ export interface MockAssignable {
   readonly displayName: string;
 }
 
+/** EVM-030: the life cycle of a created order on the synthetic server (the table of transitions is the one of `domain-model.md`, reduced). */
+export interface OrderState {
+  status: string;
+  version: number;
+  resumeStatus?: string;
+  completedOn?: string;
+  closedAt?: string;
+}
+
 export interface OrderServer {
   readonly templates: MockTemplate[];
   readonly assignable: MockAssignable[];
@@ -53,6 +62,10 @@ export interface OrderServer {
   notes: string;
   /** `Idempotency-Key` → the body it was first used with. */
   readonly keys: Map<string, string>;
+  /** EVM-030: the status and the version of every created order (by id). */
+  readonly states: Map<string, OrderState>;
+  /** EVM-030: `Idempotency-Key` of a transition → the scope (`orderId|body`) and the answer given (a retry gets the same one). */
+  readonly transitionKeys: Map<string, { readonly scope: string; readonly answer: Answer }>;
 }
 
 interface Answer {
@@ -130,7 +143,10 @@ function templateBody(template: MockTemplate) {
   };
 }
 
+const stateOf = (server: OrderServer, id: string): OrderState => server.states.get(id) ?? { status: 'new', version: 1 };
+
 function represent(server: OrderServer, created: MockCreatedOrder) {
+  const state = stateOf(server, created.id);
   const customer = server.customers.find((entry) => entry.id === created.customerId);
   const site = server.sites.find((entry) => entry.id === created.siteId);
   const coordinator = server.assignable.find((entry) => entry.id === created.assigneeUserId);
@@ -138,7 +154,7 @@ function represent(server: OrderServer, created: MockCreatedOrder) {
     id: created.id,
     number: created.number,
     title: created.title,
-    status: 'new',
+    status: state.status,
     customer: { id: created.customerId, displayName: customer?.displayName ?? '' },
     site,
     coordinator: { id: created.assigneeUserId, displayName: coordinator?.displayName ?? '' },
@@ -153,7 +169,7 @@ function represent(server: OrderServer, created: MockCreatedOrder) {
       parameters: {},
       quantity: 1,
     })),
-    version: 1,
+    version: state.version,
     createdAt: new Date().toISOString(),
   };
 }
@@ -165,7 +181,7 @@ export function createdListItems(server: OrderServer) {
       id: created.id,
       number: created.number,
       title: created.title,
-      status: 'new' as const,
+      status: stateOf(server, created.id).status,
       coordinator: server.assignable.find((entry) => entry.id === created.assigneeUserId) ?? null,
       createdAt: new Date().toISOString(),
     }))
@@ -233,6 +249,7 @@ export function answerCreate(
     scopeItems: template?.items.length ?? 0,
   };
   server.created.push(created);
+  server.states.set(created.id, { status: 'new', version: 1 });
   if (idempotencyKey !== undefined) server.keys.set(idempotencyKey, rawBody);
   if (loseAnswer) return 'abort';
   return json(201, represent(server, created), { ETag: '"1"' });
@@ -257,13 +274,19 @@ function scopeItemsOf(created: MockCreatedOrder) {
  * The four reads of one order (EVM-018; W-06): `''` the header, `scope-items`, `customer`, `site`. An order that was not created in this
  * run, and one that is `gone`, are the same `404 not_found`. Every answer has only the fields of the contract.
  */
-export function answerOrderRead(server: OrderServer, id: string, part: '' | 'scope-items' | 'customer' | 'site'): Answer {
+export function answerOrderRead(
+  server: OrderServer,
+  id: string,
+  part: '' | 'scope-items' | 'customer' | 'site',
+  role: Role = 'administrator',
+): Answer {
   const created = server.created.find((entry) => entry.id === id);
   if (created === undefined || server.gone.has(id)) return NOT_FOUND;
   const customer = server.customers.find((entry) => entry.id === created.customerId);
   const site = server.sites.find((entry) => entry.id === created.siteId);
   if (part === '') {
     const order = represent(server, created);
+    const state = stateOf(server, created.id);
     const header = {
       id: order.id,
       number: order.number,
@@ -272,10 +295,14 @@ export function answerOrderRead(server: OrderServer, id: string, part: '' | 'sco
       customer: order.customer,
       site: order.site,
       coordinator: order.coordinator,
+      allowedTransitions: allowedFor(role, state),
+      ...(state.resumeStatus === undefined ? {} : { resumeStatus: state.resumeStatus }),
+      ...(state.completedOn === undefined ? {} : { completedOn: state.completedOn }),
+      ...(state.closedAt === undefined ? {} : { closedAt: state.closedAt }),
       version: order.version,
       createdAt: order.createdAt,
     };
-    return json(200, header, { ETag: '"1"' });
+    return json(200, header, { ETag: `"${String(state.version)}"` });
   }
   if (part === 'scope-items') return json(200, { items: scopeItemsOf(created) });
   if (part === 'customer') {
@@ -301,4 +328,79 @@ export function answerOrderRead(server: OrderServer, id: string, part: '' | 'sco
     distributionSystemOperator: osd === undefined ? null : { id: osd.id, displayName: osd.displayName },
     manager: manager === undefined ? null : { id: manager.id, displayName: manager.displayName },
   });
+}
+
+export type Role = 'administrator' | 'editor' | 'read_only';
+
+/** Every edge the table has, whoever walks it (the restore edges are the ones of the closed states). */
+const EDGES: Readonly<Record<string, readonly string[]>> = {
+  new: ['quoting', 'accepted', 'on_hold', 'cancelled'],
+  quoting: ['accepted', 'on_hold', 'cancelled'],
+  accepted: ['in_progress', 'on_hold', 'cancelled'],
+  in_progress: ['completed', 'on_hold', 'cancelled'],
+  completed: ['settled', 'in_progress'],
+  settled: ['completed'],
+  cancelled: ['on_hold'],
+};
+
+const isRestore = (from: string, to: string): boolean =>
+  (from === 'settled' && to === 'completed') || (from === 'cancelled' && to === 'on_hold');
+
+function edgesOf(state: OrderState): readonly string[] {
+  return state.status === 'on_hold' ? [state.resumeStatus ?? 'in_progress', 'cancelled'] : (EDGES[state.status] ?? []);
+}
+
+/** `allowedTransitions` of the caller: Tylko odczyt none, the Editor without the restore edges (EVM-030). */
+export function allowedFor(role: Role, state: OrderState): string[] {
+  if (role === 'read_only') return [];
+  return edgesOf(state).filter((to) => role === 'administrator' || !isRestore(state.status, to));
+}
+
+interface TransitionInput {
+  readonly role: Role;
+  readonly stepUpFresh: boolean;
+  readonly ifMatch: string | undefined;
+  readonly key: string | undefined;
+  readonly raw: string;
+}
+
+/**
+ * `POST /work-orders/{id}/transitions` of the synthetic API: 404, then 428/400 (`If-Match`), the replay of a key, the role, the edge (409; 412
+ * when the version is stale), the step-up of the restore, the version (412), the reason (400), the change. Same key and body: the same answer.
+ */
+export function answerTransition(server: OrderServer, id: string, input: TransitionInput): Answer {
+  const created = server.created.find((entry) => entry.id === id);
+  if (created === undefined || server.gone.has(id)) return NOT_FOUND;
+  if (input.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  const scope = id + '|' + input.raw;
+  const replay = input.key === undefined ? undefined : server.transitionKeys.get(input.key);
+  if (replay !== undefined) {
+    if (replay.scope !== scope) return problem(422, 'idempotency_mismatch');
+    return { ...replay.answer, headers: { ...replay.answer.headers, 'Idempotent-Replayed': 'true' } };
+  }
+  if (input.role === 'read_only') return problem(403, 'forbidden');
+  const state = stateOf(server, id);
+  const request = JSON.parse(input.raw) as { to: string; reason?: string; completedOn?: string };
+  const stale = Number(match[1]) !== state.version;
+  if (!edgesOf(state).includes(request.to)) return stale ? problem(412, 'version_conflict') : problem(409, 'invalid_state_transition');
+  if (isRestore(state.status, request.to)) {
+    if (input.role !== 'administrator') return problem(403, 'forbidden');
+    if (!input.stepUpFresh) return problem(403, 'step_up_required');
+  }
+  if (stale) return problem(412, 'version_conflict');
+  const needsReason = (request.to === 'on_hold' || request.to === 'cancelled') && !isRestore(state.status, request.to);
+  if (needsReason && (request.reason === undefined || request.reason.trim() === '')) {
+    return problem(400, 'validation_failed', { errors: [{ pointer: '/reason', code: 'required' }] });
+  }
+  const next: OrderState = { status: request.to, version: state.version + 1 };
+  if (request.to === 'on_hold' && state.status !== 'cancelled') next.resumeStatus = state.status;
+  if (request.to === 'completed') next.completedOn = request.completedOn ?? new Date().toISOString().slice(0, 10);
+  if (request.to === 'settled' || request.to === 'cancelled') next.closedAt = new Date().toISOString();
+  server.states.set(id, next);
+  const order = answerOrderRead(server, id, '', input.role);
+  const answer = { ...order, headers: { ...order.headers, ETag: `"${String(next.version)}"` } };
+  if (input.key !== undefined) server.transitionKeys.set(input.key, { scope, answer });
+  return answer;
 }

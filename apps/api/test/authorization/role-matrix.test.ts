@@ -98,18 +98,20 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate and the four reads of a work order: the IDOR cells of each are the three roles on the web channel', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 the operations of the real contract with an object parameter are getWorkOrderTemplate, the four reads of a work order and the status command: the IDOR cells of each are the roles entitled to it on the web channel', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = ['getWorkOrderTemplate', 'getWorkOrder', 'listWorkOrderScopeItems', 'getWorkOrderCustomer', 'getWorkOrderSite'];
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(operations));
-    for (const operationId of operations) {
+    const rolesOf = (operationId: string): string[] =>
+      operationId === 'transitionWorkOrder' ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...operations, 'transitionWorkOrder']));
+    for (const operationId of [...operations, 'transitionWorkOrder']) {
       expect(
         idor
           .filter((cell) => cell.operationId === operationId)
           .map((cell) => JSON.stringify(cell.caller))
           .sort(),
       ).toEqual(
-        ['administrator', 'editor', 'read_only']
+        rolesOf(operationId)
           .map((role) => JSON.stringify({ kind: 'session', role, channel: 'web', state: 'active' }))
           .sort(),
       );

@@ -13,6 +13,8 @@ export function headerOf(order: WorkOrder): WorkOrderDetails {
     customer: order.customer,
     site: order.site,
     coordinator: order.coordinator,
+    // the menu of transitions depends on the role: the creation answer does not carry it, the API answer that replaces this one does (EVM-030)
+    allowedTransitions: [],
     version: order.version,
     createdAt: order.createdAt,
   };

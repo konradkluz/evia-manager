@@ -91,7 +91,11 @@ const roleSession = (role: 'editor' | 'read_only'): CurrentSession => ({ ...ACTI
 
 /** Registers the four reads of W-06 (EVM-018) for the order just created, so the page opened after the creation can ask for them. */
 function registerReads(api: ReturnType<typeof activeSessionApi>, created: Record<string, unknown>) {
-  const header = Object.fromEntries(Object.entries(created).filter(([key]) => key !== 'scopeItems'));
+  // the API sends the menu of transitions of the person with the header (EVM-030); the creation answer does not carry it
+  const header = {
+    ...Object.fromEntries(Object.entries(created).filter(([key]) => key !== 'scopeItems')),
+    allowedTransitions: ['quoting', 'accepted', 'on_hold', 'cancelled'],
+  };
   const routes = workOrderRoutes(String(created['id']), {
     header: () => json(200, header, { ETag: '"1"' }),
     scope: () => json(200, { items: [] }),

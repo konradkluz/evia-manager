@@ -24,6 +24,8 @@ AuditAction:
     - site.created
     - party.created
     - work_order.created
+    - work_order.cancelled
+    - work_order.restored
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.

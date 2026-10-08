@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
@@ -95,6 +96,7 @@ export function WorkOrderPage() {
     <div className="flex flex-col gap-stack-lg">
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(header.dataUpdatedAt) })}</Banner>}
       <WorkOrderHeader order={order} headingRef={heading} />
+      <ClosedBanner order={order} />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs

@@ -53,6 +53,11 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
       'source_template_id',
       'planned_date',
       'description',
+      'resume_status',
+      'status_reason',
+      'status_changed_at',
+      'closed_at',
+      'completed_on',
     ]);
     expect(columns('work_order_assignments')).toEqual(['id', 'work_order_id', 'user_id', 'role', ...common]);
     expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([

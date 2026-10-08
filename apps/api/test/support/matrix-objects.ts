@@ -16,7 +16,7 @@ const SUFFIX: Record<(typeof READS)[number], string> = {
 };
 
 /**
- * The IDOR fixture of the four reads of one work order (EVM-018 AC3, AC6; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): "own" is a live order
+ * The IDOR fixture of the four reads of one work order and of the status command (EVM-018 AC3, AC6; EVM-030 AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): "own" is a live order
  * with a customer, a site and a scope item; "foreign" is an EXISTING order that is soft deleted — a random identifier would not
  * prove that the read policy runs: here the row is in the table and only the policy keeps it from the caller.
  */
@@ -33,12 +33,16 @@ export async function workOrderObjects(app: IdentityApp): Promise<Record<string,
   if (own === undefined || foreign === undefined) throw new Error('the fixture orders were not inserted');
   await insertScopeItems(db, own, [{ position: 1, parameters: { powerKw: 11 } }]);
   await insertScopeItems(db, foreign, [{ position: 1 }]);
-  return Object.fromEntries(
-    READS.map((operationId) => [
-      operationId,
-      { own: () => `${WORK_ORDERS}/${own}${SUFFIX[operationId]}`, foreign: () => `${WORK_ORDERS}/${foreign}${SUFFIX[operationId]}` },
-    ]),
-  );
+  return {
+    ...Object.fromEntries(
+      READS.map((operationId) => [
+        operationId,
+        { own: () => `${WORK_ORDERS}/${own}${SUFFIX[operationId]}`, foreign: () => `${WORK_ORDERS}/${foreign}${SUFFIX[operationId]}` },
+      ]),
+    ),
+    // the status command (EVM-030 AC7): the same pair — a live order, and an EXISTING order that is soft deleted
+    transitionWorkOrder: { own: () => `${WORK_ORDERS}/${own}/transitions`, foreign: () => `${WORK_ORDERS}/${foreign}/transitions` },
+  };
 }
 
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
