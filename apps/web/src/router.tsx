@@ -1,4 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Navigate, Outlet, useRouterState, type RouterHistory } from '@tanstack/react-router';
+import { CustomerPage } from './pages/customer-page.tsx';
+import { CustomersPage } from './pages/customers-page.tsx';
 import { AuditPage } from './pages/audit-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
@@ -11,6 +13,7 @@ import {
   ACTIVATE_PATH,
   ADMINISTRATION_PATH,
   AUDIT_PATH,
+  CUSTOMERS_PATH,
   LOGIN_PATH,
   LOGIN_SECOND_STEP_PATH,
   MFA_SETUP_PATH,
@@ -46,6 +49,9 @@ const workOrdersRoute = createRoute({
 const newWorkOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: NEW_WORK_ORDER_PATH, component: NewWorkOrderPage });
 /** W-06 (EVM-018): the identifier is a UUID of the API; the page reads the order by it, four reads anchored in the order. */
 const workOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: `${WORK_ORDERS_PATH}/$workOrderId`, component: WorkOrderPage });
+/** W-14 (EVM-039): the list of customers, and one customer by the UUID of the API. */
+const customersRoute = createRoute({ getParentRoute: () => rootRoute, path: CUSTOMERS_PATH, component: CustomersPage });
+const customerRoute = createRoute({ getParentRoute: () => rootRoute, path: `${CUSTOMERS_PATH}/$customerId`, component: CustomerPage });
 const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
 const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
@@ -65,6 +71,8 @@ const routeTree = rootRoute.addChildren([
   workOrdersRoute,
   newWorkOrderRoute,
   workOrderRoute,
+  customersRoute,
+  customerRoute,
   administrationRoute,
   auditRoute,
   activateRoute,

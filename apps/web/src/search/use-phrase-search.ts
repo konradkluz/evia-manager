@@ -9,7 +9,7 @@ const SEARCH_MAX = 100;
 /** The search starts when typing pauses; the API allows 60 searches a minute per person and kind of search. */
 const SEARCH_DELAY_MS = 300;
 
-const phraseOf = (text: string): string => text.normalize('NFC').trim();
+export const phraseOf = (text: string): string => text.normalize('NFC').trim();
 
 export type PhraseState = 'empty' | 'short' | 'long' | 'ok';
 
