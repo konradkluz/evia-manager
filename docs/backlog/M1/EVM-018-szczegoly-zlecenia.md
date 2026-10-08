@@ -4,7 +4,7 @@ title: Szczegóły zlecenia — nagłówek, klient, lokalizacja i zakres
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: web-developer
@@ -97,7 +97,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -107,3 +107,4 @@ _—_
 - 2026-10-08 — weryfikacja backendu (backend-developer): bramka lokalna `pnpm run gate` zielona (kontener Linux, integracja, pokrycie zmienionego kodu 100% linii / 96,7% gałęzi); bez zmian w kodzie
 - 2026-10-08 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 100% / gałęzie 96,7%; → in-review
 - 2026-10-08 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 0,90 mln tokenów subagentów, 8 agentów, 320 wywołań narzędzi, 1 runda, ok. 62 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-08 — zaakceptowane przez Konrada, scalone do main (PR #34) → done
