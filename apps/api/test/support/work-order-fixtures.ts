@@ -132,6 +132,8 @@ export async function generateWorkOrders(
 
 /** Empties the tables the creation of an order writes to (children first: the keys are RESTRICT), the counter and the idempotency records. */
 export async function clearWorkOrderCreation(db: Kysely<Database>): Promise<void> {
+  await sql`delete from procedures.procedure_stages`.execute(db);
+  await sql`delete from procedures.procedures`.execute(db);
   await sql`delete from work_orders.scope_items`.execute(db);
   await sql`delete from work_orders.work_order_assignments`.execute(db);
   await sql`delete from work_orders.work_orders`.execute(db);

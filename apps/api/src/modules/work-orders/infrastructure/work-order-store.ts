@@ -250,3 +250,12 @@ export async function updateWorkOrderStatus(
     .executeTakeFirst();
   return row?.version;
 }
+
+/**
+ * The identifier and the status of an order the caller may see (the read policy is in the query) — what the facade for other modules
+ * needs. With `lock` the row is taken `FOR UPDATE` (the caller is in a transaction of a change that depends on the status).
+ */
+export function findVisibleWorkOrderRef(db: WorkOrdersDb, principal: Principal, id: string, options: { readonly lock: boolean }) {
+  const query = db.selectFrom('work_orders.work_orders').select(['id', 'status']).where('id', '=', id).where(visibleWorkOrders(principal));
+  return (options.lock ? query.forUpdate() : query).executeTakeFirst();
+}

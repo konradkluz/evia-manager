@@ -5,7 +5,7 @@
  * by `MAX_LIST_ITEMS` (the sets are small and returned whole).
  */
 import { MAX_LIST_ITEMS } from '../domain/vocabularies.ts';
-import type { TemplateForCopy } from '../template-directory.ts';
+import type { TemplateForCopy, TemplateProcedureForCopy } from '../template-directory.ts';
 import type { CatalogDb } from './tables.ts';
 
 export interface DocumentKindRow {
@@ -303,4 +303,68 @@ export async function findActiveTemplateItems(db: CatalogDb, id: string): Promis
     .limit(MAX_LIST_ITEMS)
     .execute();
   return { id: template.id, name: template.name, items };
+}
+
+/**
+ * The processes a work order made from a template gets (EVM-031 AC1): those its items bring, counted as the preview of the card counts
+ * them (the same filters: the item, its service, the link and the process are not deleted). A process brought by several items comes
+ * ONCE — with the first item that brings it — in the order of that first appearance (item position, then the position in the item),
+ * each with its stages in order. `broughtByCatalogItemId` names that first item, so the caller can point at the scope item it copied.
+ */
+export async function findTemplateProcedures(db: CatalogDb, templateId: string): Promise<TemplateProcedureForCopy[]> {
+  const brought = await db
+    .selectFrom('catalog.work_order_template_items as item')
+    .innerJoin('catalog.service_catalog_items as service', 'service.id', 'item.catalog_item_id')
+    .innerJoin('catalog.service_catalog_item_procedures as link', 'link.catalog_item_id', 'item.catalog_item_id')
+    .innerJoin('catalog.procedure_templates as procedure', 'procedure.id', 'link.procedure_template_id')
+    .select(['procedure.id as procedureTemplateId', 'procedure.code', 'procedure.name', 'item.catalog_item_id as broughtByCatalogItemId'])
+    .where('item.work_order_template_id', '=', templateId)
+    .where('item.deleted_at', 'is', null)
+    .where('service.deleted_at', 'is', null)
+    .where('link.deleted_at', 'is', null)
+    .where('procedure.deleted_at', 'is', null)
+    .orderBy('item.position')
+    .orderBy('link.position')
+    .limit(MAX_LIST_ITEMS)
+    .execute();
+  const seen = new Set<string>();
+  const distinct = brought.filter((row) => {
+    if (seen.has(row.code)) return false;
+    seen.add(row.code);
+    return true;
+  });
+  if (distinct.length === 0) return [];
+  const stages = await db
+    .selectFrom('catalog.procedure_stage_templates as stage')
+    .select([
+      'stage.id as sourceStageTemplateId',
+      'stage.procedure_template_id as procedureTemplateId',
+      'stage.code',
+      'stage.name',
+      'stage.position',
+      'stage.output_document_kind_codes as outputDocumentKindCodes',
+    ])
+    .where(
+      'stage.procedure_template_id',
+      'in',
+      distinct.map((row) => row.procedureTemplateId),
+    )
+    .where('stage.deleted_at', 'is', null)
+    .orderBy('stage.procedure_template_id')
+    .orderBy('stage.position')
+    .execute();
+  const byProcedure = groupBy(stages, (stage) => stage.procedureTemplateId);
+  return distinct.map((row) => ({
+    sourceProcedureTemplateId: row.procedureTemplateId,
+    code: row.code,
+    name: row.name,
+    broughtByCatalogItemId: row.broughtByCatalogItemId,
+    stages: (byProcedure.get(row.procedureTemplateId) ?? []).map((stage) => ({
+      sourceStageTemplateId: stage.sourceStageTemplateId,
+      code: stage.code,
+      name: stage.name,
+      position: stage.position,
+      outputDocumentKindCodes: stage.outputDocumentKindCodes,
+    })),
+  }));
 }

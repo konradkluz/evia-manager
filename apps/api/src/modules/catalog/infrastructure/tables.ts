@@ -26,6 +26,7 @@ export interface ProcedureTemplatesTable extends Retired {
 }
 
 export interface ProcedureStageTemplatesTable extends Retired {
+  id: string;
   procedure_template_id: string;
   code: string;
   name: string;

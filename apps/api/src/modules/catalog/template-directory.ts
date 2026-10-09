@@ -28,7 +28,31 @@ export interface TemplateForCopy {
   readonly items: readonly TemplateScopeItem[];
 }
 
+/** One stage of a process template, ready to become a stage of an order (the copy: code, name, position; `source…Id` says where from). */
+export interface TemplateStageForCopy {
+  readonly sourceStageTemplateId: string;
+  readonly code: string;
+  readonly name: string;
+  readonly position: number;
+  readonly outputDocumentKindCodes: readonly string[];
+}
+
+/** One process a template brings, with its stages in order (EVM-031: the processes of a new work order). */
+export interface TemplateProcedureForCopy {
+  readonly sourceProcedureTemplateId: string;
+  readonly code: string;
+  readonly name: string;
+  /** The catalogue item (of the template) that brings the process — the first one, when several do. */
+  readonly broughtByCatalogItemId: string;
+  readonly stages: readonly TemplateStageForCopy[];
+}
+
 export interface TemplateDirectory {
   /** @returns the template with its items when it is active; `undefined` when it is missing, retired or deleted */
   findActiveForCopy(tx: Kysely<Database>, id: string): Promise<TemplateForCopy | undefined>;
+  /**
+   * The processes the items of a template bring, each once and in order of first appearance, with their stages (EVM-031 AC1). The
+   * caller has resolved the template with {@link findActiveForCopy} in the same transaction; an unknown id gives an empty list.
+   */
+  findProceduresForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplateProcedureForCopy[]>;
 }
