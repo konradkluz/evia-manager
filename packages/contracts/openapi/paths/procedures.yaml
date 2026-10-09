@@ -52,11 +52,11 @@ procedureStage:
       zmian, odpowiedź nie zawiera bieżących wartości). Etap jest wyszukiwany warunkiem `id = {stageId} AND work_order_id = {workOrderId}`
       w zapytaniu: etap innego zlecenia, nieistniejący, a także etap zlecenia nieistniejącego albo usuniętego (także dla Administratora) —
       jedna odpowiedź `404 not_found`, niezależnie od treści (treść jest sprawdzana dopiero po `404`). Zlecenie Rozliczone albo Anulowane — `409 work_order_closed` (PO-8; sprawdzane
-      po `404` i treści, przed wersją). Treść to `ProcedureStagePatch`: co najmniej jedno z `responsibleUserId`, `dueDate`; pole
-      kontrolowane przez serwer (`status`, `name`, `code`, `position`, `version`, `overdue`, pola „czekamy na”, `notes`) —
+      po `404` i treści, przed wersją). Treść to `ProcedureStagePatch`: co najmniej jedno z `responsibleUserId`, `dueDate`, `waitingOn` (z `waitingOnPartyId`, `waitingSince`); pole
+      kontrolowane przez serwer (`status`, `name`, `code`, `position`, `version`, `overdue`, `waitingParty`, `waitingDays`, `blockedReason`, `startedAt`, `completedOn`, `notes`) —
       `400 read_only_field`, pole spoza schematu — `400 unknown_field`; `responsibleUserId` spoza aktywnych użytkowników (nieistniejący,
       zaproszony, zdezaktywowany, usunięty — jedna odpowiedź) — `400 validation_failed` (`/responsibleUserId`, `assignee_unavailable`);
-      `dueDate` poza zakresem 2000-01-01..2100-12-31 — `400` (`/dueDate`, `out_of_range`). Kolejność: guard (rola, CSRF, kanał), ścieżka,
+      `dueDate` poza zakresem 2000-01-01..2100-12-31 — `400` (`/dueDate`, `out_of_range`). „Zmień, na kogo czekamy…” (EVM-032 AC3) to edycja, nie przejście: pola `waitingOn` / `waitingOnPartyId` / `waitingSince` tylko w statusie `waiting` (inaczej `409 invalid_state_transition`), `waitingOn` wymagane, gdy jest którekolwiek z nich, `waitingSince` domyślnie dziś (licznik dni zaczyna się od nowa), strona nieistniejąca albo usunięta — `400` (`/waitingOnPartyId`, `unknown_party`). Audyt i `procedure_stage.updated` bez wartości. Kolejność: guard (rola, CSRF, kanał), ścieżka,
       nagłówki (`Idempotency-Key`, `If-Match`), blokada zlecenia i etapu `SELECT … FOR UPDATE` (polityka odczytu w zapytaniu; `404`),
       treść (`400`), powtórka idempotentna, `409 work_order_closed`, wersja (`412`), osoba odpowiedzialna (`400`), zapis `version + 1`,
       audyt i rekord idempotencji w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny,
@@ -121,7 +121,7 @@ procedureStage:
       '404':
         $ref: ../components/responses.yaml#/NotFound
       '409':
-        $ref: ../components/responses.yaml#/WorkOrderClosed
+        $ref: ../components/responses.yaml#/StageConflict
       '412':
         $ref: ../components/responses.yaml#/PreconditionFailed
       '413':
@@ -143,3 +143,110 @@ ProcedureStageIdParameter:
     type: string
     format: uuid
     maxLength: 36
+procedureStageTransitions:
+  post:
+    operationId: transitionProcedureStage
+    tags: [procedures]
+    summary: Zmiana statusu etapu (komenda przejścia, „Czekamy na…”)
+    description: >-
+      Jedyna droga zmiany statusu etapu (`PATCH` pola `status` jest odrzucany — `400 read_only_field`; EVM-032 AC1–AC7):
+      `{ "to": "waiting", "waitingOn": "party", "waitingOnPartyId": "…" }` wg tabeli przejść „Etap procesu” z `domain-model.md`.
+      „Cofnij” w panelu to zwykłe przejście z parametrami, które użytkownik mógłby podać ręcznie (np. `in_progress → waiting` z
+      poprzednim `waitingSince`) — nie ma osobnej operacji ani przywracania pól. Role Administrator i Edytor (Tylko odczyt — `403
+      forbidden` przed `If-Match`, treścią i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`),
+      kanał `web`, z audytem (`procedure_stage.transitioned` — aktor, identyfikator etapu, wynik i `traceId`; bez powodu blokady, nazwy
+      strony, identyfikatora strony i dat). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` etapu): brak — `428
+      precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna
+      wersja — `412 version_conflict` (dane etapu zostają bez zmian). Etap jest wyszukiwany warunkiem `id = {stageId} AND work_order_id =
+      {workOrderId}`: etap innego zlecenia, nieistniejący i etap zlecenia usuniętego (także dla Administratora) to jedna odpowiedź `404
+      not_found`, niezależnie od treści.
+      Kolejność (decyzje zapadają na wierszach zablokowanych `SELECT … FOR UPDATE`, w jednej transakcji): guard (rola, CSRF, kanał),
+      ścieżka (`400`), nagłówki (`Idempotency-Key`, `If-Match`), zlecenie i etap (`404`), treść (`400`: schemat i reguły pól danego `to`,
+      kod i wskaźnik, nigdy wartość), powtórka idempotentna (zapisany wynik, bez ponownej kontroli wersji), zlecenie zamknięte
+      (`409 work_order_closed`, grubsza bramka — przed tabelą), przejście w tabeli (brak: `412` przy nieaktualnej wersji, inaczej `409
+      invalid_state_transition`), wersja (`412`), strona (`400`, `/waitingOnPartyId`, `unknown_party` — nieistniejąca i usunięta to ta
+      sama odpowiedź dla każdej roli, kontrola z blokadą wiersza w tej samej transakcji), zapis `version + 1`, audyt i rekord idempotencji.
+      Błąd któregokolwiek kroku cofa całość.
+      Skutki: „Rozpocznij” (`todo → in_progress`) zapisuje `startedAt`; wejście w `waiting` zapisuje `waitingOn`, stronę i `waitingSince`
+      (domyślnie dziś w `Europe/Warsaw`); wyjście z `waiting` i „Zakończ” czyszczą dane oczekiwania; „Zakończ” ustawia `completedOn`
+      (domyślnie dziś); „Zablokuj” zapisuje `blockedReason`, „Odblokuj” go czyści; „Otwórz ponownie” czyści `completedOn`. Postęp procesu
+      (`progress`) i `openStageCount` liczy odczyt listy. `blockedReason` jest polem swobodnym i nigdy nie trafia do audytu, logów,
+      komunikatów błędów ani rekordu idempotencji (tylko skrót treści). Pole, którego dane `to` nie przyjmuje — `400` (`not_allowed`).
+      Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze; klucz jest
+      związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem etapu — ten sam klucz z tą samą treścią dla innego etapu to
+      `422 idempotency_mismatch`. Powtórka (ten sam klucz, etap i treść) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`,
+      bez drugiego przejścia i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`.
+      Limit żądań: ogólny limit na adres IP (`429 rate_limited` z `Retry-After`).
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      stepUp: false
+      transitions: procedureStageStatus
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureStageIdParameter'
+      - name: If-Match
+        in: header
+        required: true
+        description: Silny ETag wersji etapu, na której użytkownik podjął decyzję (`"<version>"`, z pola `version` etapu).
+        schema:
+          type: string
+          pattern: '^"[1-9][0-9]{0,9}"$'
+          maxLength: 12
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/procedures.yaml#/TransitionProcedureStageRequest
+    responses:
+      '200':
+        description: >-
+          Etap po przejściu (albo powtórka wcześniejszego przejścia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja etapu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, etapem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/ProcedureStage
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/StageConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

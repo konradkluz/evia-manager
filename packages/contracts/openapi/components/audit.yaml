@@ -30,6 +30,7 @@ AuditAction:
     - work_order.cancelled
     - work_order.restored
     - procedure_stage.updated
+    - procedure_stage.transitioned
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
