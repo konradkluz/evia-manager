@@ -27,6 +27,7 @@ const RELAXED = new Set(['tools/docs-lifecycle']);
 /** Tools that run without installed dependencies (CI jobs and the container entry point run them before `pnpm install`). */
 const DEPENDENCY_FREE = [
   'tools/container',
+  'tools/dev-env',
   'tools/diff-coverage',
   'tools/docs-lifecycle',
   'tools/git-hooks',
@@ -85,6 +86,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'packages/tokens',
       'packages/ui-web',
       'tools/container',
+      'tools/dev-env',
       'tools/diff-coverage',
       'tools/docs-lifecycle',
       'tools/git-hooks',
@@ -125,7 +127,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
         // (also packages/ui-web) and tools 90%. Web workspaces measure TSX too; apps/web also its security headers.
         // apps/api: the code that needs PostgreSQL is measured by the integration run instead (coverage.config.ts, EVM-016).
         const expected: Record<string, string> = {
-          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts'], exclude: [...DATABASE_BOUND] })",
+          'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts', 'dev/**/*.ts'], exclude: [...DATABASE_BOUND] })",
           'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
           'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
         };

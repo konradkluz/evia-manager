@@ -11,6 +11,6 @@ export default defineConfig({
     exclude: ['test/integration/**'],
     setupFiles: ['test/support/setup.ts'],
     testTimeout: 20_000,
-    coverage: coverage({ layer: 'backend', include: ['src/**/*.ts'], exclude: [...DATABASE_BOUND] }),
+    coverage: coverage({ layer: 'backend', include: ['src/**/*.ts', 'dev/**/*.ts'], exclude: [...DATABASE_BOUND] }),
   },
 });

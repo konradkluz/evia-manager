@@ -25,6 +25,6 @@ describe('ESLint flat config (EVM-006 AC2)', () => {
 
   it('EVM-006 AC2: build output, generated code (EVM-008 contract client), coverage and dependencies are never linted; extra ignores are appended', () => {
     const ignored = config({ tsconfigRootDir: '/r', ignores: ['legacy/**'] })[0]?.ignores;
-    expect(ignored).toEqual(['dist/**', 'coverage/**', 'node_modules/**', 'generated/**', 'legacy/**']);
+    expect(ignored).toEqual(['dist/**', '.dev-build/**', 'coverage/**', 'node_modules/**', 'generated/**', 'legacy/**']);
   });
 });

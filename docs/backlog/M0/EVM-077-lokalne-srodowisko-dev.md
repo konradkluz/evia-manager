@@ -4,7 +4,7 @@ title: Lokalne środowisko do ręcznego testu (pnpm run dev) z kontem Administra
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-review
 priority: P2
 path: pelna
 owner: devops-engineer
@@ -94,6 +94,8 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - Docker wyłącznie przez `docker compose -f <plik> …` (nigdy `docker run`).
 
 ## Decyzje i ograniczenia
+- **2026-10-09 (Konrad) — czwarta dozwolona forma polecenia Dockera:** `docker compose -f compose.dev.yaml exec api node dist/src/cli/bootstrap-admin.js` (terminal interaktywny dla procedury EVM-016); test repo-policy wymaga dokładnie tej formy, a `run` i inne `exec` są odrzucane.
+- **2026-10-09 (Konrad) — seed dwuetapowo:** dane demo powstają, gdy jest aktywny Administrator (autor); przy pierwszym `dev` (Administrator `invited`) komunikat: „dane demo pojawią się po aktywacji — uruchom ponownie `pnpm run dev` (lub `dev:seed`)”. Bez nowego aktora systemowego.
 - **2026-10-09 (zaakceptowane przez Konrada) — zmiana względem pierwotnego „Poza zakresem”:** dane demo (klienci, lokalizacje, zlecenia) są w zakresie, bo bez nich ekrany są puste.
 - **2026-10-09 (Konrad) — wyjątek repo-policy w wąskim kształcie:** osobny `compose.dev.yaml` (`compose.yaml` bez zmian), te same reguły utwardzenia; wyjątki wyłącznie: port `127.0.0.1:<port ≠ 5432>` i nazwany wolumen dev; lista dokładnych form poleceń `up`, `down`, `down -v` dla tego pliku.
 - **2026-10-09 (Konrad) — układ:** API w kontenerze Docker Desktop w środowisku zbliżonym do staging/produkcji (obraz budowany z Dockerfile przypiętego digestem, wzorzec jak `backend-tests`, utwardzony, port tylko na `127.0.0.1`, sieć wspólna z bazą `postgres-dev`); panel Vite natywnie na Windows. Zgodne z ADR-0015, bez odstępstwa i bez nowego ADR. Korzeń `dev` nie startuje już API natywnie.
@@ -106,16 +108,24 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - Dane demo: sprawdzić domeny e-mail akceptowane przez walidator kontraktu (`example.invalid` / `example.test`); telefony — brak puli zarezerwowanej, więc wyraźnie fikcyjne; PESEL nie występuje.
 - `down -v` jest nieodwracalne — ostrzeżenie w README i przy `dev:reset`.
 - Konsultacje: `security-engineer` (przegląd pliku compose dev, strażnika, seeda). `solution-architect` nie jest potrzebny (zgodność z ADR-0015).
-- Kandydat do podziału, jeśli wykonawca uzna za za duże: dane demo (AC7) jako osobna historyjka.
+- Uwagi z przeglądów (nieblokujące): reguły `deny` dla `run`/`exec` na `compose.dev.yaml` także w wariancie PowerShell i bez zależności od zapisu polecenia (security, minor); teksty `login.wrongOrigin*` / `activation.wrongOrigin*` do przeglądu `ux-designer`; pokrycie gałęzi `run.ts`, `login-failure.tsx` poniżej 90% indywidualnie (suma 95,8%).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-077 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo (wg `reviewers`)
-- [ ] Dokumentacja (README „Uruchomienie lokalne”, `.env.example`) i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-077 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo (wg `reviewers`)
+- [x] Dokumentacja (README „Uruchomienie lokalne”, `.env.example`) i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (Konrad loguje się lokalnie i przegląda dane demo)
 
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner)
 - 2026-10-09 — refinement (product-owner): priorytet P3 → P2, ścieżka `lekka` → `pelna`, 8 AC; decyzje Konrada: dane demo w zakresie, wyjątek repo-policy (`compose.dev.yaml`), API w kontenerze, Administrator przez EVM-016; uwzględniona konsultacja security-engineer (strażnik, seed poza artefaktem); status `draft`
 - 2026-10-09 — draft → ready: AC i decyzje zaakceptowane przez Konrada (/refine; dane demo w zakresie, wąski wyjątek repo-policy dla compose.dev.yaml, API w kontenerze, seed po aktywacji Administratora, bez podziału)
+- 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: infrastruktura, konto Administratora, seed; gałąź feature/EVM-077-local-dev)
+- 2026-10-09 — plan gotowy (devops-engineer)
+- 2026-10-09 — implementacja (devops-engineer): tools/dev-env, compose.dev.yaml + obraz API dev, strażnik w bazie, seed w apps/api/dev, reguły repo-policy, README i runbook; wymagania security-engineer M1–M6 uwzględnione
+- 2026-10-09 — bramka lokalna (backend-developer): `pnpm run gate` zielony, pokrycie zmienionego kodu 100% linii / 95,9% gałęzi
+- 2026-10-09 — przegląd części web (web-developer): pierwotnie bez zmian UI; konfiguracja Vite (loopback, proxy na 127.0.0.1, bez rewrite Origin) zgodna z AC6, kod bez zmian
+- 2026-10-09 — poprawka AC6 (web-developer, runda 1): przy 403 `csrf_failed` logowanie i aktywacja pokazują komunikat o nieobsługiwanym adresie panelu (nowe teksty i18n; przegląd tekstów przez ux-designera — w uwagach)
+- 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer approve po rundzie 2, security-engineer approve; 2 rundy); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 100% / gałęzie 95,8%; → in-review
+- 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,03 mln tokenów subagentów, 11 agentów, 410 wywołań narzędzi, 2 rundy, ok. 84 min (w tym przebieg zablokowany na pytaniach); ścieżka pelna; vs baseline: brak danych

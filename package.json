@@ -25,7 +25,12 @@
     "deps:check": "depcruise --config .dependency-cruiser.cjs apps packages tools",
     "coverage:diff": "node tools/diff-coverage/cli.mjs",
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "node tools/dev-env/cli.mjs dev",
+    "dev:init": "node tools/dev-env/cli.mjs init",
+    "dev:admin": "node tools/dev-env/cli.mjs admin",
+    "dev:seed": "node tools/dev-env/cli.mjs seed",
+    "dev:stop": "node tools/dev-env/cli.mjs stop",
+    "dev:reset": "node tools/dev-env/cli.mjs reset",
     "e2e": "turbo run e2e",
     "scan": "node tools/scan/cli.mjs all"
   },

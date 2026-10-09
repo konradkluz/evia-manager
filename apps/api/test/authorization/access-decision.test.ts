@@ -295,3 +295,35 @@ describe('step-up in the access decision (EVM-029 AC1, AC2, AC7; SR-SESS-08, SR-
     expect(stepUpFresh).not.toHaveBeenCalled();
   });
 });
+
+describe('the local environment weakens nothing (EVM-077 AC6; SR-SESS-10, ADR-0005)', () => {
+  const LOCAL_PANEL = 'http://localhost:5173';
+  const base = { operationId: 'createThing', mutating: true, authentication: () => signedIn(), panelOrigin: LOCAL_PANEL };
+
+  it('EVM-077 AC6 on localhost the same checks apply: Origin of the panel, Sec-Fetch-Site same-origin and the CSRF token', () => {
+    expect(decide({ ...base, origin: LOCAL_PANEL, secFetchSite: 'same-origin' })).toEqual({ allowed: true });
+    expect(decide({ ...base, origin: LOCAL_PANEL, secFetchSite: 'same-origin', csrfMatches: () => false })).toEqual({
+      allowed: false,
+      code: 'csrf_failed',
+    });
+    // another local application (same site, another port) and a missing header are refused
+    for (const [origin, secFetchSite] of [
+      ['http://localhost:3000', 'same-origin'],
+      [LOCAL_PANEL, 'same-site'],
+      [LOCAL_PANEL, undefined],
+    ] as const) {
+      expect(decide({ ...base, origin, secFetchSite }), `${origin} ${secFetchSite}`).toEqual({ allowed: false, code: 'csrf_failed' });
+    }
+  });
+
+  it('EVM-077 AC6 the panel opened at 127.0.0.1 is refused (the origin check is exact, not loosened for development)', () => {
+    expect(decide({ ...base, origin: 'http://127.0.0.1:5173', secFetchSite: 'same-origin' })).toEqual({
+      allowed: false,
+      code: 'csrf_failed',
+    });
+    expect(decide({ ...base, operationId: 'submitPublic', origin: 'http://127.0.0.1:5173', secFetchSite: 'same-origin' })).toEqual({
+      allowed: false,
+      code: 'csrf_failed',
+    });
+  });
+});

@@ -22,6 +22,8 @@
       "Bash(docker run:*)",
       "Bash(docker exec:*)",
       "Bash(docker cp:*)",
+      "Bash(docker compose -f compose.dev.yaml run:*)",
+      "Bash(docker compose -f compose.dev.yaml exec:*)",
       "Bash(git push origin main:*)",
       "Bash(git push origin HEAD:main:*)",
       "Bash(git push --delete:*)",
@@ -60,7 +62,15 @@
       "Edit(**/docker-compose*.yaml)",
       "Write(**/docker-compose*.yaml)",
       "Edit(**/docker-compose*.yml)",
-      "Write(**/docker-compose*.yml)"
+      "Write(**/docker-compose*.yml)",
+      "Bash(pnpm run dev:reset:*)",
+      "PowerShell(pnpm run dev:reset:*)",
+      "Bash(pnpm dev:reset:*)",
+      "PowerShell(pnpm dev:reset:*)",
+      "Bash(node tools/dev-env/cli.mjs reset:*)",
+      "PowerShell(node tools/dev-env/cli.mjs reset:*)",
+      "Bash(docker compose -f compose.dev.yaml down -v:*)",
+      "PowerShell(docker compose -f compose.dev.yaml down -v:*)"
     ]
   }
 }

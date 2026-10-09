@@ -189,6 +189,26 @@ describe('W-01 Zaloguj się (EVM-067 AC1-AC3, AC8; flows/01)', () => {
     });
   });
 
+  it('EVM-077 AC6 a login rejected for the origin names the unsupported address and the supported one, without a retry hint', async () => {
+    vi.stubEnv('VITE_PANEL_ORIGIN', 'http://localhost:5173');
+    try {
+      const api = loginApi({ [LOGIN_ROUTE]: () => problem(403, 'csrf_failed') });
+      await renderPanel('/login', api);
+      await fillAndSubmit();
+      const text = (await screen.findByRole('alert')).textContent;
+      expect(text).toContain('nieobsługiwanym adresem');
+      expect(text).toContain('http://localhost:5173');
+      expect(text).not.toContain('Spróbuj ponownie');
+      vi.stubEnv('VITE_PANEL_ORIGIN', '');
+      await fillAndSubmit();
+      await waitFor(() => {
+        expect(screen.getByRole('alert').textContent).toContain('skonfigurowanym dla tego środowiska');
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('EVM-067 AC8 offline: the banner, the button unavailable with its hint, the typed e-mail stays and no request is sent', async () => {
     const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     try {

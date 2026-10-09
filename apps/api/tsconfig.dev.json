@@ -1,0 +1,14 @@
+{
+  "$comment": "Development tools only (EVM-077): compiles dev/ together with src/ to .dev-build/ (git-ignored, outside dist/ and the API image). NestJS needs legacy decorators, which Node type stripping cannot run.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": ".dev-build",
+    "rewriteRelativeImportExtensions": true,
+    "allowJs": false,
+    "checkJs": false,
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts", "dev/**/*.ts"]
+}

@@ -1,0 +1,21 @@
+# Allow-list build context (EVM-077; SR-INFRA-05, CWE-538): the repository root is the context, but only these paths enter
+# the image. Never .env*, .scratch/, .git/, coverage/, docs/, tools/, apps/web, apps/api/dev or tests.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches
+!apps/*/package.json
+!packages/*/package.json
+!tools/*/package.json
+!packages/config
+!packages/contracts
+!apps/api/tsconfig.json
+!apps/api/tsconfig.build.json
+!apps/api/src
+# Generated or local output inside the allowed directories
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/.dev-build

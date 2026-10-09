@@ -103,3 +103,41 @@ describe('testing strategy and process (EVM-006 AC3, AC7; D2, W5)', () => {
     expect(section(read('.claude/skills/milestone/SKILL.md'), '## Tryb `close`')).toContain('[M#]');
   });
 });
+
+describe('README „Uruchomienie lokalne” (EVM-077 AC8)', () => {
+  const readme = section(read('README.md'), '## Uruchomienie lokalne');
+
+  it('EVM-077 AC8: requirements, dev:init, dev, activation, addresses, dev:stop, dev:reset with the warning, and typical problems', () => {
+    expect(readme.length).toBeGreaterThan(500);
+    for (const fragment of [
+      'Docker Desktop',
+      'terminal interaktywny',
+      'pnpm run dev:init',
+      'pnpm run dev',
+      'http://localhost:5173',
+      '127.0.0.1',
+      'pnpm run dev:stop',
+      'pnpm run dev:reset',
+      'nieodwracalna',
+      'dev:seed',
+      'Typowe problemy',
+      'compose.yaml',
+    ])
+      expect(readme.toLowerCase(), fragment).toContain(fragment.toLowerCase());
+    expect(missingScripts(readme)).toEqual([]);
+  });
+
+  it('EVM-077 AC8: the first steps keep working — init before dev, activation before the demo data, stop before reset', () => {
+    const order = ['pnpm run dev:init', 'pnpm run dev`', '**Aktywacja:**', '**Dane demo', 'pnpm run dev:stop', 'pnpm run dev:reset'].map(
+      (marker) => readme.indexOf(marker),
+    );
+    expect(order.every((position) => position >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('EVM-077 AC8: CLAUDE.md points to the local commands and says that an agent does not run them (the file stays small)', () => {
+    const claude = read('CLAUDE.md');
+    for (const fragment of ['pnpm run dev:init', 'pnpm run dev', 'Uruchomienie lokalne', 'agent ich nie uruchamia'])
+      expect(claude, fragment).toContain(fragment);
+  });
+});

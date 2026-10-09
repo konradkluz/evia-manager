@@ -35,6 +35,8 @@ docs/qa/**/*.png
 # Stack (EVM-006): zależności, buildy, cache narzędzi
 node_modules/
 dist/
+# Development tools of the API compiled by tsconfig.dev.json (EVM-077)
+.dev-build/
 build/
 # Code generated from the OpenAPI contract (EVM-008, packages/contracts build)
 packages/contracts/generated/

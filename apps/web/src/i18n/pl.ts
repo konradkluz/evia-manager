@@ -41,6 +41,9 @@ export const pl = {
     invalid: 'Nieprawidłowy e-mail lub hasło.',
     rateLimited: 'Zbyt wiele prób logowania. Spróbuj ponownie za {{minutes}} min.',
     serverError: 'Nie udało się zalogować. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
+    wrongOrigin: 'Panel otwarto pod nieobsługiwanym adresem, więc logowanie zostało odrzucone. Otwórz panel pod adresem {{address}}.',
+    wrongOriginNoAddress:
+      'Panel otwarto pod nieobsługiwanym adresem, więc logowanie zostało odrzucone. Otwórz panel pod adresem skonfigurowanym dla tego środowiska.',
     noConnection: 'Nie udało się połączyć z serwerem. Sprawdź połączenie i spróbuj ponownie.',
     offline: 'Brak połączenia. Logowanie wymaga połączenia z internetem.',
     offlineHint: 'Zalogujesz się po powrocie połączenia.',
@@ -82,6 +85,10 @@ export const pl = {
     rateLimited: 'Zbyt wiele prób. Spróbuj ponownie za {{minutes}} min.',
     checkFailed: 'Nie udało się sprawdzić linku. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
     submitFailed: 'Nie udało się ustawić hasła. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
+    wrongOrigin:
+      'Panel otwarto pod nieobsługiwanym adresem, więc ustawienie hasła zostało odrzucone. Otwórz panel pod adresem {{address}}.',
+    wrongOriginNoAddress:
+      'Panel otwarto pod nieobsługiwanym adresem, więc ustawienie hasła zostało odrzucone. Otwórz panel pod adresem skonfigurowanym dla tego środowiska.',
     noConnection: 'Nie udało się połączyć z serwerem. Sprawdź połączenie i spróbuj ponownie.',
     tooShort: 'Hasło musi mieć co najmniej 15 znaków.',
     tooLong: 'Hasło może mieć najwyżej 256 znaków.',

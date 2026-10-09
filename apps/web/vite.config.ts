@@ -4,12 +4,16 @@ import { defineConfig } from 'vite';
 import { securityHeadersPlugin } from './security-headers.ts';
 
 // Panel web (ADR-0006; EVM-008). The API is same-origin under /api: locally through this proxy (API on API_PORT,
-// default 3000), in EVM-076 through Caddy. Dev and preview listen on 127.0.0.1 only (no --host, no allowedHosts).
-const api = { target: `http://localhost:${process.env['API_PORT'] ?? '3000'}`, changeOrigin: false };
+// default 3000), in EVM-076 through Caddy. Dev and preview listen on 127.0.0.1 only (no --host, no allowedHosts); the
+// supported address of the panel is http://localhost:5173 (EVM-077). The API container publishes 127.0.0.1 only, so the
+// proxy targets 127.0.0.1 (`localhost` may resolve to ::1 first) and does not rewrite the Origin (changeOrigin false).
+const api = { target: `http://127.0.0.1:${process.env['API_PORT'] ?? '3000'}`, changeOrigin: false };
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), securityHeadersPlugin()],
   build: { sourcemap: false },
+  // The address shown when the panel is opened under another origin than PANEL_ORIGIN (API answers 403 csrf_failed).
+  define: { 'import.meta.env.VITE_PANEL_ORIGIN': JSON.stringify(process.env['PANEL_ORIGIN'] ?? 'http://localhost:5173') },
   server: { host: '127.0.0.1', port: 5173, strictPort: true, proxy: { '/api': api } },
   preview: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: { '/api': api } },
 });

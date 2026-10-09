@@ -50,6 +50,14 @@ module.exports = {
       to: { dependencyTypes: ['npm-dev'], dependencyTypesNot: ['type-only', 'npm-peer'] },
     },
     {
+      name: 'api-src-not-to-dev',
+      comment:
+        'The production source never imports the development tools and the demo data in apps/api/dev (EVM-077 AC7): they are compiled separately, outside dist/ and the API image. The reverse direction (dev uses src) is allowed.',
+      severity: 'error',
+      from: { path: '^apps/api/src/' },
+      to: { path: '^apps/api/dev/' },
+    },
+    {
       name: 'api-platform-not-to-modules',
       comment: 'platform is the shared kernel of apps/api: modules depend on it, never the other way round (ADR-0001).',
       severity: 'error',
@@ -104,7 +112,7 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // Generated output of our workspaces only — never node_modules (that would hide npm dependencies from the rules
     // above) and never a package's own dist/ inside node_modules (EVM-008).
-    exclude: { path: '^(apps|packages|services|tools)/[^/]+/(dist|coverage|generated|\\.turbo)/' },
+    exclude: { path: '^(apps|packages|services|tools)/[^/]+/(dist|coverage|generated|\\.turbo|\\.dev-build)/' },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {
