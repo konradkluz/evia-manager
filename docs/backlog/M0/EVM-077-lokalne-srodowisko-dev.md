@@ -4,7 +4,7 @@ title: Lokalne środowisko do ręcznego testu (pnpm run dev) z kontem Administra
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P2
 path: pelna
 owner: devops-engineer
@@ -108,13 +108,13 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - Dane demo: sprawdzić domeny e-mail akceptowane przez walidator kontraktu (`example.invalid` / `example.test`); telefony — brak puli zarezerwowanej, więc wyraźnie fikcyjne; PESEL nie występuje.
 - `down -v` jest nieodwracalne — ostrzeżenie w README i przy `dev:reset`.
 - Konsultacje: `security-engineer` (przegląd pliku compose dev, strażnika, seeda). `solution-architect` nie jest potrzebny (zgodność z ADR-0015).
-- Kandydat do podziału, jeśli wykonawca uzna za za duże: dane demo (AC7) jako osobna historyjka.
+- Uwagi z przeglądów (nieblokujące): reguły `deny` dla `run`/`exec` na `compose.dev.yaml` także w wariancie PowerShell i bez zależności od zapisu polecenia (security, minor); teksty `login.wrongOrigin*` / `activation.wrongOrigin*` do przeglądu `ux-designer`; pokrycie gałęzi `run.ts`, `login-failure.tsx` poniżej 90% indywidualnie (suma 95,8%).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-077 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo (wg `reviewers`)
-- [ ] Dokumentacja (README „Uruchomienie lokalne”, `.env.example`) i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-077 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo (wg `reviewers`)
+- [x] Dokumentacja (README „Uruchomienie lokalne”, `.env.example`) i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (Konrad loguje się lokalnie i przegląda dane demo)
 
 ## Dziennik
@@ -125,4 +125,7 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-09 — plan gotowy (devops-engineer)
 - 2026-10-09 — implementacja (devops-engineer): tools/dev-env, compose.dev.yaml + obraz API dev, strażnik w bazie, seed w apps/api/dev, reguły repo-policy, README i runbook; wymagania security-engineer M1–M6 uwzględnione
 - 2026-10-09 — bramka lokalna (backend-developer): `pnpm run gate` zielony, pokrycie zmienionego kodu 100% linii / 95,9% gałęzi
-- 2026-10-09 — przegląd części web (web-developer): bez zmian UI; konfiguracja Vite (loopback, proxy na 127.0.0.1, bez rewrite Origin) zgodna z AC6, kod bez zmian
+- 2026-10-09 — przegląd części web (web-developer): pierwotnie bez zmian UI; konfiguracja Vite (loopback, proxy na 127.0.0.1, bez rewrite Origin) zgodna z AC6, kod bez zmian
+- 2026-10-09 — poprawka AC6 (web-developer, runda 1): przy 403 `csrf_failed` logowanie i aktywacja pokazują komunikat o nieobsługiwanym adresie panelu (nowe teksty i18n; przegląd tekstów przez ux-designera — w uwagach)
+- 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer approve po rundzie 2, security-engineer approve; 2 rundy); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 100% / gałęzie 95,8%; → in-review
+- 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,03 mln tokenów subagentów, 11 agentów, 410 wywołań narzędzi, 2 rundy, ok. 84 min (w tym przebieg zablokowany na pytaniach); ścieżka pelna; vs baseline: brak danych
