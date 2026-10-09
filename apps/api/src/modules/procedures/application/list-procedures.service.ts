@@ -4,7 +4,8 @@
  * i.e. with the read policy IN THE QUERY: an order that does not exist and one that is deleted are the same `404 not_found`, for
  * every role (the view of deleted orders is EVM-060). Only then the processes and stages of THAT order are read (the anchor is in
  * the condition of the query), in one snapshot, and the names of the people responsible come from `identity` in batches. The answer
- * is bounded (30 processes, 30 stages each), parsed with the schema of the contract, and has no notes and no "waiting for". A read
+ * is bounded (30 processes, 30 stages each), parsed with the schema of the contract, and has no notes; the party waited for is
+ * `{id, displayName}` (names from the facade of `parties`, ONE query) and nothing else. A read
  * is not an audited event; nothing here logs a body or a name.
  */
 import { zListWorkOrderProceduresPath } from '@evia/contracts/zod';
@@ -19,10 +20,11 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
 import { UserDirectory } from '../../identity/index.ts';
+import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { listProcedures, listStages } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
-import { toProcedureList, responsibleIdsOf } from './procedure-representation.ts';
+import { toProcedureList, responsibleIdsOf, waitingPartyIdsOf } from './procedure-representation.ts';
 import { responsibleNamesOf } from './responsible-names.ts';
 
 const pathSchema = strictObjects(zListWorkOrderProceduresPath);
@@ -32,17 +34,20 @@ export class ListProceduresService {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #orders: WorkOrderDirectory;
+  readonly #parties: PartyDirectory;
   readonly #users: UserDirectory;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(CLOCK) clock: Clock,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
+    @Inject(PARTY_DIRECTORY) parties: PartyDirectory,
     @Inject(UserDirectory) users: UserDirectory,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#orders = orders;
+    this.#parties = parties;
     this.#users = users;
   }
 
@@ -58,7 +63,8 @@ export class ListProceduresService {
         const tables = procedureTables(tx);
         const [procedures, stages] = [await listProcedures(tables, order.id), await listStages(tables, order.id)];
         const names = await responsibleNamesOf(this.#users, tx, responsibleIdsOf(stages));
-        return toProcedureList(procedures, stages, names, businessDate(this.#clock.now()));
+        const partyNames = await this.#parties.namesOf(tx, principal, waitingPartyIdsOf(stages));
+        return toProcedureList(procedures, stages, names, partyNames, businessDate(this.#clock.now()));
       });
   }
 }

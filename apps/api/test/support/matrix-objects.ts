@@ -82,7 +82,7 @@ export async function siteAndPartyObjects(app: IdentityApp): Promise<Record<stri
 }
 
 /**
- * The IDOR fixture of the processes of an order and the change of a stage (EVM-031 AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639):
+ * The IDOR fixture of the processes of an order, the change of a stage and its transition (EVM-031, EVM-032 AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639):
  * the read — "own" is a live order with a process, "foreign" an EXISTING order that is soft deleted (its processes exist, only the
  * read policy of the order keeps them from the caller); the change — "own" is a stage of the live order in ITS path, "foreign" the
  * stage of ANOTHER live order named in the path of the first (the one an attacker tries: /work-orders/{A}/procedure-stages/{stage of B}).
@@ -110,6 +110,10 @@ export async function procedureObjects(app: IdentityApp): Promise<Record<string,
     updateProcedureStage: {
       own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownStage}`,
       foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherStage}`,
+    },
+    transitionProcedureStage: {
+      own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownStage}/transitions`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherStage}/transitions`,
     },
   };
 }

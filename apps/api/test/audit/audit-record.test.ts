@@ -191,6 +191,45 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
   });
 });
 
+describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', () => {
+  it('EVM-032 SR-LOG-03 the record of a transition has the actor, the stage, the outcome and the trace — and no reason of a block, no party, no day', () => {
+    const record = toAuditRecord(
+      {
+        type: 'procedure_stage.transitioned',
+        actor: { type: 'user', userId: user },
+        outcome: 'success',
+        objectType: 'procedure_stage',
+        objectId: session,
+      },
+      { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session },
+      at,
+    );
+    expect(record).toMatchObject({
+      action: 'procedure_stage.transitioned',
+      objectType: 'procedure_stage',
+      objectId: session,
+      outcome: 'success',
+      reasonCode: null,
+    });
+    expect(Object.keys(record).sort()).toEqual(
+      [
+        'occurredAt',
+        'actorType',
+        'actorUserId',
+        'sessionId',
+        'ipPrefix',
+        'origin',
+        'action',
+        'outcome',
+        'reasonCode',
+        'objectType',
+        'objectId',
+        'traceId',
+      ].sort(),
+    );
+  });
+});
+
 describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () => {
   const read = { type: 'audit.read', actor: { type: 'user', userId: user }, outcome: 'success', objectType: 'audit' } as const;
 

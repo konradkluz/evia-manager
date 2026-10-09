@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import type { ListProceduresService } from '../../src/modules/procedures/application/list-procedures.service.ts';
+import type { TransitionStageService } from '../../src/modules/procedures/application/transition-stage.service.ts';
 import type { UpdateStageService } from '../../src/modules/procedures/application/update-stage.service.ts';
 import { ProceduresController } from '../../src/modules/procedures/http/procedures.controller.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
@@ -34,8 +35,13 @@ function response() {
 function setup(replayed = false) {
   const list = vi.fn(() => Promise.resolve({ items: [], openStageCount: 0 }));
   const update = vi.fn(() => Promise.resolve({ stage: STAGE, replayed }));
-  const controller = new ProceduresController({ list } as unknown as ListProceduresService, { update } as unknown as UpdateStageService);
-  return { list, update, controller };
+  const transition = vi.fn(() => Promise.resolve({ stage: STAGE, replayed }));
+  const controller = new ProceduresController(
+    { list } as unknown as ListProceduresService,
+    { update } as unknown as UpdateStageService,
+    { transition } as unknown as TransitionStageService,
+  );
+  return { list, update, transition, controller };
 }
 
 describe('the controller of the processes (EVM-031 AC2, AC3, AC7; SR-AUTHZ-01)', () => {
@@ -73,14 +79,43 @@ describe('the controller of the processes (EVM-031 AC2, AC3, AC7; SR-AUTHZ-01)',
     expect(set).toHaveBeenCalledWith('Idempotent-Replayed', 'true');
   });
 
+  it('EVM-032 AC1 the transition passes the headers and the command untouched, and answers with the ETag of the new version', async () => {
+    const { transition, controller } = setup(false);
+    const { set, reply } = response();
+    const params = { workOrderId: uuidv7(), stageId: STAGE.id };
+    const body = { to: 'in_progress' };
+    await expect(controller.transitionProcedureStage(params, body, '"2"', undefined, await signedIn(), reply)).resolves.toBe(STAGE);
+    expect(transition).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'editor' }),
+      params,
+      '"2"',
+      body,
+      undefined,
+      expect.objectContaining({ origin: 'web' }),
+    );
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith('ETag', '"3"');
+  });
+
+  it('EVM-032 AC6 a repeat of the transition (same key) says so: Idempotent-Replayed: true', async () => {
+    const { controller } = setup(true);
+    const { set, reply } = response();
+    await controller.transitionProcedureStage({}, { to: 'done' }, '"2"', uuidv7(), await signedIn(), reply);
+    expect(set).toHaveBeenCalledWith('Idempotent-Replayed', 'true');
+  });
+
   it('EVM-031 AC7 a request without a principal (one the guard would have stopped) is 401 unauthenticated — the use case is never called', async () => {
-    const { list, update, controller } = setup();
+    const { list, update, transition, controller } = setup();
     const anonymous = {} as unknown as Request;
     expect(() => controller.listWorkOrderProcedures({}, anonymous)).toThrow(ProblemException);
     await expect(controller.updateProcedureStage({}, {}, '"1"', undefined, anonymous, response().reply)).rejects.toMatchObject({
       code: 'unauthenticated',
     });
+    await expect(controller.transitionProcedureStage({}, {}, '"1"', undefined, anonymous, response().reply)).rejects.toMatchObject({
+      code: 'unauthenticated',
+    });
     expect(list).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
+    expect(transition).not.toHaveBeenCalled();
   });
 });

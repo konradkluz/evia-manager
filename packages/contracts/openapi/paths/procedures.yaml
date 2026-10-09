@@ -153,7 +153,7 @@ procedureStageTransitions:
       `{ "to": "waiting", "waitingOn": "party", "waitingOnPartyId": "…" }` wg tabeli przejść „Etap procesu” z `domain-model.md`.
       „Cofnij” w panelu to zwykłe przejście z parametrami, które użytkownik mógłby podać ręcznie (np. `in_progress → waiting` z
       poprzednim `waitingSince`) — nie ma osobnej operacji ani przywracania pól. Role Administrator i Edytor (Tylko odczyt — `403
-      forbidden` przed `If-Match`, treścią i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`),
+      forbidden` przed `If-Match`, treścią i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)),
       kanał `web`, z audytem (`procedure_stage.transitioned` — aktor, identyfikator etapu, wynik i `traceId`; bez powodu blokady, nazwy
       strony, identyfikatora strony i dat). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` etapu): brak — `428
       precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna
@@ -161,7 +161,7 @@ procedureStageTransitions:
       {workOrderId}`: etap innego zlecenia, nieistniejący i etap zlecenia usuniętego (także dla Administratora) to jedna odpowiedź `404
       not_found`, niezależnie od treści.
       Kolejność (decyzje zapadają na wierszach zablokowanych `SELECT … FOR UPDATE`, w jednej transakcji): guard (rola, CSRF, kanał),
-      ścieżka (`400`), nagłówki (`Idempotency-Key`, `If-Match`), zlecenie i etap (`404`), treść (`400`: schemat i reguły pól danego `to`,
+      ścieżka i `Idempotency-Key` (`400`), zlecenie i etap (`404` — przed `If-Match` i treścią), `If-Match` (`428` / `400`), treść (`400`: schemat i reguły pól danego `to`,
       kod i wskaźnik, nigdy wartość), powtórka idempotentna (zapisany wynik, bez ponownej kontroli wersji), zlecenie zamknięte
       (`409 work_order_closed`, grubsza bramka — przed tabelą), przejście w tabeli (brak: `412` przy nieaktualnej wersji, inaczej `409
       invalid_state_transition`), wersja (`412`), strona (`400`, `/waitingOnPartyId`, `unknown_party` — nieistniejąca i usunięta to ta
