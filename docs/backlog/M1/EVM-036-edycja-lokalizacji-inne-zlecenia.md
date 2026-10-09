@@ -4,7 +4,8 @@ title: Edycja lokalizacji i stron, inne zlecenia w tej lokalizacji
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -86,7 +87,9 @@ Jako **pracownik biura** chcę **uzupełnić i poprawić dane lokalizacji i stro
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-09 — „Inne zlecenia” to dedykowany endpoint `GET /work-orders/{workOrderId}/site-orders`, a nie filtr `siteId` na liście zleceń z notatek technicznych: lista zwraca nazwę klienta, której AC5 zabrania. Intencja (ta sama polityka odczytu `visibleWorkOrders` w zapytaniu listy i licznika) jest zachowana; `siteId` bierze serwer z wiersza zlecenia (`security-engineer`, AB-19).
+- 2026-10-09 — AC5 „zlecenia usunięte widzi tylko Administrator”: do czasu EVM-060 zlecenia usunięte (soft delete) nie są widoczne dla nikogo, także dla Administratora — endpoint dziedziczy politykę odczytu zleceń. To bezpieczniejsze, ale formalnie odbiega od AC5; po EVM-060 (podgląd usuniętych) AC będzie spełnione bez zmiany endpointu. Do potwierdzenia przez Konrada na demo.
+- 2026-10-09 — Rodzaj strony (`kind`) jest niezmienny (`400 read_only_field` w `PATCH /parties/{partyId}`): zmiana rodzaju mogłaby złamać regułę rodzaju OSD i zarządcy w lokalizacjach (SR-INPUT-02). Zmiana lokalizacji jest ograniczona do rodzaju stron wskazanych w treści żądania.
 
 ## Uwagi do rozważenia
 _—_
@@ -101,3 +104,6 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe (PPE, strony), uprawnienia, nowe endpointy i UI; gałąź feature/EVM-036-site-editing)
+- 2026-10-09 — plan gotowy (backend-developer)
+- 2026-10-09 — backend gotowy (backend-developer): kontrakt, `sites`/`parties` GET i PATCH, `site-orders`, migracja 0018, audyt; UI (web-developer) czeka

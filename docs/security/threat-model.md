@@ -468,7 +468,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W3 = 6 High → 1 × 2 = 2 Low.
 - **Mitygacje:** SR-AUTHZ-08 (kotwica zlecenia źródłowego, bez `identity_data`, tylko panel, przegląd security przy `/refine`).
 - **Wykrywanie:** —.
-- **Weryfikacja:** macierz ról z przypadkiem „IDOR przez `siteId`” (E3/E6).
+- **Weryfikacja:** macierz ról z przypadkiem „IDOR przez `siteId`” (E3/E6). Wdrożone częściowo w EVM-036 (metadane innych zleceń, kotwica zlecenia, tylko panel): `GET /work-orders/{id}/site-orders` bierze `siteId` wyłącznie z wiersza zlecenia po polityce odczytu, zwraca `id`, `number`, `title`, `status`, `closedAt` i nie ma tras `/sites/{siteId}/…` do mediów, dokumentów, zleceń i klientów; test IDOR przez `siteId` w `site-orders.test.ts`. Pełna historia lokalizacji (dokumenty i zdjęcia) — M3, z przeglądem `security-engineer`; oceny bez zmian.
 
 ### AB-20 — Skan dowodu jako dokument `other` lub zdjęcie dokumentu tożsamości (uwaga 8)
 - **Aktor:** pracownik (błąd), TA-4. **Cel:** A-04.
