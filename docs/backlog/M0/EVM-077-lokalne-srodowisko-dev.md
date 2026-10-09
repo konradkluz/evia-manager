@@ -124,3 +124,4 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: infrastruktura, konto Administratora, seed; gałąź feature/EVM-077-local-dev)
 - 2026-10-09 — plan gotowy (devops-engineer)
 - 2026-10-09 — implementacja (devops-engineer): tools/dev-env, compose.dev.yaml + obraz API dev, strażnik w bazie, seed w apps/api/dev, reguły repo-policy, README i runbook; wymagania security-engineer M1–M6 uwzględnione
+- 2026-10-09 — bramka lokalna (backend-developer): `pnpm run gate` zielony, pokrycie zmienionego kodu 100% linii / 95,9% gałęzi
