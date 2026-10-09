@@ -5,10 +5,15 @@ import {
   Banknote,
   Calculator,
   ChevronDown,
+  Circle,
   CircleCheck,
   CircleHelp,
+  CircleMinus,
   CirclePause,
+  CirclePlay,
+  Hourglass,
   Inbox,
+  OctagonAlert,
   ThumbsUp,
   Wrench,
   type Icon,
@@ -64,8 +69,46 @@ const LOOKS: Readonly<Record<OrderStatusKey, Look>> = {
   unknown: { icon: CircleHelp, classes: 'bg-status-unknown-bg text-status-unknown-text', iconClasses: 'text-status-unknown-icon' },
 };
 
+/** Token key of a stage status (`color.status.stage.*`; styleguide § 4.4: the model code in kebab-case). */
+export type StageStatusKey = 'todo' | 'in-progress' | 'waiting' | 'done' | 'not-applicable' | 'blocked';
+
+/** Complete class names of the stage statuses (Tailwind reads them statically); the icon is unique within the group. */
+const STAGE_LOOKS: Readonly<Record<StageStatusKey, Look>> = {
+  todo: { icon: Circle, classes: 'bg-status-stage-todo-bg text-status-stage-todo-text', iconClasses: 'text-status-stage-todo-icon' },
+  'in-progress': {
+    icon: CirclePlay,
+    classes: 'bg-status-stage-in-progress-bg text-status-stage-in-progress-text',
+    iconClasses: 'text-status-stage-in-progress-icon',
+  },
+  waiting: {
+    icon: Hourglass,
+    classes: 'bg-status-stage-waiting-bg text-status-stage-waiting-text',
+    iconClasses: 'text-status-stage-waiting-icon',
+  },
+  done: { icon: CircleCheck, classes: 'bg-status-stage-done-bg text-status-stage-done-text', iconClasses: 'text-status-stage-done-icon' },
+  'not-applicable': {
+    icon: CircleMinus,
+    classes: 'bg-status-stage-not-applicable-bg text-status-stage-not-applicable-text',
+    iconClasses: 'text-status-stage-not-applicable-icon',
+  },
+  blocked: {
+    icon: OctagonAlert,
+    classes: 'bg-status-stage-blocked-bg text-status-stage-blocked-text',
+    iconClasses: 'text-status-stage-blocked-icon',
+  },
+};
+
+function lookOf(status: OrderStatusKey | StageStatusKey, group: 'order' | 'stage'): Look {
+  if (status === 'unknown') return LOOKS.unknown;
+  if (group === 'stage') return STAGE_LOOKS[status as StageStatusKey];
+  return LOOKS[status as OrderStatusKey];
+}
+
 export interface StatusBadgeProps {
-  readonly status: OrderStatusKey;
+  /** A status of the work order, a status of a stage (`color.status.stage.*`, § 4.4) or `unknown`. */
+  readonly status: OrderStatusKey | StageStatusKey;
+  /** `stage` takes the colours and icons of the stage statuses; `todo`, `in-progress` and `done` exist in both groups. */
+  readonly group?: 'order' | 'stage';
   /** The full label ("W realizacji") — never shortened; for `unknown` the fixed "Nieznany status". */
   readonly label: string;
   /** Explanation of the badge (the unknown value, § 3.9.1): a tooltip and the accessible description. */
@@ -78,9 +121,9 @@ export interface StatusBadgeProps {
  * decorative: the label carries the meaning, so the colour is never the only signal. Not interactive (focus belongs to
  * the row or card that holds it).
  */
-export function StatusBadge({ status, label, hint }: StatusBadgeProps) {
+export function StatusBadge({ status, group = 'order', label, hint }: StatusBadgeProps) {
   const id = useId();
-  const { icon: IconComponent, classes, iconClasses } = LOOKS[status];
+  const { icon: IconComponent, classes, iconClasses } = lookOf(status, group);
   return (
     <span
       title={hint}

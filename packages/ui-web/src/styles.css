@@ -104,6 +104,27 @@
   --color-status-unknown-bg: var(--evm-color-status-unknown-bg);
   --color-status-unknown-text: var(--evm-color-status-unknown-text);
   --color-status-unknown-icon: var(--evm-color-status-unknown-icon);
+  --color-status-stage-todo-bg: var(--evm-color-status-stage-todo-bg);
+  --color-status-stage-todo-text: var(--evm-color-status-stage-todo-text);
+  --color-status-stage-todo-icon: var(--evm-color-status-stage-todo-icon);
+  --color-status-stage-in-progress-bg: var(--evm-color-status-stage-in-progress-bg);
+  --color-status-stage-in-progress-text: var(--evm-color-status-stage-in-progress-text);
+  --color-status-stage-in-progress-icon: var(--evm-color-status-stage-in-progress-icon);
+  --color-status-stage-waiting-bg: var(--evm-color-status-stage-waiting-bg);
+  --color-status-stage-waiting-text: var(--evm-color-status-stage-waiting-text);
+  --color-status-stage-waiting-icon: var(--evm-color-status-stage-waiting-icon);
+  --color-status-stage-done-bg: var(--evm-color-status-stage-done-bg);
+  --color-status-stage-done-text: var(--evm-color-status-stage-done-text);
+  --color-status-stage-done-icon: var(--evm-color-status-stage-done-icon);
+  --color-status-stage-not-applicable-bg: var(--evm-color-status-stage-not-applicable-bg);
+  --color-status-stage-not-applicable-text: var(--evm-color-status-stage-not-applicable-text);
+  --color-status-stage-not-applicable-icon: var(--evm-color-status-stage-not-applicable-icon);
+  --color-status-stage-blocked-bg: var(--evm-color-status-stage-blocked-bg);
+  --color-status-stage-blocked-text: var(--evm-color-status-stage-blocked-text);
+  --color-status-stage-blocked-icon: var(--evm-color-status-stage-blocked-icon);
+  --color-progress-track: var(--evm-color-progress-track);
+  --color-progress-fill: var(--evm-color-progress-fill);
+  --spacing-progress-bar-height: var(--evm-size-progress-bar-height);
   --spacing-badge-height: var(--evm-size-badge-height);
   --spacing-inline-xs: var(--evm-space-inline-xs);
 

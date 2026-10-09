@@ -12,9 +12,11 @@ export {
   type StatusBadgeButtonProps,
   type StatusBadgeProps,
   type OrderStatusKey,
+  type StageStatusKey,
 } from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
 export { Dialog, type DialogProps } from './dialog.tsx';
+export { ProcedureProgress, type ProcedureProgressProps } from './procedure-progress.tsx';
 export { Disclosure, type DisclosureProps } from './disclosure.tsx';
 export { RadioGroup, type RadioGroupProps, type RadioOption } from './radio-group.tsx';
 export { TextArea, type TextAreaProps } from './text-area.tsx';
@@ -30,6 +32,7 @@ export { FilterChip, type FilterChipProps } from './filter-chip.tsx';
 export { Select, type SelectGroup, type SelectOption, type SelectProps } from './select.tsx';
 export { EmptyState, type EmptyStateProps } from './empty-state.tsx';
 export {
+  AlarmClock,
   Ban,
   Banknote,
   Calculator,
@@ -38,12 +41,16 @@ export {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  Circle,
   CircleAlert,
   CircleCheck,
   CircleHelp,
+  CircleMinus,
   CirclePause,
+  CirclePlay,
   ClipboardList,
   EllipsisVertical,
+  Hourglass,
   Inbox,
   Info,
   KeyRound,
@@ -51,12 +58,14 @@ export {
   LoaderCircle,
   Lock,
   Menu,
+  OctagonAlert,
   Search,
   SearchX,
   Shield,
   ShieldCheck,
   ShieldX,
   ThumbsUp,
+  TriangleAlert,
   Users,
   WifiOff,
   Wrench,
