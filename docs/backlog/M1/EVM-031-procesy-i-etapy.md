@@ -4,7 +4,7 @@ title: Procesy i etapy w zleceniu — z szablonu, osoba odpowiedzialna i termin
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -103,7 +103,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] `api-guidelines.md` (kod `work_order_closed`) i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -114,3 +114,4 @@ _—_
 - 2026-10-09 — implementacja panelu AC1–AC8 (web-developer): sekcja „Procesy i etapy” w W-06, dialog zmiany etapu, ostrzeżenie w „Zakończ”, procesy w karcie i podglądzie szablonu, ProcedureProgress i odznaka etapu w ui-web
 - 2026-10-09 — implementacja i przeglądy (backend-developer, web-developer): moduł procedures, migracja 0019, 2 endpointy, sekcja W-06, dialog AC4; QA pass; code-reviewer, security-engineer, ux-designer — approve (1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 97,0% / gałęzie 91,5%; → in-review
 - 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,12 mln tokenów subagentów, 8 agentów, 438 wywołań narzędzi, 1 runda, ok. 93 min (z przerwaniem i wznowieniem po pytaniu użytkownika); ścieżka pelna; vs baseline: brak danych
+- 2026-10-09 — zaakceptowane przez Konrada, scalone do main (PR #46) → done
