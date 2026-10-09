@@ -15,12 +15,22 @@ export interface OrderServer {
   readonly assignable: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
   readonly states: ReadonlyMap<string, { readonly status: string }>;
   readonly stages: Map<string, StageState>;
+  /** EVM-032: the parties a stage may wait for (the same list the search of W-05 reads). */
+  readonly parties: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
 }
 
 export interface StageState {
   responsibleUserId: string | null;
   dueDate: string | null;
   version: number;
+  /** EVM-032: the status and what belongs to it (absent: a stage nobody has changed, `todo`). */
+  status?: string;
+  waitingOn?: 'customer' | 'party' | null;
+  waitingPartyId?: string | null;
+  waitingSince?: string | null;
+  blockedReason?: string | null;
+  startedAt?: string | null;
+  completedOn?: string | null;
 }
 
 export const PROCESSES: ReadonlyArray<{ code: string; name: string; stages: readonly string[] }> = [
@@ -56,31 +66,45 @@ function stateOf(server: OrderServer, id: string): StageState {
   return server.stages.get(id) ?? { responsibleUserId: null, dueDate: null, version: 1 };
 }
 
+const today = (): string => warsawFormat.format(new Date());
+const dayNumber = (day: string): number => Math.floor(Date.parse(`${day}T00:00:00Z`) / 86_400_000);
+
 function stageBody(server: OrderServer, orderId: string, process: number, stage: number, name: string, position: number) {
   const id = stageId(orderId, process, stage);
   const state = stateOf(server, id);
   const person = server.assignable.find((entry) => entry.id === state.responsibleUserId);
+  const party = server.parties.find((entry) => entry.id === state.waitingPartyId);
+  const waiting = state.status === 'waiting';
   return {
     id,
     code: `stage_${String(process)}_${String(stage)}`,
     name,
     position,
-    status: 'todo',
+    status: state.status ?? 'todo',
     dueDate: state.dueDate,
     overdue: state.dueDate !== null && state.dueDate < warsawFormat.format(new Date()),
     responsibleUser: person === undefined ? null : { id: person.id, displayName: person.displayName },
-    waitingOn: null,
-    waitingParty: null,
-    waitingSince: null,
-    waitingDays: null,
-    blockedReason: null,
-    startedAt: null,
-    completedOn: null,
+    waitingOn: waiting ? (state.waitingOn ?? null) : null,
+    waitingParty: waiting && party !== undefined ? { id: party.id, displayName: party.displayName } : null,
+    waitingSince: waiting ? (state.waitingSince ?? null) : null,
+    waitingDays: waiting && state.waitingSince != null ? dayNumber(today()) - dayNumber(state.waitingSince) : null,
+    blockedReason: state.status === 'blocked' ? (state.blockedReason ?? null) : null,
+    startedAt: state.startedAt ?? null,
+    completedOn: state.status === 'done' ? (state.completedOn ?? null) : null,
     version: state.version,
   };
 }
 
 const NOT_FOUND = problem(404, 'not_found');
+
+/** The progress the server counts on a read: the stages "Zakończony" of those that apply (not "Nie dotyczy"). */
+function progressOf(server: OrderServer, orderId: string, process: number, count: number): { done: number; total: number } {
+  const states = Array.from({ length: count }, (_unused, index) => stateOf(server, stageId(orderId, process, index + 1)).status ?? 'todo');
+  return {
+    done: states.filter((status) => status === 'done').length,
+    total: states.filter((status) => status !== 'not_applicable').length,
+  };
+}
 
 export function answerProcedures(server: OrderServer, orderId: string): Answer {
   const created = server.created.find((entry) => entry.id === orderId);
@@ -92,10 +116,11 @@ export function answerProcedures(server: OrderServer, orderId: string): Answer {
     code: process.code,
     name: process.name,
     position: processIndex + 1,
-    progress: { done: 0, total: process.stages.length },
+    progress: progressOf(server, orderId, processIndex + 1, process.stages.length),
     stages: process.stages.map((name, stageIndex) => stageBody(server, orderId, processIndex + 1, stageIndex + 1, name, stageIndex + 1)),
   }));
-  return json(200, { items, openStageCount: items.reduce((sum, item) => sum + item.stages.length, 0) });
+  const open = items.flatMap((item) => item.stages).filter((entry) => ['todo', 'in_progress', 'waiting', 'blocked'].includes(entry.status));
+  return json(200, { items, openStageCount: open.length });
 }
 
 interface StagePatchInput {
@@ -120,7 +145,17 @@ export function answerStagePatch(server: OrderServer, orderId: string, id: strin
   if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
   const state = stateOf(server, id);
   if (Number(match[1]) !== state.version) return problem(412, 'version_conflict');
-  const body = JSON.parse(input.raw) as { responsibleUserId?: string | null; dueDate?: string | null };
+  const body = JSON.parse(input.raw) as {
+    responsibleUserId?: string | null;
+    dueDate?: string | null;
+    waitingOn?: 'customer' | 'party';
+    waitingOnPartyId?: string;
+    waitingSince?: string;
+  };
+  const edits = body.waitingOn !== undefined || body.waitingOnPartyId !== undefined || body.waitingSince !== undefined;
+  if (edits && (state.status ?? 'todo') !== 'waiting') return problem(409, 'invalid_state_transition');
+  const waiting = edits ? waitingOf(server, body) : undefined;
+  if (waiting !== undefined && 'answer' in waiting) return waiting.answer;
   if (body.responsibleUserId !== undefined && body.responsibleUserId !== null) {
     if (!server.assignable.some((entry) => entry.id === body.responsibleUserId)) {
       return problem(400, 'validation_failed', { errors: [{ pointer: '/responsibleUserId', code: 'assignee_unavailable' }] });
@@ -130,7 +165,97 @@ export function answerStagePatch(server: OrderServer, orderId: string, id: strin
     responsibleUserId: body.responsibleUserId === undefined ? state.responsibleUserId : body.responsibleUserId,
     dueDate: body.dueDate === undefined ? state.dueDate : body.dueDate,
     version: state.version + 1,
+    ...(state.status === undefined ? {} : { status: state.status }),
+    ...(waiting === undefined || 'answer' in waiting
+      ? { waitingOn: state.waitingOn ?? null, waitingPartyId: state.waitingPartyId ?? null, waitingSince: state.waitingSince ?? null }
+      : waiting.fields),
+    blockedReason: state.blockedReason ?? null,
+    startedAt: state.startedAt ?? null,
+    completedOn: state.completedOn ?? null,
   };
+  server.stages.set(id, next);
+  return json(200, stageBody(server, orderId, located.process, located.stage, located.name, located.stage), {
+    ETag: `"${String(next.version)}"`,
+  });
+}
+
+interface WaitingBody {
+  readonly waitingOn?: 'customer' | 'party';
+  readonly waitingOnPartyId?: string;
+  readonly waitingSince?: string;
+}
+
+const invalid = (pointer: string, code: string): { answer: Answer } => ({
+  answer: problem(400, 'validation_failed', { errors: [{ pointer, code }] }),
+});
+
+/** The rule "na kogo czekamy" of the server, one for the transition and the edit: customer, no party; party, an existing one; the day not later than today. */
+function waitingOf(
+  server: OrderServer,
+  body: WaitingBody,
+): { fields: Pick<StageState, 'waitingOn' | 'waitingPartyId' | 'waitingSince'> } | { answer: Answer } {
+  if (body.waitingOn === undefined) return invalid('/waitingOn', 'required');
+  if (body.waitingOn === 'customer' && body.waitingOnPartyId !== undefined) return invalid('/waitingOnPartyId', 'not_allowed');
+  if (body.waitingOn === 'party') {
+    if (body.waitingOnPartyId === undefined) return invalid('/waitingOnPartyId', 'required');
+    if (!server.parties.some((entry) => entry.id === body.waitingOnPartyId)) return invalid('/waitingOnPartyId', 'unknown_party');
+  }
+  const since = body.waitingSince ?? today();
+  if (since > today() || since < '2000-01-01') return invalid('/waitingSince', 'out_of_range');
+  return { fields: { waitingOn: body.waitingOn, waitingPartyId: body.waitingOnPartyId ?? null, waitingSince: since } };
+}
+
+/** The table "Etap procesu" of `domain-model.md`: the targets that may follow a status. */
+const TABLE: Readonly<Record<string, readonly string[]>> = {
+  todo: ['in_progress', 'waiting', 'done', 'not_applicable', 'blocked'],
+  in_progress: ['waiting', 'done', 'not_applicable', 'blocked'],
+  waiting: ['in_progress', 'done', 'not_applicable', 'blocked'],
+  blocked: ['in_progress'],
+  done: ['in_progress'],
+  not_applicable: ['todo'],
+};
+
+/**
+ * `POST /work-orders/{id}/procedure-stages/{stageId}/transitions` (EVM-032): role, 404, 409 `work_order_closed`, the table (409
+ * `invalid_state_transition`), 428/412, the fields of the target (400 with pointer and code), then the change with `version + 1`.
+ */
+export function answerStageTransition(server: OrderServer, orderId: string, id: string, input: StagePatchInput): Answer {
+  if (input.role === 'read_only') return problem(403, 'forbidden');
+  const created = server.created.find((entry) => entry.id === orderId);
+  if (created === undefined || server.gone.has(orderId) || created.templateId === null) return NOT_FOUND;
+  const located = PROCESSES.flatMap((process, processIndex) =>
+    process.stages.map((name, stageIndex) => ({ process: processIndex + 1, stage: stageIndex + 1, name })),
+  ).find((entry) => stageId(orderId, entry.process, entry.stage) === id);
+  if (located === undefined) return NOT_FOUND;
+  if (input.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  const body = JSON.parse(input.raw) as WaitingBody & { to?: string; blockedReason?: string; completedOn?: string };
+  const status = server.states.get(orderId)?.status ?? 'new';
+  if (status === 'settled' || status === 'cancelled') return problem(409, 'work_order_closed');
+  const state = stateOf(server, id);
+  const from = state.status ?? 'todo';
+  if (Number(match[1]) !== state.version) return problem(412, 'version_conflict');
+  if (body.to === undefined || !(TABLE[from] ?? []).includes(body.to)) return problem(409, 'invalid_state_transition');
+  const next: StageState = { ...state, version: state.version + 1, status: body.to };
+  if (body.to === 'waiting') {
+    const waiting = waitingOf(server, body);
+    if ('answer' in waiting) return waiting.answer;
+    Object.assign(next, waiting.fields);
+  } else {
+    Object.assign(next, { waitingOn: null, waitingPartyId: null, waitingSince: null });
+  }
+  if (body.to === 'blocked') {
+    const reason = (body.blockedReason ?? '').normalize('NFC').trim();
+    if (reason === '') return invalid('/blockedReason', 'required').answer;
+    next.blockedReason = reason;
+  } else next.blockedReason = null;
+  if (body.to === 'done') {
+    const day = body.completedOn ?? today();
+    if (day > today() || day < '2000-01-01') return invalid('/completedOn', 'out_of_range').answer;
+    next.completedOn = day;
+  } else next.completedOn = null;
+  if (from === 'todo' && body.to === 'in_progress') next.startedAt = new Date().toISOString();
   server.stages.set(id, next);
   return json(200, stageBody(server, orderId, located.process, located.stage, located.name, located.stage), {
     ETag: `"${String(next.version)}"`,

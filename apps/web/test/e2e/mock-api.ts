@@ -9,7 +9,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
-import { answerProcedures, answerStagePatch } from './mock-procedures.ts';
+import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerList,
@@ -383,6 +383,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
       return route.fulfill(
         answerStagePatch(api.orders, stagePatch[1] ?? '', stagePatch[2] ?? '', {
+          role: api.role,
+          ifMatch: headers['if-match'],
+          raw: request.postData() ?? '{}',
+        }),
+      );
+    }
+    // EVM-032: the transition of one stage (the menu of the badge of a stage in W-06).
+    const stageTransition =
+      request.method() === 'POST'
+        ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/procedure-stages\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname)
+        : null;
+    if (stageTransition !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerStageTransition(api.orders, stageTransition[1] ?? '', stageTransition[2] ?? '', {
           role: api.role,
           ifMatch: headers['if-match'],
           raw: request.postData() ?? '{}',
