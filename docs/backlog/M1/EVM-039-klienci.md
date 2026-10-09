@@ -4,7 +4,7 @@ title: Klienci — lista, szczegóły, edycja i historia zleceń
 type: story
 milestone: M1
 epic: E2 Klienci
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -107,7 +107,7 @@ Operacje API (addytywnie): `GET /customers` (kursor, 25 na stronę, sort `sort_n
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja potwierdzone (SR-DATA-01)
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -119,3 +119,4 @@ Operacje API (addytywnie): `GET /customers` (kursor, 25 na stronę, sort `sort_n
 - 2026-10-09 — część bezpieczeństwa gotowa (security-engineer): SR-DATA-01 potwierdzone w `rodo.md` i `domain-model.md` (weryfikacja kodu i testów), aktualizacja EVM-039 w `threat-model.md` (AB-08 — drugi próg P10) i `requirements.md` (SR-API-05 — klucz związany z zasobem, SR-API-04, SR-AUTHZ-02)
 - 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,2% / gałęzie 93,4%; → in-review
 - 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,36 mln tokenów subagentów, 9 agentów, 460 wywołań narzędzi, 1 runda, ok. 102 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-09 — zaakceptowane przez Konrada, scalone do main (PR #39) → done
