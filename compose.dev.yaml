@@ -1,0 +1,88 @@
+# Local development environment (EVM-077; ADR-0015) — API and PostgreSQL in containers, the panel natively. Never used on
+# staging or production. Started only by `pnpm run dev` (tools/dev-env), always with the explicit file and one of four exact
+# forms: up -d --wait --build | down | down -v | exec api node dist/src/cli/bootstrap-admin.js (tested by tools/repo-policy).
+# Same rules as compose.yaml (tested in tools/repo-policy): images by tag + digest or built from a Dockerfile pinned by
+# digest; no privileged mode, no Docker socket, no env_file and no ${…} interpolation; read-only root file system, all
+# capabilities dropped, no-new-privileges, non-root user; no project `name:`. Narrow exceptions, tested one by one:
+#   - ports only as 127.0.0.1:<host port other than 5432>:<container port> (never reachable from the local network);
+#   - the named volume evia-dev-data (the development database survives `down`; `down -v` removes it);
+#   - one network with egress (an `internal` network cannot publish ports): dev-net.
+# Names of services, network and volume are disjoint from compose.yaml (both files share the Compose project), so `down -v`
+# here never touches bt-work or the containers of the gates.
+# The api service has every setting written out — nothing is taken from the environment of the host except CURSOR_KEY (a
+# secret, by name only). Migrations run at its start, before the marker of the database is checked by the tools, so the
+# target database is fixed here: only postgres-dev/evia_dev is reachable, whatever the host environment says.
+
+x-hardening: &hardening
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+
+services:
+  # PostgreSQL 18, same image and initdb arguments as compose.yaml. Runs directly as the postgres user (uid 999).
+  # The password is synthetic and local only. init.sql sets the marker of the development database (read-only mount).
+  postgres-dev:
+    <<: *hardening
+    image: postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    user: '999:999'
+    networks: [dev-net]
+    ports:
+      - '127.0.0.1:5442:5432'
+    environment:
+      POSTGRES_USER: evia
+      POSTGRES_PASSWORD: evia-local
+      POSTGRES_DB: evia_dev
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=pl-PL
+    volumes:
+      - evia-dev-data:/var/lib/postgresql
+      - ./infra/docker/postgres-dev/init.sql:/docker-entrypoint-initdb.d/10-evia-env.sql:ro
+    tmpfs:
+      - /var/run/postgresql:uid=999,gid=999,mode=0775,nosuid,nodev
+      - /tmp:noexec,nosuid,nodev,mode=1777
+    healthcheck:
+      test: ['CMD', 'pg_isready', '--host=127.0.0.1', '--username=evia', '--dbname=evia_dev']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The API as in staging: built JavaScript, production dependencies, non-root. Applies migrations, then listens.
+  api:
+    <<: *hardening
+    image: evia-api-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/api-dev/Dockerfile
+    pull_policy: build
+    user: node
+    working_dir: /app/apps/api
+    networks: [dev-net]
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      API_PORT: '3000'
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://evia:evia-local@postgres-dev:5432/evia_dev
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      PANEL_ORIGIN: http://localhost:5173
+      WEBAUTHN_RP_ID: localhost
+      WEBAUTHN_RP_NAME: EVia Manager
+      CURSOR_KEY:
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,mode=1777
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+networks:
+  dev-net:
+
+volumes:
+  evia-dev-data:
