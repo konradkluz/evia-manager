@@ -5,8 +5,9 @@
  * processes the template brings through the facade of `catalog`, plans them (a copy, in the order of the template, every stage
  * `todo`, a code once — `domain/composition-plan.ts`) and inserts them. It does database work only: no I/O outside the database.
  *
- * Fail closed: an order that would pass a limit of the API (30 processes, 30 stages per process) is not trimmed — the contributor
- * throws, the creation rolls back as a whole, and the cause is the configuration of the template, not a wrong request.
+ * Fail closed: an order that would pass a limit of the API (30 processes, 30 stages per process) is not trimmed — the planner
+ * throws (`CompositionLimitError`), the creation rolls back as a whole, and the cause is the configuration of the template, not a
+ * wrong request. A process whose code is already active in the order (cannot happen on a new order) is refused by the unique index.
  */
 import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type { Kysely } from 'kysely';
@@ -40,19 +41,11 @@ export class ProceduresCompositionContributor implements WorkOrderCompositionCon
   async contribute(tx: Kysely<Database>, context: CompositionContext): Promise<void> {
     if (context.templateId === null) return;
     const brought = await this.#templates.findProceduresForCopy(tx, context.templateId);
-    const plan = planProcedures(brought, context.scopeItems);
-    if (!plan.ok) throw new Error(`the template brings more than the limit of the API allows (${plan.reason})`);
-    if (plan.procedures.length === 0) return;
+    const procedures = planProcedures(brought, context.scopeItems);
+    if (procedures.length === 0) return;
 
     const tables = procedureTables(tx);
-    const inserted = await insertProcedures(tables, context.workOrderId, plan.procedures, context.principal.userId, context.now);
-    await insertStages(
-      tables,
-      context.workOrderId,
-      new Map(inserted.map((row) => [row.code, row.id])),
-      plan.procedures,
-      context.principal.userId,
-      context.now,
-    );
+    await insertProcedures(tables, context.workOrderId, procedures, context.principal.userId, context.now);
+    await insertStages(tables, context.workOrderId, procedures, context.principal.userId, context.now);
   }
 }

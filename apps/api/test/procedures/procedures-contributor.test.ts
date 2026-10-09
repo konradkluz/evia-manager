@@ -56,7 +56,7 @@ describe('the contributor of the processes (EVM-031 AC1; SR-API-06, SR-ERR-01)',
     expect(find).not.toHaveBeenCalled();
   });
 
-  it('EVM-031 AC1 a template that brings nothing writes nothing', async () => {
+  it('EVM-031 AC1 a template that brings nothing writes nothing (the fake transaction has no query methods)', async () => {
     const { find, contributor, context } = setup([]);
     const templateId = uuidv7();
     await contributor.contribute(TRANSACTION, context(templateId));

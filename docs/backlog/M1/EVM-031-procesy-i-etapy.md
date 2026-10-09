@@ -106,3 +106,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie procesów w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna wybrana przez Konrada: 8 AC, uprawnienia, dane osobowe; gałąź feature/EVM-031-procedures-and-stages)
+- 2026-10-09 — implementacja backendu AC1–AC8 (backend-developer): moduł `procedures`, migracja `0019`, kontrakt `listWorkOrderProcedures` / `updateProcedureStage`, kod `work_order_closed`; panel (sekcja W-06, dialog AC4, karta i podgląd szablonu) — web-developer

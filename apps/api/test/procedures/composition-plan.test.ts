@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { planProcedures, type TemplateProcedure, type TemplateStage } from '../../src/modules/procedures/domain/composition-plan.ts';
+import {
+  CompositionLimitError,
+  planProcedures,
+  type TemplateProcedure,
+  type TemplateStage,
+} from '../../src/modules/procedures/domain/composition-plan.ts';
 
 const stage = (code: string, position: number): TemplateStage => ({
   sourceStageTemplateId: `stage-template-${code}`,
@@ -15,11 +20,8 @@ const procedure = (code: string, itemId: string, stages: TemplateStage[] = [stag
   broughtByCatalogItemId: itemId,
   stages,
 });
-const planned = (brought: TemplateProcedure[], scope: Array<{ id: string; sourceCatalogItemId: string | null }> = []) => {
-  const plan = planProcedures(brought, scope);
-  if (!plan.ok) throw new Error(`refused: ${plan.reason}`);
-  return plan.procedures;
-};
+const planned = (brought: TemplateProcedure[], scope: Array<{ id: string; sourceCatalogItemId: string | null }> = []) =>
+  planProcedures(brought, scope);
 
 describe('the processes of a new order (EVM-031 AC1; domain-model → "Kompozycja zlecenia z szablonu")', () => {
   it('EVM-031 AC1 the processes keep the order of the template and are numbered 1, 2, 3 …, whatever the numbers of the template', () => {
@@ -75,11 +77,18 @@ describe('the processes of a new order (EVM-031 AC1; domain-model → "Kompozycj
 
   it('EVM-031 SR-API-02 SR-ERR-01 31 processes are refused, 30 are not; 31 stages in a process are refused, 30 are not — nothing is cut off', () => {
     const many = (count: number) => Array.from({ length: count }, (_, index) => procedure(`process_${index}`, `i${index}`));
-    expect(planProcedures(many(30), [])).toMatchObject({ ok: true });
-    expect(planProcedures(many(31), [])).toEqual({ ok: false, reason: 'too_many_procedures' });
+    expect(planProcedures(many(30), [])).toHaveLength(30);
+    expect(() => planProcedures(many(31), [])).toThrow(CompositionLimitError);
+    expect(() => planProcedures(many(31), [])).toThrow(/too_many_procedures/);
     const stages = (count: number) => Array.from({ length: count }, (_, index) => stage(`stage_${index}`, index + 1));
-    expect(planProcedures([procedure('osd', 'i1', stages(30))], [])).toMatchObject({ ok: true });
-    expect(planProcedures([procedure('osd', 'i1', stages(31))], [])).toEqual({ ok: false, reason: 'too_many_stages' });
+    expect(planProcedures([procedure('osd', 'i1', stages(30))], [])).toHaveLength(1);
+    expect(() => planProcedures([procedure('osd', 'i1', stages(31))], [])).toThrow(/too_many_stages/);
+    try {
+      planProcedures([procedure('osd', 'i1', stages(31))], []);
+    } catch (error) {
+      expect((error as CompositionLimitError).reason).toBe('too_many_stages');
+      expect(JSON.stringify(error)).not.toContain('osd');
+    }
   });
 
   it('EVM-031 AC1 the limit counts the processes that will be made, not the repeats: 31 offers of 30 different codes pass', () => {

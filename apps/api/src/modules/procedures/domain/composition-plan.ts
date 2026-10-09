@@ -3,7 +3,7 @@
  * szablonu", D1): a COPY of each process with its stages, in the order of the template, every stage `todo`. A process whose `code` comes
  * twice is not made twice — the model allows one active process per code. The positions are numbered
  * here (1, 2, 3 …), whatever the numbers of the template, so they are always unique and inside the limits of the API. An order that
- * would pass a limit is not planned at all: the caller fails closed and the whole creation rolls back, no data is cut off silently
+ * would pass a limit is not planned at all: the planner throws, the whole creation rolls back, no data is cut off silently
  * (SR-API-02, SR-ERR-01).
  */
 import { MAX_PROCEDURES_PER_ORDER, MAX_STAGES_PER_PROCEDURE } from './stage-rules.ts';
@@ -48,24 +48,32 @@ export interface PlannedProcedure {
   readonly stages: readonly PlannedStage[];
 }
 
-export type CompositionPlan =
-  | { readonly ok: true; readonly procedures: readonly PlannedProcedure[] }
-  | { readonly ok: false; readonly reason: 'too_many_procedures' | 'too_many_stages' };
+/** The template brings more than the API allows. Its message names the limit and never a name or an identifier. */
+export class CompositionLimitError extends Error {
+  readonly reason: 'too_many_procedures' | 'too_many_stages';
 
-export function planProcedures(brought: readonly TemplateProcedure[], scopeItems: readonly ScopeItemRef[]): CompositionPlan {
+  constructor(reason: CompositionLimitError['reason']) {
+    super(`the template brings more than the limit of the API allows (${reason})`);
+    this.name = 'CompositionLimitError';
+    this.reason = reason;
+  }
+}
+
+/** @throws {CompositionLimitError} when a limit would be passed — nothing is cut off */
+export function planProcedures(brought: readonly TemplateProcedure[], scopeItems: readonly ScopeItemRef[]): PlannedProcedure[] {
   const seen = new Set<string>();
   const fresh = brought.filter((procedure) => {
     if (seen.has(procedure.code)) return false;
     seen.add(procedure.code);
     return true;
   });
-  if (fresh.length > MAX_PROCEDURES_PER_ORDER) return { ok: false, reason: 'too_many_procedures' };
-  if (fresh.some((procedure) => procedure.stages.length > MAX_STAGES_PER_PROCEDURE)) return { ok: false, reason: 'too_many_stages' };
+  if (fresh.length > MAX_PROCEDURES_PER_ORDER) throw new CompositionLimitError('too_many_procedures');
+  if (fresh.some((procedure) => procedure.stages.length > MAX_STAGES_PER_PROCEDURE)) throw new CompositionLimitError('too_many_stages');
 
   const scopeItemOf = new Map(
     scopeItems.flatMap((item) => (item.sourceCatalogItemId === null ? [] : [[item.sourceCatalogItemId, item.id] as const])),
   );
-  const procedures = fresh.map((procedure, index): PlannedProcedure => ({
+  return fresh.map((procedure, index): PlannedProcedure => ({
     sourceProcedureTemplateId: procedure.sourceProcedureTemplateId,
     sourceScopeItemId: scopeItemOf.get(procedure.broughtByCatalogItemId) ?? null,
     code: procedure.code,
@@ -81,5 +89,4 @@ export function planProcedures(brought: readonly TemplateProcedure[], scopeItems
         outputDocumentKindCodes: stage.outputDocumentKindCodes,
       })),
   }));
-  return { ok: true, procedures };
 }

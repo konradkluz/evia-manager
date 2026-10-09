@@ -174,6 +174,57 @@ describe('the processes of a new order (EVM-031 AC1; domain-model → "Kompozycj
     }
   });
 
+  it('EVM-031 AC1 a template whose items bring no process gives an order without processes; a process template with no stages gives a process with no stages', async () => {
+    const { rows: loose } = await sql<{ id: string }>`
+      select item.id from catalog.service_catalog_items item
+      where item.deleted_at is null and not exists (
+        select 1 from catalog.service_catalog_item_procedures link where link.catalog_item_id = item.id and link.deleted_at is null)
+      limit 1`.execute(admin());
+    const itemId = loose[0]?.id;
+    if (itemId === undefined) throw new Error('the seed has no service without a process');
+    const at = '2026-10-09T08:00:00Z';
+    const { rows: created } = await sql<{ id: string }>`
+      insert into catalog.work_order_templates (code, name, is_active, position, created_at, updated_at)
+      values ('test_no_process', 'Szablon bez procesów', true, 98, ${at}, ${at}) returning id`.execute(admin());
+    const templateRow = created[0]?.id ?? '';
+    await sql`
+      insert into catalog.work_order_template_items (work_order_template_id, catalog_item_id, position, created_at, updated_at)
+      values (${templateRow}, ${itemId}, 1, ${at}, ${at})`.execute(admin());
+    const orderFrom = async () => {
+      const customerId = await insertCustomer(admin(), { email: 'jan@example.invalid' });
+      const browser = await signIn();
+      const body = { id: uuidv7(), customerId, siteId: await insertSite(admin()), templateId: templateRow };
+      const response = await browser.panel.post(CREATE, body).set('Idempotency-Key', uuidv7());
+      expect(response.status, JSON.stringify(response.body)).toBe(201);
+      return processesOf(body.id);
+    };
+    try {
+      expect(await orderFrom()).toEqual([]);
+
+      const { rows: bare } = await sql<{ id: string }>`
+        insert into catalog.procedure_templates (code, name, is_active, position, created_at, updated_at)
+        values ('test_bare_process', 'Proces bez etapów', true, 98, ${at}, ${at}) returning id`.execute(admin());
+      const bareId = bare[0]?.id ?? '';
+      await sql`
+        insert into catalog.service_catalog_item_procedures (catalog_item_id, procedure_template_id, position, created_at, updated_at)
+        values (${itemId}, ${bareId}, 1, ${at}, ${at})`.execute(admin());
+      try {
+        const processes = await orderFrom();
+        expect(processes.map((process) => [process.code, process.name, process.stages])).toEqual([
+          ['test_bare_process', 'Proces bez etapów', null],
+        ]);
+      } finally {
+        await clearWorkOrderCreation(admin());
+        await sql`delete from catalog.service_catalog_item_procedures where procedure_template_id = ${bareId}`.execute(admin());
+        await sql`delete from catalog.procedure_templates where id = ${bareId}`.execute(admin());
+      }
+    } finally {
+      await clearWorkOrderCreation(admin());
+      await sql`delete from catalog.work_order_template_items where work_order_template_id = ${templateRow}`.execute(admin());
+      await sql`delete from catalog.work_order_templates where id = ${templateRow}`.execute(admin());
+    }
+  });
+
   it('EVM-031 AC1 an order without a template has no processes (and the order is made)', async () => {
     const { response, body } = await newOrder(null);
     expect(response.status).toBe(201);

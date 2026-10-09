@@ -180,16 +180,7 @@ export class UpdateStageService {
     if (target.version !== expectedVersion) throw new ProblemException('version_conflict');
     await this.#requireActiveUser(tx, patch.responsibleUserId);
 
-    const version = await updateStage(
-      procedureTables(tx),
-      target.orderId,
-      target.stageId,
-      expectedVersion,
-      patch,
-      principal.userId,
-      this.#clock.now(),
-    );
-    if (version === undefined) throw new ProblemException('internal_error');
+    await updateStage(procedureTables(tx), target.orderId, target.stageId, expectedVersion, patch, principal.userId, this.#clock.now());
     const event: ProcedureStageEvent = {
       type: 'procedure_stage.updated',
       actor: { type: 'user', userId: principal.userId },
@@ -211,7 +202,6 @@ export class UpdateStageService {
   /** The stage of THIS order as it is NOW, with the name of the person responsible. */
   async #present(tx: Kysely<Database>, orderId: string, stageId: string): Promise<ProcedureStage> {
     const row = await findStage(procedureTables(tx), orderId, stageId);
-    if (row === undefined) throw new ProblemException('not_found');
     const names = await responsibleNamesOf(this.#users, tx, row.responsible_user_id === null ? [] : [row.responsible_user_id]);
     return toProcedureStage(row, names, businessDate(this.#clock.now()));
   }

@@ -51,15 +51,15 @@ procedureStage:
       zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict` (dane etapu zostają bez
       zmian, odpowiedź nie zawiera bieżących wartości). Etap jest wyszukiwany warunkiem `id = {stageId} AND work_order_id = {workOrderId}`
       w zapytaniu: etap innego zlecenia, nieistniejący, a także etap zlecenia nieistniejącego albo usuniętego (także dla Administratora) —
-      jedna odpowiedź `404 not_found`, niezależnie od treści. Zlecenie Rozliczone albo Anulowane — `409 work_order_closed` (PO-8; sprawdzane
-      po `404`, przed wersją i treścią). Treść to `ProcedureStagePatch`: co najmniej jedno z `responsibleUserId`, `dueDate`; pole
+      jedna odpowiedź `404 not_found`, niezależnie od treści (treść jest sprawdzana dopiero po `404`). Zlecenie Rozliczone albo Anulowane — `409 work_order_closed` (PO-8; sprawdzane
+      po `404` i treści, przed wersją). Treść to `ProcedureStagePatch`: co najmniej jedno z `responsibleUserId`, `dueDate`; pole
       kontrolowane przez serwer (`status`, `name`, `code`, `position`, `version`, `overdue`, pola „czekamy na”, `notes`) —
       `400 read_only_field`, pole spoza schematu — `400 unknown_field`; `responsibleUserId` spoza aktywnych użytkowników (nieistniejący,
       zaproszony, zdezaktywowany, usunięty — jedna odpowiedź) — `400 validation_failed` (`/responsibleUserId`, `assignee_unavailable`);
       `dueDate` poza zakresem 2000-01-01..2100-12-31 — `400` (`/dueDate`, `out_of_range`). Kolejność: guard (rola, CSRF, kanał), ścieżka,
-      nagłówki, blokada zlecenia i etapu `SELECT … FOR UPDATE` (polityka odczytu w zapytaniu), powtórka idempotentna,
-      `409 work_order_closed`, wersja (`412`), treść (`400`), osoba odpowiedzialna, zapis `version + 1`, audyt i rekord idempotencji
-      w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny,
+      nagłówki (`Idempotency-Key`, `If-Match`), blokada zlecenia i etapu `SELECT … FOR UPDATE` (polityka odczytu w zapytaniu; `404`),
+      treść (`400`), powtórka idempotentna, `409 work_order_closed`, wersja (`412`), osoba odpowiedzialna (`400`), zapis `version + 1`,
+      audyt i rekord idempotencji w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny,
       panel wysyła go zawsze; klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem etapu — ten sam klucz
       z tą samą treścią dla innego etapu to `422 idempotency_mismatch`. Powtórka (ten sam klucz, etap i treść) — `200` z bieżącą
       reprezentacją i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu. Odpowiedź `200` ma nowy `ETag`.

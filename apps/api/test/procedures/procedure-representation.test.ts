@@ -93,3 +93,11 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
     expect(names.get('user-204')).toBe('Nazwa user-204');
   });
 });
+
+describe('a row that does not fit the contract (EVM-031; SR-ERR-01)', () => {
+  it('EVM-031 SR-DATA-03 a status the contract does not know is a defect of the server (500), never data that leaves', () => {
+    const odd = stage({ status: 'finished' as never });
+    expect(() => toProcedureStage(odd, new Map(), '2026-10-03')).toThrow(ProblemException);
+    expect(() => toProcedureList([procedure(P1, 1)], [odd], new Map(), '2026-10-03')).toThrow(ProblemException);
+  });
+});

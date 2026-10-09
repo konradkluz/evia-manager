@@ -23,8 +23,9 @@ const inActiveProcess = (eb: ExpressionBuilder<ProcedureTables, 'procedures.proc
   );
 
 /**
- * Inserts the processes of a new order (the first line of defence against a repeat is the plan; the partial unique index of the code
- * is the second: a process whose code is already active is skipped and gets no stages). Returns the rows that WERE inserted.
+ * Inserts the processes of a new order (at least one: the caller has nothing to do for an empty plan). The partial unique index of the
+ * code is the last line of defence against a repeat — a process whose code is already active in the order fails the insert, and with
+ * it the whole creation (the plan makes each code once, so it cannot happen on a new order).
  */
 export async function insertProcedures(
   db: ProceduresDb,
@@ -32,9 +33,8 @@ export async function insertProcedures(
   procedures: readonly PlannedProcedure[],
   actorUserId: string,
   now: Date,
-): Promise<Array<{ readonly id: string; readonly code: string }>> {
-  if (procedures.length === 0) return [];
-  return db
+): Promise<void> {
+  await db
     .insertInto('procedures.procedures')
     .values(
       procedures.map((procedure) => ({
@@ -52,25 +52,24 @@ export async function insertProcedures(
         deleted_by: null,
       })),
     )
-    .onConflict((conflict) => conflict.columns(['work_order_id', 'code']).where('deleted_at', 'is', null).doNothing())
-    .returning(['id', 'code'])
     .execute();
 }
 
-/** Inserts the stages of the processes just made, every one in the status `todo` (the default of the column: the server decides it). */
+/**
+ * Inserts the stages of the processes just made, every one in the status `todo` (the default of the column: the server decides it).
+ * The process of a stage is found IN the insert by its order and code, so the key `(procedure_id, work_order_id)` is made from the
+ * same order the caller named — no identifier is carried from one statement to the next.
+ */
 export async function insertStages(
   db: ProceduresDb,
   workOrderId: string,
-  inserted: ReadonlyMap<string, string>,
   procedures: readonly PlannedProcedure[],
   actorUserId: string,
   now: Date,
-): Promise<number> {
-  const rows = procedures.flatMap((procedure) => {
-    const procedureId = inserted.get(procedure.code);
-    if (procedureId === undefined) return [];
-    return procedure.stages.map((stage) => ({
-      procedure_id: procedureId,
+): Promise<void> {
+  const rows = procedures.flatMap((procedure) =>
+    procedure.stages.map((stage) => ({
+      procedure_id: sql<string>`(select id from procedures.procedures where work_order_id = ${workOrderId} and code = ${procedure.code} and deleted_at is null)`,
       work_order_id: workOrderId,
       code: stage.code,
       name: stage.name,
@@ -83,11 +82,10 @@ export async function insertStages(
       updated_by: actorUserId,
       deleted_at: null,
       deleted_by: null,
-    }));
-  });
-  if (rows.length === 0) return 0;
+    })),
+  );
+  if (rows.length === 0) return;
   await db.insertInto('procedures.procedure_stages').values(rows).execute();
-  return rows.length;
 }
 
 /** The ACTIVE processes of an order in order — at most the limit of the API (a bound on the answer, SR-API-02). */
@@ -136,7 +134,7 @@ export function lockStage(db: ProceduresDb, workOrderId: string, stageId: string
     .executeTakeFirst();
 }
 
-/** The stage of THIS order as it is NOW (the answer of a change and of a repeat). */
+/** The stage of THIS order as it is NOW (the answer of a change and of a repeat); the caller holds its lock, so it exists — a missing row is an error (500). */
 export function findStage(db: ProceduresDb, workOrderId: string, stageId: string) {
   return db
     .selectFrom('procedures.procedure_stages')
@@ -145,7 +143,7 @@ export function findStage(db: ProceduresDb, workOrderId: string, stageId: string
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
     .where(inActiveProcess)
-    .executeTakeFirst();
+    .executeTakeFirstOrThrow();
 }
 
 export interface StageChange {
@@ -155,8 +153,8 @@ export interface StageChange {
 
 /**
  * Writes the named fields and raises the version by one — only for the version the command decided on (the lock already guarantees
- * it; the condition is the second line of defence). `undefined` — nothing was updated. The status is not among the columns: it can
- * be changed only by the command of EVM-032.
+ * it; the condition is the second line of defence: a row that is not updated is an error, not a silent no-op). The status is not
+ * among the columns: it can be changed only by the command of EVM-032.
  */
 export async function updateStage(
   db: ProceduresDb,
@@ -166,8 +164,8 @@ export async function updateStage(
   change: StageChange,
   actorUserId: string,
   now: Date,
-): Promise<number | undefined> {
-  const row = await db
+): Promise<void> {
+  await db
     .updateTable('procedures.procedure_stages')
     .set({
       ...(change.responsibleUserId === undefined ? {} : { responsible_user_id: change.responsibleUserId }),
@@ -181,6 +179,5 @@ export async function updateStage(
     .where('version', '=', expectedVersion)
     .where('deleted_at', 'is', null)
     .returning('version')
-    .executeTakeFirst();
-  return row?.version;
+    .executeTakeFirstOrThrow();
 }
