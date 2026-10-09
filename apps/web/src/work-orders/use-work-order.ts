@@ -2,9 +2,11 @@ import {
   getWorkOrder,
   getWorkOrderCustomer,
   getWorkOrderSite,
+  listWorkOrderProcedures,
   listWorkOrderScopeItems,
   listWorkOrderSiteOrders,
   type CustomerCard,
+  type ProcedureList,
   type ScopeItemList,
   type SiteCard,
   type SiteOrders,
@@ -16,6 +18,7 @@ import { ApiError, unwrap } from '../api/client.ts';
 import {
   WORK_ORDER_HEADER_KEY,
   WORK_ORDER_CUSTOMER_KEY,
+  WORK_ORDER_PROCEDURES_KEY,
   WORK_ORDER_SCOPE_KEY,
   WORK_ORDER_SITE_KEY,
   WORK_ORDER_SITE_ORDERS_KEY,
@@ -86,6 +89,25 @@ export function useWorkOrderSiteOrders(id: string, enabled: boolean): UseQueryRe
     queryFn: ({ signal }) => unwrap(listWorkOrderSiteOrders({ client, signal, path: { workOrderId: id } })),
     enabled,
     gcTime: 0,
+    ...common,
+  });
+}
+
+/**
+ * The processes of the order with their stages (EVM-031 AC2): one read for the section "Procesy i etapy" and for the number of
+ * open stages in the dialog "Zakończ" (AC4). The names of the people are personal data (DO-P): the memory of the tab only.
+ */
+export function useWorkOrderProcedures(id: string, enabled: boolean): UseQueryResult<ProcedureList> {
+  const client = useApi();
+  return useQuery({
+    queryKey: [WORK_ORDER_PROCEDURES_KEY, id],
+    queryFn: ({ signal }) => unwrap(listWorkOrderProcedures({ client, signal, path: { workOrderId: id } })),
+    enabled,
+    gcTime: 0,
+    // The section and the dialog "Zakończ" share this entry: the second reader must not ask again, the dialog refreshes it itself.
+    staleTime: Infinity,
+    // A failed read stays a failed read until the person retries: a second reader mounting later must not hide the alert of the section.
+    retryOnMount: false,
     ...common,
   });
 }

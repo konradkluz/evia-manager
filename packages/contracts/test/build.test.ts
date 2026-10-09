@@ -61,7 +61,7 @@ describe('contract build (EVM-008 AC2)', () => {
     expect(bundleContract(output).status).toBe(0);
     const bundle = JSON.parse(readFileSync(output, 'utf8')) as { paths: Record<string, unknown>; components: { schemas: object } };
     expect(Object.keys(bundle.paths)).toContain('/api/health');
-    expect(Object.keys(bundle.paths)).toHaveLength(36);
+    expect(Object.keys(bundle.paths)).toHaveLength(38);
     expect(Object.keys(bundle.components.schemas)).toEqual(expect.arrayContaining(['Health', 'Problem', 'Semver']));
   });
 });

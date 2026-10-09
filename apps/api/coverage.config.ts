@@ -28,6 +28,11 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/sites/application/**/*.ts',
   'src/modules/sites/infrastructure/**/*.ts',
   'src/modules/sites/http/sites.controller.ts',
+  // the logic that touches no database (the answers, the names in batches, the controller over fake services) is measured by the unit run
+  'src/modules/procedures/application/list-procedures.service.ts',
+  'src/modules/procedures/application/update-stage.service.ts',
+  'src/modules/procedures/application/procedures-contributor.ts',
+  'src/modules/procedures/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',

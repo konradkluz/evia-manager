@@ -10,6 +10,7 @@ import {
   StatusBadge,
   StatusBadgeButton,
   TextArea,
+  TriangleAlert,
   WifiOff,
   type OrderStatusKey,
 } from '@evia/ui-web';
@@ -35,7 +36,9 @@ import { useSession } from '../session/session.ts';
 import { useStepUp } from '../session/step-up-context.tsx';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
+import { pluralForm } from './order-form.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_PROCEDURES_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
+import { useWorkOrderProcedures } from './use-work-order.ts';
 import {
   DIALOG_ACTIONS,
   REASON_MAX,
@@ -68,6 +71,18 @@ interface FieldErrors {
 
 const normalize = (text: string): string => text.normalize('NFC').trim();
 
+/** AC4: "Zlecenie ma jeszcze 4 otwarte etapy…" with the Polish form of the count (§ 6.3). */
+function openStagesText(t: TFunction, count: number): string {
+  switch (pluralForm(count)) {
+    case 'one':
+      return t('workOrder.status.openStages.one', { count });
+    case 'few':
+      return t('workOrder.status.openStages.few', { count });
+    case 'many':
+      return t('workOrder.status.openStages.many', { count });
+  }
+}
+
 function reasonError(t: TFunction, code: string): string {
   if (code === 'too_long') return t('workOrder.status.field.reasonTooLong', { max: REASON_MAX });
   if (code === 'required') return t('workOrder.status.field.reasonRequired');
@@ -95,6 +110,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   const role = useSession().data?.user.role;
   const attempt = useAttempt();
   const formId = useId();
+  // AC4: the number of open stages for the warning in the dialog "Zakończ"; the section of the processes reads the same entry.
+  const openStages = useWorkOrderProcedures(order.id, true).data?.openStageCount ?? 0;
   const root = useRef<HTMLDivElement>(null);
   /** The reason of the last hold in this tab — "Cofnij" after "Wznów" sends it again; the API does not return it. */
   const heldReason = useRef<{ readonly orderId: string; readonly reason: string } | null>(null);
@@ -210,6 +227,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
     setFailure(null);
     setFieldErrors({});
     if (DIALOG_ACTIONS.has(entry.action)) {
+      // AC4: the warning counts the open stages as they are now (they may have changed since the page was opened).
+      if (entry.action === 'complete') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, order.id] });
       setReason('');
       setCompletedOn(todayWarsaw(serverNow()));
       setDialog(entry);
@@ -380,6 +399,7 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
             {alertFor('dialog')}
             {online ? null : <Banner icon={WifiOff}>{t('workOrder.status.offline')}</Banner>}
             <p>{labelsOf(dialog.action).description}</p>
+            {dialog.action === 'complete' && openStages > 0 ? <Banner icon={TriangleAlert}>{openStagesText(t, openStages)}</Banner> : null}
             {dialog.action === 'complete' ? (
               <DateField
                 label={transitionFieldLabels.completedOn}

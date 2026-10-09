@@ -10,12 +10,14 @@ import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
+import { ProceduresSection } from '../work-orders/procedures-section.tsx';
 import { ScopeSection } from '../work-orders/scope-section.tsx';
 import { SiteCard } from '../work-orders/site-card.tsx';
 import {
   isNotFound,
   useWorkOrderCustomer,
   useWorkOrderHeader,
+  useWorkOrderProcedures,
   useWorkOrderScope,
   useWorkOrderSite,
   useWorkOrderSiteOrders,
@@ -45,6 +47,7 @@ export function WorkOrderPage() {
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
   const scope = useWorkOrderScope(id, active);
+  const procedures = useWorkOrderProcedures(id, active);
   const customer = useWorkOrderCustomer(id, active);
   const site = useWorkOrderSite(id, active);
   const siteOrders = useWorkOrderSiteOrders(id, active);
@@ -61,7 +64,8 @@ export function WorkOrderPage() {
   // The connection is back: what failed meanwhile is read again.
   useEffect(() => {
     if (!online) return;
-    for (const query of [header, scope, customer, site, siteOrders]) if (query.isError && !isNotFound(query.error)) void query.refetch();
+    for (const query of [header, scope, procedures, customer, site, siteOrders])
+      if (query.isError && !isNotFound(query.error)) void query.refetch();
     // Only the return of the connection matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
@@ -107,7 +111,10 @@ export function WorkOrderPage() {
             selectedId={OVERVIEW_TAB}
             onSelect={noop}
           >
-            <ScopeSection query={scope} />
+            <div className="flex flex-col gap-stack-lg">
+              <ProceduresSection order={order} query={procedures} />
+              <ScopeSection query={scope} />
+            </div>
           </Tabs>
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>

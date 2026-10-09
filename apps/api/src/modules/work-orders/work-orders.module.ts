@@ -6,7 +6,7 @@
  * of transitions, `If-Match`, the restoration with a step-up, the audit of a cancellation and a restoration). It reaches other modules
  * only through their facades: the names of people and the active users through `identity` (`UserDirectory`), the customer through
  * `customers` (`CustomerDirectory`), the site through `sites` (`SiteDirectory`), the parties of a site through `parties` (`PartyDirectory`), the template through `catalog`
- * (`TemplateDirectory`). The port `WorkOrderCompositionContributor` lets `procedures` and `payments` join the creation later
+ * (`TemplateDirectory`). The facade `WorkOrderDirectory` tells `procedures` (EVM-031) whether the caller may see an order and whether it is closed. The port `WorkOrderCompositionContributor` lets `procedures` and `payments` join the creation later
  * (they depend on this module, not the other way round); the port `WorkOrderTransitionParticipant` lets `payments` add the condition and the effect of a
  * status change (EVM-053, EVM-054).
  */
@@ -21,9 +21,11 @@ import { ListSiteOrdersService } from './application/list-site-orders.service.ts
 import { ListWorkOrdersService } from './application/list-work-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
 import { TransitionWorkOrderService } from './application/transition-work-order.service.ts';
+import { WorkOrderDirectoryService } from './application/work-order-directory.service.ts';
 import { WorkOrderCompositionRegistry } from './composition-contributor.ts';
 import { WorkOrdersController } from './http/work-orders.controller.ts';
 import { WorkOrderTransitionRegistry } from './transition-participant.ts';
+import { WORK_ORDER_DIRECTORY } from './work-order-directory.ts';
 
 @Module({
   imports: [IdentityModule, CatalogModule, CustomersModule, SitesModule, PartiesModule],
@@ -36,7 +38,8 @@ import { WorkOrderTransitionRegistry } from './transition-participant.ts';
     TransitionWorkOrderService,
     WorkOrderCompositionRegistry,
     WorkOrderTransitionRegistry,
+    { provide: WORK_ORDER_DIRECTORY, useClass: WorkOrderDirectoryService },
   ],
-  exports: [WorkOrderCompositionRegistry, WorkOrderTransitionRegistry],
+  exports: [WorkOrderCompositionRegistry, WorkOrderTransitionRegistry, WORK_ORDER_DIRECTORY],
 })
 export class WorkOrdersModule {}

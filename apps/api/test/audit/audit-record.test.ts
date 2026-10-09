@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { auditRecordSchema, toAuditRecord } from '../../src/modules/audit/domain/audit-record.ts';
 import { truncateIp } from '../../src/modules/audit/domain/ip-prefix.ts';
 import { AuditSubscriber } from '../../src/modules/audit/audit.module.ts';
+import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { FixedClock } from '../support/clock.ts';
@@ -142,6 +143,51 @@ describe('audit subscription (EVM-016 AC7, W1)', () => {
       }),
     );
     expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
+  });
+});
+
+describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () => {
+  const stageEvent: ProcedureStageEvent = {
+    type: 'procedure_stage.updated',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'procedure_stage',
+    objectId: session,
+  };
+
+  it('EVM-031 SR-LOG-03 audit subscribes to every event type of procedures, so publishing any of them has a handler', async () => {
+    const bus = new EventBus();
+    new AuditSubscriber(bus, new FixedClock(at)).onModuleInit();
+    const failures = await Promise.all(
+      PROCEDURE_EVENT_TYPES.map(async (type) => {
+        try {
+          // the handler needs a real transaction to write: reaching it (and failing there) proves that a handler is registered
+          await bus.publish({} as never, { ...stageEvent, type }, { origin: 'web', traceId });
+          return '';
+        } catch (error) {
+          return String(error);
+        }
+      }),
+    );
+    expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
+  });
+
+  it('EVM-031 SR-LOG-03 the record has the actor, the stage, the outcome and the trace — and nothing else: no name, no date, no field', () => {
+    const record = toAuditRecord(stageEvent, { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session }, at);
+    expect(record).toEqual({
+      occurredAt: at,
+      actorType: 'user',
+      actorUserId: user,
+      sessionId: session,
+      ipPrefix: '203.0.113.0/24',
+      origin: 'web',
+      action: 'procedure_stage.updated',
+      outcome: 'success',
+      reasonCode: null,
+      objectType: 'procedure_stage',
+      objectId: session,
+      traceId,
+    });
   });
 });
 

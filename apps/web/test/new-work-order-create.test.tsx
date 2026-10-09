@@ -44,7 +44,7 @@ const itemNames = [
   'Montaż i uruchomienie',
   'Pomiary i odbiór',
 ];
-const template = (id: string, name: string, siteTypeHint: string | null, names: string[]) => ({
+const template = (id: string, name: string, siteTypeHint: string | null, names: string[], processCount = 1) => ({
   id,
   code: `code_${id.slice(-3)}`,
   name,
@@ -58,13 +58,17 @@ const template = (id: string, name: string, siteTypeHint: string | null, names: 
     parameterSetCode: null,
     defaultParameters: {},
   })),
-  // The API still sends them (EVM-019); the card and the preview must not show them (EVM-031, EVM-053).
-  procedures: [{ code: 'osd', name: 'Uzgodnienia z OSD', stageCount: 7 }],
+  // The card and the preview show the processes (EVM-031 AC1); the payment plan is still hidden (EVM-053).
+  procedures: Array.from({ length: processCount }, (_unused, index) => ({
+    code: `process_${String(index + 1)}`,
+    name: index === 0 ? 'Uzgodnienia z OSD' : `Proces ${String(index + 1)}`,
+    stageCount: index === 0 ? 7 : 2,
+  })),
   paymentMilestones: [
     { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
   ],
 });
-const FULL = template(FULL_ID, 'Garaż — pełny proces', 'multi_family_garage', itemNames);
+const FULL = template(FULL_ID, 'Garaż — pełny proces', 'multi_family_garage', itemNames, 9);
 const INSTALL = template(INSTALL_ID, 'Garaż — sama instalacja', 'multi_family_garage', itemNames.slice(0, 7));
 const HOUSE = template(HOUSE_ID, 'Dom — montaż ładowarki', 'single_family_house', itemNames.slice(0, 2));
 
@@ -152,7 +156,7 @@ async function fillAndChoose(name: string | RegExp = /Garaż — pełny proces/)
 }
 
 describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
-  it('EVM-022 AC1 the cards of templates for the type of the object show only the scope — "9 pozycji" — and "Pokaż wszystkie" takes the filter off', async () => {
+  it('EVM-031 AC1 the cards of templates show the scope and the processes — "9 pozycji · 9 procesów" — and "Pokaż wszystkie" takes the filter off', async () => {
     const api = orderApi();
     await renderPanel(NEW, api);
     expect(await card(/Garaż — pełny proces/)).toBeTruthy();
@@ -160,22 +164,22 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(screen.getByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeTruthy();
     await pickSite();
     expect(screen.getByText('Szablony dla typu: Garaż w budynku wielorodzinnym.')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Garaż — sama instalacja 7 pozycji' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji · 9 procesów' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Garaż — sama instalacja 7 pozycji · 1 proces' })).toBeTruthy();
     expect(screen.queryByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeNull();
     expect(screen.getByRole('radio', { name: 'Puste zlecenie (bez szablonu)' })).toBeTruthy();
-    // nothing the system does not create yet: no processes, no instalments, no payment plan
+    // nothing the system does not create yet: no instalments, no payment plan
     const section = screen.getByRole('region', { name: '3. Szablon' });
-    expect(section.textContent).not.toMatch(/procesów|procesy|transz|Plan płatności|Kwoty transz/i);
+    expect(section.textContent).not.toMatch(/transz|Plan płatności|Kwoty transz/i);
     await userEvent.click(screen.getByRole('button', { name: 'Pokaż wszystkie' }));
-    expect(screen.getByRole('radio', { name: 'Dom — montaż ładowarki 2 pozycje' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Dom — montaż ładowarki 2 pozycje · 1 proces' })).toBeTruthy();
     expect(screen.getByText('Wszystkie aktywne szablony.')).toBeTruthy();
     expect(api.calls(TEMPLATES)).toHaveLength(1);
     await userEvent.click(screen.getByRole('button', { name: 'Pokaż tylko dla typu obiektu' }));
     expect(screen.queryByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeNull();
   });
 
-  it('EVM-022 AC1 the chosen template shows its preview "Zakres (9 pozycji)" in a Disclosure — the names of items only, no processes, instalments or payment plan', async () => {
+  it('EVM-031 AC1 the chosen template shows its preview "Zakres (9 pozycji)" and "Procesy (9)" with the stages of each process in a Disclosure — no instalments or payment plan', async () => {
     await renderPanel(NEW, orderApi());
     await pickSite();
     expect(screen.queryByRole('button', { name: 'Pokaż szczegóły szablonu' })).toBeNull();
@@ -186,7 +190,10 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
     expect(screen.getByText('Pomiary i odbiór')).toBeTruthy();
     expect(screen.getByText('Typ obiektu: Garaż w budynku wielorodzinnym')).toBeTruthy();
-    expect(document.body.textContent).not.toMatch(/Procesy|procesów|transz|Plan płatności|Kwoty transz|Zaliczka/);
+    expect(screen.getByRole('heading', { name: 'Procesy (9)' })).toBeTruthy();
+    expect(screen.getByText('Uzgodnienia z OSD — 7 etapów')).toBeTruthy();
+    expect(screen.getByText('Proces 2 — 2 etapy')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/transz|Plan płatności|Kwoty transz|Zaliczka/);
   });
 
   it('EVM-022 AC1 at breakpoint.expanded the preview stands on the right (announced politely), without the Disclosure, and follows the choice', async () => {

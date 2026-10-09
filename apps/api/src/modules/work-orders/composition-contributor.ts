@@ -1,8 +1,8 @@
 /**
  * The port through which other modules add their part to a work order that is being created (EVM-022 AC6, SR-API-06; domain-model →
  * "Kompozycja zlecenia z szablonu"). `work-orders` does not depend on `procedures` and `payments`; they depend on `work-orders` and
- * register an implementation here (EVM-031: the processes and their stages, EVM-053: the payment milestones) — the dependency is
- * inverted, there is no cycle. None is registered yet.
+ * register an implementation here (EVM-031: the processes and their stages — registered; EVM-053: the payment milestones) — the
+ * dependency is inverted, there is no cycle.
  *
  * Rules of an implementation (the service relies on them):
  * - it runs in the SAME transaction as the order: the `tx` it is handed is the only handle it may write with, so its rows commit or

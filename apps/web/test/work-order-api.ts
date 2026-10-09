@@ -1,4 +1,4 @@
-import type { CustomerCard, ScopeItem, SiteCard, WorkOrderDetails } from '@evia/contracts';
+import type { CustomerCard, ProcedureList, ScopeItem, SiteCard, WorkOrderDetails } from '@evia/contracts';
 import { json, type Handler } from './api-fake.ts';
 
 /** Synthetic data of the order ZL-2026-0042 of W-06 (EVM-018): the customer, the garage place and nine scope items. */
@@ -78,6 +78,8 @@ export function scopeItem(position: number, overrides: Record<string, unknown> =
 
 export const SCOPE_ITEMS: ScopeItem[] = NAMES.map((_name, index) => scopeItem(index + 1));
 
+export const NO_PROCEDURES: ProcedureList = { items: [], openStageCount: 0 };
+
 export interface ReadHandlers {
   readonly header: Handler;
   readonly scope: Handler;
@@ -85,6 +87,8 @@ export interface ReadHandlers {
   readonly site: Handler;
   /** EVM-036: the other orders of the site of the order (default: none). */
   readonly siteOrders: Handler;
+  /** EVM-031: the processes with their stages (default: an order without processes). */
+  readonly procedures: Handler;
 }
 
 /** The four reads of W-06 for one order (the routes of the fake API); `overrides` replaces any of them. */
@@ -95,6 +99,7 @@ export function workOrderRoutes(id = ORDER_ID, overrides: Partial<ReadHandlers> 
     [`GET ${base}/scope-items`]: overrides.scope ?? (() => json(200, { items: SCOPE_ITEMS })),
     [`GET ${base}/customer`]: overrides.customer ?? (() => json(200, CUSTOMER)),
     [`GET ${base}/site`]: overrides.site ?? (() => json(200, SITE)),
+    [`GET ${base}/procedures`]: overrides.procedures ?? (() => json(200, NO_PROCEDURES)),
     [`GET ${base}/site-orders`]: overrides.siteOrders ?? (() => json(200, { total: 0, items: [] })),
   };
 }

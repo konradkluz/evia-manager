@@ -32,6 +32,8 @@ tags:
     description: Lokalizacje — wyszukiwanie, dodanie w formularzu nowego zlecenia, szczegóły i edycja (moduł sites).
   - name: parties
     description: Strony (OSD, zarządcy, eksperci) — wyszukiwanie, dodanie w formularzu nowego zlecenia, szczegóły i edycja (moduł parties).
+  - name: procedures
+    description: Procesy i etapy zlecenia — odczyt, osoba odpowiedzialna i termin etapu (moduł procedures).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -85,6 +87,10 @@ paths:
     $ref: paths/work-orders.yaml#/workOrderSite
   /api/v1/work-orders/{workOrderId}/site-orders:
     $ref: paths/work-orders.yaml#/workOrderSiteOrders
+  /api/v1/work-orders/{workOrderId}/procedures:
+    $ref: paths/procedures.yaml#/workOrderProcedures
+  /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}:
+    $ref: paths/procedures.yaml#/procedureStage
   /api/v1/users/assignable:
     $ref: paths/identity.yaml#/assignableUsers
   /api/v1/customers:
@@ -221,6 +227,20 @@ components:
       $ref: components/work-orders.yaml#/SiteOrderItem
     SiteOrders:
       $ref: components/work-orders.yaml#/SiteOrders
+    StageStatus:
+      $ref: components/procedures.yaml#/StageStatus
+    StageResponsibleUser:
+      $ref: components/procedures.yaml#/StageResponsibleUser
+    ProcedureProgress:
+      $ref: components/procedures.yaml#/ProcedureProgress
+    ProcedureStage:
+      $ref: components/procedures.yaml#/ProcedureStage
+    Procedure:
+      $ref: components/procedures.yaml#/Procedure
+    ProcedureList:
+      $ref: components/procedures.yaml#/ProcedureList
+    ProcedureStagePatch:
+      $ref: components/procedures.yaml#/ProcedureStagePatch
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:

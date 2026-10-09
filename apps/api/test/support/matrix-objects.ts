@@ -3,6 +3,7 @@ import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
+import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
@@ -80,6 +81,39 @@ export async function siteAndPartyObjects(app: IdentityApp): Promise<Record<stri
   return { getSite: site, updateSite: site, getParty: party, updateParty: party };
 }
 
+/**
+ * The IDOR fixture of the processes of an order and the change of a stage (EVM-031 AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639):
+ * the read — "own" is a live order with a process, "foreign" an EXISTING order that is soft deleted (its processes exist, only the
+ * read policy of the order keeps them from the caller); the change — "own" is a stage of the live order in ITS path, "foreign" the
+ * stage of ANOTHER live order named in the path of the first (the one an attacker tries: /work-orders/{A}/procedure-stages/{stage of B}).
+ */
+export async function procedureObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const ownProcess = await insertProcedure(db, own);
+  const otherProcess = await insertProcedure(db, other);
+  await insertProcedure(db, deleted);
+  const ownStage = ownProcess.stageIds[0];
+  const otherStage = otherProcess.stageIds[0];
+  if (ownStage === undefined || otherStage === undefined) throw new Error('the fixture stages were not inserted');
+  return {
+    listWorkOrderProcedures: { own: () => `${WORK_ORDERS}/${own}/procedures`, foreign: () => `${WORK_ORDERS}/${deleted}/procedures` },
+    updateProcedureStage: {
+      own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownStage}`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherStage}`,
+    },
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -87,5 +121,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await workOrderObjects(app)),
     ...(await customerObjects(app)),
     ...(await siteAndPartyObjects(app)),
+    ...(await procedureObjects(app)),
   };
 }

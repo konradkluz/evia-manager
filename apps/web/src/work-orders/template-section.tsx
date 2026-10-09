@@ -38,11 +38,41 @@ export function useItemsText(): (count: number) => string {
   };
 }
 
+/** "9 procesów" — the count of the processes of a template with the Polish form of the word (§ 6.3). */
+export function useProcessesText(): (count: number) => string {
+  const { t } = useTranslation();
+  return (count) => {
+    switch (pluralForm(count)) {
+      case 'one':
+        return t('newWorkOrder.template.processesOne', { count });
+      case 'few':
+        return t('newWorkOrder.template.processesFew', { count });
+      case 'many':
+        return t('newWorkOrder.template.processesMany', { count });
+    }
+  };
+}
+
+/** "7 etapów" — the count of the stages of a process of a template. */
+function useStagesText(): (count: number) => string {
+  const { t } = useTranslation();
+  return (count) => {
+    switch (pluralForm(count)) {
+      case 'one':
+        return t('newWorkOrder.template.stagesOne', { count });
+      case 'few':
+        return t('newWorkOrder.template.stagesFew', { count });
+      case 'many':
+        return t('newWorkOrder.template.stagesMany', { count });
+    }
+  };
+}
+
 /**
  * W-05 "3. Szablon" (EVM-022 AC1–AC3, AC8): cards of the active templates (SelectableCard, P-3) filtered by the type of the
  * object — "Pokaż wszystkie" takes the filter off — and the radio "Puste zlecenie (bez szablonu)". A card and the preview show
- * only what the system creates in this version: the scope ("Zakres (9 pozycji)"), without processes and payment plan (EVM-031,
- * EVM-053). The preview stands on the right at `breakpoint.expanded` and in a Disclosure under the cards below it. Loading is
+ * what the system creates in this version: the scope ("Zakres (9 pozycji)") and the processes ("9 pozycji · 9 procesów",
+ * "Procesy (9)", EVM-031 AC1), without the payment plan (EVM-053). The preview stands on the right at `breakpoint.expanded` and in a Disclosure under the cards below it. Loading is
  * a skeleton of cards; names and texts are shown as React text only.
  */
 export function TemplateSection({
@@ -60,6 +90,7 @@ export function TemplateSection({
 }: TemplateSectionProps) {
   const { t } = useTranslation();
   const itemsText = useItemsText();
+  const processesText = useProcessesText();
   const [open, setOpen] = useState(false);
   const all = templates.data ?? [];
   const filtering = siteType !== undefined && !showAll;
@@ -70,7 +101,17 @@ export function TemplateSection({
   const chosen = all.find((entry) => entry.id === choice);
 
   const options: SelectableCardOption[] = [
-    ...visible.map((entry) => ({ value: entry.id, title: entry.name, description: itemsText(entry.items.length) })),
+    ...visible.map((entry) => ({
+      value: entry.id,
+      title: entry.name,
+      description:
+        entry.procedures.length === 0
+          ? itemsText(entry.items.length)
+          : t('newWorkOrder.template.cardDescription', {
+              items: itemsText(entry.items.length),
+              processes: processesText(entry.procedures.length),
+            }),
+    })),
     { value: EMPTY_CHOICE, title: t('newWorkOrder.template.empty') },
   ];
 
@@ -161,10 +202,11 @@ export function TemplateSection({
   );
 }
 
-/** The preview of a template: its name, the type of the object and the scope — nothing the system does not create yet. */
+/** The preview of a template: its name, the type of the object, the scope and the processes with their stages — nothing the system does not create yet. */
 export function TemplatePreview({ template, card = false }: { readonly template: WorkOrderTemplate; readonly card?: boolean }) {
   const { t } = useTranslation();
   const itemsText = useItemsText();
+  const stagesText = useStagesText();
   const body = (
     <>
       <h3 className="text-heading-4 text-text-primary">{card ? t('newWorkOrder.template.previewTitle') : template.name}</h3>
@@ -184,6 +226,20 @@ export function TemplatePreview({ template, card = false }: { readonly template:
             <li key={item.code}>{item.name}</li>
           ))}
       </ul>
+      {template.procedures.length === 0 ? null : (
+        <>
+          <h4 className="text-label text-text-primary">
+            {t('newWorkOrder.template.previewProcedures', { count: template.procedures.length })}
+          </h4>
+          <ul className="flex list-disc flex-col gap-stack-xs ps-inset-lg text-body-sm text-text-secondary">
+            {template.procedures.map((procedure) => (
+              <li key={procedure.code}>
+                {t('newWorkOrder.template.previewProcedure', { name: procedure.name, stages: stagesText(procedure.stageCount) })}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </>
   );
   return card ? <Card>{body}</Card> : <div className="flex flex-col gap-stack-sm">{body}</div>;

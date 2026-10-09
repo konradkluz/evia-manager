@@ -9,6 +9,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerProcedures, answerStagePatch } from './mock-procedures.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerList,
@@ -274,6 +275,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       parties: [],
       gone: new Set(),
       states: new Map(),
+      stages: new Map(),
       transitionKeys: new Map(),
       notes: 'Wjazd od ul. Fikcyjnej, klucz u administratora.',
       siteEdits: new Map(),
@@ -362,6 +364,27 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           role: api.role,
           ifMatch: headers['if-match'],
           key: headers['idempotency-key'],
+          raw: request.postData() ?? '{}',
+        }),
+      );
+    }
+    // EVM-031: the processes of one order and the change of a stage (the section "Procesy i etapy" of W-06).
+    const processes = request.method() === 'GET' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/procedures$/.exec(url.pathname) : null;
+    if (processes !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      return route.fulfill(answerProcedures(api.orders, processes[1] ?? ''));
+    }
+    const stagePatch =
+      request.method() === 'PATCH'
+        ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/procedure-stages\/([0-9a-f-]{36})$/.exec(url.pathname)
+        : null;
+    if (stagePatch !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerStagePatch(api.orders, stagePatch[1] ?? '', stagePatch[2] ?? '', {
+          role: api.role,
+          ifMatch: headers['if-match'],
           raw: request.postData() ?? '{}',
         }),
       );

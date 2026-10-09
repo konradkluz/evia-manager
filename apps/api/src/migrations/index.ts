@@ -18,6 +18,7 @@ import * as workOrderCreation from './0015_work_order_creation.ts';
 import * as workOrderStatus from './0016_work_order_status.ts';
 import * as customerIndexes from './0017_customer_indexes.ts';
 import * as siteOrdersIndex from './0018_site_orders_index.ts';
+import * as procedures from './0019_procedures.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -38,4 +39,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0016_work_order_status': workOrderStatus,
   '0017_customer_indexes': customerIndexes,
   '0018_site_orders_index': siteOrdersIndex,
+  '0019_procedures': procedures,
 });

@@ -1,0 +1,160 @@
+# Module `procedures` — the processes of a work order and their stages (EVM-031; W-06 section "Procesy i etapy"). The processes are COPIED
+# from the template at the creation of the order (D1) and are never created by a request. The only field of a stage a request changes
+# in EVM-031 is the person responsible and the due date; the status of a stage is changed by a command of its own (EVM-032), so
+# `status`, the names, the codes, the position and the version are `readOnly` for the patch (`400 read_only_field`).
+# Personal data (DO-P): the person responsible is `{id, displayName}` only (SR-DATA-03) — no e-mail, role or account status. The
+# notes of a stage, "waiting for" and the reason of a block are not returned here (EVM-032).
+StageStatus:
+  type: string
+  description: >-
+    Status etapu (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12). „Otwarte” to `todo`,
+    `in_progress` i `waiting`. Etap powstaje w stanie `todo`; zmiana statusu to osobna komenda (EVM-032).
+  enum: [todo, in_progress, waiting, blocked, done, not_applicable]
+StageResponsibleUser:
+  type: object
+  description: Osoba odpowiedzialna za etap — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
+  required: [id, displayName]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+ProcedureProgress:
+  type: object
+  description: >-
+    Postęp procesu wyliczany przy odczycie (nie zapisywany): `done` — etapy w statusie `done`, `total` — etapy procesu bez
+    `not_applicable` (etap „Nie dotyczy” nie wchodzi do mianownika — styleguide § 3.23). `total` równe 0 oznacza proces bez
+    etapów do realizacji.
+  required: [done, total]
+  additionalProperties: false
+  properties:
+    done:
+      type: integer
+      minimum: 0
+      maximum: 30
+    total:
+      type: integer
+      minimum: 0
+      maximum: 30
+ProcedureStage:
+  type: object
+  description: >-
+    Etap procesu w zleceniu. `overdue` liczy serwer przy odczycie: termin wcześniejszy niż dziś w `Europe/Warsaw` i etap jeszcze
+    niezakończony (nie `done` i nie `not_applicable`) — klient nie porównuje dat sam.
+  required: [id, code, name, position, status, dueDate, overdue, responsibleUser, version]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    code:
+      type: string
+      description: Stały kod etapu (kopia z szablonu).
+      maxLength: 64
+    name:
+      type: string
+      description: Nazwa etapu (kopia z szablonu) — panel wyświetla ją jako tekst.
+      maxLength: 200
+    position:
+      type: integer
+      minimum: 1
+      maximum: 30
+    status:
+      $ref: '#/StageStatus'
+    dueDate:
+      description: Termin etapu (dzień w strefie `Europe/Warsaw`, `RRRR-MM-DD`) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    overdue:
+      type: boolean
+      description: '`true`, gdy termin jest wcześniejszy niż dziś (`Europe/Warsaw`) i etap jest niezakończony.'
+    responsibleUser:
+      description: Osoba odpowiedzialna albo `null`.
+      oneOf:
+        - $ref: '#/StageResponsibleUser'
+        - type: 'null'
+    version:
+      type: integer
+      description: Wersja etapu — wartość `If-Match` (`"<version>"`) przy zmianie osoby odpowiedzialnej i terminu.
+      minimum: 1
+Procedure:
+  type: object
+  description: Proces w zleceniu — kopia procesu z szablonu z etapami w kolejności `position`.
+  required: [id, code, name, position, progress, stages]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    code:
+      type: string
+      description: Stały kod procesu (kopia z szablonu); w zleceniu jest co najwyżej jeden proces o danym kodzie.
+      maxLength: 64
+    name:
+      type: string
+      description: Nazwa procesu (kopia z szablonu) — panel wyświetla ją jako tekst.
+      maxLength: 200
+    position:
+      type: integer
+      minimum: 1
+      maximum: 30
+    progress:
+      $ref: '#/ProcedureProgress'
+    stages:
+      type: array
+      maxItems: 30
+      items:
+        $ref: '#/ProcedureStage'
+ProcedureList:
+  type: object
+  description: >-
+    Procesy zlecenia w kolejności `position` (zlecenie bez procesów to pusta tablica `items`). `openStageCount` to liczba etapów
+    otwartych (`todo`, `in_progress`, `waiting`) we wszystkich procesach — podstawa ostrzeżenia przy „Zakończ” (nie blokuje
+    zakończenia).
+  required: [items, openStageCount]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 30
+      items:
+        $ref: '#/Procedure'
+    openStageCount:
+      type: integer
+      minimum: 0
+      maximum: 900
+ProcedureStagePatch:
+  type: object
+  description: >-
+    Zmiana etapu (merge-patch; EVM-031): osoba odpowiedzialna i/lub termin — co najmniej jedno pole. Pole nieobecne zostaje bez
+    zmian, `null` czyści wartość. `responsibleUserId` musi wskazywać aktywnego użytkownika (konto nieistniejące, zaproszone,
+    zdezaktywowane i usunięte to jedna odpowiedź `400 validation_failed`, `/responsibleUserId`, `assignee_unavailable`).
+    `dueDate` to dzień z zakresu 2000-01-01..2100-12-31 (`out_of_range` poza zakresem). Pole kontrolowane przez serwer (`id`,
+    `code`, `name`, `position`, `status`, `version`, `overdue`, `responsibleUser`, pola „czekamy na”, `notes`) — `400 read_only_field`,
+    pole spoza schematu — `400 unknown_field`; pusta treść — `400 validation_failed`.
+  minProperties: 1
+  additionalProperties: false
+  properties:
+    responsibleUserId:
+      description: Identyfikator aktywnego użytkownika (z listy `GET /api/v1/users/assignable`) albo `null`, by usunąć osobę odpowiedzialną.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    dueDate:
+      description: Termin etapu, `RRRR-MM-DD` (2000-01-01..2100-12-31), albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
