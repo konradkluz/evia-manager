@@ -10,6 +10,8 @@ export interface DateFieldProps {
   readonly min?: string;
   readonly max?: string;
   readonly disabled?: boolean;
+  /** Help under the field ("Nie później niż dziś."), tied to the input; replaced by the error. */
+  readonly hint?: string;
   /** Error under the field (`circle-alert` + `color.text.error`, announced as an alert). */
   readonly error?: string;
 }
@@ -18,7 +20,7 @@ export interface DateFieldProps {
  * Date field (styleguide § 3.5, variant "data"): the native date input — typing and the calendar of the platform, tied
  * to a visible label. A range is two of them ("Od", "Do"); the page validates the order and the length of the range.
  */
-export function DateField({ label, value, onChange, min, max, disabled = false, error }: DateFieldProps) {
+export function DateField({ label, value, onChange, min, max, disabled = false, hint, error }: DateFieldProps) {
   const id = useId();
   return (
     <div className="flex flex-col gap-stack-xs">
@@ -33,7 +35,7 @@ export function DateField({ label, value, onChange, min, max, disabled = false, 
         max={max}
         disabled={disabled}
         aria-invalid={error === undefined ? undefined : true}
-        aria-describedby={error === undefined ? undefined : `${id}-error`}
+        aria-describedby={error === undefined ? (hint === undefined ? undefined : `${id}-hint`) : `${id}-error`}
         onChange={(event) => {
           onChange(event.target.value);
         }}
@@ -45,7 +47,13 @@ export function DateField({ label, value, onChange, min, max, disabled = false, 
             : 'border-w-strong border-border-error',
         )}
       />
-      {error === undefined ? null : (
+      {error === undefined ? (
+        hint === undefined ? null : (
+          <p id={`${id}-hint`} className="text-body-sm text-text-tertiary">
+            {hint}
+          </p>
+        )
+      ) : (
         <p id={`${id}-error`} role="alert" className="flex items-start gap-inline-sm text-body-sm text-text-error">
           <CircleAlert aria-hidden="true" className="size-icon-sm shrink-0" />
           <span>{error}</span>
