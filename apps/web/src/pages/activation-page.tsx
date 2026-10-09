@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next';
 import { clearActivationToken, getTokenSnapshot, subscribeToken } from '../activation/activation-token.ts';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
+import { isWrongOrigin } from '../api/panel-address.ts';
+import { wrongOriginText } from './login-failure.tsx';
 import { LOGIN_PATH, MFA_SETUP_PATH } from '../paths.ts';
 import { setCsrfToken } from '../session/csrf.ts';
 import { SESSION_KEY, sessionQueryOptions, useSession } from '../session/session.ts';
@@ -53,12 +55,16 @@ function roleText(t: TFunction, role: UserRole): string {
 
 /** Failures that keep the form (the link is still fine) and what the user sees. */
 type Failure =
-  { readonly kind: 'rate'; readonly minutes: number } | { readonly kind: 'server'; readonly code: string } | { readonly kind: 'network' };
+  | { readonly kind: 'rate'; readonly minutes: number }
+  | { readonly kind: 'server'; readonly code: string }
+  | { readonly kind: 'network' }
+  | { readonly kind: 'origin' };
 
 function describeFailure(error: unknown): Failure {
   if (error instanceof ApiError) {
     if (error.status === 429) return { kind: 'rate', minutes: Math.max(1, Math.ceil((error.retryAfterSeconds ?? 60) / 60)) };
     if (error.status === 0) return { kind: 'network' };
+    if (isWrongOrigin(error)) return { kind: 'origin' };
     return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
   }
   return { kind: 'network' };
@@ -86,6 +92,8 @@ function FailureAlert({
           {t('activation.rateLimited', { minutes: failure.minutes })}
         </InlineAlert>
       );
+    case 'origin':
+      return <InlineAlert tone="error">{wrongOriginText(t, 'activation')}</InlineAlert>;
     case 'network':
       return (
         <InlineAlert tone="error" action={retry}>

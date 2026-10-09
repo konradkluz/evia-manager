@@ -362,6 +362,23 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
     ]);
   });
 
+  it('EVM-077 AC6 a rejected origin on save says the panel was opened under an unsupported address', async () => {
+    vi.stubEnv('VITE_PANEL_ORIGIN', 'http://localhost:5173');
+    try {
+      const { api } = anonymousApi({ [PASSWORD]: () => problem(403, 'csrf_failed') });
+      await openForm(api);
+      const user = userEvent.setup();
+      await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
+      await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
+      const text = (await screen.findByRole('alert')).textContent;
+      expect(text).toContain('nieobsługiwanym adresem');
+      expect(text).toContain('http://localhost:5173');
+      expect(text).not.toContain('kod:');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('EVM-016 AC3 a server error or no connection on save keeps the form and the typed password', async () => {
     let mode: 'server' | 'network' = 'server';
     const { api } = anonymousApi({

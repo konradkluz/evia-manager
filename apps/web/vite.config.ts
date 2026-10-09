@@ -12,6 +12,8 @@ const api = { target: `http://127.0.0.1:${process.env['API_PORT'] ?? '3000'}`, c
 export default defineConfig({
   plugins: [react(), tailwindcss(), securityHeadersPlugin()],
   build: { sourcemap: false },
+  // The address shown when the panel is opened under another origin than PANEL_ORIGIN (API answers 403 csrf_failed).
+  define: { 'import.meta.env.VITE_PANEL_ORIGIN': JSON.stringify(process.env['PANEL_ORIGIN'] ?? 'http://localhost:5173') },
   server: { host: '127.0.0.1', port: 5173, strictPort: true, proxy: { '/api': api } },
   preview: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: { '/api': api } },
 });
