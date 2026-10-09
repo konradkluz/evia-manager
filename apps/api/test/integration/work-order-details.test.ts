@@ -202,6 +202,7 @@ describe('cards (EVM-018 AC1, AC4, AC5)', () => {
     const response = await get(await signIn('read_only'), `${PATH}/${s.orderId}/site`);
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(response.body).toEqual({
+      siteId: s.siteId,
       siteType: 'multi_family_garage',
       street: 'ul. Testowa',
       buildingNumber: '7',

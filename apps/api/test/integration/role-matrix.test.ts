@@ -97,7 +97,7 @@ describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
     const cells = buildMatrix(withThing, lists);
-    expect(cells.filter((cell) => cell.idor)).toHaveLength(24); // 2 of the synthetic thing, 3 of the catalogue template, 12 of the four reads of a work order (EVM-018), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039)
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(37); // 2 of the synthetic thing, 3 of the catalogue template, 15 of the five reads of a work order (EVM-018, EVM-036), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039), 10 of the detail and the edit of a site and of a party (EVM-036)
     expect(await runMatrix(current, cells, { ...(await matrixObjects(current)), getTestThing: THING_OBJECTS })).toEqual([]);
   });
 
