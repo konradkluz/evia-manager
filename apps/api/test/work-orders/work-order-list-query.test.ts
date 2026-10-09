@@ -27,6 +27,7 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
       statuses: [],
       view: undefined,
       coordinatorId: undefined,
+      customerId: undefined,
       sort: '-number',
       limit: DEFAULT_LIMIT,
       cursor: undefined,
@@ -75,6 +76,12 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
     for (const coordinatorId of ['', 'abc', `${id}x`]) expect(parse({ coordinatorId }).success, coordinatorId).toBe(false);
   });
 
+  it('EVM-039 AC2 customerId (the history of a customer) is a UUID like coordinatorId', () => {
+    const id = randomUUID();
+    expect(ok({ customerId: id }).customerId).toBe(id);
+    for (const customerId of ['', 'abc', `${id}x`]) expect(parse({ customerId }).success, customerId).toBe(false);
+  });
+
   it('EVM-017 AC3 the cursor is base64url within 512 characters; the query refuses another character or a longer one before anything decrypts it', () => {
     expect(ok({ cursor: 'A_-0'.repeat(128) }).cursor).toHaveLength(512);
     for (const cursor of ['', 'a+b', 'a/b', 'a=', 'a b', 'A'.repeat(513), 'zażółć']) expect(parse({ cursor }).success, cursor).toBe(false);
@@ -100,11 +107,12 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
   it('EVM-017 AC3 the filters of a cursor are the sort, the view, the normalised statuses and the coordinator — not the limit', () => {
     const id = randomUUID();
     const base = ok({ status: 'quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '10' });
-    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id]);
+    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id, '']);
     expect(filterPartsOf(ok({ status: 'new,quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '99' }))).toEqual(
       filterPartsOf(base),
     );
-    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '']);
+    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '']);
+    expect(filterPartsOf(ok({ customerId: id }))).toEqual(['-number', '', '', '', id]);
   });
 });
 

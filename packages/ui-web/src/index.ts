@@ -21,7 +21,9 @@ export { TextArea, type TextAreaProps } from './text-area.tsx';
 export { Banner, type BannerProps } from './banner.tsx';
 export { BlockingState, type BlockingStateProps } from './blocking-state.tsx';
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './button.tsx';
+export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs.tsx';
 export { Card } from './card.tsx';
+export { SearchField, type SearchFieldProps } from './search-field.tsx';
 export { DataTable, type DataTableColumn, type DataTableProps, type DataTableRow } from './data-table.tsx';
 export { DateField, type DateFieldProps } from './date-field.tsx';
 export { FilterChip, type FilterChipProps } from './filter-chip.tsx';
@@ -41,6 +43,7 @@ export {
   CircleHelp,
   CirclePause,
   ClipboardList,
+  EllipsisVertical,
   Inbox,
   Info,
   KeyRound,
@@ -54,6 +57,7 @@ export {
   ShieldCheck,
   ShieldX,
   ThumbsUp,
+  Users,
   WifiOff,
   Wrench,
   X,

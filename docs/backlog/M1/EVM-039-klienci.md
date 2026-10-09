@@ -4,7 +4,8 @@ title: Klienci — lista, szczegóły, edycja i historia zleceń
 type: story
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-review
+path: pelna
 priority: P1
 owner: backend-developer
 contributors: [web-developer, security-engineer]
@@ -86,21 +87,35 @@ Jako **pracownik biura** chcę **przeglądać klientów, poprawiać ich dane i w
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Operacje API (addytywnie): `GET /customers` (kursor, 25 na stronę, sort `sort_name`, `id`, ICU pl-PL), `POST /customers/search` z kursorem, `GET /customers/{id}` (ETag), `PATCH /customers/{id}` (merge-patch, `If-Match`, idempotencja, audyt `customer.updated`), filtr `customerId` w `GET /work-orders`; licznik różnych klientów P10 (`DistinctReadMeter`); migracja `0017` tylko z indeksami; panel W-14 (lista, szczegóły z historią zleceń, dialog edycji). Pełny plan: `.scratch/EVM-039/plan.md` (roboczy).
 
 ## Decyzje
-_—_
+- 2026-10-08 — kontrakt `searchCustomers` rozszerzony addytywnie: pozycja wyniku ma teraz `kind`, `sortName` i `email` (kolumny W-14; dostęp mają te same trzy role, co szczegóły), domyślny `limit` 25 (było 20), `cursor` i `limit` w treści. Asercje testu EVM-020 („najwyżej 20”, „bez e-maila”) zmieniono świadomie jako uzgodnioną zmianę kontraktu, nie osłabienie testu (security-engineer, konsultacja przed implementacją).
+- 2026-10-08 — kursor listy i wyszukiwania zawiera wyłącznie `id` ostatniego klienta (bez `sort_name`): nazwa może mieć ~400 znaków, nie mieści się w limicie pozycji kursora i trafiałaby do adresu oraz dziennika dostępu (SR-API-04).
+- 2026-10-08 — klucz idempotencji `PATCH /customers/{customerId}` jest związany z `customerId` (jak w EVM-030); `maxLength` nazw wyświetlanych klienta (`displayName`, `sortName`) podniesiony z 400 do 401 znaków (imię 200 + spacja + nazwisko 200 — wcześniej taki klient dawał `500`).
+- 2026-10-08 — P10: osobny licznik RÓŻNYCH klientów na użytkownika (okno 60 min, `alertCode: bulk_read_customers`), obok licznika rekordów; zasilają go też lista, wyszukiwanie i karta „Klient” zlecenia (`getWorkOrderCustomer`); `getWorkOrderSite` nie (to lokalizacje).
 
 ## Uwagi do rozważenia
-- Reguła P10 „> 300 różnych klientów w 1 h” ma liczyć także `getWorkOrderCustomer` i `getWorkOrderSite` (karty W-06 z EVM-018 nie zasilają dziś licznika; zalecenie security-engineer).
+- P10 dla kart: `getWorkOrderCustomer` zasila licznik różnych klientów; `getWorkOrderSite` i blokada 10 000 rekordów dla karty klienta — świadomie poza zakresem (ryzyko niskie; do backlogu / EVM-082).
+- Filtr `customerId` w `GET /work-orders` nie sprawdza, czy klient jest usunięty (zlecenia usuniętego klienta są widoczne jak na liście zleceń); poprawić opis w kontrakcie, dodać test i zapisać decyzję w EVM-041.
+- Puste `PATCH {}` (i patch bez zmian) podnosi `version` i zapisuje `customer.updated` — zwracać 200 bez zmiany wersji i bez audytu albo `minProperties: 1`.
+- UX (minor): `break-all` → `break-words` dla e-maila na 360 px; ukrywać paginację przy jednej stronie; nagłówek `Disclosure` w dialogu na 360 px; kolumna „Utworzono” (AC2 mówi o dacie) — do potwierdzenia.
+- Drobne: duplikat `SEARCH_DELAY_MS` i lokalny `RouterLink` w `panel-shell.tsx`; `MAX_TRACKED_DISTINCT_USERS` 10 000 (obniżyć); luki gałęzi w `edit-customer-dialog.tsx` i `customer-card.tsx`.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-039 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja potwierdzone (SR-DATA-01)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-039 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane; klasyfikacja i inwentaryzacja potwierdzone (SR-DATA-01)
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-08 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe klientów, uprawnienia, nowe endpointy i UI; gałąź feature/EVM-039-customers)
+- 2026-10-08 — plan gotowy (backend-developer)
+- 2026-10-08 — backend gotowy (backend-developer): kontrakt, migracja 0017, lista / szczegóły / edycja, filtr `customerId`, licznik różnych klientów; panel (W-14) czeka na web-developera
+- 2026-10-09 — panel gotowy (web-developer): W-14 lista, szczegóły z historią zleceń, dialog edycji (`If-Match`, `412`), „Przejdź do klienta” w W-06, stany AC8; testy komponentów i E2E (Chromium, Edge, Firefox), axe, zrzuty w `docs/ux/reviews/EVM-039/`
+- 2026-10-09 — część bezpieczeństwa gotowa (security-engineer): SR-DATA-01 potwierdzone w `rodo.md` i `domain-model.md` (weryfikacja kodu i testów), aktualizacja EVM-039 w `threat-model.md` (AB-08 — drugi próg P10) i `requirements.md` (SR-API-05 — klucz związany z zasobem, SR-API-04, SR-AUTHZ-02)
+- 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,2% / gałęzie 93,4%; → in-review
+- 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,36 mln tokenów subagentów, 9 agentów, 460 wywołań narzędzi, 1 runda, ok. 102 min; ścieżka pelna; vs baseline: brak danych

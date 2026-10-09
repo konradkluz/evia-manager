@@ -22,9 +22,9 @@ describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPU
     expect(Object.keys(bundled.paths['/api/v1/work-orders'] ?? {})).toEqual(['get', 'post']);
   });
 
-  it('EVM-017 AC2 the query declares status, view, coordinatorId, sort, limit and cursor and no parameter that names a user for `mine`', () => {
+  it('EVM-017 AC2 the query declares status, view, coordinatorId, customerId (EVM-039), sort, limit and cursor and no parameter that names a user for `mine`', () => {
     expect([...(AUTHZ_MANIFEST['listWorkOrders']?.query ?? [])].sort()).toEqual(
-      ['coordinatorId', 'cursor', 'limit', 'sort', 'status', 'view'].sort(),
+      ['coordinatorId', 'cursor', 'customerId', 'limit', 'sort', 'status', 'view'].sort(),
     );
   });
 

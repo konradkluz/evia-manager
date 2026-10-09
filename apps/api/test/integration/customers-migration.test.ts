@@ -172,23 +172,32 @@ describe('migration 0011 — customers (EVM-020 AC1, AC2, AC5, AC7; ADR-0003; ex
     expect(rows.map((row) => row.sort_name)).toEqual(['Lis Ola', 'Łukasiewicz Ola', 'Mazur Ola', 'Zawada Ola']);
   });
 
-  it('EVM-020 AC1 the only index besides the key is a partial GIN trigram index on the search text (deleted_at is null); none on the telephone', async () => {
+  it('EVM-020 AC1 the indexes are the key, the partial GIN trigram index on the search text (deleted_at is null) and — since EVM-039 (0017) — the partial index of the list on (sort_name, id); none on the telephone', async () => {
     const { rows } = await sql<{ indexname: string; indexdef: string }>`
       select indexname, indexdef from pg_indexes where schemaname = 'customers' order by indexname`.execute(admin());
-    expect(rows.map((row) => row.indexname)).toEqual(['customers_pkey', 'customers_search_text_trgm_idx']);
+    expect(rows.map((row) => row.indexname)).toEqual(['customers_pkey', 'customers_search_text_trgm_idx', 'customers_sort_name_id_idx']);
     const trigram = rows.find((row) => row.indexname === 'customers_search_text_trgm_idx')?.indexdef ?? '';
     expect(trigram).toMatch(/USING gin \(search_text gin_trgm_ops\) WHERE \(deleted_at IS NULL\)/);
   });
 
   it('EVM-020 AC1 a search by 3 or more characters uses the trigram index (the planner is forced off the sequential scan: the table is small)', async () => {
-    const plan = await admin()
+    class Rollback extends Error {}
+    let plan = '';
+    await admin()
       .transaction()
       .execute(async (tx) => {
         await sql`set local enable_seqscan = off`.execute(tx);
+        // since EVM-039 the table also has the index of the list, which a small table would walk instead; it is dropped INSIDE this
+        // transaction (rolled back below), so the question stays what it was: does the trigram index serve the phrase
+        await sql`drop index customers.customers_sort_name_id_idx`.execute(tx);
         const { rows } = await sql<{ 'QUERY PLAN': string }>`
         explain select id from customers.customers
         where deleted_at is null and search_text ilike '%' || public.f_unaccent(lower(${'lodz'})) || '%' escape '\\'`.execute(tx);
-        return rows.map((row) => row['QUERY PLAN']).join('\n');
+        plan = rows.map((row) => row['QUERY PLAN']).join('\n');
+        throw new Rollback();
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof Rollback)) throw error;
       });
     expect(plan).toContain('customers_search_text_trgm_idx');
   });

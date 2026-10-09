@@ -175,8 +175,10 @@ function represent(server: OrderServer, created: MockCreatedOrder) {
 }
 
 /** The items of W-10 for the orders created so far (newest first). */
-export function createdListItems(server: OrderServer) {
+/** The orders created in this run, newest first; with `customerId` only the orders of that customer (EVM-039 "Historia zleceń"). */
+export function createdListItems(server: OrderServer, customerId?: string) {
   return server.created
+    .filter((created) => customerId === undefined || created.customerId === customerId)
     .map((created) => ({
       id: created.id,
       number: created.number,

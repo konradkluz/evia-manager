@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { BulkReadEvent } from '../../src/platform/bulk-read/bulk-read-event.ts';
 import { BULK_READ_ALERT_METRIC, BULK_READ_REJECTED_METRIC, BulkReadControl } from '../../src/platform/bulk-read/bulk-read-control.ts';
 import { InMemoryBulkReadMeter } from '../../src/platform/bulk-read/bulk-read-meter.ts';
+import { InMemoryDistinctReadMeter } from '../../src/platform/bulk-read/distinct-read-meter.ts';
 import { ProblemException } from '../../src/platform/http/problem.ts';
 import { requestContext, requestContextMixin } from '../../src/platform/http/request-context.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
@@ -19,6 +20,7 @@ function harness() {
   const published: Array<{ event: BulkReadEvent; context: EventContext }> = [];
   const control = new BulkReadControl(
     new InMemoryBulkReadMeter(clock, { alertAt: 10, blockAt: 20 }),
+    new InMemoryDistinctReadMeter(clock, { alertAbove: 3 }),
     createLogger({ level: 'info', destination: logs, mixin: requestContextMixin }),
     metrics,
     (event, context) => {
@@ -99,5 +101,29 @@ describe('mass-read control around a list (EVM-017 AC5; SR-API-02, SR-LOG-06, SR
     ]);
     clock.advance(10 * MINUTE);
     await expect(control.before(user, CONTEXT)).resolves.toBeUndefined();
+  });
+
+  it('EVM-039 AC5 the 4th different customer (threshold 3) raises ONE alert coded bulk_read_customers, without user or identifier, audited with objectType customer', async () => {
+    const { control, logs, counters, inRequest, published } = harness();
+    const user = randomUUID();
+    const ids = Array.from({ length: 4 }, () => randomUUID());
+    await inRequest(() => control.afterDistinct(user, 'customer', ids.slice(0, 3), CONTEXT));
+    expect(logs.entries).toEqual([]);
+    expect(published).toEqual([]);
+    await inRequest(() => control.afterDistinct(user, 'customer', ids.slice(3), CONTEXT));
+    await inRequest(() => control.afterDistinct(user, 'customer', [randomUUID()], CONTEXT));
+    const alerts = logs.entries.filter((entry) => entry['alert'] === 'security');
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ alert: 'security', alertCode: 'bulk_read_customers', msg: 'security alert', level: 'error' });
+    expect(String(alerts[0]?.['traceId'])).toMatch(/^[0-9a-f]{32}$/);
+    const serialised = JSON.stringify(logs.entries);
+    for (const forbidden of [user, ...ids]) expect(serialised.includes(forbidden)).toBe(false);
+    expect(counters()).toEqual({ [BULK_READ_ALERT_METRIC]: 1 });
+    expect(published).toEqual([
+      {
+        event: { type: 'bulk_read.alerted', actor: { type: 'user', userId: user }, outcome: 'success', objectType: 'customer' },
+        context: CONTEXT,
+      },
+    ]);
   });
 });

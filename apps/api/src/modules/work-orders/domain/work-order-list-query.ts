@@ -51,6 +51,7 @@ export const workOrderListQuerySchema = z.strictObject({
   status: statusList.optional(),
   view: zWorkOrderView.optional(),
   coordinatorId: z.uuid().optional(),
+  customerId: z.uuid().optional(),
   sort: zWorkOrderSort.optional(),
   limit: z
     .string()
@@ -70,6 +71,8 @@ export interface WorkOrderListQuery {
   readonly statuses: readonly WorkOrderStatus[];
   readonly view: WorkOrderView | undefined;
   readonly coordinatorId: string | undefined;
+  /** the history of one customer (EVM-039, W-14): a filter like the others, under the same read policy */
+  readonly customerId: string | undefined;
   readonly sort: WorkOrderSort;
   readonly limit: number;
   readonly cursor: string | undefined;
@@ -79,6 +82,7 @@ export const resolveWorkOrderListQuery = workOrderListQuerySchema.transform((que
   statuses: query.status ?? [],
   view: query.view,
   coordinatorId: query.coordinatorId,
+  customerId: query.customerId,
   sort: query.sort ?? DEFAULT_SORT,
   limit: query.limit ?? DEFAULT_LIMIT,
   cursor: query.cursor,
@@ -90,6 +94,7 @@ export const filterPartsOf = (query: WorkOrderListQuery): string[] => [
   query.view ?? '',
   query.statuses.join(','),
   query.coordinatorId ?? '',
+  query.customerId ?? '',
 ];
 
 /** Where the next page starts: the sort key of the last item (and its id, when the key is not unique). */

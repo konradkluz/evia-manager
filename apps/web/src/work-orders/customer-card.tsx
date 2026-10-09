@@ -4,6 +4,8 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatPhone } from '../customers/format.ts';
+import { customerPath } from '../paths.ts';
+import { RouterLink } from '../shell/router-link.tsx';
 import { mailtoHref, telHref } from './safe-href.ts';
 import { DetailRow, SectionError, SectionLoading } from './section-states.tsx';
 import { isNotFound } from './use-work-order.ts';
@@ -11,9 +13,16 @@ import { isNotFound } from './use-work-order.ts';
 /**
  * The card "Klient" of W-06 (EVM-018 AC1): the name, the telephone and the e-mail — the three fields of the contract and
  * nothing else (SR-DATA-03). The telephone and the e-mail are links built from the encoded value (`tel:`, `mailto:`), the
- * name is React text. "Przejdź do klienta" (W-14) is EVM-039 and is not shown. A card that failed says so inside itself.
+ * name is React text. "Przejdź do klienta" (W-14; EVM-039 AC2) leads to the details of the customer, built from the identifier. A card that failed says so inside itself.
  */
-export function CustomerCard({ query }: { readonly query: UseQueryResult<CustomerCardData> }) {
+export function CustomerCard({
+  query,
+  customerId,
+}: {
+  readonly query: UseQueryResult<CustomerCardData>;
+  /** The customer of the order (from its header); without it there is no link — a deleted customer arrives without an identifier (EVM-041). */
+  readonly customerId?: string | undefined;
+}) {
   const { t } = useTranslation();
   const headingId = useId();
   const card = query.data;
@@ -31,6 +40,11 @@ export function CustomerCard({ query }: { readonly query: UseQueryResult<Custome
               {card.email === null ? t('workOrder.customer.noEmail') : link(mailtoHref(card.email), card.email)}
             </DetailRow>
           </dl>
+          {customerId === undefined ? null : (
+            <TextLink href={customerPath(customerId)} link={RouterLink}>
+              {t('workOrder.customer.goTo')}
+            </TextLink>
+          )}
         </>
       ) : query.isError ? (
         isNotFound(query.error) ? (

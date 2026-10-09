@@ -65,7 +65,7 @@ describe('search by a phrase (EVM-020 AC1, AC3; SR-API-04, SR-INPUT-03)', () => 
     expect(await found(browser, 'nikt takiego')).toEqual([]);
   });
 
-  it('EVM-020 AC1 the result is the list envelope with id, displayName and phone — and nothing else (no e-mail, NIP, address, notes, search text)', async () => {
+  it('EVM-020 AC1 the result is the list envelope with the columns of the list (EVM-039: kind, sortName, e-mail added) — and nothing else (no NIP, address, notes, search text)', async () => {
     const id = await insertCustomer(current.database.admin, {
       kind: 'company',
       companyName: 'Firma Testowa sp. z o.o.',
@@ -76,9 +76,21 @@ describe('search by a phrase (EVM-020 AC1, AC3; SR-API-04, SR-INPUT-03)', () => 
     });
     const response = await search(await signIn('read_only'), 'firma');
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ items: [{ id, displayName: 'Firma Testowa sp. z o.o.', phone: '+48600000001' }], nextCursor: null });
+    expect(response.body).toEqual({
+      items: [
+        {
+          id,
+          kind: 'company',
+          displayName: 'Firma Testowa sp. z o.o.',
+          sortName: 'Firma Testowa sp. z o.o.',
+          phone: '+48600000001',
+          email: 'biuro@example.test',
+        },
+      ],
+      nextCursor: null,
+    });
     expect(response.headers['cache-control']).toBe('no-store');
-    expect(JSON.stringify(response.body)).not.toMatch(/biuro@example|5260250274|notatka-poufna|Piotrkowska/);
+    expect(JSON.stringify(response.body)).not.toMatch(/5260250274|notatka-poufna|Piotrkowska/);
   });
 
   it('EVM-020 AC1 the search covers first name, surname, company, NIP, the digits of the telephone, e-mail and city — not the notes', async () => {
@@ -157,21 +169,22 @@ describe('search by a phrase (EVM-020 AC1, AC3; SR-API-04, SR-INPUT-03)', () => 
   it('EVM-020 AC1 the body is strict: an unknown field, a missing or non-text phrase, a control character is 400', async () => {
     const browser = await signIn();
     const post = (body: unknown) => browser.panel.post(SEARCH, body);
-    expect(errorsOf((await post({ query: 'Lodz', limit: 500 })).body)).toEqual([{ pointer: '/limit', code: 'unknown_field' }]);
+    expect(errorsOf((await post({ query: 'Lodz', sort: 'name' })).body)).toEqual([{ pointer: '/sort', code: 'unknown_field' }]);
+    expect(errorsOf((await post({ query: 'Lodz', limit: 500 })).body)).toEqual([{ pointer: '/limit', code: 'out_of_range' }]);
     expect(errorsOf((await post({})).body)).toEqual([{ pointer: '/query', code: 'required' }]);
     expect(errorsOf((await post({ query: 42 })).body)).toEqual([{ pointer: '/query', code: 'invalid_type' }]);
     expect(errorsOf((await post({ query: 'ab\u0000cd' })).body)).toEqual([{ pointer: '/query', code: 'invalid_characters' }]);
     expect((await post(undefined as unknown as object)).status).toBe(400);
   });
 
-  it('EVM-020 AC1 at most 20 results, in the order of the sort name (surname first, ICU pl-PL: Ł after L), then identifier', async () => {
-    for (let index = 0; index < 25; index += 1)
+  it('EVM-020 AC1 (EVM-039: 25 by default) at most 25 results, in the order of the sort name (surname first, ICU pl-PL: Ł after L), then identifier', async () => {
+    for (let index = 0; index < 30; index += 1)
       await insertCustomer(current.database.admin, { lastName: `Seria${String(index).padStart(2, '0')}`, firstName: 'Ola' });
     const browser = await signIn();
     const items = await found(browser, 'seria');
-    expect(items).toHaveLength(20);
+    expect(items).toHaveLength(25);
     expect(names(items)[0]).toBe('Ola Seria00');
-    expect(names(items)[19]).toBe('Ola Seria19');
+    expect(names(items)[24]).toBe('Ola Seria24');
     await clearCustomers(current.database.admin);
     for (const lastName of ['Mazur', 'Łukasiewicz', 'Lis', 'Zawada'])
       await insertCustomer(current.database.admin, { lastName, firstName: 'Ola Test' });

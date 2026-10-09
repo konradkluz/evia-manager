@@ -65,6 +65,7 @@ export async function readWorkOrderPage(
   // `mine` is the user of the SESSION, never a value of the request; both conditions apply (AND) when both are given.
   if (query.view === 'mine') select = select.where(`${ASSIGNMENTS}.user_id`, '=', principal.userId);
   if (query.coordinatorId !== undefined) select = select.where(`${ASSIGNMENTS}.user_id`, '=', query.coordinatorId);
+  if (query.customerId !== undefined) select = select.where(`${ORDERS}.customer_id`, '=', query.customerId);
   if (position !== undefined) {
     const comparator = descending ? '<' : '>';
     select =

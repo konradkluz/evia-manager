@@ -9,6 +9,16 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import {
+  answerList,
+  answerPatch,
+  answerRead,
+  answerSearch,
+  e164,
+  fold,
+  type MockCustomerRecord,
+  type PatchKeys,
+} from './mock-customers.ts';
 
 /**
  * A synthetic API for the panel's browser tests (EVM-016 AC3–AC6). It plays the server side of the contract closely
@@ -75,13 +85,7 @@ export interface MockApi {
   dropResponseNext: Set<string>;
 }
 
-export interface MockCustomer {
-  readonly id: string;
-  readonly displayName: string;
-  readonly phone: string;
-  /** What the search looks at: name, city, e-mail (lower case, no diacritics). */
-  readonly text: string;
-}
+export type MockCustomer = MockCustomerRecord;
 
 export interface MockSite {
   readonly id: string;
@@ -173,24 +177,6 @@ function workOrder(index: number) {
   };
 }
 
-/** The search folds case and Polish letters like the server does ("Lodz" finds "Łódź"). */
-const fold = (text: string): string =>
-  text
-    .normalize('NFD')
-    .replaceAll(/[\u0300-\u036f]/g, '')
-    .replaceAll('ł', 'l')
-    .replaceAll('Ł', 'l')
-    .toLowerCase();
-
-/** The phone as E.164 (nine national digits get +48), or null when it is not a number. */
-function e164(text: string): string | null {
-  const digits = text.replaceAll(/\D/g, '');
-  if (!/^[+\d\s()-]+$/.test(text)) return null;
-  if (digits.length === 9) return `+48${digits}`;
-  if (digits.length === 11 && digits.startsWith('48')) return `+${digits}`;
-  return null;
-}
-
 function decodeBase64Url(value: string): string {
   return Buffer.from(value, 'base64url').toString('utf8');
 }
@@ -214,12 +200,29 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     auditEvents: 40,
     workOrders: 0,
     customers: [
-      { id: '01968f3e-0000-7000-8000-00000000aaa1', displayName: 'Jan Przykładowy', phone: '+48600000001', text: 'jan przykladowy lodz' },
+      {
+        id: '01968f3e-0000-7000-8000-00000000aaa1',
+        displayName: 'Jan Przykładowy',
+        phone: '+48600000001',
+        text: 'jan przykladowy lodz jan.przykladowy@example.com',
+        kind: 'person',
+        firstName: 'Jan',
+        lastName: 'Przykładowy',
+        email: 'jan.przykladowy@example.com',
+        notes: 'Kontakt najlepiej po 16:00.',
+        version: 1,
+      },
       {
         id: '01968f3e-0000-7000-8000-00000000aaa2',
         displayName: 'Firma Testowa sp. z o.o.',
         phone: '+48600000002',
         text: 'firma testowa sp. z o.o. warszawa',
+        kind: 'company',
+        companyName: 'Firma Testowa sp. z o.o.',
+        taxId: '5260250274',
+        contactPersonName: 'Ewa Kontaktowa',
+        postalAddress: { street: 'ul. Testowa', buildingNumber: '7', postalCode: '00-001', city: 'Warszawa' },
+        version: 1,
       },
     ],
     sites: [
@@ -280,6 +283,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const customerKeys = new Map<string, string>();
   const siteKeys = new Map<string, string>();
   const partyKeys = new Map<string, string>();
+  const customerPatchKeys: PatchKeys = new Map();
   let stepUpChallenge = '';
   const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
@@ -317,6 +321,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       return route.fulfill({
         ...answerOrderRead(api.orders, id, part as Parameters<typeof answerOrderRead>[2], api.role),
       });
+    }
+    // EVM-039: the details and the edit of one customer (W-14) — the customer is anchored in the path.
+    const customerRead = /^\/api\/v1\/customers\/([^/]+)$/.exec(url.pathname);
+    if (customerRead !== null && (request.method() === 'GET' || request.method() === 'PATCH')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const id = customerRead[1] ?? '';
+      if (request.method() === 'GET') return route.fulfill(answerRead(api.customers, id));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const answer = answerPatch(
+        api.customers,
+        id,
+        { role: api.role, ifMatch: headers['if-match'], key: headers['idempotency-key'], raw: request.postData() ?? '{}' },
+        customerPatchKeys,
+      );
+      if (answer.status === 200 && api.dropResponseNext.delete('PATCH /api/v1/customers/:id')) return route.abort('connectionreset');
+      return route.fulfill(answer);
     }
     // EVM-030: the transition of one order (the status menu of W-06).
     const transition = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname) : null;
@@ -523,6 +543,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'GET /api/v1/work-orders': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         const query = url.searchParams;
+        // EVM-039: "Historia zleceń" of a customer — the orders created in this run for that customer, newest first.
+        const ofCustomer = query.get('customerId');
+        if (ofCustomer !== null) return route.fulfill(ok(200, { items: createdListItems(api.orders, ofCustomer), nextCursor: null }));
         const statuses = query.get('status')?.split(',') ?? null;
         const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index))
           .filter((entry) => query.get('view') !== 'all_open' || (entry.status !== 'settled' && entry.status !== 'cancelled'))
@@ -539,21 +562,14 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
         return route.fulfill(ok(200, { items: ordered.slice(start, start + limit), nextCursor }));
       }
+      case 'GET /api/v1/customers': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        return route.fulfill(answerList(api.customers, url.searchParams));
+      }
       case 'POST /api/v1/customers/search': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        const { query } = body() as { query?: string };
-        const phrase = (query ?? '').normalize('NFC').trim();
-        if (Array.from(phrase).length < 3) {
-          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] }));
-        }
-        const phoneLike = /^[+\d\s()-]+$/.test(phrase);
-        const digits = phrase.replaceAll(/\D/g, '').replace(/^00/, '');
-        const items = api.customers
-          .filter((entry) => (phoneLike ? entry.phone.includes(digits) : entry.text.includes(fold(phrase))))
-          .slice(0, 20)
-          .map(({ id, displayName, phone }) => ({ id, displayName, phone }));
-        return route.fulfill(ok(200, { items, nextCursor: null }, { 'Cache-Control': 'no-store' }));
+        return route.fulfill(answerSearch(api.customers, request.postData() ?? '{}'));
       }
       case 'POST /api/v1/customers': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
@@ -594,7 +610,18 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (phone === null) errors.push({ pointer: '/phone', code: 'invalid_format' });
         if (errors.length > 0 || phone === null) return route.fulfill(problem(400, 'validation_failed', { errors }));
         const displayName = person ? `${input.firstName ?? ''} ${input.lastName ?? ''}` : (input.companyName ?? '');
-        api.customers.push({ id: input.id, displayName, phone, text: fold(`${displayName} ${input.email ?? ''}`) });
+        api.customers.push({
+          id: input.id,
+          displayName,
+          phone,
+          text: fold(`${displayName} ${input.email ?? ''}`),
+          kind: input.kind,
+          ...(input.firstName === undefined ? {} : { firstName: input.firstName }),
+          ...(input.lastName === undefined ? {} : { lastName: input.lastName }),
+          ...(input.companyName === undefined ? {} : { companyName: input.companyName }),
+          ...(input.email === undefined ? {} : { email: input.email }),
+          version: 1,
+        });
         if (idempotencyKey !== undefined) customerKeys.set(idempotencyKey, hash);
         if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
         return route.fulfill(ok(201, { ...input, phone, displayName, version: 1 }, { ETag: '"1"' }));

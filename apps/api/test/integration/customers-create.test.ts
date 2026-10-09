@@ -495,11 +495,11 @@ describe('who may add a customer (EVM-020 AC7; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTH
     expect(await count('platform.idempotency_records')).toBe(0);
   });
 
-  it('EVM-020 AC7 there is no route of a single customer yet: GET and POST on /customers/{id} are 404', async () => {
+  it('EVM-039 AC7 a single customer is read (GET) and edited (PATCH) — creating one at /customers/{id} (POST) is still no route', async () => {
     const browser = await signIn('administrator');
     const body = person();
     await create(browser, body);
-    expect((await browser.panel.get(`${CREATE}/${body.id}`)).status).toBe(404);
+    expect((await browser.panel.get(`${CREATE}/${body.id}`)).status).toBe(200);
     expect((await browser.panel.post(`${CREATE}/${body.id}`, {})).status).toBe(404);
   });
 });

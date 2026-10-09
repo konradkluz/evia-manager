@@ -90,7 +90,7 @@ WorkOrderCustomer:
       maxLength: 36
     displayName:
       type: string
-      maxLength: 400
+      maxLength: 401
 ScopeItem:
   type: object
   description: >-
@@ -314,7 +314,7 @@ CustomerCard:
   properties:
     displayName:
       type: string
-      maxLength: 400
+      maxLength: 401
     phone:
       type: string
       description: Telefon w formacie E.164.

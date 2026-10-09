@@ -6,19 +6,20 @@ import {
   ClipboardList,
   InlineAlert,
   ShieldCheck,
+  Users,
   WifiOff,
   type LinkComponent,
   type NavigationItem,
 } from '@evia/ui-web';
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { ADMINISTRATION_PATH, AUDIT_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { ADMINISTRATION_PATH, AUDIT_PATH, CUSTOMERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { useOnline } from './use-online.ts';
 
 /** Router link for the UI library (typed paths of the panel). */
 const RouterLink: LinkComponent = ({ href, children, ...rest }) => (
-  <Link to={href as typeof WORK_ORDERS_PATH | typeof AUDIT_PATH} {...rest}>
+  <Link to={href as typeof WORK_ORDERS_PATH | typeof CUSTOMERS_PATH | typeof AUDIT_PATH} {...rest}>
     {children}
   </Link>
 );
@@ -39,6 +40,13 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
       href: WORK_ORDERS_PATH,
       icon: ClipboardList,
       current: pathname.startsWith(WORK_ORDERS_PATH),
+    },
+    {
+      id: 'customers',
+      label: t('nav.customers'),
+      href: CUSTOMERS_PATH,
+      icon: Users,
+      current: pathname.startsWith(CUSTOMERS_PATH),
     },
     // Only an Administrator sees the administration; the server authorizes every operation anyway (SR-AUTHZ-11).
     ...(session.user.role === 'administrator'

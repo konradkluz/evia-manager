@@ -21,6 +21,7 @@ AuditAction:
     - bulk_read.alerted
     - bulk_read.rejected
     - customer.created
+    - customer.updated
     - site.created
     - party.created
     - work_order.created

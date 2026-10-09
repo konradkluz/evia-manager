@@ -19,11 +19,13 @@ import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
+import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
 import { CursorCodec } from './crypto/opaque-cursor.ts';
 import {
   APP_CONFIG,
   BULK_READ_CONTROL,
   BULK_READ_METER,
+  DISTINCT_READ_METER,
   CLOCK,
   CURSOR_CODEC,
   DATABASE,
@@ -64,11 +66,19 @@ export class PlatformModule {
           useFactory: (clock: Clock) => new CursorCodec(config.cursorKey, clock),
         },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
+        { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
           provide: BULK_READ_CONTROL,
-          inject: [BULK_READ_METER, LOGGER, METRICS, DATABASE, EVENT_BUS],
-          useFactory: (meter: BulkReadMeter, logger: Logger, metrics: MetricsRegistry, db: Kysely<Database>, events: EventBus) =>
-            new BulkReadControl(meter, logger, metrics, (event, context) =>
+          inject: [BULK_READ_METER, DISTINCT_READ_METER, LOGGER, METRICS, DATABASE, EVENT_BUS],
+          useFactory: (
+            meter: BulkReadMeter,
+            distinct: DistinctReadMeter,
+            logger: Logger,
+            metrics: MetricsRegistry,
+            db: Kysely<Database>,
+            events: EventBus,
+          ) =>
+            new BulkReadControl(meter, distinct, logger, metrics, (event, context) =>
               db.transaction().execute((transaction) => events.publish(transaction, event, context)),
             ),
         },

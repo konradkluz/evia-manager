@@ -1,7 +1,6 @@
 import { createCustomer, type CustomerSearchItem } from '@evia/contracts';
 import { Banner, Button, Dialog, Disclosure, InlineAlert, RadioGroup, TextArea, TextField, WifiOff } from '@evia/ui-web';
 import { useMutation } from '@tanstack/react-query';
-import type { TFunction } from 'i18next';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
@@ -20,6 +19,7 @@ import {
   type FieldName,
 } from './customer-form.ts';
 import type { PickedCustomer } from './customer-picker.tsx';
+import { errorText } from './field-errors.ts';
 import { formatPhone } from './format.ts';
 import { useCustomerSearch } from './use-customer-search.ts';
 import { uuidv7 } from './uuid.ts';
@@ -34,33 +34,6 @@ type Failure =
   | { readonly kind: 'fields' | 'network' | 'inProgress' | 'forbidden' }
   | { readonly kind: 'rate'; readonly seconds: number }
   | { readonly kind: 'server'; readonly code: string };
-
-/** The text under a field for a code of the server (never the value — the API sends none, SR-ERR-02). */
-function errorText(t: TFunction, field: FieldName, code: string): string {
-  switch (code) {
-    case 'required':
-      return t('customers.errors.required');
-    case 'too_long':
-      return t('customers.errors.tooLong');
-    case 'invalid_characters':
-      return t('customers.errors.invalidCharacters');
-    case 'invalid_format':
-      switch (field) {
-        case 'phone':
-          return t('customers.errors.phone');
-        case 'email':
-          return t('customers.errors.email');
-        case 'taxId':
-          return t('customers.errors.taxId');
-        case 'postalCode':
-          return t('customers.errors.postalCode');
-        default:
-          return t('customers.errors.invalid');
-      }
-    default:
-      return t('customers.errors.invalid');
-  }
-}
 
 function describe(error: unknown, errors: FieldErrors): Failure {
   if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) return { kind: 'network' };

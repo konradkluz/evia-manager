@@ -1,4 +1,5 @@
-import type { CustomerKind, CustomerWritable, FieldError } from '@evia/contracts';
+import type { Customer, CustomerKind, CustomerPatch, CustomerWritable, FieldError } from '@evia/contracts';
+import { formatPhone } from './format.ts';
 
 /** What a person types in the dialog "Dodaj klienta" (text only; the server normalises the phone, e-mail and NIP — AC2). */
 export interface CustomerForm {
@@ -137,4 +138,76 @@ export const fieldOf = (error: FieldError): FieldName | undefined => POINTERS[er
 /** The first field in the dialog's order that has an error. */
 export function firstInvalid(errors: FieldErrors): FieldName | undefined {
   return FIELD_ORDER.find((field) => errors[field] !== undefined);
+}
+
+/**
+ * The form of the dialog "Edytuj dane klienta" filled with the customer as the API sent it (EVM-039 AC3). The phone is shown
+ * as `+48 600 000 001` (§ 6.3); the server normalises it again, so a phone that was not touched is never sent.
+ */
+export function formOf(customer: Customer): CustomerForm {
+  const address = customer.postalAddress;
+  return {
+    kind: customer.kind,
+    firstName: customer.firstName ?? '',
+    lastName: customer.lastName ?? '',
+    companyName: customer.companyName ?? '',
+    taxId: customer.taxId ?? '',
+    contactPersonName: customer.contactPersonName ?? '',
+    phone: formatPhone(customer.phone),
+    email: customer.email ?? '',
+    street: address?.street ?? '',
+    buildingNumber: address?.buildingNumber ?? '',
+    apartmentNumber: address?.apartmentNumber ?? '',
+    postalCode: address?.postalCode ?? '',
+    city: address?.city ?? '',
+    notes: customer.notes ?? '',
+  };
+}
+
+const NAME_FIELDS: Readonly<Record<CustomerKind, readonly FieldName[]>> = {
+  person: ['firstName', 'lastName'],
+  company: ['companyName'],
+};
+const COMPANY_ONLY: readonly FieldName[] = ['taxId', 'contactPersonName'];
+const clean = (value: string): string => value.trim();
+
+/** The fields whose text differs from the one the dialog was opened with (what the person has touched). */
+export function changedFields(initial: CustomerForm, form: CustomerForm): FieldName[] {
+  return FIELD_ORDER.filter((field) => clean(form[field]) !== clean(initial[field]));
+}
+
+/**
+ * The merge-patch of `updateCustomer` (EVM-039 AC3, AC4): only what the person changed. An emptied optional field is `null`
+ * (it is cleared), the address goes whole or as `null`, and a change of the kind names the fields of the new kind. Fields
+ * of the server (`id`, `displayName`, `version`, …) are never sent.
+ */
+export function buildPatch(initial: CustomerForm, form: CustomerForm): CustomerPatch {
+  const changed = new Set(changedFields(initial, form));
+  const kindChanged = form.kind !== initial.kind;
+  const patch: Record<string, unknown> = {};
+  if (kindChanged) patch['kind'] = form.kind;
+  for (const field of NAME_FIELDS[form.kind]) if (kindChanged || changed.has(field)) patch[field] = clean(form[field]);
+  if (form.kind === 'company') {
+    for (const field of COMPANY_ONLY) if (changed.has(field)) patch[field] = optional(form[field]) ?? null;
+  }
+  if (changed.has('phone')) patch['phone'] = clean(form.phone);
+  if (changed.has('email')) patch['email'] = optional(form.email) ?? null;
+  if (changed.has('notes')) patch['notes'] = optional(form.notes) ?? null;
+  if (ADDRESS_FIELDS.some((field) => changed.has(field))) {
+    patch['postalAddress'] = addressStarted(form)
+      ? {
+          street: clean(form.street),
+          buildingNumber: clean(form.buildingNumber),
+          ...present({ apartmentNumber: optional(form.apartmentNumber) }),
+          postalCode: clean(form.postalCode),
+          city: clean(form.city),
+        }
+      : null;
+  }
+  return patch;
+}
+
+/** The text of a field of the customer as the API holds it now — shown as "Aktualnie: …" after a `412` (plain text). */
+export function currentText(customer: Customer, field: FieldName): string {
+  return clean(formOf(customer)[field]);
 }

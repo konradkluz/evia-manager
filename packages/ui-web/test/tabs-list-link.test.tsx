@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { List, ListItem, Tabs, TextLink } from '../src/index.ts';
+import { List, ListItem, Tabs, TextLink, type LinkComponent } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
 const TABS = [
@@ -104,6 +104,33 @@ describe('List and TextLink (styleguide § 3.6, § 3.17; EVM-018 AC2, AC4)', () 
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');
     expect(link.className).toContain('text-text-link');
     expect(link.className).toContain('underline');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-039 AC2 a link inside the application goes through the router link of the application', async () => {
+    const calls: string[] = [];
+    const routed: LinkComponent = ({ href, children, ...rest }) => (
+      <a
+        href={href}
+        {...rest}
+        onClick={(event) => {
+          event.preventDefault();
+          calls.push(href);
+        }}
+      >
+        {children}
+      </a>
+    );
+    const { container } = render(
+      <TextLink href="/customers/1" link={routed}>
+        Przejdź do klienta
+      </TextLink>,
+    );
+    const link = screen.getByRole('link', { name: 'Przejdź do klienta' });
+    expect(link.getAttribute('rel')).toBeNull();
+    expect(link.className).toContain('text-text-link');
+    await userEvent.click(link);
+    expect(calls).toEqual(['/customers/1']);
     expect(await axeViolations(container)).toEqual([]);
   });
 });

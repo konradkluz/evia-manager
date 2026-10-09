@@ -8,6 +8,9 @@ export const WORK_ORDERS_PATH = '/work-orders';
 export const NEW_WORK_ORDER_PATH = '/work-orders/new';
 /** W-06 (EVM-018): the details of a work order; the identifier is a UUID of the API, never text typed by a person. */
 export const workOrderPath = (id: string): string => `${WORK_ORDERS_PATH}/${encodeURIComponent(id)}`;
+/** W-14 (EVM-039): the list of customers and the details of one; only the identifier of a customer is in the address, never a name or a phrase. */
+export const CUSTOMERS_PATH = '/customers';
+export const customerPath = (id: string): string => `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`;
 /** Administration (W-16, W-18; EVM-029): the audit log is the first page of it; only an Administrator sees it in the menu. */
 export const ADMINISTRATION_PATH = '/administration';
 export const AUDIT_PATH = '/administration/audit';

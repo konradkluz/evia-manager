@@ -304,10 +304,14 @@ describe('roles (EVM-018 AC6; SR-AUTHZ-05)', () => {
     expect(card('Klient').getByText('Jan Przykładowy')).toBeTruthy();
     expect(card('Lokalizacja').getByText('PL-TEST-0001')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
-    // no "Edytuj", "Przejdź do klienta", "Dodaj" — those arrive with other stories; Read-only never sees actions
+    // no "Edytuj", "Dodaj" — those arrive with other stories; Read-only never sees actions
     expect(screen.queryAllByRole('button').map((button) => button.textContent)).not.toContain('Edytuj');
     expect(screen.queryByRole('button', { name: /Edytuj|Dodaj|Usuń|Przejdź do klienta/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Edytuj|Przejdź do klienta/ })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Edytuj/ })).toBeNull();
+    // "Przejdź do klienta" (EVM-039 AC2) is navigation, not a change: all three roles have it, built from the identifier only
+    expect(card('Klient').getByRole('link', { name: 'Przejdź do klienta' }).getAttribute('href')).toBe(
+      '/customers/01968f3e-0000-7000-8000-00000000aaaa',
+    );
   });
 
   it('EVM-018 AC6 a 401 (the session ended) clears the data of the order from the memory of the tab and sends the tab to the login page', async () => {

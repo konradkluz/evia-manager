@@ -228,3 +228,31 @@ describe('DataTable cards on narrow viewports (styleguide § 3.6; EVM-017 AC1)',
     expect(screen.getByRole('table').className).not.toContain('max-medium');
   });
 });
+
+describe('DataTable columns for the wide view only (styleguide § 3.6; EVM-039 AC1)', () => {
+  it('EVM-039 AC1 a wide-only column is hidden below the wide breakpoint (header and cells) and does not take a place in the cards', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Klienci"
+        columns={[
+          { id: 'name', header: 'Klient', card: 'primary' },
+          { id: 'kind', header: 'Rodzaj', card: 'badge' },
+          { id: 'email', header: 'E-mail', wideOnly: true },
+        ]}
+        rows={[{ id: 'a', cells: ['Przykładowy Jan', 'Osoba', 'jan@example.com'] }]}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Klienci' });
+    const header = within(table).getByRole('columnheader', { name: 'E-mail' });
+    expect(header.className).toContain('hidden');
+    expect(header.className).toContain('wide:table-cell');
+    const cell = within(table).getByText('jan@example.com').closest('td');
+    expect(cell?.className).toContain('hidden');
+    expect(cell?.className).toContain('wide:table-cell');
+    expect(cell?.className).not.toContain('max-medium:block');
+    // the other columns keep their place in the card
+    expect(within(table).getByText('Przykładowy Jan').closest('td')?.className).toContain('max-medium:block');
+    expect(within(table).getByRole('columnheader', { name: 'Klient' }).className).not.toContain('hidden');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+});

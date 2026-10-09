@@ -109,7 +109,7 @@ export function WorkOrderPage() {
           </Tabs>
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>
-          <CustomerCard query={customer} />
+          <CustomerCard query={customer} customerId={order.customer?.id} />
           <SiteCard query={site} />
         </aside>
       </div>

@@ -62,10 +62,19 @@ describe('customers contract (EVM-020 AC1, AC2, AC5, AC7; SR-API-04, SR-AUTHZ-04
     expect(zCustomerWritable.safeParse({ ...person, notes: 'a'.repeat(2001) }).success).toBe(false);
   });
 
-  it('EVM-020 AC1 the search result is a list envelope with a null cursor and at most 20 items', () => {
+  it('EVM-020 AC1 the search result is a list envelope with a cursor and at most 100 items (EVM-039: 20 became 100, additive)', () => {
     expect(zCustomerSearchResult.safeParse({ items: [], nextCursor: null }).success).toBe(true);
+    expect(zCustomerSearchResult.safeParse({ items: [], nextCursor: 'abc' }).success).toBe(true);
     expect(zCustomerSearchResult.safeParse([]).success).toBe(false);
-    const item = { id: V7, displayName: 'Jan Przykładowy', phone: '+48600000001' };
-    expect(zCustomerSearchResult.safeParse({ items: Array.from({ length: 21 }, () => item), nextCursor: null }).success).toBe(false);
+    const item = {
+      id: V7,
+      kind: 'person',
+      displayName: 'Jan Przykładowy',
+      sortName: 'Przykładowy Jan',
+      phone: '+48600000001',
+      email: null,
+    };
+    expect(zCustomerSearchResult.safeParse({ items: Array.from({ length: 100 }, () => item), nextCursor: null }).success).toBe(true);
+    expect(zCustomerSearchResult.safeParse({ items: Array.from({ length: 101 }, () => item), nextCursor: null }).success).toBe(false);
   });
 });

@@ -236,7 +236,9 @@ export async function runMatrix(
     }
 
     app.clock.advance(61_000); // a new minute: the per-IP limits are not what the matrix measures
-    let call = request(server)[cell.method as 'get' | 'post'](path).set(headers);
+    let call = request(server)[cell.method as 'get' | 'post' | 'patch'](path).set(headers);
+    // a PATCH needs its precondition before it looks at the object (428 comes before 404, EVM-039): the matrix sends a well-formed one
+    if (cell.method === 'patch') call = call.set('If-Match', '"1"');
     if (mutating) call = call.set('Content-Type', 'application/json').send('{}');
     const response = await call;
 
