@@ -35,4 +35,9 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/platform/database/search-text.ts',
   'src/platform/idempotency/idempotency.ts',
   'src/cli/process-run.ts',
+  // EVM-077: the development tools that read and write the local database (the guard in the database, the state, the demo data).
+  'dev/administrator.ts',
+  'dev/database-facts.ts',
+  'dev/nest-seed.ts',
+  'dev/run.ts',
 ];

@@ -96,7 +96,7 @@ export function webUi({ files = WEB_UI_FILES }: { files?: string[] } = {}): Lint
 
 export function config({ tsconfigRootDir, ignores = [] }: { tsconfigRootDir: string; ignores?: string[] }): ConfigArray {
   return [
-    { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'generated/**', ...ignores] },
+    { ignores: ['dist/**', '.dev-build/**', 'coverage/**', 'node_modules/**', 'generated/**', ...ignores] },
     js.configs.recommended,
     ...tseslint.configs.strictTypeChecked,
     {

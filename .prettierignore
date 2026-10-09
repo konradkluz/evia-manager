@@ -10,5 +10,6 @@ pnpm-lock.yaml
 .playwright-mcp/
 .turbo/
 **/dist/
+**/.dev-build/
 **/coverage/
 **/generated/

@@ -5,6 +5,6 @@
     "checkJs": true,
     "experimentalDecorators": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "include": ["src/**/*.ts", "dev/**/*.ts", "test/**/*.ts", "*.config.ts", "*.config.js"],
+  "exclude": ["node_modules", "dist", ".dev-build", "coverage"]
 }
