@@ -1,17 +1,20 @@
 /**
- * HTTP surface of the sites module (EVM-021): the search and the creation. The handlers contain no authorization — the global guard
- * decides before they run (operation in the manifest, CSRF, channel, role); here only the call and the headers of the answer. The
- * answers are never cached (the global `Cache-Control: no-store`).
+ * HTTP surface of the sites module (EVM-021: the search and the creation; EVM-036: the detail and the edit). The handlers contain no
+ * authorization — the global guard decides before they run (operation in the manifest, CSRF, channel, role); here only the call and
+ * the headers of the answer. The answers are never cached (the global `Cache-Control: no-store`).
  */
 import type { Site, SiteSearchResult } from '@evia/contracts';
-import { Body, Controller, Headers, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
 import { principalOf, type Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateSiteService } from '../application/create-site.service.ts';
+import { ReadSiteService } from '../application/read-site.service.ts';
 import { SearchSitesService } from '../application/search-sites.service.ts';
+import { UpdateSiteService } from '../application/update-site.service.ts';
 
 function requirePrincipal(request: Request): Principal {
   const principal = principalOf(request);
@@ -23,10 +26,19 @@ function requirePrincipal(request: Request): Principal {
 export class SitesController {
   readonly #searches: SearchSitesService;
   readonly #creations: CreateSiteService;
+  readonly #reads: ReadSiteService;
+  readonly #updates: UpdateSiteService;
 
-  constructor(@Inject(SearchSitesService) searches: SearchSitesService, @Inject(CreateSiteService) creations: CreateSiteService) {
+  constructor(
+    @Inject(SearchSitesService) searches: SearchSitesService,
+    @Inject(CreateSiteService) creations: CreateSiteService,
+    @Inject(ReadSiteService) reads: ReadSiteService,
+    @Inject(UpdateSiteService) updates: UpdateSiteService,
+  ) {
     this.#searches = searches;
     this.#creations = creations;
+    this.#reads = reads;
+    this.#updates = updates;
   }
 
   @Post('/api/v1/sites/search')
@@ -34,6 +46,38 @@ export class SitesController {
   @HttpCode(200)
   searchSites(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<SiteSearchResult> {
     return this.#searches.search(requirePrincipal(request), body, webEventContext(request, response));
+  }
+
+  @Get('/api/v1/sites/:siteId')
+  @OperationId('getSite')
+  async getSite(@Param() params: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<Site> {
+    const site = await this.#reads.get(requirePrincipal(request), params);
+    response.set('ETag', entityTag(site.version));
+    return site;
+  }
+
+  @Patch('/api/v1/sites/:siteId')
+  @OperationId('updateSite')
+  @HttpCode(200)
+  async updateSite(
+    @Param() params: unknown,
+    @Body() body: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<Site> {
+    const { site, replayed } = await this.#updates.update(
+      requirePrincipal(request),
+      params,
+      ifMatch,
+      body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('ETag', entityTag(site.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return site;
   }
 
   @Post('/api/v1/sites')

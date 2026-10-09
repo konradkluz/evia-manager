@@ -12,8 +12,17 @@ import type { PartyKind } from './domain/party.ts';
 export const PARTY_DIRECTORY = Symbol('PARTY_DIRECTORY');
 
 export interface PartyDirectory {
-  /** The kind of every party among `ids` that exists and is visible to the caller; the others are absent from the map. */
-  kindsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, PartyKind>>;
+  /**
+   * The kind of every party among `ids` that exists and is visible to the caller; the others are absent from the map. With
+   * `lock: true` the rows are locked `FOR SHARE` until the transaction of the caller ends, so the kind it relies on cannot change
+   * or the party disappear under it (EVM-036 AC2).
+   */
+  kindsOf(
+    tx: Kysely<Database>,
+    principal: Principal,
+    ids: readonly string[],
+    options?: { readonly lock?: boolean },
+  ): Promise<ReadonlyMap<string, PartyKind>>;
   /** The display name of every party among `ids` that exists and is visible to the caller (ONE query); the others are absent (EVM-018). */
   namesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }

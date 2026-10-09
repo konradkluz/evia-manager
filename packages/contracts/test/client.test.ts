@@ -49,14 +49,17 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/work-orders/{workOrderId}/scope-items',
       '/api/v1/work-orders/{workOrderId}/customer',
       '/api/v1/work-orders/{workOrderId}/site',
+      '/api/v1/work-orders/{workOrderId}/site-orders',
       '/api/v1/users/assignable',
       '/api/v1/customers',
       '/api/v1/customers/search',
       '/api/v1/customers/{customerId}',
       '/api/v1/sites',
       '/api/v1/sites/search',
+      '/api/v1/sites/{siteId}',
       '/api/v1/parties',
       '/api/v1/parties/search',
+      '/api/v1/parties/{partyId}',
     ]);
   });
 

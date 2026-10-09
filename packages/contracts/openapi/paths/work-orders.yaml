@@ -414,3 +414,40 @@ workOrderTransitions:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+workOrderSiteOrders:
+  get:
+    operationId: listWorkOrderSiteOrders
+    tags: [work-orders]
+    summary: Zlecenie — inne zlecenia w tej samej lokalizacji (metadane)
+    description: >-
+      Sekcja „Inne zlecenia w tej lokalizacji (n)” karty „Lokalizacja” (EVM-036 AC5, AC6; SR-AUTHZ-03, SR-AUTHZ-08). Tylko metadane
+      zleceń: `id`, `number`, `title`, `status` i `closedAt` — bez klienta, kwot, zdjęć, dokumentów i płatności. `siteId` pochodzi
+      wyłącznie z wiersza zlecenia odczytanego przez politykę odczytu; ścieżka nie ma parametru `siteId`. Bieżące zlecenie jest
+      wykluczone warunkiem w zapytaniu; lista (najwyżej 20 pozycji, numer malejąco) i `total` są liczone tą samą polityką odczytu
+      zleceń co lista zleceń, w zapytaniu — zlecenia usunięte (soft delete) nie występują ani w liście, ani w liczniku, także dla
+      Administratora (podgląd usuniętych to EVM-060). Zlecenie bez lokalizacji — pusta lista i `total` 0. Zlecenie nieistniejące
+      i usunięte — ta sama odpowiedź `404 not_found`. Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny —
+      `403 channel_not_allowed`: sekcja jest tylko w panelu), bez audytu odczytu. Tytuł zlecenia jest polem swobodnym i może
+      zawierać dane osobowe — panel wyświetla go jako tekst.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+    responses:
+      '200':
+        description: Inne zlecenia w lokalizacji (pusta tablica `items`, gdy ich nie ma).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/SiteOrders
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

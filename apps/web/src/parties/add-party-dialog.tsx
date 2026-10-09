@@ -30,6 +30,10 @@ export interface AddPartyDialogProps {
   /** Esc, `x`, "Anuluj"; what was typed stays in the memory of the tab unless `discard` is set. */
   readonly onClose: (discard: boolean) => void;
   readonly onCreated: (party: PickedParty) => void;
+  /** The title when the dialog is a view of another one ("Edytuj lokalizację › Dodaj stronę"); default "Dodaj stronę". */
+  readonly title?: string;
+  /** The name of the button that leaves without saving ("Wróć do lokalizacji"); default "Anuluj". */
+  readonly cancelLabel?: string;
 }
 
 /**
@@ -39,7 +43,7 @@ export interface AddPartyDialogProps {
  * sends the same pair, so no duplicate appears. What is typed lives in this component only — not in the address, the storage of the
  * browser or a log; offline and after a failed save it stays.
  */
-export function AddPartyDialog({ open, kinds, onClose, onCreated }: AddPartyDialogProps) {
+export function AddPartyDialog({ open, kinds, onClose, onCreated, title, cancelLabel }: AddPartyDialogProps) {
   const { t } = useTranslation();
   const client = useApi();
   const online = useOnline();
@@ -153,7 +157,7 @@ export function AddPartyDialog({ open, kinds, onClose, onCreated }: AddPartyDial
   return (
     <Dialog
       open={open}
-      title={t('parties.dialog.title')}
+      title={title ?? t('parties.dialog.title')}
       closeLabel={t('parties.dialog.close')}
       onDismiss={() => {
         onClose(false);
@@ -167,7 +171,7 @@ export function AddPartyDialog({ open, kinds, onClose, onCreated }: AddPartyDial
               onClose(true);
             }}
           >
-            {t('parties.dialog.cancel')}
+            {cancelLabel ?? t('parties.dialog.cancel')}
           </Button>
           <Button type="submit" form={formId} loading={mutation.isPending} disabled={!online}>
             {t('parties.dialog.submit')}

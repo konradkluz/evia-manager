@@ -6,7 +6,7 @@
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
 
-export const PARTY_EVENT_TYPES = ['party.created'] as const;
+export const PARTY_EVENT_TYPES = ['party.created', 'party.updated'] as const;
 
 export interface PartyEvent extends DomainEvent {
   readonly type: (typeof PARTY_EVENT_TYPES)[number];

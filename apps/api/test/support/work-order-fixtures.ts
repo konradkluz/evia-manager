@@ -26,6 +26,8 @@ export interface WorkOrderSpec {
   readonly status?: WorkOrderStatus;
   readonly createdAt?: Date;
   readonly deletedAt?: Date;
+  /** when the order was closed (EVM-036: shown in the section of the other orders of a site) */
+  readonly closedAt?: Date;
   /** the customer and the site of the order (EVM-018) — ids of rows inserted by the customer and site fixtures */
   readonly customerId?: string;
   readonly siteId?: string;
@@ -65,6 +67,7 @@ export async function insertWorkOrders(db: Kysely<Database>, specs: readonly Wor
             created_by: null,
             updated_at: createdAt,
             updated_by: null,
+            closed_at: spec.closedAt ?? null,
             deleted_at: spec.deletedAt ?? null,
             deleted_by: null,
           };

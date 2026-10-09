@@ -1,5 +1,5 @@
-import { createSite, type SiteType } from '@evia/contracts';
-import { Banner, Button, InlineAlert, Select, TextArea, TextField, WifiOff } from '@evia/ui-web';
+import { createSite } from '@evia/contracts';
+import { Banner, Button, InlineAlert, WifiOff } from '@evia/ui-web';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -8,25 +8,22 @@ import { ApiError, unwrap } from '../api/client.ts';
 import { useAttempt } from '../forms/attempt.ts';
 import { fieldErrorText } from '../forms/field-error-text.ts';
 import { describeFailure, refusesAttempt, type SaveFailure } from '../forms/save-failure.ts';
-import { siteTypeLabels } from '../i18n/catalog-labels.ts';
-import { MANAGER_KINDS, OSD_KINDS } from '../parties/party-form.ts';
-import { PartyPicker, type PickedParty } from '../parties/party-picker.tsx';
+import type { PickedParty } from '../parties/party-picker.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import {
   buildSiteBody,
   firstInvalidSite,
-  GARAGE_SITE_TYPE,
   invalidFields,
   siteFieldOf,
   siteFingerprint,
-  SITE_TYPES,
   type PickedSite,
   type SiteFieldErrors,
   type SiteFieldName,
   type SiteForm,
 } from './site-form.ts';
+import { SiteFields, type PartyTarget, type SiteFieldElement } from './site-fields.tsx';
 
-export type PartyTarget = 'osd' | 'manager';
+export type { PartyTarget } from './site-fields.tsx';
 
 export interface NewSiteFormProps {
   readonly form: SiteForm;
@@ -39,8 +36,6 @@ export interface NewSiteFormProps {
   /** The site is saved: the section selects it. */
   readonly onSaved: (site: PickedSite) => void;
 }
-
-const isSiteType = (value: string): value is SiteType => SITE_TYPES.some((type) => type === value);
 
 /**
  * "Nowa lokalizacja" of W-05 (EVM-021 AC2, AC3, AC5, AC7): the type of the object, the address, for a garage the parking spot and
@@ -57,7 +52,7 @@ export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, o
   const [failure, setFailure] = useState<SaveFailure | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   const attempt = useAttempt();
-  const fields = useRef<Partial<Record<SiteFieldName, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>>>({});
+  const fields = useRef<Partial<Record<SiteFieldName, SiteFieldElement | null>>>({});
   const alert = useRef<HTMLDivElement>(null);
 
   const mutation = useMutation({
@@ -139,26 +134,6 @@ export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, o
     );
   };
 
-  const text = (
-    field: Exclude<SiteFieldName, 'siteType' | 'osd' | 'manager' | 'notes'>,
-    label: string,
-    extra: { suffix?: string } = {},
-  ) => (
-    <TextField
-      label={label}
-      value={form[field]}
-      autoComplete="off"
-      error={errors[field]}
-      {...(extra.suffix === undefined ? {} : { suffix: extra.suffix, inputMode: 'decimal' as const })}
-      inputRef={(element) => {
-        fields.current[field] = element;
-      }}
-      onChange={(event) => {
-        change({ [field]: event.target.value });
-      }}
-    />
-  );
-
   const failureText = (current: SaveFailure): string => {
     switch (current.kind) {
       case 'fields':
@@ -184,83 +159,15 @@ export function NewSiteForm({ form, onFormChange, osd, manager, onPartyChange, o
           {failureText(failure)}
         </InlineAlert>
       )}
-      <Select
-        label={t('sites.new.siteType')}
-        value={form.siteType}
-        options={[
-          { value: '', label: t('sites.new.siteTypePlaceholder') },
-          ...SITE_TYPES.map((type) => ({ value: type, label: siteTypeLabels[type] })),
-        ]}
-        error={errors.siteType}
-        selectRef={(element) => {
-          fields.current.siteType = element;
-        }}
-        onChange={(value) => {
-          change({ siteType: isSiteType(value) ? value : '' });
-        }}
-      />
-      <div className="grid grid-cols-1 gap-inline-md medium:grid-cols-2">
-        {text('street', t('sites.new.street'))}
-        {text('buildingNumber', t('sites.new.buildingNumber'))}
-        {text('apartmentNumber', t('sites.new.apartmentNumber'))}
-        {text('postalCode', t('sites.new.postalCode'))}
-        {text('city', t('sites.new.city'))}
-      </div>
-      {form.siteType === GARAGE_SITE_TYPE ? (
-        <div className="grid grid-cols-1 gap-inline-md medium:grid-cols-2">
-          {text('parkingSpotNumber', t('sites.new.parkingSpotNumber'))}
-          {text('garageLevel', t('sites.new.garageLevel'))}
-        </div>
-      ) : null}
-      <PartyPicker
-        label={t('sites.new.osd')}
-        changeLabel={t('sites.new.osdChange')}
-        addLabel={t('sites.new.osdAdd')}
-        kinds={OSD_KINDS}
-        selected={osd}
-        onSelect={(picked) => {
-          party('osd', picked);
-        }}
-        onClear={() => {
-          party('osd', null);
-        }}
-        onAdd={() => {
-          onAddParty('osd');
-        }}
-        error={errors.osd}
-      />
-      <PartyPicker
-        label={t('sites.new.manager')}
-        changeLabel={t('sites.new.managerChange')}
-        addLabel={t('sites.new.managerAdd')}
-        kinds={MANAGER_KINDS}
-        selected={manager}
-        onSelect={(picked) => {
-          party('manager', picked);
-        }}
-        onClear={() => {
-          party('manager', null);
-        }}
-        onAdd={() => {
-          onAddParty('manager');
-        }}
-        error={errors.manager}
-      />
-      <div className="grid grid-cols-1 gap-inline-md medium:grid-cols-2">
-        {text('connectionPowerKw', t('sites.new.connectionPower'), { suffix: t('sites.new.kilowatt') })}
-        {text('meteringPointId', t('sites.new.meteringPoint'))}
-      </div>
-      <TextArea
-        label={t('sites.new.notes')}
-        value={form.notes}
-        hint={t('sites.new.notesHint')}
-        error={errors.notes}
-        inputRef={(element) => {
-          fields.current.notes = element;
-        }}
-        onChange={(event) => {
-          change({ notes: event.target.value });
-        }}
+      <SiteFields
+        form={form}
+        errors={errors}
+        osd={osd}
+        manager={manager}
+        fields={fields}
+        onFormChange={change}
+        onPartyChange={party}
+        onAddParty={onAddParty}
       />
       <div className="flex flex-wrap justify-start gap-inline-md">
         <Button loading={mutation.isPending} disabled={!online} onClick={submit}>

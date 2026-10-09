@@ -18,6 +18,7 @@ import {
   useWorkOrderHeader,
   useWorkOrderScope,
   useWorkOrderSite,
+  useWorkOrderSiteOrders,
 } from '../work-orders/use-work-order.ts';
 import { WorkOrderHeader } from '../work-orders/work-order-header.tsx';
 
@@ -46,6 +47,7 @@ export function WorkOrderPage() {
   const scope = useWorkOrderScope(id, active);
   const customer = useWorkOrderCustomer(id, active);
   const site = useWorkOrderSite(id, active);
+  const siteOrders = useWorkOrderSiteOrders(id, active);
   const heading = useRef<HTMLHeadingElement>(null);
 
   // The order is gone when the header or the scope says so (a card may be 404 for a customer that was deleted — the order lives).
@@ -59,7 +61,7 @@ export function WorkOrderPage() {
   // The connection is back: what failed meanwhile is read again.
   useEffect(() => {
     if (!online) return;
-    for (const query of [header, scope, customer, site]) if (query.isError && !isNotFound(query.error)) void query.refetch();
+    for (const query of [header, scope, customer, site, siteOrders]) if (query.isError && !isNotFound(query.error)) void query.refetch();
     // Only the return of the connection matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
@@ -110,7 +112,7 @@ export function WorkOrderPage() {
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>
           <CustomerCard query={customer} customerId={order.customer?.id} />
-          <SiteCard query={site} />
+          <SiteCard query={site} orders={siteOrders} workOrderId={id} />
         </aside>
       </div>
     </div>

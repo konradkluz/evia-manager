@@ -172,3 +172,84 @@ SiteSearchResult:
     nextCursor:
       description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
       type: 'null'
+SitePatch:
+  type: object
+  description: >-
+    Zmiana danych lokalizacji (EVM-036; merge-patch): pole nieobecne zostaje bez zmian, pole opcjonalne (`apartmentNumber`,
+    `parkingSpotNumber`, `garageLevel`, `connectionPowerKw`, `meteringPointId`, `distributionSystemOperatorPartyId`,
+    `managerPartyId`, `notes`) z wartością `null` jest czyszczone; pola wymagane (`siteType`, `street`, `buildingNumber`,
+    `postalCode`, `city`) nie przyjmują `null`. Obowiązują te same reguły co przy dodaniu (miejsce i poziom tylko dla
+    `multi_family_garage` — zmiana typu na inny wymaga wyczyszczenia ich w tym samym żądaniu, skala mocy, zwykły tekst, rodzaj
+    stron). Pole spoza schematu (m.in. `customerId`) — `unknown_field`, pole kontrolowane przez serwer (`id`, `version`,
+    `createdAt`, `updatedAt`) — `read_only_field`.
+  additionalProperties: false
+  properties:
+    siteType:
+      $ref: catalog.yaml#/SiteType
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      description: Numer lokalu albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 20
+        - type: 'null'
+    postalCode:
+      type: string
+      description: Kod pocztowy w formacie `00-000`.
+      pattern: '^\d{2}-\d{3}$'
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+    parkingSpotNumber:
+      description: Numer miejsca postojowego (tylko garaż w budynku wielorodzinnym) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 20
+        - type: 'null'
+    garageLevel:
+      description: Poziom garażu (tylko garaż w budynku wielorodzinnym) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 20
+        - type: 'null'
+    connectionPowerKw:
+      description: Moc przyłączeniowa w kW — większa od 0, najwyżej 1000, do 2 miejsc po przecinku — albo `null`.
+      oneOf:
+        - type: number
+          exclusiveMinimum: 0
+          maximum: 1000
+        - type: 'null'
+    meteringPointId:
+      description: PPE (punkt poboru energii), najwyżej 40 znaków, albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 40
+        - type: 'null'
+    distributionSystemOperatorPartyId:
+      description: Strona rodzaju `distribution_system_operator` albo `null`, by ją usunąć.
+      oneOf:
+        - type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          maxLength: 36
+        - type: 'null'
+    managerPartyId:
+      description: Strona rodzaju `building_administration`, `property_manager` albo `housing_community`, albo `null`.
+      oneOf:
+        - type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          maxLength: 36
+        - type: 'null'
+    notes:
+      description: Notatki (zwykły tekst) albo `null`, by je usunąć. Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'

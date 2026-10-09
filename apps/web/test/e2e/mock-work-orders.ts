@@ -1,3 +1,5 @@
+import { answerSiteOrders, cardOf, type LocationServer } from './mock-locations.ts';
+
 /**
  * The part of the synthetic API that serves W-05 "3. Szablon" and "Utwórz zlecenie" (EVM-022): the catalogue of templates, the
  * users who can be a coordinator and the creation of an order with the rules of the real one that the browser can feel — the
@@ -39,7 +41,7 @@ export interface OrderState {
   closedAt?: string;
 }
 
-export interface OrderServer {
+export interface OrderServer extends LocationServer {
   readonly templates: MockTemplate[];
   readonly assignable: MockAssignable[];
   readonly created: MockCreatedOrder[];
@@ -279,7 +281,7 @@ function scopeItemsOf(created: MockCreatedOrder) {
 export function answerOrderRead(
   server: OrderServer,
   id: string,
-  part: '' | 'scope-items' | 'customer' | 'site',
+  part: '' | 'scope-items' | 'customer' | 'site' | 'site-orders',
   role: Role = 'administrator',
 ): Answer {
   const created = server.created.find((entry) => entry.id === id);
@@ -313,23 +315,9 @@ export function answerOrderRead(
       : json(200, { displayName: customer.displayName, phone: customer.phone, email: 'jan.przykladowy@example.com' });
   }
   if (site === undefined) return NOT_FOUND;
-  const osd = server.parties.find((entry) => entry.kind === 'distribution_system_operator');
-  const manager = server.parties.find((entry) => entry.kind === 'housing_community');
-  return json(200, {
-    siteType: site.siteType,
-    street: site.street,
-    buildingNumber: site.buildingNumber,
-    ...(site.apartmentNumber === undefined ? {} : { apartmentNumber: site.apartmentNumber }),
-    postalCode: site.postalCode,
-    city: site.city,
-    ...(site.parkingSpotNumber === undefined ? {} : { parkingSpotNumber: site.parkingSpotNumber }),
-    ...(site.garageLevel === undefined ? {} : { garageLevel: site.garageLevel }),
-    connectionPowerKw: 40,
-    meteringPointId: 'PL-TEST-0001',
-    notes: server.notes,
-    distributionSystemOperator: osd === undefined ? null : { id: osd.id, displayName: osd.displayName },
-    manager: manager === undefined ? null : { id: manager.id, displayName: manager.displayName },
-  });
+  if (part === 'site-orders') return answerSiteOrders(server);
+  const card = cardOf(server, site.id);
+  return card === undefined ? NOT_FOUND : json(200, card);
 }
 
 export type Role = 'administrator' | 'editor' | 'read_only';

@@ -30,6 +30,7 @@ export interface SiteSummary {
  * and the manager (the caller asks `parties` for their names, in one query). `connectionPowerKw` is a number of kW.
  */
 export interface SiteCard {
+  readonly id: string;
   readonly siteType: SiteType;
   readonly street: string;
   readonly buildingNumber: string;

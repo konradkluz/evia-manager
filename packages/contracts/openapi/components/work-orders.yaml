@@ -342,9 +342,14 @@ SiteCard:
   description: >-
     Karta „Lokalizacja” (DO-K): typ obiektu, adres, miejsce i poziom, moc przyłączeniowa, PPE, notatki oraz OSD i zarządca jako
     `{id, displayName}` (`null`, gdy brak albo strona usunięta). Pola opcjonalne są pomijane, gdy lokalizacja ich nie ma.
-  required: [siteType, street, buildingNumber, postalCode, city, distributionSystemOperator, manager]
+  required: [siteId, siteType, street, buildingNumber, postalCode, city, distributionSystemOperator, manager]
   additionalProperties: false
   properties:
+    siteId:
+      type: string
+      description: Identyfikator lokalizacji zlecenia (do odczytu i edycji lokalizacji, EVM-036).
+      format: uuid
+      maxLength: 36
     siteType:
       $ref: catalog.yaml#/SiteType
     street:
@@ -411,3 +416,46 @@ TransitionWorkOrderRequest:
       description: Dzień zakończenia prac, `RRRR-MM-DD` (tylko przy przejściu „Zakończ”).
       format: date
       maxLength: 10
+SiteOrderItem:
+  type: object
+  description: >-
+    Inne zlecenie w tej samej lokalizacji — wyłącznie metadane (EVM-036 AC5, SR-AUTHZ-08): bez klienta, kontaktu, kwot, zdjęć
+    i dokumentów. `closedAt` jest obecne tylko dla zleceń zamkniętych.
+  required: [id, number, title, status]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    number:
+      type: string
+      description: Numer zlecenia (np. `ZL-2026-0017`).
+      maxLength: 32
+    title:
+      type: string
+      description: Krótki opis (pole swobodne — może zawierać dane osobowe; panel wyświetla go jako tekst).
+      maxLength: 200
+    status:
+      $ref: '#/WorkOrderStatus'
+    closedAt:
+      type: string
+      format: date-time
+      maxLength: 40
+SiteOrders:
+  type: object
+  description: >-
+    Inne zlecenia w lokalizacji bieżącego zlecenia: `total` to liczba zleceń widocznych dla wywołującego (bez bieżącego), `items` —
+    najwyżej 20 z nich, numer malejąco.
+  required: [total, items]
+  additionalProperties: false
+  properties:
+    total:
+      type: integer
+      minimum: 0
+      maximum: 2147483647
+    items:
+      type: array
+      maxItems: 20
+      items:
+        $ref: '#/SiteOrderItem'

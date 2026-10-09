@@ -9,6 +9,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerList,
   answerPatch,
@@ -275,6 +276,12 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       states: new Map(),
       transitionKeys: new Map(),
       notes: 'Wjazd od ul. Fikcyjnej, klucz u administratora.',
+      siteEdits: new Map(),
+      partyEdits: new Map(),
+      otherOrders: [],
+      patchKeys: new Map(),
+      goneSites: new Set(),
+      goneParties: new Set(),
     },
     dropResponseNext: new Set(),
   };
@@ -311,7 +318,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
 
     // EVM-018: the four reads of one order (W-06) — the order is anchored in the path (a malformed id is 400, a missing or gone one 404).
     const orderRead =
-      request.method() === 'GET' ? /^\/api\/v1\/work-orders\/([^/]+)(?:\/(scope-items|customer|site))?$/.exec(url.pathname) : null;
+      request.method() === 'GET'
+        ? /^\/api\/v1\/work-orders\/([^/]+)(?:\/(scope-items|customer|site|site-orders))?$/.exec(url.pathname)
+        : null;
     if (orderRead !== null) {
       if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
       const [, id = '', part = ''] = orderRead;
@@ -337,6 +346,25 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       );
       if (answer.status === 200 && api.dropResponseNext.delete('PATCH /api/v1/customers/:id')) return route.abort('connectionreset');
       return route.fulfill(answer);
+    }
+    // EVM-036: the site and the party of the dialogs "Edytuj lokalizację" and "Edytuj stronę" — each is anchored in the path.
+    const location = /^\/api\/v1\/(sites|parties)\/([^/]+)$/.exec(url.pathname);
+    if (location !== null && (request.method() === 'GET' || request.method() === 'PATCH')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const which = location[1] === 'sites' ? 'site' : 'party';
+      const id = location[2] ?? '';
+      if (request.method() === 'GET') {
+        return route.fulfill(answerLocationRead(which === 'site' ? siteOf(api.orders, id) : partyOf(api.orders, id), id));
+      }
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerLocationPatch(api.orders, which, id, {
+          role: api.role,
+          ifMatch: headers['if-match'],
+          key: headers['idempotency-key'],
+          raw: request.postData() ?? '{}',
+        }),
+      );
     }
     // EVM-030: the transition of one order (the status menu of W-06).
     const transition = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname) : null;

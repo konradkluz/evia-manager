@@ -137,3 +137,42 @@ PartySearchResult:
     nextCursor:
       description: Zawsze `null` — wyszukiwanie nie ma jeszcze stron (kursor dojdzie addytywnie).
       type: 'null'
+PartyPatch:
+  type: object
+  description: >-
+    Zmiana danych strony (EVM-036; merge-patch): pole nieobecne zostaje bez zmian, pole opcjonalne (`contactPersonName`, `phone`,
+    `email`, `notes`) z wartością `null` jest czyszczone; `legalForm` i `displayName` nie przyjmują `null`. Obowiązują te same reguły
+    co przy dodaniu (telefon E.164, e-mail małymi literami, zwykły tekst). Rodzaj (`kind`) jest niezmienny: nazwanie go to
+    `read_only_field` (tak samo `id`, `version`, `createdAt`, `updatedAt`); pole spoza schematu — `unknown_field`.
+  additionalProperties: false
+  properties:
+    legalForm:
+      $ref: '#/PartyLegalForm'
+    displayName:
+      type: string
+      description: Nazwa strony (firma, instytucja albo imię i nazwisko osoby fizycznej).
+      maxLength: 200
+    contactPersonName:
+      description: Osoba kontaktowa albo `null`, by ją usunąć.
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+    phone:
+      description: Telefon w dowolnym zapisie (serwer normalizuje do E.164) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 32
+        - type: 'null'
+    email:
+      description: Adres e-mail (zapisywany małymi literami) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 254
+        - type: 'null'
+    notes:
+      description: Notatki (zwykły tekst) albo `null`, by je usunąć. Nie wpisuj numerów PESEL, numerów dokumentów ani kodów do bram i alarmów.
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'

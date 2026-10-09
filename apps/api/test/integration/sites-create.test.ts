@@ -535,11 +535,11 @@ describe('who may add a site (EVM-021 AC6; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-05
     expect(await count('platform.idempotency_records')).toBe(0);
   });
 
-  it('EVM-021 AC6 there is no route of a single site yet: GET and POST on /sites/{id} are 404', async () => {
+  it('EVM-021 AC6 EVM-036 AC7 there is no route that writes a single site by POST (404); the GET of /sites/{id} is the detail of EVM-036', async () => {
     const browser = await signIn('administrator');
     const body = house();
     await create(browser, body);
-    expect((await browser.panel.get(`${CREATE}/${body.id}`)).status).toBe(404);
+    expect((await browser.panel.get(`${CREATE}/${body.id}`)).status).toBe(200);
     expect((await browser.panel.post(`${CREATE}/${body.id}`, {})).status).toBe(404);
   });
 });

@@ -25,7 +25,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getCustomer',
       'getHealth',
       'getLoginPasskeyOptions',
+      'getParty',
       'getPasskeyRegistrationOptions',
+      'getSite',
       'getStepUpPasskeyOptions',
       'getWorkOrder',
       'getWorkOrderCustomer',
@@ -38,6 +40,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listProcedureTemplates',
       'listServiceItems',
       'listWorkOrderScopeItems',
+      'listWorkOrderSiteOrders',
       'listWorkOrderTemplates',
       'listWorkOrders',
       'login',
@@ -50,6 +53,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'stepUp',
       'transitionWorkOrder',
       'updateCustomer',
+      'updateParty',
+      'updateSite',
       'verifyLoginPasskey',
     ]);
   });

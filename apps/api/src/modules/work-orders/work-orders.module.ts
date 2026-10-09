@@ -1,7 +1,8 @@
 /**
  * Module `work-orders` (ADR-0001, ADR-0017): work orders and their assignments; owner of the `work_orders` schema. In EVM-017
  * it serves the list (W-10); in EVM-022 the creation from a template (the order, its scope copied from the template, the
- * coordinator and the yearly number); in EVM-018 the four reads of one order for W-06 (header, scope, customer card, site card); in EVM-030 the status command (the table
+ * coordinator and the yearly number); in EVM-018 the four reads of one order for W-06 (header, scope, customer card, site card); in EVM-036
+ * the metadata of the other orders of the same site (the section "Inne zlecenia w tej lokalizacji"); in EVM-030 the status command (the table
  * of transitions, `If-Match`, the restoration with a step-up, the audit of a cancellation and a restoration). It reaches other modules
  * only through their facades: the names of people and the active users through `identity` (`UserDirectory`), the customer through
  * `customers` (`CustomerDirectory`), the site through `sites` (`SiteDirectory`), the parties of a site through `parties` (`PartyDirectory`), the template through `catalog`
@@ -16,6 +17,7 @@ import { IdentityModule } from '../identity/index.ts';
 import { PartiesModule } from '../parties/index.ts';
 import { SitesModule } from '../sites/index.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
+import { ListSiteOrdersService } from './application/list-site-orders.service.ts';
 import { ListWorkOrdersService } from './application/list-work-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
 import { TransitionWorkOrderService } from './application/transition-work-order.service.ts';
@@ -30,6 +32,7 @@ import { WorkOrderTransitionRegistry } from './transition-participant.ts';
     ListWorkOrdersService,
     CreateWorkOrderService,
     ReadWorkOrderService,
+    ListSiteOrdersService,
     TransitionWorkOrderService,
     WorkOrderCompositionRegistry,
     WorkOrderTransitionRegistry,
