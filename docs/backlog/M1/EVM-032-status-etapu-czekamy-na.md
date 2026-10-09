@@ -4,12 +4,13 @@ title: Zmiana statusu etapu i „Czekamy na…”
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
 depends_on: [EVM-031]
+path: pelna
 ---
 
 # EVM-032: Zmiana statusu etapu i „Czekamy na…”
@@ -103,3 +104,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-09 — ready → in-progress: start `/deliver`, ścieżka pełna (decyzja Konrada)
