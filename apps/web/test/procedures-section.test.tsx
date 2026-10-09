@@ -25,6 +25,13 @@ const stage = (n: number, extra: Partial<ProcedureStage> = {}): ProcedureStage =
   dueDate: null,
   overdue: false,
   responsibleUser: null,
+  waitingOn: null,
+  waitingParty: null,
+  waitingSince: null,
+  waitingDays: null,
+  blockedReason: null,
+  startedAt: null,
+  completedOn: null,
   version: 1,
   ...extra,
 });

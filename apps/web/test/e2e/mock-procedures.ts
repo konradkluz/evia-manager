@@ -69,6 +69,13 @@ function stageBody(server: OrderServer, orderId: string, process: number, stage:
     dueDate: state.dueDate,
     overdue: state.dueDate !== null && state.dueDate < warsawFormat.format(new Date()),
     responsibleUser: person === undefined ? null : { id: person.id, displayName: person.displayName },
+    waitingOn: null,
+    waitingParty: null,
+    waitingSince: null,
+    waitingDays: null,
+    blockedReason: null,
+    startedAt: null,
+    completedOn: null,
     version: state.version,
   };
 }
