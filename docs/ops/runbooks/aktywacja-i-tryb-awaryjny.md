@@ -42,6 +42,14 @@ Powody (`--reason`, zamknięta lista; nie ma wolnego tekstu — dziennik audytu 
 - Podejrzewasz, że link wyciekł: uruchom polecenie ponownie — nowy link unieważnia wszystkie poprzednie oraz sesje, które na nich zbudowano.
 - Odmowa polecenia nie zostawia śladu w dzienniku audytu aplikacji (ryzyko rezydualne R3) — rozliczalność zapewniają logi SSH hosta.
 
+## Środowisko lokalne (EVM-077)
+Lokalnie (Windows, Docker Desktop) procedurę wywołuje `pnpm run dev` (albo `pnpm run dev:admin`) — nie omija jej i nie powiela:
+1. Narzędzie sprawdza strażnika, uruchamia kontenery z `compose.dev.yaml` i wykonuje w kontenerze `api` dokładnie `docker compose -f compose.dev.yaml exec api node dist/src/cli/bootstrap-admin.js` z terminalem odziedziczonym po Twoim oknie (`exec` przydziela terminal interaktywny, więc kontrola `tty-guard` przechodzi; wyjście nie trafia do `docker logs` ani do plików). Bez terminala interaktywnego `dev` kończy się komunikatem z poleceniem do wykonania ręcznie i **nie wydaje linku**.
+2. Wpisujesz **fikcyjny adres e-mail** (np. `administrator@example.test`) na pytanie polecenia. Link `http://localhost:5173/activate#<token>` otwórz w przeglądarce biura (Chrome / Edge) — **tylko pod `localhost`**; pod `127.0.0.1` logowanie jest odrzucone (kontrola origin i RP ID `localhost` — bez przełączników dla developmentu).
+3. Dalej bez zmian: hasło, klucz dostępu (Windows Hello / klucz sprzętowy), wylogowanie i ponowne logowanie. Dane demo powstają dopiero po aktywacji (kolejne `pnpm run dev` albo `pnpm run dev:seed`).
+4. Ponowne `dev` przy koncie „Oczekuje na aktywację” pyta, czy wydać nowy link (poprzedni zostanie unieważniony); przy aktywnym Administratorze nic nie robi. Tryb awaryjny (`--emergency`) nie jest wywoływany przez narzędzie lokalne — po utracie klucza użyj `pnpm run dev:reset` i zacznij od zera.
+5. Nie wklejaj linku do czatu, zgłoszeń ani plików; po użyciu wyczyść ekran terminala (`cls`). Konto i dane są wyłącznie lokalne i syntetyczne.
+
 ## Wymagania dla środowiska (do EVM-007 i EVM-076)
 - API łączy się z bazą rolą `evia_app` (członek roli `evia_app`, bez własności obiektów) — inaczej ochrona dziennika audytu nie działa; migracje uruchamia osobna tożsamość (`evia_migrator`).
 - Zmienne: `PANEL_ORIGIN` (https, bez `localhost` na produkcji), `WEBAUTHN_RP_ID` (host panelu albo domena nadrzędna), `WEBAUTHN_RP_NAME`, opcjonalnie `TRUSTED_PROXIES` (adresy reverse proxy, domyślnie pusta lista — nagłówek `X-Forwarded-For` jest wtedy ignorowany); wzór: `.env.example`.

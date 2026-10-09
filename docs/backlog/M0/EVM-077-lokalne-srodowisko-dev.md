@@ -123,3 +123,4 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-09 — draft → ready: AC i decyzje zaakceptowane przez Konrada (/refine; dane demo w zakresie, wąski wyjątek repo-policy dla compose.dev.yaml, API w kontenerze, seed po aktywacji Administratora, bez podziału)
 - 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: infrastruktura, konto Administratora, seed; gałąź feature/EVM-077-local-dev)
 - 2026-10-09 — plan gotowy (devops-engineer)
+- 2026-10-09 — implementacja (devops-engineer): tools/dev-env, compose.dev.yaml + obraz API dev, strażnik w bazie, seed w apps/api/dev, reguły repo-policy, README i runbook; wymagania security-engineer M1–M6 uwzględnione
