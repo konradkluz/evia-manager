@@ -4,7 +4,7 @@ title: Zmiana statusu etapu i „Czekamy na…”
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -86,19 +86,24 @@ Jako **pracownik biura** chcę **jednym ruchem zmienić status etapu i zapisać,
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Plan w `.scratch/EVM-032/plan.md` (ścieżka pełna). Bez migracji (kolumny z 0019), bez nowego modułu i zależności.
 
 ## Decyzje
-_—_
+- Ścieżka pełna — Konrad, 2026-10-09.
+- Błędy pól przejścia: `400 validation_failed` (AC2, AC4), nie `422` z flow/04; „Zmień, na kogo czekamy…” przez `PATCH`; nieistniejąca/usunięta strona — `400 unknown_party`; `work_order_closed` przed tabelą przejść (security K2, `api-guidelines.md`).
 
 ## Uwagi do rozważenia
-_—_
+- README `apps/api` (sekcja „Procesy i etapy zlecenia”) ma nieaktualne zdania o zakresie `PATCH` i polach odczytu (minor, code-reviewer).
+- Dialog etapu nie zamraża wersji przy otwarciu — refetch w trakcie może podmienić `If-Match` (minor); `undoOf` przy usuniętej stronie i `400` spoza pól dają ogólny komunikat (nit).
+- Po nieudanym zapisie fokus nie przechodzi do pierwszego błędnego pola; brak zrzutów toastu „Cofnij” (`in_progress → waiting`) i nieudanego cofnięcia (minor, UX).
+- Token mobilny dostaje `403 forbidden`, a opisy OpenAPI (od EVM-031) mówią o `channel_not_allowed`; audyt bez kolumn from/to (wymagałoby migracji).
+- Brak sesji eksploracyjnej na żywym stosie (QA) — do sprawdzenia ręcznie na demo; niepokryte gałęzie `stage-dialog.tsx` (nit, przy EVM-033).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-032 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-032 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -108,3 +113,5 @@ _—_
 - 2026-10-09 — plan gotowy (backend-developer)
 - 2026-10-09 — backend gotowy (backend-developer): `transitionProcedureStage`, rozszerzony PATCH i odpowiedź etapu; bramka lokalna zielona, web (W-06/W-07) w kolejnym kroku
 - 2026-10-09 — panel gotowy (web-developer): menu przejść, dialogi, „Cofnij”, W-06; testy RTL + E2E (Chromium, Firefox, Edge), a11y, zrzuty w `docs/ux/reviews/EVM-032`
+- 2026-10-09 — QA pass (8/8 AC), przeglądy kod / security / UX — APPROVE w 1. rundzie; `pnpm run gate` u orkiestratora zielony (diff 99,4% linii, 95,6% gałęzi), `docs:check` 0 błędów → in-review
+- 2026-10-09 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 8 wywołań, ok. 1,0 mln tokenów, 288 wywołań narzędzi, 62 min; rundy poprawek 0; ścieżka pelna; model z definicji agentów; plik historyjki 8 KB; vs baseline — nie do porównania w $
