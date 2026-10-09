@@ -4,7 +4,7 @@ title: Edycja lokalizacji i stron, inne zlecenia w tej lokalizacji
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 path: pelna
 priority: P1
 owner: backend-developer
@@ -102,7 +102,7 @@ Operacje API (addytywnie, kanał web): `GET/PATCH /sites/{siteId}` i `GET/PATCH 
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika (scenariusz D5)
+- [x] Demo i akceptacja użytkownika (scenariusz D5)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -114,3 +114,4 @@ Operacje API (addytywnie, kanał web): `GET/PATCH /sites/{siteId}` i `GET/PATCH 
 - 2026-10-09 — część bezpieczeństwa (security-engineer): 10 kontroli obowiązkowych sprawdzonych w kodzie i testach (macierz ról, IDOR przez `siteId`, If-Match, idempotencja, audyt bez wartości, XSS), `pnpm run scan` zielony, rodo.md / threat-model.md / api-guidelines.md zgodne z kodem; minor: opis `403 channel_not_allowed` w kontrakcie zamiast zwracanego `403 forbidden`
 - 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer, security-engineer, ux-designer — approve; 1 runda); orkiestrator: pnpm run gate EXIT 0, coverage:diff linie 99,3% / gałęzie 93,7%; → in-review
 - 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,24 mln tokenów subagentów, 9 agentów, 406 wywołań narzędzi, 1 runda, ok. 85 min; ścieżka pelna; vs baseline: brak danych
+- 2026-10-09 — zaakceptowane przez Konrada, scalone do main (PR #41) → done
