@@ -4,7 +4,7 @@ title: Lokalne środowisko do ręcznego testu (pnpm run dev) z kontem Administra
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P2
 path: pelna
 owner: devops-engineer
@@ -115,7 +115,7 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo (wg `reviewers`)
 - [x] Dokumentacja (README „Uruchomienie lokalne”, `.env.example`) i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika (Konrad loguje się lokalnie i przegląda dane demo)
+- [x] Demo i akceptacja użytkownika (Konrad loguje się lokalnie i przegląda dane demo)
 
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner)
@@ -129,3 +129,4 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-09 — poprawka AC6 (web-developer, runda 1): przy 403 `csrf_failed` logowanie i aktywacja pokazują komunikat o nieobsługiwanym adresie panelu (nowe teksty i18n; przegląd tekstów przez ux-designera — w uwagach)
 - 2026-10-09 — bramki i przeglądy zaliczone (QA pass; code-reviewer approve po rundzie 2, security-engineer approve; 2 rundy); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 100% / gałęzie 95,8%; → in-review
 - 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,03 mln tokenów subagentów, 11 agentów, 410 wywołań narzędzi, 2 rundy, ok. 84 min (w tym przebieg zablokowany na pytaniach); ścieżka pelna; vs baseline: brak danych
+- 2026-10-09 — zaakceptowane przez Konrada, scalone do main (PR #44) → done
