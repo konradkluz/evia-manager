@@ -4,7 +4,7 @@ title: Procesy i etapy w zleceniu — z szablonu, osoba odpowiedzialna i termin
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 owner: backend-developer
@@ -92,13 +92,17 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- Ostrzeżenie AC4 w „Zakończ” znika bez komunikatu, gdy odczyt procesów się nie powiódł (code-reviewer, minor) — pokazać neutralny komunikat „Nie udało się sprawdzić otwartych etapów”.
+- Komentarz w `apps/api/coverage.config.ts` o plikach `procedures` jest odwrotny do działania `DATABASE_BOUND` (minor) — poprawić.
+- Test wyścigu blokady w `procedure-stages.test.ts` używa `setTimeout(300)` — zastąpić czekaniem na warunek (pg_locks); zakres terminu zduplikowany w panelu, API i migracji (nit).
+- GET procesów nie wlicza się do P10 (tylko displayName pracowników) — ocenić ponownie w EVM-032 (notes, waitingOn).
+- `UserDirectory.displayNamesOf` ma limit 100 id — GET dzieli id na paczki; filtr „Osoba” i lista kont: EVM-024.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-031 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] `api-guidelines.md` (kod `work_order_closed`) i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-031 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] `api-guidelines.md` (kod `work_order_closed`) i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -108,3 +112,5 @@ _—_
 - 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna wybrana przez Konrada: 8 AC, uprawnienia, dane osobowe; gałąź feature/EVM-031-procedures-and-stages)
 - 2026-10-09 — implementacja backendu AC1–AC8 (backend-developer): moduł `procedures`, migracja `0019`, kontrakt `listWorkOrderProcedures` / `updateProcedureStage`, kod `work_order_closed`; panel (sekcja W-06, dialog AC4, karta i podgląd szablonu) — web-developer
 - 2026-10-09 — implementacja panelu AC1–AC8 (web-developer): sekcja „Procesy i etapy” w W-06, dialog zmiany etapu, ostrzeżenie w „Zakończ”, procesy w karcie i podglądzie szablonu, ProcedureProgress i odznaka etapu w ui-web
+- 2026-10-09 — implementacja i przeglądy (backend-developer, web-developer): moduł procedures, migracja 0019, 2 endpointy, sekcja W-06, dialog AC4; QA pass; code-reviewer, security-engineer, ux-designer — approve (1 runda); orkiestrator: pnpm run gate EXIT 0, docs:check 0/0, coverage:diff linie 97,0% / gałęzie 91,5%; → in-review
+- 2026-10-09 — Koszt: brak rozbicia w dolarach (nie odczytane z /usage); 1,12 mln tokenów subagentów, 8 agentów, 438 wywołań narzędzi, 1 runda, ok. 93 min (z przerwaniem i wznowieniem po pytaniu użytkownika); ścieżka pelna; vs baseline: brak danych
