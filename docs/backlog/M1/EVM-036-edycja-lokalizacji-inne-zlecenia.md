@@ -108,3 +108,4 @@ _—_
 - 2026-10-09 — plan gotowy (backend-developer)
 - 2026-10-09 — backend gotowy (backend-developer): kontrakt, `sites`/`parties` GET i PATCH, `site-orders`, migracja 0018, audyt; UI (web-developer) czeka
 - 2026-10-09 — panel gotowy (web-developer): dialogi W-20 „Edytuj lokalizację” i „Edytuj stronę”, sekcja „Inne zlecenia”, testy komponentów, E2E (Chromium, Firefox, Edge), axe i zrzuty w docs/ux/reviews/EVM-036; do przeglądów
+- 2026-10-09 — część bezpieczeństwa (security-engineer): 10 kontroli obowiązkowych sprawdzonych w kodzie i testach (macierz ról, IDOR przez `siteId`, If-Match, idempotencja, audyt bez wartości, XSS), `pnpm run scan` zielony, rodo.md / threat-model.md / api-guidelines.md zgodne z kodem; minor: opis `403 channel_not_allowed` w kontrakcie zamiast zwracanego `403 forbidden`
