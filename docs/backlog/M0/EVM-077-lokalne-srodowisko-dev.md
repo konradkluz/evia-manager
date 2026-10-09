@@ -125,3 +125,4 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-09 — plan gotowy (devops-engineer)
 - 2026-10-09 — implementacja (devops-engineer): tools/dev-env, compose.dev.yaml + obraz API dev, strażnik w bazie, seed w apps/api/dev, reguły repo-policy, README i runbook; wymagania security-engineer M1–M6 uwzględnione
 - 2026-10-09 — bramka lokalna (backend-developer): `pnpm run gate` zielony, pokrycie zmienionego kodu 100% linii / 95,9% gałęzi
+- 2026-10-09 — przegląd części web (web-developer): bez zmian UI; konfiguracja Vite (loopback, proxy na 127.0.0.1, bez rewrite Origin) zgodna z AC6, kod bez zmian
