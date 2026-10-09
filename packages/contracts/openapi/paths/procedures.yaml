@@ -1,0 +1,145 @@
+# Module `procedures` — the processes of a work order and their stages (EVM-031; W-06 "Procesy i etapy").
+workOrderProcedures:
+  get:
+    operationId: listWorkOrderProcedures
+    tags: [procedures]
+    summary: Zlecenie — procesy z etapami, postępem i osobami odpowiedzialnymi
+    description: >-
+      Sekcja „Procesy i etapy” W-06 (EVM-031 AC2; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03). Procesy zlecenia w kolejności `position`,
+      każdy z etapami w kolejności `position`, postępem (`progress`: etapy `done` z etapów bez `not_applicable`), terminem, flagą
+      `overdue` (termin wcześniejszy niż dziś w `Europe/Warsaw`, etap niezakończony — liczy serwer) i osobą odpowiedzialną jako
+      `{id, displayName}` (nazwy z fasady `identity`, zapytania wsadowe). Odpowiedź ma `openStageCount` — liczbę etapów
+      otwartych (`todo`, `in_progress`, `waiting`) zlecenia, podstawę ostrzeżenia przy „Zakończ” (EVM-031 AC4). Nie zawiera notatek,
+      „czekamy na” ani powodu blokady (EVM-032). Zlecenie jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu: nieistniejące
+      i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`; zły format `workOrderId` — `400 validation_failed`.
+      Zlecenie bez procesów (utworzone bez szablonu albo przed EVM-031) to pusta tablica `items`. Role Administrator, Edytor i Tylko
+      odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`; telefon dostanie procesy z synchronizacją, M2), bez audytu
+      odczytu. Nazwy procesów, etapów i osób to tekst — panel wyświetla je bez interpretacji znaczników. `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+    responses:
+      '200':
+        description: Procesy zlecenia (pusta tablica `items`, gdy zlecenie nie ma procesów).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/ProcedureList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+procedureStage:
+  patch:
+    operationId: updateProcedureStage
+    tags: [procedures]
+    summary: Etap — osoba odpowiedzialna i termin (merge-patch, If-Match)
+    description: >-
+      Zmiana osoby odpowiedzialnej i/lub terminu etapu (EVM-031 AC3, AC5, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05,
+      SR-INPUT-01, SR-INPUT-02, SR-API-05, SR-API-07, SR-DATA-03, SR-LOG-02). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`
+      przed walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał
+      `web`, z audytem (`procedure_stage.updated` — aktor, identyfikator etapu, wynik i `traceId`; bez wartości i nazw pól). Wymaga
+      `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` etapu): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo
+      zniekształcony — `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict` (dane etapu zostają bez
+      zmian, odpowiedź nie zawiera bieżących wartości). Etap jest wyszukiwany warunkiem `id = {stageId} AND work_order_id = {workOrderId}`
+      w zapytaniu: etap innego zlecenia, nieistniejący, a także etap zlecenia nieistniejącego albo usuniętego (także dla Administratora) —
+      jedna odpowiedź `404 not_found`, niezależnie od treści. Zlecenie Rozliczone albo Anulowane — `409 work_order_closed` (PO-8; sprawdzane
+      po `404`, przed wersją i treścią). Treść to `ProcedureStagePatch`: co najmniej jedno z `responsibleUserId`, `dueDate`; pole
+      kontrolowane przez serwer (`status`, `name`, `code`, `position`, `version`, `overdue`, pola „czekamy na”, `notes`) —
+      `400 read_only_field`, pole spoza schematu — `400 unknown_field`; `responsibleUserId` spoza aktywnych użytkowników (nieistniejący,
+      zaproszony, zdezaktywowany, usunięty — jedna odpowiedź) — `400 validation_failed` (`/responsibleUserId`, `assignee_unavailable`);
+      `dueDate` poza zakresem 2000-01-01..2100-12-31 — `400` (`/dueDate`, `out_of_range`). Kolejność: guard (rola, CSRF, kanał), ścieżka,
+      nagłówki, blokada zlecenia i etapu `SELECT … FOR UPDATE` (polityka odczytu w zapytaniu), powtórka idempotentna,
+      `409 work_order_closed`, wersja (`412`), treść (`400`), osoba odpowiedzialna, zapis `version + 1`, audyt i rekord idempotencji
+      w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny,
+      panel wysyła go zawsze; klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem etapu — ten sam klucz
+      z tą samą treścią dla innego etapu to `422 idempotency_mismatch`. Powtórka (ten sam klucz, etap i treść) — `200` z bieżącą
+      reprezentacją i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureStageIdParameter'
+      - name: If-Match
+        in: header
+        required: true
+        description: Silny ETag wersji etapu, na której użytkownik podjął decyzję (`"<version>"`, z pola `version` etapu).
+        schema:
+          type: string
+          pattern: '^"[1-9][0-9]{0,9}"$'
+          maxLength: 12
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/procedures.yaml#/ProcedureStagePatch
+    responses:
+      '200':
+        description: >-
+          Etap po zmianie (albo powtórka wcześniejszej zmiany — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja etapu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, etapem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/ProcedureStage
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+ProcedureStageIdParameter:
+  name: stageId
+  in: path
+  required: true
+  description: Identyfikator etapu (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36

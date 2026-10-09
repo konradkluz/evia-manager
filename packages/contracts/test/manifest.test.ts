@@ -39,6 +39,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listDocumentKinds',
       'listProcedureTemplates',
       'listServiceItems',
+      'listWorkOrderProcedures',
       'listWorkOrderScopeItems',
       'listWorkOrderSiteOrders',
       'listWorkOrderTemplates',
@@ -54,6 +55,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'transitionWorkOrder',
       'updateCustomer',
       'updateParty',
+      'updateProcedureStage',
       'updateSite',
       'verifyLoginPasskey',
     ]);
