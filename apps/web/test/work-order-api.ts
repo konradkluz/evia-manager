@@ -30,6 +30,7 @@ export const HEADER: WorkOrderDetails = {
 export const CUSTOMER: CustomerCard = { displayName: 'Jan Przykładowy', phone: '+48600000001', email: 'jan.przykladowy@example.com' };
 
 export const SITE: SiteCard = {
+  siteId: '0198b0a0-0000-7000-8000-0000000000b1',
   siteType: 'multi_family_garage',
   street: 'ul. Testowa',
   buildingNumber: '7',

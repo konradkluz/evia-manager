@@ -316,6 +316,7 @@ export function answerOrderRead(
   const osd = server.parties.find((entry) => entry.kind === 'distribution_system_operator');
   const manager = server.parties.find((entry) => entry.kind === 'housing_community');
   return json(200, {
+    siteId: site.id,
     siteType: site.siteType,
     street: site.street,
     buildingNumber: site.buildingNumber,
