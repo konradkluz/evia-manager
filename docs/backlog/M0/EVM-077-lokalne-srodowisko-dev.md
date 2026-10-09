@@ -4,7 +4,7 @@ title: Lokalne środowisko do ręcznego testu (pnpm run dev) z kontem Administra
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P2
 path: pelna
 owner: devops-engineer
@@ -94,6 +94,8 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - Docker wyłącznie przez `docker compose -f <plik> …` (nigdy `docker run`).
 
 ## Decyzje i ograniczenia
+- **2026-10-09 (Konrad) — czwarta dozwolona forma polecenia Dockera:** `docker compose -f compose.dev.yaml exec api node dist/src/cli/bootstrap-admin.js` (terminal interaktywny dla procedury EVM-016); test repo-policy wymaga dokładnie tej formy, a `run` i inne `exec` są odrzucane.
+- **2026-10-09 (Konrad) — seed dwuetapowo:** dane demo powstają, gdy jest aktywny Administrator (autor); przy pierwszym `dev` (Administrator `invited`) komunikat: „dane demo pojawią się po aktywacji — uruchom ponownie `pnpm run dev` (lub `dev:seed`)”. Bez nowego aktora systemowego.
 - **2026-10-09 (zaakceptowane przez Konrada) — zmiana względem pierwotnego „Poza zakresem”:** dane demo (klienci, lokalizacje, zlecenia) są w zakresie, bo bez nich ekrany są puste.
 - **2026-10-09 (Konrad) — wyjątek repo-policy w wąskim kształcie:** osobny `compose.dev.yaml` (`compose.yaml` bez zmian), te same reguły utwardzenia; wyjątki wyłącznie: port `127.0.0.1:<port ≠ 5432>` i nazwany wolumen dev; lista dokładnych form poleceń `up`, `down`, `down -v` dla tego pliku.
 - **2026-10-09 (Konrad) — układ:** API w kontenerze Docker Desktop w środowisku zbliżonym do staging/produkcji (obraz budowany z Dockerfile przypiętego digestem, wzorzec jak `backend-tests`, utwardzony, port tylko na `127.0.0.1`, sieć wspólna z bazą `postgres-dev`); panel Vite natywnie na Windows. Zgodne z ADR-0015, bez odstępstwa i bez nowego ADR. Korzeń `dev` nie startuje już API natywnie.
@@ -119,3 +121,5 @@ Bez zmian UI. Wyjątek: jeśli `http://localhost:5173` nie działa (Vite nasłuc
 - 2026-10-07 — utworzono (product-owner)
 - 2026-10-09 — refinement (product-owner): priorytet P3 → P2, ścieżka `lekka` → `pelna`, 8 AC; decyzje Konrada: dane demo w zakresie, wyjątek repo-policy (`compose.dev.yaml`), API w kontenerze, Administrator przez EVM-016; uwzględniona konsultacja security-engineer (strażnik, seed poza artefaktem); status `draft`
 - 2026-10-09 — draft → ready: AC i decyzje zaakceptowane przez Konrada (/refine; dane demo w zakresie, wąski wyjątek repo-policy dla compose.dev.yaml, API w kontenerze, seed po aktywacji Administratora, bez podziału)
+- 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: infrastruktura, konto Administratora, seed; gałąź feature/EVM-077-local-dev)
+- 2026-10-09 — plan gotowy (devops-engineer)
