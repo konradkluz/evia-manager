@@ -35,6 +35,7 @@
   --color-text-tertiary: var(--evm-color-text-tertiary);
   --color-text-disabled: var(--evm-color-text-disabled);
   --color-text-error: var(--evm-color-text-error);
+  --color-text-warning: var(--evm-color-text-warning);
   --color-border-default: var(--evm-color-border-default);
   --color-border-subtle: var(--evm-color-border-subtle);
   --color-border-strong: var(--evm-color-border-strong);
