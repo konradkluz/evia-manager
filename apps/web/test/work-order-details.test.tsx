@@ -186,7 +186,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     });
   });
 
-  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the five entries leave the memory of the tab', async () => {
+  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the six entries leave the memory of the tab', async () => {
     let gone = false;
     const queryClient = createQueryClient();
     const api = detailsApi({
@@ -197,7 +197,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const keys = queryClient.getQueryCache().findAll({ predicate: (query) => query.queryKey[1] === ORDER_ID });
-    expect(keys).toHaveLength(5);
+    expect(keys).toHaveLength(6);
 
     gone = true;
     await act(async () => {
@@ -266,14 +266,21 @@ describe('notes as text (EVM-018 AC4; SR-WEB-03)', () => {
 });
 
 describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
-  it('EVM-018 AC5 the page asks for exactly five reads anchored in the order — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
+  it('EVM-018 AC5 the page asks for exactly six reads anchored in the order — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
     const api = detailsApi();
     await renderPanel(PATH, api);
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const reads = api.requests.filter((request) => request.path.startsWith('/api/v1/work-orders/'));
     expect(reads.map((request) => `${request.method} ${request.path}`).sort()).toEqual(
-      [`GET ${BASE}`, `GET ${BASE}/customer`, `GET ${BASE}/scope-items`, `GET ${BASE}/site`, `GET ${BASE}/site-orders`].sort(),
+      [
+        `GET ${BASE}`,
+        `GET ${BASE}/customer`,
+        `GET ${BASE}/procedures`,
+        `GET ${BASE}/scope-items`,
+        `GET ${BASE}/site`,
+        `GET ${BASE}/site-orders`,
+      ].sort(),
     );
     for (const request of reads) expect(request.query.size).toBe(0);
     expect(document.title).toBe('ZL-2026-0042 · EVia Manager');

@@ -13,6 +13,8 @@ export const WORK_ORDER_CUSTOMER_KEY = 'work-order-customer' as const;
 export const WORK_ORDER_SITE_KEY = 'work-order-site' as const;
 /** "Inne zlecenia w tej lokalizacji" (EVM-036): metadata of the other orders of the site of this order — a read of its own. */
 export const WORK_ORDER_SITE_ORDERS_KEY = 'work-order-site-orders' as const;
+/** The processes with their stages (EVM-031): the section of W-06 and the warning of the dialog "Zakończ" read the same entry. */
+export const WORK_ORDER_PROCEDURES_KEY = 'work-order-procedures' as const;
 /** The site and the party read for the dialogs "Edytuj lokalizację" and "Edytuj stronę" (EVM-036); gone when the dialog closes. */
 export const SITE_KEY = 'site' as const;
 export const PARTY_KEY = 'party' as const;
@@ -24,4 +26,5 @@ export const WORK_ORDER_KEYS = [
   WORK_ORDER_CUSTOMER_KEY,
   WORK_ORDER_SITE_KEY,
   WORK_ORDER_SITE_ORDERS_KEY,
+  WORK_ORDER_PROCEDURES_KEY,
 ] as const;
