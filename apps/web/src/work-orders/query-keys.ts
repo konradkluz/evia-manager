@@ -11,6 +11,17 @@ export const WORK_ORDER_HEADER_KEY = 'work-order-header' as const;
 export const WORK_ORDER_SCOPE_KEY = 'work-order-scope' as const;
 export const WORK_ORDER_CUSTOMER_KEY = 'work-order-customer' as const;
 export const WORK_ORDER_SITE_KEY = 'work-order-site' as const;
+/** "Inne zlecenia w tej lokalizacji" (EVM-036): metadata of the other orders of the site of this order — a read of its own. */
+export const WORK_ORDER_SITE_ORDERS_KEY = 'work-order-site-orders' as const;
+/** The site and the party read for the dialogs "Edytuj lokalizację" and "Edytuj stronę" (EVM-036); gone when the dialog closes. */
+export const SITE_KEY = 'site' as const;
+export const PARTY_KEY = 'party' as const;
 
-/** All four keys of one order: a `404` removes them together (TM-10 — nothing of a gone order stays in the memory of the tab). */
-export const WORK_ORDER_KEYS = [WORK_ORDER_HEADER_KEY, WORK_ORDER_SCOPE_KEY, WORK_ORDER_CUSTOMER_KEY, WORK_ORDER_SITE_KEY] as const;
+/** All keys of one order: a `404` removes them together (TM-10 — nothing of a gone order stays in the memory of the tab). */
+export const WORK_ORDER_KEYS = [
+  WORK_ORDER_HEADER_KEY,
+  WORK_ORDER_SCOPE_KEY,
+  WORK_ORDER_CUSTOMER_KEY,
+  WORK_ORDER_SITE_KEY,
+  WORK_ORDER_SITE_ORDERS_KEY,
+] as const;

@@ -186,7 +186,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     });
   });
 
-  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the four entries leave the memory of the tab', async () => {
+  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the five entries leave the memory of the tab', async () => {
     let gone = false;
     const queryClient = createQueryClient();
     const api = detailsApi({
@@ -197,7 +197,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const keys = queryClient.getQueryCache().findAll({ predicate: (query) => query.queryKey[1] === ORDER_ID });
-    expect(keys).toHaveLength(4);
+    expect(keys).toHaveLength(5);
 
     gone = true;
     await act(async () => {
@@ -266,14 +266,14 @@ describe('notes as text (EVM-018 AC4; SR-WEB-03)', () => {
 });
 
 describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
-  it('EVM-018 AC5 the page asks for exactly four reads anchored in the order — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
+  it('EVM-018 AC5 the page asks for exactly five reads anchored in the order — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
     const api = detailsApi();
     await renderPanel(PATH, api);
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const reads = api.requests.filter((request) => request.path.startsWith('/api/v1/work-orders/'));
     expect(reads.map((request) => `${request.method} ${request.path}`).sort()).toEqual(
-      [`GET ${BASE}`, `GET ${BASE}/customer`, `GET ${BASE}/scope-items`, `GET ${BASE}/site`].sort(),
+      [`GET ${BASE}`, `GET ${BASE}/customer`, `GET ${BASE}/scope-items`, `GET ${BASE}/site`, `GET ${BASE}/site-orders`].sort(),
     );
     for (const request of reads) expect(request.query.size).toBe(0);
     expect(document.title).toBe('ZL-2026-0042 · EVia Manager');
@@ -296,23 +296,27 @@ describe('roles (EVM-018 AC6; SR-AUTHZ-05)', () => {
     ['administrator', ACTIVE_SESSION],
     ['editor', roleSession('editor')],
     ['read_only', roleSession('read_only')],
-  ] as const)('EVM-018 AC6 %s sees all sections and the page has no action that changes anything', async (_role, session) => {
-    await renderPanel(PATH, detailsApi({}, session));
-    expect(await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeTruthy();
-    await screen.findByText('Operator Testowy');
-    await screen.findByText('Instalacja zasilająca');
-    expect(card('Klient').getByText('Jan Przykładowy')).toBeTruthy();
-    expect(card('Lokalizacja').getByText('PL-TEST-0001')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
-    // no "Edytuj", "Dodaj" — those arrive with other stories; Read-only never sees actions
-    expect(screen.queryAllByRole('button').map((button) => button.textContent)).not.toContain('Edytuj');
-    expect(screen.queryByRole('button', { name: /Edytuj|Dodaj|Usuń|Przejdź do klienta/ })).toBeNull();
-    expect(screen.queryByRole('link', { name: /Edytuj/ })).toBeNull();
-    // "Przejdź do klienta" (EVM-039 AC2) is navigation, not a change: all three roles have it, built from the identifier only
-    expect(card('Klient').getByRole('link', { name: 'Przejdź do klienta' }).getAttribute('href')).toBe(
-      '/customers/01968f3e-0000-7000-8000-00000000aaaa',
-    );
-  });
+  ] as const)(
+    'EVM-018 AC6 %s sees all sections and the page has no action that changes anything but the edits of EVM-036',
+    async (role, session) => {
+      await renderPanel(PATH, detailsApi({}, session));
+      expect(await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeTruthy();
+      await screen.findByText('Operator Testowy');
+      await screen.findByText('Instalacja zasilająca');
+      expect(card('Klient').getByText('Jan Przykładowy')).toBeTruthy();
+      expect(card('Lokalizacja').getByText('PL-TEST-0001')).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
+      // "Edytuj lokalizację" and "Edytuj stronę…" are EVM-036 (A and E only, EVM-036 AC7); nothing else on the page changes anything
+      expect(screen.queryByRole('button', { name: /Dodaj|Usuń|Przejdź do klienta/ })).toBeNull();
+      expect(screen.queryAllByRole('button', { name: 'Edytuj lokalizację' })).toHaveLength(role === 'read_only' ? 0 : 1);
+      expect(screen.queryAllByRole('button', { name: /^Akcje strony/ })).toHaveLength(role === 'read_only' ? 0 : 2);
+      expect(screen.queryByRole('link', { name: /Edytuj/ })).toBeNull();
+      // "Przejdź do klienta" (EVM-039 AC2) is navigation, not a change: all three roles have it, built from the identifier only
+      expect(card('Klient').getByRole('link', { name: 'Przejdź do klienta' }).getAttribute('href')).toBe(
+        '/customers/01968f3e-0000-7000-8000-00000000aaaa',
+      );
+    },
+  );
 
   it('EVM-018 AC6 a 401 (the session ended) clears the data of the order from the memory of the tab and sends the tab to the login page', async () => {
     const queryClient = createQueryClient();

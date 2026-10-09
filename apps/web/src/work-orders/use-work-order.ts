@@ -3,15 +3,23 @@ import {
   getWorkOrderCustomer,
   getWorkOrderSite,
   listWorkOrderScopeItems,
+  listWorkOrderSiteOrders,
   type CustomerCard,
   type ScopeItemList,
   type SiteCard,
+  type SiteOrders,
   type WorkOrderDetails,
 } from '@evia/contracts';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_CUSTOMER_KEY, WORK_ORDER_SCOPE_KEY, WORK_ORDER_SITE_KEY } from './query-keys.ts';
+import {
+  WORK_ORDER_HEADER_KEY,
+  WORK_ORDER_CUSTOMER_KEY,
+  WORK_ORDER_SCOPE_KEY,
+  WORK_ORDER_SITE_KEY,
+  WORK_ORDER_SITE_ORDERS_KEY,
+} from './query-keys.ts';
 
 /**
  * The four reads of W-06 (EVM-018): the header, the scope, the card of the customer and the card of the site. Each is its own
@@ -61,6 +69,21 @@ export function useWorkOrderSite(id: string, enabled: boolean): UseQueryResult<S
   return useQuery({
     queryKey: [WORK_ORDER_SITE_KEY, id],
     queryFn: ({ signal }) => unwrap(getWorkOrderSite({ client, signal, path: { workOrderId: id } })),
+    enabled,
+    gcTime: 0,
+    ...common,
+  });
+}
+
+/**
+ * The other orders of the site of this order (EVM-036 AC5): metadata only — the number, the title, the status and the date of closing.
+ * The server takes the site from the order, so there is no site in the request. Titles are free text of other orders: memory of the tab only.
+ */
+export function useWorkOrderSiteOrders(id: string, enabled: boolean): UseQueryResult<SiteOrders> {
+  const client = useApi();
+  return useQuery({
+    queryKey: [WORK_ORDER_SITE_ORDERS_KEY, id],
+    queryFn: ({ signal }) => unwrap(listWorkOrderSiteOrders({ client, signal, path: { workOrderId: id } })),
     enabled,
     gcTime: 0,
     ...common,

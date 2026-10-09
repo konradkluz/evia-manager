@@ -83,6 +83,8 @@ export interface ReadHandlers {
   readonly scope: Handler;
   readonly customer: Handler;
   readonly site: Handler;
+  /** EVM-036: the other orders of the site of the order (default: none). */
+  readonly siteOrders: Handler;
 }
 
 /** The four reads of W-06 for one order (the routes of the fake API); `overrides` replaces any of them. */
@@ -93,5 +95,6 @@ export function workOrderRoutes(id = ORDER_ID, overrides: Partial<ReadHandlers> 
     [`GET ${base}/scope-items`]: overrides.scope ?? (() => json(200, { items: SCOPE_ITEMS })),
     [`GET ${base}/customer`]: overrides.customer ?? (() => json(200, CUSTOMER)),
     [`GET ${base}/site`]: overrides.site ?? (() => json(200, SITE)),
+    [`GET ${base}/site-orders`]: overrides.siteOrders ?? (() => json(200, { total: 0, items: [] })),
   };
 }

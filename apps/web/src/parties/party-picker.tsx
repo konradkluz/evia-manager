@@ -1,6 +1,6 @@
 import type { PartyKind, PartySearchItem } from '@evia/contracts';
 import { Button, Combobox, InlineAlert } from '@evia/ui-web';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { usePartySearch } from './use-party-search.ts';
@@ -24,6 +24,10 @@ export interface PartyPickerProps {
   readonly onAdd: () => void;
   /** A refusal of the server for this field (wrong or unknown party), shown under the field. */
   readonly error?: string | undefined;
+  /** The button "Dodaj stronę" next to the field: a dialog that brings the person back to it puts the focus there. */
+  readonly addRef?: Ref<HTMLButtonElement>;
+  /** The line with the chosen party: a dialog that has just chosen a party for the field puts the focus there. */
+  readonly summaryRef?: RefObject<HTMLParagraphElement | null>;
 }
 
 /**
@@ -32,11 +36,24 @@ export interface PartyPickerProps {
  * kind and "Zmień". The states: loading — skeleton of 3 rows, no results — "Brak wyników dla „…”. [Dodaj stronę]", offline, `429`,
  * a server error. The typed phrase lives only in this component (memory of the tab).
  */
-export function PartyPicker({ label, changeLabel, addLabel, kinds, selected, onSelect, onClear, onAdd, error }: PartyPickerProps) {
+export function PartyPicker({
+  label,
+  changeLabel,
+  addLabel,
+  kinds,
+  selected,
+  onSelect,
+  onClear,
+  onAdd,
+  error,
+  addRef,
+  summaryRef,
+}: PartyPickerProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const search = usePartySearch(text, kinds, selected === null);
-  const summary = useRef<HTMLParagraphElement>(null);
+  const ownSummary = useRef<HTMLParagraphElement>(null);
+  const summary = summaryRef ?? ownSummary;
   const field = useRef<HTMLInputElement>(null);
   const previous = useRef(selected?.id);
 
@@ -45,7 +62,7 @@ export function PartyPicker({ label, changeLabel, addLabel, kinds, selected, onS
     if (previous.current === selected?.id) return;
     previous.current = selected?.id;
     (selected === null ? field : summary).current?.focus();
-  }, [selected]);
+  }, [selected, summary]);
 
   const alert = error === undefined ? null : <InlineAlert tone="error">{error}</InlineAlert>;
 
@@ -126,7 +143,7 @@ export function PartyPicker({ label, changeLabel, addLabel, kinds, selected, onS
             inputRef={field}
           />
         </div>
-        <Button variant="tertiary" aria-label={addLabel} onClick={onAdd}>
+        <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd}>
           {t('parties.field.add')}
         </Button>
       </div>
