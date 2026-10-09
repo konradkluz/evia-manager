@@ -107,3 +107,4 @@ _—_
 - 2026-10-09 — ready → in-progress (/deliver; ścieżka pelna: 8 AC, dane osobowe (PPE, strony), uprawnienia, nowe endpointy i UI; gałąź feature/EVM-036-site-editing)
 - 2026-10-09 — plan gotowy (backend-developer)
 - 2026-10-09 — backend gotowy (backend-developer): kontrakt, `sites`/`parties` GET i PATCH, `site-orders`, migracja 0018, audyt; UI (web-developer) czeka
+- 2026-10-09 — panel gotowy (web-developer): dialogi W-20 „Edytuj lokalizację” i „Edytuj stronę”, sekcja „Inne zlecenia”, testy komponentów, E2E (Chromium, Firefox, Edge), axe i zrzuty w docs/ux/reviews/EVM-036; do przeglądów
