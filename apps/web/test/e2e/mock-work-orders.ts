@@ -1,4 +1,5 @@
 import { answerSiteOrders, cardOf, type LocationServer } from './mock-locations.ts';
+import { PROCESSES, processCountOf, type StageState } from './mock-procedures.ts';
 
 /**
  * The part of the synthetic API that serves W-05 "3. Szablon" and "Utwórz zlecenie" (EVM-022): the catalogue of templates, the
@@ -66,6 +67,8 @@ export interface OrderServer extends LocationServer {
   readonly keys: Map<string, string>;
   /** EVM-030: the status and the version of every created order (by id). */
   readonly states: Map<string, OrderState>;
+  /** EVM-031: the person and the due date of every stage of the created orders (by id of the stage). */
+  readonly stages: Map<string, StageState>;
   /** EVM-030: `Idempotency-Key` of a transition → the scope (`orderId|body`) and the answer given (a retry gets the same one). */
   readonly transitionKeys: Map<string, { readonly scope: string; readonly answer: Answer }>;
 }
@@ -122,7 +125,7 @@ export const INITIAL_TEMPLATES: MockTemplate[] = [
   },
 ];
 
-/** The templates as the contract sends them — with the processes and the instalments that the panel must not show yet. */
+/** The templates as the contract sends them — with the processes (EVM-031) and the instalments that the panel must not show yet. */
 function templateBody(template: MockTemplate) {
   return {
     id: template.id,
@@ -138,7 +141,11 @@ function templateBody(template: MockTemplate) {
       parameterSetCode: null,
       defaultParameters: {},
     })),
-    procedures: [{ code: 'osd', name: 'Uzgodnienia z OSD', stageCount: 7 }],
+    procedures: PROCESSES.slice(0, processCountOf(template.items.length)).map((process) => ({
+      code: process.code,
+      name: process.name,
+      stageCount: process.stages.length,
+    })),
     paymentMilestones: [
       { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
     ],

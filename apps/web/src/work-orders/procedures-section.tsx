@@ -120,7 +120,7 @@ function ProcedureBlock({
 }) {
   const { t } = useTranslation();
   const { done, total } = procedure.progress;
-  let text = t('workOrder.procedures.notApplicable');
+  let text: string = t('workOrder.procedures.notApplicable');
   if (total === 1) text = t('workOrder.procedures.progressOne', { done, total });
   else if (total > 1) text = t('workOrder.procedures.progressMany', { done, total });
   return (

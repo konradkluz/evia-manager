@@ -106,6 +106,8 @@ export function useWorkOrderProcedures(id: string, enabled: boolean): UseQueryRe
     gcTime: 0,
     // The section and the dialog "Zakończ" share this entry: the second reader must not ask again, the dialog refreshes it itself.
     staleTime: Infinity,
+    // A failed read stays a failed read until the person retries: a second reader mounting later must not hide the alert of the section.
+    retryOnMount: false,
     ...common,
   });
 }

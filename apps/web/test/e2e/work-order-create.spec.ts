@@ -24,21 +24,23 @@ const browserStores = (page: Page) =>
   }));
 
 test.describe('a new work order from a template W-05 (EVM-022)', () => {
-  test('EVM-022 AC1 the cards show the scope only, the preview stands on the right, and "Utwórz zlecenie" ends in the toast and the header W-06', async ({
+  test('EVM-022 AC1 EVM-031 AC1 the cards show the scope and the processes, the preview stands on the right, and "Utwórz zlecenie" ends in the toast and the header W-06', async ({
     page,
     api,
   }) => {
     await page.goto(PATH);
     await pickCustomerAndSite(page);
     await expect(page.getByText('Szablony dla typu: Garaż w budynku wielorodzinnym.')).toBeVisible();
-    await expect(page.getByRole('radio', { name: 'Dom — montaż ładowarki 2 pozycje' })).toBeHidden();
-    await page.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji' }).check();
+    await expect(page.getByRole('radio', { name: 'Dom — montaż ładowarki 2 pozycje · 1 proces' })).toBeHidden();
+    await page.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji · 9 procesów' }).check();
     // 1280 px = breakpoint.expanded: the preview is on the right, not in a Disclosure
     const preview = page.getByRole('complementary', { name: 'Podgląd szablonu' });
     await expect(preview.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeVisible();
-    await expect(preview.getByText('Pomiary i odbiór')).toBeVisible();
+    await expect(preview.getByText('Pomiary i odbiór', { exact: true })).toBeVisible();
+    await expect(preview.getByRole('heading', { name: 'Procesy (9)' })).toBeVisible();
+    await expect(preview.getByText('Uzgodnienia z OSD — 3 etapy')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Pokaż szczegóły szablonu' })).toBeHidden();
-    await expect(page.getByText(/Plan płatności|Kwoty transz|Zaliczka|Procesy \(/)).toHaveCount(0);
+    await expect(page.getByText(/Plan płatności|Kwoty transz|Zaliczka/)).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Tytuł' })).toHaveValue('Garaż — pełny proces');
     await expect(page.getByRole('combobox', { name: 'Opiekun' })).toHaveValue('11111111-1111-4111-8111-111111111111');
     await page.getByRole('button', { name: 'Utwórz zlecenie' }).click();

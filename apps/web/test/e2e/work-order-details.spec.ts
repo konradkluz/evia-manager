@@ -63,12 +63,13 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await expect(site.getByText('PL-TEST-0001')).toBeVisible();
     await expect(main.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
     await expect(main.getByText('AC, 11 kW, 3 fazy')).toBeVisible();
-    // AC5: five reads anchored in the order (EVM-036 added the other orders of the site), only the identifier in the path, nothing in the query string
+    // AC5: six reads anchored in the order (EVM-036 added the other orders of the site, EVM-031 the processes), only the identifier in the path, nothing in the query string
     const mine = reads(api).filter((entry) => entry.url.includes(idOf(path)));
     expect(new Set(mine.map((entry) => new URL(entry.url).pathname.replace(idOf(path), '{id}')))).toEqual(
       new Set([
         '/api/v1/work-orders/{id}',
         '/api/v1/work-orders/{id}/scope-items',
+        '/api/v1/work-orders/{id}/procedures',
         '/api/v1/work-orders/{id}/customer',
         '/api/v1/work-orders/{id}/site',
         '/api/v1/work-orders/{id}/site-orders',
@@ -187,8 +188,12 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       await expect(page.getByRole('region', { name: 'Klient' }).getByText('Jan Przykładowy')).toBeVisible();
       await expect(page.getByRole('region', { name: 'Lokalizacja' }).getByText('Operator Testowy')).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
-      // the controls are the badge of the status (EVM-030) and, from EVM-036, "Edytuj lokalizację" with the two menus of the parties: Tylko odczyt has none
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 : 0);
+      // the controls that change something are the badge of the status (EVM-030), from EVM-036 "Edytuj lokalizację" with the two menus of the
+      // parties and from EVM-031 the menu of every visible stage: Tylko odczyt has none. The nine headers of the processes and "Rozwiń wszystkie"
+      // only open and close sections; the first process is open, so three stages show their menus.
+      const reading = 10;
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 : reading);
+      await expect(page.getByRole('button', { name: /^Akcje etapu/ })).toHaveCount(role === 'editor' ? 3 : 0);
     });
   }
 
