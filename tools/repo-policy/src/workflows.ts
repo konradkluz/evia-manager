@@ -234,6 +234,20 @@ export const REQUIRED_ASK = Object.freeze(
 );
 
 /**
+ * EVM-077 (security-engineer M6; SR-SUPPLY-09, TM-60, TM-61): the commands that delete the development database ask the owner
+ * first — `pnpm run dev:reset` (which itself needs a terminal and a typed phrase), the CLI behind it and `down -v` of
+ * compose.dev.yaml. No `allow` rule may mention compose.dev.yaml or the dev commands.
+ */
+export const REQUIRED_ASK_COMMANDS = Object.freeze(
+  [
+    'pnpm run dev:reset:*',
+    'pnpm dev:reset:*',
+    'node tools/dev-env/cli.mjs reset:*',
+    'docker compose -f compose.dev.yaml down -v:*',
+  ].flatMap((command) => [`Bash(${command})`, `PowerShell(${command})`]),
+);
+
+/**
  * `deny` rules against printing the token of the orchestrator's `gh` (K4, RR-02; Konrad 2026-10-04): `gh auth token`,
  * `gh auth status --show-token` / `-t` and the credential helper `gh auth git-credential` (prints `password=<token>`) run as
  * `gh`, `gh.exe` or a full path (quoted or escaped) in the Bash tool (Git Bash) and in the PowerShell tool. `*` matches any text at any position, so `*gh*` covers every executable form and `-t` also
@@ -255,6 +269,9 @@ export const REQUIRED_DENY = Object.freeze([
   'Bash(docker run:*)',
   'Bash(docker exec:*)',
   'Bash(docker cp:*)',
+  // EVM-077: the development file is driven by tools/dev-env only (four exact forms); an agent never runs or execs in it.
+  'Bash(docker compose -f compose.dev.yaml run:*)',
+  'Bash(docker compose -f compose.dev.yaml exec:*)',
   'Bash(git commit --no-verify:*)',
   'Bash(git commit -n:*)',
   'Bash(git push --no-verify:*)',
@@ -273,12 +290,16 @@ export function agentPermissionProblems(document: unknown, services: readonly st
   const permissions = record(record(document)['permissions']);
   const rules = (kind: string): string[] => list(permissions[kind]).map(String);
   const problems = [
-    ...REQUIRED_ASK.filter((rule) => !rules('ask').includes(rule)).map((rule) => `.claude/settings.json: brak reguły ask ${rule}`),
+    ...[...REQUIRED_ASK, ...REQUIRED_ASK_COMMANDS]
+      .filter((rule) => !rules('ask').includes(rule))
+      .map((rule) => `.claude/settings.json: brak reguły ask ${rule}`),
     ...REQUIRED_DENY.filter((rule) => !rules('deny').includes(rule)).map((rule) => `.claude/settings.json: brak reguły deny ${rule}`),
   ];
   if (text(permissions['defaultMode']) === 'bypassPermissions') problems.push('.claude/settings.json: defaultMode bypassPermissions');
   for (const rule of rules('allow')) {
     if (/^(Edit|Write)\(/.test(rule) && /compose|settings/.test(rule)) problems.push(`.claude/settings.json: allow ${rule} omija monit`);
+    if (/compose\.dev\.yaml|dev-env|pnpm (run )?dev/.test(rule))
+      problems.push(`.claude/settings.json: allow ${rule} — środowisko lokalne uruchamia wyłącznie użytkownik (EVM-077)`);
     const command = /^Bash\((.*)\)$/.exec(rule)?.[1] ?? '';
     if (!/\bdocker\b/.test(command)) continue;
     const service = /^docker compose -f compose\.yaml run --rm (\S+)(?: .*)?$/.exec(command)?.[1] ?? '';

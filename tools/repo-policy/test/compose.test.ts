@@ -15,7 +15,7 @@ const volumes = (name: string): string[] => list(service(name)['volumes']).map(S
 
 describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
   it('EVM-006 AC1 (A6): every service is pinned and hardened — no ports, privileges, socket, env_file or interpolation', () => {
-    const dockerfile = (context: string): string | null => (exists(`${context}/Dockerfile`) ? read(`${context}/Dockerfile`) : null);
+    const dockerfile = (context: string, name: string): string | null => (exists(`${context}/${name}`) ? read(`${context}/${name}`) : null);
     expect(composeProblems(compose, read('compose.yaml'), dockerfile)).toEqual([]);
   });
 
@@ -132,9 +132,11 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
         ?.map((name) => name.slice(1, -1)) ?? [];
     expect(listed.sort()).toEqual(Object.keys(services).sort());
     const spawning = filesBelow('tools', (path) => /\.(mjs|ts)$/.test(path) && !path.includes('/test/')).filter((path) =>
-      /spawn(Sync)?\(\s*['"]docker['"]|exec(File)?(Sync)?\(\s*['"]docker['"]/.test(read(path)),
+      // any call that names the executable as a literal (spawn, spawnSync, a wrapper such as spawnProcess, execFile …)
+      /['"]docker(\.exe)?['"]/.test(read(path)),
     );
-    expect(spawning).toEqual(['tools/scan/lib/compose.mjs']);
+    // EVM-077: the second (and last) place is the local environment, limited to four exact command lines (compose.dev.test.ts).
+    expect(spawning.sort()).toEqual(['tools/dev-env/src/docker.mjs', 'tools/scan/lib/compose.mjs']);
   });
 
   it('EVM-006 AC1 (D4, RR-03; K4, RR-02): the committed agent settings ask before compose and settings edits, deny other Docker verbs and printing the gh token', () => {

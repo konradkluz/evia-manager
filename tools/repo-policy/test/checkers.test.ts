@@ -25,6 +25,7 @@ import {
   GH_TOKEN_DENY,
   renovateWorkflowProblems,
   REQUIRED_ASK,
+  REQUIRED_ASK_COMMANDS,
   REQUIRED_DENY,
   workflowProblems,
 } from '../src/workflows.ts';
@@ -575,7 +576,7 @@ describe('documentation validator step checker (EVM-013 AC3; security-engineer c
 describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
   const services = ['backend-tests'];
   const settings = (permissions: Record<string, unknown>): unknown => ({
-    permissions: { ask: [...REQUIRED_ASK], deny: [...REQUIRED_DENY], allow: [], ...permissions },
+    permissions: { ask: [...REQUIRED_ASK, ...REQUIRED_ASK_COMMANDS], deny: [...REQUIRED_DENY], allow: [], ...permissions },
   });
 
   it('EVM-006 D4 (RR-03): the required ask and deny rules with Docker allowed only as a compose.yaml service pass', () => {
@@ -584,7 +585,7 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
   });
 
   it('EVM-006 D4 (RR-03): a removed ask rule for compose*.yaml, a removed Docker deny and bypassing allow rules are reported', () => {
-    const ask = REQUIRED_ASK.filter((rule) => !rule.endsWith('(**/compose*.yaml)'));
+    const ask = [...REQUIRED_ASK, ...REQUIRED_ASK_COMMANDS].filter((rule) => !rule.endsWith('(**/compose*.yaml)'));
     const deny = REQUIRED_DENY.filter((rule) => rule !== 'Bash(docker run:*)');
     const allow = [
       'Write(**/compose*.yaml)',
@@ -605,7 +606,7 @@ describe('agent permission checker (EVM-006 D4, RR-03, A6)', () => {
       '.claude/settings.json: allow Bash(docker compose -f compose.yaml run --rm evil sh) — Docker wyłącznie jako usługa compose.yaml',
       '.claude/settings.json: allow Bash(docker compose -f compose.yaml up) — Docker wyłącznie jako usługa compose.yaml',
     ]);
-    expect(agentPermissionProblems({}, services)).toHaveLength(REQUIRED_ASK.length + REQUIRED_DENY.length);
+    expect(agentPermissionProblems({}, services)).toHaveLength(REQUIRED_ASK.length + REQUIRED_ASK_COMMANDS.length + REQUIRED_DENY.length);
   });
 
   it('EVM-006 AC1 (K4, RR-02): missing deny rules against printing the gh token are reported', () => {
