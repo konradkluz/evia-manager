@@ -23,7 +23,9 @@ AuditAction:
     - customer.created
     - customer.updated
     - site.created
+    - site.updated
     - party.created
+    - party.updated
     - work_order.created
     - work_order.cancelled
     - work_order.restored

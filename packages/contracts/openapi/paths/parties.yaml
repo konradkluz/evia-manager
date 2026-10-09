@@ -117,3 +117,136 @@ parties:
         $ref: ../components/responses.yaml#/IdempotencyMismatch
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+PartyIdParameter:
+  name: partyId
+  in: path
+  required: true
+  description: Identyfikator strony (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
+party:
+  get:
+    operationId: getParty
+    tags: [parties]
+    summary: Szczegóły strony (do edycji)
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), bez audytu odczytu.
+      Odpowiedź ma `ETag` (`"<version>"`) i komplet danych strony (rodzaj, forma, nazwa, osoba kontaktowa, telefon, e-mail,
+      notatki; bez tekstu wyszukiwania i znaczników usunięcia) — wypełnia dialog „Edytuj stronę”. Strona jest rozwiązywana przez
+      politykę odczytu w zapytaniu: nieistniejąca i usunięta (soft delete — także dla Administratora; podgląd usuniętych to
+      EVM-060) dają tę samą odpowiedź `404 not_found`. Zły format `partyId` — `400 validation_failed`. Każda odpowiedź ma
+      `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    parameters:
+      - $ref: '#/PartyIdParameter'
+    responses:
+      '200':
+        description: Dane strony.
+        headers:
+          ETag:
+            description: Wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/parties.yaml#/Party
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  patch:
+    operationId: updateParty
+    tags: [parties]
+    summary: Zmiana danych strony (merge-patch, If-Match)
+    description: >-
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany —
+      `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`party.updated` — aktor, identyfikator strony,
+      wynik i `traceId`; bez nazw pól i wartości, także bez nazwy osoby fizycznej). Strona jest wspólna dla wszystkich lokalizacji
+      i zleceń, które ją wskazują. Rodzaj strony (`kind`) jest niezmienny — nazwanie go w treści to `400 read_only_field` (zmiana
+      rodzaju mogłaby złamać regułę rodzaju OSD i zarządcy w lokalizacjach). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
+      `"<version>"`): brak — `428 precondition_required`; słaby, lista, `*` albo zniekształcony — `400 validation_failed`
+      (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict` (bez bieżących wartości). Treść to `PartyPatch`: pole spoza
+      schematu — `400 unknown_field`, pole kontrolowane przez serwer — `400 read_only_field`, błąd reguły (telefon E.164, e-mail,
+      zwykły tekst) — `400` z `errors[]` (wskaźnik i kod, nigdy wartość). Kolejność, idempotencja (klucz związany także
+      z identyfikatorem strony) i transakcja jak w `updateSite`. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/PartyIdParameter'
+      - name: If-Match
+        in: header
+        required: true
+        description: Silny ETag wersji strony, na której użytkownik podjął decyzję (`"<version>"`, z `ETag` odczytu).
+        schema:
+          type: string
+          pattern: '^"[1-9][0-9]{0,9}"$'
+          maxLength: 12
+      - name: Idempotency-Key
+        in: header
+        required: false
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+        schema:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+          maxLength: 36
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/parties.yaml#/PartyPatch
+    responses:
+      '200':
+        description: >-
+          Strona po zmianie (albo powtórka wcześniejszej zmiany — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, stroną i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/parties.yaml#/Party
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
