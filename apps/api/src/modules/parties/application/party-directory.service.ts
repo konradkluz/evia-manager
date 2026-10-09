@@ -10,8 +10,13 @@ import { partyTables } from '../infrastructure/tables.ts';
 
 @Injectable()
 export class PartyDirectoryService implements PartyDirectory {
-  kindsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, PartyKind>> {
-    return findVisiblePartyKinds(partyTables(tx), principal, [...new Set(ids)]);
+  kindsOf(
+    tx: Kysely<Database>,
+    principal: Principal,
+    ids: readonly string[],
+    options: { readonly lock?: boolean } = {},
+  ): Promise<ReadonlyMap<string, PartyKind>> {
+    return findVisiblePartyKinds(partyTables(tx), principal, [...new Set(ids)], options.lock === true);
   }
 
   namesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>> {

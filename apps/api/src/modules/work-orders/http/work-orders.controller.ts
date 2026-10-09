@@ -4,7 +4,7 @@
  * answer. The query of the list is validated and its response parsed in the service, with the schemas of the contract. The answers
  * are never cached (the global `Cache-Control: no-store`).
  */
-import type { CustomerCard, ScopeItemList, SiteCard, WorkOrder, WorkOrderDetails, WorkOrderList } from '@evia/contracts';
+import type { CustomerCard, ScopeItemList, SiteCard, SiteOrders, WorkOrder, WorkOrderDetails, WorkOrderList } from '@evia/contracts';
 import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
@@ -13,6 +13,7 @@ import { principalOf, type Principal } from '../../../platform/http/principal.ts
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { requestEventContext, webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
+import { ListSiteOrdersService } from '../application/list-site-orders.service.ts';
 import { ListWorkOrdersService } from '../application/list-work-orders.service.ts';
 import { ReadWorkOrderService } from '../application/read-work-order.service.ts';
 import { TransitionWorkOrderService } from '../application/transition-work-order.service.ts';
@@ -29,17 +30,20 @@ export class WorkOrdersController {
   readonly #creations: CreateWorkOrderService;
   readonly #reads: ReadWorkOrderService;
   readonly #transitions: TransitionWorkOrderService;
+  readonly #siteOrders: ListSiteOrdersService;
 
   constructor(
     @Inject(ListWorkOrdersService) lists: ListWorkOrdersService,
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
     @Inject(ReadWorkOrderService) reads: ReadWorkOrderService,
     @Inject(TransitionWorkOrderService) transitions: TransitionWorkOrderService,
+    @Inject(ListSiteOrdersService) siteOrders: ListSiteOrdersService,
   ) {
     this.#lists = lists;
     this.#creations = creations;
     this.#reads = reads;
     this.#transitions = transitions;
+    this.#siteOrders = siteOrders;
   }
 
   @Get('/api/v1/work-orders')
@@ -76,6 +80,12 @@ export class WorkOrdersController {
   @OperationId('getWorkOrderSite')
   getWorkOrderSite(@Param() params: unknown, @Req() request: Request): Promise<SiteCard> {
     return this.#reads.siteCard(requirePrincipal(request), params);
+  }
+
+  @Get('/api/v1/work-orders/:workOrderId/site-orders')
+  @OperationId('listWorkOrderSiteOrders')
+  listWorkOrderSiteOrders(@Param() params: unknown, @Req() request: Request): Promise<SiteOrders> {
+    return this.#siteOrders.list(requirePrincipal(request), params);
   }
 
   @Post('/api/v1/work-orders')

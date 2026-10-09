@@ -29,6 +29,7 @@ export class SiteDirectoryService implements SiteDirectory {
     const row = await findVisibleSiteCard(siteTables(tx), principal, id);
     if (row === undefined) return undefined;
     return {
+      id: row.id,
       siteType: row.site_type,
       street: row.street,
       buildingNumber: row.building_number,

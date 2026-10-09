@@ -173,6 +173,7 @@ export class ReadWorkOrderService {
     };
     return checked(
       zSiteCard.safeParse({
+        siteId: card.id,
         siteType: card.siteType,
         street: card.street,
         buildingNumber: card.buildingNumber,

@@ -6,7 +6,7 @@
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
 
-export const SITE_EVENT_TYPES = ['site.created'] as const;
+export const SITE_EVENT_TYPES = ['site.created', 'site.updated'] as const;
 
 export interface SiteEvent extends DomainEvent {
   readonly type: (typeof SITE_EVENT_TYPES)[number];
