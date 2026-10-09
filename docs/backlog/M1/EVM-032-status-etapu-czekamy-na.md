@@ -107,3 +107,4 @@ _—_
 - 2026-10-09 — ready → in-progress: start `/deliver`, ścieżka pełna (decyzja Konrada)
 - 2026-10-09 — plan gotowy (backend-developer)
 - 2026-10-09 — backend gotowy (backend-developer): `transitionProcedureStage`, rozszerzony PATCH i odpowiedź etapu; bramka lokalna zielona, web (W-06/W-07) w kolejnym kroku
+- 2026-10-09 — panel gotowy (web-developer): menu przejść, dialogi, „Cofnij”, W-06; testy RTL + E2E (Chromium, Firefox, Edge), a11y, zrzuty w `docs/ux/reviews/EVM-032`
