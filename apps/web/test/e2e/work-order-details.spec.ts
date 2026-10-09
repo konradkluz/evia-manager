@@ -63,7 +63,7 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await expect(site.getByText('PL-TEST-0001')).toBeVisible();
     await expect(main.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
     await expect(main.getByText('AC, 11 kW, 3 fazy')).toBeVisible();
-    // AC5: four reads anchored in the order, only the identifier in the path, nothing in the query string
+    // AC5: five reads anchored in the order (EVM-036 added the other orders of the site), only the identifier in the path, nothing in the query string
     const mine = reads(api).filter((entry) => entry.url.includes(idOf(path)));
     expect(new Set(mine.map((entry) => new URL(entry.url).pathname.replace(idOf(path), '{id}')))).toEqual(
       new Set([
@@ -71,6 +71,7 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
         '/api/v1/work-orders/{id}/scope-items',
         '/api/v1/work-orders/{id}/customer',
         '/api/v1/work-orders/{id}/site',
+        '/api/v1/work-orders/{id}/site-orders',
       ]),
     );
     for (const entry of mine) expect(new URL(entry.url).search).toBe('');
@@ -186,8 +187,8 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       await expect(page.getByRole('region', { name: 'Klient' }).getByText('Jan Przykładowy')).toBeVisible();
       await expect(page.getByRole('region', { name: 'Lokalizacja' }).getByText('Operator Testowy')).toBeVisible();
       await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
-      // the only control is the badge of the status (EVM-030): the menu of transitions for the Editor, nothing for Tylko odczyt
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 1 : 0);
+      // the controls are the badge of the status (EVM-030) and, from EVM-036, "Edytuj lokalizację" with the two menus of the parties: Tylko odczyt has none
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 : 0);
     });
   }
 
