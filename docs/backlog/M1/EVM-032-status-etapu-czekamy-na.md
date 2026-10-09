@@ -105,3 +105,5 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-09 — ready → in-progress: start `/deliver`, ścieżka pełna (decyzja Konrada)
+- 2026-10-09 — plan gotowy (backend-developer)
+- 2026-10-09 — backend gotowy (backend-developer): `transitionProcedureStage`, rozszerzony PATCH i odpowiedź etapu; bramka lokalna zielona, web (W-06/W-07) w kolejnym kroku
