@@ -4,7 +4,7 @@ title: Zmiana statusu etapu i „Czekamy na…”
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -104,7 +104,7 @@ Plan w `.scratch/EVM-032/plan.md` (ścieżka pełna). Bez migracji (kolumny z 00
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -116,3 +116,4 @@ Plan w `.scratch/EVM-032/plan.md` (ścieżka pełna). Bez migracji (kolumny z 00
 - 2026-10-09 — QA pass (8/8 AC), przeglądy kod / security / UX — APPROVE w 1. rundzie; `pnpm run gate` u orkiestratora zielony (diff 99,4% linii, 95,6% gałęzi), `docs:check` 0 błędów → in-review
 - 2026-10-09 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 8 wywołań, ok. 1,0 mln tokenów, 288 wywołań narzędzi, 62 min; rundy poprawek 0; ścieżka pelna; model z definicji agentów; plik historyjki 8 KB; vs baseline — nie do porównania w $
 - 2026-10-10 — CI `e2e-web` czerwony: testy EVM-018 (`work-order-details.spec.ts`) nie znały przycisków statusu etapu — zaktualizowane oczekiwania; pełne E2E lokalnie 482/482 (Chromium, Firefox)
+- 2026-10-10 — in-review → done: akceptacja Konrada na demo, PR #48 scalony (squash) po zielonym `ci-gate`
