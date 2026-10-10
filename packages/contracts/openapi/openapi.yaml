@@ -91,6 +91,8 @@ paths:
     $ref: paths/procedures.yaml#/workOrderProcedures
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}:
     $ref: paths/procedures.yaml#/procedureStage
+  /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
+    $ref: paths/procedures.yaml#/procedureStageTransitions
   /api/v1/users/assignable:
     $ref: paths/identity.yaml#/assignableUsers
   /api/v1/customers:
@@ -239,6 +241,12 @@ components:
       $ref: components/procedures.yaml#/Procedure
     ProcedureList:
       $ref: components/procedures.yaml#/ProcedureList
+    StageWaitingOn:
+      $ref: components/procedures.yaml#/StageWaitingOn
+    StageWaitingParty:
+      $ref: components/procedures.yaml#/StageWaitingParty
+    TransitionProcedureStageRequest:
+      $ref: components/procedures.yaml#/TransitionProcedureStageRequest
     ProcedureStagePatch:
       $ref: components/procedures.yaml#/ProcedureStagePatch
     AssignableUser:

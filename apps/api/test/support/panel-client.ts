@@ -20,8 +20,8 @@ export class PanelClient {
     this.#origin = origin;
   }
 
-  /** Mutation as the panel sends it: JSON, same-origin headers, session cookie, CSRF token when it has one. */
-  post(path: string, body?: unknown): Test {
+  /** Mutation as the panel sends it: JSON, same-origin headers, session cookie, CSRF token when it has one; `headers` carries `If-Match` and `Idempotency-Key`. */
+  post(path: string, body?: unknown, headers: Readonly<Record<string, string>> = {}): Test {
     let call = request(this.#server)
       .post(path)
       .set('User-Agent', USER_AGENT)
@@ -29,6 +29,7 @@ export class PanelClient {
       .set('Sec-Fetch-Site', 'same-origin');
     if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
     if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
+    for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
     return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
   }
 

@@ -104,6 +104,16 @@ describe('ActionMenu with the status badge as the trigger (styleguide § 3.9, §
   });
 });
 
+describe('StatusBadgeButton of a stage (styleguide § 3.9, § 4.4; EVM-032 AC1)', () => {
+  it('EVM-032 AC1 the stage group takes the stage look: the icon of the status and the chevron of a button', () => {
+    render(<StatusBadgeButton status="waiting" group="stage" label="Czekamy na…" aria-label="Status etapu: Czekamy na…" />);
+    const badge = screen.getByRole('button', { name: 'Status etapu: Czekamy na…' });
+    expect(badge.className).toContain('bg-status-stage-waiting-bg');
+    expect(badge.innerHTML).toContain('lucide-hourglass');
+    expect(badge.innerHTML).toContain('lucide-chevron-down');
+  });
+});
+
 describe('Toast with an action and Banner info (styleguide § 3.14, § 3.19; EVM-030 AC1, AC6)', () => {
   it('EVM-030 AC2 the action closes the toast and runs; with an action the toast lasts 10 s', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });

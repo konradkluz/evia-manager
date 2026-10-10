@@ -130,6 +130,34 @@ describe('the processes and the change of a stage in the matrix (EVM-031 AC6, AC
   });
 });
 
+describe('the status command of a stage in the matrix (EVM-032 AC6, AC7; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-12)', () => {
+  it('EVM-032 AC7 transitionProcedureStage: Administrator and Editor on the web channel are let in; Tylko odczyt gets 403 forbidden, the mobile channel, mfa_enrollment and anonymous callers are denied; the stage of ANOTHER order named in the path is 404 for both entitled roles', async () => {
+    current = await createIdentityApp();
+    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'transitionProcedureStage');
+    const allowed = cells.filter((cell) => !cell.idor && cell.expectation.outcome === 'allowed');
+    expect(allowed.every((cell) => cell.caller.kind === 'session' && cell.caller.channel === 'web' && cell.caller.state === 'active')).toBe(
+      true,
+    );
+    expect(new Set(allowed.map((cell) => (cell.caller.kind === 'session' ? cell.caller.role : '')))).toEqual(
+      new Set(['administrator', 'editor']),
+    );
+    const readOnlyWeb = cells.find(
+      (cell) =>
+        cell.caller.kind === 'session' &&
+        cell.caller.role === 'read_only' &&
+        cell.caller.channel === 'web' &&
+        cell.caller.state === 'active',
+    );
+    expect(readOnlyWeb?.expectation).toEqual({ outcome: 'denied', status: 403, code: 'forbidden' });
+    const mobile = cells.find((cell) => cell.caller.kind === 'session' && cell.caller.channel === 'mobile');
+    expect(mobile?.expectation).toMatchObject({ outcome: 'denied', status: 403 });
+    const anonymous = cells.find((cell) => cell.caller.kind === 'anonymous');
+    expect(anonymous?.expectation).toEqual({ outcome: 'denied', status: 401, code: 'unauthenticated' });
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(2);
+    expect(await runMatrix(current, cells, await matrixObjects(current))).toEqual([]);
+  });
+});
+
 describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
   it('EVM-016 AC8 an entitled caller gets the own object and 404 (not 403) for the object of somebody else', async () => {
     current = await createIdentityApp({
@@ -137,7 +165,7 @@ describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
     const cells = buildMatrix(withThing, lists);
-    expect(cells.filter((cell) => cell.idor)).toHaveLength(42); // 2 of the synthetic thing, 3 of the catalogue template, 15 of the five reads of a work order (EVM-018, EVM-036), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039), 10 of the detail and the edit of a site and of a party (EVM-036), 5 of the processes of an order and the change of a stage (EVM-031)
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(44); // 2 of the synthetic thing, 3 of the catalogue template, 15 of the five reads of a work order (EVM-018, EVM-036), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039), 10 of the detail and the edit of a site and of a party (EVM-036), 5 of the processes of an order and the change of a stage (EVM-031), 2 of its transition (EVM-032)
     expect(await runMatrix(current, cells, { ...(await matrixObjects(current)), getTestThing: THING_OBJECTS })).toEqual([]);
   });
 

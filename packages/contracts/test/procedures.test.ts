@@ -20,6 +20,13 @@ const stage = {
   dueDate: '2026-10-02',
   overdue: true,
   responsibleUser: { id: USER, displayName: 'Anna Testowa' },
+  waitingOn: null,
+  waitingParty: null,
+  waitingSince: null,
+  waitingDays: null,
+  blockedReason: null,
+  startedAt: null,
+  completedOn: null,
   version: 1,
 };
 
@@ -39,7 +46,10 @@ describe('procedures contract (EVM-031; SR-AUTHZ-01, SR-AUTHZ-04, SR-API-02, SR-
 
   it('EVM-031 AC6 the stage is addressed by the order AND the stage in the path — there is no operation with the stage alone', () => {
     const paths = Object.values(AUTHZ_MANIFEST).map((operation) => operation.path);
-    expect(paths.filter((path) => path.includes('{stageId}'))).toEqual(['/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}']);
+    expect(paths.filter((path) => path.includes('{stageId}'))).toEqual([
+      '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}',
+      '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions',
+    ]);
     expect(zUpdateProcedureStagePath.safeParse({ workOrderId: V7, stageId: V7 }).success).toBe(true);
     expect(zUpdateProcedureStagePath.safeParse({ workOrderId: V7, stageId: 'x' }).success).toBe(false);
     expect(zUpdateProcedureStagePath.safeParse({ workOrderId: 'x', stageId: V7 }).success).toBe(false);
@@ -70,13 +80,13 @@ describe('procedures contract (EVM-031; SR-AUTHZ-01, SR-AUTHZ-04, SR-API-02, SR-
     }
   });
 
-  it('EVM-031 AC2 SR-DATA-03 a stage carries the person responsible as id and displayName only, and no notes, waiting-for or block reason', () => {
+  it('EVM-031 AC2 SR-DATA-03 a stage carries the person responsible as id and displayName only, and no notes or internal keys', () => {
     expect(zProcedureStage.safeParse(stage).success).toBe(true);
     expect(zProcedureStage.safeParse({ ...stage, dueDate: null, responsibleUser: null, overdue: false }).success).toBe(true);
     expect(zProcedureStage.safeParse({ ...stage, status: 'unknown' }).success).toBe(false);
     const parsed = zProcedureStage.parse({ ...stage, responsibleUser: { id: USER, displayName: 'A', email: 'a@example.invalid' } });
     expect(parsed.responsibleUser).toEqual({ id: USER, displayName: 'A' });
-    for (const field of ['notes', 'waitingOn', 'waitingSince', 'blockedReason', 'workOrderId', 'procedureId']) {
+    for (const field of ['notes', 'waitingOnPartyId', 'workOrderId', 'procedureId']) {
       expect(Object.keys(zProcedureStage.shape), field).not.toContain(field);
     }
   });

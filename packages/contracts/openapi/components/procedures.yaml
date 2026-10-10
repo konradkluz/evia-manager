@@ -1,15 +1,39 @@
 # Module `procedures` — the processes of a work order and their stages (EVM-031; W-06 section "Procesy i etapy"). The processes are COPIED
 # from the template at the creation of the order (D1) and are never created by a request. The only field of a stage a request changes
-# in EVM-031 is the person responsible and the due date; the status of a stage is changed by a command of its own (EVM-032), so
-# `status`, the names, the codes, the position and the version are `readOnly` for the patch (`400 read_only_field`).
-# Personal data (DO-P): the person responsible is `{id, displayName}` only (SR-DATA-03) — no e-mail, role or account status. The
-# notes of a stage, "waiting for" and the reason of a block are not returned here (EVM-032).
+# in EVM-031 is the person responsible and the due date; the status of a stage is changed by a command of its own (EVM-032, the
+# transition), so `status`, the names, the codes, the position and the version are `readOnly` for the patch (`400 read_only_field`).
+# EVM-032 adds "waiting for" (`waitingOn`, `waitingParty`, `waitingSince`, `waitingDays`), the reason of a block, the start and the
+# day of completion to the stage, and the change of the party waited for (an edit of the patch, not a transition).
+# Personal data (DO-P): the person responsible and the party waited for are `{id, displayName}` only (SR-DATA-03) — no e-mail, role,
+# telephone or contact person. The reason of a block is free text that may name a person (SR-DATA-02): the panel renders it as text.
+# The notes of a stage are not returned.
 StageStatus:
   type: string
   description: >-
     Status etapu (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12). „Otwarte” to `todo`,
-    `in_progress` i `waiting`. Etap powstaje w stanie `todo`; zmiana statusu to osobna komenda (EVM-032).
+    `in_progress` i `waiting`. Etap powstaje w stanie `todo`; status zmienia wyłącznie komenda przejścia (EVM-032).
   enum: [todo, in_progress, waiting, blocked, done, not_applicable]
+StageWaitingOn:
+  type: string
+  description: >-
+    Na kogo czekamy: `customer` — na klienta, `party` — na stronę (OSD, zarządcę, administrację …; `waitingOnPartyId`). Ustawione
+    dokładnie w statusie `waiting`.
+  enum: [customer, party]
+StageWaitingParty:
+  type: object
+  description: >-
+    Strona, na którą czekamy — identyfikator i nazwa wyświetlana, nic więcej (bez telefonu, e-maila, osoby kontaktowej i notatek;
+    SR-DATA-02). Nazwa strony będącej osobą fizyczną to dane osobowe — panel wyświetla ją jako tekst.
+  required: [id, displayName]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
 StageResponsibleUser:
   type: object
   description: Osoba odpowiedzialna za etap — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
@@ -44,8 +68,28 @@ ProcedureStage:
   type: object
   description: >-
     Etap procesu w zleceniu. `overdue` liczy serwer przy odczycie: termin wcześniejszy niż dziś w `Europe/Warsaw` i etap jeszcze
-    niezakończony (nie `done` i nie `not_applicable`) — klient nie porównuje dat sam.
-  required: [id, code, name, position, status, dueDate, overdue, responsibleUser, version]
+    niezakończony (nie `done` i nie `not_applicable`) — klient nie porównuje dat sam. „Czekamy na…” (EVM-032): `waitingOn`,
+    `waitingParty` (dla `party`), `waitingSince` i `waitingDays` (pełne dni kalendarzowe od `waitingSince` do dziś w
+    `Europe/Warsaw`, liczy serwer) są ustawione dokładnie w statusie `waiting`, w pozostałych `null`; `blockedReason` tylko w
+    statusie `blocked` (pole swobodne — może zawierać dane osobowe, panel wyświetla je jako tekst); `startedAt` ustawia „Rozpocznij”;
+    `completedOn` tylko w statusie `done`. `waitingParty` jest `null` także wtedy, gdy strona została później usunięta.
+  required:
+    - id
+    - code
+    - name
+    - position
+    - status
+    - dueDate
+    - overdue
+    - responsibleUser
+    - waitingOn
+    - waitingParty
+    - waitingSince
+    - waitingDays
+    - blockedReason
+    - startedAt
+    - completedOn
+    - version
   additionalProperties: false
   properties:
     id:
@@ -81,9 +125,53 @@ ProcedureStage:
       oneOf:
         - $ref: '#/StageResponsibleUser'
         - type: 'null'
+    waitingOn:
+      description: Na kogo czekamy (tylko w statusie `waiting`) albo `null`.
+      oneOf:
+        - $ref: '#/StageWaitingOn'
+        - type: 'null'
+    waitingParty:
+      description: Strona, na którą czekamy (`waitingOn` = `party`), albo `null`.
+      oneOf:
+        - $ref: '#/StageWaitingParty'
+        - type: 'null'
+    waitingSince:
+      description: Od kiedy czekamy (dzień w strefie `Europe/Warsaw`, `RRRR-MM-DD`) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    waitingDays:
+      description: Ile pełnych dni kalendarzowych czekamy (dziś minus `waitingSince`, `Europe/Warsaw`; 0 = od dziś) albo `null`. Powyżej 14 panel ostrzega.
+      oneOf:
+        - type: integer
+          minimum: 0
+          maximum: 40000
+        - type: 'null'
+    blockedReason:
+      description: Powód blokady (pole swobodne — może zawierać dane osobowe) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 500
+        - type: 'null'
+    startedAt:
+      description: Kiedy etap rozpoczęto („Rozpocznij”, `todo → in_progress`) albo `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    completedOn:
+      description: Dzień zakończenia (`RRRR-MM-DD`; tylko w statusie `done`) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
     version:
       type: integer
-      description: Wersja etapu — wartość `If-Match` (`"<version>"`) przy zmianie osoby odpowiedzialnej i terminu.
+      description: Wersja etapu — wartość `If-Match` (`"<version>"`) przy zmianie etapu i przy przejściu.
       minimum: 1
 Procedure:
   type: object
@@ -135,12 +223,18 @@ ProcedureList:
 ProcedureStagePatch:
   type: object
   description: >-
-    Zmiana etapu (merge-patch; EVM-031): osoba odpowiedzialna i/lub termin — co najmniej jedno pole. Pole nieobecne zostaje bez
-    zmian, `null` czyści wartość. `responsibleUserId` musi wskazywać aktywnego użytkownika (konto nieistniejące, zaproszone,
-    zdezaktywowane i usunięte to jedna odpowiedź `400 validation_failed`, `/responsibleUserId`, `assignee_unavailable`).
-    `dueDate` to dzień z zakresu 2000-01-01..2100-12-31 (`out_of_range` poza zakresem). Pole kontrolowane przez serwer (`id`,
-    `code`, `name`, `position`, `status`, `version`, `overdue`, `responsibleUser`, pola „czekamy na”, `notes`) — `400 read_only_field`,
-    pole spoza schematu — `400 unknown_field`; pusta treść — `400 validation_failed`.
+    Zmiana etapu (merge-patch; EVM-031, EVM-032): osoba odpowiedzialna, termin i/lub „na kogo czekamy” — co najmniej jedno pole.
+    Pole nieobecne zostaje bez zmian, `null` czyści wartość (osoba, termin). `responsibleUserId` musi wskazywać aktywnego
+    użytkownika (konto nieistniejące, zaproszone, zdezaktywowane i usunięte to jedna odpowiedź `400 validation_failed`,
+    `/responsibleUserId`, `assignee_unavailable`). `dueDate` to dzień z zakresu 2000-01-01..2100-12-31 (`out_of_range` poza zakresem).
+    „Zmień, na kogo czekamy…” (EVM-032 AC3) to edycja, nie przejście: `waitingOn` jest wymagane, gdy treść zawiera którekolwiek
+    z pól `waitingOn`, `waitingOnPartyId`, `waitingSince`; `waitingOnPartyId` — wymagane dla `party`, niedozwolone dla `customer`
+    (`required` / `not_allowed`); `waitingSince` — domyślnie dziś w `Europe/Warsaw`, od 2000-01-01, nie z przyszłości
+    (`out_of_range`). Te pola są dozwolone tylko w statusie `waiting` (inaczej `409 invalid_state_transition`); strona nieistniejąca
+    albo usunięta — `400` (`/waitingOnPartyId`, `unknown_party`, ta sama odpowiedź dla każdej roli). Pole kontrolowane przez serwer
+    (`id`, `code`, `name`, `position`, `status`, `version`, `overdue`, `responsibleUser`, `waitingParty`, `waitingDays`,
+    `blockedReason`, `startedAt`, `completedOn`, `notes`) — `400 read_only_field`, pole spoza schematu — `400 unknown_field`;
+    pusta treść — `400 validation_failed`.
   minProperties: 1
   additionalProperties: false
   properties:
@@ -158,3 +252,52 @@ ProcedureStagePatch:
           format: date
           maxLength: 10
         - type: 'null'
+    waitingOn:
+      $ref: '#/StageWaitingOn'
+    waitingOnPartyId:
+      type: string
+      description: Identyfikator strony (UUID), na którą czekamy — wymagany dla `waitingOn` = `party`.
+      format: uuid
+      maxLength: 36
+    waitingSince:
+      type: string
+      description: Od kiedy czekamy, `RRRR-MM-DD` (domyślnie dziś, nie z przyszłości, od 2000-01-01).
+      format: date
+      maxLength: 10
+TransitionProcedureStageRequest:
+  type: object
+  description: >-
+    Komenda przejścia statusu etapu (EVM-032). `to` — docelowy status (tabela przejść „Etap procesu” w `domain-model.md`; przejścia
+    spoza tabeli — `409 invalid_state_transition`). Pola zależą od `to` i są niedozwolone poza nim (`not_allowed`): `waiting` —
+    `waitingOn` (wymagane), `waitingOnPartyId` (wymagane dla `party`, niedozwolone dla `customer`), `waitingSince` (domyślnie dziś,
+    od 2000-01-01, nie z przyszłości; „Cofnij” podaje poprzednią wartość); `blocked` — `blockedReason` (wymagany: zwykły tekst, NFC,
+    przycięty, 1–500 znaków; kody `required`, `too_long`, `invalid_characters`; pole swobodne — może zawierać dane osobowe i nigdy nie
+    trafia do audytu, logów ani komunikatów błędów); `done` — `completedOn` (domyślnie dziś, od 2000-01-01, nie z przyszłości; kod
+    `out_of_range`). „Cofnij” to zwykłe przejście z parametrami, które użytkownik mógłby podać ręcznie. Pola serwera (`status`,
+    `version`, `waitingParty`, `waitingDays`, `startedAt` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
+  required: [to]
+  additionalProperties: false
+  properties:
+    to:
+      $ref: '#/StageStatus'
+    waitingOn:
+      $ref: '#/StageWaitingOn'
+    waitingOnPartyId:
+      type: string
+      description: Identyfikator strony (UUID), na którą czekamy — tylko przy `waiting` i `waitingOn` = `party`.
+      format: uuid
+      maxLength: 36
+    waitingSince:
+      type: string
+      description: Od kiedy czekamy, `RRRR-MM-DD` (tylko przy `waiting`).
+      format: date
+      maxLength: 10
+    blockedReason:
+      type: string
+      description: Powód blokady (tylko przy `blocked`; pole swobodne — może zawierać dane osobowe).
+      maxLength: 500
+    completedOn:
+      type: string
+      description: Dzień zakończenia, `RRRR-MM-DD` (tylko przy `done`).
+      format: date
+      maxLength: 10

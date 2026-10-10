@@ -1,24 +1,14 @@
 import type { Procedure, ProcedureList, ProcedureStage, WorkOrderDetails } from '@evia/contracts';
-import {
-  ActionMenu,
-  AlarmClock,
-  Button,
-  Disclosure,
-  EllipsisVertical,
-  IconButton,
-  List,
-  ListItem,
-  ProcedureProgress,
-  StatusBadge,
-} from '@evia/ui-web';
+import { ActionMenu, AlarmClock, Button, Disclosure, EllipsisVertical, IconButton, List, ListItem, ProcedureProgress } from '@evia/ui-web';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { stageStatusLabels } from '../i18n/procedure-labels.ts';
 import { useSession } from '../session/session.ts';
 import { useOnline } from '../shell/use-online.ts';
-import { formatDueDate, stageStatusKey } from './procedure-format.ts';
+import { formatDueDate } from './procedure-format.ts';
 import { SectionError, SectionLoading } from './section-states.tsx';
+import { StageFacts } from './stage-facts.tsx';
+import { StageStatusControl } from './stage-status-control.tsx';
 import { StageEditDialog } from './stage-edit-dialog.tsx';
 import { isClosed } from './transition-actions.ts';
 
@@ -161,22 +151,18 @@ function StageRow({
   const { t } = useTranslation();
   const online = useOnline();
   const role = useSession().data?.user.role;
-  const key = stageStatusKey(stage.status);
   const closed = isClosed(order.status);
   // The disabled item explains why (§ 3.20, § 4.13): a closed order first, then the connection.
   const disabledHint = closed ? t('workOrder.procedures.closedHint') : online ? undefined : t('workOrder.procedures.offlineHint');
   return (
     <div className="flex flex-wrap items-start justify-between gap-inline-md">
       <div className="flex min-w-0 flex-col gap-stack-xs">
-        <span className="flex flex-wrap items-center gap-inline-sm">
+        <div className="flex flex-wrap items-center gap-inline-sm">
           <span className="text-text-secondary">{t('workOrder.procedures.stageNumber', { position: stage.position })}</span>
           <span className="break-words text-body text-text-primary">{stage.name}</span>
-          {key === undefined ? (
-            <StatusBadge status="unknown" label={t('workOrders.status.unknown')} hint={t('workOrders.status.unknownHint')} />
-          ) : (
-            <StatusBadge status={key} group="stage" label={stageStatusLabels[stage.status]} />
-          )}
-        </span>
+          <StageStatusControl workOrderId={order.id} stage={stage} closed={closed} />
+        </div>
+        <StageFacts stage={stage} />
         {stage.dueDate === null && stage.responsibleUser === null ? null : (
           <span className="flex flex-wrap items-center gap-inline-md text-body-sm text-text-secondary">
             {stage.dueDate === null ? null : stage.overdue ? (

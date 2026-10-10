@@ -190,10 +190,11 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
       // the controls that change something are the badge of the status (EVM-030), from EVM-036 "Edytuj lokalizację" with the two menus of the
       // parties and from EVM-031 the menu of every visible stage: Tylko odczyt has none. The nine headers of the processes and "Rozwiń wszystkie"
-      // only open and close sections; the first process is open, so three stages show their menus.
+      // only open and close sections; the first process is open, so three stages show their menus and, from EVM-032, their status badges.
       const reading = 10;
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 : reading);
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 : reading);
       await expect(page.getByRole('button', { name: /^Akcje etapu/ })).toHaveCount(role === 'editor' ? 3 : 0);
+      await expect(page.getByRole('button', { name: /^Status etapu .*Zmień status$/ })).toHaveCount(role === 'editor' ? 3 : 0);
     });
   }
 
@@ -204,7 +205,7 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await page.getByRole('heading', { level: 1 }).focus();
     // the badge of the status is a button now (EVM-030) and comes first
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('button', { name: /Zmień status/ })).toBeFocused();
+    await expect(page.getByRole('button', { name: /^Status zlecenia: .*Zmień status$/ })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     await page.keyboard.press('ArrowRight');

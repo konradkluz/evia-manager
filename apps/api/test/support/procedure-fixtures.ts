@@ -16,6 +16,12 @@ export interface StageSpec {
   /** `YYYY-MM-DD` */
   readonly dueDate?: string;
   readonly responsibleUserId?: string;
+  /** "Czekamy na…" for a stage in `waiting` (the CHECKs of the table need `waitingOn` exactly there); `YYYY-MM-DD`. */
+  readonly waitingOn?: 'customer' | 'party';
+  readonly waitingOnPartyId?: string;
+  readonly waitingSince?: string;
+  readonly blockedReason?: string;
+  readonly completedOn?: string;
   readonly deletedAt?: Date;
 }
 
@@ -74,6 +80,11 @@ export async function insertProcedure(db: Kysely<Database>, workOrderId: string,
               ...(stage.status === undefined ? {} : { status: stage.status }),
               ...(stage.dueDate === undefined ? {} : { due_date: stage.dueDate }),
               ...(stage.responsibleUserId === undefined ? {} : { responsible_user_id: stage.responsibleUserId }),
+              ...(stage.waitingOn === undefined ? {} : { waiting_on: stage.waitingOn }),
+              ...(stage.waitingOnPartyId === undefined ? {} : { waiting_on_party_id: stage.waitingOnPartyId }),
+              ...(stage.waitingSince === undefined ? {} : { waiting_since: stage.waitingSince }),
+              ...(stage.blockedReason === undefined ? {} : { blocked_reason: stage.blockedReason }),
+              ...(stage.completedOn === undefined ? {} : { completed_on: stage.completedOn }),
               output_document_kind_codes: [],
               source_stage_template_id: null,
               created_at: AT,

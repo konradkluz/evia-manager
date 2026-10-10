@@ -145,7 +145,9 @@ export function StatusBadge({ status, group = 'order', label, hint }: StatusBadg
 }
 
 export interface StatusBadgeButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'disabled' | 'title'> {
-  readonly status: OrderStatusKey;
+  readonly status: OrderStatusKey | StageStatusKey;
+  /** `stage` takes the colours and icons of the stage statuses (§ 4.4), as in `StatusBadge`. */
+  readonly group?: 'order' | 'stage';
   /** The full label of the status ("W realizacji"); the accessible name of the button comes from `aria-label`. */
   readonly label: string;
   /** Disabled stays focusable (`aria-disabled`, no `chevron-down`); the hint says why (§ 3.9, § 4.13). */
@@ -158,9 +160,9 @@ export interface StatusBadgeButtonProps extends Omit<ButtonHTMLAttributes<HTMLBu
  * `chevron-down` and the focus ring. Disabled, it drops the chevron and explains why through a tooltip and the accessible
  * description; clicks are blocked, the focus is kept.
  */
-export function StatusBadgeButton({ status, label, disabledHint, onClick, ref, ...rest }: StatusBadgeButtonProps) {
+export function StatusBadgeButton({ status, group = 'order', label, disabledHint, onClick, ref, ...rest }: StatusBadgeButtonProps) {
   const id = useId();
-  const { icon: IconComponent, classes, iconClasses } = LOOKS[status];
+  const { icon: IconComponent, classes, iconClasses } = lookOf(status, group);
   const disabled = disabledHint !== undefined;
   return (
     <button

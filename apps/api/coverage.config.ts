@@ -31,6 +31,8 @@ export const DATABASE_BOUND: readonly string[] = [
   // the logic that touches no database (the answers, the names in batches, the controller over fake services) is measured by the unit run
   'src/modules/procedures/application/list-procedures.service.ts',
   'src/modules/procedures/application/update-stage.service.ts',
+  'src/modules/procedures/application/transition-stage.service.ts',
+  'src/modules/procedures/application/stage-answer.ts',
   'src/modules/procedures/application/procedures-contributor.ts',
   'src/modules/procedures/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',

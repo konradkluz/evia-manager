@@ -143,13 +143,20 @@ describe('the processes of an order (EVM-031 AC2, AC4, AC8; SR-AUTHZ-02, SR-DATA
       dueDate: '2026-10-20',
       overdue: false,
       responsibleUser: { id: anna.userId, displayName: 'Anna Testowa' },
+      waitingOn: null,
+      waitingParty: null,
+      waitingSince: null,
+      waitingDays: null,
+      blockedReason: null,
+      startedAt: null,
+      completedOn: null,
       version: 1,
     });
     expect(first[0]).toMatchObject({ status: 'done', dueDate: null, overdue: false, responsibleUser: null });
     expect(body.openStageCount).toBe(4);
   });
 
-  it('EVM-031 SR-DATA-03 the answer holds the keys of the contract and nothing else: no notes, no "waiting for", no reason of a block, no author, no e-mail of the person', async () => {
+  it('EVM-031 SR-DATA-03 the answer holds the keys of the contract and nothing else: no notes, no author, no e-mail of the person (EVM-032 adds "waiting for", the reason of a block, the start and the day of completion)', async () => {
     const anna = await signIn('editor', 'web', 'Anna Testowa');
     const created = await order([{ stages: [{ responsibleUserId: anna.userId }] }]);
     await sql`update procedures.procedure_stages set notes = 'notatka-etapu-xyz', blocked_reason = 'powod-blokady-xyz'`.execute(admin());
@@ -157,19 +164,28 @@ describe('the processes of an order (EVM-031 AC2, AC4, AC8; SR-AUTHZ-02, SR-DATA
     const body = response.body as { items: Array<Record<string, unknown> & { stages: Array<Record<string, unknown>> }> };
     expect(Object.keys(response.body as object).sort()).toEqual(['items', 'openStageCount']);
     expect(Object.keys(body.items[0] ?? {}).sort()).toEqual(['code', 'id', 'name', 'position', 'progress', 'stages']);
-    expect(Object.keys(body.items[0]?.stages[0] ?? {}).sort()).toEqual([
-      'code',
-      'dueDate',
-      'id',
-      'name',
-      'overdue',
-      'position',
-      'responsibleUser',
-      'status',
-      'version',
-    ]);
+    expect(Object.keys(body.items[0]?.stages[0] ?? {}).sort()).toEqual(
+      [
+        'code',
+        'dueDate',
+        'id',
+        'name',
+        'overdue',
+        'position',
+        'responsibleUser',
+        'status',
+        'version',
+        'waitingOn',
+        'waitingParty',
+        'waitingSince',
+        'waitingDays',
+        'blockedReason',
+        'startedAt',
+        'completedOn',
+      ].sort(),
+    );
     expect(Object.keys(body.items[0]?.stages[0]?.['responsibleUser'] ?? {}).sort()).toEqual(['displayName', 'id']);
-    expect(JSON.stringify(response.body)).not.toMatch(/notatka-etapu|powod-blokady|@evia\.invalid|created_by|workOrderId|procedureId/);
+    expect(JSON.stringify(response.body)).not.toMatch(/notatka-etapu|@evia\.invalid|created_by|workOrderId|procedureId/);
   });
 
   it('EVM-031 AC3 a stage due 2026-10-02 is overdue on 2026-10-03 (Europe/Warsaw) — and not yet on the 2nd; a stage due today is not; a finished one never', async () => {
@@ -399,7 +415,7 @@ describe('what the change may name (EVM-031 AC3, AC6; SR-INPUT-01, SR-INPUT-02, 
     expect(await rowOf(stageId)).toMatchObject({ version: 1, due_date: null });
   });
 
-  it('EVM-031 AC3 a field of the server — status, name, code, position, version, overdue, "waiting for", notes … — is 400 read_only_field and the stage is untouched (mass assignment)', async () => {
+  it('EVM-031 AC3 a field of the server — status, name, code, position, version, overdue, waitingParty, waitingDays, the reason of a block, notes … — is 400 read_only_field and the stage is untouched (mass assignment)', async () => {
     const { orderId, stageId } = await oneStage();
     const editor = await signIn('editor');
     for (const field of [
@@ -413,9 +429,8 @@ describe('what the change may name (EVM-031 AC3, AC6; SR-INPUT-01, SR-INPUT-02, 
       'responsibleUser',
       'procedureId',
       'workOrderId',
-      'waitingOn',
-      'waitingOnPartyId',
-      'waitingSince',
+      'waitingParty',
+      'waitingDays',
       'blockedReason',
       'startedAt',
       'completedOn',

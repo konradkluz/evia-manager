@@ -76,6 +76,14 @@ describe('DateField (styleguide § 3.5; EVM-029 AC5)', () => {
     expect(screen.getByRole('alert').textContent).toBe('Data końcowa jest wcześniejsza.');
     expect(describedBy(input)).toBe('Data końcowa jest wcześniejsza.');
   });
+
+  it('EVM-032 AC2 a hint is tied to the input and replaced by the error', () => {
+    const { rerender } = render(<DateField label="Od kiedy" value="2026-10-03" onChange={vi.fn()} hint="Nie później niż dziś." />);
+    expect(describedBy(screen.getByLabelText('Od kiedy'))).toBe('Nie później niż dziś.');
+    rerender(<DateField label="Od kiedy" value="2026-10-03" onChange={vi.fn()} hint="Nie później niż dziś." error="Za późno." />);
+    expect(describedBy(screen.getByLabelText('Od kiedy'))).toBe('Za późno.');
+    expect(screen.queryByText('Nie później niż dziś.')).toBeNull();
+  });
 });
 
 describe('FilterChip (styleguide § 3.7; EVM-029 AC5)', () => {

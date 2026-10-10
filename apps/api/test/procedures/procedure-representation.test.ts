@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ProblemException } from '../../src/platform/http/problem.ts';
-import { responsibleIdsOf, toProcedureList, toProcedureStage } from '../../src/modules/procedures/application/procedure-representation.ts';
+import {
+  responsibleIdsOf,
+  toProcedureList,
+  toProcedureStage,
+  waitingPartyIdsOf,
+} from '../../src/modules/procedures/application/procedure-representation.ts';
 import { responsibleNamesOf } from '../../src/modules/procedures/application/responsible-names.ts';
 import type { UserDirectory } from '../../src/modules/identity/index.ts';
 import type { ProcedureRow, StageRow } from '../../src/modules/procedures/infrastructure/procedure-store.ts';
@@ -21,6 +26,12 @@ const stage = (overrides: Partial<StageRow> = {}): StageRow => ({
   status: 'todo',
   due_date: null,
   responsible_user_id: null,
+  waiting_on: null,
+  waiting_on_party_id: null,
+  waiting_since: null,
+  blocked_reason: null,
+  started_at: null,
+  completed_on: null,
   version: 1,
   ...overrides,
 });
@@ -31,6 +42,7 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
     const view = toProcedureStage(
       stage({ due_date: '2026-10-02', responsible_user_id: ANNA }),
       new Map([[ANNA, 'Anna Testowa']]),
+      new Map(),
       '2026-10-03',
     );
     expect(view).toMatchObject({
@@ -40,16 +52,16 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
       responsibleUser: { id: ANNA, displayName: 'Anna Testowa' },
       version: 1,
     });
-    expect(toProcedureStage(stage({ due_date: '2026-10-02' }), new Map(), '2026-10-02')).toMatchObject({
+    expect(toProcedureStage(stage({ due_date: '2026-10-02' }), new Map(), new Map(), '2026-10-02')).toMatchObject({
       overdue: false,
       responsibleUser: null,
     });
   });
 
   it('EVM-031 AC3 a person without a name is a defect of the server (500), not a stage without a person', () => {
-    expect(() => toProcedureStage(stage({ responsible_user_id: ANNA }), new Map(), '2026-10-03')).toThrow(ProblemException);
+    expect(() => toProcedureStage(stage({ responsible_user_id: ANNA }), new Map(), new Map(), '2026-10-03')).toThrow(ProblemException);
     try {
-      toProcedureStage(stage({ responsible_user_id: ANNA }), new Map(), '2026-10-03');
+      toProcedureStage(stage({ responsible_user_id: ANNA }), new Map(), new Map(), '2026-10-03');
     } catch (error) {
       expect((error as ProblemException).code).toBe('internal_error');
     }
@@ -66,6 +78,7 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
         stage({ procedure_id: P2, position: 2, status: 'blocked' }),
       ],
       new Map(),
+      new Map(),
       '2026-10-03',
     );
     expect(list.items.map((item) => [item.position, item.progress, item.stages.length])).toEqual([
@@ -76,7 +89,7 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
   });
 
   it('EVM-031 AC8 no processes is an empty list', () => {
-    expect(toProcedureList([], [], new Map(), '2026-10-03')).toEqual({ items: [], openStageCount: 0 });
+    expect(toProcedureList([], [], new Map(), new Map(), '2026-10-03')).toEqual({ items: [], openStageCount: 0 });
   });
 
   it('EVM-031 SR-API-02 the people are listed once, and a lookup of more than 100 of them is made in batches of 100', async () => {
@@ -97,7 +110,68 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
 describe('a row that does not fit the contract (EVM-031; SR-ERR-01)', () => {
   it('EVM-031 SR-DATA-03 a status the contract does not know is a defect of the server (500), never data that leaves', () => {
     const odd = stage({ status: 'finished' as never });
-    expect(() => toProcedureStage(odd, new Map(), '2026-10-03')).toThrow(ProblemException);
-    expect(() => toProcedureList([procedure(P1, 1)], [odd], new Map(), '2026-10-03')).toThrow(ProblemException);
+    expect(() => toProcedureStage(odd, new Map(), new Map(), '2026-10-03')).toThrow(ProblemException);
+    expect(() => toProcedureList([procedure(P1, 1)], [odd], new Map(), new Map(), '2026-10-03')).toThrow(ProblemException);
+  });
+});
+
+describe('"Czekamy na…" in the answers (EVM-032 AC2, AC3, AC8; SR-DATA-02)', () => {
+  const OSD = uuidv7();
+  const waitingStage = stage({
+    status: 'waiting',
+    waiting_on: 'party',
+    waiting_on_party_id: OSD,
+    waiting_since: '2026-09-18',
+  });
+
+  it('EVM-032 AC8 the days of waiting are computed by the server: since 2026-09-18, today 2026-10-03 is 15; the party is { id, displayName }', () => {
+    expect(toProcedureStage(waitingStage, new Map(), new Map([[OSD, 'Operator Syntetyczny (OSD)']]), '2026-10-03')).toMatchObject({
+      status: 'waiting',
+      waitingOn: 'party',
+      waitingParty: { id: OSD, displayName: 'Operator Syntetyczny (OSD)' },
+      waitingSince: '2026-09-18',
+      waitingDays: 15,
+      blockedReason: null,
+    });
+  });
+
+  it('EVM-032 AC2 the customer waited for has no party; a stage that does not wait has no waiting fields at all', () => {
+    const customer = stage({ status: 'waiting', waiting_on: 'customer', waiting_since: '2026-10-03' });
+    expect(toProcedureStage(customer, new Map(), new Map(), '2026-10-03')).toMatchObject({
+      waitingOn: 'customer',
+      waitingParty: null,
+      waitingDays: 0,
+    });
+    expect(toProcedureStage(stage(), new Map(), new Map(), '2026-10-03')).toMatchObject({
+      waitingOn: null,
+      waitingParty: null,
+      waitingSince: null,
+      waitingDays: null,
+      startedAt: null,
+      completedOn: null,
+    });
+  });
+
+  it('EVM-032 AC3 a party that is not visible any more (deleted) is null, never the id alone and never an error', () => {
+    expect(toProcedureStage(waitingStage, new Map(), new Map(), '2026-10-03')).toMatchObject({ waitingOn: 'party', waitingParty: null });
+  });
+
+  it('EVM-032 AC4 the reason of a block, the start and the day of completion are carried as they are', () => {
+    const view = toProcedureStage(
+      stage({
+        status: 'blocked',
+        blocked_reason: 'Brak zgody wspólnoty',
+        started_at: new Date('2026-10-01T08:00:00.000Z'),
+        completed_on: '2026-10-02',
+      }),
+      new Map(),
+      new Map(),
+      '2026-10-03',
+    );
+    expect(view).toMatchObject({ blockedReason: 'Brak zgody wspólnoty', startedAt: '2026-10-01T08:00:00.000Z', completedOn: '2026-10-02' });
+  });
+
+  it('EVM-032 AC2 the parties of a list are asked for once each', () => {
+    expect(waitingPartyIdsOf([waitingStage, waitingStage, stage()])).toEqual([OSD]);
   });
 });

@@ -5,23 +5,26 @@ import { useTranslation } from 'react-i18next';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { usePartySearch } from './use-party-search.ts';
 
-/** The party chosen in a field: only what the form shows (the search answers with nothing more, SR-DATA-03). */
-export type PickedParty = PartySearchItem;
+/**
+ * The party chosen in a field: only what the form shows (the search answers with nothing more, SR-DATA-03). The kind is absent for
+ * a party that comes from a stage ("Czekamy na…" carries the name only): the line then shows the name alone.
+ */
+export type PickedParty = Pick<PartySearchItem, 'id' | 'displayName'> & Partial<Pick<PartySearchItem, 'kind' | 'legalForm'>>;
 
 export interface PartyPickerProps {
   /** Always visible: "OSD", "Zarządca / administracja (opcjonalnie)". */
   readonly label: string;
   /** "Zmień OSD" — the name of the button that brings the field back (it names the field: two pickers share the page). */
   readonly changeLabel: string;
-  /** "Dodaj stronę: OSD" — the name of the button next to the field (the visible text "Dodaj stronę" is a part of it, WCAG 2.5.3). */
-  readonly addLabel: string;
+  /** "Dodaj stronę: OSD" — the name of the button next to the field (the visible text "Dodaj stronę" is a part of it, WCAG 2.5.3). Absent: no button. */
+  readonly addLabel?: string;
   /** Only the parties of these kinds are suggested (AC3): the filter travels in the body of the search. */
   readonly kinds: readonly PartyKind[];
   readonly selected: PickedParty | null;
   readonly onSelect: (party: PickedParty) => void;
   readonly onClear: () => void;
-  /** "Dodaj stronę" — from the empty result and next to the field. */
-  readonly onAdd: () => void;
+  /** "Dodaj stronę" — from the empty result and next to the field. Absent where a party cannot be added (the dialog of a stage, EVM-033). */
+  readonly onAdd?: (() => void) | undefined;
   /** A refusal of the server for this field (wrong or unknown party), shown under the field. */
   readonly error?: string | undefined;
   /** The button "Dodaj stronę" next to the field: a dialog that brings the person back to it puts the focus there. */
@@ -72,7 +75,9 @@ export function PartyPicker({
         <span className="text-label text-text-primary">{label}</span>
         <div className="flex flex-wrap items-center gap-inline-md">
           <p ref={summary} tabIndex={-1} className="text-body text-text-primary focus-visible:focus-ring">
-            {t('parties.selected.summary', { name: selected.displayName, kind: partyKindLabels[selected.kind] })}
+            {selected.kind === undefined
+              ? selected.displayName
+              : t('parties.selected.summary', { name: selected.displayName, kind: partyKindLabels[selected.kind] })}
           </p>
           <Button variant="tertiary" aria-label={changeLabel} onClick={onClear}>
             {t('parties.selected.change')}
@@ -102,9 +107,11 @@ export function PartyPicker({
       notice = (
         <>
           <p>{t('parties.search.empty', { query: phrase })}</p>
-          <Button aria-label={addLabel} onClick={onAdd}>
-            {t('parties.search.add')}
-          </Button>
+          {onAdd === undefined ? null : (
+            <Button aria-label={addLabel} onClick={onAdd}>
+              {t('parties.search.add')}
+            </Button>
+          )}
         </>
       );
     }
@@ -143,9 +150,11 @@ export function PartyPicker({
             inputRef={field}
           />
         </div>
-        <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd}>
-          {t('parties.field.add')}
-        </Button>
+        {onAdd === undefined ? null : (
+          <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd}>
+            {t('parties.field.add')}
+          </Button>
+        )}
       </div>
       {alert}
     </div>
