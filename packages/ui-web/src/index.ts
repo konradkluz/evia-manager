@@ -63,6 +63,7 @@ export {
   MessageSquareText,
   OctagonAlert,
   Pencil,
+  Plus,
   Search,
   SearchX,
   Shield,
