@@ -48,7 +48,7 @@ export const PROCESSES: ReadonlyArray<{ code: string; name: string; stages: read
 /** How many of the processes a template brings: all nine for the template with nine items, one per two items otherwise. */
 export const processCountOf = (itemCount: number): number => (itemCount >= 9 ? 9 : Math.max(1, Math.floor(itemCount / 2)));
 
-const stageId = (orderId: string, process: number, stage: number): string =>
+export const stageId = (orderId: string, process: number, stage: number): string =>
   `${orderId.slice(0, -6)}${String(process)}0${String(stage)}000`;
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Answer => ({
