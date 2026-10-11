@@ -176,6 +176,22 @@ describe('EVM-037 AC3 — a correction instead of an edit (D3; SR-AUTHZ-04)', ()
     expect(await countOf(orderId)).toBe(2);
   });
 
+  it('EVM-037 K9 a correction that was soft deleted still holds the key of the database: the next correction is the mapped 409 entry_superseded, never a 500', async () => {
+    const editor = await signIn('editor');
+    const { id: orderId } = await order();
+    const original = entryOf((await post(editor, orderId, { kind: 'comment', body: 'Komentarz.' })).body);
+    const first = entryOf((await post(editor, orderId, { kind: 'comment', body: 'Poprawka.', supersedesEntryId: original.id })).body);
+    // the soft delete (EVM-040) is the one change the trigger lets through; the pre-check does not see a deleted correction, the key does
+    await sql`update timeline.timeline_entries set deleted_at = ${new Date(NOW)}, deleted_by = ${editor.userId} where id = ${first.id}`.execute(
+      admin(),
+    );
+    const refused = await post(editor, orderId, { kind: 'comment', body: 'Druga poprawka.', supersedesEntryId: original.id });
+    expect(refused.status).toBe(409);
+    expect(codeOf(refused.body)).toBe('entry_superseded');
+    expect(JSON.stringify(refused.body)).not.toContain('timeline_entries');
+    expect(await countOf(orderId)).toBe(2);
+  });
+
   it('EVM-037 K9 two corrections of the same entry at once: one 201 and one 409 entry_superseded — never a 500 with the name of a constraint', async () => {
     const editor = await signIn('editor');
     const { id: orderId } = await order();

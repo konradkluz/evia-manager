@@ -27,6 +27,8 @@ export interface TimelineEntriesTable {
   version: Generated<number>;
   deleted_at: Date | null;
   redacted_at: Date | null;
+  redacted_by: string | null;
+  deleted_by: string | null;
 }
 
 export type TimelineTables = {

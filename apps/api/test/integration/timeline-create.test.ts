@@ -250,6 +250,21 @@ describe('EVM-037 AC5 — a repeat does not duplicate (SR-API-05, AB-09)', () =>
     expect(records[0]).toMatchObject({ result_status: 201, result_resource_id: sent.id, user_id: editor.userId });
   });
 
+  it('EVM-037 K7 a repeat reads the entry again: an entry that is gone since (soft deleted) is 404, not a stored answer', async () => {
+    const editor = await signIn('editor');
+    const { id: orderId } = await order();
+    const sent = { id: uuidv7(), key: uuidv7() };
+    const body = note('Tekst do usunięcia.');
+    expect((await createEntry(editor, orderId, body, sent)).status).toBe(201);
+    await sql`update timeline.timeline_entries set deleted_at = ${new Date(NOW)}, deleted_by = ${editor.userId} where id = ${sent.id}`.execute(
+      admin(),
+    );
+    const again = await createEntry(editor, orderId, body, sent);
+    expect(again.status).toBe(404);
+    expect(codeOf(again.body)).toBe('not_found');
+    expect(JSON.stringify(again.body)).not.toContain('usunięcia');
+  });
+
   it('EVM-037 AC5 the same key with another body is 422 idempotency_mismatch and writes nothing', async () => {
     const editor = await signIn('editor');
     const { id: orderId } = await order();

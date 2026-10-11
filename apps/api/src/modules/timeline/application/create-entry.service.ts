@@ -33,7 +33,7 @@ import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
-import { ProblemException, type ProblemCode } from '../../../platform/http/problem.ts';
+import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/validation.ts';
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
@@ -42,10 +42,11 @@ import { UserDirectory } from '../../identity/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { resolveCreateEntry, type CreateEntryCommand, type CreateEntryInput } from '../domain/create-entry-rules.ts';
+import { rethrowMapped } from '../domain/integrity-violation.ts';
 import type { TimelineEntryEvent } from '../events.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry, hasCorrection, insertEntry, lockCorrectable, type EntryRow } from '../infrastructure/timeline-store.ts';
-import { presentEntry } from './entry-representation.ts';
+import { presentEntry } from './entry-page.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createTimelineEntryScope}). */
 export const CREATE_TIMELINE_ENTRY_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/timeline';
@@ -79,18 +80,6 @@ export interface CreatedEntry {
   readonly entry: TimelineEntry;
   /** True when the answer repeats an earlier command (same key, order and body): `Idempotent-Replayed: true`. */
   readonly replayed: boolean;
-}
-
-/** SQLSTATE class 23: a constraint of the database refused the row. */
-function isIntegrityViolation(error: unknown): error is { readonly code: string; readonly constraint?: string } {
-  return typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' && error.code.startsWith('23');
-}
-
-/** The mapped answer of a violation the pre-checks did not catch (a race): a `409` of the catalogue, never a `500`. */
-function conflictOf(error: { readonly constraint?: string }): ProblemCode {
-  if (error.constraint === 'timeline_entries_supersedes_key') return 'entry_superseded';
-  if (error.constraint === 'timeline_entries_pkey') return 'id_conflict';
-  return 'invalid_state_transition';
 }
 
 @Injectable()
@@ -135,29 +124,33 @@ export class CreateEntryService {
     const { workOrderId } = parseInput(pathSchema, rawParams) as { workOrderId: string };
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
-      const order = await this.#orders.findVisible(tx, principal, workOrderId);
-      if (order === undefined) throw new ProblemException('not_found');
-      const key = this.#keyOf(rawKey);
-      const input = parseInput(createBody, rawBody, SERVER_FIELDS) as CreateEntryInput;
-      const resolved = resolveCreateEntry(input);
-      if (!resolved.ok) throw new ProblemException('validation_failed', { errors: resolved.errors });
-      const command = resolved.command;
+    return this.#db
+      .transaction()
+      .execute(async (tx) => {
+        const order = await this.#orders.findVisible(tx, principal, workOrderId);
+        if (order === undefined) throw new ProblemException('not_found');
+        const key = this.#keyOf(rawKey);
+        const input = parseInput(createBody, rawBody, SERVER_FIELDS) as CreateEntryInput;
+        const resolved = resolveCreateEntry(input);
+        if (!resolved.ok) throw new ProblemException('validation_failed', { errors: resolved.errors });
+        const command = resolved.command;
 
-      const perform = async () => {
-        await this.#insert(tx, principal, order.id, command, request);
-        return { value: undefined, result: { status: 201, code: 'created', resourceId: command.id } };
-      };
-      const outcome = await this.#idempotency.run(
-        tx,
-        { userId: principal.userId, deviceId: null, key, scope: createTimelineEntryScope(order.id), bodyHash: requestHash(input) },
-        perform,
-      );
-      // the answer is read again with the order of the URL in the condition — a repeat never names an entry of another order
-      const row = await findEntry(timelineTables(tx), order.id, outcome.replayed ? (outcome.result.resourceId ?? '') : command.id);
-      if (row === undefined) throw new ProblemException('not_found');
-      return { entry: await this.#present(tx, order.id, row), replayed: outcome.replayed };
-    });
+        const perform = async () => {
+          await this.#insert(tx, principal, order.id, command, request);
+          return { value: undefined, result: { status: 201, code: 'created', resourceId: command.id } };
+        };
+        const outcome = await this.#idempotency.run(
+          tx,
+          { userId: principal.userId, deviceId: null, key, scope: createTimelineEntryScope(order.id), bodyHash: requestHash(input) },
+          perform,
+        );
+        // the answer is read again with the order of the URL in the condition — a repeat never names an entry of another order
+        // (the hash of a repeat includes `id`, so the entry of a repeat is the entry of this command)
+        const row = await findEntry(timelineTables(tx), order.id, command.id);
+        if (row === undefined) throw new ProblemException('not_found');
+        return { entry: await this.#present(tx, order.id, row), replayed: outcome.replayed };
+      })
+      .catch(rethrowMapped);
   }
 
   /** @throws ProblemException `validation_failed` — the header is required and is a UUIDv7 (`/headers/Idempotency-Key`) */
@@ -215,25 +208,20 @@ export class CreateEntryService {
     command: CreateEntryCommand,
     stageId: string | null,
   ) {
-    try {
-      return await insertEntry(
-        tables,
-        {
-          id: command.id,
-          workOrderId,
-          kind: command.kind,
-          noteCategory: command.noteCategory,
-          body: command.body,
-          procedureStageId: stageId,
-          supersedesEntryId: command.supersedesEntryId,
-          authorUserId: principal.userId,
-        },
-        this.#clock.now(),
-      );
-    } catch (error) {
-      if (isIntegrityViolation(error)) throw new ProblemException(conflictOf(error));
-      throw error;
-    }
+    return insertEntry(
+      tables,
+      {
+        id: command.id,
+        workOrderId,
+        kind: command.kind,
+        noteCategory: command.noteCategory,
+        body: command.body,
+        procedureStageId: stageId,
+        supersedesEntryId: command.supersedesEntryId,
+        authorUserId: principal.userId,
+      },
+      this.#clock.now(),
+    );
   }
 
   #present(tx: Kysely<Database>, workOrderId: string, row: EntryRow): Promise<TimelineEntry> {

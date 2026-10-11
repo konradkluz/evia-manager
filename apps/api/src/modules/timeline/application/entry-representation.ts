@@ -1,28 +1,20 @@
 /**
- * The shape of the answers of the module (EVM-037 AC1–AC3, AC6): the rows of the database, the names of the authors and of the
- * stages and the corrections of a page become the objects of the contract. The author is `{id, displayName}` and nothing else
- * (SR-DATA-03). Every answer is parsed with the schema of the contract before it leaves, so only the fields of the contract can
- * leave; a mismatch is a defect of the server (`500`), never data (ASVS V15.3.1). ONE batch of names and corrections per page:
- * the number of queries does not depend on the number of entries (no N+1).
+ * The shape of the answers of the module (EVM-037 AC1–AC3, AC6): a row of the database, the names of the author and of the stage
+ * and the correction of the entry become the object of the contract. The author is `{id, displayName}` and nothing else (SR-DATA-03).
+ * Every answer is parsed with the schema of the contract before it leaves, so only the fields of the contract can leave; a mismatch
+ * is a defect of the server (`500`), never data (ASVS V15.3.1). Pure — the batches of names and corrections are looked up by the
+ * caller (`entry-page.ts`), ONE per page, so the number of queries does not depend on the number of entries (no N+1).
  */
 import { zTimelineEntry, zTimelineEntryList } from '@evia/contracts/zod';
 import type { TimelineEntry, TimelineEntryList } from '@evia/contracts';
-import type { Kysely } from 'kysely';
-import type { Database } from '../../../platform/database/database.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import type { UserDirectory } from '../../identity/index.ts';
-import type { ProcedureStageDirectory } from '../../procedures/index.ts';
-import { timelineTables } from '../infrastructure/tables.ts';
-import { correctionsOf, type EntryRow } from '../infrastructure/timeline-store.ts';
+import type { EntryRow } from '../infrastructure/timeline-store.ts';
 
-export interface PresentationDeps {
-  readonly users: UserDirectory;
-  readonly stages: ProcedureStageDirectory;
-}
-
-interface Batch {
+/** What a page needs besides its rows: the names of the authors and of the stages, and the corrections, by identifier. */
+export interface RepresentationBatch {
   readonly authors: ReadonlyMap<string, string>;
   readonly stageNames: ReadonlyMap<string, string>;
+  /** The correction of an entry, by the entry it corrects. */
   readonly corrections: ReadonlyMap<string, string>;
 }
 
@@ -31,25 +23,15 @@ const checked = <T>(result: { success: true; data: T } | { success: false }): T 
   return result.data;
 };
 
-/** The names and corrections the rows need, each looked up ONCE for the whole page, in the transaction of the caller. */
-async function batchFor(deps: PresentationDeps, tx: Kysely<Database>, workOrderId: string, rows: readonly EntryRow[]): Promise<Batch> {
-  const authorIds = [...new Set(rows.flatMap((row) => (row.created_by === null ? [] : [row.created_by])))];
-  const stageIds = [...new Set(rows.flatMap((row) => (row.procedure_stage_id === null ? [] : [row.procedure_stage_id])))];
-  return {
-    authors: await deps.users.displayNamesOf(authorIds, tx),
-    stageNames: await deps.stages.namesOf(tx, workOrderId, stageIds),
-    corrections: await correctionsOf(
-      timelineTables(tx),
-      workOrderId,
-      rows.map((row) => row.id),
-    ),
-  };
+/** The author as `{id, displayName}`; a user of the system always has a name, so a missing one is a defect, not an entry without an author. */
+function authorOf(userId: string | null, authors: ReadonlyMap<string, string>) {
+  if (userId === null) return null;
+  const displayName = authors.get(userId);
+  if (displayName === undefined) throw new ProblemException('internal_error');
+  return { id: userId, displayName };
 }
 
-function entryView(row: EntryRow, batch: Batch) {
-  const authorName = row.created_by === null ? undefined : batch.authors.get(row.created_by);
-  // the key is a user of the system, so a name is always there; a missing one is a defect, not an entry without an author
-  if (row.created_by !== null && authorName === undefined) throw new ProblemException('internal_error');
+function entryView(row: EntryRow, batch: RepresentationBatch) {
   return {
     id: row.id,
     kind: row.kind,
@@ -57,7 +39,7 @@ function entryView(row: EntryRow, batch: Batch) {
     body: row.body,
     procedureStageId: row.procedure_stage_id,
     procedureStageName: row.procedure_stage_id === null ? null : (batch.stageNames.get(row.procedure_stage_id) ?? null),
-    author: row.created_by === null || authorName === undefined ? null : { id: row.created_by, displayName: authorName },
+    author: authorOf(row.created_by, batch.authors),
     createdAt: row.created_at.toISOString(),
     origin: row.origin,
     capturedAt: row.captured_at === null ? null : row.captured_at.toISOString(),
@@ -67,22 +49,8 @@ function entryView(row: EntryRow, batch: Batch) {
   };
 }
 
-export async function presentEntry(
-  deps: PresentationDeps,
-  tx: Kysely<Database>,
-  workOrderId: string,
-  row: EntryRow,
-): Promise<TimelineEntry> {
-  return checked(zTimelineEntry.safeParse(entryView(row, await batchFor(deps, tx, workOrderId, [row]))));
-}
+export const toTimelineEntry = (row: EntryRow, batch: RepresentationBatch): TimelineEntry =>
+  checked(zTimelineEntry.safeParse(entryView(row, batch)));
 
-export async function presentPage(
-  deps: PresentationDeps,
-  tx: Kysely<Database>,
-  workOrderId: string,
-  rows: readonly EntryRow[],
-  nextCursor: string | null,
-): Promise<TimelineEntryList> {
-  const batch = await batchFor(deps, tx, workOrderId, rows);
-  return checked(zTimelineEntryList.safeParse({ items: rows.map((row) => entryView(row, batch)), nextCursor }));
-}
+export const toTimelineEntryList = (rows: readonly EntryRow[], batch: RepresentationBatch, nextCursor: string | null): TimelineEntryList =>
+  checked(zTimelineEntryList.safeParse({ items: rows.map((row) => entryView(row, batch)), nextCursor }));

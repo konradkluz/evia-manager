@@ -106,14 +106,15 @@ export async function hasCorrection(db: TimelineDb, workOrderId: string, entryId
 /** The corrections of the entries of a page, by the entry they correct — ONE query for the page (no N+1). */
 export async function correctionsOf(db: TimelineDb, workOrderId: string, entryIds: readonly string[]): Promise<Map<string, string>> {
   if (entryIds.length === 0) return new Map();
+  // `corrected_id` is never null here: the condition names it (`in`), so the column is typed as the text it is
   const rows = await db
     .selectFrom('timeline.timeline_entries')
-    .select(['id', 'supersedes_entry_id'])
+    .select(['id', sql<string>`supersedes_entry_id`.as('corrected_id')])
     .where('work_order_id', '=', workOrderId)
     .where('supersedes_entry_id', 'in', entryIds)
     .where('deleted_at', 'is', null)
     .execute();
-  return new Map(rows.flatMap((row) => (row.supersedes_entry_id === null ? [] : [[row.supersedes_entry_id, row.id] as const])));
+  return new Map(rows.map((row) => [row.corrected_id, row.id] as const));
 }
 
 export interface PageFilter {

@@ -18,7 +18,7 @@ import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../p
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry } from '../infrastructure/timeline-store.ts';
-import { presentEntry } from './entry-representation.ts';
+import { presentEntry } from './entry-page.ts';
 
 const pathSchema = strictObjects(zGetTimelineEntryPath);
 

@@ -24,7 +24,7 @@ import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders
 import { filterPartsOf, parsePosition, positionParts, resolveTimelineListQuery } from '../domain/timeline-list-query.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { listEntries } from '../infrastructure/timeline-store.ts';
-import { presentPage } from './entry-representation.ts';
+import { presentPage } from './entry-page.ts';
 
 /** Identifier of the operation in the contract; the cursor is bound to it. */
 export const LIST_TIMELINE_OPERATION = 'listTimelineEntries';
