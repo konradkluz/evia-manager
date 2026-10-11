@@ -4,7 +4,7 @@ title: Dziennik zlecenia — wpisy i komentarze
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -105,7 +105,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -118,3 +118,4 @@ _—_
 - 2026-10-11 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 98,8% / gałęzie 92,9%; uwagi minor/nit w „Uwagi do rozważenia”
 - 2026-10-11 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,55 mln tokenów subagentów, 519 wywołań narzędzi, ok. 105 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; plik historyjki 5 KB; vs baseline — nie do porównania w $
 - 2026-10-11 — in-progress → in-review: czeka na demo i akceptację Konrada
+- 2026-10-11 — in-review → done: akceptacja Konrada, PR #51 scalony do main (14175f6)
