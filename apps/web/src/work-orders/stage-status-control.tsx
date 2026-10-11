@@ -19,7 +19,7 @@ import { useSession } from '../session/session.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { stageStatusKey } from './procedure-format.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
 import { StageDialog, stageFailureText, type DialogAction, type StageCommand } from './stage-dialog.tsx';
 import {
   STAGE_DIALOG_ACTIONS,
@@ -105,6 +105,8 @@ export function StageStatusControl({
             },
       );
       void queryClient.refetchQueries({ queryKey: proceduresKey });
+      // EVM-038: the change wrote a journal event.
+      void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
       setDialog(null);
       if (source === 'undo') showToast(t('workOrder.stage.toast.undone'));
       else if (command.kind === 'patch') showToast(t('workOrder.stage.toast.changed'));

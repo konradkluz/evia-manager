@@ -13,12 +13,10 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { DATABASE } from '../../../platform/tokens.ts';
-import { UserDirectory } from '../../identity/index.ts';
-import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry } from '../infrastructure/timeline-store.ts';
-import { presentEntry } from './entry-page.ts';
+import { EntryPresenter } from './entry-page.ts';
 
 const pathSchema = strictObjects(zGetTimelineEntryPath);
 
@@ -26,19 +24,16 @@ const pathSchema = strictObjects(zGetTimelineEntryPath);
 export class ReadEntryService {
   readonly #db: Kysely<Database>;
   readonly #orders: WorkOrderDirectory;
-  readonly #stages: ProcedureStageDirectory;
-  readonly #users: UserDirectory;
+  readonly #presenter: EntryPresenter;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
-    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
-    @Inject(UserDirectory) users: UserDirectory,
+    @Inject(EntryPresenter) presenter: EntryPresenter,
   ) {
     this.#db = db;
     this.#orders = orders;
-    this.#stages = stages;
-    this.#users = users;
+    this.#presenter = presenter;
   }
 
   /** @param rawParams the path parameters as parsed by the framework */
@@ -52,7 +47,7 @@ export class ReadEntryService {
         if (order === undefined) throw new ProblemException('not_found');
         const row = await findEntry(timelineTables(tx), order.id, entryId);
         if (row === undefined) throw new ProblemException('not_found');
-        return presentEntry({ users: this.#users, stages: this.#stages }, tx, order.id, row);
+        return this.#presenter.entry(tx, principal, order.id, row);
       });
   }
 }

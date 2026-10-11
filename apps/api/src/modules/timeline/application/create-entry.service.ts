@@ -38,7 +38,6 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { UserDirectory } from '../../identity/index.ts';
 import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { resolveCreateEntry, type CreateEntryCommand, type CreateEntryInput } from '../domain/create-entry-rules.ts';
@@ -46,7 +45,7 @@ import { rethrowMapped } from '../domain/integrity-violation.ts';
 import type { TimelineEntryEvent } from '../events.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry, hasCorrection, insertEntry, lockCorrectable, type EntryRow } from '../infrastructure/timeline-store.ts';
-import { presentEntry } from './entry-page.ts';
+import { EntryPresenter } from './entry-page.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createTimelineEntryScope}). */
 export const CREATE_TIMELINE_ENTRY_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/timeline';
@@ -90,7 +89,7 @@ export class CreateEntryService {
   readonly #idempotency: Idempotency;
   readonly #orders: WorkOrderDirectory;
   readonly #stages: ProcedureStageDirectory;
-  readonly #users: UserDirectory;
+  readonly #presenter: EntryPresenter;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -99,7 +98,7 @@ export class CreateEntryService {
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
-    @Inject(UserDirectory) users: UserDirectory,
+    @Inject(EntryPresenter) presenter: EntryPresenter,
   ) {
     this.#db = db;
     this.#clock = clock;
@@ -107,7 +106,7 @@ export class CreateEntryService {
     this.#idempotency = idempotency;
     this.#orders = orders;
     this.#stages = stages;
-    this.#users = users;
+    this.#presenter = presenter;
   }
 
   /**
@@ -148,7 +147,7 @@ export class CreateEntryService {
         // (the hash of a repeat includes `id`, so the entry of a repeat is the entry of this command)
         const row = await findEntry(timelineTables(tx), order.id, command.id);
         if (row === undefined) throw new ProblemException('not_found');
-        return { entry: await this.#present(tx, order.id, row), replayed: outcome.replayed };
+        return { entry: await this.#present(tx, principal, order.id, row), replayed: outcome.replayed };
       })
       .catch(rethrowMapped);
   }
@@ -224,7 +223,7 @@ export class CreateEntryService {
     );
   }
 
-  #present(tx: Kysely<Database>, workOrderId: string, row: EntryRow): Promise<TimelineEntry> {
-    return presentEntry({ users: this.#users, stages: this.#stages }, tx, workOrderId, row);
+  #present(tx: Kysely<Database>, principal: Principal, workOrderId: string, row: EntryRow): Promise<TimelineEntry> {
+    return this.#presenter.entry(tx, principal, workOrderId, row);
   }
 }

@@ -22,6 +22,8 @@ const entryColumns = [
   'created_at',
   'created_by',
   'redacted_at',
+  'event_code',
+  'event_payload',
 ] as const;
 
 export interface NewEntry {
@@ -57,10 +59,50 @@ export function insertEntry(db: TimelineDb, entry: NewEntry, now: Date) {
       created_by: entry.authorUserId,
       deleted_at: null,
       redacted_at: null,
+      event_code: null,
+      event_payload: null,
     })
     .onConflict((conflict) => conflict.column('id').doNothing())
     .returning(entryColumns)
     .executeTakeFirst();
+}
+
+/** What an event of the journal is written with (EVM-038): the columns the event decides; the identifier is made by the database. */
+export interface NewEvent {
+  readonly workOrderId: string;
+  readonly code: string;
+  readonly payload: Record<string, unknown>;
+  readonly procedureStageId: string | null;
+  readonly actorUserId: string;
+}
+
+/**
+ * Writes an event of the journal in the transaction of the change (EVM-038 AC1, AC5): `kind = event`, `origin = system`, no text, no
+ * category, no correction; the identifier is a UUIDv7 of the database (monotonic in a session, so two events of one change keep their
+ * order), the time is the time of the SERVER. The stage is pinned to the same order by the composite key. A failure is an error that
+ * rolls the change back — there is no `on conflict`.
+ */
+export async function insertEvent(db: TimelineDb, event: NewEvent, now: Date): Promise<void> {
+  await db
+    .insertInto('timeline.timeline_entries')
+    .values({
+      id: sql<string>`uuidv7()`,
+      work_order_id: event.workOrderId,
+      kind: 'event',
+      note_category: null,
+      body: null,
+      procedure_stage_id: event.procedureStageId,
+      supersedes_entry_id: null,
+      origin: 'system',
+      captured_at: null,
+      created_at: now,
+      created_by: event.actorUserId,
+      deleted_at: null,
+      redacted_at: null,
+      event_code: event.code,
+      event_payload: event.payload,
+    })
+    .execute();
 }
 
 /** An entry of THIS order (`id` AND `work_order_id` in one condition), not deleted. */
@@ -119,6 +161,8 @@ export async function correctionsOf(db: TimelineDb, workOrderId: string, entryId
 
 export interface PageFilter {
   readonly kind: Exclude<EntryKind, 'event'> | undefined;
+  /** The group of the events (EVM-038 AC4): implies `kind = event`; the codes of the group are conditions of the query. */
+  readonly eventCodes: readonly string[] | undefined;
   readonly procedureStageId: string | undefined;
 }
 
@@ -139,6 +183,7 @@ export function listEntries(db: TimelineDb, workOrderId: string, filter: PageFil
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null);
   if (filter.kind !== undefined) query = query.where('kind', '=', filter.kind);
+  if (filter.eventCodes !== undefined) query = query.where('kind', '=', 'event').where('event_code', 'in', filter.eventCodes);
   if (filter.procedureStageId !== undefined) query = query.where('procedure_stage_id', '=', filter.procedureStageId);
   if (position !== undefined)
     query = query.where(sql<boolean>`(created_at, id) < (${position.createdAt}::timestamptz, ${position.id}::uuid)`);

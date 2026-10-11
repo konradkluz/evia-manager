@@ -18,13 +18,11 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
-import { UserDirectory } from '../../identity/index.ts';
-import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { filterPartsOf, parsePosition, positionParts, resolveTimelineListQuery } from '../domain/timeline-list-query.ts';
+import { EVENT_GROUP_CODES, filterPartsOf, parsePosition, positionParts, resolveTimelineListQuery } from '../domain/timeline-list-query.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { listEntries } from '../infrastructure/timeline-store.ts';
-import { presentPage } from './entry-page.ts';
+import { EntryPresenter } from './entry-page.ts';
 
 /** Identifier of the operation in the contract; the cursor is bound to it. */
 export const LIST_TIMELINE_OPERATION = 'listTimelineEntries';
@@ -36,21 +34,18 @@ export class ListEntriesService {
   readonly #db: Kysely<Database>;
   readonly #cursors: CursorCodec;
   readonly #orders: WorkOrderDirectory;
-  readonly #stages: ProcedureStageDirectory;
-  readonly #users: UserDirectory;
+  readonly #presenter: EntryPresenter;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(CURSOR_CODEC) cursors: CursorCodec,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
-    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
-    @Inject(UserDirectory) users: UserDirectory,
+    @Inject(EntryPresenter) presenter: EntryPresenter,
   ) {
     this.#db = db;
     this.#cursors = cursors;
     this.#orders = orders;
-    this.#stages = stages;
-    this.#users = users;
+    this.#presenter = presenter;
   }
 
   /** @param rawParams the path parameters as parsed by the framework; @param rawQuery the query string (strings only) */
@@ -69,7 +64,11 @@ export class ListEntriesService {
         const rows = await listEntries(
           timelineTables(tx),
           order.id,
-          { kind: query.kind, procedureStageId: query.procedureStageId },
+          {
+            kind: query.kind,
+            eventCodes: query.eventGroup === undefined ? undefined : EVENT_GROUP_CODES[query.eventGroup],
+            procedureStageId: query.procedureStageId,
+          },
           position,
           query.limit,
         );
@@ -79,7 +78,7 @@ export class ListEntriesService {
           rows.length > query.limit && last !== undefined
             ? this.#cursors.seal(LIST_TIMELINE_OPERATION, { position: positionParts(last), scope, userId: principal.userId })
             : null;
-        return presentPage({ users: this.#users, stages: this.#stages }, tx, order.id, shown, nextCursor);
+        return this.#presenter.page(tx, principal, order.id, shown, nextCursor);
       });
   }
 

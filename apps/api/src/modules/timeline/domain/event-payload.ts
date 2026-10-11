@@ -1,0 +1,184 @@
+/**
+ * The events of the journal of an order (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01; ASVS V14.1.1, V16.2.1; CWE-359): the ONE place
+ * that says which codes exist, which keys the payload of each has, and how a domain event of another module becomes one. Pure
+ * functions of data — no database, no framework.
+ *
+ * Minimisation: the payload of an event is built from a CLOSED list of keys per code and validated with a STRICT schema before it is
+ * written: the code of a status, the type and the identifier of the object, the identifier of the party waited for and the NAMES of
+ * the changed fields. Never the reason of a block or a hold, a name of a party, a stage or a person, the due date or an amount: the
+ * journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
+ * (RODO art. 17) need no change in the events. A schema that would let a new key through is a defect that fails the write.
+ *
+ * Reading is TOLERANT (the version of the server may be rolled back after a later story added its codes): an unknown code or a
+ * payload that does not fit gives a neutral view, never a failure of the whole page.
+ */
+import { zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
+import { z } from 'zod';
+import type { StageJournalChangeEvent } from '../../procedures/index.ts';
+import type { WorkOrderEvent, WorkOrderStatusChangedEvent } from '../../work-orders/index.ts';
+
+export const JOURNAL_EVENT_CODES = [
+  'work_order_created',
+  'work_order_status_changed',
+  'stage_status_changed',
+  'stage_waiting_on_changed',
+  'stage_updated',
+] as const;
+export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
+
+/** The names of the fields of a stage whose change is recorded (the values are NOT). */
+export const JOURNAL_STAGE_FIELDS = ['responsibleUserId', 'dueDate'] as const;
+
+const workOrderObject = { objectType: z.literal('work_order'), objectId: z.uuid() };
+const stageObject = { objectType: z.literal('procedure_stage'), objectId: z.uuid() };
+
+/** The closed list of keys of every code. */
+const SHAPES = {
+  work_order_created: workOrderObject,
+  work_order_status_changed: { ...workOrderObject, fromStatus: zWorkOrderStatus, toStatus: zWorkOrderStatus },
+  stage_status_changed: {
+    ...stageObject,
+    fromStatus: zStageStatus,
+    toStatus: zStageStatus,
+    waitingOn: zStageWaitingOn.nullable(),
+    waitingOnPartyId: z.uuid().nullable(),
+  },
+  stage_waiting_on_changed: { ...stageObject, waitingOn: zStageWaitingOn, waitingOnPartyId: z.uuid().nullable() },
+  stage_updated: { ...stageObject, changedFields: z.array(z.enum(JOURNAL_STAGE_FIELDS)).min(1).max(JOURNAL_STAGE_FIELDS.length) },
+} as const satisfies Record<JournalEventCode, z.ZodRawShape>;
+
+const STRICT = {
+  work_order_created: z.strictObject(SHAPES.work_order_created),
+  work_order_status_changed: z.strictObject(SHAPES.work_order_status_changed),
+  stage_status_changed: z.strictObject(SHAPES.stage_status_changed),
+  stage_waiting_on_changed: z.strictObject(SHAPES.stage_waiting_on_changed),
+  stage_updated: z.strictObject(SHAPES.stage_updated),
+} as const;
+
+/** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
+export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
+export type JournalSourceEvent = CreatedEvent | WorkOrderStatusChangedEvent | StageJournalChangeEvent;
+
+/** What the store writes: the columns of the entry that an event decides. */
+export interface JournalEventRecord {
+  readonly code: JournalEventCode;
+  readonly payload: Record<string, unknown>;
+  readonly workOrderId: string;
+  /** The stage the event is about (a composite key pins it to the same order), or `null`. */
+  readonly procedureStageId: string | null;
+  readonly actorUserId: string;
+}
+
+interface Candidate {
+  readonly code: JournalEventCode;
+  readonly payload: Record<string, unknown>;
+  readonly workOrderId: string;
+  readonly procedureStageId: string | null;
+}
+
+function candidateOf(event: JournalSourceEvent): Candidate {
+  switch (event.type) {
+    case 'work_order.created':
+      return {
+        code: 'work_order_created',
+        payload: { objectType: 'work_order', objectId: event.objectId },
+        workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'work_order.status_changed':
+      return {
+        code: 'work_order_status_changed',
+        payload: { objectType: 'work_order', objectId: event.objectId, fromStatus: event.fromStatus, toStatus: event.toStatus },
+        workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'procedure_stage.status_changed':
+      return {
+        code: 'stage_status_changed',
+        payload: {
+          objectType: 'procedure_stage',
+          objectId: event.objectId,
+          fromStatus: event.fromStatus,
+          toStatus: event.toStatus,
+          waitingOn: event.waitingOn,
+          waitingOnPartyId: event.waitingOnPartyId,
+        },
+        workOrderId: event.workOrderId,
+        procedureStageId: event.objectId,
+      };
+    case 'procedure_stage.waiting_on_changed':
+      return {
+        code: 'stage_waiting_on_changed',
+        payload: {
+          objectType: 'procedure_stage',
+          objectId: event.objectId,
+          waitingOn: event.waitingOn,
+          waitingOnPartyId: event.waitingOnPartyId,
+        },
+        workOrderId: event.workOrderId,
+        procedureStageId: event.objectId,
+      };
+    case 'procedure_stage.fields_changed':
+      return {
+        code: 'stage_updated',
+        payload: { objectType: 'procedure_stage', objectId: event.objectId, changedFields: [...event.changedFields] },
+        workOrderId: event.workOrderId,
+        procedureStageId: event.objectId,
+      };
+  }
+}
+
+/**
+ * The entry for a domain event. The payload is validated with the STRICT schema of its code and the PARSED object is what is
+ * written (so a key outside the list cannot be written, whatever the publisher put in the event); a payload that does not fit is a
+ * defect that throws — and, as the handler runs in the transaction of the change, rolls the change back (fail closed, AC5).
+ */
+export function toJournalEvent(event: JournalSourceEvent): JournalEventRecord {
+  const candidate = candidateOf(event);
+  const payload: Record<string, unknown> = STRICT[candidate.code].parse(candidate.payload);
+  return { ...candidate, payload, actorUserId: event.actor.userId };
+}
+
+/** What an answer needs from a stored event; every field but `code` may be `null`. */
+export interface JournalEventView {
+  readonly code: string;
+  readonly objectType: 'work_order' | 'procedure_stage' | null;
+  readonly fromStatus: string | null;
+  readonly toStatus: string | null;
+  readonly waitingOn: 'customer' | 'party' | null;
+  readonly waitingOnPartyId: string | null;
+  readonly changedFields: readonly string[];
+}
+
+/** The code of the view of an event the server cannot read (a known code whose payload does not fit). */
+export const UNKNOWN_EVENT_CODE = 'unknown_event';
+
+const EMPTY = { fromStatus: null, toStatus: null, waitingOn: null, waitingOnPartyId: null, changedFields: [] } as const;
+
+const objectTypeOf = (payload: unknown): JournalEventView['objectType'] => {
+  const type = typeof payload === 'object' && payload !== null ? (payload as { objectType?: unknown }).objectType : undefined;
+  return type === 'work_order' || type === 'procedure_stage' ? type : null;
+};
+
+const isKnown = (code: string): code is JournalEventCode => (JOURNAL_EVENT_CODES as readonly string[]).includes(code);
+
+/**
+ * Tolerant reading of a stored event. A known code is read with the shape of its code (keys of a later version are ignored); a code
+ * the server does not know keeps its code (the panel shows a neutral text) and has no fields; a known code whose payload does not
+ * fit becomes {@link UNKNOWN_EVENT_CODE}.
+ */
+export function readJournalEvent(code: string, payload: unknown): JournalEventView {
+  if (!isKnown(code)) return { code, objectType: objectTypeOf(payload), ...EMPTY };
+  const parsed = z.object(SHAPES[code]).safeParse(payload);
+  if (!parsed.success) return { code: UNKNOWN_EVENT_CODE, objectType: null, ...EMPTY };
+  const data = parsed.data as Record<string, unknown>;
+  return {
+    code,
+    objectType: objectTypeOf(data),
+    fromStatus: (data['fromStatus'] ?? null) as string | null,
+    toStatus: (data['toStatus'] ?? null) as string | null,
+    waitingOn: (data['waitingOn'] ?? null) as JournalEventView['waitingOn'],
+    waitingOnPartyId: (data['waitingOnPartyId'] ?? null) as string | null,
+    changedFields: (data['changedFields'] ?? []) as string[],
+  };
+}

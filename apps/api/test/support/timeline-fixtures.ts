@@ -20,6 +20,9 @@ export interface EntrySpec {
   /** ISO time of the server; default: a minute after the previous entry of the call. */
   readonly createdAt?: string;
   readonly deletedAt?: string;
+  /** Events only: the code and the payload (default: a stage status change). */
+  readonly eventCode?: string;
+  readonly eventPayload?: Record<string, unknown>;
 }
 
 let counter = 0;
@@ -50,6 +53,8 @@ export async function insertEntries(
         procedure_stage_id: spec.procedureStageId ?? null,
         supersedes_entry_id: spec.supersedesEntryId ?? null,
         origin: kind === 'event' ? 'system' : 'web',
+        event_code: kind === 'event' ? (spec.eventCode ?? 'stage_status_changed') : null,
+        event_payload: kind === 'event' ? (spec.eventPayload ?? { objectType: 'work_order' }) : null,
         captured_at: null,
         created_at: new Date(spec.createdAt ?? BASE + counter * 60_000),
         created_by: kind === 'event' ? null : (spec.authorUserId ?? authorUserId),

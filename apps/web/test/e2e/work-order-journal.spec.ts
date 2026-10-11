@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures.ts';
 import type { MockApi } from './mock-api.ts';
-import { seedJournal } from './mock-journal.ts';
+import { seedEvents, seedJournal } from './mock-journal.ts';
+import { stageId } from './mock-procedures.ts';
 
 // "Dziennik" of an order in W-06 in a real browser against the synthetic API (EVM-037 AC1–AC8): a note and a comment, the correction
 // instead of an edit, the text as text, the retry after a lost answer, the timeline with 60 entries, the role and the stores of the
@@ -241,5 +242,37 @@ test.describe('journal of a work order (EVM-037)', () => {
     await expect(page.getByText('Nie udało się wczytać dziennika.')).toBeVisible();
     await page.getByRole('button', { name: 'Spróbuj ponownie' }).click();
     await expect(entries(page)).toHaveCount(1);
+  });
+
+  test('EVM-038 AC3 AC4 the automatic entries show the impersonal text with the author and the filter "Zmiany statusów" keeps only them', async ({
+    page,
+    api,
+  }) => {
+    const id = await openJournal(page);
+    seedJournal(api.journal, id, 3);
+    seedEvents(api.journal, id, stageId(id, 1, 2), {
+      id: '01968f3e-0000-7000-8000-0000000c0001',
+      name: 'Stoen Operator',
+      kind: 'distribution_system_operator',
+    });
+    await page.reload();
+    await page.getByRole('tab', { name: 'Dziennik' }).click();
+    await expect(entries(page)).toHaveCount(8);
+    const waiting = entries(page).first();
+    await expect(waiting).toContainText('Anna Testowa');
+    await expect(waiting).toContainText('Zmiana statusu etapu „Wniosek do OSD”: «Czekamy na…» · Czekamy na: Stoen Operator (OSD)');
+    await expect(waiting.locator('svg.lucide-hourglass')).toBeVisible();
+    await expect(waiting.getByRole('button')).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Zmiany statusów' }).click();
+    await expect(entries(page)).toHaveCount(5);
+    await expect(page.getByRole('button', { name: 'Zmiany statusów' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('button', { name: /^Akcje wpisu/ })).toHaveCount(0);
+    await expect(entries(page).last()).toContainText('Utworzono zlecenie');
+    expect(api.seen.some((entry) => entry.url.includes('eventGroup=status_changes') && !entry.url.includes('kind='))).toBe(true);
+
+    await page.getByRole('button', { name: 'Wpisy' }).click();
+    await expect(entries(page)).toHaveCount(3);
+    expect(api.seen.at(-1)?.url).not.toContain('eventGroup');
   });
 });

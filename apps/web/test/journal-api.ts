@@ -1,4 +1,4 @@
-import type { CurrentSession, ProcedureList, TimelineEntry } from '@evia/contracts';
+import type { CurrentSession, ProcedureList, TimelineEntry, TimelineEvent } from '@evia/contracts';
 import { activeSessionApi } from './render.tsx';
 import { ACTIVE_SESSION, json, parseBody, SESSION_ROUTE, type Handler } from './api-fake.ts';
 import { HEADER, ORDER_ID, workOrderRoutes } from './work-order-api.ts';
@@ -59,8 +59,30 @@ export function entry(n: number, extra: Partial<TimelineEntry> = {}): TimelineEn
     supersedesEntryId: null,
     supersededByEntryId: null,
     redactedAt: null,
+    event: null,
     ...extra,
   };
+}
+
+/** An automatic entry (EVM-038): the event of an order or a stage, made by the actor of the change. */
+export function eventEntry(n: number, event: Partial<TimelineEvent>, extra: Partial<TimelineEntry> = {}): TimelineEntry {
+  return entry(n, {
+    kind: 'event',
+    noteCategory: null,
+    body: null,
+    origin: 'system',
+    event: {
+      code: 'stage_status_changed',
+      objectType: 'procedure_stage',
+      fromStatus: null,
+      toStatus: null,
+      waitingOn: null,
+      waitingOnParty: null,
+      changedFields: [],
+      ...event,
+    },
+    ...extra,
+  });
 }
 
 export const roleSession = (role: 'editor' | 'read_only'): CurrentSession => ({
@@ -78,16 +100,20 @@ export function journalApi({
   post,
   list,
   header,
+  routes = {},
 }: {
   readonly entries: readonly TimelineEntry[];
   readonly session?: CurrentSession;
   readonly post?: Handler;
   readonly list?: Handler;
   readonly header?: Handler;
+  /** More routes of the fake (e.g. a transition of the order made from the header). */
+  readonly routes?: Record<string, Handler>;
 }) {
   const store = [...entries];
   const defaultList: Handler = (request) => {
-    const kind = request.query.get('kind');
+    const group = request.query.get('eventGroup');
+    const kind = group === 'status_changes' ? 'event' : request.query.get('kind');
     const stage = request.query.get('procedureStageId');
     const cursor = request.query.get('cursor');
     const limit = Number(request.query.get('limit') ?? '25');
@@ -122,5 +148,6 @@ export function journalApi({
     }),
     [`GET ${TIMELINE}`]: list ?? defaultList,
     [`POST ${TIMELINE}`]: post ?? defaultPost,
+    ...routes,
   });
 }

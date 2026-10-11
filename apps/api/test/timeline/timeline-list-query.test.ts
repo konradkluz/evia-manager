@@ -14,10 +14,21 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
   it('EVM-037 AC6 the defaults: no filter, 25 per page, no cursor', () => {
     expect(resolveTimelineListQuery.parse({})).toEqual({
       kind: undefined,
+      eventGroup: undefined,
       procedureStageId: undefined,
       limit: DEFAULT_LIMIT,
       cursor: undefined,
     });
+  });
+
+  it('EVM-038 AC4 the group of events is read as it comes; a group outside the list and a group together with kind are refused', () => {
+    expect(resolveTimelineListQuery.parse({ eventGroup: 'status_changes', procedureStageId: STAGE })).toMatchObject({
+      eventGroup: 'status_changes',
+      kind: undefined,
+    });
+    for (const query of [{ eventGroup: 'payments' }, { eventGroup: '' }, { eventGroup: 'status_changes', kind: 'note' }]) {
+      expect(resolveTimelineListQuery.safeParse(query).success, JSON.stringify(query)).toBe(false);
+    }
   });
 
   it('EVM-037 AC6 the filters, the limit as text (a query string) and the cursor are read as they come', () => {
@@ -44,9 +55,10 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
   });
 
   it('EVM-037 SR-API-04 the cursor is bound to the order and the filters — and not to the limit', () => {
-    const base = { kind: undefined, procedureStageId: undefined, limit: 25, cursor: undefined } as const;
-    expect(filterPartsOf(ORDER, base)).toEqual([ORDER, '', '']);
-    expect(filterPartsOf(ORDER, { ...base, kind: 'note', procedureStageId: STAGE })).toEqual([ORDER, 'note', STAGE]);
+    const base = { kind: undefined, eventGroup: undefined, procedureStageId: undefined, limit: 25, cursor: undefined } as const;
+    expect(filterPartsOf(ORDER, base)).toEqual([ORDER, '', '', '']);
+    expect(filterPartsOf(ORDER, { ...base, kind: 'note', procedureStageId: STAGE })).toEqual([ORDER, 'note', '', STAGE]);
+    expect(filterPartsOf(ORDER, { ...base, eventGroup: 'status_changes' })).toEqual([ORDER, '', 'status_changes', '']);
     expect(filterPartsOf(ORDER, { ...base, limit: 100 })).toEqual(filterPartsOf(ORDER, base));
   });
 

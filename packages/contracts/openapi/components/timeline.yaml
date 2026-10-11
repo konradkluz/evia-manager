@@ -1,7 +1,8 @@
-# Module `timeline` — the journal of a work order: notes and comments (EVM-037; W-08 "Dziennik"). One table, append-only (D3): the
-# text of an entry is never changed — a correction is a NEW entry that points at the old one (`supersedesEntryId`). The automatic
-# events of the journal (`kind = event`: the changes of a status) are written by the server in EVM-038 and are never accepted as
-# input. The text of an entry is free text that may name a customer, a party or an employee (SR-DATA-02): the panel renders it as
+# Module `timeline` — the journal of a work order: notes, comments and events (EVM-037, EVM-038; W-08 "Dziennik"). One table,
+# append-only (D3): the text of an entry is never changed — a correction is a NEW entry that points at the old one
+# (`supersedesEntryId`). The automatic events of the journal (`kind = event`: the changes of a status) are written by the server
+# in the transaction of the change (EVM-038) and are never accepted as input; they carry codes and identifiers, never a value of
+# personal data (SR-LOG-03, SR-DATA-01) — the names are read from the current data when the journal is shown. The text of an entry is free text that may name a customer, a party or an employee (SR-DATA-02): the panel renders it as
 # text and nothing else (SR-WEB-03). The author is `{id, displayName}` and nothing else (SR-DATA-03).
 TimelineEntryKind:
   type: string
@@ -56,6 +57,7 @@ TimelineEntry:
     - supersedesEntryId
     - supersededByEntryId
     - redactedAt
+    - event
   additionalProperties: false
   properties:
     id:
@@ -130,6 +132,90 @@ TimelineEntry:
           format: date-time
           maxLength: 40
         - type: 'null'
+    event:
+      description: Dane zdarzenia (`kind = event`; EVM-038) albo `null` dla wpisu i komentarza.
+      oneOf:
+        - $ref: '#/TimelineEvent'
+        - type: 'null'
+TimelineEventGroup:
+  type: string
+  description: Grupa zdarzeń do filtrowania dziennika (zamknięta lista; rośnie z E6 i E7).
+  enum: [status_changes]
+TimelineEventObjectType:
+  type: string
+  description: Obiekt, którego dotyczy zdarzenie (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12).
+  enum: [work_order, procedure_stage]
+TimelineEventParty:
+  type: object
+  description: >-
+    Strona, na którą czekamy — identyfikator z zapisu zdarzenia, a nazwa i rodzaj z BIEŻĄCYCH danych (polityka odczytu stron).
+    Strona niewidoczna dla roli albo usunięta ma `name` i `kind` równe `null`. Nazwa strony będącej osobą fizyczną to dane
+    osobowe — panel wyświetla ją jako tekst.
+  required: [id, name, kind]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    name:
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+    kind:
+      oneOf:
+        - type: string
+          maxLength: 40
+        - type: 'null'
+TimelineEvent:
+  type: object
+  description: >-
+    Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie
+    bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`,
+    `stage_waiting_on_changed`, `stage_updated` (lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola).
+    `fromStatus` / `toStatus` to kody statusów zlecenia albo etapu (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
+    `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu
+    (`responsibleUserId`, `dueDate`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.
+  required: [code, objectType, fromStatus, toStatus, waitingOn, waitingOnParty, changedFields]
+  additionalProperties: false
+  properties:
+    code:
+      type: string
+      maxLength: 64
+      pattern: '^[a-z][a-z_]{0,63}$'
+    objectType:
+      description: Obiekt zdarzenia albo `null`, gdy serwer nie umie odczytać zapisu (kod nieznany tej wersji).
+      oneOf:
+        - $ref: '#/TimelineEventObjectType'
+        - type: 'null'
+    fromStatus:
+      oneOf:
+        - type: string
+          maxLength: 40
+          pattern: '^[a-z][a-z_]{0,39}$'
+        - type: 'null'
+    toStatus:
+      oneOf:
+        - type: string
+          maxLength: 40
+          pattern: '^[a-z][a-z_]{0,39}$'
+        - type: 'null'
+    waitingOn:
+      oneOf:
+        - $ref: ./procedures.yaml#/StageWaitingOn
+        - type: 'null'
+    waitingOnParty:
+      oneOf:
+        - $ref: '#/TimelineEventParty'
+        - type: 'null'
+    changedFields:
+      type: array
+      maxItems: 10
+      items:
+        type: string
+        maxLength: 40
 TimelineEntryList:
   type: object
   description: >-

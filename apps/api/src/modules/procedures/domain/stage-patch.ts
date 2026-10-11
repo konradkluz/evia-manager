@@ -5,7 +5,7 @@
  * Pointer and a code, NEVER the value — SR-ERR-02). The status of a stage is never here: it is the command of EVM-032.
  */
 import { Collector, type FieldIssue } from '../../../platform/input/field-issues.ts';
-import { normalizeWaiting, type Waiting, type WaitingInput } from './waiting.ts';
+import { normalizeWaiting, type Waiting, type WaitingInput, type WaitingOn } from './waiting.ts';
 
 /** The due date is a business day; both bounds are inclusive (the same bounds as the planned date of an order and the CHECK of the table). */
 export const DUE_DATE_MIN = '2000-01-01';
@@ -52,4 +52,31 @@ export function normalizeStagePatch(input: StagePatchInput, today: string): Stag
       ...(waiting === undefined ? {} : { waiting }),
     },
   };
+}
+
+/** The values of a stage that a patch may change, as they are in the locked row. */
+export interface StageCurrent {
+  readonly responsibleUserId: string | null;
+  readonly dueDate: string | null;
+  readonly waitingOn: WaitingOn | null;
+  readonly waitingOnPartyId: string | null;
+}
+
+/** What a patch REALLY changes, compared with the locked row (EVM-038 AC1: one event per kind of change, none for no change). */
+export interface StageChanges {
+  /** The party waited for (or the customer instead of a party) changed; a new "since" alone is not a change. */
+  readonly waitingChanged: boolean;
+  /** The names of the changed fields (never their values). */
+  readonly changedFields: readonly ('responsibleUserId' | 'dueDate')[];
+}
+
+export function stageChanges(patch: StagePatch, current: StageCurrent): StageChanges {
+  const changedFields: Array<'responsibleUserId' | 'dueDate'> = [];
+  if (patch.responsibleUserId !== undefined && patch.responsibleUserId !== current.responsibleUserId)
+    changedFields.push('responsibleUserId');
+  if (patch.dueDate !== undefined && patch.dueDate !== current.dueDate) changedFields.push('dueDate');
+  const { waiting } = patch;
+  const waitingChanged =
+    waiting !== undefined && (waiting.waitingOn !== current.waitingOn || waiting.waitingOnPartyId !== current.waitingOnPartyId);
+  return { waitingChanged, changedFields };
 }

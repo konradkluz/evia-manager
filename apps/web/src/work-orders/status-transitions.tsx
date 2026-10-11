@@ -37,7 +37,7 @@ import { useStepUp } from '../session/step-up-context.tsx';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { pluralForm } from './order-form.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_PROCEDURES_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PROCEDURES_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
 import { useWorkOrderProcedures } from './use-work-order.ts';
 import {
   DIALOG_ACTIONS,
@@ -186,6 +186,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       attempt.forget();
       queryClient.setQueryData([WORK_ORDER_HEADER_KEY, order.id], result);
       void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
+      // EVM-038: the change wrote a journal event; an open "Dziennik" shows it without a reload.
+      void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
       setDialog(null);
       setReason('');
       if (source === 'undo') showToast(transitionUndoneToast);

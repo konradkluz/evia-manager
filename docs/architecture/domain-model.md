@@ -414,11 +414,7 @@ erDiagram
     uuid procedure_stage_id FK
     uuid supersedes_entry_id FK
     text event_code "event"
-    text subject_type "event"
-    uuid subject_id "event"
-    text from_code "event"
-    text to_code "event"
-    text[] changed_fields "event, nazwy pól"
+    jsonb event_payload "event, kody i identyfikatory"
     text origin "web | mobile | system"
     timestamptz captured_at "czas telefonu"
     timestamptz redacted_at
@@ -659,9 +655,22 @@ Każda encja: moduł-właściciel, nazwa polska (słownik), kluczowe atrybuty, r
 - **Atrybuty:** `kind`:
   - `note` — wpis (rozmowa, ustalenie): `noteCategory` (`phone_call`, `meeting`, `arrangement`, `site_visit`, `other`), `body`;
   - `comment` — komentarz użytkownika: `body`;
-  - `event` — automatyczna zmiana **(serwer)**: `eventCode` (np. `work_order_status_changed`, `stage_status_changed`, `media_added`), `subjectType`, `subjectId`, `fromCode`, `toCode`, `changedFields` (nazwy pól) — **bez wartości danych osobowych i bez kwot** (np. „zmieniono dane klienta: telefon”, nie „telefon: X → Y”).
+  - `event` — automatyczna zmiana **(serwer)**: `eventCode` i `eventPayload` (obiekt JSON z zamkniętej listy kluczy danego kodu: `objectType`, `objectId`, kody stanów `fromStatus` / `toStatus`, `waitingOn`, `waitingOnPartyId`, `changedFields` — nazwy pól) — **bez wartości danych osobowych, powodów, nazw i kwot** (np. „zmieniono dane klienta: telefon”, nie „telefon: X → Y”). Nazwy stron i etapów panel pokazuje z bieżących danych przy odczycie, więc anonimizacja i redakcja nie dotykają zdarzeń. Autor zdarzenia (`createdBy`) to aktor; `origin = system` zawsze i tylko dla `event`. Lista kodów — [niżej](#kody-zdarzeń-dziennika).
   - wspólne: `procedureStageId` (opcjonalnie), `supersedesEntryId` (korekta), `origin` (`web` / `mobile` / `system`), `capturedAt` (czas telefonu, metadana), `redactedAt`, `redactedBy` **(serwer)**.
 - **Reguły:** tylko do dopisywania — treść nie jest edytowana; korekta = nowy wpis wskazujący poprzedni. Zmiany serwerowe dopuszczalne wyłącznie jako soft delete (Administrator) i **redakcja treści** z zachowaniem metadanych (wyjątek RODO, procedura w EVM-005). Kolejność wg czasu serwera.
+
+#### Kody zdarzeń dziennika
+Zdarzenie powstaje w tej samej transakcji co zmiana (magistrala zdarzeń w procesie; błąd zapisu cofa zmianę — SR-API-06). Kod jest tekstem o postaci `^[a-z][a-z_]{0,63}$` (CHECK w bazie); lista kodów i klucze ładunku żyją w aplikacji (`timeline/domain/event-payload.ts`, ścisły schemat przy zapisie), więc kolejna historyjka dopisuje swoje kody bez migracji. Odczyt jest tolerancyjny: kod nieznany tej wersji serwera daje neutralny wpis, nie błąd listy. Filtr „Zmiany statusów” (`eventGroup=status_changes`) obejmuje wszystkie kody poniżej; grupy „Media i dokumenty” i „Płatności” dojdą z E6 i E7.
+
+| Kod | Kiedy (jedno zdarzenie na zmianę) | Klucze ładunku (`eventPayload`) | Historyjka |
+|---|---|---|---|
+| `work_order_created` | utworzenie zlecenia | `objectType`, `objectId` | EVM-038 |
+| `work_order_status_changed` | każde przejście statusu zlecenia (także wstrzymanie, anulowanie, wznowienie) | `objectType`, `objectId`, `fromStatus`, `toStatus` | EVM-038 |
+| `stage_status_changed` | przejście statusu etapu (przy `waiting` z „Czekamy na…”) | `objectType`, `objectId` (etap), `fromStatus`, `toStatus`, `waitingOn`, `waitingOnPartyId` | EVM-038 |
+| `stage_waiting_on_changed` | zmiana strony, na którą czekamy (edycja etapu w `waiting`) | `objectType`, `objectId`, `waitingOn`, `waitingOnPartyId` | EVM-038 |
+| `stage_updated` | zmiana osoby odpowiedzialnej i/lub terminu etapu | `objectType`, `objectId`, `changedFields` (`responsibleUserId`, `dueDate`) | EVM-038 |
+
+Zasady: ładunek nigdy nie zawiera powodu wstrzymania, anulowania ani blokady, nazw (strony, etapu, osoby), dat, kwot ani identyfikatora osoby odpowiedzialnej. Zmiana osoby i terminu w jednym `PATCH` to jedno zdarzenie `stage_updated` (z obiema nazwami pól), a zmiana strony w tym samym `PATCH` — osobne `stage_waiting_on_changed`. `PATCH` bez realnej zmiany wartości (i sama zmiana „od kiedy czekamy”) nie tworzy zdarzenia. Zdarzenia dziennika **nie trafiają do audytu** (osobne typy zdarzeń domenowych; dziennik zlecenia nie zastępuje audytu — „trzy dzienniki”).
 
 ### `MediaAsset`
 - **Moduł:** `media`. **Słownik:** media — zdjęcie lub film z metadanymi.

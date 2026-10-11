@@ -10,6 +10,7 @@ const ID = '0198b0a0-0000-7000-8000-000000000001';
 const OTHER = '0198b0a0-0000-7000-8000-000000000002';
 const AUTHOR = '0198b0a0-0000-7000-8000-000000000003';
 const STAGE = '0198b0a0-0000-7000-8000-000000000004';
+const PARTY = '0198b0a0-0000-7000-8000-000000000005';
 const CREATED = new Date('2026-10-11T08:00:00.000Z');
 
 const row = (overrides: Partial<EntryRow> = {}): EntryRow => ({
@@ -24,11 +25,15 @@ const row = (overrides: Partial<EntryRow> = {}): EntryRow => ({
   created_at: CREATED,
   created_by: AUTHOR,
   redacted_at: null,
+  event_code: null,
+  event_payload: null,
   ...overrides,
 });
 const batch = (overrides: Partial<RepresentationBatch> = {}): RepresentationBatch => ({
   authors: new Map([[AUTHOR, 'Anna Testowa']]),
   stageNames: new Map([[STAGE, 'Złożenie wniosku']]),
+  partyNames: new Map([[PARTY, 'Operator Testowy']]),
+  partyKinds: new Map([[PARTY, 'osd']]),
   corrections: new Map(),
   ...overrides,
 });
@@ -49,6 +54,7 @@ describe('the answer of an entry (EVM-037 AC1–AC3; SR-DATA-03, ASVS V15.3.1)',
       supersedesEntryId: null,
       supersededByEntryId: null,
       redactedAt: null,
+      event: null,
     });
   });
 
@@ -78,11 +84,81 @@ describe('the answer of an entry (EVM-037 AC1–AC3; SR-DATA-03, ASVS V15.3.1)',
   it('EVM-037 AC6 an event of the system has no author and no text; the time of the device and of a redaction are metadata', () => {
     const captured = new Date('2026-10-11T07:59:00.000Z');
     const event = toTimelineEntry(
-      row({ kind: 'event', note_category: null, body: null, origin: 'system', created_by: null, captured_at: captured }),
+      row({
+        kind: 'event',
+        note_category: null,
+        body: null,
+        origin: 'system',
+        created_by: null,
+        captured_at: captured,
+        event_code: 'work_order_created',
+        event_payload: { objectType: 'work_order', objectId: ID },
+      }),
       batch(),
     );
     expect(event).toMatchObject({ kind: 'event', body: null, author: null, origin: 'system', capturedAt: '2026-10-11T07:59:00.000Z' });
     expect(toTimelineEntry(row({ redacted_at: CREATED }), batch())).toMatchObject({ redactedAt: '2026-10-11T08:00:00.000Z' });
+  });
+
+  const stageEvent = (payload: Record<string, unknown>, code = 'stage_status_changed') =>
+    row({
+      kind: 'event',
+      note_category: null,
+      body: null,
+      origin: 'system',
+      procedure_stage_id: STAGE,
+      event_code: code,
+      event_payload: payload,
+    });
+  const waiting = {
+    objectType: 'procedure_stage',
+    objectId: STAGE,
+    fromStatus: 'in_progress',
+    toStatus: 'waiting',
+    waitingOn: 'party',
+    waitingOnPartyId: PARTY,
+  };
+
+  it('EVM-038 AC3 an event names the party waited for with the CURRENT name and kind, the author is the actor, the stage has its name', () => {
+    expect(toTimelineEntry(stageEvent(waiting), batch())).toMatchObject({
+      kind: 'event',
+      author: { id: AUTHOR, displayName: 'Anna Testowa' },
+      procedureStageName: 'Złożenie wniosku',
+      event: {
+        code: 'stage_status_changed',
+        objectType: 'procedure_stage',
+        fromStatus: 'in_progress',
+        toStatus: 'waiting',
+        waitingOn: 'party',
+        waitingOnParty: { id: PARTY, name: 'Operator Testowy', kind: 'osd' },
+        changedFields: [],
+      },
+    });
+  });
+
+  it('EVM-038 AC2 a party the caller may not see, or a deleted one, has an identifier and no name or kind', () => {
+    const hidden = batch({ partyNames: new Map(), partyKinds: new Map() });
+    expect(toTimelineEntry(stageEvent(waiting), hidden).event?.waitingOnParty).toEqual({ id: PARTY, name: null, kind: null });
+  });
+
+  it('EVM-038 AC3 an event of the customer has no party; a change of fields names the fields only', () => {
+    const customer = { ...waiting, waitingOn: 'customer', waitingOnPartyId: null };
+    expect(toTimelineEntry(stageEvent(customer), batch()).event).toMatchObject({ waitingOn: 'customer', waitingOnParty: null });
+    const fields = { objectType: 'procedure_stage', objectId: STAGE, changedFields: ['dueDate'] };
+    expect(toTimelineEntry(stageEvent(fields, 'stage_updated'), batch()).event).toMatchObject({
+      code: 'stage_updated',
+      changedFields: ['dueDate'],
+      toStatus: null,
+    });
+  });
+
+  it('EVM-038 note (a) an event of a code this version does not know, or a payload that does not fit, is shown neutrally, not as a 500', () => {
+    expect(toTimelineEntry(stageEvent({ objectType: 'work_order' }, 'media_added'), batch()).event).toMatchObject({
+      code: 'media_added',
+      objectType: 'work_order',
+      waitingOnParty: null,
+    });
+    expect(toTimelineEntry(stageEvent({ toStatus: 'flying' }), batch()).event).toMatchObject({ code: 'unknown_event', objectType: null });
   });
 
   it('EVM-037 SR-DATA-03 an author without a name is a defect of the server (500), not an entry without an author', () => {

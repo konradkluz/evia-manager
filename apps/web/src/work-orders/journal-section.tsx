@@ -1,4 +1,4 @@
-import type { ProcedureList, TimelineEntry, TimelineEntryInputKind, WorkOrderDetails } from '@evia/contracts';
+import type { ProcedureList, TimelineEntry, TimelineEntryInputKind, TimelineEventGroup, WorkOrderDetails } from '@evia/contracts';
 import { Button, Card, FilterChip, InlineAlert, Select, Timeline, TimelineDay, type SelectGroup } from '@evia/ui-web';
 import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -51,19 +51,20 @@ export function JournalSection({
   const online = useOnline();
   const nowMs = useNow(60_000);
   const [kind, setKind] = useState<KindFilter>(null);
+  const [eventGroup, setEventGroup] = useState<TimelineEventGroup | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<TimelineEntry | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [cursorReset, setCursorReset] = useState(false);
   const queryClient = useQueryClient();
-  const filters: JournalFilters = { kind, stageId };
+  const filters: JournalFilters = { kind, stageId, eventGroup };
   const journal = useJournal(order.id, filters, true);
   const groups = useMemo(() => stageGroups(procedures.data), [procedures.data]);
 
   const entries = useMemo(() => journal.data?.pages.flatMap((page) => page.items) ?? [], [journal.data]);
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
   const days = useMemo(() => groupByDay(entries), [entries]);
-  const filtered = kind !== null || stageId !== null;
+  const filtered = kind !== null || stageId !== null || eventGroup !== null;
 
   // "Pokaż starsze" keeps the place of the reader and the focus: the button stays where it is (busy while it loads). Only when
   // the last page came and the button goes, the focus moves to the first entry that was loaded, which stands right below it.
@@ -79,7 +80,7 @@ export function JournalSection({
       if (result.isError && isBadJournalCursor(result.error)) {
         // The cursor expired (30 minutes) or no longer fits: read the journal again from the first page and say so.
         setCursorReset(true);
-        void queryClient.resetQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id, kind, stageId] });
+        void queryClient.resetQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id, kind, stageId, eventGroup] });
         return;
       }
       setCursorReset(false);
@@ -90,7 +91,14 @@ export function JournalSection({
 
   const resetFilters = () => {
     setKind(null);
+    setEventGroup(null);
     setStageId(null);
+  };
+
+  // The kinds and the groups of automatic entries exclude each other (the server refuses both): one chip is chosen at a time.
+  const choose = (nextKind: KindFilter, nextGroup: TimelineEventGroup | null) => {
+    setKind(nextKind);
+    setEventGroup(nextGroup);
   };
 
   return (
@@ -111,25 +119,33 @@ export function JournalSection({
           <FilterChip
             variant="choice"
             label={t('workOrder.journal.filters.all')}
-            selected={kind === null}
+            selected={kind === null && eventGroup === null}
             onClick={() => {
-              setKind(null);
+              choose(null, null);
             }}
           />
           <FilterChip
             variant="choice"
             label={t('workOrder.journal.filters.notes')}
-            selected={kind === 'note'}
+            selected={kind === 'note' && eventGroup === null}
             onClick={() => {
-              setKind('note');
+              choose('note', null);
             }}
           />
           <FilterChip
             variant="choice"
             label={t('workOrder.journal.filters.comments')}
-            selected={kind === 'comment'}
+            selected={kind === 'comment' && eventGroup === null}
             onClick={() => {
-              setKind('comment');
+              choose('comment', null);
+            }}
+          />
+          <FilterChip
+            variant="choice"
+            label={t('workOrder.journal.filters.statusChanges')}
+            selected={eventGroup === 'status_changes'}
+            onClick={() => {
+              choose(null, 'status_changes');
             }}
           />
         </div>

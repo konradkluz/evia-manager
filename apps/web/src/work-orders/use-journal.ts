@@ -4,6 +4,7 @@ import {
   type CreateTimelineEntryRequest,
   type TimelineEntry,
   type TimelineEntryInputKind,
+  type TimelineEventGroup,
   type TimelineEntryList,
 } from '@evia/contracts';
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
@@ -20,6 +21,8 @@ export interface JournalFilters {
   readonly kind: TimelineEntryInputKind | null;
   /** `null`: every stage. */
   readonly stageId: string | null;
+  /** The group of automatic entries ("Zmiany statusów"); excludes `kind` (the server answers `400` for both). */
+  readonly eventGroup: TimelineEventGroup | null;
 }
 
 /**
@@ -35,7 +38,7 @@ export function useJournal(
 ): UseInfiniteQueryResult<InfiniteData<TimelineEntryList, string | null>> {
   const client = useApi();
   return useInfiniteQuery({
-    queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId, filters.kind, filters.stageId],
+    queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId, filters.kind, filters.stageId, filters.eventGroup],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       unwrap(
@@ -46,6 +49,7 @@ export function useJournal(
           query: {
             limit: JOURNAL_PAGE_SIZE,
             ...(filters.kind === null ? {} : { kind: filters.kind }),
+            ...(filters.eventGroup === null ? {} : { eventGroup: filters.eventGroup }),
             ...(filters.stageId === null ? {} : { procedureStageId: filters.stageId }),
             ...(pageParam === null ? {} : { cursor: pageParam }),
           },

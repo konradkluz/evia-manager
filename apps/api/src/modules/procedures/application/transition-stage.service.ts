@@ -24,7 +24,8 @@
  *   7. the party, when one is named: visible and LOCKED `FOR SHARE` through the facade of `parties` in this transaction; missing or
  *      deleted is the ONE answer `400` (`/waitingOnPartyId`, `unknown_party`), also for the Administrator;
  *   8. the update (`version + 1`; the fields of the target set, the others cleared), the event `procedure_stage.transitioned` for the
- *      audit trail (the actor and the stage — no reason, no party, no day), the idempotency record. An error anywhere rolls the whole
+ *      audit trail (the actor and the stage — no reason, no party, no day), the event `procedure_stage.status_changed` for the
+ *      journal (EVM-038: the two status codes and who is waited for), the idempotency record. An error anywhere rolls the whole
  *      command back; a repeat returns the stage as it is NOW.
  * "Cofnij" is not a path of its own: it is an ordinary move of the table with the parameters the user could give by hand.
  */
@@ -60,7 +61,7 @@ import {
   type TransitionFields,
 } from '../domain/stage-transitions.ts';
 import type { StageStatus } from '../domain/stage-rules.ts';
-import type { ProcedureStageEvent } from '../events.ts';
+import type { ProcedureStageEvent, StageStatusChangedEvent } from '../events.ts';
 import { lockStage, transitionStage } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
 import { HIDDEN_STAGE_COLUMNS, presentStage, requireVisibleParty } from './stage-answer.ts';
@@ -210,5 +211,16 @@ export class TransitionStageService {
       objectId: target.stageId,
     };
     await this.#events.publish(tx, event, request);
+    // the journal (EVM-038 AC1): the status codes and, when the stage moves into `waiting`, who is waited for — never the reason
+    const changed: StageStatusChangedEvent = {
+      ...event,
+      type: 'procedure_stage.status_changed',
+      workOrderId: target.orderId,
+      fromStatus: target.status,
+      toStatus: to,
+      waitingOn: fields.waiting?.waitingOn ?? null,
+      waitingOnPartyId: fields.waiting?.waitingOnPartyId ?? null,
+    };
+    await this.#events.publish(tx, changed, request);
   }
 }

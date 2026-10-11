@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { violations } from './axe.ts';
 import { expect, test } from './fixtures.ts';
-import { seedJournal } from './mock-journal.ts';
+import { seedEvents, seedJournal } from './mock-journal.ts';
+import { stageId } from './mock-procedures.ts';
 
 // axe-core is injected as a script, which the strict CSP rightly blocks — only this spec bypasses it.
 test.use({ bypassCSP: true, baseURL: 'http://localhost:4173', session: 'active' });
@@ -83,6 +84,26 @@ test.describe('accessibility of the journal in the browser, with colour contrast
       await page.reload();
       await page.getByRole('tab', { name: 'Dziennik' }).click();
       await expect(page.locator('li[data-entry-id]')).toHaveCount(3);
+      expect(await violations(page)).toEqual([]);
+    });
+  }
+
+  for (const width of WIDTHS) {
+    test(`EVM-038 AC3 AC4 the automatic entries and the filter "Zmiany statusów" at ${String(width)} px`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const id = await createOrder(page);
+      seedJournal(api.journal, id, 3);
+      seedEvents(api.journal, id, stageId(id, 1, 2), {
+        id: '01968f3e-0000-7000-8000-0000000c0001',
+        name: 'Stoen Operator',
+        kind: 'distribution_system_operator',
+      });
+      await page.reload();
+      await page.getByRole('tab', { name: 'Dziennik' }).click();
+      await expect(page.locator('li[data-entry-id]')).toHaveCount(8);
+      expect(await violations(page)).toEqual([]);
+      await page.getByRole('button', { name: 'Zmiany statusów' }).click();
+      await expect(page.locator('li[data-entry-id]')).toHaveCount(5);
       expect(await violations(page)).toEqual([]);
     });
   }
