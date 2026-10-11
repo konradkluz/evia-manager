@@ -2,7 +2,8 @@
  * Kysely types of the table the `timeline` module owns (EVM-037). `platform` does not know module tables: the module narrows a
  * handle with `db.$extendTables<TimelineTables>()`. The application role has SELECT, INSERT and UPDATE and NO DELETE; a trigger
  * refuses the change of every column but the soft delete and the version (append-only, D3). Times are written by the application.
- * The columns of the events of the journal (EVM-038) arrive in the type with the story that uses them.
+ * The events of the journal (EVM-038) are rows of `kind = event`: `event_code` and `event_payload` (a JSON object of codes, identifiers
+ * and names of fields — never a value of personal data) exist exactly for them.
  */
 import type { Generated, Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
@@ -21,6 +22,8 @@ export interface TimelineEntriesTable {
   procedure_stage_id: string | null;
   supersedes_entry_id: string | null;
   origin: EntryOrigin;
+  event_code: string | null;
+  event_payload: Record<string, unknown> | null;
   captured_at: Date | null;
   created_at: Date;
   created_by: string | null;

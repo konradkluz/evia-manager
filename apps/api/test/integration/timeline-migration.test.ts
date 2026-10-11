@@ -56,9 +56,13 @@ const insertEntry = async (orderId: string, spec: EntrySpec = {}): Promise<strin
   const body = spec.body === undefined ? (isEvent ? null : 'Treść syntetyczna') : spec.body;
   const author = spec.author === undefined ? (isEvent ? null : AUTHOR) : spec.author;
   await sql`insert into timeline.timeline_entries
-      (id, work_order_id, kind, note_category, body, procedure_stage_id, supersedes_entry_id, origin, created_at, created_by)
+      (id, work_order_id, kind, note_category, body, procedure_stage_id, supersedes_entry_id, origin, created_at, created_by,
+       event_code, event_payload)
     values (${id}, ${orderId}, ${kind}, ${category}, ${body}, ${spec.stageId ?? null}, ${spec.supersedes ?? null},
-      ${spec.origin ?? (isEvent ? 'system' : 'web')}, ${T}, ${author})`.execute(admin());
+      ${spec.origin ?? (isEvent ? 'system' : 'web')}, ${T}, ${author},
+      ${isEvent ? 'stage_status_changed' : null}, ${isEvent ? JSON.stringify({ objectType: 'work_order' }) : null}::jsonb)`.execute(
+    admin(),
+  );
   return id;
 };
 
@@ -77,11 +81,12 @@ describe('migration 0020 — the journal of a work order (EVM-037 AC1, AC3, AC7;
     await fails(insertEntry(orderId, { id: '00000000-0000-4000-8000-000000000001' }), '23514');
   });
 
-  it('EVM-037 AC1 an event has no text and no author and comes from the system; an entry of a person has an author and a body', async () => {
+  it('EVM-037 AC1 an event has no text and comes from the system; an entry of a person has an author and a body', async () => {
     const { orderId } = await insertOrder();
     await insertEntry(orderId, { kind: 'event' });
     await fails(insertEntry(orderId, { kind: 'event', body: 'Treść' }), '23514');
-    await fails(insertEntry(orderId, { kind: 'event', author: AUTHOR }), '23514');
+    // since 0021 an event may carry the actor who caused it (EVM-038 AC3: the author in the header)
+    await insertEntry(orderId, { kind: 'event', author: AUTHOR });
     await fails(insertEntry(orderId, { kind: 'event', origin: 'web' }), '23514');
     await fails(insertEntry(orderId, { origin: 'system' }), '23514');
     await fails(insertEntry(orderId, { author: null }), '23514');
@@ -182,5 +187,79 @@ describe('migration 0020 — the journal of a work order (EVM-037 AC1, AC3, AC7;
     expect(text).toContain('(work_order_id, created_at DESC, id DESC)');
     expect(text).toContain('(work_order_id, kind, created_at DESC, id DESC)');
     expect(text).toContain('(work_order_id, procedure_stage_id, created_at DESC, id DESC)');
+  });
+});
+
+describe('migration 0021 — the events of the journal (EVM-038 AC1, AC2, AC6; SR-LOG-03, SR-DATA-01; ASVS V16.4.2; expand only)', () => {
+  const insertEvent = (orderId: string, spec: { kind?: string; code?: string | null; payload?: unknown; author?: string | null } = {}) => {
+    const kind = spec.kind ?? 'event';
+    const origin = kind === 'event' ? 'system' : 'web';
+    const body = kind === 'event' ? null : 'Treść syntetyczna';
+    const payload = spec.payload === undefined ? { objectType: 'work_order' } : spec.payload;
+    return sql`insert into timeline.timeline_entries
+        (id, work_order_id, kind, note_category, body, origin, created_at, created_by, event_code, event_payload)
+      values (${uuidv7()}, ${orderId}, ${kind}, ${kind === 'note' ? 'meeting' : null}, ${body}, ${origin}, ${T},
+        ${spec.author === undefined ? null : spec.author}, ${spec.code === undefined ? (kind === 'event' ? 'work_order_created' : null) : spec.code},
+        ${payload === null ? null : JSON.stringify(payload)}::jsonb)`.execute(admin());
+  };
+
+  it('EVM-038 AC1 an event has a code of a fixed form and a payload that is a JSON object — and only an event has them', async () => {
+    const { orderId } = await insertOrder();
+    await insertEvent(orderId);
+    await insertEvent(orderId, { author: AUTHOR });
+    await fails(insertEvent(orderId, { code: null }), '23514');
+    await fails(insertEvent(orderId, { payload: null }), '23514');
+    await fails(insertEvent(orderId, { code: 'Work-Order' }), '23514');
+    await fails(insertEvent(orderId, { code: 'a'.repeat(65) }), '23514');
+    await fails(insertEvent(orderId, { payload: ['array'] }), '23514');
+    await fails(insertEvent(orderId, { payload: 'text' }), '23514');
+    await fails(insertEvent(orderId, { kind: 'note', code: 'work_order_created', author: AUTHOR }), '23514');
+    await fails(insertEvent(orderId, { kind: 'note', code: null, payload: { objectType: 'work_order' }, author: AUTHOR }), '23514');
+    await insertEvent(orderId, { kind: 'note', code: null, payload: null, author: AUTHOR });
+  });
+
+  it('EVM-038 AC6 the origin stays tied to the kind: a client cannot write system for a note, nor an event as a person', async () => {
+    const { orderId } = await insertOrder();
+    await fails(
+      sql`insert into timeline.timeline_entries (id, work_order_id, kind, note_category, body, origin, created_at, created_by)
+        values (${uuidv7()}, ${orderId}, 'note', 'meeting', 'Treść', 'system', ${T}, ${AUTHOR})`.execute(admin()),
+      '23514',
+    );
+    await fails(
+      sql`insert into timeline.timeline_entries (id, work_order_id, kind, origin, created_at, created_by, event_code, event_payload)
+        values (${uuidv7()}, ${orderId}, 'event', 'web', ${T}, ${AUTHOR}, 'work_order_created', '{}'::jsonb)`.execute(admin()),
+      '23514',
+    );
+    // the entry of a person still has an author
+    await fails(
+      sql`insert into timeline.timeline_entries (id, work_order_id, kind, note_category, body, origin, created_at)
+        values (${uuidv7()}, ${orderId}, 'note', 'meeting', 'Treść', 'web', ${T})`.execute(admin()),
+      '23514',
+    );
+  });
+
+  it('EVM-038 AC2 D3 the code and the payload of an event are append-only; DELETE and TRUNCATE stay refused', async () => {
+    const { orderId } = await insertOrder();
+    const id = uuidv7();
+    await sql`insert into timeline.timeline_entries (id, work_order_id, kind, origin, created_at, created_by, event_code, event_payload)
+      values (${id}, ${orderId}, 'event', 'system', ${T}, ${AUTHOR}, 'work_order_created', '{"objectType":"work_order"}'::jsonb)`.execute(
+      admin(),
+    );
+    for (const set of [sql`event_code = 'stage_updated'`, sql`event_payload = '{"objectType":"procedure_stage"}'::jsonb`]) {
+      await fails(sql`update timeline.timeline_entries set ${set} where id = ${id}`.execute(admin()), 'EV001');
+      await fails(sql`update timeline.timeline_entries set ${set} where id = ${id}`.execute(app), 'EV001');
+    }
+    await fails(sql`delete from timeline.timeline_entries where id = ${id}`.execute(app), '42501');
+    await fails(sql`truncate timeline.timeline_entries`.execute(app), '42501');
+    // the function of the trigger is still not callable by PUBLIC (`create or replace` keeps the REVOKE)
+    const { rows } = await sql<{ allowed: boolean }>`
+      select has_function_privilege('public', 'timeline.reject_entry_change()', 'execute') as allowed`.execute(admin());
+    expect(rows[0]?.allowed).toBe(false);
+    // rows of 0020 are untouched: the columns are null for them and no event was backfilled
+    const { rows: old } = await sql<{ n: string }>`
+      select count(*)::text as n from timeline.timeline_entries where kind <> 'event' and (event_code is not null or event_payload is not null)`.execute(
+      admin(),
+    );
+    expect(old[0]?.n).toBe('0');
   });
 });
