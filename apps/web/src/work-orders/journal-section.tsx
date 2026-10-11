@@ -1,6 +1,6 @@
 import type { ProcedureList, TimelineEntry, TimelineEntryInputKind, WorkOrderDetails } from '@evia/contracts';
 import { Button, Card, FilterChip, InlineAlert, Select, Timeline, TimelineDay, type SelectGroup } from '@evia/ui-web';
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../session/session.ts';
@@ -11,7 +11,8 @@ import { JournalCorrectionDialog } from './journal-correction-dialog.tsx';
 import { JournalEntry } from './journal-entry.tsx';
 import { formatEntryDate, groupByDay, relationOf } from './journal-format.ts';
 import { SectionError, SectionLoading } from './section-states.tsx';
-import { useJournal, type JournalFilters } from './use-journal.ts';
+import { WORK_ORDER_JOURNAL_KEY } from './query-keys.ts';
+import { isBadJournalCursor, useJournal, type JournalFilters } from './use-journal.ts';
 
 type KindFilter = TimelineEntryInputKind | null;
 
@@ -53,6 +54,8 @@ export function JournalSection({
   const [stageId, setStageId] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<TimelineEntry | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [cursorReset, setCursorReset] = useState(false);
+  const queryClient = useQueryClient();
   const filters: JournalFilters = { kind, stageId };
   const journal = useJournal(order.id, filters, true);
   const groups = useMemo(() => stageGroups(procedures.data), [procedures.data]);
@@ -73,6 +76,13 @@ export function JournalSection({
 
   const loadOlder = () => {
     void journal.fetchNextPage().then((result) => {
+      if (result.isError && isBadJournalCursor(result.error)) {
+        // The cursor expired (30 minutes) or no longer fits: read the journal again from the first page and say so.
+        setCursorReset(true);
+        void queryClient.resetQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id, kind, stageId] });
+        return;
+      }
+      setCursorReset(false);
       const page = result.data?.pages.at(-1);
       if (result.isSuccess && !result.hasNextPage && page !== undefined) setFocusId(page.items[0]?.id ?? null);
     });
@@ -132,6 +142,7 @@ export function JournalSection({
           }}
         />
       </div>
+      {cursorReset ? <InlineAlert tone="info">{t('workOrder.journal.cursorReset')}</InlineAlert> : null}
       {journal.isPending ? (
         <SectionLoading lines={3} />
       ) : journal.isError && entries.length === 0 ? (
@@ -188,7 +199,7 @@ export function JournalSection({
               );
             })}
           </Timeline>
-          {journal.isFetchNextPageError ? (
+          {journal.isFetchNextPageError && !cursorReset ? (
             <InlineAlert
               tone="error"
               action={

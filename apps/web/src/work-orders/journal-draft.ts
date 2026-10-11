@@ -1,6 +1,7 @@
 import type { NoteCategory } from '@evia/contracts';
 import { NOTE_CATEGORIES } from '../i18n/journal-labels.ts';
-import { discardDraft, readDraft, saveDraft } from '../session/draft-store.ts';
+import { uuidv7 } from '../customers/uuid.ts';
+import { discardAttempt, discardDraft, readAttempt, readDraft, saveAttempt, saveDraft } from '../session/draft-store.ts';
 
 /** The most the server accepts (code points, after normalization — SR-INPUT-05). */
 export const ENTRY_BODY_MAX = 10_000;
@@ -52,6 +53,29 @@ export function storeDraft(userId: string | undefined, workOrderId: string, draf
 
 export function dropDraft(workOrderId: string): void {
   discardDraft(formOf(workOrderId));
+}
+
+/** After a save: the draft goes only when it still holds what was sent (text typed meanwhile is not lost). */
+export function dropDraftIfSent(userId: string | undefined, workOrderId: string, sentBody: string): void {
+  if (userId === undefined || loadDraft(userId, workOrderId).body === sentBody) dropDraft(workOrderId);
+}
+
+/**
+ * The `id` and `Idempotency-Key` for this content of the field (AC5). The pair is kept with the draft, so leaving the tab
+ * and coming back, or a retry after a lost answer, sends the same pair; changed content is a new attempt.
+ */
+export function nextEntryAttempt(workOrderId: string, content: string): { readonly id: string; readonly key: string } {
+  const form = formOf(workOrderId);
+  const kept = readAttempt(form);
+  if (kept?.content === content) return kept;
+  const fresh = { content, id: uuidv7(), key: uuidv7() };
+  saveAttempt(form, fresh);
+  return fresh;
+}
+
+/** The attempt `id` is done (saved) or refused: the next save of the same text starts anew. */
+export function forgetEntryAttempt(workOrderId: string, id?: string): void {
+  discardAttempt(formOf(workOrderId), id);
 }
 
 /** The length of a text in code points, as the server counts it (an emoji is one character, not two). */

@@ -503,6 +503,7 @@ export const pl = {
       showAll: 'Pokaż wszystko',
       older: 'Pokaż starsze',
       olderError: 'Nie udało się wczytać starszych wpisów.',
+      cursorReset: 'Lista się zmieniła — wczytano ją od początku.',
       filters: {
         label: 'Pokaż:',
         all: 'Wszystko',

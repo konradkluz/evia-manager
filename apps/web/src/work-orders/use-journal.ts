@@ -64,11 +64,23 @@ export interface CreateEntryRequest {
   readonly key: string;
 }
 
-/** Adds an entry; on success the journal of the order is read again so the new entry stands on top. */
-export function useCreateJournalEntry(workOrderId: string) {
+/**
+ * Adds an entry; on success the journal of the order is read again so the new entry stands on top. `effects` run when the
+ * answer comes even if the field was unmounted meanwhile (callbacks of `mutate` are skipped then — AC5).
+ */
+export function useCreateJournalEntry(
+  workOrderId: string,
+  effects?: {
+    readonly onSaved?: (request: CreateEntryRequest) => void;
+    readonly onRefused?: (error: unknown, request: CreateEntryRequest) => void;
+  },
+) {
   const client = useApi();
   const queryClient = useQueryClient();
   return useMutation({
+    onError: (error: unknown, request: CreateEntryRequest) => {
+      effects?.onRefused?.(error, request);
+    },
     mutationFn: (request: CreateEntryRequest): Promise<TimelineEntry> =>
       unwrap(
         createTimelineEntry({
@@ -78,9 +90,16 @@ export function useCreateJournalEntry(workOrderId: string) {
           headers: { 'Idempotency-Key': request.key },
         }),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] }),
+    onSuccess: (_entry, request) => {
+      effects?.onSaved?.(request);
+      return queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
+    },
   });
 }
+
+/** The server did not accept the cursor (expired after 30 minutes, other filters): `400 invalid_cursor`. */
+export const isBadJournalCursor = (error: unknown): boolean =>
+  error instanceof ApiError && error.status === 400 && error.code === 'invalid_cursor';
 
 /** Why an entry was not saved, as the form tells the person (the texts are in the form). */
 export type JournalFailure =

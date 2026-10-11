@@ -472,6 +472,26 @@ describe('W-08 Dziennik: oś czasu i filtry (EVM-037 AC6)', () => {
     await userEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Spróbuj ponownie' }));
     expect(await screen.findByText('Starszy wpis')).toBeTruthy();
   });
+
+  it('EVM-037 AC6 an expired cursor (400 invalid_cursor) reads the journal again from the first page and says so, instead of repeating the same request', async () => {
+    let firstPages = 0;
+    const list: Handler = (request) => {
+      if (request.query.get('cursor') !== null) return problem(400, 'invalid_cursor');
+      firstPages += 1;
+      return firstPages === 1
+        ? json(200, { items: [entry(1)], nextCursor: 'expired' })
+        : json(200, { items: [entry(3, { body: 'Wpis po odświeżeniu' })], nextCursor: null });
+    };
+    const api = await openJournal(journalApi({ entries: [], list }));
+    await screen.findByText('Wpis numer 1');
+    await userEvent.click(screen.getByRole('button', { name: 'Pokaż starsze' }));
+    expect(await screen.findByText('Wpis po odświeżeniu')).toBeTruthy();
+    expect(screen.getByText('Lista się zmieniła — wczytano ją od początku.')).toBeTruthy();
+    expect(screen.queryByText('Nie udało się wczytać starszych wpisów.')).toBeNull();
+    expect(screen.queryByText('Wpis numer 1')).toBeNull();
+    // one request with the expired cursor, then the first page again — no loop
+    expect(api.calls(`GET ${TIMELINE}`).filter((call) => call.query.get('cursor') !== null)).toHaveLength(1);
+  });
 });
 
 describe('W-08 Dziennik: zlecenie zamknięte (EVM-037 AC7)', () => {
@@ -563,6 +583,56 @@ describe('W-08 Dziennik: uprawnienia i stany (EVM-037 AC8)', () => {
     expect(sessionStorage.length).toBe(0);
     expect(document.title).not.toContain('Niedokończona');
     expect(globalThis.location.href).not.toContain('Niedokona');
+  });
+
+  it('EVM-037 AC5 a lost answer, then leaving the tab and coming back: the retry of the same text sends the same id and key', async () => {
+    let attempts = 0;
+    const post: Handler = (request) => {
+      attempts += 1;
+      if (attempts === 1) throw new TypeError('Failed to fetch');
+      const sent = parseBody(request.body) as { id: string; body: string };
+      return json(201, entry(0, { id: sent.id, body: sent.body }));
+    };
+    const api = await openJournal(journalApi({ entries: [], post }));
+    await userEvent.type(body(), 'Odpowiedź zgubiona po drodze.');
+    await userEvent.click(screen.getByRole('button', { name: 'Dodaj wpis' }));
+    await waitFor(() => {
+      expect(api.calls(POST)).toHaveLength(1);
+    });
+    await screen.findByRole('alert');
+    await userEvent.click(screen.getByRole('tab', { name: 'Przegląd' }));
+    await userEvent.click(screen.getByRole('tab', { name: 'Dziennik' }));
+    expect((body() as HTMLTextAreaElement).value).toBe('Odpowiedź zgubiona po drodze.');
+    await userEvent.click(screen.getByRole('button', { name: 'Dodaj wpis' }));
+    expect(await screen.findByText('Dodano wpis.')).toBeTruthy();
+    const [first, second] = api.calls(POST);
+    expect(second?.headers.get('Idempotency-Key')).toBe(first?.headers.get('Idempotency-Key'));
+    expect((parseBody(second?.body ?? '{}') as { id: string }).id).toBe((parseBody(first?.body ?? '{}') as { id: string }).id);
+  });
+
+  it('EVM-037 AC5 an answer that comes after the tab was left clears the draft and says "Dodano wpis." — the entry is not added twice', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const post: Handler = async (request) => {
+      await gate;
+      const sent = parseBody(request.body) as { id: string; body: string };
+      return json(201, entry(0, { id: sent.id, body: sent.body }));
+    };
+    const api = await openJournal(journalApi({ entries: [], post }));
+    await userEvent.type(body(), 'Wysłane i porzucone.');
+    await userEvent.click(screen.getByRole('button', { name: 'Dodaj wpis' }));
+    await waitFor(() => {
+      expect(api.calls(POST)).toHaveLength(1);
+    });
+    await userEvent.click(screen.getByRole('tab', { name: 'Przegląd' }));
+    release();
+    expect(await screen.findByText('Dodano wpis.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('tab', { name: 'Dziennik' }));
+    expect((body() as HTMLTextAreaElement).value).toBe('');
+    expect(screen.queryByText(/Szkic w tej karcie/)).toBeNull();
+    expect(api.calls(POST)).toHaveLength(1);
   });
 
   it('EVM-037 AC8 the journal is not kept in the cache once the tab is left (memory of the tab only)', async () => {

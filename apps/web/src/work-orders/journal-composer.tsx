@@ -2,13 +2,21 @@ import type { CreateTimelineEntryRequest } from '@evia/contracts';
 import { Button, FilterChip, InlineAlert, RadioGroup, Select, TextArea, type SelectGroup, type SelectOption } from '@evia/ui-web';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAttempt } from '../forms/attempt.ts';
 import { refusesAttempt } from '../forms/save-failure.ts';
 import { NOTE_CATEGORIES, noteCategoryLabels } from '../i18n/journal-labels.ts';
 import { useSession } from '../session/session.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
-import { ENTRY_BODY_MAX, codePointLength, dropDraft, loadDraft, storeDraft, type JournalDraft } from './journal-draft.ts';
+import {
+  ENTRY_BODY_MAX,
+  codePointLength,
+  dropDraftIfSent,
+  forgetEntryAttempt,
+  loadDraft,
+  nextEntryAttempt,
+  storeDraft,
+  type JournalDraft,
+} from './journal-draft.ts';
 import { isBodyFailure, journalFailureText } from './journal-failure.ts';
 import { formatTimeOfDay } from './journal-format.ts';
 import { describeJournalFailure, useCreateJournalEntry, type JournalFailure } from './use-journal.ts';
@@ -30,8 +38,17 @@ export function JournalComposer({ workOrderId, stageOptions }: { readonly workOr
   const userId = useSession().data?.user.id;
   const online = useOnline();
   const showToast = useToast();
-  const attempt = useAttempt();
-  const create = useCreateJournalEntry(workOrderId);
+  // The effects of the answer live in the options of the mutation: they run also when the tab was left while it was sent.
+  const create = useCreateJournalEntry(workOrderId, {
+    onSaved: (request) => {
+      forgetEntryAttempt(workOrderId, request.body.id);
+      dropDraftIfSent(userId, workOrderId, request.body.body);
+      showToast(request.body.kind === 'note' ? t('workOrder.journal.composer.addedNote') : t('workOrder.journal.composer.addedComment'));
+    },
+    onRefused: (error, request) => {
+      if (refusesAttempt(error)) forgetEntryAttempt(workOrderId, request.body.id);
+    },
+  });
   const [draft, setDraft] = useState<JournalDraft>(() => loadDraft(userId, workOrderId));
   const [failure, setFailure] = useState<JournalFailure | null>(null);
   const [emptyTried, setEmptyTried] = useState(false);
@@ -66,19 +83,16 @@ export function JournalComposer({ workOrderId, stageOptions }: { readonly workOr
       ...(stageId === '' ? {} : { procedureStageId: stageId }),
     };
     // The same content gets the same `id` and key on every retry; changed content is a new attempt.
-    const { id, key } = attempt.next(JSON.stringify(request));
+    const sent = draft.body;
+    const { id, key } = nextEntryAttempt(workOrderId, JSON.stringify(request));
     setFailure(null);
     create.mutate(
       { body: { id, ...request }, key },
       {
         onSuccess: () => {
-          attempt.forget();
-          dropDraft(workOrderId);
-          setDraft((current) => ({ ...current, body: '', savedAt: 0 }));
-          showToast(draft.kind === 'note' ? t('workOrder.journal.composer.addedNote') : t('workOrder.journal.composer.addedComment'));
+          setDraft((current) => (current.body === sent ? { ...current, body: '', savedAt: 0 } : current));
         },
         onError: (error) => {
-          if (refusesAttempt(error)) attempt.forget();
           setFailure(describeJournalFailure(error));
         },
       },
