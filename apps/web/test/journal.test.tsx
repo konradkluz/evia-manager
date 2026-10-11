@@ -213,6 +213,29 @@ describe('W-08 Dziennik: poprawka zamiast edycji (EVM-037 AC3)', () => {
   });
 });
 
+describe('W-08 Dziennik: poprawka — walidacja i połączenie (EVM-037 AC3, AC8)', () => {
+  it('EVM-037 AC8 an empty or too long correction is not sent; offline the dialog says so and "Zapisz poprawkę" is disabled', async () => {
+    const api = await openJournal();
+    await userEvent.click(await screen.findByRole('button', { name: /^Akcje wpisu/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Popraw wpis' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Popraw wpis' });
+    const field = within(dialog).getByRole('textbox', { name: 'Treść poprawki' });
+    fireEvent.change(field, { target: { value: '   ' } });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz poprawkę' }));
+    expect(await within(dialog).findByText('Wpisz treść wpisu.')).toBeTruthy();
+    fireEvent.change(field, { target: { value: 'b'.repeat(10_001) } });
+    expect(await within(dialog).findByText(/najwyżej 10\s000 znaków/)).toBeTruthy();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz poprawkę' }));
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    act(() => {
+      globalThis.dispatchEvent(new Event('offline'));
+    });
+    expect(await within(dialog).findAllByText('Zapiszesz poprawkę po powrocie połączenia.')).not.toHaveLength(0);
+    expect(within(dialog).getByRole('button', { name: 'Zapisz poprawkę' }).getAttribute('aria-disabled')).toBe('true');
+    expect(api.calls(POST)).toHaveLength(0);
+  });
+});
+
 describe('W-08 Dziennik: treść jako tekst (EVM-037 AC4; SR-WEB-03)', () => {
   it('EVM-037 AC4 a script and a javascript: address are text, only https, tel and mailto are links, nothing runs', async () => {
     const alert = vi.spyOn(globalThis, 'alert').mockImplementation(() => undefined);
