@@ -9,9 +9,21 @@ import { PROCESSES, processCountOf, stageId, type OrderServer } from './mock-pro
  * (`409 id_conflict`). Synthetic data only; the full stack (the database, the policies, the audit, the append-only trigger) is
  * covered by the API integration tests.
  */
+/** The structured event of an automatic entry (EVM-038): what the server sends in `event`; the party carries its CURRENT name and kind. */
+export interface JournalEventRecord {
+  readonly code: string;
+  readonly objectType: 'work_order' | 'procedure_stage';
+  readonly fromStatus: string | null;
+  readonly toStatus: string | null;
+  readonly waitingOn: 'customer' | 'party' | null;
+  readonly waitingOnParty: { readonly id: string; readonly name: string | null; readonly kind: string | null } | null;
+  readonly changedFields: readonly string[];
+}
+
 export interface JournalRecord {
   readonly id: string;
-  readonly kind: 'note' | 'comment';
+  readonly kind: 'note' | 'comment' | 'event';
+  readonly event?: JournalEventRecord;
   readonly noteCategory: string | null;
   readonly body: string;
   readonly procedureStageId: string | null;
@@ -65,24 +77,27 @@ function represent(server: JournalServer, orders: OrderServer, orderId: string, 
     id: record.id,
     kind: record.kind,
     noteCategory: record.noteCategory,
-    body: record.body,
+    body: record.kind === 'event' ? null : record.body,
     procedureStageId: record.procedureStageId,
     procedureStageName: record.procedureStageId === null ? null : (stages.get(record.procedureStageId) ?? null),
     author: author === undefined ? null : { id: author.id, displayName: author.displayName },
     createdAt: record.createdAt,
-    origin: 'web',
+    origin: record.kind === 'event' ? 'system' : 'web',
     capturedAt: null,
     supersedesEntryId: record.supersedesEntryId,
     supersededByEntryId: replacement?.id ?? null,
     redactedAt: null,
-    event: null,
+    event: record.event ?? null,
   };
 }
 
 /** `GET /work-orders/{id}/timeline`: the filters in the query, the newest first, the opaque cursor (an offset here). */
 export function answerJournalList(server: JournalServer, orders: OrderServer, orderId: string, query: URLSearchParams): Answer {
   if (!exists(orders, orderId)) return problem(404, 'not_found');
-  const kind = query.get('kind');
+  const group = query.get('eventGroup');
+  if (group !== null && group !== 'status_changes') return problem(400, 'validation_failed');
+  if (group !== null && query.has('kind')) return problem(400, 'validation_failed');
+  const kind = group === null ? query.get('kind') : 'event';
   const stage = query.get('procedureStageId');
   const limit = Math.min(100, Math.max(1, Number(query.get('limit') ?? '25')));
   const cursor = query.get('cursor');
@@ -181,4 +196,38 @@ export function seedJournal(
       supersedesEntryId: null,
     })),
   );
+}
+
+/**
+ * For the specs (EVM-038): the automatic entries of an order, newest first, made by the author of the seed: the creation, a stage that
+ * waits for a party (the name and the kind of the party are current data), a stage that is done, the order put on hold, the change of
+ * the person and the date. `stage` is the id of a stage of the order.
+ */
+export function seedEvents(server: JournalServer, orderId: string, stage: string, party: { id: string; name: string; kind: string }): void {
+  const base = { noteCategory: null, body: '', authorId: '11111111-1111-4111-8111-111111111111', supersedesEntryId: null } as const;
+  const event = (index: number, minutes: number, procedureStageId: string | null, data: Partial<JournalEventRecord>): JournalRecord => ({
+    ...base,
+    id: `01968f3e-0000-7000-8000-0000000e${String(index).padStart(4, '0')}`,
+    kind: 'event',
+    procedureStageId,
+    createdAt: new Date(Date.now() - minutes * 60_000).toISOString(),
+    event: {
+      code: 'stage_status_changed',
+      objectType: procedureStageId === null ? 'work_order' : 'procedure_stage',
+      fromStatus: null,
+      toStatus: null,
+      waitingOn: null,
+      waitingOnParty: null,
+      changedFields: [],
+      ...data,
+    },
+  });
+  server.entries.set(orderId, [
+    event(1, 5, stage, { toStatus: 'waiting', fromStatus: 'in_progress', waitingOn: 'party', waitingOnParty: party }),
+    event(2, 15, stage, { code: 'stage_updated', changedFields: ['responsibleUserId', 'dueDate'] }),
+    event(3, 25, stage, { toStatus: 'in_progress', fromStatus: 'todo' }),
+    event(4, 35, null, { code: 'work_order_status_changed', fromStatus: 'new', toStatus: 'on_hold' }),
+    event(5, 45, null, { code: 'work_order_created' }),
+    ...(server.entries.get(orderId) ?? []),
+  ]);
 }

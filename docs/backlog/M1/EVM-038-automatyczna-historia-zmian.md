@@ -99,3 +99,4 @@ _—_
 - 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (wymuszona kryteriami: 7 AC, 3 recenzentów), gałąź feature/EVM-038-automatyczna-historia-zmian
 - 2026-10-11 — plan gotowy (backend-developer)
 - 2026-10-11 — backend gotowy (backend-developer): migracja 0021, zdarzenia zlecenia i etapów w transakcji zmiany, kontrakt `event` + `eventGroup`, testy AC1–AC7; panel (render zdarzeń, chip „Zmiany statusów”) — krok web-developera
+- 2026-10-11 — panel gotowy (web-developer): zdarzenia w W-08 (tekst bezosobowy, odznaka, nieznany kod neutralnie), chip „Zmiany statusów”, testy AC3/AC4/AC6/AC7 (Vitest i Playwright)

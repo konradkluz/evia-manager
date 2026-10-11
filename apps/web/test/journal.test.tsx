@@ -3,7 +3,7 @@ import { userEvent as userEventDefault } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem, type Handler } from './api-fake.ts';
-import { NOW, STAGE_ID, TIMELINE, entry, journalApi, roleSession } from './journal-api.ts';
+import { NOW, STAGE_ID, TIMELINE, entry, eventEntry, journalApi, roleSession } from './journal-api.ts';
 import { renderPanel } from './render.tsx';
 import { HEADER, ORDER_ID } from './work-order-api.ts';
 import { clearDrafts } from '../src/session/draft-store.ts';
@@ -34,7 +34,7 @@ async function openJournal(api = journalApi({ entries: [entry(1)] })) {
   return api;
 }
 
-const items = () => screen.queryAllByRole('listitem', { name: /^(Wpis|Komentarz|Poprawka wpisu|Wpis systemowy):/ });
+const items = () => screen.queryAllByRole('listitem', { name: /^(Wpis|Komentarz|Poprawka wpisu|Wpis systemowy|Zmiana w zleceniu):/ });
 const body = () => screen.getByRole('textbox', { name: 'Treść' });
 const fill = (value: string) => {
   fireEvent.change(body(), { target: { value } });
@@ -655,5 +655,154 @@ describe('W-08 Dziennik: uprawnienia i stany (EVM-037 AC8)', () => {
     const container = screen.getByRole('main');
     expect(await axeViolations(container)).toEqual([]);
     expect(within(container).getByRole('region', { name: 'Dziś' })).toBeTruthy();
+  });
+});
+
+const STOEN = { id: '01968f3e-0000-7000-8000-0000000c0001', name: 'Stoen Operator', kind: 'distribution_system_operator' };
+const waitingEvent = (n: number) =>
+  eventEntry(
+    n,
+    { code: 'stage_status_changed', toStatus: 'waiting', fromStatus: 'in_progress', waitingOn: 'party', waitingOnParty: STOEN },
+    { procedureStageId: STAGE_ID, procedureStageName: 'Warunki przyłączenia i projekt umowy' },
+  );
+
+describe('W-08 Dziennik: automatyczna historia zmian (EVM-038 AC3, AC4, AC6, AC7)', () => {
+  it('EVM-038 AC3 a stage that waits for a party shows the author, an impersonal text and a compact badge', async () => {
+    await openJournal(journalApi({ entries: [waitingEvent(1)] }));
+    const item = await screen.findByRole('listitem', { name: /^Zmiana w zleceniu: Anna Testowa,/ });
+    expect(within(item).getByText('Anna Testowa')).toBeTruthy();
+    expect(item.textContent).toContain(
+      'Zmiana statusu etapu „Warunki przyłączenia i projekt umowy”: «Czekamy na…» · Czekamy na: Stoen Operator (OSD)',
+    );
+    // the compact badge of the status carries the full label too
+    expect(item.querySelector('svg.lucide-hourglass')).not.toBeNull();
+    expect(within(item).queryByRole('button')).toBeNull();
+  });
+
+  it('EVM-038 AC3 the order and the other codes get impersonal texts; a stage with no name and a party we cannot see are told neutrally', async () => {
+    await openJournal(
+      journalApi({
+        entries: [
+          eventEntry(1, { code: 'work_order_created', objectType: 'work_order' }),
+          eventEntry(2, { code: 'work_order_status_changed', objectType: 'work_order', fromStatus: 'new', toStatus: 'on_hold' }),
+          eventEntry(3, { code: 'stage_status_changed', toStatus: 'done' }, { procedureStageName: 'Odbiór' }),
+          eventEntry(
+            4,
+            { code: 'stage_waiting_on_changed', waitingOn: 'party', waitingOnParty: { id: STOEN.id, name: null, kind: null } },
+            { procedureStageName: 'Odbiór' },
+          ),
+          eventEntry(5, { code: 'stage_status_changed', toStatus: 'waiting', waitingOn: 'customer' }),
+          eventEntry(6, { code: 'stage_updated', changedFields: ['responsibleUserId', 'dueDate'] }, { procedureStageName: 'Odbiór' }),
+          eventEntry(7, { code: 'stage_updated', changedFields: ['dueDate'] }, { procedureStageName: 'Odbiór' }),
+          eventEntry(8, { code: 'work_order_status_changed', objectType: 'work_order', toStatus: 'from_the_future' }),
+        ],
+      }),
+    );
+    await waitFor(() => {
+      expect(items()).toHaveLength(8);
+    });
+    const text = items().map((item) => item.textContent);
+    expect(text[0]).toContain('Utworzono zlecenie');
+    expect(text[1]).toContain('Zmiana statusu zlecenia: «Wstrzymane»');
+    expect(text[2]).toContain('Zmiana statusu etapu „Odbiór”: «Zakończony»');
+    expect(text[3]).toContain('Zmiana strony, na którą czekamy, w etapie „Odbiór” · Czekamy na: strona niedostępna');
+    expect(text[4]).toContain('Zmiana statusu etapu: «Czekamy na…» · Czekamy na: Klient');
+    expect(text[5]).toContain('Zmiana osoby odpowiedzialnej i terminu etapu „Odbiór”');
+    expect(text[6]).toContain('Zmiana terminu etapu „Odbiór”');
+    // a status this panel does not know is the neutral badge, never the raw code
+    expect(text[7]).toContain('Zmiana statusu zlecenia: «Nieznany status»');
+    expect(text.join(' ')).not.toContain('from_the_future');
+  });
+
+  it('EVM-038 AC3 an unknown code is a neutral text; the name of a party is text, not markup', async () => {
+    await openJournal(
+      journalApi({
+        entries: [
+          eventEntry(1, { code: 'media_added' }),
+          eventEntry(
+            2,
+            {
+              code: 'stage_waiting_on_changed',
+              waitingOn: 'party',
+              waitingOnParty: { id: STOEN.id, name: '<img src=x onerror=alert(1)>', kind: 'other' },
+            },
+            { procedureStageName: 'Odbiór' },
+          ),
+        ],
+      }),
+    );
+    await waitFor(() => {
+      expect(items()).toHaveLength(2);
+    });
+    expect(items()[0]?.textContent).toContain('Zdarzenie w zleceniu.');
+    expect(screen.queryByText('media_added')).toBeNull();
+    expect(items()[1]?.textContent).toContain('<img src=x onerror=alert(1)> (Inny)');
+    expect(items()[1]?.querySelector('img')).toBeNull();
+  });
+
+  it('EVM-038 AC4 "Zmiany statusów" asks for the event group only and narrows the list; "Wszystko" brings the rest back', async () => {
+    const api = await openJournal(journalApi({ entries: [entry(1), waitingEvent(2), entry(3, { kind: 'comment', noteCategory: null })] }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(3);
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Zmiany statusów' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(1);
+    });
+    const last = api.calls(`GET ${TIMELINE}`).at(-1);
+    expect(last?.query.get('eventGroup')).toBe('status_changes');
+    expect(last?.query.get('kind')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Zmiany statusów' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Wszystko' }).getAttribute('aria-pressed')).toBe('false');
+
+    // the groups and the kinds exclude each other
+    await userEvent.click(screen.getByRole('button', { name: 'Komentarze' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(1);
+    });
+    const comments = api.calls(`GET ${TIMELINE}`).at(-1);
+    expect(comments?.query.get('kind')).toBe('comment');
+    expect(comments?.query.get('eventGroup')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Zmiany statusów' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Wszystko' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(3);
+    });
+    expect(api.calls(`GET ${TIMELINE}`).at(-1)?.query.get('eventGroup')).toBeNull();
+  });
+
+  it('EVM-038 AC4 a filter with no events says so and "Pokaż wszystko" returns to the whole journal', async () => {
+    await openJournal(journalApi({ entries: [entry(1)] }));
+    await userEvent.click(screen.getByRole('button', { name: 'Zmiany statusów' }));
+    expect(await screen.findByText('Brak wpisów tego typu.')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Pokaż wszystko' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(1);
+    });
+  });
+
+  it('EVM-038 AC6 an event cannot be corrected: no "Popraw wpis" for Administrator, while the note next to it has it', async () => {
+    await openJournal(journalApi({ entries: [waitingEvent(1), entry(2)] }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(2);
+    });
+    expect(screen.getAllByRole('button', { name: /^Akcje wpisu/ })).toHaveLength(1);
+    const event = items()[0] as HTMLElement;
+    expect(within(event).queryByRole('button')).toBeNull();
+  });
+
+  it('EVM-038 AC7 Tylko odczyt sees the events and the filter', async () => {
+    await openJournal(journalApi({ entries: [waitingEvent(1)], session: roleSession('read_only') }));
+    expect(await screen.findByText(/Zmiana statusu etapu „Warunki przyłączenia i projekt umowy”/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Zmiany statusów' })).toBeTruthy();
+  });
+
+  it('EVM-038 AC3 the screen with events has no accessibility violations', async () => {
+    await openJournal(journalApi({ entries: [waitingEvent(1), eventEntry(2, { code: 'work_order_created', objectType: 'work_order' })] }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(2);
+    });
+    expect(await axeViolations(screen.getByRole('main'))).toEqual([]);
   });
 });

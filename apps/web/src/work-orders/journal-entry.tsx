@@ -1,9 +1,21 @@
 import type { TimelineEntry as Entry } from '@evia/contracts';
-import { ActionMenu, Button, EllipsisVertical, EyeOff, IconButton, Info, MessageSquareText, Pencil, TimelineEntry } from '@evia/ui-web';
+import {
+  ActionMenu,
+  Button,
+  ClipboardList,
+  EllipsisVertical,
+  EyeOff,
+  IconButton,
+  Info,
+  MessageSquareText,
+  Pencil,
+  TimelineEntry,
+} from '@evia/ui-web';
 import type { TFunction } from 'i18next';
 import { useState, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { noteCategoryLabel } from '../i18n/journal-labels.ts';
+import { JournalEventContent } from './journal-event.tsx';
 import { formatEntryDate, formatFullDateTime, formatTimeOfDay, relationOf, dayKeyOf } from './journal-format.ts';
 import { LinkedText } from './linked-text.tsx';
 
@@ -38,6 +50,8 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }:
   const { t } = useTranslation();
   const [shown, setShown] = useState(false);
   const known = entry.kind === 'note' || entry.kind === 'comment';
+  // An automatic entry (EVM-038): the server sent the structured event; an `event` without it stays a neutral system entry (P-12).
+  const event = entry.kind === 'event' ? entry.event : null;
   const correction = entry.supersedesEntryId === null ? undefined : byId.get(entry.supersedesEntryId);
   const replacement = entry.supersededByEntryId === null ? undefined : byId.get(entry.supersededByEntryId);
   const author = entry.author?.displayName ?? t('workOrder.journal.entry.authorSystem');
@@ -46,19 +60,25 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }:
   const redactedAt = entry.redactedAt;
   const redacted = redactedAt !== null;
 
-  const kindLabel = !known
-    ? t('workOrder.journal.entry.kindSystem')
-    : entry.supersedesEntryId !== null
-      ? t('workOrder.journal.entry.kindCorrection')
-      : entry.kind === 'comment'
-        ? t('workOrder.journal.entry.kindComment')
-        : t('workOrder.journal.entry.kindNote');
-  const icon = redacted ? EyeOff : !known ? Info : entry.kind === 'comment' ? MessageSquareText : Pencil;
+  const kindLabel =
+    event !== null
+      ? t('workOrder.journal.entry.kindEvent')
+      : !known
+        ? t('workOrder.journal.entry.kindSystem')
+        : entry.supersedesEntryId !== null
+          ? t('workOrder.journal.entry.kindCorrection')
+          : entry.kind === 'comment'
+            ? t('workOrder.journal.entry.kindComment')
+            : t('workOrder.journal.entry.kindNote');
+  const icon = redacted ? EyeOff : event !== null ? ClipboardList : !known ? Info : entry.kind === 'comment' ? MessageSquareText : Pencil;
 
   const category = entry.noteCategory === null ? undefined : noteCategoryLabel(entry.noteCategory);
   const meta = [
     category,
-    entry.procedureStageName === null ? undefined : t('workOrder.journal.entry.stage', { name: entry.procedureStageName }),
+    // the sentence of an event names its stage already
+    entry.procedureStageName === null || event !== null
+      ? undefined
+      : t('workOrder.journal.entry.stage', { name: entry.procedureStageName }),
     entry.origin === 'mobile' && entry.capturedAt !== null
       ? t('workOrder.journal.entry.fromPhone', { time: formatTimeOfDay(entry.capturedAt) })
       : undefined,
@@ -86,7 +106,9 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }:
     );
 
   let content;
-  if (redacted) {
+  if (event !== null && !redacted) {
+    content = <JournalEventContent entry={{ ...entry, event }} />;
+  } else if (redacted) {
     content = <p className="text-text-secondary">{t('workOrder.journal.entry.redacted', { date: formatEntryDate(redactedAt) })}</p>;
   } else if (entry.body === null) {
     content = known ? <p className="text-text-secondary">{t('workOrder.journal.entry.unavailable')}</p> : null;

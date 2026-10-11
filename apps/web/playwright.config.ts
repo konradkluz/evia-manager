@@ -26,6 +26,7 @@ const uxReviewDirSites = fileURLToPath(new URL('../../docs/ux/reviews/EVM-036/',
 const uxReviewDirProcedures = fileURLToPath(new URL('../../docs/ux/reviews/EVM-031/', import.meta.url));
 const uxReviewDirStages = fileURLToPath(new URL('../../docs/ux/reviews/EVM-032/', import.meta.url));
 const uxReviewDirJournal = fileURLToPath(new URL('../../docs/ux/reviews/EVM-037/', import.meta.url));
+const uxReviewDirHistory = fileURLToPath(new URL('../../docs/ux/reviews/EVM-038/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -60,6 +61,7 @@ export default defineConfig({
         uxReviewDirProcedures,
         uxReviewDirStages,
         uxReviewDirJournal,
+        uxReviewDirHistory,
       },
     },
   ],
