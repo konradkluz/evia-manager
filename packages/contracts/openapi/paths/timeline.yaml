@@ -91,8 +91,9 @@ workOrderTimeline:
       token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`timeline_entry.created` — aktor, identyfikator wpisu,
       wynik i `traceId`; bez treści, kategorii i nazwy etapu). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7; brak — `400
       validation_failed`, `/headers/Idempotency-Key`). Zlecenie Rozliczone albo Anulowane PRZYJMUJE wpis („nic nie ginie”, PO-8).
-      Kolejność: guard (rola, CSRF, kanał), ścieżka i nagłówek (`400`), zlecenie przez politykę odczytu w zapytaniu (`404` — to
-      samo dla nieistniejącego i usuniętego), treść schematem i regułami (`400`: kody i wskaźniki, nigdy wartość), powtórka
+      Kolejność: guard (rola, CSRF, kanał), ścieżka (`400`), zlecenie przez politykę odczytu w zapytaniu (`404` — to samo dla
+      nieistniejącego i usuniętego, przed nagłówkiem i treścią), nagłówek i treść schematem i regułami (`400`: kody i
+      wskaźniki, nigdy wartość), powtórka
       idempotentna, etap tego zlecenia (`400`, `/procedureStageId`, `unknown_stage` — etap innego, nieistniejący i usunięty to ta
       sama odpowiedź), poprawiany wpis (`400`, `/supersedesEntryId`, `unknown_entry` — wpis innego zlecenia, nieistniejący,
       usunięty i zdarzenie to ta sama odpowiedź; już poprawiony — `409 entry_superseded`), zapis `INSERT`, audyt i rekord

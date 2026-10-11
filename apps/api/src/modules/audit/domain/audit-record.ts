@@ -9,6 +9,7 @@ import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../id
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../../parties/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../procedures/index.ts';
 import { SITE_EVENT_TYPES, type SiteEvent } from '../../sites/index.ts';
+import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../timeline/index.ts';
 import { WORK_ORDER_EVENT_TYPES, type WorkOrderEvent } from '../../work-orders/index.ts';
 import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../../platform/bulk-read/bulk-read-event.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
@@ -32,6 +33,7 @@ export const AUDIT_ACTIONS = [
   ...PARTY_EVENT_TYPES,
   ...WORK_ORDER_EVENT_TYPES,
   ...PROCEDURE_EVENT_TYPES,
+  ...TIMELINE_EVENT_TYPES,
 ] as const;
 export const AUDIT_OBJECT_TYPES = [
   'user',
@@ -43,6 +45,7 @@ export const AUDIT_OBJECT_TYPES = [
   'site',
   'party',
   'procedure_stage',
+  'timeline_entry',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
@@ -65,7 +68,16 @@ export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
 /** Maps an identity event and its request context to the record; throws when something is outside the closed lists. */
 export function toAuditRecord(
-  event: IdentityEvent | AuditReadEvent | BulkReadEvent | CustomerEvent | SiteEvent | PartyEvent | WorkOrderEvent | ProcedureStageEvent,
+  event:
+    | IdentityEvent
+    | AuditReadEvent
+    | BulkReadEvent
+    | CustomerEvent
+    | SiteEvent
+    | PartyEvent
+    | WorkOrderEvent
+    | ProcedureStageEvent
+    | TimelineEntryEvent,
   context: EventContext,
   occurredAt: Date,
 ): AuditRecord {

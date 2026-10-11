@@ -3,8 +3,10 @@ import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
+import { createUser } from './identity-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
+import { insertEntries } from './timeline-fixtures.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 const WORK_ORDERS = '/api/v1/work-orders';
@@ -118,6 +120,40 @@ export async function procedureObjects(app: IdentityApp): Promise<Record<string,
   };
 }
 
+/**
+ * The IDOR fixture of the journal (EVM-037 AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): the list and the creation — "own" is a
+ * live order, "foreign" an EXISTING order that is soft deleted (its entries exist, only the read policy of the order keeps them
+ * from the caller); the entry — "own" is an entry of the live order in ITS path, "foreign" the entry of ANOTHER live order named in
+ * the path of the first (the one an attacker tries: /work-orders/{A}/timeline/{entry of B}).
+ */
+export async function timelineObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const author = await createUser(db, app.clock, { role: 'editor' });
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const [ownEntry] = await insertEntries(db, own, author.id, [{}]);
+  const [otherEntry] = await insertEntries(db, other, author.id, [{}]);
+  await insertEntries(db, deleted, author.id, [{}]);
+  if (ownEntry === undefined || otherEntry === undefined) throw new Error('the fixture entries were not inserted');
+  const journal: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}/timeline`, foreign: () => `${WORK_ORDERS}/${deleted}/timeline` };
+  return {
+    listTimelineEntries: journal,
+    createTimelineEntry: journal,
+    getTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${ownEntry}`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${otherEntry}`,
+    },
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -126,5 +162,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await customerObjects(app)),
     ...(await siteAndPartyObjects(app)),
     ...(await procedureObjects(app)),
+    ...(await timelineObjects(app)),
   };
 }

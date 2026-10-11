@@ -34,6 +34,7 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'work_order.restored': 'Przywrócenie zlecenia',
   'procedure_stage.updated': 'Zmiana etapu procesu (osoba odpowiedzialna, termin, na kogo czekamy)',
   'procedure_stage.transitioned': 'Zmiana statusu etapu procesu',
+  'timeline_entry.created': 'Dodanie wpisu w dzienniku zlecenia',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -57,6 +58,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
   { label: 'Zlecenia', actions: ['work_order.created', 'work_order.cancelled', 'work_order.restored'] },
   { label: 'Procesy i etapy', actions: ['procedure_stage.updated', 'procedure_stage.transitioned'] },
+  { label: 'Dziennik zlecenia', actions: ['timeline_entry.created'] },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {
@@ -75,6 +77,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   site: 'Lokalizacja',
   party: 'Strona',
   procedure_stage: 'Etap procesu',
+  timeline_entry: 'Wpis dziennika',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
