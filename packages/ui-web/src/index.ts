@@ -18,6 +18,7 @@ export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.ts
 export { Dialog, type DialogProps } from './dialog.tsx';
 export { ProcedureProgress, type ProcedureProgressProps } from './procedure-progress.tsx';
 export { Disclosure, type DisclosureProps } from './disclosure.tsx';
+export { Checkbox, type CheckboxProps } from './checkbox.tsx';
 export { RadioGroup, type RadioGroupProps, type RadioOption } from './radio-group.tsx';
 export { TextArea, type TextAreaProps } from './text-area.tsx';
 export { Banner, type BannerProps } from './banner.tsx';
