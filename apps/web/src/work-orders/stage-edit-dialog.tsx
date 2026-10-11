@@ -11,7 +11,7 @@ import { describeFailure, refusesAttempt, type SaveFailure } from '../forms/save
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { DUE_DATE_MAX, DUE_DATE_MIN, buildStagePatch, stageEditOf, type StageEdit } from './procedure-format.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
 import { useAssignableUsers } from './use-order-lookups.ts';
 
 type Failure = SaveFailure | { readonly kind: 'conflict' | 'closed' | 'gone' };
@@ -104,6 +104,8 @@ export function StageEditDialog({
                   })),
                 },
           );
+          // EVM-038: the edit wrote a journal event.
+          void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
           showToast(t('workOrder.stageEdit.saved'));
           onClose();
         },

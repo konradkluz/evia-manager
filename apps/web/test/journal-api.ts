@@ -100,12 +100,15 @@ export function journalApi({
   post,
   list,
   header,
+  routes = {},
 }: {
   readonly entries: readonly TimelineEntry[];
   readonly session?: CurrentSession;
   readonly post?: Handler;
   readonly list?: Handler;
   readonly header?: Handler;
+  /** More routes of the fake (e.g. a transition of the order made from the header). */
+  readonly routes?: Record<string, Handler>;
 }) {
   const store = [...entries];
   const defaultList: Handler = (request) => {
@@ -145,5 +148,6 @@ export function journalApi({
     }),
     [`GET ${TIMELINE}`]: list ?? defaultList,
     [`POST ${TIMELINE}`]: post ?? defaultPost,
+    ...routes,
   });
 }

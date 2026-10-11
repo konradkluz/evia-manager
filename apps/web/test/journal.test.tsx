@@ -1,9 +1,10 @@
+import type { TimelineEntry } from '@evia/contracts';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { userEvent as userEventDefault } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem, type Handler } from './api-fake.ts';
-import { NOW, STAGE_ID, TIMELINE, entry, eventEntry, journalApi, roleSession } from './journal-api.ts';
+import { BASE, NOW, STAGE_ID, TIMELINE, entry, eventEntry, journalApi, roleSession } from './journal-api.ts';
 import { renderPanel } from './render.tsx';
 import { HEADER, ORDER_ID } from './work-order-api.ts';
 import { clearDrafts } from '../src/session/draft-store.ts';
@@ -804,5 +805,34 @@ describe('W-08 Dziennik: automatyczna historia zmian (EVM-038 AC3, AC4, AC6, AC7
       expect(items()).toHaveLength(2);
     });
     expect(await axeViolations(screen.getByRole('main'))).toEqual([]);
+  });
+  it('EVM-038 AC3 a transition of the order made from the header on the open journal brings its event without a reload', async () => {
+    const store: TimelineEntry[] = [entry(2)];
+    const api = journalApi({
+      entries: [],
+      list: () => json(200, { items: store, nextCursor: null }),
+      routes: {
+        [`POST ${BASE}/transitions`]: () => {
+          store.unshift(eventEntry(0, { code: 'work_order_status_changed', objectType: 'work_order', toStatus: 'on_hold' }));
+          return json(200, { ...HEADER, status: 'on_hold', version: 4, allowedTransitions: ['in_progress', 'cancelled'] }, { ETag: '"4"' });
+        },
+      },
+    });
+    await openJournal(api);
+    await waitFor(() => {
+      expect(items()).toHaveLength(1);
+    });
+    const reads = () => api.calls(`GET ${TIMELINE}`).length;
+    const before = reads();
+    await userEvent.click(await screen.findByRole('button', { name: /^Status zlecenia: .*Zmień status$/ }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Wstrzymaj…' }));
+    const dialog = await screen.findByRole('dialog', { name: /^Wstrzymaj zlecenie/ });
+    await userEvent.type(within(dialog).getByRole('textbox'), 'Czekamy na decyzję klienta');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Wstrzymaj zlecenie' }));
+    await waitFor(() => {
+      expect(items()).toHaveLength(2);
+    });
+    expect(items()[0]?.textContent).toContain('Zmiana statusu zlecenia');
+    expect(reads()).toBeGreaterThan(before);
   });
 });
