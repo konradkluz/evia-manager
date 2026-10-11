@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { JournalSection } from '../work-orders/journal-section.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
@@ -25,6 +26,7 @@ import {
 import { WorkOrderHeader } from '../work-orders/work-order-header.tsx';
 
 const OVERVIEW_TAB = 'overview';
+const JOURNAL_TAB = 'journal';
 
 /**
  * W-06 "Szczegóły zlecenia", the tab "Przegląd" (EVM-018 AC1–AC7): the header, the scope and the side cards "Klient" and
@@ -44,6 +46,7 @@ export function WorkOrderPage() {
   const queryClient = useQueryClient();
   const online = useOnline();
   const [gone, setGone] = useState(false);
+  const [tab, setTab] = useState(OVERVIEW_TAB);
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
   const scope = useWorkOrderScope(id, active);
@@ -107,14 +110,21 @@ export function WorkOrderPage() {
         <div className="expanded:col-span-2">
           <Tabs
             label={t('workOrder.tabs.label')}
-            tabs={[{ id: OVERVIEW_TAB, label: t('workOrder.tabs.overview') }]}
-            selectedId={OVERVIEW_TAB}
-            onSelect={noop}
+            tabs={[
+              { id: OVERVIEW_TAB, label: t('workOrder.tabs.overview') },
+              { id: JOURNAL_TAB, label: t('workOrder.tabs.journal') },
+            ]}
+            selectedId={tab}
+            onSelect={setTab}
           >
-            <div className="flex flex-col gap-stack-lg">
-              <ProceduresSection order={order} query={procedures} />
-              <ScopeSection query={scope} />
-            </div>
+            {tab === JOURNAL_TAB ? (
+              <JournalSection order={order} procedures={procedures} />
+            ) : (
+              <div className="flex flex-col gap-stack-lg">
+                <ProceduresSection order={order} query={procedures} />
+                <ScopeSection query={scope} />
+              </div>
+            )}
           </Tabs>
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>
@@ -125,8 +135,6 @@ export function WorkOrderPage() {
     </div>
   );
 }
-
-const noop = () => undefined;
 
 /** The header is being read (styleguide § 4.12): a skeleton of the heading and of the card, with a status for assistive technology. */
 function LoadingHeader() {
