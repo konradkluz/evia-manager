@@ -208,7 +208,10 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await expect(page.getByRole('button', { name: /^Status zlecenia: .*Zmień status$/ })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
+    // the second tab "Dziennik" (EVM-037) is the next stop of the arrows, and they come back
     await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Dziennik' })).toBeFocused();
+    await page.keyboard.press('ArrowLeft');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tabpanel', { name: 'Przegląd' })).toBeFocused();
