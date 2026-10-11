@@ -17,6 +17,11 @@ const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 export interface BodyPolicy {
   /** Anonymous requests to a public operation with a body: exact method and path of the contract. */
   isPublicBodyOperation(method: string, path: string): boolean;
+  /**
+   * A route whose body is bounded tighter than {@link SESSION_BODY_LIMIT} (a `bytes` value of `express.json`, e.g. `64kb`): a
+   * field of known length needs no megabyte (EVM-037 SR-API-02). `undefined` for every other route.
+   */
+  sessionBodyLimit?(method: string, path: string): string | undefined;
 }
 
 const hasBody = (request: Request): boolean => {
@@ -29,9 +34,14 @@ export const isJsonContentType = (contentType: string | undefined): boolean =>
   contentType !== undefined && /^application\/json\s*(;|$)/i.test(contentType);
 
 export function jsonBody(policy: BodyPolicy): RequestHandler {
-  const parsers = {
-    [ANONYMOUS_BODY_LIMIT]: express.json({ limit: ANONYMOUS_BODY_LIMIT }),
-    [SESSION_BODY_LIMIT]: express.json({ limit: SESSION_BODY_LIMIT }),
+  const parsers = new Map<string, RequestHandler>();
+  const parserOf = (limit: string): RequestHandler => {
+    let parser = parsers.get(limit);
+    if (parser === undefined) {
+      parser = express.json({ limit });
+      parsers.set(limit, parser);
+    }
+    return parser;
   };
   return (request: Request, response: Response, next: NextFunction): void => {
     if (!BODY_METHODS.has(request.method) || !hasBody(request)) {
@@ -40,7 +50,7 @@ export function jsonBody(policy: BodyPolicy): RequestHandler {
     }
     const limit =
       principalOf(request) !== null
-        ? SESSION_BODY_LIMIT
+        ? (policy.sessionBodyLimit?.(request.method, request.path) ?? SESSION_BODY_LIMIT)
         : policy.isPublicBodyOperation(request.method, request.path)
           ? ANONYMOUS_BODY_LIMIT
           : undefined;
@@ -52,7 +62,7 @@ export function jsonBody(policy: BodyPolicy): RequestHandler {
       next(new ProblemException('unsupported_media_type'));
       return;
     }
-    parsers[limit](request, response, next);
+    parserOf(limit)(request, response, next);
   };
 }
 

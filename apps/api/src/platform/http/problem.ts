@@ -29,6 +29,7 @@ export const PROBLEMS = Object.freeze({
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
+  entry_superseded: { status: 409, title: 'The entry already has a correction' },
   version_conflict: { status: 412, title: 'The resource was changed by someone else' },
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },

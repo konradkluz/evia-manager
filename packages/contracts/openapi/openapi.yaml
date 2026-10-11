@@ -34,6 +34,8 @@ tags:
     description: Strony (OSD, zarządcy, eksperci) — wyszukiwanie, dodanie w formularzu nowego zlecenia, szczegóły i edycja (moduł parties).
   - name: procedures
     description: Procesy i etapy zlecenia — odczyt, osoba odpowiedzialna i termin etapu (moduł procedures).
+  - name: timeline
+    description: Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -93,6 +95,10 @@ paths:
     $ref: paths/procedures.yaml#/procedureStage
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
     $ref: paths/procedures.yaml#/procedureStageTransitions
+  /api/v1/work-orders/{workOrderId}/timeline:
+    $ref: paths/timeline.yaml#/workOrderTimeline
+  /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
+    $ref: paths/timeline.yaml#/timelineEntry
   /api/v1/users/assignable:
     $ref: paths/identity.yaml#/assignableUsers
   /api/v1/customers:
@@ -249,6 +255,22 @@ components:
       $ref: components/procedures.yaml#/TransitionProcedureStageRequest
     ProcedureStagePatch:
       $ref: components/procedures.yaml#/ProcedureStagePatch
+    TimelineEntryKind:
+      $ref: components/timeline.yaml#/TimelineEntryKind
+    TimelineEntryInputKind:
+      $ref: components/timeline.yaml#/TimelineEntryInputKind
+    NoteCategory:
+      $ref: components/timeline.yaml#/NoteCategory
+    TimelineEntryOrigin:
+      $ref: components/timeline.yaml#/TimelineEntryOrigin
+    TimelineEntryAuthor:
+      $ref: components/timeline.yaml#/TimelineEntryAuthor
+    TimelineEntry:
+      $ref: components/timeline.yaml#/TimelineEntry
+    TimelineEntryList:
+      $ref: components/timeline.yaml#/TimelineEntryList
+    CreateTimelineEntryRequest:
+      $ref: components/timeline.yaml#/CreateTimelineEntryRequest
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:
