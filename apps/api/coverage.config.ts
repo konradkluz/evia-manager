@@ -34,6 +34,7 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/procedures/application/transition-stage.service.ts',
   'src/modules/procedures/application/stage-answer.ts',
   'src/modules/procedures/application/procedures-contributor.ts',
+  'src/modules/procedures/application/stage-directory.service.ts',
   'src/modules/procedures/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',
   'src/modules/audit/http/audit.controller.ts',
