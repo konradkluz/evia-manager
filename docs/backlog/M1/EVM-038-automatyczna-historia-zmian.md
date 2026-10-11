@@ -4,7 +4,7 @@ title: Automatyczna historia zmian w dzienniku
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -94,7 +94,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja (lista kodów zdarzeń) i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -108,3 +108,4 @@ _—_
 - 2026-10-11 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 97,4% / gałęzie 94,9%; pełne e2e Chromium + Firefox: 529 passed, 14 skipped, 1 pad (flake, nie odtworzony); powtórka Firefox 258 passed, 0 failed
 - 2026-10-11 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,02 mln tokenów subagentów, 359 wywołań narzędzi, ok. 95 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (mniej tokenów niż EVM-037: 1,02 vs 1,55 mln)
 - 2026-10-11 — in-progress → in-review: czeka na demo i akceptację Konrada
+- 2026-10-11 — in-review → done: akceptacja Konrada, PR #53 scalony do main (0a024b6)
