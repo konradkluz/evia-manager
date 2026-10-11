@@ -191,8 +191,11 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       // the controls that change something are the badge of the status (EVM-030), from EVM-036 "Edytuj lokalizację" with the two menus of the
       // parties and from EVM-031 the menu of every visible stage: Tylko odczyt has none. The nine headers of the processes and "Rozwiń wszystkie"
       // only open and close sections; the first process is open, so three stages show their menus and, from EVM-032, their status badges.
+      // From EVM-035 the Editor also has the menu "Akcje zlecenia" and "Edytuj zakres"; Tylko odczyt has neither.
       const reading = 10;
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 : reading);
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 : reading);
+      await expect(page.getByRole('button', { name: /^Akcje zlecenia/ })).toHaveCount(role === 'editor' ? 1 : 0);
+      await expect(page.getByRole('button', { name: 'Edytuj zakres' })).toHaveCount(role === 'editor' ? 1 : 0);
       await expect(page.getByRole('button', { name: /^Akcje etapu/ })).toHaveCount(role === 'editor' ? 3 : 0);
       await expect(page.getByRole('button', { name: /^Status etapu .*Zmień status$/ })).toHaveCount(role === 'editor' ? 3 : 0);
     });
@@ -203,7 +206,9 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
     await page.getByRole('heading', { level: 1 }).focus();
-    // the badge of the status is a button now (EVM-030) and comes first
+    // the menu of the order (EVM-035) comes first, then the badge of the status (EVM-030)
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: 'Akcje zlecenia: ZL-2026-0042' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: /^Status zlecenia: .*Zmień status$/ })).toBeFocused();
     await page.keyboard.press('Tab');

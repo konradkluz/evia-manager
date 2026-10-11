@@ -107,3 +107,4 @@ _—_
 - 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (wymuszona kryteriami: 8 AC, 3 recenzentów), gałąź feature/EVM-035-edycja-danych-i-zakresu
 - 2026-10-11 — plan gotowy (backend-developer)
 - 2026-10-11 — backend gotowy (backend-developer): kontrakt, migracja 0022, API i testy AC1–AC8 (macierz ról, IDOR, limity, wyścigi), dokumentacja; panel — web-developer
+- 2026-10-11 — panel gotowy (web-developer): dialog danych, tryb edycji zakresu, dziennik, testy komponentów i E2E (Chromium, Firefox), zrzuty w docs/ux/reviews/EVM-035

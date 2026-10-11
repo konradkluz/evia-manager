@@ -11,6 +11,7 @@ import {
 } from './mock-work-orders.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
+import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
   answerList,
@@ -280,6 +281,8 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       states: new Map(),
       stages: new Map(),
       transitionKeys: new Map(),
+      edits: new Map(),
+      editKeys: new Map(),
       notes: 'Wjazd od ul. Fikcyjnej, klucz u administratora.',
       siteEdits: new Map(),
       partyEdits: new Map(),
@@ -425,6 +428,31 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           raw: request.postData() ?? '{}',
         }),
       );
+    }
+    // EVM-035: the edit of the data of one order and of its scope (W-06 (a), (c)).
+    const orderPatch = request.method() === 'PATCH' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})$/.exec(url.pathname) : null;
+    const scopeCreate = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/scope-items$/.exec(url.pathname) : null;
+    const scopeChange =
+      request.method() === 'PATCH' || request.method() === 'DELETE'
+        ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/scope-items\/([0-9a-f-]{36})$/.exec(url.pathname)
+        : null;
+    if (orderPatch !== null || scopeCreate !== null || scopeChange !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const input = {
+        role: api.role,
+        ifMatch: headers['if-match'],
+        key: headers['idempotency-key'],
+        raw: request.postData() ?? '{}',
+        path: url.pathname,
+      };
+      if (orderPatch !== null) {
+        const id = orderPatch[1] ?? '';
+        return route.fulfill(answerOrderPatch(api.orders, id, input, () => answerOrderRead(api.orders, id, '', api.role)));
+      }
+      if (scopeCreate !== null) return route.fulfill(answerScopeCreate(api.orders, scopeCreate[1] ?? '', input));
+      const method = request.method() === 'DELETE' ? 'DELETE' : 'PATCH';
+      return route.fulfill(answerScopeChange(api.orders, scopeChange?.[1] ?? '', scopeChange?.[2] ?? '', method, input));
     }
     // EVM-030: the transition of one order (the status menu of W-06).
     const transition = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname) : null;
@@ -817,6 +845,11 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         if (idempotencyKey !== undefined) partyKeys.set(idempotencyKey, hash);
         if (api.dropResponseNext.delete(key)) return route.abort('connectionreset');
         return route.fulfill(ok(201, { ...input, version: 1 }, { ETag: '"1"' }));
+      }
+      case 'GET /api/v1/catalog/service-items':
+      case 'GET /api/v1/catalog/procedure-templates': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        return route.fulfill(key.endsWith('service-items') ? answerCatalogItems() : answerCatalogProcedures());
       }
       case 'GET /api/v1/catalog/work-order-templates':
       case 'GET /api/v1/users/assignable': {
