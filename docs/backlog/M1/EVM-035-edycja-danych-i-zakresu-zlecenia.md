@@ -4,11 +4,12 @@ title: Edycja danych i zakresu zlecenia
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-038, EVM-071]
 ---
 
@@ -103,3 +104,6 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC1 — komunikat `412` wg makiety W-06 (a) „Edytuj dane zlecenia” (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
+- 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (wymuszona kryteriami: 8 AC, 3 recenzentów), gałąź feature/EVM-035-edycja-danych-i-zakresu
+- 2026-10-11 — plan gotowy (backend-developer)
+- 2026-10-11 — backend gotowy (backend-developer): kontrakt, migracja 0022, API i testy AC1–AC8 (macierz ról, IDOR, limity, wyścigi), dokumentacja; panel — web-developer

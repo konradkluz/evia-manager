@@ -72,6 +72,7 @@ export function scopeItem(position: number, overrides: Record<string, unknown> =
     name: NAMES[position - 1] ?? `Pozycja ${String(position)}`,
     ...parameters,
     quantity: 1,
+    version: 1,
     ...overrides,
   };
 }
