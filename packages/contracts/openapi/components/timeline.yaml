@@ -1,0 +1,190 @@
+# Module `timeline` — the journal of a work order: notes and comments (EVM-037; W-08 "Dziennik"). One table, append-only (D3): the
+# text of an entry is never changed — a correction is a NEW entry that points at the old one (`supersedesEntryId`). The automatic
+# events of the journal (`kind = event`: the changes of a status) are written by the server in EVM-038 and are never accepted as
+# input. The text of an entry is free text that may name a customer, a party or an employee (SR-DATA-02): the panel renders it as
+# text and nothing else (SR-WEB-03). The author is `{id, displayName}` and nothing else (SR-DATA-03).
+TimelineEntryKind:
+  type: string
+  description: >-
+    Rodzaj wpisu (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12): `note` — wpis (rozmowa,
+    ustalenie), `comment` — komentarz, `event` — automatyczna zmiana zapisana przez serwer (EVM-038; nigdy z wejścia).
+  enum: [note, comment, event]
+TimelineEntryInputKind:
+  type: string
+  description: Rodzaj wpisu przyjmowany na wejściu — `event` zapisuje wyłącznie serwer.
+  enum: [note, comment]
+NoteCategory:
+  type: string
+  description: >-
+    Kategoria wpisu `note` (rozmowa telefoniczna, spotkanie, ustalenie, wizyta na miejscu, inne). Komentarz kategorii nie ma.
+  enum: [phone_call, meeting, arrangement, site_visit, other]
+TimelineEntryOrigin:
+  type: string
+  description: Skąd pochodzi wpis — `web` (panel), `mobile` (telefon, M2) albo `system` (zdarzenie zapisane przez serwer).
+  enum: [web, mobile, system]
+TimelineEntryAuthor:
+  type: object
+  description: Autor wpisu — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
+  required: [id, displayName]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+TimelineEntry:
+  type: object
+  description: >-
+    Wpis dziennika zlecenia. `createdAt` nadaje serwer i według niego (nie według UUIDv7 od klienta) wpisy są uporządkowane.
+    `body` jest `null` dla zdarzeń (`event`). Wpis poprawiony zostaje w dzienniku: `supersededByEntryId` wskazuje poprawkę
+    (panel zwija taki wpis i pokazuje „Pokaż treść”), a poprawka wskazuje poprzednika w `supersedesEntryId`. `redactedAt` jest
+    ustawione, gdy treść zastąpiono znacznikiem (EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.
+  required:
+    - id
+    - kind
+    - noteCategory
+    - body
+    - procedureStageId
+    - procedureStageName
+    - author
+    - createdAt
+    - origin
+    - capturedAt
+    - supersedesEntryId
+    - supersededByEntryId
+    - redactedAt
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    kind:
+      $ref: '#/TimelineEntryKind'
+    noteCategory:
+      description: Kategoria wpisu `note`; `null` dla komentarza i zdarzenia.
+      oneOf:
+        - $ref: '#/NoteCategory'
+        - type: 'null'
+    body:
+      description: >-
+        Treść wpisu (tekst, do 10 000 znaków — punktów kodowych; granica 20 000 to jednostki UTF-16 generowanego schematu) albo
+        `null` (zdarzenie).
+      oneOf:
+        - type: string
+          maxLength: 20000
+        - type: 'null'
+    procedureStageId:
+      description: Etap tego zlecenia, którego wpis dotyczy, albo `null`.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    procedureStageName:
+      description: Nazwa etapu (kopia z szablonu) albo `null`, gdy wpis nie dotyczy etapu.
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
+    author:
+      description: Autor wpisu albo `null` (zdarzenie zapisane przez serwer).
+      oneOf:
+        - $ref: '#/TimelineEntryAuthor'
+        - type: 'null'
+    createdAt:
+      type: string
+      format: date-time
+      description: Czas serwera (UTC).
+      maxLength: 40
+    origin:
+      $ref: '#/TimelineEntryOrigin'
+    capturedAt:
+      description: Czas urządzenia, na którym wpis powstał (metadana, M2) albo `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    supersedesEntryId:
+      description: Wpis, który ta pozycja poprawia, albo `null`.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    supersededByEntryId:
+      description: Poprawka tego wpisu albo `null` (wpis nie został poprawiony).
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    redactedAt:
+      description: Chwila redakcji treści (EVM-040) albo `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+TimelineEntryList:
+  type: object
+  description: >-
+    Strona dziennika od najnowszych wpisów (`createdAt` malejąco, potem `id`). `nextCursor` jest `null` na ostatniej stronie.
+  required: [items, nextCursor]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/TimelineEntry'
+    nextCursor:
+      description: Kursor następnej strony (wartość nieprzezroczysta) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+        - type: 'null'
+CreateTimelineEntryRequest:
+  type: object
+  description: >-
+    Nowy wpis albo komentarz; `id` (UUIDv7) nadaje klient. Wpis `note` wymaga `noteCategory`, komentarz go nie przyjmuje.
+    `supersedesEntryId` czyni z wpisu poprawkę wskazanego wpisu tego samego zlecenia (ten sam `kind`; etap, gdy nie podano
+    `procedureStageId`, jest dziedziczony — `null` go czyści). Pola serwera (`author`, `createdAt`, `origin`, `capturedAt`,
+    `supersededByEntryId`, `redactedAt`, `version`, `workOrderId`) są odrzucane — `400 read_only_field`.
+  required: [id, kind, body]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Identyfikator UUIDv7 nadany przez klienta; istniejący — `409 id_conflict`.
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    kind:
+      $ref: '#/TimelineEntryInputKind'
+    noteCategory:
+      $ref: '#/NoteCategory'
+    body:
+      type: string
+      maxLength: 10000
+      description: >-
+        Treść (tekst): po normalizacji NFC, zamianie CRLF na LF, usunięciu znaków sterujących (poza nową linią) i przycięciu
+        ma 1–10 000 znaków (punktów kodowych) — inaczej `400` (`required` / `too_long`, bez wartości). Serwer liczy znaki po
+        normalizacji; samotny surogat UTF-16 — `400` (`invalid_characters`).
+    procedureStageId:
+      description: Etap tego zlecenia, którego wpis dotyczy; etap innego, nieistniejącego albo usuniętego zlecenia — `400`.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    supersedesEntryId:
+      type: string
+      format: uuid
+      description: Poprawiany wpis tego zlecenia (note albo comment, który nie ma jeszcze poprawki).
+      maxLength: 36

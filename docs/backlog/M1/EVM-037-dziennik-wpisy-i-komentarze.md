@@ -4,11 +4,12 @@ title: Dziennik zlecenia — wpisy i komentarze
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-031]
 ---
 
@@ -93,15 +94,27 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- (minor) `journal-section.tsx`: komunikat „Lista się zmieniła…” (`cursorReset`) zostaje po zmianie filtra — zerować przy zmianie filtrów.
+- (minor) `journal-composer.tsx`: wąski wyścig przy powrocie na zakładkę w trakcie żądania — kolejny zapis może dać duplikat; zablokować przycisk albo subskrybować draft-store.
+- (minor) `draft-store.ts`: brak testów jednostkowych funkcji prób (`discardAttempt` bez `id`, czyszczenie w `clearDrafts`).
+- (nit) log `@evia/web:test:coverage`: sporadyczny komunikat „coverage reports directory is already in use” (równoległy vitest w turbo).
+- (nit) K10: audyt `timeline_entry.created` nie niesie `workOrderId`/`kind` (stały zestaw kolumn audytu) — pytanie do architekta.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-037 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-037 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (decyzja Konrada), gałąź feature/EVM-037-dziennik-wpisy-komentarze
+- 2026-10-11 — plan gotowy (backend-developer)
+- 2026-10-11 — backend gotowy (backend-developer): moduł `timeline` (kontrakt, migracja `0020`, fasada `ProcedureStageDirectory`, testy `EVM-037 AC1–AC8`); panel (W-08) — część web-developera
+- 2026-10-11 — panel gotowy (web-developer): zakładka „Dziennik” W-08, komponenty `Timeline` w ui-web, testy komponentów, Playwright (Chromium, Firefox, Edge), axe z kontrastem, zrzuty w `docs/ux/reviews/EVM-037/`
+- 2026-10-11 — przegląd (runda 1): code-reviewer changes_required (2 major: AC5 ponowienie po zmianie zakładki, AC6 wygasły kursor), security-engineer i ux-designer approve; runda 2: poprawki web-developera, code-reviewer approve; blocker/major otwarte: 0
+- 2026-10-11 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 98,8% / gałęzie 92,9%; uwagi minor/nit w „Uwagi do rozważenia”
+- 2026-10-11 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,55 mln tokenów subagentów, 519 wywołań narzędzi, ok. 105 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; plik historyjki 5 KB; vs baseline — nie do porównania w $
+- 2026-10-11 — in-progress → in-review: czeka na demo i akceptację Konrada

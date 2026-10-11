@@ -9,6 +9,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -83,6 +84,8 @@ export interface MockApi {
   parties: MockParty[];
   /** EVM-022: the catalogue of templates, the users who can be a coordinator and the orders created so far (W-05, W-10). */
   orders: OrderServer;
+  /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
+  journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
   dropResponseNext: Set<string>;
 }
@@ -285,6 +288,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       goneSites: new Set(),
       goneParties: new Set(),
     },
+    journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
   // The server of orders reads the same customers and sites that the searches use.
@@ -367,6 +371,23 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           raw: request.postData() ?? '{}',
         }),
       );
+    }
+    // EVM-037: the journal of one order (the tab "Dziennik" of W-06) — the order is anchored in the path.
+    const journal = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
+    if (journal !== null && (request.method() === 'GET' || request.method() === 'POST')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const id = journal[1] ?? '';
+      if (request.method() === 'GET') return route.fulfill(answerJournalList(api.journal, api.orders, id, url.searchParams));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const created = answerJournalCreate(api.journal, api.orders, id, {
+        role: api.role,
+        userId: '11111111-1111-4111-8111-111111111111',
+        key: headers['idempotency-key'],
+        raw: request.postData() ?? '{}',
+      });
+      if (created.status === 201 && api.dropResponseNext.delete('POST /api/v1/work-orders/:id/timeline'))
+        return route.abort('connectionreset');
+      return route.fulfill(created);
     }
     // EVM-031: the processes of one order and the change of a stage (the section "Procesy i etapy" of W-06).
     const processes = request.method() === 'GET' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/procedures$/.exec(url.pathname) : null;

@@ -56,6 +56,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'bg-bg-selected',
       'rounded-pill',
       'h-control-height-web-sm',
+      'size-timeline-marker',
+      'border-s-timeline',
+      'text-caption',
       'border-t-default',
       'border-b-default',
       'border-b-indicator',
@@ -131,6 +134,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('background-color: var(--evm-color-bg-selected)');
     expect(css).toContain('border-radius: var(--evm-radius-pill)');
     expect(css).toContain('height: var(--evm-size-control-height-web-sm)');
+    expect(css).toContain('width: var(--evm-size-timeline-marker)');
+    expect(css).toContain('border-inline-start: var(--evm-border-width-strong) solid var(--evm-color-border-default)');
+    expect(css).toContain('font-size: var(--evm-text-caption-font-size)');
     expect(css).toContain('border-top: var(--evm-border-width-default) solid var(--evm-color-border-subtle)');
     expect(css).toContain('font-family: var(--evm-text-mono-font-family)');
     expect(css).toContain('background-color: var(--evm-color-status-order-settled-bg)');

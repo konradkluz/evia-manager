@@ -8,6 +8,7 @@ import { IdentityModule } from './modules/identity/index.ts';
 import { PartiesModule } from './modules/parties/index.ts';
 import { ProceduresModule } from './modules/procedures/index.ts';
 import { SitesModule } from './modules/sites/index.ts';
+import { TimelineModule } from './modules/timeline/index.ts';
 import { WorkOrdersModule } from './modules/work-orders/index.ts';
 import { PlatformModule, type PlatformDependencies } from './platform/platform.module.ts';
 
@@ -25,6 +26,7 @@ export class AppModule {
         SitesModule,
         WorkOrdersModule,
         ProceduresModule,
+        TimelineModule,
         AuditModule,
         AuthorizationModule,
       ],

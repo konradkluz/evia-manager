@@ -38,12 +38,21 @@ export function createHttpAdapter(trustedProxies: readonly string[] = []): Expre
   return new ExpressAdapter(server);
 }
 
+/** Routes whose body is bounded tighter than the 1 MB of a session (EVM-037: a journal entry is at most 10 000 characters of 4 bytes). */
+const ROUTE_BODY_LIMITS: ReadonlyArray<{ readonly method: string; readonly path: RegExp; readonly limit: string }> = [
+  { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/timeline$/, limit: '64kb' },
+];
+
 /** Anonymous requests with a body are parsed only for public operations that take one (exact method and path). */
 function bodyPolicy({ manifest, publicOperations }: PolicySource) {
   const targets = new Set(
     publicOperations.flatMap((id) => (Object.hasOwn(manifest, id) ? [`${manifest[id]?.method.toUpperCase()} ${manifest[id]?.path}`] : [])),
   );
-  return { isPublicBodyOperation: (method: string, path: string): boolean => targets.has(`${method} ${path}`) };
+  return {
+    isPublicBodyOperation: (method: string, path: string): boolean => targets.has(`${method} ${path}`),
+    sessionBodyLimit: (method: string, path: string): string | undefined =>
+      ROUTE_BODY_LIMITS.find((route) => route.method === method && route.path.test(path))?.limit,
+  };
 }
 
 export function configureApp(app: NestExpressApplication, logger: Logger): void {

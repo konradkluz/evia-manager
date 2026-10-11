@@ -48,7 +48,8 @@ describe('W-06 "Przegląd" (EVM-018 AC1)', () => {
     expect(page.getByText('01.09.2026')).toBeTruthy();
     const tab = page.getByRole('tab', { name: 'Przegląd' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
-    expect(page.getAllByRole('tab')).toHaveLength(1);
+    // EVM-037 adds the tab "Dziennik" next to it.
+    expect(page.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Przegląd', 'Dziennik']);
   });
 
   it('EVM-018 AC1 the card "Klient" has the name, the telephone and the e-mail as links; the card "Lokalizacja" has the type, the address, the spot, the OSD, the manager, the power, the PPE and the notes', async () => {

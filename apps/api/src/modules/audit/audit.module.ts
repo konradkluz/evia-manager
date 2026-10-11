@@ -1,6 +1,6 @@
 /**
  * Module `audit` (ADR-0001; EVM-016 AC7): owner of the `audit` schema. It subscribes to the events of the modules (identity, customers, sites, parties,
- * work orders, procedures) and writes each one with the transaction of the change — a failing audit write rolls the change back. It also
+ * work orders, procedures, timeline) and writes each one with the transaction of the change — a failing audit write rolls the change back. It also
  * serves the read-only view of the trail for the Administrator (names of people through the `identity` facade).
  * The audited modules never import this module (rule `no-module-imports-audit` of the module boundaries check).
  */
@@ -14,6 +14,7 @@ import { IDENTITY_EVENT_TYPES, IdentityModule, type IdentityEvent } from '../ide
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../parties/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../procedures/index.ts';
 import { SITE_EVENT_TYPES, type SiteEvent } from '../sites/index.ts';
+import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../timeline/index.ts';
 import { WORK_ORDER_EVENT_TYPES, type WorkOrderEvent } from '../work-orders/index.ts';
 import { AuditReadService } from './application/audit-read.service.ts';
 import { toAuditRecord } from './domain/audit-record.ts';
@@ -58,6 +59,11 @@ export class AuditSubscriber implements OnModuleInit {
     }
     for (const type of PROCEDURE_EVENT_TYPES) {
       this.#events.subscribe<ProcedureStageEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of TIMELINE_EVENT_TYPES) {
+      this.#events.subscribe<TimelineEntryEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

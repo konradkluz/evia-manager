@@ -7,11 +7,37 @@
 let owner: string | null = null;
 const drafts = new Map<string, string>();
 
+/**
+ * The pair `id` + `Idempotency-Key` of a save that was sent for a form, with the content it was sent for. It lives with the
+ * draft (same lifetime, same owner): a retry of the same content after the form was left and reopened sends the same pair,
+ * so a lost answer never makes a second object (EVM-037 AC5). Neither `id` nor key is personal data.
+ */
+export interface SavedAttempt {
+  readonly content: string;
+  readonly id: string;
+  readonly key: string;
+}
+const attempts = new Map<string, SavedAttempt>();
+
 /** Keeps a draft of a form of `userId`; a draft of another owner is dropped first (a tab holds one person's drafts). */
 export function saveDraft(userId: string, form: string, value: string): void {
-  if (owner !== userId) drafts.clear();
+  if (owner !== userId) clearDrafts();
   owner = userId;
   drafts.set(form, value);
+}
+
+/** The attempt kept for a form (`undefined`: none yet). */
+export function readAttempt(form: string): SavedAttempt | undefined {
+  return attempts.get(form);
+}
+
+export function saveAttempt(form: string, attempt: SavedAttempt): void {
+  attempts.set(form, attempt);
+}
+
+/** Forgets the attempt of a form; with `id` only that very attempt (a newer one stays). */
+export function discardAttempt(form: string, id?: string): void {
+  if (id === undefined || attempts.get(form)?.id === id) attempts.delete(form);
 }
 
 /** The draft of a form — only for the person who typed it. */
@@ -27,6 +53,7 @@ export function discardDraft(form: string): void {
 export function clearDrafts(): void {
   owner = null;
   drafts.clear();
+  attempts.clear();
 }
 
 /** After a login: drafts stay only when the same person logged in again; any other person gets none. */

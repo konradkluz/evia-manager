@@ -169,6 +169,32 @@ export function findStage(db: ProceduresDb, workOrderId: string, stageId: string
     .executeTakeFirstOrThrow();
 }
 
+/**
+ * The identifier of an ACTIVE stage of THIS order, or `undefined` (`id` AND `work_order_id` in one condition: a stage of another
+ * order is as missing as one that does not exist; a deleted stage and a stage of a deleted process are missing too). With `lock` the
+ * row is read `FOR SHARE` — the facade of `procedures` for the journal (EVM-037) holds it until the transaction of the entry ends.
+ */
+export function findActiveStageId(db: ProceduresDb, workOrderId: string, stageId: string, lock: boolean) {
+  const query = db
+    .selectFrom('procedures.procedure_stages')
+    .select('id')
+    .where('id', '=', stageId)
+    .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
+    .where(inActiveProcess);
+  return (lock ? query.forShare() : query).executeTakeFirst();
+}
+
+/** The names of the stages of THIS order among `ids` — a stage deleted later is still named (the journal keeps what an entry was about). */
+export function findStageNames(db: ProceduresDb, workOrderId: string, ids: readonly string[]) {
+  return db
+    .selectFrom('procedures.procedure_stages')
+    .select(['id', 'name'])
+    .where('work_order_id', '=', workOrderId)
+    .where('id', 'in', ids)
+    .execute();
+}
+
 export interface StageChange {
   readonly responsibleUserId?: string | null;
   readonly dueDate?: string | null;

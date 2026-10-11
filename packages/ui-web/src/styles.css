@@ -157,6 +157,7 @@
   --spacing-dialog-width-sm: var(--evm-size-dialog-width-sm);
   --spacing-dialog-width-md: var(--evm-size-dialog-width-md);
   --spacing-control-height-web-sm: var(--evm-size-control-height-web-sm);
+  --spacing-timeline-marker: var(--evm-size-timeline-marker);
 
   --radius-control: var(--evm-radius-control);
   --radius-card: var(--evm-radius-card);
@@ -200,6 +201,9 @@
   --text-body: var(--evm-text-body-font-size);
   --text-body--line-height: var(--evm-text-body-line-height);
   --text-body--font-weight: var(--evm-text-body-font-weight);
+  --text-caption: var(--evm-text-caption-font-size);
+  --text-caption--line-height: var(--evm-text-caption-line-height);
+  --text-caption--font-weight: var(--evm-text-caption-font-weight);
   --text-label-lg: var(--evm-text-label-lg-font-size);
   --text-label-lg--line-height: var(--evm-text-label-lg-line-height);
   --text-label-lg--font-weight: var(--evm-text-label-lg-font-weight);
@@ -279,6 +283,11 @@
 
 @utility border-s-indicator-info {
   border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-info-border);
+}
+
+/* The line of the timeline (§ 3.10: color.border.default, border-width.strong) that joins the markers of the entries. */
+@utility border-s-timeline {
+  border-inline-start: var(--evm-border-width-strong) solid var(--evm-color-border-default);
 }
 
 /* Skeleton (§ 3.16): the highlight sweeps by changing colour, one cycle = motion.duration.skeleton, linear. */
