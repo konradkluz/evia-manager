@@ -50,6 +50,7 @@ export {
   CirclePlay,
   ClipboardList,
   EllipsisVertical,
+  EyeOff,
   Hourglass,
   Inbox,
   Info,
@@ -58,7 +59,9 @@ export {
   LoaderCircle,
   Lock,
   Menu,
+  MessageSquareText,
   OctagonAlert,
+  Pencil,
   Search,
   SearchX,
   Shield,
@@ -80,5 +83,6 @@ export { Skeleton } from './skeleton.tsx';
 export { Tabs, type TabItem, type TabsProps } from './tabs.tsx';
 export { TextLink } from './text-link.tsx';
 export { TextField, type TextFieldProps } from './text-field.tsx';
+export { Timeline, TimelineDay, TimelineEntry, type TimelineDayProps, type TimelineEntryProps, type TimelineProps } from './timeline.tsx';
 export { Toast, type ToastProps } from './toast.tsx';
 export { PlainLink, type LinkComponent, type LinkProps, type NavigationItem } from './navigation.tsx';
