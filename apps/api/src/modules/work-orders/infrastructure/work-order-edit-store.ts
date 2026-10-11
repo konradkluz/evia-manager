@@ -37,8 +37,8 @@ export interface DataColumns {
 
 /**
  * Writes the named columns and raises the version by one — only for the version the command decided on (the lock already guarantees
- * it; the condition is the second line of defence). `undefined` — nothing was updated. The status is not among the columns: it can be
- * changed only by the transition (`updateWorkOrderStatus`).
+ * it; the condition is the second line of defence: a row that is not updated is an error, not a silent no-op). The status is not
+ * among the columns: it can be changed only by the transition (`updateWorkOrderStatus`).
  */
 export async function updateWorkOrderData(
   db: WorkOrdersDb,
@@ -47,8 +47,8 @@ export async function updateWorkOrderData(
   columns: DataColumns,
   actorUserId: string,
   now: Date,
-): Promise<number | undefined> {
-  const row = await db
+): Promise<void> {
+  await db
     .updateTable('work_orders.work_orders')
     .set({
       ...(columns.title === undefined ? {} : { title: columns.title }),
@@ -62,8 +62,7 @@ export async function updateWorkOrderData(
     .where('version', '=', expectedVersion)
     .where('deleted_at', 'is', null)
     .returning('version')
-    .executeTakeFirst();
-  return row?.version;
+    .executeTakeFirstOrThrow();
 }
 
 /**
@@ -160,6 +159,17 @@ export function findScopeItem(
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null);
   return (options.lock ? query.forUpdate() : query).executeTakeFirst();
+}
+
+/** The item of THIS order as it is NOW (the answer of a change): the caller holds its lock, so it exists — a missing row is an error (500). */
+export function readScopeItem(db: WorkOrdersDb, workOrderId: string, itemId: string) {
+  return db
+    .selectFrom('work_orders.scope_items')
+    .select(scopeItemColumns)
+    .where('id', '=', itemId)
+    .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
+    .executeTakeFirstOrThrow();
 }
 
 export interface ScopeItemChange {

@@ -188,10 +188,11 @@ export class UpdateWorkOrderService {
       coordinatorUserId,
     });
     if (changed.length === 0) return;
-    if (changed.includes('coordinator')) await this.#requireActiveUser(tx, patch.assigneeUserId);
+    const newCoordinator = changed.includes('coordinator') ? patch.assigneeUserId : undefined;
+    if (newCoordinator !== undefined) await this.#requireActiveUser(tx, newCoordinator);
 
     const now = this.#clock.now();
-    const version = await updateWorkOrderData(
+    await updateWorkOrderData(
       tables,
       locked.id,
       expectedVersion,
@@ -203,10 +204,7 @@ export class UpdateWorkOrderService {
       principal.userId,
       now,
     );
-    if (version === undefined) throw new ProblemException('internal_error');
-    if (changed.includes('coordinator') && patch.assigneeUserId !== undefined) {
-      await replaceCoordinator(tables, locked.id, patch.assigneeUserId, principal.userId, now);
-    }
+    if (newCoordinator !== undefined) await replaceCoordinator(tables, locked.id, newCoordinator, principal.userId, now);
     await this.#publish(tx, principal, locked.id, changed, request);
   }
 
@@ -239,8 +237,7 @@ export class UpdateWorkOrderService {
   }
 
   /** A named user must be ACTIVE — the one answer for every other state of an account. */
-  async #requireActiveUser(tx: Kysely<Database>, userId: string | undefined): Promise<void> {
-    if (userId === undefined) return;
+  async #requireActiveUser(tx: Kysely<Database>, userId: string): Promise<void> {
     if ((await this.#users.findActive(userId, tx)) === undefined) {
       throw new ProblemException('validation_failed', { errors: [{ pointer: '/assigneeUserId', code: 'assignee_unavailable' }] });
     }

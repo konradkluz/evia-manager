@@ -170,7 +170,17 @@ describe('scope (EVM-018 AC2)', () => {
     const items = (response.body as { items: Array<{ position: number; parameters: unknown; parameterSetCode: string | null }> }).items;
     expect(items.map((item) => item.position)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(items[0]).toMatchObject({ parameterSetCode: 'charger_spec', parameters: { currentType: 'ac', powerKw: 11, phases: 3 } });
-    expect(Object.keys(items[0] ?? {}).sort()).toEqual(['code', 'id', 'name', 'parameterSetCode', 'parameters', 'position', 'quantity']);
+    // EVM-035: the item carries its version (the tag of the change); `notes` only when the item has some
+    expect(Object.keys(items[0] ?? {}).sort()).toEqual([
+      'code',
+      'id',
+      'name',
+      'parameterSetCode',
+      'parameters',
+      'position',
+      'quantity',
+      'version',
+    ]);
   });
 
   it('EVM-018 AC2 an order without items answers an empty list', async () => {

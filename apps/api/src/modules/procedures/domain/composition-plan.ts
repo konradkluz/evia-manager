@@ -140,12 +140,15 @@ export function planAddedProcedures(input: AddedProceduresInput): PlannedProcedu
   if (fresh.some((procedure) => procedure.stages.length > MAX_STAGES_PER_PROCEDURE)) throw new CompositionLimitError('too_many_stages');
 
   const positions = freePositions(input.takenPositions, fresh.length);
+  // the active positions are unique within 1…30, so there are as many free ones as processes — unless the positions the caller
+  // read do not agree with its codes; then nothing is planned (a number that is not free would fail the unique index)
+  if (positions.length < fresh.length) throw new CompositionLimitError('too_many_procedures');
   return fresh.map((procedure, index): PlannedProcedure => ({
     sourceProcedureTemplateId: procedure.sourceProcedureTemplateId,
     sourceScopeItemId: input.scopeItemId,
     code: procedure.code,
     name: procedure.name,
-    position: positions[index] ?? index + 1,
+    position: positions[index] as number,
     stages: [...procedure.stages]
       .sort((a, b) => a.position - b.position)
       .map((stage, stageIndex) => ({

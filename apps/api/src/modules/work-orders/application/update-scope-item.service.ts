@@ -52,7 +52,7 @@ import {
 import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-list-query.ts';
 import type { ScopeItemUpdatedEvent, WorkOrderEvent } from '../events.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { findScopeItem, updateScopeItem } from '../infrastructure/work-order-edit-store.ts';
+import { findScopeItem, readScopeItem, updateScopeItem } from '../infrastructure/work-order-edit-store.ts';
 import { findVisibleWorkOrderRef, type ScopeItemRow } from '../infrastructure/work-order-store.ts';
 import { toScopeItem } from './scope-item-representation.ts';
 
@@ -168,9 +168,7 @@ export class UpdateScopeItemService {
                 perform,
               )
             ).replayed;
-      const row = await findScopeItem(tables, order.id, scopeItemId);
-      if (row === undefined) throw new ProblemException('not_found');
-      return { item: toScopeItem(row), replayed };
+      return { item: toScopeItem(await readScopeItem(tables, order.id, scopeItemId)), replayed };
     });
   }
 

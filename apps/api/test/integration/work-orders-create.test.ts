@@ -126,7 +126,11 @@ describe('creating a work order from a template (EVM-022 AC1; SR-AUTHZ-04, SR-DA
       from catalog.work_order_template_items item
       join catalog.service_catalog_items service on service.id = item.catalog_item_id
       where item.work_order_template_id = ${s.fullId} order by item.position`.execute(admin());
-    expect(created.scopeItems.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== 'id')))).toEqual(template);
+    // the identifier and the version (EVM-035: 1, the item was just copied) are the server's; everything else is the template's
+    expect(created.scopeItems.every((item) => item['version'] === 1)).toBe(true);
+    expect(
+      created.scopeItems.map((item) => Object.fromEntries(Object.entries(item).filter(([key]) => key !== 'id' && key !== 'version'))),
+    ).toEqual(template);
     expect(created.scopeItems.every((item) => /^[0-9a-f-]{36}$/.test(String(item['id'])))).toBe(true);
 
     const { rows } = await sql<Record<string, unknown>>`select * from work_orders.work_orders where id = ${body.id}`.execute(admin());

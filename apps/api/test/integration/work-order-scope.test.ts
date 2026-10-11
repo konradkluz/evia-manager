@@ -348,6 +348,18 @@ describe('adding an item with its processes (EVM-035 AC2; SR-API-06)', () => {
     expect(await auditOf('scope_item.created', body.id)).toHaveLength(1);
   });
 
+  it('EVM-035 AC2 a repeat of an addition whose item was removed since is 404, not the item of somebody else', async () => {
+    const editor = await signIn('editor');
+    const id = await bareOrder();
+    const key = uuidv7();
+    const body = { id: uuidv7(), catalogItemCode: SUPPLY };
+    expect((await editor.panel.post(`${BASE}/${id}/scope-items`, body).set('Idempotency-Key', key)).status).toBe(201);
+    expect((await remove(editor, id, body.id)).status).toBe(204);
+    const again = await editor.panel.post(`${BASE}/${id}/scope-items`, body).set('Idempotency-Key', key);
+    expect(again.status).toBe(404);
+    expect(codeOf(again.body)).toBe('not_found');
+  });
+
   it('EVM-035 AC2 SR-API-05 the key is bound to the ORDER: the same key and body on another order is 422 idempotency_mismatch — not the result of the first order', async () => {
     const editor = await signIn('editor');
     const first = await bareOrder();
@@ -525,6 +537,69 @@ describe('the parameters and the notes (EVM-035 AC4; SR-INPUT-01, SR-INPUT-02, S
     }
     const stored = await read(editor, id, item.id);
     expect(stored.body).toMatchObject({ code: SUPPLY, position: 1, quantity: 1, version: 2, parameterSetCode: 'supply_circuit' });
+  });
+});
+
+describe('the change of an item: the tag and the key (EVM-035 AC1, AC4; SR-API-05, SR-API-07)', () => {
+  it('EVM-035 AC4 SR-API-07 a missing If-Match is 428, a malformed one 400, a stale one 412 with no current value — and the item stays as it was', async () => {
+    const editor = await signIn('editor');
+    const other = await signIn('editor');
+    const id = await bareOrder();
+    const item = ((await add(editor, id, { catalogItemCode: SUPPLY })).body as Addition).item;
+    expect((await change(other, id, item.id, { notes: 'Zmiana kolegi' })).status).toBe(200);
+    const missing = await change(editor, id, item.id, { notes: 'Moja zmiana' }, { ifMatch: null });
+    expect(missing.status).toBe(428);
+    expect(codeOf(missing.body)).toBe('precondition_required');
+    for (const ifMatch of ['W/"2"', '*', '"1", "2"']) {
+      const malformed = await change(editor, id, item.id, { notes: 'Moja zmiana' }, { ifMatch });
+      expect(malformed.status, ifMatch).toBe(400);
+      expect(errorsOf(malformed.body), ifMatch).toEqual([{ pointer: '/headers/If-Match', code: 'invalid_format' }]);
+    }
+    const stale = await change(editor, id, item.id, { notes: 'Moja zmiana' });
+    expect(stale.status).toBe(412);
+    expect(codeOf(stale.body)).toBe('version_conflict');
+    expect(JSON.stringify(stale.body)).not.toMatch(/Zmiana kolegi|Moja zmiana/);
+    expect((await read(editor, id, item.id)).body).toMatchObject({ notes: 'Zmiana kolegi', version: 2 });
+  });
+
+  it('EVM-035 AC4 SR-API-05 a repeat of the same key, item and body is the SAME change (200, Idempotent-Replayed, one event) — also with a stale If-Match; the same key on another item is 422', async () => {
+    const editor = await signIn('editor');
+    const id = await bareOrder();
+    const first = ((await add(editor, id, { catalogItemCode: SUPPLY })).body as Addition).item;
+    const second = ((await add(editor, id, { catalogItemCode: SUPPLY })).body as Addition).item;
+    const key = uuidv7();
+    const done = await change(editor, id, first.id, { notes: 'Nowa notatka' }, { key });
+    expect(done.status).toBe(200);
+    expect(done.headers['idempotent-replayed']).toBeUndefined();
+    const again = await change(editor, id, first.id, { notes: 'Nowa notatka' }, { key });
+    expect(again.status).toBe(200);
+    expect(again.headers['idempotent-replayed']).toBe('true');
+    expect(again.headers['etag']).toBe('"2"');
+    expect(again.body).toEqual(done.body);
+    expect((await eventsOf(id)).filter((event) => event.event_code === 'scope_item_updated')).toHaveLength(1);
+    expect(await auditOf('scope_item.updated', first.id)).toHaveLength(1);
+    const other = await change(editor, id, second.id, { notes: 'Nowa notatka' }, { key });
+    expect(other.status).toBe(422);
+    expect(codeOf(other.body)).toBe('idempotency_mismatch');
+    expect((await read(editor, id, second.id)).body).toMatchObject({ version: 1 });
+    const body = await change(editor, id, first.id, { notes: 'Inna notatka' }, { key, ifMatch: '"2"' });
+    expect(body.status).toBe(422);
+  });
+
+  it('EVM-035 AC4 an empty patch is 400 required; a patch that changes nothing writes nothing — no version, no event, no audit record', async () => {
+    const editor = await signIn('editor');
+    const id = await bareOrder();
+    const item = (
+      (await add(editor, id, { catalogItemCode: SUPPLY, notes: 'Uwaga', parameters: { dedicatedCircuit: true } })).body as Addition
+    ).item;
+    const empty = await change(editor, id, item.id, {});
+    expect(empty.status).toBe(400);
+    expect(errorsOf(empty.body)).toEqual([{ pointer: '', code: 'required' }]);
+    const same = await change(editor, id, item.id, { notes: 'Uwaga', parameters: { dedicatedCircuit: true } });
+    expect(same.status).toBe(200);
+    expect(same.headers['etag']).toBe('"1"');
+    expect((await eventsOf(id)).filter((event) => event.event_code === 'scope_item_updated')).toHaveLength(0);
+    expect(await auditOf('scope_item.updated', item.id)).toHaveLength(0);
   });
 });
 

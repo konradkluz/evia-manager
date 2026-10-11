@@ -239,6 +239,16 @@ describe('the change of the data of an order (EVM-035 AC1; SR-API-07, SR-INPUT-0
     expect(await rawEvents(id)).toHaveLength(0);
   });
 
+  it('EVM-035 AC1 an order that has no coordinator gets one: the first assignment, nothing to end', async () => {
+    const editor = await signIn('editor');
+    const piotr = await signIn('editor');
+    const id = await order();
+    expect(await coordinatorsOf(id)).toEqual([]);
+    const response = await patch(editor, id, { assigneeUserId: piotr.userId });
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect((await coordinatorsOf(id)).map((row) => [row.user_id, row.deleted_at === null])).toEqual([[piotr.userId, true]]);
+  });
+
   it('EVM-035 AC1 a coordinator who is no longer active does not block saving the other fields when he is not changed', async () => {
     const editor = await signIn('editor');
     const former = await createUser(admin(), current.clock, { status: 'deactivated' });

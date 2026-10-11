@@ -21,6 +21,15 @@ describe('the registry of the participants of the scope (EVM-035 AC2; SR-API-06)
     expect(registry.ordered().map((item) => item.name)).toEqual(['alpha', 'procedures', 'payments']);
   });
 
+  it('EVM-035 AC2 participants of the same order run by name, whatever the order they were registered in', () => {
+    const forward = new WorkOrderScopeRegistry();
+    for (const name of ['a', 'b', 'c']) forward.register(participant(name, 100));
+    const backward = new WorkOrderScopeRegistry();
+    for (const name of ['c', 'b', 'a']) backward.register(participant(name, 100));
+    expect(forward.ordered().map((item) => item.name)).toEqual(['a', 'b', 'c']);
+    expect(backward.ordered().map((item) => item.name)).toEqual(['a', 'b', 'c']);
+  });
+
   it('EVM-035 AC2 two participants cannot share a name', () => {
     const registry = new WorkOrderScopeRegistry();
     registry.register(participant('procedures', 100));

@@ -77,6 +77,21 @@ describe('the processes added with an item to an order that exists (EVM-035 AC2,
     expect(plan({ activeCodes: active.slice(0, 28), takenPositions: [] })).toHaveLength(2); // 28 + 2 = 30 is allowed
   });
 
+  it('EVM-035 AC2 the lowest free place is found past the used ones: places 1…28 and 30 are taken, so a process gets 29', () => {
+    const taken = [...Array.from({ length: 28 }, (_, index) => index + 1), 30];
+    const result = plan({
+      requestedCodes: ['electrical'],
+      activeCodes: taken.map((n) => `p${String(n)}`),
+      takenPositions: taken,
+    });
+    expect(result.map((item) => item.position)).toEqual([29]);
+  });
+
+  it('EVM-035 AC5 positions that do not agree with the codes (30 taken, few codes) plan nothing — a number that is not free would fail the unique index', () => {
+    const taken = Array.from({ length: 30 }, (_, index) => index + 1);
+    expect(() => plan({ requestedCodes: ['electrical'], activeCodes: ['p1'], takenPositions: taken })).toThrow(/too_many_procedures/);
+  });
+
   it('EVM-035 AC5 a process of more than 30 stages (a defect of the catalogue) fails the addition, not the data', () => {
     const stages = Array.from({ length: 31 }, (_, index) => stage(`s${index}`, index + 1));
     expect(() => plan({ brought: [procedure('long', stages)], requestedCodes: ['long'] })).toThrow(/too_many_stages/);

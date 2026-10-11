@@ -3,6 +3,7 @@ import { parseParameters } from '../../src/modules/catalog/index.ts';
 import {
   changedScopeFields,
   CUSTOM_SERVICE_CODE,
+  forbiddenParameterKeys,
   MAX_SCOPE_ITEMS,
   nextPosition,
   normalizeNotes,
@@ -147,5 +148,42 @@ describe('the codes of the processes and the position of an item (EVM-035 AC2, A
     expect(changedScopeFields({ notes: null }, current)).toEqual(['notes']);
     expect(changedScopeFields({ parameters: {}, notes: 'Inne' }, current)).toEqual(['parameters', 'notes']);
     expect(changedScopeFields({}, current)).toEqual([]);
+  });
+});
+
+describe('the keys of the parameters that are never allowed, found on the raw body (EVM-035 AC4; SR-INPUT-02, TM-19, CWE-1321)', () => {
+  it('EVM-035 AC4 an own __proto__, constructor or prototype of the parameters is unknown_field with a pointer — JSON.parse makes __proto__ an own property', () => {
+    const body: unknown = JSON.parse(
+      '{"catalogItemCode":"supply_installation","parameters":{"dedicatedCircuit":true,"__proto__":{"admin":true},"constructor":1}}',
+    );
+    expect(forbiddenParameterKeys(body)).toEqual([
+      { pointer: '/parameters/__proto__', code: 'unknown_field' },
+      { pointer: '/parameters/constructor', code: 'unknown_field' },
+    ]);
+    expect(forbiddenParameterKeys({ parameters: { prototype: 1 } })).toEqual([{ pointer: '/parameters/prototype', code: 'unknown_field' }]);
+  });
+
+  it('EVM-035 AC4 a body without parameters, parameters that are not a map and an ordinary map are none of its business', () => {
+    for (const body of [
+      null,
+      undefined,
+      'text',
+      5,
+      [],
+      {},
+      { notes: 'x' },
+      { parameters: null },
+      { parameters: [1] },
+      { parameters: 'x' },
+    ]) {
+      expect(forbiddenParameterKeys(body)).toEqual([]);
+    }
+    expect(forbiddenParameterKeys({ parameters: { dedicatedCircuit: true, cableLengthM: 18 } })).toEqual([]);
+  });
+});
+
+describe('the position when the scope is full (EVM-035 AC5)', () => {
+  it('EVM-035 AC5 with all 50 places taken the answer is the last place — the limit is checked before, so the number is never used', () => {
+    expect(nextPosition(Array.from({ length: 50 }, (_, index) => index + 1))).toBe(50);
   });
 });

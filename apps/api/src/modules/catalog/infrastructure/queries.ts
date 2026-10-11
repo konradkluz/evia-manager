@@ -394,7 +394,8 @@ export async function findActiveCatalogItem(db: CatalogDb, code: string): Promis
     .orderBy('link.position')
     .limit(MAX_LIST_ITEMS)
     .execute();
-  return { ...item, procedureCodes: [...new Set(links.map((link) => link.code))] };
+  // the code of a process template is unique, and so is the link of an item to it: each code comes once
+  return { ...item, procedureCodes: links.map((link) => link.code) };
 }
 
 /**
@@ -413,13 +414,7 @@ export async function findCatalogItemProcedures(db: CatalogDb, catalogItemId: st
     .orderBy('link.position')
     .limit(MAX_LIST_ITEMS)
     .execute();
-  const seen = new Set<string>();
-  const distinct = brought.filter((row) => {
-    if (seen.has(row.code)) return false;
-    seen.add(row.code);
-    return true;
-  });
-  if (distinct.length === 0) return [];
+  if (brought.length === 0) return [];
   const stages = await db
     .selectFrom('catalog.procedure_stage_templates as stage')
     .select([
@@ -433,14 +428,14 @@ export async function findCatalogItemProcedures(db: CatalogDb, catalogItemId: st
     .where(
       'stage.procedure_template_id',
       'in',
-      distinct.map((row) => row.procedureTemplateId),
+      brought.map((row) => row.procedureTemplateId),
     )
     .where('stage.deleted_at', 'is', null)
     .orderBy('stage.procedure_template_id')
     .orderBy('stage.position')
     .execute();
   const byProcedure = groupBy(stages, (stage) => stage.procedureTemplateId);
-  return distinct.map((row) => ({
+  return brought.map((row) => ({
     sourceProcedureTemplateId: row.procedureTemplateId,
     code: row.code,
     name: row.name,
