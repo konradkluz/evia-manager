@@ -4,6 +4,7 @@ import { truncateIp } from '../../src/modules/audit/domain/ip-prefix.ts';
 import { AuditSubscriber } from '../../src/modules/audit/audit.module.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
+import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { FixedClock } from '../support/clock.ts';
 
@@ -254,5 +255,54 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
   it('EVM-029 AC6 a free-text reason or an object id cannot be smuggled into the record of a read', () => {
     expect(() => toAuditRecord({ ...read, objectId: 'jan@evia.invalid' } as never, { origin: 'web', traceId }, at)).toThrow();
     expect(() => toAuditRecord({ ...read, type: 'audit.exported' } as never, { origin: 'web', traceId }, at)).toThrow();
+  });
+});
+
+describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-03, SR-DATA-02)', () => {
+  const entryEvent: TimelineEntryEvent = {
+    type: 'timeline_entry.created',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'timeline_entry',
+    objectId: session,
+  };
+
+  it('EVM-037 SR-LOG-03 audit subscribes to every event type of timeline, so publishing any of them has a handler', async () => {
+    const bus = new EventBus();
+    new AuditSubscriber(bus, new FixedClock(at)).onModuleInit();
+    const failures = await Promise.all(
+      TIMELINE_EVENT_TYPES.map(async (type) => {
+        try {
+          // the handler needs a real transaction to write: reaching it (and failing there) proves that a handler is registered
+          await bus.publish({} as never, { ...entryEvent, type }, { origin: 'web', traceId });
+          return '';
+        } catch (error) {
+          return String(error);
+        }
+      }),
+    );
+    expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
+  });
+
+  it('EVM-037 SR-LOG-03 the record has the actor, the entry, the outcome and the trace — and no text, no category, no stage', () => {
+    const record = toAuditRecord(entryEvent, { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session }, at);
+    expect(record).toEqual({
+      occurredAt: at,
+      actorType: 'user',
+      actorUserId: user,
+      sessionId: session,
+      ipPrefix: '203.0.113.0/24',
+      origin: 'web',
+      action: 'timeline_entry.created',
+      outcome: 'success',
+      reasonCode: null,
+      objectType: 'timeline_entry',
+      objectId: session,
+      traceId,
+    });
+  });
+
+  it('EVM-037 SR-LOG-02 a text cannot be smuggled into the record of an entry: the schema is strict', () => {
+    expect(() => toAuditRecord({ ...entryEvent, objectId: 'Rozmowa z Janem Kowalskim' }, { origin: 'web', traceId }, at)).toThrow();
   });
 });
