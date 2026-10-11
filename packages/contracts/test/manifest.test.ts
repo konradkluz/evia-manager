@@ -21,6 +21,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createSite',
       'createTimelineEntry',
       'createWorkOrder',
+      'createWorkOrderScopeItem',
+      'deleteWorkOrderScopeItem',
       'extendSession',
       'getCurrentSession',
       'getCustomer',
@@ -33,6 +35,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getTimelineEntry',
       'getWorkOrder',
       'getWorkOrderCustomer',
+      'getWorkOrderScopeItem',
       'getWorkOrderSite',
       'getWorkOrderTemplate',
       'listAssignableUsers',
@@ -61,6 +64,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'updateParty',
       'updateProcedureStage',
       'updateSite',
+      'updateWorkOrder',
+      'updateWorkOrderScopeItem',
       'verifyLoginPasskey',
     ]);
   });

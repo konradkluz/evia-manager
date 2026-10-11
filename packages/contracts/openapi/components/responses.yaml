@@ -423,3 +423,43 @@ TimelineConflict:
         status: 409
         code: entry_superseded
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+LimitExceeded:
+  description: >-
+    Przekroczony limit obiektów podrzędnych (`limit_exceeded`, EVM-035: 50 aktywnych pozycji zakresu albo 30 procesów w zleceniu;
+    `errors[]` ma tylko wskaźnik i kod, bez wartości) albo ten sam klucz idempotencji z inną treścią, na innym zleceniu lub na innej
+    operacji (`idempotency_mismatch`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/limit_exceeded
+        title: A limit of the number of objects was exceeded
+        status: 422
+        code: limit_exceeded
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: ''
+            code: too_many_scope_items
+ScopeItemConflict:
+  description: >-
+    Identyfikator zajęty (`id_conflict` — także identyfikator pozycji innego zlecenia; bez danych istniejącego zasobu), zlecenie
+    jest zamknięte (`work_order_closed`: Rozliczone albo Anulowane, PO-8) albo żądanie z tym samym kluczem idempotencji jest w toku
+    (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/id_conflict
+        title: Identifier already in use
+        status: 409
+        code: id_conflict
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
