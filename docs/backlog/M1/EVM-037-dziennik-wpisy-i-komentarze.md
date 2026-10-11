@@ -109,3 +109,4 @@ _—_
 - 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (decyzja Konrada), gałąź feature/EVM-037-dziennik-wpisy-komentarze
 - 2026-10-11 — plan gotowy (backend-developer)
 - 2026-10-11 — backend gotowy (backend-developer): moduł `timeline` (kontrakt, migracja `0020`, fasada `ProcedureStageDirectory`, testy `EVM-037 AC1–AC8`); panel (W-08) — część web-developera
+- 2026-10-11 — panel gotowy (web-developer): zakładka „Dziennik” W-08, komponenty `Timeline` w ui-web, testy komponentów, Playwright (Chromium, Firefox, Edge), axe z kontrastem, zrzuty w `docs/ux/reviews/EVM-037/`
