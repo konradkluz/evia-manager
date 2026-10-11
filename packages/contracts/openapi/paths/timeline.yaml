@@ -38,6 +38,15 @@ workOrderTimeline:
         description: Filtr rodzaju — `note` („Wpisy”) albo `comment` („Komentarze”).
         schema:
           $ref: ../components/timeline.yaml#/TimelineEntryInputKind
+      - name: eventGroup
+        in: query
+        required: false
+        description: >-
+          Grupa zdarzeń automatycznych (EVM-038 AC4) — `status_changes` („Zmiany statusów”): tylko zdarzenia zlecenia i etapów.
+          Implikuje `kind = event`, więc razem z `kind` — `400 validation_failed`; wartość spoza listy — `400`. Grupy
+          „Media i dokumenty” i „Płatności” dojdą z E6 i E7.
+        schema:
+          $ref: ../components/timeline.yaml#/TimelineEventGroup
       - name: procedureStageId
         in: query
         required: false

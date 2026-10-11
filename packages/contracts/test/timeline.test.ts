@@ -26,6 +26,7 @@ const entry = {
   supersedesEntryId: null,
   supersededByEntryId: null,
   redactedAt: null,
+  event: null,
 };
 
 describe('timeline contract (EVM-037; SR-AUTHZ-01, SR-AUTHZ-04, SR-INPUT-01, SR-API-02, SR-DATA-03)', () => {
@@ -98,5 +99,45 @@ describe('timeline contract (EVM-037; SR-AUTHZ-01, SR-AUTHZ-04, SR-INPUT-01, SR-
       zTimelineEntry.safeParse({ ...entry, kind: 'event', noteCategory: null, body: null, author: null, origin: 'system' }).success,
     ).toBe(true);
     expect(Object.keys(zTimelineEntry.shape)).not.toContain('workOrderId');
+  });
+
+  it('EVM-038 AC3 an event carries its code, the statuses, who is waited for (id, current name and kind) and the names of the changed fields', () => {
+    const event = {
+      code: 'stage_status_changed',
+      objectType: 'procedure_stage',
+      fromStatus: 'in_progress',
+      toStatus: 'waiting',
+      waitingOn: 'party',
+      waitingOnParty: { id: V7, name: 'Operator Testowy', kind: 'osd' },
+      changedFields: [],
+    };
+    const row = {
+      ...entry,
+      kind: 'event',
+      noteCategory: null,
+      body: null,
+      author: { id: USER, displayName: 'Anna Testowa' },
+      origin: 'system',
+      event,
+    };
+    expect(zTimelineEntry.parse(row).event).toEqual(event);
+    expect(zTimelineEntry.parse({ ...row, event: { ...event, extra: 'x' } }).event).toEqual(event);
+    expect(zTimelineEntry.safeParse({ ...row, event: { ...event, waitingOnParty: { id: V7, name: null, kind: null } } }).success).toBe(
+      true,
+    );
+    expect(zTimelineEntry.safeParse({ ...row, event: undefined }).success).toBe(false);
+  });
+
+  it('EVM-038 AC4 the query takes the group status_changes only; a value outside the list is refused', () => {
+    expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'status_changes' }).success).toBe(true);
+    expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'payments' }).success).toBe(false);
+  });
+
+  it('EVM-038 AC6 AC7 SR-AUTHZ-05 the manifest is unchanged: the three roles read the journal on the web channel, no operation creates an event', () => {
+    expect(AUTHZ_MANIFEST['listTimelineEntries']?.authz).toMatchObject({
+      roles: ['administrator', 'editor', 'read_only'],
+      channels: ['web'],
+    });
+    expect(zCreateTimelineEntryRequest.safeParse({ id: V7, kind: 'event', body: 'x' }).success).toBe(false);
   });
 });
