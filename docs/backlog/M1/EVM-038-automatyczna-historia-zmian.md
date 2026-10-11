@@ -4,7 +4,7 @@ title: Automatyczna historia zmian w dzienniku
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -83,13 +83,17 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- (minor) `journal.test.tsx`: brak testu unieważnienia dziennika po przejściu etapu (też „Cofnij” z toastu) i po edycji etapu.
+- (nit) `rodo.md:63`: doprecyzować — zdarzenia niosą identyfikatory strony i aktora (dane spseudonimizowane), nie „brak danych osobowych”; komentarz w `record-journal-event.ts` wymienić `created_by`.
+- (nit) `record-journal-event.ts:40-41`: dwie linie bez testu jednostkowego (ścieżka odrzuconego ładunku).
+- (nit) EVM-040: soft delete wpisów musi odmawiać dla `kind=event` (trigger dopuszcza zmianę `deleted_at`).
+- (nit) e2e: jednorazowy pad „EVM-038 AC3 AC4” w Firefoksie w pełnym przebiegu (nie odtworzony w 87 powtórzeniach i w pełnym przebiegu Firefoksa).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-038 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja (lista kodów zdarzeń) i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-038 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja (lista kodów zdarzeń) i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -100,3 +104,7 @@ _—_
 - 2026-10-11 — plan gotowy (backend-developer)
 - 2026-10-11 — backend gotowy (backend-developer): migracja 0021, zdarzenia zlecenia i etapów w transakcji zmiany, kontrakt `event` + `eventGroup`, testy AC1–AC7; panel (render zdarzeń, chip „Zmiany statusów”) — krok web-developera
 - 2026-10-11 — panel gotowy (web-developer): zdarzenia w W-08 (tekst bezosobowy, odznaka, nieznany kod neutralnie), chip „Zmiany statusów”, testy AC3/AC4/AC6/AC7 (Vitest i Playwright)
+- 2026-10-11 — przegląd (runda 1): code-reviewer changes_required (1 major), security-engineer i ux-designer approve; runda 2: code-reviewer approve; blocker/major otwarte: 0
+- 2026-10-11 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 97,4% / gałęzie 94,9%; pełne e2e Chromium + Firefox: 529 passed, 14 skipped, 1 pad (flake, nie odtworzony); powtórka Firefox 258 passed, 0 failed
+- 2026-10-11 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,02 mln tokenów subagentów, 359 wywołań narzędzi, ok. 95 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (mniej tokenów niż EVM-037: 1,02 vs 1,55 mln)
+- 2026-10-11 — in-progress → in-review: czeka na demo i akceptację Konrada
