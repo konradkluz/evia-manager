@@ -4,7 +4,7 @@ title: Edycja danych i zakresu zlecenia
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -92,12 +92,16 @@ _—_
 
 ## Uwagi do rozważenia
 - Lista pozycji zakresu (`listWorkOrderScopeItems`, EVM-018) nie ma limitu — dodać `maxItems`/`limit` w kontrakcie; przy odczycie pojedynczej pozycji dodać test IDOR `/work-orders/{A}/scope-items/{B-item}` = 404.
+- (minor) brak asercji logów (SR-LOG-02/03) i testu `413` dla limitu 64 KB tras `POST/PATCH …/scope-items`; `getWorkOrderScopeItem`/`listWorkOrderScopeItems` zwracają `notes` poza licznikiem odczytu masowego P10.
+- (minor, UX) propozycja procesów w `scope-add-dialog.tsx` na dole przewijanego dialogu (poza widokiem na 360/1280 px); powód wyłączenia „Dodaj pozycję…” tylko w `title`; brak zrzutów stanów AC2/AC5/offline.
+- (nit) opis `CreateScopeItemRequest` w kontrakcie sprzeczny z opisem `notes` (może zawierać dane osobowe); niskie pokrycie gałęzi `scope-edit-dialog` 79%, `scope-remove-dialog` 74%, `journal-event` 75%.
+- (defekt testu EVM-037, poza zakresem) `seedJournal` = „teraz − 30 min”: `EVM-037 AC3` pada w oknie 00:00–00:30 Europe/Warsaw („wczoraj” zamiast „dziś”) — do osobnej historyjki; pozostałe 574 testy e2e zielone.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-035 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-035 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -108,3 +112,7 @@ _—_
 - 2026-10-11 — plan gotowy (backend-developer)
 - 2026-10-11 — backend gotowy (backend-developer): kontrakt, migracja 0022, API i testy AC1–AC8 (macierz ról, IDOR, limity, wyścigi), dokumentacja; panel — web-developer
 - 2026-10-11 — panel gotowy (web-developer): dialog danych, tryb edycji zakresu, dziennik, testy komponentów i E2E (Chromium, Firefox), zrzuty w docs/ux/reviews/EVM-035
+- 2026-10-12 — przegląd (runda 1): code-reviewer changes_required (1 major), security-engineer i ux-designer approve; runda 2: code-reviewer approve; blocker/major otwarte: 0
+- 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 98,4% / gałęzie 91,5%; pełne e2e Chromium + Firefox: 574 passed, 14 skipped, 2 pady wyłącznie `EVM-037 AC3` (zależność od pory doby, nie ta historyjka); QA: 871 passed w 3 przeglądarkach, 0 failed
+- 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,94 mln tokenów subagentów, 621 wywołań narzędzi, ok. 145 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (więcej niż EVM-037: 1,55 mln i EVM-038: 1,02 mln)
+- 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada
