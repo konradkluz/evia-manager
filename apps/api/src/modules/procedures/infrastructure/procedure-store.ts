@@ -115,12 +115,29 @@ export async function insertStages(
 export function listProcedures(db: ProceduresDb, workOrderId: string) {
   return db
     .selectFrom('procedures.procedures')
-    .select(['id', 'code', 'name', 'position'])
+    .select(['id', 'code', 'name', 'position', 'source_scope_item_id'])
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
     .orderBy('position')
     .limit(MAX_PROCEDURES_PER_ORDER)
     .execute();
+}
+
+/**
+ * The codes of the ACTIVE processes the scope item brought into the order, in order (EVM-035 AC2: the answer of an addition and of
+ * its repeat). `work_order_id` is in the condition, so the item of another order names nothing.
+ */
+export async function listProcedureCodesOfScopeItem(db: ProceduresDb, workOrderId: string, scopeItemId: string): Promise<string[]> {
+  const rows = await db
+    .selectFrom('procedures.procedures')
+    .select('code')
+    .where('work_order_id', '=', workOrderId)
+    .where('source_scope_item_id', '=', scopeItemId)
+    .where('deleted_at', 'is', null)
+    .orderBy('position')
+    .limit(MAX_PROCEDURES_PER_ORDER)
+    .execute();
+  return rows.map((row) => row.code);
 }
 
 /** The ACTIVE stages of an order (all its processes) in order — at most the limits of the API multiplied. */

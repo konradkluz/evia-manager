@@ -4,9 +4,10 @@
  * functions of data — no database, no framework.
  *
  * Minimisation: the payload of an event is built from a CLOSED list of keys per code and validated with a STRICT schema before it is
- * written: the code of a status, the type and the identifier of the object, the identifier of the party waited for and the NAMES of
- * the changed fields. Never the reason of a block or a hold, a name of a party, a stage or a person, the due date or an amount: the
- * journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
+ * written: the code of a status, the type and the identifier of the object, the identifier of the party waited for, the stable codes
+ * of an item of the catalogue and of its processes (EVM-035) and the NAMES of the changed fields. Never the reason of a block or a
+ * hold, a name of a party, a stage or a person, the title, the description, the notes or a value of a parameter, the due date or an
+ * amount: the journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
  * (RODO art. 17) need no change in the events. A schema that would let a new key through is a defect that fails the write.
  *
  * Reading is TOLERANT (the version of the server may be rolled back after a later story added its codes): an unknown code or a
@@ -15,7 +16,7 @@
 import { zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
 import { z } from 'zod';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
-import type { WorkOrderEvent, WorkOrderStatusChangedEvent } from '../../work-orders/index.ts';
+import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
 
 export const JOURNAL_EVENT_CODES = [
   'work_order_created',
@@ -23,14 +24,32 @@ export const JOURNAL_EVENT_CODES = [
   'stage_status_changed',
   'stage_waiting_on_changed',
   'stage_updated',
+  'work_order_fields_changed',
+  'scope_item_added',
+  'scope_item_updated',
+  'scope_item_removed',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
 /** The names of the fields of a stage whose change is recorded (the values are NOT). */
 export const JOURNAL_STAGE_FIELDS = ['responsibleUserId', 'dueDate'] as const;
+/** The names of the fields of an order and of a scope item whose change is recorded (EVM-035; the values are NOT) — the lists of `work-orders`. */
+export const JOURNAL_WORK_ORDER_FIELDS = [
+  'title',
+  'description',
+  'plannedDate',
+  'coordinator',
+] as const satisfies readonly WorkOrderField[];
+export const JOURNAL_SCOPE_ITEM_FIELDS = ['parameters', 'notes'] as const satisfies readonly ScopeItemField[];
 
 const workOrderObject = { objectType: z.literal('work_order'), objectId: z.uuid() };
 const stageObject = { objectType: z.literal('procedure_stage'), objectId: z.uuid() };
+const scopeItemObject = { objectType: z.literal('scope_item'), objectId: z.uuid() };
+
+/** A stable code of the catalogue (`snake_case`) — the item and the processes are named by it, never by a name. */
+const catalogCode = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
+/** The most processes an order may have, so the most an item may bring at once. */
+const MAX_PROCEDURE_CODES = 30;
 
 /** The closed list of keys of every code. */
 const SHAPES = {
@@ -45,6 +64,17 @@ const SHAPES = {
   },
   stage_waiting_on_changed: { ...stageObject, waitingOn: zStageWaitingOn, waitingOnPartyId: z.uuid().nullable() },
   stage_updated: { ...stageObject, changedFields: z.array(z.enum(JOURNAL_STAGE_FIELDS)).min(1).max(JOURNAL_STAGE_FIELDS.length) },
+  work_order_fields_changed: {
+    ...workOrderObject,
+    changedFields: z.array(z.enum(JOURNAL_WORK_ORDER_FIELDS)).min(1).max(JOURNAL_WORK_ORDER_FIELDS.length),
+  },
+  scope_item_added: { ...scopeItemObject, itemCode: catalogCode, procedureCodes: z.array(catalogCode).max(MAX_PROCEDURE_CODES) },
+  scope_item_updated: {
+    ...scopeItemObject,
+    itemCode: catalogCode,
+    changedFields: z.array(z.enum(JOURNAL_SCOPE_ITEM_FIELDS)).min(1).max(JOURNAL_SCOPE_ITEM_FIELDS.length),
+  },
+  scope_item_removed: { ...scopeItemObject, itemCode: catalogCode },
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -53,11 +83,15 @@ const STRICT = {
   stage_status_changed: z.strictObject(SHAPES.stage_status_changed),
   stage_waiting_on_changed: z.strictObject(SHAPES.stage_waiting_on_changed),
   stage_updated: z.strictObject(SHAPES.stage_updated),
+  work_order_fields_changed: z.strictObject(SHAPES.work_order_fields_changed),
+  scope_item_added: z.strictObject(SHAPES.scope_item_added),
+  scope_item_updated: z.strictObject(SHAPES.scope_item_updated),
+  scope_item_removed: z.strictObject(SHAPES.scope_item_removed),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
-export type JournalSourceEvent = CreatedEvent | WorkOrderStatusChangedEvent | StageJournalChangeEvent;
+export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent;
 
 /** What the store writes: the columns of the entry that an event decides. */
 export interface JournalEventRecord {
@@ -90,6 +124,44 @@ function candidateOf(event: JournalSourceEvent): Candidate {
         code: 'work_order_status_changed',
         payload: { objectType: 'work_order', objectId: event.objectId, fromStatus: event.fromStatus, toStatus: event.toStatus },
         workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'work_order.fields_changed':
+      return {
+        code: 'work_order_fields_changed',
+        payload: { objectType: 'work_order', objectId: event.objectId, changedFields: [...event.changedFields] },
+        workOrderId: event.objectId,
+        procedureStageId: null,
+      };
+    case 'work_order.scope_item_added':
+      return {
+        code: 'scope_item_added',
+        payload: {
+          objectType: 'scope_item',
+          objectId: event.objectId,
+          itemCode: event.itemCode,
+          procedureCodes: [...event.procedureCodes],
+        },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'work_order.scope_item_updated':
+      return {
+        code: 'scope_item_updated',
+        payload: {
+          objectType: 'scope_item',
+          objectId: event.objectId,
+          itemCode: event.itemCode,
+          changedFields: [...event.changedFields],
+        },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'work_order.scope_item_removed':
+      return {
+        code: 'scope_item_removed',
+        payload: { objectType: 'scope_item', objectId: event.objectId, itemCode: event.itemCode },
+        workOrderId: event.workOrderId,
         procedureStageId: null,
       };
     case 'procedure_stage.status_changed':
@@ -142,22 +214,34 @@ export function toJournalEvent(event: JournalSourceEvent): JournalEventRecord {
 /** What an answer needs from a stored event; every field but `code` may be `null`. */
 export interface JournalEventView {
   readonly code: string;
-  readonly objectType: 'work_order' | 'procedure_stage' | null;
+  readonly objectType: 'work_order' | 'procedure_stage' | 'scope_item' | null;
   readonly fromStatus: string | null;
   readonly toStatus: string | null;
   readonly waitingOn: 'customer' | 'party' | null;
   readonly waitingOnPartyId: string | null;
   readonly changedFields: readonly string[];
+  /** The stable code of the item of the catalogue (the events of the scope), else `null`. */
+  readonly itemCode: string | null;
+  /** The codes of the processes added with an item (`scope_item_added`), else `null`. */
+  readonly procedureCodes: readonly string[] | null;
 }
 
 /** The code of the view of an event the server cannot read (a known code whose payload does not fit). */
 export const UNKNOWN_EVENT_CODE = 'unknown_event';
 
-const EMPTY = { fromStatus: null, toStatus: null, waitingOn: null, waitingOnPartyId: null, changedFields: [] } as const;
+const EMPTY = {
+  fromStatus: null,
+  toStatus: null,
+  waitingOn: null,
+  waitingOnPartyId: null,
+  changedFields: [],
+  itemCode: null,
+  procedureCodes: null,
+} as const;
 
 const objectTypeOf = (payload: unknown): JournalEventView['objectType'] => {
   const type = typeof payload === 'object' && payload !== null ? (payload as { objectType?: unknown }).objectType : undefined;
-  return type === 'work_order' || type === 'procedure_stage' ? type : null;
+  return type === 'work_order' || type === 'procedure_stage' || type === 'scope_item' ? type : null;
 };
 
 const isKnown = (code: string): code is JournalEventCode => (JOURNAL_EVENT_CODES as readonly string[]).includes(code);
@@ -180,5 +264,7 @@ export function readJournalEvent(code: string, payload: unknown): JournalEventVi
     waitingOn: (data['waitingOn'] ?? null) as JournalEventView['waitingOn'],
     waitingOnPartyId: (data['waitingOnPartyId'] ?? null) as string | null,
     changedFields: (data['changedFields'] ?? []) as string[],
+    itemCode: (data['itemCode'] ?? null) as string | null,
+    procedureCodes: (data['procedureCodes'] ?? null) as string[] | null,
   };
 }

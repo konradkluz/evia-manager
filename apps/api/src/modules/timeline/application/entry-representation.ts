@@ -53,6 +53,9 @@ function eventOf(row: EntryRow, batch: RepresentationBatch) {
     waitingOnParty:
       partyId === null ? null : { id: partyId, name: batch.partyNames.get(partyId) ?? null, kind: batch.partyKinds.get(partyId) ?? null },
     changedFields: [...view.changedFields],
+    // the codes of an item of the catalogue and of its processes (EVM-035): the names are read from the catalogue when shown
+    ...(view.itemCode === null ? {} : { itemCode: view.itemCode }),
+    ...(view.procedureCodes === null ? {} : { procedureCodes: [...view.procedureCodes] }),
   };
 }
 

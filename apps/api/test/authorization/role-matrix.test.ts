@@ -98,7 +98,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the processes of an order, the change of a stage, the journal of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = [
       'getWorkOrderTemplate',
@@ -110,9 +110,14 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listWorkOrderProcedures',
       'listTimelineEntries',
       'getTimelineEntry',
+      'getWorkOrderScopeItem',
     ];
     const writers = [
       'transitionWorkOrder',
+      'updateWorkOrder',
+      'createWorkOrderScopeItem',
+      'updateWorkOrderScopeItem',
+      'deleteWorkOrderScopeItem',
       'updateCustomer',
       'updateSite',
       'updateParty',

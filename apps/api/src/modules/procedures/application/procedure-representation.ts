@@ -81,6 +81,8 @@ export function toProcedureList(
           code: procedure.code,
           name: procedure.name,
           position: procedure.position,
+          // the scope item that brought the process (EVM-035 AC3) — it stays after the item is removed
+          ...(procedure.source_scope_item_id === null ? {} : { sourceScopeItemId: procedure.source_scope_item_id }),
           progress: progressOf(own),
           stages: own.map((stage) => stageView(stage, names, partyNames, today)),
         };

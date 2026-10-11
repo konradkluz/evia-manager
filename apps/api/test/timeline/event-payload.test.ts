@@ -14,6 +14,15 @@ const USER = '0198b0a0-0000-7000-8000-000000000004';
 const actor = { type: 'user', userId: USER } as const;
 
 const stageBase = { actor, outcome: 'success', objectType: 'procedure_stage', objectId: STAGE, workOrderId: ORDER } as const;
+const ITEM = '0198b0a0-0000-7000-8000-000000000005';
+const itemBase = {
+  actor,
+  outcome: 'success',
+  objectType: 'scope_item',
+  objectId: ITEM,
+  workOrderId: ORDER,
+  itemCode: 'supply_installation',
+} as const;
 
 describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () => {
   it('EVM-038 AC1 every source event becomes ONE entry with the code, the order, the stage and the actor', () => {
@@ -50,6 +59,21 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
         STAGE,
       ],
       [{ ...stageBase, type: 'procedure_stage.fields_changed', changedFields: ['dueDate'] }, 'stage_updated', STAGE],
+      [
+        {
+          type: 'work_order.fields_changed',
+          actor,
+          outcome: 'success',
+          objectType: 'work_order',
+          objectId: ORDER,
+          changedFields: ['title', 'coordinator'],
+        },
+        'work_order_fields_changed',
+        null,
+      ],
+      [{ ...itemBase, type: 'work_order.scope_item_added', procedureCodes: ['electrical_installation'] }, 'scope_item_added', null],
+      [{ ...itemBase, type: 'work_order.scope_item_updated', changedFields: ['parameters'] }, 'scope_item_updated', null],
+      [{ ...itemBase, type: 'work_order.scope_item_removed' }, 'scope_item_removed', null],
     ];
     expect(cases.map(([, code]) => code).sort()).toEqual([...JOURNAL_EVENT_CODES].sort());
     for (const [event, code, stageId] of cases) {
@@ -122,6 +146,8 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
       waitingOn: 'party',
       waitingOnPartyId: PARTY,
       changedFields: [],
+      itemCode: null,
+      procedureCodes: null,
     });
     expect(readJournalEvent('stage_updated', { objectType: 'procedure_stage', objectId: STAGE, changedFields: ['dueDate'] })).toMatchObject(
       {
@@ -151,5 +177,105 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
     // a key of a later version on a known code is ignored, not a reason to hide the event
     const later = { objectType: 'work_order', objectId: ORDER, fromStatus: 'new', toStatus: 'accepted', note: 'x' };
     expect(readJournalEvent('work_order_status_changed', later)).toMatchObject({ code: 'work_order_status_changed', toStatus: 'accepted' });
+  });
+});
+
+describe('the events of the data and the scope of an order (EVM-035 AC7; SR-LOG-03, SR-DATA-01, SR-DATA-02)', () => {
+  it('EVM-035 AC7 the change of the data names the fields — never the title, the description, the date or the person', () => {
+    const noisy = {
+      type: 'work_order.fields_changed',
+      actor,
+      outcome: 'success',
+      objectType: 'work_order',
+      objectId: ORDER,
+      changedFields: ['title', 'plannedDate'],
+      title: 'Wallbox dla Jana Testowego',
+      description: 'Klucz u sąsiadki',
+      coordinatorDisplayName: 'Anna Testowa',
+    } as unknown as JournalSourceEvent;
+    const { payload, code } = toJournalEvent(noisy);
+    expect(code).toBe('work_order_fields_changed');
+    expect(payload).toEqual({ objectType: 'work_order', objectId: ORDER, changedFields: ['title', 'plannedDate'] });
+    expect(JSON.stringify(payload)).not.toMatch(/Jan|sąsiad|Anna/);
+  });
+
+  it('EVM-035 AC7 the events of the scope hold the code of the item, the codes of the processes and the names of the fields — never the notes or a parameter', () => {
+    const added = toJournalEvent({
+      ...itemBase,
+      type: 'work_order.scope_item_added',
+      procedureCodes: ['electrical_installation', 'dso_connection'],
+      notes: 'Kod do bramy 1234',
+      parameters: { cableLengthM: 18 },
+      name: 'Instalacja zasilająca',
+    } as unknown as JournalSourceEvent);
+    expect(added.payload).toEqual({
+      objectType: 'scope_item',
+      objectId: ITEM,
+      itemCode: 'supply_installation',
+      procedureCodes: ['electrical_installation', 'dso_connection'],
+    });
+    expect(JSON.stringify(added.payload)).not.toMatch(/1234|18|Instalacja zasilająca/);
+    expect(added).toMatchObject({ code: 'scope_item_added', workOrderId: ORDER, procedureStageId: null, actorUserId: USER });
+
+    const updated = toJournalEvent({ ...itemBase, type: 'work_order.scope_item_updated', changedFields: ['parameters', 'notes'] });
+    expect(updated.payload).toEqual({
+      objectType: 'scope_item',
+      objectId: ITEM,
+      itemCode: 'supply_installation',
+      changedFields: ['parameters', 'notes'],
+    });
+    const removed = toJournalEvent({ ...itemBase, type: 'work_order.scope_item_removed' });
+    expect(removed.payload).toEqual({ objectType: 'scope_item', objectId: ITEM, itemCode: 'supply_installation' });
+  });
+
+  it('EVM-035 AC7 a payload that does not fit the schema of its code is refused (fail closed): an unknown field name, an empty list, a name instead of a code, more than 30 processes', () => {
+    const fields = (changedFields: string[]) =>
+      ({
+        type: 'work_order.fields_changed',
+        actor,
+        outcome: 'success',
+        objectType: 'work_order',
+        objectId: ORDER,
+        changedFields,
+      }) as JournalSourceEvent;
+    expect(() => toJournalEvent(fields(['status']))).toThrow();
+    expect(() => toJournalEvent(fields([]))).toThrow();
+    expect(() => toJournalEvent({ ...itemBase, type: 'work_order.scope_item_updated', changedFields: ['quantity' as never] })).toThrow();
+    expect(() => toJournalEvent({ ...itemBase, itemCode: 'Instalacja zasilająca', type: 'work_order.scope_item_removed' })).toThrow();
+    const tooMany = Array.from({ length: 31 }, (_, index) => `process_${index}`);
+    expect(() => toJournalEvent({ ...itemBase, type: 'work_order.scope_item_added', procedureCodes: tooMany })).toThrow();
+    expect(toJournalEvent({ ...itemBase, type: 'work_order.scope_item_added', procedureCodes: [] }).payload).toMatchObject({
+      procedureCodes: [],
+    });
+  });
+
+  it('EVM-035 AC7 reading is tolerant: the codes come back, a key of a later version is ignored, a payload that does not fit is the neutral view', () => {
+    expect(
+      readJournalEvent('scope_item_added', {
+        objectType: 'scope_item',
+        objectId: ITEM,
+        itemCode: 'supply_installation',
+        procedureCodes: ['electrical_installation'],
+        later: 1,
+      }),
+    ).toEqual({
+      code: 'scope_item_added',
+      objectType: 'scope_item',
+      fromStatus: null,
+      toStatus: null,
+      waitingOn: null,
+      waitingOnPartyId: null,
+      changedFields: [],
+      itemCode: 'supply_installation',
+      procedureCodes: ['electrical_installation'],
+    });
+    expect(
+      readJournalEvent('work_order_fields_changed', { objectType: 'work_order', objectId: ORDER, changedFields: ['title'] }),
+    ).toMatchObject({ code: 'work_order_fields_changed', changedFields: ['title'], itemCode: null, procedureCodes: null });
+    expect(readJournalEvent('scope_item_removed', { objectType: 'scope_item', objectId: 'x' })).toMatchObject({
+      code: UNKNOWN_EVENT_CODE,
+      objectType: null,
+      itemCode: null,
+    });
   });
 });

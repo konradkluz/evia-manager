@@ -35,7 +35,13 @@ const stage = (overrides: Partial<StageRow> = {}): StageRow => ({
   version: 1,
   ...overrides,
 });
-const procedure = (id: string, position: number): ProcedureRow => ({ id, code: `process_${id}`, name: `Proces ${id}`, position });
+const procedure = (id: string, position: number, sourceScopeItemId: string | null = null): ProcedureRow => ({
+  id,
+  code: `process_${id}`,
+  name: `Proces ${id}`,
+  position,
+  source_scope_item_id: sourceScopeItemId,
+});
 
 describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () => {
   it('EVM-031 AC3 a stage: the person as { id, displayName }, overdue computed for "today" in Warsaw, the version', () => {
@@ -86,6 +92,13 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
       [2, { done: 0, total: 2 }, 2],
     ]);
     expect(list.openStageCount).toBe(2);
+  });
+
+  it('EVM-035 AC3 a process names the scope item that brought it (so the panel can say which processes stay when the item is removed); a manual one names none', () => {
+    const item = uuidv7();
+    const list = toProcedureList([procedure(P1, 1, item), procedure(P2, 2)], [], new Map(), new Map(), '2026-10-03');
+    expect(list.items[0]).toMatchObject({ sourceScopeItemId: item });
+    expect(Object.keys(list.items[1] ?? {})).not.toContain('sourceScopeItemId');
   });
 
   it('EVM-031 AC8 no processes is an empty list', () => {

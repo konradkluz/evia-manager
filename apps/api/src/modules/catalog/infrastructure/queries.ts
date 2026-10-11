@@ -5,6 +5,7 @@
  * by `MAX_LIST_ITEMS` (the sets are small and returned whole).
  */
 import { MAX_LIST_ITEMS } from '../domain/vocabularies.ts';
+import type { CatalogItemForScope } from '../catalog-item-directory.ts';
 import type { TemplateForCopy, TemplateProcedureForCopy } from '../template-directory.ts';
 import type { CatalogDb } from './tables.ts';
 
@@ -359,6 +360,91 @@ export async function findTemplateProcedures(db: CatalogDb, templateId: string):
     code: row.code,
     name: row.name,
     broughtByCatalogItemId: row.broughtByCatalogItemId,
+    stages: (byProcedure.get(row.procedureTemplateId) ?? []).map((stage) => ({
+      sourceStageTemplateId: stage.sourceStageTemplateId,
+      code: stage.code,
+      name: stage.name,
+      position: stage.position,
+      outputDocumentKindCodes: stage.outputDocumentKindCodes,
+    })),
+  }));
+}
+
+/**
+ * An ACTIVE, not deleted item of the service catalogue by its stable code (EVM-035 AC2), with the codes of the active processes it
+ * brings — in the order of the link, each once. `undefined` for an item that is missing, retired or deleted (one answer).
+ */
+export async function findActiveCatalogItem(db: CatalogDb, code: string): Promise<CatalogItemForScope | undefined> {
+  const item = await db
+    .selectFrom('catalog.service_catalog_items')
+    .select(['id', 'code', 'name', 'parameter_set_code as parameterSetCode'])
+    .where('code', '=', code)
+    .where('deleted_at', 'is', null)
+    .where('is_active', '=', true)
+    .executeTakeFirst();
+  if (item === undefined) return undefined;
+  const links = await db
+    .selectFrom('catalog.service_catalog_item_procedures as link')
+    .innerJoin('catalog.procedure_templates as procedure', 'procedure.id', 'link.procedure_template_id')
+    .select('procedure.code')
+    .where('link.catalog_item_id', '=', item.id)
+    .where('link.deleted_at', 'is', null)
+    .where('procedure.deleted_at', 'is', null)
+    .where('procedure.is_active', '=', true)
+    .orderBy('link.position')
+    .limit(MAX_LIST_ITEMS)
+    .execute();
+  return { ...item, procedureCodes: [...new Set(links.map((link) => link.code))] };
+}
+
+/**
+ * The active processes an item of the catalogue brings, each with its stages in order (EVM-035 AC2) — the shape of
+ * {@link findTemplateProcedures}, so the planner of `procedures` copies both the same way.
+ */
+export async function findCatalogItemProcedures(db: CatalogDb, catalogItemId: string): Promise<TemplateProcedureForCopy[]> {
+  const brought = await db
+    .selectFrom('catalog.service_catalog_item_procedures as link')
+    .innerJoin('catalog.procedure_templates as procedure', 'procedure.id', 'link.procedure_template_id')
+    .select(['procedure.id as procedureTemplateId', 'procedure.code', 'procedure.name'])
+    .where('link.catalog_item_id', '=', catalogItemId)
+    .where('link.deleted_at', 'is', null)
+    .where('procedure.deleted_at', 'is', null)
+    .where('procedure.is_active', '=', true)
+    .orderBy('link.position')
+    .limit(MAX_LIST_ITEMS)
+    .execute();
+  const seen = new Set<string>();
+  const distinct = brought.filter((row) => {
+    if (seen.has(row.code)) return false;
+    seen.add(row.code);
+    return true;
+  });
+  if (distinct.length === 0) return [];
+  const stages = await db
+    .selectFrom('catalog.procedure_stage_templates as stage')
+    .select([
+      'stage.id as sourceStageTemplateId',
+      'stage.procedure_template_id as procedureTemplateId',
+      'stage.code',
+      'stage.name',
+      'stage.position',
+      'stage.output_document_kind_codes as outputDocumentKindCodes',
+    ])
+    .where(
+      'stage.procedure_template_id',
+      'in',
+      distinct.map((row) => row.procedureTemplateId),
+    )
+    .where('stage.deleted_at', 'is', null)
+    .orderBy('stage.procedure_template_id')
+    .orderBy('stage.position')
+    .execute();
+  const byProcedure = groupBy(stages, (stage) => stage.procedureTemplateId);
+  return distinct.map((row) => ({
+    sourceProcedureTemplateId: row.procedureTemplateId,
+    code: row.code,
+    name: row.name,
+    broughtByCatalogItemId: catalogItemId,
     stages: (byProcedure.get(row.procedureTemplateId) ?? []).map((stage) => ({
       sourceStageTemplateId: stage.sourceStageTemplateId,
       code: stage.code,

@@ -61,6 +61,8 @@ export interface ScopeItemsTable {
   parameter_set_code: string | null;
   parameters: ColumnType<Record<string, string | number | boolean>, string, string>;
   quantity: number;
+  /** Free text — may name a person: never audited, logged or put in an event (EVM-035; SR-DATA-02). 1–1000 characters or NULL. */
+  notes: Generated<string | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;

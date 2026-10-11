@@ -90,3 +90,70 @@ export function planProcedures(brought: readonly TemplateProcedure[], scopeItems
       })),
   }));
 }
+
+export interface AddedProceduresInput {
+  /** The processes the scope item brings, in order (the facade of `catalog`). */
+  readonly brought: readonly TemplateProcedure[];
+  /** The codes the user chose: a subset of `brought` (the service has checked it). */
+  readonly requestedCodes: readonly string[];
+  /** The codes of the ACTIVE processes of the order — a code is made once. */
+  readonly activeCodes: readonly string[];
+  /** The positions the ACTIVE processes of the order hold. */
+  readonly takenPositions: readonly number[];
+  /** The scope item that brings them (EVM-035 AC3: the process says which item it came with). */
+  readonly scopeItemId: string;
+}
+
+/**
+ * The first free positions of the processes of an order: after the highest one, and — when the end is past the limit — the lowest
+ * free ones (the model keeps the positions of the ACTIVE processes unique, 1…30).
+ */
+function freePositions(taken: readonly number[], count: number): number[] {
+  const highest = taken.reduce((max, position) => Math.max(max, position), 0);
+  if (highest + count <= MAX_PROCEDURES_PER_ORDER) return Array.from({ length: count }, (_, index) => highest + index + 1);
+  const used = new Set(taken);
+  const free: number[] = [];
+  for (let position = 1; position <= MAX_PROCEDURES_PER_ORDER && free.length < count; position += 1) {
+    if (!used.has(position)) free.push(position);
+  }
+  return free;
+}
+
+/**
+ * The processes ADDED with a scope item to an order that exists (EVM-035 AC2; domain-model.md → `ScopeItem`: "bez duplikatów po
+ * `code`"): a COPY of each chosen process with its stages, every stage `todo`, in the order the item brings them. A process whose
+ * code is ALREADY active in the order is skipped, not an error — two users adding items at once must not fail each other, and the
+ * model allows one active process per code. An order that would pass a limit is not planned at all: the planner throws, the
+ * command rolls back, no data is cut off silently (SR-API-02).
+ *
+ * @throws {CompositionLimitError} when 30 processes (or 30 stages of a process) would be passed
+ */
+export function planAddedProcedures(input: AddedProceduresInput): PlannedProcedure[] {
+  const chosen = new Set(input.requestedCodes);
+  const active = new Set(input.activeCodes);
+  const fresh = input.brought.filter((procedure) => {
+    if (!chosen.has(procedure.code) || active.has(procedure.code)) return false;
+    active.add(procedure.code);
+    return true;
+  });
+  if (input.activeCodes.length + fresh.length > MAX_PROCEDURES_PER_ORDER) throw new CompositionLimitError('too_many_procedures');
+  if (fresh.some((procedure) => procedure.stages.length > MAX_STAGES_PER_PROCEDURE)) throw new CompositionLimitError('too_many_stages');
+
+  const positions = freePositions(input.takenPositions, fresh.length);
+  return fresh.map((procedure, index): PlannedProcedure => ({
+    sourceProcedureTemplateId: procedure.sourceProcedureTemplateId,
+    sourceScopeItemId: input.scopeItemId,
+    code: procedure.code,
+    name: procedure.name,
+    position: positions[index] ?? index + 1,
+    stages: [...procedure.stages]
+      .sort((a, b) => a.position - b.position)
+      .map((stage, stageIndex) => ({
+        sourceStageTemplateId: stage.sourceStageTemplateId,
+        code: stage.code,
+        name: stage.name,
+        position: stageIndex + 1,
+        outputDocumentKindCodes: stage.outputDocumentKindCodes,
+      })),
+  }));
+}
