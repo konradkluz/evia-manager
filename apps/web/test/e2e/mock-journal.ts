@@ -75,6 +75,7 @@ function represent(server: JournalServer, orders: OrderServer, orderId: string, 
     supersedesEntryId: record.supersedesEntryId,
     supersededByEntryId: replacement?.id ?? null,
     redactedAt: null,
+    event: null,
   };
 }
 

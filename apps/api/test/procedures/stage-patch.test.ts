@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DUE_DATE_MAX, DUE_DATE_MIN, normalizeStagePatch } from '../../src/modules/procedures/domain/stage-patch.ts';
+import { DUE_DATE_MAX, DUE_DATE_MIN, normalizeStagePatch, stageChanges } from '../../src/modules/procedures/domain/stage-patch.ts';
 
 const TODAY = '2026-10-03';
 const USER = '0198b0a0-0000-7000-8000-000000000002';
@@ -62,5 +62,32 @@ describe('the change of the party waited for (EVM-032 AC3; SR-INPUT-01, SR-INPUT
     expect(refused({ waitingOn: 'party' })).toEqual([{ pointer: '/waitingOnPartyId', code: 'required' }]);
     expect(refused({ waitingOn: 'customer', waitingOnPartyId: PARTY })).toEqual([{ pointer: '/waitingOnPartyId', code: 'not_allowed' }]);
     expect(refused({ waitingOn: 'customer', waitingSince: '2026-10-04' })).toEqual([{ pointer: '/waitingSince', code: 'out_of_range' }]);
+  });
+});
+
+describe('what a patch really changes (EVM-038 AC1; SR-LOG-03)', () => {
+  const PARTY = '0198b0a0-0000-7000-8000-000000000003';
+  const OTHER = '0198b0a0-0000-7000-8000-000000000004';
+  const USER = '0198b0a0-0000-7000-8000-000000000005';
+  const current = { responsibleUserId: USER, dueDate: '2026-11-01', waitingOn: 'party', waitingOnPartyId: PARTY } as const;
+  const waiting = (waitingOn: 'customer' | 'party', waitingOnPartyId: string | null) => ({
+    waiting: { waitingOn, waitingOnPartyId, waitingSince: '2026-10-01' },
+  });
+
+  it('EVM-038 AC1 a value equal to the stored one is no change; a different value names its field', () => {
+    expect(stageChanges({ responsibleUserId: USER, dueDate: '2026-11-01' }, current)).toEqual({ waitingChanged: false, changedFields: [] });
+    expect(stageChanges({ responsibleUserId: null }, current)).toEqual({ waitingChanged: false, changedFields: ['responsibleUserId'] });
+    expect(stageChanges({ dueDate: '2026-12-01', responsibleUserId: OTHER }, current)).toEqual({
+      waitingChanged: false,
+      changedFields: ['responsibleUserId', 'dueDate'],
+    });
+    expect(stageChanges({ dueDate: null }, { ...current, dueDate: null })).toEqual({ waitingChanged: false, changedFields: [] });
+  });
+
+  it('EVM-038 AC1 the party or the customer changes the waiting; a new "since" alone does not', () => {
+    expect(stageChanges(waiting('party', PARTY), current).waitingChanged).toBe(false);
+    expect(stageChanges(waiting('party', OTHER), current).waitingChanged).toBe(true);
+    expect(stageChanges(waiting('customer', null), current).waitingChanged).toBe(true);
+    expect(stageChanges(waiting('party', PARTY), { ...current, waitingOn: 'customer', waitingOnPartyId: null }).waitingChanged).toBe(true);
   });
 });

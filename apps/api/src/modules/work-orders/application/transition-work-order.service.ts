@@ -42,7 +42,7 @@ import { stepUpFresh } from '../../identity/index.ts';
 import { businessDate } from '../domain/business-date.ts';
 import { normalizeTransitionFields, type TransitionBody } from '../domain/transition-input.ts';
 import { applyTransition, findTransition, mayUse, type TransitionState } from '../domain/work-order-transitions.ts';
-import type { WorkOrderEvent } from '../events.ts';
+import type { WorkOrderEvent, WorkOrderStatusChangedEvent } from '../events.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
 import { lockWorkOrderForTransition, updateWorkOrderStatus, type LockedWorkOrderRow } from '../infrastructure/work-order-store.ts';
 import { WorkOrderTransitionRegistry, type TransitionContext } from '../transition-participant.ts';
@@ -196,5 +196,16 @@ export class TransitionWorkOrderService {
       };
       await this.#events.publish(tx, event, request);
     }
+    // the journal (EVM-038 AC1): EVERY transition, once, with the two status codes — the reason of a hold or a cancellation is not in it
+    const changed: WorkOrderStatusChangedEvent = {
+      type: 'work_order.status_changed',
+      actor: { type: 'user', userId: principal.userId },
+      outcome: 'success',
+      objectType: 'work_order',
+      objectId: locked.id,
+      fromStatus: state.status,
+      toStatus: next.state.status,
+    };
+    await this.#events.publish(tx, changed, request);
   }
 }

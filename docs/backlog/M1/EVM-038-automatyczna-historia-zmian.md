@@ -4,11 +4,12 @@ title: Automatyczna historia zmian w dzienniku
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-032, EVM-037]
 ---
 
@@ -95,3 +96,6 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): zdarzenia transz — EVM-054 (także skutek anulowania zlecenia z EVM-053); EVM-058 bez nowych zdarzeń
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-11 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (wymuszona kryteriami: 7 AC, 3 recenzentów), gałąź feature/EVM-038-automatyczna-historia-zmian
+- 2026-10-11 — plan gotowy (backend-developer)
+- 2026-10-11 — backend gotowy (backend-developer): migracja 0021, zdarzenia zlecenia i etapów w transakcji zmiany, kontrakt `event` + `eventGroup`, testy AC1–AC7; panel (render zdarzeń, chip „Zmiany statusów”) — krok web-developera

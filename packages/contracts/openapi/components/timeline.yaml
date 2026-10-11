@@ -173,7 +173,8 @@ TimelineEvent:
   description: >-
     Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie
     bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`,
-    `stage_waiting_on_changed`, `stage_updated` (lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem).
+    `stage_waiting_on_changed`, `stage_updated` (lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola).
     `fromStatus` / `toStatus` to kody statusów zlecenia albo etapu (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
     `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu
     (`responsibleUserId`, `dueDate`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.
@@ -185,7 +186,10 @@ TimelineEvent:
       maxLength: 64
       pattern: '^[a-z][a-z_]{0,63}$'
     objectType:
-      $ref: '#/TimelineEventObjectType'
+      description: Obiekt zdarzenia albo `null`, gdy serwer nie umie odczytać zapisu (kod nieznany tej wersji).
+      oneOf:
+        - $ref: '#/TimelineEventObjectType'
+        - type: 'null'
     fromStatus:
       oneOf:
         - type: string

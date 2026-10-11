@@ -26,7 +26,8 @@
  *   9. the party waited for, when one is named: visible and LOCKED through the facade of `parties`; missing or deleted is the ONE answer
  *      `400` (`/waitingOnPartyId`, `unknown_party`);
  *  10. the update (`version + 1`), the event `procedure_stage.updated` for the audit trail (the actor and the stage — no name of the
- *      person, no date), the idempotency record. An error anywhere rolls the whole command back.
+ *      person, no date), the events of the JOURNAL (EVM-038: one per kind of change that really happened — codes and names of
+ *      fields only), the idempotency record. An error anywhere rolls the whole command back.
  * A repeat returns the stage as it is NOW.
  */
 import { zProcedureStage, zProcedureStagePatch, zUpdateProcedureStageHeaders, zUpdateProcedureStagePath } from '@evia/contracts/zod';
@@ -48,8 +49,8 @@ import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import type { StageStatus } from '../domain/stage-rules.ts';
-import { normalizeStagePatch, type StagePatch, type StagePatchInput } from '../domain/stage-patch.ts';
-import type { ProcedureStageEvent } from '../events.ts';
+import { normalizeStagePatch, stageChanges, type StageCurrent, type StagePatch, type StagePatchInput } from '../domain/stage-patch.ts';
+import type { ProcedureStageEvent, StageFieldsChangedEvent, StageWaitingOnChangedEvent } from '../events.ts';
 import { lockStage, updateStage } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
 import { HIDDEN_STAGE_COLUMNS, presentStage, requireVisibleParty } from './stage-answer.ts';
@@ -142,7 +143,19 @@ export class UpdateStageService {
         await this.#perform(
           tx,
           principal,
-          { orderId: order.id, closed: order.closed, stageId, version: locked.version, status: locked.status },
+          {
+            orderId: order.id,
+            closed: order.closed,
+            stageId,
+            version: locked.version,
+            status: locked.status,
+            current: {
+              responsibleUserId: locked.responsible_user_id,
+              dueDate: locked.due_date,
+              waitingOn: locked.waiting_on,
+              waitingOnPartyId: locked.waiting_on_party_id,
+            },
+          },
           expectedVersion,
           patch,
           request,
@@ -174,6 +187,7 @@ export class UpdateStageService {
       readonly stageId: string;
       readonly version: number;
       readonly status: StageStatus;
+      readonly current: StageCurrent;
     },
     expectedVersion: number,
     patch: StagePatch,
@@ -195,6 +209,41 @@ export class UpdateStageService {
       objectId: target.stageId,
     };
     await this.#events.publish(tx, event, request);
+    await this.#publishJournal(tx, principal, target, patch, request);
+  }
+
+  /**
+   * The events of the journal (EVM-038 AC1): one per KIND of change that really happened — the party waited for, then the person
+   * responsible and the due date together (their NAMES, never the values). A patch that changes nothing writes none.
+   */
+  async #publishJournal(
+    tx: Kysely<Database>,
+    principal: Principal,
+    target: { readonly orderId: string; readonly stageId: string; readonly current: StageCurrent },
+    patch: StagePatch,
+    request: EventContext,
+  ): Promise<void> {
+    const changes = stageChanges(patch, target.current);
+    const base = {
+      actor: { type: 'user', userId: principal.userId },
+      outcome: 'success',
+      objectType: 'procedure_stage',
+      objectId: target.stageId,
+      workOrderId: target.orderId,
+    } as const;
+    if (changes.waitingChanged && patch.waiting !== undefined) {
+      const event: StageWaitingOnChangedEvent = {
+        ...base,
+        type: 'procedure_stage.waiting_on_changed',
+        waitingOn: patch.waiting.waitingOn,
+        waitingOnPartyId: patch.waiting.waitingOnPartyId,
+      };
+      await this.#events.publish(tx, event, request);
+    }
+    if (changes.changedFields.length > 0) {
+      const event: StageFieldsChangedEvent = { ...base, type: 'procedure_stage.fields_changed', changedFields: changes.changedFields };
+      await this.#events.publish(tx, event, request);
+    }
   }
 
   /** `null` and absent name no one; a named user must be ACTIVE — the one answer for every other state of an account. */

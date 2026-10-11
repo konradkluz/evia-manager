@@ -59,6 +59,7 @@ export function entry(n: number, extra: Partial<TimelineEntry> = {}): TimelineEn
     supersedesEntryId: null,
     supersededByEntryId: null,
     redactedAt: null,
+    event: null,
     ...extra,
   };
 }

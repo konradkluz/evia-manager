@@ -262,6 +262,7 @@ describe('EVM-037 AC6 AC8 — the answer and who may read (SR-AUTHZ-05, SR-DATA-
           'body',
           'capturedAt',
           'createdAt',
+          'event',
           'id',
           'kind',
           'noteCategory',
@@ -273,6 +274,7 @@ describe('EVM-037 AC6 AC8 — the answer and who may read (SR-AUTHZ-05, SR-DATA-
           'supersedesEntryId',
         ].sort(),
       );
+      expect((item as unknown as { event: unknown }).event).toBeNull();
       expect(Object.keys(item?.author ?? {}).sort()).toEqual(['displayName', 'id']);
       const one = await reader.panel.get(`${BASE}/${orderId}/timeline/${entryId}`);
       expect(one.status, role).toBe(200);
