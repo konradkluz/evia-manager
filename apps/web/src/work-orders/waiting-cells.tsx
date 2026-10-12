@@ -53,16 +53,17 @@ export function WaitingCell({ waiting }: { readonly waiting: WorkOrderWaiting | 
   const { t } = useTranslation();
   if (waiting === null || waiting === undefined) return <Dash hidden={t('workOrders.waiting.none')} />;
   const long = isLongWait(waiting.days);
+  // Inline flow, not flex: the text wraps and the icon and "+n" stay at the end of its last line.
   return (
-    <span className={`inline-flex flex-wrap items-center gap-inline-xs ${long ? 'text-text-warning' : ''}`}>
-      <span className="medium:hidden">{t('workOrders.waiting.prefixWaiting')}</span>
+    <span className={long ? 'text-text-warning' : ''}>
+      <span className="medium:hidden">{t('workOrders.waiting.prefixWaiting')} </span>
       <span className="break-words">
         {t('workOrders.waiting.line', { who: waitingWho(t, waiting), since: sinceText(t, waiting.days) })}
       </span>
-      {long ? <TriangleAlert aria-hidden="true" className="size-icon-sm shrink-0" /> : null}
+      {long ? <TriangleAlert aria-hidden="true" className="ms-inline-xs inline-block size-icon-sm align-text-bottom" /> : null}
       {long ? <span className="sr-only">{t('workOrder.stage.longWait')}</span> : null}
       {waiting.otherCount > 0 ? (
-        <span className="text-text-secondary">
+        <span className="ms-inline-xs text-text-secondary">
           <span aria-hidden="true">{t('workOrders.waiting.others', { count: waiting.otherCount })}</span>
           <span className="sr-only">{othersText(t, waiting.otherCount)}</span>
         </span>

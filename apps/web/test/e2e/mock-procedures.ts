@@ -119,19 +119,29 @@ function progressOf(server: OrderServer, orderId: string, process: number, count
   };
 }
 
+/** The current stage of a process (EVM-034): the first stage that is not finished, `null` when every one is. */
+const currentStageIdOf = (stages: ReadonlyArray<{ id: string; status: string }>): string | null =>
+  stages.find((entry) => entry.status !== 'done' && entry.status !== 'not_applicable')?.id ?? null;
+
 export function answerProcedures(server: OrderServer, orderId: string): Answer {
   const created = server.created.find((entry) => entry.id === orderId);
   if (created === undefined || server.gone.has(orderId)) return NOT_FOUND;
   const brought =
     created.templateId === null ? 0 : processCountOf(server.templates.find((entry) => entry.id === created.templateId)?.items.length ?? 0);
-  const items = PROCESSES.slice(0, brought).map((process, processIndex) => ({
-    id: `${orderId.slice(0, -6)}${String(processIndex + 1)}00000`,
-    code: process.code,
-    name: process.name,
-    position: processIndex + 1,
-    progress: progressOf(server, orderId, processIndex + 1, process.stages.length),
-    stages: process.stages.map((name, stageIndex) => stageBody(server, orderId, processIndex + 1, stageIndex + 1, name, stageIndex + 1)),
-  }));
+  const items = PROCESSES.slice(0, brought).map((process, processIndex) => {
+    const stages = process.stages.map((name, stageIndex) =>
+      stageBody(server, orderId, processIndex + 1, stageIndex + 1, name, stageIndex + 1),
+    );
+    return {
+      id: `${orderId.slice(0, -6)}${String(processIndex + 1)}00000`,
+      code: process.code,
+      name: process.name,
+      position: processIndex + 1,
+      progress: progressOf(server, orderId, processIndex + 1, process.stages.length),
+      currentStageId: currentStageIdOf(stages),
+      stages,
+    };
+  });
   // EVM-035: a process added with an item of the scope comes after the ones of the template, with its stages "Do zrobienia".
   const added = (server.edits?.get(orderId)?.added ?? []).map((process, index) => ({
     id: `${orderId.slice(0, -6)}b${String(index)}0000`,
@@ -140,6 +150,7 @@ export function answerProcedures(server: OrderServer, orderId: string): Answer {
     position: items.length + index + 1,
     progress: { done: 0, total: process.stages.length },
     sourceScopeItemId: process.sourceScopeItemId,
+    currentStageId: process.stages.length === 0 ? null : `${orderId.slice(0, -6)}c${String(index)}0000`,
     stages: process.stages.map((name, stageIndex) => ({
       id: `${orderId.slice(0, -6)}c${String(index)}${String(stageIndex)}000`,
       code: `${process.code}_${String(stageIndex + 1)}`,

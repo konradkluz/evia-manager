@@ -192,7 +192,8 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       // parties and from EVM-031 the menu of every visible stage: Tylko odczyt has none. The nine headers of the processes and "Rozwiń wszystkie"
       // only open and close sections; the first process is open, so three stages show their menus and, from EVM-032, their status badges.
       // From EVM-035 the Editor also has the menu "Akcje zlecenia" and "Edytuj zakres"; Tylko odczyt has neither.
-      const reading = 10;
+      // From EVM-034 the card "Podsumowanie" has "+ 6 procesów" (nine processes, three of them named) — one more button for everybody.
+      const reading = 11;
       await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 : reading);
       await expect(page.getByRole('button', { name: /^Akcje zlecenia/ })).toHaveCount(role === 'editor' ? 1 : 0);
       await expect(page.getByRole('button', { name: 'Edytuj zakres' })).toHaveCount(role === 'editor' ? 1 : 0);
@@ -211,6 +212,9 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await expect(page.getByRole('button', { name: 'Akcje zlecenia: ZL-2026-0042' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: /^Status zlecenia: .*Zmień status$/ })).toBeFocused();
+    // the card "Podsumowanie" (EVM-034) is before the tabs: its button "+ 6 procesów" is the next stop
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name: '+ 6 procesów' })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     // the second tab "Dziennik" (EVM-037) is the next stop of the arrows, and they come back

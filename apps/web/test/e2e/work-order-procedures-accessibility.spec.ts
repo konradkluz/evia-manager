@@ -44,14 +44,14 @@ test.describe('accessibility of "Procesy i etapy" in the browser, with colour co
     test(`EVM-031 AC8 an order without processes, a failed read and the offline state at ${px} px`, async ({ page, api, context }) => {
       await page.setViewportSize({ width, height: 900 });
       const path = await createOrder(page, false);
-      await expect(page.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
+      await expect(page.getByRole('region', { name: /^Procesy i etapy/ }).getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
       expect(await violations(page)).toEqual([]);
       api.failNext.set(`GET /api/v1${path}/procedures`, { status: 500, code: 'internal_error' });
       await page.goto(path);
       await expect(page.getByText('Nie udało się wczytać procesów i etapów.')).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await page.goto(path);
-      await expect(page.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
+      await expect(page.getByRole('region', { name: /^Procesy i etapy/ }).getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
       await context.setOffline(true);
       await expect(page.getByText(/Dane mogą być nieaktualne/)).toBeVisible();
       expect(await violations(page)).toEqual([]);

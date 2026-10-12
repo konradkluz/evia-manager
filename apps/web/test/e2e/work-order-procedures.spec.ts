@@ -137,7 +137,8 @@ test.describe('processes and stages of a work order (EVM-031)', () => {
     api.role = 'read_only';
     await page.goto(path);
     await expect(page.getByRole('region', { name: 'Procesy i etapy (9)' })).toBeVisible();
-    await expect(page.getByText('Pełnomocnictwo od klienta')).toBeVisible();
+    // the summary card (EVM-034) names the current stage as well, so the stage row is asked for in its section
+    await expect(page.getByRole('region', { name: 'Procesy i etapy (9)' }).getByText('Pełnomocnictwo od klienta')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Akcje etapu/ })).toHaveCount(0);
   });
 
@@ -153,12 +154,13 @@ test.describe('processes and stages of a work order (EVM-031)', () => {
     await page.getByRole('radio', { name: 'Puste zlecenie (bez szablonu)' }).check();
     await page.getByRole('button', { name: 'Utwórz zlecenie' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeVisible();
-    await expect(page.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
+    const section = page.getByRole('region', { name: /^Procesy i etapy/ });
+    await expect(section.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
     const path = new URL(page.url()).pathname;
     api.failNext.set(`GET /api/v1${path}/procedures`, { status: 500, code: 'internal_error' });
     await page.goto(path);
     await expect(page.getByText('Nie udało się wczytać procesów i etapów.')).toBeVisible();
     await page.getByRole('button', { name: 'Spróbuj ponownie' }).click();
-    await expect(page.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
+    await expect(section.getByText('Zlecenie nie ma jeszcze procesów.')).toBeVisible();
   });
 });

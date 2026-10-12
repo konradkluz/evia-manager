@@ -20,11 +20,9 @@ export function StageFacts({ stage }: { readonly stage: ProcedureStage }) {
   return (
     <>
       {stage.status !== 'waiting' || stage.waitingOn === null ? null : (
-        <span
-          className={`inline-flex flex-wrap items-center gap-inline-xs text-body-sm ${longWait ? 'text-text-warning' : 'text-text-secondary'}`}
-        >
+        <span className={`inline-flex items-start gap-inline-xs text-body-sm ${longWait ? 'text-text-warning' : 'text-text-secondary'}`}>
           {longWait ? <TriangleAlert aria-hidden="true" className="size-icon-sm shrink-0" /> : null}
-          <span className="break-words">{t('workOrder.stage.waiting', { who, since })}</span>
+          <span className="min-w-0 break-words">{t('workOrder.stage.waiting', { who, since })}</span>
           {longWait ? <span className="sr-only">{t('workOrder.stage.longWait')}</span> : null}
         </span>
       )}
