@@ -4,7 +4,7 @@ title: Szybkie dodanie strony przy etapie z podpowiedzią z lokalizacji
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: done
 priority: P1
 owner: web-developer
 contributors: [backend-developer]
@@ -93,7 +93,7 @@ Tylko panel — bez zmian w API, kontrakcie i migracjach (wystarczą `searchPart
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -106,3 +106,4 @@ Tylko panel — bez zmian w API, kontrakcie i migracjach (wystarczą `searchPart
 - 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 98,1%; pełne e2e Chromium + Firefox: 602 passed, 14 skipped (istniejące pominięcia Firefoksa), 0 failed
 - 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 8 wywołań, ok. 0,67 mln tokenów subagentów, 194 wywołania narzędzi, ok. 48 min; rundy poprawek 0; ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (najtańsza z ostatnich czterech: EVM-037 1,55 mln, EVM-038 1,02 mln, EVM-035 1,94 mln)
 - 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada
+- 2026-10-12 — demo zaakceptowane przez Konrada; PR #57 scalony (squash, `66acc4c`); in-review → done
