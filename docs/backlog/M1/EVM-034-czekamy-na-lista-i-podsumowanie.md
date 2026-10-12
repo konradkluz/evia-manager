@@ -4,7 +4,7 @@ title: „Czekamy na…” na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -109,6 +109,7 @@ _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
 - Nocny `verify` (pg-boss, metryka `projection_drift_total`, ADR-0017 W11) **nie jest dostarczony** w tej historyjce: wymaga decyzji Konrada o zależności pg-boss i kontenerze `worker`. Do czasu decyzji: `verify` z crona operatora i wyraźna informacja, że metryka z CLI nie jest eksportowana (runbook `docs/ops/runbooks/projekcja-listy-zlecen.md`). Zadanie w `worker` do wydzielenia jako osobna historyjka (`/refine`) po decyzji — do rozstrzygnięcia przed merge.
+- **Decyzja Konrada 2026-10-12 (demo):** nocny `verify` (pg-boss, kontener `worker`, metryka `projection_drift_total`, ADR-0017 W11) wchodzi do EVM-034 teraz — zakres historyjki rozszerzony o krok 9 planu; reszta zakresu zaakceptowana. Push i PR dopiero po tym kroku.
 - Backfill projekcji na istniejącej bazie: migracja `0023` go nie robi; w środowisku dev robi to `dev`/`dev:seed` (`rebuild`), poza nim — runbook.
 
 ## Uwagi do rozważenia
@@ -134,3 +135,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 97,1%; pełne e2e Chromium + Firefox: 652 passed, 14 skipped, 0 failed; README i 3 pliki .md w drzewie roboczym miały CRLF po edycji agentów (index LF) — znormalizowane do LF, bez zmiany treści
 - 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 14 wywołań, ok. 2,05 mln tokenów subagentów, 738 wywołań narzędzi, ok. 3,0 h; rundy 2; ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (największa z ostatnich pięciu: EVM-035 1,94 mln, EVM-037 1,55 mln, EVM-038 1,02 mln, EVM-033 0,67 mln; ryzyko R8 — enabler + funkcja + panel w jednej historyjce)
 - 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada (scenariusz B6) oraz decyzję o nocnym verify
+- 2026-10-12 — demo: Konrad akceptuje dostarczony zakres i decyduje o dołożeniu nocnego verify (pg-boss + worker) do EVM-034; in-review → in-progress (krok 9 planu), push/PR wstrzymane
