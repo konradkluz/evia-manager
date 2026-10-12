@@ -142,3 +142,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-12 — demo: Konrad akceptuje dostarczony zakres i decyduje o dołożeniu nocnego verify (pg-boss + worker) do EVM-034; in-review → in-progress (krok 9 planu), push/PR wstrzymane
 - 2026-10-12 — plan gotowy (backend-developer): krok 9, nocny verify (pg-boss + worker)
 - 2026-10-12 — krok 9 zaimplementowany (backend-developer): pg-boss 12.35.1, migracja 0024, `platform/jobs`, zadanie `overview.verify-projection`, proces `worker` i usługa w compose.dev, runbook/ADR-0017/threat-model/CHANGELOG zaktualizowane; testy `EVM-034 W11`
+- 2026-10-12 — krok 9 zweryfikowany (web-developer): zmiana nie dotyka panelu (bez zmian w apps/web i packages/ui-web, e2e web nie wymagane); `gate:native` i `gate:backend` (kontener) zielone, `docs:check` 0 błędów, 0 ostrzeżeń
