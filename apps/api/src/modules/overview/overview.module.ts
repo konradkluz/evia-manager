@@ -17,12 +17,13 @@ import { ListWorkOrdersService } from './application/list-work-orders.service.ts
 import { ProjectionMaintenance } from './application/projection-maintenance.ts';
 import { ProjectionRecomputer } from './application/projection-recomputer.ts';
 import { ProjectionRecorder } from './application/projection-recorder.ts';
+import { VerifyProjectionJob } from './application/verify-projection.job.ts';
 import { WorkOrdersListController } from './http/work-orders-list.controller.ts';
 
 @Module({
   imports: [IdentityModule, WorkOrdersModule, SitesModule, PartiesModule, ProceduresModule],
   controllers: [WorkOrdersListController],
-  providers: [ProjectionRecomputer, ProjectionRecorder, ProjectionMaintenance, ListWorkOrdersService],
-  exports: [ProjectionMaintenance],
+  providers: [ProjectionRecomputer, ProjectionRecorder, ProjectionMaintenance, ListWorkOrdersService, VerifyProjectionJob],
+  exports: [ProjectionMaintenance, VerifyProjectionJob],
 })
 export class OverviewModule {}

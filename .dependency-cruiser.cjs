@@ -86,10 +86,33 @@ module.exports = {
     {
       name: 'api-nothing-depends-on-overview',
       comment:
-        'The read model is a leaf (ADR-0017 W5): it depends on the source modules, nothing depends on it. Only the composition root and the server command reach it, through index.ts.',
+        'The read model is a leaf (ADR-0017 W5): it depends on the source modules, nothing depends on it. Only the composition root, the worker and the server command reach it, through index.ts.',
       severity: 'error',
-      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(modules/overview/|app\\.module\\.ts$|cli/)' },
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(modules/overview/|app\\.module\\.ts$|cli/|worker(/|\\.ts$))' },
       to: { path: '^apps/api/src/modules/overview/' },
+    },
+    {
+      name: 'api-pg-boss-only-in-jobs-adapter',
+      comment:
+        'The job queue library is imported only by its adapter (platform/jobs/pg-boss-job-queue.ts) and by the migration that builds its schema (ADR-0010; EVM-034): a module knows the interface JobQueue, never the library.',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(platform/jobs/pg-boss-job-queue\\.ts$|migrations/0024_jobs\\.ts$)' },
+      to: { path: 'node_modules/pg-boss(/|$)' },
+    },
+    {
+      name: 'api-jobs-adapter-only-from-worker',
+      comment:
+        'The adapter of the queue is wired by the composition root of the worker only: a module and the platform use the interface (ADR-0010).',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(platform/jobs/|worker/)' },
+      to: { path: '^apps/api/src/platform/jobs/pg-boss-job-queue\\.ts$' },
+    },
+    {
+      name: 'api-overview-http-not-to-jobs',
+      comment: 'The HTTP layer of the read model does not see the background job (it is registered by the worker, not by a route).',
+      severity: 'error',
+      from: { path: '^apps/api/src/modules/overview/http/' },
+      to: { path: '^apps/api/src/(modules/overview/application/verify-projection\\.job\\.ts$|platform/jobs/)' },
     },
     {
       name: 'no-module-imports-audit',
