@@ -829,7 +829,9 @@ describe('the journal and the audit trail of the scope (EVM-035 AC7; SR-LOG-03, 
       changedFields: ['parameters', 'notes'],
     });
     expect(events[2]?.event_payload).toEqual({ objectType: 'scope_item', objectId: added.item.id, itemCode: SUPPLY });
-    expect(JSON.stringify(events)).not.toMatch(/Jan|Przykładow|Klucz|9876|18|Instalacja zasilająca|cableLengthM/);
+    // the identifiers are random UUIDs that may contain "18" by chance — only the values of the payload are looked at
+    const withoutIds = JSON.stringify(events).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>');
+    expect(withoutIds).not.toMatch(/Jan|Przykładow|Klucz|9876|18|Instalacja zasilająca|cableLengthM/);
   });
 
   it("EVM-035 AC7 the journal API shows the events to a reader with the code of the item and of the processes (names are the panel's, from the catalogue) — and no note", async () => {
