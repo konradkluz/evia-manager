@@ -34,6 +34,7 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/procedures/application/transition-stage.service.ts',
   'src/modules/procedures/application/stage-answer.ts',
   'src/modules/procedures/application/procedures-contributor.ts',
+  'src/modules/procedures/application/procedures-scope-participant.ts',
   'src/modules/procedures/application/stage-directory.service.ts',
   'src/modules/procedures/infrastructure/**/*.ts',
   // the shape of the answers and the controller over fake services are measured by the unit run

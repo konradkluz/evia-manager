@@ -179,3 +179,47 @@ describe('the answer of an entry (EVM-037 AC1–AC3; SR-DATA-03, ASVS V15.3.1)',
     expect(toTimelineEntryList([], batch(), null)).toEqual({ items: [], nextCursor: null });
   });
 });
+
+describe('the events of the scope in the answer (EVM-035 AC7; SR-LOG-03, SR-DATA-02)', () => {
+  const eventRow = (code: string, payload: Record<string, unknown>) =>
+    row({ kind: 'event', note_category: null, body: null, origin: 'system', event_code: code, event_payload: payload });
+
+  it('EVM-035 AC7 the addition of an item carries the code of the item and the codes of the processes — the names are read from the catalogue by the panel', () => {
+    const entry = toTimelineEntry(
+      eventRow('scope_item_added', {
+        objectType: 'scope_item',
+        objectId: OTHER,
+        itemCode: 'supply_installation',
+        procedureCodes: ['electrical_installation'],
+      }),
+      batch(),
+    );
+    expect(entry.event).toEqual({
+      code: 'scope_item_added',
+      objectType: 'scope_item',
+      fromStatus: null,
+      toStatus: null,
+      waitingOn: null,
+      waitingOnParty: null,
+      changedFields: [],
+      itemCode: 'supply_installation',
+      procedureCodes: ['electrical_installation'],
+    });
+  });
+
+  it('EVM-035 AC7 an event that is not about the scope has neither key; the change of the data of an order has the names of the fields', () => {
+    const entry = toTimelineEntry(
+      eventRow('work_order_fields_changed', { objectType: 'work_order', objectId: OTHER, changedFields: ['title', 'coordinator'] }),
+      batch(),
+    );
+    expect(entry.event).toMatchObject({ code: 'work_order_fields_changed', changedFields: ['title', 'coordinator'] });
+    expect(Object.keys(entry.event ?? {})).not.toContain('itemCode');
+    expect(Object.keys(entry.event ?? {})).not.toContain('procedureCodes');
+    const removed = toTimelineEntry(
+      eventRow('scope_item_removed', { objectType: 'scope_item', objectId: OTHER, itemCode: 'supply_installation' }),
+      batch(),
+    );
+    expect(removed.event).toMatchObject({ itemCode: 'supply_installation' });
+    expect(Object.keys(removed.event ?? {})).not.toContain('procedureCodes');
+  });
+});

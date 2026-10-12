@@ -17,6 +17,18 @@ export interface OrderServer {
   readonly stages: Map<string, StageState>;
   /** EVM-032: the parties a stage may wait for (the same list the search of W-05 reads). */
   readonly parties: ReadonlyArray<{ readonly id: string; readonly displayName: string }>;
+  /** EVM-035: the processes added with the items of the scope (by id of the order). */
+  readonly edits?: ReadonlyMap<
+    string,
+    {
+      readonly added: ReadonlyArray<{
+        readonly code: string;
+        readonly name: string;
+        readonly stages: readonly string[];
+        readonly sourceScopeItemId: string;
+      }>;
+    }
+  >;
 }
 
 export interface StageState {
@@ -109,8 +121,8 @@ function progressOf(server: OrderServer, orderId: string, process: number, count
 export function answerProcedures(server: OrderServer, orderId: string): Answer {
   const created = server.created.find((entry) => entry.id === orderId);
   if (created === undefined || server.gone.has(orderId)) return NOT_FOUND;
-  if (created.templateId === null) return json(200, { items: [], openStageCount: 0 });
-  const brought = processCountOf(server.templates.find((entry) => entry.id === created.templateId)?.items.length ?? 0);
+  const brought =
+    created.templateId === null ? 0 : processCountOf(server.templates.find((entry) => entry.id === created.templateId)?.items.length ?? 0);
   const items = PROCESSES.slice(0, brought).map((process, processIndex) => ({
     id: `${orderId.slice(0, -6)}${String(processIndex + 1)}00000`,
     code: process.code,
@@ -119,8 +131,36 @@ export function answerProcedures(server: OrderServer, orderId: string): Answer {
     progress: progressOf(server, orderId, processIndex + 1, process.stages.length),
     stages: process.stages.map((name, stageIndex) => stageBody(server, orderId, processIndex + 1, stageIndex + 1, name, stageIndex + 1)),
   }));
-  const open = items.flatMap((item) => item.stages).filter((entry) => ['todo', 'in_progress', 'waiting', 'blocked'].includes(entry.status));
-  return json(200, { items, openStageCount: open.length });
+  // EVM-035: a process added with an item of the scope comes after the ones of the template, with its stages "Do zrobienia".
+  const added = (server.edits?.get(orderId)?.added ?? []).map((process, index) => ({
+    id: `${orderId.slice(0, -6)}b${String(index)}0000`,
+    code: process.code,
+    name: process.name,
+    position: items.length + index + 1,
+    progress: { done: 0, total: process.stages.length },
+    sourceScopeItemId: process.sourceScopeItemId,
+    stages: process.stages.map((name, stageIndex) => ({
+      id: `${orderId.slice(0, -6)}c${String(index)}${String(stageIndex)}000`,
+      code: `${process.code}_${String(stageIndex + 1)}`,
+      name,
+      position: stageIndex + 1,
+      status: 'todo',
+      dueDate: null,
+      overdue: false,
+      responsibleUser: null,
+      waitingOn: null,
+      waitingParty: null,
+      waitingSince: null,
+      waitingDays: null,
+      blockedReason: null,
+      startedAt: null,
+      completedOn: null,
+      version: 1,
+    })),
+  }));
+  const all = [...items, ...added];
+  const open = all.flatMap((item) => item.stages).filter((entry) => ['todo', 'in_progress', 'waiting', 'blocked'].includes(entry.status));
+  return json(200, { items: all, openStageCount: open.length });
 }
 
 interface StagePatchInput {

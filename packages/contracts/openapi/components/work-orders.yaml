@@ -94,9 +94,11 @@ WorkOrderCustomer:
 ScopeItem:
   type: object
   description: >-
-    Pozycja zakresu zlecenia — kopia pozycji szablonu (kod, nazwa, zestaw parametrów, parametry domyślne i ilość; zmiana szablonu
-    nie zmienia zlecenia). Parametry to wyłącznie wartości techniczne.
-  required: [id, position, code, name, parameterSetCode, parameters, quantity]
+    Pozycja zakresu zlecenia — kopia pozycji katalogu albo szablonu (kod, nazwa, zestaw parametrów, parametry i ilość; zmiana
+    szablonu ani katalogu nie zmienia zlecenia). Parametry to wyłącznie wartości techniczne. `version` jest wersją pozycji (ETag
+    dla `If-Match` przy zmianie i usunięciu pozycji — zakres zlecenia nie zmienia wersji zlecenia). `notes` (EVM-035) to
+    notatki do pozycji albo opis „Innej usługi” — pole swobodne, może zawierać dane osobowe; panel wyświetla je jako tekst.
+  required: [id, position, code, name, parameterSetCode, parameters, quantity, version]
   additionalProperties: false
   properties:
     id:
@@ -119,6 +121,14 @@ ScopeItem:
       type: integer
       minimum: 1
       maximum: 100
+    notes:
+      type: string
+      description: Notatki do pozycji albo opis „Innej usługi” (1–1000 znaków); brak pola, gdy pozycja nie ma notatek.
+      minLength: 1
+      maxLength: 1000
+    version:
+      type: integer
+      minimum: 1
 CreateWorkOrderRequest:
   type: object
   description: >-
@@ -295,6 +305,17 @@ WorkOrderDetails:
       description: Dzień zakończenia prac (`RRRR-MM-DD`, `Europe/Warsaw`); czyszczony przez ponowne otwarcie.
       format: date
       maxLength: 10
+    description:
+      type: string
+      description: >-
+        Opis zlecenia (EVM-035; zwykły tekst, pole swobodne — może zawierać dane osobowe, panel wyświetla go jako tekst); brak pola,
+        gdy zlecenie nie ma opisu. Dialog „Edytuj dane zlecenia” wypełnia się z nagłówka bez dodatkowego odczytu.
+      maxLength: 2000
+    plannedDate:
+      type: string
+      description: Planowana data (dzień w strefie `Europe/Warsaw`, `RRRR-MM-DD`); brak pola, gdy jej nie ustawiono.
+      format: date
+      maxLength: 10
 ScopeItemList:
   type: object
   description: Aktywne pozycje zakresu zlecenia w kolejności `position` (brak pozycji to pusta tablica).
@@ -459,3 +480,111 @@ SiteOrders:
       maxItems: 20
       items:
         $ref: '#/SiteOrderItem'
+# Editing the data and the scope of an order (EVM-035; W-06 (a), (c)). The requests are their own schemas: the fields of the server
+# (`number`, `status`, `customerId`, `siteId`, `version`; `code`, `name`, `parameterSetCode`, `position`, `quantity`,
+# `sourceCatalogItemId`) are not in them, so naming one is `400 validation_failed` with the code `read_only_field`; a stranger is
+# `unknown_field`. Free text is plain text (NFC, trimmed, no control characters; a new line only in the multi-line fields).
+WorkOrderPatch:
+  type: object
+  description: >-
+    Zmiana danych zlecenia (merge-patch; EVM-035 AC1) — co najmniej jedno pole. Pole nieobecne zostaje bez zmian, `null` czyści
+    `description` i `plannedDate`. `title` ma 1–200 znaków i nie bywa `null`. `assigneeUserId` (opiekun) musi być aktywnym
+    użytkownikiem — inaczej `400` z kodem `assignee_unavailable` (jeden kod dla konta nieistniejącego, zaproszonego,
+    zdezaktywowanego i usuniętego); opiekuna nie można usunąć. `plannedDate` to data z zakresu 2000-01-01 … 2100-12-31
+    (`out_of_range`). Pola kontrolowane przez serwer (`id`, `number`, `status`, `customerId`, `siteId`, `customer`, `site`,
+    `coordinator`, `scopeItems`, `version`, `createdAt` …) — `400 read_only_field`, inne — `400 unknown_field`.
+  minProperties: 1
+  additionalProperties: false
+  properties:
+    title:
+      type: string
+      description: Tytuł (pole swobodne, może zawierać dane klienta; pusty po przycięciu — `400 required`).
+      maxLength: 200
+    description:
+      description: Opis (zwykły tekst, pole swobodne — może zawierać dane klienta) albo `null`, by go usunąć.
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'
+    plannedDate:
+      description: Planowana data, `RRRR-MM-DD` (2000-01-01 … 2100-12-31), albo `null`, by ją usunąć.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    assigneeUserId:
+      type: string
+      description: Opiekun zlecenia (aktywny użytkownik).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+CreateScopeItemRequest:
+  type: object
+  description: >-
+    Nowa pozycja zakresu (EVM-035 AC2, AC4). `id` (UUIDv7) nadaje klient (istniejące — `409 id_conflict`). `catalogItemCode`
+    wskazuje aktywną pozycję katalogu usług (kod stały; nieistniejąca albo wycofana — `400`, `/catalogItemCode`,
+    `unknown_catalog_item`); serwer kopiuje z niej kod, nazwę i zestaw parametrów — klient ich nie podaje. `parameters` brak
+    albo `{}` oznacza „bez parametrów”; niepuste są walidowane schematem zestawu pozycji (pole nieznane, wartość spoza zakresu,
+    typ albo > 16 KB — `400 validation_failed`, wskaźniki `/parameters/…`); pozycja bez zestawu przyjmuje tylko `{}`
+    (`not_allowed`). `notes` — notatki do pozycji, a dla „Innej usługi” (`custom_service`) wymagany opis usługi (1–1000 znaków;
+    `required`). `procedureCodes` — kody procesów wnoszonych przez pozycję, które mają zostać dodane do zlecenia (do 30,
+    bez powtórzeń); kod spoza procesów pozycji — `400` (`/procedureCodes/N`, `not_brought_by_item`); proces o kodzie już
+    aktywnym w zleceniu jest pomijany (bez duplikatów po kodzie). Parametry i notatki nie przyjmują danych osobowych ani
+    identyfikatorów (PPE, numerów liczników, nazwisk) — zestawy nie mają na nie pól.
+  required: [id, catalogItemCode]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    catalogItemCode:
+      $ref: catalog.yaml#/ConfigCode
+    parameters:
+      $ref: catalog.yaml#/DefaultParameters
+    notes:
+      type: string
+      description: Notatki do pozycji albo opis „Innej usługi” (zwykły tekst, pole swobodne — może zawierać dane osobowe).
+      maxLength: 1000
+    procedureCodes:
+      type: array
+      maxItems: 30
+      uniqueItems: true
+      items:
+        $ref: catalog.yaml#/ConfigCode
+ScopeItemPatch:
+  type: object
+  description: >-
+    Zmiana pozycji zakresu (merge-patch; EVM-035 AC4) — co najmniej jedno pole. `parameters` zastępuje całą mapę parametrów i jest
+    walidowane schematem zestawu zapisanym w pozycji (nie wartością od klienta; `{}` — „bez parametrów”); `notes` zmienia notatki
+    albo opis „Innej usługi” (`null` czyści notatki; opis „Innej usługi” jest wymagany — `required`). Pola kontrolowane przez serwer
+    (`id`, `code`, `name`, `parameterSetCode`, `position`, `quantity`, `sourceCatalogItemId`, `version`) — `400 read_only_field`.
+  minProperties: 1
+  additionalProperties: false
+  properties:
+    parameters:
+      $ref: catalog.yaml#/DefaultParameters
+    notes:
+      description: Notatki do pozycji (zwykły tekst, pole swobodne — może zawierać dane osobowe) albo `null`, by je usunąć.
+      oneOf:
+        - type: string
+          maxLength: 1000
+        - type: 'null'
+ScopeItemAddition:
+  type: object
+  description: >-
+    Wynik dodania pozycji (EVM-035 AC2): pozycja i kody procesów dodanych razem z nią w tej samej transakcji (bez procesów
+    pominiętych jako duplikaty po kodzie). Procesy z etapami „Do zrobienia” czyta się z `listWorkOrderProcedures`.
+  required: [item, addedProcedureCodes]
+  additionalProperties: false
+  properties:
+    item:
+      $ref: '#/ScopeItem'
+    addedProcedureCodes:
+      type: array
+      maxItems: 30
+      items:
+        $ref: catalog.yaml#/ConfigCode

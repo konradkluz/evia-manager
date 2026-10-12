@@ -131,14 +131,32 @@ export function findVisibleWorkOrder(db: WorkOrdersDb, principal: Principal, id:
 
 export type WorkOrderRow = NonNullable<Awaited<ReturnType<typeof findVisibleWorkOrder>>>;
 
-/** The ACTIVE items of an order, in order. */
+/** The limit of the scope as a bound of every query that reads it (SR-API-02): the limit of the API is the limit of the read. */
+export const SCOPE_ITEMS_LIMIT = 50;
+
+/** The columns of a scope item that the answers carry (named, never `select *`: `created_by`, `deleted_by` cannot leak, SR-DATA-03). */
+export const scopeItemColumns = [
+  'id',
+  'position',
+  'code',
+  'name',
+  'parameter_set_code',
+  'parameters',
+  'quantity',
+  'notes',
+  'version',
+  'source_catalog_item_id',
+] as const;
+
+/** The ACTIVE items of an order, in order — at most the limit of the scope (EVM-035: a bound on the answer, SR-API-02). */
 export function listScopeItems(db: WorkOrdersDb, workOrderId: string) {
   return db
     .selectFrom('work_orders.scope_items')
-    .select(['id', 'position', 'code', 'name', 'parameter_set_code', 'parameters', 'quantity'])
+    .select(scopeItemColumns)
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
     .orderBy('position')
+    .limit(SCOPE_ITEMS_LIMIT)
     .execute();
 }
 
@@ -158,8 +176,8 @@ export async function findCoordinatorUserId(db: WorkOrdersDb, workOrderId: strin
 
 /**
  * The order as the READ operations of one order see it (EVM-018): the read policy is in the query and the columns are named — only
- * what the header and the anchors of the cards need (no description, no planned date, no author). `customer_id` and `site_id` of the
- * cards come from THIS row only, never from the request (SR-AUTHZ-02, CWE-639).
+ * what the header, the form of its edit (the description and the planned date, EVM-035) and the anchors of the cards need (no
+ * author). `customer_id` and `site_id` of the cards come from THIS row only, never from the request (SR-AUTHZ-02, CWE-639).
  */
 export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id: string) {
   return db
@@ -175,6 +193,8 @@ export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id
       'status_changed_at',
       'closed_at',
       sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on'),
+      sql<string | null>`to_char(planned_date, 'YYYY-MM-DD')`.as('planned_date'),
+      'description',
       'version',
       'created_at',
     ])

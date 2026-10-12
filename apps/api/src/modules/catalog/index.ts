@@ -9,3 +9,5 @@ export {
   type TemplateScopeItem,
   type TemplateStageForCopy,
 } from './template-directory.ts';
+export { CATALOG_ITEM_DIRECTORY, type CatalogItemDirectory, type CatalogItemForScope } from './catalog-item-directory.ts';
+export { MAX_PARAMETERS_BYTES, parseParameters, type ParameterIssue, type ParameterResult } from './domain/parameter-sets.ts';

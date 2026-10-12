@@ -46,6 +46,19 @@ export class PanelClient {
     return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
   }
 
+  /** A DELETE as the panel sends it (same headers as a mutation, no body); `headers` carries `If-Match` and `Idempotency-Key`. */
+  delete(path: string, headers: Readonly<Record<string, string>> = {}): Test {
+    let call = request(this.#server)
+      .delete(path)
+      .set('User-Agent', USER_AGENT)
+      .set('Origin', this.#origin)
+      .set('Sec-Fetch-Site', 'same-origin');
+    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
+    for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
+    return call;
+  }
+
   get(path: string): Test {
     const call = request(this.#server).get(path).set('User-Agent', USER_AGENT);
     return this.cookie === undefined ? call : call.set('Cookie', this.cookie);

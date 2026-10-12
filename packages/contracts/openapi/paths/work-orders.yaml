@@ -218,6 +218,116 @@ workOrder:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  patch:
+    operationId: updateWorkOrder
+    tags: [work-orders]
+    summary: Dane zlecenia — tytuł, opis, opiekun, planowana data (merge-patch, If-Match)
+    description: >-
+      Zmiana danych zlecenia (EVM-035 AC1, AC6–AC8; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-INPUT-05,
+      SR-API-05, SR-API-07, SR-DATA-02, SR-LOG-02, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed
+      walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`,
+      z audytem (`work_order.updated` — aktor, identyfikator zlecenia, wynik i `traceId`; bez wartości i nazw pól; zmiana bez
+      efektu nie tworzy zdarzenia). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` zlecenia): brak — `428
+      precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`);
+      nieaktualna wersja — `412 version_conflict` (dane zlecenia zostają bez zmian, odpowiedź nie zawiera bieżących wartości).
+      Treść to `WorkOrderPatch` (co najmniej jedno z `title`, `description`, `plannedDate`, `assigneeUserId`); pole kontrolowane
+      przez serwer (`number`, `status`, `customerId`, `siteId`, `version` …) — `400 read_only_field`, pole spoza schematu —
+      `400 unknown_field`; `assigneeUserId` spoza aktywnych użytkowników — `400` (`/assigneeUserId`, `assignee_unavailable`; jedna
+      odpowiedź); `plannedDate` poza zakresem — `400` (`/plannedDate`, `out_of_range`). Zlecenie Rozliczone albo Anulowane — `409
+      work_order_closed` (PO-8; sprawdzane po `404` i treści, przed wersją). Zmiana statusu nie jest tu możliwa — to komenda
+      `transitionWorkOrder`; zmiana klienta i lokalizacji — poza M1. Kolejność (decyzje zapadają na wierszu zablokowanym `SELECT …
+      FOR UPDATE`, w jednej transakcji): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (`404` — przed
+      `If-Match` i treścią), `If-Match` (`428` / `400`), treść (`400`: kod i wskaźnik, nigdy wartość), powtórka idempotentna,
+      `409 work_order_closed`, wersja (`412`), opiekun (`400`), zapis `version + 1`, zdarzenie dziennika (nazwy zmienionych pól),
+      audyt i rekord idempotencji; błąd któregokolwiek kroku cofa całość. Tytuł i opis są polami swobodnymi i nie trafiają do logów,
+      audytu, dziennika ani komunikatów błędów. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest
+      opcjonalny, panel wysyła go zawsze; klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem zlecenia
+      — ten sam klucz z tą samą treścią na innym zleceniu to `422 idempotency_mismatch`. Powtórka (ten sam klucz, zlecenie i treść)
+      — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia, także gdy `If-Match`
+      jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IfMatchHeader'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/WorkOrderPatch
+    responses:
+      '200':
+        description: >-
+          Zlecenie po zmianie (albo powtórka wcześniejszej zmiany — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+IfMatchHeader:
+  name: If-Match
+  in: header
+  required: true
+  description: Silny ETag wersji zasobu, na której użytkownik podjął decyzję (`"<version>"`, z `ETag` odczytu albo pola `version`).
+  schema:
+    type: string
+    pattern: '^"[1-9][0-9]{0,9}"$'
+    maxLength: 12
+IdempotencyKeyHeader:
+  name: Idempotency-Key
+  in: header
+  required: false
+  description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.
+  schema:
+    type: string
+    format: uuid
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    maxLength: 36
+ScopeItemIdParameter:
+  name: scopeItemId
+  in: path
+  required: true
+  description: Identyfikator pozycji zakresu (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
 workOrderScopeItems:
   get:
     operationId: listWorkOrderScopeItems
@@ -225,7 +335,8 @@ workOrderScopeItems:
     summary: Zakres zlecenia — pozycje z parametrami
     description: >-
       Aktywne pozycje zakresu zlecenia w kolejności `position` (`work_order_id` i `deleted_at is null` w tym samym zapytaniu co
-      pozycja — pozycja innego zlecenia nigdy nie występuje). Parametry to płaska mapa wartości skalarnych (najwyżej 20 kluczy,
+      pozycja — pozycja innego zlecenia nigdy nie występuje; co najwyżej 50 pozycji — limit zakresu jest też limitem zapytania).
+      Parametry to płaska mapa wartości skalarnych (najwyżej 20 kluczy,
       tekst do 100 znaków); nieznany zestaw albo wartość panel pokazuje jako wartość nieznaną. Uprawnienia, kanał i błędy jak
       w `getWorkOrder` (zlecenie jest rozwiązywane najpierw, polityką odczytu w zapytaniu).
     x-evia-authz:
@@ -248,6 +359,247 @@ workOrderScopeItems:
         $ref: ../components/responses.yaml#/Forbidden
       '404':
         $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  post:
+    operationId: createWorkOrderScopeItem
+    tags: [work-orders]
+    summary: Dodanie pozycji zakresu z katalogu (z procesami)
+    description: >-
+      Dodanie pozycji katalogu usług do zakresu zlecenia razem z wybranymi procesami, które pozycja wnosi (EVM-035 AC2, AC4–AC8;
+      SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-API-02, SR-API-05, SR-API-06, SR-DATA-02, SR-LOG-03).
+      Role Administrator i Edytor (Tylko odczyt — `403 forbidden` dla dowolnej treści; niezalogowany — `401`; token mobilny —
+      `403 channel_not_allowed`), kanał `web`, z audytem (`scope_item.created` — aktor, identyfikator pozycji, wynik i `traceId`;
+      bez nazwy, parametrów i notatek). Wymaga `X-CSRF-Token`. Jedna transakcja na zablokowanym wierszu zlecenia (`SELECT … FOR
+      UPDATE`): zlecenie (`404` — przed treścią), treść `CreateScopeItemRequest` (`400`: schemat, parametry wg zestawu pozycji
+      katalogu, notatki, kody procesów; kod i wskaźnik, nigdy wartość), powtórka idempotentna, zlecenie zamknięte (`409
+      work_order_closed`), pozycja katalogu (`400`, `/catalogItemCode`, `unknown_catalog_item`), limit 50 aktywnych pozycji (`422
+      limit_exceeded`, `errors[]` — wskaźnik i kod) i 30 procesów (`422 limit_exceeded`), zapis pozycji na końcu zakresu
+      (`position` = liczba pozycji + 1, `quantity` = 1, `version` = 1), procesy z etapami „Do zrobienia” (kody już aktywne w
+      zleceniu są pomijane, bez błędu), zdarzenie dziennika (`scope_item_added`: kod pozycji i kody dodanych procesów), audyt i
+      rekord idempotencji. Błąd któregokolwiek kroku cofa całość. `id` (UUIDv7) nadaje klient; istniejące `id` — także pozycji
+      innego zlecenia — `409 id_conflict` bez danych istniejącego zasobu i bez nadpisania. Idempotencja: `Idempotency-Key`
+      (UUIDv7) jest opcjonalny, panel wysyła go zawsze; klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I
+      identyfikatorem zlecenia (ten sam klucz i treść na innym zleceniu — `422 idempotency_mismatch`). Powtórka — `201` z bieżącą
+      reprezentacją i `Idempotent-Replayed: true`, bez nowego zdarzenia. Odpowiedź ma `ETag` pozycji i `Location`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/CreateScopeItemRequest
+    responses:
+      '201':
+        description: >-
+          Pozycja dodana (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja pozycji (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Location:
+            description: Adres pozycji (`/api/v1/work-orders/{workOrderId}/scope-items/{scopeItemId}`).
+            schema:
+              type: string
+              maxLength: 120
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/ScopeItemAddition
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ScopeItemConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/LimitExceeded
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderScopeItem:
+  get:
+    operationId: getWorkOrderScopeItem
+    tags: [work-orders]
+    summary: Pozycja zakresu zlecenia (z ETag)
+    description: >-
+      Jedna aktywna pozycja zakresu (EVM-035 AC8; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639). Pozycja jest wyszukiwana warunkiem `id =
+      {scopeItemId} AND work_order_id = {workOrderId}` w jednym zapytaniu: pozycja innego zlecenia, nieistniejąca, usunięta oraz
+      pozycja zlecenia nieistniejącego albo usuniętego (także dla Administratora) — jedna odpowiedź `404 not_found`. Odpowiedź ma
+      `ETag` (`"<version>"`) dla `If-Match` przy zmianie i usunięciu. Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez
+      audytu odczytu. Zły format identyfikatora — `400 validation_failed`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/ScopeItemIdParameter'
+    responses:
+      '200':
+        description: Pozycja zakresu.
+        headers:
+          ETag:
+            description: Wersja pozycji (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/ScopeItem
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  patch:
+    operationId: updateWorkOrderScopeItem
+    tags: [work-orders]
+    summary: Pozycja zakresu — parametry i notatki (merge-patch, If-Match)
+    description: >-
+      Zmiana parametrów i/lub notatek pozycji (EVM-035 AC4, AC6–AC8; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02,
+      SR-API-05, SR-API-07, SR-DATA-02, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed walidacją,
+      `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z
+      audytem (`scope_item.updated` — aktor, identyfikator pozycji, wynik i `traceId`; bez wartości i nazw pól). Wymaga `X-CSRF-Token`
+      i `If-Match` (silny ETag `"<version>"` POZYCJI): brak — `428 precondition_required`; słaby, lista, `*` albo zniekształcony —
+      `400 validation_failed` (`/headers/If-Match`); nieaktualna wersja — `412 version_conflict`. Pozycja jest wyszukiwana
+      warunkiem `id AND work_order_id` (IDOR — pozycja innego zlecenia, nieistniejąca i usunięta to jedna odpowiedź `404`). Treść —
+      `ScopeItemPatch`; pole kontrolowane przez serwer (`code`, `name`, `parameterSetCode`, `position`, `quantity`,
+      `sourceCatalogItemId`, `version`) — `400 read_only_field`. `parameters` waliduje serwer schematem zestawu ZAPISANYM w pozycji
+      (pole nieznane, wartość spoza zakresu, typ albo > 16 KB — `400 validation_failed`, `/parameters/…`). Zlecenie zamknięte —
+      `409 work_order_closed` (przed wersją). Kolejność, jedna transakcja i idempotencja jak w `updateWorkOrder` (klucz związany z
+      identyfikatorami zlecenia i pozycji). Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/ScopeItemIdParameter'
+      - $ref: '#/IfMatchHeader'
+      - $ref: '#/IdempotencyKeyHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/ScopeItemPatch
+    responses:
+      '200':
+        description: >-
+          Pozycja po zmianie (albo powtórka wcześniejszej zmiany — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja pozycji (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, pozycją i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/ScopeItem
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteWorkOrderScopeItem
+    tags: [work-orders]
+    summary: Usunięcie pozycji zakresu (soft delete, procesy zostają)
+    description: >-
+      Usunięcie pozycji z zakresu zlecenia (EVM-035 AC3, AC6–AC8; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Soft
+      delete: pozycja znika z zakresu, a pozostałe pozycje są renumerowane (`position` 1…n) w tej samej transakcji; procesy, które
+      pozycja wniosła, ZOSTAJĄ (o ich usunięciu decyduje użytkownik — EVM-042). Role Administrator i Edytor (Tylko odczyt — `403
+      forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`),
+      kanał `web`, z audytem (`scope_item.deleted` — aktor, identyfikator pozycji, wynik i `traceId`, osobna akcja, więc usunięcie
+      jest rozróżnialne w dzienniku audytu) i zdarzeniem dziennika zlecenia (`scope_item_removed`). Wymaga `X-CSRF-Token` i
+      `If-Match` (silny ETag `"<version>"` pozycji): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Pozycja jest
+      wyszukiwana warunkiem `id AND work_order_id` (pozycja innego zlecenia, nieistniejąca i już usunięta — `404 not_found`).
+      Zlecenie zamknięte — `409 work_order_closed` (przed wersją). Powtórka z tym samym `Idempotency-Key` — `204` z
+      `Idempotent-Replayed: true`, bez drugiego usunięcia. Odpowiedź `204` nie ma treści.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/ScopeItemIdParameter'
+      - $ref: '#/IfMatchHeader'
+      - $ref: '#/IdempotencyKeyHeader'
+    responses:
+      '204':
+        description: >-
+          Pozycja usunięta (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, pozycją i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 workOrderCustomer:

@@ -154,6 +154,43 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
   };
 }
 
+/**
+ * The IDOR fixture of the change of the data of an order and of the five operations on its scope (EVM-035 AC8; SR-AUTHZ-02,
+ * SR-AUTHZ-05, TM-17, CWE-639): the data and the addition — "own" is a live order, "foreign" an EXISTING order that is soft deleted;
+ * one item — "own" is an item of the live order in ITS path, "foreign" the item of ANOTHER live order named in the path of the
+ * first (the one an attacker tries: /work-orders/{A}/scope-items/{item of B}).
+ */
+export async function scopeObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const [ownItem] = await insertScopeItems(db, own, [{ position: 1 }]);
+  const [otherItem] = await insertScopeItems(db, other, [{ position: 1 }]);
+  await insertScopeItems(db, deleted, [{ position: 1 }]);
+  if (ownItem === undefined || otherItem === undefined) throw new Error('the fixture items were not inserted');
+  const data: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}`, foreign: () => `${WORK_ORDERS}/${deleted}` };
+  const addition: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}/scope-items`, foreign: () => `${WORK_ORDERS}/${deleted}/scope-items` };
+  const item: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/scope-items/${ownItem}`,
+    foreign: () => `${WORK_ORDERS}/${own}/scope-items/${otherItem}`,
+  };
+  return {
+    updateWorkOrder: data,
+    createWorkOrderScopeItem: addition,
+    getWorkOrderScopeItem: item,
+    updateWorkOrderScopeItem: item,
+    deleteWorkOrderScopeItem: item,
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -162,6 +199,7 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await customerObjects(app)),
     ...(await siteAndPartyObjects(app)),
     ...(await procedureObjects(app)),
+    ...(await scopeObjects(app)),
     ...(await timelineObjects(app)),
   };
 }

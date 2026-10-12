@@ -10,6 +10,7 @@ import type { CustomerSummary } from '../../customers/index.ts';
 import type { SiteSummary } from '../../sites/index.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { ScopeItemRow, WorkOrderRow } from '../infrastructure/work-order-store.ts';
+import { scopeItemView } from './scope-item-representation.ts';
 
 const present = <K extends string>(key: K, value: string | null): { [P in K]?: string } =>
   (value === null ? {} : { [key]: value }) as { [P in K]?: string };
@@ -43,15 +44,7 @@ export function toWorkOrder({ row, scope, customer, site, coordinator }: WorkOrd
     coordinator: { id: coordinator.id, displayName: coordinator.displayName },
     ...present('plannedDate', row.planned_date),
     ...present('description', row.description),
-    scopeItems: scope.map((item) => ({
-      id: item.id,
-      position: item.position,
-      code: item.code,
-      name: item.name,
-      parameterSetCode: item.parameter_set_code,
-      parameters: item.parameters,
-      quantity: item.quantity,
-    })),
+    scopeItems: scope.map(scopeItemView),
     version: row.version,
     createdAt: row.created_at.toISOString(),
   };

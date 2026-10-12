@@ -1,5 +1,6 @@
 import { answerSiteOrders, cardOf, type LocationServer } from './mock-locations.ts';
 import { PROCESSES, processCountOf, type StageState } from './mock-procedures.ts';
+import { itemsOf, type MockEdits } from './mock-scope.ts';
 
 /**
  * The part of the synthetic API that serves W-05 "3. Szablon" and "Utwórz zlecenie" (EVM-022): the catalogue of templates, the
@@ -71,6 +72,10 @@ export interface OrderServer extends LocationServer {
   readonly stages: Map<string, StageState>;
   /** EVM-030: `Idempotency-Key` of a transition → the scope (`orderId|body`) and the answer given (a retry gets the same one). */
   readonly transitionKeys: Map<string, { readonly scope: string; readonly answer: Answer }>;
+  /** EVM-035: what the editing changed in an order (its fields, its scope, the processes added with the items). */
+  readonly edits: Map<string, MockEdits>;
+  /** EVM-035: `Idempotency-Key` of an edit → the scope (`method|path|body`) and the answer given. */
+  readonly editKeys: Map<string, { readonly scope: string; readonly answer: Answer }>;
 }
 
 interface Answer {
@@ -158,17 +163,21 @@ function represent(server: OrderServer, created: MockCreatedOrder) {
   const state = stateOf(server, created.id);
   const customer = server.customers.find((entry) => entry.id === created.customerId);
   const site = server.sites.find((entry) => entry.id === created.siteId);
-  const coordinator = server.assignable.find((entry) => entry.id === created.assigneeUserId);
+  const edits = server.edits.get(created.id);
+  const assigneeUserId = edits?.assigneeUserId ?? created.assigneeUserId;
+  const coordinator = server.assignable.find((entry) => entry.id === assigneeUserId);
+  const plannedDate = edits !== undefined && 'plannedDate' in edits ? (edits.plannedDate ?? undefined) : created.plannedDate;
+  const description = edits !== undefined && 'description' in edits ? (edits.description ?? undefined) : created.description;
   return {
     id: created.id,
     number: created.number,
-    title: created.title,
+    title: edits?.title ?? created.title,
     status: state.status,
     customer: { id: created.customerId, displayName: customer?.displayName ?? '' },
     site,
-    coordinator: { id: created.assigneeUserId, displayName: coordinator?.displayName ?? '' },
-    ...(created.plannedDate === undefined ? {} : { plannedDate: created.plannedDate }),
-    ...(created.description === undefined ? {} : { description: created.description }),
+    coordinator: { id: assigneeUserId, displayName: coordinator?.displayName ?? '' },
+    ...(plannedDate === undefined ? {} : { plannedDate }),
+    ...(description === undefined ? {} : { description }),
     scopeItems: Array.from({ length: created.scopeItems }, (_, index) => ({
       id: '01968f3e-0000-7000-8000-' + String(index).padStart(12, '0'),
       position: index + 1,
@@ -268,19 +277,6 @@ export function answerCreate(
 
 const NOT_FOUND = problem(404, 'not_found');
 
-/** The items of the scope of a created order: the first one with parameters (AC, 11 kW, 3 fazy), the rest plain. */
-function scopeItemsOf(created: MockCreatedOrder) {
-  return Array.from({ length: created.scopeItems }, (_, index) => ({
-    id: '01968f3e-0000-7000-8000-' + String(index).padStart(12, '0'),
-    position: index + 1,
-    code: 'item_' + String(index),
-    name: 'Pozycja ' + String(index + 1),
-    parameterSetCode: index === 0 ? 'charger_spec' : null,
-    parameters: index === 0 ? { currentType: 'ac', powerKw: 11, phases: 3 } : {},
-    quantity: 1,
-  }));
-}
-
 /**
  * The four reads of one order (EVM-018; W-06): `''` the header, `scope-items`, `customer`, `site`. An order that was not created in this
  * run, and one that is `gone`, are the same `404 not_found`. Every answer has only the fields of the contract.
@@ -306,6 +302,8 @@ export function answerOrderRead(
       customer: order.customer,
       site: order.site,
       coordinator: order.coordinator,
+      ...(order.plannedDate === undefined ? {} : { plannedDate: order.plannedDate }),
+      ...(order.description === undefined ? {} : { description: order.description }),
       allowedTransitions: allowedFor(role, state),
       ...(state.resumeStatus === undefined ? {} : { resumeStatus: state.resumeStatus }),
       ...(state.completedOn === undefined ? {} : { completedOn: state.completedOn }),
@@ -315,7 +313,7 @@ export function answerOrderRead(
     };
     return json(200, header, { ETag: `"${String(state.version)}"` });
   }
-  if (part === 'scope-items') return json(200, { items: scopeItemsOf(created) });
+  if (part === 'scope-items') return json(200, { items: itemsOf(server, id) });
   if (part === 'customer') {
     return customer === undefined
       ? NOT_FOUND

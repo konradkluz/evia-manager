@@ -21,6 +21,7 @@ import * as siteOrdersIndex from './0018_site_orders_index.ts';
 import * as procedures from './0019_procedures.ts';
 import * as timeline from './0020_timeline.ts';
 import * as timelineEvents from './0021_timeline_events.ts';
+import * as scopeItemNotes from './0022_scope_item_notes.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -44,4 +45,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0019_procedures': procedures,
   '0020_timeline': timeline,
   '0021_timeline_events': timelineEvents,
+  '0022_scope_item_notes': scopeItemNotes,
 });

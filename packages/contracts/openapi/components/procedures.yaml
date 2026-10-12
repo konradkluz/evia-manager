@@ -195,6 +195,14 @@ Procedure:
       type: integer
       minimum: 1
       maximum: 30
+    sourceScopeItemId:
+      type: string
+      description: >-
+        Pozycja zakresu, która wniosła proces (EVM-035 AC3; panel pokazuje „Procesy dodane z tą pozycją zostają: …” przy usuwaniu
+        pozycji). Identyfikator zostaje po usunięciu pozycji (proces zostaje w zleceniu). Brak pola, gdy proces dodano ręcznie albo
+        żadna pozycja zakresu go nie wniosła.
+      format: uuid
+      maxLength: 36
     progress:
       $ref: '#/ProcedureProgress'
     stages:

@@ -38,9 +38,16 @@ export function createHttpAdapter(trustedProxies: readonly string[] = []): Expre
   return new ExpressAdapter(server);
 }
 
-/** Routes whose body is bounded tighter than the 1 MB of a session (EVM-037: a journal entry is at most 10 000 characters of 4 bytes). */
+/**
+ * Routes whose body is bounded tighter than the 1 MB of a session (SR-API-02, SR-INPUT-06): a journal entry is at most 10 000
+ * characters of 4 bytes (EVM-037); an item of the scope holds parameters of at most 16 KB, notes of 1000 characters and 30 codes,
+ * and the data of an order a title of 200 and a description of 2000 characters (EVM-035) — a body above the limit is `413`.
+ */
 const ROUTE_BODY_LIMITS: ReadonlyArray<{ readonly method: string; readonly path: RegExp; readonly limit: string }> = [
   { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/timeline$/, limit: '64kb' },
+  { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/scope-items$/, limit: '64kb' },
+  { method: 'PATCH', path: /^\/api\/v1\/work-orders\/[^/]+\/scope-items\/[^/]+$/, limit: '64kb' },
+  { method: 'PATCH', path: /^\/api\/v1\/work-orders\/[^/]+$/, limit: '32kb' },
 ];
 
 /** Anonymous requests with a body are parsed only for public operations that take one (exact method and path). */

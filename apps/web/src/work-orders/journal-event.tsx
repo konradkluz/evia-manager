@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { partyKindLabels, waitingOnLabels } from '../i18n/catalog-labels.ts';
 import { stageStatusLabels } from '../i18n/procedure-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
+import { useProcedureTemplates, useServiceItems } from './use-order-lookups.ts';
 
 /** A status the panel knows: a code of the contract with a label. Anything else is "Nieznany status" (P-12) — never the raw code. */
 const knownOrder = (code: string | null): code is WorkOrderStatus => code !== null && Object.hasOwn(workOrderStatusLabels, code);
@@ -53,13 +54,34 @@ function fieldsText(t: TFunction, fields: readonly string[]): string {
   return t('workOrder.journal.event.fieldsOther');
 }
 
+/** The names of the catalogue for the events of the scope: the event keeps codes only (SR-LOG-03), the names come from the catalogue. */
+interface Names {
+  readonly item: (code: string | undefined) => string | undefined;
+  readonly process: (code: string) => string | undefined;
+}
+
+const NO_NAMES: Names = { item: () => undefined, process: () => undefined };
+
+const SCOPE_CODES: ReadonlySet<string> = new Set(['scope_item_added', 'scope_item_updated', 'scope_item_removed']);
+
+function orderFieldsText(t: TFunction, fields: readonly string[]): string {
+  const known: ReadonlyArray<readonly [string, string]> = [
+    ['title', t('workOrder.journal.event.fieldTitle')],
+    ['description', t('workOrder.journal.event.fieldDescription')],
+    ['coordinator', t('workOrder.journal.event.fieldCoordinator')],
+    ['plannedDate', t('workOrder.journal.event.fieldPlannedDate')],
+  ];
+  const named = known.filter(([code]) => fields.includes(code)).map(([, label]) => label);
+  return named.length === 0 ? t('workOrder.journal.event.fieldsOther') : named.join(', ');
+}
+
 interface Composed {
   readonly text: string;
   readonly badge?: Status;
 }
 
 /** The impersonal sentence of an event and its compact status badge; the stage and the party come from the current data (AC3). */
-function compose(t: TFunction, event: TimelineEvent, stageName: string | null): Composed {
+function compose(t: TFunction, event: TimelineEvent, stageName: string | null, names: Names): Composed {
   const named = stageName !== null && stageName !== '';
   switch (event.code) {
     case 'work_order_created':
@@ -91,6 +113,44 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null): 
           : t('workOrder.journal.event.updatedNoName', { what }),
       };
     }
+    case 'work_order_fields_changed':
+      return { text: t('workOrder.journal.event.orderFields', { fields: orderFieldsText(t, event.changedFields) }) };
+    case 'scope_item_added': {
+      const name = names.item(event.itemCode);
+      const head = name === undefined ? t('workOrder.journal.event.scopeAddedNoName') : t('workOrder.journal.event.scopeAdded', { name });
+      const processes = (event.procedureCodes ?? []).flatMap((code) => {
+        const processName = names.process(code);
+        return processName === undefined ? [] : [processName];
+      });
+      return {
+        text: processes.length === 0 ? head : t('workOrder.journal.event.scopeAddedWith', { head, processes: processes.join(', ') }),
+      };
+    }
+    case 'scope_item_updated': {
+      const parameters = event.changedFields.includes('parameters');
+      const notes = event.changedFields.includes('notes');
+      const what =
+        parameters && notes
+          ? t('workOrder.journal.event.scopeBoth')
+          : notes
+            ? t('workOrder.journal.event.scopeNotes')
+            : parameters
+              ? t('workOrder.journal.event.scopeParameters')
+              : t('workOrder.journal.event.fieldsOther');
+      const name = names.item(event.itemCode);
+      return {
+        text:
+          name === undefined
+            ? t('workOrder.journal.event.scopeUpdatedNoName', { what })
+            : t('workOrder.journal.event.scopeUpdated', { what, name }),
+      };
+    }
+    case 'scope_item_removed': {
+      const name = names.item(event.itemCode);
+      return {
+        text: name === undefined ? t('workOrder.journal.event.scopeRemovedNoName') : t('workOrder.journal.event.scopeRemoved', { name }),
+      };
+    }
     default:
       return { text: t('workOrder.journal.event.unknown') };
   }
@@ -103,7 +163,16 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null): 
  */
 export function JournalEventContent({ entry }: { readonly entry: Entry & { readonly event: TimelineEvent } }) {
   const { t } = useTranslation();
-  const { text, badge } = compose(t, entry.event, entry.procedureStageName);
+  const scoped = SCOPE_CODES.has(entry.event.code);
+  const items = useServiceItems(scoped);
+  const templates = useProcedureTemplates(scoped && (entry.event.procedureCodes?.length ?? 0) > 0);
+  const names: Names = scoped
+    ? {
+        item: (code) => items.data?.find((item) => item.code === code)?.name,
+        process: (code) => templates.data?.find((template) => template.code === code)?.name,
+      }
+    : NO_NAMES;
+  const { text, badge } = compose(t, entry.event, entry.procedureStageName, names);
   return (
     <div className="flex flex-wrap items-center gap-x-inline-sm gap-y-stack-xs">
       {badge === undefined ? null : (

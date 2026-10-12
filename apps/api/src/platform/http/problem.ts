@@ -34,6 +34,7 @@ export const PROBLEMS = Object.freeze({
   payload_too_large: { status: 413, title: 'Payload too large' },
   unsupported_media_type: { status: 415, title: 'Unsupported media type' },
   idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
+  limit_exceeded: { status: 422, title: 'A limit of the number of objects was exceeded' },
   template_unavailable: { status: 422, title: 'Work order template is not available' },
   transition_condition_not_met: { status: 422, title: 'A condition of the transition is not met' },
   precondition_required: { status: 428, title: 'Precondition required' },

@@ -122,7 +122,7 @@ export function WorkOrderPage() {
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />
-                <ScopeSection query={scope} />
+                <ScopeSection order={order} query={scope} procedures={procedures} />
               </div>
             )}
           </Tabs>

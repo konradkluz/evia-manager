@@ -10,8 +10,15 @@
  * (`UserDirectory`). Nothing is copied into `work_orders`. Every answer is parsed with the schema of the contract before it leaves,
  * so only the fields of the contract can leave; nothing here logs a body or a card, and a read is not an audited event (ADR-0001).
  */
-import { zCustomerCard, zGetWorkOrderPath, zScopeItemList, zSiteCard, zWorkOrderDetails } from '@evia/contracts/zod';
-import type { CustomerCard, ScopeItemList, SiteCard, WorkOrderDetails } from '@evia/contracts';
+import {
+  zCustomerCard,
+  zGetWorkOrderPath,
+  zGetWorkOrderScopeItemPath,
+  zScopeItemList,
+  zSiteCard,
+  zWorkOrderDetails,
+} from '@evia/contracts/zod';
+import type { CustomerCard, ScopeItem, ScopeItemList, SiteCard, WorkOrderDetails } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { BulkReadControl } from '../../../platform/bulk-read/bulk-read-control.ts';
@@ -26,7 +33,9 @@ import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
 import { allowedTransitions } from '../domain/work-order-transitions.ts';
+import { scopeItemView, toScopeItem } from './scope-item-representation.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
+import { findScopeItem } from '../infrastructure/work-order-edit-store.ts';
 import {
   findCoordinatorUserId,
   findReadableWorkOrder,
@@ -35,6 +44,7 @@ import {
 } from '../infrastructure/work-order-store.ts';
 
 const pathSchema = strictObjects(zGetWorkOrderPath);
+const itemPathSchema = strictObjects(zGetWorkOrderScopeItemPath);
 
 const present = <K extends string>(key: K, value: string | null): { [P in K]?: string } =>
   (value === null ? {} : { [key]: value }) as { [P in K]?: string };
@@ -116,6 +126,8 @@ export class ReadWorkOrderService {
         coordinator:
           coordinatorId === undefined || coordinatorName === undefined ? null : { id: coordinatorId, displayName: coordinatorName },
         allowedTransitions: allowedTransitions({ status: order.status, resumeStatus: order.resume_status }, principal.role),
+        ...present('description', order.description),
+        ...present('plannedDate', order.planned_date),
         ...(order.resume_status === null ? {} : { resumeStatus: order.resume_status }),
         ...(order.status_changed_at === null ? {} : { statusChangedAt: order.status_changed_at.toISOString() }),
         ...(order.closed_at === null ? {} : { closedAt: order.closed_at.toISOString() }),
@@ -132,17 +144,23 @@ export class ReadWorkOrderService {
     const items = await listScopeItems(workOrderTables(this.#db), order.id);
     return checked(
       zScopeItemList.safeParse({
-        items: items.map((item) => ({
-          id: item.id,
-          position: item.position,
-          code: item.code,
-          name: item.name,
-          parameterSetCode: item.parameter_set_code,
-          parameters: item.parameters,
-          quantity: item.quantity,
-        })),
+        items: items.map(scopeItemView),
       }),
     );
+  }
+
+  /**
+   * One item of the scope with its version (EVM-035 AC8): the order is resolved FIRST with the read policy in the query (missing
+   * and deleted alike are `404`), then the item with `id` AND `work_order_id` in ONE condition — the item of another order, a
+   * missing one and a deleted one are the same `404 not_found` (IDOR, CWE-639).
+   */
+  async scopeItem(principal: Principal, rawParams: unknown): Promise<ScopeItem> {
+    const { workOrderId, scopeItemId } = parseInput(itemPathSchema, rawParams) as { workOrderId: string; scopeItemId: string };
+    const order = await findReadableWorkOrder(workOrderTables(this.#db), principal, workOrderId);
+    if (order === undefined) throw new ProblemException('not_found');
+    const item = await findScopeItem(workOrderTables(this.#db), order.id, scopeItemId);
+    if (item === undefined) throw new ProblemException('not_found');
+    return toScopeItem(item);
   }
 
   /**
