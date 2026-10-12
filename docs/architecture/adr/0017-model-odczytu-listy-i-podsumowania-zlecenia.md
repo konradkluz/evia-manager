@@ -356,6 +356,7 @@ Zawsze pomijamy dzieci usunięte, a transze `cancelled` nie liczą się do sygna
 - **Nocny `verify`:**
   - zadanie pg-boss z ładunkiem zawierającym wyłącznie identyfikatory;
   - metryka `projection_drift_total` z alertem dla wartości > 0.
+  - *Nota o stanie realizacji (2026-10-12, EVM-034, bez zmiany decyzji):* zadanie `overview.verify-projection` działa w procesie `worker` (ten sam obraz co API, polecenie `node dist/src/worker.js`) o 03:30 `Europe/Warsaw`; rozjazd jest wynikiem zadania (sukces), nie błędem. **Metryka** `projection_drift_total` to dziś licznik w procesie i stały wpis w logu workera (pola `metric`, `value`, `traceId`) — eksporter metryk i reguła alertu przychodzą w EVM-007. **Alert** `projection_authz_drift` dociera przez skrzynkę alertów emitowaną przez proces API, więc wymaga działającego API. Logi workera muszą trafiać do kolektora (EVM-007, EVM-076). Nieobecność przebiegu nie jest jeszcze alarmowana (EVM-007). Wdrożenie workera na staging i produkcję — EVM-076; kolejka `email`, ponowienia i kolejki martwych listów per kolejka, transakcyjne `send`, healthcheck — EVM-024.
 - **Logi:** start i koniec z liczbami i `traceId`.
 - **Po każdym odtworzeniu bazy z kopii** — `verify`, a przy rozbieżności `rebuild`. Rekomendacja do runbooka odtworzenia (EVM-062).
 
