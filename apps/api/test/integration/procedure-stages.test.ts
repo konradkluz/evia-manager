@@ -164,7 +164,15 @@ describe('the processes of an order (EVM-031 AC2, AC4, AC8; SR-AUTHZ-02, SR-DATA
     const response = await listOf(anna, created.id);
     const body = response.body as { items: Array<Record<string, unknown> & { stages: Array<Record<string, unknown>> }> };
     expect(Object.keys(response.body as object).sort()).toEqual(['items', 'openStageCount']);
-    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual(['code', 'id', 'name', 'position', 'progress', 'stages']);
+    expect(Object.keys(body.items[0] ?? {}).sort()).toEqual([
+      'code',
+      'currentStageId', // EVM-034 (additive): the first unfinished stage, computed by the server
+      'id',
+      'name',
+      'position',
+      'progress',
+      'stages',
+    ]);
     expect(Object.keys(body.items[0]?.stages[0] ?? {}).sort()).toEqual(
       [
         'code',
