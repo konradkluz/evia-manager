@@ -130,7 +130,7 @@ function ProcedureBlock({
         <List label={procedure.name}>
           {procedure.stages.map((stage) => (
             <ListItem key={stage.id}>
-              <StageRow stage={stage} order={order} onEdit={onEdit} />
+              <StageRow stage={stage} procedureCode={procedure.code} order={order} onEdit={onEdit} />
             </ListItem>
           ))}
         </List>
@@ -141,10 +141,12 @@ function ProcedureBlock({
 
 function StageRow({
   stage,
+  procedureCode,
   order,
   onEdit,
 }: {
   readonly stage: ProcedureStage;
+  readonly procedureCode: string;
   readonly order: WorkOrderDetails;
   readonly onEdit: (stageId: string) => void;
 }) {
@@ -160,7 +162,7 @@ function StageRow({
         <div className="flex flex-wrap items-center gap-inline-sm">
           <span className="text-text-secondary">{t('workOrder.procedures.stageNumber', { position: stage.position })}</span>
           <span className="break-words text-body text-text-primary">{stage.name}</span>
-          <StageStatusControl workOrderId={order.id} stage={stage} closed={closed} />
+          <StageStatusControl workOrderId={order.id} procedureCode={procedureCode} stage={stage} closed={closed} />
         </div>
         <StageFacts stage={stage} />
         {stage.dueDate === null && stage.responsibleUser === null ? null : (

@@ -1,5 +1,5 @@
 import type { PartyKind, PartySearchItem } from '@evia/contracts';
-import { Button, Combobox, InlineAlert } from '@evia/ui-web';
+import { Button, Combobox, InlineAlert, RadioGroup } from '@evia/ui-web';
 import { useEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
@@ -27,6 +27,14 @@ export interface PartyPickerProps {
   readonly onAdd?: (() => void) | undefined;
   /** A refusal of the server for this field (wrong or unknown party), shown under the field. */
   readonly error?: string | undefined;
+  /**
+   * "Podpowiedzi z lokalizacji" (EVM-033 AC1, AC4): the parties of the location, shown above the search with their kind; the chosen
+   * one is checked. No suggestions, no section. Only `{id, displayName, kind}` is here — never the contact (SR-DATA-03).
+   */
+  readonly suggestions?: readonly PickedParty[];
+  readonly suggestionsLabel?: string;
+  /** Why "Dodaj stronę" cannot be used now (offline, AC6): the button stays, disabled, with this hint; what was typed stays. */
+  readonly addDisabledHint?: string | undefined;
   /** The button "Dodaj stronę" next to the field: a dialog that brings the person back to it puts the focus there. */
   readonly addRef?: Ref<HTMLButtonElement>;
   /** The line with the chosen party: a dialog that has just chosen a party for the field puts the focus there. */
@@ -48,6 +56,9 @@ export function PartyPicker({
   onSelect,
   onClear,
   onAdd,
+  suggestions = [],
+  suggestionsLabel,
+  addDisabledHint,
   error,
   addRef,
   summaryRef,
@@ -68,20 +79,41 @@ export function PartyPicker({
   }, [selected, summary]);
 
   const alert = error === undefined ? null : <InlineAlert tone="error">{error}</InlineAlert>;
+  const addState = addDisabledHint === undefined ? {} : { disabled: true, title: addDisabledHint };
+  const line = (party: PickedParty): string =>
+    party.kind === undefined
+      ? party.displayName
+      : t('parties.selected.summary', { name: party.displayName, kind: partyKindLabels[party.kind] });
+  const group =
+    suggestions.length === 0 || suggestionsLabel === undefined ? null : (
+      <RadioGroup
+        legend={suggestionsLabel}
+        value={selected !== null && suggestions.some((party) => party.id === selected.id) ? selected.id : ''}
+        options={suggestions.map((party) => ({ value: party.id, label: line(party) }))}
+        onChange={(id) => {
+          const party = suggestions.find((candidate) => candidate.id === id);
+          if (party !== undefined) onSelect(party);
+        }}
+      />
+    );
 
   if (selected !== null) {
     return (
       <div className="flex flex-col gap-stack-xs">
+        {group}
         <span className="text-label text-text-primary">{label}</span>
         <div className="flex flex-wrap items-center gap-inline-md">
           <p ref={summary} tabIndex={-1} className="text-body text-text-primary focus-visible:focus-ring">
-            {selected.kind === undefined
-              ? selected.displayName
-              : t('parties.selected.summary', { name: selected.displayName, kind: partyKindLabels[selected.kind] })}
+            {line(selected)}
           </p>
           <Button variant="tertiary" aria-label={changeLabel} onClick={onClear}>
             {t('parties.selected.change')}
           </Button>
+          {onAdd === undefined || suggestions.length === 0 ? null : (
+            <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd} {...addState}>
+              {t('parties.field.add')}
+            </Button>
+          )}
         </div>
         {alert}
       </div>
@@ -108,7 +140,7 @@ export function PartyPicker({
         <>
           <p>{t('parties.search.empty', { query: phrase })}</p>
           {onAdd === undefined ? null : (
-            <Button aria-label={addLabel} onClick={onAdd}>
+            <Button aria-label={addLabel} onClick={onAdd} {...addState}>
               {t('parties.search.add')}
             </Button>
           )}
@@ -125,6 +157,7 @@ export function PartyPicker({
 
   return (
     <div className="flex flex-col gap-stack-xs">
+      {group}
       <div className="flex flex-wrap items-end gap-inline-md">
         <div className="min-w-0 flex-1">
           <Combobox
@@ -151,7 +184,7 @@ export function PartyPicker({
           />
         </div>
         {onAdd === undefined ? null : (
-          <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd}>
+          <Button ref={addRef} variant="tertiary" aria-label={addLabel} onClick={onAdd} {...addState}>
             {t('parties.field.add')}
           </Button>
         )}

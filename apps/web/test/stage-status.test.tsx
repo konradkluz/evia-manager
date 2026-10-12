@@ -186,8 +186,8 @@ describe('W-07 "Czekamy na…" (EVM-032 AC2)', () => {
     expect(within(dialog).getByLabelText<HTMLInputElement>('Od kiedy').value).toBe(TODAY());
     expect(within(dialog).getByText('Nie później niż dziś.')).toBeTruthy();
     await chooseParty('Stoen', 'Stoen Operator');
-    // the dialog has no "Dodaj stronę" — that is EVM-033
-    expect(within(dialog).queryByRole('button', { name: /Dodaj stronę/ })).toBeNull();
+    // EVM-033: the window offers "Dodaj stronę" next to the suggestions of the location
+    expect(within(dialog).getByRole('button', { name: /Dodaj stronę/ })).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
     expect(await screen.findByText('Czekamy na: Stoen Operator (OSD) · od dziś')).toBeTruthy();
     expect(body(api.calls(TRANSITIONS)[0])).toEqual({ to: 'waiting', waitingOn: 'party', waitingOnPartyId: OSD.id, waitingSince: TODAY() });

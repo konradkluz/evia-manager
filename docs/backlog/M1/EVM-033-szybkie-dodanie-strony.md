@@ -4,11 +4,12 @@ title: Szybkie dodanie strony przy etapie z podpowiedzią z lokalizacji
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: ready
+status: in-review
 priority: P1
 owner: web-developer
 contributors: [backend-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-032]
 ---
 
@@ -74,21 +75,34 @@ Jako **pracownik biura** chcę **przy „Czekamy na…” od razu widzieć OSD i
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Tylko panel — bez zmian w API, kontrakcie i migracjach (wystarczą `searchParties`, `createParty`, `getParty`, `getWorkOrderSite`, `listProcedureTemplates`, `transitionProcedureStage`, `updateProcedureStage`). Podpowiedzi składa `buildWaitingHints` z karty Lokalizacja (ten sam klucz zapytania co karta); `PartyPicker` dostaje grupę „Podpowiedzi z lokalizacji”, `StageDialog` — domyślny wybór z szablonu i widok „Dodaj stronę” w miejscu okna (idempotencja przez `useAttempt`). Pełny plan: `.scratch/EVM-033/plan.md` (roboczy).
 
 ## Decyzje
-_—_
+- Rodzaj OSD wynika z pola karty, rodzaj zarządcy z `getParty` (tylko `kind`, `gcTime: 0`); alternatywa — `kind` w `SitePartyRef` (zmiana kontraktu) odłożona (zob. uwagi).
+- Domyślny wybór z szablonu jest stosowany raz i tylko do pierwszej zmiany pól użytkownika; otwarcie okna niczego nie wysyła.
+- AC5 i AC6 po stronie API mapują się na istniejące testy: `parties-create.test.ts` (macierz ról `createParty`, `id_conflict`), `parties-search.test.ts`, `procedure-stage-transitions.test.ts` (`unknown_party`); nowych testów API nie dodano.
 
 ## Uwagi do rozważenia
-_—_
+- (minor, UX) po wyborze podpowiedzi strona widnieje dwa razy (radio i linia „Strona: …”); w widoku „Dodaj stronę” brak kontekstu etapu; komunikat sukcesu w tonie ostrzegawczym; powód wyłączenia offline tylko w `title`; etykieta „Dodaj stronę: Strona” tautologiczna.
+- (minor) `getParty` zarządcy pobiera cały rekord (DO-3) tylko po `kind` — rozważyć `kind` w `SitePartyRef` (kontrakt) przy EVM-036/M3; `useWaitingHints` (3 zapytania) wołany w każdym wierszu etapu.
+- (minor) `party-picker.tsx:112`: przycisk „Dodaj stronę” po wyborze strony zależy od `suggestions.length > 0` (niejawny proxy na dialog etapu).
+- (nit) eksploracja QA na mocku API w e2e, bez pełnego stosu z PostgreSQL (zgodnie z CLAUDE.md).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-033 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-033 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-12 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (3 recenzentów wyklucza lekką), gałąź feature/EVM-033-szybkie-dodanie-strony
+- 2026-10-12 — plan gotowy (web-developer)
+- 2026-10-12 — implementacja panelu gotowa (web-developer): podpowiedzi z lokalizacji, domyślny wybór z szablonu, „Dodaj stronę” w miejscu okna; bez zmian w API i kontrakcie
+- 2026-10-12 — bramka lokalna zielona (backend-developer): pnpm run gate 0, pokrycie zmienionego kodu 100% linii / 98,1% gałęzi; brak zmian w API (AC5/AC6 pokryte istniejącymi testami API)
+- 2026-10-12 — przegląd (runda 1): code-reviewer, security-engineer i ux-designer approve; blocker/major: 0; bez rund poprawek
+- 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 98,1%; pełne e2e Chromium + Firefox: 602 passed, 14 skipped (istniejące pominięcia Firefoksa), 0 failed
+- 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 8 wywołań, ok. 0,67 mln tokenów subagentów, 194 wywołania narzędzi, ok. 48 min; rundy poprawek 0; ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (najtańsza z ostatnich czterech: EVM-037 1,55 mln, EVM-038 1,02 mln, EVM-035 1,94 mln)
+- 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada
