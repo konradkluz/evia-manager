@@ -21,6 +21,11 @@ export interface DataTableColumn {
    * (e.g. a second line in the first cell, `wide:hidden`) — the table of a list of people keeps the e-mail out of the narrow views (§ 3.6).
    */
   readonly wideOnly?: boolean;
+  /**
+   * Like `wideOnly`, but from `breakpoint.expanded`: a table with many columns does not fit a tablet (768 px with the menu
+   * collapsed), so the least important fact moves to the caller's second line there (`expanded:hidden`).
+   */
+  readonly expandedOnly?: boolean;
 }
 
 const CARD_CELL = {
@@ -81,6 +86,7 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 className={classNames(
                   'px-inset-md py-inset-sm text-start font-semibold',
                   column.wideOnly === true && 'hidden wide:table-cell',
+                  column.expandedOnly === true && 'hidden expanded:table-cell',
                 )}
               >
                 {column.header}
@@ -103,14 +109,17 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
               {row.cells.map((cell, index) => {
                 const role = columns[index]?.card;
                 const wideOnly = columns[index]?.wideOnly === true;
+                const expandedOnly = columns[index]?.expandedOnly === true;
+                const hiddenInCard = wideOnly || expandedOnly;
                 return (
                   <td
                     key={columns[index]?.id ?? index}
                     className={classNames(
                       'px-inset-md py-inset-sm align-top',
                       wideOnly && 'hidden wide:table-cell',
+                      expandedOnly && 'hidden expanded:table-cell',
                       columns[index]?.numeric === true && 'tabular-nums',
-                      cards && !wideOnly && 'max-medium:block max-medium:p-0',
+                      cards && !hiddenInCard && 'max-medium:block max-medium:p-0',
                       cards && role !== undefined && CARD_CELL[role],
                       cards &&
                         role === 'meta' &&

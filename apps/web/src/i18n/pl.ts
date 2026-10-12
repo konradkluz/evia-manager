@@ -161,6 +161,7 @@ export const pl = {
       status: 'Status',
       coordinator: 'Opiekun',
       created: 'Utworzono',
+      createdLine: 'Utworzono {{date}}',
       noCoordinator: 'Brak opiekuna',
       row: '{{number}}, {{title}}, status: {{status}}, opiekun: {{coordinator}}, utworzono {{created}}',
       rowWaiting: 'czekamy na: {{who}}, {{since}}',

@@ -282,4 +282,25 @@ describe('DataTable columns for the wide view only (styleguide § 3.6; EVM-039 A
     expect(within(table).getByRole('columnheader', { name: 'Klient' }).className).not.toContain('hidden');
     expect(await axeViolations(container)).toEqual([]);
   });
+
+  it('hides an expandedOnly column below the expanded breakpoint (EVM-034)', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={[
+          { id: 'name', header: 'Zlecenie', card: 'primary' },
+          { id: 'created', header: 'Utworzono', card: 'meta', expandedOnly: true },
+        ]}
+        rows={[{ id: 'a', cells: ['ZL-1', '2026-10-01'] }]}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Zlecenia' });
+    const header = within(table).getByRole('columnheader', { name: 'Utworzono' });
+    expect(header.className).toContain('hidden');
+    expect(header.className).toContain('expanded:table-cell');
+    const cell = within(table).getByText('2026-10-01').closest('td');
+    expect(cell?.className).toContain('expanded:table-cell');
+    expect(cell?.className).not.toContain('max-medium:block');
+    expect(await axeViolations(container)).toEqual([]);
+  });
 });

@@ -61,7 +61,7 @@ export function OrderSummary({
         {t('workOrder.summary.title')}
         <span className="sr-only"> {t('workOrder.summary.titleSuffix')}</span>
       </h2>
-      <div className="grid grid-cols-1 gap-stack-md medium:grid-cols-3">
+      <div className="grid grid-cols-1 gap-stack-md expanded:grid-cols-3">
         <Tile title={t('workOrder.summary.stageTile')} query={query}>
           {items === undefined ? null : <StageTile items={items} onShowProcesses={onShowProcesses} />}
         </Tile>

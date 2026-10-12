@@ -52,7 +52,14 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
     { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
     { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator') },
-    { id: 'created', card: 'meta' as const, header: t('workOrders.table.created'), numeric: true, ...markSort('created') },
+    {
+      id: 'created',
+      card: 'meta' as const,
+      header: t('workOrders.table.created'),
+      numeric: true,
+      expandedOnly: true,
+      ...markSort('created'),
+    },
   ];
   const rows: DataTableRow[] = items.map((item) => {
     const known = isKnown(item.status);
@@ -76,6 +83,8 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
         <span key="order" className="flex flex-col">
           <span className="font-semibold tabular-nums whitespace-nowrap">{item.number}</span>
           <span className="break-words text-text-secondary">{item.title}</span>
+          {/* The column "Utworzono" is shown from `expanded`; on a tablet the date is the third line here (EVM-034, 768 px). */}
+          <span className="expanded:hidden text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
         </span>,
         known ? (
           <StatusBadge key="status" status={keyOf(item.status)} label={status} />
@@ -86,11 +95,11 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
         <DueCell key="due" item={item} />,
         <span
           key="coordinator"
-          className={item.coordinator === null ? 'medium:whitespace-nowrap text-text-secondary' : 'medium:whitespace-nowrap'}
+          className={item.coordinator === null ? 'expanded:whitespace-nowrap text-text-secondary' : 'expanded:whitespace-nowrap'}
         >
           {coordinator}
         </span>,
-        <span key="created" className="medium:whitespace-nowrap">
+        <span key="created" className="expanded:whitespace-nowrap">
           {created}
         </span>,
       ],
