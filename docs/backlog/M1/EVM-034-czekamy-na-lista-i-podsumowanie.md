@@ -108,7 +108,8 @@ Jako **pracownik biura** chcę **widzieć na liście i w podsumowaniu zlecenia, 
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- Nocny `verify` (pg-boss, metryka `projection_drift_total`, ADR-0017 W11) **nie jest dostarczony** w tej historyjce: wymaga decyzji Konrada o zależności pg-boss i kontenerze `worker`. Do czasu decyzji: `verify` z crona operatora i wyraźna informacja, że metryka z CLI nie jest eksportowana (runbook `docs/ops/runbooks/projekcja-listy-zlecen.md`). Zadanie w `worker` do wydzielenia jako osobna historyjka (`/refine`) po decyzji — do rozstrzygnięcia przed merge.
+- Backfill projekcji na istniejącej bazie: migracja `0023` go nie robi; w środowisku dev robi to `dev`/`dev:seed` (`rebuild`), poza nim — runbook.
 
 ## Uwagi do rozważenia
 _—_

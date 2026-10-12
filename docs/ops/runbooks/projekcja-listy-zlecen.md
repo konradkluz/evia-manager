@@ -28,4 +28,14 @@ Wyłącznie liczby i identyfikatory zleceń (UUID), z podziałem na grupy kolumn
 
 ## Czego nie ma
 - Brak endpointu HTTP i funkcji w panelu — przebudowa jest poleceniem serwera.
-- Nocne zadanie `verify` (pg-boss, metryka `projection_drift_total`) nie jest jeszcze uruchamiane — to osobny krok EVM-034 po decyzji o zależności i kontenerze `worker`. Do tego czasu `verify` uruchamia operator po każdym odtworzeniu bazy z kopii i po podejrzeniu rozjazdu.
+- Nocne zadanie `verify` (pg-boss, metryka `projection_drift_total` z alertem) nie jest uruchamiane — wymaga decyzji Konrada o zależności pg-boss i kontenerze `worker` (zapisane jako otwarta decyzja w historyjce EVM-034). Licznik `projection_drift_total` rośnie tylko w krótkożyjącym procesie polecenia, **nie jest eksportowany** do metryk — jedynym sygnałem jest kod wyjścia `1`, wynik na terminalu i alert bezpieczeństwa dla kolumny `deleted_at`.
+
+## Harmonogram do czasu zadania w `worker`
+Operator uruchamia `verify` z crona hosta (raz na dobę, poza godzinami pracy, np. 03:30 czasu `Europe/Warsaw`) i reaguje na kod wyjścia `1`:
+```
+30 3 * * * docker exec <kontener-api> node dist/src/cli/overview.js verify >> /var/log/evia-overview-verify.log 2>&1 || logger -p user.err "evia overview verify: drift"
+```
+Plik wyniku zawiera tylko liczby i UUID zleceń (bez danych osobowych). Dodatkowo uruchom `verify` po każdym odtworzeniu bazy z kopii i po podejrzeniu rozjazdu.
+
+## Środowisko lokalne
+`pnpm run dev` i `pnpm run dev:seed` wykonują `rebuild` po stronie narzędzia dev (dla aktywnego Administratora), więc istniejąca baza dev nie wymaga ręcznego kroku.
