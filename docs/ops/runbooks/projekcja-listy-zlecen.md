@@ -24,7 +24,7 @@ docker exec <kontener-api> node dist/src/cli/overview.js rebuild --only <uuid-zl
 - Kody wyjścia: `0` — w porządku, `1` — `verify` znalazł rozbieżność, `2` — błędne argumenty.
 
 ## Co zobaczysz
-Wyłącznie liczby i identyfikatory zleceń (UUID), z podziałem na grupy kolumn: `authorization` (`deleted_at`), `keys` (numer, status, opiekun, klient, lokalizacja, typ obiektu, szablon), `waiting` (oczekiwania), `deadline` (najbliższy termin) oraz `missing` (brak wiersza). Raport nie zawiera dat, nazw ani kwot, a polecenie nie zapisuje pliku z identyfikatorami — wynik jest tylko na standardowym wyjściu terminala. Log (JSON, stderr) ma `traceId` i liczby.
+Wyłącznie liczby i identyfikatory zleceń (UUID), z podziałem na grupy kolumn: `authorization` (`deleted_at`), `keys` (numer, status, opiekun, klient, lokalizacja, typ obiektu, szablon), `waiting` (oczekiwania), `deadline` (najbliższy termin) oraz `missing` (brak wiersza). Raport nie zawiera dat, nazw ani kwot, a polecenie samo nie zapisuje pliku — wynik jest na standardowym wyjściu (przekierowanie z crona poniżej zapisuje UUID zleceń do logu, który ma mieć ograniczony dostęp). Log (JSON, stderr) ma `traceId` i liczby.
 
 ## Czego nie ma
 - Brak endpointu HTTP i funkcji w panelu — przebudowa jest poleceniem serwera.

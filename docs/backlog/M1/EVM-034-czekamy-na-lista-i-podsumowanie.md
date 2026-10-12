@@ -4,7 +4,7 @@ title: „Czekamy na…” na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -112,13 +112,15 @@ _Uzupełnia wykonawca przed implementacją._
 - Backfill projekcji na istniejącej bazie: migracja `0023` go nie robi; w środowisku dev robi to `dev`/`dev:seed` (`rebuild`), poza nim — runbook.
 
 ## Uwagi do rozważenia
-_—_
+- (do decyzji Konrada) nocny `verify` (pg-boss, kontener `worker`, ADR-0017 W11) — osobna historyjka z `depends_on: [EVM-034, EVM-024]` i nota przejściowa w ADR-0017.
+- (nit) filtr `waitingOnPartyKind` ujawnia rodzaj strony niewidocznej dla wołającego (zgodnie z T8); przy 768 px komórka „Czekamy na” zawija się do 3–4 linii.
+- (nit) poza środowiskiem dev backfill (`rebuild`) tylko w runbooku — wymusić w runbooku wdrożenia (EVM-007/024).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-034 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-034 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (scenariusz B6)
 
 ## Dziennik
@@ -128,3 +130,7 @@ _—_
 - 2026-10-12 — plan gotowy (backend-developer)
 - 2026-10-12 — backend (backend-developer): enabler (moduł `overview`, migracja 0023, `runInTransaction`, przeniesienie listy) i funkcja (filtry, sortowania, widok, pola listy, `currentStageId`, kontrakt) gotowe, bramka `pnpm run gate` zielona; do zrobienia: panel (kroki 10–11, web-developer) i nocny `verify` (pg-boss) po decyzji Konrada
 - 2026-10-12 — panel (web-developer): W-10 (kolumny „Czekamy na” i „Termin”, filtr X dni, widok, sortowania) i karta „Podsumowanie” W-06 (3 kafle, błąd per kafel) gotowe; testy jednostkowe i e2e (Chromium, Firefox) zielone; rola `detail` w `DataTable`; do zrobienia: nocny `verify` (pg-boss) po decyzji Konrada
+- 2026-10-12 — przegląd (2 rundy): runda 1 — code-reviewer i ux-designer changes_required (4 major: nocny verify, backfill, układ 768 px W-10 i kafla błędu W-06), security-engineer approve; runda 2 — wszyscy approve, blocker/major: 0
+- 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 97,1%; pełne e2e Chromium + Firefox: 652 passed, 14 skipped, 0 failed; README i 3 pliki .md w drzewie roboczym miały CRLF po edycji agentów (index LF) — znormalizowane do LF, bez zmiany treści
+- 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 14 wywołań, ok. 2,05 mln tokenów subagentów, 738 wywołań narzędzi, ok. 3,0 h; rundy 2; ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (największa z ostatnich pięciu: EVM-035 1,94 mln, EVM-037 1,55 mln, EVM-038 1,02 mln, EVM-033 0,67 mln; ryzyko R8 — enabler + funkcja + panel w jednej historyjce)
+- 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada (scenariusz B6) oraz decyzję o nocnym verify
