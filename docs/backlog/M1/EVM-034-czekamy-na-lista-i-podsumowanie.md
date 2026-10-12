@@ -4,7 +4,7 @@ title: „Czekamy na…” na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -143,3 +143,7 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-12 — plan gotowy (backend-developer): krok 9, nocny verify (pg-boss + worker)
 - 2026-10-12 — krok 9 zaimplementowany (backend-developer): pg-boss 12.35.1, migracja 0024, `platform/jobs`, zadanie `overview.verify-projection`, proces `worker` i usługa w compose.dev, runbook/ADR-0017/threat-model/CHANGELOG zaktualizowane; testy `EVM-034 W11`
 - 2026-10-12 — krok 9 zweryfikowany (web-developer): zmiana nie dotyka panelu (bez zmian w apps/web i packages/ui-web, e2e web nie wymagane); `gate:native` i `gate:backend` (kontener) zielone, `docs:check` 0 błędów, 0 ostrzeżeń
+- 2026-10-13 — krok 9 (nocny verify, pg-boss 12.35.1 + proces worker + migracja 0024 + zamrożony skrypt schematu v43): przegląd 2 rundy (runda 1 code-reviewer major: migracja zależna od wersji pakietu → naprawione; security-engineer approve), runda 2 approve, blocker/major: 0
+- 2026-10-13 — bramka orkiestratora po kroku 9: `pnpm run gate` zielony (exit 0), coverage:diff linie 99,4% / gałęzie 95,1%; pełne e2e nie powtarzane (krok 9 nie dotyka panelu)
+- 2026-10-13 — Koszt kroku 9: 11 agentów, ok. 0,94 mln tokenów subagentów, 327 wywołań narzędzi, ok. 1,9 h, rundy 2; łącznie EVM-034 ok. 2,99 mln tokenów (największa dotąd)
+- 2026-10-13 — in-progress → in-review: czeka na ponowną akceptację Konrada (zakres + krok 9)
