@@ -23,4 +23,7 @@ export const workOrderSortLabels: Readonly<Record<WorkOrderSort, string>> = {
   number: 'Numer — od najniższego',
   '-createdAt': 'Utworzono — od najnowszych',
   createdAt: 'Utworzono — od najstarszych',
+  // the two sorts of "Czekamy na…" (EVM-034): the panel offers them in its own step of the story; the label exists so the Record compiles
+  longestWaitingSince: 'Najdłużej czekamy',
+  nextDueDate: 'Termin',
 };
