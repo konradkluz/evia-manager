@@ -61,3 +61,20 @@ describe('platform wiring (EVM-008 AC4; SR-API-01, ADR-0013)', () => {
     await pool.end();
   });
 });
+
+describe('the audit of the mass-read control goes through the one way to open a transaction (EVM-034; EVM-017 AC5)', () => {
+  it('EVM-034 AC5 the alert of a mass read is written in a transaction opened by runInTransaction: with no reachable database the request fails closed', async () => {
+    const { createTestApp } = await import('../support/app.ts');
+    const { BULK_READ_CONTROL } = await import('../../src/platform/tokens.ts');
+    const started = await createTestApp();
+    try {
+      const control = started.app.get<import('../../src/platform/bulk-read/bulk-read-control.ts').BulkReadControl>(BULK_READ_CONTROL, {
+        strict: false,
+      });
+      control.after('user-of-the-test', 2500); // above the alert threshold of the window
+      await expect(control.before('user-of-the-test', { origin: 'web', traceId: 'a'.repeat(32) })).rejects.toThrow();
+    } finally {
+      await started.close();
+    }
+  });
+});

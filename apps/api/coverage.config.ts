@@ -44,10 +44,9 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/application/entry-page.ts',
   'src/modules/timeline/infrastructure/**/*.ts',
   // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure
-  // function of the projection and the query of the list (domain/) are measured by the unit run
+  // function of the projection and the query of the list (domain/) and the controller over fake services are measured by the unit run
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
-  'src/modules/overview/http/work-orders-list.controller.ts',
   'src/modules/audit/application/**/*.ts',
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',

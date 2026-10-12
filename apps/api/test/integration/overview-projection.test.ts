@@ -296,6 +296,23 @@ describe('rebuild and verify (EVM-034 AC6; ADR-0017 W11, T7)', () => {
     expect(await summaryOf(orderId)).toEqual(first);
   });
 
+  it('EVM-034 AC6 an unknown identifier alone rebuilds nothing and is not an error (an order purged meanwhile)', async () => {
+    const { maintenance } = projectionTools(admin());
+    expect(await maintenance.rebuild({ only: ['01a13115-0000-7000-8000-00000000dead'] })).toEqual({ rebuilt: 0, batches: 1, skipped: 0 });
+  });
+
+  it('EVM-034 AC6 the system ports answer an empty question without a query (no statement for no identifier)', async () => {
+    const { WorkOrderProjectionSourceService } = await import('../../src/modules/work-orders/infrastructure/projection-source.ts');
+    const { SiteProjectionSourceService } = await import('../../src/modules/sites/infrastructure/projection-source.ts');
+    const { PartyProjectionSourceService } = await import('../../src/modules/parties/infrastructure/projection-source.ts');
+    const { ProcedureProjectionSourceService } = await import('../../src/modules/procedures/infrastructure/projection-source.ts');
+    expect(await new WorkOrderProjectionSourceService().keysOf(admin(), [])).toEqual([]);
+    expect(await new SiteProjectionSourceService().siteTypesOf(admin(), [])).toEqual(new Map());
+    expect(await new PartyProjectionSourceService().kindsOf(admin(), [])).toEqual(new Map());
+    expect(await new ProcedureProjectionSourceService().unfinishedStagesOf(admin(), [])).toEqual([]);
+    expect(await new ProcedureProjectionSourceService().workOrderIdsOfStages(admin(), [])).toEqual(new Map());
+  });
+
   it('EVM-034 AC6 verify reports the numbers and the identifiers, by group of columns, and writes nothing to the projection', async () => {
     const { orderId, stageIds, osd } = await scene([{}, {}]);
     await sql`update procedures.procedure_stages set status = 'waiting', waiting_on = 'party', waiting_on_party_id = ${osd},

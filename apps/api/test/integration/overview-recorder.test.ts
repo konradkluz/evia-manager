@@ -76,6 +76,12 @@ describe('the handlers of the events of the read model (EVM-034 AC6; ADR-0017 W2
     expect(recomputed).toEqual([[ORDER]]);
   });
 
+  it('EVM-034 AC6 an event that carries no identifier at all names no order and recomputes nothing', async () => {
+    const { bus, db, recomputed } = setup();
+    await runInTransaction(db, (tx) => bus.publish(tx, { type: 'work_order.updated' }, CONTEXT));
+    expect(recomputed).toEqual([]);
+  });
+
   it('EVM-034 AC6 an audit event of a scope item names no order and recomputes nothing (the scope is not a column of the projection)', async () => {
     const { bus, db, recomputed } = setup();
     await runInTransaction(db, (tx) =>

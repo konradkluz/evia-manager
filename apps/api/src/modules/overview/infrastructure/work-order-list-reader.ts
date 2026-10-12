@@ -127,12 +127,14 @@ export async function readWorkOrderPage(
     const comparator = descending ? '<' : '>';
     if ('number' in position) {
       select = select.where(`${SUMMARIES}.number`, comparator, position.number);
-    } else if ('day' in position && (rule.key === 'longestWaitingSince' || rule.key === 'nextDueDate')) {
+    } else if ('day' in position) {
+      // the position of a date sort (the cursor is parsed against the sort it belongs to)
       const { day, id } = position;
+      const key = dayKey(rule.key === 'nextDueDate' ? 'nextDueDate' : 'longestWaitingSince');
       select = select.where(
-        sql<SqlBool>`(${dayKey(rule.key)}, ${sql.ref('overview.work_order_summaries.work_order_id')}) > (${day}::date, ${id}::uuid)`,
+        sql<SqlBool>`(${key}, ${sql.ref('overview.work_order_summaries.work_order_id')}) > (${day}::date, ${id}::uuid)`,
       );
-    } else if ('createdAt' in position) {
+    } else {
       const { createdAt, id } = position;
       select = select.where((eb) =>
         eb(eb.refTuple(`${SUMMARIES}.created_at`, `${SUMMARIES}.work_order_id`), comparator, eb.tuple(createdAt, id)),

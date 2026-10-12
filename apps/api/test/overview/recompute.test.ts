@@ -99,6 +99,36 @@ describe('the projection of one work order (EVM-034 AC1, AC4; ADR-0017 -> "Funkc
     expect(() => computeProjection(KEYS, null, [waiting('2026-09-18', { waitingOnPartyId: 'unknown-party' })], KINDS)).toThrow();
   });
 
+  it('EVM-034 AC6 a wait for a party without its identifier, or a waiting stage without "waiting for", is a defect that fails the recomputation', () => {
+    expect(() => computeProjection(KEYS, null, [waiting('2026-09-18', { waitingOnPartyId: null })], KINDS)).toThrow();
+    expect(() => computeProjection(KEYS, null, [waiting('2026-09-18', { waitingOn: null })], KINDS)).toThrow();
+  });
+
+  it('EVM-034 AC6 a waiting stage without the day cannot be dated: it is not listed as a wait and does not stop the recomputation', () => {
+    const projection = computeProjection(
+      KEYS,
+      null,
+      [waiting('2026-09-18', { waitingSince: null }), stage({ status: 'in_progress' })],
+      KINDS,
+    );
+    expect(projection.summary.waitingCount).toBe(0);
+    expect(projection.waits).toEqual([]);
+  });
+
+  it('EVM-034 AC4 the order of the waits is total: the same day and the same positions fall back to the identifier of the stage, whatever the input order', () => {
+    const a = waiting('2026-09-18', { stageId: '01a13115-0000-7000-8000-00000000f001', procedurePosition: 1, stagePosition: 1 });
+    const b = waiting('2026-09-18', { stageId: '01a13115-0000-7000-8000-00000000f002', procedurePosition: 1, stagePosition: 1 });
+    const c = waiting('2026-09-18', { stageId: '01a13115-0000-7000-8000-00000000f003', procedurePosition: 1, stagePosition: 1 });
+    for (const input of [
+      [a, b, c],
+      [c, b, a],
+      [b, c, a],
+      [c, a, b],
+    ]) {
+      expect(computeProjection(KEYS, null, input, KINDS).waits.map((wait) => wait.stageId)).toEqual([a.stageId, b.stageId, c.stageId]);
+    }
+  });
+
   it('EVM-034 AC6 a deleted order keeps its deletion time as the authorisation column', () => {
     const deletedAt = new Date('2026-10-01T10:00:00.000Z');
     const projection = computeProjection({ ...KEYS, deletedAt }, null, [], KINDS);
@@ -119,6 +149,18 @@ describe('the comparison of a stored row with the recomputed one (EVM-034 W2, W1
     expect(differingGroups(base, deleted)).toEqual(['authorization']);
     const closed = computeProjection({ ...KEYS, status: 'settled' }, null, stages, KINDS);
     expect(differingGroups(base, closed)).toEqual(['keys']);
+  });
+
+  it('EVM-034 waits for the customer (no party) are compared by their day: a wait that moved is "waiting"', () => {
+    const customer = (since: string) =>
+      computeProjection(
+        KEYS,
+        null,
+        [stage({ stageId: '01a13115-0000-7000-8000-00000000f010', status: 'waiting', waitingOn: 'customer', waitingSince: since })],
+        KINDS,
+      );
+    expect(differingGroups(customer('2026-09-18'), customer('2026-09-18'))).toEqual([]);
+    expect(differingGroups(customer('2026-09-18'), customer('2026-09-20'))).toEqual(['waiting']);
   });
 
   it('EVM-034 a different wait is "waiting", a different due date is "deadline"', () => {

@@ -107,11 +107,13 @@ export class ProjectionRecomputer {
         .orderBy('work_order_id')
         .forUpdate()
         .execute();
-      const lockedIds = locked.map((row) => row.work_order_id);
-      const projections = await this.compute(tx, lockedIds);
-      const written = lockedIds.filter((id) => projections.has(id));
-      await this.#write(handle, written, projections);
-      return written;
+      // `compute` answers only for the orders that exist: a row whose order a purge removed meanwhile is simply not written
+      const projections = await this.compute(
+        tx,
+        locked.map((row) => row.work_order_id),
+      );
+      await this.#write(handle, projections);
+      return [...projections.keys()];
     } catch (error) {
       this.#failures.increment({});
       throw error;
@@ -152,12 +154,10 @@ export class ProjectionRecomputer {
       .execute();
   }
 
-  async #write(handle: OverviewDb, ids: readonly string[], projections: ReadonlyMap<string, Projection>): Promise<void> {
-    if (ids.length === 0) return;
+  async #write(handle: OverviewDb, projections: ReadonlyMap<string, Projection>): Promise<void> {
+    if (projections.size === 0) return;
     const now = this.#clock.now();
-    for (const id of ids) {
-      const summary = projections.get(id)?.summary;
-      if (summary === undefined) continue;
+    for (const { summary } of projections.values()) {
       await handle
         .updateTable(SUMMARIES)
         .set({
@@ -177,11 +177,14 @@ export class ProjectionRecomputer {
           next_due_date: summary.nextDueDate,
           recomputed_at: now,
         })
-        .where('work_order_id', '=', id)
+        .where('work_order_id', '=', summary.workOrderId)
         .execute();
     }
-    await handle.deleteFrom(WAITS).where('work_order_id', 'in', ids).execute();
-    const waits = ids.flatMap((id) => projections.get(id)?.waits ?? []);
+    await handle
+      .deleteFrom(WAITS)
+      .where('work_order_id', 'in', [...projections.keys()])
+      .execute();
+    const waits = [...projections.values()].flatMap((projection) => projection.waits);
     for (let start = 0; start < waits.length; start += INSERT_CHUNK) {
       await handle
         .insertInto(WAITS)

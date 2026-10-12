@@ -75,30 +75,30 @@ export interface Projection {
 export const COLUMN_GROUPS = ['authorization', 'keys', 'waiting', 'deadline'] as const;
 export type ColumnGroup = (typeof COLUMN_GROUPS)[number];
 
-/** `YYYY-MM-DD` strings compare as dates. */
-function byWaiting(a: UnfinishedStage, b: UnfinishedStage): number {
-  const since = (a.waitingSince ?? '').localeCompare(b.waitingSince ?? '');
-  if (since !== 0) return since;
-  if (a.procedurePosition !== b.procedurePosition) return a.procedurePosition - b.procedurePosition;
-  if (a.stagePosition !== b.stagePosition) return a.stagePosition - b.stagePosition;
-  return a.stageId < b.stageId ? -1 : a.stageId > b.stageId ? 1 : 0;
+/** A stage that waits and can be dated (`waitingSince` is set). */
+interface DatedWait {
+  readonly stage: UnfinishedStage;
+  /** `YYYY-MM-DD` — strings of this form compare as dates */
+  readonly since: string;
 }
 
-function toWait(stage: UnfinishedStage, workOrderId: string, partyKinds: ReadonlyMap<string, string>): WaitColumns {
-  if (stage.waitingOn === null || stage.waitingSince === null) throw new Error('A waiting stage without "waiting for" or "since"');
-  if (stage.waitingOn === 'customer') {
-    return { stageId: stage.stageId, workOrderId, waitingOn: 'customer', partyId: null, partyKind: null, waitingSince: stage.waitingSince };
+/** The longest wait first: the day, then the position of the process, the position of the stage, the identifier of the stage. */
+function byWaiting(a: DatedWait, b: DatedWait): number {
+  if (a.since !== b.since) return a.since < b.since ? -1 : 1;
+  if (a.stage.procedurePosition !== b.stage.procedurePosition) return a.stage.procedurePosition - b.stage.procedurePosition;
+  if (a.stage.stagePosition !== b.stage.stagePosition) return a.stage.stagePosition - b.stage.stagePosition;
+  return a.stage.stageId < b.stage.stageId ? -1 : 1;
+}
+
+function toWait({ stage, since }: DatedWait, workOrderId: string, partyKinds: ReadonlyMap<string, string>): WaitColumns {
+  const base = { stageId: stage.stageId, workOrderId, waitingSince: since };
+  if (stage.waitingOn === 'customer') return { ...base, waitingOn: 'customer', partyId: null, partyKind: null };
+  const kind = partyKinds.get(stage.waitingOnPartyId ?? '');
+  // the CHECKs of the table tie `waiting` to a "waiting for" and a party to a stage that waits for a party: a violation is a defect
+  if (stage.waitingOn !== 'party' || stage.waitingOnPartyId === null || kind === undefined) {
+    throw new Error('A waiting stage without a known "waiting for"');
   }
-  const kind = stage.waitingOnPartyId === null ? undefined : partyKinds.get(stage.waitingOnPartyId);
-  if (stage.waitingOnPartyId === null || kind === undefined) throw new Error('A stage waits for a party of an unknown kind');
-  return {
-    stageId: stage.stageId,
-    workOrderId,
-    waitingOn: 'party',
-    partyId: stage.waitingOnPartyId,
-    partyKind: kind,
-    waitingSince: stage.waitingSince,
-  };
+  return { ...base, waitingOn: 'party', partyId: stage.waitingOnPartyId, partyKind: kind };
 }
 
 /**
@@ -115,9 +115,11 @@ export function computeProjection(
   // a stage in `waiting` always has its day through the API (EVM-032); the column is nullable, and a stage without it cannot be
   // dated, so it is not listed as a wait (the recomputation of the whole order must not fail on one row the API cannot write)
   const waits = stages
-    .filter((stage) => stage.status === 'waiting' && stage.waitingSince !== null)
+    .flatMap((stage): DatedWait[] =>
+      stage.status === 'waiting' && stage.waitingSince !== null ? [{ stage, since: stage.waitingSince }] : [],
+    )
     .sort(byWaiting)
-    .map((stage) => toWait(stage, keys.id, partyKinds));
+    .map((dated) => toWait(dated, keys.id, partyKinds));
   const first = waits[0];
   const dueDates = stages.flatMap((stage) => (stage.dueDate === null ? [] : [stage.dueDate]));
   const nextDueDate = dueDates.length === 0 ? null : dueDates.reduce((least, date) => (date < least ? date : least));
@@ -144,7 +146,7 @@ export function computeProjection(
 }
 
 const waitKey = (wait: WaitColumns): string =>
-  [wait.stageId, wait.waitingOn, wait.partyId ?? '', wait.partyKind ?? '', wait.waitingSince].join('|');
+  JSON.stringify([wait.stageId, wait.waitingOn, wait.partyId, wait.partyKind, wait.waitingSince]);
 
 /** The groups of columns in which a stored row differs from the recomputed one (empty: the same). */
 export function differingGroups(stored: Projection, computed: Projection): ColumnGroup[] {

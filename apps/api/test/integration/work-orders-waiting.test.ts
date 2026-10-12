@@ -303,6 +303,24 @@ describe('the sorts "Najdłużej czekamy" and "Termin" (EVM-034 AC4; D4, D5)', (
     expect(list.items.map((item) => item.nextDueDate)).toEqual(['2026-10-05', '2026-11-20', null, null]);
   });
 
+  it('EVM-034 AC4 nextDueDate: the cursor continues the sort by the deadline without a repeat or a gap, also over the orders that have none', async () => {
+    const ids: string[] = [];
+    for (const due of ['2026-10-09', '2026-10-05', null, '2026-10-05', null]) {
+      ids.push(await order([due === null ? {} : { dueDate: due }]));
+    }
+    const session = await signIn();
+    const all = (await page(session, '?sort=nextDueDate&limit=100')).items.map((item) => item.id);
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const next: Page = await page(session, `?sort=nextDueDate&limit=2${cursor === null ? '' : `&cursor=${cursor}`}`);
+      seen.push(...next.items.map((item) => item.id));
+      cursor = next.nextCursor;
+    } while (cursor !== null);
+    expect(seen).toEqual(all);
+    expect(new Set(seen).size).toBe(ids.length);
+  });
+
   it('EVM-034 AC4 a deadline that has passed is hasOverdueStage; a deadline of today is not; a finished stage never is', async () => {
     const past = await order([{ dueDate: '2026-10-02' }]);
     const today = await order([{ dueDate: TODAY }]);

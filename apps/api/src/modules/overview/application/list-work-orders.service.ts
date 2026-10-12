@@ -92,18 +92,21 @@ export class ListWorkOrdersService {
       principal,
       shown.map((row) => row.id),
     );
-    const visible = shown.filter((row) => titles.has(row.id));
+    const visible = shown.flatMap((row) => {
+      const title = titles.get(row.id);
+      return title === undefined ? [] : [{ row, title }];
+    });
     for (let dropped = visible.length; dropped < shown.length; dropped += 1) this.#authzDrift.increment({});
     const names = await this.#users.displayNamesOf(
-      visible.flatMap((row) => (row.coordinatorUserId === null ? [] : [row.coordinatorUserId])),
+      visible.flatMap(({ row }) => (row.coordinatorUserId === null ? [] : [row.coordinatorUserId])),
     );
-    const partyIds = visible.flatMap((row) => (row.longestWaitingPartyId === null ? [] : [row.longestWaitingPartyId]));
+    const partyIds = visible.flatMap(({ row }) => (row.longestWaitingPartyId === null ? [] : [row.longestWaitingPartyId]));
     // two batch lookups through the facade (the read policy of parties): none when no order of the page waits for a party
     const partyNames = partyIds.length === 0 ? new Map<string, string>() : await this.#parties.namesOf(this.#db, principal, partyIds);
     const partyKinds = partyIds.length === 0 ? new Map<string, string>() : await this.#parties.kindsOf(this.#db, principal, partyIds);
     const last = shown.at(-1);
     const list = {
-      items: visible.map((row) => toItem(row, titles.get(row.id) ?? '', names, partyNames, partyKinds, today)),
+      items: visible.map(({ row, title }) => toItem(row, title, names, partyNames, partyKinds, today)),
       nextCursor:
         rows.length > query.limit && last !== undefined
           ? this.#cursors.seal(LIST_WORK_ORDERS_OPERATION, {
