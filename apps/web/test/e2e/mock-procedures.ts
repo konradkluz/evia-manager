@@ -89,7 +89,8 @@ function stageBody(server: OrderServer, orderId: string, process: number, stage:
   const waiting = state.status === 'waiting';
   return {
     id,
-    code: `stage_${String(process)}_${String(stage)}`,
+    // The code of the template of the stage (`<process>_<n>`, as in the catalogue): the panel joins the default "Czekamy na…" by it (EVM-033).
+    code: `${PROCESSES[process - 1]?.code ?? 'process'}_${String(stage)}`,
     name,
     position,
     status: state.status ?? 'todo',

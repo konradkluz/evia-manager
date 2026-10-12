@@ -96,7 +96,17 @@ export const CATALOG_PROCEDURES = [
     stages: ['Wykonanie linii zasilającej', 'Zabezpieczenia', 'Pomiary'],
   },
   { code: 'osd', name: 'Uzgodnienia z OSD', stages: ['Wniosek', 'Warunki przyłączenia'] },
+  { code: 'admin', name: 'Zgody administracji', stages: ['Wniosek do administracji', 'Zgoda administracji'] },
+  { code: 'ppoz', name: 'Opinia ppoż', stages: ['Opinia rzeczoznawcy'] },
 ];
+
+/** EVM-033: the stages that have a default "Czekamy na…" (a hint of the panel; the others have none). */
+const DEFAULT_WAITING: Readonly<Record<string, { waitingOn: 'customer' | 'party'; partyKind: string | null }>> = {
+  osd_1: { waitingOn: 'customer', partyKind: null },
+  osd_2: { waitingOn: 'party', partyKind: 'distribution_system_operator' },
+  admin_2: { waitingOn: 'party', partyKind: 'housing_community' },
+  ppoz_1: { waitingOn: 'party', partyKind: 'fire_safety_expert' },
+};
 
 export const answerCatalogItems = (): Answer => json(200, { items: CATALOG_ITEMS, nextCursor: null });
 
@@ -109,8 +119,8 @@ export const answerCatalogProcedures = (): Answer =>
         code: `${entry.code}_${String(index + 1)}`,
         name,
         position: index + 1,
-        defaultWaitingOn: null,
-        defaultWaitingOnPartyKind: null,
+        defaultWaitingOn: DEFAULT_WAITING[`${entry.code}_${String(index + 1)}`]?.waitingOn ?? null,
+        defaultWaitingOnPartyKind: DEFAULT_WAITING[`${entry.code}_${String(index + 1)}`]?.partyKind ?? null,
         outputDocumentKindCodes: [],
       })),
     })),
