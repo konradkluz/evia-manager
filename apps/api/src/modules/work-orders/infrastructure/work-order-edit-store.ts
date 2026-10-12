@@ -13,7 +13,7 @@ import type { WorkOrdersDb } from './tables.ts';
 import { insertCoordinator, SCOPE_ITEMS_LIMIT, scopeItemColumns } from './work-order-store.ts';
 
 /**
- * The order of a change of its data, LOCKED (`SELECT … FOR UPDATE`) with the read policy in the query (EVM-035 AC1, AC6; SR-API-06,
+ * The order of a change of its data, LOCKED (`SELECT … FOR NO KEY UPDATE`) with the read policy in the query (EVM-035 AC1, AC6; SR-API-06,
  * SR-API-07): every decision of the command — closed, the version, what really changes — is taken on THIS row, which no other
  * transaction can change until this one ends (a change of the status included, so "closed" cannot move under the command).
  */
@@ -23,7 +23,7 @@ export function lockWorkOrderForEdit(db: WorkOrdersDb, principal: Principal, id:
     .select(['id', 'status', 'title', 'description', sql<string | null>`to_char(planned_date, 'YYYY-MM-DD')`.as('planned_date'), 'version'])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
-    .forUpdate()
+    .forNoKeyUpdate()
     .executeTakeFirst();
 }
 
@@ -144,7 +144,7 @@ export function insertScopeItem(db: WorkOrdersDb, item: ScopeItemToInsert, actor
 /**
  * The item of THIS order: `id` AND `work_order_id` are in the one condition, so an item of another order is as missing as one that
  * does not exist or one that is deleted (`undefined` → `404`, SR-AUTHZ-02, SR-INPUT-02, CWE-639). With `lock` the row is taken
- * `FOR UPDATE` — every decision of a change is taken on it, which no other transaction can change until this one ends.
+ * `FOR NO KEY UPDATE` — every decision of a change is taken on it, which no other transaction can change until this one ends.
  */
 export function findScopeItem(
   db: WorkOrdersDb,
@@ -158,7 +158,7 @@ export function findScopeItem(
     .where('id', '=', itemId)
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null);
-  return (options.lock ? query.forUpdate() : query).executeTakeFirst();
+  return (options.lock ? query.forNoKeyUpdate() : query).executeTakeFirst();
 }
 
 /** The item of THIS order as it is NOW (the answer of a change): the caller holds its lock, so it exists — a missing row is an error (500). */

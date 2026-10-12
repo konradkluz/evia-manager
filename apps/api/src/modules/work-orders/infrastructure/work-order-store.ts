@@ -7,7 +7,7 @@ import { sql } from 'kysely';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
-import type { WorkOrderStatus } from '../domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../domain/work-order-status.ts';
 import { visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
 
@@ -206,7 +206,7 @@ export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id
 export type ReadableWorkOrderRow = NonNullable<Awaited<ReturnType<typeof findReadableWorkOrder>>>;
 
 /**
- * The order of a status command, LOCKED (`SELECT … FOR UPDATE`) with the read policy in the query (EVM-030 AC5, AC7; SR-API-06, SR-API-07):
+ * The order of a status command, LOCKED (`SELECT … FOR NO KEY UPDATE`) with the read policy in the query (EVM-030 AC5, AC7; SR-API-06, SR-API-07):
  * every decision of the command — the row of the table, the role, the step-up, the version, the conditions — is taken on THIS row,
  * which no other transaction can change until this one ends. Never a decision on an earlier read. Only the columns the decision
  * needs; the reason of an earlier hold or cancellation is not among them (it is overwritten, never read back).
@@ -224,7 +224,7 @@ export function lockWorkOrderForTransition(db: WorkOrdersDb, principal: Principa
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))
-    .forUpdate()
+    .forNoKeyUpdate()
     .executeTakeFirst();
 }
 
@@ -273,9 +273,21 @@ export async function updateWorkOrderStatus(
 
 /**
  * The identifier and the status of an order the caller may see (the read policy is in the query) — what the facade for other modules
- * needs. With `lock` the row is taken `FOR UPDATE` (the caller is in a transaction of a change that depends on the status).
+ * needs. With `lock` the row is taken `FOR NO KEY UPDATE` (the caller is in a transaction of a change that depends on the status).
  */
 export function findVisibleWorkOrderRef(db: WorkOrdersDb, principal: Principal, id: string, options: { readonly lock: boolean }) {
   const query = db.selectFrom('work_orders.work_orders').select(['id', 'status']).where('id', '=', id).where(visibleWorkOrders(principal));
-  return (options.lock ? query.forUpdate() : query).executeTakeFirst();
+  return (options.lock ? query.forNoKeyUpdate() : query).executeTakeFirst();
+}
+
+/** The titles of the orders among `ids` that the caller may see, in ONE query with the read policy in it (the list of `overview`). */
+export async function findVisibleTitles(db: WorkOrdersDb, principal: Principal, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'title'])
+    .where('id', 'in', ids)
+    .where(visibleWorkOrders(principal))
+    .execute();
+  return new Map(rows.map((row) => [row.id, row.title]));
 }
