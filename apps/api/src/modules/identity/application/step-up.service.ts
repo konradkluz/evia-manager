@@ -41,6 +41,7 @@ import {
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
 import { verifyAssertionOfKey } from './passkey-assertion.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 type Outcome = NewSessionResult | { readonly refusal: 'passkey_failed' | 'session_revoked' };
 
@@ -66,7 +67,7 @@ export class StepUpService {
   /** Options restricted to the keys of the user of the session; stores the one open challenge of the session. */
   async options(principal: Principal): Promise<PasskeyAuthenticationOptions> {
     const now = this.#clock.now();
-    return this.#db.transaction().execute(async (transaction) => {
+    return runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
       const keys = await listPasskeysOfUser(tx, principal.userId);
       // An Administrator in an active session has a key; none means the account is not in a state a step-up can serve.
@@ -87,9 +88,7 @@ export class StepUpService {
 
   async verify(principal: Principal, body: StepUpRequest, client: ClientInfo): Promise<NewSessionResult> {
     const now = this.#clock.now();
-    const outcome = await this.#db
-      .transaction()
-      .execute((transaction) => this.#verifyInTransaction(transaction, principal, body, client, now));
+    const outcome = await runInTransaction(this.#db, (transaction) => this.#verifyInTransaction(transaction, principal, body, client, now));
     // The refusal is raised after the transaction committed: the spent challenge and the audit event stay.
     if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
     return outcome;

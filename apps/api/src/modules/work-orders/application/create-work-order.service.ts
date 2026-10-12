@@ -52,6 +52,7 @@ import {
   listScopeItems,
 } from '../infrastructure/work-order-store.ts';
 import { toWorkOrder } from './work-order-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template: what an idempotency key is bound to besides the user. */
 export const CREATE_WORK_ORDER_SCOPE = 'POST /api/v1/work-orders';
@@ -109,7 +110,7 @@ export class CreateWorkOrderService {
     if (!normalized.ok) throw new ProblemException('validation_failed', { errors: normalized.errors });
 
     const request = { ...context, sessionId: principal.sessionId };
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const perform = async () => {
         await this.#compose(tx, principal, normalized.order, request);
         return { value: normalized.order.id, result: { status: 201, code: 'created', resourceId: normalized.order.id } };

@@ -44,6 +44,7 @@ import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures } from './login-failures.ts';
 import { verifyAssertionOfKey } from './passkey-assertion.ts';
 import { startSession, type StartedSession } from './session-start.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** How a transaction that created no session ended: the refusal is raised after it commits (its audit rows stay). */
 type Refusal = 'unauthenticated' | 'login_expired' | 'passkey_failed';
@@ -73,7 +74,7 @@ export class LoginPasskeyService {
 
   async options(loginToken: string, client: ClientInfo): Promise<PasskeyAuthenticationOptions> {
     const now = this.#clock.now();
-    const result = await this.#db.transaction().execute(async (transaction) => {
+    const result = await runInTransaction(this.#db, async (transaction) => {
       const opened = await this.#open(transaction, loginToken, now, client.context);
       if ('refusal' in opened) return opened;
       const { attempt } = opened;
@@ -102,9 +103,9 @@ export class LoginPasskeyService {
 
   async verify(body: VerifyLoginPasskeyRequest, client: ClientInfo, previousSessionToken: string | undefined): Promise<StartedSession> {
     const now = this.#clock.now();
-    const outcome = await this.#db
-      .transaction()
-      .execute((transaction) => this.#verifyInTransaction(transaction, body, client, previousSessionToken, now));
+    const outcome = await runInTransaction(this.#db, (transaction) =>
+      this.#verifyInTransaction(transaction, body, client, previousSessionToken, now),
+    );
     if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
     return outcome;
   }

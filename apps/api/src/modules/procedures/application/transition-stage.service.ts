@@ -65,6 +65,7 @@ import type { ProcedureStageEvent, StageStatusChangedEvent } from '../events.ts'
 import { lockStage, transitionStage } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
 import { HIDDEN_STAGE_COLUMNS, presentStage, requireVisibleParty } from './stage-answer.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the stage (see {@link transitionStageScope}). */
 export const TRANSITION_STAGE_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions';
@@ -144,7 +145,7 @@ export class TransitionStageService {
     const key = rawKey === undefined ? undefined : (parseInput(idempotencyKeySchema, rawKey) as string);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const order = await this.#orders.lockVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const locked = await lockStage(procedureTables(tx), order.id, stageId);

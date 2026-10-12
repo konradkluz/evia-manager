@@ -28,6 +28,7 @@ import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures, type LoginFailure } from './login-failures.ts';
 import { startSession, type StartedSession } from './session-start.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 export type LoginOutcome =
   { readonly kind: 'second_step'; readonly loginToken: string } | { readonly kind: 'session'; readonly session: StartedSession };
@@ -68,7 +69,7 @@ export class LoginService {
 
     const now = this.#clock.now();
     if (!(await hasPasskey(identityTables(this.#db), user.userId))) {
-      const session = await this.#db.transaction().execute((transaction) =>
+      const session = await runInTransaction(this.#db, (transaction) =>
         startSession(transaction, this.#events, {
           userId: user.userId,
           state: 'mfa_enrollment',
@@ -81,7 +82,7 @@ export class LoginService {
       return { kind: 'session', session };
     }
     const loginToken = newToken();
-    await this.#db.transaction().execute(async (transaction) => {
+    await runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
       await deleteStaleLoginAttempts(tx, new Date(now.getTime() - LOGIN_ATTEMPT_RETENTION_MS));
       await insertLoginAttempt(tx, {
@@ -104,7 +105,7 @@ export class LoginService {
   }
 
   async #reject(reason: LoginFailure, userId: string | undefined, client: ClientInfo): Promise<never> {
-    await this.#db.transaction().execute((transaction) => this.#failures.record(transaction, reason, userId, client.context));
+    await runInTransaction(this.#db, (transaction) => this.#failures.record(transaction, reason, userId, client.context));
     throw new ProblemException('invalid_credentials');
   }
 }

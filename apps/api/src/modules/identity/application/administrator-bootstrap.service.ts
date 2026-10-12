@@ -28,6 +28,7 @@ import { hashToken, newToken } from '../domain/tokens.ts';
 import type { EmergencyReason, IdentityEvent } from '../events.ts';
 import { insertLink, lockAdministrators, revokeSessions, supersedeOpenLinks } from '../infrastructure/queries.ts';
 import { identityTables, type IdentityDb } from '../infrastructure/tables.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 export type BootstrapRequest =
   | { readonly mode: 'activation'; readonly email: string }
@@ -53,7 +54,7 @@ export class AdministratorBootstrap {
 
   /** @param email already normalised (NFC, trimmed, lower case) and validated by the caller */
   async run(request: BootstrapRequest, context: EventContext): Promise<BootstrapResult> {
-    return this.#db.transaction().execute(async (transaction) => {
+    return runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
       await lockAdministrators(tx, ADMINISTRATOR_LOCK_KEY);
       const now = this.#clock.now();

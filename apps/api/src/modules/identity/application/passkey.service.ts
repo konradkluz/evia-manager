@@ -27,6 +27,7 @@ import { PASSKEY_VERIFIER, type PasskeyVerifier, type VerifiedPasskey } from '..
 import { insertSession, revokeSessions } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** The challenge, the response or the key did not hold up — answered with 400 passkey_verification_failed. */
 class RegistrationRejected extends Error {}
@@ -73,7 +74,7 @@ export class PasskeyService {
       excludeCredentialIds: existing.map((row) => row.credential_id),
     });
     const now = this.#clock.now();
-    await this.#db.transaction().execute(async (transaction) => {
+    await runInTransaction(this.#db, async (transaction) => {
       const handle = identityTables(transaction);
       // One open registration challenge per session: asking for new options retires the earlier ones.
       await handle
@@ -118,7 +119,7 @@ export class PasskeyService {
   async #complete(principal: Principal, verified: VerifiedPasskey, challenge: string, client: ClientInfo): Promise<RegisteredPasskey> {
     const sessionToken = newToken();
     const now = this.#clock.now();
-    const result = await this.#db.transaction().execute(async (transaction) => {
+    const result = await runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
       const used = await tx
         .updateTable('identity.webauthn_challenges')
@@ -232,9 +233,9 @@ export class PasskeyService {
       objectType: 'user',
       objectId: principal.userId,
     };
-    await this.#db
-      .transaction()
-      .execute((transaction) => this.#events.publish(transaction, event, { ...client.context, sessionId: principal.sessionId }));
+    await runInTransaction(this.#db, (transaction) =>
+      this.#events.publish(transaction, event, { ...client.context, sessionId: principal.sessionId }),
+    );
     throw new ProblemException('passkey_verification_failed');
   }
 }

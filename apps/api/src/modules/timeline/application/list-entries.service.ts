@@ -23,6 +23,7 @@ import { EVENT_GROUP_CODES, filterPartsOf, parsePosition, positionParts, resolve
 import { timelineTables } from '../infrastructure/tables.ts';
 import { listEntries } from '../infrastructure/timeline-store.ts';
 import { EntryPresenter } from './entry-page.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Identifier of the operation in the contract; the cursor is bound to it. */
 export const LIST_TIMELINE_OPERATION = 'listTimelineEntries';
@@ -55,10 +56,9 @@ export class ListEntriesService {
     const scope = scopeOf(filterPartsOf(workOrderId, query));
     const position = this.#positionOf(query.cursor, principal, scope);
 
-    return this.#db
-      .transaction()
-      .setIsolationLevel('repeatable read')
-      .execute(async (tx) => {
+    return runInTransaction(
+      this.#db,
+      async (tx) => {
         const order = await this.#orders.findVisible(tx, principal, workOrderId);
         if (order === undefined) throw new ProblemException('not_found');
         const rows = await listEntries(
@@ -79,7 +79,9 @@ export class ListEntriesService {
             ? this.#cursors.seal(LIST_TIMELINE_OPERATION, { position: positionParts(last), scope, userId: principal.userId })
             : null;
         return this.#presenter.page(tx, principal, order.id, shown, nextCursor);
-      });
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 
   /** @throws ProblemException `invalid_cursor` — one answer for every reason (SR-API-01) */

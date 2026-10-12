@@ -5,7 +5,7 @@
  * Administrator or Editor on the web channel with a valid CSRF token — Read-only gets 403 and an anonymous caller 401 without
  * reaching the headers, the body or the table of idempotency records.
  *
- * ONE transaction on the order LOCKED with `SELECT … FOR UPDATE` (the read policy is in that query), so the limit and the closing
+ * ONE transaction on the order LOCKED with `SELECT … FOR NO KEY UPDATE` (the read policy is in that query), so the limit and the closing
  * are decided on rows no other transaction can change (two additions at 49 items: exactly one wins). The order:
  *   1. the order is locked: missing or soft deleted is `404 not_found`, the same for every role, BEFORE the headers and the body;
  *   2. the body against the strict schema of the contract (a field of the server — `code`, `name`, `position`, `version` … — is
@@ -48,14 +48,15 @@ import {
   validateParameters,
   validateProcedureCodes,
 } from '../domain/scope-item-rules.ts';
-import { CLOSED_STATUSES } from '../domain/work-order-list-query.ts';
+import { CLOSED_STATUSES } from '../domain/work-order-status.ts';
 import type { ScopeItemAddedEvent, WorkOrderEvent } from '../events.ts';
-import type { WorkOrderStatus } from '../domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../domain/work-order-status.ts';
 import { ScopeLimitError, WorkOrderScopeRegistry } from '../scope-participant.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
 import { findScopeItem, insertScopeItem, takenScopePositions } from '../infrastructure/work-order-edit-store.ts';
 import { findVisibleWorkOrderRef } from '../infrastructure/work-order-store.ts';
 import { toScopeItem } from './scope-item-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createScopeItemScope}). */
 export const CREATE_SCOPE_ITEM_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/scope-items';
@@ -137,7 +138,7 @@ export class CreateScopeItemService {
     const key = rawKey === undefined ? undefined : (parseInput(idempotencyKeySchema, rawKey) as string);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const order = await findVisibleWorkOrderRef(workOrderTables(tx), principal, workOrderId, { lock: true });
       if (order === undefined) throw new ProblemException('not_found');
       const forbidden = forbiddenParameterKeys(rawBody);

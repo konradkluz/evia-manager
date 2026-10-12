@@ -38,6 +38,7 @@ import type { PartyEvent } from '../events.ts';
 import { findVisibleParty, lockVisibleParty, updatePartyRow, type PartyRow } from '../infrastructure/party-store.ts';
 import { partyTables } from '../infrastructure/tables.ts';
 import { toParty } from './party-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the party (see {@link updatePartyScope}). */
 export const UPDATE_PARTY_SCOPE = 'PATCH /api/v1/parties/{partyId}';
@@ -95,7 +96,7 @@ export class UpdatePartyService {
     const patch = parseInput(patchBody, rawBody, SERVER_FIELDS) as PartyPatchInput;
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const locked = await lockVisibleParty(partyTables(tx), principal, partyId);
       if (locked === undefined) throw new ProblemException('not_found');
 

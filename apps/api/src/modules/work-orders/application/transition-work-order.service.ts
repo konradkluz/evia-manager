@@ -3,7 +3,7 @@
  * SR-SESS-08, SR-LOG-02, SR-LOG-03, SR-DATA-01). The guard has decided before this runs: a signed-in Administrator or Editor on the
  * web channel with a valid CSRF token — Read-only gets 403 and an anonymous caller 401 without reaching the body.
  *
- * ONE transaction, and every decision in it is taken on the order LOCKED with `SELECT … FOR UPDATE` (the read policy is in that query),
+ * ONE transaction, and every decision in it is taken on the order LOCKED with `SELECT … FOR NO KEY UPDATE` (the read policy is in that query),
  * never on an earlier read (TOCTOU, ASVS V2.3.3). No effect — the update, the effects of the participants, the audit record, the
  * idempotency record — happens before every check has passed; an error anywhere rolls the whole command back. The order:
  *   1. the order is locked: missing or soft deleted is `404 not_found`, the same for every role (it comes before the body, so a
@@ -47,6 +47,7 @@ import { workOrderTables } from '../infrastructure/tables.ts';
 import { lockWorkOrderForTransition, updateWorkOrderStatus, type LockedWorkOrderRow } from '../infrastructure/work-order-store.ts';
 import { WorkOrderTransitionRegistry, type TransitionContext } from '../transition-participant.ts';
 import { ReadWorkOrderService } from './read-work-order.service.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link transitionScope}). */
 export const TRANSITION_WORK_ORDER_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/transitions';
@@ -112,7 +113,7 @@ export class TransitionWorkOrderService {
     const key = rawKey === undefined ? undefined : (parseInput(idempotencyKeySchema, rawKey) as string);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const locked = await lockWorkOrderForTransition(workOrderTables(tx), principal, workOrderId);
       if (locked === undefined) throw new ProblemException('not_found');
       const expectedVersion = parseIfMatch(rawIfMatch);

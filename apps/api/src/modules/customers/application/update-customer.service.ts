@@ -38,6 +38,7 @@ import type { CustomerEvent } from '../events.ts';
 import { findVisibleCustomer, lockVisibleCustomer, updateCustomerRow, type CustomerRow } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 import { toCustomer } from './customer-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the customer (see {@link updateCustomerScope}). */
 export const UPDATE_CUSTOMER_SCOPE = 'PATCH /api/v1/customers/{customerId}';
@@ -99,7 +100,7 @@ export class UpdateCustomerService {
     const patch = parseInput(patchBody, rawBody, SERVER_FIELDS) as CustomerPatchInput;
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const locked = await lockVisibleCustomer(customerTables(tx), principal, customerId);
       if (locked === undefined) throw new ProblemException('not_found');
 

@@ -26,6 +26,7 @@ import { listProcedures, listStages } from '../infrastructure/procedure-store.ts
 import { procedureTables } from '../infrastructure/tables.ts';
 import { toProcedureList, responsibleIdsOf, waitingPartyIdsOf } from './procedure-representation.ts';
 import { responsibleNamesOf } from './responsible-names.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 const pathSchema = strictObjects(zListWorkOrderProceduresPath);
 
@@ -54,10 +55,9 @@ export class ListProceduresService {
   /** @param rawParams the path parameters as parsed by the framework */
   async list(principal: Principal, rawParams: unknown): Promise<ProcedureList> {
     const { workOrderId } = parseInput(pathSchema, rawParams) as { workOrderId: string };
-    return this.#db
-      .transaction()
-      .setIsolationLevel('repeatable read')
-      .execute(async (tx) => {
+    return runInTransaction(
+      this.#db,
+      async (tx) => {
         const order = await this.#orders.findVisible(tx, principal, workOrderId);
         if (order === undefined) throw new ProblemException('not_found');
         const tables = procedureTables(tx);
@@ -65,6 +65,8 @@ export class ListProceduresService {
         const names = await responsibleNamesOf(this.#users, tx, responsibleIdsOf(stages));
         const partyNames = await this.#parties.namesOf(tx, principal, waitingPartyIdsOf(stages));
         return toProcedureList(procedures, stages, names, partyNames, businessDate(this.#clock.now()));
-      });
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 }

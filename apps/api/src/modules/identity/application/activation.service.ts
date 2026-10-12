@@ -22,6 +22,7 @@ import type { IdentityEvent } from '../events.ts';
 import { BREACHED_PASSWORD_CHECK, PASSWORD_HASHER, type BreachedPasswordCheck, type PasswordHasher } from '../infrastructure/ports.ts';
 import { findLinkByTokenHash, insertSession, isLinkUsable, revokeSessions, type LinkRecord } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 export interface NewSessionResult {
   /** The opaque token for the cookie. */
@@ -79,7 +80,7 @@ export class ActivationService {
     const sessionToken = newToken();
     const now = this.#clock.now();
     const csrfToken = deriveCsrfToken(sessionToken);
-    await this.#db.transaction().execute(async (transaction) => {
+    await runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
       const locked = await findLinkByTokenHash(tx, hashToken(token), true);
       if (locked === undefined || !isLinkUsable(locked, now)) throw invalid();
