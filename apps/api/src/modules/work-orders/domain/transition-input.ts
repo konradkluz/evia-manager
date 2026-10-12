@@ -9,7 +9,7 @@
  * value: the reason is free text that may name a person (it reaches neither a log nor the audit trail nor an answer).
  */
 import { Collector, type FieldIssue } from '../../../platform/input/field-issues.ts';
-import type { WorkOrderStatus } from './work-order-list-query.ts';
+import type { WorkOrderStatus } from './work-order-status.ts';
 import type { ResolvedTransition, TransitionFields } from './work-order-transitions.ts';
 
 export const REASON_MAX_LENGTH = 500;

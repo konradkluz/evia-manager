@@ -8,7 +8,7 @@ import { PanelClient } from '../support/panel-client.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertWorkOrders } from '../support/work-order-fixtures.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 
 let current: IdentityApp;
 beforeAll(async () => {

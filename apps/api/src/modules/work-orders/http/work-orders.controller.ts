@@ -1,5 +1,5 @@
 /**
- * HTTP surface of the work-orders module (EVM-017: the list; EVM-022: the creation; EVM-018: the four reads of one order; EVM-030: the status command;
+ * HTTP surface of the work-orders module (EVM-017: the list — moved to `overview` in EVM-034; EVM-022: the creation; EVM-018: the four reads of one order; EVM-030: the status command;
  * EVM-035: the change of the data of an order and the five operations on its scope). The handlers contain no authorization — the
  * global guard decides before they run (operation in the manifest, CSRF, channel, role); here only the call and the headers of the
  * answer. The query of the list is validated and its response parsed in the service, with the schemas of the contract. The answers
@@ -14,9 +14,8 @@ import type {
   SiteOrders,
   WorkOrder,
   WorkOrderDetails,
-  WorkOrderList,
 } from '@evia/contracts';
-import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
@@ -27,7 +26,6 @@ import { CreateScopeItemService } from '../application/create-scope-item.service
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
 import { DeleteScopeItemService } from '../application/delete-scope-item.service.ts';
 import { ListSiteOrdersService } from '../application/list-site-orders.service.ts';
-import { ListWorkOrdersService } from '../application/list-work-orders.service.ts';
 import { ReadWorkOrderService } from '../application/read-work-order.service.ts';
 import { TransitionWorkOrderService } from '../application/transition-work-order.service.ts';
 import { UpdateScopeItemService } from '../application/update-scope-item.service.ts';
@@ -41,7 +39,6 @@ function requirePrincipal(request: Request): Principal {
 
 @Controller()
 export class WorkOrdersController {
-  readonly #lists: ListWorkOrdersService;
   readonly #creations: CreateWorkOrderService;
   readonly #reads: ReadWorkOrderService;
   readonly #transitions: TransitionWorkOrderService;
@@ -52,7 +49,6 @@ export class WorkOrdersController {
   readonly #scopeDeletions: DeleteScopeItemService;
 
   constructor(
-    @Inject(ListWorkOrdersService) lists: ListWorkOrdersService,
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
     @Inject(ReadWorkOrderService) reads: ReadWorkOrderService,
     @Inject(TransitionWorkOrderService) transitions: TransitionWorkOrderService,
@@ -62,7 +58,6 @@ export class WorkOrdersController {
     @Inject(UpdateScopeItemService) scopeUpdates: UpdateScopeItemService,
     @Inject(DeleteScopeItemService) scopeDeletions: DeleteScopeItemService,
   ) {
-    this.#lists = lists;
     this.#creations = creations;
     this.#reads = reads;
     this.#transitions = transitions;
@@ -71,12 +66,6 @@ export class WorkOrdersController {
     this.#scopeCreations = scopeCreations;
     this.#scopeUpdates = scopeUpdates;
     this.#scopeDeletions = scopeDeletions;
-  }
-
-  @Get('/api/v1/work-orders')
-  @OperationId('listWorkOrders')
-  listWorkOrders(@Query() query: unknown, @Req() request: Request): Promise<WorkOrderList> {
-    return this.#lists.list(requirePrincipal(request), query, requestEventContext(request));
   }
 
   @Get('/api/v1/work-orders/:workOrderId')

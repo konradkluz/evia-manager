@@ -10,7 +10,7 @@
  * "Przejścia audytowane").
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
-import type { WorkOrderStatus } from './domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from './domain/work-order-status.ts';
 import type { WorkOrderField } from './domain/work-order-patch.ts';
 import type { ScopeItemField } from './domain/scope-item-rules.ts';
 

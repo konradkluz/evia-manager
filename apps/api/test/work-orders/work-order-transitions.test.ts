@@ -1,7 +1,7 @@
 import type { UserRole } from '@evia/contracts';
 import { describe, expect, it } from 'vitest';
 import { ALL_STATUSES } from '../support/work-order-fixtures.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 import {
   ACTIVE_STATUSES,
   TRANSITION_TABLE,

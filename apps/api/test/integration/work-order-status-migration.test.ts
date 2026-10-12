@@ -6,7 +6,7 @@ let database: MigratedDatabase;
 const T = '2026-10-08T08:00:00Z';
 
 beforeAll(async () => {
-  database = await migratedDatabase();
+  database = await migratedDatabase({ checkProjection: false });
 });
 afterAll(async () => {
   await database.close();

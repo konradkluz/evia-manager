@@ -9,7 +9,8 @@ import { insertProcedure, type ProcedureSpec } from '../support/procedure-fixtur
 import { insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertWorkOrders } from '../support/work-order-fixtures.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 let current: IdentityApp;
 beforeAll(async () => {
@@ -628,6 +629,7 @@ describe('a closed order is read-only (EVM-031 AC5; PO-8, ASVS V2.3.3)', () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     release();
     await closing;
+    await rebuildProjection(admin()); // the order was settled by a statement outside the services
     const response = await pending;
     expect(response.status, JSON.stringify(response.body)).toBe(409);
     expect(codeOf(response.body)).toBe('work_order_closed');

@@ -10,7 +10,8 @@ import { insertProcedure } from '../support/procedure-fixtures.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertScopeItems, insertWorkOrders } from '../support/work-order-fixtures.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 /** A participant of the scope that refuses on demand: proves that a failure of any part undoes the whole addition. */
 let participantFails = false;
@@ -763,6 +764,7 @@ describe('a closed order (EVM-035 AC6; PO-8, decision 17)', () => {
       const id = await bareOrder();
       const item = ((await add(editor, id, { catalogItemCode: SUPPLY, parameters: { dedicatedCircuit: true } })).body as Addition).item;
       await sql`update work_orders.work_orders set status = ${status}, closed_at = now() where id = ${id}`.execute(admin());
+      await rebuildProjection(admin(), [id]);
       const before = await countsOf(id);
       const attempts = [
         await add(editor, id, { catalogItemCode: SUPPLY, procedureCodes: ['electrical_installation'] }),

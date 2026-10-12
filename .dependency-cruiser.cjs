@@ -69,7 +69,27 @@ module.exports = {
       comment: 'A module uses another module only through its public API (modules/<name>/index.ts) (ADR-0001).',
       severity: 'error',
       from: { path: '^apps/api/src/modules/([^/]+)/' },
-      to: { path: '^apps/api/src/modules/([^/]+)/', pathNot: ['^apps/api/src/modules/$1/', '^apps/api/src/modules/[^/]+/index\\.ts$'] },
+      to: {
+        path: '^apps/api/src/modules/([^/]+)/',
+        // the system ports of the read model (`system-ports.ts`) are a separate entry file with its own rule below (ADR-0017 W5)
+        pathNot: ['^apps/api/src/modules/$1/', '^apps/api/src/modules/[^/]+/index\\.ts$', '^apps/api/src/modules/[^/]+/system-ports\\.ts$'],
+      },
+    },
+    {
+      name: 'api-system-ports-only-from-overview',
+      comment:
+        'The system ports (modules/<name>/system-ports.ts) return minimal data WITHOUT a read policy and without a role (ADR-0017 W5, T8): only the application and infrastructure layers of `overview` may import them, and a module its own — never a controller, never another module.',
+      severity: 'error',
+      from: { path: '^apps/api/src/modules/([^/]+)/', pathNot: '^apps/api/src/modules/overview/(application|infrastructure)/' },
+      to: { path: '^apps/api/src/modules/([^/]+)/system-ports\\.ts$', pathNot: '^apps/api/src/modules/$1/' },
+    },
+    {
+      name: 'api-nothing-depends-on-overview',
+      comment:
+        'The read model is a leaf (ADR-0017 W5): it depends on the source modules, nothing depends on it. Only the composition root and the server command reach it, through index.ts.',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(modules/overview/|app\\.module\\.ts$|cli/)' },
+      to: { path: '^apps/api/src/modules/overview/' },
     },
     {
       name: 'no-module-imports-audit',

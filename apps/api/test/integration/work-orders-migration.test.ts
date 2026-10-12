@@ -12,7 +12,7 @@ let userId: string;
 const clock = new FixedClock('2026-10-07T08:00:00Z');
 
 beforeAll(async () => {
-  database = await migratedDatabase();
+  database = await migratedDatabase({ checkProjection: false });
   app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 2 } });
   userId = (await createUser(database.admin, clock, { role: 'editor' })).id;
 });

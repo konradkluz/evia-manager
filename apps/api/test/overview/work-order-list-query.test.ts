@@ -12,7 +12,7 @@ import {
   positionParts,
   resolveWorkOrderListQuery,
   workOrderListQuerySchema,
-} from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+} from '../../src/modules/overview/domain/work-order-list-query.ts';
 
 const parse = (query: Record<string, string>) => resolveWorkOrderListQuery.safeParse(query);
 const ok = (query: Record<string, string>) => {

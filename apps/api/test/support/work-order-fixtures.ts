@@ -5,9 +5,10 @@
  * and a counter, people are the fixture users of the identity tests, numbers follow `ZL-YYYY-NNNN`.
  */
 import { sql, type Kysely } from 'kysely';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 import { workOrderTables } from '../../src/modules/work-orders/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
+import { rebuildProjection } from './projection.ts';
 
 export const ALL_STATUSES: readonly WorkOrderStatus[] = [
   'new',
@@ -97,6 +98,8 @@ export async function insertWorkOrders(db: Kysely<Database>, specs: readonly Wor
     });
     if (assignments.length > 0) await tables.insertInto('work_orders.work_order_assignments').values(assignments).execute();
   }
+  // the fixture bypasses the services, so the handlers of the events never ran: the projection is built the way `rebuild` builds it
+  await rebuildProjection(db, [...ids.values()]);
   return ids;
 }
 

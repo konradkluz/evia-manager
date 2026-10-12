@@ -10,6 +10,7 @@ import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts'
 import { createSession, createUser, type UserFixture } from '../support/identity-fixtures.ts';
 import { PanelClient } from '../support/panel-client.ts';
 import { generateWorkOrders } from '../support/work-order-fixtures.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 const TOTAL = 10_000;
 const LIST = '/api/v1/customers';
@@ -48,7 +49,9 @@ beforeAll(async () => {
   history = rows[0]?.id ?? '';
   await sql`update work_orders.work_orders set customer_id = ${history}
             where id in (select id from work_orders.work_orders order by created_at limit 200)`.execute(app.database.admin);
+  await rebuildProjection(app.database.admin);
   await sql`analyze work_orders.work_orders`.execute(app.database.admin);
+  await sql`analyze overview.work_order_summaries`.execute(app.database.admin);
 });
 afterAll(async () => {
   await app.close();

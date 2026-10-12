@@ -12,7 +12,7 @@ let app: Kysely<Database>;
 const T = '2026-10-07T08:00:00Z';
 
 beforeAll(async () => {
-  database = await migratedDatabase();
+  database = await migratedDatabase({ checkProjection: false });
   app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 2 } });
 });
 afterAll(async () => {

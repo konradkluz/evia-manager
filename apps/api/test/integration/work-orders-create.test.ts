@@ -9,6 +9,7 @@ import { PanelClient } from '../support/panel-client.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation } from '../support/work-order-fixtures.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 let current: IdentityApp;
 beforeAll(async () => {
@@ -512,6 +513,7 @@ describe('a repeat without a duplicate (EVM-022 AC4; SR-API-05, AB-09)', () => {
     expect(replay.headers['idempotent-replayed']).toBe('true');
     expect(replay.body).toMatchObject({ title: 'Zmieniony tytuł', version: 2 });
     await sql`update work_orders.work_orders set deleted_at = now() where id = ${body.id}`.execute(admin());
+    await rebuildProjection(admin(), [body.id]);
     const gone = await create(browser, body, key);
     expect(gone.status).toBe(404);
     expect(gone.body).toMatchObject({ code: 'not_found' });
@@ -562,6 +564,7 @@ describe('a repeat without a duplicate (EVM-022 AC4; SR-API-05, AB-09)', () => {
       expect(JSON.stringify(response.body)).not.toMatch(/Pierwsze|Zupelnie|Gdynia|ZL-2026/);
     }
     await sql`update work_orders.work_orders set deleted_at = now() where id = ${body.id}`.execute(admin());
+    await rebuildProjection(admin(), [body.id]);
     expect((await create(browser, conflicting, uuidv7())).status).toBe(409);
     expect(await count('orders')).toBe(1);
     const { rows } = await sql<{ last_value: number }>`select last_value from work_orders.number_counters`.execute(admin());

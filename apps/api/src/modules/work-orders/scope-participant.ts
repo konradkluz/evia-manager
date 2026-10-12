@@ -9,7 +9,7 @@
  *   roll back with the item, the journal, the audit record and the idempotency record. An error it throws rolls the whole command
  *   back;
  * - NO external I/O inside the transaction (a slow or hostile endpoint would hold the lock of the order and a connection);
- * - it is called with the order LOCKED (`SELECT … FOR UPDATE`), so what it counts cannot change meanwhile;
+ * - it is called with the order LOCKED (`SELECT … FOR NO KEY UPDATE`), so what it counts cannot change meanwhile;
  * - a process whose code is already active in the order is SKIPPED, not an error (no duplicates by code; a race with a second card
  *   must not fail the whole command); it answers the codes it really added;
  * - a limit of the API it would pass is {@link ScopeLimitError}: nothing is cut off silently (`422 limit_exceeded`);

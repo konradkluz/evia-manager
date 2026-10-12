@@ -5,6 +5,7 @@ import { MIGRATIONS } from '../../src/migrations/index.ts';
 import { createDatabase, type Database } from '../../src/platform/database/database.ts';
 import { migrateToLatest } from '../../src/platform/database/migrator.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
+import { registerProjectionCheck, unregisterProjectionCheck } from '../support/projection.ts';
 
 const logger = createLogger({ level: 'fatal' });
 
@@ -37,7 +38,7 @@ export interface MigratedDatabase {
 }
 
 /** Creates the database, applies every migration as the owner and the login role of the application. */
-export async function migratedDatabase(): Promise<MigratedDatabase> {
+export async function migratedDatabase(options: { readonly checkProjection?: boolean } = {}): Promise<MigratedDatabase> {
   const adminUrl = await freshDatabaseUrl();
   const admin = createDatabase({ url: adminUrl, logger, pool: { max: 4 } });
   await migrateToLatest(admin, MIGRATIONS);
@@ -53,5 +54,15 @@ export async function migratedDatabase(): Promise<MigratedDatabase> {
   const app = new URL(adminUrl);
   app.username = APP_LOGIN_ROLE;
   app.password = APP_LOGIN_PASSWORD;
-  return { admin, adminUrl, appUrl: app.toString(), close: () => admin.destroy() };
+  // a migration test writes rows with plain SQL to prove a constraint: nothing there promises a projection (EVM-034 test 8)
+  if (options.checkProjection !== false) registerProjectionCheck(admin);
+  return {
+    admin,
+    adminUrl,
+    appUrl: app.toString(),
+    close: () => {
+      unregisterProjectionCheck(admin);
+      return admin.destroy();
+    },
+  };
 }
