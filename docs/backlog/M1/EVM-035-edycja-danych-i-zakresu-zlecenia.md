@@ -4,7 +4,7 @@ title: Edycja danych i zakresu zlecenia
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -102,7 +102,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -116,3 +116,4 @@ _—_
 - 2026-10-12 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 98,4% / gałęzie 91,5%; pełne e2e Chromium + Firefox: 574 passed, 14 skipped, 2 pady wyłącznie `EVM-037 AC3` (zależność od pory doby, nie ta historyjka); QA: 871 passed w 3 przeglądarkach, 0 failed
 - 2026-10-12 — Koszt: brak rozbicia w $ (sesja bez odczytu `/cost`); agenci workflow 11 wywołań, ok. 1,94 mln tokenów subagentów, 621 wywołań narzędzi, ok. 145 min; rundy poprawek 2 (druga tylko code-reviewer); ścieżka pelna; model z definicji agentów; vs baseline — nie do porównania w $ (więcej niż EVM-037: 1,55 mln i EVM-038: 1,02 mln)
 - 2026-10-12 — in-progress → in-review: czeka na demo i akceptację Konrada
+- 2026-10-12 — in-review → done: akceptacja Konrada, PR #55 scalony do main (621daac)
