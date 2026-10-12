@@ -158,7 +158,7 @@ describe('W-06 "Procesy i etapy" (EVM-031 AC2)', () => {
       PATH,
       api(() => json(200, odd)),
     );
-    expect(await screen.findByText('Nieznany status')).toBeTruthy();
+    expect(await screen.findAllByText('Nieznany status')).toHaveLength(2);
     expect(document.body.textContent).not.toContain('future_status');
   });
 
@@ -196,7 +196,8 @@ describe('W-06 "Procesy i etapy" — states (EVM-031 AC8)', () => {
       PATH,
       api(() => json(200, { items: [], openStageCount: 0 })),
     );
-    expect(await screen.findByText('Zlecenie nie ma jeszcze procesów.')).toBeTruthy();
+    // the section and the tile "Na jakim etapie" of the summary (EVM-034) both say it
+    expect(await screen.findAllByText('Zlecenie nie ma jeszcze procesów.')).toHaveLength(2);
     expect(screen.getByRole('heading', { level: 2, name: 'Procesy i etapy (0)' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Rozwiń wszystkie' })).toBeNull();
   });

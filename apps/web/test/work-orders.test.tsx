@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
-  it('EVM-017 AC1 the default view asks for "Wszystkie niezamknięte" newest number first, 25 on a page, and shows the four columns', async () => {
+  it('EVM-017 AC1 the default view asks for "Wszystkie niezamknięte" newest number first, 25 on a page, and shows the columns', async () => {
     const api = listApi(
       ok([
         order(2, { title: 'Dom — pełny pakiet', status: 'quoting', coordinator: null, createdAt: '2026-10-05T22:30:00.000Z' }),
@@ -62,7 +62,7 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Zlecenie', 'Status', 'Opiekun', 'Utworzono']);
+    ).toEqual(['Zlecenie', 'Status', 'Czekamy na', 'Termin', 'Opiekun', 'Utworzono']);
     expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).getAttribute('aria-sort')).toBe('descending');
     const cells = within(table)
       .getAllByRole('cell')
@@ -71,10 +71,14 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
     expect(cells).toEqual([
       'ZL-2026-0002Dom — pełny pakiet',
       'Wycena',
+      '—Brak oczekiwań',
+      '—Brak terminu',
       'Brak opiekuna',
       '06.10.2026',
       'ZL-2026-0001Garaż — pełny proces 1',
       'W realizacji',
+      '—Brak oczekiwań',
+      '—Brak terminu',
       'Jan Przykładowy',
       '04.10.2026',
     ]);

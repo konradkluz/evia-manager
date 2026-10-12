@@ -11,7 +11,8 @@ import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
-import { ProceduresSection } from '../work-orders/procedures-section.tsx';
+import { OrderSummary } from '../work-orders/order-summary.tsx';
+import { PROCEDURES_HEADING_ID, ProceduresSection } from '../work-orders/procedures-section.tsx';
 import { ScopeSection } from '../work-orders/scope-section.tsx';
 import { SiteCard } from '../work-orders/site-card.tsx';
 import {
@@ -87,6 +88,18 @@ export function WorkOrderPage() {
     if (focusTarget) heading.current?.focus();
   }, [focusTarget, notFound]);
 
+  // "+ 6 procesów" of the summary: the tab "Przegląd" is opened and the focus goes to the section of the processes (WCAG 2.4.3).
+  const [showing, setShowing] = useState(0);
+  const showProcesses = () => {
+    setTab(OVERVIEW_TAB);
+    setShowing((count) => count + 1);
+  };
+  useEffect(() => {
+    if (showing === 0) return;
+    // Focusing the heading brings it into view.
+    document.getElementById(PROCEDURES_HEADING_ID)?.focus();
+  }, [showing]);
+
   if (notFound) return <NotFound titleRef={heading} />;
   if (order === undefined) {
     return failed ? (
@@ -106,6 +119,7 @@ export function WorkOrderPage() {
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(header.dataUpdatedAt) })}</Banner>}
       <WorkOrderHeader order={order} headingRef={heading} />
       <ClosedBanner order={order} />
+      <OrderSummary query={procedures} onShowProcesses={showProcesses} />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs

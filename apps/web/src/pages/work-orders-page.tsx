@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  CircleCheck,
   ClipboardList,
   EmptyState,
   InlineAlert,
@@ -23,12 +24,16 @@ import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 import {
   DEFAULT_SORT,
+  DEFAULT_WAITING_DAYS,
+  DSO_VIEW,
   isFiltered,
   NO_FILTERS,
   searchOf,
   statusesOf,
   toQuery,
   viewOf,
+  waitingDaysOf,
+  waitingOnOf,
   type WorkOrderFilters,
   type WorkOrderSearch,
 } from '../work-orders/filters.ts';
@@ -58,8 +63,9 @@ interface LoadedPage {
 /**
  * W-10 "Zlecenia" (EVM-017 AC1–AC8): the list of work orders with views, statuses, coordinator and sorting, cursor pages
  * (25 on a page), and the states empty / filtered-empty / loading / error / `429` / offline. The address carries only
- * `status` and `view`; the coordinator, the sort order, the cursors and the last loaded page live in the memory of the tab
- * (titles are free text — SR-WEB-05); the tab title stays "Zlecenia · EVia Manager". The server decides who sees what.
+ * `status` and `view` and — for "Czekamy na" (EVM-034) — the kind of party and the number of days; the coordinator, the sort
+ * order, the cursors and the last loaded page live in the memory of the tab (titles are free text — SR-WEB-05); the tab title
+ * stays "Zlecenia · EVia Manager". The server decides who sees what.
  */
 export function WorkOrdersPage() {
   const { t } = useTranslation();
@@ -88,10 +94,19 @@ export function WorkOrdersPage() {
 
   const view = viewOf(search);
   const statuses = statusesOf(search);
-  const addressKey = JSON.stringify([view, statuses]);
+  const waitingOn = waitingOnOf(search);
+  const waitingDays = waitingDaysOf(search);
+  const addressKey = JSON.stringify([view, statuses, waitingOn, waitingDays]);
   const { coordinatorId, sort } = pending !== null && pending.key === addressKey ? pending.values : local;
-  const filters: WorkOrderFilters = { view, statuses, coordinatorId, sort };
-  const filterKey = JSON.stringify([filters.view, filters.statuses, filters.coordinatorId, filters.sort]);
+  const filters: WorkOrderFilters = { view, statuses, coordinatorId, sort, waitingOn, waitingDays };
+  const filterKey = JSON.stringify([
+    filters.view,
+    filters.statuses,
+    filters.coordinatorId,
+    filters.sort,
+    filters.waitingOn,
+    filters.waitingDays,
+  ]);
   const cursors = paging.key === filterKey ? paging.cursors : [];
   const cursor = cursors.at(-1);
 
@@ -152,11 +167,13 @@ export function WorkOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [online]);
 
-  const change = (next: WorkOrderFilters) => {
+  const change = (changed: WorkOrderFilters) => {
     moved.current = null;
     setNotice(null);
+    // X means something only with a "Czekamy na" filter: without one the address does not carry it and the default stands.
+    const next = changed.waitingOn === '' ? { ...changed, waitingDays: DEFAULT_WAITING_DAYS } : changed;
     const values = { coordinatorId: next.coordinatorId, sort: next.sort };
-    const nextKey = JSON.stringify([next.view, next.statuses]);
+    const nextKey = JSON.stringify([next.view, next.statuses, next.waitingOn, next.waitingDays]);
     if (nextKey === addressKey) {
       setPending(null);
       setLocal(values);
@@ -251,7 +268,9 @@ export function WorkOrdersPage() {
       ) : items === undefined ? (
         <Loading />
       ) : items.length === 0 ? (
-        isFiltered(filters) ? (
+        onlyDsoView(filters) ? (
+          <EmptyState icon={CircleCheck} title={t('workOrders.dsoEmpty.title')} description={t('workOrders.dsoEmpty.description')} />
+        ) : isFiltered(filters) ? (
           <EmptyState
             icon={ClipboardList}
             title={t('workOrders.filteredEmpty.title')}
@@ -328,3 +347,7 @@ function Loading() {
     </div>
   );
 }
+
+/** The saved view "Czekamy na OSD > 14 dni" with nothing narrower: an empty list is good news (EVM-034 AC3). */
+const onlyDsoView = (filters: WorkOrderFilters): boolean =>
+  filters.view === DSO_VIEW && filters.statuses.length === 0 && filters.coordinatorId === '' && filters.waitingOn === '';

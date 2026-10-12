@@ -117,6 +117,8 @@ const answer =
 const body = (request: Recorded | undefined): unknown => parseBody(request?.body ?? '{}');
 const badge = (label: string) => screen.findByRole('button', { name: `Status etapu ${NAME}: ${label}. Zmień status` });
 const row = () => within(screen.getByRole('list', { name: 'Uzgodnienia z OSD' }));
+/** The section of the processes: the summary card above it (EVM-034) repeats the names and the waits, so the rows are asked for here. */
+const section = async () => within(await screen.findByRole('region', { name: /^Procesy i etapy/ }));
 
 async function choose(label: string, item: string) {
   await userEvent.click(await badge(label));
@@ -189,7 +191,7 @@ describe('W-07 "Czekamy na…" (EVM-032 AC2)', () => {
     // EVM-033: the window offers "Dodaj stronę" next to the suggestions of the location
     expect(within(dialog).getByRole('button', { name: /Dodaj stronę/ })).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
-    expect(await screen.findByText('Czekamy na: Stoen Operator (OSD) · od dziś')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od dziś')).toBeTruthy();
     expect(body(api.calls(TRANSITIONS)[0])).toEqual({ to: 'waiting', waitingOn: 'party', waitingOnPartyId: OSD.id, waitingSince: TODAY() });
     expect(screen.getByText('Etap „Warunki przyłączenia i projekt umowy”: Czekamy na Stoen Operator (OSD).')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cofnij' })).toBeTruthy();
@@ -204,7 +206,7 @@ describe('W-07 "Czekamy na…" (EVM-032 AC2)', () => {
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Klienta' }));
     expect(within(dialog).queryByRole('combobox', { name: 'Strona' })).toBeNull();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
-    expect(await screen.findByText('Czekamy na: klient · od dziś')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: klient · od dziś')).toBeTruthy();
     expect(body(api.calls(TRANSITIONS)[0])).toEqual({ to: 'waiting', waitingOn: 'customer', waitingSince: TODAY() });
   });
 
@@ -267,7 +269,7 @@ describe('W-07 "Czekamy na…" (EVM-032 AC2)', () => {
 describe('W-07 "Odpowiedź otrzymana" and "Zmień, na kogo czekamy…" (EVM-032 AC3)', () => {
   it('EVM-032 AC3 a stage waiting for 15 days shows "od 15 dni" with triangle-alert, the warning is in the text too', async () => {
     await renderPanel(PATH, stageApi({ stage: waitingStage() }));
-    const text = await screen.findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni');
+    const text = await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni');
     const line = text.parentElement as HTMLElement;
     expect(line.querySelector('svg')?.getAttribute('class')).toContain('lucide-triangle-alert');
     expect(line.className).toContain('text-text-warning');
@@ -276,7 +278,7 @@ describe('W-07 "Odpowiedź otrzymana" and "Zmień, na kogo czekamy…" (EVM-032 
 
   it('EVM-032 AC3 14 days and fewer are no warning; one day is "od wczoraj"', async () => {
     await renderPanel(PATH, stageApi({ stage: waitingStage({ waitingDays: 14 }) }));
-    const line = (await screen.findByText('Czekamy na: Stoen Operator (OSD) · od 14 dni')).parentElement as HTMLElement;
+    const line = (await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od 14 dni')).parentElement as HTMLElement;
     expect(line.querySelector('svg')).toBeNull();
     expect(line.className).not.toContain('text-text-warning');
   });
@@ -310,7 +312,7 @@ describe('W-07 "Odpowiedź otrzymana" and "Zmień, na kogo czekamy…" (EVM-032 
     expect(within(dialog).getByLabelText<HTMLInputElement>('Od kiedy').value).toBe(TODAY());
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Klienta' }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
-    expect(await screen.findByText('Czekamy na: klient · od dziś')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: klient · od dziś')).toBeTruthy();
     expect(api.calls(TRANSITIONS)).toHaveLength(0);
     const sent = api.calls(PATCH)[0];
     expect(body(sent)).toEqual({ waitingOn: 'customer', waitingSince: TODAY() });
@@ -334,7 +336,7 @@ describe('W-07 "Odpowiedź otrzymana" and "Zmień, na kogo czekamy…" (EVM-032 
     await userEvent.type(within(dialog).getByRole('combobox', { name: 'Strona' }), 'Admin');
     await userEvent.click(await screen.findByRole('option', { name: /Administracja Testowa/ }));
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
-    expect(await screen.findByText('Czekamy na: Administracja Testowa · od dziś')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: Administracja Testowa · od dziś')).toBeTruthy();
     expect(body(api.calls(PATCH)[0])).toEqual({ waitingOn: 'party', waitingOnPartyId: ADMINISTRATION.id, waitingSince: TODAY() });
   });
 });
@@ -482,7 +484,7 @@ describe('W-07 "Cofnij" (EVM-032 AC5)', () => {
     await renderPanel(PATH, api);
     await choose('Czekamy na…', 'Odpowiedź otrzymana');
     await userEvent.click(await screen.findByRole('button', { name: 'Cofnij' }));
-    expect(await screen.findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni')).toBeTruthy();
     expect(body(api.calls(TRANSITIONS)[1])).toEqual({
       to: 'waiting',
       waitingOn: 'party',
@@ -686,7 +688,7 @@ describe('W-07 roles and a closed order (EVM-032 AC7)', () => {
 
   it('EVM-032 AC7 Tylko odczyt has a static badge: no button, no chevron, the status stays readable', async () => {
     await renderPanel(PATH, stageApi({ stage: waitingStage(), session: roleSession('read_only') }));
-    expect(await screen.findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni')).toBeTruthy();
+    expect(await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Status etapu/ })).toBeNull();
     expect(row().getAllByText('Czekamy na…').length).toBeGreaterThan(0);
   });
@@ -705,7 +707,7 @@ describe('W-07 roles and a closed order (EVM-032 AC7)', () => {
 
   it('EVM-032 AC7 a status this panel does not know is a static badge of an unknown value, never the raw code', async () => {
     await renderPanel(PATH, stageApi({ stage: stage({ status: 'future_status' as ProcedureStage['status'] }) }));
-    expect(await screen.findByText('Nieznany status')).toBeTruthy();
+    expect(await (await section()).findByText('Nieznany status')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Status etapu/ })).toBeNull();
     expect(document.body.textContent).not.toContain('future_status');
   });
@@ -721,7 +723,7 @@ describe('W-07 free text and accessibility (EVM-032 SR-WEB-03)', () => {
 
   it('EVM-032 AC8 the page with the badge, the menu and the dialog has no accessibility violations', async () => {
     await renderPanel(PATH, stageApi({ stage: waitingStage() }));
-    await screen.findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni');
+    await (await section()).findByText('Czekamy na: Stoen Operator (OSD) · od 15 dni');
     await screen.findByText('Instalacja zasilająca');
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
     await choose('Czekamy na…', 'Zmień, na kogo czekamy…');
