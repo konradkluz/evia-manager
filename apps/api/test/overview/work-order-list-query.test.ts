@@ -7,6 +7,7 @@ import {
   DEFAULT_LIMIT,
   SORT_RULES,
   WORK_ORDER_STATUSES,
+  daysBetween,
   filterPartsOf,
   parsePosition,
   positionParts,
@@ -28,6 +29,9 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
       view: undefined,
       coordinatorId: undefined,
       customerId: undefined,
+      waitingOn: undefined,
+      waitingOnPartyKind: undefined,
+      waitingLongerThanDays: undefined,
       sort: '-number',
       limit: DEFAULT_LIMIT,
       cursor: undefined,
@@ -66,11 +70,14 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
   });
 
   it('EVM-017 AC2 sort and view are closed lists; coordinatorId is a UUID', () => {
-    for (const sort of ['-number', 'number', '-createdAt', 'createdAt']) expect(ok({ sort }).sort).toBe(sort);
-    for (const sort of ['number_desc', 'created_asc', '+number', 'title', '', 'Number']) expect(parse({ sort }).success, sort).toBe(false);
+    for (const sort of ['-number', 'number', '-createdAt', 'createdAt', 'longestWaitingSince', 'nextDueDate'])
+      expect(ok({ sort }).sort).toBe(sort);
+    for (const sort of ['number_desc', 'created_asc', '+number', 'title', '', 'Number', '-longestWaitingSince', '-nextDueDate', 'urgency'])
+      expect(parse({ sort }).success, sort).toBe(false);
     expect(ok({ view: 'mine' }).view).toBe('mine');
     expect(ok({ view: 'all_open' }).view).toBe('all_open');
-    for (const view of ['', 'all', 'deleted', 'MINE']) expect(parse({ view }).success, view).toBe(false);
+    expect(ok({ view: 'waiting_on_dso_over_14_days' }).view).toBe('waiting_on_dso_over_14_days');
+    for (const view of ['', 'all', 'deleted', 'MINE', 'overdue_payments', 'unpaid']) expect(parse({ view }).success, view).toBe(false);
     const id = randomUUID();
     expect(ok({ coordinatorId: id }).coordinatorId).toBe(id);
     for (const coordinatorId of ['', 'abc', `${id}x`]) expect(parse({ coordinatorId }).success, coordinatorId).toBe(false);
@@ -96,7 +103,7 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
     expect([...CLOSED_STATUSES]).toEqual(['settled', 'cancelled']);
     expect([...WORK_ORDER_STATUSES]).toEqual([...zWorkOrderStatus.options]);
     expect(Object.keys(SORT_RULES).sort()).toEqual([...zWorkOrderSort.options].sort());
-    expect([...zWorkOrderView.options]).toEqual(['all_open', 'mine']);
+    expect([...zWorkOrderView.options]).toEqual(['all_open', 'mine', 'waiting_on_dso_over_14_days']);
     for (const status of CLOSED_STATUSES) expect(WORK_ORDER_STATUSES).toContain(status);
   });
 
@@ -107,17 +114,23 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
   it('EVM-017 AC3 the filters of a cursor are the sort, the view, the normalised statuses and the coordinator — not the limit', () => {
     const id = randomUUID();
     const base = ok({ status: 'quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '10' });
-    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id, '']);
+    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id, '', '', '', '']);
     expect(filterPartsOf(ok({ status: 'new,quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '99' }))).toEqual(
       filterPartsOf(base),
     );
-    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '']);
-    expect(filterPartsOf(ok({ customerId: id }))).toEqual(['-number', '', '', '', id]);
+    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '', '', '', '']);
+    expect(filterPartsOf(ok({ customerId: id }))).toEqual(['-number', '', '', '', id, '', '', '']);
   });
 });
 
 describe('the position of a cursor (EVM-017 AC3)', () => {
-  const item = { id: randomUUID(), number: 'ZL-2026-0042', createdAt: new Date('2026-10-01T08:30:00.123Z') };
+  const item = {
+    id: randomUUID(),
+    number: 'ZL-2026-0042',
+    createdAt: new Date('2026-10-01T08:30:00.123Z'),
+    longestWaitingSince: null,
+    nextDueDate: '2026-10-20',
+  };
 
   it('EVM-017 AC3 by number the position is the number; by creation time the time with milliseconds and the id', () => {
     expect(positionParts('-number', item)).toEqual(['ZL-2026-0042']);
@@ -142,5 +155,65 @@ describe('the position of a cursor (EVM-017 AC3)', () => {
       ['2026-10-01T08:30:00.123Z', item.id, 'x'],
     ])
       expect(parsePosition('-createdAt', parts), JSON.stringify(parts)).toBeUndefined();
+  });
+});
+
+describe('"Czekamy na…" in the query (EVM-034 AC2, AC4; SR-INPUT-01, SR-INPUT-03, SR-API-04)', () => {
+  it('EVM-034 AC2 waitingLongerThanDays is an integer of 1..365: 0, 366, "14a", "-1", "1.5", a space and an empty string are refused', () => {
+    for (const waitingLongerThanDays of ['0', '366', '14a', '-1', '1.5', ' 14', '', '1e2', '0014x', '1000'])
+      expect(parse({ waitingLongerThanDays }).success, waitingLongerThanDays).toBe(false);
+    expect(ok({ waitingLongerThanDays: '1' }).waitingLongerThanDays).toBe(1);
+    expect(ok({ waitingLongerThanDays: '14' }).waitingLongerThanDays).toBe(14);
+    expect(ok({ waitingLongerThanDays: '365' }).waitingLongerThanDays).toBe(365);
+  });
+
+  it('EVM-034 AC2 waitingOn is customer or party; waitingOnPartyKind is a code of the dictionary of kinds, never an identifier or a name', () => {
+    expect(ok({ waitingOn: 'customer' }).waitingOn).toBe('customer');
+    expect(ok({ waitingOn: 'party', waitingOnPartyKind: 'distribution_system_operator' })).toMatchObject({
+      waitingOn: 'party',
+      waitingOnPartyKind: 'distribution_system_operator',
+    });
+    for (const waitingOn of ['', 'OSD', 'client', 'Customer']) expect(parse({ waitingOn }).success, waitingOn).toBe(false);
+    for (const waitingOnPartyKind of ['', 'osd', randomUUID(), 'Stoen Operator', 'distribution_system_operator,other'])
+      expect(parse({ waitingOnPartyKind }).success, waitingOnPartyKind).toBe(false);
+  });
+
+  it('EVM-034 AC2 a kind alone means a party; a kind together with waitingOn=customer contradicts itself and is refused on /waitingOnPartyKind', () => {
+    expect(ok({ waitingOnPartyKind: 'supplier' })).toMatchObject({ waitingOn: 'party', waitingOnPartyKind: 'supplier' });
+    const refused = parse({ waitingOn: 'customer', waitingOnPartyKind: 'supplier' });
+    expect(refused.success).toBe(false);
+    expect(refused.error?.issues.map((issue) => issue.path.join('/'))).toEqual(['waitingOnPartyKind']);
+    expect(JSON.stringify(refused.error?.issues)).not.toContain('supplier');
+  });
+
+  it('EVM-034 AC4 the two new sorts are ascending only, by a date with the order without it last, and the position is [day or infinity, id]', () => {
+    expect(SORT_RULES.longestWaitingSince).toEqual({ key: 'longestWaitingSince', direction: 'asc' });
+    expect(SORT_RULES.nextDueDate).toEqual({ key: 'nextDueDate', direction: 'asc' });
+    const id = randomUUID();
+    const item = { id, number: 'ZL-2026-0001', createdAt: new Date('2026-10-01T08:30:00.000Z') };
+    expect(positionParts('longestWaitingSince', { ...item, longestWaitingSince: '2026-09-18', nextDueDate: null })).toEqual([
+      '2026-09-18',
+      id,
+    ]);
+    expect(positionParts('longestWaitingSince', { ...item, longestWaitingSince: null, nextDueDate: null })).toEqual(['infinity', id]);
+    expect(positionParts('nextDueDate', { ...item, longestWaitingSince: null, nextDueDate: '2026-10-05' })).toEqual(['2026-10-05', id]);
+    expect(parsePosition('nextDueDate', ['infinity', id])).toEqual({ day: 'infinity', id });
+    expect(parsePosition('longestWaitingSince', ['2026-09-18', id])).toEqual({ day: '2026-09-18', id });
+    for (const parts of [[], ['2026-09-18'], ['yesterday', id], ['2026-13-45', id], ['2026-09-18', 'not-an-id'], ['2026-09-18', id, 'x']])
+      expect(parsePosition('nextDueDate', parts), JSON.stringify(parts)).toBeUndefined();
+  });
+
+  it('EVM-034 AC2 the filters of a cursor include the kind of wait and the number of days, so a cursor does not open with other ones', () => {
+    const base = ok({ waitingOn: 'party', waitingOnPartyKind: 'distribution_system_operator', waitingLongerThanDays: '14' });
+    expect(filterPartsOf(base)).toEqual(['-number', '', '', '', '', 'party', 'distribution_system_operator', '14']);
+    expect(filterPartsOf(ok({ waitingLongerThanDays: '15' }))).not.toEqual(filterPartsOf(ok({ waitingLongerThanDays: '14' })));
+    expect(filterPartsOf(ok({ view: 'waiting_on_dso_over_14_days' }))).not.toEqual(filterPartsOf(ok({ view: 'all_open' })));
+  });
+
+  it('EVM-034 AC2 the days between two dates is a difference of dates: a change of the clock on 2026-10-25 does not move it; never negative', () => {
+    expect(daysBetween('2026-09-18', '2026-10-03')).toBe(15);
+    expect(daysBetween('2026-10-24', '2026-10-26')).toBe(2);
+    expect(daysBetween('2026-10-03', '2026-10-03')).toBe(0);
+    expect(daysBetween('2026-10-04', '2026-10-03')).toBe(0);
   });
 });

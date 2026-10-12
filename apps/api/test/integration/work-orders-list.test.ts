@@ -123,9 +123,23 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       status: 'quoting',
       coordinator: { id: coordinator.id, displayName: 'Opiekun Testowy' },
       createdAt: '2026-10-01T08:30:00.000Z',
+      // the three read-only fields of "Czekamy na…" (EVM-034, additive): an order without processes waits for nobody
+      waiting: null,
+      nextDueDate: null,
+      hasOverdueStage: false,
     });
     expect(second?.coordinator).toBeNull();
-    expect(Object.keys(first ?? {}).sort()).toEqual(['coordinator', 'createdAt', 'id', 'number', 'status', 'title']);
+    expect(Object.keys(first ?? {}).sort()).toEqual([
+      'coordinator',
+      'createdAt',
+      'hasOverdueStage',
+      'id',
+      'nextDueDate',
+      'number',
+      'status',
+      'title',
+      'waiting',
+    ]);
     expect(JSON.stringify(list)).not.toContain(coordinator.email);
     expect(Object.keys(first?.coordinator ?? {}).sort()).toEqual(['displayName', 'id']);
   });

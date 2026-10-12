@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { businessDate } from '../../src/platform/clock/business-date.ts';
-import { STAGE_STATUSES, isOpenStage, isOverdue, progressOf, type StageStatus } from '../../src/modules/procedures/domain/stage-rules.ts';
+import {
+  STAGE_STATUSES,
+  currentStageOf,
+  isOpenStage,
+  isOverdue,
+  progressOf,
+  type StageStatus,
+} from '../../src/modules/procedures/domain/stage-rules.ts';
 
 const stage = (status: StageStatus, dueDate: string | null) => ({ status, dueDate });
 
@@ -55,5 +62,24 @@ describe('open stages and progress (EVM-031 AC2, AC4; styleguide § 3.23)', () =
     expect(progressOf([{ status: 'done' }, { status: 'done' }])).toEqual({ done: 2, total: 2 });
     expect(progressOf([])).toEqual({ done: 0, total: 0 });
     expect(progressOf([{ status: 'not_applicable' }])).toEqual({ done: 0, total: 0 });
+  });
+});
+
+describe('the current stage of a process (EVM-034 AC5, D10)', () => {
+  const stage = (position: number, status: StageStatus) => ({ id: `stage-${position}`, position, status });
+
+  it('EVM-034 AC5 the current stage is the FIRST unfinished stage by position — a blocked and a waiting stage count as unfinished', () => {
+    expect(currentStageOf([stage(1, 'done'), stage(2, 'waiting'), stage(3, 'todo')])?.id).toBe('stage-2');
+    expect(currentStageOf([stage(1, 'not_applicable'), stage(2, 'blocked'), stage(3, 'in_progress')])?.id).toBe('stage-2');
+    expect(currentStageOf([stage(1, 'todo')])?.id).toBe('stage-1');
+  });
+
+  it('EVM-034 AC5 the order of the array does not matter — the position decides', () => {
+    expect(currentStageOf([stage(3, 'todo'), stage(1, 'done'), stage(2, 'in_progress')])?.id).toBe('stage-2');
+  });
+
+  it('EVM-034 AC5 when every stage is finished (done, not applicable) or there is none, there is no current stage', () => {
+    expect(currentStageOf([stage(1, 'done'), stage(2, 'not_applicable')])).toBeNull();
+    expect(currentStageOf([])).toBeNull();
   });
 });

@@ -207,6 +207,16 @@ components:
       $ref: components/work-orders.yaml#/WorkOrderSort
     WorkOrderView:
       $ref: components/work-orders.yaml#/WorkOrderView
+    WorkOrderWaitingOnFilter:
+      $ref: components/work-orders.yaml#/WorkOrderWaitingOnFilter
+    WorkOrderWaitingOn:
+      $ref: components/work-orders.yaml#/WorkOrderWaitingOn
+    WorkOrderWaitingPartyKind:
+      $ref: components/work-orders.yaml#/WorkOrderWaitingPartyKind
+    WorkOrderWaitingParty:
+      $ref: components/work-orders.yaml#/WorkOrderWaitingParty
+    WorkOrderWaiting:
+      $ref: components/work-orders.yaml#/WorkOrderWaiting
     WorkOrderCoordinator:
       $ref: components/work-orders.yaml#/WorkOrderCoordinator
     WorkOrderListItem:

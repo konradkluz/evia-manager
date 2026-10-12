@@ -63,7 +63,8 @@ export class ProjectionRecorder implements OnModuleInit {
       key: Symbol('overview.recompute'),
       create: () => new Set<string>(),
       run: async (ids, tx) => {
-        await recomputer.recompute(tx, ids);
+        // an event that named no order (a scope item) leaves the set empty: nothing to recompute
+        if (ids.size > 0) await recomputer.recompute(tx, ids);
       },
     };
   }

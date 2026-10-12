@@ -153,6 +153,7 @@ flowchart LR
   proc["procedures<br/>Procedure, ProcedureStage"]
   pay["payments<br/>PaymentMilestone"]
   timeline["timeline<br/>TimelineEntry"]
+  overview["overview<br/>projekcja listy: WorkOrderSummary, WorkOrderWait"]
   media["media<br/>MediaAsset, Document, StoredFile, UploadSession"]
   sync["sync<br/>SyncChange, DeviceSyncState, komendy mobilne"]
   authz --> identity
@@ -176,6 +177,10 @@ flowchart LR
   media --> sites
   media --> catalog
   media --> identity
+  overview --> wo
+  overview --> proc
+  overview --> sites
+  overview --> parties
   sync --> identity
   sync --> wo
   sync --> proc
@@ -197,6 +202,7 @@ flowchart LR
 | `catalog`, `work-orders`, `procedures` | katalog usług, szablony, zlecenia, procesy i etapy | M1 (E3, E4) |
 | `payments` | etapy płatności, nieopłacone i po terminie | M1 (E7) |
 | `timeline` | dziennik, wpisy, komentarze, automatyczna historia | M1 (E5) |
+| `overview` | model odczytu listy zleceń (projekcja przeliczana w transakcji zapisu; „Czekamy na…”, terminy; ADR-0017) — liść: nic od niego nie zależy, porty systemowe modułów źródłowych dostępne tylko dla niego | M1 (E4, EVM-034) |
 | `media` | upload, skan, przetwarzanie, pobieranie, eksport | M1 (E6), M2 (E11) |
 | `sync` | synchronizacja offline urządzeń | M2 (E10–E13) |
 | później | `notifications` (M3), `reporting` (M4), `integrations` (M5), `investments` (M6) | — |

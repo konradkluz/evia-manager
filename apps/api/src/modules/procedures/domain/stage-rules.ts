@@ -39,3 +39,13 @@ export function progressOf(stages: readonly { readonly status: StageStatus }[]):
   const counted = stages.filter((stage) => stage.status !== 'not_applicable');
   return { done: counted.filter((stage) => stage.status === 'done').length, total: counted.length };
 }
+
+/**
+ * The current stage of a process (EVM-034 D10; the tile "Na jakim etapie"): the FIRST stage that is not finished (`todo`, `in_progress`,
+ * `waiting`, `blocked`) in the order of `position`, or `null` when every stage is finished (`done`, `not_applicable`) or the process has
+ * none. Worked out when the process is read — never stored, so it cannot go stale (and no date enters it).
+ */
+export function currentStageOf<S extends { readonly status: StageStatus; readonly position: number }>(stages: readonly S[]): S | null {
+  const unfinished = stages.filter((stage) => !FINISHED_STATUSES.includes(stage.status));
+  return unfinished.reduce<S | null>((first, stage) => (first === null || stage.position < first.position ? stage : first), null);
+}

@@ -10,15 +10,94 @@ WorkOrderStatus:
 WorkOrderSort:
   type: string
   description: >-
-    Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`. Kolejne epiki dodają wartości
-    (`longestWaitingSince`, `nextDueDate`, `urgency`) addytywnie; serwer odrzuca wartość spoza listy (`400 validation_failed`).
-  enum: [-number, number, -createdAt, createdAt]
+    Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince` („Najdłużej
+    czekamy”: najstarszy `waitingSince` oczekujących etapów rosnąco, zlecenia bez oczekiwań na końcu) i `nextDueDate` („Termin”:
+    najbliższy termin niezakończonego etapu rosnąco, bez terminu na końcu) — oba tylko rosnąco, remis rozstrzyga identyfikator.
+    Kolejne epiki dodają wartości (`urgency`) addytywnie; serwer odrzuca wartość spoza listy (`400 validation_failed`).
+  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate]
 WorkOrderView:
   type: string
   description: >-
-    Widok: `all_open` (status poza `settled` i `cancelled`) albo `mine` (opiekun to zalogowany użytkownik — zawsze z sesji).
-    Brak parametru oznacza brak predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie.
-  enum: [all_open, mine]
+    Widok: `all_open` (status poza `settled` i `cancelled`), `mine` (opiekun to zalogowany użytkownik — zawsze z sesji) albo
+    `waiting_on_dso_over_14_days` („Czekamy na OSD > 14 dni”: zlecenie niezamknięte z etapem oczekującym na stronę rodzaju
+    `distribution_system_operator` od ponad 14 dni; łączy się przez AND z pozostałymi filtrami). Brak parametru oznacza brak
+    predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie.
+  enum: [all_open, mine, waiting_on_dso_over_14_days]
+WorkOrderWaitingOnFilter:
+  type: string
+  description: >-
+    Filtr „Czekamy na”: `customer` — na klienta, `party` — na stronę (razem z `waitingOnPartyKind` — na stronę danego rodzaju).
+  enum: [customer, party]
+WorkOrderWaitingOn:
+  type: string
+  description: >-
+    Na kogo czekamy w kolumnie „Czekamy na”: `customer` albo `party`. Lista wartości jest rozszerzalna — klient obsługuje też
+    wartość nieznaną (etykieta zapasowa); dodanie wartości nie jest zmianą łamiącą.
+  x-extensible-enum: [customer, party]
+WorkOrderWaitingPartyKind:
+  type: string
+  description: >-
+    Rodzaj strony, na którą czekamy (kod słownika rodzajów stron). Lista jest rozszerzalna — klient obsługuje też wartość
+    nieznaną (etykieta zapasowa); dodanie rodzaju nie jest zmianą łamiącą.
+  x-extensible-enum:
+    - building_administration
+    - property_manager
+    - housing_community
+    - designer
+    - fire_safety_expert
+    - technical_expert
+    - distribution_system_operator
+    - subcontractor
+    - supplier
+    - other
+WorkOrderWaitingParty:
+  type: object
+  description: >-
+    Strona, na którą czekamy — identyfikator, nazwa wyświetlana i rodzaj, nic więcej (SR-DATA-02). Nazwa strony będącej osobą
+    fizyczną to dane osobowe (DO-3) — panel wyświetla ją jako tekst. Strona niewidoczna dla wołającego nie występuje (`party` = `null`).
+  required: [id, displayName, kind]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+    kind:
+      $ref: '#/WorkOrderWaitingPartyKind'
+WorkOrderWaiting:
+  type: object
+  description: >-
+    Najdłuższe oczekiwanie zlecenia (kolumna „Czekamy na”, W-10): na kogo, od kiedy i od ilu dni (pełne dni kalendarzowe,
+    `Europe/Warsaw`, liczy serwer z zegara żądania), oraz ile innych oczekiwań ma zlecenie (`otherCount`, „+n”). Powyżej 14 dni panel
+    ostrzega.
+  required: [waitingOn, party, since, days, otherCount]
+  additionalProperties: false
+  properties:
+    waitingOn:
+      $ref: '#/WorkOrderWaitingOn'
+    party:
+      description: Strona, na którą czekamy (`waitingOn` = `party`), albo `null` (klient albo strona niewidoczna).
+      oneOf:
+        - $ref: '#/WorkOrderWaitingParty'
+        - type: 'null'
+    since:
+      type: string
+      format: date
+      description: Od kiedy czekamy (dzień w strefie `Europe/Warsaw`, `RRRR-MM-DD`).
+      maxLength: 10
+    days:
+      type: integer
+      description: Ile pełnych dni kalendarzowych czekamy (dziś minus `since`; 0 = od dziś).
+      minimum: 0
+      maximum: 40000
+    otherCount:
+      type: integer
+      description: Liczba pozostałych oczekujących etapów zlecenia („+n”).
+      minimum: 0
+      maximum: 900
 WorkOrderCoordinator:
   type: object
   description: Opiekun zlecenia — identyfikator i nazwa wyświetlana (bez e-maila, roli i statusu konta).
@@ -59,6 +138,25 @@ WorkOrderListItem:
       type: string
       format: date-time
       maxLength: 40
+    waiting:
+      description: >-
+        Najdłuższe oczekiwanie zlecenia („Czekamy na”, EVM-034) albo `null`, gdy zlecenie na nikogo nie czeka. Pole tylko do
+        odczytu; nie jest w wymaganych, bo dodano je addytywnie — serwer zawsze je zwraca.
+      oneOf:
+        - $ref: '#/WorkOrderWaiting'
+        - type: 'null'
+    nextDueDate:
+      description: >-
+        Najbliższy termin niezakończonego etapu (`RRRR-MM-DD`) albo `null` („Termin”, EVM-034). Termin miniony panel oznacza
+        `alarm-clock`; porównanie z dniem robi klient względem `hasOverdueStage`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    hasOverdueStage:
+      type: boolean
+      description: '`true`, gdy najbliższy termin niezakończonego etapu jest wcześniejszy niż dziś (`Europe/Warsaw`; liczy serwer).'
 WorkOrderList:
   type: object
   required: [items, nextCursor]

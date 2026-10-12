@@ -12,8 +12,16 @@ workOrders:
       `customerId` (UUID klienta — „Historia zleceń” w W-14, EVM-039; ta sama polityka odczytu i paginacja; nieistniejący klient daje
       pustą listę, bo filtr nie jest sprawdzeniem istnienia klienta; zlecenia usuniętego klienta pozostają widoczne jak na liście zleceń — decyzja w EVM-041).
       `mine` bierze opiekuna wyłącznie z sesji — parametru z identyfikatorem użytkownika nie ma. `sort`: `-number` (domyślne),
-      `number`, `-createdAt`, `createdAt`; wartość spoza listy, zły `limit` (1–100, domyślnie 25) albo zły format `status` —
-      `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`.
+      `number`, `-createdAt`, `createdAt`, `longestWaitingSince`, `nextDueDate` (dwa ostatnie tylko rosnąco); wartość spoza listy,
+      zły `limit` (1–100, domyślnie 25) albo zły format `status` — `400 validation_failed`; nieznany parametr —
+      `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`.
+      „Czekamy na…” (EVM-034): `waitingOn` (`customer` albo `party`), `waitingOnPartyKind` (rodzaj strony; bez `waitingOn` oznacza
+      `party`, razem z `waitingOn=customer` — `400 validation_failed` na `/waitingOnPartyKind`) i `waitingLongerThanDays` (1–365;
+      zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni”
+      (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne
+      strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby.
+      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage`. Lista czyta model odczytu (`overview`),
+      kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.
       Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu
       albo użyty z innymi filtrami lub sortowaniem — `400 invalid_cursor`. Masowy odczyt (P10): gdy użytkownik dostał w ostatnich
       10 minutach co najmniej 2000 rekordów, powstaje alert bezpieczeństwa; od 10 000 rekordów — `429 rate_limited` z `Retry-After`
@@ -52,6 +60,26 @@ workOrders:
           type: string
           format: uuid
           maxLength: 36
+      - name: waitingOn
+        in: query
+        required: false
+        description: Czekamy na klienta (`customer`) albo na stronę (`party`). Tylko kod.
+        schema:
+          $ref: ../components/work-orders.yaml#/WorkOrderWaitingOnFilter
+      - name: waitingOnPartyKind
+        in: query
+        required: false
+        description: Rodzaj strony, na którą czekamy (kod; nie razem z `waitingOn=customer`). Nie trafia do adresu panelu jako identyfikator strony.
+        schema:
+          $ref: ../components/catalog.yaml#/PartyKind
+      - name: waitingLongerThanDays
+        in: query
+        required: false
+        description: Czekamy dłużej niż tyle dni (liczba całkowita 1–365).
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 365
       - name: sort
         in: query
         required: false

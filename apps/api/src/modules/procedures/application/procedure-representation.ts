@@ -8,7 +8,7 @@
 import { zProcedureList, zProcedureStage } from '@evia/contracts/zod';
 import type { ProcedureList, ProcedureStage } from '@evia/contracts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { isOpenStage, isOverdue, progressOf } from '../domain/stage-rules.ts';
+import { currentStageOf, isOpenStage, isOverdue, progressOf } from '../domain/stage-rules.ts';
 import { waitingDays } from '../domain/waiting.ts';
 import type { ProcedureRow, StageRow } from '../infrastructure/procedure-store.ts';
 
@@ -84,6 +84,8 @@ export function toProcedureList(
           // the scope item that brought the process (EVM-035 AC3) — it stays after the item is removed
           ...(procedure.source_scope_item_id === null ? {} : { sourceScopeItemId: procedure.source_scope_item_id }),
           progress: progressOf(own),
+          // the first unfinished stage by position (EVM-034 D10), worked out here from the stages — not stored, no date in it
+          currentStageId: currentStageOf(own)?.id ?? null,
           stages: own.map((stage) => stageView(stage, names, partyNames, today)),
         };
       }),

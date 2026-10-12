@@ -205,6 +205,17 @@ Procedure:
       maxLength: 36
     progress:
       $ref: '#/ProcedureProgress'
+    currentStageId:
+      description: >-
+        Bieżący etap procesu (EVM-034; kafel „Na jakim etapie”): pierwszy etap niezakończony (`todo`, `in_progress`, `waiting`,
+        `blocked`) w kolejności `position`, albo `null`, gdy wszystkie etapy są zakończone (`done`, `not_applicable`) albo proces nie
+        ma etapów. Liczy serwer przy odczycie — nie jest zapisywane. Pole tylko do odczytu; nie jest w wymaganych, bo dodano je
+        addytywnie — serwer zawsze je zwraca.
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
     stages:
       type: array
       maxItems: 30

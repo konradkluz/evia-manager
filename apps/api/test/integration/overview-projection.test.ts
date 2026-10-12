@@ -163,6 +163,62 @@ describe('the projection follows the change in its transaction (EVM-034 AC1, AC4
   });
 });
 
+describe('locks without a cycle (EVM-034 AC6; ADR-0017 → "Współbieżność", test 6)', () => {
+  it('EVM-034 AC6 a command that holds the row of the order FOR NO KEY UPDATE and writes the projection does not deadlock with a stage change that waits for the order', async () => {
+    const { orderId, stageIds, osd } = await scene([{}, {}]);
+    const editor = await signIn('editor');
+    let locked!: () => void;
+    const hasLock = new Promise<void>((resolve) => (locked = resolve));
+    let release!: () => void;
+    const mayWrite = new Promise<void>((resolve) => (release = resolve));
+    // another transaction in the role of a command on the order: the lock of the order first, the projection last
+    const holder = admin()
+      .transaction()
+      .execute(async (inner) => {
+        await sql`select 1 from work_orders.work_orders where id = ${orderId} for no key update`.execute(inner);
+        locked();
+        await mayWrite;
+        await sql`select 1 from overview.work_order_summaries where work_order_id = ${orderId} for update`.execute(inner);
+        await sql`delete from overview.work_order_waits where work_order_id = ${orderId}`.execute(inner);
+        await sql`insert into overview.work_order_waits (stage_id, work_order_id, waiting_on, party_id, party_kind, waiting_since)
+          values (${stageIds[1] ?? ''}, ${orderId}, 'customer', null, null, '2026-10-01')`.execute(inner);
+        await sql`update procedures.procedure_stages set status = 'waiting', waiting_on = 'customer', waiting_since = '2026-10-01',
+          version = version + 1 where id = ${stageIds[1] ?? ''}`.execute(inner);
+        await sql`update overview.work_order_summaries set waiting_count = 1, longest_waiting_since = '2026-10-01',
+          longest_waiting_on = 'customer' where work_order_id = ${orderId}`.execute(inner);
+      });
+    await hasLock;
+    const pending = transition(editor, orderId, stageIds[0] ?? '', { to: 'waiting', waitingOn: 'party', waitingOnPartyId: osd });
+    await new Promise((resolve) => setTimeout(resolve, 200)); // the change queues behind the lock of the order
+    release();
+    await holder;
+    const response = await pending;
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(await summaryOf(orderId)).toMatchObject({ waiting_count: 2 });
+    expect(await waitsOf(orderId)).toHaveLength(2);
+  });
+
+  it('EVM-034 AC6 a rebuild of the order running together with changes of its stages and of the order ends without an error and leaves the projection equal to the recomputation', async () => {
+    const { maintenance } = projectionTools(admin());
+    for (let round = 0; round < 4; round += 1) {
+      const { orderId, stageIds, osd } = await scene([{}, {}, {}]);
+      const editor = await signIn('editor');
+      const results = await Promise.all([
+        transition(editor, orderId, stageIds[0] ?? '', { to: 'waiting', waitingOn: 'party', waitingOnPartyId: osd }),
+        transition(editor, orderId, stageIds[1] ?? '', { to: 'waiting', waitingOn: 'customer' }),
+        editor.panel.post(`${BASE}/${orderId}/transitions`, { to: 'quoting' }, { 'If-Match': '"1"' }),
+        maintenance.rebuild({ only: [orderId] }),
+        maintenance.rebuild({ only: [orderId] }),
+      ]);
+      for (const result of results.slice(0, 3)) {
+        const response = result as { status: number; body: unknown };
+        expect(response.status, JSON.stringify(response.body)).toBe(200);
+      }
+      expect(await waitsOf(orderId)).toHaveLength(2);
+    }
+  });
+});
+
 describe('fail closed (EVM-034 AC6; ADR-0017 W2, W12)', () => {
   it('EVM-034 AC6 an event published in a transaction opened by a plain db.transaction() fails: no registry, no silent skip', async () => {
     const { orderId } = await scene();

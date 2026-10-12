@@ -17,6 +17,8 @@ import type { WorkOrderList } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { BulkReadControl } from '../../../platform/bulk-read/bulk-read-control.ts';
+import type { Clock } from '../../../platform/clock/clock.ts';
+import { businessDate } from '../../../platform/clock/business-date.ts';
 import { scopeOf, type CursorCodec } from '../../../platform/crypto/opaque-cursor.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
@@ -24,10 +26,12 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput } from '../../../platform/http/validation.ts';
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
-import { BULK_READ_CONTROL, CURSOR_CODEC, DATABASE, METRICS } from '../../../platform/tokens.ts';
+import { BULK_READ_CONTROL, CLOCK, CURSOR_CODEC, DATABASE, METRICS } from '../../../platform/tokens.ts';
 import { UserDirectory } from '../../identity/index.ts';
+import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
+  daysBetween,
   filterPartsOf,
   parsePosition,
   positionParts,
@@ -47,6 +51,8 @@ export class ListWorkOrdersService {
   readonly #bulkRead: BulkReadControl;
   readonly #users: UserDirectory;
   readonly #orders: WorkOrderDirectory;
+  readonly #parties: PartyDirectory;
+  readonly #clock: Clock;
   readonly #authzDrift: Counter;
 
   constructor(
@@ -55,6 +61,8 @@ export class ListWorkOrdersService {
     @Inject(BULK_READ_CONTROL) bulkRead: BulkReadControl,
     @Inject(UserDirectory) users: UserDirectory,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
+    @Inject(PARTY_DIRECTORY) parties: PartyDirectory,
+    @Inject(CLOCK) clock: Clock,
     @Inject(METRICS) metrics: MetricsRegistry,
   ) {
     this.#db = db;
@@ -62,6 +70,8 @@ export class ListWorkOrdersService {
     this.#bulkRead = bulkRead;
     this.#users = users;
     this.#orders = orders;
+    this.#parties = parties;
+    this.#clock = clock;
     this.#authzDrift = metrics.counter('projection_authz_drift', []);
   }
 
@@ -69,10 +79,13 @@ export class ListWorkOrdersService {
   async list(principal: Principal, rawQuery: unknown, context: EventContext): Promise<WorkOrderList> {
     const query = parseInput(resolveWorkOrderListQuery, rawQuery);
     const scope = scopeOf(filterPartsOf(query));
-    const position = this.#positionOf(query, principal, scope);
+    const opened = this.#openCursor(query, principal, scope);
+    // "today" is the day of the injected clock on the first page and `asOf` of the cursor on the next ones (W8): the page that
+    // continues a list continues THAT day, so a midnight between two requests neither repeats an order nor skips one.
+    const today = opened?.asOf ?? businessDate(this.#clock.now());
     await this.#bulkRead.before(principal.userId, { ...context, sessionId: principal.sessionId });
 
-    const rows = await readWorkOrderPage(this.#db, principal, query, position);
+    const rows = await readWorkOrderPage(this.#db, principal, query, opened?.position, today);
     const shown = rows.slice(0, query.limit);
     const titles = await this.#orders.titlesOf(
       this.#db,
@@ -84,12 +97,20 @@ export class ListWorkOrdersService {
     const names = await this.#users.displayNamesOf(
       visible.flatMap((row) => (row.coordinatorUserId === null ? [] : [row.coordinatorUserId])),
     );
+    const partyIds = visible.flatMap((row) => (row.longestWaitingPartyId === null ? [] : [row.longestWaitingPartyId]));
+    // two batch lookups through the facade (the read policy of parties): none when no order of the page waits for a party
+    const partyNames = partyIds.length === 0 ? new Map<string, string>() : await this.#parties.namesOf(this.#db, principal, partyIds);
+    const partyKinds = partyIds.length === 0 ? new Map<string, string>() : await this.#parties.kindsOf(this.#db, principal, partyIds);
     const last = shown.at(-1);
     const list = {
-      items: visible.map((row) => toItem(row, titles.get(row.id) ?? '', names)),
+      items: visible.map((row) => toItem(row, titles.get(row.id) ?? '', names, partyNames, partyKinds, today)),
       nextCursor:
         rows.length > query.limit && last !== undefined
-          ? this.#cursors.seal(LIST_WORK_ORDERS_OPERATION, { position: positionParts(query.sort, last), scope, userId: principal.userId })
+          ? this.#cursors.seal(LIST_WORK_ORDERS_OPERATION, {
+              position: [today, ...positionParts(query.sort, last)],
+              scope,
+              userId: principal.userId,
+            })
           : null,
     };
     const checked = zWorkOrderList.safeParse(list);
@@ -98,17 +119,28 @@ export class ListWorkOrdersService {
     return checked.data;
   }
 
-  /** @throws ProblemException `invalid_cursor` — one answer for every reason (SR-API-01) */
-  #positionOf(query: WorkOrderListQuery, principal: Principal, scope: string): Position | undefined {
+  /**
+   * The cursor is `[asOf, …position]`, sealed together with the operation, the user, the filters and an expiry; every failure —
+   * including a day that is not a date or a position that does not fit the sort — is the one `400 invalid_cursor` (SR-API-01).
+   */
+  #openCursor(query: WorkOrderListQuery, principal: Principal, scope: string): { asOf: string; position: Position } | undefined {
     if (query.cursor === undefined) return undefined;
     const parts = this.#cursors.open(LIST_WORK_ORDERS_OPERATION, query.cursor, { scope, userId: principal.userId });
-    const position = parts === undefined ? undefined : parsePosition(query.sort, parts);
-    if (position === undefined) throw new ProblemException('invalid_cursor');
-    return position;
+    const [asOf, ...rest] = parts ?? [];
+    const position = asOf === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(asOf) ? undefined : parsePosition(query.sort, rest);
+    if (asOf === undefined || position === undefined) throw new ProblemException('invalid_cursor');
+    return { asOf, position };
   }
 }
 
-function toItem(row: WorkOrderRow, title: string, names: ReadonlyMap<string, string>) {
+function toItem(
+  row: WorkOrderRow,
+  title: string,
+  names: ReadonlyMap<string, string>,
+  partyNames: ReadonlyMap<string, string>,
+  partyKinds: ReadonlyMap<string, string>,
+  today: string,
+) {
   const displayName = row.coordinatorUserId === null ? undefined : names.get(row.coordinatorUserId);
   return {
     id: row.id,
@@ -117,5 +149,26 @@ function toItem(row: WorkOrderRow, title: string, names: ReadonlyMap<string, str
     status: row.status,
     coordinator: row.coordinatorUserId === null || displayName === undefined ? null : { id: row.coordinatorUserId, displayName },
     createdAt: row.createdAt.toISOString(),
+    waiting: waitingOf(row, partyNames, partyKinds, today),
+    nextDueDate: row.nextDueDate,
+    // a difference of dates (`YYYY-MM-DD` compare as dates): the deadline of the nearest unfinished stage is before today
+    hasOverdueStage: row.nextDueDate !== null && row.nextDueDate < today,
+  };
+}
+
+/** The longest wait of the order: who, since when, for how many days (from the day of the page) and how many others (D3). */
+function waitingOf(row: WorkOrderRow, partyNames: ReadonlyMap<string, string>, partyKinds: ReadonlyMap<string, string>, today: string) {
+  if (row.waitingCount === 0 || row.longestWaitingSince === null || row.longestWaitingOn === null) return null;
+  const partyId = row.longestWaitingPartyId;
+  const name = partyId === null ? undefined : partyNames.get(partyId);
+  const kind = partyId === null ? undefined : partyKinds.get(partyId);
+  // a party the caller may not see (or that is gone) is `null`, never a guess; the wait itself (since, days, "+n") stays
+  const party = partyId === null || name === undefined || kind === undefined ? null : { id: partyId, displayName: name, kind };
+  return {
+    waitingOn: row.longestWaitingOn,
+    party,
+    since: row.longestWaitingSince,
+    days: daysBetween(row.longestWaitingSince, today),
+    otherCount: row.waitingCount - 1,
   };
 }
