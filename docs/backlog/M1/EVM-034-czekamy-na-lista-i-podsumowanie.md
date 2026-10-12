@@ -120,6 +120,8 @@ _Uzupełnia wykonawca przed implementacją._
 ## Uwagi do rozważenia
 - (nit) filtr `waitingOnPartyKind` ujawnia rodzaj strony niewidocznej dla wołającego (zgodnie z T8); przy 768 px komórka „Czekamy na” zawija się do 3–4 linii.
 - (nit) poza środowiskiem dev backfill (`rebuild`) tylko w runbooku — wymusić w runbooku wdrożenia (EVM-007/024).
+- (minor) nieużywany wyjątek `migrations/0024_jobs` w regule dependency-cruiser i teście architektury — usunąć przy EVM-024.
+- (nit) niskie pokrycie gałęzi `run-worker.ts` (66,7%) i adaptera pg-boss (70%); runbook: alert dostarcza proces API.
 
 ## Definition of Done
 - [x] Wszystkie AC spełnione i pokryte testami (`EVM-034 AC#`)
