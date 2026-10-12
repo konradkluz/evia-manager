@@ -94,6 +94,23 @@ test.describe('suggestions from the location and "Dodaj stronę" (EVM-033)', () 
     expect(transitions(api)).toHaveLength(1);
   });
 
+  test('EVM-033 AC3 a Polish name (ąćęłńóśźż) of a new party is kept in the form, in the chosen line and in the request', async ({
+    page,
+    api,
+  }) => {
+    const name = 'Żółć Ąćęłńóśźż Sp. z o.o.';
+    await createOrder(page);
+    await expandAll(page);
+    const dialog = await openWaiting(page, 'Opinia rzeczoznawcy');
+    await dialog.getByRole('button', { name: 'Dodaj stronę: Strona' }).click();
+    const adding = page.getByRole('dialog', { name: 'Na kogo czekamy? › Dodaj stronę' });
+    await adding.getByRole('textbox', { name: 'Nazwa' }).fill(name);
+    await adding.getByRole('button', { name: 'Dodaj stronę' }).click();
+    const back = page.getByRole('dialog', { name: 'Na kogo czekamy?' });
+    await expect(back.getByText(`${name} · Rzeczoznawca ppoż`)).toBeVisible();
+    expect(api.parties.some((party) => party.displayName === name)).toBe(true);
+  });
+
   test('EVM-033 AC3 a lost answer of the save: the retry sends the same party and no duplicate appears', async ({ page, api }) => {
     await createOrder(page);
     await expandAll(page);
