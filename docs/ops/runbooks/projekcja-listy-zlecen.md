@@ -47,7 +47,7 @@ select state, completed_on, output from pgboss.job
 - Log workera musi trafiać do kolektora logów (wymaganie dla EVM-007 i wdrożenia EVM-076); bez tego wpis `drift found` nie wywoła alertu.
 - **Brak przebiegu nie jest dziś alarmowany** (alarm przy braku udanego przebiegu powyżej 26 h — EVM-007); do tego czasu sprawdzaj ostatni przebieg zapytaniem powyżej.
 - Wdrożenie workera na staging i produkcję (obraz, usługa) — EVM-076; lokalnie usługa `worker` w `compose.dev.yaml`. Kolejkę `email`, politykę ponowień i kolejki martwych listów per kolejka, transakcyjne `send` oraz healthcheck workera wprowadza EVM-024.
-- **Aktualizacja pg-boss wymaga migracji schematu `pgboss`.** Test integracyjny „wersja schematu = wersja pakietu” czerwienieje po podniesieniu wersji pakietu (np. przez Renovate), dopóki nie powstanie nowa migracja z `getMigrationPlans`; nie scalaj podniesienia bez niej.
+- **Aktualizacja pg-boss wymaga migracji schematu `pgboss`.** Migracja `0024` zawiera zamrożony skrypt schematu w wersji 43 (`apps/api/src/migrations/data/pgboss-schema-43.ts`), więc nie zależy od zainstalowanego pakietu. Test integracyjny „wersja schematu pakietu = zamrożona” czerwienieje, gdy podniesiony pakiet (np. przez Renovate) niesie nowszy schemat, dopóki nie powstanie nowa migracja z `getMigrationPlans('pgboss', 43)` i powtórzonymi uprawnieniami; nie scalaj podniesienia bez niej.
 
 ## Zapas: harmonogram operatora
 Gdy `worker` nie działa (awaria, brak wdrożenia), operator może uruchomić `verify` z crona hosta (raz na dobę, poza godzinami pracy) i reagować na kod wyjścia `1` — to zapas, nie podstawowa kontrola:

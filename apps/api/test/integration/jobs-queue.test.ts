@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
 import { sql, type Kysely } from 'kysely';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { getConstructionPlans } from 'pg-boss';
+import { PGBOSS_FROZEN_SCHEMA_VERSION, PGBOSS_SCHEMA_43_SCRIPT } from '../../src/migrations/data/pgboss-schema-43.ts';
 import { createDatabase, type Database } from '../../src/platform/database/database.ts';
 import { PgBossJobQueue } from '../../src/platform/jobs/pg-boss-job-queue.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
@@ -66,10 +68,17 @@ const jobsOf = (name: string) =>
     select state, data, output, retry_count from pgboss.job where name = ${name} order by created_on`.execute(database.admin);
 
 describe('the job queue over pg-boss (EVM-034 W11; ADR-0010)', () => {
-  it('EVM-034 W11 the version of the schema equals the version of the package: a bump of pg-boss needs a migration', async () => {
-    const expected = (createRequire(import.meta.url)('pg-boss/package.json') as { pgboss: { schema: number } }).pgboss.schema;
+  it('EVM-034 W11 the schema version of the package equals the frozen one: a bump of pg-boss to a newer schema needs a migration', async () => {
+    const installed = (createRequire(import.meta.url)('pg-boss/package.json') as { pgboss: { schema: number } }).pgboss.schema;
+    expect(installed).toBe(PGBOSS_FROZEN_SCHEMA_VERSION);
     const { rows } = await sql<{ version: number }>`select version from pgboss.version`.execute(database.admin);
-    expect(rows).toEqual([{ version: expected }]);
+    expect(rows).toEqual([{ version: PGBOSS_FROZEN_SCHEMA_VERSION }]);
+  });
+
+  it('EVM-034 W11 the frozen script ends with the version it declares and matches the library while the versions are equal', () => {
+    expect(PGBOSS_SCHEMA_43_SCRIPT).toMatch(/INSERT INTO pgboss\.version\(version\) VALUES \('43'\);\s*COMMIT;\s*$/);
+    expect(PGBOSS_FROZEN_SCHEMA_VERSION).toBe(43);
+    expect(getConstructionPlans('pgboss', { createSchema: true })).toBe(PGBOSS_SCHEMA_43_SCRIPT);
   });
 
   it('EVM-034 W11 the application role works on the queue with DML only; DDL in the schema is refused; the read-only role has no access', async () => {
