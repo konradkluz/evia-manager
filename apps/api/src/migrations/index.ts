@@ -22,6 +22,7 @@ import * as procedures from './0019_procedures.ts';
 import * as timeline from './0020_timeline.ts';
 import * as timelineEvents from './0021_timeline_events.ts';
 import * as scopeItemNotes from './0022_scope_item_notes.ts';
+import * as overview from './0023_overview.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -46,4 +47,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0020_timeline': timeline,
   '0021_timeline_events': timelineEvents,
   '0022_scope_item_notes': scopeItemNotes,
+  '0023_overview': overview,
 });

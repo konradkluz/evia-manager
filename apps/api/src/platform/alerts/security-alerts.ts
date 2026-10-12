@@ -9,8 +9,9 @@ import type { Kysely } from 'kysely';
 import type { Clock } from '../clock/clock.ts';
 import type { Database } from '../database/database.ts';
 import type { Logger } from '../logging/logger.ts';
+import { runInTransaction } from '../database/transactional.ts';
 
-export type SecurityAlertCode = 'emergency_reset';
+export type SecurityAlertCode = 'emergency_reset' | 'projection_authz_drift';
 
 export interface SecurityAlertsTable {
   id: string;
@@ -78,7 +79,7 @@ export class SecurityAlertEmitter {
 
   /** Emits pending alerts to the log and marks them emitted. @returns the number of alerts emitted */
   async emitPending(): Promise<number> {
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const handle = tables(tx);
       const pending = await handle
         .selectFrom('platform.security_alert_outbox')
