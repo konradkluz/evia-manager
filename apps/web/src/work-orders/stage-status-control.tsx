@@ -19,7 +19,7 @@ import { useSession } from '../session/session.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { stageStatusKey } from './procedure-format.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
+import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PROCEDURES_KEY, WORK_ORDER_SITE_KEY } from './query-keys.ts';
 import { StageDialog, stageFailureText, type DialogAction, type StageCommand } from './stage-dialog.tsx';
 import {
   STAGE_DIALOG_ACTIONS,
@@ -29,6 +29,7 @@ import {
   type StageEntry,
   type StageFailure,
 } from './stage-transitions.ts';
+import { useWaitingHints } from './use-waiting-hints.ts';
 
 type Source = 'menu' | 'undo';
 
@@ -44,10 +45,13 @@ type Source = 'menu' | 'undo';
  */
 export function StageStatusControl({
   workOrderId,
+  procedureCode,
   stage,
   closed,
 }: {
   readonly workOrderId: string;
+  /** The code of the process: with the code of the stage it finds the default of the template (EVM-033 AC2). */
+  readonly procedureCode: string;
   readonly stage: ProcedureStage;
   readonly closed: boolean;
 }) {
@@ -61,6 +65,14 @@ export function StageStatusControl({
   const root = useRef<HTMLDivElement>(null);
   const [dialog, setDialog] = useState<DialogAction | null>(null);
   const [alert, setAlert] = useState<{ readonly failure: StageFailure; readonly source: Source } | null>(null);
+
+  // EVM-033: the suggestions are read only for the dialogs that ask for a party (the card of the location, the template, the kind).
+  const hints = useWaitingHints({
+    workOrderId,
+    procedureCode,
+    stageCode: stage.code,
+    enabled: dialog === 'wait' || dialog === 'changeWaiting',
+  });
 
   const key = stageStatusKey(stage.status);
   const label = Object.hasOwn(stageStatusLabels, stage.status) ? stageStatusLabels[stage.status] : '';
@@ -133,6 +145,8 @@ export function StageStatusControl({
       // The answers carry no state: the processes (or the header, for a closed order) are read again.
       if (failure.kind === 'conflict' || failure.kind === 'gone') void queryClient.refetchQueries({ queryKey: proceduresKey });
       if (failure.kind === 'closed') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_HEADER_KEY, workOrderId] });
+      // A party that is gone (AC5): the suggestions are read again, so it is not offered once more.
+      if (failure.kind === 'party') void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_SITE_KEY, workOrderId] });
       return failure;
     }
   };
@@ -214,6 +228,7 @@ export function StageStatusControl({
           action={dialog}
           stage={stage}
           online={online}
+          hints={hints}
           run={(command) => execute(command, stage, 'dialog')}
           onClose={() => {
             setDialog(null);

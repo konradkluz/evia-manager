@@ -1,13 +1,15 @@
 import type { PartyKind, TransitionProcedureStageRequest, ProcedureStagePatch, ProcedureStage, WaitingOn } from '@evia/contracts';
 import { Banner, Button, DateField, Dialog, Info, InlineAlert, RadioGroup, TextArea, WifiOff } from '@evia/ui-web';
 import type { TFunction } from 'i18next';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
+import { AddPartyDialog } from '../parties/add-party-dialog.tsx';
 import { PartyPicker, type PickedParty } from '../parties/party-picker.tsx';
 import { serverNow } from '../session/server-clock.ts';
 import { BLOCKED_REASON_MAX, DATE_MIN, type StageAction, type StageFailure } from './stage-transitions.ts';
 import { todayWarsaw } from './transition-actions.ts';
+import type { WaitingHints } from './waiting-hints.ts';
 
 /** What a dialog hands over: a transition ("Czekamy na…", "Zakończ…", "Zablokuj…") or the edit "Zmień, na kogo czekamy…" (a PATCH). */
 export type StageCommand =
@@ -16,8 +18,14 @@ export type StageCommand =
 
 export type DialogAction = Extract<StageAction, 'wait' | 'changeWaiting' | 'finish' | 'block'>;
 
-/** Every kind of party can be waited for; the suggestions from the location and "Dodaj stronę" are EVM-033. */
+/** Every kind of party can be waited for; the suggestions from the location are above the search (EVM-033). */
 const ALL_KINDS = Object.keys(partyKindLabels) as PartyKind[];
+
+/** The kinds offered by "Dodaj stronę": the kind the stage template waits for first, so it is the one that is suggested (AC3). */
+const kindsFor = (suggested: PartyKind | null): PartyKind[] =>
+  suggested === null ? ALL_KINDS : [suggested, ...ALL_KINDS.filter((kind) => kind !== suggested)];
+
+const NO_HINTS: WaitingHints = { suggestions: [], waitingOn: null, partyKind: null, party: null };
 
 const normalize = (text: string): string => text.normalize('NFC').trim();
 
@@ -63,17 +71,25 @@ function reasonError(t: TFunction, code: string): string {
  * store of the browser — and stay when a request fails (`412`, offline, `429`). Client checks (a party chosen, the day not later than
  * today) tell the person before the request; the server decides again and its field errors land under the same fields. The reason
  * of a block is free text that may hold personal data: the hint says what not to type (SR-DATA-02), it is rendered as text only.
+ *
+ * EVM-033: "Na kogo czekamy?" shows the parties of the location above the search and, for a new "Czekamy na…", applies the default of
+ * the stage template once, only while the person has not touched the fields (a hint of the screen, not an automation). "Dodaj stronę"
+ * replaces the content of this window with the form of a party (one window at a time, no dialog on a dialog); after the save the
+ * new party is chosen and the typed values of the stage are still here.
  */
 export function StageDialog({
   action,
   stage,
   online,
+  hints = NO_HINTS,
   run,
   onClose,
 }: {
   readonly action: DialogAction;
   readonly stage: ProcedureStage;
   readonly online: boolean;
+  /** Suggestions of the location and the defaults of the stage template (EVM-033); absent: none. */
+  readonly hints?: WaitingHints;
   /** Sends the command; `null` when the server accepted it, else why not. */
   readonly run: (command: StageCommand) => Promise<StageFailure | null>;
   readonly onClose: () => void;
@@ -91,6 +107,37 @@ export function StageDialog({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [failure, setFailure] = useState<StageFailure | null>(null);
   const [pending, setPending] = useState(false);
+  const [view, setView] = useState<'form' | 'addParty'>('form');
+  const [addOpened, setAddOpened] = useState(false);
+  const [added, setAdded] = useState<string | null>(null);
+  const touched = useRef(false);
+  const radioApplied = useRef(false);
+  const partyApplied = useRef(false);
+  const comeBack = useRef<'created' | 'cancelled' | null>(null);
+  const summary = useRef<HTMLParagraphElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+
+  // AC2: the default of the template, once, and only until the person chooses something (the data may arrive after the opening).
+  useEffect(() => {
+    if (action !== 'wait' || touched.current) return;
+    if (!radioApplied.current && hints.waitingOn !== null) {
+      radioApplied.current = true;
+      setWaitingOn(hints.waitingOn);
+    }
+    if (!partyApplied.current && hints.party !== null) {
+      partyApplied.current = true;
+      radioApplied.current = true;
+      setWaitingOn('party');
+      setParty(hints.party);
+    }
+  }, [action, hints.waitingOn, hints.party]);
+
+  // After "Dodaj stronę" the window of the stage is back: the focus goes to the chosen party, or to the button that was used (WCAG 2.4.3).
+  useEffect(() => {
+    if (view !== 'form' || comeBack.current === null) return;
+    (comeBack.current === 'created' ? summary : addRef).current?.focus();
+    comeBack.current = null;
+  }, [view]);
 
   const dateError = (): string | undefined => {
     if (day === '') return t('workOrder.stage.dialog.dateRequired');
@@ -159,74 +206,105 @@ export function StageDialog({
         : t('workOrder.stage.dialog.waitSubmit');
 
   return (
-    <Dialog
-      open
-      title={title}
-      closeLabel={t('workOrder.stage.dialog.close')}
-      onDismiss={onClose}
-      actions={
-        <>
-          <Button variant="tertiary" onClick={onClose}>
-            {t('workOrder.stage.dialog.cancel')}
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            loading={pending}
-            disabled={!online}
-            {...(online ? {} : { title: t('workOrder.stage.dialog.offline') })}
-          >
-            {submitLabel}
-          </Button>
-        </>
-      }
-    >
-      <form
-        id={formId}
-        noValidate
-        className="flex flex-col gap-stack-md"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        {online ? null : <Banner icon={WifiOff}>{t('workOrder.stage.dialog.offline')}</Banner>}
-        {failure === null ? null : <InlineAlert tone="error">{stageFailureText(t, failure)}</InlineAlert>}
-        <p className="text-body text-text-secondary">{t('workOrder.stage.dialog.stage', { name: stage.name })}</p>
-        {action === 'changeWaiting' ? <Banner icon={Info}>{t('workOrder.stage.dialog.changeNote')}</Banner> : null}
-        {action === 'wait' || action === 'changeWaiting' ? (
+    <>
+      <Dialog
+        open={view === 'form'}
+        title={title}
+        closeLabel={t('workOrder.stage.dialog.close')}
+        onDismiss={onClose}
+        actions={
           <>
-            <RadioGroup
-              legend={t('workOrder.stage.dialog.waitingOn')}
-              options={[
-                { value: 'customer', label: t('workOrder.stage.dialog.onCustomer') },
-                { value: 'party', label: t('workOrder.stage.dialog.onParty') },
-              ]}
-              value={waitingOn}
-              {...(errors.waitingOn === undefined ? {} : { error: errors.waitingOn })}
-              onChange={(value) => {
-                setWaitingOn(value as WaitingOn);
-                setErrors({});
-              }}
-            />
-            {waitingOn === 'party' ? (
-              <PartyPicker
-                label={t('workOrder.stage.dialog.party')}
-                changeLabel={t('workOrder.stage.dialog.changeParty')}
-                kinds={ALL_KINDS}
-                selected={party}
-                error={errors.party}
-                onSelect={(picked) => {
-                  setParty(picked);
+            <Button variant="tertiary" onClick={onClose}>
+              {t('workOrder.stage.dialog.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              loading={pending}
+              disabled={!online}
+              {...(online ? {} : { title: t('workOrder.stage.dialog.offline') })}
+            >
+              {submitLabel}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id={formId}
+          noValidate
+          className="flex flex-col gap-stack-md"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          {online ? null : <Banner icon={WifiOff}>{t('workOrder.stage.dialog.offline')}</Banner>}
+          {failure === null ? null : <InlineAlert tone="error">{stageFailureText(t, failure)}</InlineAlert>}
+          {added === null ? null : <Banner icon={Info}>{t('workOrder.stage.dialog.partyAdded', { name: added })}</Banner>}
+          <p className="text-body text-text-secondary">{t('workOrder.stage.dialog.stage', { name: stage.name })}</p>
+          {action === 'changeWaiting' ? <Banner icon={Info}>{t('workOrder.stage.dialog.changeNote')}</Banner> : null}
+          {action === 'wait' || action === 'changeWaiting' ? (
+            <>
+              <RadioGroup
+                legend={t('workOrder.stage.dialog.waitingOn')}
+                options={[
+                  { value: 'customer', label: t('workOrder.stage.dialog.onCustomer') },
+                  { value: 'party', label: t('workOrder.stage.dialog.onParty') },
+                ]}
+                value={waitingOn}
+                {...(errors.waitingOn === undefined ? {} : { error: errors.waitingOn })}
+                onChange={(value) => {
+                  touched.current = true;
+                  setWaitingOn(value as WaitingOn);
                   setErrors({});
                 }}
-                onClear={() => {
-                  setParty(null);
+              />
+              {waitingOn === 'party' ? (
+                <PartyPicker
+                  label={t('workOrder.stage.dialog.party')}
+                  changeLabel={t('workOrder.stage.dialog.changeParty')}
+                  addLabel={t('workOrder.stage.dialog.addParty')}
+                  kinds={ALL_KINDS}
+                  suggestions={hints.suggestions}
+                  suggestionsLabel={t('workOrder.stage.dialog.suggestions')}
+                  selected={party}
+                  error={errors.party}
+                  addRef={addRef}
+                  summaryRef={summary}
+                  addDisabledHint={online ? undefined : t('workOrder.stage.dialog.addOffline')}
+                  onSelect={(picked) => {
+                    touched.current = true;
+                    setParty(picked);
+                    setAdded(null);
+                    setErrors({});
+                  }}
+                  onClear={() => {
+                    touched.current = true;
+                    setParty(null);
+                  }}
+                  onAdd={() => {
+                    touched.current = true;
+                    setAddOpened(true);
+                    setView('addParty');
+                  }}
+                />
+              ) : null}
+              <DateField
+                label={t('workOrder.stage.dialog.since')}
+                value={day}
+                min={DATE_MIN}
+                max={todayWarsaw(serverNow())}
+                hint={t('workOrder.stage.dialog.dateHint')}
+                {...(errors.date === undefined ? {} : { error: errors.date })}
+                onChange={(value) => {
+                  setDay(value);
+                  setErrors({});
                 }}
               />
-            ) : null}
+            </>
+          ) : action === 'finish' ? (
             <DateField
-              label={t('workOrder.stage.dialog.since')}
+              label={t('workOrder.stage.dialog.completedOn')}
               value={day}
               min={DATE_MIN}
               max={todayWarsaw(serverNow())}
@@ -237,33 +315,41 @@ export function StageDialog({
                 setErrors({});
               }}
             />
-          </>
-        ) : action === 'finish' ? (
-          <DateField
-            label={t('workOrder.stage.dialog.completedOn')}
-            value={day}
-            min={DATE_MIN}
-            max={todayWarsaw(serverNow())}
-            hint={t('workOrder.stage.dialog.dateHint')}
-            {...(errors.date === undefined ? {} : { error: errors.date })}
-            onChange={(value) => {
-              setDay(value);
-              setErrors({});
-            }}
-          />
-        ) : (
-          <TextArea
-            label={t('workOrder.stage.dialog.reason')}
-            value={reason}
-            hint={t('workOrder.stage.dialog.reasonHint')}
-            {...(errors.reason === undefined ? {} : { error: errors.reason })}
-            onChange={(event) => {
-              setReason(event.target.value);
-              setErrors({});
-            }}
-          />
-        )}
-      </form>
-    </Dialog>
+          ) : (
+            <TextArea
+              label={t('workOrder.stage.dialog.reason')}
+              value={reason}
+              hint={t('workOrder.stage.dialog.reasonHint')}
+              {...(errors.reason === undefined ? {} : { error: errors.reason })}
+              onChange={(event) => {
+                setReason(event.target.value);
+                setErrors({});
+              }}
+            />
+          )}
+        </form>
+      </Dialog>
+      {addOpened ? (
+        <AddPartyDialog
+          open={view === 'addParty'}
+          kinds={kindsFor(hints.partyKind)}
+          title={t('workOrder.stage.dialog.addTitle')}
+          cancelLabel={t('workOrder.stage.dialog.addBack')}
+          onClose={() => {
+            comeBack.current = 'cancelled';
+            setView('form');
+          }}
+          onCreated={(created) => {
+            touched.current = true;
+            setWaitingOn('party');
+            setParty(created);
+            setAdded(created.displayName);
+            setErrors({});
+            comeBack.current = 'created';
+            setView('form');
+          }}
+        />
+      ) : null}
+    </>
   );
 }
