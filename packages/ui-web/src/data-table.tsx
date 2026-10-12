@@ -11,10 +11,11 @@ export interface DataTableColumn {
   readonly sort?: 'ascending' | 'descending';
   /**
    * Role of the column in the card of narrow viewports (below `breakpoint.medium`, § 3.6): `primary` (number and title,
-   * first lines on the left), `badge` (status, top right), `meta` (secondary facts, the line below). When any column has
+   * first lines on the left), `badge` (status, top right), `meta` (secondary facts, the line below), `detail` (a fact that
+   * needs the whole width — "Czekamy na", "Termin": a full-width line under the others, one per column). When any column has
    * a role the rows become cards there; without roles the table scrolls inside its frame.
    */
-  readonly card?: 'primary' | 'badge' | 'meta';
+  readonly card?: 'primary' | 'badge' | 'meta' | 'detail';
   /**
    * The column is shown only from `breakpoint.wide` (header and cells); below it the caller shows the same fact elsewhere
    * (e.g. a second line in the first cell, `wide:hidden`) — the table of a list of people keeps the e-mail out of the narrow views (§ 3.6).
@@ -26,6 +27,8 @@ const CARD_CELL = {
   primary: 'max-medium:col-span-2 max-medium:row-span-2 max-medium:min-w-0',
   badge: 'max-medium:col-start-3 max-medium:row-start-1 max-medium:justify-self-end',
   meta: 'max-medium:col-span-2 max-medium:row-start-3 max-medium:min-w-0 text-text-secondary',
+  // no row of its own: the grid puts it on the first row below the cards' other lines where three columns are free
+  detail: 'max-medium:col-span-3 max-medium:min-w-0',
 } as const;
 
 export interface DataTableRow {

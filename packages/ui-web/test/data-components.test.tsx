@@ -231,6 +231,25 @@ describe('DataTable cards on narrow viewports (styleguide § 3.6; EVM-017 AC1)',
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-034 AC1 a detail column is a full-width line under the other lines of the card and keeps its place in the table', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={[
+          { id: 'order', header: 'Zlecenie', card: 'primary' },
+          { id: 'waiting', header: 'Czekamy na', card: 'detail' },
+          { id: 'who', header: 'Opiekun', card: 'meta' },
+        ]}
+        rows={[{ id: 'a', cells: ['x', 'Operator Testowy · od 15 dni', 'z'] }]}
+      />,
+    );
+    const cells = screen.getAllByRole('cell');
+    expect(cells[1]?.className).toContain('max-medium:col-span-3');
+    expect(cells[1]?.className).not.toContain('max-medium:row-start');
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Zlecenie', 'Czekamy na', 'Opiekun']);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-017 AC1 without card roles the table keeps scrolling in its frame', () => {
     render(<DataTable caption="Zlecenia" columns={[{ id: 'a', header: 'A' }]} rows={[{ id: 'a', cells: ['x'] }]} />);
     expect(screen.getByRole('table').className).not.toContain('max-medium');
