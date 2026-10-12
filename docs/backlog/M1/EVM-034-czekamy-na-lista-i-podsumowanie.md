@@ -124,3 +124,5 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-12 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (8 AC i 3 recenzentów wykluczają lekką), gałąź feature/EVM-034-czekamy-na-lista-i-podsumowanie
+- 2026-10-12 — plan gotowy (backend-developer)
+- 2026-10-12 — backend (backend-developer): enabler (moduł `overview`, migracja 0023, `runInTransaction`, przeniesienie listy) i funkcja (filtry, sortowania, widok, pola listy, `currentStageId`, kontrakt) gotowe, bramka `pnpm run gate` zielona; do zrobienia: panel (kroki 10–11, web-developer) i nocny `verify` (pg-boss) po decyzji Konrada
