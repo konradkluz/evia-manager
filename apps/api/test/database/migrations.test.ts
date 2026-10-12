@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { MIGRATIONS } from '../../src/migrations/index.ts';
 import type { Database } from '../../src/platform/database/database.ts';
 import { migrateToLatest } from '../../src/platform/database/migrator.ts';
+import { withoutTransaction } from '../../src/platform/database/script.ts';
 
 /** Kysely without a database: records the compiled SQL (the real run is in test/integration). */
 function recordingDb() {
@@ -20,6 +21,12 @@ function recordingDb() {
   });
   return { db, statements };
 }
+
+/**
+ * The migrations whose statements are written by hand. 0024 runs the schema script of the vendored library (pg-boss: its functions
+ * read the clock, it has DROP and its own grants), which has its own test below — the policy tests here are about our statements.
+ */
+const OWN_MIGRATIONS = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name !== '0024_jobs'));
 
 describe('first migration (EVM-008 AC1; ADR-0003)', () => {
   it('EVM-008 AC1 migrations are forward only and start with 0001_foundation', () => {
@@ -47,6 +54,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0021_timeline_events',
       '0022_scope_item_notes',
       '0023_overview',
+      '0024_jobs',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });
@@ -91,7 +99,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
 describe('identity and audit migrations (EVM-016 AC7; ADR-0003)', () => {
   it('EVM-016 AC7 the migrations never touch the database clock, drop data or create default privileges', async () => {
     const { db, statements } = recordingDb();
-    await migrateToLatest(db, MIGRATIONS);
+    await migrateToLatest(db, OWN_MIGRATIONS);
     const all = statements.join(' ; ');
     expect(all).not.toMatch(/\bnow\(\)|current_timestamp|alter default privileges|drop table|drop schema/i);
     expect(all).toContain('create role evia_app nologin');
@@ -100,7 +108,7 @@ describe('identity and audit migrations (EVM-016 AC7; ADR-0003)', () => {
 
   it('EVM-016 AC7 audit.events is append-only for evia_app and rejected by triggers for everybody else', async () => {
     const { db, statements } = recordingDb();
-    await migrateToLatest(db, MIGRATIONS);
+    await migrateToLatest(db, OWN_MIGRATIONS);
     expect(statements).toEqual(
       expect.arrayContaining([
         'grant insert, select on audit.events to evia_app',
@@ -115,7 +123,7 @@ describe('identity and audit migrations (EVM-016 AC7; ADR-0003)', () => {
 describe('catalog migrations (EVM-019 AC1, AC6; ADR-0003)', () => {
   it('EVM-019 AC6 evia_app gets USAGE on the schema and an explicit SELECT on every catalog table, and nothing that changes data', async () => {
     const { db, statements } = recordingDb();
-    await migrateToLatest(db, MIGRATIONS);
+    await migrateToLatest(db, OWN_MIGRATIONS);
     const grants = statements.filter((statement) => /^grant .* on catalog\./.test(statement));
     expect(grants.sort()).toEqual(
       [
@@ -146,5 +154,28 @@ describe('catalog migrations (EVM-019 AC1, AC6; ADR-0003)', () => {
       expect(insert).not.toMatch(/'/);
       expect(insert).not.toMatch(/now\(\)|current_timestamp/i);
     }
+  });
+});
+
+describe('job queue migration (EVM-034 W11; ADR-0010)', () => {
+  it('EVM-034 W11 0024 creates the schema of the library, takes it from PUBLIC and gives the application role DML only — no CREATE, no default privileges, no other role', async () => {
+    const { db, statements } = recordingDb();
+    await migrateToLatest(db, { '0024_jobs': MIGRATIONS['0024_jobs'] as never });
+    const script = statements.find((statement) => statement.includes('CREATE SCHEMA IF NOT EXISTS pgboss')) ?? '';
+    expect(script).toMatch(/^SET LOCAL lock_timeout/);
+    expect(script).not.toMatch(/BEGIN;|COMMIT;|GRANT/);
+    expect(statements.filter((statement) => /^(grant|revoke|alter default) /i.test(statement))).toEqual([
+      'revoke all on schema pgboss from public',
+      'grant usage on schema pgboss to evia_app',
+      'grant select, insert, update, delete on all tables in schema pgboss to evia_app',
+      'grant usage, select on all sequences in schema pgboss to evia_app',
+      'grant execute on all functions in schema pgboss to evia_app',
+    ]);
+  });
+
+  it('EVM-034 W11 the script of the library is used without its own transaction and an unexpected shape fails loudly', () => {
+    expect(withoutTransaction('\n    BEGIN;\n    SELECT 1;\n    COMMIT;\n')).toBe('SELECT 1;');
+    expect(() => withoutTransaction('SELECT 1;')).toThrow(/unexpected shape/);
+    expect(() => withoutTransaction('BEGIN; SELECT 1;')).toThrow(/unexpected shape/);
   });
 });

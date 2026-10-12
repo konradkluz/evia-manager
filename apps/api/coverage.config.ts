@@ -51,6 +51,12 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  // EVM-034 step 9: the adapter of the job queue over pg-boss, the script runner of the migration 0024 and the wiring of the worker
+  // need the real database (grants, DDL refused for the application role); the queue interface, the handler and the run are unit tests
+  'src/platform/jobs/pg-boss-job-queue.ts',
+  'src/platform/database/script.ts',
+  'src/migrations/0024_jobs.ts',
+  'src/worker/worker-process.ts',
   'src/platform/database/search-text.ts',
   'src/platform/idempotency/idempotency.ts',
   'src/cli/process-run.ts',
