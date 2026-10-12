@@ -96,3 +96,4 @@ _—_
 - 2026-10-12 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (3 recenzentów wyklucza lekką), gałąź feature/EVM-033-szybkie-dodanie-strony
 - 2026-10-12 — plan gotowy (web-developer)
 - 2026-10-12 — implementacja panelu gotowa (web-developer): podpowiedzi z lokalizacji, domyślny wybór z szablonu, „Dodaj stronę” w miejscu okna; bez zmian w API i kontrakcie
+- 2026-10-12 — bramka lokalna zielona (backend-developer): pnpm run gate 0, pokrycie zmienionego kodu 100% linii / 98,1% gałęzi; brak zmian w API (AC5/AC6 pokryte istniejącymi testami API)
