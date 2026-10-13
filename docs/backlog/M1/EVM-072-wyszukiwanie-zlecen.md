@@ -4,7 +4,7 @@ title: Wyszukiwanie zleceń, klient i lokalizacja na liście
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -114,7 +114,7 @@ Szczegóły i uzasadnienia: sekcja „Decyzje” poniżej. Skrót:
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-017 planu wstępnego)
@@ -127,3 +127,4 @@ Szczegóły i uzasadnienia: sekcja „Decyzje” poniżej. Skrót:
 - 2026-10-13 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 99,6% / gałęzie 97,5%; pełne e2e Chromium + Firefox: 684 passed, 14 skipped, 0 failed; poprawione drobne braki dokumentacji (rodo.md: search_text zlecenia; martwe odwołanie do .scratch)
 - 2026-10-13 — Koszt: brak rozbicia w $; agenci workflow 11 wywołań, ok. 1,43 mln tokenów subagentów, 492 wywołania narzędzi, ok. 1,8 h; rundy 2; ścieżka pelna; vs ostatnie: EVM-034 2,99 mln, EVM-035 1,94 mln, EVM-037 1,55 mln — poniżej średniej dla nowego endpointu z UI
 - 2026-10-13 — in-progress → in-review: czeka na demo i akceptację Konrada
+- 2026-10-13 — demo zaakceptowane przez Konrada; PR #61 scalony (squash); in-review → done
