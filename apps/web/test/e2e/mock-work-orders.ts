@@ -388,6 +388,9 @@ interface TransitionInput {
   readonly ifMatch: string | undefined;
   readonly key: string | undefined;
   readonly raw: string;
+  /** EVM-053: the conditions of the participants (a code of the reason, or `undefined` when met) and their effects in the same step. */
+  readonly condition?: (to: string) => string | undefined;
+  readonly effect?: (to: string) => void;
 }
 
 /**
@@ -420,11 +423,14 @@ export function answerTransition(server: OrderServer, id: string, input: Transit
   if (needsReason && (request.reason === undefined || request.reason.trim() === '')) {
     return problem(400, 'validation_failed', { errors: [{ pointer: '/reason', code: 'required' }] });
   }
+  const unmet = input.condition?.(request.to);
+  if (unmet !== undefined) return problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/to', code: unmet }] });
   const next: OrderState = { status: request.to, version: state.version + 1 };
   if (request.to === 'on_hold' && state.status !== 'cancelled') next.resumeStatus = state.status;
   if (request.to === 'completed') next.completedOn = request.completedOn ?? new Date().toISOString().slice(0, 10);
   if (request.to === 'settled' || request.to === 'cancelled') next.closedAt = new Date().toISOString();
   server.states.set(id, next);
+  input.effect?.(request.to);
   const order = answerOrderRead(server, id, '', input.role);
   const answer = { ...order, headers: { ...order.headers, ETag: `"${String(next.version)}"` } };
   if (input.key !== undefined) server.transitionKeys.set(input.key, { scope, answer });
