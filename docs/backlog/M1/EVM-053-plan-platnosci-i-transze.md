@@ -4,7 +4,7 @@ title: Plan płatności z szablonu i transze w zleceniu
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: backend-developer
@@ -119,6 +119,7 @@ _Uzupełnia wykonawca przed implementacją._
 ## Dziennik
 - 2026-10-13 — `/refine` (product-owner): `path: pelna`, `model: opus`, `depends_on` uzupełnione; doprecyzowano AC1, AC3, AC4, AC6, AC8 (walidacja, `428`/`409`, idempotencja, offline, limit); rozstrzygnięto podział ostrzeżenia z EVM-058 AC3 (Decyzje); status `draft` do akceptacji Konrada
 - 2026-10-13 — draft → ready: AC i decyzje P1–P7 zaakceptowane przez Konrada
+- 2026-10-13 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-053-plan-platnosci-transze`)
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie transz i „Planu płatności” w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054
