@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { WORK_ORDERS_PATH, workOrderPath } from '../paths.ts';
+import { formatSiteLine } from '../sites/format.ts';
 import { formatDate } from './format.ts';
 import { DueCell, dueRowText, WaitingCell, waitingRowText } from './waiting-cells.tsx';
 
@@ -35,8 +36,21 @@ function sortedColumn(sort: WorkOrderSort): SortedColumn {
   }
 }
 
+/** A dash for what an order does not have; the name says what is missing (the dash alone says nothing to a screen reader). */
+function Missing({ label }: { readonly label: string }) {
+  const { t } = useTranslation();
+  return (
+    <span className="text-text-secondary">
+      <span aria-hidden="true">{t('workOrders.waiting.dash')}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 /**
- * The table of W-10 (EVM-017 AC1; EVM-034 AC1, AC4): "Zlecenie" (number and title), "Status" (badge; a value this panel does not
+ * The table of W-10 (EVM-017 AC1; EVM-034 AC1, AC4; EVM-072 AC1): "Zlecenie" (number and title), "Klient" (the name and, under it, the
+ * city and street of the location; from `expanded` — below it both are lines of the first cell; "Klient usunięty" without a link or
+ * any data when the customer is gone), "Lokalizacja" (from `wide`: then "Klient" has one line), "Status" (badge; a value this panel does not
  * know is the "Nieznany status" badge — P-12, never the raw code), "Czekamy na" (the longest wait and "+n"), "Termin" (the nearest
  * due date, with `alarm-clock` when it has passed), "Opiekun" and "Utworzono"; the whole row leads to the details and carries the
  * full description as its name. The column the list is sorted by carries `aria-sort`. Texts are shown as React text only.
@@ -48,6 +62,10 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
   const markSort = (column: SortedColumn) => (sorted === column ? { sort: direction } : {});
   const columns: DataTableColumn[] = [
     { id: 'order', card: 'primary' as const, header: t('workOrders.table.order'), ...markSort('order') },
+    // "Klient" (with the location as its second line) from `expanded`, "Lokalizacja" on its own from `wide`; below `expanded` both are
+    // lines of the first cell (EVM-072 AC1; flows/07 "Responsywność").
+    { id: 'customer', header: t('workOrders.table.customer'), expandedOnly: true },
+    { id: 'site', header: t('workOrders.table.location'), wideOnly: true },
     { id: 'status', card: 'badge' as const, header: t('workOrders.table.status') },
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
     { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
@@ -66,25 +84,64 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
     const status = known ? workOrderStatusLabels[item.status] : t('workOrders.status.unknown');
     const created = formatDate(item.createdAt);
     const coordinator = item.coordinator?.displayName ?? t('workOrders.table.noCoordinator');
-    const description = t('workOrders.table.row', {
-      number: item.number,
-      title: item.title,
+    const customer = item.customer;
+    const site = item.site;
+    // "Klient usunięty" carries nothing else: no identifier, no name (TM-18); a `null` customer is an order without one.
+    const customerText =
+      customer === undefined || customer === null
+        ? undefined
+        : 'deleted' in customer
+          ? t('workOrders.table.customerDeleted')
+          : customer.displayName;
+    const siteText = site === undefined || site === null ? undefined : formatSiteLine(site);
+    const head = t('workOrders.table.rowHead', { number: item.number, title: item.title });
+    const tail = t('workOrders.table.rowTail', {
       status: known ? status : t('workOrders.status.unknownName'),
       coordinator,
       created,
     });
     // What the order waits for and the due date join the name of the row only when there is something to say.
     const extra = [waitingRowText(t, item.waiting), dueRowText(t, item)].filter((part) => part !== undefined);
+    const deleted = customer !== undefined && customer !== null && 'deleted' in customer;
+    const customerLine = (
+      <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>
+        {customerText ?? <Missing label={t('workOrders.table.noCustomer')} />}
+      </span>
+    );
     return {
       id: item.id,
       href: workOrderPath(item.id),
-      label: [description, ...extra].join(', '),
+      label: [head, customerText, siteText, tail, ...extra].filter((part) => part !== undefined).join(', '),
       cells: [
         <span key="order" className="flex flex-col">
           <span className="font-semibold tabular-nums whitespace-nowrap">{item.number}</span>
           <span className="break-words text-text-secondary">{item.title}</span>
+          {/* Below `expanded` the customer and the location are lines of this cell (and of the card). */}
+          {customerText === undefined && siteText === undefined ? null : (
+            <span className="expanded:hidden flex flex-col">
+              {customerText === undefined ? null : (
+                <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>{customerText}</span>
+              )}
+              {siteText === undefined ? null : <span className="break-words text-text-secondary">{siteText}</span>}
+            </span>
+          )}
           {/* The column "Utworzono" is shown from `expanded`; on a tablet the date is the third line here (EVM-034, 768 px). */}
           <span className="expanded:hidden text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
+        </span>,
+        <span key="customer" className="flex flex-col">
+          {customerLine}
+          {/* On `wide` the location has a column of its own: no repetition here. */}
+          {siteText === undefined ? null : <span className="wide:hidden break-words text-text-secondary">{siteText}</span>}
+        </span>,
+        <span key="site" className="flex flex-col break-words">
+          {site === undefined || site === null ? (
+            <Missing label={t('workOrders.table.noLocation')} />
+          ) : (
+            <>
+              <span>{`${site.street} ${site.buildingNumber}`}</span>
+              <span className="text-text-secondary">{site.city}</span>
+            </>
+          )}
         </span>,
         known ? (
           <StatusBadge key="status" status={keyOf(item.status)} label={status} />

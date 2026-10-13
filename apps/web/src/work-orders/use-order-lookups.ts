@@ -13,11 +13,12 @@ export const PROCEDURE_TEMPLATES_KEY = ['catalog', 'procedure-templates'] as con
  * Active templates of work orders (EVM-019; the card of W-05 shows the scope only). The whole small set is read once; the
  * filter by the type of the object is done in the panel, so that "Pokaż wszystkie" needs no new request.
  */
-export function useTemplates() {
+export function useTemplates(enabled = true) {
   const client = useApi();
   return useQuery({
     queryKey: TEMPLATES_KEY,
     queryFn: async () => (await unwrap(listWorkOrderTemplates({ client }))).items,
+    enabled,
     // The panel shows the failure itself ("Spróbuj ponownie"); a silent retry would only delay it.
     retry: false,
   });

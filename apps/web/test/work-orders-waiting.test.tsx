@@ -48,6 +48,9 @@ function listApi(handler: Handler = ok(), session = ACTIVE_SESSION) {
 }
 
 const lastQuery = (api: ReturnType<typeof listApi>): URLSearchParams => api.calls(LIST).at(-1)?.query ?? new URLSearchParams();
+// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin, Opiekun, Utworzono (EVM-072 added the first two).
+const WAITING = 4;
+const DUE = 5;
 const cellsOf = async (index = 0) => {
   const table = await screen.findByRole('table', { name: 'Lista zleceń' });
   const rows = within(table).getAllByRole('row').slice(1);
@@ -62,7 +65,7 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
   it('EVM-034 AC1 the longest wait is "Stoen Operator (OSD) · od 15 dni" with triangle-alert above 14 days and "+1" for the other', async () => {
     await renderPanel(PATH, listApi(ok([order(1, { waiting: osdWait(15, 1) })])));
     const cells = await cellsOf();
-    const waiting = cells[2] as HTMLElement;
+    const waiting = cells[WAITING] as HTMLElement;
     expect(waiting.textContent).toContain('Stoen Operator (OSD) · od 15 dni');
     expect(waiting.querySelector('svg')).not.toBeNull();
     expect(within(waiting).getByText('Czekamy dłużej niż 14 dni.')).toBeTruthy();
@@ -85,11 +88,11 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
       ),
     );
     const first = await cellsOf(0);
-    expect(within(first[2] as HTMLElement).getByText('Klient · od 3 dni')).toBeTruthy();
-    expect(first[2]?.querySelector('svg')).toBeNull();
-    expect((await cellsOf(1))[2]?.querySelector('svg')).toBeNull();
-    expect(within((await cellsOf(2))[2] as HTMLElement).getByText('Stoen Operator (OSD) · od dziś')).toBeTruthy();
-    const fourth = (await cellsOf(3))[2] as HTMLElement;
+    expect(within(first[WAITING] as HTMLElement).getByText('Klient · od 3 dni')).toBeTruthy();
+    expect(first[WAITING]?.querySelector('svg')).toBeNull();
+    expect((await cellsOf(1))[WAITING]?.querySelector('svg')).toBeNull();
+    expect(within((await cellsOf(2))[WAITING] as HTMLElement).getByText('Stoen Operator (OSD) · od dziś')).toBeTruthy();
+    const fourth = (await cellsOf(3))[WAITING] as HTMLElement;
     expect(fourth.textContent).toContain('Stoen Operator (OSD) · od wczoraj');
     expect(within(fourth).getByText('i jeszcze 3 oczekiwania')).toBeTruthy();
   });
@@ -98,11 +101,11 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
     const unknownKind = osdWait(5, 0, { party: { id: OSD_ID, displayName: '<b>Nowy</b> Operator', kind: 'kind_of_a_newer_api' } });
     const hidden: WorkOrderWaiting = { waitingOn: 'party', party: null, since: '2026-09-30', days: 3, otherCount: 5 };
     await renderPanel(PATH, listApi(ok([order(1, { waiting: unknownKind }), order(2, { waiting: hidden })])));
-    const first = (await cellsOf(0))[2] as HTMLElement;
+    const first = (await cellsOf(0))[WAITING] as HTMLElement;
     expect(within(first).getByText('<b>Nowy</b> Operator · od 5 dni')).toBeTruthy();
     expect(first.querySelector('b')).toBeNull();
     expect(document.body.textContent).not.toContain('kind_of_a_newer_api');
-    const second = (await cellsOf(1))[2] as HTMLElement;
+    const second = (await cellsOf(1))[WAITING] as HTMLElement;
     expect(second.textContent).toContain('Strona · od 3 dni');
     expect(within(second).getByText('i jeszcze 5 oczekiwań')).toBeTruthy();
   });
@@ -112,7 +115,7 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
       PATH,
       listApi(ok([order(1), order(2, { waiting: osdWait(15, 1), nextDueDate: '2026-09-30', hasOverdueStage: true })])),
     );
-    const first = (await cellsOf(0))[2] as HTMLElement;
+    const first = (await cellsOf(0))[WAITING] as HTMLElement;
     expect(within(first).getByText('Brak oczekiwań')).toBeTruthy();
     expect(first.querySelector('[aria-hidden="true"]')?.textContent).toBe('—');
     const links = within(await screen.findByRole('table')).getAllByRole('link');
@@ -131,8 +134,8 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
     delete old.hasOverdueStage;
     await renderPanel(PATH, listApi(ok([old as WorkOrderListItem])));
     const cells = await cellsOf();
-    expect(within(cells[2] as HTMLElement).getByText('Brak oczekiwań')).toBeTruthy();
-    expect(within(cells[3] as HTMLElement).getByText('Brak terminu')).toBeTruthy();
+    expect(within(cells[WAITING] as HTMLElement).getByText('Brak oczekiwań')).toBeTruthy();
+    expect(within(cells[DUE] as HTMLElement).getByText('Brak terminu')).toBeTruthy();
   });
 });
 
@@ -147,11 +150,11 @@ describe('W-10 column "Termin" and the sorts (EVM-034 AC4)', () => {
         ]),
       ),
     );
-    const late = (await cellsOf(0))[3] as HTMLElement;
+    const late = (await cellsOf(0))[DUE] as HTMLElement;
     expect(late.textContent).toContain('30.09.2026');
     expect(late.querySelector('svg')).not.toBeNull();
     expect(within(late).getByText('Termin minął.')).toBeTruthy();
-    const coming = (await cellsOf(1))[3] as HTMLElement;
+    const coming = (await cellsOf(1))[DUE] as HTMLElement;
     expect(coming.textContent).toContain('20.10.2026');
     expect(coming.querySelector('svg')).toBeNull();
   });
@@ -345,7 +348,7 @@ describe('W-10 roles and states (EVM-034 AC7, AC8)', () => {
     const readOnly = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'read_only' as const } };
     await renderPanel(PATH, listApi(ok([order(1, { waiting: osdWait(15) })]), readOnly));
     const cells = await cellsOf();
-    expect(cells[2]?.textContent).toContain('Stoen Operator (OSD) · od 15 dni');
+    expect(cells[WAITING]?.textContent).toContain('Stoen Operator (OSD) · od 15 dni');
     expect(screen.getByRole('combobox', { name: 'Czekamy na' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Czekamy na OSD > 14 dni' })).toBeTruthy();
   });

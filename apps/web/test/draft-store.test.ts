@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readWorkOrderSearch, setWorkOrderMoreFilters, setWorkOrderPhrase } from '../src/search/work-order-search-store.ts';
 import { clearDrafts, discardDraft, readDraft, reconcileDrafts, saveDraft } from '../src/session/draft-store.ts';
 
 const ANNA = '11111111-1111-4111-8111-111111111111';
@@ -50,5 +51,28 @@ describe('drafts in the memory of the tab (EVM-067 AC6; SR-WEB-05)', () => {
     readDraft(ANNA, 'work-order');
     clearDrafts();
     expect(touched).not.toHaveBeenCalled();
+  });
+});
+
+describe('the phrase of the search of work orders lives and dies with the drafts (EVM-072 AC2, AC4; SR-WEB-05)', () => {
+  it('EVM-072 AC2 logging out (clearDrafts) forgets the phrase and the filters of the panel', () => {
+    setWorkOrderPhrase('przykladowy');
+    setWorkOrderMoreFilters({ siteType: 'multi_family_garage', templateId: '33333333-3333-4333-8333-333333333333' });
+    expect(readWorkOrderSearch()).toEqual({
+      phrase: 'przykladowy',
+      siteType: 'multi_family_garage',
+      templateId: '33333333-3333-4333-8333-333333333333',
+    });
+    clearDrafts();
+    expect(readWorkOrderSearch()).toEqual({ phrase: '', siteType: '', templateId: '' });
+  });
+
+  it('EVM-072 AC2 a login of another person forgets the phrase, the same person keeps it', () => {
+    saveDraft(ANNA, 'work-order', 'a');
+    setWorkOrderPhrase('zolkiewskiego');
+    reconcileDrafts(ANNA);
+    expect(readWorkOrderSearch().phrase).toBe('zolkiewskiego');
+    reconcileDrafts(JAN);
+    expect(readWorkOrderSearch().phrase).toBe('');
   });
 });

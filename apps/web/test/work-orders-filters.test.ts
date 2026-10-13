@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { formatSiteLine } from '../src/sites/format.ts';
 import { formatClock, formatDate } from '../src/work-orders/format.ts';
 import {
   DEFAULT_SORT,
   isFiltered,
+  moreFiltersCount,
   NO_FILTERS,
   parseWaitingDays,
   searchOf,
   statusesOf,
   toQuery,
+  toSearchBody,
   validateSearch,
   viewOf,
   waitingDaysOf,
@@ -115,5 +118,70 @@ describe('filters "Czekamy na" and the address (EVM-034 AC2, AC3)', () => {
     expect(toQuery(NO_FILTERS, undefined)).not.toHaveProperty('waitingOn');
     expect(viewOf({ view: 'waiting_on_dso_over_14_days' })).toBe('waiting_on_dso_over_14_days');
     expect(searchOf({ ...NO_FILTERS, view: 'waiting_on_dso_over_14_days' })).toEqual({ view: 'waiting_on_dso_over_14_days' });
+  });
+});
+
+describe('search, "Więcej filtrów" and the address (EVM-072 AC2, AC3, AC4)', () => {
+  const TEMPLATE = '55555555-5555-4555-8555-555555555555';
+
+  it('EVM-072 AC4 type of object and template go to the query of the list and never to the address', () => {
+    const filters = { ...NO_FILTERS, siteType: 'commercial' as const, templateId: TEMPLATE };
+    expect(toQuery(filters, undefined)).toMatchObject({ siteType: 'commercial', templateId: TEMPLATE });
+    expect(toQuery(NO_FILTERS, undefined)).not.toHaveProperty('siteType');
+    expect(toQuery(NO_FILTERS, undefined)).not.toHaveProperty('templateId');
+    expect(searchOf(filters)).toEqual({});
+    expect(isFiltered(filters)).toBe(true);
+    expect(moreFiltersCount(filters)).toBe(2);
+    expect(moreFiltersCount({ ...NO_FILTERS, templateId: TEMPLATE })).toBe(1);
+    expect(moreFiltersCount(NO_FILTERS)).toBe(0);
+  });
+
+  it('EVM-072 AC2 a typed phrase makes the list filtered, and the query of the list never carries it', () => {
+    const filters = { ...NO_FILTERS, phrase: 'Przy' };
+    expect(isFiltered(filters)).toBe(true);
+    expect(searchOf(filters)).toEqual({});
+    expect(JSON.stringify(toQuery(filters, undefined))).not.toContain('Przy');
+  });
+
+  it('EVM-072 AC3 the body of the search has the phrase, the filters of the list as arrays and values, and the cursor', () => {
+    expect(toSearchBody(NO_FILTERS, 'Lodz', undefined)).toEqual({ query: 'Lodz', limit: 25, sort: DEFAULT_SORT, view: 'all_open' });
+    const full = toSearchBody(
+      {
+        ...NO_FILTERS,
+        view: 'mine',
+        statuses: ['new', 'quoting'],
+        coordinatorId: 'c',
+        sort: 'number',
+        siteType: 'other',
+        templateId: TEMPLATE,
+        waitingOn: 'distribution_system_operator',
+        waitingDays: 15,
+      },
+      'Przy',
+      'k',
+    );
+    expect(full).toEqual({
+      query: 'Przy',
+      limit: 25,
+      sort: 'number',
+      view: 'mine',
+      status: ['new', 'quoting'],
+      coordinatorId: 'c',
+      siteType: 'other',
+      templateId: TEMPLATE,
+      waitingOn: 'party',
+      waitingOnPartyKind: 'distribution_system_operator',
+      waitingLongerThanDays: 15,
+      cursor: 'k',
+    });
+    expect(toSearchBody({ ...NO_FILTERS, view: 'all' }, 'abc', undefined)).not.toHaveProperty('view');
+    expect(toSearchBody({ ...NO_FILTERS, waitingOn: 'customer', waitingDays: 3 }, 'abc', undefined)).toMatchObject({
+      waitingOn: 'customer',
+      waitingLongerThanDays: 3,
+    });
+  });
+
+  it('EVM-072 AC1 the location line is the street with the number and the city, without the postal code', () => {
+    expect(formatSiteLine({ street: 'ul. Testowa', buildingNumber: '7', city: 'Warszawa' })).toBe('ul. Testowa 7, Warszawa');
   });
 });

@@ -4,6 +4,8 @@
  * session and comes back only after the same person logs in again in the same tab; another person's login drops it, and
  * so does "Wyloguj". A refresh of the tab loses it by design.
  */
+import { clearWorkOrderSearch } from '../search/work-order-search-store.ts';
+
 let owner: string | null = null;
 const drafts = new Map<string, string>();
 
@@ -54,6 +56,8 @@ export function clearDrafts(): void {
   owner = null;
   drafts.clear();
   attempts.clear();
+  // The phrase and the filters of the list of work orders are memory of the tab as well (EVM-072; SR-WEB-05).
+  clearWorkOrderSearch();
 }
 
 /** After a login: drafts stay only when the same person logged in again; any other person gets none. */
