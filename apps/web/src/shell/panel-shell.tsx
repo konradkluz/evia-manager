@@ -15,6 +15,7 @@ import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { ADMINISTRATION_PATH, AUDIT_PATH, CUSTOMERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
+import { TopBarSearch } from './top-bar-search.tsx';
 import { useOnline } from './use-online.ts';
 
 /** Router link for the UI library (typed paths of the panel). */
@@ -72,6 +73,7 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
         closeMenu: t('shell.closeMenu'),
       }}
       banner={online ? undefined : <Banner icon={WifiOff}>{t('shell.offline')}</Banner>}
+      search={<TopBarSearch />}
       account={
         <AccountMenu
           triggerText={session.user.displayName}

@@ -62,7 +62,7 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Zlecenie', 'Status', 'Czekamy na', 'Termin', 'Opiekun', 'Utworzono']);
+    ).toEqual(['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Opiekun', 'Utworzono']);
     expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).getAttribute('aria-sort')).toBe('descending');
     const cells = within(table)
       .getAllByRole('cell')
@@ -70,12 +70,16 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
     // A day in Warsaw: 22:30 UTC on 5 October is already 6 October there.
     expect(cells).toEqual([
       'ZL-2026-0002Dom — pełny pakietUtworzono 06.10.2026',
+      '—Brak klienta',
+      '—Brak lokalizacji',
       'Wycena',
       '—Brak oczekiwań',
       '—Brak terminu',
       'Brak opiekuna',
       '06.10.2026',
       'ZL-2026-0001Garaż — pełny proces 1Utworzono 04.10.2026',
+      '—Brak klienta',
+      '—Brak lokalizacji',
       'W realizacji',
       '—Brak oczekiwań',
       '—Brak terminu',

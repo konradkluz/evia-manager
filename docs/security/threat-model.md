@@ -183,11 +183,11 @@ Kolumny: P, W — ryzyko bazowe; „Rezyd.” — ryzyko rezydualne po mitygacja
 | TM-15 | C-03 | I | Ujawnienie `.git`, map źródeł, listingu katalogów, wersji serwera | 2 | 1 | 2 Low | SR-INFRA-06, SR-API-12 | 1×1=1 Low | — |
 | TM-16 | C-04 | S | Credential stuffing, brute force i enumeracja kont | 3 | 3 | 9 Critical | ADR-0005 · SR-AUTH-02, SR-AUTH-05, SR-AUTH-06, SR-LOG-07 | 1×3=3 Medium | RR-17 |
 | TM-17 | C-04 | E | IDOR/BOLA: UUID z klienta, obiekt innej kotwicy w ścieżce zagnieżdżonej (T1 z EVM-002) | 3 | 3 | 9 Critical | ADR-0001, 0004 · SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05 | 1×3=3 Medium | RR-10 |
-| TM-18 | C-04 | E | Endpoint bez polityki, BOPLA, mass assignment, obejście ról sekwencją przejść lub soft delete | 2 | 3 | 6 High | ADR-0001, 0004 · SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-API-07 | 1×3=3 Medium | RR-10 |
-| TM-19 | C-04 | T | Wstrzyknięcia: SQL przez sortowanie, filtr lub `LIKE`, prototype pollution, HTTP parameter pollution (T8) | 2 | 3 | 6 High | ADR-0002, 0003 · SR-INPUT-01, SR-INPUT-03, SR-INPUT-06 | 1×3=3 Medium | RR-10 |
-| TM-20 | C-04 | I | Dane w komunikatach błędów, nagłówkach, URL i logach (T5) | 2 | 2 | 4 Medium | ADR-0004 · SR-API-01, SR-API-03, SR-API-04, SR-LOG-02 | 1×2=2 Low | — |
+| TM-18 | C-04 | E | Endpoint bez polityki, BOPLA, mass assignment, obejście ról sekwencją przejść lub soft delete; wyszukiwanie zleceń po nazwisku klienta usuniętego (EVM-072): warunek `deleted_at IS NULL` w zapytaniu fasady klientów (ta sama polityka dla `searchIds` i `displayNamesOf`), więc usunięty klient nie jest znajdowany po nazwisku, a element zlecenia niesie `customer: { deleted: true }` bez `id` i nazwy | 2 | 3 | 6 High | ADR-0001, 0004 · SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-API-07 | 1×3=3 Medium | RR-10 |
+| TM-19 | C-04 | T | Wstrzyknięcia: SQL przez sortowanie, filtr lub `LIKE`, prototype pollution, HTTP parameter pollution (T8); wyszukiwanie zleceń (EVM-072): fraza tylko przez `searchTextMatches` (escapowanie po `f_unaccent`), zbiory identyfikatorów jako jeden parametr tablicowy `uuid[]`, treść ścisła, NUL i znaki sterujące → `400` przed bazą | 2 | 3 | 6 High | ADR-0002, 0003 · SR-INPUT-01, SR-INPUT-03, SR-INPUT-06, SR-INPUT-08 | 1×3=3 Medium | RR-10 |
+| TM-20 | C-04 | I | Dane w komunikatach błędów, nagłówkach, URL i logach (T5); wyszukiwanie zleceń (EVM-072): fraza tylko w treści `POST`, poza logami, metrykami (`work_order_search_rate_limited` bez etykiet), `errors[]`, `detail` i kursorem (tylko skrót w `scope`); lista pokazuje miasto, ulicę i numer budynku — bez kodu pocztowego i numeru lokalu | 2 | 2 | 4 Medium | ADR-0004 · SR-API-01, SR-API-03, SR-API-04, SR-LOG-02 | 1×2=2 Low | — |
 | TM-21 | C-04 | R | Brak rozliczalności: kto zmienił kwotę, pobrał dokument, unieważnił urządzenie | 2 | 2 | 4 Medium | ADR-0001 · SR-LOG-03, SR-LOG-04 | 1×1=1 Low | — |
-| TM-22 | C-04 | D | Kosztowne operacje (trigramy, duże strony, eksporty, zalew kluczy idempotencji) | 2 | 2 | 4 Medium | ADR-0004 · SR-API-02, SR-INFRA-11, SR-FILE-09, SR-FILE-10 | 1×2=2 Low | — |
+| TM-22 | C-04 | D | Kosztowne operacje (trigramy, duże strony, eksporty, zalew kluczy idempotencji); wyszukiwanie zleceń (EVM-072): rozgałęzienie na trzy fasady z `LIMIT` 10 001 i `too_broad` przed zapytaniem o projekcję, kubełek `search-work-orders` 60/min, `statement_timeout` 2 s puli aplikacji, licznik masowego odczytu P10 | 2 | 2 | 4 Medium | ADR-0004 · SR-API-02, SR-INFRA-11, SR-FILE-09, SR-FILE-10 | 1×2=2 Low | — |
 | TM-23 | C-04 | S | Przejęcie sesji (kradzież ciasteczka lub tokenu), session fixation | 2 | 3 | 6 High | ADR-0005 · SR-SESS-01, SR-SESS-02, SR-SESS-09 | 1×3=3 Medium | RR-17 |
 | TM-24 | C-04 | E | Edytor lub Tylko odczyt wykonuje operację Administratora; operacja wrażliwa bez step-upu | 2 | 3 | 6 High | ADR-0005 · SR-AUTHZ-01, SR-AUTHZ-06, SR-AUTHZ-11, SR-SESS-08 | 1×3=3 Medium | RR-10 |
 | TM-25 | C-05 | T | Zadanie wykonane dla obiektu bez uprawnień lub powtórzone ze skutkiem ubocznym | 1 | 2 | 2 Low | ADR-0010 (ID w ładunku, zadania idempotentne) · SR-API-06 | 1×1=1 Low | — |
@@ -366,7 +366,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W3 = 6 High → 2 × 2 = 4 Medium (RR-13).
 - **Mitygacje:** SR-FILE-09 (eksport ZIP mediów z limitami, step-upem i e-mailem do Administratorów; eksport danych tylko Administrator — P6), SR-FILE-10 (limity podpisanych URL-i — P10), SR-API-02 (limit masowego odczytu — P10), SR-AUTHZ-06, SR-LOG-03.
 - **Wykrywanie:** alert „masowe pobrania” i „masowy odczyt” (P10), e-mail o każdym eksporcie.
-- **Weryfikacja:** integracyjne (limity i alerty), alerty testowe w EVM-007, E6. Wdrożone: limit i alert rekordów (EVM-017), alert „> 300 różnych klientów w 1 h” per użytkownik (EVM-039).
+- **Weryfikacja:** integracyjne (limity i alerty), alerty testowe w EVM-007, E6. Wdrożone: limit i alert rekordów (EVM-017), alert „> 300 różnych klientów w 1 h” per użytkownik (EVM-039); od EVM-072 licznik różnych klientów zasilają też lista (`GET`) i wyszukiwanie zleceń (klienci wymienieni w odpowiedzi; usunięty nie jest liczony, lokalizacje nie zasilają licznika).
 
 ### AB-09 — Replay kolejki offline i podszycie pod urządzenie (T9)
 - **Aktor:** TA-1, TA-2, TA-3. **Cel:** A-10, A-09.
@@ -446,7 +446,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W2 = 4 Medium → 1 × 1 = 1 Low.
 - **Mitygacje:** SR-API-04 (`POST …/search`, lint nazw parametrów), SR-LOG-02, SR-PRIV-09.
 - **Wykrywanie:** przegląd próbek logów przed wydaniem.
-- **Weryfikacja:** bramka lint kontraktu (EVM-008), E2, E3.
+- **Weryfikacja:** bramka lint kontraktu (EVM-008), E2, E3. Wdrożone w EVM-072 (`POST /api/v1/work-orders/search`): test integracyjny przechwytuje logger i metryki dla ścieżek 200, 400 i 429 (`work-orders-search.test.ts`), a panel nie trzyma frazy w URL, tytule karty ani w storage (test Playwright).
 
 ### AB-17 — Oszustwo na płatnościach (T7)
 - **Aktor:** TA-4. **Cel:** A-10, A-05.
@@ -466,7 +466,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W3 = 6 High → 1 × 3 = 3 Medium (RR-10).
 - **Mitygacje:** SR-INPUT-03, SR-INPUT-08, SR-API-02 (fraza 3–100 znaków, osobny limit wyszukiwania).
 - **Wykrywanie:** metryka czasu zapytań (p95), alert p95 > 1 s.
-- **Weryfikacja:** SAST (bramka), integracyjne z frazami brzegowymi, Schemathesis (E2, E3).
+- **Weryfikacja:** SAST (bramka), integracyjne z frazami brzegowymi, Schemathesis (E2, E3). Wyszukiwanie zleceń (EVM-072): fan-out trzech fasad (zlecenia, klienci, lokalizacje) ograniczony `LIMIT` 10 001 i kodem `too_broad` zwracanym przed zapytaniem o projekcję (ADR-0017 W6); wszystkie zapytania idą przez pulę aplikacji z `statement_timeout` 2 s; testy z `%`, `_`, `\` i odpowiednikami pełnej szerokości dopasowanymi literalnie; p95 < 300 ms na 10 000 zleceń z planem EXPLAIN trzech indeksów GIN (`work-orders-search-performance.test.ts`).
 
 ### AB-19 — IDOR przez historię lokalizacji (`siteId`, uwaga 5 z EVM-002)
 - **Aktor:** TA-4. **Cel:** A-04.

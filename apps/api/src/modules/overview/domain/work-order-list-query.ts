@@ -8,7 +8,7 @@
  * `nextDueDate`, `urgency`; `overdue`, `unpaid`) additively. The sort is a map from the enum to fixed columns — a value of
  * the request never becomes a column name.
  */
-import { zPartyKind, zWorkOrderSort, zWorkOrderStatus, zWorkOrderView, zWorkOrderWaitingOnFilter } from '@evia/contracts/zod';
+import { zPartyKind, zSiteType, zWorkOrderSort, zWorkOrderStatus, zWorkOrderView, zWorkOrderWaitingOnFilter } from '@evia/contracts/zod';
 import { z } from 'zod';
 
 export const WORK_ORDER_STATUSES = zWorkOrderStatus.options;
@@ -16,6 +16,7 @@ export type WorkOrderStatus = z.infer<typeof zWorkOrderStatus>;
 export type WorkOrderSort = z.infer<typeof zWorkOrderSort>;
 export type WorkOrderView = z.infer<typeof zWorkOrderView>;
 export type WaitingOnFilter = z.infer<typeof zWorkOrderWaitingOnFilter>;
+export type SiteType = z.infer<typeof zSiteType>;
 
 /** "Open" is every status but the closed ones (domain-model.md → WorkOrderStatus). */
 export const CLOSED_STATUSES: readonly WorkOrderStatus[] = ['settled', 'cancelled'];
@@ -63,6 +64,9 @@ const listQueryShape = {
   view: zWorkOrderView.optional(),
   coordinatorId: z.uuid().optional(),
   customerId: z.uuid().optional(),
+  // "Więcej filtrów" (EVM-072 AC4): the type of the site (a code) and the template the order came from (an identifier of the catalogue)
+  siteType: zSiteType.optional(),
+  templateId: z.uuid().optional(),
   // "Czekamy na…" (EVM-034 AC2): codes and a number only — never an identifier of a party or a name (SR-API-04)
   waitingOn: zWorkOrderWaitingOnFilter.optional(),
   waitingOnPartyKind: zPartyKind.optional(),
@@ -103,6 +107,9 @@ export interface WorkOrderListQuery {
   readonly coordinatorId: string | undefined;
   /** the history of one customer (EVM-039, W-14): a filter like the others, under the same read policy */
   readonly customerId: string | undefined;
+  /** "Więcej filtrów" (EVM-072): the type of the site and the template of the order — codes and a catalogue identifier, never personal data */
+  readonly siteType: SiteType | undefined;
+  readonly templateId: string | undefined;
   /** "Czekamy na…": who is waited for; `party` when only a kind is named */
   readonly waitingOn: WaitingOnFilter | undefined;
   readonly waitingOnPartyKind: string | undefined;
@@ -117,6 +124,8 @@ export const resolveWorkOrderListQuery = workOrderListQuerySchema.transform((que
   view: query.view,
   coordinatorId: query.coordinatorId,
   customerId: query.customerId,
+  siteType: query.siteType,
+  templateId: query.templateId,
   waitingOn: query.waitingOn ?? (query.waitingOnPartyKind === undefined ? undefined : 'party'),
   waitingOnPartyKind: query.waitingOnPartyKind,
   waitingLongerThanDays: query.waitingLongerThanDays,
@@ -132,6 +141,8 @@ export const filterPartsOf = (query: WorkOrderListQuery): string[] => [
   query.statuses.join(','),
   query.coordinatorId ?? '',
   query.customerId ?? '',
+  query.siteType ?? '',
+  query.templateId ?? '',
   query.waitingOn ?? '',
   query.waitingOnPartyKind ?? '',
   query.waitingLongerThanDays === undefined ? '' : String(query.waitingLongerThanDays),

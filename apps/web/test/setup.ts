@@ -2,6 +2,7 @@
 import { cleanup, configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { clearActivationToken } from '../src/activation/activation-token.ts';
+import { clearWorkOrderSearch } from '../src/search/work-order-search-store.ts';
 import { setCsrfToken } from '../src/session/csrf.ts';
 
 // findBy*/waitFor wait up to 1 s by default; on the shared CI runner (many workers at once) debounced searches need longer. A passing test is not slowed down.
@@ -9,9 +10,10 @@ configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {
   cleanup();
-  // Memory of the tab (token of a link, CSRF token) never leaks between tests.
+  // Memory of the tab (token of a link, CSRF token, the phrase of the search) never leaks between tests.
   clearActivationToken();
   setCsrfToken(null);
+  clearWorkOrderSearch();
 });
 
 if (typeof HTMLDialogElement !== 'undefined' && typeof HTMLDialogElement.prototype.showModal !== 'function') {

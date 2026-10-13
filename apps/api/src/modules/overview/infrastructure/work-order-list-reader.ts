@@ -36,6 +36,9 @@ export interface WorkOrderRow {
   readonly status: WorkOrderStatus;
   readonly createdAt: Date;
   readonly coordinatorUserId: string | null;
+  /** keys only — the name and the address come from `customers` and `sites` in batches, under the policy of the caller (W1, W5) */
+  readonly customerId: string | null;
+  readonly siteId: string | null;
   readonly waitingCount: number;
   /** `YYYY-MM-DD` */
   readonly longestWaitingSince: string | null;
@@ -68,6 +71,29 @@ const hasMatchingWait = (condition: WaitCondition, today: string) => (eb: Expres
   return eb.exists(waits);
 };
 
+/**
+ * The identifiers a search phrase matched, per source (EVM-072; ADR-0017 W1): the orders whose number or title matched, the customers and
+ * the sites. They only NARROW the page — the read policy of work orders stays in the query next to them (W2). Empty sets are left out
+ * of the predicate (all three empty is `false`); each set is ONE array parameter (`= ANY($n::uuid[])`), however many identifiers it holds.
+ */
+export interface SearchIdSets {
+  readonly workOrders: readonly string[];
+  readonly customers: readonly string[];
+  readonly sites: readonly string[];
+}
+
+const matchesAny = (sets: SearchIdSets) => {
+  const alternatives: Expression<SqlBool>[] = [];
+  if (sets.workOrders.length > 0)
+    alternatives.push(sql<SqlBool>`${sql.ref('overview.work_order_summaries.work_order_id')} = any(${[...sets.workOrders]}::uuid[])`);
+  if (sets.customers.length > 0)
+    alternatives.push(sql<SqlBool>`${sql.ref('overview.work_order_summaries.customer_id')} = any(${[...sets.customers]}::uuid[])`);
+  if (sets.sites.length > 0)
+    alternatives.push(sql<SqlBool>`${sql.ref('overview.work_order_summaries.site_id')} = any(${[...sets.sites]}::uuid[])`);
+  // nothing matched anywhere: no order can match, and the statement says so (it never has an empty `()`)
+  return alternatives.length === 0 ? sql<SqlBool>`false` : sql<SqlBool>`(${sql.join(alternatives, sql` or `)})`;
+};
+
 /** The date of a sort as an expression: an order without it gets `infinity` and comes last. */
 const dayKey = (key: 'longestWaitingSince' | 'nextDueDate'): Expression<string> =>
   key === 'longestWaitingSince'
@@ -75,6 +101,7 @@ const dayKey = (key: 'longestWaitingSince' | 'nextDueDate'): Expression<string> 
     : sql<string>`coalesce(${sql.ref('overview.work_order_summaries.next_due_date')}, 'infinity'::date)`;
 
 /**
+ * @param narrowing the identifiers a phrase matched in the three modules (EVM-072): an ADDITIONAL condition, ANDed with the read policy
  * @param today the day (`YYYY-MM-DD`, `Europe/Warsaw`) every comparison of the query uses: the clock of the first page, `asOf` of the cursor after
  * @returns at most `query.limit + 1` rows in the order of the sort
  */
@@ -84,6 +111,7 @@ export async function readWorkOrderPage(
   query: WorkOrderListQuery,
   position: Position | undefined,
   today: string,
+  narrowing?: SearchIdSets,
 ): Promise<WorkOrderRow[]> {
   const rule = SORT_RULES[query.sort];
   const descending = rule.direction === 'desc';
@@ -95,6 +123,8 @@ export async function readWorkOrderPage(
       `${SUMMARIES}.status as status`,
       `${SUMMARIES}.created_at as createdAt`,
       `${SUMMARIES}.coordinator_user_id as coordinatorUserId`,
+      `${SUMMARIES}.customer_id as customerId`,
+      `${SUMMARIES}.site_id as siteId`,
       `${SUMMARIES}.waiting_count as waitingCount`,
       sql<string | null>`to_char(${sql.ref('overview.work_order_summaries.longest_waiting_since')}, 'YYYY-MM-DD')`.as(
         'longestWaitingSince',
@@ -115,6 +145,9 @@ export async function readWorkOrderPage(
   }
   if (query.coordinatorId !== undefined) select = select.where(`${SUMMARIES}.coordinator_user_id`, '=', query.coordinatorId);
   if (query.customerId !== undefined) select = select.where(`${SUMMARIES}.customer_id`, '=', query.customerId);
+  if (query.siteType !== undefined) select = select.where(`${SUMMARIES}.site_type`, '=', query.siteType);
+  if (query.templateId !== undefined) select = select.where(`${SUMMARIES}.source_template_id`, '=', query.templateId);
+  if (narrowing !== undefined) select = select.where(matchesAny(narrowing));
   if (query.waitingOn !== undefined || query.waitingOnPartyKind !== undefined || query.waitingLongerThanDays !== undefined) {
     select = select.where(
       hasMatchingWait(

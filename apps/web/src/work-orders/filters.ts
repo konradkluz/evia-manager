@@ -1,4 +1,4 @@
-import type { ListWorkOrdersData, PartyKind, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
+import type { ListWorkOrdersData, PartyKind, SiteType, WorkOrderSearchRequest, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 
@@ -60,6 +60,17 @@ export interface WorkOrderFilters {
   readonly waitingOn: WaitingTarget;
   /** "dłużej niż [X] dni", 1–365; meaningful only with `waitingOn`. */
   readonly waitingDays: number;
+  /**
+   * "Typ obiektu" and "Szablon" of "Więcej filtrów" (EVM-072 AC4): codes and identifiers of the catalogue, kept only in the memory
+   * of the tab (the address stays free of them, § 3.7). `''` — the filter is off.
+   */
+  readonly siteType: SiteType | '';
+  readonly templateId: string;
+  /**
+   * The text of the search field as typed (EVM-072 AC2): memory of the tab only, sent in the body of `POST …/search` and never in
+   * the address. Whether it is long enough to be sent is the page's decision (`phraseState`).
+   */
+  readonly phrase: string;
 }
 
 export const DEFAULT_SORT: WorkOrderSort = '-number';
@@ -70,6 +81,9 @@ export const NO_FILTERS: WorkOrderFilters = {
   sort: DEFAULT_SORT,
   waitingOn: '',
   waitingDays: DEFAULT_WAITING_DAYS,
+  siteType: '',
+  templateId: '',
+  phrase: '',
 };
 
 const isStatus = (value: string): value is WorkOrderStatus => Object.hasOwn(workOrderStatusLabels, value);
@@ -148,7 +162,23 @@ export function searchOf(
 
 /** Something narrower than "Wszystkie niezamknięte" is chosen ("Wyczyść filtry" has something to clear). */
 export const isFiltered = (filters: WorkOrderFilters): boolean =>
-  filters.view !== 'all_open' || filters.statuses.length > 0 || filters.coordinatorId !== '' || filters.waitingOn !== '';
+  filters.view !== 'all_open' ||
+  filters.statuses.length > 0 ||
+  filters.coordinatorId !== '' ||
+  filters.waitingOn !== '' ||
+  filters.siteType !== '' ||
+  filters.templateId !== '' ||
+  filters.phrase !== '';
+
+/** How many filters of the panel "Więcej filtrów" are on ("Więcej filtrów (2)"). */
+export const moreFiltersCount = (filters: Pick<WorkOrderFilters, 'siteType' | 'templateId'>): number =>
+  (filters.siteType === '' ? 0 : 1) + (filters.templateId === '' ? 0 : 1);
+
+/** The two filters that are not part of the address and are cleared with "Wyczyść te filtry". */
+const moreFiltersOf = (filters: WorkOrderFilters) => ({
+  ...(filters.siteType === '' ? {} : { siteType: filters.siteType }),
+  ...(filters.templateId === '' ? {} : { templateId: filters.templateId }),
+});
 
 /**
  * "Czekamy na" of the query: `customer`; `party` for any party; a kind of party is `party` with `waitingOnPartyKind` (the API
@@ -169,7 +199,29 @@ export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): 
     ...(filters.view === 'all_open' || filters.view === 'mine' || filters.view === DSO_VIEW ? { view: filters.view } : {}),
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
+    ...moreFiltersOf(filters),
     ...waitingQuery(filters),
+    ...(cursor === undefined ? {} : { cursor }),
+  };
+}
+
+/**
+ * The body of `searchWorkOrders` (EVM-072 AC2, AC3): the phrase `phrase` (already normalised and long enough — the caller decides)
+ * and the same filters as the list, the cursor in the body. Nothing of it goes to the address.
+ */
+export function toSearchBody(filters: WorkOrderFilters, phrase: string, cursor: string | undefined): WorkOrderSearchRequest {
+  const { waitingOn, waitingOnPartyKind, waitingLongerThanDays } = waitingQuery(filters);
+  return {
+    query: phrase,
+    limit: PAGE_SIZE,
+    sort: filters.sort,
+    ...(filters.view === 'all_open' || filters.view === 'mine' || filters.view === DSO_VIEW ? { view: filters.view } : {}),
+    ...(filters.statuses.length === 0 ? {} : { status: [...filters.statuses] }),
+    ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
+    ...moreFiltersOf(filters),
+    ...(waitingOn === undefined ? {} : { waitingOn }),
+    ...(waitingOnPartyKind === undefined ? {} : { waitingOnPartyKind }),
+    ...(waitingLongerThanDays === undefined ? {} : { waitingLongerThanDays }),
     ...(cursor === undefined ? {} : { cursor }),
   };
 }

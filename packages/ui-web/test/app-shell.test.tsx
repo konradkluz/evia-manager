@@ -25,6 +25,34 @@ function shell(
   );
 }
 
+describe('AppShell — search of the TopBar (styleguide § 3.17; EVM-072 AC2)', () => {
+  it('EVM-072 AC2 the TopBar holds the search from breakpoint.medium, before the account menu', async () => {
+    render(
+      <AppShell
+        brand="EVia Manager"
+        labels={LABELS}
+        navigation={NAVIGATION}
+        search={<input aria-label="Szukaj zleceń…" type="search" />}
+        account={<button type="button">Konto</button>}
+      >
+        <h1>Zlecenia</h1>
+      </AppShell>,
+    );
+    const field = screen.getByRole('searchbox', { name: 'Szukaj zleceń…' });
+    const bar = screen.getByRole('banner');
+    expect(within(bar).getByRole('searchbox')).toBe(field);
+    const holder = field.parentElement as HTMLElement;
+    expect(holder.className).toMatch(/(^| )hidden( |$)/);
+    expect(holder.className).toContain('medium:block');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
+  it('EVM-072 AC2 without a search the TopBar has none', () => {
+    shell();
+    expect(screen.queryByRole('searchbox')).toBeNull();
+  });
+});
+
 describe('AppShell — Sidebar, TopBar, skip link and navigation drawer (styleguide § 3.17; EVM-008 AC3)', () => {
   it('EVM-008 AC3 shell has landmarks header, nav and main, one navigation item "Zlecenia" marked as the current page', async () => {
     shell();

@@ -4,6 +4,7 @@
  * that is not in the contract (`created_by`, `deleted_by`) cannot leak into a response (SR-DATA-03).
  */
 import { sql } from 'kysely';
+import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
@@ -290,4 +291,20 @@ export async function findVisibleTitles(db: WorkOrdersDb, principal: Principal, 
     .where(visibleWorkOrders(principal))
     .execute();
   return new Map(rows.map((row) => [row.id, row.title]));
+}
+
+/**
+ * The identifiers of the orders whose search text (the number and the title) contains the phrase (see `searchTextMatches`), under the
+ * read policy IN the query (EVM-072). The caller asks for one row more than it will accept; the order is not defined (it only
+ * narrows the page of `overview`, which sorts and cuts it by itself).
+ */
+export async function searchVisibleIds(db: WorkOrdersDb, principal: Principal, term: string, limit: number): Promise<string[]> {
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select('id')
+    .where(visibleWorkOrders(principal))
+    .where(searchTextMatches(term))
+    .limit(limit)
+    .execute();
+  return rows.map((row) => row.id);
 }

@@ -3,9 +3,9 @@ import { Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
-import { findVisibleSiteCard, findVisibleSiteSummary } from '../infrastructure/site-store.ts';
+import { findVisibleSiteCard, findVisibleSiteLines, findVisibleSiteSummary, searchVisibleSiteIds } from '../infrastructure/site-store.ts';
 import { siteTables } from '../infrastructure/tables.ts';
-import type { SiteCard, SiteDirectory, SiteSummary } from '../site-directory.ts';
+import type { SiteCard, SiteDirectory, SiteLine, SiteSummary } from '../site-directory.ts';
 
 @Injectable()
 export class SiteDirectoryService implements SiteDirectory {
@@ -44,5 +44,14 @@ export class SiteDirectoryService implements SiteDirectory {
       distributionSystemOperatorPartyId: row.distribution_system_operator_party_id,
       managerPartyId: row.manager_party_id,
     };
+  }
+
+  searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]> {
+    return searchVisibleSiteIds(siteTables(tx), principal, term, limit);
+  }
+
+  async linesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, SiteLine>> {
+    const rows = await findVisibleSiteLines(siteTables(tx), principal, ids);
+    return new Map(rows.map((row) => [row.id, { id: row.id, city: row.city, street: row.street, buildingNumber: row.building_number }]));
   }
 }

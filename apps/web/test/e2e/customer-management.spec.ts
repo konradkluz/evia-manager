@@ -152,7 +152,8 @@ test.describe('W-14 the list of customers (EVM-039 AC1)', () => {
     await context.setOffline(true);
     await expect(page.getByText(/Dane mogą być nieaktualne \(z \d{2}:\d{2}\)/)).toBeVisible();
     await expect(page.getByRole('searchbox', { name: 'Szukaj klientów' })).toHaveAttribute('aria-disabled', 'true');
-    await expect(page.getByText('Wyszukasz po powrocie połączenia.')).toBeVisible();
+    // The TopBar search says the same under its own field: the reason is the one tied to the field of the customers.
+    await expect(page.getByRole('searchbox', { name: 'Szukaj klientów' })).toHaveAccessibleDescription('Wyszukasz po powrocie połączenia.');
     await expect(page.getByRole('button', { name: 'Następna strona' })).toHaveAttribute('aria-disabled', 'true');
     await expect(names(page)).toHaveCount(2);
     await context.setOffline(false);

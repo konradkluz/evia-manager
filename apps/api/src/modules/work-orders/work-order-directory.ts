@@ -32,4 +32,9 @@ export interface WorkOrderDirectory {
    * of `overview` shows nothing for an order this answer leaves out (fail closed, ADR-0017 W2).
    */
   titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  /**
+   * The identifiers of the orders the caller may see whose number or title contains the (normalised) phrase — at most `limit`, the
+   * read policy of work orders IN the query (EVM-072). Only a narrowing for the search of `overview`, never a source of permission.
+   */
+  searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]>;
 }

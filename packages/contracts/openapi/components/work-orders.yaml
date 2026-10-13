@@ -1,5 +1,5 @@
-# Module `work-orders` — the list of work orders (EVM-017; W-10). The list item carries only what the table shows: no customer, no
-# site, no description (they arrive with the stories that own them, additively). `title` is free text and may name a customer —
+# Module `work-orders` — the list of work orders (EVM-017; W-10). The list item carries only what the table shows: the customer name and
+# the address without postal code (EVM-072), no description (they arrive with the stories that own them, additively). `title` is free text and may name a customer —
 # it never reaches a URL, a log or a metric. The coordinator is `{id, displayName}` only (SR-DATA-03): no e-mail, role or account status.
 WorkOrderStatus:
   type: string
@@ -157,6 +157,117 @@ WorkOrderListItem:
     hasOverdueStage:
       type: boolean
       description: '`true`, gdy najbliższy termin niezakończonego etapu jest wcześniejszy niż dziś (`Europe/Warsaw`; liczy serwer).'
+    customer:
+      description: >-
+        Klient zlecenia (EVM-072; pole tylko do odczytu, serwer zawsze je zwraca): `{id, displayName}`, `{deleted: true}` dla
+        klienta usuniętego albo niewidocznego (bez identyfikatora i nazwy, TM-18 — panel pokazuje „Klient usunięty” bez linku)
+        albo `null`, gdy zlecenie nie ma klienta.
+      oneOf:
+        - $ref: '#/WorkOrderListCustomer'
+        - $ref: '#/WorkOrderListCustomerDeleted'
+        - type: 'null'
+    site:
+      description: >-
+        Lokalizacja zlecenia (EVM-072; tylko do odczytu): miasto, ulica i numer budynku — bez kodu pocztowego, numeru lokalu i
+        miejsca postojowego (SR-DATA-03). `null`, gdy zlecenie nie ma lokalizacji albo lokalizacja jest niewidoczna.
+      oneOf:
+        - $ref: '#/WorkOrderListSite'
+        - type: 'null'
+WorkOrderListCustomer:
+  type: object
+  description: Klient na liście zleceń — identyfikator i nazwa wyświetlana (bez telefonu, e-maila, NIP i adresu, SR-DATA-03).
+  required: [id, displayName]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 401
+WorkOrderListCustomerDeleted:
+  type: object
+  description: Klient usunięty (albo niewidoczny dla wołającego) — bez identyfikatora i nazwy.
+  required: [deleted]
+  additionalProperties: false
+  properties:
+    deleted:
+      type: boolean
+      enum: [true]
+WorkOrderListSite:
+  type: object
+  description: Lokalizacja na liście zleceń — miasto, ulica i numer budynku (bez kodu pocztowego i numeru lokalu, SR-DATA-03).
+  required: [id, city, street, buildingNumber]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    city:
+      type: string
+      maxLength: 100
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+WorkOrderSearchRequest:
+  type: object
+  description: >-
+    Fraza wyszukiwania w treści (nigdy w adresie URL, SR-API-04) i filtry listy. Serwer normalizuje frazę do NFC, przycina ją i
+    wymaga 3–100 znaków (`400 validation_failed`: `too_short`, `too_long`, `invalid_characters`). Pozostałe pola mają to samo
+    znaczenie co parametry `listWorkOrders` (łączą się przez AND); `status` jest tablicą kodów. `cursor` jest związany z frazą,
+    filtrami i użytkownikiem (zmiana frazy zaczyna od pierwszej strony); użyty z inną frazą, wygasły albo cudzy — `400 invalid_cursor`.
+  required: [query]
+  properties:
+    query:
+      type: string
+      maxLength: 200
+    status:
+      type: array
+      maxItems: 20
+      items:
+        $ref: '#/WorkOrderStatus'
+    view:
+      $ref: '#/WorkOrderView'
+    coordinatorId:
+      type: string
+      format: uuid
+      maxLength: 36
+    customerId:
+      type: string
+      format: uuid
+      maxLength: 36
+    siteType:
+      $ref: catalog.yaml#/SiteType
+    templateId:
+      type: string
+      format: uuid
+      maxLength: 36
+    waitingOn:
+      $ref: '#/WorkOrderWaitingOnFilter'
+    waitingOnPartyKind:
+      $ref: catalog.yaml#/PartyKind
+    waitingLongerThanDays:
+      type: integer
+      minimum: 1
+      maximum: 365
+    sort:
+      $ref: '#/WorkOrderSort'
+    limit:
+      type: integer
+      description: Liczba pozycji na stronie (domyślnie 25).
+      minimum: 1
+      maximum: 100
+      default: 25
+    cursor:
+      type: string
+      description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.
+      maxLength: 512
+      pattern: '^[A-Za-z0-9_-]+$'
 WorkOrderList:
   type: object
   required: [items, nextCursor]

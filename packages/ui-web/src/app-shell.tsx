@@ -21,6 +21,8 @@ export interface AppShellProps {
   readonly labels: AppShellLabels;
   /** E.g. the offline banner (§ 4.10), shown above the content. */
   readonly banner?: ReactNode;
+  /** Search of the TopBar (§ 3.17; from `breakpoint.medium` — the narrow bar has no room for it): a `SearchField` with `labelHidden`. */
+  readonly search?: ReactNode;
   /** Account menu at the end of the TopBar (shown once there is a session, E1). */
   readonly account?: ReactNode;
   readonly linkComponent?: LinkComponent | undefined;
@@ -32,7 +34,7 @@ export interface AppShellProps {
  * breakpoint.medium, hidden below) → TopBar (size.app-bar.height.web, without search and account before E1; "Menu"
  * opening the drawer below breakpoint.medium) → banner → main (grid margins per breakpoint).
  */
-export function AppShell({ brand, navigation, labels, banner, account, linkComponent = PlainLink, children }: AppShellProps) {
+export function AppShell({ brand, navigation, labels, banner, search, account, linkComponent = PlainLink, children }: AppShellProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
 
@@ -76,6 +78,7 @@ export function AppShell({ brand, navigation, labels, banner, account, linkCompo
             className="shrink-0 medium:hidden"
           />
           <p className="expanded:hidden text-label-lg font-semibold">{brand}</p>
+          {search ? <div className="hidden medium:block flex-1 min-w-0 max-w-form-max-width">{search}</div> : null}
           {account ? <div className="ms-auto">{account}</div> : null}
         </header>
         {banner}

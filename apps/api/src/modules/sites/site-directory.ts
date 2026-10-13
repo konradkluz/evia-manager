@@ -46,9 +46,24 @@ export interface SiteCard {
   readonly managerPartyId: string | null;
 }
 
+/** The line of a site on the list of work orders (EVM-072): the city, the street and the building number only. */
+export interface SiteLine {
+  readonly id: string;
+  readonly city: string;
+  readonly street: string;
+  readonly buildingNumber: string;
+}
+
 export interface SiteDirectory {
   /** @returns the site when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<SiteSummary | undefined>;
   /** @returns the card of the site when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<SiteCard | undefined>;
+  /**
+   * The identifiers of the sites the caller may see whose address or parking spot contains the (normalised) phrase — at most `limit`,
+   * the read policy of sites IN the query (EVM-072; the same rules as `searchSites`).
+   */
+  searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]>;
+  /** The line (city, street, building number) of every site among `ids` that the caller may see (ONE query); the others are absent. */
+  linesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, SiteLine>>;
 }

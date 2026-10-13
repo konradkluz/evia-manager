@@ -1,8 +1,9 @@
 import type { WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
-import { Button, FilterChip, Select, TextField, type SelectGroup, type SelectOption } from '@evia/ui-web';
+import { Button, FilterChip, SearchField, Select, TextField, type SelectGroup, type SelectOption } from '@evia/ui-web';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { partyKindLabels } from '../i18n/catalog-labels.ts';
+import { partyKindLabels, siteTypeLabels } from '../i18n/catalog-labels.ts';
+import { phraseState } from '../search/use-phrase-search.ts';
 import { workOrderSortLabels, workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { useDebounced } from '../shell/use-debounced.ts';
 import {
@@ -15,6 +16,8 @@ import {
   type WaitingTarget,
   type WorkOrderFilters,
 } from './filters.ts';
+import { useTemplates } from './use-order-lookups.ts';
+import { WorkOrderMoreFilters } from './work-order-more-filters.tsx';
 
 export interface WorkOrderFilterBarProps {
   readonly filters: WorkOrderFilters;
@@ -43,10 +46,22 @@ const KIND_ORDER = Object.keys(partyKindLabels) as Array<keyof typeof partyKindL
  * a pause in typing; a value out of the range is told and not sent), and the saved view "Czekamy na OSD > 14 dni". The address
  * carries only the kind of party and X, or the identifier of the view. The view and the filter exclude each other: choosing
  * one takes the other away (the view already is "OSD, 14 days").
+ *
+ * EVM-072 AC2, AC4: the search field (the phrase is in `filters.phrase`, the memory of the tab; shorter than 3 characters it is
+ * never sent) and the panel "Więcej filtrów" ("Typ obiektu", "Szablon" — also memory of the tab). Offline the field is disabled and
+ * says "Wyszukasz po powrocie połączenia.".
  */
 export function WorkOrderFilterBar({ filters, people, disabled, onChange }: WorkOrderFilterBarProps) {
   const { t } = useTranslation();
   const hint = disabled ? t('workOrders.filters.offlineHint') : undefined;
+  const [moreOpen, setMoreOpen] = useState(false);
+  const templates = useTemplates(filters.templateId !== '');
+  const phrase = phraseState(filters.phrase);
+  const searchHint = disabled
+    ? t('workOrders.search.offlineHint')
+    : phrase === 'long'
+      ? t('workOrders.search.hintLong')
+      : t('workOrders.search.hint');
   const select = (view: ViewId) => {
     // "Wszystkie niezamknięte" and a closed status exclude each other; the view takes the statuses back to "all".
     // The view "Czekamy na OSD > 14 dni" is a "Czekamy na" filter itself: the filter of the bar is taken away.
@@ -123,8 +138,34 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
       clear: { coordinatorId: '' },
     });
   }
+  if (filters.siteType !== '') {
+    chips.push({
+      key: 'site-type',
+      label: t('workOrders.filters.chipSiteType', { value: siteTypeLabels[filters.siteType] }),
+      clear: { siteType: '' },
+    });
+  }
+  if (filters.templateId !== '') {
+    chips.push({
+      key: 'template',
+      label: t('workOrders.filters.chipTemplate', {
+        value: templates.data?.find((template) => template.id === filters.templateId)?.name ?? '',
+      }),
+      clear: { templateId: '' },
+    });
+  }
   return (
     <section aria-label={t('workOrders.filters.label')} className="flex flex-col gap-stack-md p-inset-md rounded-card bg-bg-surface-subtle">
+      <SearchField
+        label={t('workOrders.search.label')}
+        value={filters.phrase}
+        hint={searchHint}
+        clearLabel={t('workOrders.search.clear')}
+        disabled={disabled}
+        onChange={(phraseText) => {
+          onChange({ ...filters, phrase: phraseText });
+        }}
+      />
       <div role="group" aria-label={t('workOrders.filters.views')} className="flex flex-wrap items-center gap-inline-sm">
         <FilterChip
           variant="choice"
@@ -211,6 +252,16 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
           }}
         />
       </div>
+      <WorkOrderMoreFilters
+        siteType={filters.siteType}
+        templateId={filters.templateId}
+        open={moreOpen}
+        disabled={disabled}
+        onOpenChange={setMoreOpen}
+        onChange={(more) => {
+          onChange({ ...filters, ...more });
+        }}
+      />
       {chips.length === 0 && !isFiltered(filters) ? null : (
         <div role="group" aria-label={t('workOrders.filters.active')} className="flex flex-wrap items-center gap-inline-sm">
           {chips.map((chip) => (

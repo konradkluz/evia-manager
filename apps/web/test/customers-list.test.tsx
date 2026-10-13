@@ -189,7 +189,7 @@ describe('W-14 the list (EVM-039 AC1)', () => {
     await screen.findByRole('link', { name: /Przykładowy 2 Jan/ });
     await userEvent.click(screen.getByRole('button', { name: 'Wyczyść frazę' }));
     expect(await screen.findByRole('link', { name: /Przykładowy 1 Jan/ })).toBeTruthy();
-    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('');
+    expect(screen.getByRole<HTMLInputElement>('searchbox', { name: 'Szukaj klientów' }).value).toBe('');
   });
 
   it('EVM-039 AC1 names are shown as text only — markup in them is not interpreted', async () => {
@@ -267,7 +267,7 @@ describe('W-14 the states of the list (EVM-039 AC8)', () => {
     await screen.findByRole('table');
     await userEvent.type(screen.getByRole('searchbox', { name: 'Szukaj klientów' }), 'Przy');
     expect((await screen.findByRole('alert')).textContent).toContain('Zbyt wiele zapytań. Spróbuj ponownie za 2 min.');
-    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('Przy');
+    expect(screen.getByRole<HTMLInputElement>('searchbox', { name: 'Szukaj klientów' }).value).toBe('Przy');
     limited = false;
     await userEvent.click(screen.getByRole('button', { name: 'Spróbuj ponownie' }));
     expect(await screen.findByRole('link', { name: /Przykładowy 9 Jan/ })).toBeTruthy();
@@ -309,7 +309,8 @@ describe('W-14 the states of the list (EVM-039 AC8)', () => {
     expect(screen.getByRole('table')).toBeTruthy();
     const field = screen.getByRole('searchbox', { name: 'Szukaj klientów' });
     expect(field.getAttribute('aria-disabled')).toBe('true');
-    expect(screen.getByText('Wyszukasz po powrocie połączenia.')).toBeTruthy();
+    // The TopBar search says the same under its own field: the hint is the one tied to the field of the customers.
+    expect(document.getElementById(field.getAttribute('aria-describedby') ?? '')?.textContent).toBe('Wyszukasz po powrocie połączenia.');
     expect(screen.getByRole('button', { name: 'Następna strona' }).getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Brak połączenia — strony są niedostępne.')).toBeTruthy();
     const before = api.calls(LIST).length;

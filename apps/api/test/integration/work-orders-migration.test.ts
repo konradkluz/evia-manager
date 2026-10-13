@@ -58,6 +58,8 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
       'status_changed_at',
       'closed_at',
       'completed_on',
+      // the search text of EVM-072 (migration 0025; generated)
+      'search_text',
     ]);
     expect(columns('work_order_assignments')).toEqual(['id', 'work_order_id', 'user_id', 'role', ...common]);
     expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([
@@ -172,5 +174,36 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
     await expect(sql`delete from work_orders.work_orders where number = 'ZL-2026-9401'`.execute(app)).rejects.toMatchObject({
       code: '42501',
     });
+  });
+});
+
+describe('migration 0025 — the search text of a work order (EVM-072; ADR-0017 W1; expand only)', () => {
+  it('EVM-072 AC2 search_text is a generated column that follows the title: unaccented, lower case, number and title', async () => {
+    const { rows } = await sql<{ id: string }>`insert into work_orders.work_orders (number, title, status, created_at, updated_at)
+      values ('ZL-2026-0042', 'Garaż — pełny', 'new', ${T}, ${T}) returning id`.execute(admin());
+    const id = rows[0]?.id ?? '';
+    const read = async () =>
+      (await sql<{ search_text: string }>`select search_text from work_orders.work_orders where id = ${id}`.execute(admin())).rows[0]
+        ?.search_text;
+    expect(await read()).toBe('zl-2026-0042 garaz - pelny');
+    await sql`update work_orders.work_orders set title = 'Łódź, ładowarka' where id = ${id}`.execute(admin());
+    // the database lower-cases by its own locale; unaccent folds the rest — the search compares with ILIKE, so case does not matter
+    expect(await read()).toMatch(/^zl-2026-0042 lodz, ladowarka$/i);
+  });
+
+  it('EVM-072 AC2 the column is never written by the application role (generated always) and the application role reads it', async () => {
+    await fails(
+      sql`insert into work_orders.work_orders (number, title, status, search_text, created_at, updated_at)
+          values ('ZL-2026-9501', 'x', 'new', 'forged', ${T}, ${T})`.execute(app),
+      '428C9',
+    );
+    const { rows } = await sql<{ n: string }>`select count(search_text)::text as n from work_orders.work_orders`.execute(app);
+    expect(Number(rows[0]?.n)).toBeGreaterThan(0);
+  });
+
+  it('EVM-072 AC6 the trigram index is GIN and partial on deleted_at is null', async () => {
+    const { rows } = await sql<{ indexdef: string }>`
+      select indexdef from pg_indexes where schemaname = 'work_orders' and indexname = 'work_orders_search_text_trgm_idx'`.execute(admin());
+    expect(rows[0]?.indexdef).toMatch(/USING gin \(search_text .*gin_trgm_ops\) WHERE \(deleted_at IS NULL\)/);
   });
 });

@@ -193,6 +193,16 @@ function represent(server: OrderServer, created: MockCreatedOrder) {
 }
 
 /** The items of W-10 for the orders created so far (newest first). */
+function customerOf(server: OrderServer, id: string) {
+  const customer = server.customers.find((entry) => entry.id === id);
+  return customer === undefined ? null : { id: customer.id, displayName: customer.displayName };
+}
+
+function siteBodyOf(server: OrderServer, id: string) {
+  const site = server.sites.find((entry) => entry.id === id);
+  return site === undefined ? null : { id: site.id, city: site.city, street: site.street, buildingNumber: site.buildingNumber };
+}
+
 /** The orders created in this run, newest first; with `customerId` only the orders of that customer (EVM-039 "Historia zleceń"). */
 export function createdListItems(server: OrderServer, customerId?: string) {
   return server.created
@@ -204,6 +214,9 @@ export function createdListItems(server: OrderServer, customerId?: string) {
       status: stateOf(server, created.id).status,
       coordinator: server.assignable.find((entry) => entry.id === created.assigneeUserId) ?? null,
       createdAt: new Date().toISOString(),
+      // EVM-072: the customer and the location of the order (the address without the postal code and the apartment).
+      customer: customerOf(server, created.customerId),
+      site: siteBodyOf(server, created.siteId),
     }))
     .toReversed();
 }

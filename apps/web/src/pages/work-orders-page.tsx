@@ -1,4 +1,4 @@
-import { listWorkOrders, type CurrentSession, type WorkOrderListItem, type WorkOrderSort } from '@evia/contracts';
+import { listWorkOrders, searchWorkOrders, type CurrentSession, type WorkOrderListItem, type WorkOrderSort } from '@evia/contracts';
 import {
   Banner,
   Button,
@@ -19,7 +19,10 @@ import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
 import { NEW_WORK_ORDER_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { phraseOf, phraseState } from '../search/use-phrase-search.ts';
+import { setWorkOrderMoreFilters, setWorkOrderPhrase, useWorkOrderSearch } from '../search/work-order-search-store.ts';
 import { SESSION_KEY } from '../session/session.ts';
+import { useDebounced } from '../shell/use-debounced.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 import {
@@ -31,6 +34,7 @@ import {
   searchOf,
   statusesOf,
   toQuery,
+  toSearchBody,
   viewOf,
   waitingDaysOf,
   waitingOnOf,
@@ -46,8 +50,20 @@ import { retryMinutes } from './login-failure.tsx';
 /** After this long a load is called slow (styleguide § 4.12; the story: "po 10 s"). */
 const SLOW_MS = 10_000;
 
+/** The search starts when the typing pauses; the API allows 60 searches a minute per person (EVM-072 AC5). */
+const SEARCH_DELAY_MS = 300;
+
 /** The server did not accept the cursor (changed list, expired, other filters): `invalid_cursor`. */
 const isBadCursor = (error: unknown): boolean => error instanceof ApiError && error.status === 400 && error.code === 'invalid_cursor';
+
+/** A `400 validation_failed` on the phrase: which of the codes the server gave (`too_broad`, `invalid_characters`; no value is echoed). */
+const phraseProblem = (error: unknown): 'too_broad' | 'invalid_characters' | null => {
+  if (!(error instanceof ApiError) || error.status !== 400) return null;
+  for (const entry of error.errors) {
+    if (entry.code === 'too_broad' || entry.code === 'invalid_characters') return entry.code;
+  }
+  return null;
+};
 
 /** The filters that live only in the memory of the tab. */
 interface LocalFilters {
@@ -66,6 +82,11 @@ interface LoadedPage {
  * `status` and `view` and — for "Czekamy na" (EVM-034) — the kind of party and the number of days; the coordinator, the sort
  * order, the cursors and the last loaded page live in the memory of the tab (titles are free text — SR-WEB-05); the tab title
  * stays "Zlecenia · EVia Manager". The server decides who sees what.
+ *
+ * EVM-072: the phrase of the search (this page and the TopBar share it through a store of the tab's memory), "Typ obiektu" and
+ * "Szablon" narrow the same list. A phrase of 3–100 characters goes — after a pause in typing — in the body of
+ * `POST /api/v1/work-orders/search` with the cursor and the filters; a shorter one is never sent and the plain list stays. The
+ * answer is not kept once it is not shown (`gcTime: 0`); the phrase is in no address, title or store of the browser.
  */
 export function WorkOrdersPage() {
   const { t } = useTranslation();
@@ -90,7 +111,7 @@ export function WorkOrdersPage() {
   const [notice, setNotice] = useState<'reset' | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
-  const moved = useRef<'next' | 'previous' | null>(null);
+  const moved = useRef<'next' | 'previous' | 'search' | null>(null);
 
   const view = viewOf(search);
   const statuses = statusesOf(search);
@@ -98,23 +119,49 @@ export function WorkOrdersPage() {
   const waitingDays = waitingDaysOf(search);
   const addressKey = JSON.stringify([view, statuses, waitingOn, waitingDays]);
   const { coordinatorId, sort } = pending !== null && pending.key === addressKey ? pending.values : local;
-  const filters: WorkOrderFilters = { view, statuses, coordinatorId, sort, waitingOn, waitingDays };
+  // The phrase and the filters of the panel come from the memory of the tab (the TopBar writes there too).
+  const stored = useWorkOrderSearch();
+  const typed = phraseOf(stored.phrase);
+  const settledPhrase = useDebounced(typed, SEARCH_DELAY_MS);
+  const searching = phraseState(stored.phrase) === 'ok';
+  // The phrase the query is made for: one that is too short or too long is never sent (the plain list stays).
+  const activePhrase = searching ? settledPhrase : '';
+  const waitingForPause = searching && settledPhrase !== typed;
+  const filters: WorkOrderFilters = {
+    view,
+    statuses,
+    coordinatorId,
+    sort,
+    waitingOn,
+    waitingDays,
+    siteType: stored.siteType,
+    templateId: stored.templateId,
+    phrase: stored.phrase,
+  };
+  // What the server is asked for: the same filters with the phrase that is actually sent.
+  const asked: WorkOrderFilters = { ...filters, phrase: activePhrase };
   const filterKey = JSON.stringify([
-    filters.view,
-    filters.statuses,
-    filters.coordinatorId,
-    filters.sort,
-    filters.waitingOn,
-    filters.waitingDays,
+    asked.view,
+    asked.statuses,
+    asked.coordinatorId,
+    asked.sort,
+    asked.waitingOn,
+    asked.waitingDays,
+    asked.siteType,
+    asked.templateId,
+    asked.phrase,
   ]);
   const cursors = paging.key === filterKey ? paging.cursors : [];
   const cursor = cursors.at(-1);
 
   const query = useQuery({
-    queryKey: [WORK_ORDERS_KEY, filters, cursor ?? null],
-    queryFn: ({ signal }) => unwrap(listWorkOrders({ client, signal, query: toQuery(filters, cursor) })),
+    queryKey: [WORK_ORDERS_KEY, asked, cursor ?? null],
+    queryFn: ({ signal }) =>
+      activePhrase === ''
+        ? unwrap(listWorkOrders({ client, signal, query: toQuery(asked, cursor) }))
+        : unwrap(searchWorkOrders({ client, signal, body: toSearchBody(asked, activePhrase, cursor) })),
     // Only an active session reads the list: during the hand-over to W-03 (`mfa_enrollment`) the page may still be mounted for a moment.
-    enabled: view !== 'unknown' && sessionState === 'active',
+    enabled: view !== 'unknown' && sessionState === 'active' && !waitingForPause,
     retry: false,
     // Titles are free text: the page does not stay in the cache after it is left (SR-WEB-05); logout and `401` clear it as well.
     gcTime: 0,
@@ -140,9 +187,12 @@ export function WorkOrdersPage() {
   // After a change of page the focus goes to the heading of the list and the change is announced (WCAG 2.4.3, 4.1.3).
   useEffect(() => {
     if (data === undefined || moved.current === null) return;
-    setAnnouncement(moved.current === 'next' ? t('workOrders.pages.loadedNext') : t('workOrders.pages.loadedPrevious'));
+    if (moved.current === 'search') setAnnouncement(t('workOrders.search.loaded'));
+    else {
+      setAnnouncement(moved.current === 'next' ? t('workOrders.pages.loadedNext') : t('workOrders.pages.loadedPrevious'));
+      heading.current?.focus();
+    }
     moved.current = null;
-    heading.current?.focus();
   }, [data, t]);
 
   // The address has changed to the one a pending change waits for: the change becomes the state of the page.
@@ -168,11 +218,15 @@ export function WorkOrdersPage() {
   }, [online]);
 
   const change = (changed: WorkOrderFilters) => {
-    moved.current = null;
+    // A new phrase is announced when its results arrive; the focus stays in the field (WCAG 4.1.3).
+    moved.current = changed.phrase !== filters.phrase && phraseState(changed.phrase) === 'ok' ? 'search' : null;
     setNotice(null);
     // X means something only with a "Czekamy na" filter: without one the address does not carry it and the default stands.
     const next = changed.waitingOn === '' ? { ...changed, waitingDays: DEFAULT_WAITING_DAYS } : changed;
     const values = { coordinatorId: next.coordinatorId, sort: next.sort };
+    // The phrase and the filters of the panel are memory of the tab, shared with the TopBar (never the address).
+    setWorkOrderPhrase(next.phrase);
+    setWorkOrderMoreFilters({ siteType: next.siteType, templateId: next.templateId });
     const nextKey = JSON.stringify([next.view, next.statuses, next.waitingOn, next.waitingDays]);
     if (nextKey === addressKey) {
       setPending(null);
@@ -233,8 +287,9 @@ export function WorkOrdersPage() {
 
   const offlineCopy = !online && lastPage !== null ? lastPage : null;
   const rateLimited = error instanceof ApiError && error.status === 429;
-  const items = offlineCopy?.items ?? data?.items;
-  const failed = error !== null && !badCursor && offlineCopy === null;
+  const items = offlineCopy?.items ?? (waitingForPause ? undefined : data?.items);
+  const failed = error !== null && !badCursor && offlineCopy === null && !waitingForPause;
+  const problem = phraseProblem(error);
 
   return (
     <div className="flex flex-col gap-stack-md">
@@ -246,7 +301,11 @@ export function WorkOrdersPage() {
       {notice === 'reset' ? <InlineAlert tone="info">{t('workOrders.error.cursorReset')}</InlineAlert> : null}
       {offlineCopy === null ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(offlineCopy.at) })}</Banner>}
       {failed ? (
-        rateLimited ? (
+        problem !== null ? (
+          <InlineAlert tone="info">
+            {problem === 'too_broad' ? t('workOrders.error.tooBroad') : t('workOrders.error.invalidPhrase')}
+          </InlineAlert>
+        ) : rateLimited ? (
           <InlineAlert
             tone="error"
             action={
@@ -268,9 +327,9 @@ export function WorkOrdersPage() {
       ) : items === undefined ? (
         <Loading />
       ) : items.length === 0 ? (
-        onlyDsoView(filters) ? (
+        onlyDsoView(asked) ? (
           <EmptyState icon={CircleCheck} title={t('workOrders.dsoEmpty.title')} description={t('workOrders.dsoEmpty.description')} />
-        ) : isFiltered(filters) ? (
+        ) : isFiltered(asked) ? (
           <EmptyState
             icon={ClipboardList}
             title={t('workOrders.filteredEmpty.title')}
@@ -350,4 +409,10 @@ function Loading() {
 
 /** The saved view "Czekamy na OSD > 14 dni" with nothing narrower: an empty list is good news (EVM-034 AC3). */
 const onlyDsoView = (filters: WorkOrderFilters): boolean =>
-  filters.view === DSO_VIEW && filters.statuses.length === 0 && filters.coordinatorId === '' && filters.waitingOn === '';
+  filters.view === DSO_VIEW &&
+  filters.statuses.length === 0 &&
+  filters.coordinatorId === '' &&
+  filters.waitingOn === '' &&
+  filters.siteType === '' &&
+  filters.templateId === '' &&
+  filters.phrase === '';

@@ -4,11 +4,12 @@ title: Wyszukiwanie zleceń, klient i lokalizacja na liście
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-018]
 ---
 
@@ -84,21 +85,45 @@ Jako **pracownik biura** chcę **znaleźć zlecenie po numerze, tytule, nazwisku
 - **Uwaga po EVM-034 (2026-10-13):** `POST /api/v1/work-orders/search` nie istnieje — w EVM-034 przeniesiono do modułu `overview` tylko `GET` listy. Wyszukiwanie powstaje w `overview` na projekcji `work_order_summaries` (polityka odczytu przez `workOrderReadCondition`, kursor z `asOf`, limity i licznik masowego odczytu P10 jak w liście).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Szczegóły i uzasadnienia: sekcja „Decyzje” poniżej. Skrót:
+1. **Kontrakt (najpierw):** `searchWorkOrders` (`POST /api/v1/work-orders/search`, treść ścisła, `x-evia-authz` A/E/R, `web`); `listWorkOrders` — addytywnie `siteType`, `templateId`; `WorkOrderListItem` — addytywnie `customer`, `site`.
+2. **Migracja `0025` (expand):** kolumna generowana `work_orders.search_text` + indeks GIN `gin_trgm_ops` częściowy na `deleted_at IS NULL`.
+3. **Fasady:** `WorkOrderDirectory.searchIds`, `CustomerDirectory.searchIds` / `displayNamesOf`, `SiteDirectory.searchIds` / `linesOf` — każda pod własną polityką odczytu; zbiory jako jeden parametr `uuid[]`.
+4. **`overview`:** wspólny `WorkOrderPageService` dla listy i wyszukiwania (jedna ścieżka budowy elementu), `SearchWorkOrdersService` (limiter → walidacja → kursor → P10 `before` → fasady → `too_broad` → strona → `after` / `afterDistinct`), kontroler `POST`.
+5. **Testy:** AC → `work-orders-list-customer-site.test.ts` (AC1, AC4), `work-orders-search.test.ts` (AC2, AC3, AC5, AC7), `work-orders-distinct-customers.test.ts` (P10), `work-orders-search-performance.test.ts` (AC6), `search-directories.test.ts`, `work-orders-migration.test.ts`; jednostkowe w `test/overview/`.
 
 ## Decyzje
-_—_
+- **D1 — brak kopii danych osobowych do projekcji (ADR-0017 W1, W6).** Wyszukiwanie to trzy zbiory identyfikatorów z fasad (zlecenia, klienci, lokalizacje) + `= ANY(uuid[])` w zapytaniu strony obok `workOrderReadCondition`; zbiory tylko zawężają. Projekcja używa istniejących kolumn `customer_id`, `site_id`, `site_type`, `source_template_id` — bez zmian i bez `rebuild`. `rodo.md`: nowe miejsce przechowywania danych nie powstaje (kolumna generowana w tej samej tabeli `work_orders`, klasa jak `title`; nadąża za zmianą i redakcją tytułu).
+- **D2 — `search_text` zlecenia** (numer + tytuł) jest własnością `work-orders` (migracja `0025`, kolumna generowana).
+- **D3 — klienci:** wyszukiwanie obejmuje to samo co `searchCustomers` (nazwisko, firma, NIP, cyfry telefonu, e-mail, miasto).
+- **D4 — `too_broad`:** ponad 10 000 identyfikatorów z fasady → `400 validation_failed`, `/query`, `too_broad` — przed zapytaniem o projekcję (ADR-0017 W6).
+- **D5 — licznik różnych klientów (P10):** lista (`GET`) i wyszukiwanie zasilają go klientami wymienionymi w odpowiedzi; lokalizacje nie.
+- **D6 — filtry `siteType` / `templateId`** także w `GET` (AC4 — lista bez frazy); w adresie panelu ich nie ma (pamięć karty).
+- **D7 — minimalizacja (security-engineer P1):** `site` na liście to `{ id, city, street, buildingNumber }` — bez kodu pocztowego i numeru lokalu (flows/07 „bez kodu pocztowego i miejsca postojowego”); pole można dodać później addytywnie.
+- **D8 — „Klient usunięty” (security-engineer P2):** `customer` rozróżnia trzy stany: `{ id, displayName }`, `{ deleted: true }` (klient usunięty lub niewidoczny — bez `id` i nazwy) i `null` (zlecenie bez klienta); stan z braku wyniku `displayNamesOf` pod polityką klientów. Usunięty klient nie jest znajdowany po nazwisku, zlecenie — po numerze; lokalizacja zostaje.
+- **D9 — kursor wyszukiwania:** osobny identyfikator operacji `searchWorkOrders`; fraza tylko jako skrót w `scope`.
 
 ## Uwagi do rozważenia
-_—_
+- (minor) `WorkOrderSearchRequest` bez `additionalProperties: false` (api-guidelines l. 244) — dopisać z kolejną zmianą kontraktu.
+- (minor) D5: licznik różnych klientów P10 zasilany także zwykłym `GET` — ~13 stron listy w godzinę może dać alert `bulk_read_customers`; ocenić próg przy EVM-007/monitoringu.
+- (minor) fraza z ≥ 3 cyfr (np. „0042”) jest przez fasadę klientów traktowana też jako cyfry telefonu — szersze trafienia niż sam numer zlecenia.
+- (nit) zdublowane stałe `SEARCH_DELAY_MS` w panelu; niepokryte pojedyncze gałęzie (serwis wyszukiwania, TopBar, tabela).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-072 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-072 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-017 planu wstępnego)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (8 AC i 3 recenzentów wykluczają lekką), gałąź feature/EVM-072-wyszukiwanie-zlecen
+- 2026-10-13 — plan gotowy (backend-developer)
+- 2026-10-13 — implementacja backendu (backend-developer): kontrakt, migracja `0025`, fasady, `POST /work-orders/search`, `customer` i `site` na liście, testy AC1–AC7; panel — krok web-developera
+- 2026-10-13 — panel (web-developer): wyszukiwanie w W-10 i TopBar (fraza tylko w pamięci karty, `POST` z `gcTime: 0`), kolumny „Klient” i „Lokalizacja”, „Więcej filtrów”, stany AC8; testy Vitest i Playwright (Chromium, Firefox), zrzuty w `docs/ux/reviews/EVM-072/`
+- 2026-10-13 — przegląd (2 rundy): runda 1 — code-reviewer i security-engineer approve, ux-designer changes_required (1 major); runda 2 — approve, blocker/major: 0
+- 2026-10-13 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 99,6% / gałęzie 97,5%; pełne e2e Chromium + Firefox: 684 passed, 14 skipped, 0 failed; poprawione drobne braki dokumentacji (rodo.md: search_text zlecenia; martwe odwołanie do .scratch)
+- 2026-10-13 — Koszt: brak rozbicia w $; agenci workflow 11 wywołań, ok. 1,43 mln tokenów subagentów, 492 wywołania narzędzi, ok. 1,8 h; rundy 2; ścieżka pelna; vs ostatnie: EVM-034 2,99 mln, EVM-035 1,94 mln, EVM-037 1,55 mln — poniżej średniej dla nowego endpointu z UI
+- 2026-10-13 — in-progress → in-review: czeka na demo i akceptację Konrada

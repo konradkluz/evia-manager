@@ -32,6 +32,8 @@ export interface WorkOrderSpec {
   /** the customer and the site of the order (EVM-018) — ids of rows inserted by the customer and site fixtures */
   readonly customerId?: string;
   readonly siteId?: string;
+  /** the template the order was created from (EVM-072: the filter "Szablon") — an id of the seeded catalogue */
+  readonly sourceTemplateId?: string;
   /** the active coordinator (a user id) */
   readonly coordinatorId?: string;
   /** a coordinator assignment that was ended (soft deleted) — the order has no active coordinator through it */
@@ -64,6 +66,7 @@ export async function insertWorkOrders(db: Kysely<Database>, specs: readonly Wor
             status: spec.status ?? 'new',
             customer_id: spec.customerId ?? null,
             site_id: spec.siteId ?? null,
+            source_template_id: spec.sourceTemplateId ?? null,
             created_at: createdAt,
             created_by: null,
             updated_at: createdAt,
