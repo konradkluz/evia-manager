@@ -52,6 +52,24 @@ afterEach(() => {
   clearActivationToken();
 });
 
+describe('W-12 / W-13 footer "Prywatność · Pomoc" (EVM-063 AC1; WCAG 3.2.6)', () => {
+  it('EVM-063 AC1 the form and the invalid-link state have the footer with fixed anchors and no token in the links', async () => {
+    const { api } = anonymousApi();
+    await openForm(api);
+    const footer = screen.getByRole('navigation', { name: 'Prywatność i pomoc' });
+    expect(within(footer).getByRole('link', { name: 'Prywatność' }).getAttribute('href')).toBe('/privacy#prywatnosc');
+    expect(within(footer).getByRole('link', { name: 'Pomoc' }).getAttribute('href')).toBe('/privacy#pomoc');
+    expect(footer.innerHTML).not.toContain(TOKEN);
+  });
+
+  it('EVM-063 AC1 a visit without a token (invalid link) has the footer too', async () => {
+    openLink(null);
+    await renderPanel('/activate', anonymousApi().api, { heading: false });
+    await screen.findByRole('heading', { level: 1, name: 'Link jest nieważny lub wygasł.' });
+    expect(screen.getByRole('navigation', { name: 'Prywatność i pomoc' })).toBeTruthy();
+  });
+});
+
 describe('W-13 Ustaw hasło: link check (EVM-016 AC5; flows/11)', () => {
   it('EVM-016 AC5 while the link is checked the page shows "Sprawdzamy link…" and a skeleton, no e-mail and no role', async () => {
     openLink();

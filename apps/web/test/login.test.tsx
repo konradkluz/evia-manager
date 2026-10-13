@@ -237,7 +237,8 @@ describe('W-01 Zaloguj się (EVM-067 AC1-AC3, AC8; flows/01)', () => {
       'Sesja wygasła. Zaloguj się ponownie w tej karcie — niezapisane zmiany przywrócimy, jeśli zalogujesz się na to samo konto.',
     );
     expect(document.title).toBe('Logowanie · EVia Manager');
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // W-01 has no navigation of the panel: its only landmark of this kind is the footer "Prywatność · Pomoc" (EVM-063 AC1)
+    expect(screen.getAllByRole('navigation').map((landmark) => landmark.getAttribute('aria-label'))).toEqual(['Prywatność i pomoc']);
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 

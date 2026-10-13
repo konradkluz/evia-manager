@@ -13,6 +13,7 @@ import { wrongOriginText } from './login-failure.tsx';
 import { LOGIN_PATH, MFA_SETUP_PATH } from '../paths.ts';
 import { setCsrfToken } from '../session/csrf.ts';
 import { SESSION_KEY, sessionQueryOptions, useSession } from '../session/session.ts';
+import { AuthFooter } from '../shell/auth-footer.tsx';
 import { AuthLayout } from '../shell/auth-layout.tsx';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
@@ -227,7 +228,7 @@ export function ActivationPage() {
       </Card>
     );
   }
-  return <AuthLayout>{content}</AuthLayout>;
+  return <AuthLayout footer={<AuthFooter />}>{content}</AuthLayout>;
 }
 
 interface ActivationFormProps {

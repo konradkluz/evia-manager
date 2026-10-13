@@ -19,7 +19,8 @@ describe('session gate (EVM-016 AC4, AC6; SR-AUTH-06)', () => {
     const { history } = await renderPanel('/work-orders', api);
     expect(history.location.pathname).toBe('/login');
     expect(screen.getByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // W-01 has no navigation of the panel: its only landmark of this kind is the footer "Prywatność · Pomoc" (EVM-063 AC1)
+    expect(screen.getAllByRole('navigation').map((landmark) => landmark.getAttribute('aria-label'))).toEqual(['Prywatność i pomoc']);
     expect(screen.queryByText('Zlecenia')).toBeNull();
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
@@ -60,7 +61,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     expect(trigger.textContent).toBe('Anna Testowa');
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     await openAccountMenu();
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Wyloguj']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Prywatność i pomoc', 'Wyloguj']);
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 
@@ -73,6 +74,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     const user = userEvent.setup();
     screen.getByRole('button', { name: 'Konto: Anna Testowa' }).focus();
     await user.keyboard('{Enter}');
+    await user.keyboard('{ArrowDown}');
     await user.keyboard('{Enter}');
     expect(await screen.findByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(history.location.pathname).toBe('/login');

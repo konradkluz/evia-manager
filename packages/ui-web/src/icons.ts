@@ -4,6 +4,7 @@
  */
 export {
   AlarmClock,
+  ArrowLeft,
   Ban,
   Banknote,
   Calculator,

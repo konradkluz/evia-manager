@@ -9,13 +9,26 @@ import { ErrorState } from './error-state.tsx';
 import { PanelShell } from './panel-shell.tsx';
 import { SessionExpiryWarning } from './session-expiry-warning.tsx';
 
+/** The session is being read: a status text and a skeleton, no layout of the panel and no data yet. */
+export function SessionLoading() {
+  const { t } = useTranslation();
+  return (
+    <div aria-busy="true" className="flex flex-col gap-stack-md p-inset-lg">
+      <p role="status" className="text-body text-text-secondary">
+        {t('shell.loading')}
+      </p>
+      <Skeleton />
+      <Skeleton className="w-1/2" />
+    </div>
+  );
+}
+
 /**
  * Everything but the public pages sits behind the session (AC4, SR-AUTH-06): no session → login; `mfa_enrollment` →
  * W-03 on every address; an active session → the panel (and W-03 leads back to it). The server authorizes every
  * operation anyway — this only decides what the tab shows.
  */
 export function SessionGate() {
-  const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const search = useRouterState({ select: (state) => state.location.searchStr });
   const session = useSession();
@@ -27,17 +40,7 @@ export function SessionGate() {
     const returnTo = resolveReturnTo(`${pathname}${search}`, globalThis.location.origin);
     return <Navigate to={LOGIN_PATH} replace {...(returnTo === DEFAULT_RETURN_TO ? {} : { search: { returnTo } })} />;
   }
-  if (session.isPending) {
-    return (
-      <div aria-busy="true" className="flex flex-col gap-stack-md p-inset-lg">
-        <p role="status" className="text-body text-text-secondary">
-          {t('shell.loading')}
-        </p>
-        <Skeleton />
-        <Skeleton className="w-1/2" />
-      </div>
-    );
-  }
+  if (session.isPending) return <SessionLoading />;
   // P-11 sits on every screen after logging in, W-03 included (an enrolment session expires like any other).
   const warning = <SessionExpiryWarning session={session.data} />;
   if (session.data.state === 'mfa_enrollment') {

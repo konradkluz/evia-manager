@@ -11,6 +11,7 @@ import { completeLogin } from '../session/complete-login.ts';
 import { useOpenPath } from '../session/open-path.ts';
 import { getLoginNotice, setLoginFlow, subscribeLoginFlow } from '../session/login-flow.ts';
 import { resolveReturnTo } from '../session/return-to.ts';
+import { AuthFooter } from '../shell/auth-footer.tsx';
 import { AuthLayout } from '../shell/auth-layout.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
@@ -82,7 +83,7 @@ export function LoginPage() {
   };
 
   return (
-    <AuthLayout>
+    <AuthLayout footer={<AuthFooter />}>
       <Card labelledBy={heading}>
         <h1 id={heading} className="text-heading-2">
           {t('login.title')}
