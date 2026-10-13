@@ -3,6 +3,7 @@
  * condition of the query, never a filter of the result (SR-AUTHZ-03).
  */
 import { sql } from 'kysely';
+import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { NewCustomer } from '../domain/customer.ts';
 import { visibleCustomers } from './read-policy.ts';
@@ -145,4 +146,36 @@ export function updateCustomerRow(
     .where('deleted_at', 'is', null)
     .returning(COLUMNS)
     .executeTakeFirst();
+}
+
+/**
+ * The identifiers of the customers whose search text contains the phrase (see `searchTextMatches`), under the read policy IN the
+ * query (EVM-072): the work-order search narrows by them, so the policy of customers decides here — the same as for
+ * `searchCustomers` — and a customer the caller may not see can never make an order findable (no oracle, CWE-203).
+ */
+export async function searchVisibleCustomerIds(db: CustomersDb, principal: Principal, term: string, limit: number): Promise<string[]> {
+  const rows = await db
+    .selectFrom('customers.customers')
+    .select('id')
+    .where(visibleCustomers(principal))
+    .where(searchTextMatches(term))
+    .limit(limit)
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/** The display names of the customers among `ids` that the caller may see (ONE query, ONE array parameter; the others are absent). */
+export async function findVisibleCustomerNames(
+  db: CustomersDb,
+  principal: Principal,
+  ids: readonly string[],
+): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('customers.customers')
+    .select(['id', 'display_name'])
+    .where(sql<boolean>`id = any(${[...ids]}::uuid[])`)
+    .where(visibleCustomers(principal))
+    .execute();
+  return new Map(rows.map((row) => [row.id, row.display_name]));
 }

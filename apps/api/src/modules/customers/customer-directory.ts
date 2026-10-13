@@ -28,4 +28,11 @@ export interface CustomerDirectory {
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined>;
   /** @returns the card of the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined>;
+  /**
+   * The identifiers of the customers the caller may see whose name, company, tax id, telephone digits, e-mail or city contains the
+   * (normalised) phrase — at most `limit`, the read policy of customers IN the query (EVM-072; the same rules as `searchCustomers`).
+   */
+  searchIds(tx: Kysely<Database>, principal: Principal, phrase: string, limit: number): Promise<string[]>;
+  /** The display name of every customer among `ids` that the caller may see (ONE query); the others are absent — a deleted one too. */
+  displayNamesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }

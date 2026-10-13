@@ -5,7 +5,7 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { CLOSED_STATUSES } from '../domain/work-order-status.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { findVisibleTitles, findVisibleWorkOrderRef } from '../infrastructure/work-order-store.ts';
+import { findVisibleTitles, findVisibleWorkOrderRef, searchVisibleIds } from '../infrastructure/work-order-store.ts';
 import type { WorkOrderDirectory, WorkOrderRef } from '../work-order-directory.ts';
 
 @Injectable()
@@ -20,6 +20,10 @@ export class WorkOrderDirectoryService implements WorkOrderDirectory {
 
   titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
     return findVisibleTitles(workOrderTables(tx), principal, [...new Set(ids)]);
+  }
+
+  searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]> {
+    return searchVisibleIds(workOrderTables(tx), principal, term, limit);
   }
 
   async #find(tx: Kysely<Database>, principal: Principal, id: string, lock: boolean): Promise<WorkOrderRef | undefined> {

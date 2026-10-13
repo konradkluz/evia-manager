@@ -199,3 +199,32 @@ export function findVisibleSiteCard(db: SitesDb, principal: Principal, id: strin
     .where(visibleSites(principal))
     .executeTakeFirst();
 }
+
+/**
+ * The identifiers of the sites whose search text (the address and the parking spot) contains the phrase, under the read policy IN the
+ * query (EVM-072): the work-order search narrows by them, so the policy of sites decides here, like for `searchSites`.
+ */
+export async function searchVisibleSiteIds(db: SitesDb, principal: Principal, term: string, limit: number): Promise<string[]> {
+  const rows = await db
+    .selectFrom('sites.sites')
+    .select('id')
+    .where(visibleSites(principal))
+    .where(searchTextMatches(term))
+    .limit(limit)
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/**
+ * The city, the street and the building number of the sites among `ids` that the caller may see (ONE query, ONE array parameter):
+ * the line of the list of work orders — no postal code, no apartment, no spot (SR-DATA-03, data minimisation).
+ */
+export function findVisibleSiteLines(db: SitesDb, principal: Principal, ids: readonly string[]) {
+  if (ids.length === 0) return Promise.resolve([]);
+  return db
+    .selectFrom('sites.sites')
+    .select(['id', 'city', 'street', 'building_number'])
+    .where(sql<boolean>`id = any(${[...ids]}::uuid[])`)
+    .where(visibleSites(principal))
+    .execute();
+}
