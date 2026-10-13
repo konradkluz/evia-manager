@@ -81,6 +81,8 @@ Jako **pracownik biura** chcę **znaleźć zlecenie po numerze, tytule, nazwisku
 - Moduły: `work-orders` (+ fasady `customers`, `sites`) + panel. Wartości filtrów — rozszerzenie enumów z EVM-017 (addytywnie).
 - Test „Lodz” → „Łódź” obowiązkowy. Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
+- **Uwaga po EVM-034 (2026-10-13):** `POST /api/v1/work-orders/search` nie istnieje — w EVM-034 przeniesiono do modułu `overview` tylko `GET` listy. Wyszukiwanie powstaje w `overview` na projekcji `work_order_summaries` (polityka odczytu przez `workOrderReadCondition`, kursor z `asOf`, limity i licznik masowego odczytu P10 jak w liście).
+
 ## Plan techniczny
 _Uzupełnia wykonawca przed implementacją._
 
