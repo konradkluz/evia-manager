@@ -4,7 +4,7 @@ title: Ograniczenie zużycia minut GitHub Actions
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P0
 path: lekka
 owner: devops-engineer
@@ -78,3 +78,4 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 ## Dziennik
 - 2026-10-13 — utworzono (product-owner, podział EVM-007 wg ADR-0018); okres raportu Billing potwierdzony (01–13.10), priorytet P0 wg koordynatora
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
+- 2026-10-13 — ready → in-progress: start `/deliver` (ścieżka lekka, gałąź `feature/EVM-083-minuty-actions`)
