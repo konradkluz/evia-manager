@@ -4,11 +4,12 @@ title: Prywatność i pomoc w panelu — klauzule informacyjne
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: ready
+status: in-progress
 priority: P1
 owner: web-developer
 contributors: [security-engineer, ux-designer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
 depends_on: [EVM-067, EVM-071]
 ---
 
@@ -70,7 +71,7 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- **Decyzja Konrada 2026-10-13 (start):** dane administratora (decyzja 9: nazwa, forma prawna, NIP/REGON/KRS lub CEIDG, adres, kontakt) wchodzą jako jawne znaczniki „[DO UZUPEŁNIENIA]” w jednym miejscu (plik treści), do uzupełnienia przed produkcją bez zmian w kodzie; punkty `[PRAWNIK/IOD]` zostają świadomie oznaczone (AC2).
 
 ## Uwagi do rozważenia
 _—_
@@ -87,3 +88,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): odnośnik do instrukcji przeniesiony do EVM-066 (AC3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 10 (b); liczba AC bez zmian): AC2 — klauzula „pracowników i pracy na prywatnym telefonie (BYOD)” zamiast „pracowników” (ustalenie A5 `security-engineer` w EVM-071; makieta W-19 — panel w przeglądarce prywatnego telefonu, decyzja 19)
+- 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (3 recenzentów wykluczają lekką; dane osobowe i UI), gałąź feature/EVM-063-prywatnosc-i-pomoc; decyzja o danych administratora zapisana w „Decyzjach”
