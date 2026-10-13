@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-progress
+status: blocked
 priority: P1
 path: pelna
 owner: backend-developer
@@ -96,6 +96,12 @@ _Uzupełnia wykonawca przed implementacją._
 ## Decyzje
 - 2026-10-13 — Konrad zaakceptował (rekomendacje P1–P7 z `/refine` EVM-053): P2 — zmiana kwoty transzy innej niż „Planowana” zwraca `403 forbidden` dla Edytora (AC5) i `403 step_up_required` dla Administratora bez step-upu (EVM-057); `409 invalid_state_transition` zostaje dla przejść spoza tabeli (AC7); P4 — zdarzenia `PaymentMilestone` dopina EVM-056, więc zapisy transz idą przez wspólny punkt z EVM-053; P6 — `model: opus`.
 
+- **2026-10-14 — pytania do Konrada (potok nocny `wf_7c4c9ec8-c62` zatrzymany na planie; plan w `.scratch/EVM-054/plan.md`, poza repo):**
+  - **Q1 (blokuje, AC5):** AC5 wymaga `403` z API, gdy Edytor usuwa transzę, ale operacji usunięcia w API nie ma (soft delete = korekta Administratora ze step-upem, EVM-057) — bez trasy jest `404`. Rekomendacja: w EVM-054 dodać do kontraktu `DELETE …/payment-milestones/{milestoneId}` (`deletePaymentMilestone`, `roles [administrator]`, `channels [web]`, `stepUp: true`, `audit: true`) — Edytor i Tylko odczyt `403 forbidden`, Administrator bez step-upu `403 step_up_required`, Administrator ze step-upem do EVM-057 `403 forbidden`; skutek usunięcia dopisuje EVM-057. Alternatywa: AC5 dla usunięcia tylko w UI (pozycja wyłączona), test API w EVM-057.
+  - **Q2 (rekomendacja, nie blokuje):** krawędzie korekty (wycofanie / anulowanie faktury, cofnięcie wpłaty, przywrócenie transzy, zmiana kwoty w „Wystawiona”/„Opłacona”) do EVM-057 — każda rola `403 forbidden` (deny-by-default jak zmiana kwoty w EVM-053); Administrator nie widzi pozycji korekt, u Edytora wyłączone z podpowiedzią (AC5).
+  - **Q3 (rekomendacje, nie blokują):** (a) data wystawienia faktury może być przyszła, zakres 2000-01-01…2100-12-31; (b) termin płatności ≥ data wystawienia, inaczej `400`; (c) transza dodana ręcznie nie ma dni terminu z planu — termin wymagany (`400 /dueDate`); (d) poprawki AC4 wg tabeli makiety: dane faktury tylko w „Wystawiona”, data wpłaty tylko w „Opłacona”, inaczej `409 invalid_state_transition`; (e) przyszła data wpłaty: PATCH `400 /paidOn in_future`, przejście `422 transition_condition_not_met` (makieta W-11 „Stany”).
+  - Ocena planu: potrzebny przegląd architekta (zależność `timeline → payments`, kolumny `audit.events.from_code`/`to_code`, nowe operacje) i specyfikacja UI dialogów „Wystaw fakturę…”, „Anuluj transzę…”, „Popraw dane faktury…”, „Popraw datę wpłaty…” i toastów (makiety ich nie opisują).
+
 ## Uwagi do rozważenia
 _—_
 
@@ -112,3 +118,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC7 — komunikat `412` wg makiety W-11 (tabela akcji płatności wspólna z W-06; forma bezosobowa z bieżącym statusem i „Odśwież”, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-054-faktura-wplata-anulowanie` ułożona na EVM-053 — PR #69 w przeglądzie; łańcuch nocny za zgodą Konrada)
+- 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — in-progress → blocked: plan zatrzymany na Q1 (operacja usunięcia transzy a AC5) — pytania Q1–Q3 w „Decyzje”; zależne EVM-055, EVM-056, EVM-057 pominięte w kolejce nocnej
