@@ -1456,6 +1456,9 @@ export const pl = {
       unknownAction: 'Nieznana akcja',
       unknownOutcome: 'Nieznany wynik',
       unknownObject: 'Nieznany obiekt',
+      amount: 'Kwota: {{amount}}',
+      amountChange: 'Kwota: {{before}} → {{after}}',
+      noAmount: 'bez kwoty',
     },
     pages: {
       label: 'Strony dziennika audytu',

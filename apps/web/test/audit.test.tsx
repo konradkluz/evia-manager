@@ -316,6 +316,48 @@ describe('W-18: the log (EVM-029 AC5, AC6)', () => {
     expect(table.querySelectorAll('svg[aria-hidden="true"]').length).toBeGreaterThanOrEqual(events.length);
   });
 
+  it('EVM-053 AC3 an event of an instalment shows the amount before and after (the exception of the audit for payments, SR-LOG-03)', async () => {
+    const OBJECT = '01968f3e-0000-7000-8000-0000000c0002';
+    const payments = [
+      event(11, {
+        action: 'payment_milestone.amount_changed',
+        objectType: 'payment_milestone',
+        objectId: OBJECT,
+        amountBefore: { amountMinor: 480000, currency: 'PLN' },
+        amountAfter: { amountMinor: 360000, currency: 'PLN' },
+      }),
+      event(12, {
+        action: 'payment_milestone.amount_changed',
+        objectType: 'payment_milestone',
+        objectId: OBJECT,
+        amountBefore: null,
+        amountAfter: { amountMinor: 150000, currency: 'PLN' },
+      }),
+      event(13, {
+        action: 'payment_milestone.created',
+        objectType: 'payment_milestone',
+        objectId: OBJECT,
+        amountAfter: { amountMinor: 99, currency: 'PLN' },
+      }),
+      event(14, { action: 'payment_milestone.cancelled', objectType: 'payment_milestone', objectId: OBJECT, amountAfter: null }),
+    ];
+    await renderPanel(AUDIT_PATH, auditApi([ok(payments)]));
+    const table = await screen.findByRole('table');
+    const actions = within(table)
+      .getAllByRole('row')
+      .slice(1)
+      // the amounts keep their non-breaking spaces (§ 6.3); compared here with plain ones
+      .map((row) => within(row).getAllByRole('cell')[2]?.textContent.replaceAll(String.fromCharCode(0xa0), ' '));
+    expect(actions).toEqual([
+      'Zmiana kwoty transzy płatnościKwota: 4 800,00 zł → 3 600,00 zł',
+      'Zmiana kwoty transzy płatnościKwota: bez kwoty → 1 500,00 zł',
+      'Dodanie transzy płatnościKwota: 0,99 zł',
+      'Anulowanie transzy płatności',
+    ]);
+    expect(within(table).getAllByText('Transza płatności')).toHaveLength(4);
+    expect(table.textContent).not.toMatch(/amount|PLN/);
+  });
+
   it('EVM-029 AC5 a value an older panel does not know is shown as "Nieznana …", never raw', async () => {
     await renderPanel(AUDIT_PATH, auditApi([ok(events)]));
     const table = await screen.findByRole('table');
