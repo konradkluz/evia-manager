@@ -36,6 +36,9 @@ AuditAction:
     - procedure_stage.updated
     - procedure_stage.transitioned
     - timeline_entry.created
+    - payment_milestone.created
+    - payment_milestone.amount_changed
+    - payment_milestone.cancelled
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -43,7 +46,7 @@ AuditOutcome:
 AuditObjectType:
   type: string
   description: Typ obiektu, którego dotyczy zdarzenie.
-  enum: [user, session, passkey, audit, work_order, scope_item, customer, site, party, procedure_stage, timeline_entry]
+  enum: [user, session, passkey, audit, work_order, scope_item, customer, site, party, procedure_stage, timeline_entry, payment_milestone]
 AuditReasonCode:
   type: string
   description: Kod powodu (zamknięta lista, bez wolnego tekstu).
@@ -117,6 +120,20 @@ AuditEvent:
       oneOf:
         - type: string
           maxLength: 43
+        - type: 'null'
+    amountBefore:
+      description: >-
+        Kwota transzy przed zmianą — wyjątek audytu dla płatności (EVM-053, SR-LOG-03): tylko akcje `payment_milestone.*`; `null`
+        (albo brak pola), gdy kwoty nie było albo zdarzenie nie dotyczy płatności.
+      oneOf:
+        - $ref: common.yaml#/Money
+        - type: 'null'
+    amountAfter:
+      description: >-
+        Kwota transzy po zmianie (przy utworzeniu — kwota podana; przy anulowaniu — kwota anulowanej transzy) — tylko akcje
+        `payment_milestone.*`; `null` (albo brak pola), gdy kwoty nie ma.
+      oneOf:
+        - $ref: common.yaml#/Money
         - type: 'null'
 AuditEventList:
   type: object

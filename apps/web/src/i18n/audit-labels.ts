@@ -39,6 +39,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'procedure_stage.updated': 'Zmiana etapu procesu (osoba odpowiedzialna, termin, na kogo czekamy)',
   'procedure_stage.transitioned': 'Zmiana statusu etapu procesu',
   'timeline_entry.created': 'Dodanie wpisu w dzienniku zlecenia',
+  'payment_milestone.created': 'Dodanie transzy płatności',
+  'payment_milestone.amount_changed': 'Zmiana kwoty transzy płatności',
+  'payment_milestone.cancelled': 'Anulowanie transzy płatności',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -64,6 +67,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   { label: 'Zakres zlecenia', actions: ['scope_item.created', 'scope_item.updated', 'scope_item.deleted'] },
   { label: 'Procesy i etapy', actions: ['procedure_stage.updated', 'procedure_stage.transitioned'] },
   { label: 'Dziennik zlecenia', actions: ['timeline_entry.created'] },
+  { label: 'Płatności', actions: ['payment_milestone.created', 'payment_milestone.amount_changed', 'payment_milestone.cancelled'] },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {
@@ -84,6 +88,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   party: 'Strona',
   procedure_stage: 'Etap procesu',
   timeline_entry: 'Wpis dziennika',
+  payment_milestone: 'Transza płatności',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */

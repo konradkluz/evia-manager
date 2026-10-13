@@ -426,7 +426,7 @@ TimelineConflict:
 LimitExceeded:
   description: >-
     Przekroczony limit obiektów podrzędnych (`limit_exceeded`, EVM-035: 50 aktywnych pozycji zakresu albo 30 procesów w zleceniu;
-    `errors[]` ma tylko wskaźnik i kod, bez wartości) albo ten sam klucz idempotencji z inną treścią, na innym zleceniu lub na innej
+    EVM-053: 20 transz płatności w zleceniu; `errors[]` ma tylko wskaźnik i kod, bez wartości) albo ten sam klucz idempotencji z inną treścią, na innym zleceniu lub na innej
     operacji (`idempotency_mismatch`).
   content:
     application/problem+json:
@@ -462,4 +462,41 @@ ScopeItemConflict:
         title: Identifier already in use
         status: 409
         code: id_conflict
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PaymentMilestoneConflict:
+  description: >-
+    Identyfikator zajęty (`id_conflict` — także identyfikator transzy innego zlecenia; bez danych istniejącego zasobu), zlecenie jest
+    zamknięte (`work_order_closed`: Rozliczone albo Anulowane — płatności tylko do odczytu, PO-8) albo żądanie z tym samym kluczem
+    idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie podaje statusu zlecenia ani kwot.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/work_order_closed
+        title: The work order is closed
+        status: 409
+        code: work_order_closed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PaymentMilestoneForbidden:
+  description: >-
+    Brak uprawnienia (`forbidden`: Tylko odczyt zawsze; Administrator i Edytor, gdy transza nie jest już „Planowana” — kwotę transzy
+    wystawionej albo opłaconej zmienia Administrator korektą płatności, EVM-057), nieudana kontrola CSRF (`csrf_failed`) albo konto bez
+    klucza dostępu (`mfa_enrollment_required`). Odpowiedź nie podaje statusu ani kwoty transzy.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/forbidden
+        title: Forbidden
+        status: 403
+        code: forbidden
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
