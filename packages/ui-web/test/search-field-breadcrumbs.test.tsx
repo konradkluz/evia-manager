@@ -60,6 +60,23 @@ describe('SearchField (styleguide § 3.7; EVM-039 AC1, AC8)', () => {
   });
 });
 
+describe('SearchField in the TopBar (styleguide § 3.17; EVM-072 AC2)', () => {
+  it('EVM-072 AC2 the TopBar variant keeps the label in the accessible name, hides it visually and repeats it as the placeholder', async () => {
+    render(<SearchField label="Szukaj zleceń…" value="" clearLabel="Wyczyść frazę" labelHidden onChange={vi.fn()} />);
+    const field = screen.getByRole('searchbox', { name: 'Szukaj zleceń…' });
+    expect(field.getAttribute('placeholder')).toBe('Szukaj zleceń…');
+    expect(field.getAttribute('autocomplete')).toBe('off');
+    expect(document.querySelector('label')?.className).toContain('sr-only');
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+
+  it('EVM-072 AC2 the default variant shows the label and has no placeholder', () => {
+    render(<Harness />);
+    expect(screen.getByRole('searchbox').getAttribute('placeholder')).toBeNull();
+    expect(document.querySelector('label')?.className).not.toContain('sr-only');
+  });
+});
+
 describe('Breadcrumbs (styleguide § 3.17; EVM-039 AC2)', () => {
   it('EVM-039 AC2 links all but the last item; the last one is the current page as plain text', async () => {
     render(<Breadcrumbs label="Okruszki" items={[{ label: 'Klienci', href: '/customers' }, { label: 'Szczegóły klienta' }]} />);

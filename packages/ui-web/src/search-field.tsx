@@ -12,6 +12,11 @@ export interface SearchFieldProps {
   /** Accessible name of the clearing `x` ("Wyczyść frazę"); the `x` is shown only while there is something to clear. */
   readonly clearLabel: string;
   readonly disabled?: boolean;
+  /**
+   * TopBar variant (§ 3.17): the label stays in the accessible name but is visually hidden and the same text is the
+   * placeholder — the bar has no room for a label above the field. Elsewhere the label stays visible (§ 3.7).
+   */
+  readonly labelHidden?: boolean;
   readonly onChange: (value: string) => void;
   readonly inputRef?: Ref<HTMLInputElement>;
 }
@@ -20,15 +25,25 @@ export interface SearchFieldProps {
  * SearchField (styleguide § 3.7): a visible label, the `search` icon, the field and an `x` that clears the phrase and puts
  * the focus back in the field. The phrase is kept by the caller — in the memory of the tab, never in the address (§ 3.7).
  * A disabled field stays focusable (`aria-disabled`) so that the hint can explain the reason (§ 3.1).
+ * `labelHidden` is the TopBar variant (EVM-072): the label is read by assistive technology and shown as the placeholder.
  */
-export function SearchField({ label, value, hint, clearLabel, disabled = false, onChange, inputRef }: SearchFieldProps) {
+export function SearchField({
+  label,
+  value,
+  hint,
+  clearLabel,
+  disabled = false,
+  labelHidden = false,
+  onChange,
+  inputRef,
+}: SearchFieldProps) {
   const id = useId();
   const handle: ChangeEventHandler<HTMLInputElement> = (event) => {
     if (!disabled) onChange(event.target.value);
   };
   return (
     <div className="flex flex-col gap-stack-xs">
-      <label htmlFor={id} className="text-label text-text-primary">
+      <label htmlFor={id} className={labelHidden ? 'sr-only' : 'text-label text-text-primary'}>
         {label}
       </label>
       <div
@@ -45,6 +60,7 @@ export function SearchField({ label, value, hint, clearLabel, disabled = false, 
           type="search"
           value={value}
           autoComplete="off"
+          placeholder={labelHidden ? label : undefined}
           aria-disabled={disabled || undefined}
           aria-describedby={hint === undefined ? undefined : `${id}-hint`}
           onChange={handle}
