@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { StatusBadge, type OrderStatusKey } from '../src/index.ts';
+import { StatusBadge, type OrderStatusKey, type PaymentStatusKey } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
 const KEYS: readonly OrderStatusKey[] = [
@@ -54,5 +54,36 @@ describe('StatusBadge (styleguide § 3.9, § 3.9.1; EVM-017 AC1)', () => {
     expect(document.getElementById(badge.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
       'Odśwież stronę, aby zobaczyć szczegóły.',
     );
+  });
+
+  it('EVM-053 AC2 the payment statuses (§ 4.4: color.status.payment.*) have their own icons and "Po terminie" is the strong variant', async () => {
+    const PAYMENT: readonly PaymentStatusKey[] = ['planned', 'invoiced', 'paid', 'cancelled', 'overdue'];
+    const { container } = render(
+      <ul>
+        {PAYMENT.map((key) => (
+          <li key={key}>
+            <StatusBadge status={key} group="payment" label={`Płatność ${key}`} />
+          </li>
+        ))}
+      </ul>,
+    );
+    const shapes = PAYMENT.map((key) => {
+      const badge = screen.getByText(`Płatność ${key}`);
+      expect(badge.className).toContain(`bg-status-payment-${key}-bg`);
+      expect(badge.className).toContain(`text-status-payment-${key}-text`);
+      expect(badge.querySelector('svg')?.getAttribute('class')).toContain(`text-status-payment-${key}-icon`);
+      return badge
+        .querySelector('svg')
+        ?.getAttribute('class')
+        ?.match(/lucide-[\w-]+/)?.[0];
+    });
+    // planned: calendar-clock, invoiced: file-text, paid: circle-check, cancelled: ban, overdue: alarm-clock
+    expect(shapes).toEqual(['lucide-calendar-clock', 'lucide-file-text', 'lucide-circle-check', 'lucide-ban', 'lucide-alarm-clock']);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-053 AC2 a payment badge of an unknown value is the shared "Nieznany status" (§ 3.9.1)', () => {
+    render(<StatusBadge status="unknown" group="payment" label="Nieznany status" />);
+    expect(screen.getByText('Nieznany status').className).toContain('bg-status-unknown-bg');
   });
 });

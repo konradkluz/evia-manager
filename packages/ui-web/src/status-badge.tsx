@@ -1,9 +1,11 @@
 import { useId, type ButtonHTMLAttributes, type Ref } from 'react';
 import { classNames } from './class-names.ts';
 import {
+  AlarmClock,
   Ban,
   Banknote,
   Calculator,
+  CalendarClock,
   ChevronDown,
   Circle,
   CircleCheck,
@@ -11,6 +13,7 @@ import {
   CircleMinus,
   CirclePause,
   CirclePlay,
+  FileText,
   Hourglass,
   Inbox,
   OctagonAlert,
@@ -98,17 +101,59 @@ const STAGE_LOOKS: Readonly<Record<StageStatusKey, Look>> = {
   },
 };
 
-function lookOf(status: OrderStatusKey | StageStatusKey, group: 'order' | 'stage'): Look {
+/**
+ * Token key of a payment status (`color.status.payment.*`; styleguide § 4.4) and the computed mark `overdue` ("Po terminie" —
+ * the strong variant that replaces "Wystawiona" when the due date has passed; not a status of the model).
+ */
+export type PaymentStatusKey = 'planned' | 'invoiced' | 'paid' | 'cancelled' | 'overdue';
+
+/** Complete class names of the payment statuses (Tailwind reads them statically); the icon is unique within the group. */
+const PAYMENT_LOOKS: Readonly<Record<PaymentStatusKey, Look>> = {
+  planned: {
+    icon: CalendarClock,
+    classes: 'bg-status-payment-planned-bg text-status-payment-planned-text',
+    iconClasses: 'text-status-payment-planned-icon',
+  },
+  invoiced: {
+    icon: FileText,
+    classes: 'bg-status-payment-invoiced-bg text-status-payment-invoiced-text',
+    iconClasses: 'text-status-payment-invoiced-icon',
+  },
+  paid: {
+    icon: CircleCheck,
+    classes: 'bg-status-payment-paid-bg text-status-payment-paid-text',
+    iconClasses: 'text-status-payment-paid-icon',
+  },
+  cancelled: {
+    icon: Ban,
+    classes: 'bg-status-payment-cancelled-bg text-status-payment-cancelled-text',
+    iconClasses: 'text-status-payment-cancelled-icon',
+  },
+  overdue: {
+    icon: AlarmClock,
+    classes: 'bg-status-payment-overdue-bg text-status-payment-overdue-text',
+    iconClasses: 'text-status-payment-overdue-icon',
+  },
+};
+
+type StatusGroup = 'order' | 'stage' | 'payment';
+type AnyStatusKey = OrderStatusKey | StageStatusKey | PaymentStatusKey;
+
+function lookOf(status: AnyStatusKey, group: StatusGroup): Look {
   if (status === 'unknown') return LOOKS.unknown;
   if (group === 'stage') return STAGE_LOOKS[status as StageStatusKey];
+  if (group === 'payment') return PAYMENT_LOOKS[status as PaymentStatusKey];
   return LOOKS[status as OrderStatusKey];
 }
 
 export interface StatusBadgeProps {
-  /** A status of the work order, a status of a stage (`color.status.stage.*`, § 4.4) or `unknown`. */
-  readonly status: OrderStatusKey | StageStatusKey;
-  /** `stage` takes the colours and icons of the stage statuses; `todo`, `in-progress` and `done` exist in both groups. */
-  readonly group?: 'order' | 'stage';
+  /** A status of the work order, of a stage (`color.status.stage.*`), of a payment (`color.status.payment.*`, § 4.4) or `unknown`. */
+  readonly status: AnyStatusKey;
+  /**
+   * `stage` and `payment` take the colours and icons of their group; keys such as `in-progress` or `cancelled` exist in more
+   * than one group. `overdue` of the payments is the strong variant (§ 3.9).
+   */
+  readonly group?: StatusGroup;
   /** The full label ("W realizacji") — never shortened; for `unknown` the fixed "Nieznany status". */
   readonly label: string;
   /** Explanation of the badge (the unknown value, § 3.9.1): a tooltip and the accessible description. */

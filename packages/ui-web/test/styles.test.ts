@@ -68,6 +68,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'text-status-unknown-text',
       'h-badge-height',
       'bg-status-stage-blocked-bg',
+      'bg-status-payment-overdue-bg',
+      'text-status-payment-planned-text',
+      'text-status-payment-paid-icon',
       'fill-progress-fill',
       'bg-progress-track',
       'h-progress-bar-height',
@@ -143,6 +146,9 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('color: var(--evm-color-status-unknown-text)');
     expect(css).toContain('height: var(--evm-size-badge-height)');
     expect(css).toContain('background-color: var(--evm-color-status-stage-blocked-bg)');
+    expect(css).toContain('background-color: var(--evm-color-status-payment-overdue-bg)');
+    expect(css).toContain('color: var(--evm-color-status-payment-planned-text)');
+    expect(css).toContain('color: var(--evm-color-status-payment-paid-icon)');
     expect(css).toContain('fill: var(--evm-color-progress-fill)');
     expect(css).toContain('background-color: var(--evm-color-progress-track)');
     expect(css).toContain('height: var(--evm-size-progress-bar-height)');
