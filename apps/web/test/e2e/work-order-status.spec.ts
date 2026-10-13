@@ -13,14 +13,17 @@ test.use({ baseURL: 'http://localhost:4173', session: 'active', bypassCSP: false
 const ORIGIN = 'http://localhost:4173';
 const NO_FIREFOX = 'Firefox has no virtual authenticator; the passkey ceremony is covered by the API integration tests (ADR-0015).';
 
-/** Creates the order ZL-2026-0042 through W-05 and returns its address (the synthetic API has no other order to read). */
-async function createOrder(page: Page): Promise<string> {
+/**
+ * Creates the order ZL-2026-0042 through W-05 and returns its address (the synthetic API has no other order to read). From EVM-053 the
+ * template brings planned instalments, which block settling (`unpaid_milestones`); the walk to "Rozliczone" uses an empty order.
+ */
+async function createOrder(page: Page, template: RegExp | string = /Garaż — pełny proces/): Promise<string> {
   await page.goto('/work-orders/new');
   await page.getByRole('combobox', { name: 'Klient' }).fill('Lodz');
   await page.getByRole('option', { name: /Jan Przykładowy/ }).click();
   await page.getByRole('combobox', { name: 'Lokalizacja' }).fill('testowa');
   await page.getByRole('option', { name: /ul\. Testowa 7/ }).click();
-  await page.getByRole('radio', { name: /Garaż — pełny proces/ }).check();
+  await page.getByRole('radio', { name: template }).check();
   await page.getByRole('button', { name: 'Utwórz zlecenie' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'ZL-2026-0042' })).toBeVisible();
   return new URL(page.url()).pathname;
@@ -60,7 +63,8 @@ test.describe('status of a work order in W-06 (EVM-030)', () => {
     api,
   }) => {
     const problems = await watchPage(page, ORIGIN);
-    const path = await createOrder(page);
+    // an order without instalments settles as in EVM-030 (EVM-053 AC6)
+    const path = await createOrder(page, 'Puste zlecenie (bez szablonu)');
     await page.goto(path);
     await expect(badge(page, 'Nowe')).toBeVisible();
 
