@@ -12,6 +12,7 @@ import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
 import { OrderSummary } from '../work-orders/order-summary.tsx';
+import { PaymentsSection } from '../work-orders/payments-section.tsx';
 import { PROCEDURES_HEADING_ID, ProceduresSection } from '../work-orders/procedures-section.tsx';
 import { ScopeSection } from '../work-orders/scope-section.tsx';
 import { SiteCard } from '../work-orders/site-card.tsx';
@@ -19,6 +20,7 @@ import {
   isNotFound,
   useWorkOrderCustomer,
   useWorkOrderHeader,
+  useWorkOrderPayments,
   useWorkOrderProcedures,
   useWorkOrderScope,
   useWorkOrderSite,
@@ -52,6 +54,7 @@ export function WorkOrderPage() {
   const header = useWorkOrderHeader(id, active);
   const scope = useWorkOrderScope(id, active);
   const procedures = useWorkOrderProcedures(id, active);
+  const payments = useWorkOrderPayments(id, active);
   const customer = useWorkOrderCustomer(id, active);
   const site = useWorkOrderSite(id, active);
   const siteOrders = useWorkOrderSiteOrders(id, active);
@@ -68,7 +71,7 @@ export function WorkOrderPage() {
   // The connection is back: what failed meanwhile is read again.
   useEffect(() => {
     if (!online) return;
-    for (const query of [header, scope, procedures, customer, site, siteOrders])
+    for (const query of [header, scope, procedures, payments, customer, site, siteOrders])
       if (query.isError && !isNotFound(query.error)) void query.refetch();
     // Only the return of the connection matters here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,6 +139,7 @@ export function WorkOrderPage() {
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />
+                <PaymentsSection order={order} query={payments} />
                 <ScopeSection order={order} query={scope} procedures={procedures} />
               </div>
             )}

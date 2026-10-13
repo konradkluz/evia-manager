@@ -5,7 +5,9 @@ import {
   listWorkOrderProcedures,
   listWorkOrderScopeItems,
   listWorkOrderSiteOrders,
+  listPaymentMilestones,
   type CustomerCard,
+  type PaymentMilestoneList,
   type ProcedureList,
   type ScopeItemList,
   type SiteCard,
@@ -18,6 +20,7 @@ import { ApiError, unwrap } from '../api/client.ts';
 import {
   WORK_ORDER_HEADER_KEY,
   WORK_ORDER_CUSTOMER_KEY,
+  WORK_ORDER_PAYMENTS_KEY,
   WORK_ORDER_PROCEDURES_KEY,
   WORK_ORDER_SCOPE_KEY,
   WORK_ORDER_SITE_KEY,
@@ -107,6 +110,24 @@ export function useWorkOrderProcedures(id: string, enabled: boolean): UseQueryRe
     // The section and the dialog "Zakończ" share this entry: the second reader must not ask again, the dialog refreshes it itself.
     staleTime: Infinity,
     // A failed read stays a failed read until the person retries: a second reader mounting later must not hide the alert of the section.
+    retryOnMount: false,
+    ...common,
+  });
+}
+
+/**
+ * The instalments of the order and their totals (EVM-053 AC2): one read for the section "Płatności" and for the warning of the
+ * dialog "Anuluj zlecenie…" (AC6). Amounts are financial data and a name may be free text about a person: the memory of the tab only.
+ */
+export function useWorkOrderPayments(id: string, enabled: boolean): UseQueryResult<PaymentMilestoneList> {
+  const client = useApi();
+  return useQuery({
+    queryKey: [WORK_ORDER_PAYMENTS_KEY, id],
+    queryFn: ({ signal }) => unwrap(listPaymentMilestones({ client, signal, path: { workOrderId: id } })),
+    enabled,
+    gcTime: 0,
+    // The section and the dialog share this entry: the second reader must not ask again; a change refreshes it itself.
+    staleTime: Infinity,
     retryOnMount: false,
     ...common,
   });

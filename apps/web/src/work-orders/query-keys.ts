@@ -15,6 +15,8 @@ export const WORK_ORDER_SITE_KEY = 'work-order-site' as const;
 export const WORK_ORDER_SITE_ORDERS_KEY = 'work-order-site-orders' as const;
 /** The processes with their stages (EVM-031): the section of W-06 and the warning of the dialog "Zakończ" read the same entry. */
 export const WORK_ORDER_PROCEDURES_KEY = 'work-order-procedures' as const;
+/** The instalments of the order with their totals (EVM-053): the section "Płatności" and the warning of "Anuluj zlecenie…" read the same entry. */
+export const WORK_ORDER_PAYMENTS_KEY = 'work-order-payments' as const;
 /** The journal of the order (EVM-037): the pages of the timeline for one filter; the texts are personal data — memory of the tab only. */
 export const WORK_ORDER_JOURNAL_KEY = 'work-order-journal' as const;
 /** The site and the party read for the dialogs "Edytuj lokalizację" and "Edytuj stronę" (EVM-036); gone when the dialog closes. */
@@ -29,5 +31,6 @@ export const WORK_ORDER_KEYS = [
   WORK_ORDER_SITE_KEY,
   WORK_ORDER_SITE_ORDERS_KEY,
   WORK_ORDER_PROCEDURES_KEY,
+  WORK_ORDER_PAYMENTS_KEY,
   WORK_ORDER_JOURNAL_KEY,
 ] as const;
