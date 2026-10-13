@@ -9,7 +9,7 @@
  *   1. have exactly one parent (squash merge); on a push, main must be a fast-forward of the previous main;
  *   2. be the merge commit of a merged PR into main (merged_at set, merge_commit_sha equal to the commit);
  *   3. be merged by the configured owner (MAIN_MERGER) — not a bot and not GITHUB_TOKEN;
- *   4. have a green `ci-gate` job in the latest run of .github/workflows/ci.yml (push) for the PR head commit —
+ *   4. have a green `ci-gate` job in the latest run of .github/workflows/ci.yml (pull_request; push for PRs before EVM-083) for the PR head commit —
  *      read from the Actions API, never from commit statuses or check runs (tokens with statuses/checks write could forge them);
  *   5. have a first line in the Conventional Commits format with [EVM-###], [renovate] or [M#] and an optional " (#N)".
  * ACKNOWLEDGED lists commits of closed incidents (docs/ops/github-i-ci.md → „Czerwony main”): their reasons are still
@@ -38,6 +38,8 @@ const EVENTS = ['push', 'schedule', 'workflow_dispatch'];
 const API = 'https://api.github.com';
 const CI_WORKFLOW = '.github/workflows/ci.yml';
 const GATE_JOB = 'ci-gate';
+/** Events of ci.yml runs that carry a full ci-gate: pull_request (EVM-083, ADR-0018) and push (PRs merged before it). */
+const GATE_EVENTS = ['pull_request', 'push'];
 
 /** @typedef {(url: string, init: { headers: Record<string, string> }) => Promise<{ ok: boolean, status: number, json: () => Promise<unknown> }>} Fetch */
 
@@ -229,11 +231,9 @@ async function verifyCommit({ sha, title, parents }, { repository, merger, get }
  */
 async function gateGreen({ repository, head, get }) {
   if (!SHA.test(head)) return false;
-  const runs = list(
-    record(await get(`/repos/${repository}/actions/workflows/ci.yml/runs?head_sha=${head}&event=push&per_page=100`))['workflow_runs'],
-  )
+  const runs = list(record(await get(`/repos/${repository}/actions/workflows/ci.yml/runs?head_sha=${head}&per_page=100`))['workflow_runs'])
     .map(record)
-    .filter((run) => text(run['path']) === CI_WORKFLOW && text(run['head_sha']) === head && text(run['event']) === 'push')
+    .filter((run) => text(run['path']) === CI_WORKFLOW && text(run['head_sha']) === head && GATE_EVENTS.includes(text(run['event'])))
     .sort((a, b) => text(b['created_at']).localeCompare(text(a['created_at'])));
   const latest = runs[0];
   if (latest === undefined) return false;

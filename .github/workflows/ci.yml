@@ -7,11 +7,18 @@
 # EVM-013 (bramka 11, SR-SUPPLY-11): the documentation lifecycle validator is the first step with a command of `quality`,
 # before anything is installed; its exit code is the step's result (errors and code 2 turn ci-gate red, warnings do not).
 # The step is fixed by tools/repo-policy (docsCheckStepProblems): no if, continue-on-error, env or expressions in run.
+# EVM-083 (ADR-0018): minutes budget. A push to a branch runs only `quick` (documentation validator, lint, types) and
+# NO `ci-gate` (the job is skipped, never success — the deployment verifier trusts the full runs only). The full set runs
+# on `pull_request` to main, on `push` to main and on demand. `changes` marks e2e-web, backend-integration and coverage
+# as unnecessary only when every changed file is documentation (tools/ci-changes); any doubt = the full set. `ci-gate`
+# itself judges the results, because a skipped job counts as satisfied for a required check.
 name: ci
 
 on:
   push:
     branches: ['**']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -26,8 +33,62 @@ env:
   DO_NOT_TRACK: '1'
 
 jobs:
+  # Fast checks for a push to a branch (EVM-083 AC1). Not part of ci-gate: the full run on the pull request is.
+  quick:
+    name: quick
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Documentation lifecycle validator (docs:check, bramka 11)
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          status=0
+          node tools/docs-lifecycle/cli.mjs check --summary >> "$GITHUB_STEP_SUMMARY" || status=$?
+          exit "$status"
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm exec turbo run lint
+      - name: Types
+        run: pnpm exec turbo run typecheck
+
+  # Change detection (EVM-083 AC2, AC3): heavy=false only for a documentation-only change; fail closed (heavy=true).
+  changes:
+    name: changes
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      heavy: ${{ steps.detect.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Documentation-only change?
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node tools/ci-changes/cli.mjs
+
   quality:
     name: quality
+    needs: [changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -75,6 +136,7 @@ jobs:
 
   backend:
     name: backend
+    needs: [changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -105,6 +167,8 @@ jobs:
   # and initdb arguments as compose.yaml (apps/api/test/support/postgres.ts). Their lcov report feeds diff-coverage.
   backend-integration:
     name: backend-integration
+    needs: [changes]
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -139,6 +203,8 @@ jobs:
   # needs no API or database. The report (synthetic data only) is uploaded on failure.
   e2e-web:
     name: e2e-web
+    needs: [changes]
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -172,6 +238,7 @@ jobs:
 
   security:
     name: security
+    needs: [changes]
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
@@ -207,7 +274,8 @@ jobs:
 
   coverage:
     name: coverage
-    needs: [quality, backend, backend-integration]
+    needs: [changes, quality, backend, backend-integration]
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -236,17 +304,21 @@ jobs:
       - name: Changed-code coverage ≥ 90% (diff-coverage)
         run: node tools/diff-coverage/cli.mjs
 
+  # ci-gate (K1): runs in full runs only (never for a push to a branch). Requires `changes` success and every job
+  # success; e2e-web, backend-integration and coverage may be skipped only when `changes` reported heavy=false
+  # (documentation only) — and must then be skipped. Failure, cancelled, skipped-with-code-changes, a missing job
+  # or an unreadable `heavy` = red.
   ci-gate:
     name: ci-gate
-    if: always()
-    needs: [quality, backend, backend-integration, e2e-web, security, coverage]
+    if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')
+    needs: [changes, quality, backend, backend-integration, e2e-web, security, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
     steps:
-      - name: Every required job succeeded (failure, cancelled, skipped or missing = red)
+      - name: Every required job succeeded (failure, cancelled or missing = red; skipped only for a documentation-only change)
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "coverage", "e2e-web", "quality", "security"]) and all(.[]; .result == "success")' > /dev/null
+          echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs.heavy as $heavy | ($heavy == "true" or $heavy == "false") and all(.quality, .backend, .security; .result == "success") and all(.["backend-integration"], .["e2e-web"], .coverage; .result == (if $heavy == "true" then "success" else "skipped" end)))' > /dev/null

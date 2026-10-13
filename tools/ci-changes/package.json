@@ -1,0 +1,19 @@
+{
+  "name": "@evia/ci-changes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Change detection for ci.yml: documentation-only changes may skip the heavy jobs; fail closed (EVM-083); runs without installed dependencies.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "evia-node-test"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

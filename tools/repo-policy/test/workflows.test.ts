@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { exists, json, list, read, record, text, workspaces, yaml } from '../src/files.ts';
 import {
   ciGateProblems,
+  ciRoutingProblems,
+  ciTriggerProblems,
   DOCS_CHECK_SCRIPT,
   docsCheckStepProblems,
   dockerCommandProblems,
@@ -53,8 +55,16 @@ describe('every workflow (EVM-006 AC4, A6, SR-SUPPLY-04)', () => {
 });
 
 describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
-  it('EVM-006 AC4: runs on every push and on demand — no pull_request_target, no duplicate pull_request runs', () => {
-    expect(ci['on']).toEqual({ push: { branches: ['**'] }, workflow_dispatch: null });
+  it('EVM-083 AC1, AC4: runs on every push (fast checks only outside main), on pull requests to main and on demand — no paths filter, no pull_request_target', () => {
+    expect(ci['on']).toEqual({ push: { branches: ['**'] }, pull_request: { branches: ['main'] }, workflow_dispatch: null });
+    expect(ciTriggerProblems(ci)).toEqual([]);
+  });
+
+  it('EVM-083 AC1, AC2, AC4: routing — quick for a branch push, changes and the full set for pull requests and main, heavy jobs only for heavy=true', () => {
+    expect(ciRoutingProblems(ci)).toEqual([]);
+    // The documentation validator runs in every kind of run: in quick (branch push) and in quality (full run).
+    expect(runs('quick')[0]).toBe(DOCS_CHECK_SCRIPT);
+    expect(runs('quality')[0]).toBe(DOCS_CHECK_SCRIPT);
   });
 
   it('EVM-006 AC4, EVM-013 AC3: the quality job runs the stages in order: documentation validator → install → format → lint → types → boundaries → tests and coverage → build', () => {
@@ -106,7 +116,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
   });
 
   it('EVM-006 AC3 (W3c), EVM-008: changed-code coverage merges every report (quality, container, integration) with the full history', () => {
-    expect(job('coverage')['needs']).toEqual(['quality', 'backend', 'backend-integration']);
+    expect(job('coverage')['needs']).toEqual(['changes', 'quality', 'backend', 'backend-integration']);
     const downloads = list(job('coverage')['steps'])
       .map(record)
       .filter((step) => text(step['uses']).startsWith('actions/download-artifact@'))
@@ -148,11 +158,26 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
   });
 
   it('EVM-013 AC3 (K6), EVM-008: ci.yml keeps its jobs (backend-integration and e2e-web added by EVM-008) — the validator is a step of quality, not a new job — and quality stays in ci-gate', () => {
-    expect(Object.keys(jobs)).toEqual(['quality', 'backend', 'backend-integration', 'e2e-web', 'security', 'coverage', 'ci-gate']);
+    expect(Object.keys(jobs)).toEqual([
+      'quick',
+      'changes',
+      'quality',
+      'backend',
+      'backend-integration',
+      'e2e-web',
+      'security',
+      'coverage',
+      'ci-gate',
+    ]);
     expect(list(job('ci-gate')['needs'])).toContain('quality');
   });
 
-  it('EVM-006 AC4 (A2, W6): ci-gate is green only when every required job succeeded; K6 is not a job of ci.yml', () => {
+  it('EVM-083 AC1, AC3: ci-gate never runs for a push to a branch and its job list excludes the fast job', () => {
+    expect(job('ci-gate')['if']).toBe("always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')");
+    expect(list(job('ci-gate')['needs'])).not.toContain('quick');
+  });
+
+  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate is green only when every required job succeeded (skips only for a documentation-only change); K6 is not a job of ci.yml', () => {
     expect(ciGateProblems(ci)).toEqual([]);
     expect(job('ci-gate')['permissions']).toEqual({});
   });

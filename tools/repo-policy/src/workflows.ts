@@ -48,21 +48,39 @@ export function workflowProblems(file: string, raw: string, document: unknown): 
   return problems;
 }
 
+/** Jobs of the fast run of a push to a branch (EVM-083 AC1): outside ci-gate, which never runs for such a push. */
+export const FAST_JOBS = ['quick'];
+/** Jobs that always run in a full run (EVM-083 AC2): only `needs: [changes]`, no `if` of their own. */
+const ALWAYS_JOBS = ['quality', 'backend', 'security'];
+/** Jobs skipped for a documentation-only change (EVM-083 AC2) and the exact condition that runs them. */
+const HEAVY_JOBS = ['backend-integration', 'e2e-web', 'coverage'];
+const HEAVY_IF = "needs.changes.outputs.heavy == 'true'";
+const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
+const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
+const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";
 /**
- * A2, W6: `ci-gate` depends on every other job of ci.yml, always runs and requires `success` of each dependency, with
- * the exact list of dependencies in its check (a skipped, cancelled, failed or missing job = red). K6 is not a job of
- * ci.yml — it has its own workflow (main-integrity.yml) without a concurrency group.
+ * The ci-gate decision (EVM-083 AC3), evaluated by `jq -e` on `toJSON(needs)`: the exact set of jobs; `changes` succeeded
+ * and reported a readable `heavy`; quality, backend and security succeeded; the heavy jobs succeeded when heavy=true and
+ * were skipped when heavy=false. Failure, cancelled, a skip beside code changes, a missing job or output = red.
+ */
+export const GATE_JQ =
+  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs.heavy as $heavy | ($heavy == "true" or $heavy == "false") and all(.quality, .backend, .security; .result == "success") and all(.["backend-integration"], .["e2e-web"], .coverage; .result == (if $heavy == "true" then "success" else "skipped" end)))';
+
+/**
+ * A2, W6, EVM-083 AC3: `ci-gate` depends on every job of the full run (all but the fast ones), runs only in full runs,
+ * evaluates the results itself with the exact list of dependencies and GATE_JQ (a skipped job is accepted only for a
+ * documentation-only change). K6 is not a job of ci.yml — it has its own workflow (main-integrity.yml).
  */
 export function ciGateProblems(document: unknown): string[] {
   const jobs = record(record(document)['jobs']);
   const gate = record(jobs['ci-gate']);
   const needs = list(gate['needs']).map(String).sort();
   const expected = Object.keys(jobs)
-    .filter((name) => name !== 'ci-gate')
+    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name))
     .sort();
   const problems: string[] = [];
   if (JSON.stringify(needs) !== JSON.stringify(expected)) problems.push(`ci-gate: needs musi obejmować ${expected.join(', ')}`);
-  if (text(gate['if']) !== 'always()') problems.push('ci-gate: wymagane if: always()');
+  if (text(gate['if']) !== GATE_IF) problems.push(`ci-gate: wymagane if: ${GATE_IF}`);
   const script = list(gate['steps'])
     .map((step) => text(record(step)['run']))
     .join('\n');
@@ -72,8 +90,65 @@ export function ciGateProblems(document: unknown): string[] {
       ?.split(',')
       .map((key) => key.trim().replace(/"/g, '')) ?? [];
   if (JSON.stringify(keys) !== JSON.stringify(expected)) problems.push('ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs');
-  if (!script.includes('all(.[]; .result == "success")')) problems.push('ci-gate: każdy job z needs musi mieć wynik success');
+  if (!script.includes(`jq -e '${GATE_JQ}'`))
+    problems.push('ci-gate: skrypt musi zawierać GATE_JQ (success wszystkich jobów; pominięcie ciężkich tylko przy heavy=false)');
   if ('main-integrity' in jobs) problems.push('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
+  return problems;
+}
+
+/**
+ * EVM-083 AC1, AC4: triggers — push, pull_request to main and manual runs; no paths/paths-ignore filter at the trigger
+ * (a filtered-out run would leave no ci-gate), no pull_request_target.
+ */
+export function ciTriggerProblems(document: unknown): string[] {
+  const triggers = record(record(document)['on']);
+  const problems: string[] = [];
+  for (const name of ['push', 'pull_request', 'workflow_dispatch'])
+    if (!(name in triggers)) problems.push(`ci.yml: brak wyzwalacza ${name}`);
+  for (const [name, value] of Object.entries(triggers)) {
+    const filters = Object.keys(record(value)).filter((key) =>
+      ['paths', 'paths-ignore', 'tags', 'tags-ignore', 'branches-ignore'].includes(key),
+    );
+    if (filters.length > 0)
+      problems.push(`ci.yml: wyzwalacz ${name} bez filtrów ${filters.join(', ')} (paths-ignore zostawia main bez ci-gate)`);
+  }
+  if (JSON.stringify(record(triggers['pull_request'])['branches']) !== JSON.stringify(['main']))
+    problems.push('ci.yml: pull_request wyłącznie do main');
+  if (JSON.stringify(record(triggers['push'])['branches']) !== JSON.stringify(['**']))
+    problems.push("ci.yml: push na każdą gałąź (branches: ['**'])");
+  return problems;
+}
+
+/**
+ * EVM-083 AC1–AC4: routing of the jobs — `quick` only for a push to a branch and with the documentation validator;
+ * `changes` for full runs; quality, backend and security always in a full run (so the validator always runs there);
+ * the heavy jobs only for heavy=true; no job of the full run runs for a branch push; nothing but ci-gate has `always()`.
+ */
+export function ciRoutingProblems(document: unknown): string[] {
+  const jobs = record(record(document)['jobs']);
+  const problems: string[] = [];
+  const quick = record(jobs['quick']);
+  if (text(quick['if']) !== FAST_IF) problems.push(`ci.yml: quick: wymagane if: ${FAST_IF}`);
+  if ('needs' in quick) problems.push('ci.yml: quick bez needs');
+  if (!list(quick['steps']).some((step) => text(record(step)['run']) === DOCS_CHECK_SCRIPT))
+    problems.push('ci.yml: quick: brak kroku walidatora dokumentacji (DOCS_CHECK_SCRIPT)');
+  const changes = record(jobs['changes']);
+  if (text(changes['if']) !== CHANGES_IF) problems.push(`ci.yml: changes: wymagane if: ${CHANGES_IF}`);
+  if (!list(changes['steps']).some((step) => text(record(step)['run']) === 'node tools/ci-changes/cli.mjs'))
+    problems.push('ci.yml: changes: krok node tools/ci-changes/cli.mjs');
+  for (const name of [...ALWAYS_JOBS, ...HEAVY_JOBS]) {
+    const job = record(jobs[name]);
+    if (!list(job['needs']).includes('changes'))
+      problems.push(`ci.yml: ${name}: needs musi zawierać changes (pominięcie przy pushu na gałąź)`);
+    const expectedIf = HEAVY_JOBS.includes(name) ? HEAVY_IF : '';
+    if (text(job['if']) !== expectedIf)
+      problems.push(`ci.yml: ${name}: ${expectedIf === '' ? 'bez własnego if (zawsze w pełnym przebiegu)' : `if: ${expectedIf}`}`);
+  }
+  for (const [name, value] of Object.entries(jobs)) {
+    if (name !== 'ci-gate' && text(record(value)['if']).includes('always()'))
+      problems.push(`ci.yml: ${name}: always() wyłącznie w ci-gate`);
+    if ('continue-on-error' in record(value)) problems.push(`ci.yml: ${name}: zabronione continue-on-error`);
+  }
   return problems;
 }
 

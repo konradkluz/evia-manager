@@ -26,6 +26,7 @@ const PNPM = /^pnpm@(\d+\.\d+\.\d+)\+sha512\.[0-9a-f]{128}$/.exec(root.packageMa
 const RELAXED = new Set(['tools/docs-lifecycle']);
 /** Tools that run without installed dependencies (CI jobs and the container entry point run them before `pnpm install`). */
 const DEPENDENCY_FREE = [
+  'tools/ci-changes',
   'tools/container',
   'tools/dev-env',
   'tools/diff-coverage',
@@ -85,6 +86,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'packages/contracts',
       'packages/tokens',
       'packages/ui-web',
+      'tools/ci-changes',
       'tools/container',
       'tools/dev-env',
       'tools/diff-coverage',
