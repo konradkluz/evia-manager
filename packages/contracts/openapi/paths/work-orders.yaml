@@ -20,7 +20,9 @@ workOrders:
       zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni”
       (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne
       strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby.
-      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage`. Lista czyta model odczytu (`overview`),
+      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site`.
+      `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe.
+      Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`),
       kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.
       Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu
       albo użyty z innymi filtrami lub sortowaniem — `400 invalid_cursor`. Masowy odczyt (P10): gdy użytkownik dostał w ostatnich
@@ -56,6 +58,20 @@ workOrders:
         in: query
         required: false
         description: Filtr klienta (UUID; historia zleceń klienta). Nie trafia do adresu panelu.
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+      - name: siteType
+        in: query
+        required: false
+        description: Filtr typu obiektu lokalizacji (kod słownika; „Więcej filtrów”, EVM-072). Nie trafia do adresu panelu.
+        schema:
+          $ref: ../components/catalog.yaml#/SiteType
+      - name: templateId
+        in: query
+        required: false
+        description: Filtr szablonu, z którego powstało zlecenie (UUID; „Więcej filtrów”, EVM-072). Nie trafia do adresu panelu.
         schema:
           type: string
           format: uuid
@@ -195,6 +211,56 @@ workOrders:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '422':
         $ref: ../components/responses.yaml#/CreateWorkOrderUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrdersSearch:
+  post:
+    operationId: searchWorkOrders
+    tags: [work-orders]
+    summary: Wyszukiwanie zleceń (fraza w treści)
+    description: >-
+      Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza może zawierać dane osobowe i
+      nie może trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga
+      `Idempotency-Key`. Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje zlecenie w Łodzi). Fraza dopasowuje
+      numer i tytuł zlecenia, dane klienta (imię, nazwisko, firma, NIP, cyfry telefonu, e-mail, miasto — jak `searchCustomers`)
+      i adres lokalizacji; wynik to ta sama koperta `{items, nextCursor}` co lista. Pozostałe pola treści to filtry listy
+      (łączą się z frazą przez AND), a `cursor` i `limit` są w treści; kursor jest związany z frazą, filtrami i użytkownikiem,
+      a kursor listy nie otwiera się w wyszukiwaniu (i odwrotnie) — `400 invalid_cursor`. Zlecenia usunięte (soft delete) nie
+      występują: warunek polityki odczytu jest w zapytaniu strony, a zbiory identyfikatorów z modułów klientów i lokalizacji tylko
+      je zawężają. Klient usunięty nie jest znajdowany po nazwisku, a element zlecenia nie niesie jego danych (`customer`
+      `{deleted: true}`). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short` (dłuższa niż
+      100 — `too_long`, znak sterujący — `invalid_characters`); fraza zbyt ogólna (ponad 10 000 trafień w jednym ze źródeł) —
+      `400 validation_failed`, kod `too_broad` na `/query` (należy ją doprecyzować). Limit 60 wyszukiwań na minutę na użytkownika
+      (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do
+      progu masowego odczytu (P10: alert przy 2000 rekordów w 10 minut, `429` od 10 000) i do licznika różnych klientów (alert
+      przy 301. różnym kliencie w ciągu godziny). Fraza nie trafia do logów, metryk ani `errors[]`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      audit: false
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/work-orders.yaml#/WorkOrderSearchRequest
+    responses:
+      '200':
+        description: Pasujące zlecenia (brak wyników to pusta tablica `items` i `nextCursor` równy `null`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 WorkOrderIdParameter:
