@@ -5,7 +5,7 @@
 ## CI w skrócie
 | Workflow | Kiedy | Co |
 |---|---|---|
-| `.github/workflows/ci.yml` | każdy push każdej gałęzi, ręcznie | `quality` (walidator dokumentacji — bramka 11 → instalacja z lockfile → format → lint → typy → granice modułów → testy z progami → build), `backend` (kontener `backend-tests`, licencje), `security` (sekrety, SAST, zależności, Dockerfile, workflowy, konfiguracja Renovate, samotest skanerów), `coverage` (pokrycie zmienionego kodu ≥ 90%), **`ci-gate`** (zielony tylko, gdy wszystkie powyższe mają `success`) |
+| `.github/workflows/ci.yml` | **push na gałąź (nie `main`): tylko `quick`**; **pełny zestaw: `pull_request` do `main`, `push` na `main`, ręcznie** (EVM-083, ADR-0018) | `quick` (tylko push na gałąź: walidator dokumentacji → instalacja → lint → typy; **bez `ci-gate`** — job `ci-gate` jest wtedy pominięty, nigdy `success`), `changes` (pełny zestaw: wykrywa zmiany wyłącznie w dokumentacji — `tools/ci-changes`), `quality` (walidator dokumentacji — bramka 11 → instalacja z lockfile → format → lint → typy → granice modułów → testy z progami → build), `backend` (kontener `backend-tests`, licencje), `backend-integration` i `e2e-web` (pomijane przy zmianach wyłącznie w dokumentacji), `security` (sekrety, SAST, zależności, Dockerfile, workflowy, konfiguracja Renovate, samotest skanerów), `coverage` (pokrycie zmienionego kodu ≥ 90%; pomijane razem z integracją), **`ci-gate`** (tylko w pełnym przebiegu; sam ocenia wyniki: `success` wszystkich jobów, pominięcie wyłącznie `backend-integration`, `e2e-web`, `coverage` i tylko gdy `changes` zgłosiło `heavy=false`; błąd wykrywania zmian = pełny zestaw / czerwony) |
 | `.github/workflows/main-integrity.yml` | każdy push na `main`, codziennie 02:45 UTC, ręcznie | K6 (niżej) — osobny workflow **bez grupy `concurrency`**: GitHub anuluje oczekujący przebieg grupy, gdy w kolejce pojawi się nowszy, a anulowanie nie wysyła e-maila |
 | `.github/workflows/nightly.yml` | codziennie 02:30 UTC na `main`, ręcznie | pełne skany + samotest, `pnpm audit` jako raport |
 | `.github/workflows/renovate.yml` | poniedziałek 05:00 UTC na `main`, ręcznie | Renovate — tylko gdy zmienna repozytorium `RENOVATE_ENABLED` = `true` (patrz „Renovate”) |
@@ -17,7 +17,7 @@ Te same polecenia działają lokalnie: `pnpm run gate`, `pnpm run scan` (`CLAUDE
 ## Kontrole kompensujące K1–K7
 | # | Kontrola | Kto | Typ |
 |---|---|---|---|
-| K1 | CI na każdym pushu; jeden check `ci-gate`; e-mail GitHub o nieudanym przebiegu | GitHub / Konrad | wykrywająca |
+| K1 | pełne CI na PR do `main` i na `main` (push na gałąź — tylko szybkie kontrole, EVM-083); jeden check `ci-gate` (w przebiegu `pull_request`, dla HEAD PR); e-mail GitHub o nieudanym przebiegu | GitHub / Konrad | wykrywająca |
 | K2 | Procedura scalania (niżej) — tylko Konrad klika „Squash and merge”, przy zielonym `ci-gate`, po demo; przegląd widoku Activity po scaleniu i **co tydzień** (poniedziałek) — jedyna kontrola obejścia złośliwego (niżej „Ograniczenia K6”) | Konrad | proceduralna |
 | K3 | Szablon PR z checklistą; pliki wrażliwe (`.github/**`, `.claude/**`, `compose*.yaml`, `lefthook.yml`, `infra/**`, pliki wyjątków skanerów, `renovate.json`, `pnpm-workspace.yaml`) wymagają jawnej uwagi — lista w podsumowaniu joba `security`; `.github/CODEOWNERS` jako dokumentacja (na Free nieegzekwowany) | Konrad | proceduralna |
 | K4 | Agenci: klucz wdrożeniowy SSH tylko do tego repozytorium (alias `github-evia-manager`), reguły `deny` w `.claude/settings.json`; w `/deliver` push wykonuje orkiestrator, nigdy agenci. Od 2026-10-03 na stacji `gh` z fine-grained PAT tylko do tego repozytorium (Pull requests RW, Actions R, Contents R, Metadata R; 30 dni; Windows keyring) — orkiestrator zakłada PR i czyta wyniki CI, **nie może scalić** (brak `Contents: write`); ocena `security-engineer` (EVM-006): 2 Low, K4 bez zmian; od 2026-10-04 reguły `deny` na wypisanie tokenu (`gh auth token`, `gh auth status --show-token` / `-t`, `gh auth git-credential`; Git Bash i PowerShell) pilnowane testem `tools/repo-policy` — `docs/security/threat-model.md` → RR-02 | Konrad / orkiestrator | zapobiegawcza, częściowa — klucz z zapisem może wypchnąć każdą gałąź, także `main` |
@@ -25,21 +25,21 @@ Te same polecenia działają lokalnie: `pnpm run gate`, `pnpm run scan` (`CLAUDE
 | K6 | Workflow `main-integrity` po każdym pushu na `main` i co noc (`tools/main-integrity/README.md`): okno 30 najnowszych commitów `main` do `BASELINE` — każdy commit ze scalonego PR, scalił Konrad, zielony `ci-gate` HEAD PR, tytuł z `[EVM-###]` / `[renovate]` / `[M#]`; przy pushu bez force pushu; commity zmieniające `.github/`, `tools/main-integrity/`, `tools/scan/` wypisane w logu; zamknięte incydenty na liście `ACKNOWLEDGED` (logowane, nie czerwienią) | CI | wykrywająca (obejście proceduralne) |
 | K7 | Minimum sekretów repozytorium — w EVM-006 jedynie przyszły `RENOVATE_TOKEN` (patrz „Renovate”) | Konrad | ograniczająca |
 
-> **Adnotacja 2026-10-13 ([ADR-0018](../architecture/adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) — Zaakceptowana):** **K1 i trigger `ci.yml` zmieniają się w EVM-007a** — pełne CI na `pull_request` do `main` i `push` do `main`; push gałęzi bez PR tylko szybkie kontrole (walidator dokumentacji, lint, typy); `e2e-web` tylko na PR i `main`; zmiany wyłącznie w dokumentacji pomijają ciężkie joby przy zachowaniu `ci-gate`; nowe joby `publish` (hermetyczny, tylko `push` na `main`) i `staging-verify`. **K7 bez wyjątków:** w repozytorium nie ma i nie będzie sekretów wdrożeniowych, IaC, backupu ani testu odtworzenia — poświadczenia kanału wdrożeń leżą na VM, kopie w menedżerze haseł (Bitwarden); `RENOVATE_TOKEN` nadal zależny od Q1. Do czasu 007a tabela „CI w skrócie” opisuje stan obecny.
+> **Adnotacja 2026-10-13 ([ADR-0018](../architecture/adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) — Zaakceptowana):** **K1 i trigger `ci.yml`: wdrożone w EVM-083 (minuty Actions); `publish` i `staging-verify` — EVM-007a.** Pełne CI na `pull_request` do `main` i `push` do `main`; push gałęzi bez PR tylko szybkie kontrole (walidator dokumentacji, lint, typy); `e2e-web` tylko na PR i `main`; zmiany wyłącznie w dokumentacji pomijają ciężkie joby przy zachowaniu `ci-gate`; nowe joby `publish` (hermetyczny, tylko `push` na `main`) i `staging-verify`. **K7 bez wyjątków:** w repozytorium nie ma i nie będzie sekretów wdrożeniowych, IaC, backupu ani testu odtworzenia — poświadczenia kanału wdrożeń leżą na VM, kopie w menedżerze haseł (Bitwarden); `RENOVATE_TOKEN` nadal zależny od Q1. Tabela „CI w skrócie” opisuje stan po EVM-083. K6 (`main-integrity`) szuka zielonego `ci-gate` w przebiegu `ci.yml` o zdarzeniu `pull_request` (a dla PR scalonych przed EVM-083 — `push`) dla HEAD PR; przebieg szybki (`push` na gałąź) ma `ci-gate` pominięty, więc go nie spełnia.
 
 ## Ustawienia repozytorium (K5) — checklista dla Konrada
 Wykonaj po pierwszym pushu gałęzi EVM-006 i potwierdź na demo (dowód `manual`: zrzut ekranu albo potwierdzenie).
 1. **Settings → General → Pull Requests:** zaznaczone wyłącznie **Allow squash merging**; *Default commit message* = **Pull request title and description**; odznaczone *Allow merge commits* i *Allow rebase merging*; zaznaczone **Automatically delete head branches**.
 2. **Settings → General → Features:** odznaczone **Allow forking** (jeśli opcja jest widoczna dla repozytorium prywatnego).
 3. **Settings → Actions → General:** *Allow … select actions* — tylko akcje wymienione w workflowach (`actions/*`, `pnpm/action-setup`, `renovatebot/github-action`); **Require actions to be pinned to a full-length commit SHA** (jeśli dostępne na Free); *Workflow permissions* = **Read repository contents and packages permissions**; odznaczone **Allow GitHub Actions to create and approve pull requests**.
-4. **Settings → Billing / Actions:** limit wydatków (spending limit) Actions = **0 USD** — po wyczerpaniu puli 2000 min joby stają, bez opłat.
+4. **Settings → Billing → Budżet Actions:** wg decyzji 2026-10-13 (EVM-083, AC6) budżet z alertami 50% i 80% i **bez** „Stop usage” — instrukcja w „Budżet Actions (AC6)” niżej. (Wcześniejszy limit 0 USD zatrzymałby CI po przekroczeniu puli.)
 5. **Powiadomienia (profil → Settings → Notifications → Actions):** e-mail o nieudanych workflowach — włączony. Dowód `manual` (K1): czy e-mail o nieudanym przebiegu dociera także, gdy push wykonał klucz wdrożeniowy agentów (powiadomienia trafiają do osoby, która wyzwoliła przebieg; dla `schedule` — do ostatniego autora crona).
 6. **Konto:** MFA z passkey (SR-INFRA-09); jedna osoba z dostępem administracyjnym.
 7. **Code security:** alerty Dependabot włączone (bezpłatne; źródło dla Renovate). Uwaga: *secret scanning* i *push protection* w repozytorium prywatnym na Free są niedostępne — wiążącą bramką sekretów jest gitleaks w CI.
 
 ## Scalanie (D2, K2)
 1. Orkiestrator wypycha gałąź `feature/EVM-###-…` (bez force) i zakłada PR przez `gh` albo podaje Konradowi tytuł PR. **Tytuł PR = pierwsza linia commita na `main`**: Conventional Commit z ID, np. `ci: add monorepo, quality gates and CI pipeline [EVM-006]`; Renovate — `chore(deps): … [renovate]`; zamknięcie kamienia milowego — `docs(milestone): close M0 [M0]`. Lekcja z PR #1: squash bez tego ustawienia dał „Feature/evm 010 backlog m1 (#1)”.
-2. Konrad sprawdza: demo zaakceptowane; check **`ci-gate` zielony dla ostatniego commita gałęzi**; checklista z szablonu PR (pliki wrażliwe); **tytuł PR** zgodny z punktem 1.
+2. Konrad sprawdza: demo zaakceptowane; check **`ci-gate` zielony w przebiegu PR (`pull_request`) dla ostatniego commita gałęzi**; checklista z szablonu PR (pliki wrażliwe); **tytuł PR** zgodny z punktem 1.
 3. Konrad klika **„Squash and merge”** (komunikat = tytuł i opis PR — K5).
 4. Konrad otwiera widok **Activity** repozytorium (Insights / „Activity” dla gałęzi `main`, jeśli dostępny na Free): dla `main` widnieją wyłącznie wpisy **„Pull request merge”** wykonane przez Konrada. Każdy **„Direct push”** albo **„Force push”** = incydent → „Czerwony `main`”.
 5. Workflow `main-integrity` dla nowego commita na `main` jest zielony (e-mail przy czerwonym). Jeśli log wypisuje commity zmieniające `.github/`, `tools/main-integrity/` albo `tools/scan/`, potwierdź w Activity, że każdy z nich to „Pull request merge” Konrada.
@@ -68,11 +68,60 @@ Każda zmiana na `main` przechodzi przez PR — także backlog, ADR i `/mileston
 - Pierwszy przebieg tworzy **Dependency Dashboard** (issue) — dowód `manual`. PR-y Renovate przechodzą tę samą procedurę scalania (Konrad, zielony `ci-gate`); PR z etykietą `security` — przegląd obowiązkowy.
 
 ## Minuty Actions i koszty
-- Pula Free: 2000 min/mies. dla repozytoriów prywatnych; szacunek 700–1150 min/mies. (przebieg `ci.yml` ok. 12–14 min sumy jobów; nightly ok. 150 min/mies.; Renovate ok. 150 min/mies.).
-- Walidator dokumentacji (EVM-013) to krok joba `quality`, nie osobny job — 0 dodatkowych rozliczanych minut (krok trwa kilka sekund, `timeout-minutes: 2`).
-- Konrad raz w miesiącu: Settings → Billing → Actions usage. Powyżej ok. 1500 min/mies. — propozycja z „Uwag do rozważenia” EVM-006 (pomijanie ciężkich jobów przy zmianach wyłącznie w dokumentacji). Gdy wejdzie, walidator dokumentacji musi zostać w jobie, który uruchamia się zawsze.
+> Stan po EVM-083 (2026-10-13). Pula Free: **2000 min/mies.** dla repozytoriów prywatnych; cel: **≤ 1600 min/mies. (≈ 53 min/dzień, 80% puli)**. Wersja sprzed EVM-083 (szacunek 700–1150 min/mies.) była nieaktualna — rzeczywiste zużycie wg Billing: 2999 min w dniach 2026-10-01..13 (≈ 230 min/dzień, ≈ 7000 min/mies.).
 
-> **Adnotacja 2026-10-13 ([ADR-0018](../architecture/adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) → „Minuty Actions i limit wydatków”):** szacunek wyżej jest nieaktualny — dane z `gh api` (od 2026-10-01): ok. 31 min jobów na przebieg `ci.yml`, **ok. 4000 min/mies. przy puli 2000 min**; `publish` i `staging-verify` dodadzą ok. 10–15 min na scalenie z kodem. Po wyczerpaniu puli (limit 0 USD) stają CI i wdrożenia staging. Mitygacje (zmiana triggera, pomijanie ciężkich jobów przy samej dokumentacji, `publish` tylko przy zmianach kodu) — w EVM-007a; realne zużycie z Billing Konrad sprawdza przed 007a. **Próg ponownej decyzji o planie:** > 1600 min (80%) w dwóch kolejnych miesiącach po mitygacjach albo wyczerpanie puli (zastępuje próg ok. 1500 min wyżej).
+### Co zmienia EVM-083
+- Push na gałąź (bez PR): tylko `quick` (walidator dokumentacji, lint, typy; ok. 2 min). Pełny zestaw: `pull_request` do `main`, `push` na `main`, ręcznie. `ci-gate` istnieje wyłącznie w pełnych przebiegach; w przebiegu szybkim jest pominięty (`skipped`, nie `success`), więc weryfikator wdrożeń z ADR-0018 (V2) i K6 go nie uznają.
+- `changes` (`tools/ci-changes`): zmiana wyłącznie w dokumentacji = wszystkie zmienione pliki leżą w `docs/` albo są plikami `*.md` w katalogu głównym. Wtedy `e2e-web`, `backend-integration` i `coverage` są pominięte; `quality` (z walidatorem dokumentacji), `backend` i `security` działają zawsze. Brak poprawnej bazy porównania, błąd `git diff`, pusta lista zmian, ręczne uruchomienie → **pełny zestaw** (fail-closed).
+- `ci-gate` sam ocenia wyniki (job wymagany jako check, który jest pominięty, bywa uznany za spełniony): zielony przy `success` wszystkich jobów albo — dla zmiany samej dokumentacji — przy `success` `quality`/`backend`/`security` i pominiętych trzech ciężkich; `failure`, `cancelled`, pominięcie przy zmianie kodu, błąd `changes` lub brak jobu = czerwony. Testy: `tools/repo-policy` (niezmienniki triggerów, trasowania jobów i program `jq` bramki na każdym przypadku) oraz `tools/ci-changes`.
+- Zmiana wyzwalaczy `ci.yml` to plik wrażliwy K3 (`.github/**`) — przegląd `security-engineer` i uwaga Konrada przy scalaniu.
+
+### Szacunek przed / po (AC5)
+Założenia (dane 2026-10-01..13, 13 dni): 164 przebiegi `ci.yml` (100 push na gałąź, 64 na `main`; ≈ 4,9 scalenia dziennie), z historii `main` ok. 50% scaleń to zmiany samej dokumentacji (38 z 75 commitów); koszt jobu = minuty z Billing ÷ liczba przebiegów (rozliczane po zaokrągleniu w górę): e2e-web 8,3 · quality 3,3 · backend-integration 3,5 · security 2,2 · backend 1,9 · coverage 1,0 · ci-gate 1,0 · main-integrity 1,5 · nightly 2,6. Nowe: `changes` ≈ 1,0 min i `quick` ≈ 2,0 min na przebieg (**oszacowanie do weryfikacji na pierwszych przebiegach**). Po zmianie na jedno scalenie przypadają: 1 przebieg PR + 1 przebieg `main` (oba pełne) + push na gałąź (`quick`; przyjęto 7,7 pushy/dzień jak dotąd). Pełny przebieg z kodem ≈ 22,2 min; pełny przebieg samej dokumentacji ≈ 9,4 min.
+
+| Job | Przed: min/dzień | Po: przebiegi/dzień | Po: min/dzień |
+|---|---:|---:|---:|
+| e2e-web | 73,0 | 4,9 (tylko kod) | 40,7 |
+| quality | 41,8 | 9,8 | 32,3 |
+| backend-integration | 30,4 | 4,9 | 17,2 |
+| security | 27,2 | 9,8 | 21,6 |
+| backend | 24,5 | 9,8 | 18,6 |
+| ci-gate | 12,5 | 9,8 | 9,8 |
+| coverage | 11,1 | 4,9 | 4,9 |
+| changes (nowy) | — | 9,8 | 9,8 |
+| quick (nowy) | — | 7,7 | 15,4 |
+| main-integrity + nightly | 10,3 | — | 10,3 |
+| **Razem** | **230,8 (≈ 7000/mies.)** | | **≈ 181 (≈ 5400/mies.)** |
+
+**Wynik: szacunek (≈ 181 min/dzień) przekracza próg 53 min/dzień** — same pominięcia dokumentacji i ograniczenie triggera dają ok. −21%, bo większość minut to pełne przebiegi z kodem (`e2e-web`, integracja), a każde scalenie uruchamia pełny zestaw dwa razy (PR i `main`), przy ok. 5 scaleniach dziennie (4,9) (połowa to PR-y samego backlogu).
+
+### Propozycje dalszych cięć — do decyzji Konrada (nie wdrożone)
+| # | Propozycja | Job(y) | Oszczędność (min/dzień, szacunek) | Koszt / ryzyko |
+|---|---|---|---:|---|
+| 1 | Zmiany backlogu (`start`/`done` historyjki) w tym samym PR co praca, nie osobnymi PR-ami (o połowę mniej PR-ów samej dokumentacji) | wszystkie | ≈ −26 | proces; mniej atomowe PR-y |
+| 2 | Push na `main` bez `e2e-web`, `backend-integration`, `coverage` (drzewo = zielony PR; weryfikuje je przebieg PR) | e2e-web, backend-integration, coverage | ≈ −32 | wymaga zmiany ADR-0018 (V2 / `publish` oczekują pełnego `main`); ryzyko: scalenie przy nieaktualnej bazie PR |
+| 3 | Zmiany samej dokumentacji: dodatkowo bez `backend` i bez testów/buildu w `quality` (zostaje walidator, format, `repo-policy`) | backend, quality | ≈ −20 | `quality` przestaje być „pełne”; trzeba zmodyfikować test polityki (walidator zostaje w jobie zawsze uruchamianym) |
+| 4 | `e2e-web` tylko gdy zmieniono `apps/web`, `packages/*`, lockfile, `.github/**`; integracja tylko dla `apps/api`, `packages/*`, lockfile | e2e-web, backend-integration | ≈ −20 (zależy od udziału PR-ów backendowych) | filtr ścieżek w `tools/ci-changes`; pominięcie wymaga jawnej listy (fail-closed) |
+| 5 | `e2e-web`: Chromium na PR/`main`, Firefox tylko nocą | e2e-web | ≈ −17 | słabsze pokrycie przeglądarek w PR |
+| 6 | Pozostały szacunek po 1–5 ≈ 65 min/dzień — nadal powyżej 53; dalej: GitHub Pro (3000 min; odrzucone 2026-10-13), runner na własnej VM (obecnie zabroniony przez politykę repozytorium — wymagałby osobnej decyzji bezpieczeństwa), albo przyspieszenie jobów (osobna historyjka) | — | — | koszt albo ryzyko bezpieczeństwa |
+
+### Potwierdzenie z Billing (poza DoD EVM-083)
+Po ≥ 7 dniach od scalenia EVM-083: Settings → Billing → Actions usage — wpisz minuty/dzień z tego okresu (suma i per job) tutaj i w „Dzienniku” historyjki. Próg ponownej decyzji o planie: > 1600 min w dwóch kolejnych miesiącach (albo wyczerpanie puli).
+
+| Okres | Minuty (łącznie) | Per job (najdroższe) | Uwagi |
+|---|---:|---|---|
+| 2026-10-01..13 (przed) | 2999 | e2e-web 949, quality 543, backend-integration 395 | dane Konrada |
+| po EVM-083 (≥ 7 dni) | _do uzupełnienia_ | _do uzupełnienia_ | |
+
+### Budżet Actions (AC6) — instrukcja dla Konrada
+Stan 2026-10-13: brak karty i opłat, pula 2000 min przekroczona, brak budżetu. Agent nie ma uprawnień do Billing — ustawia Konrad:
+1. GitHub → avatar → **Settings** (konta) → **Billing and licensing** → **Budgets and alerts** (nazwy menu mogą się różnić) → **New budget**.
+2. Zakres: **konto osobiste**, produkt **Actions** (nie „All products”); kwota: np. **5 USD** (bez karty opłata i tak nie powstanie; kwota wyznacza progi alertów).
+3. **Alerty e-mail: 50% i 80%** na adres Konrada (domyślne 75/90/100% — zmień na 50 i 80).
+4. **Wyłącz „Stop usage when budget limit is reached”** (zostaw niezaznaczone). Powód: pula jest już przekroczona, więc blokada zatrzymałaby CI i scalanie do 2026-11-01 (odnowienie puli).
+5. Zapisz i wpisz datę w „Dzienniku” EVM-083 (dowód `manual`: zrzut ekranu budżetu z alertami 50% i 80% i wyłączonym „Stop usage”).
+
+Skutek przekroczenia: GitHub nalicza użycie ponad pulę jako płatne; bez metody płatności przebiegi mogą zostać wstrzymane lub kolejne zostać odrzucone — przy braku karty traktuj przekroczenie jako zatrzymanie CI do odnowienia puli. Alert 50% i 80% to sygnał do przeglądu propozycji z tabeli wyżej. **Ponowna decyzja o blokadzie (Stop usage): od listopada 2026** (po pierwszym pełnym miesiącu pomiaru), razem z progiem „> 1600 min w dwóch kolejnych miesiącach”.
 
 ## Przegląd dostępów (SR-INFRA-09) — co kwartał
 - Konta z dostępem do repozytorium (Settings → Collaborators): wyłącznie Konrad.

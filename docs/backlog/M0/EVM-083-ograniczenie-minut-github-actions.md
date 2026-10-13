@@ -79,3 +79,4 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - 2026-10-13 — utworzono (product-owner, podział EVM-007 wg ADR-0018); okres raportu Billing potwierdzony (01–13.10), priorytet P0 wg koordynatora
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
 - 2026-10-13 — ready → in-progress: start `/deliver` (ścieżka lekka, gałąź `feature/EVM-083-minuty-actions`)
+- 2026-10-13 — implementacja (devops-engineer): trigger push/pull_request/dispatch, jobs `quick` + `changes` (tools/ci-changes), `ci-gate` z oceną pominięć (GATE_JQ), niezmienniki w tools/repo-policy, K6 uznaje przebiegi `pull_request`; szacunek AC5 ≈ 181 min/dzień (> 53) + propozycje cięć w docs/ops/github-i-ci.md — decyzja Konrada; budżet AC6 do ustawienia przez Konrada wg instrukcji; potwierdzenie z Billing po ≥ 7 dniach — otwarte
