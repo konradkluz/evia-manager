@@ -23,6 +23,7 @@ import { encodeCursor, resolveAuditQuery } from '../domain/audit-query.ts';
 import { toAuditRecord } from '../domain/audit-record.ts';
 import { readAuditPage, type AuditRow } from '../infrastructure/audit-reader.ts';
 import { insertAuditRecord } from '../infrastructure/audit-store.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 @Injectable()
 export class AuditReadService {
@@ -40,7 +41,7 @@ export class AuditReadService {
   async list(principal: Principal, rawQuery: unknown, context: EventContext): Promise<AuditEventList> {
     const now = this.#clock.now();
     const query = parseInput(resolveAuditQuery(now), rawQuery);
-    const page = await this.#db.transaction().execute(async (transaction) => {
+    const page = await runInTransaction(this.#db, async (transaction) => {
       const rows = await readAuditPage(transaction, query);
       const shown = rows.slice(0, query.limit);
       const names = await this.#users.displayNamesOf(

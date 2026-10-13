@@ -14,6 +14,7 @@ import {
   numberOf,
   type ScopeItemSpec,
 } from '../support/work-order-fixtures.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 let current: IdentityApp;
 beforeAll(async () => {
@@ -141,6 +142,7 @@ describe('work order header (EVM-018 AC1, AC5)', () => {
     await sql`update customers.customers set deleted_at = now() where id = ${s.customerId}`.execute(admin());
     await sql`update sites.sites set deleted_at = now() where id = ${s.siteId}`.execute(admin());
     await sql`update work_orders.work_order_assignments set deleted_at = now() where work_order_id = ${s.orderId}`.execute(admin());
+    await rebuildProjection(admin(), [s.orderId]);
     const response = await get(await signIn('editor'), `${PATH}/${s.orderId}`);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ customer: null, site: null, coordinator: null });

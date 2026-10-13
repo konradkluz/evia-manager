@@ -54,6 +54,7 @@ import type { ProcedureStageEvent, StageFieldsChangedEvent, StageWaitingOnChange
 import { lockStage, updateStage } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
 import { HIDDEN_STAGE_COLUMNS, presentStage, requireVisibleParty } from './stage-answer.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the stage (see {@link updateStageScope}). */
 export const UPDATE_STAGE_SCOPE = 'PATCH /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}';
@@ -128,7 +129,7 @@ export class UpdateStageService {
     const expectedVersion = parseIfMatch(rawIfMatch);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const order = await this.#orders.lockVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const locked = await lockStage(procedureTables(tx), order.id, stageId);

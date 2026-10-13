@@ -17,6 +17,7 @@ import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry } from '../infrastructure/timeline-store.ts';
 import { EntryPresenter } from './entry-page.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 const pathSchema = strictObjects(zGetTimelineEntryPath);
 
@@ -39,15 +40,16 @@ export class ReadEntryService {
   /** @param rawParams the path parameters as parsed by the framework */
   async get(principal: Principal, rawParams: unknown): Promise<TimelineEntry> {
     const { workOrderId, entryId } = parseInput(pathSchema, rawParams) as { workOrderId: string; entryId: string };
-    return this.#db
-      .transaction()
-      .setIsolationLevel('repeatable read')
-      .execute(async (tx) => {
+    return runInTransaction(
+      this.#db,
+      async (tx) => {
         const order = await this.#orders.findVisible(tx, principal, workOrderId);
         if (order === undefined) throw new ProblemException('not_found');
         const row = await findEntry(timelineTables(tx), order.id, entryId);
         if (row === undefined) throw new ProblemException('not_found');
         return this.#presenter.entry(tx, principal, order.id, row);
-      });
+      },
+      { isolationLevel: 'repeatable read' },
+    );
   }
 }

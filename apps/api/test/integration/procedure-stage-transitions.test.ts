@@ -2,7 +2,7 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { STAGE_TRANSITION_TABLE } from '../../src/modules/procedures/domain/stage-transitions.ts';
 import type { StageStatus } from '../../src/modules/procedures/domain/stage-rules.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import { insertCustomer } from '../support/customer-fixtures.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
@@ -12,6 +12,7 @@ import { insertProcedure, type ProcedureSpec, type StageSpec } from '../support/
 import { insertParty, insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertWorkOrders } from '../support/work-order-fixtures.ts';
+import { rebuildProjection } from '../support/projection.ts';
 
 const TODAY_INSTANT = '2026-10-03T08:00:00.000Z';
 const TODAY = '2026-10-03';
@@ -806,6 +807,7 @@ describe('the rules of the command (EVM-032 AC6; SR-API-07, SR-AUTHZ-02, SR-INPU
     await new Promise((resolve) => setTimeout(resolve, 300));
     release();
     await closing;
+    await rebuildProjection(admin()); // the order was settled by a statement outside the services
     const response = await pending;
     expect(codeOf(response.body)).toBe('work_order_closed');
     expect((await rowOf(stageId)).status).toBe('in_progress');

@@ -6,7 +6,7 @@
  */
 import type { ColumnType, Generated, Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
-import type { WorkOrderStatus } from '../domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../domain/work-order-status.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
 
 export interface WorkOrdersTable {

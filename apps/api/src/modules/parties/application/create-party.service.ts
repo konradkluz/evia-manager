@@ -28,6 +28,7 @@ import type { PartyEvent } from '../events.ts';
 import { findVisibleParty, insertParty, type PartyRow } from '../infrastructure/party-store.ts';
 import { partyTables } from '../infrastructure/tables.ts';
 import { toParty } from './party-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template: what an idempotency key is bound to besides the user. */
 export const CREATE_PARTY_SCOPE = 'POST /api/v1/parties';
@@ -69,7 +70,7 @@ export class CreatePartyService {
     if (!normalized.ok) throw new ProblemException('validation_failed', { errors: normalized.errors });
 
     const request = { ...context, sessionId: principal.sessionId };
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const perform = async () => {
         const row = await this.#insert(tx, principal, normalized.party, request);
         return { value: row, result: { status: 201, code: 'created', resourceId: row.id } };

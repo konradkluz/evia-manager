@@ -8,7 +8,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
 import type { Principal } from '../../platform/http/principal.ts';
-import type { WorkOrderStatus } from './domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from './domain/work-order-status.ts';
 
 export const WORK_ORDER_DIRECTORY = Symbol('WORK_ORDER_DIRECTORY');
 
@@ -23,8 +23,13 @@ export interface WorkOrderDirectory {
   /** The order the caller may see, or `undefined` (missing and deleted alike). */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<WorkOrderRef | undefined>;
   /**
-   * The same, with the row LOCKED (`SELECT … FOR UPDATE`) until the transaction ends: the decision about a change that depends on the
+   * The same, with the row LOCKED (`SELECT … FOR NO KEY UPDATE`) until the transaction ends: the decision about a change that depends on the
    * status (is the order closed?) is taken on a status no other transaction can change meanwhile (ASVS V2.3.3).
    */
   lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<WorkOrderRef | undefined>;
+  /**
+   * The title of every order among `ids` that the caller may see (ONE query, the read policy in it); the others are absent — the list
+   * of `overview` shows nothing for an order this answer leaves out (fail closed, ADR-0017 W2).
+   */
+  titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
 }

@@ -18,7 +18,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
 import type { Principal } from '../../platform/http/principal.ts';
-import type { WorkOrderStatus } from './domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from './domain/work-order-status.ts';
 
 export interface TransitionContext {
   readonly workOrderId: string;

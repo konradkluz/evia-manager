@@ -49,7 +49,7 @@ const minimal = (service: Record<string, unknown> = {}, extra: Record<string, un
 describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 AC8)', () => {
   it('EVM-077 AC8: the real file passes the rules of the profile', () => {
     expect(problemsOf(dev, read('compose.dev.yaml'))).toEqual([]);
-    expect(Object.keys(services).sort()).toEqual(['api', 'postgres-dev']);
+    expect(Object.keys(services).sort()).toEqual(['api', 'postgres-dev', 'worker']);
   });
 
   it('EVM-077 AC8: the minimal valid file passes, so every negative below fails for its own reason', () => {
@@ -134,6 +134,29 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
     expect(names(dev, 'networks')).toEqual(['dev-net']);
     for (const mounts of Object.values(services).map((value) => list(record(value)['volumes']).map(String)))
       for (const mount of mounts) expect(mount.startsWith('bt-work')).toBe(false);
+  });
+
+  it('EVM-034 W11: the worker is the same image with another command, has no port, starts after the api and takes no setting of HTTP or WebAuthn display', () => {
+    const worker = service('worker');
+    const api = service('api');
+    expect(worker['image']).toBe(api['image']);
+    expect(worker['build']).toEqual(api['build']);
+    expect(worker['command']).toEqual(['node', 'dist/src/worker.js']);
+    expect(worker['ports']).toBeUndefined();
+    expect(worker['env_file']).toBeUndefined();
+    expect(worker['healthcheck']).toBeUndefined();
+    expect(worker['user']).toBe('node');
+    expect(record(record(worker['depends_on'])['api'])['condition']).toBe('service_healthy');
+    expect(record(worker['environment'])).toEqual({
+      NODE_ENV: 'development',
+      LOG_LEVEL: 'info',
+      DATABASE_URL: 'postgres://evia:evia-local@postgres-dev:5432/evia_dev',
+      MIN_SUPPORTED_APP_VERSION_ANDROID: '1.0.0',
+      MIN_SUPPORTED_APP_VERSION_IOS: '1.0.0',
+      PANEL_ORIGIN: 'http://localhost:5173',
+      WEBAUTHN_RP_ID: 'localhost',
+      CURSOR_KEY: null,
+    });
   });
 
   it('EVM-077 AC4 (M3): the api service has every setting written out — only CURSOR_KEY is taken from the host, by name', () => {

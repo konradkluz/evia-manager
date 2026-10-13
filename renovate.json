@@ -48,7 +48,13 @@
     { "description": "TypeScript", "matchPackageNames": ["typescript", "@types/node"], "groupName": "TypeScript" },
     { "description": "Test tools", "matchPackageNames": ["vitest", "@vitest/**"], "groupName": "test tools" },
     { "description": "Monorepo tooling", "matchPackageNames": ["turbo", "pnpm", "lefthook"], "groupName": "monorepo tooling" },
-    { "description": "Design tokens", "matchPackageNames": ["style-dictionary"], "groupName": "Style Dictionary" }
+    { "description": "Design tokens", "matchPackageNames": ["style-dictionary"], "groupName": "Style Dictionary" },
+    {
+      "description": "Job queue (EVM-034): a new version brings a new schema of the pgboss tables — never merged without a migration (the integration test 'the schema version of the package equals the frozen one' stays red until it exists; migration 0024 holds a frozen script of version 43)",
+      "matchPackageNames": ["pg-boss"],
+      "groupName": "pg-boss",
+      "labels": ["dependencies", "needs-migration"]
+    }
   ],
   "customManagers": [
     {

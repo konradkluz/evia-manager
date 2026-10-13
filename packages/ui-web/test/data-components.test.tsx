@@ -231,6 +231,25 @@ describe('DataTable cards on narrow viewports (styleguide § 3.6; EVM-017 AC1)',
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-034 AC1 a detail column is a full-width line under the other lines of the card and keeps its place in the table', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={[
+          { id: 'order', header: 'Zlecenie', card: 'primary' },
+          { id: 'waiting', header: 'Czekamy na', card: 'detail' },
+          { id: 'who', header: 'Opiekun', card: 'meta' },
+        ]}
+        rows={[{ id: 'a', cells: ['x', 'Operator Testowy · od 15 dni', 'z'] }]}
+      />,
+    );
+    const cells = screen.getAllByRole('cell');
+    expect(cells[1]?.className).toContain('max-medium:col-span-3');
+    expect(cells[1]?.className).not.toContain('max-medium:row-start');
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Zlecenie', 'Czekamy na', 'Opiekun']);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-017 AC1 without card roles the table keeps scrolling in its frame', () => {
     render(<DataTable caption="Zlecenia" columns={[{ id: 'a', header: 'A' }]} rows={[{ id: 'a', cells: ['x'] }]} />);
     expect(screen.getByRole('table').className).not.toContain('max-medium');
@@ -261,6 +280,27 @@ describe('DataTable columns for the wide view only (styleguide § 3.6; EVM-039 A
     // the other columns keep their place in the card
     expect(within(table).getByText('Przykładowy Jan').closest('td')?.className).toContain('max-medium:block');
     expect(within(table).getByRole('columnheader', { name: 'Klient' }).className).not.toContain('hidden');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('hides an expandedOnly column below the expanded breakpoint (EVM-034)', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={[
+          { id: 'name', header: 'Zlecenie', card: 'primary' },
+          { id: 'created', header: 'Utworzono', card: 'meta', expandedOnly: true },
+        ]}
+        rows={[{ id: 'a', cells: ['ZL-1', '2026-10-01'] }]}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Zlecenia' });
+    const header = within(table).getByRole('columnheader', { name: 'Utworzono' });
+    expect(header.className).toContain('hidden');
+    expect(header.className).toContain('expanded:table-cell');
+    const cell = within(table).getByText('2026-10-01').closest('td');
+    expect(cell?.className).toContain('expanded:table-cell');
+    expect(cell?.className).not.toContain('max-medium:block');
     expect(await axeViolations(container)).toEqual([]);
   });
 });

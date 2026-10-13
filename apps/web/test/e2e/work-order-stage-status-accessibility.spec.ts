@@ -43,7 +43,10 @@ test.describe('accessibility of the status of a stage in the browser, with colou
       await dialog.getByLabel('Od kiedy').fill('2026-09-18');
       expect(await violations(page)).toEqual([]);
       await dialog.getByRole('button', { name: 'Zapisz' }).click();
-      await expect(page.getByText(/Czekamy na: Operator Testowy · od \d+ dni/)).toBeVisible();
+      // the summary card (EVM-034) repeats the wait; the row of the stage is asked for in the section of the processes
+      await expect(
+        page.getByRole('region', { name: /^Procesy i etapy/ }).getByText(/Czekamy na: Operator Testowy · od \d+ dni/),
+      ).toBeVisible();
       expect(await violations(page)).toEqual([]);
       await badge('Czekamy na…').click();
       await page.getByRole('menuitem', { name: 'Zmień, na kogo czekamy…' }).click();

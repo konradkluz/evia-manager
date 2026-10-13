@@ -28,6 +28,7 @@ import type { CustomerEvent } from '../events.ts';
 import { findVisibleCustomer, insertCustomer, type CustomerRow } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 import { toCustomer } from './customer-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template: what an idempotency key is bound to besides the user. */
 export const CREATE_CUSTOMER_SCOPE = 'POST /api/v1/customers';
@@ -69,7 +70,7 @@ export class CreateCustomerService {
     if (!normalized.ok) throw new ProblemException('validation_failed', { errors: normalized.errors });
 
     const request = { ...context, sessionId: principal.sessionId };
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const perform = async () => {
         const row = await this.#insert(tx, principal, normalized.customer, request);
         return { value: row, result: { status: 201, code: 'created', resourceId: row.id } };

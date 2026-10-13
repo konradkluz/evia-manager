@@ -34,6 +34,7 @@ import {
   METRICS,
   SECURITY_ALERT_EMITTER,
 } from './tokens.ts';
+import { runInTransaction } from './database/transactional.ts';
 
 export interface PlatformDependencies {
   readonly config: AppConfig;
@@ -79,7 +80,7 @@ export class PlatformModule {
             events: EventBus,
           ) =>
             new BulkReadControl(meter, distinct, logger, metrics, (event, context) =>
-              db.transaction().execute((transaction) => events.publish(transaction, event, context)),
+              runInTransaction(db, (transaction) => events.publish(transaction, event, context)),
             ),
         },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },

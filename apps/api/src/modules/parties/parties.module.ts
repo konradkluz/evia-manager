@@ -12,7 +12,9 @@ import { ReadPartyService } from './application/read-party.service.ts';
 import { SearchPartiesService } from './application/search-parties.service.ts';
 import { UpdatePartyService } from './application/update-party.service.ts';
 import { PartiesController } from './http/parties.controller.ts';
+import { PartyProjectionSourceService } from './infrastructure/projection-source.ts';
 import { PARTY_DIRECTORY } from './party-directory.ts';
+import { PARTY_PROJECTION_SOURCE } from './system-ports.ts';
 
 @Module({
   controllers: [PartiesController],
@@ -22,7 +24,8 @@ import { PARTY_DIRECTORY } from './party-directory.ts';
     ReadPartyService,
     UpdatePartyService,
     { provide: PARTY_DIRECTORY, useClass: PartyDirectoryService },
+    { provide: PARTY_PROJECTION_SOURCE, useClass: PartyProjectionSourceService },
   ],
-  exports: [PARTY_DIRECTORY],
+  exports: [PARTY_DIRECTORY, PARTY_PROJECTION_SOURCE],
 })
 export class PartiesModule {}

@@ -1,4 +1,5 @@
-import type { ListWorkOrdersData, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
+import type { ListWorkOrdersData, PartyKind, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
+import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 
 /** Statuses of the filter, in the order of the life of an order (styleguide § 4.4). */
@@ -16,17 +17,37 @@ export const WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = [
 /** Orders on a page: the story EVM-017 AC3 (25) — within the API limit of 100. */
 export const PAGE_SIZE = 25;
 
+/** The saved view "Czekamy na OSD > 14 dni" (EVM-034 AC3): the one view that is itself a "Czekamy na" filter. */
+export const DSO_VIEW = 'waiting_on_dso_over_14_days';
+
 /**
  * `all_open` — "Wszystkie niezamknięte" (the default view of the panel, sent to the API explicitly), `mine` — "Moje",
- * `all` — every status (the panel's own identifier: the API gets no `view`), `unknown` — an identifier from a link that
- * this panel does not know ("Nie znaleziono widoku").
+ * `waiting_on_dso_over_14_days` — "Czekamy na OSD > 14 dni" (EVM-034), `all` — every status (the panel's own identifier:
+ * the API gets no `view`), `unknown` — an identifier from a link that this panel does not know ("Nie znaleziono widoku").
  */
-export type ViewId = 'all_open' | 'mine' | 'all' | 'unknown';
+export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | 'unknown';
 
-/** What the address carries (styleguide § 3.7): the statuses and the view — never a person, a cursor or a title. */
+/**
+ * The target of "Czekamy na" (EVM-034 AC2): `customer`, any `party`, or a kind of party (the code of the dictionary) — a code,
+ * never the identifier or the name of a party. `''` — the filter is off.
+ */
+export type WaitingTarget = '' | 'customer' | 'party' | PartyKind;
+
+/** The default of "dłużej niż [X] dni" and the range the API accepts (`400` outside of it). */
+export const DEFAULT_WAITING_DAYS = 14;
+export const WAITING_DAYS_MIN = 1;
+export const WAITING_DAYS_MAX = 365;
+
+/**
+ * What the address carries (styleguide § 3.7): the statuses and the view, and — for "Czekamy na" — only the kind of party and X
+ * (EVM-034 AC2); never a person, a party, a cursor or a title.
+ */
 export interface WorkOrderSearch {
   readonly status?: string;
   readonly view?: string;
+  readonly waitingOn?: string;
+  /** A number, so that the address reads `waitingDays=14` and not a quoted string. */
+  readonly waitingDays?: number;
 }
 
 export interface WorkOrderFilters {
@@ -35,10 +56,21 @@ export interface WorkOrderFilters {
   /** Only in the memory of the tab: a person is personal data and never goes to the address (AC2). */
   readonly coordinatorId: string;
   readonly sort: WorkOrderSort;
+  /** "Czekamy na" (EVM-034): whom we wait for; the address carries it with `waitingDays`. */
+  readonly waitingOn: WaitingTarget;
+  /** "dłużej niż [X] dni", 1–365; meaningful only with `waitingOn`. */
+  readonly waitingDays: number;
 }
 
 export const DEFAULT_SORT: WorkOrderSort = '-number';
-export const NO_FILTERS: WorkOrderFilters = { view: 'all_open', statuses: [], coordinatorId: '', sort: DEFAULT_SORT };
+export const NO_FILTERS: WorkOrderFilters = {
+  view: 'all_open',
+  statuses: [],
+  coordinatorId: '',
+  sort: DEFAULT_SORT,
+  waitingOn: '',
+  waitingDays: DEFAULT_WAITING_DAYS,
+};
 
 const isStatus = (value: string): value is WorkOrderStatus => Object.hasOwn(workOrderStatusLabels, value);
 
@@ -46,9 +78,15 @@ const isStatus = (value: string): value is WorkOrderStatus => Object.hasOwn(work
 export function validateSearch(search: Record<string, unknown>): WorkOrderSearch {
   const status = search['status'];
   const view = search['view'];
+  const waitingOn = search['waitingOn'];
+  // The router parses a number out of the address; a text of digits (a link made by hand) is read the same way.
+  const days = search['waitingDays'];
+  const waitingDays = typeof days === 'number' ? days : typeof days === 'string' ? parseWaitingDays(days) : undefined;
   return {
     ...(typeof status === 'string' && status !== '' ? { status } : {}),
     ...(typeof view === 'string' && view !== '' ? { view } : {}),
+    ...(typeof waitingOn === 'string' && waitingOn !== '' ? { waitingOn } : {}),
+    ...(waitingDays === undefined ? {} : { waitingDays }),
   };
 }
 
@@ -65,32 +103,73 @@ export function viewOf(search: WorkOrderSearch): ViewId {
       return 'all_open';
     case 'mine':
     case 'all':
+    case DSO_VIEW:
       return search.view;
     default:
       return 'unknown';
   }
 }
 
-/** The address for the filters: the default view is not written, an empty status list is not written. */
-export function searchOf(filters: Pick<WorkOrderFilters, 'view' | 'statuses'>): WorkOrderSearch {
+const isWaitingTarget = (value: string): value is WaitingTarget =>
+  value === 'customer' || value === 'party' || Object.hasOwn(partyKindLabels, value);
+
+/** The target of "Czekamy na" of the address: a known code only (a link with another value is read as "no filter"). */
+export function waitingOnOf(search: WorkOrderSearch): WaitingTarget {
+  const value = search.waitingOn ?? '';
+  return value !== '' && isWaitingTarget(value) ? value : '';
+}
+
+/** `'14'` → 14; text that is not a whole number of days 1–365 → `undefined` (nothing is sent for it). */
+export function parseWaitingDays(text: string): number | undefined {
+  const trimmed = text.trim();
+  if (!/^\d{1,3}$/.test(trimmed)) return undefined;
+  const value = Number(trimmed);
+  return value >= WAITING_DAYS_MIN && value <= WAITING_DAYS_MAX ? value : undefined;
+}
+
+/** X of the address: a whole number 1–365, otherwise the default (the field of the panel shows what is asked for). */
+export const waitingDaysOf = (search: WorkOrderSearch): number =>
+  parseWaitingDays(String(search.waitingDays ?? '')) ?? DEFAULT_WAITING_DAYS;
+
+/**
+ * The address for the filters: the default view is not written, an empty status list is not written; "Czekamy na" writes the
+ * kind of party and X only (the view "Czekamy na OSD > 14 dni" is its own identifier).
+ */
+export function searchOf(
+  filters: Pick<WorkOrderFilters, 'view' | 'statuses'> & Partial<Pick<WorkOrderFilters, 'waitingOn' | 'waitingDays'>>,
+): WorkOrderSearch {
+  const waitingOn = filters.waitingOn ?? '';
   return {
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.view === 'all_open' || filters.view === 'unknown' ? {} : { view: filters.view }),
+    ...(waitingOn === '' ? {} : { waitingOn, waitingDays: filters.waitingDays ?? DEFAULT_WAITING_DAYS }),
   };
 }
 
 /** Something narrower than "Wszystkie niezamknięte" is chosen ("Wyczyść filtry" has something to clear). */
 export const isFiltered = (filters: WorkOrderFilters): boolean =>
-  filters.view !== 'all_open' || filters.statuses.length > 0 || filters.coordinatorId !== '';
+  filters.view !== 'all_open' || filters.statuses.length > 0 || filters.coordinatorId !== '' || filters.waitingOn !== '';
+
+/**
+ * "Czekamy na" of the query: `customer`; `party` for any party; a kind of party is `party` with `waitingOnPartyKind` (the API
+ * refuses a kind together with `customer`). X goes with it. Nothing for a filter that is off.
+ */
+function waitingQuery(filters: WorkOrderFilters): NonNullable<ListWorkOrdersData['query']> {
+  const { waitingOn, waitingDays } = filters;
+  if (waitingOn === '') return {};
+  if (waitingOn === 'customer' || waitingOn === 'party') return { waitingOn, waitingLongerThanDays: waitingDays };
+  return { waitingOn: 'party', waitingOnPartyKind: waitingOn, waitingLongerThanDays: waitingDays };
+}
 
 /** The query of `listWorkOrders`: an empty filter is left out; the view `all` sends no `view` at all. */
 export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): NonNullable<ListWorkOrdersData['query']> {
   return {
     limit: PAGE_SIZE,
     sort: filters.sort,
-    ...(filters.view === 'all_open' || filters.view === 'mine' ? { view: filters.view } : {}),
+    ...(filters.view === 'all_open' || filters.view === 'mine' || filters.view === DSO_VIEW ? { view: filters.view } : {}),
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
+    ...waitingQuery(filters),
     ...(cursor === undefined ? {} : { cursor }),
   };
 }

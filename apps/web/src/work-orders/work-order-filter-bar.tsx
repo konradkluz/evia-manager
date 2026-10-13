@@ -1,8 +1,20 @@
 import type { WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
-import { Button, FilterChip, Select, type SelectOption } from '@evia/ui-web';
+import { Button, FilterChip, Select, TextField, type SelectGroup, type SelectOption } from '@evia/ui-web';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderSortLabels, workOrderStatusLabels } from '../i18n/work-order-labels.ts';
-import { isFiltered, NO_FILTERS, WORK_ORDER_STATUSES, type ViewId, type WorkOrderFilters } from './filters.ts';
+import { useDebounced } from '../shell/use-debounced.ts';
+import {
+  DSO_VIEW,
+  isFiltered,
+  NO_FILTERS,
+  parseWaitingDays,
+  WORK_ORDER_STATUSES,
+  type ViewId,
+  type WaitingTarget,
+  type WorkOrderFilters,
+} from './filters.ts';
 
 export interface WorkOrderFilterBarProps {
   readonly filters: WorkOrderFilters;
@@ -13,21 +25,56 @@ export interface WorkOrderFilterBarProps {
   readonly onChange: (next: WorkOrderFilters) => void;
 }
 
-const SORTS: readonly WorkOrderSort[] = ['-number', 'number', '-createdAt', 'createdAt'];
+const SORTS: readonly WorkOrderSort[] = ['-number', 'number', '-createdAt', 'createdAt', 'longestWaitingSince', 'nextDueDate'];
+
+/** The panel waits this long after the last key before it asks for the new "dłużej niż [X] dni" (a request per pause, not per key). */
+const DAYS_PAUSE_MS = 300;
+
+/** The kinds of party of the filter, in the order of the dictionary (the OSD is the one that matters most — it is the first). */
+const KIND_ORDER = Object.keys(partyKindLabels) as Array<keyof typeof partyKindLabels>;
 
 /**
  * FilterBar of W-10 (styleguide § 3.7; EVM-017 AC2): the views "Wszystkie niezamknięte" and "Moje" (chips), the statuses
  * (a chip each — several at once), "Opiekun" and "Sortuj". Filters apply at once (no "Zastosuj"); the active ones are
  * chips with an `x` and there is "Wyczyść filtry". Choosing a status leaves "Wszystkie niezamknięte" (it would exclude
  * the closed statuses the person may be asking for). "Opiekun" lives only in the memory of the tab.
+ *
+ * EVM-034 AC2, AC3: "Czekamy na" — the customer, any party or a kind of party — with "dłużej niż [X] dni" (1–365, applied after
+ * a pause in typing; a value out of the range is told and not sent), and the saved view "Czekamy na OSD > 14 dni". The address
+ * carries only the kind of party and X, or the identifier of the view. The view and the filter exclude each other: choosing
+ * one takes the other away (the view already is "OSD, 14 days").
  */
 export function WorkOrderFilterBar({ filters, people, disabled, onChange }: WorkOrderFilterBarProps) {
   const { t } = useTranslation();
   const hint = disabled ? t('workOrders.filters.offlineHint') : undefined;
   const select = (view: ViewId) => {
     // "Wszystkie niezamknięte" and a closed status exclude each other; the view takes the statuses back to "all".
-    onChange({ ...filters, view, ...(view === 'all_open' ? { statuses: [] } : {}) });
+    // The view "Czekamy na OSD > 14 dni" is a "Czekamy na" filter itself: the filter of the bar is taken away.
+    onChange({
+      ...filters,
+      view,
+      ...(view === 'all_open' ? { statuses: [] } : {}),
+      ...(view === DSO_VIEW ? { waitingOn: '' as const } : {}),
+    });
   };
+  const chooseWaiting = (waitingOn: WaitingTarget) => {
+    onChange({ ...filters, waitingOn, ...(waitingOn !== '' && filters.view === DSO_VIEW ? { view: 'all_open' as const } : {}) });
+  };
+
+  // "dłużej niż [X] dni": what is typed lives here; a valid number goes up after a pause. The field follows the filter when it changes
+  // from outside (a chip removed, "Wyczyść filtry", a link).
+  const [daysText, setDaysText] = useState(String(filters.waitingDays));
+  useEffect(() => {
+    setDaysText(String(filters.waitingDays));
+  }, [filters.waitingDays]);
+  const settledDays = useDebounced(daysText, DAYS_PAUSE_MS);
+  useEffect(() => {
+    const value = parseWaitingDays(settledDays);
+    if (filters.waitingOn !== '' && value !== undefined && value !== filters.waitingDays) onChange({ ...filters, waitingDays: value });
+    // Only a settled value of the field matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledDays]);
+  const daysInvalid = parseWaitingDays(daysText) === undefined;
   const toggle = (status: WorkOrderStatus) => {
     const chosen = filters.statuses.includes(status);
     const statuses = WORK_ORDER_STATUSES.filter((entry) => (entry === status ? !chosen : filters.statuses.includes(entry)));
@@ -38,12 +85,35 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
     ...[...people].sort((a, b) => a[1].localeCompare(b[1], 'pl')).map(([value, label]) => ({ value, label })),
   ];
   const sortOptions: SelectOption[] = SORTS.map((value) => ({ value, label: workOrderSortLabels[value] }));
+  const kindGroup: SelectGroup = {
+    label: t('workOrders.filters.waitingKinds'),
+    options: KIND_ORDER.map((kind) => ({ value: kind, label: partyKindLabels[kind] })),
+  };
+  const waitingOptions: Array<SelectOption | SelectGroup> = [
+    { value: '', label: t('workOrders.filters.waitingNone') },
+    { value: 'customer', label: t('workOrders.filters.waitingCustomer') },
+    { value: 'party', label: t('workOrders.filters.waitingAnyParty') },
+    kindGroup,
+  ];
+  const waitingLabel = (target: WaitingTarget): string =>
+    target === 'customer'
+      ? t('workOrders.filters.waitingCustomer')
+      : target === 'party' || target === ''
+        ? t('workOrders.filters.waitingAnyParty')
+        : partyKindLabels[target];
   const chips: Array<{ readonly key: string; readonly label: string; readonly clear: Partial<WorkOrderFilters> }> = [];
   for (const status of filters.statuses) {
     chips.push({
       key: `status-${status}`,
       label: t('workOrders.filters.chipStatus', { value: workOrderStatusLabels[status] }),
       clear: { statuses: filters.statuses.filter((entry) => entry !== status) },
+    });
+  }
+  if (filters.waitingOn !== '') {
+    chips.push({
+      key: 'waiting',
+      label: t('workOrders.filters.chipWaiting', { who: waitingLabel(filters.waitingOn), days: filters.waitingDays }),
+      clear: { waitingOn: '', waitingDays: NO_FILTERS.waitingDays },
     });
   }
   if (filters.coordinatorId !== '') {
@@ -74,6 +144,15 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
             select(filters.view === 'mine' ? 'all_open' : 'mine');
           }}
         />
+        <FilterChip
+          variant="choice"
+          label={t('workOrders.filters.viewDso')}
+          selected={filters.view === DSO_VIEW}
+          disabled={disabled}
+          onClick={() => {
+            select(filters.view === DSO_VIEW ? 'all_open' : DSO_VIEW);
+          }}
+        />
       </div>
       <div role="group" aria-label={t('workOrders.filters.status')} className="flex flex-wrap items-center gap-inline-sm">
         {WORK_ORDER_STATUSES.map((status) => (
@@ -100,6 +179,28 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
             onChange({ ...filters, coordinatorId: value });
           }}
         />
+        <Select
+          label={t('workOrders.filters.waiting')}
+          value={filters.waitingOn}
+          options={waitingOptions}
+          disabled={disabled}
+          onChange={(value) => {
+            chooseWaiting(value as WaitingTarget);
+          }}
+        />
+        {filters.waitingOn === '' ? null : (
+          <TextField
+            label={t('workOrders.filters.waitingDays')}
+            value={daysText}
+            inputMode="numeric"
+            suffix={t('workOrders.filters.waitingDaysSuffix')}
+            disabled={disabled}
+            {...(daysInvalid ? { error: t('workOrders.filters.waitingDaysError') } : { hint: t('workOrders.filters.waitingDaysHint') })}
+            onChange={(event) => {
+              setDaysText(event.target.value);
+            }}
+          />
+        )}
         <Select
           label={t('workOrders.filters.sort')}
           value={filters.sort}

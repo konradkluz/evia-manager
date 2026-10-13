@@ -10,7 +10,7 @@ import { insertSite } from '../support/site-fixtures.ts';
 import { insertEntries } from '../support/timeline-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertWorkOrders } from '../support/work-order-fixtures.ts';
-import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-list-query.ts';
+import type { WorkOrderStatus } from '../../src/modules/work-orders/domain/work-order-status.ts';
 
 const NOW = '2026-10-11T08:00:00.000Z';
 const BASE = '/api/v1/work-orders';

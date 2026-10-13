@@ -7,6 +7,7 @@ import type { Kysely } from 'kysely';
 import type { StageStatus } from '../../src/modules/procedures/domain/stage-rules.ts';
 import { procedureTables } from '../../src/modules/procedures/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
+import { rebuildProjection } from './projection.ts';
 import { assertSyntheticDataAllowed } from './work-order-fixtures.ts';
 
 export interface StageSpec {
@@ -97,5 +98,6 @@ export async function insertProcedure(db: Kysely<Database>, workOrderId: string,
           )
           .returning('id')
           .execute();
+  await rebuildProjection(db, [workOrderId]);
   return { id: procedure.id, stageIds: rows.map((row) => row.id) };
 }

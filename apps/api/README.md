@@ -7,6 +7,7 @@ Szkielet z EVM-008 (AC1, AC2, AC4; ADR-0001, ADR-0002, ADR-0003, ADR-0004, ADR-0
 |---|---|
 | `pnpm --filter @evia/api run build` | `tsc` → `dist/` (NestJS wymaga dekoratorów, których Node nie usuwa) |
 | `pnpm --filter @evia/api run start` | `node dist/src/main.js` — wymaga zmiennych z `.env.example` |
+| `pnpm --filter @evia/api run worker` / `start:worker` | proces `worker` (`node dist/src/worker.js`, EVM-034 krok 9, ADR-0010): zadania w tle z kolejki pg-boss jako rola aplikacji — bez HTTP i bez migracji; teraz tylko nocny `verify` projekcji; lokalnie usługa `worker` w `compose.dev.yaml` |
 | `pnpm --filter @evia/api run db:migrate` | migracje „w przód” (Kysely `Migrator`); nigdy przy starcie API |
 | `pnpm --filter @evia/api run test:coverage` | testy jednostkowe i HTTP bez bazy, próg 85% linii i gałęzi (warstwa backend) dla kodu niezależnego od bazy; w kontenerze `backend-tests` w ramach `gate:backend` |
 | `pnpm --filter @evia/api run test:integration` | testy z PostgreSQL: Testcontainers (CI, job `backend-integration`) albo baza z `EVIA_TEST_DATABASE_URL`; mierzy kod związany z bazą (`coverage.config.ts`) z progiem 85% — API łączy się tu rolą `evia_app` (członek roli, nie właściciel), więc brak `GRANT` wychodzi w testach |
@@ -29,6 +30,7 @@ Testy integracyjne lokalnie (ADR-0015 — bez gniazda Dockera w kontenerze):
 | `src/modules/identity` | konta, hasła (Argon2id, polityka P2), klucze dostępu (WebAuthn), linki jednorazowe, sesje; aktywacja, wylogowanie; publikuje zdarzenia (`events.ts`), nie importuje `audit` |
 | `src/modules/catalog` | katalog usług, szablony procesów i zleceń, rodzaje dokumentów — konfiguracja tylko do odczytu (EVM-019): zestawy parametrów technicznych (Zod strict), test spójności konfiguracji, odczyt przez 5 operacji `GET`; zależy tylko od `platform` |
 | `src/modules/audit` | dziennik audytu tylko do dopisywania (subskrybuje zdarzenia `identity`, zapis w transakcji zmiany; IP skracany do /24 i /48) |
+| `src/platform/jobs`, `src/worker` | kolejka zadań (EVM-034 krok 9, ADR-0010): interfejs `JobQueue` (ładunek `{ ids: [UUID] }`, wynik — liczby, błędy → stały kod), adapter `PgBossJobQueue` (jedyne miejsce importu pg-boss; schemat `pgboss` tworzy migracja `0024`, rola aplikacji bez CREATE), `InMemoryJobQueue` do testów; `worker/run-worker.ts` (start, harmonogram, SIGTERM) i `worker-process.ts` (okablowanie); zadanie `overview.verify-projection` w module `overview` |
 | `src/cli` | polecenie na serwerze (`bootstrap-admin`): kontrola terminala przed czymkolwiek innym, argumenty, przepływ |
 | `src/migrations` | migracje SQL (`sql```), tylko w przód; `data/` — zamrożone kopie danych startowych migracji danych (bez importu z modułów) |
 

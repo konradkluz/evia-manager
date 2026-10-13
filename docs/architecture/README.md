@@ -135,6 +135,8 @@ flowchart TB
   worker -.->|"logi i metryki przez Alloy [T]"| grafana
 ```
 
+> **Stan realizacji workera (EVM-034, 2026-10-12).** Węzeł `worker` jest zrealizowany minimalnie: proces `node dist/src/worker.js` (ten sam obraz co API, bez HTTP i bez migracji, rola `evia_app`, `platform/jobs` z interfejsem `JobQueue` i adapterem pg-boss 12.35.1, schemat `pgboss` tworzony migracją `0024`) wykonuje jedno zadanie — `overview.verify-projection`, nocny `verify` projekcji listy zleceń (03:30 `Europe/Warsaw`, ADR-0017 W11). Lokalnie to usługa `worker` w `compose.dev.yaml`; wdrożenie na staging i produkcję (obraz, usługa) — EVM-076. EVM-024 rozszerza ten sam proces: kolejka `email`, transakcyjne `send` w jednej transakcji ze zmianą domenową, polityka ponowień i kolejki martwych listów per kolejka, healthcheck workera, ewentualnie `WorkerModule` z konfiguracją bez kluczy HTTP. Eksporter metryk — EVM-007.
+
 ## Mapa modułów domenowych
 > Doprecyzowana w EVM-002 (do akceptacji Konrada na demo EVM-002): nowy moduł `parties` (kontrahenci, w tym OSD), `sites` nie zależy od `customers`, **schemat PostgreSQL per moduł** (decyzja delegowana z ADR-0001, reguła 5). Własność tabel, klucze obce i port kompozycji zlecenia: [`domain-model.md`](domain-model.md#moduły-i-własność-tabel).
 
@@ -153,6 +155,7 @@ flowchart LR
   proc["procedures<br/>Procedure, ProcedureStage"]
   pay["payments<br/>PaymentMilestone"]
   timeline["timeline<br/>TimelineEntry"]
+  overview["overview<br/>projekcja listy: WorkOrderSummary, WorkOrderWait"]
   media["media<br/>MediaAsset, Document, StoredFile, UploadSession"]
   sync["sync<br/>SyncChange, DeviceSyncState, komendy mobilne"]
   authz --> identity
@@ -176,6 +179,10 @@ flowchart LR
   media --> sites
   media --> catalog
   media --> identity
+  overview --> wo
+  overview --> proc
+  overview --> sites
+  overview --> parties
   sync --> identity
   sync --> wo
   sync --> proc
@@ -197,6 +204,7 @@ flowchart LR
 | `catalog`, `work-orders`, `procedures` | katalog usług, szablony, zlecenia, procesy i etapy | M1 (E3, E4) |
 | `payments` | etapy płatności, nieopłacone i po terminie | M1 (E7) |
 | `timeline` | dziennik, wpisy, komentarze, automatyczna historia | M1 (E5) |
+| `overview` | model odczytu listy zleceń (projekcja przeliczana w transakcji zapisu; „Czekamy na…”, terminy; ADR-0017) — liść: nic od niego nie zależy, porty systemowe modułów źródłowych dostępne tylko dla niego | M1 (E4, EVM-034) |
 | `media` | upload, skan, przetwarzanie, pobieranie, eksport | M1 (E6), M2 (E11) |
 | `sync` | synchronizacja offline urządzeń | M2 (E10–E13) |
 | później | `notifications` (M3), `reporting` (M4), `integrations` (M5), `investments` (M6) | — |

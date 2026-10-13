@@ -8,7 +8,7 @@ import { migratedDatabase, type MigratedDatabase } from './database.ts';
 
 let database: MigratedDatabase;
 beforeAll(async () => {
-  database = await migratedDatabase();
+  database = await migratedDatabase({ checkProjection: false });
 });
 afterAll(async () => {
   await database.close();

@@ -3,9 +3,9 @@ import { Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
-import { CLOSED_STATUSES } from '../domain/work-order-list-query.ts';
+import { CLOSED_STATUSES } from '../domain/work-order-status.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { findVisibleWorkOrderRef } from '../infrastructure/work-order-store.ts';
+import { findVisibleTitles, findVisibleWorkOrderRef } from '../infrastructure/work-order-store.ts';
 import type { WorkOrderDirectory, WorkOrderRef } from '../work-order-directory.ts';
 
 @Injectable()
@@ -16,6 +16,10 @@ export class WorkOrderDirectoryService implements WorkOrderDirectory {
 
   lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<WorkOrderRef | undefined> {
     return this.#find(tx, principal, id, true);
+  }
+
+  titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    return findVisibleTitles(workOrderTables(tx), principal, [...new Set(ids)]);
   }
 
   async #find(tx: Kysely<Database>, principal: Principal, id: string, lock: boolean): Promise<WorkOrderRef | undefined> {

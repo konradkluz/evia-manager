@@ -8,6 +8,7 @@ import { NestFactory } from '@nestjs/core';
 import { sql, type Kysely } from 'kysely';
 import { AppModule } from '../src/app.module.ts';
 import { CreateCustomerService } from '../src/modules/customers/application/create-customer.service.ts';
+import { ProjectionMaintenance } from '../src/modules/overview/index.ts';
 import { CreatePartyService } from '../src/modules/parties/application/create-party.service.ts';
 import { CreateSiteService } from '../src/modules/sites/application/create-site.service.ts';
 import { CreateWorkOrderService } from '../src/modules/work-orders/application/create-work-order.service.ts';
@@ -34,6 +35,8 @@ export async function seedWithApplication(config: AppConfig, administratorId: st
   try {
     const get = <T>(token: new (...args: never[]) => T): T => app.get(token, { strict: false });
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
+    // Migration 0023 does not backfill: orders created before EVM-034 reach the list of W-10 only through the rebuild (idempotent).
+    await get(ProjectionMaintenance).rebuild({});
     return await seedDemoData(
       {
         parties: get(CreatePartyService),

@@ -10,7 +10,7 @@
  * added here that breaks the rule fails it.
  */
 import type { UserRole } from '@evia/contracts';
-import type { WorkOrderStatus } from './work-order-list-query.ts';
+import type { WorkOrderStatus } from './work-order-status.ts';
 
 export const ACTIVE_STATUSES = ['new', 'quoting', 'accepted', 'in_progress'] as const;
 export type ActiveStatus = (typeof ACTIVE_STATUSES)[number];

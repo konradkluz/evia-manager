@@ -5,6 +5,7 @@ import { AuthorizationModule } from './modules/authorization/index.ts';
 import { CatalogModule } from './modules/catalog/index.ts';
 import { CustomersModule } from './modules/customers/index.ts';
 import { IdentityModule } from './modules/identity/index.ts';
+import { OverviewModule } from './modules/overview/index.ts';
 import { PartiesModule } from './modules/parties/index.ts';
 import { ProceduresModule } from './modules/procedures/index.ts';
 import { SitesModule } from './modules/sites/index.ts';
@@ -27,6 +28,7 @@ export class AppModule {
         WorkOrdersModule,
         ProceduresModule,
         TimelineModule,
+        OverviewModule,
         AuditModule,
         AuthorizationModule,
       ],

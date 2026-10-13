@@ -77,6 +77,8 @@ export interface MockApi {
   auditEvents: number;
   /** EVM-017: how many work orders the synthetic list holds (0 = the empty state; the shell specs of EVM-008 expect it). */
   workOrders: number;
+  /** EVM-034: the synthetic orders have waits and due dates (the columns "Czekamy na" and "Termin"); `false` — none of them waits. */
+  waits: boolean;
   /** EVM-020: the customers of the synthetic server (searched by name, city or phone; saved ones are added). */
   customers: MockCustomer[];
   /** EVM-021: the sites of the synthetic server (searched by address; saved ones are added). */
@@ -171,9 +173,63 @@ const COORDINATORS = [
   null,
 ] as const;
 
+/** The kinds of party the synthetic waits are for (EVM-034): the names are the ones of W-06 ("Stoen Operator (OSD)"). */
+const WAITS = [
+  // 0: the OSD for 15 days and one more wait, a due date that has passed
+  {
+    waiting: {
+      waitingOn: 'party',
+      party: { id: '01968f3e-0000-7000-8000-00000000ddd1', displayName: 'Stoen Operator', kind: 'distribution_system_operator' },
+      since: '2026-09-18',
+      days: 15,
+      otherCount: 1,
+    },
+    nextDueDate: '2026-09-30',
+    hasOverdueStage: true,
+  },
+  // 1: the customer for 3 days
+  {
+    waiting: { waitingOn: 'customer', party: null, since: '2026-09-30', days: 3, otherCount: 0 },
+    nextDueDate: '2026-10-20',
+    hasOverdueStage: false,
+  },
+  // 2: the administration for 20 days, no due date
+  {
+    waiting: {
+      waitingOn: 'party',
+      party: { id: '01968f3e-0000-7000-8000-00000000ddd2', displayName: 'Administracja Testowa', kind: 'building_administration' },
+      since: '2026-09-13',
+      days: 20,
+      otherCount: 0,
+    },
+    nextDueDate: null,
+    hasOverdueStage: false,
+  },
+  // 3: the OSD for 10 days (under the threshold of the view)
+  {
+    waiting: {
+      waitingOn: 'party',
+      party: { id: '01968f3e-0000-7000-8000-00000000ddd1', displayName: 'Stoen Operator', kind: 'distribution_system_operator' },
+      since: '2026-09-23',
+      days: 10,
+      otherCount: 0,
+    },
+    nextDueDate: '2026-10-12',
+    hasOverdueStage: false,
+  },
+  // 4: nobody, a due date
+  { waiting: null, nextDueDate: '2026-10-05', hasOverdueStage: false },
+  // 5: nobody, no due date
+  { waiting: null, nextDueDate: null, hasOverdueStage: false },
+] as const;
+
+type MockWait = (typeof WAITS)[number];
+
 /** A synthetic work order (EVM-017): number from 1, statuses and coordinators in turn, newest created last. */
-function workOrder(index: number) {
+function workOrder(index: number, waits = true) {
+  const wait: MockWait = (waits ? WAITS[index % WAITS.length] : undefined) ?? WAITS[5];
   return {
+    ...wait,
     id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
     number: `ZL-2026-${String(index + 1).padStart(4, '0')}`,
     title: index % 4 === 0 ? 'Garaż — pełny proces z bardzo długim tytułem, który zawija się w komórce tabeli' : 'Dom — pełny pakiet',
@@ -205,6 +261,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     csrf: 'csrf-active',
     auditEvents: 40,
     workOrders: 0,
+    waits: true,
     customers: [
       {
         id: '01968f3e-0000-7000-8000-00000000aaa1',
@@ -663,14 +720,37 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         const ofCustomer = query.get('customerId');
         if (ofCustomer !== null) return route.fulfill(ok(200, { items: createdListItems(api.orders, ofCustomer), nextCursor: null }));
         const statuses = query.get('status')?.split(',') ?? null;
-        const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index))
-          .filter((entry) => query.get('view') !== 'all_open' || (entry.status !== 'settled' && entry.status !== 'cancelled'))
+        // EVM-034: the filters "Czekamy na", the saved view and the two sorts (the days are the ones of the synthetic data, 2026-10-03).
+        const waitingOn = query.get('waitingOn');
+        const waitingKind = query.get('waitingOnPartyKind');
+        const longerThan = query.get('waitingLongerThanDays');
+        if (longerThan !== null && !/^[1-9]\d{0,2}$/.test(longerThan)) return route.fulfill(problem(400, 'validation_failed'));
+        const closed = (status: string) => status === 'settled' || status === 'cancelled';
+        const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index, api.waits))
+          .filter((entry) => query.get('view') !== 'all_open' || !closed(entry.status))
+          .filter(
+            (entry) =>
+              query.get('view') !== 'waiting_on_dso_over_14_days' ||
+              (!closed(entry.status) && entry.waiting?.party?.kind === 'distribution_system_operator' && entry.waiting.days > 14),
+          )
+          .filter((entry) => waitingOn === null || entry.waiting?.waitingOn === waitingOn)
+          .filter((entry) => waitingKind === null || entry.waiting?.party?.kind === waitingKind)
+          .filter((entry) => longerThan === null || (entry.waiting !== null && entry.waiting.days > Number(longerThan)))
           .filter((entry) => query.get('view') !== 'mine' || entry.coordinator?.id === COORDINATORS[0].id)
           .filter((entry) => statuses === null || statuses.includes(entry.status))
           .filter((entry) => query.get('coordinatorId') === null || entry.coordinator?.id === query.get('coordinatorId'));
         const sort = query.get('sort') ?? '-number';
         // Numbers and creation times rise together, so "newest first" is the reverse order for both keys.
-        const ordered: object[] = [...(sort.startsWith('-') ? matching.toReversed() : matching)];
+        const byWait = (a: { waiting: { days: number } | null }, b: { waiting: { days: number } | null }) =>
+          (b.waiting?.days ?? -1) - (a.waiting?.days ?? -1);
+        const byDue = (a: { nextDueDate: string | null }, b: { nextDueDate: string | null }) =>
+          (a.nextDueDate ?? '9999-12-31').localeCompare(b.nextDueDate ?? '9999-12-31');
+        const ordered: object[] =
+          sort === 'longestWaitingSince'
+            ? matching.toSorted(byWait)
+            : sort === 'nextDueDate'
+              ? matching.toSorted(byDue)
+              : [...(sort.startsWith('-') ? matching.toReversed() : matching)];
         // The orders created in this run come first (the newest number is the highest).
         if (query.get('view') !== 'mine') ordered.unshift(...createdListItems(api.orders));
         const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));

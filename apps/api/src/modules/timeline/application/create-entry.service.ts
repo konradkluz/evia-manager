@@ -46,6 +46,7 @@ import type { TimelineEntryEvent } from '../events.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
 import { findEntry, hasCorrection, insertEntry, lockCorrectable, type EntryRow } from '../infrastructure/timeline-store.ts';
 import { EntryPresenter } from './entry-page.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createTimelineEntryScope}). */
 export const CREATE_TIMELINE_ENTRY_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/timeline';
@@ -123,33 +124,30 @@ export class CreateEntryService {
     const { workOrderId } = parseInput(pathSchema, rawParams) as { workOrderId: string };
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db
-      .transaction()
-      .execute(async (tx) => {
-        const order = await this.#orders.findVisible(tx, principal, workOrderId);
-        if (order === undefined) throw new ProblemException('not_found');
-        const key = this.#keyOf(rawKey);
-        const input = parseInput(createBody, rawBody, SERVER_FIELDS) as CreateEntryInput;
-        const resolved = resolveCreateEntry(input);
-        if (!resolved.ok) throw new ProblemException('validation_failed', { errors: resolved.errors });
-        const command = resolved.command;
+    return runInTransaction(this.#db, async (tx) => {
+      const order = await this.#orders.findVisible(tx, principal, workOrderId);
+      if (order === undefined) throw new ProblemException('not_found');
+      const key = this.#keyOf(rawKey);
+      const input = parseInput(createBody, rawBody, SERVER_FIELDS) as CreateEntryInput;
+      const resolved = resolveCreateEntry(input);
+      if (!resolved.ok) throw new ProblemException('validation_failed', { errors: resolved.errors });
+      const command = resolved.command;
 
-        const perform = async () => {
-          await this.#insert(tx, principal, order.id, command, request);
-          return { value: undefined, result: { status: 201, code: 'created', resourceId: command.id } };
-        };
-        const outcome = await this.#idempotency.run(
-          tx,
-          { userId: principal.userId, deviceId: null, key, scope: createTimelineEntryScope(order.id), bodyHash: requestHash(input) },
-          perform,
-        );
-        // the answer is read again with the order of the URL in the condition — a repeat never names an entry of another order
-        // (the hash of a repeat includes `id`, so the entry of a repeat is the entry of this command)
-        const row = await findEntry(timelineTables(tx), order.id, command.id);
-        if (row === undefined) throw new ProblemException('not_found');
-        return { entry: await this.#present(tx, principal, order.id, row), replayed: outcome.replayed };
-      })
-      .catch(rethrowMapped);
+      const perform = async () => {
+        await this.#insert(tx, principal, order.id, command, request);
+        return { value: undefined, result: { status: 201, code: 'created', resourceId: command.id } };
+      };
+      const outcome = await this.#idempotency.run(
+        tx,
+        { userId: principal.userId, deviceId: null, key, scope: createTimelineEntryScope(order.id), bodyHash: requestHash(input) },
+        perform,
+      );
+      // the answer is read again with the order of the URL in the condition — a repeat never names an entry of another order
+      // (the hash of a repeat includes `id`, so the entry of a repeat is the entry of this command)
+      const row = await findEntry(timelineTables(tx), order.id, command.id);
+      if (row === undefined) throw new ProblemException('not_found');
+      return { entry: await this.#present(tx, principal, order.id, row), replayed: outcome.replayed };
+    }).catch(rethrowMapped);
   }
 
   /** @throws ProblemException `validation_failed` — the header is required and is a UUIDv7 (`/headers/Idempotency-Key`) */

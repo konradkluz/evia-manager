@@ -81,6 +81,36 @@ services:
       timeout: 5s
       retries: 40
 
+  # The worker (ADR-0010; EVM-034 step 9): the same image as the API, another command — it takes the background jobs of the queue
+  # (the nightly `verify` of the projection of the list). No port, no HTTP server; migrations are applied by the api, so it starts
+  # after it. The configuration is validated as for the API (debt for EVM-024), so the same settings are written out (no API_PORT).
+  worker:
+    <<: *hardening
+    image: evia-api-dev:local
+    build:
+      context: .
+      dockerfile: infra/docker/api-dev/Dockerfile
+    pull_policy: build
+    user: node
+    working_dir: /app/apps/api
+    command: ['node', 'dist/src/worker.js']
+    networks: [dev-net]
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://evia:evia-local@postgres-dev:5432/evia_dev
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      PANEL_ORIGIN: http://localhost:5173
+      WEBAUTHN_RP_ID: localhost
+      CURSOR_KEY:
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,mode=1777
+
 networks:
   dev-net:
 

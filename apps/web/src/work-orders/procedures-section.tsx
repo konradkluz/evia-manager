@@ -1,7 +1,7 @@
 import type { Procedure, ProcedureList, ProcedureStage, WorkOrderDetails } from '@evia/contracts';
 import { ActionMenu, AlarmClock, Button, Disclosure, EllipsisVertical, IconButton, List, ListItem, ProcedureProgress } from '@evia/ui-web';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSession } from '../session/session.ts';
 import { useOnline } from '../shell/use-online.ts';
@@ -11,6 +11,9 @@ import { StageFacts } from './stage-facts.tsx';
 import { StageStatusControl } from './stage-status-control.tsx';
 import { StageEditDialog } from './stage-edit-dialog.tsx';
 import { isClosed } from './transition-actions.ts';
+
+/** The heading of the section: the target of "+ 6 procesów" in the summary (EVM-034 AC5). */
+export const PROCEDURES_HEADING_ID = 'order-procedures-heading';
 
 /**
  * The section "Procesy i etapy (9)" of W-06 (EVM-031 AC2, AC3, AC5, AC8): every process is a Disclosure with its progress ("3 z 7
@@ -22,7 +25,7 @@ import { isClosed } from './transition-actions.ts';
  */
 export function ProceduresSection({ order, query }: { readonly order: WorkOrderDetails; readonly query: UseQueryResult<ProcedureList> }) {
   const { t } = useTranslation();
-  const headingId = useId();
+  const headingId = PROCEDURES_HEADING_ID;
   const items = query.data?.items;
   // Nothing is open by choice until the person chooses: the first process is, as in the mockup (the state is the memory of this tab).
   const [opened, setOpened] = useState<ReadonlySet<string> | null>(null);
@@ -34,7 +37,7 @@ export function ProceduresSection({ order, query }: { readonly order: WorkOrderD
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-stack-md">
       <div className="flex flex-wrap items-center justify-between gap-inline-md">
-        <h2 id={headingId} className="text-heading-3 text-text-primary">
+        <h2 id={headingId} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
           {items === undefined ? t('workOrder.procedures.title') : t('workOrder.procedures.heading', { count: items.length })}
         </h2>
         {items === undefined || items.length === 0 ? null : (

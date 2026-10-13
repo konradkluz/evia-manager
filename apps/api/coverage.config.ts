@@ -43,13 +43,24 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/application/read-entry.service.ts',
   'src/modules/timeline/application/entry-page.ts',
   'src/modules/timeline/infrastructure/**/*.ts',
+  // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure
+  // function of the projection and the query of the list (domain/) and the controller over fake services are measured by the unit run
+  'src/modules/overview/application/**/*.ts',
+  'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  // EVM-034 step 9: the adapter of the job queue over pg-boss, the script runner of the migration 0024 and the wiring of the worker
+  // need the real database (grants, DDL refused for the application role); the queue interface, the handler and the run are unit tests
+  'src/platform/jobs/pg-boss-job-queue.ts',
+  'src/platform/database/script.ts',
+  'src/migrations/0024_jobs.ts',
+  'src/worker/worker-process.ts',
   'src/platform/database/search-text.ts',
   'src/platform/idempotency/idempotency.ts',
   'src/cli/process-run.ts',
+  'src/cli/overview-process.ts',
   // EVM-077: the development tools that read and write the local database (the guard in the database, the state, the demo data).
   'dev/administrator.ts',
   'dev/database-facts.ts',

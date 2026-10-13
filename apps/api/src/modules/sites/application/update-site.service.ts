@@ -42,6 +42,7 @@ import type { SiteEvent } from '../events.ts';
 import { findVisibleSite, lockVisibleSite, updateSiteRow, type SiteRow } from '../infrastructure/site-store.ts';
 import { siteTables } from '../infrastructure/tables.ts';
 import { toSite } from './site-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the site (see {@link updateSiteScope}). */
 export const UPDATE_SITE_SCOPE = 'PATCH /api/v1/sites/{siteId}';
@@ -106,7 +107,7 @@ export class UpdateSiteService {
     const patch = parseInput(patchBody, rawBody, SERVER_FIELDS) as SitePatchInput;
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const locked = await lockVisibleSite(siteTables(tx), principal, siteId);
       if (locked === undefined) throw new ProblemException('not_found');
 

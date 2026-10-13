@@ -4,7 +4,7 @@
  * CWE-639, CWE-915). The guard has decided before this runs: a signed-in Administrator or Editor on the web channel with a valid
  * CSRF token — Read-only gets 403 and an anonymous caller 401 without reaching the headers or the body.
  *
- * ONE transaction, and every decision in it is taken on rows LOCKED with `SELECT … FOR UPDATE`, never on an earlier read:
+ * ONE transaction, and every decision in it is taken on rows LOCKED with `SELECT … FOR NO KEY UPDATE`, never on an earlier read:
  *   1. the ORDER is locked (the read policy is in that query): missing or soft deleted is `404 not_found`, the same for every role;
  *   2. the ITEM is locked with `id AND work_order_id` in ONE condition: an item of another order, one that does not exist and one
  *      that is deleted are the same `404 not_found` (a lookup by the item alone, then a comparison, is an IDOR). Both `404` come
@@ -49,12 +49,13 @@ import {
   type ScopeItemField,
   type ScopeParameters,
 } from '../domain/scope-item-rules.ts';
-import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-list-query.ts';
+import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-status.ts';
 import type { ScopeItemUpdatedEvent, WorkOrderEvent } from '../events.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
 import { findScopeItem, readScopeItem, updateScopeItem } from '../infrastructure/work-order-edit-store.ts';
 import { findVisibleWorkOrderRef, type ScopeItemRow } from '../infrastructure/work-order-store.ts';
 import { toScopeItem } from './scope-item-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order and the item (see {@link updateScopeItemScope}). */
 export const UPDATE_SCOPE_ITEM_SCOPE = 'PATCH /api/v1/work-orders/{workOrderId}/scope-items/{scopeItemId}';
@@ -134,7 +135,7 @@ export class UpdateScopeItemService {
     const key = rawKey === undefined ? undefined : (parseInput(idempotencyKeySchema, rawKey) as string);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const tables = workOrderTables(tx);
       const order = await findVisibleWorkOrderRef(tables, principal, workOrderId, { lock: true });
       if (order === undefined) throw new ProblemException('not_found');

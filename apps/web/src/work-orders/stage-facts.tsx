@@ -2,7 +2,7 @@ import type { ProcedureStage } from '@evia/contracts';
 import { TriangleAlert } from '@evia/ui-web';
 import { useTranslation } from 'react-i18next';
 import { formatDueDate } from './procedure-format.ts';
-import { LONG_WAIT_DAYS } from './stage-transitions.ts';
+import { isLongWait, sinceText } from './waiting-text.ts';
 
 /**
  * What a status of a stage adds to its row (EVM-032 AC8): "Czekamy na: Stoen Operator (OSD) · od 15 dni" with `triangle-alert` and the
@@ -13,23 +13,16 @@ import { LONG_WAIT_DAYS } from './stage-transitions.ts';
 export function StageFacts({ stage }: { readonly stage: ProcedureStage }) {
   const { t } = useTranslation();
   const days = stage.waitingDays;
-  const since =
-    days === null || days <= 0
-      ? t('workOrder.stage.sinceToday')
-      : days === 1
-        ? t('workOrder.stage.sinceYesterday')
-        : t('workOrder.stage.sinceDays', { count: days });
+  const since = sinceText(t, days);
   const who =
     stage.waitingParty?.displayName ?? (stage.waitingOn === 'customer' ? t('workOrder.stage.whoCustomer') : t('workOrder.stage.whoParty'));
-  const longWait = days !== null && days > LONG_WAIT_DAYS;
+  const longWait = isLongWait(days);
   return (
     <>
       {stage.status !== 'waiting' || stage.waitingOn === null ? null : (
-        <span
-          className={`inline-flex flex-wrap items-center gap-inline-xs text-body-sm ${longWait ? 'text-text-warning' : 'text-text-secondary'}`}
-        >
+        <span className={`inline-flex items-start gap-inline-xs text-body-sm ${longWait ? 'text-text-warning' : 'text-text-secondary'}`}>
           {longWait ? <TriangleAlert aria-hidden="true" className="size-icon-sm shrink-0" /> : null}
-          <span className="break-words">{t('workOrder.stage.waiting', { who, since })}</span>
+          <span className="min-w-0 break-words">{t('workOrder.stage.waiting', { who, since })}</span>
           {longWait ? <span className="sr-only">{t('workOrder.stage.longWait')}</span> : null}
         </span>
       )}

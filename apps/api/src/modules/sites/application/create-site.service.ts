@@ -32,6 +32,7 @@ import type { SiteEvent } from '../events.ts';
 import { findVisibleSite, insertSite, type SiteRow } from '../infrastructure/site-store.ts';
 import { siteTables } from '../infrastructure/tables.ts';
 import { toSite } from './site-representation.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template: what an idempotency key is bound to besides the user. */
 export const CREATE_SITE_SCOPE = 'POST /api/v1/sites';
@@ -76,7 +77,7 @@ export class CreateSiteService {
     if (!normalized.ok) throw new ProblemException('validation_failed', { errors: normalized.errors });
 
     const request = { ...context, sessionId: principal.sessionId };
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const perform = async () => {
         await this.#checkParties(tx, principal, normalized.site);
         const row = await this.#insert(tx, principal, normalized.site, request);

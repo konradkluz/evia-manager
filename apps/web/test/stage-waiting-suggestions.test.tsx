@@ -427,7 +427,7 @@ describe('W-07 "Dodaj stronę" in the window (EVM-033 AC3, AC6)', () => {
     const readOnly: CurrentSession = { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'read_only' } };
     const api = server({ session: readOnly });
     await renderPanel(PATH, api);
-    await screen.findByText(NAME);
+    await within(await screen.findByRole('region', { name: /^Procesy i etapy/ })).findByText(NAME);
     expect(screen.queryByRole('button', { name: /Status etapu/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Dodaj stronę/ })).toBeNull();
     expect(api.calls(`GET /api/v1/parties/${MANAGER_ID}`)).toHaveLength(0);

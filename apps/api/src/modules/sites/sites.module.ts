@@ -15,6 +15,8 @@ import { SiteDirectoryService } from './application/site-directory.service.ts';
 import { UpdateSiteService } from './application/update-site.service.ts';
 import { SitesController } from './http/sites.controller.ts';
 import { SITE_DIRECTORY } from './site-directory.ts';
+import { SiteProjectionSourceService } from './infrastructure/projection-source.ts';
+import { SITE_PROJECTION_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [PartiesModule],
@@ -25,7 +27,8 @@ import { SITE_DIRECTORY } from './site-directory.ts';
     ReadSiteService,
     UpdateSiteService,
     { provide: SITE_DIRECTORY, useClass: SiteDirectoryService },
+    { provide: SITE_PROJECTION_SOURCE, useClass: SiteProjectionSourceService },
   ],
-  exports: [SITE_DIRECTORY],
+  exports: [SITE_DIRECTORY, SITE_PROJECTION_SOURCE],
 })
 export class SitesModule {}

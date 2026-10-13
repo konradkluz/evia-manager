@@ -5,7 +5,7 @@
  * on the web channel with a valid CSRF token — Read-only gets 403 and an anonymous caller 401 without reaching the headers or the
  * body.
  *
- * ONE transaction, and every decision in it is taken on the order LOCKED with `SELECT … FOR UPDATE` (the read policy is in that
+ * ONE transaction, and every decision in it is taken on the order LOCKED with `SELECT … FOR NO KEY UPDATE` (the read policy is in that
  * query), never on an earlier read (TOCTOU). The order:
  *   1. the order is locked: missing or soft deleted is `404 not_found`, the same for every role — BEFORE the headers and the body,
  *      so a malformed request tells a caller nothing about an order that is not theirs;
@@ -41,7 +41,7 @@ import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { UserDirectory } from '../../identity/index.ts';
-import { CLOSED_STATUSES } from '../domain/work-order-list-query.ts';
+import { CLOSED_STATUSES } from '../domain/work-order-status.ts';
 import {
   changedFieldsOf,
   normalizeWorkOrderPatch,
@@ -59,6 +59,7 @@ import {
 } from '../infrastructure/work-order-edit-store.ts';
 import { findCoordinatorUserId } from '../infrastructure/work-order-store.ts';
 import { ReadWorkOrderService } from './read-work-order.service.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link updateWorkOrderScope}). */
 export const UPDATE_WORK_ORDER_SCOPE = 'PATCH /api/v1/work-orders/{workOrderId}';
@@ -141,7 +142,7 @@ export class UpdateWorkOrderService {
     const key = rawKey === undefined ? undefined : (parseInput(idempotencyKeySchema, rawKey) as string);
     const request = { ...context, sessionId: principal.sessionId };
 
-    return this.#db.transaction().execute(async (tx) => {
+    return runInTransaction(this.#db, async (tx) => {
       const locked = await lockWorkOrderForEdit(workOrderTables(tx), principal, workOrderId);
       if (locked === undefined) throw new ProblemException('not_found');
       const expectedVersion = parseIfMatch(rawIfMatch);

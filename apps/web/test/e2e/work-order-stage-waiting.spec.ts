@@ -55,7 +55,8 @@ test.describe('suggestions from the location and "Dodaj stronę" (EVM-033)', () 
     expect(transitions(api)).toHaveLength(0);
     await group.getByRole('radio', { name: MANAGER_LINE }).check();
     await dialog.getByRole('button', { name: 'Zapisz' }).click();
-    await expect(page.getByText(new RegExp(`Czekamy na: ${MANAGER}`))).toBeVisible();
+    // the summary card (EVM-034) repeats the wait, so the stage row is asked for in the section of the processes
+    await expect(page.getByRole('region', { name: /^Procesy i etapy/ }).getByText(new RegExp(`Czekamy na: ${MANAGER}`))).toBeVisible();
     const sent = transitions(api);
     expect(sent).toHaveLength(1);
     expect(JSON.parse(sent[0]?.postData ?? '{}')).toMatchObject({ to: 'waiting', waitingOn: 'party' });
@@ -89,7 +90,7 @@ test.describe('suggestions from the location and "Dodaj stronę" (EVM-033)', () 
     const back = page.getByRole('dialog', { name: 'Na kogo czekamy?' });
     await expect(back.getByText(/Rzeczoznawca Testowy · Rzeczoznawca ppoż/)).toBeVisible();
     await back.getByRole('button', { name: 'Zapisz' }).click();
-    await expect(page.getByText(/Czekamy na: Rzeczoznawca Testowy/)).toBeVisible();
+    await expect(page.getByRole('region', { name: /^Procesy i etapy/ }).getByText(/Czekamy na: Rzeczoznawca Testowy/)).toBeVisible();
     expect(api.parties.some((party) => party.displayName === 'Rzeczoznawca Testowy')).toBe(true);
     expect(transitions(api)).toHaveLength(1);
   });

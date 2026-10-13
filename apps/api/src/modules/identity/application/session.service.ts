@@ -27,6 +27,7 @@ import { findSessionByTokenHash, revokeSessions, slideSession, type SessionRecor
 import type { IdentityEvent } from '../events.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import { readSessionCookie } from '../http/session-cookie.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 const REVOKED: Authentication = { principal: null, reason: 'revoked' };
 const EXPIRED: Authentication = { principal: null, reason: 'expired' };
@@ -100,7 +101,7 @@ export class SessionService {
   }
 
   async #expire(record: SessionRecord, now: Date, context: EventContext): Promise<void> {
-    await this.#db.transaction().execute(async (transaction) => {
+    await runInTransaction(this.#db, async (transaction) => {
       // The conditional UPDATE revokes a session once: the request that did it audits it, the others find nothing.
       const revoked = await revokeSessions(identityTables(transaction), { sessionId: record.sessionId }, 'expired', now);
       for (const sessionId of revoked) {
@@ -145,7 +146,7 @@ export class SessionService {
   /** Revokes the session in the database; the audit event is written in the same transaction. */
   async logout(principal: Principal, context: EventContext): Promise<void> {
     const now = this.#clock.now();
-    await this.#db.transaction().execute(async (transaction) => {
+    await runInTransaction(this.#db, async (transaction) => {
       const revoked = await revokeSessions(identityTables(transaction), { sessionId: principal.sessionId }, 'logout', now);
       if (revoked.length === 0) throw new ProblemException('session_revoked');
       const event: IdentityEvent = {

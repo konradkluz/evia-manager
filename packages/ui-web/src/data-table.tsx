@@ -11,21 +11,29 @@ export interface DataTableColumn {
   readonly sort?: 'ascending' | 'descending';
   /**
    * Role of the column in the card of narrow viewports (below `breakpoint.medium`, § 3.6): `primary` (number and title,
-   * first lines on the left), `badge` (status, top right), `meta` (secondary facts, the line below). When any column has
+   * first lines on the left), `badge` (status, top right), `meta` (secondary facts, the line below), `detail` (a fact that
+   * needs the whole width — "Czekamy na", "Termin": a full-width line under the others, one per column). When any column has
    * a role the rows become cards there; without roles the table scrolls inside its frame.
    */
-  readonly card?: 'primary' | 'badge' | 'meta';
+  readonly card?: 'primary' | 'badge' | 'meta' | 'detail';
   /**
    * The column is shown only from `breakpoint.wide` (header and cells); below it the caller shows the same fact elsewhere
    * (e.g. a second line in the first cell, `wide:hidden`) — the table of a list of people keeps the e-mail out of the narrow views (§ 3.6).
    */
   readonly wideOnly?: boolean;
+  /**
+   * Like `wideOnly`, but from `breakpoint.expanded`: a table with many columns does not fit a tablet (768 px with the menu
+   * collapsed), so the least important fact moves to the caller's second line there (`expanded:hidden`).
+   */
+  readonly expandedOnly?: boolean;
 }
 
 const CARD_CELL = {
   primary: 'max-medium:col-span-2 max-medium:row-span-2 max-medium:min-w-0',
   badge: 'max-medium:col-start-3 max-medium:row-start-1 max-medium:justify-self-end',
   meta: 'max-medium:col-span-2 max-medium:row-start-3 max-medium:min-w-0 text-text-secondary',
+  // no row of its own: the grid puts it on the first row below the cards' other lines where three columns are free
+  detail: 'max-medium:col-span-3 max-medium:min-w-0',
 } as const;
 
 export interface DataTableRow {
@@ -78,6 +86,7 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 className={classNames(
                   'px-inset-md py-inset-sm text-start font-semibold',
                   column.wideOnly === true && 'hidden wide:table-cell',
+                  column.expandedOnly === true && 'hidden expanded:table-cell',
                 )}
               >
                 {column.header}
@@ -100,14 +109,17 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
               {row.cells.map((cell, index) => {
                 const role = columns[index]?.card;
                 const wideOnly = columns[index]?.wideOnly === true;
+                const expandedOnly = columns[index]?.expandedOnly === true;
+                const hiddenInCard = wideOnly || expandedOnly;
                 return (
                   <td
                     key={columns[index]?.id ?? index}
                     className={classNames(
                       'px-inset-md py-inset-sm align-top',
                       wideOnly && 'hidden wide:table-cell',
+                      expandedOnly && 'hidden expanded:table-cell',
                       columns[index]?.numeric === true && 'tabular-nums',
-                      cards && !wideOnly && 'max-medium:block max-medium:p-0',
+                      cards && !hiddenInCard && 'max-medium:block max-medium:p-0',
                       cards && role !== undefined && CARD_CELL[role],
                       cards &&
                         role === 'meta' &&

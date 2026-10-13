@@ -94,6 +94,24 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
     expect(list.openStageCount).toBe(2);
   });
 
+  it('EVM-034 AC5 a process names its current stage — the first unfinished one by position — and none when every stage is finished', () => {
+    const first = stage({ procedure_id: P1, position: 1, status: 'done' });
+    const second = stage({ procedure_id: P1, position: 2, status: 'waiting' });
+    const third = stage({ procedure_id: P1, position: 3, status: 'todo' });
+    const allDone = [
+      stage({ procedure_id: P2, position: 1, status: 'done' }),
+      stage({ procedure_id: P2, position: 2, status: 'not_applicable' }),
+    ];
+    const list = toProcedureList(
+      [procedure(P1, 1), procedure(P2, 2)],
+      [third, first, second, ...allDone],
+      new Map(),
+      new Map(),
+      '2026-10-03',
+    );
+    expect(list.items.map((item) => item.currentStageId)).toEqual([second.id, null]);
+  });
+
   it('EVM-035 AC3 a process names the scope item that brought it (so the panel can say which processes stay when the item is removed); a manual one names none', () => {
     const item = uuidv7();
     const list = toProcedureList([procedure(P1, 1, item), procedure(P2, 2)], [], new Map(), new Map(), '2026-10-03');
