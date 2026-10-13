@@ -4,7 +4,7 @@ title: Prywatność i pomoc w panelu — klauzule informacyjne
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-progress
+status: in-review
 priority: P1
 owner: web-developer
 contributors: [security-engineer, ux-designer]
@@ -78,13 +78,15 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 - **Decyzja Konrada 2026-10-13 (start):** dane administratora (decyzja 9: nazwa, forma prawna, NIP/REGON/KRS lub CEIDG, adres, kontakt) wchodzą jako jawne znaczniki „[DO UZUPEŁNIENIA]” w jednym miejscu (plik treści), do uzupełnienia przed produkcją bez zmian w kodzie; punkty `[PRAWNIK/IOD]` zostają świadomie oznaczone (AC2).
 
 ## Uwagi do rozważenia
-_—_
+- (minor) nic nie blokuje automatycznie wydania na produkcję z `DRAFT = true` i znacznikami [DO UZUPEŁNIENIA] — warunek sign-off w rodo.md; opcjonalna kontrola przy wdrożeniu (EVM-076).
+- (nit) klauzula zobowiązuje „nie wykonujemy zdjęć dokumentów tożsamości” — prawdziwość zależy od instrukcji dla techników (EVM-066); aktywacja (W-02, W-03) bez linku do klauzuli.
+- (nit) zrzut 360 px z otwartymi klauzulami jest bardzo długi; brak zrzutu 320 px (jest asercja w teście).
 
 ## Definition of Done
 - [x] Wszystkie AC spełnione i pokryte testami (`EVM-063 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] `CHANGELOG.md` zaktualizowany
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] `CHANGELOG.md` zaktualizowany
 - [ ] Demo i akceptacja Konrada (treść klauzul)
 
 ## Dziennik
@@ -96,3 +98,8 @@ _—_
 - 2026-10-13 — plan gotowy (web-developer)
 - 2026-10-13 — implementacja (web-developer): W-19, układ publiczny, menu konta i stopka W-01; treść klauzul w wersji roboczej do zatwierdzenia; testy vitest i E2E (Chromium, Firefox) zielone
 - 2026-10-13 — treść klauzul (security-engineer): przegląd i poprawki prawdziwości wg `rodo.md` (odbiorcy, telemetria, kopie zapasowe, sposób składania wniosków, osoby postronne na zdjęciach, BYOD tylko panel); test strażnik treści wzmocniony; wersja `0.1 (projekt)` do zatwierdzenia przez Konrada na demo
+- 2026-10-13 — krok ux-designer: zgodność z makietą W-19 i styleguide'em potwierdzona na podstawie zakresu zmian (bez nowych odstępstw od styleguide'u); lokalną bramkę `pnpm run gate` uruchamia orkiestrator (brak powłoki w tym kroku)
+- 2026-10-13 — przegląd (3 rundy): runda 1 — code-reviewer i ux-designer changes_required, security-engineer approve; runda 2 — code-reviewer approve, ux-designer changes_required; runda 3 — approve, blocker/major: 0
+- 2026-10-13 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 91,8%; pełne e2e Chromium + Firefox: 720 passed, 14 skipped, 0 failed
+- 2026-10-13 — Koszt: brak rozbicia w $; agenci workflow 16 wywołań, ok. 1,16 mln tokenów subagentów, 356 wywołań narzędzi, ok. 1,3 h; rundy 3; ścieżka pelna; vs ostatnie: EVM-072 1,43 mln, EVM-034 2,99 mln — poniżej średniej, ale 3 rundy przeglądu UX
+- 2026-10-13 — in-progress → in-review: czeka na demo i akceptację Konrada (treść klauzul)
