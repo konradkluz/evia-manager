@@ -130,7 +130,7 @@ export const INITIAL_TEMPLATES: MockTemplate[] = [
   },
 ];
 
-/** The templates as the contract sends them — with the processes (EVM-031) and the instalments that the panel must not show yet. */
+/** The templates as the contract sends them — with the processes (EVM-031) and the payment plan (EVM-053). */
 function templateBody(template: MockTemplate) {
   return {
     id: template.id,
@@ -151,10 +151,28 @@ function templateBody(template: MockTemplate) {
       name: process.name,
       stageCount: process.stages.length,
     })),
-    paymentMilestones: [
-      { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
-    ],
+    paymentMilestones: paymentPlanOf(template.items.length),
   };
+}
+
+/** The payment plan of a template (EVM-053 AC1): 20% / 30% / 30% / 20% for the full process, one instalment otherwise. */
+export function paymentPlanOf(itemCount: number) {
+  if (itemCount < 9) {
+    return [{ code: 'whole', name: 'Płatność całościowa', position: 1, sharePercent: 100, invoiceHint: 'Po montażu', paymentTermDays: 7 }];
+  }
+  return [
+    { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
+    { code: 'consents', name: 'Po uzyskaniu zgód', position: 2, sharePercent: 30, invoiceHint: 'Po zgodach', paymentTermDays: 7 },
+    {
+      code: 'installation',
+      name: 'Po wykonaniu instalacji',
+      position: 3,
+      sharePercent: 30,
+      invoiceHint: 'Po montażu',
+      paymentTermDays: 14,
+    },
+    { code: 'final', name: 'Płatność końcowa', position: 4, sharePercent: 20, invoiceHint: 'Po odbiorze', paymentTermDays: 14 },
+  ];
 }
 
 const stateOf = (server: OrderServer, id: string): OrderState => server.states.get(id) ?? { status: 'new', version: 1 };
