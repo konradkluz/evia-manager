@@ -34,11 +34,12 @@ export function Disclosure({ title, summary, expanded, onExpandedChange, heading
           }}
           className="flex min-h-control-height-web-md w-full items-center gap-inline-md text-start hover:bg-bg-surface-hover active:bg-bg-surface-pressed focus-visible:focus-ring"
         >
-          <span>{title}</span>
-          {summary === undefined ? null : (
-            <span className="flex min-w-0 flex-1 items-center text-body-sm text-text-secondary">{summary}</span>
-          )}
-          <Chevron aria-hidden="true" className="ms-auto size-icon-md shrink-0 text-icon-secondary" />
+          {/* Compact: the summary goes under the title (§ 3.21) so a long summary never pushes past the card. */}
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-stack-xs medium:flex-row medium:items-center medium:gap-inline-md">
+            <span className="min-w-0 break-words">{title}</span>
+            {summary === undefined ? null : <span className="min-w-0 break-words text-body-sm text-text-secondary">{summary}</span>}
+          </span>
+          <Chevron aria-hidden="true" className="size-icon-md shrink-0 text-icon-secondary" />
         </button>
       </Heading>
       <div id={`${id}-content`} hidden={!expanded} className="flex flex-col gap-stack-md">

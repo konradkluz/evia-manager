@@ -77,7 +77,33 @@ test.describe('W-19 before logging in (EVM-063 AC1, AC4, AC5)', () => {
     expect(problems.foreignRequests).toEqual([]);
   });
 
-  test('EVM-063 AC6 offline with the content not yet loaded: "Treść wymaga połączenia." and no technical details', async ({
+  for (const width of [360, 320]) {
+    test(`EVM-063 AC2 at ${String(width)} px the clause summaries sit under the titles and nothing overflows horizontally`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/privacy#prywatnosc');
+      const clients = page.getByRole('button', { name: /^Klauzula dla klientów/ });
+      await expect(clients).toHaveAttribute('aria-expanded', 'false');
+      const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(await overflow()).toBeLessThanOrEqual(0);
+      // every header stays inside its card
+      const inside = () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('button[aria-expanded]')].every((button) => {
+            const card = button.closest('section')?.parentElement?.getBoundingClientRect();
+            const box = button.getBoundingClientRect();
+            return card === undefined || (box.right <= card.right + 0.5 && button.scrollWidth <= button.clientWidth + 1);
+          }),
+        );
+      expect(await inside()).toBe(true);
+      for (const button of await page.getByRole('button', { name: /^Klauzula/ }).all()) await button.click();
+      expect(await overflow()).toBeLessThanOrEqual(0);
+      expect(await inside()).toBe(true);
+    });
+  }
+
+  test('EVM-063 AC6 offline with the content not yet loaded:"Treść wymaga połączenia." and no technical details', async ({
     page,
     context,
   }) => {
