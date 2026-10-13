@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { auditRecordSchema, toAuditRecord } from '../../src/modules/audit/domain/audit-record.ts';
 import { truncateIp } from '../../src/modules/audit/domain/ip-prefix.ts';
 import { AuditSubscriber } from '../../src/modules/audit/audit.module.ts';
+import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../src/modules/payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
@@ -319,5 +320,77 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
 
   it('EVM-037 SR-LOG-02 a text cannot be smuggled into the record of an entry: the schema is strict', () => {
     expect(() => toAuditRecord({ ...entryEvent, objectId: 'Rozmowa z Janem Kowalskim' }, { origin: 'web', traceId }, at)).toThrow();
+  });
+});
+
+describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — the described exception for payments)', () => {
+  const payment = (overrides: Partial<PaymentMilestoneEvent> = {}): PaymentMilestoneEvent => ({
+    type: 'payment_milestone.amount_changed',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'payment_milestone',
+    objectId: session,
+    workOrderId: user,
+    amountBeforeMinor: 300000,
+    amountAfterMinor: 360000,
+    ...overrides,
+  });
+  const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
+
+  it('EVM-053 AC3 the record has the actor, the milestone, the trace and the amount before and after in PLN — and no name, no order, no field', () => {
+    const record = toAuditRecord(payment(), context, at);
+    expect(record).toMatchObject({
+      action: 'payment_milestone.amount_changed',
+      objectType: 'payment_milestone',
+      objectId: session,
+      actorUserId: user,
+      amountBeforeMinor: 300000,
+      amountAfterMinor: 360000,
+      currency: 'PLN',
+    });
+    expect(Object.keys(record).sort()).toEqual(Object.keys(auditRecordSchema.shape).sort());
+    expect(JSON.stringify(record)).not.toMatch(/workOrderId|name/);
+  });
+
+  it('EVM-053 AC4 AC6 a creation without an amount and a cancellation of a milestone never priced carry no amount and no currency', () => {
+    expect(
+      toAuditRecord(payment({ type: 'payment_milestone.created', amountBeforeMinor: null, amountAfterMinor: null }), context, at),
+    ).toMatchObject({
+      amountBeforeMinor: null,
+      amountAfterMinor: null,
+      currency: null,
+    });
+  });
+
+  it('EVM-053 SR-LOG-03 the schema refuses an amount on any other action, an amount without its currency and an amount that is not a positive integer', () => {
+    const base = toAuditRecord(payment(), context, at);
+    expect(auditRecordSchema.safeParse({ ...base, action: 'work_order.cancelled' }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, currency: null }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, amountAfterMinor: 0 }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, amountAfterMinor: 1.5 }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, amountBeforeMinor: null, amountAfterMinor: null }).success).toBe(false);
+    expect(PAYMENT_MILESTONE_EVENT_TYPES).toEqual([
+      'payment_milestone.created',
+      'payment_milestone.amount_changed',
+      'payment_milestone.cancelled',
+    ]);
+  });
+
+  it('EVM-053 AC3 the audit module subscribes to the three events of payments', async () => {
+    const bus = new EventBus();
+    new AuditSubscriber(bus, new FixedClock(at)).onModuleInit();
+    const failures = await Promise.all(
+      PAYMENT_MILESTONE_EVENT_TYPES.map(async (type) => {
+        try {
+          // the handler needs a real transaction to write: reaching it (and failing there) proves that a handler is registered
+          await bus.publish({} as never, payment({ type }), context);
+          return '';
+        } catch (error) {
+          return String(error);
+        }
+      }),
+    );
+    expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
+    expect(failures.every((failure) => failure !== '')).toBe(true);
   });
 });
