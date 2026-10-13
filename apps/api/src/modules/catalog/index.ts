@@ -5,6 +5,7 @@ export {
   TEMPLATE_DIRECTORY,
   type TemplateDirectory,
   type TemplateForCopy,
+  type TemplatePaymentMilestoneForCopy,
   type TemplateProcedureForCopy,
   type TemplateScopeItem,
   type TemplateStageForCopy,

@@ -69,6 +69,9 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       objectType: 'session',
       objectId: session,
       traceId,
+      amountBeforeMinor: null,
+      amountAfterMinor: null,
+      currency: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -188,6 +191,9 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       objectType: 'procedure_stage',
       objectId: session,
       traceId,
+      amountBeforeMinor: null,
+      amountAfterMinor: null,
+      currency: null,
     });
   });
 });
@@ -226,6 +232,9 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'objectType',
         'objectId',
         'traceId',
+        'amountBeforeMinor',
+        'amountAfterMinor',
+        'currency',
       ].sort(),
     );
   });
@@ -249,6 +258,9 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       objectType: 'audit',
       objectId: null,
       traceId,
+      amountBeforeMinor: null,
+      amountAfterMinor: null,
+      currency: null,
     });
   });
 
@@ -299,6 +311,9 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       objectType: 'timeline_entry',
       objectId: session,
       traceId,
+      amountBeforeMinor: null,
+      amountAfterMinor: null,
+      currency: null,
     });
   });
 

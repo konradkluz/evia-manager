@@ -70,6 +70,7 @@ export interface WorkOrderTemplateItemsTable extends Retired {
 }
 
 export interface PaymentMilestoneTemplatesTable extends Retired {
+  id: string;
   work_order_template_id: string;
   code: string;
   name: string;

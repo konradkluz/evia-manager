@@ -20,6 +20,10 @@ export interface AuditEventsTable {
   object_type: string;
   object_id: string | null;
   trace_id: string;
+  /** `bigint` (EVM-053, the exception for payments): written as a number, returned by the driver as TEXT — read through `amountOf`. */
+  amount_before_minor: ColumnType<string | null, number | null, never>;
+  amount_after_minor: ColumnType<string | null, number | null, never>;
+  currency: 'PLN' | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };
