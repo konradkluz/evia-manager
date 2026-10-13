@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: backend-developer
@@ -111,3 +111,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): blokada anulowania zlecenia z transzą „Wystawiona” z testem ścieżek i współbieżności przeniesiona tu z EVM-058 (AC6); zdarzenia dziennika transz dołączone do AC3
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC7 — komunikat `412` wg makiety W-11 (tabela akcji płatności wspólna z W-06; forma bezosobowa z bieżącym statusem i „Odśwież”, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-054-faktura-wplata-anulowanie` ułożona na EVM-053 — PR #69 w przeglądzie; łańcuch nocny za zgodą Konrada)
