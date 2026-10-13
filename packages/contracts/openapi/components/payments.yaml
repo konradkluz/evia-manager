@@ -16,8 +16,9 @@ PaymentMilestone:
   description: >-
     Transza zlecenia. Z szablonu pochodzą `code`, `name`, `sharePercent` i `paymentTermDays` (kopia — zmiana szablonu nie zmienia
     zlecenia); transza dodana ręcznie ma `code`, `sharePercent` i `paymentTermDays` równe `null`. `amount` może być `null` tylko w
-    statusie `planned`. `invoiceNumber`, `invoicedOn`, `dueDate` i `paidOn` wypełnia EVM-054; `isOverdue` liczy serwer (transza
-    `invoiced` z terminem wcześniejszym niż dziś w `Europe/Warsaw`). Pola poza `amount` są tylko do odczytu (`400 read_only_field`).
+    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn`, `dueDate` i
+    `paidOn` wypełnia EVM-054; `isOverdue` liczy serwer (transza `invoiced` z terminem wcześniejszym niż dziś w `Europe/Warsaw`).
+    Pola poza `amount` są tylko do odczytu (`400 read_only_field`).
   required:
     - id
     - code
@@ -69,7 +70,9 @@ PaymentMilestone:
           maximum: 365
         - type: 'null'
     amount:
-      description: Kwota brutto do zapłaty albo `null` (jeszcze nie wpisana — tylko w statusie `planned`).
+      description: >-
+        Kwota brutto do zapłaty albo `null` — jeszcze nie wpisana, tylko w statusie `planned` albo `cancelled` (transza anulowana
+        przed wpisaniem kwoty).
       oneOf:
         - $ref: common.yaml#/Money
         - type: 'null'
