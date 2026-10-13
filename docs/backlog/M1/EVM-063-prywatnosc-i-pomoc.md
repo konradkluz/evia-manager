@@ -95,3 +95,4 @@ _—_
 - 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (3 recenzentów wykluczają lekką; dane osobowe i UI), gałąź feature/EVM-063-prywatnosc-i-pomoc; decyzja o danych administratora zapisana w „Decyzjach”
 - 2026-10-13 — plan gotowy (web-developer)
 - 2026-10-13 — implementacja (web-developer): W-19, układ publiczny, menu konta i stopka W-01; treść klauzul w wersji roboczej do zatwierdzenia; testy vitest i E2E (Chromium, Firefox) zielone
+- 2026-10-13 — treść klauzul (security-engineer): przegląd i poprawki prawdziwości wg `rodo.md` (odbiorcy, telemetria, kopie zapasowe, sposób składania wniosków, osoby postronne na zdjęciach, BYOD tylko panel); test strażnik treści wzmocniony; wersja `0.1 (projekt)` do zatwierdzenia przez Konrada na demo
