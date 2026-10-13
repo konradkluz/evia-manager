@@ -119,7 +119,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   // AC4: the number of open stages for the warning in the dialog "Zakończ"; the section of the processes reads the same entry.
   const openStages = useWorkOrderProcedures(order.id, true).data?.openStageCount ?? 0;
   // EVM-053 AC6 (P1): cancelling the order cancels its planned instalments — the dialog says how many; the section reads the same entry.
-  const plannedMilestones = useWorkOrderPayments(order.id, true).data?.items.filter((entry) => entry.status === 'planned').length ?? 0;
+  // Without the list (still loading or a failed read) the number is unknown (`null`): the dialog warns without it, never stays silent.
+  const plannedMilestones = useWorkOrderPayments(order.id, true).data?.items.filter((entry) => entry.status === 'planned').length ?? null;
   const root = useRef<HTMLDivElement>(null);
   /** The reason of the last hold in this tab — "Cofnij" after "Wznów" sends it again; the API does not return it. */
   const heldReason = useRef<{ readonly orderId: string; readonly reason: string } | null>(null);
@@ -418,7 +419,10 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
             {online ? null : <Banner icon={WifiOff}>{t('workOrder.status.offline')}</Banner>}
             <p>{labelsOf(dialog.action).description}</p>
             {dialog.action === 'complete' && openStages > 0 ? <Banner icon={TriangleAlert}>{openStagesText(t, openStages)}</Banner> : null}
-            {dialog.action === 'cancel' && plannedMilestones > 0 ? (
+            {dialog.action === 'cancel' && plannedMilestones === null ? (
+              <Banner icon={TriangleAlert}>{t('workOrder.status.plannedMilestonesCancelledUnknown')}</Banner>
+            ) : null}
+            {dialog.action === 'cancel' && plannedMilestones !== null && plannedMilestones > 0 ? (
               <Banner icon={TriangleAlert}>{t('workOrder.status.plannedMilestonesCancelled', { count: plannedMilestones })}</Banner>
             ) : null}
             {dialog.action === 'complete' ? (

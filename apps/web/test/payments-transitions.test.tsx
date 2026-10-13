@@ -158,4 +158,48 @@ describe('cancelling an order with instalments (EVM-053 AC6, P1)', () => {
       expect(dialog.queryByText(/Planowane transze/)).toBeNull();
     });
   });
+
+  it('EVM-053 AC6 a failed read of the instalments still warns "Planowane transze zostaną anulowane." and lets the order be cancelled', async () => {
+    const api = activeSessionApi({
+      [SESSION_ROUTE]: () => json(200, ACTIVE_SESSION),
+      ...workOrderRoutes(ORDER_ID, { payments: () => problem(500, 'internal_error') }),
+      [READ]: () => json(200, orderWith('in_progress'), { ETag: '"3"' }),
+      [TRANSITIONS]: () => json(200, orderWith('cancelled', 4), { ETag: '"4"' }),
+    });
+    await renderPanel(PATH, api);
+    await screen.findByText('Nie udało się wczytać płatności.');
+    await choose('W realizacji', 'Anuluj zlecenie…');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' }));
+    expect(dialog.getByText('Planowane transze zostaną anulowane.')).toBeTruthy();
+    expect(await axeViolations(document.body)).toEqual([]);
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Powód anulowania' }), 'Klient zrezygnował');
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj zlecenie' }));
+    await waitFor(() => {
+      expect(api.calls(TRANSITIONS)).toHaveLength(1);
+    });
+  });
+
+  it('EVM-053 AC6 while the instalments are still loading the dialog warns "Planowane transze zostaną anulowane." without a number', async () => {
+    let release: (() => void) | undefined;
+    const api = activeSessionApi({
+      [SESSION_ROUTE]: () => json(200, ACTIVE_SESSION),
+      ...workOrderRoutes(ORDER_ID, {
+        payments: () =>
+          new Promise<Response>((resolve) => {
+            release = () => {
+              resolve(json(200, listOf(['planned', 'planned'])));
+            };
+          }),
+      }),
+      [READ]: () => json(200, orderWith('in_progress'), { ETag: '"3"' }),
+    });
+    await renderPanel(PATH, api);
+    await choose('W realizacji', 'Anuluj zlecenie…');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' }));
+    expect(dialog.getByText('Planowane transze zostaną anulowane.')).toBeTruthy();
+    release?.();
+    // once the instalments are read, the warning carries their number
+    expect(await dialog.findByText('Planowane transze (2) zostaną anulowane.')).toBeTruthy();
+    expect(dialog.queryByText('Planowane transze zostaną anulowane.')).toBeNull();
+  });
 });
