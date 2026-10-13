@@ -45,6 +45,11 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/infrastructure/**/*.ts',
   // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure
   // function of the projection and the query of the list (domain/) and the controller over fake services are measured by the unit run
+  // EVM-053: the payment milestones — the use cases, the ports of the order (contributor, participant), the queries and the one point
+  // of write are SQL against PostgreSQL (locks, ON CONFLICT, CHECKs); the domain (money, rules, plan) is measured by the unit run
+  'src/modules/payments/application/**/*.ts',
+  'src/modules/payments/infrastructure/**/*.ts',
+  'src/modules/payments/http/payments.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',
