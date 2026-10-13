@@ -85,10 +85,23 @@ Jako **pracownik biura** chcę **znaleźć zlecenie po numerze, tytule, nazwisku
 - **Uwaga po EVM-034 (2026-10-13):** `POST /api/v1/work-orders/search` nie istnieje — w EVM-034 przeniesiono do modułu `overview` tylko `GET` listy. Wyszukiwanie powstaje w `overview` na projekcji `work_order_summaries` (polityka odczytu przez `workOrderReadCondition`, kursor z `asOf`, limity i licznik masowego odczytu P10 jak w liście).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Szczegóły i uzasadnienia: `.scratch/EVM-072/plan.md` (roboczy). Skrót:
+1. **Kontrakt (najpierw):** `searchWorkOrders` (`POST /api/v1/work-orders/search`, treść ścisła, `x-evia-authz` A/E/R, `web`); `listWorkOrders` — addytywnie `siteType`, `templateId`; `WorkOrderListItem` — addytywnie `customer`, `site`.
+2. **Migracja `0025` (expand):** kolumna generowana `work_orders.search_text` + indeks GIN `gin_trgm_ops` częściowy na `deleted_at IS NULL`.
+3. **Fasady:** `WorkOrderDirectory.searchIds`, `CustomerDirectory.searchIds` / `displayNamesOf`, `SiteDirectory.searchIds` / `linesOf` — każda pod własną polityką odczytu; zbiory jako jeden parametr `uuid[]`.
+4. **`overview`:** wspólny `WorkOrderPageService` dla listy i wyszukiwania (jedna ścieżka budowy elementu), `SearchWorkOrdersService` (limiter → walidacja → kursor → P10 `before` → fasady → `too_broad` → strona → `after` / `afterDistinct`), kontroler `POST`.
+5. **Testy:** AC → `work-orders-list-customer-site.test.ts` (AC1, AC4), `work-orders-search.test.ts` (AC2, AC3, AC5, AC7), `work-orders-distinct-customers.test.ts` (P10), `work-orders-search-performance.test.ts` (AC6), `search-directories.test.ts`, `work-orders-migration.test.ts`; jednostkowe w `test/overview/`.
 
 ## Decyzje
-_—_
+- **D1 — brak kopii danych osobowych do projekcji (ADR-0017 W1, W6).** Wyszukiwanie to trzy zbiory identyfikatorów z fasad (zlecenia, klienci, lokalizacje) + `= ANY(uuid[])` w zapytaniu strony obok `workOrderReadCondition`; zbiory tylko zawężają. Projekcja używa istniejących kolumn `customer_id`, `site_id`, `site_type`, `source_template_id` — bez zmian i bez `rebuild`. `rodo.md`: nowe miejsce przechowywania danych nie powstaje (kolumna generowana w tej samej tabeli `work_orders`, klasa jak `title`; nadąża za zmianą i redakcją tytułu).
+- **D2 — `search_text` zlecenia** (numer + tytuł) jest własnością `work-orders` (migracja `0025`, kolumna generowana).
+- **D3 — klienci:** wyszukiwanie obejmuje to samo co `searchCustomers` (nazwisko, firma, NIP, cyfry telefonu, e-mail, miasto).
+- **D4 — `too_broad`:** ponad 10 000 identyfikatorów z fasady → `400 validation_failed`, `/query`, `too_broad` — przed zapytaniem o projekcję (ADR-0017 W6).
+- **D5 — licznik różnych klientów (P10):** lista (`GET`) i wyszukiwanie zasilają go klientami wymienionymi w odpowiedzi; lokalizacje nie.
+- **D6 — filtry `siteType` / `templateId`** także w `GET` (AC4 — lista bez frazy); w adresie panelu ich nie ma (pamięć karty).
+- **D7 — minimalizacja (security-engineer P1):** `site` na liście to `{ id, city, street, buildingNumber }` — bez kodu pocztowego i numeru lokalu (flows/07 „bez kodu pocztowego i miejsca postojowego”); pole można dodać później addytywnie.
+- **D8 — „Klient usunięty” (security-engineer P2):** `customer` rozróżnia trzy stany: `{ id, displayName }`, `{ deleted: true }` (klient usunięty lub niewidoczny — bez `id` i nazwy) i `null` (zlecenie bez klienta); stan z braku wyniku `displayNamesOf` pod polityką klientów. Usunięty klient nie jest znajdowany po nazwisku, zlecenie — po numerze; lokalizacja zostaje.
+- **D9 — kursor wyszukiwania:** osobny identyfikator operacji `searchWorkOrders`; fraza tylko jako skrót w `scope`.
 
 ## Uwagi do rozważenia
 _—_
@@ -104,3 +117,5 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; wydzielona z EVM-017 planu wstępnego)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (8 AC i 3 recenzentów wykluczają lekką), gałąź feature/EVM-072-wyszukiwanie-zlecen
+- 2026-10-13 — plan gotowy (backend-developer)
+- 2026-10-13 — implementacja backendu (backend-developer): kontrakt, migracja `0025`, fasady, `POST /work-orders/search`, `customer` i `site` na liście, testy AC1–AC7; panel — krok web-developera

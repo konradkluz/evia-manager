@@ -4,7 +4,7 @@
  * transaction of every change: the handlers of the domain events of `work-orders`, `procedures`, `sites` and `parties` name the
  * orders in the registry of the transaction (`platform`), which recomputes them before COMMIT. The sources are read through the
  * SYSTEM ports of the modules (`modules/<name>/system-ports.ts`: minimal data, no role, no read policy); the list (W-10) applies the read
- * policy of work orders in its own query, and takes the titles from `work-orders` and the names from `identity` in batches. `rebuild` and `verify` are server commands (the CLI), not routes.
+ * policy of work orders in its own query, and takes the titles from `work-orders`, the names from `identity`, the customers from `customers` and the sites from `sites` in batches. The search of orders (EVM-072, `POST /api/v1/work-orders/search`) matches in the three modules through their facades (sets of identifiers, each under its own read policy) and narrows the same page of the projection — no personal data is copied into it. `rebuild` and `verify` are server commands (the CLI), not routes.
  * Nothing depends on this module: the composition root registers it, and no other module imports it.
  */
 import { Module } from '@nestjs/common';
