@@ -255,6 +255,26 @@ describe('"Zmień kwotę" — the amount of a planned milestone (EVM-053 AC3, AC
     expect(await rowOf(created.milestoneIds[0] ?? '')).toMatchObject({ amount_minor: '100', version: 1, status: 'invoiced' });
   });
 
+  it('EVM-053 AC3 the same amount again is a change without effect: 200 with the current milestone, no new version and no audit event; 412 and 403 still come first', async () => {
+    const editor = await signIn();
+    const created = await order({ milestones: [{ amountMinor: 360000 }, { status: 'invoiced', amountMinor: 360000 }] });
+    const [planned, invoiced] = created.milestoneIds;
+    const same = await patch(editor, created.id, planned ?? '', { amount: pln(360000) });
+    expect(same.status, JSON.stringify(same.body)).toBe(200);
+    expect(same.headers['etag']).toBe('"1"');
+    expect(same.body).toMatchObject({ id: planned, amount: pln(360000), status: 'planned', version: 1 });
+    const repeated = await patch(editor, created.id, planned ?? '', { amount: pln(360000) }, { key: uuidv7() });
+    expect(repeated.status).toBe(200);
+    expect(await rowOf(planned ?? '')).toMatchObject({ amount_minor: '360000', version: 1 });
+    expect(await auditOf(planned ?? '')).toEqual([]);
+
+    const stale = await patch(editor, created.id, planned ?? '', { amount: pln(360000) }, { ifMatch: '"2"' });
+    expect(stale.status).toBe(412);
+    const closed = await patch(editor, created.id, invoiced ?? '', { amount: pln(360000) });
+    expect(closed.status).toBe(403);
+    expect(await auditOf(invoiced ?? '')).toEqual([]);
+  });
+
   it('EVM-053 AC7 SR-AUTHZ-04 the fields of the server — status, sharePercent, name, id, version — are read_only_field; a stranger is unknown_field', async () => {
     const editor = await signIn();
     const created = await order({ milestones: [{}] });

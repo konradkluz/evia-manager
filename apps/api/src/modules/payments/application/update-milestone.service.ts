@@ -20,8 +20,10 @@
  *      learns its true status — only on the current version does
  *   7. a status other than `planned` give `403 forbidden` (the amount of an invoiced or paid milestone is a correction of the
  *      Administrator with a step-up, EVM-057 — SR-AUTHZ-10);
- *   8. the update (`version + 1`) through the one point of write, the event `payment_milestone.amount_changed` for the audit trail
- *      (the actor, the milestone, the amount before and after — never the name), the idempotency record. An error rolls everything back.
+ *   8. the amount equal to the current one is a change without effect (api-guidelines.md): `200` with the milestone as it is, no
+ *      new version and no event; otherwise the update (`version + 1`) through the one point of write, the event
+ *      `payment_milestone.amount_changed` for the audit trail (the actor, the milestone, the amount before and after — never the
+ *      name), the idempotency record. An error rolls everything back.
  * A repeat returns the milestone as it is NOW.
  */
 import {
@@ -169,7 +171,7 @@ export class UpdateMilestoneService {
     });
   }
 
-  /** Steps 6–8 of the order described above, on the locked rows. */
+  /** Steps 6–8 of the order described above, on the locked rows; the same amount again is a change without effect (no version, no event). */
   async #change(
     tx: Kysely<Database>,
     principal: Principal,
@@ -181,6 +183,7 @@ export class UpdateMilestoneService {
     const { locked } = target;
     if (locked.version !== expectedVersion) throw new ProblemException('version_conflict');
     if (!mayChangeAmount(locked.status)) throw new ProblemException('forbidden');
+    if (locked.amountMinor === amount.amountMinor) return;
 
     const version = await updateMilestoneAmount(
       paymentTables(tx),
