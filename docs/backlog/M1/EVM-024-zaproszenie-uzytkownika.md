@@ -93,6 +93,8 @@ Jako **Administrator** chcę **zaprosić pracownika e-mailem z wybraną rolą**,
 - Obejścia (np. pokazanie linku zaproszenia Administratorowi zamiast e-maila) tylko po przeglądzie `security-engineer` i decyzji Konrada — zmieniają SR-AUTH-12 i AB-02.
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
+- **Uwaga po EVM-034 (2026-10-13):** minimalny worker już istnieje (`apps/api/src/worker.ts`, `platform/jobs` z adapterem pg-boss 12.35.1, migracja `0024`, usługa `worker` w `compose.dev.yaml`). Ta historyjka rozszerza go o kolejkę `email`, transakcyjne `send` (test „rollback = brak zadania”), politykę ponowień i DLQ per kolejka, healthcheck oraz reguły alertów; szczegóły w „Decyzjach” EVM-034.
+
 ## Plan techniczny
 _Uzupełnia wykonawca przed implementacją._
 

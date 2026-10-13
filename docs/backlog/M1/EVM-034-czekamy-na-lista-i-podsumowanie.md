@@ -4,7 +4,7 @@ title: „Czekamy na…” na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -128,7 +128,7 @@ _Uzupełnia wykonawca przed implementacją._
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika (scenariusz B6)
+- [x] Demo i akceptacja użytkownika (scenariusz B6)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -149,3 +149,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-13 — bramka orkiestratora po kroku 9: `pnpm run gate` zielony (exit 0), coverage:diff linie 99,4% / gałęzie 95,1%; pełne e2e nie powtarzane (krok 9 nie dotyka panelu)
 - 2026-10-13 — Koszt kroku 9: 11 agentów, ok. 0,94 mln tokenów subagentów, 327 wywołań narzędzi, ok. 1,9 h, rundy 2; łącznie EVM-034 ok. 2,99 mln tokenów (największa dotąd)
 - 2026-10-13 — in-progress → in-review: czeka na ponowną akceptację Konrada (zakres + krok 9)
+- 2026-10-13 — demo zaakceptowane przez Konrada (zakres + nocny verify); PR #59 scalony (squash); in-review → done
