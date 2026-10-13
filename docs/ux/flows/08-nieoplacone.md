@@ -167,7 +167,7 @@ Dialogi sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegó
 - **Zapis „Dodaj transzę”:** `POST` z identyfikatorem UUIDv7 i `Idempotency-Key` (README M1 → „Kontrakt API”); nowa transza na końcu listy (EVM-053 AC4); toast „Dodano transzę „Dopłata za instalację zasilającą”.”; błąd sieci — „Nie udało się dodać transzy. Spróbuj ponownie — nie dodamy jej dwa razy.”
 - **Limit 20 transz:** przy 20 transzach „Dodaj transzę” wyłączony z podpowiedzią „Zlecenie ma już 20 transz — to limit.”; wyścig — `422 limit_exceeded`: alert w dialogu z tą samą treścią.
 - **Zapis „Zmień kwotę”:** `PATCH` z `If-Match`; kwota w groszach (`amountMinor`, PLN); zdarzenie audytu z kwotą przed i po (wyjątek audytu dla płatności — SR-LOG-03); toast „Zmieniono kwotę transzy „Po uzyskaniu zgód”: 5 400,00 zł.”
-- **Konflikt `412`** — „Tę transzę zmieniono w międzyczasie. Twoje zmiany zachowaliśmy — sprawdź aktualne wartości i zapisz ponownie.” z „Aktualnie: …” (README → zasada wspólna 16). Transza ma już inny status niż „Planowana” (`409 invalid_state_transition` albo stan po odświeżeniu): alert „Transza ma już status «Wystawiona» — kwotę zmieni administrator korektą płatności.”, „Zapisz kwotę” wyłączony.
+- **Konflikt `412`** — „Tę transzę zmieniono w międzyczasie. Twoje zmiany zachowaliśmy — sprawdź aktualne wartości i zapisz ponownie.” z „Aktualnie: …” (README → zasada wspólna 16). Transza ma już inny status niż „Planowana” (`403 forbidden` — decyzja Konrada 2026-10-13, zgodnie z EVM-053 AC3, EVM-054 AC5 i EVM-057 AC6 — albo stan po odświeżeniu): alert „Transza ma już status «Wystawiona» — kwotę zmieni administrator korektą płatności.”, „Zapisz kwotę” wyłączony.
 - **Zlecenie zamknięte** (decyzja 17, EVM-053 AC5): „Dodaj transzę” i „Zmień kwotę…” wyłączone z podpowiedzią z wiersza „zlecenie Rozliczone albo Anulowane” w tabeli akcji; wyścig — `409 work_order_closed` w dialogu.
 
 | Moment | Fokus |
@@ -177,7 +177,7 @@ Dialogi sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegó
 | „Anuluj”, `x`, Esc | wyzwalacz: „Dodaj transzę” albo `⋮` „Akcje transzy: …” |
 | sukces „Dodaj transzę” | wyzwalacz `⋮` nowej transzy („Akcje transzy: Dopłata za instalację zasilającą”); wynik ogłasza toast |
 | sukces „Zmień kwotę” | wyzwalacz `⋮` tej transzy |
-| `412`, `409`, `422`, błąd | alert (`role="alert"`), potem pole z błędem albo z „Aktualnie: …” |
+| `412`, `403`, `409`, `422`, błąd | alert (`role="alert"`), potem pole z błędem albo z „Aktualnie: …” |
 
 **Stany**
 | Stan | Zachowanie |

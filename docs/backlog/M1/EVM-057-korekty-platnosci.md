@@ -6,9 +6,11 @@ milestone: M1
 epic: E7 Płatności etapowe
 status: ready
 priority: P1
+path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+model: opus
 depends_on: [EVM-029, EVM-054]
 ---
 
@@ -83,7 +85,7 @@ Jako **Administrator** chcę **poprawiać błędy w płatnościach już wystawio
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P2 — próba zmiany kwoty transzy innej niż „Planowana” bez step-upu zwraca `403` (Edytor `forbidden`, Administrator `step_up_required`), a ze step-upem jest korektą z AC3; P6 — `model: opus`.
 
 ## Uwagi do rozważenia
 _—_
