@@ -279,7 +279,8 @@ test.describe('P-11 Sesja wygasa in the browser (EVM-067 AC5, AC6; styleguide 4.
     await page.clock.fastForward(58.5 * MINUTE);
     await expect(page).toHaveURL(`${ORIGIN}/login`);
     await expect(page.getByText(/^Sesja wygasła\. Zaloguj się ponownie w tej karcie/)).toBeVisible();
-    await expect(page.getByRole('navigation')).toHaveCount(0);
+    // No navigation of the panel: the only landmark of this kind is the footer of W-01 (EVM-063 AC1).
+    await expect(page.getByRole('navigation', { name: 'Główna nawigacja' })).toHaveCount(0);
     await expect(page).toHaveTitle('Logowanie · EVia Manager');
     const kept = JSON.parse(await whatTheTabKeeps(page)) as { local: unknown[]; session: unknown[]; databases: unknown[] };
     expect([kept.local, kept.session, kept.databases]).toEqual([[], [], []]);

@@ -209,6 +209,9 @@ test.describe('logout (EVM-016 AC6)', () => {
     const trigger = page.getByRole('button', { name: `Konto: ${DISPLAY_NAME}` });
     await trigger.focus();
     await page.keyboard.press('Enter');
+    // The first item is "Prywatność i pomoc" (EVM-063); "Wyloguj" is the next one.
+    await expect(page.getByRole('menuitem', { name: 'Prywatność i pomoc' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
     const logout = page.getByRole('menuitem', { name: 'Wyloguj' });
     await expect(logout).toBeFocused();
     await page.keyboard.press('Enter');
