@@ -45,7 +45,7 @@ Agenci nie widzą tej rozmowy — przy delegowaniu podawaj: ID i ścieżkę hist
 - Daty: ISO `YYYY-MM-DD`; strefa biznesowa `Europe/Warsaw`, zapis w UTC.
 
 ## Stack i komendy
-> Stack zaakceptowany w EVM-001 (ADR 0001–0016, `docs/architecture/README.md`); komendy z EVM-006 (monorepo, bramki, CI) i EVM-012 (dokumentacja). Wszystkie polecenia — z katalogu głównego repozytorium.
+> Stack zaakceptowany w EVM-001 (ADR 0001–0018, `docs/architecture/README.md`); komendy z EVM-006 (monorepo, bramki, CI) i EVM-012 (dokumentacja). Wszystkie polecenia — z katalogu głównego repozytorium.
 - Stack: TypeScript wszędzie · NestJS (Node.js 26), modularny monolit · PostgreSQL + Kysely, pg-boss · REST + OpenAPI 3.1 contract-first · własne uwierzytelnianie · web React + Vite, shadcn/ui + Tailwind z design tokens · mobile React Native + Expo · hosting UE (Hetzner + Scaleway) · CI GitHub Actions, pnpm 12 + Turborepo · testy Vitest, node:test, Testcontainers, Playwright, Maestro.
 - **Gdzie uruchamiamy testy (ADR-0015):** backend — lokalnie tylko w kontenerze Linux; web — natywnie na Windows w przeglądarkach biura; mobile i E2E Android — natywnie z emulatorem; pakiety współdzielone, `tools/` i dokumentacja — natywnie; iOS odłożony; CI Linux to dodatkowa bramka merge. Rozbieżność lokalnie/CI wyjaśniamy, nie pomijamy.
 - Instalacja: `pnpm install` (Node.js 26, pnpm 12 — wersję wyznacza `packageManager`; instaluje też hooki git lefthook) i `docker compose -f compose.yaml run --rm backend-install` (zależności Linux w wolumenie kontenera; po każdej zmianie `pnpm-lock.yaml`). Nigdy `npm install` (tworzy `package-lock.json`, którego nie commitujemy). Nowa zależność — tylko z uzasadnieniem (SR-SUPPLY-06), dokładna wersja, `pnpm add`.
