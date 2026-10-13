@@ -233,7 +233,7 @@ describe('IDOR in the matrix (EVM-016 AC8; SR-AUTHZ-05, CWE-639)', () => {
       configure: (builder) => builder.overrideProvider(POLICY_SOURCE).useValue(policiesOf(withThing)),
     });
     const cells = buildMatrix(withThing, lists);
-    expect(cells.filter((cell) => cell.idor)).toHaveLength(63); // 11 of the data of an order and of the five operations on its scope (EVM-035), 2 of the synthetic thing, 3 of the catalogue template, 15 of the five reads of a work order (EVM-018, EVM-036), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039), 10 of the detail and the edit of a site and of a party (EVM-036), 5 of the processes of an order and the change of a stage (EVM-031), 2 of its transition (EVM-032), 8 of the journal: the list, one entry and the creation (EVM-037)
+    expect(cells.filter((cell) => cell.idor)).toHaveLength(70); // 7 of the payment milestones: the list, the addition and the change of an amount (EVM-053), 11 of the data of an order and of the five operations on its scope (EVM-035), 2 of the synthetic thing, 3 of the catalogue template, 15 of the five reads of a work order (EVM-018, EVM-036), 2 of the status command (EVM-030), 5 of the detail and the edit of a customer (EVM-039), 10 of the detail and the edit of a site and of a party (EVM-036), 5 of the processes of an order and the change of a stage (EVM-031), 2 of its transition (EVM-032), 8 of the journal: the list, one entry and the creation (EVM-037)
     expect(await runMatrix(current, cells, { ...(await matrixObjects(current)), getTestThing: THING_OBJECTS })).toEqual([]);
   });
 

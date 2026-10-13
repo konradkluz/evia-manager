@@ -1,4 +1,8 @@
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { bundleContract } from '../src/redocly.ts';
 import { AUTHZ_MANIFEST } from '../src/authz.ts';
 import {
   zAuditEvent,
@@ -125,5 +129,39 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
       true,
     );
     expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.paid' }).success).toBe(false);
+  });
+
+  it('EVM-053 P3 SR-AUTHZ-12 no operation open to the mobile channel can answer with a payment milestone or an amount (payments never reach the phone)', () => {
+    const output = join(mkdtempSync(join(tmpdir(), 'evia-contracts-')), 'openapi.json');
+    expect(bundleContract(output).status).toBe(0);
+    const bundle = JSON.parse(readFileSync(output, 'utf8')) as {
+      paths: Record<string, Record<string, { 'x-evia-authz'?: { channels?: string[] }; responses?: unknown }>>;
+      components: { schemas: Record<string, unknown> };
+    };
+    const refsOf = (node: unknown): string[] => {
+      const text = JSON.stringify(node);
+      return [...text.matchAll(/"#\/components\/schemas\/([A-Za-z0-9]+)"/g)].map((match) => match[1] ?? '');
+    };
+    const reachable = (node: unknown): Set<string> => {
+      const seen = new Set<string>();
+      const queue = refsOf(node);
+      while (queue.length > 0) {
+        const name = queue.pop() ?? '';
+        if (seen.has(name)) continue;
+        seen.add(name);
+        queue.push(...refsOf(bundle.components.schemas[name]));
+      }
+      return seen;
+    };
+    const mobile = Object.values(bundle.paths).flatMap((item) =>
+      Object.values(item).filter((operation) => operation['x-evia-authz']?.channels?.includes('mobile') === true),
+    );
+    for (const operation of mobile) {
+      const names = reachable(operation.responses);
+      for (const name of ['Money', 'MoneyTotal', 'PaymentMilestone', 'PaymentMilestoneList']) expect(names.has(name)).toBe(false);
+    }
+    // the payment schemas are really reachable from the web operations (the walk above is not vacuous)
+    const web = bundle.paths['/api/v1/work-orders/{workOrderId}/payment-milestones']?.['get'];
+    expect(reachable(web?.responses).has('Money')).toBe(true);
   });
 });
