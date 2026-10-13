@@ -4,7 +4,8 @@
  * columns are added (no default, no rewrite of the table, no event is touched); the append-only triggers and the grants of 0003 stay as
  * they are (the application role has INSERT and SELECT on the table — the new columns included — and nothing else). Defence in depth
  * in the database: an amount is positive, and the three columns are empty unless the action is one of `payment_milestone.*` with the
- * currency `PLN` — no other event can carry an amount, whatever the application does.
+ * currency `PLN` — no other event can carry an amount, whatever the application does. The check is added `NOT VALID` and validated by a
+ * separate statement (domain-model.md): the scan of the existing events takes a lighter lock than the one of `ADD CONSTRAINT`.
  */
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '../platform/database/database.ts';
@@ -23,6 +24,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
           and starts_with(action, 'payment_milestone.')
           and (amount_before_minor is not null or amount_after_minor is not null)
         )
-      )
+      ) not valid
   `.execute(db);
+  await sql`alter table audit.events validate constraint events_payment_amounts`.execute(db);
 }

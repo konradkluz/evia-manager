@@ -129,6 +129,13 @@ describe('migration 0027 — the amounts of the audit trail for payments (EVM-05
     await fails(insertEvent('payment_milestone.amount_changed', { currency: 'PLN' }), '23514');
   });
 
+  it('EVM-053 AC3 the check of the amounts exists and is validated (added NOT VALID, then VALIDATE — domain-model.md)', async () => {
+    const { rows } = await sql<{ convalidated: boolean; contype: string }>`
+      select convalidated, contype from pg_constraint
+      where conname = 'events_payment_amounts' and conrelid = 'audit.events'::regclass`.execute(admin());
+    expect(rows).toEqual([{ convalidated: true, contype: 'c' }]);
+  });
+
   it('EVM-053 SR-LOG-03 no other action can carry an amount (defence in depth)', async () => {
     await fails(insertEvent('work_order.cancelled', { after: 100, currency: 'PLN' }), '23514');
     await fails(insertEvent('paymentXmilestone.created', { after: 100, currency: 'PLN' }), '23514');
