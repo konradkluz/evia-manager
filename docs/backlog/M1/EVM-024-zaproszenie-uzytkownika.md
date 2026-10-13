@@ -116,3 +116,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token zaproszenia tylko we fragmencie URL, otwarcie nie zużywa linku (AC1, AC3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC1 — status „Zaproszony” → „Oczekuje na aktywację” (`invited`); dopisany alert bezpieczeństwa dla Administratorów przy zaproszeniu z rolą Administrator (treść: `docs/ux/flows/e-maile.md`, e-mail 9)
+- 2026-10-13 — podział EVM-007 wg ADR-0018: zależność `EVM-007` oznacza część 007a (staging, domena, TLS, Scaleway TEM, SPF/DKIM/DMARC `staging.eviacharge.pl`); `depends_on` bez zmian (product-owner)

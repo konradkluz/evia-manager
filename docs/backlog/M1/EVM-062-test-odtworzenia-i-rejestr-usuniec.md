@@ -26,7 +26,7 @@ Jako **właściciel produktu** chcę **regularnie sprawdzać, że kopię produkc
 **AC1 — Odtworzenie bazy (SR-INFRA-07)**
 - Zakładając kopie prod
 - Gdy uruchamiany jest test odtworzenia (przed pilotem realnym, przed wydaniem 1.0 i co miesiąc)
-- Wtedy odtworzenie PITR odbywa się na tymczasowej VM w projekcie prod w UE (nie na runnerze CI ani na staging), VM nie ma portów przychodzących i jest usuwana także po błędzie, a w logach jest tylko wynik bez danych (czas, RPO, liczby kontrolne).
+- Wtedy timer systemd na VM prod tokenem Hetzner osobnego projektu `evia-restore` tworzy tymczasową VM w UE (nie na runnerze CI ani na staging), VM nie ma portów przychodzących, dostaje klucze tylko do odczytu i jednorazowy podpisany URL `PUT` na wynik, jest usuwana także po błędzie (sprzątacz usuwa zasoby starsze niż 24 h), a w logach jest tylko wynik bez danych (czas, RPO, liczby kontrolne); wynik zapisuje lokalnie agent na VM prod.
 
 **AC2 — Rejestr usunięć po odtworzeniu (SR-PRIV-04)**
 - Zakładając na staging redakcję wpisu, anonimizację klienta i trwałe usunięcie pliku wykonane po punkcie odtworzenia
@@ -38,11 +38,11 @@ Jako **właściciel produktu** chcę **regularnie sprawdzać, że kopię produkc
 - Wtedy dostaje `AccessDenied`, a wynik trafia do metryki z alertem.
 
 **AC4 — Tożsamość testu (RR-20, decyzja 5)**
-- Wtedy test działa w wariancie z decyzji 5, sekrety odczytu kopii nie są dostępne dla workflow z gałęzi innej niż `main` (Pro) albo nie ma ich w GitHubie wcale (Free), a każde uruchomienie wysyła e-mail do Konrada.
+- Wtedy test działa poza GitHub Actions (timer na VM prod, ADR-0018), poświadczenia testu (token `evia-restore`, klucze odczytu) są tylko na VM prod i w menedżerze haseł, nie ma ich w GitHubie, a każde uruchomienie wysyła e-mail do Konrada.
 
 **AC5 — Alerty (SR-LOG-07)**
-- Gdy backup albo test odtworzenia się nie udaje, VM testowa istnieje dłużej niż 24 h albo od ostatniego testu minęło 35 dni
-- Wtedy kanał alertów wysyła alert (test alertu).
+- Gdy backup albo test odtworzenia się nie udaje, zasoby w `evia-restore` istnieją dłużej niż 24 h albo ostatni udany test jest starszy niż 7 dni przed wdrożeniem prod
+- Wtedy kanał alertów wysyła alert (test alertu); „udany” = PITR z ponownym zastosowaniem rejestru usunięć i zgodnymi liczbami kontrolnymi, zapisany lokalnie na VM prod; przy teście starszym niż 7 dni agent uruchamia go automatycznie przed wdrożeniem (V5), a `skipRestoreTest` jest dozwolone tylko awaryjnie, z uzasadnieniem, alertem i wpisem w rejestrze wdrożeń.
 
 **AC6 — Spójność storage'u z bazą (SR-FILE-11)**
 - Wtedy zadanie uzgadniania z EVM-051 działa na prod, a rozbieżność wywołuje alert.
@@ -89,3 +89,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-13 — zmiana AC zaakceptowana przez Konrada (ADR-0018): AC1, AC4, AC5 — test z VM prod w projekcie `evia-restore` uruchamiany timerem, „udany ≤ 7 dni, inaczej automatycznie”, `skipRestoreTest` z alertem; liczba AC bez zmian (product-owner)

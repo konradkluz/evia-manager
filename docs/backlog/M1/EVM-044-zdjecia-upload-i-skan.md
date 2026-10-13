@@ -9,7 +9,7 @@ priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
 reviewers: [code-reviewer, security-engineer, ux-designer, solution-architect]
-depends_on: [EVM-007, EVM-011, EVM-038, EVM-071]
+depends_on: [EVM-007, EVM-084, EVM-011, EVM-038, EVM-071]
 ---
 
 # EVM-044: Zdjęcia w zleceniu — wysyłanie z panelu i skan bezpieczeństwa
@@ -113,3 +113,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer, security-engineer): AC3 i AC4 połączone (skan), nowe AC4 — wysyłanie z przeglądarki w telefonie; zależność od EVM-071 (makieta W-09 compact); decyzje 18 i 19
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 2 (f); liczba AC bez zmian): AC4 — akcja główna „Dodaj zdjęcia lub filmy” zamiast „Dodaj zdjęcia” (etykieta z makiety W-09 compact; obejmuje filmy z EVM-046)
+- 2026-10-13 — podział EVM-007 wg ADR-0018: runtime skanera antywirusowego (EVM-007 = 007a) i bucket mediów z wersjonowaniem (EVM-084 = 007b); `depends_on` + EVM-084 (product-owner)

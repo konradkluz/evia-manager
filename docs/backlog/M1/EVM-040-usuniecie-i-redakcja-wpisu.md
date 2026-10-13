@@ -9,7 +9,7 @@ priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
-depends_on: [EVM-007, EVM-029, EVM-037]
+depends_on: [EVM-084, EVM-029, EVM-037]
 ---
 
 # EVM-040: Usunięcie i redakcja wpisu w dzienniku (Administrator)
@@ -19,7 +19,7 @@ Jako **Administrator** chcę **ukryć wpis dodany przez pomyłkę albo trwale us
 
 ## Kontekst
 - Model: „Usuwanie danych” — soft delete (A), redakcja treści (A ze step-upem, wyjątek od append-only); SR-PRIV-03, SR-PRIV-04, SR-DATA-08.
-- **Wprowadza rejestr usunięć poza bazą** (konsultacja `solution-architect`, W4): port zapisu w `platform` do bucketu rejestru z EVM-007 (klucz aplikacji tylko `PutObject`), wpis przed operacją. Zależą od niego EVM-041, EVM-051 i EVM-062.
+- **Wprowadza rejestr usunięć poza bazą** (konsultacja `solution-architect`, W4): port zapisu w `platform` do bucketu rejestru z EVM-084 (klucz aplikacji tylko `PutObject`), wpis przed operacją. Zależą od niego EVM-041, EVM-051 i EVM-062.
 - Makieta: [W-08](../../ux/flows/05-wpis-i-komentarz.md#w-08-dziennik) (menu `⋮`: „Usuń wpis”, „Zredaguj treść…”), [W-04](../../ux/flows/01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie).
 
 ## Kryteria akceptacji
@@ -98,3 +98,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-13 — podział EVM-007 wg ADR-0018: bucket rejestru usunięć powstaje w EVM-084 (007b, zależy od 007a); `depends_on`: EVM-007 → EVM-084 (product-owner)

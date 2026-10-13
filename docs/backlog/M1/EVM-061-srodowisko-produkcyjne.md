@@ -9,7 +9,7 @@ priority: P1
 owner: devops-engineer
 contributors: []
 reviewers: [security-engineer, solution-architect]
-depends_on: [EVM-006, EVM-007]
+depends_on: [EVM-006, EVM-007, EVM-084, EVM-085]
 ---
 
 # EVM-061: Środowisko produkcyjne, wdrożenie i monitoring
@@ -29,10 +29,10 @@ Jako **właściciel produktu** chcę **środowiska produkcyjnego w UE, wdrażane
 - Wtedy powstaje środowisko w UE z tych samych modułów co staging, w osobnych projektach (Hetzner `evia-prod`, projekt Scaleway prod), z osobnymi kluczami, bucketami (media, kopie bazy, rejestr usunięć) i domeną; staging i prod nie współdzielą żadnych poświadczeń.
 
 **AC2 — Kanał wdrożenia (SR-INFRA-13, SR-INFRA-14)**
-- Zakładając wariant z decyzji 5
+- Zakładając kanał pull z weryfikacją na VM prod (ADR-0018; GitHub Free, zero sekretów prod w GitHubie)
 - Gdy wdrażam wersję na prod
-- Wtedy wdraża się wyłącznie niezmienny digest sprawdzony na staging i zatwierdzony przez Konrada: (Pro) `workflow_dispatch` tylko z `main`, `github.actor` = konto Konrada, sekrety tylko w środowisku `production` ograniczonym do `main`, kanał CI → VM wg SR-INFRA-14 (rekomendacja: pull); (Free) VM sama pobiera digest po sprawdzeniu commita na `main` i zielonego `ci-gate` tokenem tylko do odczytu trzymanym na VM, bez sekretów wdrożeniowych w GitHubie
-- Oraz próba wdrożenia z innej gałęzi, innego digestu albo przez inne konto jest odrzucona (test), a port 22 jest niedostępny z runnera po wdrożeniu (bramka 10).
+- Wtedy agent prod wykonuje V0–V6 z ADR-0018, w tym V5: wdraża się wyłącznie digest z `release-manifest` commita z `main`, dla którego zielony jest `staging-verify` z tym samym skrótem manifestu i który Konrad zatwierdził obiektem `approvals/prod.json` (`commit`, `manifestSha256`) wgranym przez konsolę Scaleway (MFA, urządzenie bez agentów AI) do wersjonowanego bucketu zatwierdzeń prod; agent używa osobnych PAT-ów prod (fine-grained tylko do odczytu, `read:packages`) i klucza odczytu zatwierdzenia z warunkiem IP VM prod
+- Oraz zatwierdzenie commita spoza `main`, po zdarzeniu `push`/`force_push` na `main`, z innym skrótem manifestu, `rollback` dla commita spoza rejestru, bez świeżego testu odtworzenia albo zapis obiektu cudzym kluczem jest odrzucone (test), port 22 jest niedostępny z runnera, a workflow `prod-verify` (bez sekretów, co noc i ręcznie po wdrożeniu) potwierdza stan prod (bramka 10).
 
 **AC3 — Powiadomienie o wdrożeniu (SR-LOG-07)**
 - Gdy wdrożenie prod się kończy (sukces albo błąd)
@@ -44,11 +44,11 @@ Jako **właściciel produktu** chcę **środowiska produkcyjnego w UE, wdrażane
 
 **AC5 — Kopie i szyfrowanie (SR-DATA-04, SR-INFRA-07)**
 - Gdy prod działa
-- Wtedy baza ma PITR 30 dni i niezmienne kopie 37 dni, media — wersjonowanie i object lock, wolumen bazy — LUKS, bucket — SSE, a nieudany backup wywołuje alert (SR-LOG-07).
+- Wtedy baza ma PITR 30 dni i niezmienne kopie 37 dni, media — wersjonowanie i object lock, wolumen bazy — LUKS, bucket — SSE, a nieudany backup wywołuje alert (SR-LOG-07); kopie i buckety pochodzą z modułów EVM-084 (te same skrypty co staging).
 
 **AC6 — Monitoring i alerty (SR-LOG-07)**
 - Gdy wykonuję test alertów na prod
-- Wtedy działają alerty dostępności, błędów i bezpieczeństwa z ADR-0013 (nieudane logowania, blokady, zmiany ról i MFA Administratora, masowe pobrania i odczyt, kwarantanna, eksport, wdrożenie, backup) z e-mailem do Konrada.
+- Wtedy działają alerty dostępności, błędów i bezpieczeństwa z ADR-0013 (nieudane logowania, blokady, zmiany ról i MFA Administratora, masowe pobrania i odczyt, kwarantanna, eksport, wdrożenie, backup) z e-mailem do Konrada; alerty, wspólny stos Grafana/Sentry z tokenami per środowisko (`env="prod"`) i alert „brak danych” dla prod wg modułów EVM-085.
 
 **AC7 — Konta i klucze (SR-INFRA-09, SR-CRYPTO-04)**
 - Wtedy wszystkie konta administracyjne dostawców (Hetzner, Scaleway, GitHub, Grafana, Sentry, rejestrator) mają MFA, a runbook zawiera inwentarz kryptograficzny i politykę kluczy (właściciel, miejsce, algorytm, rotacja, zniszczenie).
@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): odesłanie do bramki wdrożeń w trakcie pilota (EVM-065 AC7)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-13 — podział EVM-007 wg ADR-0018: te same skrypty to kanał i VM (007a), backupy (EVM-084 = 007b) i obserwowalność (EVM-085 = 007c); `depends_on` + EVM-084, EVM-085. Zmiana AC (AC2, AC5, AC6 wg ADR-0018) zaakceptowana przez Konrada 2026-10-13; liczba AC bez zmian (product-owner)
