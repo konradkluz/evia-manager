@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AppConfig } from '../../src/platform/config/config.ts';
+import { searchTextMatches } from '../../src/platform/database/search-text.ts';
 import { createPool, type Database } from '../../src/platform/database/database.ts';
 import type { Logger } from '../../src/platform/logging/logger.ts';
 import { APP_CONFIG, DATABASE, LOGGER } from '../../src/platform/tokens.ts';
@@ -86,7 +87,7 @@ const p95 = (values: number[]): number =>
 
 describe('performance of the search on 10 000 synthetic orders (EVM-072 AC6; SR-API-02, TM-22)', () => {
   it('EVM-072 AC6 p95 of the response time is below 300 ms for a search by a surname, an address, a city and a number', async () => {
-    const phrases = ['kowalski', 'wisniewski', 'zolkiewskiego', 'ul. Piotrkowska 12', 'Lodz', 'gdansk', '0042', 'kamiński'];
+    const phrases = ['kowalski', 'wisniewski', 'zolkiewskiego', 'ul. Piotrkowska 14', 'Lodz', 'gdansk', '0042', 'kamiński'];
     let panel = await reader();
     // warm-up: the pool, the plans, the caches
     for (const query of phrases) expect((await panel.post(SEARCH, { query, limit: 25 })).status).toBe(200);
@@ -162,15 +163,15 @@ describe('performance of the search on 10 000 synthetic orders (EVM-072 AC6; SR-
       };
       await explain(
         'work_orders',
-        sql`select id from work_orders.work_orders where deleted_at is null and search_text ilike '%' || public.f_unaccent(lower(${'garaz'})) || '%' limit 10001`,
+        sql`select id from work_orders.work_orders where deleted_at is null and ${searchTextMatches('garaz')} limit 10001`,
       );
       await explain(
         'customers',
-        sql`select id from customers.customers where deleted_at is null and search_text ilike '%' || public.f_unaccent(lower(${'kowalski'})) || '%' limit 10001`,
+        sql`select id from customers.customers where deleted_at is null and ${searchTextMatches('kowalski')} limit 10001`,
       );
       await explain(
         'sites',
-        sql`select id from sites.sites where deleted_at is null and search_text ilike '%' || public.f_unaccent(lower(${'zolkiewskiego'})) || '%' limit 10001`,
+        sql`select id from sites.sites where deleted_at is null and ${searchTextMatches('zolkiewskiego')} limit 10001`,
       );
     });
     expect(plans['work_orders']).toMatch(/work_orders_search_text_trgm_idx/);
