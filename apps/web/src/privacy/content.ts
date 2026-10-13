@@ -72,23 +72,31 @@ const list = (...items: string[]): ClauseBlock => ({ kind: 'list', items });
 const SUPERVISORY_AUTHORITY =
   'Masz prawo wnieść skargę do Prezesa Urzędu Ochrony Danych Osobowych (Urząd Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warszawa).';
 
+/** How a request of a data subject reaches the controller (rodo.md → "Realizacja praw osób"). */
+const REQUESTS =
+  'Wniosek w sprawie swoich danych wyślij na adres kontaktowy w sprawach danych osobowych (sekcja „Administrator danych”) albo pisemnie na adres siedziby. Odpowiemy bez zbędnej zwłoki, najpóźniej w ciągu miesiąca; nie żądamy kopii dokumentu tożsamości.';
+
+/** Monitoring tools get technical identifiers only (rodo.md → "Dane poza bazą"; P9) — pseudonymous, not anonymous. */
+const MONITORING_TRANSFER =
+  'ewentualny dostęp z USA (np. w ramach wsparcia technicznego) opiera się na standardowych klauzulach umownych albo na Data Privacy Framework';
+
 const CLIENTS: Clause = {
   id: 'clients',
   title: 'Klauzula dla klientów (do przekazania klientom)',
   version: VERSION,
   validFrom: VALID_FROM,
   blocks: [
-    paragraph('Tę klauzulę przekazujemy klientom przy przyjęciu zlecenia.'),
+    paragraph('Tę klauzulę przekazujemy klientom wtedy, gdy zbieramy ich dane — przy przygotowaniu oferty albo zawarciu umowy.'),
     heading('Kto jest administratorem Twoich danych'),
     paragraph(
       'Administratorem danych osobowych jest firma wskazana w sekcji „Administrator danych” na tej stronie. W sprawach danych osobowych napisz na adres kontaktowy podany w tej sekcji.',
     ),
     heading('Jakie dane przetwarzamy'),
     paragraph(
-      'Imię i nazwisko albo nazwę firmy, NIP, osobę kontaktową, numer telefonu, adres e-mail, adres korespondencyjny, adres miejsca instalacji i dane o instalacji (np. numer punktu poboru energii, moc przyłączeniowa, parametry instalacji), treść korespondencji i notatek ze zlecenia, zdjęcia i filmy z wykonywanych prac, dokumenty zlecenia, a przy rozliczeniach kwoty, numery faktur i terminy płatności.',
+      'Imię i nazwisko albo nazwę firmy, NIP, osobę kontaktową, numer telefonu, adres e-mail, adres korespondencyjny, adres miejsca instalacji i dane o instalacji (np. numer punktu poboru energii, moc przyłączeniowa, numer seryjny ładowarki, parametry instalacji), treść korespondencji i notatek ze zlecenia, zdjęcia i filmy z wykonywanych prac, dokumenty zlecenia, a przy rozliczeniach kwoty, numery faktur i terminy płatności.',
     ),
     paragraph(
-      `Dokumenty potrzebne w procesie z operatorem sieci (np. pełnomocnictwo, wniosek) mogą zawierać numer PESEL lub numer dokumentu tożsamości — wyłącznie wtedy, gdy wymaga tego dany dokument. ${LEGAL}`,
+      `Dokumenty potrzebne w procesie z operatorem sieci (np. pełnomocnictwo, wniosek) mogą zawierać numer PESEL lub numer dokumentu tożsamości — wyłącznie wtedy, gdy wymaga tego dany dokument. Nie wykonujemy zdjęć ani kopii dokumentów tożsamości. ${LEGAL}`,
     ),
     heading('W jakim celu i na jakiej podstawie'),
     list(
@@ -103,8 +111,8 @@ const CLIENTS: Clause = {
     list(
       'operatorom sieci dystrybucyjnej, administracjom budynków, wspólnotom i spółdzielniom — w zakresie potrzebnym w prowadzonej sprawie; to odrębni administratorzy,',
       'projektantom, rzeczoznawcom i podwykonawcom — w zakresie potrzebnym do wykonania zlecenia,',
-      'dostawcom usług IT z Unii Europejskiej, którzy przechowują dane w naszym imieniu (hosting, kopie zapasowe, wiadomości e-mail — m.in. Hetzner, Scaleway),',
-      'dostawcom narzędzi do monitorowania działania systemu (Sentry, Grafana Labs) — to spółki z USA, które przetwarzają dane w regionie UE; dane są wcześniej pozbawiane danych osobowych, a ewentualny dostęp z USA opiera się na standardowych klauzulach umownych albo na Data Privacy Framework.',
+      'dostawcom usług IT z Unii Europejskiej, którzy przechowują dane w naszym imieniu (serwery i baza danych, przechowywanie zdjęć i dokumentów, kopie zapasowe — Hetzner, Scaleway),',
+      `dostawcom narzędzi do monitorowania działania systemu (Sentry, Grafana Labs) — to spółki z USA, które przetwarzają dane w regionie UE; trafiają do nich wyłącznie identyfikatory techniczne, bez imion i nazwisk, adresów, numerów telefonów i treści zleceń; ${MONITORING_TRANSFER}.`,
     ),
     paragraph(`Role odbiorców i podstawy przekazania poza Europejski Obszar Gospodarczy: ${LEGAL}.`),
     heading('Jak długo przechowujemy dane'),
@@ -120,6 +128,7 @@ const CLIENTS: Clause = {
     paragraph(
       'Masz prawo dostępu do danych i otrzymania ich kopii, sprostowania, usunięcia, ograniczenia przetwarzania i przenoszenia danych. Jeżeli przetwarzamy dane na podstawie prawnie uzasadnionego interesu, możesz wnieść sprzeciw.',
     ),
+    paragraph(REQUESTS),
     paragraph(SUPERVISORY_AUTHORITY),
     heading('Czy musisz podać dane'),
     paragraph(
@@ -129,7 +138,7 @@ const CLIENTS: Clause = {
     paragraph('Nie podejmujemy wobec Ciebie decyzji w sposób zautomatyzowany i nie profilujemy Twoich danych.'),
     heading('Osoby postronne na zdjęciach'),
     paragraph(
-      `Podczas prac unikamy utrwalania osób, które nie są stroną zlecenia, i tablic rejestracyjnych. Jeżeli taka osoba znajdzie się na zdjęciu, usuniemy plik na jej wniosek. ${LEGAL}`,
+      `Podczas prac unikamy utrwalania osób, które nie są stroną zlecenia, i tablic rejestracyjnych. Jeżeli taka osoba znajdzie się na zdjęciu, może zgłosić sprzeciw — usuniemy wtedy plik, chyba że jego zachowanie jest niezbędne do ustalenia, dochodzenia lub obrony roszczeń. ${LEGAL}`,
     ),
   ],
 };
@@ -141,7 +150,7 @@ const PARTIES: Clause = {
   validFrom: VALID_FROM,
   blocks: [
     paragraph(
-      'Tę informację przekazujemy osobom, których dane kontaktowe otrzymaliśmy od klienta albo ze zlecenia — np. pracownikom administracji budynku, zarządcom, projektantom, rzeczoznawcom i pracownikom operatora sieci.',
+      'Tę informację przekazujemy osobom, których dane kontaktowe otrzymaliśmy od klienta albo ze zlecenia — np. pracownikom administracji budynku, zarządcom, projektantom, rzeczoznawcom i pracownikom operatora sieci, a także osobom fizycznym, które występują w sprawie jako strona. Przekazujemy ją przy pierwszym kontakcie (np. w stopce wiadomości e-mail), najpóźniej w ciągu miesiąca od otrzymania danych.',
     ),
     heading('Kto jest administratorem danych'),
     paragraph(
@@ -159,12 +168,13 @@ const PARTIES: Clause = {
     ),
     heading('Komu przekazujemy dane'),
     paragraph(
-      'Dane są dostępne pracownikom firmy w zakresie ich zadań oraz dostawcom usług IT, którzy przechowują dane w naszym imieniu (Hetzner, Scaleway — Unia Europejska).',
+      'Dane są dostępne pracownikom firmy w zakresie ich zadań oraz dostawcom usług IT, którzy przechowują dane w naszym imieniu (Hetzner, Scaleway — Unia Europejska). Do narzędzi monitorowania działania systemu (Sentry, Grafana Labs — spółki z USA, region UE) trafiają wyłącznie identyfikatory techniczne, bez Twojego imienia i nazwiska, telefonu i adresu e-mail.',
     ),
     heading('Twoje prawa'),
     paragraph(
       'Masz prawo dostępu do danych, ich sprostowania, usunięcia, ograniczenia przetwarzania oraz prawo sprzeciwu wobec przetwarzania na podstawie prawnie uzasadnionego interesu.',
     ),
+    paragraph(REQUESTS),
     paragraph(SUPERVISORY_AUTHORITY),
     paragraph(`Treść klauzuli wymaga oceny prawnej: ${LEGAL}.`),
   ],
@@ -184,20 +194,24 @@ const EMPLOYEES: Clause = {
     heading('Jakie dane o Tobie przetwarzamy'),
     list(
       'dane konta: adres e-mail, nazwa wyświetlana, rola, status konta i data ostatniego logowania,',
+      'dane logowania: hasło i drugi składnik logowania — wyłącznie w postaci zabezpieczonej, której nikt w firmie nie odczytuje,',
       'dane o sesjach: adres IP (w skróconej postaci w narzędziach do monitorowania), rodzaj przeglądarki, czasy aktywności,',
-      'dziennik audytu: kto, co, kiedy, skąd (skrócony adres IP) i z jakim wynikiem — bez wartości danych wprowadzanych do zleceń,',
+      'dziennik audytu: kto, co, kiedy, skąd (skrócony adres IP) i z jakim wynikiem — bez treści danych wprowadzanych do zleceń (wyjątek: kwoty płatności),',
       'autorstwo wpisów i zmian w zleceniach (nazwa wyświetlana).',
     ),
+    paragraph('Pełne dane konta widzi administrator systemu w firmie; pozostali pracownicy widzą tylko Twoją nazwę wyświetlaną.'),
     heading('W jakim celu i na jakiej podstawie'),
     paragraph(
-      `Cele: dostęp do systemu, bezpieczeństwo, rozliczalność działań i ochrona przed nadużyciami. Podstawy: umowa z pracownikiem lub współpracownikiem (art. 6 ust. 1 lit. b RODO), obowiązek zapewnienia bezpieczeństwa przetwarzania (art. 6 ust. 1 lit. c w związku z art. 32 RODO) oraz prawnie uzasadniony interes administratora (art. 6 ust. 1 lit. f RODO). ${LEGAL}`,
+      `Cele: dostęp do systemu, bezpieczeństwo, rozliczalność działań i ochrona przed nadużyciami. Podstawy: umowa z pracownikiem lub współpracownikiem (art. 6 ust. 1 lit. b RODO), obowiązek zapewnienia bezpieczeństwa przetwarzania (art. 6 ust. 1 lit. c w związku z art. 32 RODO) oraz prawnie uzasadniony interes administratora (art. 6 ust. 1 lit. f RODO). Dziennik audytu służy bezpieczeństwu i rozliczalności, a nie ocenie Twojej pracy. ${LEGAL}`,
     ),
+    paragraph('Podanie adresu e-mail i nazwy wyświetlanej jest niezbędne do założenia konta i pracy w systemie.'),
     heading('Jak długo przechowujemy dane'),
     list(
       'konto — 2 lata od dezaktywacji, potem anonimizacja,',
       'dziennik audytu — 2 lata,',
       'sesje — 30 dni od wygaśnięcia lub unieważnienia,',
-      'logi na serwerze — 7 dni, logi i metryki w narzędziu do monitorowania — 14 dni, raporty błędów — 30 dni.',
+      'logi na serwerze — 7 dni, logi i metryki w narzędziu do monitorowania — 14 dni, raporty błędów — 30 dni,',
+      'zaszyfrowane kopie zapasowe — do 37 dni po usunięciu danych.',
     ),
     heading('Praca na prywatnym telefonie lub komputerze'),
     paragraph('Panel działa w przeglądarce. Korzystając z niego na prywatnym urządzeniu:'),
@@ -214,12 +228,13 @@ const EMPLOYEES: Clause = {
     ),
     heading('Komu przekazujemy dane'),
     paragraph(
-      'Administratorom systemu w firmie oraz dostawcom usług IT: hosting i kopie zapasowe (Hetzner, Scaleway — Unia Europejska), wiadomości e-mail z zaproszeniami i alertami (Scaleway), monitorowanie działania systemu (Sentry, Grafana Labs — spółki z USA, region UE; dane pseudonimowe).',
+      `Dostawcom usług IT, którzy przetwarzają dane w naszym imieniu: hosting i kopie zapasowe (Hetzner, Scaleway — Unia Europejska), wiadomości e-mail z zaproszeniami i alertami (Scaleway), monitorowanie działania systemu (Sentry, Grafana Labs — spółki z USA, region UE; tylko identyfikatory techniczne i skrócony adres IP; ${MONITORING_TRANSFER}).`,
     ),
     heading('Twoje prawa'),
     paragraph(
       'Masz prawo dostępu do danych, sprostowania, usunięcia, ograniczenia przetwarzania i przenoszenia danych oraz prawo sprzeciwu wobec przetwarzania na podstawie prawnie uzasadnionego interesu. Nie stosujemy profilowania ani zautomatyzowanych decyzji.',
     ),
+    paragraph(REQUESTS),
     paragraph(SUPERVISORY_AUTHORITY),
   ],
 };
