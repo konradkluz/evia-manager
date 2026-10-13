@@ -11,7 +11,7 @@ owner: devops-engineer
 contributors: []
 reviewers: [code-reviewer, security-engineer]
 model: sonnet
-depends_on: [EVM-007, EVM-008]
+depends_on: [EVM-007, EVM-008, EVM-085]
 ---
 
 # EVM-076: Szkielet na staging — wdrożenie i test dymny po wdrożeniu
@@ -48,3 +48,4 @@ Jako **właściciel produktu** chcę **widzieć szkielet z EVM-008 działający 
 ## Dziennik
 - 2026-10-05 — utworzono i `ready` po podziale EVM-008 zaakceptowanym przez Konrada (orkiestrator, EVM-075)
 - 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada
+- 2026-10-13 — podział EVM-007 wg ADR-0018: AC1–AC2 zależą od EVM-007 (007a); AC3 wymaga też EVM-085 (007c: Alloy, Sentry, kanał alertów) — decyzja Konrada 2026-10-13: `depends_on` + EVM-085 (product-owner)

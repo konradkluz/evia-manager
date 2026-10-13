@@ -93,12 +93,12 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 |---|---|---|---|---|---|---|
 | [EVM-037](EVM-037-dziennik-wpisy-i-komentarze.md) | Dziennik zlecenia — wpisy i komentarze | story | P1 | backend-developer | EVM-031 | W-08 |
 | [EVM-038](EVM-038-automatyczna-historia-zmian.md) | Automatyczna historia zmian w dzienniku | story | P1 | backend-developer | EVM-032, EVM-037 | W-08 (zdarzenia) |
-| [EVM-040](EVM-040-usuniecie-i-redakcja-wpisu.md) | Usunięcie i redakcja wpisu w dzienniku (Administrator) | story | P1 | backend-developer | EVM-007, EVM-029, EVM-037 | W-08, W-04; rejestr usunięć |
+| [EVM-040](EVM-040-usuniecie-i-redakcja-wpisu.md) | Usunięcie i redakcja wpisu w dzienniku (Administrator) | story | P1 | backend-developer | EVM-084, EVM-029, EVM-037 | W-08, W-04; rejestr usunięć |
 
 ### E6 Dokumenty i media (web)
 | ID | Tytuł | Typ | Prio | `owner` | `depends_on` | Ekrany / uwagi |
 |---|---|---|---|---|---|---|
-| [EVM-044](EVM-044-zdjecia-upload-i-skan.md) | Zdjęcia w zleceniu — wysyłanie z panelu i skan bezpieczeństwa | story | P1 | backend-developer | EVM-007, EVM-011, EVM-038, EVM-071 | W-09 (Uploader; także przeglądarka w telefonie — decyzje 18, 19); P-7 |
+| [EVM-044](EVM-044-zdjecia-upload-i-skan.md) | Zdjęcia w zleceniu — wysyłanie z panelu i skan bezpieczeństwa | story | P1 | backend-developer | EVM-007, EVM-084, EVM-011, EVM-038, EVM-071 | W-09 (Uploader; także przeglądarka w telefonie — decyzje 18, 19); P-7 |
 | [EVM-068](EVM-068-miniatury-i-podglady.md) | Miniatury i podglądy zdjęć — przetwarzanie w izolacji | story | P1 | backend-developer | EVM-011, EVM-044 | W-09 (galeria) |
 | [EVM-045](EVM-045-galeria-podglad-i-oryginal.md) | Galeria — podgląd i pobranie oryginału | story | P1 | backend-developer | EVM-068 | W-09 (Lightbox) |
 | [EVM-046](EVM-046-filmy.md) | Filmy w zleceniu | story | P1 | backend-developer | EVM-011, EVM-045 | W-09 |
@@ -123,7 +123,7 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 ### E8 Gotowość produkcyjna
 | ID | Tytuł | Typ | Prio | `owner` | `depends_on` | Ekrany / uwagi |
 |---|---|---|---|---|---|---|
-| [EVM-061](EVM-061-srodowisko-produkcyjne.md) | Środowisko produkcyjne, wdrożenie i monitoring | enabler | P1 | devops-engineer | EVM-006, EVM-007 | decyzja 5 (plan GitHub) |
+| [EVM-061](EVM-061-srodowisko-produkcyjne.md) | Środowisko produkcyjne, wdrożenie i monitoring | enabler | P1 | devops-engineer | EVM-006, EVM-007, EVM-084, EVM-085 | decyzja 5 (plan GitHub) |
 | [EVM-062](EVM-062-test-odtworzenia-i-rejestr-usuniec.md) | Test odtworzenia kopii produkcji i rejestr usunięć | enabler | P1 | devops-engineer | EVM-040, EVM-061 | SR-INFRA-07, SR-PRIV-04, RR-20 |
 | [EVM-063](EVM-063-prywatnosc-i-pomoc.md) | Prywatność i pomoc w panelu — klauzule informacyjne | story | P1 | web-developer | EVM-067, EVM-071 | W-19, W-01 |
 | [EVM-064](EVM-064-rodo-przed-startem.md) | RODO przed startem — umowy powierzenia, rejestr czynności, ćwiczenie naruszeń i runbooki | enabler | P1 | security-engineer | EVM-061 | SR-PRIV-06, SR-PRIV-07; transfery do USA, DPIA |
