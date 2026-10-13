@@ -127,15 +127,20 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       waiting: null,
       nextDueDate: null,
       hasOverdueStage: false,
+      // the customer and the site of the order (EVM-072, additive): an order without them has `null`
+      customer: null,
+      site: null,
     });
     expect(second?.coordinator).toBeNull();
     expect(Object.keys(first ?? {}).sort()).toEqual([
       'coordinator',
       'createdAt',
+      'customer',
       'hasOverdueStage',
       'id',
       'nextDueDate',
       'number',
+      'site',
       'status',
       'title',
       'waiting',

@@ -114,12 +114,12 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
   it('EVM-017 AC3 the filters of a cursor are the sort, the view, the normalised statuses and the coordinator — not the limit', () => {
     const id = randomUUID();
     const base = ok({ status: 'quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '10' });
-    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id, '', '', '', '']);
+    expect(filterPartsOf(base)).toEqual(['number', 'all_open', 'new,quoting', id, '', '', '', '', '', '']);
     expect(filterPartsOf(ok({ status: 'new,quoting,new', view: 'all_open', coordinatorId: id, sort: 'number', limit: '99' }))).toEqual(
       filterPartsOf(base),
     );
-    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '', '', '', '']);
-    expect(filterPartsOf(ok({ customerId: id }))).toEqual(['-number', '', '', '', id, '', '', '']);
+    expect(filterPartsOf(ok({}))).toEqual(['-number', '', '', '', '', '', '', '', '', '']);
+    expect(filterPartsOf(ok({ customerId: id }))).toEqual(['-number', '', '', '', id, '', '', '', '', '']);
   });
 });
 
@@ -205,7 +205,7 @@ describe('"Czekamy na…" in the query (EVM-034 AC2, AC4; SR-INPUT-01, SR-INPUT-
 
   it('EVM-034 AC2 the filters of a cursor include the kind of wait and the number of days, so a cursor does not open with other ones', () => {
     const base = ok({ waitingOn: 'party', waitingOnPartyKind: 'distribution_system_operator', waitingLongerThanDays: '14' });
-    expect(filterPartsOf(base)).toEqual(['-number', '', '', '', '', 'party', 'distribution_system_operator', '14']);
+    expect(filterPartsOf(base)).toEqual(['-number', '', '', '', '', '', '', 'party', 'distribution_system_operator', '14']);
     expect(filterPartsOf(ok({ waitingLongerThanDays: '15' }))).not.toEqual(filterPartsOf(ok({ waitingLongerThanDays: '14' })));
     expect(filterPartsOf(ok({ view: 'waiting_on_dso_over_14_days' }))).not.toEqual(filterPartsOf(ok({ view: 'all_open' })));
   });
@@ -215,5 +215,15 @@ describe('"Czekamy na…" in the query (EVM-034 AC2, AC4; SR-INPUT-01, SR-INPUT-
     expect(daysBetween('2026-10-24', '2026-10-26')).toBe(2);
     expect(daysBetween('2026-10-03', '2026-10-03')).toBe(0);
     expect(daysBetween('2026-10-04', '2026-10-03')).toBe(0);
+  });
+
+  it('EVM-072 AC4 the type of the site and the template are filters of the list (codes and a UUID), part of what a cursor is bound to', () => {
+    const template = randomUUID();
+    const base = ok({ siteType: 'multi_family_garage', templateId: template });
+    expect(base).toMatchObject({ siteType: 'multi_family_garage', templateId: template });
+    expect(filterPartsOf(base)).toEqual(['-number', '', '', '', '', 'multi_family_garage', template, '', '', '']);
+    expect(filterPartsOf(ok({ siteType: 'commercial' }))).not.toEqual(filterPartsOf(ok({ siteType: 'other' })));
+    for (const query of [{ siteType: 'castle' }, { siteType: '' }, { templateId: 'abc' }, { templateId: template + 'x' }])
+      expect(resolveWorkOrderListQuery.safeParse(query).success, JSON.stringify(query)).toBe(false);
   });
 });

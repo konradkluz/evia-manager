@@ -8,6 +8,7 @@
  * Nothing depends on this module: the composition root registers it, and no other module imports it.
  */
 import { Module } from '@nestjs/common';
+import { CustomersModule } from '../customers/index.ts';
 import { IdentityModule } from '../identity/index.ts';
 import { PartiesModule } from '../parties/index.ts';
 import { ProceduresModule } from '../procedures/index.ts';
@@ -17,13 +18,21 @@ import { ListWorkOrdersService } from './application/list-work-orders.service.ts
 import { ProjectionMaintenance } from './application/projection-maintenance.ts';
 import { ProjectionRecomputer } from './application/projection-recomputer.ts';
 import { ProjectionRecorder } from './application/projection-recorder.ts';
+import { WorkOrderPageService } from './application/work-order-page.service.ts';
 import { VerifyProjectionJob } from './application/verify-projection.job.ts';
 import { WorkOrdersListController } from './http/work-orders-list.controller.ts';
 
 @Module({
-  imports: [IdentityModule, WorkOrdersModule, SitesModule, PartiesModule, ProceduresModule],
+  imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule, PartiesModule, ProceduresModule],
   controllers: [WorkOrdersListController],
-  providers: [ProjectionRecomputer, ProjectionRecorder, ProjectionMaintenance, ListWorkOrdersService, VerifyProjectionJob],
+  providers: [
+    ProjectionRecomputer,
+    ProjectionRecorder,
+    ProjectionMaintenance,
+    WorkOrderPageService,
+    ListWorkOrdersService,
+    VerifyProjectionJob,
+  ],
   exports: [ProjectionMaintenance, VerifyProjectionJob],
 })
 export class OverviewModule {}
