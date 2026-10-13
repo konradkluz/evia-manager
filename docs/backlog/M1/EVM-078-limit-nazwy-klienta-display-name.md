@@ -4,7 +4,7 @@ title: Test regresji — klient z imieniem i nazwiskiem po 200 znaków
 type: bug
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-progress
 priority: P2
 path: lekka
 owner: backend-developer
@@ -54,3 +54,4 @@ Jako **Edytor** chcę **zapisać klienta z bardzo długim imieniem i nazwiskiem 
 - 2026-10-07 — utworzono (product-owner; uwaga z EVM-020)
 - 2026-10-13 — refinement: sprawdzono, że EVM-039 podniósł `maxLength` do 401; zakres zawężony do testów regresji i ewentualnych luk (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka lekka, model sonnet, gałąź `feature/EVM-078-regresja-nazwy-klienta` ułożona na EVM-053 — PR #69; EVM-054 zablokowana)
