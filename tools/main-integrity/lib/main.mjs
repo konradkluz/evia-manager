@@ -235,7 +235,9 @@ async function gateGreen({ repository, head, get }) {
     .map(record)
     .filter((run) => text(run['path']) === CI_WORKFLOW && text(run['head_sha']) === head && GATE_EVENTS.includes(text(run['event'])))
     .sort((a, b) => text(b['created_at']).localeCompare(text(a['created_at'])));
-  const latest = runs[0];
+  // Since EVM-083 a branch push with an open PR makes a quick `push` run (ci-gate skipped) next to the full
+  // `pull_request` run for the same head: the pull_request run decides; `push` only for PRs from before EVM-083.
+  const latest = runs.find((run) => text(run['event']) === 'pull_request') ?? runs[0];
   if (latest === undefined) return false;
   const jobs = list(
     record(await get(`/repos/${repository}/actions/runs/${String(latest['id'])}/jobs?filter=latest&per_page=100`))['jobs'],

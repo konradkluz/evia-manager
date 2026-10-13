@@ -337,6 +337,19 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
     assert.equal((await run({}, { [runs]: { workflow_runs: [dispatched] } })).status, 1);
   });
 
+  it('EVM-083: the pull_request run decides even when a newer quick push run (ci-gate skipped) exists for the same head', async () => {
+    const runs = `/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&per_page=100`;
+    const pr = { id: 7, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'pull_request', created_at: '2026-10-04T09:00:00Z' };
+    const quick = { id: 8, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T09:05:00Z' };
+    const quickJobs = `/repos/${REPO}/actions/runs/8/jobs?filter=latest&per_page=100`;
+    const skipped = { jobs: [{ name: 'ci-gate', status: 'completed', conclusion: 'skipped' }] };
+    assert.equal((await run({}, { [runs]: { workflow_runs: [pr, quick] }, [quickJobs]: skipped })).status, 0);
+    const red = { jobs: [{ name: 'ci-gate', status: 'completed', conclusion: 'failure' }] };
+    const redJobs = `/repos/${REPO}/actions/runs/7/jobs?filter=latest&per_page=100`;
+    assert.equal((await run({}, { [runs]: { workflow_runs: [pr, quick] }, [quickJobs]: skipped, [redJobs]: red })).status, 1);
+    assert.equal((await run({}, { [runs]: { workflow_runs: [quick] }, [quickJobs]: skipped })).status, 1);
+  });
+
   it('EVM-006 AC4: an API error is red (fail closed) and the message has no request headers', async () => {
     const { status, out } = await run({}, { [`/repos/${REPO}/commits/${SHA}/pulls`]: 502 });
     assert.equal(status, 1);

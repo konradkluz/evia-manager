@@ -13,7 +13,11 @@ import { detect } from './lib/classify.mjs';
 const result = detect({
   eventName: process.env['EVENT_NAME'] ?? '',
   baseSha: process.env['BASE_SHA'] ?? '',
-  diff: (base) => execFileSync('git', ['diff', '--name-only', '-z', base, 'HEAD', '--'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }),
+  diff: (base) =>
+    execFileSync('git', ['diff', '--name-only', '-z', '--no-renames', base, 'HEAD', '--'], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+    }),
 });
 console.log(`heavy=${String(result.heavy)} (${result.reason})`);
 const output = process.env['GITHUB_OUTPUT'];

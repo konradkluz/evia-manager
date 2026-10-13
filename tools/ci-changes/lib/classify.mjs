@@ -20,7 +20,10 @@ export function isDocumentation(path) {
  * @returns {{ heavy: boolean, reason: string }}
  */
 export function detect({ eventName, baseSha, diff }) {
-  if (eventName !== 'pull_request' && eventName !== 'push') return { heavy: true, reason: `zdarzenie ${eventName || '?'} — pełny zestaw` };
+  // A push reaching ci.yml's `changes` job is a push to main: the full set always runs there (the deployment verifier
+  // trusts that run; a docs-only commit must not hide code that failed e2e/integration on main earlier).
+  if (eventName === 'push') return { heavy: true, reason: 'push na main — pełny zestaw' };
+  if (eventName !== 'pull_request') return { heavy: true, reason: `zdarzenie ${eventName || '?'} — pełny zestaw` };
   if (!SHA.test(baseSha) || ZERO_SHA.test(baseSha)) return { heavy: true, reason: 'brak poprawnego commitu bazowego — pełny zestaw' };
   let files;
   try {

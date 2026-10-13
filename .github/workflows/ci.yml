@@ -9,8 +9,8 @@
 # The step is fixed by tools/repo-policy (docsCheckStepProblems): no if, continue-on-error, env or expressions in run.
 # EVM-083 (ADR-0018): minutes budget. A push to a branch runs only `quick` (documentation validator, lint, types) and
 # NO `ci-gate` (the job is skipped, never success — the deployment verifier trusts the full runs only). The full set runs
-# on `pull_request` to main, on `push` to main and on demand. `changes` marks e2e-web, backend-integration and coverage
-# as unnecessary only when every changed file is documentation (tools/ci-changes); any doubt = the full set. `ci-gate`
+# on `pull_request` to main, on `push` to main (always the full set) and on demand. `changes` marks e2e-web, backend-integration and coverage
+# as unnecessary only for a pull_request whose changed files are all documentation (tools/ci-changes); any doubt = the full set. `ci-gate`
 # itself judges the results, because a skipped job counts as satisfied for a required check.
 name: ci
 

@@ -40,6 +40,10 @@ describe('EVM-083 AC2: documentation-only detection', () => {
     assert.equal(detect({ eventName: 'pull_request', baseSha: BASE, diff: list('docs/a.md', 'apps/api/src/a.ts') }).heavy, true);
     assert.equal(detect({ eventName: 'push', baseSha: BASE, diff: list('.github/workflows/ci.yml') }).heavy, true);
   });
+
+  it('EVM-083 AC3: a push (to main) with documentation only still runs the full set', () => {
+    assert.equal(detect({ eventName: 'push', baseSha: BASE, diff: list('docs/a.md') }).heavy, true);
+  });
 });
 
 describe('EVM-083 AC3: fail-closed detection', () => {
@@ -49,9 +53,9 @@ describe('EVM-083 AC3: fail-closed detection', () => {
     };
     assert.equal(detect({ eventName: 'pull_request', baseSha: BASE, diff: boom }).heavy, true);
     assert.equal(detect({ eventName: 'pull_request', baseSha: BASE, diff: () => '' }).heavy, true);
-    assert.equal(detect({ eventName: 'push', baseSha: '', diff: list('docs/a.md') }).heavy, true);
-    assert.equal(detect({ eventName: 'push', baseSha: '0'.repeat(40), diff: list('docs/a.md') }).heavy, true);
-    assert.equal(detect({ eventName: 'push', baseSha: 'not-a-sha', diff: list('docs/a.md') }).heavy, true);
+    assert.equal(detect({ eventName: 'pull_request', baseSha: '', diff: list('docs/a.md') }).heavy, true);
+    assert.equal(detect({ eventName: 'pull_request', baseSha: '0'.repeat(40), diff: list('docs/a.md') }).heavy, true);
+    assert.equal(detect({ eventName: 'pull_request', baseSha: 'not-a-sha', diff: list('docs/a.md') }).heavy, true);
     assert.equal(detect({ eventName: 'workflow_dispatch', baseSha: BASE, diff: list('docs/a.md') }).heavy, true);
     assert.equal(detect({ eventName: '', baseSha: BASE, diff: list('docs/a.md') }).heavy, true);
   });
@@ -89,5 +93,10 @@ describe('EVM-083 AC3: fail-closed detection', () => {
     git('commit', '-qm', 'code');
     assert.equal(run(base), 'heavy=true');
     assert.equal(run('f'.repeat(40)), 'heavy=true');
+    // moving a code file into docs/ must not look like a documentation-only change (rename detection off)
+    const moved = git('rev-parse', 'HEAD');
+    git('mv', 'b.ts', 'docs/b.ts');
+    git('commit', '-qm', 'move code into docs');
+    assert.equal(run(moved), 'heavy=true');
   });
 });

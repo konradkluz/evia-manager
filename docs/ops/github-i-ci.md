@@ -71,29 +71,29 @@ Każda zmiana na `main` przechodzi przez PR — także backlog, ADR i `/mileston
 > Stan po EVM-083 (2026-10-13). Pula Free: **2000 min/mies.** dla repozytoriów prywatnych; cel: **≤ 1600 min/mies. (≈ 53 min/dzień, 80% puli)**. Wersja sprzed EVM-083 (szacunek 700–1150 min/mies.) była nieaktualna — rzeczywiste zużycie wg Billing: 2999 min w dniach 2026-10-01..13 (≈ 230 min/dzień, ≈ 7000 min/mies.).
 
 ### Co zmienia EVM-083
-- Push na gałąź (bez PR): tylko `quick` (walidator dokumentacji, lint, typy; ok. 2 min). Pełny zestaw: `pull_request` do `main`, `push` na `main`, ręcznie. `ci-gate` istnieje wyłącznie w pełnych przebiegach; w przebiegu szybkim jest pominięty (`skipped`, nie `success`), więc weryfikator wdrożeń z ADR-0018 (V2) i K6 go nie uznają.
+- Push na gałąź (bez PR): tylko `quick` (walidator dokumentacji, lint, typy; ok. 2 min). Pełny zestaw: `pull_request` do `main`, `push` na `main`, ręcznie. `ci-gate` istnieje wyłącznie w pełnych przebiegach; w przebiegu szybkim jest pominięty (`skipped`, nie `success`), więc weryfikator wdrożeń z ADR-0018 (V2) go nie uznaje, a K6 przy ocenie PR bierze przebieg `pull_request` (przebieg szybki `push` dla tego samego commitu go nie zastępuje). Push na `main` zawsze uruchamia pełny zestaw (także dla samej dokumentacji); pomijanie ciężkich jobów dotyczy tylko `pull_request`.
 - `changes` (`tools/ci-changes`): zmiana wyłącznie w dokumentacji = wszystkie zmienione pliki leżą w `docs/` albo są plikami `*.md` w katalogu głównym. Wtedy `e2e-web`, `backend-integration` i `coverage` są pominięte; `quality` (z walidatorem dokumentacji), `backend` i `security` działają zawsze. Brak poprawnej bazy porównania, błąd `git diff`, pusta lista zmian, ręczne uruchomienie → **pełny zestaw** (fail-closed).
 - `ci-gate` sam ocenia wyniki (job wymagany jako check, który jest pominięty, bywa uznany za spełniony): zielony przy `success` wszystkich jobów albo — dla zmiany samej dokumentacji — przy `success` `quality`/`backend`/`security` i pominiętych trzech ciężkich; `failure`, `cancelled`, pominięcie przy zmianie kodu, błąd `changes` lub brak jobu = czerwony. Testy: `tools/repo-policy` (niezmienniki triggerów, trasowania jobów i program `jq` bramki na każdym przypadku) oraz `tools/ci-changes`.
 - Zmiana wyzwalaczy `ci.yml` to plik wrażliwy K3 (`.github/**`) — przegląd `security-engineer` i uwaga Konrada przy scalaniu.
 
 ### Szacunek przed / po (AC5)
-Założenia (dane 2026-10-01..13, 13 dni): 164 przebiegi `ci.yml` (100 push na gałąź, 64 na `main`; ≈ 4,9 scalenia dziennie), z historii `main` ok. 50% scaleń to zmiany samej dokumentacji (38 z 75 commitów); koszt jobu = minuty z Billing ÷ liczba przebiegów (rozliczane po zaokrągleniu w górę): e2e-web 8,3 · quality 3,3 · backend-integration 3,5 · security 2,2 · backend 1,9 · coverage 1,0 · ci-gate 1,0 · main-integrity 1,5 · nightly 2,6. Nowe: `changes` ≈ 1,0 min i `quick` ≈ 2,0 min na przebieg (**oszacowanie do weryfikacji na pierwszych przebiegach**). Po zmianie na jedno scalenie przypadają: 1 przebieg PR + 1 przebieg `main` (oba pełne) + push na gałąź (`quick`; przyjęto 7,7 pushy/dzień jak dotąd). Pełny przebieg z kodem ≈ 22,2 min; pełny przebieg samej dokumentacji ≈ 9,4 min.
+Założenia (dane 2026-10-01..13, 13 dni): 164 przebiegi `ci.yml` (100 push na gałąź, 64 na `main`; ≈ 4,9 scalenia dziennie), z historii `main` ok. 50% scaleń to zmiany samej dokumentacji (38 z 75 commitów); koszt jobu = minuty z Billing ÷ liczba przebiegów (rozliczane po zaokrągleniu w górę): e2e-web 8,3 · quality 3,3 · backend-integration 3,5 · security 2,2 · backend 1,9 · coverage 1,0 · ci-gate 1,0 · main-integrity 1,5 · nightly 2,6. Nowe: `changes` ≈ 1,0 min i `quick` ≈ 2,0 min na przebieg (**oszacowanie do weryfikacji na pierwszych przebiegach**). Po zmianie na jedno scalenie przypadają: 1 przebieg PR + 1 przebieg `main` (oba pełne) + push na gałąź (`quick`; przyjęto 7,7 pushy/dzień jak dotąd). Pełny przebieg z kodem ≈ 22,2 min; pełny przebieg PR samej dokumentacji ≈ 9,4 min (na `main` zawsze ≈ 22,2).
 
 | Job | Przed: min/dzień | Po: przebiegi/dzień | Po: min/dzień |
 |---|---:|---:|---:|
-| e2e-web | 73,0 | 4,9 (tylko kod) | 40,7 |
+| e2e-web | 73,0 | 7,35 (PR z kodem + każdy `main`) | 61,0 |
 | quality | 41,8 | 9,8 | 32,3 |
-| backend-integration | 30,4 | 4,9 | 17,2 |
+| backend-integration | 30,4 | 7,35 | 25,7 |
 | security | 27,2 | 9,8 | 21,6 |
 | backend | 24,5 | 9,8 | 18,6 |
 | ci-gate | 12,5 | 9,8 | 9,8 |
-| coverage | 11,1 | 4,9 | 4,9 |
+| coverage | 11,1 | 7,35 | 7,4 |
 | changes (nowy) | — | 9,8 | 9,8 |
 | quick (nowy) | — | 7,7 | 15,4 |
 | main-integrity + nightly | 10,3 | — | 10,3 |
-| **Razem** | **230,8 (≈ 7000/mies.)** | | **≈ 181 (≈ 5400/mies.)** |
+| **Razem** | **230,8 (≈ 7000/mies.)** | | **≈ 212 (≈ 6400/mies.)** |
 
-**Wynik: szacunek (≈ 181 min/dzień) przekracza próg 53 min/dzień** — same pominięcia dokumentacji i ograniczenie triggera dają ok. −21%, bo większość minut to pełne przebiegi z kodem (`e2e-web`, integracja), a każde scalenie uruchamia pełny zestaw dwa razy (PR i `main`), przy ok. 5 scaleniach dziennie (4,9) (połowa to PR-y samego backlogu).
+**Wynik: szacunek (≈ 212 min/dzień) przekracza próg 53 min/dzień** — pominięcia dokumentacji (tylko w PR; `push` na `main` zawsze pełny, bo weryfikator V2 z ADR-0018 ufa temu przebiegowi) i ograniczenie triggera dają ok. −8%, bo większość minut to pełne przebiegi z kodem (`e2e-web`, integracja), a każde scalenie uruchamia pełny zestaw dwa razy (PR i `main`), przy ok. 5 scaleniach dziennie (4,9) (połowa to PR-y samego backlogu).
 
 ### Propozycje dalszych cięć — do decyzji Konrada (nie wdrożone)
 | # | Propozycja | Job(y) | Oszczędność (min/dzień, szacunek) | Koszt / ryzyko |
