@@ -18,19 +18,22 @@ import { ListWorkOrdersService } from './application/list-work-orders.service.ts
 import { ProjectionMaintenance } from './application/projection-maintenance.ts';
 import { ProjectionRecomputer } from './application/projection-recomputer.ts';
 import { ProjectionRecorder } from './application/projection-recorder.ts';
+import { SearchWorkOrdersService } from './application/search-work-orders.service.ts';
 import { WorkOrderPageService } from './application/work-order-page.service.ts';
 import { VerifyProjectionJob } from './application/verify-projection.job.ts';
 import { WorkOrdersListController } from './http/work-orders-list.controller.ts';
+import { WorkOrdersSearchController } from './http/work-orders-search.controller.ts';
 
 @Module({
   imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule, PartiesModule, ProceduresModule],
-  controllers: [WorkOrdersListController],
+  controllers: [WorkOrdersListController, WorkOrdersSearchController],
   providers: [
     ProjectionRecomputer,
     ProjectionRecorder,
     ProjectionMaintenance,
     WorkOrderPageService,
     ListWorkOrdersService,
+    SearchWorkOrdersService,
     VerifyProjectionJob,
   ],
   exports: [ProjectionMaintenance, VerifyProjectionJob],
