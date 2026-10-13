@@ -44,6 +44,7 @@ flowchart LR
 | EVM-005 | Model zagrożeń v1, wymagania bezpieczeństwa, RODO | security-engineer | 001 |
 | EVM-006 | Repozytorium, monorepo i CI z bramkami jakości | devops-engineer | 001 |
 | EVM-083 | Ograniczenie zużycia minut GitHub Actions (P0, ścieżka lekka) | devops-engineer | 006 |
+| EVM-086 | CI — E2E i testy integracyjne tylko przy zmianach, których dotyczą (draft) | devops-engineer | 083 |
 | EVM-007 | Staging w UE: IaC, VM, kanał wdrożeń pull z weryfikacją (007a, ADR-0018) | devops-engineer | 006, 083 |
 | EVM-084 | Backupy, wersjonowanie mediów, rejestr usunięć, test odtworzenia na staging (007b) | devops-engineer | 007 |
 | EVM-085 | Obserwowalność, alerty, monitoring dostępności, koszty stagingu (007c) | devops-engineer | 007, 084 |

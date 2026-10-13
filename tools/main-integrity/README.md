@@ -6,7 +6,7 @@ Każdy przebieg sprawdza **okno kroczące** — 30 najnowszych commitów `main` 
 1. mieć dokładnie jednego rodzica (squash merge); przy pushu `main` musi być przewinięciem poprzedniego stanu (brak force pushu i przepisanej historii), a push nie może mieć więcej commitów niż okno;
 2. być commitem scalenia PR do `main` (`merged_at` ustawione, `merge_commit_sha` = ten commit) — sam fakt, że commit należy do otwartego PR, nie wystarcza;
 3. być scalony przez właściciela (`MAIN_MERGER`, dziś `konradkluz`) — nie przez bota ani `GITHUB_TOKEN`;
-4. mieć zielony job `ci-gate` w najnowszym przebiegu `.github/workflows/ci.yml` (`push`) dla commita HEAD tego PR — z API przebiegów Actions, nigdy ze statusu commita ani dowolnego check runu (te da się podrobić tokenem z `statuses`/`checks: write`);
+4. mieć zielony job `ci-gate` w najnowszym przebiegu `.github/workflows/ci.yml` (`pull_request`, od EVM-083; `push` dla PR scalonych wcześniej) dla commita HEAD tego PR — z API przebiegów Actions, nigdy ze statusu commita ani dowolnego check runu (te da się podrobić tokenem z `statuses`/`checks: write`);
 5. mieć pierwszą linię w formacie Conventional Commits z `[EVM-###]`, `[renovate]` albo `[M#]` i opcjonalnym sufiksem ` (#N)` (np. `ci: add monorepo, quality gates and CI pipeline [EVM-006] (#2)`).
 
 Commity z okna, które zmieniają `.github/`, `tools/main-integrity/` albo `tools/scan/`, log wypisuje osobno (lista plików obcięta przez API — też): taki commit może wyłączyć K6 albo skany, więc Konrad potwierdza w widoku Activity, że wszedł przez „Pull request merge”.

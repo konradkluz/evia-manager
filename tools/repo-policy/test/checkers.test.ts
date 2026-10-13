@@ -1,6 +1,7 @@
 /**
  * The policy checkers detect violations (synthetic inputs) — proof that a green real-repository test is meaningful.
  */
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,14 +15,17 @@ import {
   osvExceptionProblems,
   trivyExceptionProblems,
 } from '../src/exceptions.ts';
-import { daysBetween, staged, today } from '../src/files.ts';
+import { daysBetween, staged, today, yaml } from '../src/files.ts';
 import { envExampleProblems, gitleaksConfigProblems } from '../src/secrets.ts';
 import {
   agentPermissionProblems,
   ciGateProblems,
+  ciRoutingProblems,
+  ciTriggerProblems,
   DOCS_CHECK_SCRIPT,
   docsCheckStepProblems,
   dockerCommandProblems,
+  GATE_JQ,
   GH_TOKEN_DENY,
   renovateWorkflowProblems,
   REQUIRED_ASK,
@@ -187,20 +191,159 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     expect(workflowProblems('w.yml', '', { on: 'issue_comment' }).join('\n')).toContain('issue_comment');
   });
 
-  it('EVM-006 AC4 (A2, W6): ci-gate must need every job, always run and require success of each; K6 is not a job of ci.yml', () => {
-    const run = 'jq -e \'(keys == ["a", "b"]) and all(.[]; .result == "success")\'';
-    const valid = { jobs: { a: {}, b: {}, 'ci-gate': { if: 'always()', needs: ['a', 'b'], steps: [{ run }] } } };
-    expect(ciGateProblems(valid)).toEqual([]);
-    const broken = { jobs: { a: {}, b: {}, 'ci-gate': { needs: ['a'], steps: [{ run: 'true' }] } } };
+  interface CiJob {
+    if?: string;
+    needs?: string[];
+    'continue-on-error'?: boolean;
+    steps: Array<{ run?: string }>;
+  }
+  interface Doc {
+    on: Record<string, Record<string, unknown>>;
+    jobs: Record<string, CiJob>;
+  }
+  const real = (): Doc => structuredClone(yaml('.github/workflows/ci.yml')) as Doc;
+  const trigger = (workflow: Doc, name: string): Record<string, unknown> => {
+    const found = workflow.on[name];
+    if (!found) throw new Error(`no trigger ${name}`);
+    return found;
+  };
+  const ciJob = (workflow: Doc, name: string): CiJob => {
+    const found = workflow.jobs[name];
+    if (!found) throw new Error(`no job ${name}`);
+    return found;
+  };
+
+  it('EVM-006 AC4 (A2, W6), EVM-083 AC3: ci-gate must need every job of the full run, run only there and evaluate the results itself; K6 is not a job of ci.yml', () => {
+    expect(ciGateProblems(real())).toEqual([]);
+    const broken = real();
+    broken.jobs['ci-gate'] = { needs: ['quality'], steps: [{ run: 'true' }] };
     expect(ciGateProblems(broken)).toEqual([
-      'ci-gate: needs musi obejmować a, b',
-      'ci-gate: wymagane if: always()',
+      'ci-gate: needs musi obejmować backend, backend-integration, changes, coverage, e2e-web, quality, security',
+      "ci-gate: wymagane if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')",
       'ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs',
-      'ci-gate: każdy job z needs musi mieć wynik success',
+      'ci-gate: skrypt musi zawierać GATE_JQ (success wszystkich jobów; pominięcie ciężkich tylko przy heavy=false)',
     ]);
-    const integrity = { jobs: { ...valid.jobs, 'main-integrity': {} } };
+    const weakened = real();
+    ciJob(weakened, 'ci-gate').steps[0] = { run: `jq -e 'all(.[]; .result == "success" or .result == "skipped")'` };
+    expect(ciGateProblems(weakened)).toContain('ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs');
+    const integrity = real();
+    integrity.jobs['main-integrity'] = { steps: [] };
     expect(ciGateProblems(integrity)).toContain('ci.yml: main-integrity (K6) wyłącznie w osobnym workflowie main-integrity.yml');
   });
+
+  it('EVM-083 AC4: triggers must not filter by paths (paths-ignore leaves main without ci-gate) and must keep push, pull_request to main and dispatch', () => {
+    expect(ciTriggerProblems(real())).toEqual([]);
+    const ignored = real();
+    trigger(ignored, 'push')['paths-ignore'] = ['docs/**'];
+    trigger(ignored, 'pull_request')['paths'] = ['apps/**'];
+    expect(ciTriggerProblems(ignored)).toEqual([
+      'ci.yml: wyzwalacz push bez filtrów paths-ignore (paths-ignore zostawia main bez ci-gate)',
+      'ci.yml: wyzwalacz pull_request bez filtrów paths (paths-ignore zostawia main bez ci-gate)',
+    ]);
+    const missing = real();
+    delete missing.on['pull_request'];
+    trigger(missing, 'push')['branches'] = ['main'];
+    expect(ciTriggerProblems(missing)).toEqual([
+      'ci.yml: brak wyzwalacza pull_request',
+      'ci.yml: pull_request wyłącznie do main',
+      "ci.yml: push na każdą gałąź (branches: ['**'])",
+    ]);
+  });
+
+  it('EVM-083 AC1, AC2, AC4: routing mutations are reported (gate in the fast run, validator missing from quick, heavy jobs without the condition, always())', () => {
+    const cases: Array<[string, (w: Doc) => void, string]> = [
+      ['quick runs for main', (w) => void (ciJob(w, 'quick').if = "github.event_name == 'push'"), 'ci.yml: quick: wymagane if:'],
+      ['quick without validator', (w) => void ciJob(w, 'quick').steps.splice(3, 1), 'ci.yml: quick: brak kroku walidatora dokumentacji'],
+      ['quick with needs', (w) => void (ciJob(w, 'quick').needs = ['changes']), 'ci.yml: quick bez needs'],
+      [
+        'changes for a branch push',
+        (w) => {
+          delete ciJob(w, 'changes').if;
+        },
+        'ci.yml: changes: wymagane if:',
+      ],
+      [
+        'changes without the tool',
+        (w) => void (ciJob(w, 'changes').steps[1] = { run: 'true' }),
+        'ci.yml: changes: krok node tools/ci-changes/cli.mjs',
+      ],
+      [
+        'e2e without the condition',
+        (w) => {
+          delete ciJob(w, 'e2e-web').if;
+        },
+        "ci.yml: e2e-web: if: needs.changes.outputs.heavy == 'true'",
+      ],
+      [
+        'quality skipped on heavy=false',
+        (w) => void (ciJob(w, 'quality').if = "needs.changes.outputs.heavy == 'true'"),
+        'ci.yml: quality: bez własnego if',
+      ],
+      ['backend without changes', (w) => void (ciJob(w, 'backend').needs = []), 'ci.yml: backend: needs musi zawierać changes'],
+      ['always() outside the gate', (w) => void (ciJob(w, 'security').if = 'always()'), 'ci.yml: security: always() wyłącznie w ci-gate'],
+      [
+        'continue-on-error',
+        (w) => void (ciJob(w, 'coverage')['continue-on-error'] = true),
+        'ci.yml: coverage: zabronione continue-on-error',
+      ],
+    ];
+    expect(ciRoutingProblems(real())).toEqual([]);
+    for (const [name, mutate, fragment] of cases) {
+      const workflow = real();
+      mutate(workflow);
+      expect(ciRoutingProblems(workflow).join('\n'), name).toContain(fragment);
+    }
+  });
+
+  // EVM-083 AC3: the real jq program of ci-gate against every case (needs jq: present on GitHub runners; JQ=<path> overrides).
+  const jq = process.env['JQ'] ?? 'jq';
+  const hasJq = spawnSync(jq, ['--version']).status === 0;
+  const need = (result: string, heavy?: string): Record<string, unknown> => ({ result, outputs: heavy === undefined ? {} : { heavy } });
+  const needs = (over: Record<string, Record<string, unknown>>): string =>
+    JSON.stringify({
+      changes: need('success', 'true'),
+      quality: need('success'),
+      backend: need('success'),
+      'backend-integration': need('success'),
+      'e2e-web': need('success'),
+      security: need('success'),
+      coverage: need('success'),
+      ...over,
+    });
+  const gate = (input: string): number | null => spawnSync(jq, ['-e', GATE_JQ], { input }).status;
+  const skipped = { 'backend-integration': need('skipped'), 'e2e-web': need('skipped'), coverage: need('skipped') };
+
+  it.skipIf(!hasJq && !process.env['CI'])(
+    'EVM-083 AC3: ci-gate is green for a full success and for a documentation-only change with the heavy jobs skipped',
+    () => {
+      expect(gate(needs({}))).toBe(0);
+      expect(gate(needs({ changes: need('success', 'false'), ...skipped }))).toBe(0);
+    },
+  );
+
+  it.skipIf(!hasJq && !process.env['CI'])(
+    'EVM-083 AC3: ci-gate is red for a failure, cancelled, a skip beside code changes, a failed or unreadable change detection and a missing job',
+    () => {
+      for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'security', 'coverage']) {
+        expect(gate(needs({ [job]: need('failure') })), `${job} failure`).toBe(1);
+        expect(gate(needs({ [job]: need('cancelled') })), `${job} cancelled`).toBe(1);
+        expect(gate(needs({ [job]: need('skipped') })), `${job} skipped with heavy=true`).toBe(1);
+      }
+      for (const job of ['quality', 'backend', 'security']) {
+        expect(gate(needs({ changes: need('success', 'false'), ...skipped, [job]: need('skipped') })), `${job} skipped`).toBe(1);
+      }
+      expect(gate(needs({ changes: need('failure') })), 'changes failure').toBe(1);
+      expect(gate(needs({ changes: need('success') })), 'heavy missing').toBe(1);
+      expect(gate(needs({ changes: need('success', 'maybe') })), 'heavy unreadable').toBe(1);
+      expect(gate(needs({ changes: need('success', 'false') })), 'heavy=false but heavy jobs ran').toBe(1);
+      expect(gate(needs({ changes: need('success', 'false'), ...skipped, 'e2e-web': need('failure') })), 'heavy=false, e2e failure').toBe(
+        1,
+      );
+      const missing = JSON.parse(needs({})) as Record<string, unknown>;
+      delete missing['e2e-web'];
+      expect(gate(JSON.stringify(missing)), 'missing job').toBe(1);
+    },
+  );
 
   it('EVM-006 AC8 (A7): the Renovate token only in the Renovate step, image by digest, scripts disabled, main only', () => {
     const raw = 'x: ${{ secrets.RENOVATE_TOKEN }}\ny: ${{ secrets.OTHER }}\n';

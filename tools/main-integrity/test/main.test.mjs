@@ -60,7 +60,7 @@ function api(overrides = {}) {
     [`/repos/${REPO}/commits/${BEFORE}/pulls`]: [pull({ number: 1, merge_commit_sha: BEFORE })],
     [`/repos/${REPO}/pulls/2`]: pull(),
     [`/repos/${REPO}/pulls/1`]: pull({ number: 1, merge_commit_sha: BEFORE }),
-    [`/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&event=push&per_page=100`]: {
+    [`/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&per_page=100`]: {
       workflow_runs: [
         { id: 7, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T09:00:00Z' },
         { id: 5, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T08:00:00Z' },
@@ -315,12 +315,39 @@ describe('main integrity — K6 (EVM-006 AC4, A1, W5, W6)', () => {
   });
 
   it('EVM-006 AC4: only runs of ci.yml for the PR head on push count — a status or another workflow is not a green gate', async () => {
-    const runs = `/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&event=push&per_page=100`;
+    const runs = `/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&per_page=100`;
     assert.equal((await run({}, { [runs]: { workflow_runs: [] } })).status, 1);
     const forged = { id: 7, path: '.github/workflows/other.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T09:00:00Z' };
     assert.equal((await run({}, { [runs]: { workflow_runs: [forged] } })).status, 1);
     const otherHead = { id: 7, path: '.github/workflows/ci.yml', head_sha: SHA2, event: 'push', created_at: '2026-10-04T09:00:00Z' };
     assert.equal((await run({}, { [runs]: { workflow_runs: [otherHead] } })).status, 1);
+  });
+
+  it('EVM-083: a green ci-gate of a pull_request run counts; a newer run of another event (dispatch) is ignored', async () => {
+    const runs = `/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&per_page=100`;
+    const pr = { id: 7, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'pull_request', created_at: '2026-10-04T09:00:00Z' };
+    const dispatched = {
+      id: 9,
+      path: '.github/workflows/ci.yml',
+      head_sha: HEAD,
+      event: 'workflow_dispatch',
+      created_at: '2026-10-04T10:00:00Z',
+    };
+    assert.equal((await run({}, { [runs]: { workflow_runs: [pr, dispatched] } })).status, 0);
+    assert.equal((await run({}, { [runs]: { workflow_runs: [dispatched] } })).status, 1);
+  });
+
+  it('EVM-083: the pull_request run decides even when a newer quick push run (ci-gate skipped) exists for the same head', async () => {
+    const runs = `/repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${HEAD}&per_page=100`;
+    const pr = { id: 7, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'pull_request', created_at: '2026-10-04T09:00:00Z' };
+    const quick = { id: 8, path: '.github/workflows/ci.yml', head_sha: HEAD, event: 'push', created_at: '2026-10-04T09:05:00Z' };
+    const quickJobs = `/repos/${REPO}/actions/runs/8/jobs?filter=latest&per_page=100`;
+    const skipped = { jobs: [{ name: 'ci-gate', status: 'completed', conclusion: 'skipped' }] };
+    assert.equal((await run({}, { [runs]: { workflow_runs: [pr, quick] }, [quickJobs]: skipped })).status, 0);
+    const red = { jobs: [{ name: 'ci-gate', status: 'completed', conclusion: 'failure' }] };
+    const redJobs = `/repos/${REPO}/actions/runs/7/jobs?filter=latest&per_page=100`;
+    assert.equal((await run({}, { [runs]: { workflow_runs: [pr, quick] }, [quickJobs]: skipped, [redJobs]: red })).status, 1);
+    assert.equal((await run({}, { [runs]: { workflow_runs: [quick] }, [quickJobs]: skipped })).status, 1);
   });
 
   it('EVM-006 AC4: an API error is red (fail closed) and the message has no request headers', async () => {
