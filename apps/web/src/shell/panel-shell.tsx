@@ -11,9 +11,9 @@ import {
   type LinkComponent,
   type NavigationItem,
 } from '@evia/ui-web';
-import { Link, Outlet, useRouterState } from '@tanstack/react-router';
+import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { ADMINISTRATION_PATH, AUDIT_PATH, CUSTOMERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { ADMINISTRATION_PATH, AUDIT_PATH, CUSTOMERS_PATH, PRIVACY_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { TopBarSearch } from './top-bar-search.tsx';
 import { useOnline } from './use-online.ts';
@@ -33,6 +33,7 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const online = useOnline();
+  const navigate = useNavigate();
   const { logout, failed: logoutFailed } = useLogout();
   const navigation: NavigationItem[] = [
     {
@@ -78,7 +79,17 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
         <AccountMenu
           triggerText={session.user.displayName}
           triggerLabel={t('shell.accountMenu', { name: session.user.displayName })}
-          items={[{ id: 'logout', label: t('shell.logout'), onSelect: logout }]}
+          items={[
+            // W-19 in the same place on every screen (WCAG 3.2.6); a page of the panel, so the session stays.
+            {
+              id: 'privacy',
+              label: t('shell.privacyAndHelp'),
+              onSelect: () => {
+                void navigate({ to: PRIVACY_PATH });
+              },
+            },
+            { id: 'logout', label: t('shell.logout'), onSelect: logout },
+          ]}
         />
       }
       linkComponent={RouterLink}

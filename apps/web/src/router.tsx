@@ -6,6 +6,7 @@ import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
+import { PrivacyPage } from './pages/privacy-page.tsx';
 import { WorkOrderPage } from './pages/work-order-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
@@ -18,16 +19,22 @@ import {
   LOGIN_SECOND_STEP_PATH,
   MFA_SETUP_PATH,
   NEW_WORK_ORDER_PATH,
+  PRIVACY_PATH,
   PUBLIC_PATHS,
   WORK_ORDERS_PATH,
 } from './paths.ts';
 import { validateSearch } from './work-orders/filters.ts';
 import { ErrorState } from './shell/error-state.tsx';
+import { PrivacyGate } from './shell/privacy-gate.tsx';
 import { SessionGate } from './shell/session-gate.tsx';
 
-/** Public pages (link activation, login) render without a session; everything else sits behind the session gate. */
+/**
+ * Public pages (link activation, login) render without a session; everything else sits behind the session gate. W-19 is
+ * open to both (EVM-063 AC5): its own gate picks the layout from the session and never redirects.
+ */
 function Root() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname === PRIVACY_PATH) return <PrivacyGate />;
   return PUBLIC_PATHS.includes(pathname) ? <Outlet /> : <SessionGate />;
 }
 
@@ -64,6 +71,8 @@ const loginRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { returnTo?: string } =>
     typeof search['returnTo'] === 'string' ? { returnTo: search['returnTo'] } : {},
 });
+/** W-19 (EVM-063): static content for every role and for a visitor without a session. */
+const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: PRIVACY_PATH, component: PrivacyPage });
 const secondStepRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_SECOND_STEP_PATH, component: SecondStepPage });
 
 const routeTree = rootRoute.addChildren([
@@ -79,6 +88,7 @@ const routeTree = rootRoute.addChildren([
   mfaSetupRoute,
   loginRoute,
   secondStepRoute,
+  privacyRoute,
 ]);
 
 /**

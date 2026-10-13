@@ -34,6 +34,7 @@ export { Select, type SelectGroup, type SelectOption, type SelectProps } from '.
 export { EmptyState, type EmptyStateProps } from './empty-state.tsx';
 export {
   AlarmClock,
+  ArrowLeft,
   Ban,
   Banknote,
   Calculator,

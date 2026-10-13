@@ -228,7 +228,8 @@ describe('P-11: "Przedłuż sesję" and the other exits (EVM-067 AC6)', () => {
     });
     expect(await screen.findByText(/^Sesja wygasła\. Zaloguj się ponownie w tej karcie/)).toBeTruthy();
     expect(screen.queryByRole('alertdialog')).toBeNull();
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // W-01 has no navigation of the panel: its only landmark of this kind is the footer "Prywatność · Pomoc" (EVM-063 AC1)
+    expect(screen.getAllByRole('navigation').map((landmark) => landmark.getAttribute('aria-label'))).toEqual(['Prywatność i pomoc']);
   });
 
   it('EVM-067 AC6 Esc closes the dialog without extending anything', async () => {
@@ -283,7 +284,8 @@ describe('Expiry in the tab (EVM-067 AC5, AC6; styleguide 4.17; TM-10, SR-WEB-05
       expect(history.location.pathname).toBe('/login');
     });
     expect(await screen.findByText(/^Sesja wygasła\. Zaloguj się ponownie w tej karcie/)).toBeTruthy();
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // W-01 has no navigation of the panel: its only landmark of this kind is the footer "Prywatność · Pomoc" (EVM-063 AC1)
+    expect(screen.getAllByRole('navigation').map((landmark) => landmark.getAttribute('aria-label'))).toEqual(['Prywatność i pomoc']);
     expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(document.title).toBe('Logowanie · EVia Manager');
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
@@ -320,7 +322,8 @@ describe('Expiry in the tab (EVM-067 AC5, AC6; styleguide 4.17; TM-10, SR-WEB-05
     await waitFor(() => {
       expect(history.location.pathname).toBe('/login');
     });
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // W-01 has no navigation of the panel: its only landmark of this kind is the footer "Prywatność · Pomoc" (EVM-063 AC1)
+    expect(screen.getAllByRole('navigation').map((landmark) => landmark.getAttribute('aria-label'))).toEqual(['Prywatność i pomoc']);
     expect(await screen.findByText(/^Sesja wygasła\./)).toBeTruthy();
   });
 
