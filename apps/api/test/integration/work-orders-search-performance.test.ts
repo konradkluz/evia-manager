@@ -65,10 +65,13 @@ beforeAll(async () => {
     from o join c on c.n = o.n % ${CUSTOMERS}::int join s on s.n = o.n % ${SITES}::int
     where w.id = o.id`.execute(admin);
   await rebuildProjection(admin);
-  await sql`analyze customers.customers`.execute(admin);
-  await sql`analyze sites.sites`.execute(admin);
-  await sql`analyze work_orders.work_orders`.execute(admin);
-  await sql`analyze overview.work_order_summaries`.execute(admin);
+  // `vacuum full` rewrites the heap and the indexes: the files that ran before (they share the database, `fileParallelism: false`) and the
+  // update above leave dead tuples and bloat (the index holds 2x the entries), and a plain `analyze` neither removes them nor is it
+  // deterministic against the autovacuum — with the bloat the planner sometimes prefers created_at_id_idx + a filter to the trigram index.
+  await sql`vacuum (full, analyze) customers.customers`.execute(admin);
+  await sql`vacuum (full, analyze) sites.sites`.execute(admin);
+  await sql`vacuum (full, analyze) work_orders.work_orders`.execute(admin);
+  await sql`vacuum (full, analyze) overview.work_order_summaries`.execute(admin);
 }, 300_000);
 afterAll(async () => {
   await app.close();
