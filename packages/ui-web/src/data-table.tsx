@@ -120,7 +120,8 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 const wideOnly = columns[index]?.wideOnly === true;
                 const expandedOnly = columns[index]?.expandedOnly === true;
                 const hiddenInCard = wideOnly || expandedOnly;
-                const cardLabel = cards && columns[index]?.cardLabel === true && role !== 'action' && !hiddenInCard;
+                const column = columns[index];
+                const cardLabel = cards && column?.cardLabel === true && role !== 'action' && !hiddenInCard ? column.header : undefined;
                 return (
                   <td
                     key={columns[index]?.id ?? index}
@@ -141,9 +142,9 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                       <Link href={row.href} aria-label={row.label} className="after:absolute after:inset-0 focus-visible:outline-none">
                         {cell}
                       </Link>
-                    ) : cardLabel ? (
+                    ) : cardLabel !== undefined ? (
                       <>
-                        <span className="medium:hidden text-text-secondary">{`${columns[index]?.header ?? ''}: `}</span>
+                        <span className="medium:hidden text-text-secondary">{`${cardLabel}: `}</span>
                         {cell}
                       </>
                     ) : (
