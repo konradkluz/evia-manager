@@ -65,7 +65,7 @@ export function SearchField({
           aria-describedby={hint === undefined ? undefined : `${id}-hint`}
           onChange={handle}
           className={classNames(
-            'min-w-0 flex-1 bg-transparent text-body focus-visible:outline-none',
+            'min-w-0 flex-1 bg-transparent text-body focus-visible:outline-none placeholder:text-text-secondary placeholder:opacity-100',
             '[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden',
             disabled ? 'text-text-disabled' : 'text-text-primary',
           )}
