@@ -68,16 +68,20 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+- Tylko panel (`apps/web`) i dokumentacja: bez API, migracji i nowych zależności; jedno miejsce treści `apps/web/src/privacy/content.ts` (dane administratora, adres kontaktowy, wersja, klauzule jako dane — bez HTML i Markdown).
+- Trasa `/privacy` poza bramką przekierowania: `PrivacyGate` wybiera układ z sesji — `active` → układ panelu, `401` (także ze starymi danymi w pamięci) albo brak odpowiedzi → układ publiczny (`PublicPageLayout`), `mfa_enrollment` → W-03; strona: h1 + treść w osobnym fragmencie (lazy) ze stanami ładowania, błędu i offline.
+- Wejścia: pozycja „Prywatność i pomoc” w menu konta (nad „Wyloguj”) i stopka W-01 (`AuthLayout.footer`).
+- Testy: `test/privacy*.test.ts(x)` (vitest, `EVM-063 AC#`) i `test/e2e/privacy*.spec.ts` (Playwright: Chromium, Firefox; axe 360/768/1280/1440; zrzuty `docs/ux/reviews/EVM-063/`).
 
 ## Decyzje
+- **Plan (web-developer, 2026-10-13):** blok „Problem z logowaniem?” (flow 15, zasada 4) nie jest wdrażany — AC3 mówi „tylko kontakt”, a W-01 nie ma dziś „Nie pamiętasz hasła?”; do backlogu po wdrożeniu resetu hasła. Adres kontaktowy to stała w `content.ts` (`null` → „zapytaj przełożonego”); nie ma publicznej konfiguracji z API. Klauzule mają wersję `0.1 (projekt)`; 1.0 i data po zatwierdzeniu przez Konrada na demo.
 - **Decyzja Konrada 2026-10-13 (start):** dane administratora (decyzja 9: nazwa, forma prawna, NIP/REGON/KRS lub CEIDG, adres, kontakt) wchodzą jako jawne znaczniki „[DO UZUPEŁNIENIA]” w jednym miejscu (plik treści), do uzupełnienia przed produkcją bez zmian w kodzie; punkty `[PRAWNIK/IOD]` zostają świadomie oznaczone (AC2).
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-063 AC#`)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-063 AC#`)
 - [ ] Bramki CI zielone, progi pokrycia spełnione
 - [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [ ] `CHANGELOG.md` zaktualizowany
@@ -89,3 +93,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 10 (b); liczba AC bez zmian): AC2 — klauzula „pracowników i pracy na prywatnym telefonie (BYOD)” zamiast „pracowników” (ustalenie A5 `security-engineer` w EVM-071; makieta W-19 — panel w przeglądarce prywatnego telefonu, decyzja 19)
 - 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (3 recenzentów wykluczają lekką; dane osobowe i UI), gałąź feature/EVM-063-prywatnosc-i-pomoc; decyzja o danych administratora zapisana w „Decyzjach”
+- 2026-10-13 — plan gotowy (web-developer)
+- 2026-10-13 — implementacja (web-developer): W-19, układ publiczny, menu konta i stopka W-01; treść klauzul w wersji roboczej do zatwierdzenia; testy vitest i E2E (Chromium, Firefox) zielone
