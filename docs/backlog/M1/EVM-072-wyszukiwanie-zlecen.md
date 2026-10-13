@@ -119,3 +119,4 @@ _—_
 - 2026-10-13 — ready → in-progress: start realizacji (/deliver), ścieżka pelna (8 AC i 3 recenzentów wykluczają lekką), gałąź feature/EVM-072-wyszukiwanie-zlecen
 - 2026-10-13 — plan gotowy (backend-developer)
 - 2026-10-13 — implementacja backendu (backend-developer): kontrakt, migracja `0025`, fasady, `POST /work-orders/search`, `customer` i `site` na liście, testy AC1–AC7; panel — krok web-developera
+- 2026-10-13 — panel (web-developer): wyszukiwanie w W-10 i TopBar (fraza tylko w pamięci karty, `POST` z `gcTime: 0`), kolumny „Klient” i „Lokalizacja”, „Więcej filtrów”, stany AC8; testy Vitest i Playwright (Chromium, Firefox), zrzuty w `docs/ux/reviews/EVM-072/`

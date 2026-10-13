@@ -225,10 +225,37 @@ const WAITS = [
 
 type MockWait = (typeof WAITS)[number];
 
+/**
+ * EVM-072: the customer and the location of a synthetic order. Customers and sites alternate (even — "Jan Przykładowy", odd — "Firma
+ * Testowa"; the site by `index % 4`), and every seventh order has a deleted customer (`{ deleted: true }` — no name, no identifier).
+ * The type of the object and the template are what the panel "Więcej filtrów" filters by.
+ */
+function placeOf(customers: readonly MockCustomer[], sites: readonly MockSite[], index: number) {
+  const customer = customers[index % 2];
+  const site = sites[index % 4 < 2 ? 0 : 1];
+  return {
+    customer:
+      index % 7 === 6 ? { deleted: true as const } : customer === undefined ? null : { id: customer.id, displayName: customer.displayName },
+    site: site === undefined ? null : { id: site.id, city: site.city, street: site.street, buildingNumber: site.buildingNumber },
+    // Not part of the item: the filters of the panel work on them.
+    siteType: site?.siteType ?? '',
+    templateId: INITIAL_TEMPLATES[index % 2]?.id ?? '',
+  };
+}
+
+/** What the synthetic search matches: number, title, the customer and the address, without diacritics and case (like the server). */
+const searchTextOf = (entry: {
+  number: string;
+  title: string;
+  customer: { displayName?: string } | null;
+  site: { city: string; street: string } | null;
+}) => fold([entry.number, entry.title, entry.customer?.displayName ?? '', entry.site?.city ?? '', entry.site?.street ?? ''].join(' '));
+
 /** A synthetic work order (EVM-017): number from 1, statuses and coordinators in turn, newest created last. */
-function workOrder(index: number, waits = true) {
+function workOrder(index: number, waits = true, customers: readonly MockCustomer[] = [], sites: readonly MockSite[] = []) {
   const wait: MockWait = (waits ? WAITS[index % WAITS.length] : undefined) ?? WAITS[5];
   return {
+    ...placeOf(customers, sites, index),
     ...wait,
     id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
     number: `ZL-2026-${String(index + 1).padStart(4, '0')}`,
@@ -362,6 +389,61 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   let loginChallenge = '';
   let loginTokenUsed = false;
   let challenge = '';
+
+  /** The list of work orders (`GET`) and its search (`POST`, EVM-072): the same filters, the phrase only for the search. */
+  const answerWorkOrderList = (query: URLSearchParams, phrase: string | null) => {
+    const statuses = query.get('status')?.split(',') ?? null;
+    // EVM-034: the filters "Czekamy na", the saved view and the two sorts (the days are the ones of the synthetic data, 2026-10-03).
+    const waitingOn = query.get('waitingOn');
+    const waitingKind = query.get('waitingOnPartyKind');
+    const longerThan = query.get('waitingLongerThanDays');
+    if (longerThan !== null && !/^[1-9]\d{0,2}$/.test(longerThan)) return problem(400, 'validation_failed');
+    const closed = (status: string) => status === 'settled' || status === 'cancelled';
+    const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index, api.waits, api.customers, api.sites))
+      .filter((entry) => query.get('view') !== 'all_open' || !closed(entry.status))
+      .filter(
+        (entry) =>
+          query.get('view') !== 'waiting_on_dso_over_14_days' ||
+          (!closed(entry.status) && entry.waiting?.party?.kind === 'distribution_system_operator' && entry.waiting.days > 14),
+      )
+      .filter((entry) => waitingOn === null || entry.waiting?.waitingOn === waitingOn)
+      .filter((entry) => waitingKind === null || entry.waiting?.party?.kind === waitingKind)
+      .filter((entry) => longerThan === null || (entry.waiting !== null && entry.waiting.days > Number(longerThan)))
+      .filter((entry) => query.get('view') !== 'mine' || entry.coordinator?.id === COORDINATORS[0].id)
+      .filter((entry) => statuses === null || statuses.includes(entry.status))
+      .filter((entry) => query.get('coordinatorId') === null || entry.coordinator?.id === query.get('coordinatorId'))
+      // EVM-072 AC4: "Typ obiektu" and "Szablon" of "Więcej filtrów".
+      .filter((entry) => query.get('siteType') === null || entry.siteType === query.get('siteType'))
+      .filter((entry) => query.get('templateId') === null || entry.templateId === query.get('templateId'))
+      // EVM-072 AC2: number, title, the customer (not a deleted one) and the address — without diacritics ("Lodz" finds "Łódź").
+      .filter((entry) => phrase === null || searchTextOf(entry).includes(fold(phrase)));
+    const sort = query.get('sort') ?? '-number';
+    // Numbers and creation times rise together, so "newest first" is the reverse order for both keys.
+    const byWait = (a: { waiting: { days: number } | null }, b: { waiting: { days: number } | null }) =>
+      (b.waiting?.days ?? -1) - (a.waiting?.days ?? -1);
+    const byDue = (a: { nextDueDate: string | null }, b: { nextDueDate: string | null }) =>
+      (a.nextDueDate ?? '9999-12-31').localeCompare(b.nextDueDate ?? '9999-12-31');
+    const sorted =
+      sort === 'longestWaitingSince'
+        ? matching.toSorted(byWait)
+        : sort === 'nextDueDate'
+          ? matching.toSorted(byDue)
+          : [...(sort.startsWith('-') ? matching.toReversed() : matching)];
+    // The filters work on these two fields; they are not part of the item of the contract.
+    const ordered: object[] = sorted.map((entry) => {
+      const item: Record<string, unknown> = { ...entry };
+      delete item['siteType'];
+      delete item['templateId'];
+      return item;
+    });
+    // The orders created in this run come first (the newest number is the highest) — only in the list: a phrase and the filters of the panel are not matched by them.
+    const plain = phrase === null && query.get('siteType') === null && query.get('templateId') === null;
+    if (query.get('view') !== 'mine' && plain) ordered.unshift(...createdListItems(api.orders));
+    const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
+    const limit = Number(query.get('limit') ?? '25');
+    const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
+    return ok(200, { items: ordered.slice(start, start + limit), nextCursor }, { 'Cache-Control': 'no-store' });
+  };
 
   const answer = async (route: Route, request: Request) => {
     const url = new URL(request.url());
@@ -719,44 +801,24 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         // EVM-039: "Historia zleceń" of a customer — the orders created in this run for that customer, newest first.
         const ofCustomer = query.get('customerId');
         if (ofCustomer !== null) return route.fulfill(ok(200, { items: createdListItems(api.orders, ofCustomer), nextCursor: null }));
-        const statuses = query.get('status')?.split(',') ?? null;
-        // EVM-034: the filters "Czekamy na", the saved view and the two sorts (the days are the ones of the synthetic data, 2026-10-03).
-        const waitingOn = query.get('waitingOn');
-        const waitingKind = query.get('waitingOnPartyKind');
-        const longerThan = query.get('waitingLongerThanDays');
-        if (longerThan !== null && !/^[1-9]\d{0,2}$/.test(longerThan)) return route.fulfill(problem(400, 'validation_failed'));
-        const closed = (status: string) => status === 'settled' || status === 'cancelled';
-        const matching = Array.from({ length: api.workOrders }, (_, index) => workOrder(index, api.waits))
-          .filter((entry) => query.get('view') !== 'all_open' || !closed(entry.status))
-          .filter(
-            (entry) =>
-              query.get('view') !== 'waiting_on_dso_over_14_days' ||
-              (!closed(entry.status) && entry.waiting?.party?.kind === 'distribution_system_operator' && entry.waiting.days > 14),
-          )
-          .filter((entry) => waitingOn === null || entry.waiting?.waitingOn === waitingOn)
-          .filter((entry) => waitingKind === null || entry.waiting?.party?.kind === waitingKind)
-          .filter((entry) => longerThan === null || (entry.waiting !== null && entry.waiting.days > Number(longerThan)))
-          .filter((entry) => query.get('view') !== 'mine' || entry.coordinator?.id === COORDINATORS[0].id)
-          .filter((entry) => statuses === null || statuses.includes(entry.status))
-          .filter((entry) => query.get('coordinatorId') === null || entry.coordinator?.id === query.get('coordinatorId'));
-        const sort = query.get('sort') ?? '-number';
-        // Numbers and creation times rise together, so "newest first" is the reverse order for both keys.
-        const byWait = (a: { waiting: { days: number } | null }, b: { waiting: { days: number } | null }) =>
-          (b.waiting?.days ?? -1) - (a.waiting?.days ?? -1);
-        const byDue = (a: { nextDueDate: string | null }, b: { nextDueDate: string | null }) =>
-          (a.nextDueDate ?? '9999-12-31').localeCompare(b.nextDueDate ?? '9999-12-31');
-        const ordered: object[] =
-          sort === 'longestWaitingSince'
-            ? matching.toSorted(byWait)
-            : sort === 'nextDueDate'
-              ? matching.toSorted(byDue)
-              : [...(sort.startsWith('-') ? matching.toReversed() : matching)];
-        // The orders created in this run come first (the newest number is the highest).
-        if (query.get('view') !== 'mine') ordered.unshift(...createdListItems(api.orders));
-        const start = query.get('cursor') === null ? 0 : Number(decodeBase64Url(query.get('cursor') ?? ''));
-        const limit = Number(query.get('limit') ?? '25');
-        const nextCursor = start + limit < ordered.length ? Buffer.from(String(start + limit)).toString('base64url') : null;
-        return route.fulfill(ok(200, { items: ordered.slice(start, start + limit), nextCursor }));
+        return route.fulfill(answerWorkOrderList(query, null));
+      }
+      case 'POST /api/v1/work-orders/search': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        // EVM-072: the phrase is in the body (never in the address); the filters are the ones of the list, the cursor is in the body too.
+        const input = body() as Record<string, unknown>;
+        const phrase = typeof input['query'] === 'string' ? input['query'].normalize('NFC').trim() : '';
+        if (Array.from(phrase).length < 3) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] }));
+        }
+        const query = new URLSearchParams();
+        for (const [name, value] of Object.entries(input)) {
+          if (name === 'query' || value === undefined || value === null) continue;
+          if (Array.isArray(value)) query.set(name, value.join(','));
+          else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') query.set(name, String(value));
+        }
+        return route.fulfill(answerWorkOrderList(query, phrase));
       }
       case 'GET /api/v1/customers': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));

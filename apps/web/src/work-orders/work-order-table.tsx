@@ -138,7 +138,7 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
             <Missing label={t('workOrders.table.noLocation')} />
           ) : (
             <>
-              <span>{`${site.street} ${site.buildingNumber}`}</span>
+              <span className="whitespace-nowrap">{`${site.street} ${site.buildingNumber}`}</span>
               <span className="text-text-secondary">{site.city}</span>
             </>
           )}
