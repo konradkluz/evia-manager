@@ -216,6 +216,20 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(document.body.textContent).not.toMatch(/zł/);
   });
 
+  it('EVM-053 AC1 the count of instalments takes the Polish form of the number — "5 transz"', async () => {
+    const plan = Array.from({ length: 5 }, (_unused, index) => ({
+      code: `part_${String(index + 1)}`,
+      name: `Część ${String(index + 1)}`,
+      position: index + 1,
+      sharePercent: 20,
+      invoiceHint: 'Po etapie',
+      paymentTermDays: 7,
+    }));
+    const five = template(HOUSE_ID, 'Dom — w częściach', null, itemNames.slice(0, 2), 1, plan);
+    await renderPanel(NEW, orderApi({ [TEMPLATES]: items(five) }));
+    expect(await card('Dom — w częściach 2 pozycje · 1 proces · 5 transz')).toBeTruthy();
+  });
+
   it('EVM-053 AC1 a template without a payment plan has no section "Plan płatności" in its preview', async () => {
     await renderPanel(NEW, orderApi({ [TEMPLATES]: items(HOUSE) }));
     await userEvent.click(await card(/Dom — montaż ładowarki/));

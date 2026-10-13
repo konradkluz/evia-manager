@@ -505,7 +505,105 @@ describe('"Zmień kwotę transzy" (EVM-053 AC3, AC5, AC7, AC8)', () => {
   });
 });
 
+describe('"Zmień kwotę transzy" — more states (EVM-053 AC3, AC5, AC8)', () => {
+  const MANUAL = milestone(5, { code: null, name: 'Dopłata', version: 4 });
+  const PATCH = `PATCH ${BASE}/payment-milestones/${MANUAL.id}`;
+  const manualApi = (extra: Record<string, Handler> = {}, payments: Handler = () => json(200, listOf([MANUAL]))) =>
+    api(payments, ACTIVE_SESSION, extra);
+
+  it('EVM-053 AC3 an instalment added by hand has no share: the dialog names it without one and has no line about the plan', async () => {
+    await renderPanel(PATH, manualApi());
+    const dialog = await openAmount('Dopłata');
+    expect(dialog.getByText('Dopłata · ZL-2026-0042')).toBeTruthy();
+    expect(dialog.queryByText(/Udział z planu/)).toBeNull();
+  });
+
+  it('EVM-053 AC5 the Administrator gets 409 work_order_closed: the alert says the payments change after the restore', async () => {
+    await renderPanel(PATH, manualApi({ [PATCH]: () => problem(409, 'work_order_closed') }));
+    const dialog = await openAmount('Dopłata');
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Kwota' }), '10');
+    await userEvent.click(dialog.getByRole('button', { name: 'Zapisz kwotę' }));
+    expect(await dialog.findByText(/płatności są tylko do odczytu\. Zmienisz je po przywróceniu zlecenia\./)).toBeTruthy();
+  });
+
+  it('EVM-053 AC8 412 and the instalment is gone after the refresh: "Nie znaleziono transzy. Odśwież zlecenie."', async () => {
+    let current = listOf([MANUAL]);
+    const changed: Handler = () => {
+      current = NO_PAYMENTS;
+      return problem(412, 'version_conflict');
+    };
+    await renderPanel(
+      PATH,
+      manualApi({ [PATCH]: changed }, () => json(200, current)),
+    );
+    const dialog = await openAmount('Dopłata');
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Kwota' }), '10');
+    await userEvent.click(dialog.getByRole('button', { name: 'Zapisz kwotę' }));
+    expect(await screen.findByText('Nie znaleziono transzy. Odśwież zlecenie.')).toBeTruthy();
+  });
+
+  it('EVM-053 AC8 a status the panel does not know after 412 is "Nieznany status"; Enter does not send a blocked save', async () => {
+    let current = listOf([MANUAL]);
+    const changed: Handler = () => {
+      current = listOf([{ ...MANUAL, status: 'refunded' as PaymentMilestone['status'], version: 5 }]);
+      return problem(412, 'version_conflict');
+    };
+    const payments = manualApi({ [PATCH]: changed }, () => json(200, current));
+    await renderPanel(PATH, payments);
+    const dialog = await openAmount('Dopłata');
+    const field = dialog.getByRole('textbox', { name: 'Kwota' });
+    await userEvent.type(field, '10');
+    await userEvent.click(dialog.getByRole('button', { name: 'Zapisz kwotę' }));
+    expect(await dialog.findByText('Aktualnie: bez kwoty · Nieznany status')).toBeTruthy();
+    expect(
+      dialog.getByText('Transza ma już status «Nieznany status» — kwotę zmieni administrator korektą płatności.', {
+        selector: '[role="alert"] *',
+      }),
+    ).toBeTruthy();
+    await userEvent.type(field, '{Enter}');
+    expect(payments.calls(PATCH)).toHaveLength(1);
+  });
+
+  it('EVM-053 AC8 offline the dialog keeps the amount, shows the banner and its save says "Zapiszesz po powrocie połączenia."', async () => {
+    await renderPanel(PATH, manualApi());
+    const dialog = await openAmount('Dopłata');
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Kwota' }), '10');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    globalThis.dispatchEvent(new Event('offline'));
+    const submit = dialog.getByRole('button', { name: 'Zapisz kwotę' });
+    await waitFor(() => {
+      expect(submit.getAttribute('title')).toBe('Zapiszesz po powrocie połączenia.');
+    });
+    expect(dialog.getByRole<HTMLInputElement>('textbox', { name: 'Kwota' }).value).toBe('10');
+  });
+
+  it('EVM-053 AC3 "Wróć do edycji" of "Odrzucić zmiany?" brings back the dialog with the typed amount', async () => {
+    await renderPanel(PATH, manualApi());
+    const dialog = await openAmount('Dopłata');
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Kwota' }), '77');
+    await userEvent.click(dialog.getByRole('button', { name: 'Zamknij okno' }));
+    const discard = within(await screen.findByRole('dialog', { name: 'Odrzucić zmiany?' }));
+    await userEvent.click(discard.getByRole('button', { name: 'Wróć do edycji' }));
+    const back = within(await screen.findByRole('dialog', { name: 'Zmień kwotę transzy' }));
+    expect(back.getByRole<HTMLInputElement>('textbox', { name: 'Kwota' }).value).toBe('77,00');
+  });
+});
+
 describe('"Dodaj transzę" (EVM-053 AC4, AC5, AC8)', () => {
+  it('EVM-053 AC4 the Administrator gets 409 work_order_closed; "Wróć do edycji" keeps the typed name', async () => {
+    const payments = api(undefined, ACTIVE_SESSION, { [CREATE]: () => problem(409, 'work_order_closed') });
+    await renderPanel(PATH, payments);
+    const dialog = await openAdd();
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Nazwa transzy' }), 'Dopłata');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj transzę' }));
+    expect(await dialog.findByText(/płatności są tylko do odczytu\. Zmienisz je po przywróceniu zlecenia\./)).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj' }));
+    const discard = within(await screen.findByRole('dialog', { name: 'Odrzucić zmiany?' }));
+    await userEvent.click(discard.getByRole('button', { name: 'Wróć do edycji' }));
+    const back = within(await screen.findByRole('dialog', { name: 'Dodaj transzę' }));
+    expect(back.getByRole<HTMLInputElement>('textbox', { name: 'Nazwa transzy' }).value).toBe('Dopłata');
+  });
+
   const added = (body: Record<string, unknown>): PaymentMilestone =>
     milestone(5, {
       id: String(body['id']),
