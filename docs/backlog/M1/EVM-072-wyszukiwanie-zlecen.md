@@ -4,7 +4,7 @@ title: Wyszukiwanie zleceń, klient i lokalizacja na liście
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -85,7 +85,7 @@ Jako **pracownik biura** chcę **znaleźć zlecenie po numerze, tytule, nazwisku
 - **Uwaga po EVM-034 (2026-10-13):** `POST /api/v1/work-orders/search` nie istnieje — w EVM-034 przeniesiono do modułu `overview` tylko `GET` listy. Wyszukiwanie powstaje w `overview` na projekcji `work_order_summaries` (polityka odczytu przez `workOrderReadCondition`, kursor z `asOf`, limity i licznik masowego odczytu P10 jak w liście).
 
 ## Plan techniczny
-Szczegóły i uzasadnienia: `.scratch/EVM-072/plan.md` (roboczy). Skrót:
+Szczegóły i uzasadnienia: sekcja „Decyzje” poniżej. Skrót:
 1. **Kontrakt (najpierw):** `searchWorkOrders` (`POST /api/v1/work-orders/search`, treść ścisła, `x-evia-authz` A/E/R, `web`); `listWorkOrders` — addytywnie `siteType`, `templateId`; `WorkOrderListItem` — addytywnie `customer`, `site`.
 2. **Migracja `0025` (expand):** kolumna generowana `work_orders.search_text` + indeks GIN `gin_trgm_ops` częściowy na `deleted_at IS NULL`.
 3. **Fasady:** `WorkOrderDirectory.searchIds`, `CustomerDirectory.searchIds` / `displayNamesOf`, `SiteDirectory.searchIds` / `linesOf` — każda pod własną polityką odczytu; zbiory jako jeden parametr `uuid[]`.
@@ -104,13 +104,16 @@ Szczegóły i uzasadnienia: `.scratch/EVM-072/plan.md` (roboczy). Skrót:
 - **D9 — kursor wyszukiwania:** osobny identyfikator operacji `searchWorkOrders`; fraza tylko jako skrót w `scope`.
 
 ## Uwagi do rozważenia
-_—_
+- (minor) `WorkOrderSearchRequest` bez `additionalProperties: false` (api-guidelines l. 244) — dopisać z kolejną zmianą kontraktu.
+- (minor) D5: licznik różnych klientów P10 zasilany także zwykłym `GET` — ~13 stron listy w godzinę może dać alert `bulk_read_customers`; ocenić próg przy EVM-007/monitoringu.
+- (minor) fraza z ≥ 3 cyfr (np. „0042”) jest przez fasadę klientów traktowana też jako cyfry telefonu — szersze trafienia niż sam numer zlecenia.
+- (nit) zdublowane stałe `SEARCH_DELAY_MS` w panelu; niepokryte pojedyncze gałęzie (serwis wyszukiwania, TopBar, tabela).
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-072 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-072 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -120,3 +123,7 @@ _—_
 - 2026-10-13 — plan gotowy (backend-developer)
 - 2026-10-13 — implementacja backendu (backend-developer): kontrakt, migracja `0025`, fasady, `POST /work-orders/search`, `customer` i `site` na liście, testy AC1–AC7; panel — krok web-developera
 - 2026-10-13 — panel (web-developer): wyszukiwanie w W-10 i TopBar (fraza tylko w pamięci karty, `POST` z `gcTime: 0`), kolumny „Klient” i „Lokalizacja”, „Więcej filtrów”, stany AC8; testy Vitest i Playwright (Chromium, Firefox), zrzuty w `docs/ux/reviews/EVM-072/`
+- 2026-10-13 — przegląd (2 rundy): runda 1 — code-reviewer i security-engineer approve, ux-designer changes_required (1 major); runda 2 — approve, blocker/major: 0
+- 2026-10-13 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 99,6% / gałęzie 97,5%; pełne e2e Chromium + Firefox: 684 passed, 14 skipped, 0 failed; poprawione drobne braki dokumentacji (rodo.md: search_text zlecenia; martwe odwołanie do .scratch)
+- 2026-10-13 — Koszt: brak rozbicia w $; agenci workflow 11 wywołań, ok. 1,43 mln tokenów subagentów, 492 wywołania narzędzi, ok. 1,8 h; rundy 2; ścieżka pelna; vs ostatnie: EVM-034 2,99 mln, EVM-035 1,94 mln, EVM-037 1,55 mln — poniżej średniej dla nowego endpointu z UI
+- 2026-10-13 — in-progress → in-review: czeka na demo i akceptację Konrada
