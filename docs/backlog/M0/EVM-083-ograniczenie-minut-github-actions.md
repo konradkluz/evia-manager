@@ -66,6 +66,7 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - Przebudowa zawartości jobów (przyspieszanie testów) — osobna historyjka, jeśli AC5 wskaże potrzebę.
 
 ## Decyzje i ograniczenia
+- 2026-10-13 (demo) — Konrad: dalsze cięcia — propozycja 1 od razu (statusy „done” w kolejnym PR, bez osobnych PR-ów samego backlogu), propozycje 4 i 5 → EVM-086 (draft); propozycja 2 odrzucona (ADR-0018).
 - 2026-10-13 — Konrad: pełne CI tylko na PR i `main`, ciężkie joby pomijane przy zmianach samej dokumentacji, jako część ADR-0018 (decyzja 2).
 - Pułapka: job wymagany jako check, który jest pominięty, bywa traktowany jako spełniony; dlatego `ci-gate` sam ocenia wyniki jobów (AC3).
 - Bezpieczeństwo: `ci-gate` jest kontrolą K1, a V2 w ADR-0018 sprawdza `ci-gate` w przebiegu `ci.yml` PR; przebieg `pull_request` ma `head_sha` = HEAD PR. Weryfikator (EVM-007) musi akceptować przebiegi `pull_request`, a nie `push` gałęzi.
@@ -85,3 +86,4 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - 2026-10-13 — runda poprawek (devops-engineer): 3× major z przeglądu security; szacunek AC5 zaktualizowany z ok. 181 do ok. 212 min/dzień (push na `main` zawsze pełny)
 - 2026-10-13 — weryfikacja orkiestratora: `pnpm run gate` zielony (diff-coverage linie 122/122, gałęzie 67/69), `npm run test:tools` 441/0, testy `repo-policy` 192 + 2 jq (pominięte lokalnie, w CI wymagane); poprawka minor/nit; in-progress → in-review
 - 2026-10-13 — Koszt: potok ok. 49 min, 3 agentów (wykonawca + recenzent + poprawki), ok. 272 tys. tokenów subagentów; ścieżka lekka zgodnie z celem
+- 2026-10-13 — demo: Konrad akceptuje; push i PR
