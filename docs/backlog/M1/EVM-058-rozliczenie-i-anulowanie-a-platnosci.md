@@ -86,10 +86,10 @@ Jako **pracownik biura** chcę **przed rozliczeniem i anulowaniem zlecenia widzi
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-13 — Konrad zaakceptował podział ostrzeżenia (P1 z `/refine` EVM-053): zdanie „Planowane transze (N) zostaną anulowane.” należy do EVM-053 AC6; ta historyjka je tylko rozszerza. Zmiana AC3 poniżej wejdzie przy refinemencie 058 (status `draft` bez zmian).
 
 ## Uwagi do rozważenia
-_—_
+- Propozycja brzmienia AC3 (do wprowadzenia przy `/refine` EVM-058): „Zakładając zlecenie „W realizacji” z transzami: 2 „Planowana”, 1 „Opłacona” / Gdy otwieram „Anuluj zlecenie…” / Wtedy dialog, obok ostrzeżenia z EVM-053, pokazuje opłaconą transzę jako pozostającą bez zmian, a po potwierdzeniu sekcja „Płatności” i nagłówek W-06 pokazują stan z odpowiedzi serwera bez ponownego wczytania strony.”
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-058 AC#`)

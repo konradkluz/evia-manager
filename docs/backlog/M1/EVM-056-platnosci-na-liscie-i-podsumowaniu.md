@@ -6,9 +6,11 @@ milestone: M1
 epic: E7 Płatności etapowe
 status: ready
 priority: P1
+path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+model: opus
 depends_on: [EVM-034, EVM-054, EVM-069]
 ---
 
@@ -37,7 +39,7 @@ Jako **pracownik biura** chcę **widzieć na liście zleceń i w podsumowaniu zl
 
 **AC4 — Kafel „Płatności” w W-06**
 - Gdy otwieram zlecenie z 4 transzami
-- Wtedy kafel pokazuje „Nieopłacone: 3 600,00 zł (1)”, „Po terminie” z liczbą dni, „Planowane: 3” i „Opłacone: 0 z 4”.
+- Wtedy kafel pokazuje „Nieopłacone: 3 600,00 zł (1)”, „Po terminie” z liczbą dni, „Planowane: 3” i „Opłacone: 0 z 4” (drugą liczbę tworzą transze bez „Anulowana”).
 
 **AC5 — Po terminie liczone z daty**
 - Zakładając zegar `Europe/Warsaw` przestawiony z 2026-10-07 na 2026-10-08 i transzę z terminem 2026-10-07
@@ -99,7 +101,7 @@ Jako **pracownik biura** chcę **widzieć na liście zleceń i w podsumowaniu zl
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P3 — „Opłacone: x z y” liczy y bez transz „Anulowana” (AC4); P4 — ta historyjka dopina zdarzenia `PaymentMilestone` dla projekcji `overview` do jednego punktu zapisu transz z EVM-053 (bez zmiany zachowania 053/054); P6 — `model: opus`; P7 — bez podziału, a gdy plan techniczny wykaże przekroczenie rozmiaru (4 moduły), wynik `blocked` z propozycją podziału (backend `overview` / panel).
 
 ## Uwagi do rozważenia
 _—_
@@ -114,3 +116,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-13 — zmiana AC zaakceptowana przez Konrada 2026-10-13 (liczba AC bez zmian): AC4 — „Opłacone: x z y” liczy y bez transz anulowanych; decyzje P3, P4, P6, P7 w „Decyzjach”

@@ -4,49 +4,53 @@ title: Sprzątanie wygasłych rekordów idempotencji
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: draft
+status: ready
 priority: P2
-path: pelna
+path: lekka
 owner: backend-developer
 contributors: []
-reviewers: [code-reviewer, security-engineer]
+reviewers: [security-engineer]
 model: sonnet
-depends_on: [EVM-020]
+depends_on: [EVM-020, EVM-034]
 ---
 
 # EVM-079: Sprzątanie wygasłych rekordów idempotencji
 
 ## Cel
-Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyklicznie usuwane**, aby **tabela `idempotency_records` nie rosła w nieskończoność**. Dziś rola `evia_app` nie ma uprawnienia DELETE, więc nic jej nie czyści (wprowadzone w EVM-020). Powiązane z polityką retencji w M4.
+Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyklicznie usuwane**, aby **tabela `platform.idempotency_records` nie rosła w nieskończoność**. Retencja kluczy to 30 dni (ADR-0004, `api-guidelines.md` → Limity). Dziś rola aplikacji `evia_app` ma tylko `select, insert, update` (migracja 0012), więc nic nie czyści tabeli; dług zgłoszono w EVM-020. Rekordy nie zawierają treści odpowiedzi ani danych osobowych (status, kod, id zasobu, skrót żądania). Proces w tle (worker, kolejka zadań z harmonogramem) istnieje od EVM-034 — używamy go.
 
 ## Kryteria akceptacji
 
 **AC1 — Usuwanie wygasłych**
-- Zakładając, że w tabeli są rekordy z upłyniętym terminem ważności i rekordy aktywne
+- Zakładając rekordy z upłyniętym `expires_at` oraz rekordy aktywne (także świeżo wygasły o sekundę i ważny jeszcze o sekundę)
 - Gdy uruchamia się zadanie sprzątania
-- Wtedy wygasłe rekordy są usunięte, a aktywne pozostają nienaruszone (test na danych syntetycznych).
+- Wtedy wygasłe rekordy są usunięte, a aktywne pozostają nienaruszone; ponowienie żądania z kluczem aktywnego rekordu nadal zwraca powtórkę (`Idempotent-Replayed`) (dane syntetyczne, zegar kontrolowany).
 
-**AC2 — Cykliczność i odporność**
-- Zakładając, że zadanie jest zarejestrowane w kolejce zadań w tle (np. pg-boss — wybór techniczny po stronie architekta)
-- Gdy minie interwał lub zadanie uruchomi się równolegle w dwóch instancjach
-- Wtedy sprzątanie wykonuje się cyklicznie, bez podwójnego usuwania i bez błędów; awaria jednego przebiegu nie blokuje kolejnych.
+**AC2 — Cyklicznie i odpornie**
+- Zakładając zadanie zarejestrowane w kolejce zadań w tle z harmonogramem (raz na dobę, strefa `Europe/Warsaw` — pora nocna)
+- Gdy zadanie uruchomi się równolegle w dwóch instancjach albo jeden przebieg zakończy się błędem
+- Wtedy nic nie jest usuwane podwójnie ani z błędem, a kolejny przebieg działa normalnie; duża liczba rekordów jest usuwana porcjami, bez długiej blokady tabeli dla zapisów API.
 
 **AC3 — Minimalne uprawnienia**
-- Zakładając, że `evia_app` nie ma DELETE na całej tabeli
-- Gdy zadanie usuwa rekordy
-- Wtedy uprawnienie jest nadane w najwęższym możliwym zakresie (osobna rola lub ograniczone), a testy uprawnień bazy potwierdzają, że zwykłe ścieżki API nadal nie mogą usuwać rekordów.
+- Zakładając, że `evia_app` nie ma ogólnego `DELETE` na tabeli
+- Gdy zadanie sprzątania usuwa rekordy
+- Wtedy może usuwać wyłącznie rekordy wygasłe (uprawnienie w najwęższym możliwym zakresie), a test uprawnień bazy potwierdza, że bezpośrednie `DELETE` aktywnych rekordów i zwykłe ścieżki API nadal są odrzucane.
 
 **AC4 — Obserwowalność**
-- Zakładając, że zadanie się wykonało
-- Gdy sprawdzam logi/metryki
-- Wtedy widać liczbę usuniętych rekordów i czas przebiegu, bez danych osobowych ani treści żądań.
+- Zakładając wykonany przebieg
+- Gdy sprawdzam logi
+- Wtedy widać liczbę usuniętych rekordów i czas trwania, a błąd przebiegu jest zalogowany jako błąd zadania; bez identyfikatorów użytkowników, kluczy idempotencji i skrótów żądań.
 
 ## Poza zakresem
-- Ogólna polityka retencji innych danych (M4); zmiana czasu ważności kluczy idempotencji.
+- Ogólna polityka retencji innych danych (M4); zmiana okna ważności kluczy (30 dni); alert o niepowodzeniu zadania (monitoring: EVM-007/EVM-084).
+- Testy macierzy ról: brak nowego endpointu ani widocznej funkcji — rola użytkownika nie ma znaczenia.
 
 ## Decyzje i ograniczenia
-- Obszar ryzyka: zmiana uprawnień bazy (migracja), integralność gwarancji idempotencji — nie usuwać rekordów przed końcem okna ponowień.
-- Konsultacja: solution-architect (wybór mechanizmu zadań w tle, np. pg-boss zgodnie ze stackiem) i security-engineer (uprawnienia).
+- Decyzja D2 (2026-10-13, Konrad — przekazana przez orkiestratora): ścieżka lekka, jedyny recenzent `security-engineer`.
+- Obszar ryzyka: zmiana uprawnień bazy (migracja) i integralność idempotencji — nie wolno usuwać rekordów przed `expires_at` (odczyt i nadpisanie wygasłych działa jak w EVM-020 niezależnie od sprzątania).
+- Migracja tylko „expand” (nowe uprawnienie/mechanizm); wybór techniczny (np. funkcja o ograniczonym zakresie albo osobna rola) należy do wykonawcy, recenzent: `security-engineer`. Ścieżka lekka: jeden recenzent; eskalacja do pełnej, jeśli zmiana wykracza poza uprawnienie do tej jednej tabeli.
 
 ## Dziennik
-- 2026-10-07 — utworzono (product-owner)
+- 2026-10-07 — utworzono (product-owner; dług z EVM-020)
+- 2026-10-13 — refinement: zadania w tle istnieją (EVM-034), ścieżka lekka z recenzentem security, harmonogram i porcje w AC (product-owner)
+- 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)

@@ -6,10 +6,12 @@ milestone: M1
 epic: E7 Płatności etapowe
 status: ready
 priority: P1
+path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
-depends_on: [EVM-054]
+model: sonnet
+depends_on: [EVM-017, EVM-039, EVM-054]
 ---
 
 # EVM-055: Zestawienie nieopłaconych i po terminie
@@ -80,7 +82,7 @@ Jako **pracownik biura albo księgowa (Tylko odczyt)** chcę **jedno zestawienie
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P6 — `model: sonnet` (głównie odczyt); P2 — zmiana kwoty transzy innej niż „Planowana” zwraca `403`; P3 — sumy „Nieopłacone” liczą tylko transze „Wystawiona”, bez zmiany AC.
 
 ## Uwagi do rozważenia
 _—_

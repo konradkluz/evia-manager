@@ -6,9 +6,11 @@ milestone: M1
 epic: E7 Płatności etapowe
 status: ready
 priority: P1
+path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+model: opus
 depends_on: [EVM-053]
 ---
 
@@ -92,7 +94,7 @@ Jako **pracownik biura** chcę **odnotować wystawienie faktury, wpłatę i anul
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-13 — Konrad zaakceptował (rekomendacje P1–P7 z `/refine` EVM-053): P2 — zmiana kwoty transzy innej niż „Planowana” zwraca `403 forbidden` dla Edytora (AC5) i `403 step_up_required` dla Administratora bez step-upu (EVM-057); `409 invalid_state_transition` zostaje dla przejść spoza tabeli (AC7); P4 — zdarzenia `PaymentMilestone` dopina EVM-056, więc zapisy transz idą przez wspólny punkt z EVM-053; P6 — `model: opus`.
 
 ## Uwagi do rozważenia
 _—_
