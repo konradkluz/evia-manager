@@ -39,7 +39,7 @@ Wykonaj po pierwszym pushu gałęzi EVM-006 i potwierdź na demo (dowód `manual
 
 ## Scalanie (D2, K2)
 1. Orkiestrator wypycha gałąź `feature/EVM-###-…` (bez force) i zakłada PR przez `gh` albo podaje Konradowi tytuł PR. **Tytuł PR = pierwsza linia commita na `main`**: Conventional Commit z ID, np. `ci: add monorepo, quality gates and CI pipeline [EVM-006]`; Renovate — `chore(deps): … [renovate]`; zamknięcie kamienia milowego — `docs(milestone): close M0 [M0]`. Lekcja z PR #1: squash bez tego ustawienia dał „Feature/evm 010 backlog m1 (#1)”.
-2. Konrad sprawdza: demo zaakceptowane; check **`ci-gate` zielony w przebiegu PR (`pull_request`) dla ostatniego commita gałęzi**; checklista z szablonu PR (pliki wrażliwe); **tytuł PR** zgodny z punktem 1.
+2. Konrad sprawdza: demo zaakceptowane; check **`ci-gate` zielony w przebiegu PR (`pull_request`) dla ostatniego commita gałęzi** (szary, pominięty `ci-gate` z przebiegu `push` jest oczekiwany i nie oznacza zgody); checklista z szablonu PR (pliki wrażliwe); **tytuł PR** zgodny z punktem 1.
 3. Konrad klika **„Squash and merge”** (komunikat = tytuł i opis PR — K5).
 4. Konrad otwiera widok **Activity** repozytorium (Insights / „Activity” dla gałęzi `main`, jeśli dostępny na Free): dla `main` widnieją wyłącznie wpisy **„Pull request merge”** wykonane przez Konrada. Każdy **„Direct push”** albo **„Force push”** = incydent → „Czerwony `main`”.
 5. Workflow `main-integrity` dla nowego commita na `main` jest zielony (e-mail przy czerwonym). Jeśli log wypisuje commity zmieniające `.github/`, `tools/main-integrity/` albo `tools/scan/`, potwierdź w Activity, że każdy z nich to „Pull request merge” Konrada.

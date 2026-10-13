@@ -4,7 +4,7 @@ title: Ograniczenie zużycia minut GitHub Actions
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P0
 path: lekka
 owner: devops-engineer
@@ -73,6 +73,8 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - 2026-10-13 — Konrad: zamknięcie na podstawie szacunku (AC5); potwierdzenie z Billing po ≥ 7 dniach poza DoD.
 
 ## Notatki
+- Przegląd security (runda 1): 3× major naprawione w rundzie poprawek — `--no-renames` w wykrywaniu zmian, `main-integrity` rozstrzyga przebieg `pull_request`, push na `main` zawsze pełny zestaw (rekomendacja security; koszt ok. +30 min/dzień oszczędności mniej). Minor (testy `jq` pomijane także w CI) i nit (dwa wpisy `ci-gate` w PR) domknięte przez orkiestratora.
+- AC5: szacunek ok. 212 min/dzień (≈ 6400 min/mies.) wobec progu 53 — próg nieosiągnięty; propozycje dalszych cięć 1–6 w `docs/ops/github-i-ci.md` do decyzji Konrada (zgodnie z decyzją 2026-10-13 nie blokuje zamknięcia).
 - `main-integrity.yml` (K6) i skany nocne zostają bez zmian; ich udział (ok. 134 min) wchodzi do pomiaru.
 
 ## Dziennik
@@ -80,3 +82,6 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
 - 2026-10-13 — ready → in-progress: start `/deliver` (ścieżka lekka, gałąź `feature/EVM-083-minuty-actions`)
 - 2026-10-13 — implementacja (devops-engineer): trigger push/pull_request/dispatch, jobs `quick` + `changes` (tools/ci-changes), `ci-gate` z oceną pominięć (GATE_JQ), niezmienniki w tools/repo-policy, K6 uznaje przebiegi `pull_request`; szacunek AC5 ≈ 181 min/dzień (> 53) + propozycje cięć w docs/ops/github-i-ci.md — decyzja Konrada; budżet AC6 do ustawienia przez Konrada wg instrukcji; potwierdzenie z Billing po ≥ 7 dniach — otwarte
+- 2026-10-13 — runda poprawek (devops-engineer): 3× major z przeglądu security; szacunek AC5 zaktualizowany z ok. 181 do ok. 212 min/dzień (push na `main` zawsze pełny)
+- 2026-10-13 — weryfikacja orkiestratora: `pnpm run gate` zielony (diff-coverage linie 122/122, gałęzie 67/69), `npm run test:tools` 441/0, testy `repo-policy` 192 + 2 jq (pominięte lokalnie, w CI wymagane); poprawka minor/nit; in-progress → in-review
+- 2026-10-13 — Koszt: potok ok. 49 min, 3 agentów (wykonawca + recenzent + poprawki), ok. 272 tys. tokenów subagentów; ścieżka lekka zgodnie z celem

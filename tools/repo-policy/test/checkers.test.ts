@@ -313,7 +313,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
   const gate = (input: string): number | null => spawnSync(jq, ['-e', GATE_JQ], { input }).status;
   const skipped = { 'backend-integration': need('skipped'), 'e2e-web': need('skipped'), coverage: need('skipped') };
 
-  it.skipIf(!hasJq)(
+  it.skipIf(!hasJq && !process.env['CI'])(
     'EVM-083 AC3: ci-gate is green for a full success and for a documentation-only change with the heavy jobs skipped',
     () => {
       expect(gate(needs({}))).toBe(0);
@@ -321,7 +321,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     },
   );
 
-  it.skipIf(!hasJq)(
+  it.skipIf(!hasJq && !process.env['CI'])(
     'EVM-083 AC3: ci-gate is red for a failure, cancelled, a skip beside code changes, a failed or unreadable change detection and a missing job',
     () => {
       for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'security', 'coverage']) {
