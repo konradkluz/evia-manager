@@ -4,7 +4,7 @@ title: Prywatność i pomoc w panelu — klauzule informacyjne
 type: story
 milestone: M1
 epic: E8 Gotowość produkcyjna
-status: in-review
+status: done
 priority: P1
 owner: web-developer
 contributors: [security-engineer, ux-designer]
@@ -87,7 +87,7 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] `CHANGELOG.md` zaktualizowany
-- [ ] Demo i akceptacja Konrada (treść klauzul)
+- [x] Demo i akceptacja Konrada (treść klauzul)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -103,3 +103,4 @@ Jako **pracownik i Administrator** chcemy **mieć w panelu klauzule informacyjne
 - 2026-10-13 — bramka orkiestratora: `pnpm run gate` zielony (exit 0), coverage:diff linie 100% / gałęzie 91,8%; pełne e2e Chromium + Firefox: 720 passed, 14 skipped, 0 failed
 - 2026-10-13 — Koszt: brak rozbicia w $; agenci workflow 16 wywołań, ok. 1,16 mln tokenów subagentów, 356 wywołań narzędzi, ok. 1,3 h; rundy 3; ścieżka pelna; vs ostatnie: EVM-072 1,43 mln, EVM-034 2,99 mln — poniżej średniej, ale 3 rundy przeglądu UX
 - 2026-10-13 — in-progress → in-review: czeka na demo i akceptację Konrada (treść klauzul)
+- 2026-10-13 — demo i treść klauzul (wersja robocza) zaakceptowane przez Konrada; PR #63 scalony (squash); in-review → done; do uzupełnienia przed produkcją: dane administratora i adres kontaktowy, punkty [PRAWNIK/IOD]
