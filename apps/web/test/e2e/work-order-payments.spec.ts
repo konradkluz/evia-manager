@@ -83,7 +83,10 @@ test.describe('payments of a work order (EVM-053)', () => {
     await expect(page.getByRole('button', { name: 'Akcje transzy: Dopłata za instalację zasilającą' })).toBeFocused();
     const rows = section(page).getByRole('row');
     await expect(rows).toHaveCount(6);
-    await expect(rows.last()).toContainText('Dopłata za instalację zasilającą1 500,00 złPlanowana');
+    // what the user sees on the desktop: the card labels of narrow viewports are hidden there
+    await expect(rows.last().getByRole('cell')).toHaveText(['Dopłata za instalację zasilającą', '1 500,00 zł', 'Planowana', '—', '—', ''], {
+      useInnerText: true,
+    });
     const [post] = sent(api, 'POST');
     const body = JSON.parse(post?.postData ?? '{}') as { id: string };
     expect(body.id).toMatch(UUIDV7);
