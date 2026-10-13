@@ -137,6 +137,24 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
     expect(names).toEqual(['Zaliczka (20%)', 'Po uzyskaniu zgód (30%)', 'Po wykonaniu instalacji (30%)', 'Płatność końcowa (20%)']);
   });
 
+  it('EVM-053 AC2 in the narrow card the amount, the invoice number and the due date say what they are; the menu sits at the top right', async () => {
+    await renderPanel(PATH, api());
+    await paymentsReady();
+    const cells = within(rowOf('Po uzyskaniu zgód (30%)')).getAllByRole('cell');
+    expect(cells.map((cell) => cell.textContent)).toEqual([
+      'Po uzyskaniu zgód (30%)',
+      'Kwota: —',
+      'Planowana',
+      'Nr faktury: —',
+      'Termin: —',
+      expect.any(String),
+    ]);
+    // the labels are for the cards only: from breakpoint.medium the column headers say it
+    for (const cell of [cells[1], cells[3], cells[4]]) expect(cell?.querySelector('span')?.className).toContain('medium:hidden');
+    expect(cells[5]?.className).toContain('max-medium:row-start-2');
+    expect(cells[5]?.className).not.toContain('max-medium:col-span-3');
+  });
+
   it('EVM-053 AC2 only a planned instalment has the menu "Zmień kwotę…" (the other actions are EVM-054)', async () => {
     await renderPanel(PATH, api());
     await paymentsReady();

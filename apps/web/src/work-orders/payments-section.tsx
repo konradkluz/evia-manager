@@ -180,11 +180,11 @@ function MilestoneTable({
   const none = t('workOrder.payments.none');
   const columns: DataTableColumn[] = [
     { id: 'name', header: t('workOrder.payments.columnName'), card: 'primary' },
-    { id: 'amount', header: t('workOrder.payments.columnAmount'), numeric: true, card: 'meta' },
+    { id: 'amount', header: t('workOrder.payments.columnAmount'), numeric: true, card: 'meta', cardLabel: true },
     { id: 'status', header: t('workOrder.payments.columnStatus'), card: 'badge' },
-    { id: 'invoice', header: t('workOrder.payments.columnInvoice'), card: 'detail' },
-    { id: 'due', header: t('workOrder.payments.columnDue'), numeric: true, card: 'detail' },
-    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'detail' as const }] : []),
+    { id: 'invoice', header: t('workOrder.payments.columnInvoice'), card: 'detail', cardLabel: true },
+    { id: 'due', header: t('workOrder.payments.columnDue'), numeric: true, card: 'detail', cardLabel: true },
+    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'action' as const }] : []),
   ];
   const rows: DataTableRow[] = items.map((milestone) => {
     const name = nameOf(milestone);
