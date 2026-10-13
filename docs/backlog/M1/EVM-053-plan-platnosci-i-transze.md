@@ -122,6 +122,7 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-13 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-053-plan-platnosci-transze`)
 - 2026-10-13 — plan gotowy (backend-developer)
 - 2026-10-13 — backend gotowy (backend-developer): kontrakt (`Money`, 3 operacje `payments`, tylko `web`), migracje `0026`/`0027`, moduł `payments` (kontrybutor kompozycji, uczestnik przejść, lista, dodanie, zmiana kwoty), audyt z kwotą przed/po, testy AC1–AC7 (API); część web (W-05, W-06 „Płatności”, dialogi, AC8) — web-developer
+- 2026-10-13 — web gotowy (web-developer): W-05 (liczba transz, „Plan płatności”), W-06 „Płatności” (tabela, sumy, „Dodaj transzę”, „Zmień kwotę”, stany AC8), komunikaty w „Rozlicz…” i „Anuluj zlecenie…” (AC6), kwoty w audycie; `StatusBadge` płatności i `Dialog` `sm` w bibliotece; testy komponentów i E2E (Chromium, Firefox, Edge) z axe
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie transz i „Planu płatności” w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054
