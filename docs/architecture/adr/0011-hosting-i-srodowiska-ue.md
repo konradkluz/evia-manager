@@ -2,6 +2,7 @@
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-02)
 - **Częściowo zastąpiona przez:** [ADR-0015](0015-srodowisko-testow-per-warstwa.md) (2026-10-03) — zakres: tabela „Środowiska”, wiersz `dev`: testy backendu uruchamiamy lokalnie wyłącznie na Linuksie w kontenerze `backend-tests` w dev Compose; porty usług dev publikowane tylko na `127.0.0.1`. Pozostała treść obowiązuje.
+- **Częściowo zmieniona przez:** [ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) (2026-10-13) — zakres: IaC (`plan`/`apply`) i konfiguracja bucketów wyłącznie z sesji IaC Konrada (staging także `devops-engineer` na tokenach sesyjnych), nie z CI; w GitHubie brak sekretów — sekrety na VM (`0600`) i w menedżerze haseł; test odtworzenia z timera na VM środowiska w osobnych projektach `evia-restore*`, nie z CI; wyjątek od „nic nie jest współdzielone”: wspólny stos Grafana Cloud i organizacja Sentry z tokenami zapisu i DSN per środowisko (RR-24). Pozostała treść obowiązuje.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
 - **Powiązane:** EVM-001, EVM-005 (`rodo.md` — podprocesorzy), EVM-006, EVM-007; ADR-0001, ADR-0003, ADR-0005, ADR-0009, ADR-0010, ADR-0012, ADR-0013
@@ -50,6 +51,8 @@ Szacunek miesięczny MVP (netto, kurs NBP 2026-10-01: 1 EUR = 4,3770 zł, 1 USD 
 
 Osobne konta/projekty, klucze API, sekrety i domeny/subdomeny per środowisko; nic nie jest współdzielone między staging i prod.
 
+> **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** wyjątek — wspólne są wyłącznie narzędzia obserwowalności (jeden stos Grafana Cloud Free, jedna organizacja Sentry Developer) z tokenami zapisu i DSN per środowisko; infrastruktura, klucze, buckety, domeny i dane pozostają rozdzielone. Staging wdrażany automatycznie z `main` kanałem pull z weryfikacją na VM, prod po zatwierdzeniu Konrada zapisanym w buckecie Scaleway.
+
 **Sieć i ekspozycja:** Hetzner Cloud Firewall — ruch przychodzący tylko 80/443 do reverse proxy (Caddy) oraz SSH wyłącznie z listy dozwolonych adresów administracyjnych (kluczem, bez logowania roota). **PostgreSQL, kolejka (pg-boss), worker, ClamAV i media-processor nie mają publikowanych portów** — działają w wewnętrznej sieci Dockera; ClamAV i media-processor bez sieci w ogóle (ADR-0009).
 
 **TLS:** Caddy z automatycznymi certyfikatami (Let's Encrypt), **TLS 1.2+ (preferowane 1.3)**, **HSTS** (`max-age=31536000; includeSubDomains`), przekierowanie HTTP → HTTPS. Połączenia do Scaleway, Sentry, Grafana — wyłącznie TLS.
@@ -72,7 +75,11 @@ Osobne konta/projekty, klucze API, sekrety i domeny/subdomeny per środowisko; n
 - wariant zapasowy, gdyby test w EVM-007 wykazał niezgodność object lock z pgBackRest: drugie repozytorium pgBackRest (`repo2`) na subkoncie Hetzner Storage Box ze snapshotami zarządzanymi poza VM (konsola/API Hetzner, nie klucz z VM).
 Test odtworzenia bazy: automatycznie co miesiąc i przed każdym wydaniem na tymczasowej VM w projekcie prod (nie na staging); scenariusz **„backup usunięty z przejętej VM”** (przywrócenie zablokowanych wersji po usunięciu obiektów kluczem z VM, następnie odtworzenie PITR) w runbooku odtworzenia i w corocznym ćwiczeniu DR; test pojedynczego pliku mediów co miesiąc; pełne ćwiczenie odtworzenia (DR) raz w roku — **RTO ≤ 8 h**.
 
+> **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** „klucz IaC używany z CI” → klucz IaC wyłącznie w sesji IaC Konrada (z wygaśnięciem ≤ 24 h); CI wykonuje tylko kontrole bez poświadczeń. Test odtworzenia orkiestruje timer systemd na VM prod w osobnym projekcie Hetzner `evia-restore` (staging: `evia-restore-staging`), wynik zapisywany lokalnie; „przed wydaniem” = udany test ≤ 7 dni przed wdrożeniem prod.
+
 **Konta i IAM:** **MFA obowiązkowe** na wszystkich konsolach (Hetzner, Scaleway, GitHub, Expo, Apple, Google, Sentry, Grafana). Scaleway: osobne aplikacje IAM i klucze API per rola (API, worker, backup, IaC) z politykami ograniczonymi do projektu oraz polityką bucketu; Hetzner: tokeny API per projekt używane tylko przez IaC w CI (brak drobnoziarnistego IAM — ryzyko rezydualne). Sekrety wyłącznie w sekretach CI / zaszyfrowanych plikach (SOPS+age lub równoważne — EVM-006/007), nigdy w obrazach i repo.
+
+> **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** na GitHub Free w sekretach CI nie ma żadnych poświadczeń wdrożeniowych, IaC, backupu ani testu odtworzenia. Tokeny Hetzner nie są używane z CI: token R/W projektu tylko na czas sesji IaC, tokeny `evia-restore*` na VM środowiska. Sekrety: pliki `0600` na VM, kopia w menedżerze haseł Konrada (Bitwarden, bez odblokowanego CLI na stacji agentów), zestaw awaryjny offline; SOPS+age niepotrzebne w M0.
 
 **IaC i operacje:** OpenTofu (dostawcy `hcloud` i `scaleway`, szyfrowany stan w buckecie Scaleway), cloud-init, Docker Compose; aktualizacje bezpieczeństwa systemu automatycznie; obrazy aktualizowane przez Renovate (ADR-0012). Dostępność docelowa **99,5%/mies.**; prace planowe poza 7:00–19:00 (`Europe/Warsaw`).
 

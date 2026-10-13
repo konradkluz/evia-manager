@@ -803,17 +803,20 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 **1. Konto Scaleway**
 - Pytanie: czy zakładamy konto Scaleway (storage mediów `pl-waw`, kopie bazy z object lock, bucket rejestru usunięć, e-mail TEM, stan IaC)?
 - Rekomendacja: **tak, przed planem EVM-007** (ADR-0009, ADR-0011; koszty wg EVM-001).
+- **Decyzja Konrada (2026-10-13):** przyjęta rekomendacja — konto Scaleway założone 2026-10-13, projekt `evia-staging` (pusty, MFA); projekt prod (`evia-prod`, m.in. bucket zatwierdzeń wdrożeń — ADR-0018) przy EVM-061.
 - Konsekwencja „nie teraz”: EVM-007 nie powstanie w zaakceptowanej formie → EVM-008 → całe M1 stoi; alternatywa wymaga zmiany ADR-0009 i ADR-0011.
 - Historyjki: EVM-007, EVM-024, EVM-040, EVM-044, EVM-061, EVM-062.
 
 **2. Domena i adres nadawcy e-maili**
 - Pytanie: jaka domena dla panelu (staging i prod) i adres nadawcy powiadomień?
 - Rekomendacja: **subdomeny istniejącej domeny firmy** (osobne dla staging i prod) i adres nadawcy w tej domenie; MFA i blokada transferu u rejestratora, SPF, DKIM, DMARC `p=reject`, CAA, DNSSEC (SR-INFRA-12).
+- **Decyzja Konrada (2026-10-13):** przyjęta rekomendacja — domena `eviacharge.pl` (rejestrator i strefa DNS w OVH); staging: `staging.eviacharge.pl` (panel i API), nadawca `powiadomienia@staging.eviacharge.pl`; DNSSEC i blokada transferu włączone 2026-10-13. Subdomena i nadawca prod — przy EVM-061. Rekordy stagingu (`A`/`AAAA`, CAA na węźle `staging.eviacharge.pl`, SPF, DKIM i jawny DMARC subdomeny) ustawia Konrad ręcznie w EVM-007a — kolejność w ADR-0018 („DNS, TLS i poczta”).
 - Konsekwencja braku: brak TLS stagingu (EVM-007), kluczy dostępu (stała domena dla WebAuthn — EVM-016) i e-maili (EVM-024 i wszystkie zależne: EVM-023, EVM-025–EVM-028, EVM-049, EVM-052).
 - Historyjki: EVM-007, EVM-016, EVM-024.
 
 **5. Plan GitHub a wdrożenia**
 - **Decyzja Konrada (2026-10-03):** zostajemy na **GitHub Free** (bez Pro). Skutek: przed planem EVM-007 ADR zmieniający ADR-0012 i SR-INFRA-13 / SR-INFRA-14 — wdrożenie wzorcem pull z weryfikacją na VM, zero sekretów prod w GitHubie, test odtworzenia poza GitHub Actions — oraz nowe RR do akceptacji (`/adr`).
+- **Decyzja Konrada (2026-10-13, [ADR-0018](../../architecture/adr/0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) — Zaakceptowana):** rozstrzygnięte — ponownie GitHub Free (Pro odrzucony); staging i prod wdrażane kanałem pull z weryfikacją na VM (kontrole V0–V6), **zero sekretów w GitHubie**; zatwierdzenie prod obiektem w buckecie Scaleway z telefonu (urządzenie bez agentów); IaC i test odtworzenia poza GitHub Actions; sekrety w Bitwarden Konrada i plikach na VM; zmiana triggera CI (K1) w EVM-007a; EVM-007 dzielona na 007a/b/c. Zmiany SR i RR wprowadza `security-engineer`.
 - Pytanie: GitHub Pro (ok. 4 USD / mies.) czy GitHub Free z kontrolami kompensującymi?
 - Kontekst: na Free w repozytorium prywatnym nie ma Environments ani rulesetów, więc każdy sekret CI jest sekretem repozytorium, który odczyta workflow z dowolnej gałęzi — także wypchniętej kluczem agentów. Dotyczy SR-INFRA-13, SR-INFRA-14 (kanał wdrożenia staging i prod — dlatego termin przed planem EVM-007), RR-20, SR-SUPPLY-05 i mitygacji RR-02 / RR-11; odwołanie do nowego ryzyka z planu EVM-006.
 - Rekomendacja: **GitHub Pro przed planem EVM-007** — sekrety w środowiskach ograniczonych do `main`, ruleset `main`; ADR-0012 i wymagania bez zmian.

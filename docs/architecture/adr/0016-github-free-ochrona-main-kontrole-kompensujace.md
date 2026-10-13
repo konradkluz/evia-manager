@@ -1,6 +1,7 @@
 # ADR-0016: GitHub Free — ochrona `main` procedurą i kontrolami kompensującymi K1–K7, zizmor i actionlint, CI backendu przez `docker compose run`
 
 - **Status:** Zaakceptowana (Konrad, 2026-10-04 — demo EVM-006, razem z ryzykiem rezydualnym RR-21)
+- **Częściowo zmieniona przez:** [ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) (2026-10-13) — zakres: K1 (trigger CI — pełne CI tylko na PR i push do `main`; zmiana w EVM-007a); warunek powrotu 3 i „Ograniczenie dla EVM-007” rozstrzygnięte (kanał wdrożeń bez sekretów w GitHubie); nowy próg ponownej decyzji o planie (zużycie minut). Pozostała treść obowiązuje.
 - **Data:** 2026-10-03
 - **Decydent:** Konrad (akceptacja na demo EVM-006 razem z ryzykiem rezydualnym RR-21) · **Autor:** devops-engineer (szkic wg wytycznych `solution-architect` W12; przegląd `solution-architect` przed demo)
 - **Powiązane:** EVM-006, EVM-007; ADR-0012 (częściowo zastępuje — plan GitHub i weryfikacja ochrony `main`, lista narzędzi CI), ADR-0015 (częściowo zastępuje — „Po EVM-006” p. 10), ADR-0014; `docs/ops/github-i-ci.md`, `docs/security/threat-model.md` (RR-21)
@@ -50,6 +51,8 @@ Wybieramy **A — GitHub Free z kontrolami K1–K7**, ponieważ spełnia decyzj�
 | K6 | `main-integrity` (`tools/main-integrity`; osobny workflow `.github/workflows/main-integrity.yml` bez grupy `concurrency`, żeby GitHub nie anulował oczekujących przebiegów) po każdym pushu na `main` i co noc: każdy commit z **okna kroczącego** — 30 najnowszych commitów `main` aż do `BASELINE` (ostatni commit `main` sprzed K6) — pochodzi ze scalonego PR (scalił Konrad), HEAD tego PR ma zielony `ci-gate` w przebiegu `ci.yml`, tytuł z `[EVM-###]`, `[renovate]` albo `[M#]`; przy pushu historia jest przewinięciem bez force pushu; commity zmieniające `.github/`, `tools/main-integrity/` albo `tools/scan/` wypisane osobno do sprawdzenia w Activity; zamknięty incydent trafia przez PR na listę `ACKNOWLEDGED` (pełne SHA; dalej logowany, ale nie czerwieni okna), więc kolejny incydent jest znów widoczny; każdy błąd = czerwony. Wykrywa obejście proceduralne, także commit wypchnięty bez uruchomienia workflowu — przy następnym pushu albo w nocy | wykrywająca |
 | K7 | Minimum sekretów repozytorium: w EVM-006 wyłącznie `RENOVATE_TOKEN` (dodawany dopiero po rozstrzygnięciu ryzyka Q1 przez `security-engineer` i Konrada) | ograniczająca |
 
+> **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** **K1 zmieniona (wdrożenie w EVM-007a)** — szacowane zużycie ok. 4000 min/mies. przy puli 2000 min, więc: pełne CI na `pull_request` do `main` i na `push` do `main`; push gałęzi bez PR — tylko szybkie kontrole (walidator dokumentacji, lint, typy); `e2e-web` tylko na PR i `main`; zmiany wyłącznie w dokumentacji pomijają ciężkie joby przy zachowaniu raportu `ci-gate` (job wykrywający zmiany, nie `paths-ignore`); przegląd zużycia co miesiąc. **K7 bez wyjątków** — w repozytorium nie ma sekretów wdrożeniowych, IaC, backupu ani testu odtworzenia (`RENOVATE_TOKEN` nadal zależny od Q1). Dla wdrażanego kodu obejście `main` blokuje kanał wdrożeń (kontrole V0–V3 na VM), K6 pozostaje kontrolą wykrywającą.
+
 **Zmiany względem ADR-0012:**
 - Plan GitHub Free zamiast Pro/Team; koszt repozytorium i CI 0 zł (pula 2000 min Actions/mies., limit wydatków 0 USD).
 - Weryfikację „bezpośredni push do `main` odrzucony” zastępuje **K6** (wykrycie zamiast blokady).
@@ -65,6 +68,8 @@ Wybieramy **A — GitHub Free z kontrolami K1–K7**, ponieważ spełnia decyzj�
 3. sekrety wdrożeniowe w CI (najpóźniej przed planem EVM-007, jeśli wybrany mechanizm wdrożeń ich wymaga).
 
 **Ograniczenie dla EVM-007:** na Free każdy sekret jest sekretem repozytorium, dostępnym dla workflowu uruchomionego z dowolnej gałęzi; środowiska nie mają sekretów ani ograniczenia gałęzi wdrożeń. Założenia SR-INFRA-13, SR-INFRA-14 i RR-20 („poświadczenia tylko w środowiskach ograniczonych do `main`”) są na Free niewykonalne. Mechanizm wdrożeń wybiera **osobny ADR przed planem EVM-007**.
+
+> **Adnotacja 2026-10-13 ([ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md)):** warunek powrotu 3 i „Ograniczenie dla EVM-007” rozstrzygnięte — wybrany kanał (pull z weryfikacją na VM) nie wymaga sekretów wdrożeniowych w CI, więc warunek 3 nie zachodzi; Konrad ponownie odrzucił plan Pro (2026-10-13). Dodatkowy warunek ponownej decyzji o planie: realne zużycie minut Actions po mitygacjach > 1600 min (80% puli) w dwóch kolejnych miesiącach albo wyczerpanie puli. Warunki 1 i 2 obowiązują bez zmian.
 
 ## Konsekwencje
 - **Pozytywne:** 0 zł zamiast ≈ 15,50 zł/mies.; te same polecenia lokalnie i w CI (kontener `backend-tests`, skany przez `compose run`); obejście proceduralne jest wykrywane po fakcie (K6) i odwracalne; workflowy sprawdzane statycznie przed pushem (zizmor, actionlint, `tools/repo-policy`).
