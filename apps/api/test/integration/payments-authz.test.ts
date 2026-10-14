@@ -59,7 +59,9 @@ describe('the payment milestones in the role and channel matrix (EVM-053 AC7; SR
         operationId,
       ).toBe(true);
     }
-    expect(Object.keys(await paymentObjects(current)).sort()).toEqual([...OPERATIONS].sort());
+    expect(Object.keys(await paymentObjects(current)).sort()).toEqual(
+      [...OPERATIONS, 'transitionPaymentMilestone', 'deletePaymentMilestone'].sort(),
+    );
   });
 
   it('EVM-053 AC7 every cell of the three operations is answered as expected: A and E on the web are let in; Tylko odczyt reads and is 403 forbidden for a change; mobile and mfa_enrollment are denied; anonymous is 401; the milestone of ANOTHER order and a deleted order are 404', async () => {

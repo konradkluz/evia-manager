@@ -196,7 +196,8 @@ export async function scopeObjects(app: IdentityApp): Promise<Record<string, Obj
  * The IDOR fixture of the payment milestones (EVM-053 AC7; SR-AUTHZ-02, SR-AUTHZ-05, TM-17, CWE-639): the list and the addition — "own"
  * is a live order, "foreign" an EXISTING order that is soft deleted (its milestones exist, only the read policy of the order keeps them
  * from the caller); the change of an amount — "own" is a milestone of the live order in ITS path, "foreign" the milestone of ANOTHER
- * live order named in the path of the first (the one an attacker tries: /work-orders/{A}/payment-milestones/{milestone of B}).
+ * live order named in the path of the first (the one an attacker tries: /work-orders/{A}/payment-milestones/{milestone of B}). The
+ * transition of a milestone (EVM-054) and its deletion (pending EVM-057) are addressed the same way.
  */
 export async function paymentObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   const db = app.database.admin;
@@ -222,6 +223,14 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
     listPaymentMilestones: milestones,
     createPaymentMilestone: milestones,
     updatePaymentMilestone: {
+      own: () => `${WORK_ORDERS}/${own}/payment-milestones/${ownMilestone}`,
+      foreign: () => `${WORK_ORDERS}/${own}/payment-milestones/${otherMilestone}`,
+    },
+    transitionPaymentMilestone: {
+      own: () => `${WORK_ORDERS}/${own}/payment-milestones/${ownMilestone}/transitions`,
+      foreign: () => `${WORK_ORDERS}/${own}/payment-milestones/${otherMilestone}/transitions`,
+    },
+    deletePaymentMilestone: {
       own: () => `${WORK_ORDERS}/${own}/payment-milestones/${ownMilestone}`,
       foreign: () => `${WORK_ORDERS}/${own}/payment-milestones/${otherMilestone}`,
     },

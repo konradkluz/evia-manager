@@ -47,7 +47,7 @@ export class ListMilestonesService {
       const order = await this.#orders.findVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const rows = await listMilestones(paymentTables(tx), order.id);
-      return toPaymentMilestoneList(rows, businessDate(this.#clock.now()));
+      return toPaymentMilestoneList(rows, businessDate(this.#clock.now()), { role: principal.role, orderClosed: order.closed });
     });
   }
 }

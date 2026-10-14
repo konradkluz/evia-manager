@@ -15,6 +15,7 @@ const actor = { type: 'user', userId: USER } as const;
 
 const stageBase = { actor, outcome: 'success', objectType: 'procedure_stage', objectId: STAGE, workOrderId: ORDER } as const;
 const ITEM = '0198b0a0-0000-7000-8000-000000000005';
+const MILESTONE = '0198b0a0-0000-7000-8000-000000000006';
 const itemBase = {
   actor,
   outcome: 'success',
@@ -74,6 +75,20 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
       [{ ...itemBase, type: 'work_order.scope_item_added', procedureCodes: ['electrical_installation'] }, 'scope_item_added', null],
       [{ ...itemBase, type: 'work_order.scope_item_updated', changedFields: ['parameters'] }, 'scope_item_updated', null],
       [{ ...itemBase, type: 'work_order.scope_item_removed' }, 'scope_item_removed', null],
+      [
+        {
+          type: 'payment_milestone.status_changed',
+          actor,
+          outcome: 'success',
+          objectType: 'payment_milestone',
+          objectId: MILESTONE,
+          workOrderId: ORDER,
+          fromStatus: 'planned',
+          toStatus: 'invoiced',
+        },
+        'payment_milestone_status_changed',
+        null,
+      ],
     ];
     expect(cases.map(([, code]) => code).sort()).toEqual([...JOURNAL_EVENT_CODES].sort());
     for (const [event, code, stageId] of cases) {
@@ -141,6 +156,7 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
     expect(readJournalEvent(stored.code, stored.payload)).toEqual({
       code: 'stage_status_changed',
       objectType: 'procedure_stage',
+      objectId: STAGE,
       fromStatus: 'in_progress',
       toStatus: 'waiting',
       waitingOn: 'party',
@@ -261,6 +277,7 @@ describe('the events of the data and the scope of an order (EVM-035 AC7; SR-LOG-
     ).toEqual({
       code: 'scope_item_added',
       objectType: 'scope_item',
+      objectId: ITEM,
       fromStatus: null,
       toStatus: null,
       waitingOn: null,

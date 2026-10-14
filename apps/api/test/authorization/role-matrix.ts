@@ -10,6 +10,11 @@
  *
  * "Allowed" means the guard let the request through: a status that is neither 401 nor 403 (the handler then answers with
  * whatever the empty body deserves — usually 400). Denied cells name the exact code.
+ *
+ * One narrow exception, named here and nowhere else (EVM-054 K3): an operation declared in the contract whose EFFECT a later story
+ * implements answers `403 forbidden` to the caller the guard lets through (fail closed) — the cell of that caller expects exactly
+ * that, the predicate "allowed" is not loosened and the operation stays in the matrix with every other cell. The list holds the
+ * deletion of a payment milestone only; EVM-057 removes it (a test pins the list).
  */
 import type { AuthzManifest } from '@evia/contracts/authz';
 import { randomUUID } from 'node:crypto';
@@ -61,6 +66,9 @@ export interface MatrixLists {
 
 const hasPathParameter = (path: string): boolean => /\{[^}]+\}/.test(path);
 
+/** The operations whose effect comes with a later story (the story that removes the entry): 403 forbidden past the guard. */
+export const PENDING_OPERATIONS: Readonly<Record<string, string>> = Object.freeze({ deletePaymentMilestone: 'EVM-057' });
+
 /** SR-AUTHZ-06: the read-only role has no mobile channel. */
 const roleMayUseChannel = (role: Role, channel: 'web' | 'mobile'): boolean => !(role === 'read_only' && channel === 'mobile');
 
@@ -85,6 +93,8 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   if (!entitled) return { outcome: 'denied', status: 403, code: 'forbidden' };
   // SR-SESS-08: after the role (a role that may not call the operation never learns it is protected), only a fresh passkey passes
   if (authz.stepUp === true && caller.passkey !== 'fresh') return { outcome: 'denied', status: 403, code: 'step_up_required' };
+  // EVM-054 K3: the effect of the operation comes with a later story — the caller the guard lets through is refused by the handler
+  if (PENDING_OPERATIONS[operationId] !== undefined) return { outcome: 'denied', status: 403, code: 'forbidden' };
   return { outcome: 'allowed' };
 }
 

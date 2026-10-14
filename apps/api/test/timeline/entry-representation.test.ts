@@ -34,6 +34,7 @@ const batch = (overrides: Partial<RepresentationBatch> = {}): RepresentationBatc
   stageNames: new Map([[STAGE, 'Złożenie wniosku']]),
   partyNames: new Map([[PARTY, 'Operator Testowy']]),
   partyKinds: new Map([[PARTY, 'osd']]),
+  milestoneNames: new Map(),
   corrections: new Map(),
   ...overrides,
 });

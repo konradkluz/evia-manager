@@ -73,6 +73,8 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -195,6 +197,8 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 });
@@ -236,6 +240,8 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'amountBeforeMinor',
         'amountAfterMinor',
         'currency',
+        'fromCode',
+        'toCode',
       ].sort(),
     );
   });
@@ -262,6 +268,8 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -315,6 +323,8 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -333,6 +343,8 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
     workOrderId: user,
     amountBeforeMinor: 300000,
     amountAfterMinor: 360000,
+    fromCode: null,
+    toCode: null,
     ...overrides,
   });
   const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
@@ -359,6 +371,8 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -373,6 +387,9 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       'payment_milestone.created',
       'payment_milestone.amount_changed',
       'payment_milestone.cancelled',
+      'payment_milestone.invoiced',
+      'payment_milestone.paid',
+      'payment_milestone.details_changed',
     ]);
   });
 
