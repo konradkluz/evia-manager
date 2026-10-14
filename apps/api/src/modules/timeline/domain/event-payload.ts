@@ -7,7 +7,7 @@
  * written: the code of a status, the type and the identifier of the object, the identifier of the party waited for, the stable codes
  * of an item of the catalogue and of its processes (EVM-035) and the NAMES of the changed fields. Never the reason of a block or a
  * hold, a name of a party, a stage, a payment milestone or a person, the title, the description, the notes or a value of a parameter,
- * the due date, an amount, an invoice number or the reason of a cancellation (EVM-054): the journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
+ * the due date, an amount, an invoice number or the reason of a cancellation (EVM-054, EVM-057): the journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
  * (RODO art. 17) need no change in the events. A schema that would let a new key through is a defect that fails the write.
  *
  * Reading is TOLERANT (the version of the server may be rolled back after a later story added its codes): an unknown code or a
@@ -15,7 +15,7 @@
  */
 import { zPaymentMilestoneStatus, zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
 import { z } from 'zod';
-import type { PaymentMilestoneStatusChangedEvent } from '../../payments/index.ts';
+import type { PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
 import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
 
@@ -30,6 +30,7 @@ export const JOURNAL_EVENT_CODES = [
   'scope_item_updated',
   'scope_item_removed',
   'payment_milestone_status_changed',
+  'payment_milestone_deleted',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
@@ -80,6 +81,8 @@ const SHAPES = {
   scope_item_removed: { ...scopeItemObject, itemCode: catalogCode },
   // EVM-054 AC3: the two status codes of the milestone - no amount, no invoice number, no reason, no name
   payment_milestone_status_changed: { ...paymentMilestoneObject, fromStatus: zPaymentMilestoneStatus, toStatus: zPaymentMilestoneStatus },
+  // EVM-057 AC4: the soft delete of a milestone - the milestone alone (its name is gone with it), no amount, no number
+  payment_milestone_deleted: paymentMilestoneObject,
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -93,11 +96,12 @@ const STRICT = {
   scope_item_updated: z.strictObject(SHAPES.scope_item_updated),
   scope_item_removed: z.strictObject(SHAPES.scope_item_removed),
   payment_milestone_status_changed: z.strictObject(SHAPES.payment_milestone_status_changed),
+  payment_milestone_deleted: z.strictObject(SHAPES.payment_milestone_deleted),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
-export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneStatusChangedEvent;
+export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneJournalEvent;
 
 /** What the store writes: the columns of the entry that an event decides. */
 export interface JournalEventRecord {
@@ -207,6 +211,13 @@ function candidateOf(event: JournalSourceEvent): Candidate {
       return {
         code: 'payment_milestone_status_changed',
         payload: { objectType: 'payment_milestone', objectId: event.objectId, fromStatus: event.fromStatus, toStatus: event.toStatus },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'payment_milestone.removed':
+      return {
+        code: 'payment_milestone_deleted',
+        payload: { objectType: 'payment_milestone', objectId: event.objectId },
         workOrderId: event.workOrderId,
         procedureStageId: null,
       };

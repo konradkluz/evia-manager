@@ -18,8 +18,11 @@
  *   4. the idempotency port (when there is a key): a repeat of the same key, milestone and body returns the stored result BEFORE the
  *      checks below. The key is bound to the ORDER and the MILESTONE: the same key and body elsewhere is `422 idempotency_mismatch`;
  *   5. a closed order (settled or cancelled, PO-8) is `409 work_order_closed`;
- *   6. an amount on a milestone that is not `planned` is `403 forbidden` — also together with other fields, and before the 409 below
- *      (the amount of an invoiced or paid milestone is a correction of the Administrator with a step-up, EVM-057 — SR-AUTHZ-10);
+ *   6. an amount of an `invoiced` or `paid` milestone is a correction of the Administrator with a step-up (EVM-057 AC3, AC5, AC6; P2;
+ *      SR-AUTHZ-10, SR-SESS-08): every other role is `403 forbidden`, the Administrator without an authentication with a passkey in the
+ *      last 15 minutes `403 step_up_required` (the role first; `stepUpFresh` of `identity` with the injected clock); an amount of a
+ *      `cancelled` milestone is `403 forbidden` for every caller — also together with other fields, and before the 409 below. A `403`
+ *      rolls back and leaves no idempotency record, so a retry with the same key after the step-up performs the correction;
  *   7. a field that does not belong to the status (the invoice only in `invoiced`, the day of the payment only in `paid`) is
  *      `409 invalid_state_transition` (Q3d);
  *   8. the version (`412 version_conflict`, no current value in the answer);
@@ -28,7 +31,8 @@
  *  10. a change without effect (every value equal to the stored one): `200` with the milestone as it is, no new version and no event;
  *      otherwise the update (`version + 1`) through the one point of write — no row there after a successful lock is a defect
  *      (`500`), never a silent `200` — the event for the audit trail (`payment_milestone.amount_changed` with the amount before and
- *      after, or `payment_milestone.details_changed` without any value), the idempotency record (a hash of the body only).
+ *      after — `payment_milestone.amount_corrected` for an invoiced or paid milestone — or `payment_milestone.details_changed` without
+ *      any value), the idempotency record (a hash of the body only).
  * An error rolls everything back. A repeat returns the milestone as it is NOW.
  */
 import {
@@ -52,6 +56,7 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
+import { stepUpFresh } from '../../identity/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
   changedDetails,
@@ -61,6 +66,7 @@ import {
   type DetailsPatch,
   type DetailsPatchInput,
 } from '../domain/milestone-details.ts';
+import { correctionAccess } from '../domain/milestone-transitions.ts';
 import type { PaymentMilestoneEvent } from '../events.ts';
 import { lockMilestone, type MilestoneRow } from '../infrastructure/milestone-reader.ts';
 import { updateMilestone } from '../infrastructure/milestone-store.ts';
@@ -177,10 +183,12 @@ export class UpdateMilestoneService {
     request: EventContext,
   ): Promise<void> {
     const { locked } = target;
-    const decision = statusDecision(locked.status, patch);
+    const now = this.#clock.now();
+    const correction = correctionAccess(principal.role, stepUpFresh(principal.passkeyAuthenticatedAt, now));
+    const decision = statusDecision(locked.status, patch, correction);
     if (decision !== 'ok') throw new ProblemException(decision);
     if (locked.version !== expectedVersion) throw new ProblemException('version_conflict');
-    const issues = mergedIssues(locked, patch, businessDate(this.#clock.now()));
+    const issues = mergedIssues(locked, patch, businessDate(now));
     if (issues.length > 0) throw new ProblemException('validation_failed', { errors: issues });
     const change = changedDetails(locked, patch);
     if (Object.keys(change).length === 0) return;
@@ -190,12 +198,13 @@ export class UpdateMilestoneService {
       { workOrderId: target.workOrderId, milestoneId: locked.id, expectedVersion, status: locked.status },
       change,
       principal.userId,
-      this.#clock.now(),
+      now,
     );
     if (version === undefined) throw new ProblemException('internal_error');
     const amountChanged = change.amountMinor !== undefined;
+    const amountType = locked.status === 'planned' ? 'payment_milestone.amount_changed' : 'payment_milestone.amount_corrected';
     const event: PaymentMilestoneEvent = {
-      type: amountChanged ? 'payment_milestone.amount_changed' : 'payment_milestone.details_changed',
+      type: amountChanged ? amountType : 'payment_milestone.details_changed',
       actor: { type: 'user', userId: principal.userId },
       outcome: 'success',
       objectType: 'payment_milestone',

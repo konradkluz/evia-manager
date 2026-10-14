@@ -390,7 +390,49 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       'payment_milestone.invoiced',
       'payment_milestone.paid',
       'payment_milestone.details_changed',
+      'payment_milestone.invoice_withdrawn',
+      'payment_milestone.invoice_cancelled',
+      'payment_milestone.payment_undone',
+      'payment_milestone.restored',
+      'payment_milestone.amount_corrected',
+      'payment_milestone.deleted',
     ]);
+  });
+
+  it('EVM-057 AC1 AC3 AC4 SR-LOG-03 a correction keeps the amount (and the status codes of a move); a deletion has the amount before only, without codes', () => {
+    expect(
+      toAuditRecord(
+        payment({
+          type: 'payment_milestone.invoice_withdrawn',
+          amountBeforeMinor: 360000,
+          amountAfterMinor: 360000,
+          fromCode: 'invoiced',
+          toCode: 'planned',
+        }),
+        context,
+        at,
+      ),
+    ).toMatchObject({
+      action: 'payment_milestone.invoice_withdrawn',
+      amountBeforeMinor: 360000,
+      amountAfterMinor: 360000,
+      fromCode: 'invoiced',
+      toCode: 'planned',
+      currency: 'PLN',
+    });
+    expect(
+      toAuditRecord(payment({ type: 'payment_milestone.deleted', amountBeforeMinor: 360000, amountAfterMinor: null }), context, at),
+    ).toMatchObject({
+      action: 'payment_milestone.deleted',
+      amountBeforeMinor: 360000,
+      amountAfterMinor: null,
+      fromCode: null,
+      toCode: null,
+      currency: 'PLN',
+    });
+    expect(
+      toAuditRecord(payment({ type: 'payment_milestone.deleted', amountBeforeMinor: null, amountAfterMinor: null }), context, at),
+    ).toMatchObject({ amountBeforeMinor: null, amountAfterMinor: null, currency: null });
   });
 
   it('EVM-053 AC3 the audit module subscribes to the three events of payments', async () => {

@@ -1,7 +1,8 @@
 /**
  * THE ONE POINT OF WRITE of the payment milestones (EVM-053; P4, ADR-0017): every `INSERT` and `UPDATE` of `payments.payment_milestones`
  * — the copy of the plan at the creation of an order, the milestone added by hand, the change of the amount, of the invoice and of
- * the payment, the move of a transition (EVM-054), the effect of the cancellation of an order — is a function of this file and of no
+ * the payment, the move of a transition (EVM-054), the effect of the cancellation of an order, a correction, the soft delete and the
+ * renumbering after it (EVM-057) — is a function of this file and of no
  * other (a review checks it with a search). EVM-056 hooks the events of the read model
  * here. Every value reaches the database as a bound parameter; the anchor `work_order_id` is in the condition of every update
  * (SR-AUTHZ-02, CWE-639). The amount is a `bigint`: what the driver returns as text becomes a number through
@@ -113,10 +114,18 @@ export interface MilestoneDetailsChange {
   readonly paidOn?: string;
 }
 
-/** The columns of a move (EVM-054 AC1–AC3): the status and what the move writes; absent keeps the column. */
-export interface MilestoneMoveChange extends MilestoneDetailsChange {
+/**
+ * The columns of a move (EVM-054 AC1–AC3) and of a correction (EVM-057): the status and what the move writes; absent (`undefined`)
+ * keeps the column, `null` clears it (a correction clears the invoice, the day of a payment or the reason).
+ */
+export interface MilestoneMoveChange {
   readonly status: PaymentMilestoneStatus;
-  readonly statusReason?: string;
+  readonly amountMinor?: number;
+  readonly invoiceNumber?: string | null;
+  readonly invoicedOn?: string | null;
+  readonly dueDate?: string | null;
+  readonly paidOn?: string | null;
+  readonly statusReason?: string | null;
 }
 
 const columnsOf = (change: MilestoneMoveChange | MilestoneDetailsChange): Updateable<PaymentMilestonesTable> => ({
@@ -181,4 +190,54 @@ export async function cancelPlannedMilestones(
     .returning(['id', 'position', 'amount_minor'])
     .execute();
   return rows.sort((a, b) => a.position - b.position).map((row) => ({ id: row.id, amountMinor: amountFromDatabase(row.amount_minor) }));
+}
+
+/**
+ * The soft delete of a milestone of THIS order at the version the caller holds the lock of (EVM-057 AC4): `deleted_at`, `deleted_by`,
+ * `version + 1`. The condition is `id AND work_order_id AND version AND deleted_at IS NULL` — the last line under the decision of the
+ * caller, who treats no row as a defect.
+ * @returns the new version, or `undefined` when no row matched
+ */
+export async function softDeleteMilestone(
+  db: PaymentsDb,
+  target: Omit<MilestoneWriteTarget, 'status'>,
+  actorUserId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('payments.payment_milestones')
+    .set((eb) => ({ deleted_at: now, deleted_by: actorUserId, version: eb('version', '+', 1), updated_at: now, updated_by: actorUserId }))
+    .where('id', '=', target.milestoneId)
+    .where('work_order_id', '=', target.workOrderId)
+    .where('version', '=', target.expectedVersion)
+    .where('deleted_at', 'is', null)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
+}
+
+/**
+ * Numbers the LIVE milestones of THIS order 1…n again after a deletion (EVM-057; the pattern of `renumberScopeItems`), so the next
+ * "Dodaj transzę" (`position` = the largest + 1) stays within the CHECK 1…20. The unique index on the position is partial and not
+ * deferrable, so the milestones are moved one by one in ascending order — each into the place the previous one left, never onto a
+ * taken one (one `UPDATE position - 1` would collide). The version is NOT raised: the position is a place in the list, not the
+ * content of the milestone, and a stale tag of a neighbour would be a false `412`. The caller holds the lock of the order.
+ */
+export async function compactPositions(db: PaymentsDb, workOrderId: string): Promise<void> {
+  const rows = await db
+    .selectFrom('payments.payment_milestones')
+    .select(['id', 'position'])
+    .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
+    .orderBy('position')
+    .execute();
+  for (const [index, row] of rows.entries()) {
+    if (row.position === index + 1) continue;
+    await db
+      .updateTable('payments.payment_milestones')
+      .set({ position: index + 1 })
+      .where('id', '=', row.id)
+      .where('work_order_id', '=', workOrderId)
+      .execute();
+  }
 }

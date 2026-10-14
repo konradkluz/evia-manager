@@ -197,7 +197,7 @@ export async function scopeObjects(app: IdentityApp): Promise<Record<string, Obj
  * is a live order, "foreign" an EXISTING order that is soft deleted (its milestones exist, only the read policy of the order keeps them
  * from the caller); the change of an amount — "own" is a milestone of the live order in ITS path, "foreign" the milestone of ANOTHER
  * live order named in the path of the first (the one an attacker tries: /work-orders/{A}/payment-milestones/{milestone of B}). The
- * transition of a milestone (EVM-054) and its deletion (pending EVM-057) are addressed the same way.
+ * transition of a milestone (EVM-054) and its deletion (EVM-057) are addressed the same way.
  */
 export async function paymentObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   const db = app.database.admin;

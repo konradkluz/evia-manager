@@ -11,6 +11,8 @@ import {
   addDays,
   allowedMilestoneTransitions,
   defaultDueDate,
+  correctionAccess,
+  correctionFields,
   findMilestoneTransition,
   MILESTONE_TRANSITION_TABLE,
   mayTake,
@@ -33,18 +35,46 @@ describe('the table of transitions of a payment milestone (EVM-054 AC1–AC3, AC
   it('EVM-054 AC1 AC2 AC3 Administrator and Editor invoice and cancel a planned milestone and record the payment of an invoiced one; Read-only takes nothing', () => {
     for (const role of ['administrator', 'editor'] as const) {
       expect(allowedMilestoneTransitions('planned', role, false)).toEqual(['invoiced', 'cancelled']);
-      expect(allowedMilestoneTransitions('invoiced', role, false)).toEqual(['paid']);
-      expect(allowedMilestoneTransitions('paid', role, false)).toEqual([]);
-      expect(allowedMilestoneTransitions('cancelled', role, false)).toEqual([]);
+      expect(allowedMilestoneTransitions('invoiced', role, false)).toContain('paid');
     }
+    expect(allowedMilestoneTransitions('invoiced', 'editor', false)).toEqual(['paid']);
+    expect(allowedMilestoneTransitions('paid', 'editor', false)).toEqual([]);
+    expect(allowedMilestoneTransitions('cancelled', 'editor', false)).toEqual([]);
     for (const status of PAYMENT_MILESTONE_STATUSES) expect(allowedMilestoneTransitions(status, 'read_only', false)).toEqual([]);
   });
 
-  it('EVM-054 AC5 Q2 the corrections are rows of the table that NO role may take before EVM-057 — the Administrator included', () => {
+  it('EVM-057 AC6 SR-AUTHZ-10 every correction is a row of the Administrator alone with a step-up, and only a correction asks for one', () => {
     const corrections = MILESTONE_TRANSITION_TABLE.filter((rule) => rule.move === 'correction').map((rule) => `${rule.from}>${rule.to}`);
     expect(corrections.sort()).toEqual(['cancelled>planned', 'invoiced>cancelled', 'invoiced>planned', 'paid>invoiced']);
-    for (const rule of MILESTONE_TRANSITION_TABLE.filter((candidate) => candidate.move === 'correction'))
-      for (const role of ROLES) expect(mayTake(rule, role), `${rule.from}>${rule.to} ${role}`).toBe(false);
+    for (const rule of MILESTONE_TRANSITION_TABLE) {
+      const name = `${rule.from}>${rule.to}`;
+      expect(rule.stepUp, name).toBe(rule.move === 'correction');
+      if (rule.move !== 'correction') continue;
+      expect(rule.roles, name).toEqual(['administrator']);
+      for (const role of ROLES) expect(mayTake(rule, role), `${name} ${role}`).toBe(role === 'administrator');
+    }
+  });
+
+  it('EVM-057 AC6 SR-AUTHZ-10 no row outside the corrections leads back: to planned from invoiced or cancelled, to invoiced from paid, to cancelled from invoiced', () => {
+    const backwards = MILESTONE_TRANSITION_TABLE.filter(
+      (rule) =>
+        (rule.to === 'planned' && (rule.from === 'invoiced' || rule.from === 'cancelled')) ||
+        (rule.to === 'invoiced' && rule.from === 'paid') ||
+        (rule.to === 'cancelled' && rule.from === 'invoiced'),
+    );
+    expect(backwards).toHaveLength(4);
+    for (const rule of backwards) expect(rule.move, `${rule.from}>${rule.to}`).toBe('correction');
+  });
+
+  it('EVM-057 AC8 the Administrator is offered the corrections of a status whatever the freshness of the step-up (a hint); the Editor and Read-only are not; a closed order offers nothing', () => {
+    expect(allowedMilestoneTransitions('planned', 'administrator', false)).toEqual(['invoiced', 'cancelled']);
+    expect(allowedMilestoneTransitions('invoiced', 'administrator', false)).toEqual(['paid', 'planned', 'cancelled']);
+    expect(allowedMilestoneTransitions('paid', 'administrator', false)).toEqual(['invoiced']);
+    expect(allowedMilestoneTransitions('cancelled', 'administrator', false)).toEqual(['planned']);
+    for (const status of PAYMENT_MILESTONE_STATUSES) {
+      expect(allowedMilestoneTransitions(status, 'administrator', true)).toEqual([]);
+      expect(allowedMilestoneTransitions(status, 'read_only', false)).toEqual([]);
+    }
   });
 
   it('EVM-054 AC7 a move outside the table has no row (409); the payments of a closed order offer nothing', () => {
@@ -179,17 +209,31 @@ describe('the change of the data of an invoice and of a payment (EVM-054 AC4; Q3
     });
   });
 
-  it('EVM-054 AC4 AC5 Q3d the amount outside planned is forbidden even together with other fields; the invoice belongs to invoiced, the payment to paid', () => {
-    expect(statusDecision('invoiced', { amountMinor: 1, invoiceNumber: 'FV' })).toBe('forbidden');
-    expect(statusDecision('paid', { amountMinor: 1, invoiceNumber: 'FV' })).toBe('forbidden');
-    expect(statusDecision('cancelled', { amountMinor: 1 })).toBe('forbidden');
-    expect(statusDecision('planned', { amountMinor: 1 })).toBe('ok');
-    expect(statusDecision('planned', { amountMinor: 1, invoiceNumber: 'FV' })).toBe('invalid_state_transition');
-    expect(statusDecision('invoiced', { invoiceNumber: 'FV', invoicedOn: '2026-10-01', dueDate: '2026-10-09' })).toBe('ok');
-    expect(statusDecision('invoiced', { paidOn: '2026-10-01' })).toBe('invalid_state_transition');
-    expect(statusDecision('paid', { paidOn: '2026-10-01' })).toBe('ok');
-    expect(statusDecision('paid', { dueDate: '2026-10-01' })).toBe('invalid_state_transition');
-    expect(statusDecision('cancelled', { paidOn: '2026-10-01' })).toBe('invalid_state_transition');
+  it('EVM-054 AC4 Q3d the invoice belongs to invoiced, the payment to paid, the amount of planned is free', () => {
+    for (const access of ['ok', 'forbidden', 'step_up_required'] as const) {
+      expect(statusDecision('planned', { amountMinor: 1 }, access)).toBe('ok');
+      expect(statusDecision('planned', { amountMinor: 1, invoiceNumber: 'FV' }, access)).toBe('invalid_state_transition');
+      expect(statusDecision('invoiced', { invoiceNumber: 'FV', invoicedOn: '2026-10-01', dueDate: '2026-10-09' }, access)).toBe('ok');
+      expect(statusDecision('invoiced', { paidOn: '2026-10-01' }, access)).toBe('invalid_state_transition');
+      expect(statusDecision('paid', { paidOn: '2026-10-01' }, access)).toBe('ok');
+      expect(statusDecision('paid', { dueDate: '2026-10-01' }, access)).toBe('invalid_state_transition');
+      expect(statusDecision('cancelled', { paidOn: '2026-10-01' }, access)).toBe('invalid_state_transition');
+    }
+  });
+
+  it('EVM-057 AC3 AC5 AC6 P2 the amount of an invoiced or paid milestone is a correction: the access of the caller decides, before the fields — also together with other fields', () => {
+    for (const status of ['invoiced', 'paid'] as const) {
+      expect(statusDecision(status, { amountMinor: 1, invoiceNumber: 'FV' }, 'forbidden')).toBe('forbidden');
+      expect(statusDecision(status, { amountMinor: 1, paidOn: '2026-10-01' }, 'step_up_required')).toBe('step_up_required');
+      expect(statusDecision(status, { amountMinor: 1 }, 'ok')).toBe('ok');
+    }
+    expect(statusDecision('invoiced', { amountMinor: 1, invoiceNumber: 'FV' }, 'ok')).toBe('ok');
+    expect(statusDecision('invoiced', { amountMinor: 1, paidOn: '2026-10-01' }, 'ok')).toBe('invalid_state_transition');
+  });
+
+  it('EVM-057 AC6 the amount of a cancelled milestone is forbidden for every caller — the Administrator with a step-up included', () => {
+    for (const access of ['ok', 'forbidden', 'step_up_required'] as const)
+      expect(statusDecision('cancelled', { amountMinor: 1 }, access)).toBe('forbidden');
   });
 
   it('EVM-054 AC4 Q3b the due date is checked on the merged state; the pointer is /invoicedOn when only the day of the invoice changes; Q3e a payment after today is in_future', () => {
@@ -209,6 +253,68 @@ describe('the change of the data of an invoice and of a payment (EVM-054 AC4; Q3
   it('EVM-054 AC4 a value equal to the stored one is no change', () => {
     expect(changedDetails(invoiced, { invoiceNumber: 'FV/TEST/0021/2026', dueDate: '2026-10-10' })).toEqual({});
     expect(changedDetails(invoiced, { invoiceNumber: 'FV/2', dueDate: '2026-10-10' })).toEqual({ invoiceNumber: 'FV/2' });
+  });
+});
+
+describe('the policy and the fields of a correction (EVM-057 AC1, AC2, AC4, AC5, AC6; P2; SR-SESS-08, SR-AUTHZ-10, CWE-915)', () => {
+  it('EVM-057 AC5 AC6 P2 the role before the step-up: the Editor and Read-only are forbidden whatever their key, the Administrator needs a fresh one', () => {
+    for (const fresh of [true, false]) {
+      expect(correctionAccess('editor', fresh)).toBe('forbidden');
+      expect(correctionAccess('read_only', fresh)).toBe('forbidden');
+    }
+    expect(correctionAccess('administrator', false)).toBe('step_up_required');
+    expect(correctionAccess('administrator', true)).toBe('ok');
+  });
+
+  const rule = (from: PaymentMilestoneStatus, to: PaymentMilestoneStatus) => {
+    const found = findMilestoneTransition(from, to);
+    if (found === undefined) throw new Error(`${from}>${to}`);
+    return found;
+  };
+
+  it('EVM-057 AC1 withdrawing an invoice makes the milestone planned and clears the number, the day of the invoice and the due date; the amount stays', () => {
+    expect(correctionFields(rule('invoiced', 'planned'), { to: 'planned' })).toEqual({
+      ok: true,
+      update: { status: 'planned', invoiceNumber: null, invoicedOn: null, dueDate: null },
+    });
+  });
+
+  it('EVM-057 AC2 cancelling an invoice keeps the data of the invoice and takes no reason; undoing a payment clears its day', () => {
+    expect(correctionFields(rule('invoiced', 'cancelled'), { to: 'cancelled' })).toEqual({ ok: true, update: { status: 'cancelled' } });
+    expect(correctionFields(rule('paid', 'invoiced'), { to: 'invoiced' })).toEqual({
+      ok: true,
+      update: { status: 'invoiced', paidOn: null },
+    });
+  });
+
+  it('EVM-057 AC4 restoring a cancelled milestone makes it planned and clears the invoice, the payment and the reason', () => {
+    expect(correctionFields(rule('cancelled', 'planned'), { to: 'planned' })).toEqual({
+      ok: true,
+      update: { status: 'planned', invoiceNumber: null, invoicedOn: null, dueDate: null, paidOn: null, statusReason: null },
+    });
+  });
+
+  it('EVM-057 AC6 CWE-915 a correction takes the target alone: every other field is 400 not_allowed with its pointer, never its value', () => {
+    expect(correctionFields(rule('invoiced', 'cancelled'), { to: 'cancelled', reason: 'powod' })).toEqual({
+      ok: false,
+      status: 400,
+      errors: [{ pointer: '/reason', code: 'not_allowed' }],
+    });
+    expect(
+      correctionFields(rule('invoiced', 'planned'), { to: 'planned', amount: pln(1), invoiceNumber: 'FV', dueDate: '2026-10-09' }),
+    ).toEqual({
+      ok: false,
+      status: 400,
+      errors: [
+        { pointer: '/amount', code: 'not_allowed' },
+        { pointer: '/invoiceNumber', code: 'not_allowed' },
+        { pointer: '/dueDate', code: 'not_allowed' },
+      ],
+    });
+  });
+
+  it('EVM-057 AC1 a row that is not a correction has no fields of a correction (a defect of the caller)', () => {
+    expect(() => correctionFields(rule('planned', 'invoiced'), { to: 'invoiced' })).toThrow('not a correction');
   });
 });
 
@@ -256,7 +362,8 @@ describe('no sequence of the Editor or of the Administrator without a step-up cl
       state.milestones.forEach((status, index) => {
         for (const to of allowedMilestoneTransitions(status, role, false)) {
           const rule = findMilestoneTransition(status, to);
-          if (rule === undefined || !mayTake(rule, role)) continue;
+          // without a step-up a correction is out of reach (EVM-057 AC6): the walk takes the rows that ask for none
+          if (rule === undefined || !mayTake(rule, role) || rule.stepUp) continue;
           out.push({ ...state, milestones: state.milestones.map((value, at) => (at === index ? to : value)) });
         }
       });
