@@ -78,7 +78,7 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       .map((cell) => cell.textContent);
     // A day in Warsaw: 22:30 UTC on 5 October is already 6 October there.
     expect(cells).toEqual([
-      'ZL-2026-0002Dom — pełny pakietUtworzono 06.10.2026',
+      'ZL-2026-0002Dom — pełny pakietBrak opiekunaUtworzono 06.10.2026',
       '—Brak klienta',
       '—Brak lokalizacji',
       'Wycena',
@@ -87,7 +87,7 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       '—Brak wystawionych transz',
       'Brak opiekuna',
       '06.10.2026',
-      'ZL-2026-0001Garaż — pełny proces 1Utworzono 04.10.2026',
+      'ZL-2026-0001Garaż — pełny proces 1Opiekun: Jan PrzykładowyUtworzono 04.10.2026',
       '—Brak klienta',
       '—Brak lokalizacji',
       'W realizacji',

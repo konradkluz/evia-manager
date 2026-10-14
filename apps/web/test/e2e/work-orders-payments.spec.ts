@@ -68,6 +68,40 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
     await expect(table(page).getByRole('link', { name: /^ZL-2026-0001, .*, płatność po terminie, 3\s600,00\szł$/ })).toBeVisible();
   });
 
+  // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja",
+  // "Opiekun" and "Utworzono". The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
+  const LAYOUTS = [
+    { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
+    { width: 1280, headers: ['Zlecenie', 'Klient', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
+    {
+      width: 1440,
+      headers: ['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność', 'Opiekun', 'Utworzono'],
+    },
+  ];
+  for (const { width, headers } of LAYOUTS) {
+    test(`EVM-056 AC1 at ${String(width)} px the column "Płatność" is seen whole, the table does not scroll sideways`, async ({
+      page,
+      api,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      api.workOrders = 12;
+      await page.goto(PATH);
+      const visible = table(page).getByRole('columnheader').filter({ visible: true });
+      await expect(visible).toHaveText(headers);
+      const frame = page.getByRole('region', { name: 'Lista zleceń' });
+      const { scrollWidth, clientWidth } = await frame.evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+      const box = await frame.boundingBox();
+      const badge = await row(page, 'ZL-2026-0001').getByText('Po terminie', { exact: true }).boundingBox();
+      expect(box).not.toBeNull();
+      expect(badge).not.toBeNull();
+      if (box !== null && badge !== null) expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width);
+    });
+  }
+
   test('EVM-056 AC2 the views "Po terminie" and "Nieopłacone" list the open orders with such instalments; the address has the view only', async ({
     page,
     api,

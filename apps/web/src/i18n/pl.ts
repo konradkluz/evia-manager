@@ -229,6 +229,7 @@ export const pl = {
       coordinator: 'Opiekun',
       created: 'Utworzono',
       createdLine: 'Utworzono {{date}}',
+      coordinatorLine: 'Opiekun: {{name}}',
       noCoordinator: 'Brak opiekuna',
       rowHead: '{{number}}, {{title}}',
       rowTail: 'status: {{status}}, opiekun: {{coordinator}}, utworzono {{created}}',

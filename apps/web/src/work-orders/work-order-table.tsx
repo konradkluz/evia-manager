@@ -59,7 +59,9 @@ function Missing({ label }: { readonly label: string }) {
  * full description as its name. The column the list is sorted by carries `aria-sort`. Texts are shown as React text only.
  *
  * EVM-056 AC1: "Płatność" (after "Termin", on the right — § 4.2; the last line of the card) for a role that reads payments
- * (`payments`); the payment closes the name of the row. With "Najpilniejsze" no column carries `aria-sort`.
+ * (`payments`); the payment closes the name of the row. With "Najpilniejsze" no column carries `aria-sort`. So that "Płatność" is seen
+ * whole without scrolling (flows/07 "Responsywność"), "Opiekun" and "Utworzono" are columns only from `wide` (below it, lines of the
+ * first cell) and the table is the dense one (§ 3.6).
  */
 export function WorkOrderTable({
   items,
@@ -84,13 +86,15 @@ export function WorkOrderTable({
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
     { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
     ...(payments ? [{ id: 'payment', card: 'detail' as const, header: t('workOrders.table.payment'), align: 'end' as const }] : []),
-    { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator') },
+    // "Opiekun" and "Utworzono" only from `wide` (flows/07: six priority columns on `expanded`, "Płatność" seen whole on `medium`);
+    // below it both are lines of the first cell (and of the card).
+    { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator'), wideOnly: true },
     {
       id: 'created',
       card: 'meta' as const,
       header: t('workOrders.table.created'),
       numeric: true,
-      expandedOnly: true,
+      wideOnly: true,
       ...markSort('created'),
     },
   ];
@@ -142,8 +146,11 @@ export function WorkOrderTable({
               {siteText === undefined ? null : <span className="break-words text-text-secondary">{siteText}</span>}
             </span>
           )}
-          {/* The column "Utworzono" is shown from `expanded`; on a tablet the date is the third line here (EVM-034, 768 px). */}
-          <span className="expanded:hidden text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
+          {/* The columns "Opiekun" and "Utworzono" are shown from `wide`; below it they are the last lines here (EVM-056, flows/07). */}
+          <span className="wide:hidden text-text-secondary">
+            {item.coordinator === null ? coordinator : t('workOrders.table.coordinatorLine', { name: coordinator })}
+          </span>
+          <span className="wide:hidden text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
         </span>,
         <span key="customer" className="flex flex-col">
           {customerLine}
@@ -180,5 +187,5 @@ export function WorkOrderTable({
       ],
     };
   });
-  return <DataTable caption={t('workOrders.table.caption')} columns={columns} rows={rows} link={RowLink} />;
+  return <DataTable caption={t('workOrders.table.caption')} dense columns={columns} rows={rows} link={RowLink} />;
 }
