@@ -102,14 +102,14 @@ describe('the customer and the site on the list (EVM-072 AC1; SR-DATA-03, TM-18)
     }
   });
 
-  it('EVM-043 AC4 the list with a customerId: no session 401, the mobile channel 403 channel_not_allowed', async () => {
+  it('EVM-043 AC4 the list with a customerId: no session 401, the mobile channel 403 forbidden', async () => {
     const jan = await insertCustomer(admin(), { lastName: 'Przykładowy' });
     const anonymous = await request(current.app.getHttpServer()).get(`${PATH}?customerId=${jan}`);
     expect(anonymous.status).toBe(401);
     const user = await createUser(admin(), current.clock, { role: 'editor' });
     const mobile = await createSession(admin(), current.clock, user, { channel: 'mobile' });
     const denied = await get(mobile.cookie, `?customerId=${jan}`);
-    expect([denied.status, (denied.body as { code: string }).code]).toEqual([403, 'channel_not_allowed']);
+    expect([denied.status, (denied.body as { code: string }).code]).toEqual([403, 'forbidden']);
   });
 
   it('EVM-072 AC1 orders of different customers show the name of THEIR customer and the city, the street and the building number of THEIR site — nothing more of the address', async () => {
