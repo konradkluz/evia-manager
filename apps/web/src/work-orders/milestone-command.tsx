@@ -1,11 +1,11 @@
 import {
+  listPaymentMilestones,
   transitionPaymentMilestone,
   updatePaymentMilestone,
   type PaymentMilestone,
   type PaymentMilestoneList,
   type PaymentMilestonePatch,
   type PaymentMilestoneTransition,
-  type WorkOrderDetails,
 } from '@evia/contracts';
 import { Button, InlineAlert } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -19,7 +19,13 @@ import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { useSession } from '../session/session.ts';
 import { useStateWord } from './edit-failure.ts';
 import { etagOf, normalizeName } from './milestone-form.ts';
-import { WORK_ORDER_HEADER_KEY, WORK_ORDER_JOURNAL_KEY, WORK_ORDER_PAYMENTS_KEY, WORK_ORDERS_KEY } from './query-keys.ts';
+import {
+  UNPAID_PAYMENTS_KEY,
+  WORK_ORDER_HEADER_KEY,
+  WORK_ORDER_JOURNAL_KEY,
+  WORK_ORDER_PAYMENTS_KEY,
+  WORK_ORDERS_KEY,
+} from './query-keys.ts';
 
 /** The range of the days the API accepts for the invoice, the due date and the payment (Q3a; `out_of_range` otherwise). */
 export const DAY_MIN = '2000-01-01';
@@ -101,6 +107,20 @@ export type CommandFailure =
   | { readonly kind: 'closed' | 'gone' | 'forbidden' | 'failed' | 'inProgress' }
   | { readonly kind: 'rate'; readonly seconds: number };
 
+/**
+ * The order a command is about, as much as the dialogs need: W-06 has the whole order, W-11 only the reference of the row (the
+ * identifier, the number and the title; EVM-055). `status` is unknown in W-11 — the alert of a closed order then says it without the state.
+ */
+export interface MilestoneOrder {
+  readonly id: string;
+  readonly number: string;
+  readonly title: string;
+  readonly status?: string;
+}
+
+/** What a command needs of the instalment it was opened for (the row of W-11 carries no more than this). */
+export type OpenedMilestone = Pick<PaymentMilestone, 'id' | 'name' | 'invoiceNumber' | 'amount' | 'dueDate' | 'status' | 'version'>;
+
 export type CommandRequest =
   | { readonly kind: 'transition'; readonly body: PaymentMilestoneTransition }
   | { readonly kind: 'patch'; readonly body: PaymentMilestonePatch };
@@ -114,7 +134,7 @@ export type CommandRequest =
  * - `409 work_order_closed`, `404`, `403`, `429`, `409 idempotency_in_progress`, `428` and the failures of the network — the alert;
  * - `400` (and `422 transition_condition_not_met` of a day of the payment in the future) — the messages under the fields.
  */
-export function useMilestoneCommand(order: WorkOrderDetails, opened: PaymentMilestone) {
+export function useMilestoneCommand(order: MilestoneOrder, opened: OpenedMilestone) {
   const client = useApi();
   const queryClient = useQueryClient();
   const attempt = useAttempt();
@@ -139,10 +159,25 @@ export function useMilestoneCommand(order: WorkOrderDetails, opened: PaymentMile
     },
   });
 
-  /** Reads the instalments again and returns this one as the server has it now (`undefined` — gone). */
+  /**
+   * Reads the instalments of the order again and returns this one as the server has it now (`undefined` — gone). The read is made
+   * here, not only refreshed: in W-11 nothing else holds the instalments of the order (the list shows invoiced ones only, so a paid
+   * one is gone from it). A failed read leaves what the cache had. The unpaid list is read again too (EVM-055).
+   */
   const reread = async (): Promise<PaymentMilestone | undefined> => {
-    await queryClient.refetchQueries({ queryKey: paymentsKey });
-    return queryClient.getQueryData<PaymentMilestoneList>(paymentsKey)?.items.find((entry) => entry.id === opened.id);
+    void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
+    let list: PaymentMilestoneList | undefined;
+    try {
+      list = await queryClient.query({
+        queryKey: paymentsKey,
+        queryFn: ({ signal }) => unwrap(listPaymentMilestones({ client, signal, path: { workOrderId: order.id } })),
+        staleTime: 0,
+        gcTime: 0,
+      });
+    } catch {
+      list = queryClient.getQueryData<PaymentMilestoneList>(paymentsKey);
+    }
+    return list?.items.find((entry) => entry.id === opened.id);
   };
 
   const fieldsOf = (error: ApiError): MilestoneFieldErrors => {
@@ -218,6 +253,8 @@ export function useMilestoneCommand(order: WorkOrderDetails, opened: PaymentMile
             // EVM-054 AC3: a change of the status wrote an event of the journal; an open "Dziennik" shows it without a reload.
             void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
             void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
+            // EVM-055: the unpaid list (W-11) is the same fact: a paid or corrected instalment changes its rows, tiles and sum.
+            void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
             onSaved(saved);
           },
           onError,
@@ -244,7 +281,7 @@ export function CommandAlert({
   onRefresh,
 }: {
   readonly failure: CommandFailure | null;
-  readonly orderStatus: string;
+  readonly orderStatus: string | undefined;
   readonly onRefresh: () => void;
 }) {
   const { t } = useTranslation();
@@ -257,6 +294,9 @@ export function CommandAlert({
       case 'changed':
         return t('workOrder.milestoneDialog.changed', { status: statusLabel(failure.status) });
       case 'closed': {
+        if (orderStatus === undefined) {
+          return role === 'editor' ? t('workOrder.paymentDialog.closedUnknownEditor') : t('workOrder.paymentDialog.closedUnknown');
+        }
         const state = stateWord(orderStatus);
         return role === 'editor' ? t('workOrder.paymentDialog.closedEditor', { state }) : t('workOrder.paymentDialog.closed', { state });
       }

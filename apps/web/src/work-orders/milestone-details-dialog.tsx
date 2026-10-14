@@ -1,4 +1,4 @@
-import type { PaymentMilestone, PaymentMilestonePatch, WorkOrderDetails } from '@evia/contracts';
+import type { PaymentMilestone, PaymentMilestonePatch } from '@evia/contracts';
 import { Banner, Button, DateField, Dialog, ErrorSummary, TextField, WifiOff } from '@evia/ui-web';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import {
   useFieldMessage,
   useMilestoneCommand,
   type MilestoneField,
+  type MilestoneOrder,
   type MilestoneFieldErrors,
 } from './milestone-command.tsx';
 import { normalizeName, useMilestoneName } from './milestone-form.ts';
@@ -33,7 +34,7 @@ export function MilestoneDetailsDialog({
   onClose,
   onSaved,
 }: {
-  readonly order: WorkOrderDetails;
+  readonly order: MilestoneOrder;
   readonly milestone: PaymentMilestone;
   readonly onClose: () => void;
   readonly onSaved: (saved: PaymentMilestone) => void;

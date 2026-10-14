@@ -18,6 +18,14 @@ import {
   paymentsCondition,
   paymentsEffect,
 } from './mock-payments.ts';
+import {
+  answerUnpaidList,
+  answerUnpaidOrderPayments,
+  answerUnpaidTransition,
+  isUnpaidOrder,
+  newUnpaidServer,
+  type UnpaidServer,
+} from './mock-unpaid.ts';
 import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
@@ -95,6 +103,8 @@ export interface MockApi {
   parties: MockParty[];
   /** EVM-022: the catalogue of templates, the users who can be a coordinator and the orders created so far (W-05, W-10). */
   orders: OrderServer;
+  /** EVM-055: the twelve invoiced instalments of W-11 (the unpaid list). */
+  unpaid: UnpaidServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -383,6 +393,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       goneSites: new Set(),
       goneParties: new Set(),
     },
+    unpaid: newUnpaidServer(),
     journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
@@ -619,6 +630,30 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           },
         }),
       );
+    }
+    // EVM-055: the unpaid list of W-11 (every role of the office reads it).
+    if (request.method() === 'GET' && url.pathname === '/api/v1/payment-milestones') {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      return route.fulfill(answerUnpaidList(api.unpaid, url.searchParams));
+    }
+    // EVM-055: the instalments of the twelve orders of W-11 (what the dialog reads on a `412`) and the payment of one.
+    const unpaidOrder = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36})\/transitions)?$/.exec(
+      url.pathname,
+    );
+    if (unpaidOrder !== null && isUnpaidOrder(api.unpaid, unpaidOrder[1] ?? '')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (request.method() === 'GET' && unpaidOrder[2] === undefined)
+        return route.fulfill(answerUnpaidOrderPayments(api.unpaid, unpaidOrder[1] ?? ''));
+      if (request.method() === 'POST' && unpaidOrder[2] !== undefined) {
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        return route.fulfill(
+          answerUnpaidTransition(api.unpaid, unpaidOrder[1] ?? '', unpaidOrder[2], {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            raw: request.postData() ?? '{}',
+          }),
+        );
+      }
     }
     // EVM-053: the instalments of one order — the list, "Dodaj transzę" and "Zmień kwotę" (the section "Płatności" of W-06).
     // EVM-054: also the transitions of an instalment (`…/{milestoneId}/transitions`).

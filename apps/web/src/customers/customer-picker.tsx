@@ -15,8 +15,8 @@ export interface CustomerPickerProps {
   readonly selected: PickedCustomer | null;
   readonly onSelect: (customer: PickedCustomer) => void;
   readonly onClear: () => void;
-  /** "Dodaj klienta" from the empty result (opens the dialog). */
-  readonly onAdd: () => void;
+  /** "Dodaj klienta" from the empty result (opens the dialog); without it the empty result has no action (a filter does not add customers). */
+  readonly onAdd?: () => void;
 }
 
 /**
@@ -72,7 +72,7 @@ export function CustomerPicker({ selected, onSelect, onClear, onAdd }: CustomerP
       notice = (
         <>
           <p>{t('customers.search.empty', { query: phrase })}</p>
-          <Button onClick={onAdd}>{t('customers.search.add')}</Button>
+          {onAdd === undefined ? null : <Button onClick={onAdd}>{t('customers.search.add')}</Button>}
         </>
       );
     }

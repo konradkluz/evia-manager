@@ -101,3 +101,4 @@ _—_
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-055-zestawienie-nieoplaconych` ułożona na EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — backend EVM-055 gotowy: kontrakt `listUnpaidPaymentMilestones`, migracja `0030`, fasada `refsOf`, serwis i testy (backend-developer); panel W-11 — kolejny krok
+- 2026-10-14 — panel W-11 gotowy (web-developer): strona `/payments`, kafle, filtry, tabela, „Odnotuj wpłatę” i menu, stany; testy komponentów i Playwright (Chromium, Firefox, Edge), axe, zrzuty w `docs/ux/reviews/EVM-055/`

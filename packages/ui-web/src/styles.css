@@ -232,6 +232,10 @@
   --text-label: var(--evm-text-label-font-size);
   --text-label--line-height: var(--evm-text-label-line-height);
   --text-label--font-weight: var(--evm-text-label-font-weight);
+  /* text.numeric-lg (§ 2.2): sums and highlighted amounts (the tiles of W-11); `tabular-nums` is set where it is used. */
+  --text-numeric-lg: var(--evm-text-numeric-lg-font-size);
+  --text-numeric-lg--line-height: var(--evm-text-numeric-lg-line-height);
+  --text-numeric-lg--font-weight: var(--evm-text-numeric-lg-font-weight);
   --text-button: var(--evm-text-button-font-size);
   --text-button--line-height: var(--evm-text-button-line-height);
   --text-button--font-weight: var(--evm-text-button-font-weight);
