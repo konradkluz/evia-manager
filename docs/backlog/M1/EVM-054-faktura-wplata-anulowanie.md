@@ -71,7 +71,40 @@ Jako **pracownik biura** chcę **odnotować wystawienie faktury, wpłatę i anul
 - Integracja z systemem fakturowym (KSeF) — M5. „Poproś administratora o korektę” — M3.
 
 ## UX / UI
-- W-06 „Płatności” i W-11: akcje w wierszu, AlertDialog z podsumowaniem (§ 4.11), DatePicker, Toast bez „Cofnij”. Stany: offline — akcje wyłączone; błąd — AC7.
+Specyfikacja ux-designer z konsultacji planu 2026-10-14 (decyzja Konrada 2026-10-14 → „Decyzje”: dialogi i toasty dopisuje ux-designer do makiety; wzorzec — dialogi „Dodaj transzę” / „Zmień kwotę”). **Wiążąca jest makieta** [08-nieoplacone.md → „Dialogi akcji transzy (EVM-054)”](../../ux/flows/08-nieoplacone.md#dialogi-akcji-transzy-evm-054); poniżej zapis z konsultacji. Wszystkie kwoty wg § 6.3, daty `DD.MM.RRRR`, każda akcja płatności **bez „Cofnij”**.
+
+**Ekrany i wejścia** (W-06 „Płatności”, W-11 — ta sama tabela akcji, bez nowych ekranów)
+- Planowana: przycisk wiersza „Wystaw fakturę…”; menu `⋮` („Akcje transzy: [nazwa]”): „Zmień kwotę…” (EVM-053), potem grupa „Anuluj transzę…”.
+- Wystawiona (także po terminie): przycisk „Odnotuj wpłatę…”; `⋮`: „Popraw dane faktury…”. Korekty (Wycofaj fakturę…, Anuluj fakturę…, Zmień kwotę…, Usuń transzę…) w osobnej grupie na końcu.
+- Opłacona: `⋮`: „Popraw datę wpłaty…”; w grupie korekt „Cofnij wpłatę…”, „Zmień kwotę…”, „Usuń transzę…”.
+- Anulowana: tylko grupa korekt („Przywróć transzę…”, „Usuń transzę…”).
+- Korekty: Edytor — pozycje widoczne, `aria-disabled`, podpowiedź „Korektę płatności może wykonać tylko administrator.” (klawiatura i dotyk też); Administrator — nie widzi ich do EVM-057 (przy Anulowanej bez `⋮`); Tylko odczyt — brak przycisków i `⋮`.
+
+**Dialogi** (Dialog / AlertDialog § 3.13 `size.dialog.width.sm`, tytuł `text.heading-3`, zlecenie `text.body-sm` `color.text.secondary`, TextField § 3.2, DatePicker § 3.5, TextArea, InlineAlert § 3.19, Button primary + tertiary „Anuluj”; danger tylko przy anulowaniu)
+1. **„Wystawić fakturę dla transzy „Zaliczka”?”** (dialog z podsumowaniem, § 4.11): pola — Kwota (wstawiona, jeśli była wpisana wcześniej; wymagana, reguły z „Zmień kwotę”), „Nr faktury lub proformy” (wymagany), „Data wystawienia” (domyślnie dziś; 01.01.2000–31.12.2100, może być przyszła), „Termin płatności” (domyślnie data wystawienia + dni z planu, edytowalny; transza ręczna bez dni — puste i wymagane; zmiana daty wystawienia przelicza termin, dopóki użytkownik go nie ruszył). Pod polami blok podsumowania (transza, zlecenie, kwota, nr, data, termin) na żywo; skutek „Cofnąć wystawienie może tylko administrator.”; przyciski „Anuluj” / „Wystaw fakturę”. Termin w przeszłości — wskazówka (nie błąd) „Termin już minął — faktura będzie od razu po terminie.”
+2. **„Odnotować wpłatę za transzę „Zaliczka”?”** — wg makiety W-11 (data wpłaty domyślnie dziś, „Nie później niż dziś.”, „Cofnąć wpłatę może tylko administrator.”, przycisk „Odnotuj wpłatę”).
+3. **„Anulować transzę „Zaliczka”?”** (z podsumowaniem): transza, udział, wymagane pole „Powód anulowania” (TextArea, zwykły tekst, limit z kontraktu, licznik znaków); skutek „Przywrócić transzę może tylko administrator.”; przyciski „Anuluj” (tertiary) / „Anuluj transzę” (danger).
+4. **„Popraw dane faktury”** (zwykły dialog, odwracalny tą samą rolą — bez podsumowania): Nr faktury lub proformy, Data wystawienia, Termin płatności; kwota tylko do odczytu (`text.body-sm`, „Kwotę zmieni administrator korektą płatności.”); „Anuluj” / „Zapisz zmiany”; „Zapisz” aktywny dopiero po zmianie.
+5. **„Popraw datę wpłaty”** (zwykły dialog): Data wpłaty (nie później niż dziś); „Anuluj” / „Zapisz datę”.
+6. **„Anuluj zlecenie…” (AC6)**: przy `422` z powodem `invoiced_milestones` w dialogu InlineAlert błędu „Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.”; zlecenie i transze bez zmian, dialog zostaje otwarty (blokada przed wysłaniem — EVM-058).
+
+**Walidacja** (pod polem + podsumowanie § 4.1): „Podaj nr faktury lub proformy.” · „Podaj kwotę większą od zera, np. 1 500,00 zł.” · „Kwota może mieć najwyżej 2 miejsca po przecinku.” · „Podaj datę z lat 2000–2100.” · „Podaj termin płatności.” · „Termin płatności nie może być wcześniejszy niż data wystawienia.” · „Data wpłaty nie może być późniejsza niż dziś.” (zarówno `400 in_future` w poprawce, jak i `422 transition_condition_not_met` przy odnotowaniu) · „Podaj powód anulowania.”
+
+**Toasty** (`role="status"`, bez akcji, § 3.14): „Wystawiono fakturę FV/TEST/0021/2026 na 1 230,00 zł, termin płatności 10.10.2026.” · „Odnotowano wpłatę 1 230,00 zł za fakturę FV/TEST/0021/2026.” · „Anulowano transzę „Zaliczka”.” · „Zapisano dane faktury FV/TEST/0021/2026.” · „Zapisano datę wpłaty 03.10.2026.”
+
+**Stany**
+- Pusty: nie dotyczy (akcje na istniejących transzach); „Brak transz.” bez zmian (EVM-053).
+- Ładowanie: przycisk główny w stanie ładowania, dialog nie zamyka się do wyniku, tabela odświeża się bez przeładowania; podsumowanie wypełnione z danych wiersza (bez spinnera).
+- Błąd: `412` / `409 invalid_state_transition` — InlineAlert „Tę transzę zmieniono w międzyczasie (teraz: «Opłacona»). [Odśwież]” (wspólny z W-06/W-11, AC7), wprowadzone dane zostają; `409 work_order_closed` — „Zlecenie jest rozliczone — płatności są tylko do odczytu.”; `428`/błąd serwera/sieci — § 6.4 („Nie udało się zapisać. Spróbuj ponownie — nie wykonamy tej operacji dwa razy.”); `429` — wzór z README; `403` (po utracie roli) — „Nie masz uprawnień do tej operacji.”
+- Offline: wiersze i `⋮` wyłączone z podpowiedzią „Zmienisz po powrocie połączenia.”; otwarty dialog zachowuje dane, przycisk operacji wyłączony z podpowiedzią „Zapiszesz po powrocie połączenia.”
+- Brak uprawnień: Tylko odczyt bez akcji; Edytor — korekty wyłączone (wyżej); transza obcego zlecenia `404` — „Nie znaleziono transzy. Odśwież zlecenie.”
+- Po terminie: w wierszu Wystawionej odznaka „Po terminie” (ikona `alarm-clock`, etykieta i liczba dni, nie sam kolor — § 4.2/4.4) obok akcji „Odnotuj wpłatę…”; po wpłacie odznaka znika (Opłacona).
+
+**Responsywność:** `breakpoint.medium` i szersze — dialog `size.dialog.width.sm`, pola w jednej kolumnie, daty obok siebie dopiero od `breakpoint.expanded`; `breakpoint.compact` (360 px) — dialog na pełną szerokość, przyciski na dole (główny nad „Anuluj”), `inputmode="decimal"` dla kwoty, podsumowanie pod polami; przycisk wiersza „Wystaw fakturę…”/„Odnotuj wpłatę…” na pełną szerokość karty transzy.
+
+**Dostępność:** pułapka fokusu, `aria-labelledby` (tytuł) i `aria-describedby` (transza, skutek); fokus przy otwarciu — dialogi 1 i 3 z polami: pierwsze pole (wymagane wprowadzenie danych), dialog 2 (bez pól do wypełnienia poza datą): „Anuluj”; po zamknięciu — wyzwalacz (przycisk wiersza albo `⋮`), po sukcesie `⋮` tej transzy; błąd — `role="alert"`, potem pole z błędem; błędy powiązane `aria-describedby`; podsumowanie na żywo bez `aria-live` (nie zalewać czytnika), wynik ogłasza toast; „zł” w nazwie dostępnej pola („Kwota, złote”); wyłączone pozycje `aria-disabled` z podpowiedzią osiągalną klawiaturą (§ 3.1); cele min. `size.control.height.web.md`, status nie tylko kolorem (ikona + etykieta: `file-text` Wystawiona, `circle-check` Opłacona, `ban` Anulowana).
+
+**Styleguide:** dialog z podsumowaniem skutku, który zawiera też pola formularza (fokus na pierwszym polu zamiast „Anuluj”) — doprecyzowanie § 4.11 zapisane jako propozycja w changelogu styleguide'u (do akceptacji Konrada).
 
 ## Bezpieczeństwo i prywatność
 | Rola | Dostęp |
@@ -91,7 +124,12 @@ Jako **pracownik biura** chcę **odnotować wystawienie faktury, wpłatę i anul
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Pełny plan (backend-developer, 2026-10-14) — plik roboczy `.scratch/EVM-054/plan.md` (poza repo). Skrót:
+- **Kontrakt (contract-first, addytywnie):** `POST …/payment-milestones/{milestoneId}/transitions` (`transitionPaymentMilestone`; A, E; `If-Match`, `Idempotency-Key`), poszerzony `PaymentMilestonePatch` (`invoiceNumber`, `invoicedOn`, `dueDate`, `paidOn`), `DELETE …/payment-milestones/{milestoneId}` (`deletePaymentMilestone` — do EVM-057 `403`, Q1), `PaymentMilestone.allowedTransitions`, `AuditEvent.fromCode`/`toCode`, grupa dziennika `payments`, kod powodu `invoiced_milestones`.
+- **Migracje (expand):** `0028` — `status_reason` i CHECK-i spójności statusu transzy (`NOT VALID` + `VALIDATE`); `0029` — `audit.events.from_code`/`to_code`.
+- **Moduły:** `payments` (czysta tabela przejść, warunki, zapis przez wspólny punkt z EVM-053, warunek `invoiced_milestones` przy anulowaniu zlecenia), `audit` (kody statusów), `timeline` (zdarzenie transzy; nowa zależność `timeline → payments` tylko przez `index.ts`), panel `apps/web/src/work-orders`.
+- **Przegląd architekta i bezpieczeństwa (konsultacja planu 2026-10-14):** solution-architect — zgoda z uwagami (zależność `timeline → payments`, kolumny `audit.events`, kolejność kontroli PATCH); security-engineer — zgoda (K1–K14, m.in. wąski wyjątek macierzy dla `deletePaymentMilestone`); ux-designer — specyfikacja UI (sekcja „UX / UI”, makieta 08).
+- **Testy:** każde AC → testy oznaczone `EVM-054 AC#` (jednostkowe domeny, integracyjne API z macierzą ról w kontenerze, komponenty i E2E panelu).
 
 ## Decyzje
 - 2026-10-13 — Konrad zaakceptował (rekomendacje P1–P7 z `/refine` EVM-053): P2 — zmiana kwoty transzy innej niż „Planowana” zwraca `403 forbidden` dla Edytora (AC5) i `403 step_up_required` dla Administratora bez step-upu (EVM-057); `409 invalid_state_transition` zostaje dla przejść spoza tabeli (AC7); P4 — zdarzenia `PaymentMilestone` dopina EVM-056, więc zapisy transz idą przez wspólny punkt z EVM-053; P6 — `model: opus`.
@@ -128,3 +166,6 @@ _—_
 - 2026-10-14 — Konrad odpowiedział na Q1–Q3 i sposób uzupełnienia makiet (wg rekomendacji, „Decyzje”); blocked → ready — ponowny `/deliver` jako nowy przebieg z decyzjami w `userNotes`
 - 2026-10-14 — ready → in-progress: ponowny `/deliver` (nowy przebieg, decyzje Q1–Q3 i specyfikacja UI w `userNotes`; ścieżka pełna, opus, gałąź ułożona na EVM-053 — PR #69)
 - 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — backend gotowy (backend-developer): kontrakt (`transitionPaymentMilestone`, poprawki w `updatePaymentMilestone`, `deletePaymentMilestone` → `403` do EVM-057), migracje `0028`/`0029`, warunek `invoiced_milestones`, audyt z kodami statusów, dziennik „Płatności”; testy AC1–AC8 zielone w kontenerze; panel — krok web-developera
+- 2026-10-14 — panel gotowy (web-developer): akcje transz wg tabeli makiety (korekty Edytora wyłączone, Administratora ukryte do EVM-057), dialogi „Wystaw fakturę…”, „Odnotuj wpłatę…”, „Anuluj transzę…”, „Popraw dane faktury…”, „Popraw datę wpłaty…”, komunikat AC6 w „Anuluj zlecenie…”, filtr „Płatności” w dzienniku; testy komponentów i E2E (Chromium, Firefox, Edge) zielone; zrzuty w `docs/ux/reviews/EVM-054/`
+- 2026-10-14 — poprawki runda 1 (backend-developer): specyfikacja dialogów akcji transzy, walidacji, toastów i stanów dopisana do makiety `08-nieoplacone.md` („Dialogi akcji transzy (EVM-054)”); fokus na pierwszym polu oznaczony jako zależny od akceptacji propozycji § 4.11; skrót planu technicznego w historyjce
