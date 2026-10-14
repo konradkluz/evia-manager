@@ -4,7 +4,7 @@ title: Limit 300 żądań na minutę na użytkownika (SR-API-02)
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P2
 path: pelna
 owner: backend-developer
@@ -51,6 +51,12 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - Mobile/synchronizacja (M2): partia ≤ 50 mutacji liczy się jako jedno żądanie; wartość 300/min trzeba ponownie ocenić przy EVM synchronizacji.
 - Decyzja 2026-10-14 (Konrad): akceptacja niskiego ryzyka rezydualnego — `logout` zostaje objęty limitem na użytkownika (przejęta sesja może wyczerpać wspólny limit konta i na ≤ 60 s uniemożliwić wylogowanie ofierze; pomaga unieważnienie sesji przez Administratora). AC2 bez zmian; rekomendowane przez security-engineera zwolnienie `logout` flagą polityki odrzucone.
 
+## Notatki
+- Limit w `decideAccess` zaraz po ustaleniu sesji, kubełek `user` z kluczem `userId` (wspólny dla wszystkich sesji web i mobile konta); liczone 400 (schemat, parametry zapytania) i 403, nieliczone 401, operacje publiczne, health; błędy parsowania treści (400/413/415) przed guardem — tylko limit per IP. Generyczny test kontraktu `429` bez listy operacji — endpointy płatności z równoległego łańcucha objęte automatycznie po scaleniu. Bez migracji.
+- Poza planem (wykonawca): brakujące `429` w `listAssignableUsers`; typ kubełków per IP zawężony (`AddressRateBucket`).
+- Do backlogu (security/code-review, Low): osobna ograniczona mapa liczników `consumeSubject`, żeby zalew adresów nie wypierał liczników użytkowników (dziś ryzyko rezydualne w TM-22 (a)); opcjonalnie liczenie per użytkownik w middleware zaraz po `resolveAuthentication` (koszt parsowania treści).
+- TM-22 (b) — ryzyko zaakceptowane przez Konrada (zob. „Decyzje i ograniczenia”); dokumentacja bezpieczeństwa uściślona po przeglądzie (`6aecb3c`).
+
 ## Dziennik
 - 2026-10-08 — utworzono (propozycja z przeglądu EVM-022)
 - 2026-10-13 — refinement: zakres limitu (odczyty + zapisy wg ADR-0004), co się liczy, brak liczenia 401 i `health`; tytuł uogólniony (product-owner)
@@ -58,3 +64,6 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-082-limit-na-uzytkownika` ułożona na EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — implementacja (backend-developer): limit 300/min na użytkownika w `decideAccess` (klucz — userId, `consumeSubject`, kubełek `user`), `429` w kontrakcie `listAssignableUsers` + generyczny test kontraktu, testy `EVM-082 AC1–AC4`, dokumentacja (api-guidelines, TM-22, SR-API-02, CHANGELOG)
 - 2026-10-14 — decyzja Konrada: akceptacja ryzyka — `logout` objęty limitem na użytkownika (AC2 bez zmian)
+- 2026-10-14 — potok `wf_3a556663-844`: passed po 1 rundzie (QA PASS AC1–AC4; konsultacja security przed implementacją — 10 kontroli obowiązkowych; code-reviewer i security-engineer APPROVE)
+- 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 625/626, gałęzie 469/491), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 6 wywołań agentów, ok. 0,39 mln tokenów subagentów, ok. 36 min (+ dokumentacja security ok. 0,07 mln); rundy poprawek 0; ścieżka pełna; sonnet
