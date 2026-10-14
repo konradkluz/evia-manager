@@ -25,7 +25,7 @@ export interface RateLimiter {
 
 export const RATE_LIMITER = Symbol('RATE_LIMITER');
 
-/** Limits per minute: per client address, or per user for `search` (api-guidelines.md → Limity; P10). */
+/** Limits per minute: per client address, or per user for `search` and `user` (api-guidelines.md → Limity; P10; EVM-082). */
 export const RATE_LIMITS = Object.freeze({
   /** every request */
   global: 1200,
