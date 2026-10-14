@@ -7,6 +7,7 @@ import {
   IconButton,
   Plus,
   StatusBadge,
+  type ActionMenuItem,
   type DataTableColumn,
   type DataTableRow,
 } from '@evia/ui-web';
@@ -18,8 +19,14 @@ import { useSession } from '../session/session.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { useStateWord } from './edit-failure.ts';
 import { MilestoneAddDialog } from './milestone-add-dialog.tsx';
+import { milestoneActions, type MilestoneAction, type MilestoneActions } from './milestone-actions.ts';
 import { MilestoneAmountDialog } from './milestone-amount-dialog.tsx';
+import { MilestoneCancelDialog } from './milestone-cancel-dialog.tsx';
+import { MilestoneDetailsDialog } from './milestone-details-dialog.tsx';
 import { MILESTONES_MAX, paymentBadgeKey, useMilestoneName } from './milestone-form.ts';
+import { MilestoneInvoiceDialog } from './milestone-invoice-dialog.tsx';
+import { MilestonePaidOnDialog } from './milestone-paid-on-dialog.tsx';
+import { MilestonePaymentDialog } from './milestone-payment-dialog.tsx';
 import { formatMoney } from './money.ts';
 import { formatDueDate } from './procedure-format.ts';
 import { SectionError, SectionLoading } from './section-states.tsx';
@@ -28,15 +35,23 @@ import { isClosed } from './transition-actions.ts';
 /** The heading of the section (`#platnosci`): the target of the link "kwoty transz" of the banner of an order from the field (E13). */
 export const PAYMENTS_HEADING_ID = 'platnosci';
 
-type Dialog = { readonly kind: 'add' } | { readonly kind: 'amount'; readonly milestoneId: string };
+/** The dialogs a row opens (EVM-053: the amount; EVM-054: the invoice, the payment, the cancellation and the corrections of the data). */
+type RowDialog = 'amount' | 'invoice' | 'pay' | 'cancel' | 'details' | 'paidOn';
+// The instalment as the row showed it stays with the dialog: when a refresh drops it (gone, `404`), the dialog still says so.
+type Dialog = { readonly kind: 'add' } | { readonly kind: RowDialog; readonly milestone: PaymentMilestone };
+
+const ROW_DIALOGS: ReadonlySet<MilestoneAction> = new Set<MilestoneAction>(['amount', 'invoice', 'pay', 'cancel', 'details', 'paidOn']);
+const isRowDialog = (action: MilestoneAction): action is RowDialog => ROW_DIALOGS.has(action);
 
 /**
- * The section "Płatności" of W-06 (EVM-053 AC2–AC5, AC7, AC8; flows/03 and flows/08): the instalments of the order in a DataTable
- * (§ 3.6) — the name with the share of the plan, the amount (`text.numeric`, "3 600,00 zł"), the status (StatusBadge § 3.9), the
- * number of the invoice and the due date — and the totals "Nieopłacone … · Opłacone …" as the server counted them (the same policy
- * as the list, SR-AUTHZ-03). Administrator and Editor add an instalment ("Dodaj transzę") and change the amount of a planned one
- * (menu `⋮`); Tylko odczyt sees everything without actions (P6). The actions are disabled with a reason for a closed order (PO-8),
- * offline and at the limit of 20 — the server decides all the same. Names are free text: React text only (SR-WEB-03).
+ * The section "Płatności" of W-06 (EVM-053 AC2–AC5, AC7, AC8; EVM-054 AC1–AC5, AC7, AC8; flows/03 and flows/08): the instalments of
+ * the order in a DataTable (§ 3.6) — the name with the share of the plan, the amount (`text.numeric`, "3 600,00 zł"), the status
+ * (StatusBadge § 3.9), the number of the invoice and the due date — and the totals "Nieopłacone … · Opłacone …" as the server
+ * counted them (the same policy as the list, SR-AUTHZ-03). Administrator and Editor add an instalment ("Dodaj transzę") and run the
+ * actions of the table of the mockup (`milestoneActions`): the button of the row ("Wystaw fakturę…", "Odnotuj wpłatę…") and the
+ * menu `⋮`; the corrections of payments are disabled for the Editor and hidden for the Administrator until EVM-057; Tylko odczyt
+ * sees everything without actions (P6). The actions are disabled with a reason for a closed order (PO-8), offline and at the limit
+ * of 20 — the server decides all the same. Names are free text: React text only (SR-WEB-03).
  */
 export function PaymentsSection({
   order,
@@ -74,7 +89,15 @@ export function PaymentsSection({
     setFocusId(null);
   }, [focusId, items]);
 
-  const edited = dialog?.kind === 'amount' ? items?.find((entry) => entry.id === dialog.milestoneId) : undefined;
+  const edited =
+    dialog === null || dialog.kind === 'add' ? undefined : (items?.find((entry) => entry.id === dialog.milestone.id) ?? dialog.milestone);
+  const close = () => {
+    setDialog(null);
+  };
+  const saved = (milestone: PaymentMilestone) => {
+    setDialog(null);
+    setFocusId(milestone.id);
+  };
   const addButton = canEdit ? (
     <Button
       variant="tertiary"
@@ -114,10 +137,10 @@ export function PaymentsSection({
           <div ref={table} className="flex flex-col items-start gap-stack-sm">
             <MilestoneTable
               items={items}
-              canEdit={canEdit}
+              role={role}
               reason={reason}
-              onChangeAmount={(milestoneId) => {
-                setDialog({ kind: 'amount', milestoneId });
+              onAction={(action, milestone) => {
+                if (isRowDialog(action)) setDialog({ kind: action, milestone });
               }}
             />
             {addButton}
@@ -134,57 +157,112 @@ export function PaymentsSection({
       ) : (
         <SectionLoading lines={3} />
       )}
-      {dialog?.kind === 'add' ? (
-        <MilestoneAddDialog
-          order={order}
-          onClose={() => {
-            setDialog(null);
-          }}
-          onSaved={(saved) => {
-            setDialog(null);
-            setFocusId(saved.id);
-          }}
-        />
-      ) : null}
-      {edited === undefined ? null : (
-        <MilestoneAmountDialog
-          key={edited.id}
+      {dialog?.kind === 'add' ? <MilestoneAddDialog order={order} onClose={close} onSaved={saved} /> : null}
+      {edited === undefined || dialog === null || dialog.kind === 'add' ? null : (
+        <RowDialogOf
+          key={`${dialog.kind}-${edited.id}`}
+          kind={dialog.kind}
           order={order}
           milestone={edited}
-          onClose={() => {
-            setDialog(null);
-          }}
-          onSaved={(saved) => {
-            setDialog(null);
-            setFocusId(saved.id);
-          }}
+          onClose={close}
+          onSaved={saved}
         />
       )}
     </section>
   );
 }
 
+function RowDialogOf({
+  kind,
+  order,
+  milestone,
+  onClose,
+  onSaved,
+}: {
+  readonly kind: RowDialog;
+  readonly order: WorkOrderDetails;
+  readonly milestone: PaymentMilestone;
+  readonly onClose: () => void;
+  readonly onSaved: (saved: PaymentMilestone) => void;
+}) {
+  const props = { order, milestone, onClose, onSaved };
+  switch (kind) {
+    case 'amount':
+      return <MilestoneAmountDialog {...props} />;
+    case 'invoice':
+      return <MilestoneInvoiceDialog {...props} />;
+    case 'pay':
+      return <MilestonePaymentDialog {...props} />;
+    case 'cancel':
+      return <MilestoneCancelDialog {...props} />;
+    case 'details':
+      return <MilestoneDetailsDialog {...props} />;
+    case 'paidOn':
+      return <MilestonePaidOnDialog {...props} />;
+  }
+}
+
+/** The items of the menu `⋮`: a separator before each new group, the cancellation as a destructive item, the reasons of § 4.13. */
+function menuItems(
+  actions: MilestoneActions,
+  labels: Readonly<Record<MilestoneAction, string>>,
+  reason: string | undefined,
+  adminOnly: string,
+  onSelect: (action: MilestoneAction) => void,
+): ActionMenuItem[] {
+  return actions.menu.map((entry, index) => {
+    const hint = reason ?? (entry.correction === true ? adminOnly : undefined);
+    return {
+      id: entry.action,
+      label: labels[entry.action],
+      onSelect: () => {
+        onSelect(entry.action);
+      },
+      ...(index > 0 && entry.group !== actions.menu[index - 1]?.group ? { startsGroup: true } : {}),
+      ...(entry.action === 'cancel' ? { tone: 'danger' as const } : {}),
+      ...(hint === undefined ? {} : { disabledHint: hint }),
+    };
+  });
+}
+
 function MilestoneTable({
   items,
-  canEdit,
+  role,
   reason,
-  onChangeAmount,
+  onAction,
 }: {
   readonly items: readonly PaymentMilestone[];
-  readonly canEdit: boolean;
+  readonly role: string | undefined;
   readonly reason: string | undefined;
-  readonly onChangeAmount: (milestoneId: string) => void;
+  readonly onAction: (action: MilestoneAction, milestone: PaymentMilestone) => void;
 }) {
   const { t } = useTranslation();
   const nameOf = useMilestoneName();
   const none = t('workOrder.payments.none');
+  const canEdit = role === 'administrator' || role === 'editor';
+  const labels: Readonly<Record<MilestoneAction, string>> = {
+    invoice: t('workOrder.payments.invoice'),
+    pay: t('workOrder.payments.pay'),
+    amount: t('workOrder.payments.changeAmount'),
+    cancel: t('workOrder.payments.cancel'),
+    details: t('workOrder.payments.details'),
+    paidOn: t('workOrder.payments.paidOn'),
+    withdrawInvoice: t('workOrder.payments.withdrawInvoice'),
+    cancelInvoice: t('workOrder.payments.cancelInvoice'),
+    correctAmount: t('workOrder.payments.correctAmount'),
+    undoPayment: t('workOrder.payments.undoPayment'),
+    restore: t('workOrder.payments.restore'),
+    delete: t('workOrder.payments.delete'),
+  };
+  const adminOnly = t('workOrder.payments.adminOnly');
   const columns: DataTableColumn[] = [
     { id: 'name', header: t('workOrder.payments.columnName'), card: 'primary' },
     { id: 'amount', header: t('workOrder.payments.columnAmount'), numeric: true, card: 'meta', cardLabel: true },
     { id: 'status', header: t('workOrder.payments.columnStatus'), card: 'badge' },
     { id: 'invoice', header: t('workOrder.payments.columnInvoice'), card: 'detail', cardLabel: true },
     { id: 'due', header: t('workOrder.payments.columnDue'), numeric: true, card: 'detail', cardLabel: true },
-    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'action' as const }] : []),
+    // EVM-054: the button of the row stretches over the narrow card (flows/08 → "Responsywność"), so the actions take a full line there.
+    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'detail' as const }] : []),
   ];
   const rows: DataTableRow[] = items.map((milestone) => {
     const name = nameOf(milestone);
@@ -216,32 +294,41 @@ function MilestoneTable({
       milestone.dueDate === null ? none : formatDueDate(milestone.dueDate),
     ];
     if (canEdit) {
+      const actions = milestoneActions(milestone.status, role);
+      const primary = actions.primary;
+      const select = (action: MilestoneAction) => {
+        onAction(action, milestone);
+      };
       cells.push(
-        // Only "Zmień kwotę…" of a planned instalment exists in this version; the other actions arrive with EVM-054 and EVM-057.
-        milestone.status === 'planned' ? (
-          <ActionMenu
-            key="actions"
-            label={t('workOrder.payments.menuLabel', { name })}
-            items={[
-              {
-                id: 'amount',
-                label: t('workOrder.payments.changeAmount'),
-                onSelect: () => {
-                  onChangeAmount(milestone.id);
-                },
-                ...(reason === undefined ? {} : { disabledHint: reason }),
-              },
-            ]}
-            trigger={(props) => (
-              <IconButton
-                {...props}
-                data-milestone={milestone.id}
-                icon={EllipsisVertical}
-                label={t('workOrder.payments.menuLabel', { name })}
-              />
-            )}
-          />
-        ) : null,
+        <div key="actions" className="flex items-center justify-end gap-inline-sm">
+          {primary === undefined ? null : (
+            <Button
+              variant="secondary"
+              className="max-medium:flex-1"
+              disabled={reason !== undefined}
+              {...(reason === undefined ? {} : { title: reason })}
+              onClick={() => {
+                select(primary);
+              }}
+            >
+              {labels[primary]}
+            </Button>
+          )}
+          {actions.menu.length === 0 ? null : (
+            <ActionMenu
+              label={t('workOrder.payments.menuLabel', { name })}
+              items={menuItems(actions, labels, reason, adminOnly, select)}
+              trigger={(props) => (
+                <IconButton
+                  {...props}
+                  data-milestone={milestone.id}
+                  icon={EllipsisVertical}
+                  label={t('workOrder.payments.menuLabel', { name })}
+                />
+              )}
+            />
+          )}
+        </div>,
       );
     }
     return { id: milestone.id, cells };

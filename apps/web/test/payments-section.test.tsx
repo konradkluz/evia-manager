@@ -138,7 +138,7 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
     expect(names).toEqual(['Zaliczka (20%)', 'Po uzyskaniu zgód (30%)', 'Po wykonaniu instalacji (30%)', 'Płatność końcowa (20%)']);
   });
 
-  it('EVM-053 AC2 in the narrow card the amount, the invoice number and the due date say what they are; the menu sits at the top right', async () => {
+  it('EVM-053 AC2 EVM-054 AC5 in the narrow card the amount, the invoice number and the due date say what they are; the actions take a full line', async () => {
     await renderPanel(PATH, api());
     await paymentsReady();
     const cells = within(rowOf('Po uzyskaniu zgód (30%)')).getAllByRole('cell');
@@ -152,15 +152,17 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
     ]);
     // the labels are for the cards only: from breakpoint.medium the column headers say it
     for (const cell of [cells[1], cells[3], cells[4]]) expect(cell?.querySelector('span')?.className).toContain('medium:hidden');
-    expect(cells[5]?.className).toContain('max-medium:row-start-2');
-    expect(cells[5]?.className).not.toContain('max-medium:col-span-3');
+    // EVM-054 ("UX / UI" → "Responsywność"): the button of the row stretches over the card, so the actions are a full line of their own
+    expect(cells[5]?.className).toContain('max-medium:col-span-3');
   });
 
-  it('EVM-053 AC2 only a planned instalment has the menu "Zmień kwotę…" (the other actions are EVM-054)', async () => {
+  it('EVM-053 AC2 EVM-054 AC5 the Administrator has a menu for every instalment but a cancelled one (its corrections come with EVM-057)', async () => {
     await renderPanel(PATH, api());
     await paymentsReady();
     expect(screen.getAllByRole('button', { name: /^Akcje transzy:/ }).map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Akcje transzy: Zaliczka (20%)',
       'Akcje transzy: Po uzyskaniu zgód (30%)',
+      'Akcje transzy: Po wykonaniu instalacji (30%)',
     ]);
   });
 
