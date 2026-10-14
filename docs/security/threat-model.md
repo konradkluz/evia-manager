@@ -797,6 +797,14 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Konsekwencja innego wyboru:** płatne konto Grafana (do 3 stosów) albo samodzielny hosting; osobne projekty Sentry albo GlitchTip (ADR-0013) — godziny pracy, zmiana tokenów i DSN, wyższy koszt.
 - **Decyzja Konrada:** zaakceptowane przez Konrada 2026-10-13 (ADR-0018, decyzja 6).
 
+### RR-25 — Nazwa ręcznie dodanego etapu procesu: brak edycji i redakcji (EVM-042)
+- **Opis:** nazwa etapu (tekst swobodny, do 120 znaków) może zawierać dane osoby, mimo ostrzeżenia w panelu. Nazwy nie można zmienić (`400 read_only_field`), a po usunięciu etapu zostaje w bazie i w dzienniku (`procedureStageName`, zdarzenie `stage_added`) widoczna dla A, E i R. Brak redakcji (inaczej niż `TimelineEntry`). Żądanie z art. 16/17 RODO w tym polu da się spełnić dopiero przez purge całego zlecenia.
+- **Źródło:** EVM-042; TM-86 (analogia: dane osobowe w polach swobodnych); SR-PRIV-03; CWE-359; ASVS V8.3.
+- **Ryzyko po mitygacjach:** P2 × W1 = 2 Low (ostrzeżenie w panelu, nazwa poza audytem, logami i komunikatami błędów).
+- **Rekomendacja:** **akceptuj**; alternatywa: kolejna historyjka (`/refine`) — edycja `name` etapów `custom_` w PATCH (zdarzenie audytu bez wartości) i/lub redakcja nazwy przez Administratora ze step-upem wg wzorca `TimelineEntry`.
+- **Konsekwencja innego wyboru:** koszt dodatkowej historyjki i migracji; do tego czasu sprostowanie = usunięcie i dodanie etapu.
+- **Decyzja Konrada:** oczekuje na akceptację.
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.
