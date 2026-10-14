@@ -151,6 +151,7 @@ describe('the section "Płatności" (EVM-053 AC2, AC7; P6)', () => {
         'paidOn',
         'isOverdue',
         'version',
+        'allowedTransitions',
       ].sort(),
     );
   });
@@ -240,7 +241,7 @@ describe('"Zmień kwotę" — the amount of a planned milestone (EVM-053 AC3, AC
     expect(await auditOf(milestoneId)).toEqual([]);
   });
 
-  it('EVM-053 AC3 the amount of a milestone in another status than "Planowana" is 403 forbidden for the Editor and the Administrator (a correction — EVM-057); a stale version is 412 first', async () => {
+  it('EVM-053 AC3 EVM-054 AC5 the amount of a milestone in another status than "Planowana" is 403 forbidden for the Editor and the Administrator (a correction — EVM-057), before the version (the order of EVM-054: 403 before 409 before 412)', async () => {
     const created = await order({ milestones: [{ status: 'invoiced', amountMinor: 100 }, { status: 'paid' }, { status: 'cancelled' }] });
     for (const role of ['editor', 'administrator'] as const) {
       const browser = await signIn(role);
@@ -250,7 +251,7 @@ describe('"Zmień kwotę" — the amount of a planned milestone (EVM-053 AC3, AC
         expect(codeOf(response.body)).toBe('forbidden');
       }
       const stale = await patch(browser, created.id, created.milestoneIds[0] ?? '', { amount: pln(360000) }, { ifMatch: '"5"' });
-      expect(stale.status).toBe(412);
+      expect(stale.status).toBe(403);
     }
     expect(await rowOf(created.milestoneIds[0] ?? '')).toMatchObject({ amount_minor: '100', version: 1, status: 'invoiced' });
   });
@@ -275,11 +276,23 @@ describe('"Zmień kwotę" — the amount of a planned milestone (EVM-053 AC3, AC
     expect(await auditOf(invoiced ?? '')).toEqual([]);
   });
 
-  it('EVM-053 AC7 SR-AUTHZ-04 the fields of the server — status, sharePercent, name, id, version — are read_only_field; a stranger is unknown_field', async () => {
+  it('EVM-053 AC7 EVM-054 AC4 SR-AUTHZ-04 the fields of the server — status, sharePercent, name, id, version, allowedTransitions, the reason — are read_only_field; a stranger is unknown_field', async () => {
     const editor = await signIn();
     const created = await order({ milestones: [{}] });
     const milestoneId = created.milestoneIds[0] ?? '';
-    for (const field of ['status', 'sharePercent', 'name', 'id', 'version', 'code', 'position', 'invoiceNumber', 'dueDate', 'isOverdue']) {
+    for (const field of [
+      'status',
+      'sharePercent',
+      'name',
+      'id',
+      'version',
+      'code',
+      'position',
+      'paymentTermDays',
+      'isOverdue',
+      'allowedTransitions',
+      'statusReason',
+    ]) {
       const response = await patch(editor, created.id, milestoneId, { amount: pln(1), [field]: 'paid' });
       expect(response.status, field).toBe(400);
       expect(errorsOf(response.body), field).toContainEqual({ pointer: `/${field}`, code: 'read_only_field' });
