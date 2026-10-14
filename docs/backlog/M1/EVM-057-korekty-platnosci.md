@@ -64,7 +64,67 @@ Jako **Administrator** chcę **poprawiać błędy w płatnościach już wystawio
 - „Poproś administratora o korektę” z poziomu transzy — M3 (w MVP komentarz w dzienniku, scenariusz C8). Faktury korygujące w systemie fakturowym — M5.
 
 ## UX / UI
-- W-06 „Płatności” i W-11: menu `⋮` [P-1], AlertDialog z „przed i po”, W-04 „Potwierdź tożsamość, aby skorygować płatność”. Stany: AC8.
+Specyfikacja `ux-designer` (2026-10-14). Źródła: [akcje płatności](../../ux/flows/08-nieoplacone.md#akcje-płatności--status--rola), [dialogi akcji transzy](../../ux/flows/08-nieoplacone.md#dialogi-akcji-transzy-evm-054), [W-04](../../ux/flows/01-logowanie-mfa.md#w-04-ponowne-uwierzytelnienie); styleguide § 3.13, § 3.20, § 4.11, § 4.13. Bez nowych komponentów i tokenów.
+
+**Ekrany i przepływ.** Brak nowych ekranów — korekty są pozycjami grupy „Korekty” w ActionMenu `⋮` („Akcje transzy: [nazwa]”) transzy w sekcji „Płatności” W-06 i w wierszu W-11. Przepływ: pozycja menu → AlertDialog z „przed i po” → przycisk z czasownikiem → `POST`/`PATCH`/`DELETE` → gdy `403 step_up_required`, nad dialogiem otwiera się W-04 (tylko klucz dostępu, Administrator) → po sukcesie operacja wysyłana ponownie automatycznie (ten sam `Idempotency-Key`), W-04 i dialog zamykają się, toast, odświeżony wiersz. Przy świeżym step-upie (≤ 15 min) W-04 się nie pojawia. Zmiana wobec makiety EVM-054: Administrator **widzi i może użyć** pozycji korekt (także „Usuń transzę…”, a przy transzy „Anulowana” `⋮` ma „Przywróć transzę…” i „Usuń transzę…”); Edytor widzi je wyłączone; Tylko odczyt — bez `⋮`.
+
+**Dostępność pozycji** (wg tabeli akcji; pozycje w osobnej grupie „Korekty” z separatorem, na końcu menu):
+| Status | Pozycje korekt (A) |
+|---|---|
+| Wystawiona (także po terminie) | „Wycofaj fakturę…”, „Anuluj fakturę…”, „Zmień kwotę…”, „Usuń transzę…” |
+| Opłacona | „Cofnij wpłatę…”, „Zmień kwotę…”, „Usuń transzę…” |
+| Anulowana | „Przywróć transzę…”, „Usuń transzę…” |
+| Planowana | „Usuń transzę…” (jak dotąd w grupie na końcu; „Zmień kwotę…” i „Anuluj transzę…” to zwykłe akcje EVM-053/054) |
+
+Edytor: te same pozycje `aria-disabled`, podpowiedź „Korektę płatności może wykonać tylko administrator.” (hover, fokus klawiatury, dotyk). Zlecenie „Rozliczone”/„Anulowane”: wszystkie pozycje wyłączone z podpowiedzią z wiersza tabeli akcji (Administrator: „Zlecenie jest rozliczone — płatności są tylko do odczytu. Zmienisz je po przywróceniu zlecenia.”; Edytor: „…Przywrócić zlecenie może tylko administrator.”). Wyścig (`409 work_order_closed` w dialogu) — tekst z AC7 dla każdej roli. Uwaga: AC7 dla Administratora cytuje wariant „Przywrócić zlecenie może tylko administrator.” (zdanie bezosobowe, prawdziwe też dla A) — w dialogu zostaje on, a rozbieżność z podpowiedzią w menu to pytanie do ujednolicenia przy aktualizacji flows (wspólny tekst „…Przywrócić zlecenie może tylko administrator.” dla obu ról). Offline: `⋮` i pozycje wyłączone — „Zmienisz po powrocie połączenia.”
+
+**Dialogi** (AlertDialog `size.dialog.width.sm`, tytuł-pytanie `text.heading-3`, zlecenie `text.body-sm` `color.text.secondary`, układ „przed → po” w `text.numeric`, tabular-nums; ostatnie zdanie zawsze „Operacja zostanie zapisana w dzienniku audytu.”; kwoty „3 600,00 zł” z NBSP, daty `DD.MM.RRRR`):
+| # | Tytuł | Podsumowanie (przed → po) | Skutek poza audytem | Przyciski |
+|---|---|---|---|---|
+| K1 | „Wycofać fakturę FV/TEST/0007/2026?” | „Wystawiona → Planowana” · kwota 3 600,00 zł · zlecenie, transza | „Numer faktury, data wystawienia i termin zostaną wyczyszczone.” | „Anuluj” / „Wycofaj fakturę” (danger) |
+| K2 | „Anulować fakturę FV/TEST/0007/2026?” | „Wystawiona → Anulowana” · kwota 3 600,00 zł | „Transzę będzie można przywrócić jako Planowaną.” | „Anuluj” / „Anuluj fakturę” (danger) |
+| K3 | „Cofnąć wpłatę za fakturę FV/TEST/0007/2026?” | „Opłacona → Wystawiona” · kwota · „Data wpłaty 03.10.2026 zostanie wyczyszczona.” | „Transza może od razu być po terminie, jeśli termin minął.” (gdy dotyczy) | „Anuluj” / „Cofnij wpłatę” (primary) |
+| K4 | „Zmienić kwotę transzy „Zaliczka”?” | pole „Nowa kwota” (TextField kwota, sufiks „zł”, reguły jak EVM-053/054); podsumowanie na żywo „3 600,00 zł → 3 690,00 zł”, status bez zmian, nr faktury | „Status i dane faktury zostają bez zmian.” | „Anuluj” / „Zmień kwotę” (primary; wyłączony, dopóki kwota nie różni się od bieżącej) |
+| K5 | „Przywrócić transzę „Zaliczka”?” | „Anulowana → Planowana” · udział, kwota (lub „—”) | „Transza wróci na swoje miejsce na liście.” | „Anuluj” / „Przywróć transzę” (primary) |
+| K6 | „Usunąć transzę „Zaliczka”?” | status i kwota transzy, nr faktury (jeśli jest) | „Transza zniknie z listy. Edytor i osoba z rolą Tylko odczyt jej nie zobaczą.” | „Anuluj” / „Usuń transzę” (danger) |
+
+Układ K1 (pozostałe analogicznie):
+```text
+│ Wycofać fakturę FV/TEST/0007/2026?                    [x]
+│ ZL-2026-0042 · Garaż — pełny proces · „Zaliczka”
+│ Stan:   Wystawiona → Planowana
+│ Kwota:  3 600,00 zł
+│ Numer faktury, data wystawienia i termin zostaną wyczyszczone.
+│ Operacja zostanie zapisana w dzienniku audytu.
+│                          [Anuluj]  [[ Wycofaj fakturę ]]
+```
+Stan „przed → po” to dwie StatusBadge (ikona + etykieta, `color.status.payment.*`: `invoiced` — `file-text`, `planned`, `paid` — `circle-check`, `cancelled` — `ban`), a nie sam tekst; w czytniku: „Stan: z Wystawiona na Planowana”.
+
+**W-04 (po `403 step_up_required`).** Tytuł „Potwierdź tożsamość, aby skorygować płatność”; podsumowanie (jedna linia pod tytułem) zależnie od dialogu: „Wycofanie faktury FV/TEST/0007/2026” · „Anulowanie faktury FV/TEST/0007/2026” · „Cofnięcie wpłaty za fakturę FV/TEST/0007/2026” · „Zmiana kwoty transzy „Zaliczka”: 3 600,00 zł → 3 690,00 zł” · „Przywrócenie transzy „Zaliczka”” · „Usunięcie transzy „Zaliczka””; druga linia: „Transza „Zaliczka” · ZL-2026-0042 · 3 600,00 zł”. Anulowanie W-04 (przycisk „Anuluj”, `x`, Esc): wraca AlertDialog korekty z InlineAlert (`role="alert"`) „Nie wykonano korekty.”, dane dialogu (np. kwota K4) zachowane, fokus na „Anuluj” dialogu korekty (w K4 — na polu kwoty).
+
+**Fokus.** Otwarcie K1–K3, K5, K6 (brak pól) — „Anuluj” (§ 4.11); K4 — pole „Nowa kwota” (wartość zaznaczona; zgodnie z propozycją § 4.11 z changelogu, do decyzji Konrada — bez akceptacji „Anuluj”). Zamknięcie dialogu (Anuluj, `x`, Esc) — wyzwalacz `⋮` tej transzy. Sukces — wyzwalacz `⋮` tej transzy (wiersz odświeżony); po K6 — `⋮` następnej transzy, a gdy jej nie ma — przycisk „Dodaj transzę” (wiersz przestał istnieć). Błąd — alert, potem pole z błędem. Po wyjściu z W-04 fokus wraca do przycisku metody, a po zamknięciu — do dialogu korekty.
+
+**Toasty** (`role="status"`, bez akcji): „Wycofano fakturę FV/TEST/0007/2026 — transza jest Planowana.” · „Anulowano fakturę FV/TEST/0007/2026.” · „Cofnięto wpłatę za fakturę FV/TEST/0007/2026 — transza jest Wystawiona.” · „Zmieniono kwotę transzy „Zaliczka”: 3 600,00 zł → 3 690,00 zł.” · „Przywrócono transzę „Zaliczka” — jest Planowana.” · „Usunięto transzę „Zaliczka”.”
+
+**Stany.**
+| Stan | Zachowanie |
+|---|---|
+| Pusty | Nie dotyczy (akcje na istniejących transzach); po usunięciu ostatniej transzy sekcja pokazuje „Brak transz. [Dodaj transzę]” (EVM-053); W-11 — transza znika z listy i sum. |
+| Ładowanie | Przycisk główny w stanie ładowania, dialog nie zamyka się do wyniku; podsumowanie z danych wiersza (bez spinnera); wiersz po sukcesie — skeleton wiersza do odświeżenia, nie przeładowanie strony. W-04 — przycisk metody w stanie ładowania. |
+| Błąd | `412` / `409 invalid_state_transition` — InlineAlert „Tę transzę zmieniono w międzyczasie (teraz: «Opłacona»). [Odśwież]” (wspólny z W-06 i W-11, forma bezosobowa); „Odśwież” ładuje bieżącą transzę, dialog zamyka się, jeśli korekta przestała mieć sens, a dane K4 zostają. `409 work_order_closed` — „Zlecenie jest rozliczone — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.”, przycisk operacji wyłączony. `422 transition_condition_not_met` / `400` (kwota) — komunikat pod polem K4 jak w EVM-053/054. `404` — „Nie znaleziono transzy. Odśwież zlecenie.” `403 forbidden` (utrata roli w trakcie) — „Nie masz uprawnień do tej operacji.” `429` — wzór z README. Błąd sieci/serwera — „Nie udało się zapisać. Spróbuj ponownie — nie wykonamy tej operacji dwa razy.” (ten sam klucz idempotencji). Anulowanie W-04 — „Nie wykonano korekty.” (wyżej). |
+| Offline | `⋮` i pozycje wyłączone — „Zmienisz po powrocie połączenia.”; otwarty dialog zachowuje dane, przycisk operacji wyłączony — „Zapiszesz po powrocie połączenia.”; W-04 — „Brak połączenia. Potwierdzenie wymaga połączenia z internetem.” |
+| Brak uprawnień | Edytor — pozycje korekt widoczne, `aria-disabled`, „Korektę płatności może wykonać tylko administrator.”; Tylko odczyt — bez `⋮` (tylko odczyt kwot, statusów, „Po terminie”); niezalogowany — przekierowanie do logowania (`401`); korekty tylko w panelu (kanał `web`) — w aplikacji mobilnej brak akcji. |
+| Po terminie | Po korekcie odznaka „Po terminie” (`workOrders.status.paymentOverdue`, ikona `alarm-clock`, etykieta + liczba dni) liczona ponownie: znika po „Wycofaj fakturę…” i „Anuluj fakturę…”; pojawia się po „Cofnij wpłatę…”, jeśli termin minął. Zmiana odzwierciedlona w kolumnie „Płatność” W-10 (EVM-056) po odświeżeniu danych. |
+
+**Responsywność.** `breakpoint.medium` i szersze — dialog `size.dialog.width.sm`; `breakpoint.compact` (360 px) — dialog na pełną szerokość, przyciski na dole (główny nad „Anuluj”), „przed → po” w dwóch liniach („Przed: …” / „Po: …”), `inputmode="decimal"` w K4; `⋮` ma cel dotyku ≥ 44×44 px (web) i pozycje menu min. 44 px wysokości.
+
+**Komponenty i tokeny.** ActionMenu (§ 3.20, grupa z separatorem, pozycje `aria-disabled`); AlertDialog (§ 3.13) i Dialog (K4); TextField kwota (§ 3.2, `text.numeric`); StatusBadge (§ 3.9, `color.status.payment.{planned,invoiced,paid,cancelled,overdue}.*`); InlineAlert (§ 3.19, `color.feedback.error.*` / `warning.*` dla „Nie wykonano korekty.”); Button danger/primary/tertiary (§ 3.1); Toast (§ 3.14); W-04 bez zmian (tylko nowe teksty). Brak zaszytych kolorów i rozmiarów.
+
+**Dostępność.** Pułapka fokusu i przywrócenie fokusu wg sekcji „Fokus”; `aria-labelledby` (tytuł), `aria-describedby` (podsumowanie i skutek); zmiana statusu niesiona ikoną + etykietą, nie kolorem; „zł” w nazwie dostępnej pola („Nowa kwota, złote”); `aria-disabled` + podpowiedź osiągalna klawiaturą i dotykiem (§ 3.1); strzałki/Home/End w menu; wynik ogłasza toast; błędy `role="alert"` powiązane z polem; W-04 dostępny klawiaturą, bez limitu czasu na dialogu.
+
+**Mikrocopy (komplet).** „Korekty” (etykieta grupy) · „Wycofaj fakturę…” · „Anuluj fakturę…” · „Cofnij wpłatę…” · „Zmień kwotę…” · „Przywróć transzę…” · „Usuń transzę…” · „Operacja zostanie zapisana w dzienniku audytu.” · „Korektę płatności może wykonać tylko administrator.” · „Nie wykonano korekty.” · „Potwierdź tożsamość, aby skorygować płatność” · teksty tabel i toastów wyżej. Terminologia wg `domain.md` („transza”, „Wystawiona”, „Opłacona”, „Anulowana”, „Po terminie”).
+
+**Dla implementacji / procesu.** (1) Dopisać do flows `01-logowanie-mfa.md` → „Tytuły operacji M1” wiersz korekt płatności (tytuł i podsumowania wyżej) oraz zmienić w `08-nieoplacone.md` zdanie „Administrator nie widzi ich” (EVM-054) na stan od EVM-057. (2) Test e2e ze stałym zegarem w mocku (odznaka „Po terminie”). (3) Odrzucone próby korekt w audycie (SR-LOG-06) — decyzja planu/architekta, bez wpływu na UI.
 
 ## Bezpieczeństwo i prywatność
 | Rola | Dostęp |
