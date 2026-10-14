@@ -130,13 +130,37 @@ describe('the actions of an instalment by status and role (EVM-054 AC5, AC8; flo
     expect(section.getByText('FV/TEST/0021/2026')).toBeTruthy();
   });
 
-  it('EVM-054 AC5 the row button stretches over the narrow card; the menu stays next to it', async () => {
+  it('EVM-054 AC5 the row button stands under the status (the mockup) and stretches over the narrow card; the menu has a narrow column at the end', async () => {
     await renderPanel(PAYMENTS_PATH, paymentsApi());
     await ready();
-    const button = within(rowOf('Zaliczka (20%)')).getByRole('button', { name: 'Wystaw fakturę…' });
+    const row = within(rowOf('Zaliczka (20%)'));
+    const button = row.getByRole('button', { name: 'Wystaw fakturę…' });
     expect(button.className).toContain('max-medium:flex-1');
     expect(button.className).toContain('bg-action-secondary-bg');
-    expect(button.closest('td')?.className).toContain('max-medium:col-span-3');
+    // the table needs no wide column of actions: the button is in the cell of the status, under the badge
+    const status = button.closest('td');
+    expect(status?.textContent).toContain('Planowana');
+    expect(button.parentElement?.className).toContain('max-medium:col-span-3');
+    // the menu `⋮` alone in the last column: top right of the card, its list lined up with the end of the trigger
+    const menu = row.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' });
+    const actions = menu.closest('td');
+    expect(actions).not.toBe(status);
+    expect(actions?.className).toContain('max-medium:col-start-3');
+    expect(within(actions as HTMLElement).getAllByRole('button')).toHaveLength(1);
+    expect(await axeViolations(rowOf('Zaliczka (20%)'))).toEqual([]);
+  });
+
+  it('EVM-054 AC1 the table of W-06 is dense and the number of an invoice may break after "/", so the status and the actions fit the column', async () => {
+    await renderPanel(
+      PAYMENTS_PATH,
+      paymentsApi(() => ALL, roleSession('editor')),
+    );
+    await ready();
+    expect(screen.getAllByRole('columnheader')[0]?.className).toContain('px-inset-sm');
+    const invoice = within(screen.getByRole('region', { name: 'Płatności' })).getByText('FV/TEST/0021/2026');
+    // the text stays whole for reading and copying; only the places of a line break are marked
+    expect(invoice.textContent).toBe('FV/TEST/0021/2026');
+    expect(invoice.querySelectorAll('wbr')).toHaveLength(3);
   });
 
   it.each([

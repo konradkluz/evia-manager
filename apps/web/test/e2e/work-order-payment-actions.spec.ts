@@ -203,4 +203,47 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await expect(section(page).getByRole('table', { name: 'Transze płatności zlecenia' })).toBeVisible();
     await expect(section(page).getByRole('button')).toHaveCount(0);
   });
+
+  for (const width of [360, 768, 1280, 1440]) {
+    test(`EVM-054 AC3 AC5 at ${String(width)} px the table fits W-06 and the whole menu of an instalment is in the viewport`, async ({
+      page,
+      api,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const path = await createOrder(page);
+      await issueInvoice(page);
+      api.role = 'editor';
+      await page.goto(path);
+      // § 3.6: the status and the actions of the row are visible without scrolling the frame of the table
+      const frame = section(page).getByRole('region', { name: 'Transze płatności zlecenia' });
+      await expect(frame).toBeVisible();
+      expect(await frame.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+      const row = rowOf(page, 'Zaliczka (20%)');
+      const pay = row.getByRole('button', { name: 'Odnotuj wpłatę…' });
+      await pay.scrollIntoViewIfNeeded();
+      await expect(pay).toBeInViewport({ ratio: 1 });
+      await expect(row.getByText('Wystawiona, po terminie')).toBeInViewport({ ratio: 1 });
+      // the longest menu (the Editor, "Wystawiona"): every item and the reason of AC5 are readable, nothing is cut
+      const trigger = page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' });
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const menu = page.getByRole('menu', { name: 'Akcje transzy: Zaliczka (20%)' });
+      const box = await menu.boundingBox();
+      expect(box).not.toBeNull();
+      if (box === null) return;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y + box.height).toBeLessThanOrEqual(900);
+      for (const item of await menu.getByRole('menuitem').all()) await expect(item).toBeInViewport({ ratio: 1 });
+      await expect(menu.getByText(ADMIN_ONLY).first()).toBeInViewport({ ratio: 1 });
+      await page.keyboard.press('Escape');
+      await expect(trigger).toBeFocused();
+      // "Anuluj transzę…" (AC3) of a planned instalment at the end of the table
+      const last = page.getByRole('button', { name: 'Akcje transzy: Płatność końcowa (20%)' });
+      await last.scrollIntoViewIfNeeded();
+      await last.click();
+      await expect(page.getByRole('menuitem', { name: 'Anuluj transzę…' })).toBeInViewport({ ratio: 1 });
+    });
+  }
 });

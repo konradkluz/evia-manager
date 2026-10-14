@@ -145,15 +145,18 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
     expect(cells.map((cell) => cell.textContent)).toEqual([
       'Po uzyskaniu zgód (30%)',
       'Kwota: —',
-      'Planowana',
+      'PlanowanaWystaw fakturę…',
       'Nr faktury: —',
       'Termin: —',
-      expect.any(String),
+      '',
     ]);
     // the labels are for the cards only: from breakpoint.medium the column headers say it
     for (const cell of [cells[1], cells[3], cells[4]]) expect(cell?.querySelector('span')?.className).toContain('medium:hidden');
-    // EVM-054 ("UX / UI" → "Responsywność"): the button of the row stretches over the card, so the actions are a full line of their own
-    expect(cells[5]?.className).toContain('max-medium:col-span-3');
+    // EVM-054 ("UX / UI" → "Responsywność"): the button of the row stands under the status in the table and stretches over the
+    // card, a full line of its own there; the menu `⋮` stays at the top right of the card
+    const button = within(cells[2] as HTMLElement).getByRole('button', { name: 'Wystaw fakturę…' });
+    expect(button.parentElement?.className).toContain('max-medium:col-span-3');
+    expect(cells[5]?.className).toContain('max-medium:col-start-3');
   });
 
   it('EVM-053 AC2 EVM-054 AC5 the Administrator has a menu for every instalment but a cancelled one (its corrections come with EVM-057)', async () => {

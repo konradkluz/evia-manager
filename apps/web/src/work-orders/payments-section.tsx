@@ -8,11 +8,12 @@ import {
   Plus,
   StatusBadge,
   type ActionMenuItem,
+  type DataTableBadgeCell,
   type DataTableColumn,
   type DataTableRow,
 } from '@evia/ui-web';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { useSession } from '../session/session.ts';
@@ -202,6 +203,30 @@ function RowDialogOf({
   }
 }
 
+/**
+ * The number of an invoice ("FV/TEST/0021/2026") with a place for a line break after each "/" (`<wbr>`): it has no spaces, so
+ * whole it would widen its column past the column of the content of W-06. The text stays whole for reading and copying.
+ */
+function breakableInvoice(number: string): ReactNode {
+  const parts = number.split('/');
+  return (
+    <span>
+      {parts.map((part, index) => (
+        // The parts of one number never move: the index is a stable key.
+        <Fragment key={index}>
+          {part}
+          {index < parts.length - 1 ? (
+            <>
+              {'/'}
+              <wbr />
+            </>
+          ) : null}
+        </Fragment>
+      ))}
+    </span>
+  );
+}
+
 /** The items of the menu `⋮`: a separator before each new group, the cancellation as a destructive item, the reasons of § 4.13. */
 function menuItems(
   actions: MilestoneActions,
@@ -261,8 +286,9 @@ function MilestoneTable({
     { id: 'status', header: t('workOrder.payments.columnStatus'), card: 'badge' },
     { id: 'invoice', header: t('workOrder.payments.columnInvoice'), card: 'detail', cardLabel: true },
     { id: 'due', header: t('workOrder.payments.columnDue'), numeric: true, card: 'detail', cardLabel: true },
-    // EVM-054: the button of the row stretches over the narrow card (flows/08 → "Responsywność"), so the actions take a full line there.
-    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'detail' as const }] : []),
+    // EVM-054: the button of the row stands under the status (the mockup of W-06), so the last column holds only the menu `⋮`
+    // and the table fits the column of the content; in the card the button takes a full-width line (flows/08 → "Responsywność").
+    ...(canEdit ? [{ id: 'actions', header: t('workOrder.payments.columnActions'), card: 'action' as const }] : []),
   ];
   const rows: DataTableRow[] = items.map((milestone) => {
     const name = nameOf(milestone);
@@ -284,54 +310,60 @@ function MilestoneTable({
           label={key === 'overdue' ? t('workOrder.payments.overdueLabel') : paymentStatusLabels[milestone.status]}
         />
       );
-    const cells: ReactNode[] = [
+    const actions = canEdit ? milestoneActions(milestone.status, role) : { menu: [] };
+    const primary = actions.primary;
+    const select = (action: MilestoneAction) => {
+      onAction(action, milestone);
+    };
+    const status: DataTableBadgeCell =
+      primary === undefined
+        ? { badge }
+        : {
+            badge,
+            action: (
+              <Button
+                variant="secondary"
+                className="whitespace-nowrap max-medium:flex-1"
+                disabled={reason !== undefined}
+                {...(reason === undefined ? {} : { title: reason })}
+                onClick={() => {
+                  select(primary);
+                }}
+              >
+                {labels[primary]}
+              </Button>
+            ),
+          };
+    const cells: (ReactNode | DataTableBadgeCell)[] = [
       <span key="name" className="break-words">
         {name}
       </span>,
       milestone.amount === null ? none : formatMoney(milestone.amount.amountMinor),
-      badge,
-      milestone.invoiceNumber ?? none,
+      status,
+      milestone.invoiceNumber === null ? none : breakableInvoice(milestone.invoiceNumber),
       milestone.dueDate === null ? none : formatDueDate(milestone.dueDate),
     ];
     if (canEdit) {
-      const actions = milestoneActions(milestone.status, role);
-      const primary = actions.primary;
-      const select = (action: MilestoneAction) => {
-        onAction(action, milestone);
-      };
       cells.push(
-        <div key="actions" className="flex items-center justify-end gap-inline-sm">
-          {primary === undefined ? null : (
-            <Button
-              variant="secondary"
-              className="whitespace-nowrap max-medium:flex-1"
-              disabled={reason !== undefined}
-              {...(reason === undefined ? {} : { title: reason })}
-              onClick={() => {
-                select(primary);
-              }}
-            >
-              {labels[primary]}
-            </Button>
-          )}
-          {actions.menu.length === 0 ? null : (
-            <ActionMenu
-              label={t('workOrder.payments.menuLabel', { name })}
-              items={menuItems(actions, labels, reason, adminOnly, select)}
-              trigger={(props) => (
-                <IconButton
-                  {...props}
-                  data-milestone={milestone.id}
-                  icon={EllipsisVertical}
-                  label={t('workOrder.payments.menuLabel', { name })}
-                />
-              )}
-            />
-          )}
-        </div>,
+        actions.menu.length === 0 ? null : (
+          <ActionMenu
+            key="actions"
+            align="end"
+            label={t('workOrder.payments.menuLabel', { name })}
+            items={menuItems(actions, labels, reason, adminOnly, select)}
+            trigger={(props) => (
+              <IconButton
+                {...props}
+                data-milestone={milestone.id}
+                icon={EllipsisVertical}
+                label={t('workOrder.payments.menuLabel', { name })}
+              />
+            )}
+          />
+        ),
       );
     }
     return { id: milestone.id, cells };
   });
-  return <DataTable caption={t('workOrder.payments.caption')} columns={columns} rows={rows} />;
+  return <DataTable caption={t('workOrder.payments.caption')} dense columns={columns} rows={rows} />;
 }
