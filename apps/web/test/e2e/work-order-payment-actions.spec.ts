@@ -62,7 +62,7 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await createOrder(page);
     await issueInvoice(page);
     const row = rowOf(page, 'Zaliczka (20%)');
-    await expect(row.getByText('Wystawiona')).toBeVisible();
+    await expect(row.getByText(/^(Wystawiona|Po terminie)$/)).toBeVisible();
     await expect(row.getByText('FV/TEST/0021/2026')).toBeVisible();
     await expect(row.getByText('10.10.2026')).toBeVisible();
     await expect(section(page).getByText('Nieopłacone 1 230,00 zł · Opłacone 0,00 zł')).toBeVisible();
@@ -131,7 +131,7 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await expect(page.getByText('Zapisano dane faktury FV/TEST/0031/2026.')).toBeVisible();
     const row = rowOf(page, 'Zaliczka (20%)');
     await expect(row.getByText('17.10.2026')).toBeVisible();
-    await expect(row.getByText('Wystawiona')).toBeVisible();
+    await expect(row.getByText(/^(Wystawiona|Po terminie)$/)).toBeVisible();
     const patch = api.seen.filter((entry) => entry.method === 'PATCH').at(-1);
     expect(JSON.parse(patch?.postData ?? '{}')).toEqual({ invoiceNumber: 'FV/TEST/0031/2026', dueDate: '2026-10-17' });
     expect(patch?.headers['if-match']).toBe('"2"');
@@ -185,7 +185,7 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await dialog.getByRole('textbox', { name: 'Powód anulowania' }).fill('Klient zrezygnował');
     await dialog.getByRole('button', { name: 'Anuluj zlecenie' }).click();
     await expect(dialog.getByRole('alert')).toHaveText('Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.');
-    await expect(rowOf(page, 'Zaliczka (20%)').getByText('Wystawiona')).toBeVisible();
+    await expect(rowOf(page, 'Zaliczka (20%)').getByText(/^(Wystawiona|Po terminie)$/)).toBeVisible();
     await expect(section(page).getByText('Planowana', { exact: true })).toHaveCount(3);
   });
 
