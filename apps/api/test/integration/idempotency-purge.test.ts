@@ -85,10 +85,15 @@ describe('purge of expired idempotency records (EVM-079)', () => {
 
   it('EVM-079 AC1 a record that expires between runs is deleted by the next one, and an empty table is a quiet no-op', async () => {
     expect(await purger.purgeBatch(100)).toBe(0);
-    await seed(1, 1, 1);
-    expect(await purger.purgeBatch(100)).toBe(0);
-    await sql`select pg_sleep(1.2)`.execute(database.admin);
-    expect(await purger.purgeBatch(100)).toBe(1);
+    await seed(1, 1, -600); // expired ten minutes ago by the database clock, so the cap never interferes
+    const { rows } = await sql<{ expires_at: Date }>`select expires_at from platform.idempotency_records`.execute(database.admin);
+    const expiresAt = rows[0]?.expires_at.getTime() ?? 0;
+    const clock = new FixedClock(new Date(expiresAt - 1000)); // controlled instant: one second before expiry
+    const controlled = new PgIdempotencyPurger(app, clock);
+    expect(await controlled.purgeBatch(100)).toBe(0);
+    expect(await count()).toBe(1);
+    clock.advance(2000); // one second after expiry
+    expect(await controlled.purgeBatch(100)).toBe(1);
     expect(await count()).toBe(0);
   });
 
