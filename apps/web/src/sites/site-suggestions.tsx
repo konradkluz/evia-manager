@@ -131,9 +131,9 @@ export function SiteSuggestions({ customerId, online, suggestions, onPick }: Sit
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-stack-sm">
-      <h3 id={headingId} className="text-heading-4 text-text-primary">
+      <h2 id={headingId} className="text-heading-4 text-text-primary">
         {t('sites.suggestions.heading', { count: found.length })}
-      </h3>
+      </h2>
       <List labelledBy={headingId}>
         {found.map((site) => {
           const address = formatSiteLine(site);
