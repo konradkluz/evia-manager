@@ -774,3 +774,195 @@ describe('W-06 (d) roles (EVM-042 AC6)', () => {
     expect(await axeViolations(screen.getByRole('dialog'))).toEqual([]);
   });
 });
+
+describe('W-06 (d) the remaining answers of the dialogs (EVM-042 AC1–AC7)', () => {
+  it('EVM-042 AC3 AC6 the process: "Cofnij" of the Administrator asks for the version of the deleted process and a refusal is told', async () => {
+    let removed = false;
+    const fake = api({
+      procedures: () => json(200, list(removed ? [ppoz()] : [osd([stage(1)]), ppoz()])),
+      deleted: () =>
+        json(200, {
+          procedures: removed
+            ? [
+                {
+                  id: OSD_ID,
+                  code: 'osd',
+                  name: 'Uzgodnienia z OSD',
+                  position: 1,
+                  stageCount: 1,
+                  version: 4,
+                  deletedAt: '2026-10-14T10:00:00.000Z',
+                },
+              ]
+            : [],
+          stages: [],
+          truncated: false,
+        }),
+      extra: {
+        [`DELETE ${BASE}/procedures/${OSD_ID}`]: () => {
+          removed = true;
+          return new Response(null, { status: 204 });
+        },
+        [`POST ${BASE}/procedures/${OSD_ID}/restore`]: () => problem(409, 'procedure_already_active'),
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Uzgodnienia z OSD', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Uzgodnienia z OSD”?' }));
+    expect(dialog.getByText('Przywrócisz go w „Usunięte procesy i etapy”.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cofnij' }));
+    expect(await screen.findByText('Ten wpis zmieniono w międzyczasie. Odświeżyliśmy listę — spróbuj ponownie.')).toBeTruthy();
+    expect(fake.calls(`POST ${BASE}/procedures/${OSD_ID}/restore`)[0]?.headers.get('If-Match')).toBe('"4"');
+  });
+
+  it('EVM-042 AC7 AC6 the process: 412, 404 and a closed order are told in the dialog; the Editor sees who restores', async () => {
+    const answers = [problem(412, 'version_conflict'), problem(404, 'not_found'), problem(409, 'work_order_closed')];
+    let call = 0;
+    const fake = api({
+      session: roleSession('editor'),
+      extra: { [`DELETE ${BASE}/procedures/${PPOZ_ID}`]: () => answers[call++] ?? problem(500, 'internal_error') },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Opinia ppoż', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Opinia ppoż”?' }));
+    expect(dialog.getByText('Przywrócić go może tylko administrator.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    expect(await dialog.findByText('Ten proces zmieniono w międzyczasie. Sprawdź jego aktualny stan i spróbuj ponownie.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    expect(await dialog.findByText('Nie znaleziono procesu. Odśwież zlecenie.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    expect(await dialog.findByText(/przez administratora/)).toBeTruthy();
+  });
+
+  it('EVM-042 AC1 the add dialog: a failed catalogue with a retry, a closed order, the discard of typed data and the offline banner', async () => {
+    let templates = 0;
+    const fake = api({
+      extra: {
+        [`POST ${BASE}/procedures`]: () => problem(409, 'work_order_closed'),
+        [TEMPLATES_ROUTE]: () => {
+          templates += 1;
+          return templates === 1 ? problem(500, 'internal_error') : json(200, TEMPLATES);
+        },
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    const dialog = await openAddProcedure();
+    expect(await dialog.findByText('Nie udało się wczytać szablonów procesów.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Spróbuj ponownie' }));
+    await userEvent.selectOptions(await dialog.findByRole('combobox', { name: 'Proces' }), 'expertise');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj proces' }));
+    expect(await dialog.findByText(/Zlecenie jest już rozliczone/)).toBeTruthy();
+    expect(dialog.getByRole('button', { name: 'Dodaj proces' }).getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Wróć do edycji' }));
+    expect(screen.getByRole('dialog', { name: 'Dodaj proces' })).toBeTruthy();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    expect((await screen.findAllByText('Zapiszesz po powrocie połączenia.')).length).toBeGreaterThan(0);
+  });
+
+  it('EVM-042 AC2 the stage dialog: 404, a rejected name (400), a closed order, the place "Po: …" and the discard', async () => {
+    const answers = [
+      problem(404, 'not_found'),
+      problem(400, 'validation_failed', { errors: [{ pointer: '/name', code: 'invalid_characters' }] }),
+      problem(409, 'work_order_closed'),
+    ];
+    let call = 0;
+    const fake = api({ extra: { [`POST ${BASE}/procedures/${OSD_ID}/stages`]: () => answers[call++] ?? problem(500, 'internal_error') } });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Uzgodnienia z OSD', 'Dodaj etap…');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Dodaj etap' }));
+    expect(dialog.getByRole('option', { name: 'Po: 1 Etap 1' })).toBeTruthy();
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Nazwa etapu' }), 'Nowy');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Nie znaleziono etapu. Odśwież zlecenie.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Nazwa zawiera niedozwolone znaki.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText(/Zlecenie jest już rozliczone/)).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Odrzuć zmiany' }));
+    expect(screen.queryByRole('dialog', { name: 'Dodaj etap' })).toBeNull();
+  });
+
+  it('EVM-042 AC3 "Nie dotyczy": a refused transition is told, "Cofnij" returns the stage to "Do zrobienia", a failed "Cofnij" says so', async () => {
+    const answers = [
+      problem(409, 'invalid_state_transition'),
+      json(200, stage(1, { status: 'not_applicable', version: 3 }), { ETag: '"3"' }),
+    ];
+    let call = 0;
+    const fake = api({
+      extra: {
+        [`POST ${BASE}/procedure-stages/${stage(1).id}/transitions`]: () => answers[call++] ?? problem(409, 'invalid_state_transition'),
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openStageMenu('Etap 1', 'Usuń etap…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć etap „Etap 1”?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Oznacz jako „Nie dotyczy”' }));
+    expect(await dialog.findByText('Ten etap zmieniono w międzyczasie. Sprawdź jego aktualny stan i spróbuj ponownie.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Oznacz jako „Nie dotyczy”' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cofnij' }));
+    expect(await screen.findByText('Nie udało się cofnąć — ktoś zmienił etap w międzyczasie.')).toBeTruthy();
+    expect(parseBody(fake.calls(`POST ${BASE}/procedure-stages/${stage(1).id}/transitions`)[2]?.body ?? '')).toEqual({ to: 'todo' });
+  });
+
+  it('EVM-042 AC3 a failed "Cofnij" after a deletion says the list changed', async () => {
+    const fake = api({
+      deleted: () => json(200, NONE),
+      extra: { [`DELETE ${BASE}/procedure-stages/${stage(1).id}`]: () => new Response(null, { status: 204 }) },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openStageMenu('Etap 1', 'Usuń etap…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć etap „Etap 1”?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń etap' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cofnij' }));
+    expect(await screen.findByText('Ten wpis zmieniono w międzyczasie. Odświeżyliśmy listę — spróbuj ponownie.')).toBeTruthy();
+  });
+
+  it('EVM-042 AC3 AC4 the restore of a stage is refused or stale: 409 parent_deleted, 412, 404, 422 and 403 are told in the section', async () => {
+    const entry = {
+      id: stage(1).id,
+      procedureId: OSD_ID,
+      procedureName: 'Uzgodnienia z OSD',
+      name: 'Korekta',
+      position: 1,
+      procedureDeleted: false,
+      version: 4,
+      deletedAt: '2026-10-14T09:00:00.000Z',
+    };
+    const answers = [
+      problem(409, 'parent_deleted'),
+      problem(412, 'version_conflict'),
+      problem(404, 'not_found'),
+      problem(422, 'limit_exceeded', { errors: [{ pointer: '', code: 'too_many_stages' }] }),
+      problem(403, 'forbidden'),
+    ];
+    let call = 0;
+    const fake = api({
+      deleted: () => json(200, { procedures: [], stages: [entry], truncated: false }),
+      extra: { [`POST ${BASE}/procedure-stages/${stage(1).id}/restore`]: () => answers[call++] ?? problem(500, 'internal_error') },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await userEvent.click(await screen.findByRole('button', { name: 'Usunięte procesy i etapy (1)' }));
+    const restore = () => screen.getByRole('button', { name: 'Przywróć etap: Korekta, proces Uzgodnienia z OSD' });
+    for (const text of [
+      'Nie przywrócono etapu — jego proces jest usunięty. Najpierw przywróć proces.',
+      'Ten wpis zmieniono w międzyczasie. Odświeżyliśmy listę — spróbuj ponownie.',
+      'Nie znaleziono tej pozycji. Odświeżyliśmy listę.',
+      'Nie przywrócono — przekroczony limit procesów lub etapów.',
+      'Nie masz uprawnień do tej zmiany.',
+    ]) {
+      await userEvent.click(restore());
+      expect(await screen.findByText(text)).toBeTruthy();
+    }
+  });
+});
