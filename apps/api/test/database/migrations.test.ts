@@ -58,6 +58,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0025_work_order_search_text',
       '0026_payments',
       '0027_audit_payment_amounts',
+      '0032_idempotency_purge',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });

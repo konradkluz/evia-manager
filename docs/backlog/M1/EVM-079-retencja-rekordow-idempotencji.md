@@ -55,3 +55,4 @@ Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyk
 - 2026-10-13 — refinement: zadania w tle istnieją (EVM-034), ścieżka lekka z recenzentem security, harmonogram i porcje w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka lekka, model sonnet, gałąź `feature/EVM-079-retencja-idempotencji` ułożona na EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — implementacja: zadanie `platform.purge-idempotency` (04:10 Warsaw, porcje 1000), migracja `0032` (funkcja `SECURITY DEFINER` bez ogólnego `DELETE`), testy `EVM-079 AC1–AC4` (backend-developer)
