@@ -144,7 +144,7 @@ TimelineEventGroup:
 TimelineEventObjectType:
   type: string
   description: Obiekt, którego dotyczy zdarzenie (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12).
-  enum: [work_order, procedure_stage, scope_item]
+  enum: [work_order, procedure, procedure_stage, scope_item]
 TimelineEventParty:
   type: object
   description: >-
@@ -174,7 +174,9 @@ TimelineEvent:
     Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie
     bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`,
     `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`,
-    `scope_item_removed` (EVM-035; lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`,
+    `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu;
+    lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem; zapis,
     którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola).
     `fromStatus` / `toStatus` to kody statusów zlecenia albo etapu (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
     `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu
@@ -228,8 +230,9 @@ TimelineEvent:
     procedureCodes:
       type: array
       description: >-
-        Kody procesów dodanych razem z pozycją (`scope_item_added`); brak pola poza tym zdarzeniem. Nazwy procesów panel bierze
-        z katalogu po kodzie.
+        Kody procesów dodanych razem z pozycją (`scope_item_added`) albo kod jednego procesu, którego dotyczy zdarzenie
+        (`procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` — EVM-042);
+        brak pola poza tymi zdarzeniami. Nazwy procesów panel bierze z katalogu po kodzie.
       maxItems: 30
       items:
         type: string

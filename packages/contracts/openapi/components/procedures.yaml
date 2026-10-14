@@ -203,6 +203,13 @@ Procedure:
         żadna pozycja zakresu go nie wniosła.
       format: uuid
       maxLength: 36
+    version:
+      type: integer
+      description: >-
+        Wersja procesu — wartość `If-Match` (`"<version>"`) przy usunięciu i przywróceniu procesu (EVM-042). Rośnie przy usunięciu i
+        przywróceniu procesu oraz przy dodaniu, usunięciu i przywróceniu jego etapu (zmiana składu procesu), więc „Usuń proces” działa
+        na tym, co użytkownik widział. Nie jest w wymaganych, bo dodano ją addytywnie — serwer zawsze ją zwraca.
+      minimum: 1
     progress:
       $ref: '#/ProcedureProgress'
     currentStageId:
@@ -320,3 +327,164 @@ TransitionProcedureStageRequest:
       description: Dzień zakończenia, `RRRR-MM-DD` (tylko przy `done`).
       format: date
       maxLength: 10
+CreateProcedureRequest:
+  type: object
+  description: >-
+    Dodanie procesu do zlecenia z szablonu (EVM-042 AC1): `id` (UUIDv7) nadaje klient, `procedureTemplateId` wskazuje aktywny szablon
+    procesu (wycofany albo nieistniejący — `422 template_unavailable`, jednakowa odpowiedź), `position` to miejsce na liście procesów
+    (1–30; brak = na końcu; wartość większa niż liczba procesów + 1 jest przycinana do końca, więc wyścig z panelu nie daje `400`).
+    Kod i nazwę procesu oraz etapy (wszystkie „Do zrobienia”) serwer kopiuje z szablonu; klient ich nie podaje — pole serwera
+    (`code`, `name`, `stages`, `progress`, `version`, `sourceScopeItemId`, `currentStageId`) to `400 read_only_field`, inne — `400
+    unknown_field`.
+  required: [id, procedureTemplateId]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator nowego procesu (UUIDv7 nadany przez klienta). Istniejący — `409 id_conflict`.
+      format: uuid
+      maxLength: 36
+    procedureTemplateId:
+      type: string
+      description: Identyfikator szablonu procesu (z `GET /api/v1/catalog/procedure-templates`).
+      format: uuid
+      maxLength: 36
+    position:
+      type: integer
+      description: Miejsce na liście procesów zlecenia (1–30); brak = na końcu.
+      minimum: 1
+      maximum: 30
+CreateProcedureStageRequest:
+  type: object
+  description: >-
+    Dodanie etapu do procesu (EVM-042 AC2): `id` (UUIDv7) nadaje klient, `name` to zwykły tekst (NFC, przycięty, 1–120 znaków, bez
+    znaków sterujących; kody `required`, `too_long`, `invalid_characters`) — pole swobodne, może zawierać dane osobowe, więc nigdy nie
+    trafia do audytu, dziennika, logów ani komunikatów błędów. `position` to miejsce w procesie (1–30; brak = na końcu; za dużą
+    wartość serwer przycina do końca). `dueDate` (2000-01-01..2100-12-31, `out_of_range` poza zakresem) i `responsibleUserId`
+    (aktywny użytkownik — nieistniejący, zaproszony, zdezaktywowany i usunięty to jedna odpowiedź `400`, `/responsibleUserId`,
+    `assignee_unavailable`) są opcjonalne. Kod etapu (`custom_…`), status („Do zrobienia”) i wersję nadaje serwer — pole serwera
+    to `400 read_only_field`, inne — `400 unknown_field`.
+  required: [id, name]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator nowego etapu (UUIDv7 nadany przez klienta). Istniejący — `409 id_conflict`.
+      format: uuid
+      maxLength: 36
+    name:
+      type: string
+      description: Nazwa etapu (zwykły tekst — pole swobodne, bez danych osobowych).
+      minLength: 1
+      maxLength: 120
+    position:
+      type: integer
+      description: Miejsce w procesie (1–30); brak = na końcu.
+      minimum: 1
+      maximum: 30
+    dueDate:
+      type: string
+      description: Termin etapu, `RRRR-MM-DD` (2000-01-01..2100-12-31).
+      format: date
+      maxLength: 10
+    responsibleUserId:
+      type: string
+      description: Identyfikator aktywnego użytkownika (z listy `GET /api/v1/users/assignable`).
+      format: uuid
+      maxLength: 36
+DeletedProcedure:
+  type: object
+  description: >-
+    Usunięty proces w sekcji „Usunięte procesy i etapy” (tylko Administrator; EVM-042 AC3) — wyłącznie to, czego potrzebuje wiersz z
+    „Przywróć”: bez osób odpowiedzialnych, terminów, notatek, „czekamy na” i powodów blokady (SR-DATA-03).
+  required: [id, code, name, position, stageCount, version, deletedAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    code:
+      type: string
+      maxLength: 64
+    name:
+      type: string
+      maxLength: 200
+    position:
+      type: integer
+      description: Miejsce, na które proces wróci po przywróceniu (przycięte do końca listy).
+      minimum: 1
+      maximum: 30
+    stageCount:
+      type: integer
+      description: Liczba etapów (nieusuniętych), z którymi proces wróci.
+      minimum: 0
+      maximum: 30
+    version:
+      type: integer
+      description: Wersja procesu — wartość `If-Match` przy przywróceniu.
+      minimum: 1
+    deletedAt:
+      type: string
+      format: date-time
+      maxLength: 40
+DeletedProcedureStage:
+  type: object
+  description: >-
+    Usunięty etap w sekcji „Usunięte procesy i etapy” (tylko Administrator; EVM-042 AC3). `procedureDeleted` = `true`, gdy proces
+    etapu też jest usunięty (przywrócenie etapu najpierw wymaga przywrócenia procesu — `409 parent_deleted`). Bez osoby
+    odpowiedzialnej, terminu, notatek i powodu blokady.
+  required: [id, procedureId, procedureName, name, position, procedureDeleted, version, deletedAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    procedureId:
+      type: string
+      format: uuid
+      maxLength: 36
+    procedureName:
+      type: string
+      description: Nazwa procesu etapu (kopia z szablonu) — panel wyświetla ją jako tekst.
+      maxLength: 200
+    name:
+      type: string
+      description: Nazwa etapu — panel wyświetla ją jako tekst.
+      maxLength: 200
+    position:
+      type: integer
+      minimum: 1
+      maximum: 30
+    procedureDeleted:
+      type: boolean
+    version:
+      type: integer
+      description: Wersja etapu — wartość `If-Match` przy przywróceniu.
+      minimum: 1
+    deletedAt:
+      type: string
+      format: date-time
+      maxLength: 40
+DeletedProcedureList:
+  type: object
+  description: >-
+    Usunięte procesy i etapy zlecenia, od najnowszych (`deletedAt` malejąco, potem `id`), co najwyżej 100 każdego rodzaju — ograniczenie
+    odpowiedzi (SR-API-02). `truncated` = `true`, gdy któraś lista jest ucięta (starsze usunięte pozycje istnieją, ale nie są
+    pokazane).
+  required: [procedures, stages, truncated]
+  additionalProperties: false
+  properties:
+    procedures:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DeletedProcedure'
+    stages:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/DeletedProcedureStage'
+    truncated:
+      type: boolean
