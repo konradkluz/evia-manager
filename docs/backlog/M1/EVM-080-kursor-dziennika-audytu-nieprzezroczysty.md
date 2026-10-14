@@ -4,7 +4,7 @@ title: Nieprzezroczysty kursor dziennika audytu i CURSOR_KEY tylko dla serwera
 type: bug
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P2
 path: pelna
 owner: backend-developer
@@ -61,3 +61,4 @@ Jako **właściciel systemu** chcę **by kursor paginacji dziennika audytu był 
 - 2026-10-07 — utworzono (product-owner; uwagi z przeglądów EVM-029 i EVM-017)
 - 2026-10-13 — refinement: kod `invalid_cursor`, stabilność domyślnego okresu, zakres klucza (tylko `db:migrate`), uprawnienia w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model sonnet, gałąź `feature/EVM-080-kursor-audytu` ułożona na EVM-078 → EVM-053 — łańcuch nocny)
