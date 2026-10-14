@@ -100,3 +100,4 @@ _—_
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC8 — komunikat `412` / `409` w dialogu wpłaty wg makiety W-11 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-055-zestawienie-nieoplaconych` ułożona na EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — backend EVM-055 gotowy: kontrakt `listUnpaidPaymentMilestones`, migracja `0030`, fasada `refsOf`, serwis i testy (backend-developer); panel W-11 — kolejny krok

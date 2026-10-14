@@ -189,7 +189,7 @@ export async function readLongestOverdue(
   return row === undefined ? undefined : { workOrderId: row.work_order_id, dueDate: row.due_day };
 }
 
-/** A sum from the database (TEXT of a ) as a safe integer; a sum outside the safe integers is an error, never rounded. */
+/** A sum from the database (the TEXT of a numeric) as a safe integer; a sum outside the safe integers is an error, never rounded. */
 export function amountOfSum(text: string): number {
   const sum = Number(text);
   if (!Number.isSafeInteger(sum)) throw new RangeError('a sum of the amounts is not a safe integer');
