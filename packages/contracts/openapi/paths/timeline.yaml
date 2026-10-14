@@ -42,9 +42,9 @@ workOrderTimeline:
         in: query
         required: false
         description: >-
-          Grupa zdarzeń automatycznych (EVM-038 AC4) — `status_changes` („Zmiany statusów”): tylko zdarzenia zlecenia i etapów.
-          Implikuje `kind = event`, więc razem z `kind` — `400 validation_failed`; wartość spoza listy — `400`. Grupy
-          „Media i dokumenty” i „Płatności” dojdą z E6 i E7.
+          Grupa zdarzeń automatycznych (EVM-038 AC4) — `status_changes` („Zmiany statusów”): tylko zdarzenia zlecenia i etapów;
+          `payments` („Płatności”, EVM-054 AC3): tylko zmiany statusu transz (grupy są rozłączne). Implikuje `kind = event`, więc
+          razem z `kind` — `400 validation_failed`; wartość spoza listy — `400`. Grupa „Media i dokumenty” dojdzie z E6.
         schema:
           $ref: ../components/timeline.yaml#/TimelineEventGroup
       - name: procedureStageId

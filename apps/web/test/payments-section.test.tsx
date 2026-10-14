@@ -34,6 +34,7 @@ const milestone = (n: number, extra: Partial<PaymentMilestone> = {}): PaymentMil
   paidOn: null,
   isOverdue: false,
   version: 1,
+  allowedTransitions: [],
   ...extra,
 });
 

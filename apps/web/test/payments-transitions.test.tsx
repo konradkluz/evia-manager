@@ -42,6 +42,7 @@ const milestone = (n: number, status: PaymentMilestone['status']): PaymentMilest
   paidOn: status === 'paid' ? '2026-10-01' : null,
   isOverdue: false,
   version: 1,
+  allowedTransitions: [],
 });
 const listOf = (statuses: PaymentMilestone['status'][]): PaymentMilestoneList => ({
   items: statuses.map((status, index) => milestone(index + 1, status)),

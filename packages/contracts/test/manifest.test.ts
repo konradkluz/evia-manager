@@ -23,6 +23,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createTimelineEntry',
       'createWorkOrder',
       'createWorkOrderScopeItem',
+      'deletePaymentMilestone',
       'deleteWorkOrderScopeItem',
       'extendSession',
       'getCurrentSession',
@@ -61,6 +62,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'searchWorkOrders',
       'setActivationPassword',
       'stepUp',
+      'transitionPaymentMilestone',
       'transitionProcedureStage',
       'transitionWorkOrder',
       'updateCustomer',
@@ -89,9 +91,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 every operation with stepUp: true lists exactly the web channel; the audit log is the one in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 every operation with stepUp: true lists exactly the web channel and the Administrator; the audit log and the deletion of a payment milestone (EVM-057) are the ones in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
-    expect(stepUp.map(([id]) => id)).toEqual(['listAuditEvents']);
+    expect(stepUp.map(([id]) => id).sort()).toEqual(['deletePaymentMilestone', 'listAuditEvents']);
     for (const [id, operation] of stepUp) {
       expect(operation.authz.channels, id).toEqual(['web']);
       expect(operation.authz.roles, id).toEqual(['administrator']);
