@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ConfigError, loadConfig } from '../../src/platform/config/config.ts';
+import { ConfigError, loadConfig, loadMigrationConfig } from '../../src/platform/config/config.ts';
 import { validEnv } from '../support/app.ts';
 
 /** A key that looks random (production refuses the placeholders of development and tests). Generated per run, never committed. */
@@ -153,5 +155,71 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       expect(loadConfig({ ...env, NODE_ENV: 'development' }).nodeEnv).toBe('development');
     }
     expect(loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production' }).nodeEnv).toBe('production');
+  });
+});
+
+const migrationErrorOf = (env: Record<string, string | undefined>): ConfigError => {
+  try {
+    loadMigrationConfig(env);
+  } catch (error) {
+    if (error instanceof ConfigError) return error;
+    throw error;
+  }
+  throw new Error('expected a ConfigError');
+};
+
+describe('the key of the cursors is for the server, not for the migrations (EVM-080 AC4; SR-CRYPTO, CWE-532, CWE-798)', () => {
+  it('EVM-080 AC4 the migrations need no CURSOR_KEY: missing, malformed and placeholder keys do not matter, and no other setting is read', () => {
+    const migration = { NODE_ENV: 'production', DATABASE_URL: 'postgresql://u:p@h:5432/db', LOG_LEVEL: 'warn' };
+    expect(loadMigrationConfig(migration)).toEqual({ nodeEnv: 'production', logLevel: 'warn', databaseUrl: 'postgresql://u:p@h:5432/db' });
+    for (const CURSOR_KEY of [undefined, '', 'short', Buffer.alloc(32).toString('base64url')])
+      expect(loadMigrationConfig({ ...migration, CURSOR_KEY }).databaseUrl).toBe(migration.DATABASE_URL);
+    expect(loadMigrationConfig({ DATABASE_URL: migration.DATABASE_URL })).toMatchObject({ nodeEnv: 'production', logLevel: 'info' });
+  });
+
+  it('EVM-080 AC4 the migrations keep the shared rules: the database URL is required and valid, the level is known, verbose only in development', () => {
+    expect(migrationErrorOf({ NODE_ENV: 'test' }).keys).toEqual(['DATABASE_URL']);
+    expect(migrationErrorOf({ DATABASE_URL: 'mysql://u:p@h/db' }).keys).toEqual(['DATABASE_URL']);
+    expect(migrationErrorOf({ DATABASE_URL: validEnv().DATABASE_URL, NODE_ENV: 'staging', LOG_LEVEL: 'loud' }).keys).toEqual([
+      'LOG_LEVEL',
+      'NODE_ENV',
+    ]);
+    expect(migrationErrorOf({ DATABASE_URL: validEnv().DATABASE_URL, NODE_ENV: 'production', LOG_LEVEL: 'debug' }).keys).toEqual([
+      'LOG_LEVEL',
+    ]);
+    expect(loadMigrationConfig({ DATABASE_URL: validEnv().DATABASE_URL, NODE_ENV: 'development', LOG_LEVEL: 'trace' }).logLevel).toBe(
+      'trace',
+    );
+  });
+
+  it('EVM-080 AC4 the server, the worker and the CLI keep the full configuration: a missing, malformed or placeholder key is a ConfigError naming only CURSOR_KEY, never the value', () => {
+    const secrets = [Buffer.alloc(32, 9).toString('base64url'), `${randomKey()}x`, 'not-a-key-but-secret-looking'];
+    const cases: [string | undefined, string][] = [
+      [undefined, 'test'],
+      [secrets[0], 'production'],
+      [secrets[1], 'test'],
+      [secrets[2], 'development'],
+    ];
+    for (const [value, nodeEnv] of cases) {
+      const error = errorOf({ ...validEnv({ CURSOR_KEY: value }), NODE_ENV: nodeEnv });
+      expect(error.keys).toEqual(['CURSOR_KEY']);
+      if (value !== undefined) {
+        for (const text of [error.message, error.stack ?? '', String(error), JSON.stringify(error)]) expect(text).not.toContain(value);
+      }
+    }
+  });
+
+  it('EVM-080 AC4 only the migration entry point reads the light configuration: a server, a worker or a CLI that did could start without a key', () => {
+    const root = join(import.meta.dirname, '..', '..', 'src');
+    const sources = (directory: string): string[] =>
+      readdirSync(directory).flatMap((name) => {
+        const path = join(directory, name);
+        return statSync(path).isDirectory() ? sources(path) : path.endsWith('.ts') ? [path] : [];
+      });
+    const users = sources(root)
+      .filter((path) => readFileSync(path, 'utf8').includes('loadMigrationConfig'))
+      .map((path) => relative(root, path).split(sep).join('/'))
+      .sort();
+    expect(users).toEqual(['migrate.ts', 'platform/config/config.ts']);
   });
 });

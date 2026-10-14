@@ -3,14 +3,14 @@
  * (no statement timeout — DDL may take longer than API queries). Runs with Node type stripping (no decorators here).
  */
 import { MIGRATIONS } from './migrations/index.ts';
-import { loadConfig } from './platform/config/config.ts';
+import { loadMigrationConfig } from './platform/config/config.ts';
 import { createDatabase } from './platform/database/database.ts';
 import { migrateToLatest } from './platform/database/migrator.ts';
 import { createLogger } from './platform/logging/logger.ts';
 
 /* v8 ignore start -- process wiring of the migration entry point; migrateToLatest() is covered by tests */
 if (import.meta.main) {
-  const config = loadConfig(process.env);
+  const config = loadMigrationConfig(process.env);
   const logger = createLogger({ level: config.logLevel });
   const db = createDatabase({ url: config.databaseUrl, logger, pool: { max: 1, statement_timeout: undefined, query_timeout: undefined } });
   try {

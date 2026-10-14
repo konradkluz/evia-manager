@@ -59,12 +59,19 @@ const isPlaceholderKey = (value: string): boolean => new Set(Buffer.from(value, 
 const hostOf = (value: string): string => (URL.canParse(value) ? new URL(value).hostname : '');
 const isLocalHost = (host: string): boolean => host === 'localhost' || host.endsWith('.localhost');
 
+/** The settings every entry point needs (the server, the worker, the CLI and the migrations): one definition, one set of rules. */
+const commonShape = {
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
+  LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+  DATABASE_URL: postgresUrl,
+};
+const verboseOnlyInDevelopment = (env: { NODE_ENV: string; LOG_LEVEL: LogLevel }): boolean =>
+  env.NODE_ENV === 'development' || !VERBOSE_LEVELS.includes(env.LOG_LEVEL);
+
 const schema = z
   .object({
-    NODE_ENV: z.enum(['development', 'test', 'production']).default('production'),
+    ...commonShape,
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
-    LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
-    DATABASE_URL: postgresUrl,
     MIN_SUPPORTED_APP_VERSION_ANDROID: zSemver,
     MIN_SUPPORTED_APP_VERSION_IOS: zSemver,
     PANEL_ORIGIN: origin,
@@ -73,7 +80,7 @@ const schema = z
     TRUSTED_PROXIES: proxyList,
     CURSOR_KEY: cursorKey,
   })
-  .refine((env) => env.NODE_ENV === 'development' || !VERBOSE_LEVELS.includes(env.LOG_LEVEL), { path: ['LOG_LEVEL'] })
+  .refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
   .refine(
     (env) => {
@@ -99,13 +106,34 @@ export class ConfigError extends Error {
   }
 }
 
-export function loadConfig(env: Readonly<Record<string, string | undefined>>): AppConfig {
-  const result = schema.safeParse(env, { reportInput: false });
+const migrationSchema = z.object(commonShape).refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] });
+
+/** What `db:migrate` needs and nothing more (EVM-080 AC4): no HTTP, WebAuthn or cursor settings, so no `CURSOR_KEY`. */
+export interface MigrationConfig {
+  readonly nodeEnv: AppConfig['nodeEnv'];
+  readonly logLevel: LogLevel;
+  readonly databaseUrl: string;
+}
+
+type Env = Readonly<Record<string, string | undefined>>;
+
+function parseEnv<S extends z.ZodType>(parser: S, env: Env): z.output<S> {
+  const result = parser.safeParse(env, { reportInput: false });
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => String(issue.path[0])))].sort();
     throw new ConfigError(keys);
   }
-  const value = result.data;
+  return result.data;
+}
+
+export function loadMigrationConfig(env: Env): MigrationConfig {
+  const value = parseEnv(migrationSchema, env);
+  return { nodeEnv: value.NODE_ENV, logLevel: value.LOG_LEVEL, databaseUrl: value.DATABASE_URL };
+}
+
+/** The full configuration of the server, the worker and the CLI. */
+export function loadConfig(env: Env): AppConfig {
+  const value = parseEnv(schema, env);
   return {
     nodeEnv: value.NODE_ENV,
     port: value.API_PORT,
