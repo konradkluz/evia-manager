@@ -90,7 +90,9 @@ describe('a customer with a 200 + 200 character name (EVM-078)', () => {
 
       const found = await reader.panel.post('/api/v1/customers/search', { query: 'bbb' });
       expect(found.status, JSON.stringify(found.body)).toBe(200);
-      expect((found.body as { items: unknown[] }).items).toEqual([expect.objectContaining({ id: customerId, displayName: FULL_NAME })]);
+      expect((found.body as { items: unknown[] }).items).toEqual([
+        expect.objectContaining({ id: customerId, displayName: FULL_NAME, sortName: SORT_NAME }),
+      ]);
 
       const order = await get(`/api/v1/work-orders/${orderId}`);
       expect(order.status, JSON.stringify(order.body)).toBe(200);
@@ -148,5 +150,11 @@ describe('a customer with a 200 + 200 character name (EVM-078)', () => {
       expect(response.status, field).toBe(400);
       expect(errorsOf(response.body)).toEqual([{ pointer: `/${field}`, code: 'too_long' }]);
     }
+
+    const firm = { id: uuidv7(), kind: 'company', companyName: 'Firma testowa', phone: '600 000 003' };
+    expect((await editor.panel.post('/api/v1/customers', firm)).status).toBe(201);
+    const renamed = await editor.panel.patch(`/api/v1/customers/${firm.id}`, { companyName: long }, { 'If-Match': '"1"' });
+    expect(renamed.status).toBe(400);
+    expect(errorsOf(renamed.body)).toEqual([{ pointer: '/companyName', code: 'too_long' }]);
   });
 });
