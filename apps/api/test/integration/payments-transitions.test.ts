@@ -44,8 +44,8 @@ const admin = () => current.database.admin;
 const BASE = '/api/v1/work-orders';
 const REASON = 'Rezygnacja klienta';
 
-async function signIn() {
-  const user = await createUser(admin(), current.clock, { role: 'editor' });
+async function signIn(role: 'editor' | 'administrator' = 'editor') {
+  const user = await createUser(admin(), current.clock, { role });
   const session = await createSession(admin(), current.clock, user, { channel: 'web' });
   const panel = new PanelClient(current.app.getHttpServer(), PANEL_ORIGIN);
   panel.cookie = session.cookie;
@@ -177,42 +177,42 @@ describe('the cancellation of an order with milestones (EVM-053 AC6; SR-API-06, 
   });
 });
 
+async function holdOrder(orderId: string) {
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked: () => void = () => undefined;
+  const isLocked = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holder = admin()
+    .transaction()
+    .execute(async (tx) => {
+      await sql`select id from work_orders.work_orders where id = ${orderId} for no key update`.execute(tx);
+      locked();
+      await released;
+    });
+  await isLocked;
+  return { release, holder };
+}
+/** Polls PostgreSQL (a query per round, no timer) until `count` sessions wait for a lock; fails after a bounded number of rounds. */
+async function waitForWaiters(count: number): Promise<void> {
+  for (let round = 0; round < 2000; round += 1) {
+    const { rows } = await sql<{ n: string }>`
+      select count(*)::text as n from pg_stat_activity
+      where datname = current_database() and wait_event_type = 'Lock' and pid <> pg_backend_pid()`.execute(admin());
+    if (Number(rows[0]?.n) >= count) return;
+  }
+  throw new Error(`fewer than ${String(count)} sessions waited for the lock`);
+}
+
 /**
  * Deterministic concurrency (no sleep): a third session holds the lock of the order row; the two commands are sent one after the other
  * and each is let go only once PostgreSQL shows it WAITING for that lock; then the lock is released and the queue of the lock (first in,
  * first out) decides who goes first. Both orders of arrival are tested; neither may end with a settled order and a planned milestone.
  */
 describe('a milestone added while the order is being settled (EVM-053 AC6; SR-API-07, ASVS V2.3.3)', () => {
-  async function holdOrder(orderId: string) {
-    let release: () => void = () => undefined;
-    const released = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    let locked: () => void = () => undefined;
-    const isLocked = new Promise<void>((resolve) => {
-      locked = resolve;
-    });
-    const holder = admin()
-      .transaction()
-      .execute(async (tx) => {
-        await sql`select id from work_orders.work_orders where id = ${orderId} for no key update`.execute(tx);
-        locked();
-        await released;
-      });
-    await isLocked;
-    return { release, holder };
-  }
-  /** Polls PostgreSQL (a query per round, no timer) until `count` sessions wait for a lock; fails after a bounded number of rounds. */
-  async function waitForWaiters(count: number): Promise<void> {
-    for (let round = 0; round < 2000; round += 1) {
-      const { rows } = await sql<{ n: string }>`
-        select count(*)::text as n from pg_stat_activity
-        where datname = current_database() and wait_event_type = 'Lock' and pid <> pg_backend_pid()`.execute(admin());
-      if (Number(rows[0]?.n) >= count) return;
-    }
-    throw new Error(`fewer than ${String(count)} sessions waited for the lock`);
-  }
-
   it('EVM-053 AC6 the settlement first: it is 200 and the addition that waited is 409 work_order_closed — no planned milestone in a settled order', async () => {
     const editor = await signIn();
     const completed = await order('completed', [{ status: 'paid' }]);
@@ -247,5 +247,121 @@ describe('a milestone added while the order is being settled (EVM-053 AC6; SR-AP
     expect(settled.body).toMatchObject({ errors: [{ pointer: '/to', code: 'unpaid_milestones' }] });
     expect(await statusOf(completed.id)).toBe('completed');
     expect((await milestonesOf(completed.id)).map((milestone) => milestone.status)).toEqual(['paid', 'planned']);
+  });
+});
+
+const invoice = (browser: Browser, orderId: string, milestoneId: string) =>
+  browser.panel.post(
+    `${BASE}/${orderId}/payment-milestones/${milestoneId}/transitions`,
+    { to: 'invoiced', amount: { amountMinor: 123000, currency: 'PLN' }, invoiceNumber: 'FV/TEST/0021/2026', dueDate: '2026-12-31' },
+    { 'If-Match': '"1"', 'Idempotency-Key': uuidv7() },
+  );
+/** The invariant of AC6 over the WHOLE database: no closed order holds a live invoiced milestone. */
+const closedWithInvoice = async (): Promise<number> =>
+  Number(
+    (
+      await sql<{ n: string }>`
+        select count(*)::text as n from work_orders.work_orders o
+        join payments.payment_milestones m on m.work_order_id = o.id and m.deleted_at is null
+        where o.status in ('cancelled', 'settled') and m.status = 'invoiced'`.execute(admin())
+    ).rows[0]?.n,
+  );
+
+describe('the cancellation of an order with an invoiced milestone (EVM-054 AC6; SR-AUTHZ-10, SR-API-06)', () => {
+  it.each([
+    ['in_progress', 'editor'],
+    ['in_progress', 'administrator'],
+    ['on_hold', 'editor'],
+    ['on_hold', 'administrator'],
+  ] as const)(
+    'EVM-054 AC6 an order "%s" with an invoiced and a planned milestone cancelled by the %s is 422 transition_condition_not_met (/to, invoiced_milestones): the order and both milestones stay, no audit event, no journal entry',
+    async (from, role) => {
+      const browser = await signIn(role);
+      const created = await order(from, [{ status: 'invoiced' }, { amountMinor: 5 }]);
+      const response = await go(browser, created.id, 'cancelled', { reason: REASON });
+      expect(response.status).toBe(422);
+      expect(response.body).toMatchObject({
+        code: 'transition_condition_not_met',
+        errors: [{ pointer: '/to', code: 'invoiced_milestones' }],
+      });
+      expect(await statusOf(created.id)).toBe(from);
+      expect((await milestonesOf(created.id)).map((milestone) => [milestone.status, milestone.version])).toEqual([
+        ['invoiced', 1],
+        ['planned', 1],
+      ]);
+      const ids = [created.id, ...created.milestoneIds];
+      const { rows: audit } = await sql<{ n: string }>`
+        select count(*)::text as n from audit.events where object_id in (${ids[0]}, ${ids[1]}, ${ids[2]})`.execute(admin());
+      expect(audit[0]?.n).toBe('0');
+      const { rows: journal } = await sql<{ n: string }>`
+        select count(*)::text as n from timeline.timeline_entries where work_order_id = ${created.id}`.execute(admin());
+      expect(journal[0]?.n).toBe('0');
+    },
+  );
+
+  it('EVM-054 AC6 after the payment the same order is cancelled: the planned milestone is cancelled with its journal entry, the paid one stays', async () => {
+    const editor = await signIn();
+    const created = await order('in_progress', [{ status: 'paid' }, {}]);
+    expect((await go(editor, created.id, 'cancelled', { reason: REASON })).status).toBe(200);
+    expect((await milestonesOf(created.id)).map((milestone) => milestone.status)).toEqual(['paid', 'cancelled']);
+    const { rows } = await sql<{ event_code: string; event_payload: Record<string, unknown> }>`
+      select event_code, event_payload from timeline.timeline_entries
+      where work_order_id = ${created.id} and event_code = 'payment_milestone_status_changed'`.execute(admin());
+    expect(rows).toEqual([
+      {
+        event_code: 'payment_milestone_status_changed',
+        event_payload: { objectType: 'payment_milestone', objectId: created.milestoneIds[1], fromStatus: 'planned', toStatus: 'cancelled' },
+      },
+    ]);
+    const { rows: audit } = await sql<{ from_code: string; to_code: string }>`
+      select from_code, to_code from audit.events where object_id = ${created.milestoneIds[1]}`.execute(admin());
+    expect(audit).toEqual([{ from_code: 'planned', to_code: 'cancelled' }]);
+  });
+});
+
+/**
+ * Deterministic concurrency of AC6 (no sleep; the barrier of EVM-053): a third session holds the lock of the order; the invoice of a
+ * milestone and the cancellation of the order are sent one after the other and each is let go only once PostgreSQL shows it WAITING
+ * for that lock; the queue of the lock decides who goes first. Both orders of arrival; after each the invariant of the whole database.
+ */
+describe('an invoice issued while the order is being cancelled (EVM-054 AC6; CWE-362, ASVS V2.3.3)', () => {
+  it('EVM-054 AC6 the invoice first: it is 200 and the cancellation that waited sees the invoiced milestone — 422 invoiced_milestones, the order stays', async () => {
+    const editor = await signIn();
+    const created = await order('in_progress', [{ amountMinor: 1 }]);
+    const milestoneId = created.milestoneIds[0] ?? '';
+    const { release, holder } = await holdOrder(created.id);
+    const invoicing = invoice(editor, created.id, milestoneId).then((response) => response);
+    await waitForWaiters(1);
+    const cancelling = go(editor, created.id, 'cancelled', { reason: REASON }).then((response) => response);
+    await waitForWaiters(2);
+    release();
+    await holder;
+    const [invoiced, cancelled] = await Promise.all([invoicing, cancelling]);
+    expect(invoiced.status, JSON.stringify(invoiced.body)).toBe(200);
+    expect(cancelled.status).toBe(422);
+    expect(cancelled.body).toMatchObject({ errors: [{ pointer: '/to', code: 'invoiced_milestones' }] });
+    expect(await statusOf(created.id)).toBe('in_progress');
+    expect((await milestonesOf(created.id)).map((milestone) => milestone.status)).toEqual(['invoiced']);
+    expect(await closedWithInvoice()).toBe(0);
+  });
+
+  it('EVM-054 AC6 the cancellation first: it is 200 (the planned milestone is cancelled) and the invoice that waited is 409 work_order_closed — never "Wystawiona" in "Anulowane"', async () => {
+    const editor = await signIn();
+    const created = await order('in_progress', [{ amountMinor: 1 }]);
+    const milestoneId = created.milestoneIds[0] ?? '';
+    const { release, holder } = await holdOrder(created.id);
+    const cancelling = go(editor, created.id, 'cancelled', { reason: REASON }).then((response) => response);
+    await waitForWaiters(1);
+    const invoicing = invoice(editor, created.id, milestoneId).then((response) => response);
+    await waitForWaiters(2);
+    release();
+    await holder;
+    const [cancelled, invoiced] = await Promise.all([cancelling, invoicing]);
+    expect(cancelled.status, JSON.stringify(cancelled.body)).toBe(200);
+    expect(invoiced.status).toBe(409);
+    expect((invoiced.body as { code: string }).code).toBe('work_order_closed');
+    expect(await statusOf(created.id)).toBe('cancelled');
+    expect((await milestonesOf(created.id)).map((milestone) => milestone.status)).toEqual(['cancelled']);
+    expect(await closedWithInvoice()).toBe(0);
   });
 });
