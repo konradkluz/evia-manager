@@ -7,9 +7,12 @@ import { paymentTables } from '../../src/modules/payments/infrastructure/tables.
 import { compareUrgency, urgencyOf } from '../../src/modules/overview/domain/payment-signals.ts';
 import { runInTransaction } from '../../src/platform/database/transactional.ts';
 import { PANEL_ORIGIN } from '../support/app.ts';
+import { insertCustomer } from '../support/customer-fixtures.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createSession, createUser, type Role } from '../support/identity-fixtures.ts';
 import { PanelClient } from '../support/panel-client.ts';
+import { insertSite } from '../support/site-fixtures.ts';
+import { assertProjectionInSync } from '../support/projection.ts';
 import { insertMilestones, type MilestoneSpec } from '../support/payment-fixtures.ts';
 import { insertProcedure, type StageSpec } from '../support/procedure-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
@@ -195,6 +198,90 @@ describe('the column "Płatność" (EVM-056 AC1; ADR-0017 D8)', () => {
     const paid = await editor.panel.post(path, { to: 'paid', paidOn: '2026-10-08' }, { 'If-Match': '"2"', 'Idempotency-Key': uuidv7() });
     expect(paid.status, JSON.stringify(paid.body)).toBe(200);
     expect((await list(editor, '')).items[0]?.payment?.state).toBe('paid');
+  });
+
+  const milestonesPath = (orderId: string) => `${LIST}/${orderId}/payment-milestones`;
+  const firstMilestoneId = async (browser: Browser, orderId: string): Promise<string> =>
+    ((await browser.panel.get(milestonesPath(orderId))).body as { items: Array<{ id: string }> }).items[0]?.id ?? '';
+  const signals = async (orderId: string) =>
+    (
+      await sql<{ invoiced_count: number; paid_count: number; earliest_invoiced_due_date: string | null }>`
+        select invoiced_count, paid_count, earliest_invoiced_due_date::text as earliest_invoiced_due_date
+        from overview.work_order_summaries where work_order_id = ${orderId}`.execute(admin())
+    ).rows[0];
+
+  it('EVM-056 AC1 P4 a due date moved into the past through PATCH makes the order overdue and puts it in "Po terminie" in the same transaction', async () => {
+    const target = await order({ milestones: [{ status: 'invoiced', dueDate: '2026-10-20', amountMinor: 80_000 }] });
+    const editor = await signIn();
+    expect((await list(editor, '')).items[0]?.payment?.state).toBe('unpaid');
+    expect(await list(editor, '?view=overdue_payments')).toMatchObject({ items: [] });
+    const patched = await editor.panel.patch(
+      `${milestonesPath(target.id)}/${await firstMilestoneId(editor, target.id)}`,
+      { dueDate: '2026-10-03' },
+      { 'If-Match': '"1"' },
+    );
+    expect(patched.status, JSON.stringify(patched.body)).toBe(200);
+    expect(await signals(target.id)).toMatchObject({ invoiced_count: 1, earliest_invoiced_due_date: '2026-10-03' });
+    expect((await list(editor, '')).items[0]?.payment).toEqual({
+      state: 'overdue',
+      invoicedCount: 1,
+      invoicedTotal: pln(80_000),
+      overdueTotal: pln(80_000),
+    });
+    expect(numbers(await list(editor, '?view=overdue_payments'))).toEqual([target.number]);
+    await assertProjectionInSync();
+  });
+
+  it('EVM-056 AC1 P4 the cancellation of an order (the effect cancels its planned milestones) leaves the projection with no issued milestone and no drift', async () => {
+    const target = await order({
+      milestones: [{ status: 'planned', amountMinor: 50_000 }, { status: 'planned' }, { status: 'paid', dueDate: '2026-10-01' }],
+    });
+    const editor = await signIn();
+    const cancelled = await editor.panel.post(
+      `${LIST}/${target.id}/transitions`,
+      { to: 'cancelled', reason: 'Rezygnacja klienta' },
+      { 'If-Match': '"1"', 'Idempotency-Key': uuidv7() },
+    );
+    expect(cancelled.status, JSON.stringify(cancelled.body)).toBe(200);
+    const statuses = await sql<{ status: string }>`
+      select status from payments.payment_milestones where work_order_id = ${target.id} order by position`.execute(admin());
+    expect(statuses.rows.map((row) => row.status)).toEqual(['cancelled', 'cancelled', 'paid']);
+    expect(await signals(target.id)).toEqual({ invoiced_count: 0, paid_count: 1, earliest_invoiced_due_date: null });
+    expect((await list(editor, '?sort=number')).items.find((item) => item.id === target.id)?.payment?.state).toBe('paid');
+    await assertProjectionInSync();
+  });
+
+  it('EVM-056 AC1 P4 a milestone added through the API keeps the signals of the order and does not drift', async () => {
+    const target = await order({ milestones: [{ status: 'invoiced', dueDate: '2026-10-07', amountMinor: 10_000 }] });
+    const editor = await signIn();
+    const created = await editor.panel.post(
+      milestonesPath(target.id),
+      { id: uuidv7(), name: 'Dopłata syntetyczna' },
+      { 'Idempotency-Key': uuidv7() },
+    );
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    expect(await signals(target.id)).toEqual({ invoiced_count: 1, paid_count: 0, earliest_invoiced_due_date: '2026-10-07' });
+    expect((await list(editor, '')).items[0]?.payment).toMatchObject({ state: 'overdue', invoicedCount: 1 });
+    await assertProjectionInSync();
+  });
+
+  it('EVM-056 AC1 P4 an order created from a template with a payment plan starts with no issued milestone: invoicedCount 0, state "none"', async () => {
+    const editor = await signIn();
+    const { rows } = await sql<{ id: string }>`select id from catalog.work_order_templates where code = 'garage_full_process'`.execute(
+      admin(),
+    );
+    const body = {
+      id: uuidv7(),
+      customerId: await insertCustomer(admin(), { email: 'jan@example.invalid' }),
+      siteId: await insertSite(admin()),
+      templateId: rows[0]?.id ?? '',
+    };
+    const response = await editor.panel.post(LIST, body, { 'Idempotency-Key': uuidv7() });
+    expect(response.status, JSON.stringify(response.body)).toBe(201);
+    expect(await signals(body.id)).toEqual({ invoiced_count: 0, paid_count: 0, earliest_invoiced_due_date: null });
+    const item = (await list(editor, '?sort=number')).items.find((entry) => entry.id === body.id);
+    expect(item?.payment).toEqual({ state: 'none', invoicedCount: 0, invoicedTotal: pln(0), overdueTotal: pln(0) });
+    await assertProjectionInSync();
   });
 });
 
