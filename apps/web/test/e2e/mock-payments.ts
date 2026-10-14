@@ -57,6 +57,15 @@ const MAX = 20;
 const AMOUNT_MAX = 99_999_999_999;
 
 const stores = new WeakMap<OrderServer, Map<string, MockMilestone[]>>();
+/** EVM-056: the day of the synthetic server frozen by a test (the reads count "after the due date" from it, never from the browser). */
+const frozenDays = new WeakMap<OrderServer, string>();
+
+/** Freezes the day of the synthetic server for the reads of the instalments (`isOverdue`, `overdueDays`). */
+export function freezeServerDay(server: OrderServer, day: string): void {
+  frozenDays.set(server, day);
+}
+
+const dayOf = (server: OrderServer): string => frozenDays.get(server) ?? today();
 const keys = new WeakMap<OrderServer, Map<string, { readonly scope: string; readonly answer: Answer }>>();
 
 function keysOf(server: OrderServer) {
@@ -100,6 +109,22 @@ function milestonesOf(server: OrderServer, orderId: string): MockMilestone[] | u
   return items;
 }
 
+/**
+ * EVM-056: sets the instalments of a created order to the given states (in the order of the plan) — the walk through the dialogs is
+ * EVM-054's; here the target is what the summary and the list say about them.
+ */
+export function seedMilestones(
+  server: OrderServer,
+  orderId: string,
+  states: ReadonlyArray<Partial<Pick<MockMilestone, 'status' | 'amountMinor' | 'invoiceNumber' | 'invoicedOn' | 'dueDate' | 'paidOn'>>>,
+): void {
+  const items = milestonesOf(server, orderId) ?? [];
+  states.forEach((state, index) => {
+    const milestone = items[index];
+    if (milestone !== undefined) Object.assign(milestone, state, { version: milestone.version + 1 });
+  });
+}
+
 const ALLOWED: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
   planned: ['invoiced', 'cancelled'],
   invoiced: ['paid'],
@@ -107,7 +132,8 @@ const ALLOWED: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
   cancelled: [],
 };
 
-function represent(milestone: MockMilestone, role: Role = 'administrator') {
+function represent(milestone: MockMilestone, role: Role = 'administrator', day = today()) {
+  const overdue = milestone.status === 'invoiced' && milestone.dueDate !== null && milestone.dueDate < day;
   return {
     id: milestone.id,
     code: milestone.code,
@@ -121,7 +147,9 @@ function represent(milestone: MockMilestone, role: Role = 'administrator') {
     invoicedOn: milestone.invoicedOn,
     dueDate: milestone.dueDate,
     paidOn: milestone.paidOn,
-    isOverdue: milestone.status === 'invoiced' && milestone.dueDate !== null && milestone.dueDate < today(),
+    isOverdue: overdue,
+    // EVM-056: full days from the due date to the day of the server
+    overdueDays: overdue && milestone.dueDate !== null ? Math.round((Date.parse(day) - Date.parse(milestone.dueDate)) / 86_400_000) : null,
     version: milestone.version,
     allowedTransitions: role === 'read_only' ? [] : ALLOWED[milestone.status],
   };
@@ -134,7 +162,7 @@ export function answerPayments(server: OrderServer, orderId: string, role: Role 
   const items = milestonesOf(server, orderId);
   if (items === undefined) return NOT_FOUND;
   return json(200, {
-    items: items.map((entry) => represent(entry, role)),
+    items: items.map((entry) => represent(entry, role, dayOf(server))),
     totals: {
       unpaid: { amountMinor: sum(items, 'invoiced'), currency: 'PLN' },
       paid: { amountMinor: sum(items, 'paid'), currency: 'PLN' },

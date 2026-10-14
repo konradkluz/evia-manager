@@ -52,8 +52,9 @@ export function PaymentCell({ payment }: { readonly payment: WorkOrderPayment | 
   const { t } = useTranslation();
   const state = stateOf(payment);
   if (state === 'none') {
+    // Like the other dashes of the list, the card (`compact`) leaves it out; the name of the row says "brak wystawionych transz".
     return (
-      <span className="text-text-secondary">
+      <span className="text-text-secondary max-medium:hidden">
         <span aria-hidden="true">{t('workOrders.waiting.dash')}</span>
         <span className="sr-only">{t('workOrders.payment.none')}</span>
       </span>
