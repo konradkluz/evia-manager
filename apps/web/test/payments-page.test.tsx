@@ -434,6 +434,7 @@ describe('W-11 the states (EVM-055 AC8)', () => {
     expect(pay.getAttribute('aria-disabled')).toBe('true');
     expect(pay.title).toBe('Zmienisz po powrocie połączenia.');
     expect(screen.getByRole('button', { name: 'Po terminie' }).getAttribute('aria-disabled')).toBe('true');
+    expect(screen.getByRole<HTMLInputElement>('combobox', { name: /Klient/ }).disabled).toBe(true);
     // the menu is there, its items are disabled with the reason
     await userEvent.click(screen.getByRole('button', { name: 'Akcje transzy: Płatność końcowa, ZL-2026-0031' }));
     expect(screen.getByRole('menuitem', { name: /Popraw dane faktury…/ }).getAttribute('aria-disabled')).toBe('true');

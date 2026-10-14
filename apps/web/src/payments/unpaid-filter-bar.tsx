@@ -3,7 +3,7 @@ import { Button, DateField, FilterChip, Select } from '@evia/ui-web';
 import { useEffect, useId, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CustomerPicker } from '../customers/customer-picker.tsx';
-import { DAY_MAX, DAY_MIN } from '../work-orders/milestone-command.tsx';
+import { DAY_MAX, DAY_MIN } from '../work-orders/milestone-days.ts';
 import { isFiltered, PAGE_SIZES, rangeProblem, type UnpaidFilters } from './unpaid-filters.ts';
 
 /** The customer of the filter: the identifier goes to the API, the name only to the chip (memory of the tab, never the address). */
@@ -134,10 +134,11 @@ function CustomerFilter({
     target?.focus();
   }, [customer]);
   return (
-    <div ref={frame} className="flex min-w-0 flex-col gap-stack-xs medium:w-80">
+    <div ref={frame} className="flex w-full min-w-0 max-w-form-max-width flex-col gap-stack-xs">
       {customer === null ? (
         <CustomerPicker
           selected={null}
+          disabled={disabled}
           onSelect={(picked) => {
             onChange({ id: picked.id, displayName: picked.displayName });
           }}
