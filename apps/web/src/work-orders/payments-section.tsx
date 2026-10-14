@@ -134,7 +134,7 @@ export function PaymentsSection({
             {addButton}
           </div>
         ) : (
-          <div ref={table} className="flex flex-col items-start gap-stack-sm">
+          <div ref={table} className="flex min-w-0 flex-col gap-stack-sm">
             <MilestoneTable
               items={items}
               role={role}
@@ -143,7 +143,7 @@ export function PaymentsSection({
                 if (isRowDialog(action)) setDialog({ kind: action, milestone });
               }}
             />
-            {addButton}
+            {addButton === null ? null : <div className="self-start">{addButton}</div>}
           </div>
         )
       ) : query.isError ? (
@@ -304,7 +304,7 @@ function MilestoneTable({
           {primary === undefined ? null : (
             <Button
               variant="secondary"
-              className="max-medium:flex-1"
+              className="whitespace-nowrap max-medium:flex-1"
               disabled={reason !== undefined}
               {...(reason === undefined ? {} : { title: reason })}
               onClick={() => {

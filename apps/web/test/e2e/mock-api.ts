@@ -10,7 +10,14 @@ import {
   type OrderServer,
 } from './mock-work-orders.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
-import { answerPaymentCreate, answerPaymentPatch, answerPayments, paymentsCondition, paymentsEffect } from './mock-payments.ts';
+import {
+  answerPaymentCreate,
+  answerPaymentPatch,
+  answerPayments,
+  answerPaymentTransition,
+  paymentsCondition,
+  paymentsEffect,
+} from './mock-payments.ts';
 import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
@@ -614,11 +621,25 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       );
     }
     // EVM-053: the instalments of one order — the list, "Dodaj transzę" and "Zmień kwotę" (the section "Płatności" of W-06).
-    const payments = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36}))?$/.exec(url.pathname);
+    // EVM-054: also the transitions of an instalment (`…/{milestoneId}/transitions`).
+    const payments = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36})(\/transitions)?)?$/.exec(
+      url.pathname,
+    );
     if (payments !== null) {
       if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
-      const [, orderId = '', milestoneId] = payments;
-      if (request.method() === 'GET' && milestoneId === undefined) return route.fulfill(answerPayments(api.orders, orderId));
+      const [, orderId = '', milestoneId, transitions] = payments;
+      if (request.method() === 'GET' && milestoneId === undefined) return route.fulfill(answerPayments(api.orders, orderId, api.role));
+      if (request.method() === 'POST' && milestoneId !== undefined && transitions !== undefined) {
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        return route.fulfill(
+          answerPaymentTransition(api.orders, orderId, milestoneId, {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            key: headers['idempotency-key'],
+            raw: request.postData() ?? '{}',
+          }),
+        );
+      }
       if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
       if (request.method() === 'POST' && milestoneId === undefined) {
         return route.fulfill(
