@@ -146,5 +146,53 @@ test.describe('UX review screenshots (EVM-057) @screenshots', () => {
       await expect(page.getByRole('menuitem', { name: /Przywróć transzę…/ })).toHaveAttribute('aria-disabled', 'true');
       await shot(`w06-menu-editor-cancelled-${px}`);
     });
+
+    test(`EVM-057 W-06 the editor menu of an invoiced instalment without corrections at ${px} px`, async ({ page, api, shot }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const path = await seededOrder(page, api);
+      api.role = 'editor';
+      await page.goto(path);
+      const trigger = page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' });
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      await expect(page.getByRole('menuitem', { name: 'Popraw dane faktury…' })).toBeVisible();
+      await expect(page.getByRole('menuitem', { name: /Wycofaj fakturę…/ })).toHaveAttribute('aria-disabled', 'true');
+      await shot(`w06-menu-editor-invoiced-${px}`);
+    });
+
+    test(`EVM-057 W-06 offline: the open dialog K4 keeps its data and the menu items are disabled at ${px} px`, async ({
+      page,
+      api,
+      context,
+      shot,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await seededOrder(page, api);
+      await choose(page, 'Zaliczka (20%)', 'Zmień kwotę…');
+      const k4 = page.getByRole('dialog', { name: 'Zmienić kwotę transzy „Zaliczka”?' });
+      await k4.getByRole('textbox', { name: 'Nowa kwota' }).fill('3690');
+      await context.setOffline(true);
+      await expect(k4.getByText('Zapiszesz po powrocie połączenia.').first()).toBeVisible();
+      await shot(`k4-offline-${px}`);
+      await k4.getByRole('button', { name: 'Anuluj' }).click();
+      await page.getByRole('region', { name: 'Płatności', exact: true }).scrollIntoViewIfNeeded();
+      await page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' }).click();
+      await expect(page.getByRole('menuitem', { name: /Wycofaj fakturę…/ })).toHaveAttribute('aria-disabled', 'true');
+      await shot(`w06-menu-offline-${px}`);
+      await page.keyboard.press('Escape');
+      await context.setOffline(false);
+    });
+
+    test(`EVM-057 W-11 the menu with the corrections and the dialog K1 at ${px} px`, async ({ page, shot }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/payments');
+      await expect(page.getByRole('table', { name: 'Nieopłacone transze' })).toBeVisible();
+      await page.getByRole('button', { name: 'Akcje transzy: Płatność końcowa, ZL-2026-0031' }).click();
+      await expect(page.getByRole('menuitem', { name: 'Wycofaj fakturę…' })).toBeVisible();
+      await shot(`w11-menu-corrections-${px}`);
+      await page.getByRole('menuitem', { name: 'Wycofaj fakturę…' }).click();
+      await expect(page.getByRole('alertdialog')).toBeVisible();
+      await shot(`w11-k1-withdraw-invoice-${px}`);
+    });
   }
 });
