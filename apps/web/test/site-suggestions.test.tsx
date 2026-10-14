@@ -282,4 +282,73 @@ describe('W-05 "2. Lokalizacja": the locations of the earlier orders of the cust
     expect(suggestionCalls(api).map((call) => call.query.get('customerId'))).toEqual([JAN.id, EWA.id]);
     expect(screen.queryByText(/ul\. Testowa 7/)).toBeNull();
   });
+  it('EVM-043 AC4 a 429 or a failure of the site read: a message, no site is set, no automatic repeat; the next click reads once more', async () => {
+    let attempts = 0;
+    const api = suggestionApi({
+      [SITE(GARAGE_ID)]: () => {
+        attempts += 1;
+        if (attempts === 1) return problem(429, 'rate_limited', {}, { 'Retry-After': '20' });
+        if (attempts === 2) return problem(500, 'internal_error');
+        return json(200, GARAGE_CARD, { ETag: '"1"' });
+      },
+    });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    const choose = () => screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' });
+    await userEvent.click(await choose());
+    expect((await screen.findByRole('alert')).textContent).toContain('Zbyt wiele zapytań. Spróbuj ponownie za 20 s.');
+    expect(api.calls(SITE(GARAGE_ID))).toHaveLength(1);
+    await userEvent.click(await choose());
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Nie udało się wybrać lokalizacji.');
+    });
+    expect(screen.queryByRole('button', { name: 'Zmień lokalizację' })).toBeNull();
+    await userEvent.click(await choose());
+    await screen.findByRole('button', { name: 'Zmień lokalizację' });
+    expect(api.calls(SITE(GARAGE_ID))).toHaveLength(3);
+  });
+
+  it('EVM-043 AC1 the apartment and an unknown type of the object: the chosen site keeps the apartment, the list shows a neutral label — never the raw code', async () => {
+    const api = suggestionApi({
+      [LIST]: page(order(1, { ...HOUSE_LINE, siteType: 'castle' })),
+      [SITE(HOUSE_ID)]: () =>
+        json(200, {
+          ...HOUSE_LINE,
+          siteType: 'single_family_house',
+          apartmentNumber: '4',
+          postalCode: '90-001',
+          version: 1,
+          createdAt: 'x',
+          updatedAt: 'x',
+        }),
+    });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await heading(1);
+    expect(screen.getByText('ul. Przykładowa 2, Łódź · Typ obiektu nieznany')).toBeTruthy();
+    expect(screen.queryByText(/castle/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Wybierz lokalizację: ul. Przykładowa 2, Łódź' }));
+    expect(await screen.findByText('ul. Przykładowa 2/4, 90-001 Łódź · Dom jednorodzinny')).toBeTruthy();
+  });
+
+  it('EVM-043 AC1 leaving the section while a site is read: the answer is ignored and sets nothing', async () => {
+    let release: (response: Response) => void = () => undefined;
+    const api = suggestionApi({
+      [SITE(GARAGE_ID)]: () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await userEvent.click(await screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' }));
+    await waitFor(() => {
+      expect(api.calls(SITE(GARAGE_ID))).toHaveLength(1);
+    });
+    await userEvent.click(screen.getByRole('radio', { name: 'Nowa lokalizacja' }));
+    release(json(200, GARAGE_CARD, { ETag: '"1"' }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Istniejąca lokalizacja' }));
+    await heading(2);
+    expect(screen.queryByRole('button', { name: 'Zmień lokalizację' })).toBeNull();
+  });
 });
