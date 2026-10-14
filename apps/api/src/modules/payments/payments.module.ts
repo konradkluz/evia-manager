@@ -11,9 +11,11 @@
  */
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.ts';
+import { CustomersModule } from '../customers/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateMilestoneService } from './application/create-milestone.service.ts';
 import { ListMilestonesService } from './application/list-milestones.service.ts';
+import { ListUnpaidMilestonesService } from './application/list-unpaid-milestones.service.ts';
 import { PaymentsCompositionContributor } from './application/payments-contributor.ts';
 import { PaymentsTransitionParticipant } from './application/payments-transition-participant.ts';
 import { PaymentMilestoneDirectoryService } from './application/milestone-directory.service.ts';
@@ -23,10 +25,11 @@ import { PaymentsController } from './http/payments.controller.ts';
 import { PAYMENT_MILESTONE_DIRECTORY } from './milestone-directory.ts';
 
 @Module({
-  imports: [CatalogModule, WorkOrdersModule],
+  imports: [CatalogModule, CustomersModule, WorkOrdersModule],
   controllers: [PaymentsController],
   providers: [
     ListMilestonesService,
+    ListUnpaidMilestonesService,
     CreateMilestoneService,
     UpdateMilestoneService,
     TransitionMilestoneService,
