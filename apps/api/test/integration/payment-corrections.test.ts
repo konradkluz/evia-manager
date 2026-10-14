@@ -298,7 +298,20 @@ describe('"Zmień kwotę…" of an invoiced or paid milestone (EVM-057 AC3; SR-L
     const empty = await patch(browser, created.id, milestoneId, { amount: null }, { ifMatch: '"2"' });
     expect(empty.status).toBe(400);
     expect(codeOf(empty.body)).toBe('validation_failed');
-    expect(await auditOf(milestoneId)).toHaveLength(1);
+    const trail = await auditOf(milestoneId);
+    expect(trail).toHaveLength(2);
+    expect(trail).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'payment_milestone.amount_corrected',
+          amount_before_minor: '360000',
+          amount_after_minor: '369000',
+        }),
+        expect.objectContaining({ action: 'payment_milestone.details_changed', amount_before_minor: null, amount_after_minor: null }),
+      ]),
+    );
+    expect(await auditText(milestoneId)).not.toMatch(/FV\/TEST/);
+    expect(await journalOf(created.id)).toEqual([]);
   });
 
   it('EVM-057 AC3 regression: an explicit null of a correction does not change a patch — the number alone keeps the days, the amount and the status', async () => {

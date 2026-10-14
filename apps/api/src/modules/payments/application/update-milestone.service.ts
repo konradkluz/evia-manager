@@ -31,8 +31,9 @@
  *  10. a change without effect (every value equal to the stored one): `200` with the milestone as it is, no new version and no event;
  *      otherwise the update (`version + 1`) through the one point of write — no row there after a successful lock is a defect
  *      (`500`), never a silent `200` — the event for the audit trail (`payment_milestone.amount_changed` with the amount before and
- *      after — `payment_milestone.amount_corrected` for an invoiced or paid milestone — or `payment_milestone.details_changed` without
- *      any value), the idempotency record (a hash of the body only).
+ *      after — `payment_milestone.amount_corrected` for an invoiced or paid milestone — and, when other fields changed too,
+ *      `payment_milestone.details_changed` without any value: a patch of both leaves both events), the idempotency record (a hash of
+ *      the body only).
  * An error rolls everything back. A repeat returns the milestone as it is NOW.
  */
 import {
@@ -201,20 +202,30 @@ export class UpdateMilestoneService {
       now,
     );
     if (version === undefined) throw new ProblemException('internal_error');
-    const amountChanged = change.amountMinor !== undefined;
-    const amountType = locked.status === 'planned' ? 'payment_milestone.amount_changed' : 'payment_milestone.amount_corrected';
-    const event: PaymentMilestoneEvent = {
-      type: amountChanged ? amountType : 'payment_milestone.details_changed',
+    const base = {
       actor: { type: 'user', userId: principal.userId },
       outcome: 'success',
       objectType: 'payment_milestone',
       objectId: locked.id,
       workOrderId: target.workOrderId,
-      amountBeforeMinor: amountChanged ? locked.amountMinor : null,
-      amountAfterMinor: amountChanged ? (change.amountMinor ?? null) : null,
       fromCode: null,
       toCode: null,
-    };
-    await this.#events.publish(tx, event, request);
+    } as const;
+    const { amountMinor, ...otherFields } = change;
+    // One patch may change the amount AND other fields (a correction of an invoiced or paid milestone): both leave a trace (T7, SR-LOG-03).
+    if (amountMinor !== undefined) {
+      const type = locked.status === 'planned' ? 'payment_milestone.amount_changed' : 'payment_milestone.amount_corrected';
+      const amountEvent: PaymentMilestoneEvent = { ...base, type, amountBeforeMinor: locked.amountMinor, amountAfterMinor: amountMinor };
+      await this.#events.publish(tx, amountEvent, request);
+    }
+    if (Object.keys(otherFields).length > 0) {
+      const detailsEvent: PaymentMilestoneEvent = {
+        ...base,
+        type: 'payment_milestone.details_changed',
+        amountBeforeMinor: null,
+        amountAfterMinor: null,
+      };
+      await this.#events.publish(tx, detailsEvent, request);
+    }
   }
 }

@@ -41,7 +41,7 @@ const BOTH: readonly UserRole[] = ['administrator', 'editor'];
 const ADMINISTRATOR: readonly UserRole[] = ['administrator'];
 
 /** The order of the rows is the order of the actions of a row of W-06 / W-11: the way forward first, then the cancellation, then the corrections. */
-export const MILESTONE_TRANSITION_TABLE: readonly MilestoneTransitionRule[] = Object.freeze([
+const TRANSITION_ROWS = [
   { from: 'planned', to: 'invoiced', move: 'invoice', roles: BOTH, stepUp: false, action: 'invoiced' },
   { from: 'invoiced', to: 'paid', move: 'pay', roles: BOTH, stepUp: false, action: 'paid' },
   { from: 'planned', to: 'cancelled', move: 'cancel', roles: BOTH, stepUp: false, action: 'cancelled' },
@@ -49,7 +49,14 @@ export const MILESTONE_TRANSITION_TABLE: readonly MilestoneTransitionRule[] = Ob
   { from: 'invoiced', to: 'cancelled', move: 'correction', roles: ADMINISTRATOR, stepUp: true, action: 'invoice_cancelled' },
   { from: 'paid', to: 'invoiced', move: 'correction', roles: ADMINISTRATOR, stepUp: true, action: 'payment_undone' },
   { from: 'cancelled', to: 'planned', move: 'correction', roles: ADMINISTRATOR, stepUp: true, action: 'restored' },
-] as const satisfies readonly MilestoneTransitionRule[]);
+] as const satisfies readonly MilestoneTransitionRule[];
+export const MILESTONE_TRANSITION_TABLE: readonly MilestoneTransitionRule[] = Object.freeze(TRANSITION_ROWS);
+
+/** `from>to` of every row of the table that is a correction: a new row without an entry in {@link CORRECTION_UPDATES} does not compile. */
+type CorrectionKeyOf<Row> = Row extends { readonly from: infer From extends string; readonly to: infer To extends string }
+  ? `${From}>${To}`
+  : never;
+type CorrectionKey = CorrectionKeyOf<Extract<(typeof TRANSITION_ROWS)[number], { readonly move: 'correction' }>>;
 
 /** The row for the move, or `undefined` when the table has none (never a role decision: see {@link mayTake}). */
 export const findMilestoneTransition = (from: PaymentMilestoneStatus, to: PaymentMilestoneStatus): MilestoneTransitionRule | undefined =>
@@ -128,7 +135,7 @@ const CLEARED_INVOICE = { invoiceNumber: null, invoicedOn: null, dueDate: null }
  * undoing a payment clears its day; restoring a cancelled milestone clears whatever it held besides the amount — the invoice of a
  * cancelled invoice included, so its number remains outside the system only.
  */
-const CORRECTION_UPDATES: Readonly<Record<string, MilestoneMoveUpdate>> = {
+const CORRECTION_UPDATES: Readonly<Record<CorrectionKey, MilestoneMoveUpdate>> = {
   'invoiced>planned': { status: 'planned', ...CLEARED_INVOICE },
   'invoiced>cancelled': { status: 'cancelled' },
   'paid>invoiced': { status: 'invoiced', paidOn: null },
@@ -140,7 +147,7 @@ const CORRECTION_UPDATES: Readonly<Record<string, MilestoneMoveUpdate>> = {
  * `400 not_allowed` with its pointer (never its value), the reason of `invoiced → cancelled` included.
  */
 export function correctionFields(rule: MilestoneTransitionRule, command: MilestoneTransitionCommand): MoveFieldsResult {
-  const update = CORRECTION_UPDATES[`${rule.from}>${rule.to}`];
+  const update = (CORRECTION_UPDATES as Readonly<Record<string, MilestoneMoveUpdate | undefined>>)[`${rule.from}>${rule.to}`];
   if (update === undefined) throw new Error(`${rule.from}>${rule.to} is not a correction`);
   const errors: FieldIssue[] = FIELD_KEYS.filter((key) => command[key] !== undefined).map((key) => ({
     pointer: `/${key}`,
