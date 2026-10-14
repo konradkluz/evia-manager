@@ -4,7 +4,7 @@ title: Sprzątanie wygasłych rekordów idempotencji
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P2
 path: lekka
 owner: backend-developer
@@ -54,3 +54,4 @@ Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyk
 - 2026-10-07 — utworzono (product-owner; dług z EVM-020)
 - 2026-10-13 — refinement: zadania w tle istnieją (EVM-034), ścieżka lekka z recenzentem security, harmonogram i porcje w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka lekka, model sonnet, gałąź `feature/EVM-079-retencja-idempotencji` ułożona na EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
