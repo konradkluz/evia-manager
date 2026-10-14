@@ -1,7 +1,7 @@
 import { createWorkOrderProcedure, type CreateProcedureRequest, type Procedure, type WorkOrderDetails } from '@evia/contracts';
 import { Banner, Button, Dialog, InlineAlert, Select, Skeleton, WifiOff, type SelectOption } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
@@ -47,11 +47,18 @@ export function ProcedureAddDialog({
   const role = useSession().data?.user.role;
   const formId = useId();
   const templates = useProcedureTemplates();
+  const field = useRef<HTMLSelectElement>(null);
   const [code, setCode] = useState('');
   const [place, setPlace] = useState(END);
   const [codeError, setCodeError] = useState<string | undefined>(undefined);
   const [failure, setFailure] = useState<ManageFailure | null>(null);
   const [discarding, setDiscarding] = useState(false);
+
+  // The first field is "Proces" (W-06 (d), focus): it appears once the templates are read, so the focus waits for it.
+  const loaded = templates.data !== undefined;
+  useEffect(() => {
+    if (loaded) field.current?.focus();
+  }, [loaded]);
 
   const present = new Set(procedures.map((procedure) => procedure.code));
   const chosen = templates.data?.find((template) => template.code === code);
@@ -224,6 +231,7 @@ export function ProcedureAddDialog({
               label={t('workOrder.procedureManage.addProcedure.process')}
               value={code}
               options={templateOptions}
+              selectRef={field}
               {...(codeError === undefined ? {} : { error: codeError })}
               onChange={(value) => {
                 setCode(value);
