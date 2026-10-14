@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: backend-developer
@@ -126,3 +126,4 @@ _—_
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — in-progress → blocked: plan zatrzymany na Q1 (operacja usunięcia transzy a AC5) — pytania Q1–Q3 w „Decyzje”; zależne EVM-055, EVM-056, EVM-057 pominięte w kolejce nocnej
 - 2026-10-14 — Konrad odpowiedział na Q1–Q3 i sposób uzupełnienia makiet (wg rekomendacji, „Decyzje”); blocked → ready — ponowny `/deliver` jako nowy przebieg z decyzjami w `userNotes`
+- 2026-10-14 — ready → in-progress: ponowny `/deliver` (nowy przebieg, decyzje Q1–Q3 i specyfikacja UI w `userNotes`; ścieżka pełna, opus, gałąź ułożona na EVM-053 — PR #69)
