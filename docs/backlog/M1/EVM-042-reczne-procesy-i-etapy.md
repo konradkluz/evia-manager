@@ -4,8 +4,9 @@ title: Ręczne dodanie i usunięcie procesu lub etapu
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: ready
+status: in-progress
 priority: P2
+path: pelna
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
@@ -89,3 +90,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-14 — ready → in-progress: start /deliver w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź feature/EVM-042-reczne-procesy-etapy ułożona na EVM-043 → EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
