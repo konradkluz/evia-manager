@@ -22,7 +22,11 @@ import {
 export const PAYMENT_VIEWS: readonly WorkOrderView[] = ['overdue_payments', 'unpaid'];
 /** The sorts whose order depends on payments; without the right they are computed without them, never refused (W4, D9). */
 export const PAYMENT_SORTS: readonly WorkOrderSort[] = ['urgency'];
-/** The fields of an item of the list that only a caller who may read payments gets (W4). */
+/**
+ * The fields of an item of the list that only a caller who may read payments gets (W4). A declaration checked by a test against
+ * `restrictedParams.fields` of the contract — it does not drive the hiding: `WorkOrderPageService` omits `payment` when it has no totals
+ * (`withPayments` false). A new field in `restrictedParams.fields` therefore needs a change of that hiding as well.
+ */
 export const PAYMENT_FIELDS = ['payment'] as const;
 
 /** The signals of payments the projection keeps for an order (ADR-0017 → "Model projekcji"; no amount, W1). */

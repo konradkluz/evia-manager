@@ -244,7 +244,8 @@ workOrdersSearch:
       (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do
       progu masowego odczytu (P10: alert przy 2000 rekordów w 10 minut, `429` od 10 000) i do licznika różnych klientów (alert
       przy 301. różnym kliencie w ciągu godziny). Fraza nie trafia do logów, metryk ani `errors[]`. Widoki płatności, `urgency`
-      i pole `payment` — jak w `listWorkOrders` (EVM-056); pole `payment` w treści — `400 read_only_field`.
+      i pole `payment` — jak w `listWorkOrders` (EVM-056). Pole tylko do odczytu elementu listy (`id`, `number`, `payment` …)
+      w treści — `400 read_only_field` (nie `unknown_field`).
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
