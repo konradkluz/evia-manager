@@ -6,6 +6,7 @@ import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { WORK_ORDERS_PATH, workOrderPath } from '../paths.ts';
 import { formatSiteLine } from '../sites/format.ts';
 import { formatDate } from './format.ts';
+import { PaymentCell, paymentRowText } from './payment-cell.tsx';
 import { DueCell, dueRowText, WaitingCell, waitingRowText } from './waiting-cells.tsx';
 
 /** Router link for the rows (typed paths of the panel; the details page W-06 arrives with EVM-018). */
@@ -21,9 +22,11 @@ const keyOf = (status: WorkOrderStatus): OrderStatusKey => status.replaceAll('_'
 
 type SortedColumn = 'order' | 'created' | 'waiting' | 'due';
 
-/** The column a sort order belongs to (it carries `aria-sort`, § 3.6). */
-function sortedColumn(sort: WorkOrderSort): SortedColumn {
+/** The column a sort order belongs to (it carries `aria-sort`, § 3.6); "Najpilniejsze" is a composite order of no column (§ 4.2). */
+function sortedColumn(sort: WorkOrderSort): SortedColumn | null {
   switch (sort) {
+    case 'urgency':
+      return null;
     case 'number':
     case '-number':
       return 'order';
@@ -54,8 +57,19 @@ function Missing({ label }: { readonly label: string }) {
  * know is the "Nieznany status" badge — P-12, never the raw code), "Czekamy na" (the longest wait and "+n"), "Termin" (the nearest
  * due date, with `alarm-clock` when it has passed), "Opiekun" and "Utworzono"; the whole row leads to the details and carries the
  * full description as its name. The column the list is sorted by carries `aria-sort`. Texts are shown as React text only.
+ *
+ * EVM-056 AC1: "Płatność" (after "Termin", on the right — § 4.2; the last line of the card) for a role that reads payments
+ * (`payments`); the payment closes the name of the row. With "Najpilniejsze" no column carries `aria-sort`.
  */
-export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkOrderListItem[]; readonly sort: WorkOrderSort }) {
+export function WorkOrderTable({
+  items,
+  sort,
+  payments,
+}: {
+  readonly items: readonly WorkOrderListItem[];
+  readonly sort: WorkOrderSort;
+  readonly payments: boolean;
+}) {
   const { t } = useTranslation();
   const direction: 'ascending' | 'descending' = sort.startsWith('-') ? 'descending' : 'ascending';
   const sorted = sortedColumn(sort);
@@ -69,6 +83,7 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
     { id: 'status', card: 'badge' as const, header: t('workOrders.table.status') },
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
     { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
+    ...(payments ? [{ id: 'payment', card: 'detail' as const, header: t('workOrders.table.payment'), align: 'end' as const }] : []),
     { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator') },
     {
       id: 'created',
@@ -101,7 +116,9 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
       created,
     });
     // What the order waits for and the due date join the name of the row only when there is something to say.
-    const extra = [waitingRowText(t, item.waiting), dueRowText(t, item)].filter((part) => part !== undefined);
+    const extra = [waitingRowText(t, item.waiting), dueRowText(t, item), payments ? paymentRowText(t, item.payment) : undefined].filter(
+      (part) => part !== undefined,
+    );
     const deleted = customer !== undefined && customer !== null && 'deleted' in customer;
     const customerLine = (
       <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>
@@ -150,6 +167,7 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
         ),
         <WaitingCell key="waiting" waiting={item.waiting} />,
         <DueCell key="due" item={item} />,
+        ...(payments ? [<PaymentCell key="payment" payment={item.payment} />] : []),
         <span
           key="coordinator"
           className={item.coordinator === null ? 'expanded:whitespace-nowrap text-text-secondary' : 'expanded:whitespace-nowrap'}

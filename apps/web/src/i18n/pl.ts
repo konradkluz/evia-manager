@@ -172,6 +172,9 @@ export const pl = {
       viewAllOpen: 'Wszystkie niezamknięte',
       viewMine: 'Moje',
       viewDso: 'Czekamy na OSD > 14 dni',
+      viewOverduePayments: 'Po terminie',
+      viewUnpaid: 'Nieopłacone',
+      paymentViewHint: 'Tylko zlecenia niezamknięte.',
       status: 'Status',
       coordinator: 'Opiekun',
       allCoordinators: 'Wszyscy',
@@ -239,6 +242,27 @@ export const pl = {
       rowDueOverdue: 'termin: {{date}}, po terminie',
       waiting: 'Czekamy na',
       due: 'Termin',
+      payment: 'Płatność',
+      rowPaymentOverdue: 'płatność po terminie, {{amount}}',
+      rowPaymentUnpaid: 'nieopłacone: {{count}}, {{amount}}',
+      rowPaymentPaid: 'opłacone',
+      rowPaymentNone: 'brak wystawionych transz',
+      rowPaymentUnknown: 'płatność: nieznany status',
+    },
+    payment: {
+      unpaid: 'Nieopłacone ({{count}})',
+      paid: 'Opłacone',
+      none: 'Brak wystawionych transz',
+    },
+    announce: {
+      sort: 'Sortowanie: {{sort}}',
+      view: 'Widok: {{view}}',
+    },
+    overduePaymentsEmpty: {
+      title: 'Brak zleceń z płatnością po terminie. Dobra wiadomość.',
+    },
+    unpaidEmpty: {
+      title: 'Brak zleceń z nieopłaconymi transzami.',
     },
     waiting: {
       party: '{{name}} ({{kind}})',
