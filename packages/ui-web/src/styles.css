@@ -60,6 +60,13 @@
   --color-action-secondary-text-disabled: var(--evm-color-action-secondary-text-disabled);
   --color-action-tertiary-text: var(--evm-color-action-tertiary-text);
   --color-action-tertiary-text-disabled: var(--evm-color-action-tertiary-text-disabled);
+  --color-action-danger-bg: var(--evm-color-action-danger-bg);
+  --color-action-danger-bg-hover: var(--evm-color-action-danger-bg-hover);
+  --color-action-danger-bg-pressed: var(--evm-color-action-danger-bg-pressed);
+  --color-action-danger-bg-disabled: var(--evm-color-action-danger-bg-disabled);
+  --color-action-danger-text: var(--evm-color-action-danger-text);
+  --color-action-danger-text-disabled: var(--evm-color-action-danger-text-disabled);
+  --color-action-danger-text-subtle: var(--evm-color-action-danger-text-subtle);
   --color-feedback-error-bg: var(--evm-color-feedback-error-bg);
   --color-feedback-error-icon: var(--evm-color-feedback-error-icon);
   --color-feedback-info-bg: var(--evm-color-feedback-info-bg);

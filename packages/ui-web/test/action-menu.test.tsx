@@ -142,4 +142,46 @@ describe('Toast with an action and Banner info (styleguide § 3.14, § 3.19; EVM
     rerender(<Banner icon={Info}>Brak połączenia.</Banner>);
     expect(screen.getByRole('status')).toBeTruthy();
   });
+
+  it('EVM-054 AC5 a group starts after a separator and a destructive item takes the danger text; arrows skip the separator', async () => {
+    const onCancel = vi.fn();
+    render(
+      <ActionMenu
+        label="Akcje transzy: Zaliczka"
+        items={[
+          { id: 'amount', label: 'Zmień kwotę…', onSelect: vi.fn() },
+          { id: 'cancel', label: 'Anuluj transzę…', onSelect: onCancel, startsGroup: true, tone: 'danger' },
+          {
+            id: 'delete',
+            label: 'Usuń transzę…',
+            onSelect: vi.fn(),
+            tone: 'danger',
+            disabledHint: 'Korektę płatności może wykonać tylko administrator.',
+          },
+        ]}
+        trigger={(props) => (
+          <button type="button" {...props}>
+            Akcje
+          </button>
+        )}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    const list = screen.getByRole('menu', { name: 'Akcje transzy: Zaliczka' });
+    const separators = screen.getAllByRole('separator');
+    expect(separators).toHaveLength(1);
+    expect(separators[0]?.className).toContain('border-border-subtle');
+    // the separator stands between the first item and the group
+    expect([...list.children].map((child) => child.getAttribute('role'))).toEqual(['none', 'separator', 'none', 'none']);
+    const cancel = screen.getByRole('menuitem', { name: 'Anuluj transzę…' });
+    expect(cancel.className).toContain('text-action-danger-text-subtle');
+    // a disabled destructive item keeps the look of a disabled item
+    expect(screen.getByRole('menuitem', { name: /Usuń transzę…/ }).className).toContain('text-text-disabled');
+    await userEvent.keyboard('{ArrowDown}');
+    expect(document.activeElement).toBe(cancel);
+    await userEvent.keyboard('{Enter}');
+    expect(onCancel).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
 });
