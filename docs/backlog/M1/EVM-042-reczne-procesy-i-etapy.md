@@ -91,3 +91,5 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-14 — ready → in-progress: start /deliver w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź feature/EVM-042-reczne-procesy-etapy ułożona na EVM-043 → EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — backend gotowy (backend-developer): 7 operacji, audyt i dziennik, testy `EVM-042 AC1–AC7` w kontenerze; panel (W-06 (d)) czeka na web-developera

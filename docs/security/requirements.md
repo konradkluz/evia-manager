@@ -296,6 +296,9 @@ Listy wynikają z kolumny „Epik / historyjka” katalogu. Przykładowe AC są 
 **E4 Procesy i etapy (M1)** — SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-API-07, SR-DATA-01
 - Gdy Edytor wysyła przejście etapu, którego nie ma w tabeli przejść, wtedy API zwraca `409 invalid_state_transition`, a stan etapu się nie zmienia (SR-API-07).
 - Gdy Tylko odczyt wysyła dowolne przejście etapu, wtedy API zwraca `403 forbidden` (test z macierzy ról — SR-AUTHZ-05).
+- Gdy Edytor próbuje przywrócić usunięty proces lub etap albo odczytać listę usuniętych, wtedy API zwraca `403 forbidden` (przywraca tylko Administrator — EVM-042, SR-AUTHZ-05).
+- Gdy Administrator przywraca etap albo proces ze ścieżką zlecenia A, ale z identyfikatorem obiektu zlecenia B, wtedy API zwraca `404 not_found` identyczne jak dla obiektu nieistniejącego, a obiekt zlecenia B się nie zmienia (EVM-042, SR-AUTHZ-02).
+- Gdy nazwa ręcznie dodanego etapu zawiera tekst swobodny, wtedy nie trafia do wiersza audytu, payloadu dziennika, logów ani komunikatów błędów (EVM-042, SR-LOG-03).
 
 **E5 Dziennik i komentarze (M1)** — SR-SESS-08, SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-05, SR-WEB-03, SR-DATA-01, SR-DATA-08, SR-LOG-03, SR-PRIV-03
 - Gdy wpis dziennika zawiera `<script>alert(1)</script>`, wtedy panel wyświetla go jako tekst, a w konsoli przeglądarki nie wykonuje się żaden skrypt (SR-WEB-03, SR-WEB-01).
