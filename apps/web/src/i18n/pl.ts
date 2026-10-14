@@ -256,8 +256,13 @@ export const pl = {
       none: 'Brak wystawionych transz',
     },
     announce: {
-      sort: 'Sortowanie: {{sort}}',
-      view: 'Widok: {{view}}',
+      sort: 'Sortowanie: {{sort}}. {{counted}}',
+      view: 'Widok: {{view}}. {{counted}}',
+      countOne: '{{count}} zlecenie',
+      countFew: '{{count}} zlecenia',
+      countMany: '{{count}} zleceń',
+      // more pages exist (or this is not the first): the count is that of the loaded page, not of all the orders
+      onPage: '{{counted}} na stronie',
     },
     overduePaymentsEmpty: {
       title: 'Brak zleceń z płatnością po terminie. Dobra wiadomość.',

@@ -154,9 +154,44 @@ describe('W-10 views "Po terminie" and "Nieopłacone" (EVM-056 AC2)', () => {
     expect(lastQuery(api).get('view')).toBe('unpaid');
     await userEvent.click(screen.getByRole('button', { name: 'Po terminie' }));
     await waitFor(() => {
-      expect(screen.getByText('Widok: Po terminie')).toBeTruthy();
+      expect(screen.getByText('Widok: Po terminie. 4 zlecenia')).toBeTruthy();
     });
-    expect(screen.getByText('Widok: Po terminie').getAttribute('role')).toBe('status');
+    expect(screen.getByText('Widok: Po terminie. 4 zlecenia').getAttribute('role')).toBe('status');
+  });
+
+  it.each([
+    [1, '1 zlecenie'],
+    [2, '2 zlecenia'],
+    [5, '5 zleceń'],
+    [12, '12 zleceń'],
+    [22, '22 zlecenia'],
+  ])('EVM-056 AC2 the announcement of a view carries the Polish count of the loaded orders (%i)', async (count, words) => {
+    const many = Array.from({ length: count }, (_, index) => order(index + 1, { payment: OVERDUE }));
+    const api = listApi((request) => (request.query.get('view') === 'overdue_payments' ? json(200, page(many)) : json(200, page(FOUR))));
+    await renderPanel(PATH, api);
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('button', { name: 'Po terminie' }));
+    expect(await screen.findByText(`Widok: Po terminie. ${words}`)).toBeTruthy();
+  });
+
+  it('EVM-056 AC2 the announcement is not made while the list loads, and a further page says it counts the loaded ones', async () => {
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const api = listApi(async (request) => {
+      if (request.query.get('view') === 'overdue_payments') {
+        await gate;
+        return json(200, page(FOUR, 'next-page'));
+      }
+      return json(200, page(FOUR));
+    });
+    await renderPanel(PATH, api);
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('button', { name: 'Po terminie' }));
+    expect(screen.queryByText(/^Widok:/)).toBeNull();
+    release?.();
+    expect(await screen.findByText('Widok: Po terminie. 4 zlecenia na stronie')).toBeTruthy();
   });
 
   it('EVM-056 AC2 empty views have their own words without a button', async () => {
@@ -206,12 +241,12 @@ describe('W-10 sort "Najpilniejsze" (EVM-056 AC3)', () => {
     await waitFor(() => {
       expect(lastQuery(api).get('sort')).toBe('nextDueDate');
     });
-    expect(await screen.findByText('Sortowanie: Termin')).toBeTruthy();
+    expect(await screen.findByText('Sortowanie: Termin. 4 zlecenia')).toBeTruthy();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sortuj' }), 'Najpilniejsze');
     await waitFor(() => {
       expect(lastQuery(api).get('sort')).toBe('urgency');
     });
-    expect(await screen.findByText('Sortowanie: Najpilniejsze')).toBeTruthy();
+    expect(await screen.findByText('Sortowanie: Najpilniejsze. 4 zlecenia')).toBeTruthy();
     expect(history.location.search).toBe('');
   });
 

@@ -46,6 +46,7 @@ import {
 } from '../work-orders/filters.ts';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
+import { pluralForm } from '../work-orders/order-form.ts';
 import { WorkOrderFilterBar } from '../work-orders/work-order-filter-bar.tsx';
 import { WorkOrderTable } from '../work-orders/work-order-table.tsx';
 import { retryMinutes } from './login-failure.tsx';
@@ -201,9 +202,13 @@ export function WorkOrdersPage() {
   useEffect(() => {
     if (data === undefined || moved.current === null) return;
     if (moved.current === 'search') setAnnouncement(t('workOrders.search.loaded'));
-    else if (moved.current === 'sort') setAnnouncement(t('workOrders.announce.sort', { sort: workOrderSortLabels[sort] }));
-    else if (moved.current === 'view') setAnnouncement(t('workOrders.announce.view', { view: viewLabel(t, view) }));
-    else {
+    else if (moved.current === 'sort') {
+      setAnnouncement(
+        t('workOrders.announce.sort', { sort: workOrderSortLabels[sort], counted: countedText(t, data, cursors.length > 0) }),
+      );
+    } else if (moved.current === 'view') {
+      setAnnouncement(t('workOrders.announce.view', { view: viewLabel(t, view), counted: countedText(t, data, cursors.length > 0) }));
+    } else {
       setAnnouncement(moved.current === 'next' ? t('workOrders.pages.loadedNext') : t('workOrders.pages.loadedPrevious'));
       heading.current?.focus();
     }
@@ -438,6 +443,26 @@ function Loading() {
       ))}
     </div>
   );
+}
+
+/** "6 zleceń" — the Polish form of the count of the loaded page; "na stronie" when other pages exist (the count is not of all the orders). */
+function countedText(
+  t: TFunction,
+  data: { readonly items: readonly unknown[]; readonly nextCursor: string | null },
+  notFirst: boolean,
+): string {
+  const count = data.items.length;
+  const counted = (() => {
+    switch (pluralForm(count)) {
+      case 'one':
+        return t('workOrders.announce.countOne', { count });
+      case 'few':
+        return t('workOrders.announce.countFew', { count });
+      case 'many':
+        return t('workOrders.announce.countMany', { count });
+    }
+  })();
+  return data.nextCursor !== null || notFirst ? t('workOrders.announce.onPage', { counted }) : counted;
 }
 
 /** The name of a saved view in the announcement of its change ("Widok: Po terminie"); `all` (statuses chosen) is not announced. */
