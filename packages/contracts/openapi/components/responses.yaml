@@ -488,9 +488,10 @@ PaymentMilestoneConflict:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 PaymentMilestoneForbidden:
   description: >-
-    Brak uprawnienia (`forbidden`: Tylko odczyt zawsze; Administrator i Edytor przy zmianie kwoty transzy, która nie jest już
-    „Planowana”, i przy korekcie płatności — wycofaniu i anulowaniu faktury, cofnięciu wpłaty, przywróceniu transzy; korekty wykonuje
-    Administrator ze step-upem od EVM-057), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
+    Brak uprawnienia (`forbidden`: Tylko odczyt zawsze; Edytor przy korekcie płatności — wycofaniu i anulowaniu faktury, cofnięciu
+    wpłaty, przywróceniu transzy i zmianie kwoty transzy „Wystawiona” albo „Opłacona”; każda rola przy zmianie kwoty transzy
+    „Anulowana”), Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach przy korekcie płatności
+    (`step_up_required` — sprawdzane po roli, EVM-057), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
     (`mfa_enrollment_required`). Odpowiedź nie podaje statusu ani kwoty transzy.
   content:
     application/problem+json:
@@ -545,8 +546,7 @@ PaymentMilestoneUnprocessable:
             code: in_future
 PaymentMilestoneDeleteForbidden:
   description: >-
-    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze; do EVM-057 także Administrator po step-upie — skutek usunięcia
-    transzy dopisuje EVM-057), Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach (`step_up_required` —
+    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach (`step_up_required` —
     sprawdzane po roli), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu (`mfa_enrollment_required`). Odpowiedź
     nie mówi, czy transza istnieje.
   content:

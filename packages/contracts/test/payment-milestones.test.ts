@@ -132,7 +132,7 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     expect(zAuditEventList.safeParse({ items: [{ ...event, action: 'payment_milestone.cancelled' }], nextCursor: null }).success).toBe(
       true,
     );
-    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.deleted' }).success).toBe(false);
+    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.purged' }).success).toBe(false);
   });
 
   it('EVM-053 P3 SR-AUTHZ-12 no operation open to the mobile channel can answer with a payment milestone or an amount (payments never reach the phone)', () => {

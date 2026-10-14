@@ -45,7 +45,7 @@ describe('the transitions of a payment milestone in the contract (EVM-054; SR-AU
     expect(zTransitionPaymentMilestonePath.safeParse({ workOrderId: V7, milestoneId: 'x' }).success).toBe(false);
   });
 
-  it('EVM-054 AC5 Q1 the deletion of a milestone is declared for the Administrator with a step-up and audit, web only — its effect comes with EVM-057, the headers of EVM-057 are declared now', () => {
+  it('EVM-054 AC5 Q1 EVM-057 AC4 the deletion of a milestone is the Administrator with a step-up and audit, web only; If-Match required, Idempotency-Key optional; 204 with Idempotent-Replayed on a repeat', () => {
     expect(AUTHZ_MANIFEST['deletePaymentMilestone']).toMatchObject({
       method: 'delete',
       path: BASE,
@@ -55,10 +55,46 @@ describe('the transitions of a payment milestone in the contract (EVM-054; SR-AU
     expect(zDeletePaymentMilestoneHeaders.safeParse({ 'If-Match': '"1"' }).success).toBe(true);
     expect(zDeletePaymentMilestoneHeaders.safeParse({ 'If-Match': '"1"', 'Idempotency-Key': V7 }).success).toBe(true);
     expect(zDeletePaymentMilestoneHeaders.safeParse({}).success).toBe(false);
-    const operation = bundle().paths[BASE]?.['delete'];
-    expect(Object.keys(operation?.responses ?? {}).sort()).toEqual(['204', '400', '401', '403', '404', '409', '412', '428', '429']);
-    expect(operation?.description).toContain('EVM-057');
-    expect(operation?.description).toContain('`403 forbidden`');
+    const operation = bundle().paths[BASE]?.['delete'] as BundledOperation & {
+      responses: Record<string, { headers?: Record<string, unknown> }>;
+    };
+    expect(Object.keys(operation.responses).sort()).toEqual(['204', '400', '401', '403', '404', '409', '412', '428', '429']);
+    expect(Object.keys(operation.responses['204']?.headers ?? {})).toEqual(['Idempotent-Replayed']);
+    expect(operation.description).toContain('EVM-057');
+    expect(operation.description).toContain('`404 not_found`');
+    expect(operation.description).not.toContain('Do EVM-057');
+  });
+
+  it('EVM-057 AC1 AC2 AC3 AC4 SR-LOG-03 the audit trail knows the six actions of a correction; an action outside the list is refused', () => {
+    const event = {
+      id: V7,
+      occurredAt: '2026-10-14T08:00:00.000Z',
+      actor: null,
+      action: 'payment_milestone.invoice_withdrawn',
+      outcome: 'success',
+      reasonCode: null,
+      objectType: 'payment_milestone',
+      objectId: V7,
+      ipPrefix: null,
+    };
+    for (const action of [
+      'payment_milestone.invoice_withdrawn',
+      'payment_milestone.invoice_cancelled',
+      'payment_milestone.payment_undone',
+      'payment_milestone.restored',
+      'payment_milestone.amount_corrected',
+      'payment_milestone.deleted',
+    ])
+      expect(zAuditEvent.safeParse({ ...event, action }).success, action).toBe(true);
+    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.purged' }).success).toBe(false);
+  });
+
+  it('EVM-057 AC6 the command of a correction is the target alone in the schema; the representation may name the four targets of the corrections', () => {
+    expect(zPaymentMilestoneTransition.safeParse({ to: 'planned' }).success).toBe(true);
+    expect(zPaymentMilestonePatch.safeParse({ amount: null }).success).toBe(false);
+    const description = bundle().components.schemas['PaymentMilestoneTransition'] as unknown as { description: string };
+    expect(description.description).toContain('`400 not_allowed`');
+    expect(description.description).toContain('`403 step_up_required`');
   });
 
   it('EVM-054 AC7 the transition needs If-Match as a strong tag and takes an optional UUIDv7 Idempotency-Key', () => {
@@ -149,5 +185,18 @@ describe('the transitions of a payment milestone in the contract (EVM-054; SR-AU
     expect(zTimelineEvent.safeParse({ ...event, paymentMilestone: { id: V7, name: 'Zaliczka' } }).success).toBe(true);
     expect(zTimelineEvent.safeParse({ ...event, paymentMilestone: { id: V7, name: null } }).success).toBe(true);
     expect(zTimelineEvent.safeParse({ ...event, paymentMilestone: { id: V7 } }).success).toBe(false);
+  });
+  it('EVM-057 AC4 the journal entry of a deleted milestone names the milestone without a name and without a status', () => {
+    const deleted = {
+      code: 'payment_milestone_deleted',
+      objectType: 'payment_milestone',
+      fromStatus: null,
+      toStatus: null,
+      waitingOn: null,
+      waitingOnParty: null,
+      changedFields: [],
+      paymentMilestone: { id: V7, name: null },
+    };
+    expect(zTimelineEvent.safeParse(deleted).success).toBe(true);
   });
 });
