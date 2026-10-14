@@ -216,14 +216,14 @@ export async function searchVisibleSiteIds(db: SitesDb, principal: Principal, te
 }
 
 /**
- * The city, the street and the building number of the sites among `ids` that the caller may see (ONE query, ONE array parameter):
+ * The type, the city, the street and the building number of the sites among `ids` that the caller may see (ONE query, ONE array parameter):
  * the line of the list of work orders — no postal code, no apartment, no spot (SR-DATA-03, data minimisation).
  */
 export function findVisibleSiteLines(db: SitesDb, principal: Principal, ids: readonly string[]) {
   if (ids.length === 0) return Promise.resolve([]);
   return db
     .selectFrom('sites.sites')
-    .select(['id', 'city', 'street', 'building_number'])
+    .select(['id', 'site_type', 'city', 'street', 'building_number'])
     .where(sql<boolean>`id = any(${[...ids]}::uuid[])`)
     .where(visibleSites(principal))
     .execute();

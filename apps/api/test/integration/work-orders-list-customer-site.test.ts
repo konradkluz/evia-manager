@@ -48,7 +48,7 @@ beforeEach(async () => {
 interface Item {
   number: string;
   customer?: { id: string; displayName: string } | { deleted: true } | null;
-  site?: { id: string; city: string; street: string; buildingNumber: string } | null;
+  site?: { id: string; siteType: string; city: string; street: string; buildingNumber: string } | null;
 }
 interface Page {
   items: Item[];
@@ -70,6 +70,48 @@ const templateId = async (code: string): Promise<string> =>
   (await sql<{ id: string }>`select id from catalog.work_order_templates where code = ${code}`.execute(admin())).rows[0]?.id ?? '';
 
 describe('the customer and the site on the list (EVM-072 AC1; SR-DATA-03, TM-18)', () => {
+  it('EVM-043 AC3 the suggestion of locations for a customer comes from ITS visible orders: a soft-deleted order and a deleted site give no location, for every role; siteType only inside the resolved site', async () => {
+    const jan = await insertCustomer(admin(), { firstName: 'Jan', lastName: 'Przykładowy' });
+    const other = await insertCustomer(admin(), { firstName: 'Ewa', lastName: 'Testowa', phone: '+48600000002' });
+    const kept = await insertSite(admin(), { city: 'Łódź', siteType: 'commercial' });
+    const second = await insertSite(admin(), { city: 'Gdynia', siteType: 'other' });
+    const ofDeletedOrder = await insertSite(admin(), { city: 'Sopot' });
+    const deletedSite = await insertSite(admin(), { city: 'Hel', deletedAt: '2026-10-05T08:00:00Z' });
+    const foreign = await insertSite(admin(), { city: 'Toruń' });
+    await insertWorkOrders(admin(), [
+      { number: numberOf(2026, 1), customerId: jan, siteId: kept },
+      { number: numberOf(2026, 2), customerId: jan, siteId: second },
+      { number: numberOf(2026, 3), customerId: jan, siteId: ofDeletedOrder, deletedAt: new Date('2026-10-02T08:00:00Z') },
+      { number: numberOf(2026, 4), customerId: jan, siteId: deletedSite },
+      { number: numberOf(2026, 5), customerId: other, siteId: foreign },
+    ]);
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      const list = await page(await signIn(role), `?customerId=${jan}&sort=number&limit=100`);
+      expect(
+        list.items.map((item) => item.number),
+        role,
+      ).toEqual([numberOf(2026, 1), numberOf(2026, 2), numberOf(2026, 4)]);
+      expect(
+        list.items.map((item) => item.site?.siteType ?? null),
+        role,
+      ).toEqual(['commercial', 'other', null]);
+      const text = JSON.stringify(list);
+      for (const hidden of ['Sopot', 'Hel', 'Toruń', ofDeletedOrder, deletedSite, foreign])
+        expect(text, `${role} ${hidden}`).not.toContain(hidden);
+      for (const item of list.items) if (item.site === null) expect(Object.keys(item)).not.toContain('siteType');
+    }
+  });
+
+  it('EVM-043 AC4 the list with a customerId: no session 401, the mobile channel 403 channel_not_allowed', async () => {
+    const jan = await insertCustomer(admin(), { lastName: 'Przykładowy' });
+    const anonymous = await request(current.app.getHttpServer()).get(`${PATH}?customerId=${jan}`);
+    expect(anonymous.status).toBe(401);
+    const user = await createUser(admin(), current.clock, { role: 'editor' });
+    const mobile = await createSession(admin(), current.clock, user, { channel: 'mobile' });
+    const denied = await get(mobile.cookie, `?customerId=${jan}`);
+    expect([denied.status, (denied.body as { code: string }).code]).toEqual([403, 'channel_not_allowed']);
+  });
+
   it('EVM-072 AC1 orders of different customers show the name of THEIR customer and the city, the street and the building number of THEIR site — nothing more of the address', async () => {
     const cookie = await signIn();
     const jan = await insertCustomer(admin(), { firstName: 'Jan', lastName: 'Przykładowy' });
@@ -93,12 +135,12 @@ describe('the customer and the site on the list (EVM-072 AC1; SR-DATA-03, TM-18)
       expect.objectContaining({
         number: numberOf(2026, 1),
         customer: { id: jan, displayName: expect.stringContaining('Przykładowy') as string },
-        site: { id: lodz, city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' },
+        site: { id: lodz, siteType: 'multi_family_garage', city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' },
       }),
       expect.objectContaining({
         number: numberOf(2026, 2),
         customer: { id: ewa, displayName: expect.stringContaining('Testowa') as string },
-        site: { id: warszawa, city: 'Warszawa', street: 'ul. Testowa', buildingNumber: '7' },
+        site: { id: warszawa, siteType: 'single_family_house', city: 'Warszawa', street: 'ul. Testowa', buildingNumber: '7' },
       }),
     ]);
     const text = JSON.stringify(list);

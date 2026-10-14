@@ -20,7 +20,7 @@ workOrders:
       zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni”
       (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne
       strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby.
-      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site`.
+      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site` (adres i, od EVM-043, kod typu obiektu `siteType`).
       `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe.
       Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`),
       kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.

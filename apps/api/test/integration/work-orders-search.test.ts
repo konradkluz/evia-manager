@@ -49,7 +49,7 @@ interface Item {
   title: string;
   status: string;
   customer?: { id: string; displayName: string } | { deleted: true } | null;
-  site?: { id: string; city: string; street: string; buildingNumber: string } | null;
+  site?: { id: string; siteType: string; city: string; street: string; buildingNumber: string } | null;
 }
 interface Page {
   items: Item[];
@@ -131,7 +131,7 @@ describe('search by a phrase (EVM-072 AC2; SR-API-04, SR-INPUT-03)', () => {
       number: 'ZL-2026-0042',
       title: 'Garaż — pełny',
       customer: { id: jan, displayName: 'Jan Przykładowy' },
-      site: { id: lodz, city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' },
+      site: { id: lodz, siteType: 'single_family_house', city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' },
     });
     expect(JSON.stringify(response.body)).not.toMatch(/91-100|postalCode|apartmentNumber|600000001/);
   });
