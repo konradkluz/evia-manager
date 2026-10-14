@@ -411,3 +411,40 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
     expect(failures.every((failure) => failure !== '')).toBe(true);
   });
 });
+
+describe('the status codes of a transition of a payment milestone (EVM-054 AC1, AC3; SR-LOG-03)', () => {
+  const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
+  const invoiced: PaymentMilestoneEvent = {
+    type: 'payment_milestone.invoiced',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'payment_milestone',
+    objectId: session,
+    workOrderId: user,
+    amountBeforeMinor: null,
+    amountAfterMinor: 123000,
+    fromCode: 'planned',
+    toCode: 'invoiced',
+  };
+
+  it('EVM-054 AC1 the record of an invoice has the amount after and the codes planned → invoiced — never the order, the number or a name', () => {
+    const record = toAuditRecord(invoiced, context, at);
+    expect(record).toMatchObject({
+      action: 'payment_milestone.invoiced',
+      amountAfterMinor: 123000,
+      fromCode: 'planned',
+      toCode: 'invoiced',
+    });
+    expect(JSON.stringify(record)).not.toMatch(/workOrderId|FV/);
+  });
+
+  it('EVM-054 SR-LOG-03 the schema refuses one code without the other, a code that is not a code and codes on an action outside the payments', () => {
+    const base = toAuditRecord(invoiced, context, at);
+    expect(auditRecordSchema.safeParse({ ...base, toCode: null }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, fromCode: 'Planowana' }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, action: 'work_order.cancelled', amountAfterMinor: null, currency: null }).success).toBe(
+      false,
+    );
+    expect(auditRecordSchema.safeParse({ ...base, fromCode: null, toCode: null }).success).toBe(true);
+  });
+});
