@@ -83,3 +83,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź `feature/EVM-043-podpowiedz-lokalizacji` ułożona na EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — implementacja (web-developer): `siteType` w liście zleceń (kontrakt, fasada `sites`), podpowiedź lokalizacji w W-05, testy komponentu, integracyjne i E2E (Chromium, Firefox, Edge), zrzuty w `docs/ux/reviews/EVM-043/`
+- 2026-10-14 — weryfikacja backendu (backend-developer): `siteType` przez fasadę `sites`, bramka `pnpm run gate` zielona (kod 0)
