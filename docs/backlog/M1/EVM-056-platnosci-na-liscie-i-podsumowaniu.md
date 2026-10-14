@@ -4,7 +4,7 @@ title: Płatności na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 owner: backend-developer
@@ -121,20 +121,33 @@ Specyfikacja (ux-designer, 2026-10-14). Makiety wiążące: [W-10](../../ux/flow
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+- Kontrakt (addytywnie): sort `urgency` („Najpilniejsze”, domyślne w panelu, wysyłane jawnie), widoki `overdue_payments` i `unpaid` (lista i wyszukiwanie), opcjonalne pole elementu listy `payment` = {state, invoicedCount, invoicedTotal, overdueTotal} (`state` jako x-extensible-enum), `PaymentMilestone.overdueDays`; nowy klucz `x-evia-authz.restrictedParams` (`paymentMilestone.read` → params view/sort + fields `payment`), ściśle walidowany w `manifest.ts`.
+- Migracja `0031` (expand): `invoiced_count`, `paid_count`, `earliest_invoiced_due_date` w `overview.work_order_summaries` (bez kwot) + CHECK spójności; po `migrate` od razu `rebuild` (krok w CHANGELOG).
+- `payments`: port systemowy statusów i terminów transz (bez kwot) dla projekcji; fasada `paymentTotalsOf` — jedno zapytanie na stronę, tylko dla ID widocznych po polityce (wzorzec C′), `today` z `asOf` kursora; `overdueDays` w reprezentacji transzy.
+- `authorization`: `canReadPayments` (v1: A, E, R) jako wstrzykiwany token — W4: zastrzeżony widok bez prawa → 403, `urgency` bez składowej płatności, brak pola `payment`.
+- `overview`: handlery zdarzeń transz (P4), widoki D6/D7, „Najpilniejsze” wg D9 z kursorem [grupa, data, id] (wspólne CTE dla ORDER BY i kursora), grupa `payments` w raporcie `verify`.
+- Panel: W-10 kolumna „Płatność”, widoki „Po terminie” / „Nieopłacone”, „Najpilniejsze” (pamięć karty, poza URL), tabela gęsta; W-06 kafel „Płatności”. E2E z czasem zamrożonym w mocku. Pełny plan: `.scratch/EVM-056/plan.md`.
 
 ## Decyzje
 - 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P3 — „Opłacone: x z y” liczy y bez transz „Anulowana” (AC4); P4 — ta historyjka dopina zdarzenia `PaymentMilestone` dla projekcji `overview` do jednego punktu zapisu transz z EVM-053 (bez zmiany zachowania 053/054); P6 — `model: opus`; P7 — bez podziału, a gdy plan techniczny wykaże przekroczenie rozmiaru (4 moduły), wynik `blocked` z propozycją podziału (backend `overview` / panel).
 
 ## Uwagi do rozważenia
-_—_
+- Do akceptacji Konrada na demo: pole `payment` jest zadeklarowane w `x-evia-authz.restrictedParams.fields` (predykat polityki wyliczany w kodzie), a nie w `hiddenFields` (statyczna lista per rola), jak sugerowała notatka techniczna W4 — decyzja architekta w potoku, opis w `docs/architecture/api-guidelines.md` (ADR-0017 zostawił kształt reguły tej historyjce).
+- Do akceptacji Konrada (styleguide 1.3.0, wpis EVM-056): na `expanded` tabela zleceń ma 6 kolumn priorytetowych, „Opiekun” i „Utworzono” jako kolumny dopiero od `wide`, wariant gęsty tabeli W-10.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-056 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-056 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
+
+## Notatki
+- Uwagi z przeglądu domknięte po potoku: testy P4 przeliczenia projekcji (korekta terminu, anulowanie zlecenia, dodanie transzy, plan z szablonu), komunikat `aria-live` z licznikiem wyników, opis `400 read_only_field` dla pól tylko-do-odczytu w wyszukiwaniu, nazwy i komentarze.
+- Ogłoszenie przy wielu stronach: „25 zleceń na stronie” (liczba wczytanych pozycji; API nie zwraca sumy) — decyzja web-developera bez wzorca w styleguide, do oceny na demo.
+- Do backlogu (security, nit, M4 — wyzwalacz rewizji ADR-0017 / TM-108): fasada `paymentTotalsOf` ufa, że dostaje ID przefiltrowane polityką (dziś wymusza to reguła dependency-cruiser i jedyny wywołujący) — przy drobniejszej polityce zleceń typ znakowany albo zawężenie przez `WorkOrderDirectory` w fasadzie.
+- Strona listy czyta projekcję i sumy płatności bez wspólnej migawki — świadoma tolerancja chwilowego rozjazdu stanu i sum (komentarz w kodzie; kontrakt ich nie wiąże).
+- Responsywność W-10: przy 768 px pierwsza komórka ma do 9–10 linii (numer, tytuł, klient, adres, opiekun, data), kolumna „Termin” zostaje (§ 3.6), choć makieta flows/07 jej dla `medium` nie wymienia — do oceny na demo.
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -144,3 +157,7 @@ _—_
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — backend zaimplementowany (backend-developer): kontrakt (`urgency`, `overdue_payments`, `unpaid`, `payment`, `overdueDays`, `restrictedParams`), migracja `0031`, sygnały płatności w projekcji, fasada sum, W4; panel — web-developer
 - 2026-10-14 — panel zaimplementowany (web-developer): W-10 kolumna „Płatność”, widoki „Po terminie” / „Nieopłacone”, domyślne „Najpilniejsze”; W-06 kafel „Płatności”; E2E (Chromium, Edge, Firefox) i zrzuty `docs/ux/reviews/EVM-056/`
+- 2026-10-14 — potok `wf_ae463788-e6f`: passed po 2 rundach (QA PASS AC1–AC8; konsultacja architekta — kształt `restrictedParams`, CTE „Najpilniejszych”, CHECK w `0031`; runda 1: code-reviewer i security-engineer APPROVE, ux-designer changes — blocker kolumny „Płatność” przy 768 px i regresja szerokości przy 1280/1440; runda 2: APPROVE)
+- 2026-10-14 — po potoku: backend-developer — testy P4 przeliczenia projekcji, opis `read_only_field` (`e19b9e3`, `dc3a2f4`); web-developer — `aria-live` z licznikiem, nazwy (`418e9e1`); orkiestrator — zaległe commity specyfikacji UX, styleguide'u i modelu zagrożeń (`b39ca6b`)
+- 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 1749/1769, gałęzie 1593/1721), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 13 wywołań agentów, ok. 1,82 mln tokenów subagentów, ok. 160 min (+ poprawki po potoku ok. 0,14 mln, ok. 13 min); rundy poprawek 1; ścieżka pełna; opus
