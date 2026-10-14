@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: blocked
+status: ready
 priority: P1
 path: pelna
 owner: backend-developer
@@ -101,6 +101,11 @@ _Uzupełnia wykonawca przed implementacją._
   - **Q2 (rekomendacja, nie blokuje):** krawędzie korekty (wycofanie / anulowanie faktury, cofnięcie wpłaty, przywrócenie transzy, zmiana kwoty w „Wystawiona”/„Opłacona”) do EVM-057 — każda rola `403 forbidden` (deny-by-default jak zmiana kwoty w EVM-053); Administrator nie widzi pozycji korekt, u Edytora wyłączone z podpowiedzią (AC5).
   - **Q3 (rekomendacje, nie blokują):** (a) data wystawienia faktury może być przyszła, zakres 2000-01-01…2100-12-31; (b) termin płatności ≥ data wystawienia, inaczej `400`; (c) transza dodana ręcznie nie ma dni terminu z planu — termin wymagany (`400 /dueDate`); (d) poprawki AC4 wg tabeli makiety: dane faktury tylko w „Wystawiona”, data wpłaty tylko w „Opłacona”, inaczej `409 invalid_state_transition`; (e) przyszła data wpłaty: PATCH `400 /paidOn in_future`, przejście `422 transition_condition_not_met` (makieta W-11 „Stany”).
   - Ocena planu: potrzebny przegląd architekta (zależność `timeline → payments`, kolumny `audit.events.from_code`/`to_code`, nowe operacje) i specyfikacja UI dialogów „Wystaw fakturę…”, „Anuluj transzę…”, „Popraw dane faktury…”, „Popraw datę wpłaty…” i toastów (makiety ich nie opisują).
+- **2026-10-14 — Konrad rozstrzygnął pytania z planu (rekomendacje Q1–Q3 + specyfikacja UI):**
+  - **Q1:** EVM-054 dodaje do kontraktu `DELETE …/payment-milestones/{milestoneId}` (`deletePaymentMilestone`; `roles [administrator]`, `channels [web]`, `stepUp: true`, `audit: true`): Edytor i Tylko odczyt `403 forbidden`, Administrator bez step-upu `403 step_up_required`, Administrator ze step-upem do EVM-057 `403 forbidden` (opis w kontrakcie); skutek usunięcia dopisuje EVM-057.
+  - **Q2:** krawędzie korekty (wycofanie / anulowanie faktury, cofnięcie wpłaty, przywrócenie transzy, zmiana kwoty w „Wystawiona”/„Opłacona”) do EVM-057 — każda rola `403 forbidden`; Administrator nie widzi pozycji korekt, u Edytora wyłączone z podpowiedzią (AC5).
+  - **Q3 (a–e) przyjęte:** (a) data wystawienia faktury może być przyszła, zakres 2000-01-01…2100-12-31; (b) termin płatności ≥ data wystawienia, inaczej `400`; (c) transza dodana ręcznie — termin wymagany (`400 /dueDate`); (d) poprawki AC4 wg tabeli makiety: dane faktury tylko w „Wystawiona”, data wpłaty tylko w „Opłacona”, inaczej `409 invalid_state_transition`; (e) przyszła data wpłaty: PATCH `400 /paidOn in_future`, przejście `422 transition_condition_not_met`.
+  - **Specyfikacja UI:** dialogi „Wystaw fakturę…”, „Anuluj transzę…”, „Popraw dane faktury…”, „Popraw datę wpłaty…” i toasty dopisuje ux-designer w konsultacji planu (`docs/ux/flows/08-nieoplacone.md`, wzorzec dialogów „Dodaj transzę” / „Zmień kwotę”), przed implementacją.
 
 ## Uwagi do rozważenia
 _—_
@@ -120,3 +125,4 @@ _—_
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-054-faktura-wplata-anulowanie` ułożona na EVM-053 — PR #69 w przeglądzie; łańcuch nocny za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — in-progress → blocked: plan zatrzymany na Q1 (operacja usunięcia transzy a AC5) — pytania Q1–Q3 w „Decyzje”; zależne EVM-055, EVM-056, EVM-057 pominięte w kolejce nocnej
+- 2026-10-14 — Konrad odpowiedział na Q1–Q3 i sposób uzupełnienia makiet (wg rekomendacji, „Decyzje”); blocked → ready — ponowny `/deliver` jako nowy przebieg z decyzjami w `userNotes`
