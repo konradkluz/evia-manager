@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 
 export interface ActionMenuItem {
   readonly id: string;
@@ -28,6 +28,23 @@ export interface ActionMenuProps {
   readonly items: readonly ActionMenuItem[];
   /** Renders the trigger (an IconButton `⋮` or the StatusBadge as a button) with the props above. */
   readonly trigger: (props: ActionMenuTriggerProps) => ReactNode;
+  /**
+   * The edge of the trigger the list lines up with: `start` (default — a status badge) or `end` (the menu `⋮` at the end of a
+   * row or a card, § 3.20 "lista wyrównana do prawej krawędzi wyzwalacza `⋮`").
+   */
+  readonly align?: 'start' | 'end';
+}
+
+/**
+ * Where the list goes in the viewport: under the trigger, lined up with its `align` edge; above it when there is no room
+ * below and there is room above (§ 3.20, WCAG 2.4.11); moved back so that it does not leave the viewport at either side.
+ */
+function placement(trigger: DOMRect, list: DOMRect, align: 'start' | 'end'): { readonly left: number; readonly top: number } {
+  const wanted = align === 'end' ? trigger.right - list.width : trigger.left;
+  const left = Math.max(0, Math.min(wanted, window.innerWidth - list.width));
+  const fitsBelow = trigger.bottom + list.height <= window.innerHeight;
+  const top = !fitsBelow && trigger.top - list.height >= 0 ? trigger.top - list.height : trigger.bottom;
+  return { left, top };
 }
 
 /**
@@ -36,12 +53,35 @@ export interface ActionMenuProps {
  * trigger. A disabled item is announced as unavailable with its reason. The item that was chosen closes the menu and the
  * focus is already on the trigger when `onSelect` runs, so a dialog it opens returns the focus there.
  */
-export function ActionMenu({ label, items, trigger }: ActionMenuProps) {
+export function ActionMenu({ label, items, trigger, align = 'start' }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const entries = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = useRef<HTMLUListElement>(null);
+
+  // The list is `position: fixed` (layer.dropdown), so a frame that scrolls or clips — a DataTable — does not cut it. Its
+  // place is measured geometry, not a design value: it is set through the CSSOM (allowed by the CSP `style-src 'self'`)
+  // before the first paint and again whenever the page, a frame or the window moves the trigger.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = button.current;
+      const element = list.current;
+      if (trigger === null || element === null) return;
+      const { left, top } = placement(trigger.getBoundingClientRect(), element.getBoundingClientRect(), align);
+      element.style.setProperty('left', `${String(left)}px`);
+      element.style.setProperty('top', `${String(top)}px`);
+    };
+    place();
+    document.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      document.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,11 +152,12 @@ export function ActionMenu({ label, items, trigger }: ActionMenuProps) {
       })}
       {open ? (
         <ul
+          ref={list}
           id={menuId}
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
-          className="absolute start-0 top-full z-dropdown w-max max-w-toast-max-width bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
+          className="fixed z-dropdown w-max max-w-toast-max-width bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
         >
           {items.map((item, index) => (
             <Fragment key={item.id}>

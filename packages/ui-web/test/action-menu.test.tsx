@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ActionMenu, Info, StatusBadgeButton, Toast, Banner } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
@@ -183,5 +183,85 @@ describe('Toast with an action and Banner info (styleguide § 3.14, § 3.19; EVM
     expect(onCancel).toHaveBeenCalledOnce();
     await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
     expect(await axeViolations(document.body)).toEqual([]);
+  });
+});
+
+describe('ActionMenu placement (styleguide § 3.20: under the trigger, lined up with the edge of `⋮`, above when there is no room)', () => {
+  const box = (left: number, top: number, width: number, height: number) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  function placed(align: 'start' | 'end' | undefined, trigger: DOMRect, list: DOMRect, viewport = { width: 1280, height: 900 }) {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(viewport.width);
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(viewport.height);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('role') === 'menu' ? list : trigger;
+    });
+    render(
+      <ActionMenu
+        label="Akcje transzy: Zaliczka"
+        {...(align === undefined ? {} : { align })}
+        items={[{ id: 'amount', label: 'Zmień kwotę…', onSelect: vi.fn() }]}
+        trigger={(props) => (
+          <button type="button" {...props}>
+            Akcje
+          </button>
+        )}
+      />,
+    );
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('EVM-054 AC3 the list of `⋮` is fixed to the viewport (out of the scrolling frame of a table) and ends at the edge of the trigger', async () => {
+    placed('end', box(900, 100, 40, 40), box(0, 0, 220, 160));
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    const list = screen.getByRole('menu', { name: 'Akcje transzy: Zaliczka' });
+    expect(list.className).toContain('fixed');
+    expect(list.className).not.toContain('absolute');
+    expect(list.style.left).toBe('720px');
+    expect(list.style.top).toBe('140px');
+  });
+
+  it('EVM-054 AC3 without room below the list opens above the trigger (WCAG 2.4.11) and never leaves the viewport', async () => {
+    placed('end', box(100, 820, 40, 40), box(0, 0, 220, 160), { width: 360, height: 900 });
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    const list = screen.getByRole('menu');
+    expect(list.style.top).toBe('660px');
+    // the end of the trigger is at 140: the list of 220 would start before the viewport, so it is kept at 0
+    expect(list.style.left).toBe('0px');
+  });
+
+  it('EVM-054 AC3 a list lined up with the start of the trigger moves back into the viewport at its end', async () => {
+    placed(undefined, box(300, 100, 40, 40), box(0, 0, 220, 160), { width: 360, height: 900 });
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    expect(screen.getByRole('menu').style.left).toBe('140px');
+  });
+
+  it('EVM-054 AC3 the list follows the trigger when the page or the frame of the table scrolls', async () => {
+    let top = 100;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('role') === 'menu' ? box(0, 0, 220, 160) : box(900, top, 40, 40);
+    });
+    render(
+      <ActionMenu
+        label="Akcje transzy: Zaliczka"
+        align="end"
+        items={[{ id: 'amount', label: 'Zmień kwotę…', onSelect: vi.fn() }]}
+        trigger={(props) => (
+          <button type="button" {...props}>
+            Akcje
+          </button>
+        )}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    top = 40;
+    fireEvent.scroll(document);
+    expect(screen.getByRole('menu').style.top).toBe('80px');
+    top = 60;
+    fireEvent(window, new Event('resize'));
+    expect(screen.getByRole('menu').style.top).toBe('100px');
   });
 });
