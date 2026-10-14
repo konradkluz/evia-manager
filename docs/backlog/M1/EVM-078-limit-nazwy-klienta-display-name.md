@@ -55,3 +55,4 @@ Jako **Edytor** chcę **zapisać klienta z bardzo długim imieniem i nazwiskiem 
 - 2026-10-13 — refinement: sprawdzono, że EVM-039 podniósł `maxLength` do 401; zakres zawężony do testów regresji i ewentualnych luk (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka lekka, model sonnet, gałąź `feature/EVM-078-regresja-nazwy-klienta` ułożona na EVM-053 — PR #69; EVM-054 zablokowana)
+- 2026-10-14 — implementacja (backend-developer): testy regresji 200+200 (API: integracja, kontrakt); wszystkie ścieżki 200/201, bez zmian w kodzie produkcyjnym
