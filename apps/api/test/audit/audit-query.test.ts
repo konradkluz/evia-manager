@@ -130,17 +130,18 @@ describe('the cursor of the audit log: shape, scope, position and the anchored p
     const parts = auditPositionParts(ASOF, last);
     expect(parts).toEqual(['2026-10-07T07:00:00.000Z', '2026-10-06T10:00:00.123Z', ID]);
     expect(parseAuditPosition(parts)).toEqual({ asOf: ASOF, cursor: last });
+    const [asOfText, atText] = ['2026-10-07T07:00:00.000Z', '2026-10-06T10:00:00.123Z'] as const;
     const bad: string[][] = [
       [],
       [ID],
       ['2026-10-06T10:00:00.123Z', ID],
-      [parts[0], parts[1]],
+      [asOfText, atText],
       [...parts, 'extra'],
-      ['not-a-time', parts[1] as string, ID],
-      [parts[0] as string, 'not-a-time', ID],
-      [parts[0] as string, parts[1] as string, 'not-a-uuid'],
-      ['2026-13-45T10:00:00.123Z', parts[1] as string, ID],
-      [parts[0] as string, '2026-10-06', ID],
+      ['not-a-time', atText, ID],
+      [asOfText, 'not-a-time', ID],
+      [asOfText, atText, 'not-a-uuid'],
+      ['2026-13-45T10:00:00.123Z', atText, ID],
+      [asOfText, '2026-10-06', ID],
     ];
     for (const candidate of bad) expect(parseAuditPosition(candidate), candidate.join('|')).toBeUndefined();
   });
@@ -148,7 +149,7 @@ describe('the cursor of the audit log: shape, scope, position and the anchored p
   it('EVM-080 AC1 the scope is the filters as named: stable without `to`, different for an explicit `to`, independent of limit and of the cursor', () => {
     const base = { action: 'login.failed', actorUserId: ID, outcome: 'failed', from: '2026-10-01T00:00:00.000Z' } as const;
     const scope = auditScope(base);
-    expect(scope).toBe(auditScope({ ...base, limit: '5', cursor: 'abc' }));
+    expect(scope).toBe(auditScope({ ...base, limit: 5, cursor: 'abc' }));
     expect(scope).not.toBe(auditScope({ ...base, to: '2026-10-07T07:00:00.000Z' }));
     for (const other of [
       { ...base, action: 'login.succeeded' },
