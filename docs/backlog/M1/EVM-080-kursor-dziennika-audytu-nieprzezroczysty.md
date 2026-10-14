@@ -62,3 +62,4 @@ Jako **właściciel systemu** chcę **by kursor paginacji dziennika audytu był 
 - 2026-10-13 — refinement: kod `invalid_cursor`, stabilność domyślnego okresu, zakres klucza (tylko `db:migrate`), uprawnienia w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model sonnet, gałąź `feature/EVM-080-kursor-audytu` ułożona na EVM-078 → EVM-053 — łańcuch nocny)
+- 2026-10-14 — implementacja (backend-developer): kursor audytu przez wspólny kodek (`invalid_cursor`, `asOf` w kursorze, limit 512), `loadMigrationConfig` dla `db:migrate`, kontrakt, testy AC1–AC4 i dokumentacja AC5
