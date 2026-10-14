@@ -164,3 +164,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model opus, gałąź `feature/EVM-057-korekty-platnosci` ułożona na EVM-056 → EVM-055 → EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — implementacja API (backend-developer): korekty przejściami, korekta kwoty, `DELETE` transzy z zagęszczeniem pozycji, 6 akcji audytu, kod dziennika `payment_milestone_deleted`, komórka IDOR dla operacji ze step-upem w macierzy ról; bez migracji; ryzyko SR-LOG-06 w „Uwagach do rozważenia” do akceptacji Konrada
+- 2026-10-14 — implementacja panelu (web-developer): dialogi K1–K6 w W-06 i W-11, W-04 z podsumowaniem korekty i jednym ponowieniem z tym samym `Idempotency-Key`, „Nie wykonano korekty.”, kod dziennika `payment_milestone_deleted`; E2E z zamrożonym czasem (Chromium, Edge, Firefox), zrzuty `docs/ux/reviews/EVM-057/`
