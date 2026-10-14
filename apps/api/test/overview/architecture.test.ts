@@ -40,6 +40,20 @@ describe('the architecture of the read model (EVM-034; ADR-0017 W2, W11)', () =>
     expect([...PROJECTION_EVENT_TYPES].sort()).toEqual([...new Set(expected)].sort());
   });
 
+  it('EVM-057 AC1 AC2 AC3 AC4 P4 the corrections and the deletion of a milestone recompute the read model: their seven events have a handler', () => {
+    expect(PROJECTION_EVENT_TYPES).toEqual(
+      expect.arrayContaining([
+        'payment_milestone.invoice_withdrawn',
+        'payment_milestone.invoice_cancelled',
+        'payment_milestone.payment_undone',
+        'payment_milestone.restored',
+        'payment_milestone.amount_corrected',
+        'payment_milestone.deleted',
+        'payment_milestone.removed',
+      ]),
+    );
+  });
+
   it('EVM-034 AC6 no lock of a row of work_orders.work_orders is FOR UPDATE: the commands take FOR NO KEY UPDATE (no cycle with the key checks)', () => {
     const offenders = sourceFiles(join(SRC, 'modules', 'work-orders'))
       .filter((file) => /\.forUpdate\(\)/.test(readFileSync(file, 'utf8')))

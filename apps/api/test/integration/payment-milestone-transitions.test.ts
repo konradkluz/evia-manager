@@ -351,15 +351,18 @@ describe('"Popraw dane faktury…" and "Popraw datę wpłaty…" — the PATCH (
     expect(await auditOf(invoiced ?? '')).toEqual([]);
   });
 
-  it('EVM-054 AC4 AC5 the amount of an invoiced or paid milestone is 403 forbidden — also together with other fields, also with a stale version', async () => {
+  it('EVM-054 AC4 AC5 EVM-057 AC6 the amount of an invoiced or paid milestone is 403 — forbidden for the Editor, step_up_required for the Administrator without a step-up — also together with other fields, also with a stale version', async () => {
     const created = await order([invoicedSpec, { ...invoicedSpec, status: 'paid' }]);
-    for (const role of ['editor', 'administrator'] as const) {
+    for (const [role, code] of [
+      ['editor', 'forbidden'],
+      ['administrator', 'step_up_required'],
+    ] as const) {
       const browser = await signIn(role);
       for (const id of created.milestoneIds) {
         for (const options of [{}, { ifMatch: '"7"' }]) {
           const response = await patch(browser, created.id, id, { amount: pln(1), invoiceNumber: 'FV/9' }, options);
           expect(response.status, `${role} ${JSON.stringify(options)}`).toBe(403);
-          expect(codeOf(response.body)).toBe('forbidden');
+          expect(codeOf(response.body)).toBe(code);
         }
       }
     }
