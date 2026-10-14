@@ -14,6 +14,8 @@ import {
   zPaymentMilestoneList,
   zPaymentMilestonePatch,
   zUpdatePaymentMilestoneHeaders,
+  zListUnpaidPaymentMilestonesQuery,
+  zUnpaidPaymentMilestoneList,
   zUpdatePaymentMilestonePath,
 } from '../src/zod.ts';
 
@@ -160,10 +162,64 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     );
     for (const operation of mobile) {
       const names = reachable(operation.responses);
-      for (const name of ['Money', 'MoneyTotal', 'PaymentMilestone', 'PaymentMilestoneList']) expect(names.has(name)).toBe(false);
+      for (const name of ['Money', 'MoneyTotal', 'PaymentMilestone', 'PaymentMilestoneList', 'UnpaidPaymentMilestoneList'])
+        expect(names.has(name)).toBe(false);
     }
     // the payment schemas are really reachable from the web operations (the walk above is not vacuous)
     const web = bundle.paths['/api/v1/work-orders/{workOrderId}/payment-milestones']?.['get'];
     expect(reachable(web?.responses).has('Money')).toBe(true);
+  });
+
+  it('EVM-055 AC7 the summary of unpaid invoices is open to the three roles on the web channel only, with no audit of the read (P3, P6)', () => {
+    expect(AUTHZ_MANIFEST['listUnpaidPaymentMilestones']).toMatchObject({
+      method: 'get',
+      path: '/api/v1/payment-milestones',
+      authz: { roles: ['administrator', 'editor', 'read_only'], channels: ['web'] },
+    });
+    expect(AUTHZ_MANIFEST['listUnpaidPaymentMilestones']?.authz).not.toHaveProperty('audit');
+  });
+
+  it('EVM-055 AC4 the query accepts the closed view, the range of days and an identifier of a customer, and refuses a value outside the lists, a day outside 2000-2100', () => {
+    const parse = (query: unknown) => zListUnpaidPaymentMilestonesQuery.safeParse(query).success;
+    expect(parse({})).toBe(true);
+    expect(parse({ view: 'overdue', dueFrom: '2000-01-01', dueTo: '2100-12-31', customerId: V7, limit: 100 })).toBe(true);
+    expect(parse({ view: 'to_invoice' })).toBe(false);
+    expect(parse({ dueFrom: '1999-12-31' })).toBe(false);
+    expect(parse({ dueTo: '2101-01-01' })).toBe(false);
+    expect(parse({ dueFrom: '2026-1-1' })).toBe(false);
+    expect(parse({ customerId: 'not-a-uuid' })).toBe(false);
+    expect(parse({ limit: 0 })).toBe(false);
+    expect(parse({ limit: 101 })).toBe(false);
+  });
+
+  it('EVM-055 AC3 the answer has the page, the day of the clock and the summary with the money as MoneyTotal', () => {
+    const item = {
+      id: V7,
+      workOrder: { id: V7, number: 'ZL-2026-0031', title: 'Wallbox' },
+      customer: { deleted: true },
+      name: 'Zaliczka',
+      invoiceNumber: 'FV/1/2026',
+      amount: { amountMinor: 360000, currency: 'PLN' },
+      dueDate: '2026-09-28',
+      status: 'invoiced',
+      isOverdue: true,
+      overdueDays: 5,
+      version: 3,
+    };
+    const count = { count: 1, total: { amountMinor: 360000, currency: 'PLN' } };
+    const page = {
+      items: [item],
+      nextCursor: null,
+      asOf: '2026-10-03',
+      summary: {
+        unpaid: count,
+        overdue: count,
+        longestOverdue: { days: 5, workOrder: { id: V7, number: 'ZL-2026-0031' } },
+        filtered: count,
+      },
+    };
+    expect(zUnpaidPaymentMilestoneList.safeParse(page).success).toBe(true);
+    expect(zUnpaidPaymentMilestoneList.safeParse({ ...page, items: [{ ...item, overdueDays: 0 }] }).success).toBe(false);
+    expect(zUnpaidPaymentMilestoneList.safeParse({ ...page, summary: { ...page.summary, longestOverdue: null } }).success).toBe(true);
   });
 });

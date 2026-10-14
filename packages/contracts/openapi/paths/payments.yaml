@@ -383,3 +383,91 @@ paymentMilestoneTransitions:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+
+# The summary of unpaid invoices over all orders (EVM-055; W-11 "Płatności"). Web channel only (P3).
+unpaidPaymentMilestones:
+  get:
+    operationId: listUnpaidPaymentMilestones
+    tags: [payments]
+    summary: Zestawienie nieopłaconych i po terminie (transze „Wystawiona”, najdłużej po terminie pierwsze)
+    description: >-
+      Widok „Płatności” (W-11; EVM-055 AC1–AC8; SR-AUTHZ-03, SR-AUTHZ-05, SR-AUTHZ-06, SR-API-02, SR-API-04, SR-DATA-03; P6, P10).
+      Transze w statusie `invoiced` wszystkich zleceń, które wołający może zobaczyć — polityka odczytu zlecenia jest warunkiem
+      zapytania (zlecenia usunięte, także dla Administratora, i transze usunięte nie występują ani na liście, ani w sumach).
+      Porządek stały: termin płatności rosnąco, potem identyfikator („Najdłużej po terminie”); parametru `sort` nie ma.
+      Filtry łączą się przez AND i zawężają listę, `summary.filtered` i kursor: `view` (`unpaid` — domyślnie wszystkie wystawione —
+      albo `overdue` — termin wcześniejszy niż dziś w `Europe/Warsaw`), `dueFrom` i `dueTo` (`RRRR-MM-DD`, 2000-01-01…2100-12-31,
+      włącznie, `dueFrom` nie później niż `dueTo`), `customerId` (UUID; klient nieistniejący albo niewidoczny daje pustą listę,
+      nie `404` — brak wyroczni). Kafle `summary.unpaid`, `summary.overdue` i `summary.longestOverdue` NIE zależą od filtrów
+      (zawsze wszystkie widoczne wystawione transze), `summary.filtered` — od filtrów. Dzień „dziś” to dzień `Europe/Warsaw` z zegara
+      serwera; kolejne strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron, a kafle, lista i suma używają tego
+      samego dnia. Wszystko z jednej migawki bazy. Pozycja to tylko pola zestawienia (bez powodu anulowania, autorów i całych
+      encji); klient usunięty to `{deleted: true}`; `version` służy do `If-Match` akcji `transitionPaymentMilestone` (Administrator i
+      Edytor; Tylko odczyt — `403 forbidden`). `overdueDays` (liczba całkowita ≥ 1 albo `null`) liczy serwer jako różnicę dat.
+      Paginacja kursorem nieprzezroczystym (`nextCursor`; liczba wszystkich pozycji filtra jest w `summary.filtered`):
+      zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami — `400 invalid_cursor`. Role Administrator,
+      Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), bez audytu odczytu. Masowy odczyt (P10):
+      rekordy `items` wliczają się do progu 2000 / 10 000 rekordów w 10 minutach (`429 rate_limited` z `Retry-After`; odrzucone
+      żądania nie są liczone), a klienci pozycji do licznika różnych klientów (300 na godzinę). Odpowiedź ma `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - name: view
+        in: query
+        required: false
+        description: Widok (`unpaid` — wszystkie wystawione, domyślnie; `overdue` — po terminie). Jedyna wartość w adresie panelu.
+        schema:
+          $ref: ../components/payments.yaml#/UnpaidView
+      - name: dueFrom
+        in: query
+        required: false
+        description: Termin płatności nie wcześniejszy niż (`RRRR-MM-DD`, 2000-01-01…2100-12-31). Nie trafia do adresu panelu.
+        schema:
+          $ref: ../components/payments.yaml#/DueDateFilter
+      - name: dueTo
+        in: query
+        required: false
+        description: Termin płatności nie późniejszy niż (`RRRR-MM-DD`, 2000-01-01…2100-12-31; nie wcześniejszy niż `dueFrom`). Nie trafia do adresu panelu.
+        schema:
+          $ref: ../components/payments.yaml#/DueDateFilter
+      - name: customerId
+        in: query
+        required: false
+        description: Filtr klienta (UUID; klient nieistniejący albo niewidoczny — pusta lista). Nie trafia do adresu panelu.
+        schema:
+          type: string
+          format: uuid
+          maxLength: 36
+      - name: limit
+        in: query
+        required: false
+        description: Liczba pozycji na stronie.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 25
+      - name: cursor
+        in: query
+        required: false
+        description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.
+        schema:
+          type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+    responses:
+      '200':
+        description: Strona zestawienia, kafle i suma (brak nieopłaconych to pusta tablica `items`, `nextCursor` równy `null` i zerowe sumy).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/payments.yaml#/UnpaidPaymentMilestoneList
+      '400':
+        $ref: ../components/responses.yaml#/InvalidListQuery
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

@@ -101,6 +101,8 @@ paths:
     $ref: paths/procedures.yaml#/procedureStage
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
     $ref: paths/procedures.yaml#/procedureStageTransitions
+  /api/v1/payment-milestones:
+    $ref: paths/payments.yaml#/unpaidPaymentMilestones
   /api/v1/work-orders/{workOrderId}/payment-milestones:
     $ref: paths/payments.yaml#/workOrderPaymentMilestones
   /api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}:
@@ -297,6 +299,12 @@ components:
       $ref: components/payments.yaml#/PaymentTotals
     PaymentMilestoneList:
       $ref: components/payments.yaml#/PaymentMilestoneList
+    UnpaidView:
+      $ref: components/payments.yaml#/UnpaidView
+    UnpaidPaymentMilestone:
+      $ref: components/payments.yaml#/UnpaidPaymentMilestone
+    UnpaidPaymentMilestoneList:
+      $ref: components/payments.yaml#/UnpaidPaymentMilestoneList
     PaymentMilestoneCreate:
       $ref: components/payments.yaml#/PaymentMilestoneCreate
     PaymentMilestonePatch:
