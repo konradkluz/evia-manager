@@ -471,3 +471,5 @@ assignableUsers:
         $ref: ../components/responses.yaml#/Unauthenticated
       '403':
         $ref: ../components/responses.yaml#/Forbidden
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

@@ -55,3 +55,4 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - 2026-10-13 — refinement: zakres limitu (odczyty + zapisy wg ADR-0004), co się liczy, brak liczenia 401 i `health`; tytuł uogólniony (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-082-limit-na-uzytkownika` ułożona na EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — implementacja (backend-developer): limit 300/min na użytkownika w `decideAccess` (klucz — userId, `consumeSubject`, kubełek `user`), `429` w kontrakcie `listAssignableUsers` + generyczny test kontraktu, testy `EVM-082 AC1–AC4`, dokumentacja (api-guidelines, TM-22, SR-API-02, CHANGELOG)

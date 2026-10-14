@@ -61,6 +61,7 @@ function request(overrides: Partial<AccessRequest> & { operationId: string | und
     authentication: () => ANONYMOUS,
     csrfMatches: () => true,
     rateLimit: allow,
+    rateLimitUser: allow,
     channelAllowed: () => true,
     stepUpFresh: () => true,
     ...overrides,
@@ -226,6 +227,75 @@ describe('access decision order (EVM-016 AC4, AC8; SR-AUTHZ-12, SR-SESS-10)', ()
     const other = vi.fn(allow);
     decide({ operationId: 'listWorkOrders', authentication: () => signedIn(), rateLimit: other });
     expect(other).not.toHaveBeenCalled();
+  });
+});
+
+describe('per-user limit in the access decision (EVM-082 AC1, AC2, AC3; SR-API-02, ADR-0004)', () => {
+  const over = vi.fn(() => ({ allowed: false, retryAfterSeconds: 33 }));
+  const limitedResult = { allowed: false, code: 'rate_limited', retryAfterSeconds: 33 };
+
+  it('EVM-082 AC1 a request of a signed-in user over the limit is 429 with Retry-After, whatever its role and channel', () => {
+    const current = principal({ role: 'read_only', channel: 'mobile' });
+    expect(decide({ operationId: 'listWorkOrders', authentication: () => ({ principal: current }), rateLimitUser: over })).toEqual(
+      limitedResult,
+    );
+    expect(over).toHaveBeenCalledWith(current);
+  });
+
+  it('EVM-082 AC1 below the limit the decision is the one it was without the limit (allowed)', () => {
+    const rateLimitUser = vi.fn(allow);
+    expect(decide({ operationId: 'listWorkOrders', authentication: () => signedIn(), rateLimitUser })).toEqual({ allowed: true });
+    expect(rateLimitUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('EVM-082 AC2 every denial of a signed-in user is counted: csrf_failed, mfa_enrollment_required, forbidden, step_up_required', () => {
+    const counted = (overrides: Partial<AccessRequest> & { operationId: string }, code: string) => {
+      const rateLimitUser = vi.fn(allow);
+      expect(decide({ ...overrides, rateLimitUser }), overrides.operationId).toMatchObject({ allowed: false, code });
+      expect(rateLimitUser, overrides.operationId).toHaveBeenCalledTimes(1);
+    };
+    counted({ operationId: 'createThing', mutating: true, authentication: () => signedIn() }, 'csrf_failed');
+    counted({ operationId: 'listWorkOrders', authentication: () => signedIn({ state: 'mfa_enrollment' }) }, 'mfa_enrollment_required');
+    counted({ operationId: 'listWorkOrders', authentication: () => signedIn({ role: 'read_only' }) }, 'forbidden');
+    counted({ operationId: 'readAudit', authentication: () => signedIn(), stepUpFresh: () => false }, 'step_up_required');
+  });
+
+  it('EVM-082 AC2 the user limit comes before CSRF, enrolment, channel, role and step-up: a throttled user learns nothing else', () => {
+    const throttled = (overrides: Partial<AccessRequest> & { operationId: string }) => {
+      expect(decide({ ...overrides, rateLimitUser: over })).toEqual(limitedResult);
+    };
+    throttled({ operationId: 'createThing', mutating: true, authentication: () => signedIn() });
+    throttled({ operationId: 'listWorkOrders', authentication: () => signedIn({ state: 'mfa_enrollment' }) });
+    throttled({ operationId: 'listWorkOrders', authentication: () => signedIn({ role: 'read_only' }) });
+    throttled({ operationId: 'readAudit', authentication: () => signedIn(), stepUpFresh: () => false });
+  });
+
+  it('EVM-082 AC2 401 (no session, revoked, expired), public operations, health and operations without a policy are not counted', () => {
+    const rateLimitUser = vi.fn(allow);
+    decide({ operationId: 'listWorkOrders', rateLimitUser });
+    decide({ operationId: 'listWorkOrders', authentication: () => ({ principal: null, reason: 'revoked' }), rateLimitUser });
+    decide({ operationId: 'listWorkOrders', authentication: () => ({ principal: null, reason: 'expired' }), rateLimitUser });
+    decide({ operationId: 'getHealth', rateLimitUser });
+    decide({ operationId: 'submitPublic', mutating: true, ...sameOrigin, rateLimitUser });
+    decide({ operationId: 'getSecret', rateLimitUser });
+    decide({ operationId: undefined, authentication: () => signedIn(), rateLimitUser });
+    decide({ operationId: 'notInTheContract', authentication: () => signedIn(), rateLimitUser });
+    expect(rateLimitUser).not.toHaveBeenCalled();
+  });
+
+  it('EVM-082 AC3 the per-IP limit of sign-in and MFA operations still applies after the user limit (own bucket, own 429)', () => {
+    const rateLimit = vi.fn(() => ({ allowed: false, retryAfterSeconds: 5 }));
+    const rateLimitUser = vi.fn(allow);
+    const result = decide({
+      operationId: 'enrol',
+      mutating: true,
+      ...sameOrigin,
+      authentication: () => signedIn(),
+      rateLimit,
+      rateLimitUser,
+    });
+    expect(result).toEqual({ allowed: false, code: 'rate_limited', retryAfterSeconds: 5 });
+    expect(rateLimitUser).toHaveBeenCalledTimes(1);
   });
 });
 

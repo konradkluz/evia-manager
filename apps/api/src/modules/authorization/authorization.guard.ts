@@ -59,6 +59,7 @@ export class AuthorizationGuard implements CanActivate {
       authentication: () => authenticationOf(request),
       csrfMatches: (principal) => csrfMatches(principal.csrfToken, request.get('x-csrf-token')),
       rateLimit: (bucket) => this.#limiter.consume(bucket, request.ip, RATE_LIMITS[bucket]),
+      rateLimitUser: (principal) => this.#limiter.consumeSubject('user', principal.userId, RATE_LIMITS.user),
       channelAllowed: channelAllowedForRole,
       stepUpFresh: (principal) => stepUpFresh(principal.passkeyAuthenticatedAt, this.#clock.now()),
     });
