@@ -62,10 +62,11 @@ Jako **pracownik biura** chcę **po wybraniu klienta od razu zobaczyć lokalizac
 - Moduły: panel, `work-orders` (lista z filtrem `customerId`), fasada `sites`. Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Plan roboczy: `.scratch/EVM-043/plan.md` (nie jest częścią repozytorium). Skrót: `siteType` w liście przez fasadę `sites`; panel — hook `useSiteSuggestions` (jedno żądanie na klienta, bez ponowień) i komponent `SiteSuggestions` w `LocationSection`; wybór przez `getSite` z mapowaniem na dozwolone pola.
 
 ## Decyzje
-_—_
+- Podpowiedź obejmuje lokalizacje z **100 najnowszych zleceń** klienta (`limit=100`, `sort=-createdAt`, jedna strona, bez stronicowania) — świadome uproszczenie; przy kliencie z większą liczbą zleceń starsze lokalizacje znajdzie się wyszukiwarką (EVM-021). Pobranie 100 rekordów na wybór klienta mieści się w progu masowego odczytu P10 (2000 na 10 minut).
+- Kontrakt rośnie addytywnie o `WorkOrderListSite.siteType` (kod słownika, wymagany; z fasady `sites` tą samą polityką co adres) — AC1 wymaga typu obiektu, a lista go nie niosła. Bez nowej operacji i migracji.
 
 ## Uwagi do rozważenia
 _—_
@@ -81,3 +82,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź `feature/EVM-043-podpowiedz-lokalizacji` ułożona na EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — implementacja (web-developer): `siteType` w liście zleceń (kontrakt, fasada `sites`), podpowiedź lokalizacji w W-05, testy komponentu, integracyjne i E2E (Chromium, Firefox, Edge), zrzuty w `docs/ux/reviews/EVM-043/`
