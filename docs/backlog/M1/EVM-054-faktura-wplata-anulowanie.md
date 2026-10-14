@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 owner: backend-developer
@@ -149,11 +149,17 @@ Pełny plan (backend-developer, 2026-10-14) — plik roboczy `.scratch/EVM-054/p
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-054 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-054 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona — dokumentacja, CHANGELOG i makieta `08-nieoplacone.md` tak; instrukcji EVM-066 jeszcze nie ma (EVM-066 `ready`) — do decyzji Konrada na demo (jak w EVM-053)
 - [ ] Demo i akceptacja użytkownika
+
+## Notatki
+- Minor security domknięty przez orkiestratora (`37411cc`): warunki przejść zlecenia (`invoiced_milestones`, `unpaid_milestones`) czytają statusy wszystkich żywych transz bez limitu 20 (obrona w głąb; dziś bazę chroni CHECK pozycji 1–20).
+- Propozycje do refinementu EVM-057 (security): (1) generator macierzy ról bez komórki IDOR dla operacji ze step-upem — dodać IDOR dla Administratora ze świeżym step-upem (`404`); (2) odrzucone próby korekt (`403`) bez śladu w audycie — SR-LOG-06 wymaga audytu nieudanych prób operacji wrażliwych: zdarzenie `denied` poza wycofaną transakcją albo akceptacja ryzyka w T7.
+- Nit QA: niższe pokrycie gałęzi dialogów wpłaty / anulowania / poprawek (57–75%; łącznie diff gałęzie 90,9% — tuż nad progiem); E2E akcji transz przeliczone w tej rundzie tylko w Chromium.
+- Specyfikacja dialogów (ux-designer) w „UX / UI” historyjki i w `docs/ux/flows/08-nieoplacone.md` → „Dialogi akcji transzy (EVM-054)”; `ActionMenu` w bibliotece z `position: fixed` (nie jest przycinane przez ramkę tabeli).
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -169,3 +175,6 @@ _—_
 - 2026-10-14 — backend gotowy (backend-developer): kontrakt (`transitionPaymentMilestone`, poprawki w `updatePaymentMilestone`, `deletePaymentMilestone` → `403` do EVM-057), migracje `0028`/`0029`, warunek `invoiced_milestones`, audyt z kodami statusów, dziennik „Płatności”; testy AC1–AC8 zielone w kontenerze; panel — krok web-developera
 - 2026-10-14 — panel gotowy (web-developer): akcje transz wg tabeli makiety (korekty Edytora wyłączone, Administratora ukryte do EVM-057), dialogi „Wystaw fakturę…”, „Odnotuj wpłatę…”, „Anuluj transzę…”, „Popraw dane faktury…”, „Popraw datę wpłaty…”, komunikat AC6 w „Anuluj zlecenie…”, filtr „Płatności” w dzienniku; testy komponentów i E2E (Chromium, Firefox, Edge) zielone; zrzuty w `docs/ux/reviews/EVM-054/`
 - 2026-10-14 — poprawki runda 1 (backend-developer): specyfikacja dialogów akcji transzy, walidacji, toastów i stanów dopisana do makiety `08-nieoplacone.md` („Dialogi akcji transzy (EVM-054)”); fokus na pierwszym polu oznaczony jako zależny od akceptacji propozycji § 4.11; skrót planu technicznego w historyjce
+- 2026-10-14 — potok `wf_d8aac767-926`: passed po 2 rundach (QA PASS AC1–AC8; runda 1: security-engineer APPROVE, code-reviewer i ux-designer changes — major w dokumentacji makiety, blocker przycinania menu akcji; runda 2: APPROVE)
+- 2026-10-14 — orkiestrator: minor security (limit 20 w warunkach przejść) domknięty `37411cc`; `pnpm run gate` zielony (diff-coverage linie 1148/1163, gałęzie 1009/1110), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 15 wywołań agentów, ok. 2,04 mln tokenów subagentów, ok. 256 min (+ przebieg zablokowany na planie ok. 0,15 mln, poprawka ok. 0,06 mln); rundy poprawek 1; ścieżka pełna; opus
