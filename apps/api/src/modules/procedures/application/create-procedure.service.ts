@@ -24,7 +24,6 @@
  * was deleted since is `404`).
  */
 import { zCreateProcedureRequest, zCreateWorkOrderProcedureHeaders, zCreateWorkOrderProcedurePath, zProcedure } from '@evia/contracts/zod';
-import type { Procedure } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
@@ -46,7 +45,7 @@ import { MAX_PROCEDURES_PER_ORDER } from '../domain/stage-rules.ts';
 import { activeProcedurePlaces, insertProcedureWithId, moveProcedures } from '../infrastructure/manual-store.ts';
 import { insertStages } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
-import { limitExceeded, presentProcedure, publishManualChange } from './manual-shared.ts';
+import { limitExceeded, presentProcedure, publishManualChange, type VersionedProcedure } from './manual-shared.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createProcedureScope}). */
@@ -81,7 +80,7 @@ interface CreateInput {
 }
 
 export interface CreatedProcedure {
-  readonly procedure: Procedure;
+  readonly procedure: VersionedProcedure;
   /** True when the answer repeats an earlier addition (same key, order and body): `Idempotent-Replayed: true`. */
   readonly replayed: boolean;
 }

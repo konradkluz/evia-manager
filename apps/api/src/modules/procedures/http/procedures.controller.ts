@@ -135,7 +135,7 @@ export class ProceduresController {
       idempotencyKey,
       webEventContext(request, response),
     );
-    response.set('ETag', entityTag(procedure.version ?? 1));
+    response.set('ETag', entityTag(procedure.version));
     if (replayed) response.set('Idempotent-Replayed', 'true');
     return procedure;
   }
@@ -198,7 +198,7 @@ export class ProceduresController {
       idempotencyKey,
       webEventContext(request, response),
     );
-    response.set('ETag', entityTag(procedure.version ?? 1));
+    response.set('ETag', entityTag(procedure.version));
     if (replayed) response.set('Idempotent-Replayed', 'true');
     return procedure;
   }

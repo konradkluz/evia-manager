@@ -181,6 +181,15 @@ describe('the controller of the processes (EVM-031 AC2, AC3, AC7; SR-AUTHZ-01)',
     expect(second.set).toHaveBeenCalledWith('ETag', '"3"');
   });
 
+  it('EVM-042 AC1 AC2 a repeat of an addition (same key) says so: Idempotent-Replayed: true', async () => {
+    const { controller } = setup(true);
+    const { set, reply } = response();
+    await controller.createWorkOrderProcedure({}, {}, uuidv7(), await signedIn(), reply);
+    await controller.createProcedureStage({}, {}, uuidv7(), await signedIn(), reply);
+    expect(set).toHaveBeenCalledWith('Idempotent-Replayed', 'true');
+    expect(set).toHaveBeenCalledTimes(4);
+  });
+
   it('EVM-042 AC3 the deletions pass the headers untouched and answer with nothing; a repeat says Idempotent-Replayed: true', async () => {
     const fresh = setup(false);
     const params = { workOrderId: uuidv7(), procedureId: PROCEDURE.id };

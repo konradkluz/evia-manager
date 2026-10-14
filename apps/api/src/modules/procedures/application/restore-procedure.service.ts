@@ -19,7 +19,6 @@
  *      rolls the whole command back.
  */
 import { zRestoreWorkOrderProcedureHeaders, zRestoreWorkOrderProcedurePath } from '@evia/contracts/zod';
-import type { Procedure } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
@@ -39,7 +38,7 @@ import { insertionPoint, movesToOpen } from '../domain/ordering.ts';
 import { MAX_PROCEDURES_PER_ORDER } from '../domain/stage-rules.ts';
 import { activeProcedurePlaces, lockProcedure, moveProcedures, restoreProcedure } from '../infrastructure/manual-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
-import { limitExceeded, presentProcedure, publishManualChange } from './manual-shared.ts';
+import { limitExceeded, presentProcedure, publishManualChange, type VersionedProcedure } from './manual-shared.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order and the process (see {@link restoreProcedureScope}). */
@@ -56,7 +55,7 @@ const pathSchema = strictObjects(zRestoreWorkOrderProcedurePath);
 const idempotencyKeySchema = zRestoreWorkOrderProcedureHeaders.shape['Idempotency-Key'];
 
 export interface RestoredProcedure {
-  readonly procedure: Procedure;
+  readonly procedure: VersionedProcedure;
   /** True when the answer repeats an earlier restoration (same key, order and process): `Idempotent-Replayed: true`. */
   readonly replayed: boolean;
 }

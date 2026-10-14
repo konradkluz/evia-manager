@@ -20,6 +20,9 @@ import { procedureTables } from '../infrastructure/tables.ts';
 import { toProcedure, waitingPartyIdsOf } from './procedure-representation.ts';
 import { responsibleNamesOf } from './responsible-names.ts';
 
+/** The process with the tag of its version: the `ETag` of the answer (`Procedure.version` is optional in the contract, the server always sets it). */
+export type VersionedProcedure = Procedure & { readonly version: number };
+
 /** The objects the commands change. */
 export type ManualObject = 'procedure' | 'procedure_stage';
 export type ManualAction = 'created' | 'deleted' | 'restored';
@@ -81,7 +84,7 @@ export async function presentProcedure(
   principal: Principal,
   orderId: string,
   procedureId: string,
-): Promise<Procedure> {
+): Promise<VersionedProcedure> {
   const tables = procedureTables(tx);
   const row = await findLiveProcedure(tables, orderId, procedureId);
   if (row === undefined) throw new ProblemException('not_found');
@@ -92,7 +95,7 @@ export async function presentProcedure(
     stages.flatMap((stage) => (stage.responsible_user_id === null ? [] : [stage.responsible_user_id])),
   );
   const partyNames = await deps.parties.namesOf(tx, principal, waitingPartyIdsOf(stages));
-  return toProcedure(row, stages, names, partyNames, businessDate(deps.clock.now()));
+  return { ...toProcedure(row, stages, names, partyNames, businessDate(deps.clock.now())), version: row.version };
 }
 
 /** `422 limit_exceeded`: a pointer and a code, no value (SR-ERR-02). */

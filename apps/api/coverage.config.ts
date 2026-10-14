@@ -36,6 +36,16 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/procedures/application/procedures-contributor.ts',
   'src/modules/procedures/application/procedures-scope-participant.ts',
   'src/modules/procedures/application/stage-directory.service.ts',
+  // EVM-042: the addition, the deletion and the restoration of a process or a stage — locks, the places under a unique index that cannot be
+  // deferred, ON CONFLICT, the events in the transaction of the command: SQL against PostgreSQL
+  'src/modules/procedures/application/create-procedure.service.ts',
+  'src/modules/procedures/application/create-stage.service.ts',
+  'src/modules/procedures/application/delete-procedure.service.ts',
+  'src/modules/procedures/application/delete-stage.service.ts',
+  'src/modules/procedures/application/restore-procedure.service.ts',
+  'src/modules/procedures/application/restore-stage.service.ts',
+  'src/modules/procedures/application/list-deleted.service.ts',
+  'src/modules/procedures/application/manual-shared.ts',
   'src/modules/procedures/infrastructure/**/*.ts',
   // the shape of the answers and the controller over fake services are measured by the unit run
   'src/modules/timeline/application/create-entry.service.ts',
