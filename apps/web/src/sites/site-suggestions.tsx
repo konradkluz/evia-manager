@@ -1,7 +1,7 @@
 import { getSite, type Site } from '@evia/contracts';
 import { Button, InlineAlert, List, ListItem, Skeleton } from '@evia/ui-web';
 import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
@@ -75,12 +75,12 @@ export function SiteSuggestions({ customerId, online, suggestions, onPick }: Sit
       if (!own.signal.aborted) onPick(pickedSiteOf(site));
     } catch (error) {
       if (own.signal.aborted) return;
-      const status = error instanceof ApiError ? error.status : 0;
-      if (status === 404) {
+      const api = error instanceof ApiError ? error : null;
+      if (api?.status === 404) {
         setFailure('gone');
         void queryClient.invalidateQueries({ queryKey: [SITE_SUGGESTIONS_KEY, customerId] });
-      } else if (status === 429) {
-        setRetryAfter(error instanceof ApiError ? (error.retryAfterSeconds ?? 60) : 60);
+      } else if (api?.status === 429) {
+        setRetryAfter(api.retryAfterSeconds ?? 60);
         setFailure('rateLimited');
       } else setFailure('error');
     } finally {
@@ -89,15 +89,29 @@ export function SiteSuggestions({ customerId, online, suggestions, onPick }: Sit
     }
   };
 
-  if (!online) return <p className="text-body-sm text-text-secondary">{t('sites.suggestions.offline')}</p>;
+  // A constant live region: it is in the DOM before its text changes, so assistive technology announces the loading and the offline notice.
+  const announce = (message: string | null, content: ReactNode = null, visible = false) => (
+    <>
+      <p role="status" className={visible ? 'text-body-sm text-text-secondary' : 'sr-only'}>
+        {message}
+      </p>
+      {content}
+    </>
+  );
+
+  if (!online) return announce(t('sites.suggestions.offline'), null, true);
   if (suggestions.isError) {
     const error = suggestions.error;
-    if (error instanceof ApiError && error.status === 403) return null;
+    if (error instanceof ApiError && error.status === 403) return announce(null);
     if (error instanceof ApiError && error.status === 429)
-      return (
-        <p className="text-body-sm text-text-secondary">{t('sites.suggestions.rateLimited', { seconds: error.retryAfterSeconds ?? 60 })}</p>
+      return announce(
+        null,
+        <p className="text-body-sm text-text-secondary">
+          {t('sites.suggestions.rateLimited', { seconds: error.retryAfterSeconds ?? 60 })}
+        </p>,
       );
-    return (
+    return announce(
+      null,
       <InlineAlert
         tone="error"
         action={
@@ -112,24 +126,23 @@ export function SiteSuggestions({ customerId, online, suggestions, onPick }: Sit
         }
       >
         {t('sites.suggestions.error')}
-      </InlineAlert>
+      </InlineAlert>,
     );
   }
   if (suggestions.isLoading) {
-    return (
+    return announce(
+      t('sites.suggestions.loading'),
       <div aria-busy="true" className="flex flex-col gap-stack-sm">
-        <p role="status" className="sr-only">
-          {t('sites.suggestions.loading')}
-        </p>
         <Skeleton />
         <Skeleton />
-      </div>
+      </div>,
     );
   }
   const found = suggestions.data ?? [];
-  if (found.length === 0) return null;
+  if (found.length === 0) return announce(null);
 
-  return (
+  return announce(
+    null,
     <section aria-labelledby={headingId} className="flex flex-col gap-stack-sm">
       <h2 id={headingId} className="text-heading-4 text-text-primary">
         {t('sites.suggestions.heading', { count: found.length })}
@@ -167,6 +180,6 @@ export function SiteSuggestions({ customerId, online, suggestions, onPick }: Sit
               : t('sites.suggestions.chooseError')}
         </InlineAlert>
       )}
-    </section>
+    </section>,
   );
 }

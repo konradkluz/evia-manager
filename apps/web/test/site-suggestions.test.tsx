@@ -174,6 +174,7 @@ describe('W-05 "2. Lokalizacja": the locations of the earlier orders of the cust
       globalThis.dispatchEvent(new Event('offline'));
     });
     expect(await screen.findByText('Podpowiedź lokalizacji jest niedostępna bez połączenia.')).toBeTruthy();
+    expect(screen.getByText('Podpowiedź lokalizacji jest niedostępna bez połączenia.').getAttribute('role')).toBe('status');
     expect(screen.queryByRole('list', { name: /Lokalizacje z poprzednich zleceń/ })).toBeNull();
     expect(screen.getByRole('combobox', { name: 'Lokalizacja' })).toBeTruthy();
     expect(await axeViolations(document.body)).toEqual([]);
@@ -259,9 +260,14 @@ describe('W-05 "2. Lokalizacja": the locations of the earlier orders of the cust
     await chooseCustomer('Jan Przykładowy');
     expect(await screen.findByText('Wczytujemy lokalizacje z poprzednich zleceń klienta…')).toBeTruthy();
     expect(screen.queryByRole('list', { name: /Lokalizacje z poprzednich zleceń/ })).toBeNull();
+    const region = screen.getByText('Wczytujemy lokalizacje z poprzednich zleceń klienta…');
+    expect(region.textContent).toBe('Wczytujemy lokalizacje z poprzednich zleceń klienta…');
     expect(await axeViolations(document.body)).toEqual([]);
     release(json(200, { items: JAN_ORDERS, nextCursor: null }));
     await heading(2);
+    // The same live region stays in the DOM (only its text changes), so the loading is announced.
+    expect(region.isConnected).toBe(true);
+    expect(region.textContent).toBe('');
   });
 
   it('EVM-043 AC1 another customer: ITS list is read (one request each) and the first one is not shown', async () => {
