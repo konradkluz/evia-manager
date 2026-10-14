@@ -9,30 +9,33 @@ import { formatMoney } from './money.ts';
  * Opłacone > none). `state` is an extensible list: a value this panel does not know — and an item without the field — is `unknown`
  * ("Nieznany status", P-12), never the raw value.
  */
-type PaymentState = 'overdue' | 'unpaid' | 'paid' | 'none' | 'unknown';
+type PaymentView =
+  | { readonly state: 'overdue'; readonly amountMinor: number }
+  | { readonly state: 'unpaid'; readonly count: number; readonly amountMinor: number }
+  | { readonly state: 'paid' | 'none' | 'unknown' };
 
-function stateOf(payment: WorkOrderPayment | undefined): PaymentState {
+function viewOf(payment: WorkOrderPayment | undefined): PaymentView {
   switch (payment?.state) {
     case 'overdue':
+      return { state: 'overdue', amountMinor: payment.overdueTotal.amountMinor };
     case 'unpaid':
+      return { state: 'unpaid', count: payment.invoicedCount, amountMinor: payment.invoicedTotal.amountMinor };
     case 'paid':
     case 'none':
-      return payment.state;
+      return { state: payment.state };
     default:
-      return 'unknown';
+      return { state: 'unknown' };
   }
 }
 
 /** The end of the name of the row (flows/07 → "Dostępność"): "płatność po terminie, 3 600,00 zł", "nieopłacone: 1, 4 500,00 zł"… */
 export function paymentRowText(t: TFunction, payment: WorkOrderPayment | undefined): string {
-  switch (stateOf(payment)) {
+  const view = viewOf(payment);
+  switch (view.state) {
     case 'overdue':
-      return t('workOrders.table.rowPaymentOverdue', { amount: formatMoney(payment?.overdueTotal.amountMinor ?? 0) });
+      return t('workOrders.table.rowPaymentOverdue', { amount: formatMoney(view.amountMinor) });
     case 'unpaid':
-      return t('workOrders.table.rowPaymentUnpaid', {
-        count: payment?.invoicedCount ?? 0,
-        amount: formatMoney(payment?.invoicedTotal.amountMinor ?? 0),
-      });
+      return t('workOrders.table.rowPaymentUnpaid', { count: view.count, amount: formatMoney(view.amountMinor) });
     case 'paid':
       return t('workOrders.table.rowPaymentPaid');
     case 'none':
@@ -50,8 +53,8 @@ export function paymentRowText(t: TFunction, payment: WorkOrderPayment | undefin
  */
 export function PaymentCell({ payment }: { readonly payment: WorkOrderPayment | undefined }) {
   const { t } = useTranslation();
-  const state = stateOf(payment);
-  if (state === 'none') {
+  const view = viewOf(payment);
+  if (view.state === 'none') {
     // Like the other dashes of the list, the card (`compact`) leaves it out; the name of the row says "brak wystawionych transz".
     return (
       <span className="text-text-secondary max-medium:hidden">
@@ -60,14 +63,13 @@ export function PaymentCell({ payment }: { readonly payment: WorkOrderPayment | 
       </span>
     );
   }
-  const amount =
-    state === 'overdue' ? payment?.overdueTotal.amountMinor : state === 'unpaid' ? payment?.invoicedTotal.amountMinor : undefined;
+  const amount = view.state === 'overdue' || view.state === 'unpaid' ? view.amountMinor : undefined;
   const badge =
-    state === 'overdue' ? (
+    view.state === 'overdue' ? (
       <StatusBadge status="overdue" group="payment" label={t('workOrders.status.paymentOverdue')} />
-    ) : state === 'unpaid' ? (
-      <StatusBadge status="invoiced" group="payment" label={t('workOrders.payment.unpaid', { count: payment?.invoicedCount ?? 0 })} />
-    ) : state === 'paid' ? (
+    ) : view.state === 'unpaid' ? (
+      <StatusBadge status="invoiced" group="payment" label={t('workOrders.payment.unpaid', { count: view.count })} />
+    ) : view.state === 'paid' ? (
       <StatusBadge status="paid" group="payment" label={t('workOrders.payment.paid')} />
     ) : (
       <StatusBadge status="unknown" group="payment" label={t('workOrders.status.unknown')} hint={t('workOrders.status.unknownHint')} />
