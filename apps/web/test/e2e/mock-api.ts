@@ -12,6 +12,7 @@ import {
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import {
   answerPaymentCreate,
+  answerPaymentDelete,
   answerPaymentPatch,
   answerPayments,
   answerPaymentTransition,
@@ -718,6 +719,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
             ifMatch: headers['if-match'],
             key: headers['idempotency-key'],
             raw: request.postData() ?? '{}',
+            stepUpFresh: api.stepUp === 'fresh',
           }),
         );
       }
@@ -733,6 +735,18 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
             role: api.role,
             ifMatch: headers['if-match'],
             raw: request.postData() ?? '{}',
+            stepUpFresh: api.stepUp === 'fresh',
+          }),
+        );
+      }
+      // EVM-057 AC4: the soft delete of an instalment (the Administrator with a step-up).
+      if (request.method() === 'DELETE' && milestoneId !== undefined && transitions === undefined) {
+        return route.fulfill(
+          answerPaymentDelete(api.orders, orderId, milestoneId, {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            key: headers['idempotency-key'],
+            stepUpFresh: api.stepUp === 'fresh',
           }),
         );
       }

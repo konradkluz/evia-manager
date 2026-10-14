@@ -3,7 +3,7 @@ import { expect, test } from './fixtures.ts';
 import type { MockApi } from './mock-api.ts';
 
 // The actions of the instalments in W-06 in a real browser against the synthetic API (EVM-054 AC1–AC8): "Wystaw fakturę…",
-// "Odnotuj wpłatę…", "Anuluj transzę…", the corrections of the data, the corrections that wait for EVM-057, cancelling an order with
+// "Odnotuj wpłatę…", "Anuluj transzę…", the corrections of the data, the corrections of payments by role (EVM-057), cancelling an order with
 // an invoiced instalment, a closed order and the roles. The full stack (the database, the audit with the codes of the statuses, the
 // journal, the role and channel matrix, the race with cancelling the order) is covered by the API integration tests.
 test.use({ session: 'active' });
@@ -148,14 +148,21 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await expect(row.getByText('1 230,00 zł')).toBeVisible();
   });
 
-  test('EVM-054 AC5 the Editor sees the corrections disabled with the reason; the Administrator does not see them', async ({
+  test('EVM-054 AC5 EVM-057 AC8 the Editor sees the corrections disabled with the reason; the Administrator has them active', async ({
     page,
     api,
   }) => {
     const path = await createOrder(page);
     await issueInvoice(page);
     await page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' }).click();
-    await expect(page.getByRole('menuitem')).toHaveText(['Popraw dane faktury…']);
+    await expect(page.getByRole('menuitem')).toHaveText([
+      'Popraw dane faktury…',
+      'Wycofaj fakturę…',
+      'Anuluj fakturę…',
+      'Zmień kwotę…',
+      'Usuń transzę…',
+    ]);
+    await expect(page.getByRole('menuitem', { name: 'Wycofaj fakturę…' })).not.toHaveAttribute('aria-disabled', 'true');
     await page.keyboard.press('Escape');
     api.role = 'editor';
     await page.goto(path);
