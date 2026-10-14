@@ -42,7 +42,7 @@ describe('the query of the summary of unpaid invoices (EVM-055 AC4; SR-INPUT-01,
   });
 
   it('EVM-055 AC4 a value outside the lists is a validation error: view, days outside 2000-2100 or not on the calendar, customer, limit, cursor', () => {
-    for (const query of [
+    const invalid: Record<string, string>[] = [
       { view: 'to_invoice' },
       { view: '' },
       { dueFrom: '1999-12-31' },
@@ -59,7 +59,8 @@ describe('the query of the summary of unpaid invoices (EVM-055 AC4; SR-INPUT-01,
       { cursor: 'a'.repeat(513) },
       { sort: '-dueDate' },
       { unknown: '1' },
-    ]) {
+    ];
+    for (const query of invalid) {
       expect(parse(query).success, JSON.stringify(query)).toBe(false);
     }
   });

@@ -96,4 +96,34 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     expect(lines.get(site)).toEqual({ id: site, city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' });
     expect((await sites.linesOf(admin(), caller, [])).size).toBe(0);
   });
+
+  it('EVM-055 AC3 WorkOrderDirectory.refsOf gives the number, the title and the customer of the visible orders only: a deleted order and an unknown identifier are absent, for every role', async () => {
+    const customerId = await insertCustomer(admin(), { lastName: 'Zamawiający' });
+    const ids = await insertWorkOrders(admin(), [
+      { number: 'ZL-2026-0101', title: 'Widoczne', customerId },
+      { number: 'ZL-2026-0102', title: 'Bez klienta' },
+      { number: 'ZL-2026-0103', title: 'Usunięte', deletedAt: new Date('2026-10-02T08:00:00Z') },
+    ]);
+    const idOf = (number: string): string => ids.get(number) ?? '';
+    const [visible, withoutCustomer, deleted] = [idOf('ZL-2026-0101'), idOf('ZL-2026-0102'), idOf('ZL-2026-0103')] as [
+      string,
+      string,
+      string,
+    ];
+    const unknown = '0190a1b2-0000-7000-8000-0000000000ff';
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      const refs = await orders.refsOf(admin(), principal({ role }), [visible, withoutCustomer, deleted, unknown, visible]);
+      expect([...refs.keys()].sort()).toEqual([visible, withoutCustomer].sort());
+      expect(refs.get(visible)).toEqual({ number: 'ZL-2026-0101', title: 'Widoczne', customerId });
+      expect(refs.get(withoutCustomer)).toEqual({ number: 'ZL-2026-0102', title: 'Bez klienta', customerId: null });
+    }
+    expect((await orders.refsOf(admin(), caller, [])).size).toBe(0);
+  });
+
+  it('EVM-055 AC3 refsOf takes the identifiers as ONE array parameter: thousands of identifiers are one statement', async () => {
+    const ids = await insertWorkOrders(admin(), [{ number: 'ZL-2026-0201' }]);
+    const many = Array.from({ length: 5000 }, (_, index) => `0190a1b2-0000-7000-8000-${String(index).padStart(12, '0')}`);
+    const refs = await orders.refsOf(admin(), caller, [...many, ids.get('ZL-2026-0201') ?? '']);
+    expect([...refs.keys()]).toEqual([ids.get('ZL-2026-0201')]);
+  });
 });
