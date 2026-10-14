@@ -221,6 +221,9 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     // the card "Podsumowanie" (EVM-034) is before the tabs: its button "+ 6 procesów" is the next stop
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: '+ 6 procesów' })).toBeFocused();
+    // the tile "Płatności" (EVM-056) is a link to the section of the instalments
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: /^Płatności: / })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     // the second tab "Dziennik" (EVM-037) is the next stop of the arrows, and they come back
