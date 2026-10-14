@@ -12,7 +12,7 @@ import { LogCapture } from '../support/app.ts';
 import { FixedClock } from '../support/clock.ts';
 import { uuidv7 } from '../support/uuid.ts';
 
-const EMPTY: VerifyReport['drift'] = { authorization: [], keys: [], waiting: [], deadline: [] };
+const EMPTY: VerifyReport['drift'] = { authorization: [], keys: [], waiting: [], deadline: [], payments: [] };
 
 function setup(verify: ProjectionMaintenance['verify']) {
   const logs = new LogCapture();
@@ -64,7 +64,7 @@ describe('the nightly verify of the projection (EVM-034 W11; ADR-0017 W11, T7)',
         inSync: 6,
         missing: [third],
         // `first` differs in two groups and counts once
-        drift: { authorization: [first], keys: [first, second], waiting: [], deadline: [] },
+        drift: { authorization: [first], keys: [first, second], waiting: [], deadline: [], payments: [] },
       });
     });
     expect(await job.run()).toEqual({ checked: 10, inSync: 6, missing: 1, differing: 2, authz: 1 });

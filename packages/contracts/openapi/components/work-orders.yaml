@@ -13,16 +13,23 @@ WorkOrderSort:
     Sortowanie: `-number` (numer malejąco, domyślne), `number`, `-createdAt`, `createdAt`, `longestWaitingSince` („Najdłużej
     czekamy”: najstarszy `waitingSince` oczekujących etapów rosnąco, zlecenia bez oczekiwań na końcu) i `nextDueDate` („Termin”:
     najbliższy termin niezakończonego etapu rosnąco, bez terminu na końcu) — oba tylko rosnąco, remis rozstrzyga identyfikator.
-    Kolejne epiki dodają wartości (`urgency`) addytywnie; serwer odrzuca wartość spoza listy (`400 validation_failed`).
-  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate]
+    `urgency` („Najpilniejsze”, EVM-056; tylko rosnąco, ADR-0017 D9): pierwsza pasująca grupa, w grupie klucz rosnąco, remis —
+    identyfikator: 1) zlecenie niezamknięte z transzą albo etapem po terminie (klucz: najstarszy miniony termin), 2) zlecenie
+    niezamknięte czekające dłużej niż 14 dni (klucz: `waitingSince` najdłuższego oczekiwania), 3) zlecenie niezamknięte z
+    terminem etapu od dziś (klucz: najbliższy termin), 4) pozostałe, także zamknięte. Rola bez odczytu płatności dostaje
+    kolejność bez składowej płatności (grupa 1 tylko z etapów). Serwer odrzuca wartość spoza listy (`400 validation_failed`).
+  enum: [-number, number, -createdAt, createdAt, longestWaitingSince, nextDueDate, urgency]
 WorkOrderView:
   type: string
   description: >-
     Widok: `all_open` (status poza `settled` i `cancelled`), `mine` (opiekun to zalogowany użytkownik — zawsze z sesji) albo
     `waiting_on_dso_over_14_days` („Czekamy na OSD > 14 dni”: zlecenie niezamknięte z etapem oczekującym na stronę rodzaju
     `distribution_system_operator` od ponad 14 dni; łączy się przez AND z pozostałymi filtrami). Brak parametru oznacza brak
-    predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie.
-  enum: [all_open, mine, waiting_on_dso_over_14_days]
+    predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie. Widoki płatności (EVM-056,
+    tylko zlecenia niezamknięte): `overdue_payments` („Po terminie”: transza wystawiona z terminem wcześniejszym niż dziś) i
+    `unpaid` („Nieopłacone”: co najmniej jedna transza wystawiona, także po terminie); wymagają prawa odczytu płatności
+    (`x-evia-authz.restrictedParams`) — bez niego `403 forbidden`.
+  enum: [all_open, mine, waiting_on_dso_over_14_days, overdue_payments, unpaid]
 WorkOrderWaitingOnFilter:
   type: string
   description: >-
@@ -173,6 +180,40 @@ WorkOrderListItem:
       oneOf:
         - $ref: '#/WorkOrderListSite'
         - type: 'null'
+    payment:
+      readOnly: true
+      description: >-
+        Kolumna „Płatność” (EVM-056; tylko do odczytu). Pole jest tylko dla ról z prawem odczytu płatności
+        (`x-evia-authz.restrictedParams`; v1: Administrator, Edytor, Tylko odczyt) — dla pozostałych nie występuje.
+      $ref: '#/WorkOrderPayment'
+WorkOrderPaymentState:
+  type: string
+  description: >-
+    Stan kolumny „Płatność” (EVM-056, ADR-0017 D8; pierwszy pasujący): `overdue` — transza wystawiona po terminie, `unpaid` —
+    transza wystawiona, `paid` — transza opłacona i żadnej wystawionej, `none` — brak wystawionych i opłaconych. Lista wartości
+    jest rozszerzalna — klient obsługuje też wartość nieznaną (etykieta zapasowa); dodanie wartości nie jest zmianą łamiącą.
+  x-extensible-enum: [overdue, unpaid, paid, none]
+WorkOrderPayment:
+  type: object
+  description: >-
+    Płatności zlecenia na liście (EVM-056; pole tylko do odczytu, liczy serwer z dnia żądania w `Europe/Warsaw` — klient nie
+    porównuje dat): stan, liczba transz wystawionych (także po terminie), suma kwot transz wystawionych i suma kwot transz po
+    terminie (transze anulowane i usunięte się nie liczą). Stan i sumy pochodzą z dwóch odczytów bez wspólnej migawki: w chwili
+    równoległej zmiany transzy mogą się na moment różnić (kolejne odświeżenie je wyrównuje), dlatego kontrakt ich nie wiąże.
+  required: [state, invoicedCount, invoicedTotal, overdueTotal]
+  additionalProperties: false
+  properties:
+    state:
+      $ref: '#/WorkOrderPaymentState'
+    invoicedCount:
+      type: integer
+      description: Liczba transz wystawionych (`invoiced`, także po terminie) — „Nieopłacone (n)”.
+      minimum: 0
+      maximum: 20
+    invoicedTotal:
+      $ref: common.yaml#/MoneyTotal
+    overdueTotal:
+      $ref: common.yaml#/MoneyTotal
 WorkOrderListCustomer:
   type: object
   description: Klient na liście zleceń — identyfikator i nazwa wyświetlana (bez telefonu, e-maila, NIP i adresu, SR-DATA-03).

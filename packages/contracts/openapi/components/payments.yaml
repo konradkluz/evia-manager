@@ -112,6 +112,17 @@ PaymentMilestone:
     isOverdue:
       type: boolean
       description: '`true`, gdy transza jest wystawiona, a termin płatności jest wcześniejszy niż dziś (`Europe/Warsaw`).'
+    overdueDays:
+      readOnly: true
+      description: >-
+        Pełne dni kalendarzowe od terminu płatności do dziś (`Europe/Warsaw`; ≥ 1) dla transzy po terminie, inaczej `null`
+        (EVM-056, kafel „Płatności” W-06; liczy serwer). `isOverdue` równa się `overdueDays != null`. Pole tylko do odczytu; nie jest
+        w wymaganych, bo dodano je addytywnie — serwer zawsze je zwraca.
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 36600
+        - type: 'null'
     version:
       type: integer
       description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie i przejściu).

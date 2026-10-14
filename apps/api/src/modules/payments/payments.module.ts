@@ -7,7 +7,10 @@
  * web channel only (P3). It gives `timeline` the names of its milestones (`PaymentMilestoneDirectory`). It reaches other modules only through their facades: the order and its status
  * through `work-orders` (`WorkOrderDirectory` and the ports `WorkOrderCompositionContributor`, `WorkOrderTransitionParticipant`), the
  * payment plan through `catalog` (`TemplateDirectory`). The audit trail subscribes to its events (`payments` never imports `audit`).
- * Every write of a milestone goes through ONE point (`infrastructure/milestone-store.ts`), where EVM-056 hooks the read model.
+ * Every write of a milestone goes through ONE point (`infrastructure/milestone-store.ts`), and every command that calls it publishes an
+ * event naming the order, so the read model (`overview`, EVM-056; P4) recomputes the signals of payments in the same transaction. The
+ * read model reads the statuses and the due dates through the system port (`system-ports.ts`, no amount) and the totals of a page
+ * through the facade `PaymentTotalsDirectory` (`payment-totals.ts`, under the right to read payments of the caller).
  */
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.ts';
@@ -22,7 +25,11 @@ import { PaymentMilestoneDirectoryService } from './application/milestone-direct
 import { TransitionMilestoneService } from './application/transition-milestone.service.ts';
 import { UpdateMilestoneService } from './application/update-milestone.service.ts';
 import { PaymentsController } from './http/payments.controller.ts';
+import { PaymentTotalsDirectoryService } from './application/payment-totals.service.ts';
+import { PaymentProjectionSourceService } from './infrastructure/projection-source.ts';
+import { PAYMENT_TOTALS_DIRECTORY } from './payment-totals.ts';
 import { PAYMENT_MILESTONE_DIRECTORY } from './milestone-directory.ts';
+import { PAYMENT_PROJECTION_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [CatalogModule, CustomersModule, WorkOrdersModule],
@@ -36,7 +43,9 @@ import { PAYMENT_MILESTONE_DIRECTORY } from './milestone-directory.ts';
     PaymentsCompositionContributor,
     PaymentsTransitionParticipant,
     { provide: PAYMENT_MILESTONE_DIRECTORY, useClass: PaymentMilestoneDirectoryService },
+    { provide: PAYMENT_PROJECTION_SOURCE, useClass: PaymentProjectionSourceService },
+    { provide: PAYMENT_TOTALS_DIRECTORY, useClass: PaymentTotalsDirectoryService },
   ],
-  exports: [PAYMENT_MILESTONE_DIRECTORY],
+  exports: [PAYMENT_MILESTONE_DIRECTORY, PAYMENT_PROJECTION_SOURCE, PAYMENT_TOTALS_DIRECTORY],
 })
 export class PaymentsModule {}

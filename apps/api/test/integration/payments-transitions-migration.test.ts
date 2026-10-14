@@ -32,6 +32,7 @@ beforeAll(async () => {
     '0028_payment_milestone_transitions',
     '0029_audit_status_codes',
     '0030_payment_unpaid_index',
+    '0031_overview_payment_signals',
   ]);
 });
 afterAll(async () => {

@@ -3,11 +3,13 @@
  * the production image and no route reaches it; it refuses to run when `NODE_ENV=production` (SR-INFRA-08). Everything is synthetic.
  * The tests of the totals, of the block of a change of the amount, of the conditions of a transition and of the corrections (EVM-054)
  * write the statuses `invoiced` and `paid` here with the data the CHECKs of 0028 ask for (invoice, day, due date, day of payment).
+ * The projection of the order is recomputed afterwards (the signals of payments, EVM-056).
  */
 import type { Kysely } from 'kysely';
 import type { PaymentMilestoneStatus } from '../../src/modules/payments/domain/money.ts';
 import { paymentTables } from '../../src/modules/payments/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
+import { rebuildProjection } from './projection.ts';
 import { assertSyntheticDataAllowed } from './work-order-fixtures.ts';
 
 export interface MilestoneSpec {
@@ -64,6 +66,8 @@ export async function insertMilestones(
       .executeTakeFirstOrThrow();
     ids.push(row.id);
   }
+  // the rows bypass the services, so no event recomputes the signals of payments of the read model (EVM-056): the fixture does
+  await rebuildProjection(db, [workOrderId]);
   return ids;
 }
 

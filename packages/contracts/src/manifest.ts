@@ -10,7 +10,24 @@ import { z } from 'zod';
 export const ROLES = ['administrator', 'editor', 'read_only'] as const;
 export const CHANNELS = ['web', 'mobile'] as const;
 
+/**
+ * The policies a value of a parameter or a field of the answer may depend on (EVM-056; ADR-0017 W4). A CLOSED vocabulary: the code
+ * of the API evaluates each one (`paymentMilestone.read` — `canReadPayments` of `authorization`), so a name outside it is an error.
+ */
+export const RESTRICTING_POLICIES = ['paymentMilestone.read'] as const;
+
 const nonEmpty = <T extends z.ZodType>(item: T) => z.array(item).min(1).max(16);
+const name = z.string().min(1).max(100);
+
+/**
+ * `restrictedParams` (EVM-056; api-guidelines.md → Autoryzacja): per policy, the values of parameters (`params`: name → values) and the
+ * fields of the answer (`fields`) that only a caller the policy allows may use or see. Unlike `hiddenFields` (a static list per role),
+ * this is a PREDICATE evaluated in code; the manifest declares it and the generation checks it against the operation.
+ */
+const restrictedParamsSchema = z.partialRecord(
+  z.enum(RESTRICTING_POLICIES),
+  z.strictObject({ params: z.record(name, nonEmpty(name)), fields: z.array(name).max(100) }),
+);
 
 const policySchema = z
   .strictObject({
@@ -22,6 +39,7 @@ const policySchema = z
     stepUp: z.boolean().optional(),
     transitions: z.string().min(1).max(100).optional(),
     hiddenFields: z.record(z.enum(ROLES), z.array(z.string().min(1).max(100)).max(100)).optional(),
+    restrictedParams: restrictedParamsSchema.optional(),
     audit: z.boolean().optional(),
     allowDuringMfaEnrollment: z.boolean().optional(),
   })
@@ -68,6 +86,69 @@ function queryNames(spec: unknown, pathItem: Record<string, unknown>, operation:
   });
 }
 
+/** A local `$ref` of the bundle (`#/components/<kind>/<name>`) resolved; anything else is returned as it is. */
+function resolve(spec: unknown, value: unknown): unknown {
+  if (!isRecord(value) || typeof value['$ref'] !== 'string') return value;
+  const reference = value['$ref'];
+  const target = reference
+    .replace(/^#\//, '')
+    .split('/')
+    .reduce<unknown>((node, key) => (isRecord(node) ? node[key] : undefined), spec);
+  if (target === undefined) throw new Error(`unresolved reference ${reference}`);
+  return resolve(spec, target);
+}
+
+/** The schema of a parameter of the query, or of a top-level property of the JSON body, named `parameter`; undefined when there is none. */
+function parameterSchema(spec: unknown, pathItem: Record<string, unknown>, operation: Record<string, unknown>, parameter: string): unknown {
+  const declared = [pathItem['parameters'], operation['parameters']].flatMap((list) => (Array.isArray(list) ? (list as unknown[]) : []));
+  for (const entry of declared) {
+    const resolved = resolve(spec, entry);
+    if (isRecord(resolved) && resolved['in'] === 'query' && resolved['name'] === parameter) return resolve(spec, resolved['schema']);
+  }
+  const body = resolve(spec, operation['requestBody']);
+  const content = isRecord(body) && isRecord(body['content']) ? body['content']['application/json'] : undefined;
+  const schema = resolve(spec, isRecord(content) ? content['schema'] : undefined);
+  const properties = isRecord(schema) && isRecord(schema['properties']) ? schema['properties'] : {};
+  return parameter in properties ? resolve(spec, properties[parameter]) : undefined;
+}
+
+/** The properties of the item of the `200` answer: the element of its `items` array (a list), or the answer itself. */
+function answerItemProperties(spec: unknown, operation: Record<string, unknown>): Record<string, unknown> {
+  const responses = isRecord(operation['responses']) ? operation['responses'] : {};
+  const ok = resolve(spec, responses['200']);
+  const content = isRecord(ok) && isRecord(ok['content']) ? ok['content']['application/json'] : undefined;
+  const schema = resolve(spec, isRecord(content) ? content['schema'] : undefined);
+  const properties = isRecord(schema) && isRecord(schema['properties']) ? schema['properties'] : {};
+  const list = resolve(spec, properties['items']);
+  const item = isRecord(list) && list['type'] === 'array' ? resolve(spec, list['items']) : schema;
+  return isRecord(item) && isRecord(item['properties']) ? item['properties'] : {};
+}
+
+/**
+ * Every restricted parameter is a parameter of the query or a top-level property of the body of THIS operation, every value is in its
+ * enum, and every field is a property of the item of the answer — a name or a value that does not exist fails the generation.
+ */
+function checkRestrictedParams(
+  spec: unknown,
+  id: string,
+  pathItem: Record<string, unknown>,
+  operation: Record<string, unknown>,
+  policy: AuthzPolicy,
+): void {
+  for (const rule of Object.values(policy.restrictedParams ?? {})) {
+    for (const [parameter, values] of Object.entries(rule.params)) {
+      const schema = parameterSchema(spec, pathItem, operation, parameter);
+      const allowed = isRecord(schema) && Array.isArray(schema['enum']) ? (schema['enum'] as unknown[]) : undefined;
+      if (allowed === undefined) throw new Error(`${id}: restrictedParams — parametr ${parameter} nie istnieje albo nie ma enum`);
+      const unknown = values.filter((value) => !allowed.includes(value));
+      if (unknown.length > 0) throw new Error(`${id}: restrictedParams — ${parameter}: wartości spoza enum: ${unknown.join(', ')}`);
+    }
+    const properties = answerItemProperties(spec, operation);
+    const missing = rule.fields.filter((field) => !(field in properties));
+    if (missing.length > 0) throw new Error(`${id}: restrictedParams — pola spoza odpowiedzi: ${missing.join(', ')}`);
+  }
+}
+
 export function buildAuthzManifest(spec: unknown): AuthzManifest {
   const manifest: Record<string, OperationAuthz> = {};
   const paths = isRecord(spec) && isRecord(spec['paths']) ? spec['paths'] : {};
@@ -85,6 +166,7 @@ export function buildAuthzManifest(spec: unknown): AuthzManifest {
         const problems = parsed.error.issues.map((issue) => `${issue.path.join('.') || '(policy)'}: ${issue.message}`).join('; ');
         throw new Error(`${id}: nieprawidłowe x-evia-authz — ${problems}`);
       }
+      checkRestrictedParams(spec, id, pathItem, operation, parsed.data);
       manifest[id] = { method, path, query: queryNames(spec, pathItem, operation), authz: parsed.data };
     }
   }

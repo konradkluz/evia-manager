@@ -3,6 +3,7 @@ import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PROJECTION_EVENT_TYPES } from '../../src/modules/overview/application/projection-recorder.ts';
 import { PARTY_EVENT_TYPES } from '../../src/modules/parties/events.ts';
+import { PAYMENT_MILESTONE_EVENT_TYPES, PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES } from '../../src/modules/payments/events.ts';
 import { PROCEDURE_EVENT_TYPES, PROCEDURE_JOURNAL_EVENT_TYPES } from '../../src/modules/procedures/events.ts';
 import { SITE_EVENT_TYPES } from '../../src/modules/sites/events.ts';
 import { WORK_ORDER_EVENT_TYPES, WORK_ORDER_JOURNAL_EVENT_TYPES } from '../../src/modules/work-orders/events.ts';
@@ -25,7 +26,7 @@ describe('the architecture of the read model (EVM-034; ADR-0017 W2, W11)', () =>
     expect(offenders).toEqual([]);
   });
 
-  it('EVM-034 AC6 every domain event of the modules that feed the projection has a handler in overview', () => {
+  it('EVM-034 AC6 EVM-056 AC1 every domain event of the modules that feed the projection has a handler in overview — the milestones of payments included (P4)', () => {
     const expected = [
       ...WORK_ORDER_EVENT_TYPES,
       ...WORK_ORDER_JOURNAL_EVENT_TYPES,
@@ -33,6 +34,8 @@ describe('the architecture of the read model (EVM-034; ADR-0017 W2, W11)', () =>
       ...PROCEDURE_JOURNAL_EVENT_TYPES,
       ...SITE_EVENT_TYPES,
       ...PARTY_EVENT_TYPES,
+      ...PAYMENT_MILESTONE_EVENT_TYPES,
+      ...PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES,
     ];
     expect([...PROJECTION_EVENT_TYPES].sort()).toEqual([...new Set(expected)].sort());
   });
