@@ -204,3 +204,34 @@ describe('cancelling an order with instalments (EVM-053 AC6, P1)', () => {
     expect(dialog.queryByText('Planowane transze zostaną anulowane.')).toBeNull();
   });
 });
+
+describe('cancelling an order with an invoiced instalment (EVM-054 AC6)', () => {
+  it.each([
+    ['W realizacji', 'in_progress'],
+    ['Wstrzymane', 'on_hold'],
+  ] as const)(
+    'EVM-054 AC6 from "%s" 422 invoiced_milestones: the dialog stays open with "Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury."',
+    async (label, status) => {
+      const api = transitionApi(
+        orderWith(status),
+        () => listOf(['invoiced', 'planned']),
+        () => problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/to', code: 'invoiced_milestones' }] }),
+      );
+      await renderPanel(PATH, api);
+      await screen.findByRole('table', { name: 'Transze płatności zlecenia' });
+      await choose(label, 'Anuluj zlecenie…');
+      const dialog = within(await screen.findByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' }));
+      await userEvent.type(dialog.getByRole('textbox', { name: 'Powód anulowania' }), 'Klient zrezygnował');
+      await userEvent.click(dialog.getByRole('button', { name: 'Anuluj zlecenie' }));
+      expect((await dialog.findByRole('alert')).textContent).toBe(
+        'Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.',
+      );
+      // the order and both instalments stay as they were; the typed reason stays in the open dialog
+      expect(screen.getByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' })).toBeTruthy();
+      expect(dialog.getByRole<HTMLTextAreaElement>('textbox', { name: 'Powód anulowania' }).value).toBe('Klient zrezygnował');
+      expect(screen.getByText('Wystawiona')).toBeTruthy();
+      expect(screen.getByText('Planowana')).toBeTruthy();
+      expect(await axeViolations(document.body)).toEqual([]);
+    },
+  );
+});

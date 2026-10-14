@@ -450,6 +450,7 @@ export const pl = {
         stepUp: 'Przywrócenie wymaga potwierdzenia tożsamości. Spróbuj ponownie i potwierdź tożsamość.',
         condition: 'Nie można wykonać tej operacji — nie są spełnione warunki.',
         unpaidMilestones: 'Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane.',
+        invoicedMilestones: 'Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.',
         rateLimited: 'Zbyt wiele zapytań. Spróbuj ponownie za {{seconds}} s.',
         network: 'Nie udało się zmienić statusu zlecenia. Sprawdź połączenie i spróbuj ponownie.',
         server: 'Nie udało się zmienić statusu zlecenia. Spróbuj ponownie za chwilę. Jeśli problem się powtarza, zgłoś go (kod: {{code}}).',
