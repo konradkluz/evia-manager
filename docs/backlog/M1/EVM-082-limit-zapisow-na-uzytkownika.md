@@ -4,7 +4,7 @@ title: Limit 300 żądań na minutę na użytkownika (SR-API-02)
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P2
 path: pelna
 owner: backend-developer
@@ -54,3 +54,4 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - 2026-10-08 — utworzono (propozycja z przeglądu EVM-022)
 - 2026-10-13 — refinement: zakres limitu (odczyty + zapisy wg ADR-0004), co się liczy, brak liczenia 401 i `health`; tytuł uogólniony (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-082-limit-na-uzytkownika` ułożona na EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
