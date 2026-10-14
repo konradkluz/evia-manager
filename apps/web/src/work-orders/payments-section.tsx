@@ -271,7 +271,7 @@ function MilestoneTable({
           key="status"
           status={key}
           group="payment"
-          label={key === 'overdue' ? t('workOrder.payments.overdueLabel') : paymentStatusLabels[milestone.status]}
+          label={key === 'overdue' ? t('workOrders.status.paymentOverdue') : paymentStatusLabels[milestone.status]}
         />
       );
     const actions = canEdit ? milestoneActions(milestone.status, role) : { menu: [] };
@@ -327,7 +327,11 @@ function MilestoneTable({
         ),
       );
     }
-    return { id: milestone.id, cells };
+    return {
+      id: milestone.id,
+      ...(key === 'overdue' ? { label: t('workOrder.payments.overdueRow', { name }) } : {}),
+      cells,
+    };
   });
   return <DataTable caption={t('workOrder.payments.caption')} dense columns={columns} rows={rows} />;
 }

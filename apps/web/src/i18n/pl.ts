@@ -264,6 +264,7 @@ export const pl = {
       unknown: 'Nieznany status',
       unknownName: 'nieznany',
       unknownHint: 'Odśwież stronę, aby zobaczyć szczegóły.',
+      paymentOverdue: 'Po terminie',
     },
     pages: {
       label: 'Strony listy zleceń',
@@ -621,7 +622,7 @@ export const pl = {
       offlineHint: 'Zmienisz po powrocie połączenia.',
       closedHint: 'Zlecenie jest {{state}} — płatności są tylko do odczytu. Zmienisz je po przywróceniu zlecenia.',
       closedHintEditor: 'Zlecenie jest {{state}} — płatności są tylko do odczytu. Przywrócić zlecenie może tylko administrator.',
-      overdueLabel: 'Wystawiona, po terminie',
+      overdueRow: '{{name}} — wystawiona, po terminie',
     },
     paymentDialog: {
       close: 'Zamknij okno',

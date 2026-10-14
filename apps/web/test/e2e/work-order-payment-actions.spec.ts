@@ -222,7 +222,7 @@ test.describe('the actions of the instalments (EVM-054)', () => {
       const pay = row.getByRole('button', { name: 'Odnotuj wpłatę…' });
       await pay.scrollIntoViewIfNeeded();
       await expect(pay).toBeInViewport({ ratio: 1 });
-      await expect(row.getByText('Wystawiona, po terminie')).toBeInViewport({ ratio: 1 });
+      await expect(row.getByText('Po terminie')).toBeInViewport({ ratio: 1 });
       // the longest menu (the Editor, "Wystawiona"): every item and the reason of AC5 are readable, nothing is cut
       const trigger = page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' });
       await trigger.scrollIntoViewIfNeeded();

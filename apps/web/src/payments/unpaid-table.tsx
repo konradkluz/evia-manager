@@ -13,7 +13,7 @@ import {
 } from '@evia/ui-web';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { paymentOverdueLabel, paymentStatusLabels } from '../i18n/payment-labels.ts';
+import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { workOrderPath } from '../paths.ts';
 import { milestoneActions, type MilestoneAction } from '../work-orders/milestone-actions.ts';
 import { paymentBadgeKey } from '../work-orders/milestone-form.ts';
@@ -91,7 +91,7 @@ export function UnpaidTable({
           key="status"
           status={key}
           group="payment"
-          label={key === 'overdue' ? paymentOverdueLabel : paymentStatusLabels[item.status]}
+          label={key === 'overdue' ? t('workOrders.status.paymentOverdue') : paymentStatusLabels[item.status]}
         />
       );
     const actions = canEdit ? milestoneActions(item.status, role) : { menu: [] };
