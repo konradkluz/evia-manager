@@ -148,7 +148,7 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P2 — próba zmiany kwoty transzy innej niż „Planowana” bez step-upu zwraca `403` (Edytor `forbidden`, Administrator `step_up_required`), a ze step-upem jest korektą z AC3; P6 — `model: opus`.
 
 ## Uwagi do rozważenia
-_—_
+- **Ryzyko do akceptacji Konrada — SR-LOG-06 (audyt nieudanych prób operacji wrażliwych; ASVS V16.3.3 L2), ocena P2 × W1 (security-engineer).** Odrzucone próby korekt (`403 forbidden` / `403 step_up_required` — z guardu dla `DELETE`, z serwisu dla przejść i `PATCH`) nie zostawiają wpisu w audycie (wycofanie transakcji kasuje też audyt). To luka całej platformy (dotyczy też innych operacji ze step-upem, np. przywrócenia zlecenia; brak metryki 403/404 per użytkownik); AC EVM-057 tego nie wymagają, udane korekty są audytowane, a skutek finansowy odmowy jest zablokowany. Decyzja architekta (2026-10-14): nie robić częściowo w `payments`. **Rekomendacja:** zaakceptować ryzyko dla wydania M1 i założyć osobną historyjkę platformową E1 (`/refine`): audyt `denied` dla odmów `403` operacji ze step-upem i korekt w guardzie lub filtrze wyjątków (osobna transakcja, deduplikacja jak `bulk_read.rejected`, bez danych żądania) oraz metryka 403/404 per użytkownik z alertem.
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-057 AC#`)
@@ -163,3 +163,4 @@ _—_
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC8 — komunikat `412` w dialogu korekty wg makiety W-11 (wspólny z sekcją „Płatności” W-06; forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model opus, gałąź `feature/EVM-057-korekty-platnosci` ułożona na EVM-056 → EVM-055 → EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — implementacja API (backend-developer): korekty przejściami, korekta kwoty, `DELETE` transzy z zagęszczeniem pozycji, 6 akcji audytu, kod dziennika `payment_milestone_deleted`, komórka IDOR dla operacji ze step-upem w macierzy ról; bez migracji; ryzyko SR-LOG-06 w „Uwagach do rozważenia” do akceptacji Konrada
