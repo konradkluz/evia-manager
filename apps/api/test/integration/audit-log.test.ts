@@ -1,15 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import { AUTHZ_MANIFEST } from '@evia/contracts/authz';
-import { sql, type KyselyPlugin } from 'kysely';
+import { sql, type KyselyPlugin, type RawBuilder } from 'kysely';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { auditPositionParts, auditScope, LIST_AUDIT_OPERATION } from '../../src/modules/audit/domain/audit-query.ts';
 import { UserDirectory } from '../../src/modules/identity/index.ts';
+import type { CursorCodec } from '../../src/platform/crypto/opaque-cursor.ts';
 import { createDatabase } from '../../src/platform/database/database.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
+import { CURSOR_CODEC } from '../../src/platform/tokens.ts';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createUser, type UserFixture } from '../support/identity-fixtures.ts';
-import type { EnrolledAccount } from '../support/login-flows.ts';
+import { signIn, type EnrolledAccount } from '../support/login-flows.ts';
 import { MINUTES, signedInAdministrator, STEP_UP } from '../support/step-up-flows.ts';
 
 let current: IdentityApp;
@@ -290,7 +293,6 @@ describe('Polish characters in the person shown in the log (EVM-029 AC5)', () =>
 describe('the input of the query (EVM-029 AC5; SR-API-02, SR-API-04, ASVS V2.2.1, CWE-89, CWE-20)', () => {
   it('EVM-029 AC5 anything outside the schema is 400, with the field named and the value never echoed', async () => {
     const { reader } = await scenario();
-    const cursor = Buffer.from('["2026-10-01T00:00:00.000Z","x"]').toString('base64url');
     const cases: Array<[string, string, string]> = [
       ['unknown parameter', '?email=anna.testowa@evia.invalid', 'unknown_parameter'],
       ['a repeated parameter', '?action=login.failed&action=login.succeeded', 'duplicate_parameter'],
@@ -303,8 +305,8 @@ describe('the input of the query (EVM-029 AC5; SR-API-02, SR-API-04, ASVS V2.2.1
       ['a limit of 0', '?limit=0', 'validation_failed'],
       ['a limit of 101', '?limit=101', 'validation_failed'],
       ['a limit that is not a number', '?limit=many', 'validation_failed'],
-      ['a cursor that is no cursor', '?cursor=not-a-cursor', 'validation_failed'],
-      ['a cursor with a wrong payload', `?cursor=${cursor}`, 'validation_failed'],
+      ['a cursor with characters outside base64url', '?cursor=not%20a%2Bcursor', 'validation_failed'],
+      ['a cursor longer than 512 characters', `?cursor=${'A'.repeat(513)}`, 'validation_failed'],
       ['an empty cursor', '?cursor=', 'validation_failed'],
     ];
     for (const [label, query, code] of cases) {
@@ -542,3 +544,206 @@ describe('the amounts of the payments in the audit log (EVM-053 AC3, AC6; SR-LOG
     for (const item of others.body.items) expect(Object.keys(item)).not.toContain('amountAfter');
   });
 });
+
+describe('the cursor of the audit log is opaque, bound and anchored (EVM-080 AC1, AC2, AC3; SR-API-04, TM-107; ASVS V11.3, CWE-345, CWE-639)', () => {
+  const garbage = () => randomBytes(60).toString('base64url');
+
+  /** The events of the log a client may walk at `asOf` (the reads of the log are not part of a walk): straight from the table. */
+  async function expectedIds(asOf: Date, where: RawBuilder<unknown> = sql``): Promise<string[]> {
+    const rows = await sql<{ id: string }>`
+      select id from audit.events
+      where occurred_at >= ${new Date(asOf.getTime() - 30 * DAY)} and occurred_at <= ${asOf} and action <> 'audit.read' ${where}
+      order by occurred_at desc, id desc`.execute(admin());
+    return rows.rows.map((row) => row.id);
+  }
+
+  /** Walks the list page by page, the clock moving between the pages (and an event written in each pause); returns what was walked. */
+  async function walk(reader: EnrolledAccount, query: string, pause = MINUTES(2)): Promise<{ ids: string[]; pages: number; asOf: Date }> {
+    const asOf = current.clock.now();
+    const ids: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const page: { body: Page; status: number } = await list(reader, `?${query}${cursor === null ? '' : `&cursor=${cursor}`}`);
+      expect(page.status).toBe(200);
+      ids.push(...page.body.items.filter((item) => item.action !== 'audit.read').map((item) => item.id));
+      cursor = page.body.nextCursor;
+      pages += 1;
+      current.clock.advance(pause);
+      // news after the first page must not enter the walk
+      await seed({ at: current.clock.now(), actor: null, action: 'login.succeeded' });
+    } while (cursor !== null && pages < 50);
+    return { ids, pages, asOf };
+  }
+
+  it('EVM-080 AC1 the cursor is not readable: no JSON, no time, no id in it, however it is decoded; it still works as the next page', async () => {
+    const { reader } = await scenario();
+    const first = await list(reader, '?limit=5');
+    const cursor = first.body.nextCursor ?? '';
+    expect(cursor).toMatch(/^[A-Za-z0-9_-]{100,512}$/);
+    const bytes = Buffer.from(cursor, 'base64url');
+    const lastId = first.body.items.at(-1)?.id ?? 'x';
+    for (const text of [bytes.toString('utf8'), bytes.toString('latin1'), bytes.toString('hex'), cursor]) {
+      expect(text).not.toMatch(/20\d\d-\d\d-\d\d/);
+      expect(text).not.toContain(lastId);
+      expect(text).not.toContain(lastId.replaceAll('-', ''));
+    }
+    expect(() => JSON.parse(bytes.toString('utf8')) as unknown).toThrow();
+    // two cursors for the same position differ (a fresh nonce): nothing to compare or to guess
+    const again = await list(reader, '?limit=5');
+    expect(again.body.nextCursor).not.toBe(cursor);
+    expect((await list(reader, `?limit=5&cursor=${cursor}`)).status).toBe(200);
+  });
+
+  it('EVM-080 AC1 the default period (no from, no to), walked while the clock moves and events keep arriving: no duplicate, no gap, nothing newer than the first page', async () => {
+    const { reader } = await scenario();
+    const { ids, pages, asOf } = await walk(reader, 'limit=6');
+    expect(pages).toBeGreaterThan(3);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual(await expectedIds(asOf));
+  });
+
+  it('EVM-080 AC1 the filters action, actorUserId and outcome are kept across the pages while time passes: the same set as the table, no duplicate, no gap', async () => {
+    const { reader, anna } = await scenario();
+    const cases: Array<[string, string, RawBuilder<unknown>]> = [
+      ['action', 'action=login.failed', sql`and action = 'login.failed'`],
+      ['outcome', 'outcome=failed', sql`and outcome = 'failed'`],
+      ['actorUserId', `actorUserId=${anna.id}`, sql`and actor_user_id = ${anna.id}`],
+      [
+        'all three',
+        `actorUserId=${anna.id}&action=session.created&outcome=success`,
+        sql`and actor_user_id = ${anna.id} and action = 'session.created' and outcome = 'success'`,
+      ],
+    ];
+    for (const [label, filter, where] of cases) {
+      const { ids, pages, asOf } = await walk(reader, `limit=3&${filter}`, MINUTES(1));
+      expect(pages, label).toBeGreaterThan(1);
+      expect(new Set(ids).size, label).toBe(ids.length);
+      expect(ids, label).toEqual(await expectedIds(asOf, where));
+      // each walk is a fresh step-up window
+      expect((await signIn(reader.panel, reader)).status).toBe(200);
+    }
+  });
+
+  it('EVM-080 AC1 a period named in the request is the one walked, as sent, however late the later pages are asked', async () => {
+    const { reader, now } = await scenario();
+    const from = new Date(now.getTime() - 20 * DAY);
+    const to = new Date(now.getTime() - 5 * DAY);
+    const { ids, pages } = await walk(
+      reader,
+      `limit=4&from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+    );
+    expect(pages).toBeGreaterThan(2);
+    const expected = await sql<{ id: string }>`
+      select id from audit.events where occurred_at >= ${from} and occurred_at <= ${to} order by occurred_at desc, id desc`.execute(
+      admin(),
+    );
+    expect(ids).toEqual(expected.rows.map((row) => row.id));
+  });
+
+  it('EVM-080 AC2 a changed, cut, expired, foreign, re-filtered or wrongly bound cursor is one and the same 400 invalid_cursor, with no detail, and reads nothing', async () => {
+    const { reader, anna } = await scenario();
+    const other = await signedInAdministrator(current, { email: 'other.admin@evia.invalid' });
+    const filter = `limit=5&action=session.created&actorUserId=${anna.id}`;
+    const own = (await list(reader, `?${filter}`)).body.nextCursor ?? '';
+    expect(own).not.toBe('');
+    const flipped = Buffer.from(own, 'base64url');
+    flipped[20] = (flipped[20] ?? 0) ^ 0x01;
+    const codec = current.app.get<CursorCodec>(CURSOR_CODEC);
+    const claims = { scope: auditScope({ action: 'session.created', actorUserId: anna.id }), userId: reader.user.id };
+    const now = current.clock.now();
+    const position = auditPositionParts(now, { occurredAt: new Date(now.getTime() - DAY), id: anna.id });
+    const sealed = (operation: string, parts: string[]): string => codec.seal(operation, { position: parts, ...claims });
+    const cases: Array<[string, EnrolledAccount, string]> = [
+      ['changed', reader, `${filter}&cursor=${flipped.toString('base64url')}`],
+      ['cut', reader, `${filter}&cursor=${own.slice(0, 60)}`],
+      ['a made-up token', reader, `cursor=${garbage()}`],
+      ['other filters', reader, `limit=5&action=session.created&cursor=${own}`],
+      ['no filters at all', reader, `limit=5&cursor=${own}`],
+      ['a to that was not in the first request', reader, `${filter}&to=${encodeURIComponent(now.toISOString())}&cursor=${own}`],
+      ['another administrator', other, `${filter}&cursor=${own}`],
+      ['another operation (right position, scope and user)', reader, `${filter}&cursor=${sealed('listTimelineEntries', position)}`],
+      ['a position that is not [asOf, time, id]', reader, `${filter}&cursor=${sealed(LIST_AUDIT_OPERATION, [position[1] ?? '', anna.id])}`],
+      ['a position of the right size with bad values', reader, `${filter}&cursor=${sealed(LIST_AUDIT_OPERATION, ['x', 'y', 'z'])}`],
+    ];
+    const before = await audits();
+    const bodies: Array<Record<string, unknown>> = [];
+    for (const [label, account, query] of cases) {
+      const response = await list(account, `?${query}`);
+      expect(response.status, label).toBe(400);
+      expect(response.raw.headers['content-type'], label).toContain('application/problem+json');
+      expect(response.body, label).toMatchObject({ code: 'invalid_cursor', status: 400, type: '/problems/invalid_cursor' });
+      expect(Object.keys(response.body), label).not.toContain('errors');
+      expect(response.raw.text, label).not.toMatch(/gcm|decrypt|cipher|expired|scope|filter/i);
+      expect(response.raw.text, label).not.toContain(own);
+      bodies.push(withoutTrace(response.body));
+    }
+    for (const body of bodies) expect(body).toEqual(bodies[0]);
+    expect(await audits()).toBe(before);
+    // the same cursor is good for the one it was issued to, with the filters it was issued for
+    expect((await list(reader, `?${filter}&cursor=${own}`)).status).toBe(200);
+    expect(await audits()).toBe(before + 1);
+    // an expired one: past the 30 minutes (the key is used again: the window of the step-up is shorter than the cursor)
+    current.clock.advance(MINUTES(31));
+    expect((await signIn(reader.panel, reader)).status).toBe(200);
+    const expired = await list(reader, `?${filter}&cursor=${own}`);
+    expect(expired.status).toBe(400);
+    expect(withoutTrace(expired.body)).toEqual(bodies[0]);
+    expect(await audits()).toBe(before + 1);
+  });
+
+  it('EVM-080 AC2 a cursor of the wrong shape stays validation_failed (the shape, not the cursor), and a refused cursor is answered the same every time', async () => {
+    const { reader } = await scenario();
+    expect((await list(reader, '?cursor=a%20b')).body).toMatchObject({ code: 'validation_failed' });
+    const refused = await list(reader, `?cursor=${garbage()}`);
+    const again = await list(reader, `?cursor=${garbage()}`);
+    expect(withoutTrace(refused.body)).toEqual(withoutTrace(again.body));
+  });
+
+  it('EVM-080 AC3 who may ask, with a good cursor, a made-up one or none: Editor and Read-only 403, anonymous 401, Administrator without a step-up 403 step_up_required, with it 200 and audit.read', async () => {
+    const { reader } = await scenario();
+    const good = (await list(reader, '?limit=5')).body.nextCursor ?? '';
+    const reads = await audits();
+    const queries = [`?cursor=${good}`, `?cursor=${garbage()}`, '', '?cursor=!!!', '?cursor='];
+    for (const role of ['editor', 'read_only'] as const) {
+      const account = await signedInAdministrator(current, { role, email: `${role}@evia.invalid` });
+      for (const query of queries) {
+        const response = await list(account, query);
+        expect(response.status, `${role} ${query.slice(0, 20)}`).toBe(403);
+        expect(response.body, `${role} ${query.slice(0, 20)}`).toMatchObject({ code: 'forbidden' });
+      }
+    }
+    for (const query of queries) {
+      const anonymous = await request(server()).get(`${STEP_UP.audit}${query}`);
+      expect(anonymous.status, query.slice(0, 20)).toBe(401);
+      expect(anonymous.body, query.slice(0, 20)).toMatchObject({ code: 'unauthenticated' });
+    }
+    const stale = await signedInAdministrator(current, { email: 'stale.admin@evia.invalid' });
+    current.clock.advance(MINUTES(16));
+    for (const query of queries) {
+      const response = await list(stale, query);
+      expect(response.status, query.slice(0, 20)).toBe(403);
+      expect(response.body, query.slice(0, 20)).toMatchObject({ code: 'step_up_required' });
+    }
+    expect(await audits()).toBe(reads);
+
+    expect((await signIn(reader.panel, reader)).status).toBe(200);
+    expect((await list(reader, `?limit=5&cursor=${good}`)).status).toBe(200);
+    expect(await audits()).toBe(reads + 1);
+  });
+
+  it('EVM-080 AC2 neither the cursor nor the filters are in the audit.read event or in the log lines', async () => {
+    const { reader, anna } = await scenario();
+    const cursor = (await list(reader, `?limit=5&actorUserId=${anna.id}`)).body.nextCursor ?? '';
+    expect((await list(reader, `?limit=5&actorUserId=${anna.id}&cursor=${cursor}`)).status).toBe(200);
+    expect((await list(reader, `?limit=5&actorUserId=${anna.id}&cursor=${garbage()}`)).status).toBe(400);
+    const rows = await sql<Record<string, unknown>>`select * from audit.events where action = 'audit.read'`.execute(admin());
+    expect(JSON.stringify(rows.rows)).not.toContain(cursor);
+    expect(JSON.stringify(rows.rows)).not.toContain(anna.id);
+    expect(current.logs.lines.join('\n')).not.toContain(cursor);
+  });
+});
+
+function withoutTrace(body: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(body).filter(([key]) => key !== 'traceId'));
+}

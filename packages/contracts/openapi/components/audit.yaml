@@ -148,5 +148,5 @@ AuditEventList:
       description: Kursor następnej strony albo `null` na ostatniej stronie.
       oneOf:
         - type: string
-          maxLength: 256
+          maxLength: 512
         - type: 'null'

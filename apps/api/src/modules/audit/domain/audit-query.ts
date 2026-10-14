@@ -1,10 +1,13 @@
 /**
- * The query of the audit log (EVM-029 AC5; SR-API-02, SR-API-04; ASVS V2.2.1, V2.4.1; CWE-89, CWE-20): a strict schema —
- * an unknown parameter, a value outside a closed list, a period of more than 2 years, `from` after `to`, a limit outside
- * 1..100 or a cursor that is not exactly what this API issued is `400 validation_failed` (never a 500). Pure functions of
- * the input and of the clock; no database. The values of the filters never reach a log or the audit trail.
+ * The query of the audit log (EVM-029 AC5, EVM-080 AC1, AC2; SR-API-02, SR-API-04; ASVS V2.2.1, V2.4.1; CWE-89, CWE-20): a strict
+ * schema — an unknown parameter, a value outside a closed list, a period of more than 2 years, `from` after `to`, a limit outside
+ * 1..100 or a cursor that is not base64url within 512 characters is `400 validation_failed` (never a 500). A cursor of the right
+ * shape that this server did not issue for this operation, user and filters is `400 invalid_cursor` (decided by the service, which
+ * holds the codec). Pure functions of the input and of the clock; no database. The values of the filters never reach a log or the
+ * audit trail.
  */
 import { z } from 'zod';
+import { scopeOf } from '../../../platform/crypto/opaque-cursor.ts';
 import { AUDIT_ACTIONS, AUDIT_OUTCOMES } from './audit-record.ts';
 
 export const DEFAULT_PERIOD_DAYS = 30;
@@ -20,23 +23,27 @@ export interface AuditCursor {
   readonly id: string;
 }
 
-/** Opaque to the client: base64url of `[occurredAt as ISO 8601, id]`. */
-export function encodeCursor({ occurredAt, id }: AuditCursor): string {
-  return Buffer.from(JSON.stringify([occurredAt.toISOString(), id]), 'utf8').toString('base64url');
+/** What a cursor of the audit log carries (inside the encrypted token): the anchor of the period and where the next page starts. */
+export interface AuditPosition {
+  /** The end of the period of the first page ("now" at that moment unless the request named `to`): the same on every page. */
+  readonly asOf: Date;
+  readonly cursor: AuditCursor;
 }
 
-const cursorPayload = z.tuple([z.iso.datetime(), z.uuid()]);
+/** Identifier of the operation in the contract; the cursor is bound to it. */
+export const LIST_AUDIT_OPERATION = 'listAuditEvents';
 
-/** @returns the position, or undefined for anything this API did not issue (also a re-encoded, non-canonical form) */
-export function decodeCursor(cursor: string): AuditCursor | undefined {
-  try {
-    const parsed = cursorPayload.safeParse(JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')));
-    if (!parsed.success) return undefined;
-    const position = { occurredAt: new Date(parsed.data[0]), id: parsed.data[1] };
-    return Number.isNaN(position.occurredAt.getTime()) || encodeCursor(position) !== cursor ? undefined : position;
-  } catch {
-    return undefined;
-  }
+const position = z.tuple([z.iso.datetime(), z.iso.datetime(), z.uuid()]);
+
+/** The position for the cursor of the next page: `[asOf, occurredAt, id]` as ISO 8601 strings and a UUID. */
+export const auditPositionParts = (asOf: Date, last: AuditCursor): string[] => [asOf.toISOString(), last.occurredAt.toISOString(), last.id];
+
+/** @returns the position as typed values, or undefined for a position that does not fit (validated again after decryption) */
+export function parseAuditPosition(parts: readonly string[]): AuditPosition | undefined {
+  const parsed = position.safeParse(parts);
+  if (!parsed.success) return undefined;
+  const [asOf, occurredAt, id] = parsed.data;
+  return { asOf: new Date(asOf), cursor: { occurredAt: new Date(occurredAt), id } };
 }
 
 const dateTime = z.iso.datetime({ offset: true }).max(40);
@@ -55,13 +62,23 @@ export const auditQuerySchema = z.strictObject({
     .optional(),
   cursor: z
     .string()
-    .max(256)
+    .max(512)
     .regex(/^[A-Za-z0-9_-]+$/)
-    .refine((value) => decodeCursor(value) !== undefined)
     .optional(),
 });
 
-/** The query as the reader needs it: the period resolved against the clock, the limit defaulted, the cursor decoded. */
+/** The request as sent, validated for its shape only; the period and the cursor are resolved after the cursor is opened. */
+export type AuditFilters = z.infer<typeof auditQuerySchema>;
+
+/**
+ * The filters a cursor is bound to, in a fixed order, exactly as the request NAMED them: an omitted `to` stays empty (it is not
+ * "now"), so the scope is the same on every page, and it differs from any `to` that was sent. Not `limit` and not the cursor, like
+ * the other lists. The period of the first page is fixed by `asOf` inside the cursor, not by the scope.
+ */
+export const auditScope = (query: AuditFilters): string =>
+  scopeOf([query.action ?? '', query.actorUserId ?? '', query.outcome ?? '', query.from ?? '', query.to ?? '']);
+
+/** The query as the reader needs it: the period resolved, the limit defaulted, the cursor opened. */
 export interface AuditQuery {
   readonly action: (typeof AUDIT_ACTIONS)[number] | undefined;
   readonly actorUserId: string | undefined;
@@ -73,12 +90,14 @@ export interface AuditQuery {
 }
 
 /**
- * The schema of the query with the cross-field rules, resolved at `now`: the period defaults to the last 30 days, `from` must
- * not be after `to`, the period must not exceed 2 years. Every rule names the offending parameter (a JSON Pointer in the problem).
+ * The schema of the query with the cross-field rules, resolved at `anchor` — "now" on the first page, the `asOf` of the cursor on the
+ * next ones, so a default period does not slide while the client pages: the period defaults to the 30 days up to the anchor, `from`
+ * must not be after `to`, the period must not exceed 2 years. Every rule names the offending parameter (a JSON Pointer in the problem).
+ * @param cursor the position opened from the cursor of the request (the cursor string itself is only checked for its shape here)
  */
-export const resolveAuditQuery = (now: Date) =>
+export const resolveAuditQuery = (anchor: Date, cursor?: AuditCursor) =>
   auditQuerySchema.transform((query, context): AuditQuery => {
-    const to = query.to === undefined ? now : new Date(query.to);
+    const to = query.to === undefined ? anchor : new Date(query.to);
     const from = query.from === undefined ? new Date(to.getTime() - DEFAULT_PERIOD_DAYS * DAY_MS) : new Date(query.from);
     if (from.getTime() > to.getTime()) context.addIssue({ code: 'custom', path: ['from'], message: 'from_after_to' });
     else if (to.getTime() - from.getTime() > MAX_PERIOD_DAYS * DAY_MS)
@@ -90,6 +109,6 @@ export const resolveAuditQuery = (now: Date) =>
       from,
       to,
       limit: query.limit ?? DEFAULT_LIMIT,
-      cursor: query.cursor === undefined ? undefined : decodeCursor(query.cursor),
+      cursor,
     };
   });

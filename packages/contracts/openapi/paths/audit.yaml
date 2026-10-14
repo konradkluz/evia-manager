@@ -11,7 +11,11 @@ events:
       `403 step_up_required`); Edytor i Tylko odczyt dostają `403 forbidden` (nigdy `step_up_required`), niezalogowany `401`.
       Zdarzenia od najnowszych (`occurredAt`, potem `id` malejąco), domyślnie ostatnie 30 dni (zakres `from`–`to` do 2 lat,
       `from` ≤ `to`), filtry: `action`, `actorUserId`, `outcome`; paginacja kursorem nieprzezroczystym (`limit` 1–100, domyślnie
-      50; zły kursor → `400 validation_failed`). Odpowiedź zawiera tylko dozwolone pola: osobę jako `userId` i `displayName`,
+      50). Kursor jest zaszyfrowany i uwierzytelniony (jak na pozostałych listach), ważny 30 minut, związany z operacją,
+      użytkownikiem i filtrami z pierwszego żądania; domyślny koniec okresu („teraz”) zostaje przypięty w kursorze, więc
+      okres nie przesuwa się między stronami. Kursor zmieniony, wygasły, wydany komu innemu, użyty z innymi filtrami lub
+      z innej operacji to `400 invalid_cursor` (jedna odpowiedź dla każdej przyczyny, bez szczegółów); kursor o złym
+      kształcie (pusty, znaki spoza base64url, ponad 512 znaków) to `400 validation_failed`. Odpowiedź zawiera tylko dozwolone pola: osobę jako `userId` i `displayName`,
       adres IP wyłącznie jako prefiks /24 lub /48 — bez e-maila, user agenta, identyfikatora sesji i identyfikatora śladu.
       Każdy udany odczyt (także z filtrem) zapisuje zdarzenie `audit.read` (bez wartości filtrów) w tej samej transakcji co odczyt.
     x-evia-authz:
@@ -51,7 +55,7 @@ events:
       - name: to
         in: query
         required: false
-        description: Koniec okresu (ISO 8601, włącznie). Domyślnie teraz.
+        description: Koniec okresu (ISO 8601, włącznie). Domyślnie teraz — chwila pierwszej strony, przypięta w kursorze dla kolejnych.
         schema:
           type: string
           format: date-time
@@ -68,10 +72,12 @@ events:
       - name: cursor
         in: query
         required: false
-        description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.
+        description: >-
+          Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta, nie do odczytu ani modyfikacji; ważny 30 minut,
+          tylko dla tego samego użytkownika, tej operacji i tych samych filtrów (`action`, `actorUserId`, `outcome`, `from`, `to`).
         schema:
           type: string
-          maxLength: 256
+          maxLength: 512
           pattern: '^[A-Za-z0-9_-]+$'
     responses:
       '200':
@@ -81,7 +87,7 @@ events:
             schema:
               $ref: ../components/audit.yaml#/AuditEventList
       '400':
-        $ref: ../components/responses.yaml#/ValidationFailed
+        $ref: ../components/responses.yaml#/InvalidListQuery
       '401':
         $ref: ../components/responses.yaml#/Unauthenticated
       '403':

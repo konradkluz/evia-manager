@@ -11,15 +11,24 @@ import { Inject, Injectable } from '@nestjs/common';
 import { zAuditEventList } from '@evia/contracts/zod';
 import type { AuditEventList } from '@evia/contracts';
 import type { Kysely } from 'kysely';
+import type { CursorCodec } from '../../../platform/crypto/opaque-cursor.ts';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput } from '../../../platform/http/validation.ts';
-import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
+import { CLOCK, CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
 import { UserDirectory } from '../../identity/index.ts';
-import { encodeCursor, resolveAuditQuery } from '../domain/audit-query.ts';
+import {
+  auditPositionParts,
+  auditQuerySchema,
+  auditScope,
+  LIST_AUDIT_OPERATION,
+  parseAuditPosition,
+  resolveAuditQuery,
+  type AuditPosition,
+} from '../domain/audit-query.ts';
 import { toAuditRecord } from '../domain/audit-record.ts';
 import { readAuditPage, type AuditRow } from '../infrastructure/audit-reader.ts';
 import { insertAuditRecord } from '../infrastructure/audit-store.ts';
@@ -30,17 +39,29 @@ export class AuditReadService {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #users: UserDirectory;
+  readonly #cursors: CursorCodec;
 
-  constructor(@Inject(DATABASE) db: Kysely<Database>, @Inject(CLOCK) clock: Clock, @Inject(UserDirectory) users: UserDirectory) {
+  constructor(
+    @Inject(DATABASE) db: Kysely<Database>,
+    @Inject(CLOCK) clock: Clock,
+    @Inject(UserDirectory) users: UserDirectory,
+    @Inject(CURSOR_CODEC) cursors: CursorCodec,
+  ) {
     this.#db = db;
     this.#clock = clock;
     this.#users = users;
+    this.#cursors = cursors;
   }
 
   /** @param rawQuery the query string as parsed by the framework (strings only) */
   async list(principal: Principal, rawQuery: unknown, context: EventContext): Promise<AuditEventList> {
     const now = this.#clock.now();
-    const query = parseInput(resolveAuditQuery(now), rawQuery);
+    const filters = parseInput(auditQuerySchema, rawQuery);
+    const scope = auditScope(filters);
+    const opened = this.#positionOf(filters.cursor, principal, scope);
+    // the period is anchored at the "now" of the first page, so a default period does not slide between pages
+    const asOf = opened?.asOf ?? now;
+    const query = parseInput(resolveAuditQuery(asOf, opened?.cursor), rawQuery);
     const page = await runInTransaction(this.#db, async (transaction) => {
       const rows = await readAuditPage(transaction, query);
       const shown = rows.slice(0, query.limit);
@@ -59,11 +80,23 @@ export class AuditReadService {
     const last = page.shown.at(-1);
     const list = {
       items: page.shown.map((row) => toItem(row, page.names)),
-      nextCursor: page.hasMore && last !== undefined ? encodeCursor({ occurredAt: last.occurredAt, id: last.id }) : null,
+      nextCursor:
+        page.hasMore && last !== undefined
+          ? this.#cursors.seal(LIST_AUDIT_OPERATION, { position: auditPositionParts(asOf, last), scope, userId: principal.userId })
+          : null,
     };
     const checked = zAuditEventList.safeParse(list);
     if (!checked.success) throw new ProblemException('internal_error');
     return checked.data;
+  }
+
+  /** @throws ProblemException `invalid_cursor` — one answer for every reason (SR-API-01): not ours, expired, other filters, user or operation */
+  #positionOf(cursor: string | undefined, principal: Principal, scope: string): AuditPosition | undefined {
+    if (cursor === undefined) return undefined;
+    const parts = this.#cursors.open(LIST_AUDIT_OPERATION, cursor, { scope, userId: principal.userId });
+    const position = parts === undefined ? undefined : parseAuditPosition(parts);
+    if (position === undefined) throw new ProblemException('invalid_cursor');
+    return position;
   }
 }
 
