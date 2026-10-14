@@ -5,16 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { serverNow } from '../session/server-clock.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
-import {
-  CommandAlert,
-  DAY_MIN,
-  daysBetween,
-  isDayInRange,
-  useFieldMessage,
-  useMilestoneCommand,
-  type MilestoneOrder,
-  type OpenedMilestone,
-} from './milestone-command.tsx';
+import { CommandAlert, useFieldMessage, useMilestoneCommand, type MilestoneOrder, type OpenedMilestone } from './milestone-command.tsx';
+import { DAY_MIN, daysBetween, isDayInRange } from './milestone-days.ts';
 import { formatMoney } from './money.ts';
 import { formatDueDate } from './procedure-format.ts';
 import { todayWarsaw } from './transition-actions.ts';

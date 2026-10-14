@@ -1,5 +1,5 @@
 import type { ListUnpaidPaymentMilestonesData, UnpaidView } from '@evia/contracts';
-import { isDayInRange } from '../work-orders/milestone-command.tsx';
+import { isDayInRange } from '../work-orders/milestone-days.ts';
 
 /** Rows on a page: the story EVM-055 AC1 (25 by default) — within the limit of the API (100, `api-guidelines.md`). */
 export const PAGE_SIZES: readonly number[] = [25, 50, 100];

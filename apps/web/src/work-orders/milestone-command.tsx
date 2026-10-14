@@ -18,6 +18,7 @@ import { refusesAttempt } from '../forms/save-failure.ts';
 import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { useSession } from '../session/session.ts';
 import { useStateWord } from './edit-failure.ts';
+import { DAY_MS, dayMs } from './milestone-days.ts';
 import { etagOf, normalizeName } from './milestone-form.ts';
 import {
   UNPAID_PAYMENTS_KEY,
@@ -27,17 +28,12 @@ import {
   WORK_ORDERS_KEY,
 } from './query-keys.ts';
 
-/** The range of the days the API accepts for the invoice, the due date and the payment (Q3a; `out_of_range` otherwise). */
-export const DAY_MIN = '2000-01-01';
-export const DAY_MAX = '2100-12-31';
 /** The longest invoice number the API accepts (code points after NFC and trimming). */
 export const INVOICE_NUMBER_MAX = 60;
 /** The longest reason of a cancellation the API accepts. */
 export const MILESTONE_REASON_MAX = 500;
 
 const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const DAY_MS = 86_400_000;
 
 /** What is wrong with a free text (the invoice number, the reason) in the codes of the API — or `undefined` when it may be sent. */
 export function plainTextProblem(text: string, max: number): 'required' | 'too_long' | 'invalid_characters' | undefined {
@@ -48,18 +44,10 @@ export function plainTextProblem(text: string, max: number): 'required' | 'too_l
   return undefined;
 }
 
-/** A calendar day `YYYY-MM-DD` within 2000–2100. */
-export const isDayInRange = (day: string): boolean => DAY.test(day) && day >= DAY_MIN && day <= DAY_MAX;
-
-const dayMs = (day: string): number => Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)));
-
 /** `2026-10-03` + 7 → `2026-10-10`: calendar arithmetic, never through a time zone (the server counts the default the same way). */
 export function addDays(day: string, days: number): string {
   return new Date(dayMs(day) + days * DAY_MS).toISOString().slice(0, 10);
 }
-
-/** Whole days from `from` to `to` (both calendar days). */
-export const daysBetween = (from: string, to: string): number => Math.round((dayMs(to) - dayMs(from)) / DAY_MS);
 
 /** The label of a status for the sentences of the dialogs; a status the panel does not know is "Nieznany status" (P-12). */
 export function useMilestoneStatusLabel(): (status: string) => string {

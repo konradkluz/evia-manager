@@ -7,10 +7,7 @@ import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import {
   CommandAlert,
-  DAY_MAX,
-  DAY_MIN,
   INVOICE_NUMBER_MAX,
-  isDayInRange,
   plainTextProblem,
   useFieldMessage,
   useMilestoneCommand,
@@ -18,6 +15,7 @@ import {
   type MilestoneOrder,
   type MilestoneFieldErrors,
 } from './milestone-command.tsx';
+import { DAY_MAX, DAY_MIN, isDayInRange } from './milestone-days.ts';
 import { normalizeName, useMilestoneName } from './milestone-form.ts';
 import { formatMoney } from './money.ts';
 
