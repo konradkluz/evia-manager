@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { Button, Combobox, Dialog, Disclosure, RadioGroup, TextArea, TextField, type ComboboxOption } from '../src/index.ts';
+import { Button, Combobox, Dialog, Disclosure, RadioGroup, Select, TextArea, TextField, type ComboboxOption } from '../src/index.ts';
 import { axeViolations } from './a11y.ts';
 
 const OPTIONS: ComboboxOption[] = [
@@ -300,5 +300,47 @@ describe('RadioGroup, TextArea, Disclosure (styleguide § 3.4, § 3.2, § 3.21; 
   it('EVM-020 AC2 the telephone field is a text box for a phone number', () => {
     render(<TextField label="Telefon" type="tel" value="" />);
     expect(screen.getByRole('textbox', { name: 'Telefon' }).getAttribute('type')).toBe('tel');
+  });
+});
+
+describe('Disclosure actions and a disabled option of Select (EVM-042 AC1, AC3)', () => {
+  it('EVM-042 AC3 the controls beside the header stay outside the button of the header and do not toggle it', async () => {
+    const { container } = render(
+      <Disclosure
+        title="Uzgodnienia z OSD"
+        expanded={false}
+        onExpandedChange={vi.fn()}
+        actions={<Button variant="tertiary">Akcje procesu: Uzgodnienia z OSD</Button>}
+      >
+        <p>Treść</p>
+      </Disclosure>,
+    );
+    const header = screen.getByRole('button', { name: 'Uzgodnienia z OSD' });
+    const actions = screen.getByRole('button', { name: 'Akcje procesu: Uzgodnienia z OSD' });
+    expect(header.contains(actions)).toBe(false);
+    await userEvent.click(actions);
+    expect(header.getAttribute('aria-expanded')).toBe('false');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-042 AC1 a disabled option stays in the list and cannot be chosen', async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <Select
+        label="Proces"
+        value=""
+        onChange={onChange}
+        options={[
+          { value: '', label: 'Wybierz…' },
+          { value: 'ppoz', label: 'Opinia ppoż — już jest w zleceniu', disabled: true },
+          { value: 'osd', label: 'Uzgodnienia z OSD' },
+        ]}
+      />,
+    );
+    const taken = screen.getByRole('option', { name: 'Opinia ppoż — już jest w zleceniu' });
+    expect((taken as HTMLOptionElement).disabled).toBe(true);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Proces' }), 'osd');
+    expect(onChange).toHaveBeenCalledWith('osd');
+    expect(await axeViolations(container)).toEqual([]);
   });
 });

@@ -5,6 +5,8 @@ import { ChevronDown, CircleAlert } from './icons.ts';
 export interface SelectOption {
   readonly value: string;
   readonly label: string;
+  /** Not choosable (the label says why, e.g. "już jest w zleceniu"); the option stays in the list. */
+  readonly disabled?: boolean;
 }
 
 export interface SelectGroup {
@@ -66,13 +68,13 @@ export function Select({ label, value, options, onChange, disabled = false, hint
             isGroup(entry) ? (
               <optgroup key={entry.label} label={entry.label}>
                 {entry.options.map((option) => (
-                  <option key={option.value} value={option.value}>
+                  <option key={option.value} value={option.value} disabled={option.disabled}>
                     {option.label}
                   </option>
                 ))}
               </optgroup>
             ) : (
-              <option key={entry.value} value={entry.value}>
+              <option key={entry.value} value={entry.value} disabled={entry.disabled}>
                 {entry.label}
               </option>
             ),

@@ -10,6 +10,8 @@ export interface DisclosureProps {
   readonly onExpandedChange: (expanded: boolean) => void;
   /** Level of the heading that holds the button (3 on W-06; a dialog section under its h2 uses 3 as well). */
   readonly headingLevel?: 2 | 3 | 4;
+  /** Controls beside the header (an ActionMenu `⋮` of the object): outside the button of the header, never nested in it (§ 3.21). */
+  readonly actions?: ReactNode;
   readonly children: ReactNode;
 }
 
@@ -18,30 +20,33 @@ export interface DisclosureProps {
  * Enter and Space toggle it and the focus stays on the header. The content stays in the DOM while closed (`hidden`), so a
  * form keeps what was typed in it. A collapsed section is not an access control — only content the role may see goes in.
  */
-export function Disclosure({ title, summary, expanded, onExpandedChange, headingLevel = 3, children }: DisclosureProps) {
+export function Disclosure({ title, summary, expanded, onExpandedChange, headingLevel = 3, actions, children }: DisclosureProps) {
   const id = useId();
   const Heading = `h${String(headingLevel)}` as 'h2' | 'h3' | 'h4';
   const Chevron = expanded ? ChevronUp : ChevronDown;
   return (
     <section className="flex flex-col gap-stack-sm border-t-default">
-      <Heading className="text-heading-4 text-text-primary">
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={`${id}-content`}
-          onClick={() => {
-            onExpandedChange(!expanded);
-          }}
-          className="flex min-h-control-height-web-md w-full items-center gap-inline-md text-start hover:bg-bg-surface-hover active:bg-bg-surface-pressed focus-visible:focus-ring"
-        >
-          {/* Compact: the summary goes under the title (§ 3.21) so a long summary never pushes past the card. */}
-          <span className="flex min-w-0 flex-1 flex-col items-start gap-stack-xs medium:flex-row medium:items-center medium:gap-inline-md">
-            <span className="min-w-0 break-words">{title}</span>
-            {summary === undefined ? null : <span className="min-w-0 break-words text-body-sm text-text-secondary">{summary}</span>}
-          </span>
-          <Chevron aria-hidden="true" className="size-icon-md shrink-0 text-icon-secondary" />
-        </button>
-      </Heading>
+      <div className="flex items-center gap-inline-sm">
+        <Heading className="min-w-0 flex-1 text-heading-4 text-text-primary">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={`${id}-content`}
+            onClick={() => {
+              onExpandedChange(!expanded);
+            }}
+            className="flex min-h-control-height-web-md w-full items-center gap-inline-md text-start hover:bg-bg-surface-hover active:bg-bg-surface-pressed focus-visible:focus-ring"
+          >
+            {/* Compact: the summary goes under the title (§ 3.21) so a long summary never pushes past the card. */}
+            <span className="flex min-w-0 flex-1 flex-col items-start gap-stack-xs medium:flex-row medium:items-center medium:gap-inline-md">
+              <span className="min-w-0 break-words">{title}</span>
+              {summary === undefined ? null : <span className="min-w-0 break-words text-body-sm text-text-secondary">{summary}</span>}
+            </span>
+            <Chevron aria-hidden="true" className="size-icon-md shrink-0 text-icon-secondary" />
+          </button>
+        </Heading>
+        {actions === undefined ? null : <div className="shrink-0">{actions}</div>}
+      </div>
       <div id={`${id}-content`} hidden={!expanded} className="flex flex-col gap-stack-md">
         {children}
       </div>
