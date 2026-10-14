@@ -320,6 +320,62 @@ describe('the cancellation of an order with an invoiced milestone (EVM-054 AC6; 
 });
 
 /**
+ * The conditions do not depend on a limit of rows (SR-AUTHZ-10, CWE-841): today the CHECK `position between 1 and 20` and the partial
+ * unique index of the position keep an order at 20 live milestones, but the condition of a transition must not lean on that — a
+ * restore (EVM-057), a defect or a migration may loosen it. The test drops that CHECK for its duration (the precedent of
+ * `payments-composition.test.ts`), writes 21 live milestones straight into the database with the blocking one at the LAST position,
+ * and restores the CHECK in `finally`.
+ */
+describe('the conditions of a transition read every live milestone, beyond the limit of 20 (EVM-054 AC6; SR-AUTHZ-10, CWE-841)', () => {
+  const OVER_LIMIT = 21;
+  const paidThen = (last: MilestoneSpec): MilestoneSpec[] => [
+    ...Array.from({ length: OVER_LIMIT - 1 }, (): MilestoneSpec => ({ status: 'paid' })),
+    last,
+  ];
+  async function withoutPositionCheck(body: () => Promise<void>): Promise<void> {
+    await sql`alter table payments.payment_milestones drop constraint payment_milestones_position_check`.execute(admin());
+    try {
+      await body();
+    } finally {
+      await sql`delete from payments.payment_milestones where position > 20`.execute(admin());
+      await sql`alter table payments.payment_milestones add constraint payment_milestones_position_check
+        check (position between 1 and 20)`.execute(admin());
+    }
+  }
+
+  it('EVM-054 AC6 an order with 21 live milestones and the invoiced one at the last position is 422 invoiced_milestones on a cancellation; nothing changes', async () => {
+    const editor = await signIn();
+    await withoutPositionCheck(async () => {
+      const created = await order('in_progress', paidThen({ status: 'invoiced' }));
+      const response = await go(editor, created.id, 'cancelled', { reason: REASON });
+      expect(response.status).toBe(422);
+      expect(response.body).toMatchObject({
+        code: 'transition_condition_not_met',
+        errors: [{ pointer: '/to', code: 'invoiced_milestones' }],
+      });
+      expect(await statusOf(created.id)).toBe('in_progress');
+      expect((await milestonesOf(created.id)).at(-1)?.status).toBe('invoiced');
+      expect(await closedWithInvoice()).toBe(0);
+    });
+  });
+
+  it('EVM-054 AC6 an order with 21 live milestones and the planned one at the last position is 422 unpaid_milestones on a settlement; nothing changes', async () => {
+    const editor = await signIn();
+    await withoutPositionCheck(async () => {
+      const completed = await order('completed', paidThen({}));
+      const response = await go(editor, completed.id, 'settled');
+      expect(response.status).toBe(422);
+      expect(response.body).toMatchObject({
+        code: 'transition_condition_not_met',
+        errors: [{ pointer: '/to', code: 'unpaid_milestones' }],
+      });
+      expect(await statusOf(completed.id)).toBe('completed');
+      expect((await milestonesOf(completed.id)).at(-1)?.status).toBe('planned');
+    });
+  });
+});
+
+/**
  * Deterministic concurrency of AC6 (no sleep; the barrier of EVM-053): a third session holds the lock of the order; the invoice of a
  * milestone and the cancellation of the order are sent one after the other and each is let go only once PostgreSQL shows it WAITING
  * for that lock; the queue of the lock decides who goes first. Both orders of arrival; after each the invariant of the whole database.

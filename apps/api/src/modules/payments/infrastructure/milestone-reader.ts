@@ -133,15 +133,18 @@ export async function milestoneSlots(
   return { count: Number(row.count), lastPosition: row.last ?? 0 };
 }
 
-/** The statuses of the live milestones of the order (at most 20) — read under the lock of the order for the conditions of its transitions. */
+/**
+ * The DISTINCT statuses of the live milestones of the order (at most the four values of the CHECK) — read under the lock of the order
+ * for the conditions of its transitions. Deliberately WITHOUT a limit of rows: a condition of a transition is a security decision
+ * (SR-AUTHZ-10, CWE-841) and must see every live milestone, whatever the limit of milestones per order says.
+ */
 export async function liveStatuses(db: PaymentsDb, workOrderId: string): Promise<PaymentMilestoneStatus[]> {
   const rows = await db
     .selectFrom('payments.payment_milestones')
     .select('status')
+    .distinct()
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
-    .orderBy('position')
-    .limit(MAX_MILESTONES_PER_ORDER)
     .execute();
   return rows.map((row) => row.status);
 }
