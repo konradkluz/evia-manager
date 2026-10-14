@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada (refinement EVM-013; EVM-071 → „Uwagi do rozważenia” 18; liczba AC bez zmian): AC8 — komunikat `412` w dialogu korekty wg makiety W-11 (wspólny z sekcją „Płatności” W-06; forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model opus, gałąź `feature/EVM-057-korekty-platnosci` ułożona na EVM-056 → EVM-055 → EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — plan gotowy (backend-developer)
