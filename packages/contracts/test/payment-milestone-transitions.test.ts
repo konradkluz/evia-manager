@@ -89,6 +89,19 @@ describe('the transitions of a payment milestone in the contract (EVM-054; SR-AU
     expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.purged' }).success).toBe(false);
   });
 
+  it('EVM-057 AC6 SR-AUTHZ-10 the inventory of routes: no deletion of a work order, and the writes of a milestone are its addition, change, transition and deletion only', () => {
+    expect(
+      Object.values(AUTHZ_MANIFEST).some(
+        (operation) => operation.method === 'delete' && operation.path === '/api/v1/work-orders/{workOrderId}',
+      ),
+    ).toBe(false);
+    const writes = Object.entries(AUTHZ_MANIFEST)
+      .filter(([, operation]) => operation.method !== 'get' && operation.path.includes('payment-milestones'))
+      .map(([operationId]) => operationId)
+      .sort();
+    expect(writes).toEqual(['createPaymentMilestone', 'deletePaymentMilestone', 'transitionPaymentMilestone', 'updatePaymentMilestone']);
+  });
+
   it('EVM-057 AC6 the command of a correction is the target alone in the schema; the representation may name the four targets of the corrections', () => {
     expect(zPaymentMilestoneTransition.safeParse({ to: 'planned' }).success).toBe(true);
     expect(zPaymentMilestonePatch.safeParse({ amount: null }).success).toBe(false);
