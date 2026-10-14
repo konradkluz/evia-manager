@@ -4,7 +4,7 @@ title: Korekty płatności (Administrator ze step-upem)
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 owner: backend-developer
@@ -142,7 +142,12 @@ Stan „przed → po” to dwie StatusBadge (ikona + etykieta, `color.status.pay
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+- Domena: wiersze korekt w tabeli przejść (`roles: ['administrator']`, `stepUp: true`), `correctionAccess` — rola przed step-upem (P2: Edytor `forbidden`, Administrator bez step-upu `step_up_required`); korekta przyjmuje tylko `to` (inne pole → `400 not_allowed`); `CORRECTION_UPDATES` sprawdzane typem (brak wpisu = błąd kompilacji). Zmiana kwoty w `cancelled` — `403 forbidden` dla każdej roli.
+- `POST /transitions` i `PATCH`: kolejność z EVM-054 (powtórka idempotencji → `409 work_order_closed` → `correctionAccess` → `412`), decyzje na wierszu zablokowanym (`FOR UPDATE`, bez TOCTOU); `PATCH` kwoty i innych pól naraz → dwa wpisy audytu (`amount_corrected` z kwotą przed/po + `details_changed` bez wartości).
+- `DELETE` (zastępuje stałe 403): fasada zlecenia (404) → If-Match → idempotencja (powtórka `204` + `Idempotent-Replayed`) → blokada transzy (cudza/brak/usunięta = 404) → `409` → `412` → soft delete, zagęszczenie `position` (po kolei, bez zmiany `version` sąsiadów), zdarzenia.
+- Audyt: `payment_milestone.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`, `.amount_corrected`, `.deleted` — kody statusów i kwoty, nigdy nazwa, numer faktury ani powód; dziennik zlecenia `payment_milestone_deleted`. Bez migracji (CHECK-i 0027/0029 wystarczają); projekcja P4 przelicza przez listę typów zdarzeń płatności.
+- Macierz ról: komórka IDOR dla operacji ze step-upem (Administrator ze świeżym step-upem → 404).
+- Panel: dialogi K1–K6 w W-06 i W-11, W-04 przy `step_up_required` z jednym ponowieniem tym samym `Idempotency-Key`, „Nie wykonano korekty.”, komunikaty 404/409/412, etykiety akcji audytu. Pełny plan: `.scratch/EVM-057/plan.md`.
 
 ## Decyzje
 - 2026-10-13 — Konrad zaakceptował (P1–P7 z `/refine` EVM-053): P2 — próba zmiany kwoty transzy innej niż „Planowana” bez step-upu zwraca `403` (Edytor `forbidden`, Administrator `step_up_required`), a ze step-upem jest korektą z AC3; P6 — `model: opus`.
@@ -151,11 +156,17 @@ _Uzupełnia wykonawca przed implementacją._
 - **Ryzyko do akceptacji Konrada — SR-LOG-06 (audyt nieudanych prób operacji wrażliwych; ASVS V16.3.3 L2), ocena P2 × W1 (security-engineer).** Odrzucone próby korekt (`403 forbidden` / `403 step_up_required` — z guardu dla `DELETE`, z serwisu dla przejść i `PATCH`) nie zostawiają wpisu w audycie (wycofanie transakcji kasuje też audyt). To luka całej platformy (dotyczy też innych operacji ze step-upem, np. przywrócenia zlecenia; brak metryki 403/404 per użytkownik); AC EVM-057 tego nie wymagają, udane korekty są audytowane, a skutek finansowy odmowy jest zablokowany. Decyzja architekta (2026-10-14): nie robić częściowo w `payments`. **Rekomendacja:** zaakceptować ryzyko dla wydania M1 i założyć osobną historyjkę platformową E1 (`/refine`): audyt `denied` dla odmów `403` operacji ze step-upem i korekt w guardzie lub filtrze wyjątków (osobna transakcja, deduplikacja jak `bulk_read.rejected`, bez danych żądania) oraz metryka 403/404 per użytkownik z alertem.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-057 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-057 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (scenariusz C8)
+
+## Notatki
+- Po potoku: backend-developer — dwa wpisy audytu przy łącznej zmianie kwoty i innych pól (T7/SR-LOG-03; wcześniej tylko `amount_corrected`), `api-guidelines` bez sprzecznego opisu, tabela korekt sprawdzana typem (`4a3eb35`); web-developer — zrzuty offline, W-11 i menu Edytora (`24991df`); ux-designer — specyfikacja zgodna ze styleguide'em (`08c1861`).
+- Do decyzji Konrada na demo: (1) ryzyko SR-LOG-06 w „Uwagach do rozważenia” + historyjka platformowa E1 (audyt odmów 403 dla operacji ze step-upem, metryka 403/404 per użytkownik); (2) jedno brzmienie tooltipa i dialogu dla zlecenia rozliczonego (sekcja UX); (3) nowe zdanie K3 (na później).
+- Do backlogu (UX): układ compact AlertDialog/Dialog (§ 3.13 — przyciski w kolumnie, główny na górze); powtarzany powód pod każdą wyłączoną pozycją menu (offline, Edytor); dwa banery offline naraz w W-06; szerokie menu transz na 1280 px.
+- Do backlogu (audyt, przy historyjce SR-LOG-06): status usuniętej transzy w `payment_milestone.deleted` (dziś `fromCode: null`, reguła „oba kody albo żaden” z 0029).
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -165,3 +176,7 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — implementacja API (backend-developer): korekty przejściami, korekta kwoty, `DELETE` transzy z zagęszczeniem pozycji, 6 akcji audytu, kod dziennika `payment_milestone_deleted`, komórka IDOR dla operacji ze step-upem w macierzy ról; bez migracji; ryzyko SR-LOG-06 w „Uwagach do rozważenia” do akceptacji Konrada
 - 2026-10-14 — implementacja panelu (web-developer): dialogi K1–K6 w W-06 i W-11, W-04 z podsumowaniem korekty i jednym ponowieniem z tym samym `Idempotency-Key`, „Nie wykonano korekty.”, kod dziennika `payment_milestone_deleted`; E2E z zamrożonym czasem (Chromium, Edge, Firefox), zrzuty `docs/ux/reviews/EVM-057/`
+- 2026-10-14 — potok `wf_5545ddf2-298`: passed po 1 rundzie (QA PASS AC1–AC8; konsultacje przed implementacją: architekt — kolejność kontroli w `DELETE`, zagęszczanie pozycji, nazwy akcji audytu, SR-LOG-06 poza zakresem; security — `cancelled` bez korekty kwoty, decyzje na zablokowanym wierszu; code-reviewer, security-engineer, ux-designer APPROVE)
+- 2026-10-14 — po potoku: backend-developer `4a3eb35`, web-developer `24991df`, ux-designer `08c1861` (szczegóły w „Notatkach”)
+- 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 1956/1980, gałęzie 1749/1893), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 10 wywołań agentów, ok. 1,49 mln tokenów subagentów, ok. 112 min (+ poprawki po potoku ok. 0,16 mln, ok. 26 min); rundy poprawek 0; ścieżka pełna; opus
