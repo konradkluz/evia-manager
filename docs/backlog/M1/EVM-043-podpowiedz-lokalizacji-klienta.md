@@ -4,7 +4,7 @@ title: Podpowiedź lokalizacji klienta w nowym zleceniu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 priority: P2
 path: pelna
 owner: web-developer
@@ -67,16 +67,23 @@ Plan roboczy: `.scratch/EVM-043/plan.md` (nie jest częścią repozytorium). Skr
 ## Decyzje
 - Podpowiedź obejmuje lokalizacje z **100 najnowszych zleceń** klienta (`limit=100`, `sort=-createdAt`, jedna strona, bez stronicowania) — świadome uproszczenie; przy kliencie z większą liczbą zleceń starsze lokalizacje znajdzie się wyszukiwarką (EVM-021). Pobranie 100 rekordów na wybór klienta mieści się w progu masowego odczytu P10 (2000 na 10 minut).
 - Kontrakt rośnie addytywnie o `WorkOrderListSite.siteType` (kod słownika, wymagany; z fasady `sites` tą samą polityką co adres) — AC1 wymaga typu obiektu, a lista go nie niosła. Bez nowej operacji i migracji.
+- Hook `useSiteSuggestions` jest montowany w `LocationSection` niezależnie od trybu i wybranej lokalizacji (wytyczna architekta): przełączanie trybu i „Zmień lokalizację” nie wywołują ponownego pobrania. Koszt: jeden odczyt listy na wybór klienta także wtedy, gdy użytkownik od razu wybierze „Nowa lokalizacja” — świadomy (uwaga code-review).
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-043 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-043 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
+
+## Notatki
+- Bez migracji (numer 0033 pozostaje wolny dla EVM-042), bez nowej operacji i bez ADR; `siteType` w `WorkOrderListSite` działa też w wyszukiwarce zleceń i historii klienta W-14 (ten sam `WorkOrderListItem`).
+- Ryzyka rezydualne do akceptacji na demo (security, oba Low): (1) wybór podpowiedzi czyta pełną kartę `getSite` (PPE, notatki, strony), panel zachowuje tylko pola z allow-listy (rodo.md) — do backlogu węższy odczyt (np. `searchSites` po `id`); (2) do 100 rekordów na wybór klienta liczy się do progu masowego odczytu P10 — możliwe fałszywe alerty, uwzględnić przy kalibracji P10 po 30 dniach pilota.
+- Uwagi UX bez zmian w kodzie: przycisk „Wybierz” na 360 px ma ok. 40 px wysokości (zgodny z WCAG 2.2 AA dla web; ewentualny wariant ≥ 44 px dla dotyku — do decyzji w styleguide'zie).
+- E2E działa na zamockowanym API; łańcuch panel–API–baza pokrywają testy integracyjne — sprawdzić na żywo podczas demo.
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -84,3 +91,7 @@ _—_
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź `feature/EVM-043-podpowiedz-lokalizacji` ułożona na EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — implementacja (web-developer): `siteType` w liście zleceń (kontrakt, fasada `sites`), podpowiedź lokalizacji w W-05, testy komponentu, integracyjne i E2E (Chromium, Firefox, Edge), zrzuty w `docs/ux/reviews/EVM-043/`
 - 2026-10-14 — weryfikacja backendu (backend-developer): `siteType` przez fasadę `sites`, bramka `pnpm run gate` zielona (kod 0)
+- 2026-10-14 — potok `wf_84aff7f6-668`: passed po 1 rundzie (konsultacje: architekt CHANGES — `siteType` przez fasadę `sites`, security APPROVE; QA PASS AC1–AC4; code-reviewer, security-engineer i ux-designer APPROVE; dokumentacja security `dcc0971`)
+- 2026-10-14 — po przeglądzie (web-developer, `7872479`): stały region `role="status"` dla ładowania i offline, uproszczona obsługa 429, zrzuty stanów ładowania i błędu
+- 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage 697/698, 543/573), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 9 wywołań agentów, ok. 0,61 mln tokenów subagentów, ok. 76 min (+ poprawki po przeglądzie); rundy poprawek 0; ścieżka pełna; model domyślny
