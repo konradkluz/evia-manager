@@ -8,6 +8,7 @@ import { createIdentityApp, ISSUED_AT, type IdentityApp } from '../support/ident
 import { createSession, createUser } from '../support/identity-fixtures.ts';
 import { PanelClient } from '../support/panel-client.ts';
 import { insertMilestones, type MilestoneSpec } from '../support/payment-fixtures.ts';
+import { rebuildProjection } from '../support/projection.ts';
 import { insertSite } from '../support/site-fixtures.ts';
 import { uuidv7 } from '../support/uuid.ts';
 import { clearWorkOrderCreation, insertWorkOrders } from '../support/work-order-fixtures.ts';
@@ -338,6 +339,8 @@ describe('the conditions of a transition read every live milestone, beyond the l
       await body();
     } finally {
       await sql`delete from payments.payment_milestones where position > 20`.execute(admin());
+      // the delete bypasses the services: the signals of payments of the read model are recomputed as `rebuild` would (EVM-056)
+      await rebuildProjection(admin());
       await sql`alter table payments.payment_milestones add constraint payment_milestones_position_check
         check (position between 1 and 20)`.execute(admin());
     }
