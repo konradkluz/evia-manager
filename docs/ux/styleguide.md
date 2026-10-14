@@ -1090,6 +1090,9 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Propozycja do 1.3.0 — 2026-10-14 (EVM-056, do akceptacji Konrada)
+- **§ 4.2 — kolumna „Płatność” i sortowanie „Najpilniejsze”:** kolumna płatności wyrównana do prawej (nagłówek też), pierwszeństwo Po terminie (mocna odznaka `color.status.payment.overdue.*` + kwota) > Nieopłacone (n) (`payment.invoiced.*` + suma) > Opłacone (`payment.paid.*`) > „—” z ukrytą nazwą „Brak wystawionych transz”; przy sortowaniu złożonym „Najpilniejsze” nagłówki kolumn bez `aria-sort`, a zmiana sortowania ogłaszana `aria-live="polite"`. Bez nowych tokenów i komponentów.
+- **§ 4.2 / § 3.6 — tabela zleceń W-10:** na  6 kolumn priorytetowych; „Opiekun” i „Utworzono” są osobnymi kolumnami tylko od , poniżej  to linie pierwszej komórki („Opiekun: …”, „Utworzono …”); tabela gęsta ma boczny padding komórek . Bez nowych tokenów.
 ### Propozycja do 1.3.0 — 2026-10-14 (EVM-054, do akceptacji Konrada)
 - **§ 4.11 — dialog z podsumowaniem skutku i polami formularza:** gdy dialog potwierdzenia wymaga też danych od użytkownika (EVM-054: „Wystaw fakturę…”, „Anuluj transzę…” z powodem), pola i podsumowanie na żywo są w jednym dialogu (bez drugiego kroku), a fokus domyślny ustawiamy na pierwszym polu do wypełnienia zamiast na „Anuluj”. Reszta wzorca bez zmian (tytuł-pytanie, skutek, przycisk z czasownikiem, danger tylko dla niszczących). Dialog bez pól do wypełnienia (poza prefill) nadal zaczyna na „Anuluj”. Bez nowych tokenów i komponentów.
 ### Propozycja do 1.3.0 — 2026-10-05 (EVM-008, do akceptacji Konrada)

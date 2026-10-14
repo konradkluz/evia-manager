@@ -61,7 +61,30 @@ Jako **pracownik biura** chcę **widzieć na liście zleceń i w podsumowaniu zl
 - Pulpit z lejkiem zleceń i nieopłaconymi — M3. Zapamiętywanie sortowania po stronie serwera — później.
 
 ## UX / UI
-- W-10: kolumna „Płatność” (StatusBadge `color.status.payment.overdue.*`, kwoty `text.numeric`), zapisane widoki, sortowanie; W-06: kafel „Płatności”. Stany: AC8.
+Specyfikacja (ux-designer, 2026-10-14). Makiety wiążące: [W-10](../../ux/flows/07-lista-zlecen-i-filtry.md#w-10-lista-zleceń) i [W-06](../../ux/flows/03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia) (kafel „Płatności”); to nie nowe ekrany, tylko dopięcie danych do istniejących. Bez nowych tokenów i komponentów.
+
+**Przepływ:** W-10 otwiera się z „Najpilniejsze” (`sort=urgency` wysyłane jawnie, zapamiętane tylko w pamięci karty — poza URL; widok to jedyny parametr URL: ID widoku) → wybór widoku „Po terminie” / „Nieopłacone” → wiersz → W-06, kafel „Płatności” prowadzi kotwicą `#platnosci` do sekcji transz (istniejące zachowanie, EVM-054). Widoki dotyczą tylko zleceń niezamkniętych (ADR-0017 pyt. 7).
+
+**W-10 — kolumna „Płatność”** (DataTable § 3.6; StatusBadge § 3.9; kolumna i nagłówek do prawej, liczby `text.numeric` — § 4.2). Pierwszeństwo wg ADR-0017 pyt. 4: Po terminie > Nieopłacone > Opłacone > „—”.
+| Stan | Zawartość komórki |
+|---|---|
+| Po terminie | mocna StatusBadge `color.status.payment.overdue.*`, ikona `alarm-clock`, etykieta „Po terminie” (klucz `workOrders.status.paymentOverdue`); pod nią suma transz po terminie, np. „3 600,00 zł” |
+| Nieopłacone | subtelna StatusBadge `color.status.payment.invoiced.*` z etykietą „Nieopłacone (1)”; pod nią suma wystawionych, np. „4 500,00 zł” |
+| Opłacone | subtelna StatusBadge `color.status.payment.paid.*`, etykieta „Opłacone”, bez kwoty |
+| Brak wystawionych | „—” (`color.text.secondary`) z ukrytą dla wzroku nazwą „Brak wystawionych transz” |
+- Pełna nazwa dostępna wiersza dopisuje płatność: „płatność po terminie, 3 600,00 zł” / „nieopłacone: 1, 4 500,00 zł” / „opłacone” / „brak wystawionych transz” (zdanie na końcu nazwy wiersza z makiety). Liczba dni po terminie nie jest na liście (tylko w W-06).
+- Zapisane widoki „Po terminie” i „Nieopłacone”: chipy widoków bez zmian; widoczne tylko z prawem odczytu płatności (A, E, R — P6; reguła z `x-evia-authz`). Opis widoku w `aria-describedby`: „Tylko zlecenia niezamknięte.”
+- Sortowanie: Select „Sortuj” (§ 3.3) z opcjami „Najpilniejsze” (domyślna, pierwsza), „Najdłużej czekamy”, „Termin”, „Numer”; zmiana ogłaszana `aria-live="polite"` („Sortowanie: Najpilniejsze”). Bez ikon „strzałek”, bo kolejność złożona; nagłówki kolumn bez `aria-sort` przy „Najpilniejsze”.
+- Responsywność: `breakpoint.expanded`/`wide` — kolumna „Płatność” jak w makiecie; `medium` — kolumna zostaje (Sidebar zwinięty); `compact` — karta (§ 3.6/3.8): ostatni wiersz karty = odznaka + kwota obok siebie, cel dotyku karty cały. Brak ikon-tylko: etykieta zawsze widoczna.
+- Stany: ładowanie — Skeleton wierszy (§ 3.16), kolumna „Płatność” też szkieletem (nie pusta); pusty widok „Po terminie” — „Brak zleceń z płatnością po terminie. Dobra wiadomość.”; „Nieopłacone” — „Brak zleceń z nieopłaconymi transzami.” (oba EmptyState bez przycisku, jak widok OSD); błąd — wzór listy („Nie udało się wczytać zleceń. [Spróbuj ponownie]”); `429` — „Zbyt wiele zapytań. Spróbuj ponownie za 1 min.” (czas z `Retry-After`), filtry zostają; offline — ostatnia strona z pamięci karty z banerem „Dane mogą być nieaktualne (z 14:05)”, Select sortowania i chipy widoków wyłączone z podpowiedzią, kolumna „Płatność” z danych z pamięci (kwoty z tego samego zapisu); brak uprawnień (rola bez odczytu płatności, poza v1) — kolumna, chipy płatności i opcja płatności w sortowaniu nie istnieją (`hiddenFields`), link do widoku płatności spoza uprawnień → „Nie znaleziono widoku. [Pokaż wszystkie zlecenia]”.
+
+**W-06 — kafel „Płatności”** (czwarty kafel karty podsumowania, Card § 3.8, reguły z W-06 „Karta podsumowania”): wiersze „Nieopłacone: 3 600,00 zł (1)” (`text.numeric`), mocna odznaka „Po terminie” + „5 dni” (najdłużej po terminie z transz wystawionych; odmiana „1 dzień / 5 dni”, § 6.3; tylko gdy jest transza po terminie — inaczej wiersz nieobecny, bez „0”), „Planowane: 3”, „Opłacone: 0 z 4” (y bez „Anulowana” — P3). Wiersz „Nieopłacone” bez wystawionych — „Nieopłacone: 0,00 zł”; zlecenie bez transz — jedna linia „Brak transz.” (bez własnego przycisku — akcja „Dodaj transzę” jest w sekcji). Cały kafel to odnośnik do `#platnosci` (kotwica z EVM-054, nazwa dostępna: „Płatności: nieopłacone 3 600,00 zł, 1 transza, po terminie 5 dni, planowane 3, opłacone 0 z 4”). Stany: ładowanie — Skeleton czterech kafli (istniejący); błąd kafla — InlineAlert w kaflu (`role="alert"`, `circle-alert`) „Nie udało się wczytać płatności. [Spróbuj ponownie]”, pozostałe kafle działają; `429` — wzór z README; offline — dane z pamięci karty pod banerem strony; brak odczytu płatności — kafel ukryty, kolejne kafle się nie przesuwają „z dziurą” (siatka kafli układa pozostałe). Responsywność: kafle 4 → 2×2 (`medium`) → kolumna (`compact`).
+
+**A11y:** „Po terminie” niesie ikona + etykieta (nie sam kolor); kontrast tokenów 8,31:1 (§ 2); kwoty i dni `tabular-nums`; fokus widoczny `color.focus.ring` na wierszu-linku, chipach, Select i kaflu-odnośniku; wszystkie akcje klawiaturą; zmiana wyników po sortowaniu/widoku — `aria-live="polite"` z licznikiem („6 zleceń”).
+
+**Mikrocopy (PL):** „Po terminie” · „Nieopłacone (n)” · „Opłacone” · „—” · „Najpilniejsze” · „Płatności” · „Nieopłacone: 3 600,00 zł (1)” · „Planowane: 3” · „Opłacone: 0 z 4” · „Brak transz.” · „Nie udało się wczytać płatności.” · komunikaty pustych widoków wyżej. Kwoty w formacie PL z § 6.3 („3 600,00 zł”, twarda spacja).
+
+**Styleguide:** brak nowego wzorca poza doprecyzowaniem w propozycji do 1.3.0 (changelog § 8, wpis EVM-056, do akceptacji Konrada).
 
 ## Bezpieczeństwo i prywatność
 | Rola | Dostęp |
@@ -118,3 +141,6 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — zmiana AC zaakceptowana przez Konrada 2026-10-13 (liczba AC bez zmian): AC4 — „Opłacone: x z y” liczy y bez transz anulowanych; decyzje P3, P4, P6, P7 w „Decyzjach”
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model opus, gałąź `feature/EVM-056-platnosci-na-liscie` ułożona na EVM-055 → EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — plan gotowy (backend-developer)
+- 2026-10-14 — backend zaimplementowany (backend-developer): kontrakt (`urgency`, `overdue_payments`, `unpaid`, `payment`, `overdueDays`, `restrictedParams`), migracja `0031`, sygnały płatności w projekcji, fasada sum, W4; panel — web-developer
+- 2026-10-14 — panel zaimplementowany (web-developer): W-10 kolumna „Płatność”, widoki „Po terminie” / „Nieopłacone”, domyślne „Najpilniejsze”; W-06 kafel „Płatności”; E2E (Chromium, Edge, Firefox) i zrzuty `docs/ux/reviews/EVM-056/`
