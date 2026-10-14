@@ -2,11 +2,13 @@ import {
   getWorkOrder,
   getWorkOrderCustomer,
   getWorkOrderSite,
+  listDeletedWorkOrderProcedures,
   listWorkOrderProcedures,
   listWorkOrderScopeItems,
   listWorkOrderSiteOrders,
   listPaymentMilestones,
   type CustomerCard,
+  type DeletedProcedureList,
   type PaymentMilestoneList,
   type ProcedureList,
   type ScopeItemList,
@@ -20,6 +22,7 @@ import { ApiError, unwrap } from '../api/client.ts';
 import {
   WORK_ORDER_HEADER_KEY,
   WORK_ORDER_CUSTOMER_KEY,
+  WORK_ORDER_DELETED_PROCEDURES_KEY,
   WORK_ORDER_PAYMENTS_KEY,
   WORK_ORDER_PROCEDURES_KEY,
   WORK_ORDER_SCOPE_KEY,
@@ -110,6 +113,23 @@ export function useWorkOrderProcedures(id: string, enabled: boolean): UseQueryRe
     // The section and the dialog "Zakończ" share this entry: the second reader must not ask again, the dialog refreshes it itself.
     staleTime: Infinity,
     // A failed read stays a failed read until the person retries: a second reader mounting later must not hide the alert of the section.
+    retryOnMount: false,
+    ...common,
+  });
+}
+
+/**
+ * The deleted processes and stages (EVM-042 AC3): read for the Administrator only — the server answers `403` to everyone else, so
+ * `enabled` is false for the other roles. Names of stages are free text: the memory of the tab only.
+ */
+export function useDeletedProcedures(id: string, enabled: boolean): UseQueryResult<DeletedProcedureList> {
+  const client = useApi();
+  return useQuery({
+    queryKey: [WORK_ORDER_DELETED_PROCEDURES_KEY, id],
+    queryFn: ({ signal }) => unwrap(listDeletedWorkOrderProcedures({ client, signal, path: { workOrderId: id } })),
+    enabled,
+    gcTime: 0,
+    staleTime: Infinity,
     retryOnMount: false,
     ...common,
   });
