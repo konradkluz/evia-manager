@@ -4,7 +4,7 @@ title: Płatności na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: backend-developer
@@ -117,3 +117,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — zmiana AC zaakceptowana przez Konrada 2026-10-13 (liczba AC bez zmian): AC4 — „Opłacone: x z y” liczy y bez transz anulowanych; decyzje P3, P4, P6, P7 w „Decyzjach”
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model opus, gałąź `feature/EVM-056-platnosci-na-liscie` ułożona na EVM-055 → EVM-054 → EVM-053 — łańcuch za zgodą Konrada)
