@@ -37,23 +37,23 @@ async function menuOf(name: string): Promise<string[]> {
 }
 
 describe('the actions of an instalment by status and role (EVM-054 AC5, AC8; flows/08 → "Akcje płatności — status × rola")', () => {
-  it('EVM-054 AC5 the table of actions: the row button, the menu and the group of corrections for the Editor; none for Tylko odczyt', () => {
+  it('EVM-054 AC5 EVM-057 AC8 the table of actions: the row button, the menu and the group of corrections — active for the Administrator, disabled for the Editor, none for Tylko odczyt', () => {
     expect(milestoneActions('planned', 'editor')).toEqual({
       primary: 'invoice',
       menu: [
         { action: 'amount', group: 'main' },
         { action: 'cancel', group: 'cancel' },
-        { action: 'delete', group: 'cancel', correction: true },
+        { action: 'delete', group: 'cancel', correction: true, adminOnly: true },
       ],
     });
     expect(milestoneActions('invoiced', 'editor')).toEqual({
       primary: 'pay',
       menu: [
         { action: 'details', group: 'main' },
-        { action: 'withdrawInvoice', group: 'corrections', correction: true },
-        { action: 'cancelInvoice', group: 'corrections', correction: true },
-        { action: 'correctAmount', group: 'corrections', correction: true },
-        { action: 'delete', group: 'corrections', correction: true },
+        { action: 'withdrawInvoice', group: 'corrections', correction: true, adminOnly: true },
+        { action: 'cancelInvoice', group: 'corrections', correction: true, adminOnly: true },
+        { action: 'correctAmount', group: 'corrections', correction: true, adminOnly: true },
+        { action: 'delete', group: 'corrections', correction: true, adminOnly: true },
       ],
     });
     expect(milestoneActions('paid', 'editor').menu.map((entry) => entry.action)).toEqual([
@@ -63,11 +63,32 @@ describe('the actions of an instalment by status and role (EVM-054 AC5, AC8; flo
       'delete',
     ]);
     expect(milestoneActions('cancelled', 'editor').menu.map((entry) => entry.action)).toEqual(['restore', 'delete']);
-    // Q2: the Administrator does not see the corrections until EVM-057
-    expect(milestoneActions('planned', 'administrator').menu.map((entry) => entry.action)).toEqual(['amount', 'cancel']);
-    expect(milestoneActions('invoiced', 'administrator')).toEqual({ primary: 'pay', menu: [{ action: 'details', group: 'main' }] });
-    expect(milestoneActions('paid', 'administrator')).toEqual({ menu: [{ action: 'paidOn', group: 'main' }] });
-    expect(milestoneActions('cancelled', 'administrator')).toEqual({ menu: [] });
+    // EVM-057 (the specification of "UX / UI" → "Dostępność pozycji"): the Administrator sees and uses the corrections
+    expect(milestoneActions('planned', 'administrator')).toEqual({
+      primary: 'invoice',
+      menu: [
+        { action: 'amount', group: 'main' },
+        { action: 'cancel', group: 'cancel' },
+        { action: 'delete', group: 'cancel', correction: true },
+      ],
+    });
+    expect(milestoneActions('invoiced', 'administrator')).toEqual({
+      primary: 'pay',
+      menu: [
+        { action: 'details', group: 'main' },
+        { action: 'withdrawInvoice', group: 'corrections', correction: true },
+        { action: 'cancelInvoice', group: 'corrections', correction: true },
+        { action: 'correctAmount', group: 'corrections', correction: true },
+        { action: 'delete', group: 'corrections', correction: true },
+      ],
+    });
+    expect(milestoneActions('paid', 'administrator').menu.map((entry) => entry.action)).toEqual([
+      'paidOn',
+      'undoPayment',
+      'correctAmount',
+      'delete',
+    ]);
+    expect(milestoneActions('cancelled', 'administrator').menu.map((entry) => entry.action)).toEqual(['restore', 'delete']);
     // AC8: Tylko odczyt, no session and a status the panel does not know — no actions
     for (const status of ['planned', 'invoiced', 'paid', 'cancelled']) expect(milestoneActions(status, 'read_only')).toEqual({ menu: [] });
     expect(milestoneActions('planned', undefined)).toEqual({ menu: [] });
@@ -107,16 +128,36 @@ describe('the actions of an instalment by status and role (EVM-054 AC5, AC8; flo
     expect(await axeViolations(document.body)).toEqual([]);
   });
 
-  it('EVM-054 AC5 the Administrator sees no corrections until EVM-057 (Q2): a cancelled instalment has no menu', async () => {
+  it('EVM-057 AC8 the Administrator sees the corrections active in the group "Korekty"; a cancelled instalment has "Przywróć transzę…" and "Usuń transzę…"', async () => {
     await renderPanel(PAYMENTS_PATH, paymentsApi());
     await ready();
-    expect(await menuOf('Zaliczka (20%)')).toEqual(['Zmień kwotę…', '—', 'Anuluj transzę…']);
-    expect(await menuOf('Po uzyskaniu zgód (30%)')).toEqual(['Popraw dane faktury…']);
-    expect(await menuOf('Po wykonaniu instalacji (30%)')).toEqual(['Popraw datę wpłaty…']);
-    expect(screen.queryByRole('button', { name: 'Akcje transzy: Płatność końcowa (20%)' })).toBeNull();
-    // the destructive item takes the danger text (§ 3.20)
+    expect(await menuOf('Zaliczka (20%)')).toEqual(['Zmień kwotę…', '—', 'Anuluj transzę…', 'Usuń transzę…']);
+    expect(await menuOf('Po uzyskaniu zgód (30%)')).toEqual([
+      'Popraw dane faktury…',
+      '—',
+      'Wycofaj fakturę…',
+      'Anuluj fakturę…',
+      'Zmień kwotę…',
+      'Usuń transzę…',
+    ]);
+    expect(await menuOf('Po wykonaniu instalacji (30%)')).toEqual([
+      'Popraw datę wpłaty…',
+      '—',
+      'Cofnij wpłatę…',
+      'Zmień kwotę…',
+      'Usuń transzę…',
+    ]);
+    expect(await menuOf('Płatność końcowa (20%)')).toEqual(['Przywróć transzę…', 'Usuń transzę…']);
+    // the destructive items take the danger text (§ 3.20): those whose dialog has a danger button
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje transzy: Po uzyskaniu zgód (30%)' }));
+    for (const name of ['Wycofaj fakturę…', 'Anuluj fakturę…', 'Usuń transzę…']) {
+      expect(screen.getByRole('menuitem', { name }).className).toContain('text-action-danger-text-subtle');
+    }
+    expect(screen.getByRole('menuitem', { name: 'Zmień kwotę…' }).className).not.toContain('text-action-danger-text-subtle');
+    await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' }));
     expect(screen.getByRole('menuitem', { name: 'Anuluj transzę…' }).className).toContain('text-action-danger-text-subtle');
+    expect(await axeViolations(document.body)).toEqual([]);
   });
 
   it('EVM-054 AC8 Tylko odczyt sees the instalments without any button of a row and without menus', async () => {
@@ -188,13 +229,20 @@ describe('the actions of an instalment by status and role (EVM-054 AC5, AC8; flo
     },
   );
 
-  it('EVM-054 AC8 offline the buttons of the rows and the items say "Zmienisz po powrocie połączenia."', async () => {
+  it('EVM-054 AC8 EVM-057 AC8 offline the buttons of the rows and the items (the corrections too) say "Zmienisz po powrocie połączenia."', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
     await renderPanel(PAYMENTS_PATH, paymentsApi());
     await ready();
     const pay = within(rowOf('Po uzyskaniu zgód (30%)')).getByRole('button', { name: 'Odnotuj wpłatę…' });
     expect(pay.getAttribute('aria-disabled')).toBe('true');
     expect(pay.getAttribute('title')).toBe('Zmienisz po powrocie połączenia.');
-    expect(await menuOf('Po wykonaniu instalacji (30%)')).toEqual(['Popraw datę wpłaty… [Zmienisz po powrocie połączenia.]']);
+    const offline = 'Zmienisz po powrocie połączenia.';
+    expect(await menuOf('Po wykonaniu instalacji (30%)')).toEqual([
+      `Popraw datę wpłaty… [${offline}]`,
+      '—',
+      `Cofnij wpłatę… [${offline}]`,
+      `Zmień kwotę… [${offline}]`,
+      `Usuń transzę… [${offline}]`,
+    ]);
   });
 });

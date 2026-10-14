@@ -99,3 +99,29 @@ describe('W-08 Dziennik: the status changes of the instalments (EVM-054 AC3)', (
     expect(screen.getByRole('button', { name: 'Płatności' }).getAttribute('aria-pressed')).toBe('false');
   });
 });
+
+describe('W-08 Dziennik: the deletion of an instalment (EVM-057 AC4)', () => {
+  it('EVM-057 AC4 "payment_milestone_deleted" is "Usunięcie transzy" — no name, no amount, no number, no badge', async () => {
+    await openJournal(
+      journalApi({
+        entries: [
+          eventEntry(1, {
+            code: 'payment_milestone_deleted',
+            objectType: 'payment_milestone',
+            fromStatus: null,
+            toStatus: null,
+            paymentMilestone: { id: MILESTONE_ID, name: null },
+          }),
+        ],
+      }),
+    );
+    await waitFor(() => {
+      expect(items()).toHaveLength(1);
+    });
+    const [item] = items();
+    expect(item?.textContent).toContain('Usunięcie transzy');
+    expect(item?.textContent).not.toMatch(/zł|FV\//);
+    expect(item?.querySelector('[class*="bg-status-payment"]')).toBeNull();
+    expect(await axeViolations(document.body)).toEqual([]);
+  });
+});

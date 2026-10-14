@@ -133,6 +133,9 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
         badge: status,
       };
     }
+    case 'payment_milestone_deleted':
+      // EVM-057 AC4: the soft delete of an instalment by a correction — no amount, no number, no name (the instalment is gone)
+      return { text: t('workOrder.journal.event.milestoneDeleted') };
     case 'work_order_fields_changed':
       return { text: t('workOrder.journal.event.orderFields', { fields: orderFieldsText(t, event.changedFields) }) };
     case 'scope_item_added': {

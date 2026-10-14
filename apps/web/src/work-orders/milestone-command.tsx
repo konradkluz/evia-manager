@@ -1,4 +1,5 @@
 import {
+  deletePaymentMilestone,
   listPaymentMilestones,
   transitionPaymentMilestone,
   updatePaymentMilestone,
@@ -17,6 +18,7 @@ import { useAttempt } from '../forms/attempt.ts';
 import { refusesAttempt } from '../forms/save-failure.ts';
 import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { useSession } from '../session/session.ts';
+import { useStepUp } from '../session/step-up-context.tsx';
 import { useStateWord } from './edit-failure.ts';
 import { DAY_MS, dayMs } from './milestone-days.ts';
 import { etagOf, normalizeName } from './milestone-form.ts';
@@ -93,6 +95,8 @@ export type CommandFailure =
   /** `412` or `409 invalid_state_transition`: the instalment as it is now (read again), "Odśwież" takes its version. */
   | { readonly kind: 'changed'; readonly status: string; readonly version: number }
   | { readonly kind: 'closed' | 'gone' | 'forbidden' | 'failed' | 'inProgress' }
+  /** EVM-057 AC5: W-04 was cancelled — nothing was sent again, the data of the dialog stays. */
+  | { readonly kind: 'notCorrected' }
   | { readonly kind: 'rate'; readonly seconds: number };
 
 /**
@@ -113,6 +117,18 @@ export type CommandRequest =
   | { readonly kind: 'transition'; readonly body: PaymentMilestoneTransition }
   | { readonly kind: 'patch'; readonly body: PaymentMilestonePatch };
 
+/** A request of the command, with the soft delete of an instalment (EVM-057 AC4, `DELETE` — the answer `204` has no body). */
+type AnyRequest = CommandRequest | { readonly kind: 'delete' };
+
+/**
+ * A correction of a payment (EVM-057): when the server answers `403 step_up_required`, W-04 opens with this title and summary
+ * (flows/01 → "Tytuły operacji M1"); after the confirmation the same request goes once more with the same `Idempotency-Key`.
+ */
+export interface CorrectionStepUp {
+  readonly title: string;
+  readonly details: readonly string[];
+}
+
 /**
  * One command on an instalment (EVM-054): the transition (`POST …/transitions`) or the correction of the data (`PATCH`), always with
  * `If-Match` of the version the dialog was opened with and an `Idempotency-Key` that stays the same for a retry of the same content
@@ -127,23 +143,38 @@ export function useMilestoneCommand(order: MilestoneOrder, opened: OpenedMilesto
   const queryClient = useQueryClient();
   const attempt = useAttempt();
   const message = useFieldMessage();
+  const requestStepUp = useStepUp();
   const [version, setVersion] = useState(opened.version);
+  // EVM-057 AC5: W-04 is open — the dialog of the correction steps aside (a dialog never stacks on a dialog, § 3.13), its data stays.
+  const [stepping, setStepping] = useState(false);
   const [failure, setFailure] = useState<CommandFailure | null>(null);
   const [fieldErrors, setFieldErrors] = useState<MilestoneFieldErrors>({});
   const paymentsKey = [WORK_ORDER_PAYMENTS_KEY, order.id];
 
   const mutation = useMutation({
-    mutationFn: ({ request, key, base }: { readonly request: CommandRequest; readonly key: string; readonly base: number }) => {
+    mutationFn: async ({
+      request,
+      key,
+      base,
+    }: {
+      readonly request: AnyRequest;
+      readonly key: string;
+      readonly base: number;
+    }): Promise<PaymentMilestone | undefined> => {
       const options = {
         client,
         path: { workOrderId: order.id, milestoneId: opened.id },
         headers: { 'If-Match': etagOf(base), 'Idempotency-Key': key },
       };
-      return unwrap(
-        request.kind === 'transition'
-          ? transitionPaymentMilestone({ ...options, body: request.body })
-          : updatePaymentMilestone({ ...options, body: request.body }),
-      );
+      switch (request.kind) {
+        case 'transition':
+          return unwrap(transitionPaymentMilestone({ ...options, body: request.body }));
+        case 'patch':
+          return unwrap(updatePaymentMilestone({ ...options, body: request.body }));
+        case 'delete':
+          await unwrap(deletePaymentMilestone(options));
+          return undefined;
+      }
     },
   });
 
@@ -219,35 +250,82 @@ export function useMilestoneCommand(order: MilestoneOrder, opened: OpenedMilesto
     setFailure({ kind: 'failed' });
   };
 
+  const isStepUp = (error: unknown): boolean => error instanceof ApiError && error.status === 403 && error.code === 'step_up_required';
+
+  /** Sends one request; `403 step_up_required` of a correction opens W-04 once and repeats the same request (no loop). */
+  const send = (
+    request: AnyRequest,
+    key: string,
+    base: number,
+    stepUp: CorrectionStepUp | undefined,
+    onDone: (saved: PaymentMilestone | undefined) => void,
+  ) => {
+    mutation.mutate(
+      { request, key, base },
+      {
+        onSuccess: (saved) => {
+          attempt.forget();
+          queryClient.setQueryData<PaymentMilestoneList>(paymentsKey, (list) =>
+            list === undefined
+              ? list
+              : {
+                  ...list,
+                  items:
+                    saved === undefined
+                      ? list.items.filter((entry) => entry.id !== opened.id)
+                      : list.items.map((entry) => (entry.id === saved.id ? saved : entry)),
+                },
+          );
+          void queryClient.invalidateQueries({ queryKey: paymentsKey });
+          // EVM-054 AC3: a change of the status wrote an event of the journal; an open "Dziennik" shows it without a reload.
+          void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
+          void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
+          // EVM-055: the unpaid list (W-11) is the same fact: a paid or corrected instalment changes its rows, tiles and sum.
+          void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
+          onDone(saved);
+        },
+        onError: (error) => {
+          if (stepUp === undefined || !isStepUp(error)) {
+            onError(error);
+            return;
+          }
+          // The server keeps no key of a refused request (SR-API-05): the same key after W-04 makes the correction once.
+          setStepping(true);
+          void requestStepUp(stepUp.title, stepUp.details).then((confirmed) => {
+            setStepping(false);
+            if (confirmed) send(request, key, base, undefined, onDone);
+            else setFailure({ kind: 'notCorrected' });
+          });
+        },
+      },
+    );
+  };
+
+  const start = (request: AnyRequest, stepUp: CorrectionStepUp | undefined, onDone: (saved: PaymentMilestone | undefined) => void) => {
+    const { key } = attempt.next(JSON.stringify({ milestone: opened.id, version, request }));
+    setFailure(null);
+    send(request, key, version, stepUp, onDone);
+  };
+
   return {
     version,
     failure,
     fieldErrors,
     setFieldErrors,
-    pending: mutation.isPending,
-    /** Sends the command; `onSaved` gets the instalment as the server saved it. */
-    run(request: CommandRequest, onSaved: (saved: PaymentMilestone) => void) {
-      const { key } = attempt.next(JSON.stringify({ milestone: opened.id, version, request }));
-      setFailure(null);
-      mutation.mutate(
-        { request, key, base: version },
-        {
-          onSuccess: (saved) => {
-            attempt.forget();
-            queryClient.setQueryData<PaymentMilestoneList>(paymentsKey, (list) =>
-              list === undefined ? list : { ...list, items: list.items.map((entry) => (entry.id === saved.id ? saved : entry)) },
-            );
-            void queryClient.invalidateQueries({ queryKey: paymentsKey });
-            // EVM-054 AC3: a change of the status wrote an event of the journal; an open "Dziennik" shows it without a reload.
-            void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
-            void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
-            // EVM-055: the unpaid list (W-11) is the same fact: a paid or corrected instalment changes its rows, tiles and sum.
-            void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
-            onSaved(saved);
-          },
-          onError,
-        },
-      );
+    pending: mutation.isPending || stepping,
+    /** W-04 is open for this command (EVM-057): the dialog of the correction is hidden meanwhile. */
+    stepping,
+    /** Sends the command; `onSaved` gets the instalment as the server saved it. A correction passes the texts of W-04 (`stepUp`). */
+    run(request: CommandRequest, onSaved: (saved: PaymentMilestone) => void, stepUp?: CorrectionStepUp) {
+      start(request, stepUp, (saved) => {
+        if (saved !== undefined) onSaved(saved);
+      });
+    },
+    /** EVM-057 AC4: the soft delete of the instalment (`DELETE`, `204`); the list drops it at once and is read again. */
+    remove(onDeleted: () => void, stepUp: CorrectionStepUp) {
+      start({ kind: 'delete' }, stepUp, () => {
+        onDeleted();
+      });
     },
     /**
      * "Odśwież" of the alert of a change in the meantime: the instalment still in the status the dialog was opened in — the next save
@@ -267,10 +345,13 @@ export function CommandAlert({
   failure,
   orderStatus,
   onRefresh,
+  correction = false,
 }: {
   readonly failure: CommandFailure | null;
   readonly orderStatus: string | undefined;
   readonly onRefresh: () => void;
+  /** A correction of a payment (EVM-057): a closed order is told with the text of AC7 for every role. */
+  readonly correction?: boolean;
 }) {
   const { t } = useTranslation();
   const role = useSession().data?.user.role;
@@ -282,6 +363,12 @@ export function CommandAlert({
       case 'changed':
         return t('workOrder.milestoneDialog.changed', { status: statusLabel(failure.status) });
       case 'closed': {
+        // EVM-057 AC7: "Zlecenie jest rozliczone — … Przywrócić zlecenie może tylko administrator." — the same for every role
+        if (correction) {
+          return orderStatus === undefined
+            ? t('workOrder.correction.closedUnknown')
+            : t('workOrder.correction.closed', { state: stateWord(orderStatus) });
+        }
         if (orderStatus === undefined) {
           return role === 'editor' ? t('workOrder.paymentDialog.closedUnknownEditor') : t('workOrder.paymentDialog.closedUnknown');
         }
@@ -298,6 +385,8 @@ export function CommandAlert({
         return t('workOrder.paymentDialog.rateLimited', { seconds: failure.seconds });
       case 'failed':
         return t('workOrder.milestoneDialog.failed');
+      case 'notCorrected':
+        return t('workOrder.correction.notCorrected');
     }
   })();
   return (

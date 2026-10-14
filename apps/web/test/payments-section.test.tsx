@@ -159,13 +159,14 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
     expect(cells[5]?.className).toContain('max-medium:col-start-3');
   });
 
-  it('EVM-053 AC2 EVM-054 AC5 the Administrator has a menu for every instalment but a cancelled one (its corrections come with EVM-057)', async () => {
+  it('EVM-053 AC2 EVM-054 AC5 EVM-057 AC4 the Administrator has a menu for every instalment, a cancelled one too ("Przywróć transzę…", "Usuń transzę…")', async () => {
     await renderPanel(PATH, api());
     await paymentsReady();
     expect(screen.getAllByRole('button', { name: /^Akcje transzy:/ }).map((button) => button.getAttribute('aria-label'))).toEqual([
       'Akcje transzy: Zaliczka (20%)',
       'Akcje transzy: Po uzyskaniu zgód (30%)',
       'Akcje transzy: Po wykonaniu instalacji (30%)',
+      'Akcje transzy: Płatność końcowa (20%)',
     ]);
   });
 
