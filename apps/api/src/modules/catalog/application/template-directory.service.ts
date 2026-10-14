@@ -2,9 +2,15 @@
 import { Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
-import { findActiveTemplateItems, findTemplatePaymentPlan, findTemplateProcedures } from '../infrastructure/queries.ts';
+import {
+  findActiveProcedureTemplate,
+  findActiveTemplateItems,
+  findTemplatePaymentPlan,
+  findTemplateProcedures,
+} from '../infrastructure/queries.ts';
 import { catalogTables } from '../infrastructure/tables.ts';
 import type {
+  ProcedureTemplateForCopy,
   TemplateDirectory,
   TemplateForCopy,
   TemplatePaymentMilestoneForCopy,
@@ -19,6 +25,10 @@ export class TemplateDirectoryService implements TemplateDirectory {
 
   async findProceduresForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplateProcedureForCopy[]> {
     return findTemplateProcedures(catalogTables(tx), templateId);
+  }
+
+  async findActiveProcedureForCopy(tx: Kysely<Database>, code: string): Promise<ProcedureTemplateForCopy | undefined> {
+    return findActiveProcedureTemplate(catalogTables(tx), code);
   }
 
   async findPaymentPlanForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplatePaymentMilestoneForCopy[]> {

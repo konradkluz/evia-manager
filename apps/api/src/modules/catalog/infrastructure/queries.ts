@@ -6,7 +6,12 @@
  */
 import { MAX_LIST_ITEMS } from '../domain/vocabularies.ts';
 import type { CatalogItemForScope } from '../catalog-item-directory.ts';
-import type { TemplateForCopy, TemplatePaymentMilestoneForCopy, TemplateProcedureForCopy } from '../template-directory.ts';
+import type {
+  ProcedureTemplateForCopy,
+  TemplateForCopy,
+  TemplatePaymentMilestoneForCopy,
+  TemplateProcedureForCopy,
+} from '../template-directory.ts';
 import type { CatalogDb } from './tables.ts';
 
 export interface DocumentKindRow {
@@ -368,6 +373,31 @@ export async function findTemplateProcedures(db: CatalogDb, templateId: string):
       outputDocumentKindCodes: stage.outputDocumentKindCodes,
     })),
   }));
+}
+
+/**
+ * The ACTIVE, not deleted process template by its stable code with its stages in order (EVM-042 AC1: a process added to an order by
+ * hand) — the shape of {@link findTemplateProcedures}, so the planner copies it the same way. `undefined` for a template that is
+ * missing, retired or deleted (one answer).
+ */
+export async function findActiveProcedureTemplate(db: CatalogDb, code: string): Promise<ProcedureTemplateForCopy | undefined> {
+  const procedure = await db
+    .selectFrom('catalog.procedure_templates')
+    .select(['id', 'code', 'name'])
+    .where('code', '=', code)
+    .where('deleted_at', 'is', null)
+    .where('is_active', '=', true)
+    .executeTakeFirst();
+  if (procedure === undefined) return undefined;
+  const stages = await db
+    .selectFrom('catalog.procedure_stage_templates')
+    .select(['id as sourceStageTemplateId', 'code', 'name', 'position', 'output_document_kind_codes as outputDocumentKindCodes'])
+    .where('procedure_template_id', '=', procedure.id)
+    .where('deleted_at', 'is', null)
+    .orderBy('position')
+    .limit(MAX_LIST_ITEMS)
+    .execute();
+  return { sourceProcedureTemplateId: procedure.id, code: procedure.code, name: procedure.name, stages };
 }
 
 /**

@@ -98,7 +98,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-042 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = [
       'getWorkOrderTemplate',
@@ -127,10 +127,19 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'createTimelineEntry',
       'createPaymentMilestone',
       'updatePaymentMilestone',
+      // EVM-042: the processes and stages added and deleted by hand
+      'createWorkOrderProcedure',
+      'createProcedureStage',
+      'deleteWorkOrderProcedure',
+      'deleteProcedureStage',
     ];
-    const rolesOf = (operationId: string): string[] =>
-      writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
-    const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers];
+    // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone
+    const administratorOnly = ['restoreWorkOrderProcedure', 'restoreProcedureStage', 'listDeletedWorkOrderProcedures'];
+    const rolesOf = (operationId: string): string[] => {
+      if (administratorOnly.includes(operationId)) return ['administrator'];
+      return writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
+    };
+    const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers, ...administratorOnly];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(all));
     for (const operationId of all) {
       expect(

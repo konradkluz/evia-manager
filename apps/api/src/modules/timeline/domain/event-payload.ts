@@ -28,6 +28,12 @@ export const JOURNAL_EVENT_CODES = [
   'scope_item_added',
   'scope_item_updated',
   'scope_item_removed',
+  'procedure_added',
+  'procedure_removed',
+  'procedure_restored',
+  'stage_added',
+  'stage_removed',
+  'stage_restored',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
@@ -44,6 +50,7 @@ export const JOURNAL_SCOPE_ITEM_FIELDS = ['parameters', 'notes'] as const satisf
 
 const workOrderObject = { objectType: z.literal('work_order'), objectId: z.uuid() };
 const stageObject = { objectType: z.literal('procedure_stage'), objectId: z.uuid() };
+const procedureObject = { objectType: z.literal('procedure'), objectId: z.uuid() };
 const scopeItemObject = { objectType: z.literal('scope_item'), objectId: z.uuid() };
 
 /** A stable code of the catalogue (`snake_case`) — the item and the processes are named by it, never by a name. */
@@ -75,6 +82,13 @@ const SHAPES = {
     changedFields: z.array(z.enum(JOURNAL_SCOPE_ITEM_FIELDS)).min(1).max(JOURNAL_SCOPE_ITEM_FIELDS.length),
   },
   scope_item_removed: { ...scopeItemObject, itemCode: catalogCode },
+  // EVM-042: the code of the process (of the stage's process for a stage) — never the name of a stage
+  procedure_added: { ...procedureObject, procedureCode: catalogCode },
+  procedure_removed: { ...procedureObject, procedureCode: catalogCode },
+  procedure_restored: { ...procedureObject, procedureCode: catalogCode },
+  stage_added: { ...stageObject, procedureCode: catalogCode },
+  stage_removed: { ...stageObject, procedureCode: catalogCode },
+  stage_restored: { ...stageObject, procedureCode: catalogCode },
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -87,6 +101,12 @@ const STRICT = {
   scope_item_added: z.strictObject(SHAPES.scope_item_added),
   scope_item_updated: z.strictObject(SHAPES.scope_item_updated),
   scope_item_removed: z.strictObject(SHAPES.scope_item_removed),
+  procedure_added: z.strictObject(SHAPES.procedure_added),
+  procedure_removed: z.strictObject(SHAPES.procedure_removed),
+  procedure_restored: z.strictObject(SHAPES.procedure_restored),
+  stage_added: z.strictObject(SHAPES.stage_added),
+  stage_removed: z.strictObject(SHAPES.stage_removed),
+  stage_restored: z.strictObject(SHAPES.stage_restored),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
@@ -197,8 +217,37 @@ function candidateOf(event: JournalSourceEvent): Candidate {
         workOrderId: event.workOrderId,
         procedureStageId: event.objectId,
       };
+    case 'procedure.added':
+    case 'procedure.removed':
+    case 'procedure.reinstated':
+      return {
+        code: PROCEDURE_CODES[event.type],
+        payload: { objectType: 'procedure', objectId: event.objectId, procedureCode: event.procedureCode },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'procedure_stage.added':
+    case 'procedure_stage.removed':
+    case 'procedure_stage.reinstated':
+      return {
+        code: STAGE_CODES[event.type],
+        payload: { objectType: 'procedure_stage', objectId: event.objectId, procedureCode: event.procedureCode },
+        workOrderId: event.workOrderId,
+        procedureStageId: event.objectId,
+      };
   }
 }
+
+const PROCEDURE_CODES = {
+  'procedure.added': 'procedure_added',
+  'procedure.removed': 'procedure_removed',
+  'procedure.reinstated': 'procedure_restored',
+} as const;
+const STAGE_CODES = {
+  'procedure_stage.added': 'stage_added',
+  'procedure_stage.removed': 'stage_removed',
+  'procedure_stage.reinstated': 'stage_restored',
+} as const;
 
 /**
  * The entry for a domain event. The payload is validated with the STRICT schema of its code and the PARSED object is what is
@@ -214,7 +263,7 @@ export function toJournalEvent(event: JournalSourceEvent): JournalEventRecord {
 /** What an answer needs from a stored event; every field but `code` may be `null`. */
 export interface JournalEventView {
   readonly code: string;
-  readonly objectType: 'work_order' | 'procedure_stage' | 'scope_item' | null;
+  readonly objectType: 'work_order' | 'procedure' | 'procedure_stage' | 'scope_item' | null;
   readonly fromStatus: string | null;
   readonly toStatus: string | null;
   readonly waitingOn: 'customer' | 'party' | null;
@@ -222,7 +271,7 @@ export interface JournalEventView {
   readonly changedFields: readonly string[];
   /** The stable code of the item of the catalogue (the events of the scope), else `null`. */
   readonly itemCode: string | null;
-  /** The codes of the processes added with an item (`scope_item_added`), else `null`. */
+  /** The codes of the processes added with an item (`scope_item_added`), or the code of the process an event of EVM-042 is about, else `null`. */
   readonly procedureCodes: readonly string[] | null;
 }
 
@@ -241,7 +290,7 @@ const EMPTY = {
 
 const objectTypeOf = (payload: unknown): JournalEventView['objectType'] => {
   const type = typeof payload === 'object' && payload !== null ? (payload as { objectType?: unknown }).objectType : undefined;
-  return type === 'work_order' || type === 'procedure_stage' || type === 'scope_item' ? type : null;
+  return type === 'work_order' || type === 'procedure' || type === 'procedure_stage' || type === 'scope_item' ? type : null;
 };
 
 const isKnown = (code: string): code is JournalEventCode => (JOURNAL_EVENT_CODES as readonly string[]).includes(code);
@@ -265,6 +314,12 @@ export function readJournalEvent(code: string, payload: unknown): JournalEventVi
     waitingOnPartyId: (data['waitingOnPartyId'] ?? null) as string | null,
     changedFields: (data['changedFields'] ?? []) as string[],
     itemCode: (data['itemCode'] ?? null) as string | null,
-    procedureCodes: (data['procedureCodes'] ?? null) as string[] | null,
+    procedureCodes: procedureCodesOf(data),
   };
+}
+
+/** The codes of the processes of an event: the list of an addition to the scope, or the one code of an event of a process or a stage. */
+function procedureCodesOf(data: Record<string, unknown>): string[] | null {
+  if (data['procedureCodes'] !== undefined) return data['procedureCodes'] as string[];
+  return typeof data['procedureCode'] === 'string' ? [data['procedureCode']] : null;
 }

@@ -16,7 +16,7 @@ const waitingSince = sql<string | null>`to_char(waiting_since, 'YYYY-MM-DD')`.as
 const completedOn = sql<string | null>`to_char(completed_on, 'YYYY-MM-DD')`.as('completed_on');
 
 /** The columns of a stage that the answers carry (named, never `select *`: a column outside the contract cannot leak, SR-DATA-03). */
-const stageColumns = [
+export const stageColumns = [
   'id',
   'procedure_id',
   'code',
@@ -35,7 +35,7 @@ const stageColumns = [
 ] as const;
 
 /** The stage belongs to a process that is not deleted (a stage of a deleted process is as gone as the process). */
-const inActiveProcess = (eb: ExpressionBuilder<ProcedureTables, 'procedures.procedure_stages'>) =>
+export const inActiveProcess = (eb: ExpressionBuilder<ProcedureTables, 'procedures.procedure_stages'>) =>
   eb.exists(
     eb
       .selectFrom('procedures.procedures as owner')
@@ -115,7 +115,7 @@ export async function insertStages(
 export function listProcedures(db: ProceduresDb, workOrderId: string) {
   return db
     .selectFrom('procedures.procedures')
-    .select(['id', 'code', 'name', 'position', 'source_scope_item_id'])
+    .select(['id', 'code', 'name', 'position', 'source_scope_item_id', 'version'])
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
     .orderBy('position')
@@ -189,16 +189,23 @@ export function findStage(db: ProceduresDb, workOrderId: string, stageId: string
 /**
  * The identifier of an ACTIVE stage of THIS order, or `undefined` (`id` AND `work_order_id` in one condition: a stage of another
  * order is as missing as one that does not exist; a deleted stage and a stage of a deleted process are missing too). With `lock` the
- * row is read `FOR SHARE` — the facade of `procedures` for the journal (EVM-037) holds it until the transaction of the entry ends.
+ * rows are read `FOR SHARE` — the stage AND its process, so the facade of `procedures` for the journal (EVM-037) holds both until the
+ * transaction of the entry ends and the process cannot be deleted between the check and the write (EVM-042: the delete of a
+ * process updates the row of the process, which waits for this lock; the entry that waits for the delete finds the process gone).
  */
 export function findActiveStageId(db: ProceduresDb, workOrderId: string, stageId: string, lock: boolean) {
   const query = db
     .selectFrom('procedures.procedure_stages')
-    .select('id')
-    .where('id', '=', stageId)
-    .where('work_order_id', '=', workOrderId)
-    .where('deleted_at', 'is', null)
-    .where(inActiveProcess);
+    .innerJoin('procedures.procedures as owner', (join) =>
+      join
+        .onRef('owner.id', '=', 'procedures.procedure_stages.procedure_id')
+        .onRef('owner.work_order_id', '=', 'procedures.procedure_stages.work_order_id'),
+    )
+    .select('procedures.procedure_stages.id')
+    .where('procedures.procedure_stages.id', '=', stageId)
+    .where('procedures.procedure_stages.work_order_id', '=', workOrderId)
+    .where('procedures.procedure_stages.deleted_at', 'is', null)
+    .where('owner.deleted_at', 'is', null);
   return (lock ? query.forShare() : query).executeTakeFirst();
 }
 

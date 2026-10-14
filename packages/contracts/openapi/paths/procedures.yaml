@@ -44,7 +44,7 @@ workOrderProcedures:
     description: >-
       Ręczne dodanie procesu z szablonu do zlecenia (EVM-042 AC1, AC4–AC6; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01,
       SR-INPUT-02, SR-API-02, SR-API-05, SR-API-06, SR-LOG-03; W-06 (d)). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`
-      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem
+      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, z audytem
       (`procedure.created` — aktor, identyfikator procesu, wynik i `traceId`; bez nazw). Wymaga `X-CSRF-Token`. Jedna transakcja na
       zablokowanym wierszu zlecenia (`SELECT … FOR UPDATE`): zlecenie (`404` — przed treścią), treść `CreateProcedureRequest` (`400`:
       schemat; pole serwera — `read_only_field`), powtórka idempotentna, zlecenie zamknięte (`409 work_order_closed`), szablon procesu
@@ -214,7 +214,7 @@ procedureStage:
       znika dla Administratora, Edytora i Tylko odczyt, pozostałe etapy procesu są renumerowane (`position` 1…n) w tej samej
       transakcji, wersja procesu rośnie (skład procesu), a Administrator może etap przywrócić (`restoreProcedureStage`). Zalecenie
       „Nie dotyczy” (przejście etapu, zachowuje historię) to decyzja użytkownika w panelu. Role Administrator i Edytor (Tylko odczyt —
-      `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`),
+      `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)),
       kanał `web`, z audytem (`procedure_stage.deleted` — osobna akcja, aktor, identyfikator etapu, wynik i `traceId`; bez nazwy) i
       zdarzeniem dziennika (`stage_removed`: identyfikator etapu i kod procesu, bez nazwy). Wymaga `X-CSRF-Token` i `If-Match` (silny
       ETag `"<version>"` etapu): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412` (bez bieżących wartości). Etap jest
@@ -394,7 +394,7 @@ procedure:
       Soft delete samego procesu: etapy zostają w bazie bez zmian i znikają razem z procesem (przywrócenie procesu oddaje je w stanie
       sprzed usunięcia), pozostałe procesy są renumerowane (`position` 1…n) w tej samej transakcji. Role Administrator i Edytor (Tylko
       odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403
-      channel_not_allowed`), kanał `web`, z audytem (`procedure.deleted` — osobna akcja, aktor, identyfikator procesu, wynik i
+      forbidden` (kanał niedozwolony)), kanał `web`, z audytem (`procedure.deleted` — osobna akcja, aktor, identyfikator procesu, wynik i
       `traceId`) i zdarzeniem dziennika (`procedure_removed`: kod procesu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
       `"<version>"` procesu, pole `Procedure.version`): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412` (bez bieżących
       wartości). Proces jest wyszukiwany warunkiem `id AND work_order_id` w zapytaniu: proces innego zlecenia, nieistniejący i już
@@ -446,7 +446,7 @@ procedureStages:
     description: >-
       Ręczne dodanie etapu do procesu zlecenia (EVM-042 AC2, AC4–AC6; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02,
       SR-INPUT-05, SR-API-02, SR-API-05, SR-API-06, SR-LOG-03; W-06 (d)). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`
-      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem
+      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, z audytem
       (`procedure_stage.created` — aktor, identyfikator etapu, wynik i `traceId`; bez nazwy etapu). Wymaga `X-CSRF-Token`. Jedna
       transakcja na zablokowanym wierszu zlecenia: zlecenie (`404`), proces wyszukiwany warunkiem `id AND work_order_id AND deleted_at
       is null` (proces innego zlecenia, nieistniejący i usunięty — jedna odpowiedź `404`, przed treścią), treść `CreateProcedureStageRequest`
@@ -518,7 +518,7 @@ procedureRestore:
     description: >-
       Przywrócenie usuniętego procesu razem z jego etapami (EVM-042 AC3, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07,
       SR-LOG-03). Tylko Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia;
-      niezalogowany — `401`; token mobilny — `403 channel_not_allowed`); bez uwierzytelnienia kluczem dostępu (step-up dotyczy
+      niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)); bez uwierzytelnienia kluczem dostępu (step-up dotyczy
       przywracania zleceń, nie procesów). Kanał `web`, z audytem (`procedure.restored` — osobna akcja) i zdarzeniem dziennika
       (`procedure_restored`: kod procesu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` usuniętego procesu, z
       `listDeletedWorkOrderProcedures`): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Proces jest wyszukiwany
@@ -582,7 +582,7 @@ procedureStageRestore:
     description: >-
       Przywrócenie usuniętego etapu (EVM-042 AC3, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Tylko
       Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token
-      mobilny — `403 channel_not_allowed`), bez step-upu. Kanał `web`, z audytem (`procedure_stage.restored`) i zdarzeniem dziennika
+      mobilny — `403 forbidden` (kanał niedozwolony)), bez step-upu. Kanał `web`, z audytem (`procedure_stage.restored`) i zdarzeniem dziennika
       (`stage_restored`: identyfikatory i kod procesu, bez nazwy). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`
       usuniętego etapu): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Etap jest wyszukiwany warunkiem `id AND
       work_order_id AND deleted_at is not null`: etap innego zlecenia, nieistniejący i nieusunięty to jedna odpowiedź `404`; `404`
@@ -644,7 +644,7 @@ deletedProcedures:
     description: >-
       Sekcja „Usunięte procesy i etapy (n)” W-06 (d) (EVM-042 AC3, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, SR-API-02). Tylko
       Administrator (Edytor i Tylko odczyt — `403 forbidden` przed sprawdzeniem istnienia zlecenia; niezalogowany — `401`; token
-      mobilny — `403 channel_not_allowed`), kanał `web`, bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, polityką odczytu
+      mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, polityką odczytu
       w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Odpowiedź zawiera tylko
       to, czego potrzebuje wiersz z „Przywróć” (identyfikator, kod, nazwa, miejsce, liczba etapów, `procedureDeleted`, `version`,
       `deletedAt`) — bez osób odpowiedzialnych, terminów, notatek, „czekamy na” i powodów blokady. Lista jest ograniczona: co najwyżej

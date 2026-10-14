@@ -330,25 +330,28 @@ TransitionProcedureStageRequest:
 CreateProcedureRequest:
   type: object
   description: >-
-    Dodanie procesu do zlecenia z szablonu (EVM-042 AC1): `id` (UUIDv7) nadaje klient, `procedureTemplateId` wskazuje aktywny szablon
+    Dodanie procesu do zlecenia z szablonu (EVM-042 AC1): `id` (UUIDv7) nadaje klient, `procedureTemplateCode` wskazuje aktywny szablon
     procesu (wycofany albo nieistniejący — `422 template_unavailable`, jednakowa odpowiedź), `position` to miejsce na liście procesów
     (1–30; brak = na końcu; wartość większa niż liczba procesów + 1 jest przycinana do końca, więc wyścig z panelu nie daje `400`).
     Kod i nazwę procesu oraz etapy (wszystkie „Do zrobienia”) serwer kopiuje z szablonu; klient ich nie podaje — pole serwera
     (`code`, `name`, `stages`, `progress`, `version`, `sourceScopeItemId`, `currentStageId`) to `400 read_only_field`, inne — `400
     unknown_field`.
-  required: [id, procedureTemplateId]
+  required: [id, procedureTemplateCode]
   additionalProperties: false
   properties:
     id:
       type: string
       description: Identyfikator nowego procesu (UUIDv7 nadany przez klienta). Istniejący — `409 id_conflict`.
       format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       maxLength: 36
-    procedureTemplateId:
+    procedureTemplateCode:
       type: string
-      description: Identyfikator szablonu procesu (z `GET /api/v1/catalog/procedure-templates`).
-      format: uuid
-      maxLength: 36
+      description: >-
+        Stały kod szablonu procesu (pole `code` z `GET /api/v1/catalog/procedure-templates`; katalog nie ujawnia identyfikatorów
+        szablonów, a kod jest unikalny — tak samo pozycje katalogu wskazuje się kodem w EVM-035).
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+      maxLength: 64
     position:
       type: integer
       description: Miejsce na liście procesów zlecenia (1–30); brak = na końcu.
@@ -371,6 +374,7 @@ CreateProcedureStageRequest:
       type: string
       description: Identyfikator nowego etapu (UUIDv7 nadany przez klienta). Istniejący — `409 id_conflict`.
       format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       maxLength: 36
     name:
       type: string

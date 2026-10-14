@@ -10,7 +10,7 @@ import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../../customers/index.
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../identity/index.ts';
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../../parties/index.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../payments/index.ts';
-import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../procedures/index.ts';
+import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent } from '../../procedures/index.ts';
 import { SITE_EVENT_TYPES, type SiteEvent } from '../../sites/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../timeline/index.ts';
 import { WORK_ORDER_EVENT_TYPES, type WorkOrderEvent } from '../../work-orders/index.ts';
@@ -49,6 +49,7 @@ export const AUDIT_OBJECT_TYPES = [
   'customer',
   'site',
   'party',
+  'procedure',
   'procedure_stage',
   'timeline_entry',
   'payment_milestone',
@@ -96,7 +97,7 @@ export function toAuditRecord(
     | SiteEvent
     | PartyEvent
     | WorkOrderEvent
-    | ProcedureStageEvent
+    | ProcedureAuditEvent
     | TimelineEntryEvent
     | PaymentMilestoneEvent,
   context: EventContext,

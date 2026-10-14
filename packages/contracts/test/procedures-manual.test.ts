@@ -55,12 +55,13 @@ describe('manual processes and stages in the contract (EVM-042; SR-AUTHZ-01, SR-
   });
 
   it('EVM-042 AC1 the request to add a process names the id and the template only; the place is 1..30 and the fields of the server are not part of it', () => {
-    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateId: OTHER }).success).toBe(true);
-    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateId: OTHER, position: 30 }).success).toBe(true);
-    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateId: OTHER, position: 0 }).success).toBe(false);
-    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateId: OTHER, position: 31 }).success).toBe(false);
+    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateCode: 'fire_opinion' }).success).toBe(true);
+    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateCode: 'fire_opinion', position: 30 }).success).toBe(true);
+    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateCode: 'fire_opinion', position: 0 }).success).toBe(false);
+    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateCode: 'fire_opinion', position: 31 }).success).toBe(false);
     expect(zCreateProcedureRequest.safeParse({ id: V7 }).success).toBe(false);
-    expect(zCreateProcedureRequest.safeParse({ procedureTemplateId: OTHER }).success).toBe(false);
+    expect(zCreateProcedureRequest.safeParse({ id: V7, procedureTemplateCode: 'Fire Opinion' }).success).toBe(false);
+    expect(zCreateProcedureRequest.safeParse({ procedureTemplateCode: 'fire_opinion' }).success).toBe(false);
     for (const field of ['code', 'name', 'stages', 'progress', 'version', 'sourceScopeItemId', 'currentStageId']) {
       expect(Object.keys(zCreateProcedureRequest.shape), field).not.toContain(field);
     }

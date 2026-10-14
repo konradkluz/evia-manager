@@ -10,15 +10,46 @@ import type { DomainEvent } from '../../platform/events/event-bus.ts';
 import type { StageStatus } from './domain/stage-rules.ts';
 import type { WaitingOn } from './domain/waiting.ts';
 
-export const PROCEDURE_EVENT_TYPES = ['procedure_stage.updated', 'procedure_stage.transitioned'] as const;
+/**
+ * The audited actions of the module. EVM-042 adds six: the creation, the deletion and the restoration of a process and of a stage —
+ * the removal and the return of a record are always told apart in the trail (TM-21). The object is the process or the stage; the
+ * event carries its identifier only, never the NAME of a stage (free text typed by the user, it may name a person).
+ */
+export const PROCEDURE_EVENT_TYPES = [
+  'procedure_stage.updated',
+  'procedure_stage.transitioned',
+  'procedure.created',
+  'procedure.deleted',
+  'procedure.restored',
+  'procedure_stage.created',
+  'procedure_stage.deleted',
+  'procedure_stage.restored',
+] as const;
 
 export interface ProcedureStageEvent extends DomainEvent {
-  readonly type: (typeof PROCEDURE_EVENT_TYPES)[number];
+  readonly type:
+    | 'procedure_stage.updated'
+    | 'procedure_stage.transitioned'
+    | 'procedure_stage.created'
+    | 'procedure_stage.deleted'
+    | 'procedure_stage.restored';
   readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly outcome: 'success';
   readonly objectType: 'procedure_stage';
   readonly objectId: string;
 }
+
+/** The audited actions on a PROCESS (EVM-042): the object is the process. */
+export interface ProcedureEvent extends DomainEvent {
+  readonly type: 'procedure.created' | 'procedure.deleted' | 'procedure.restored';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'success';
+  readonly objectType: 'procedure';
+  readonly objectId: string;
+}
+
+/** Everything `audit` writes for this module. */
+export type ProcedureAuditEvent = ProcedureStageEvent | ProcedureEvent;
 
 /**
  * The changes of a stage for the JOURNAL (EVM-038), published inside the transaction of the change. They are NOT in
@@ -31,10 +62,16 @@ export const PROCEDURE_JOURNAL_EVENT_TYPES = [
   'procedure_stage.status_changed',
   'procedure_stage.waiting_on_changed',
   'procedure_stage.fields_changed',
+  'procedure.added',
+  'procedure.removed',
+  'procedure.reinstated',
+  'procedure_stage.added',
+  'procedure_stage.removed',
+  'procedure_stage.reinstated',
 ] as const;
 
 interface StageJournalEvent extends DomainEvent {
-  readonly type: (typeof PROCEDURE_JOURNAL_EVENT_TYPES)[number];
+  readonly type: 'procedure_stage.status_changed' | 'procedure_stage.waiting_on_changed' | 'procedure_stage.fields_changed';
   readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly outcome: 'success';
   readonly objectType: 'procedure_stage';
@@ -64,4 +101,29 @@ export interface StageFieldsChangedEvent extends StageJournalEvent {
   readonly changedFields: readonly ('responsibleUserId' | 'dueDate')[];
 }
 
-export type StageJournalChangeEvent = StageStatusChangedEvent | StageWaitingOnChangedEvent | StageFieldsChangedEvent;
+/**
+ * A process or a stage added, removed or restored by hand (EVM-042 AC5). The journal gets the object, the order and the stable CODE
+ * of the process (the process itself, or the process of the stage) — never the name of a stage: it is read from the current data
+ * when the journal is shown (SR-LOG-03, SR-DATA-01; RODO art. 17).
+ */
+export interface ProcedureMembershipEvent extends DomainEvent {
+  readonly type:
+    | 'procedure.added'
+    | 'procedure.removed'
+    | 'procedure.reinstated'
+    | 'procedure_stage.added'
+    | 'procedure_stage.removed'
+    | 'procedure_stage.reinstated';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'success';
+  readonly objectType: 'procedure' | 'procedure_stage';
+  /** The process or the stage. */
+  readonly objectId: string;
+  /** The order the object belongs to. */
+  readonly workOrderId: string;
+  /** The stable code of the process (of the stage's process for a stage). */
+  readonly procedureCode: string;
+}
+
+export type StageJournalChangeEvent =
+  StageStatusChangedEvent | StageWaitingOnChangedEvent | StageFieldsChangedEvent | ProcedureMembershipEvent;

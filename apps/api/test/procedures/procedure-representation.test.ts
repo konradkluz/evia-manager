@@ -41,6 +41,7 @@ const procedure = (id: string, position: number, sourceScopeItemId: string | nul
   name: `Proces ${id}`,
   position,
   source_scope_item_id: sourceScopeItemId,
+  version: 4,
 });
 
 describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () => {
