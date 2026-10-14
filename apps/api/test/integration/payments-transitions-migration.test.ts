@@ -28,7 +28,11 @@ beforeAll(async () => {
   await insertMilestone(evm053Order, 3, { status: 'cancelled' });
   await insertMilestone(evm053Order, 4, { status: 'cancelled', amountMinor: 5 });
   await insertEvent('payment_milestone.cancelled', {});
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0028_payment_milestone_transitions', '0029_audit_status_codes']);
+  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual([
+    '0028_payment_milestone_transitions',
+    '0029_audit_status_codes',
+    '0030_payment_unpaid_index',
+  ]);
 });
 afterAll(async () => {
   await db.destroy();
