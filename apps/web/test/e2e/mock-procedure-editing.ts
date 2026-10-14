@@ -69,9 +69,25 @@ function baseList(server: OrderServer, orderId: string): { items: ProcedureBody[
   return answer.status === 200 ? (JSON.parse(answer.body) as { items: ProcedureBody[] }) : undefined;
 }
 
+/** What the base list holds and the model does not know yet (a process that came with an item of the scope, EVM-035) is appended. */
+function syncBase(server: OrderServer, model: OrderModel, orderId: string): void {
+  for (const item of baseList(server, orderId)?.items ?? []) {
+    if (model.procedures.includes(item.id) || model.removedProcedures.has(item.id)) continue;
+    model.procedures.push(item.id);
+    model.stages.set(
+      item.id,
+      item.stages.map((stage) => stage.id),
+    );
+    for (const stage of item.stages) model.parentOf.set(stage.id, item.id);
+  }
+}
+
 function modelOf(server: OrderServer, state: EditingState, orderId: string): OrderModel | undefined {
   const existing = state.get(orderId);
-  if (existing !== undefined) return existing;
+  if (existing !== undefined) {
+    syncBase(server, existing, orderId);
+    return existing;
+  }
   const base = baseList(server, orderId);
   if (base === undefined) return undefined;
   const model: OrderModel = {
