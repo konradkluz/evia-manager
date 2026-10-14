@@ -22,6 +22,8 @@ export const WORK_ORDER_JOURNAL_KEY = 'work-order-journal' as const;
 /** The site and the party read for the dialogs "Edytuj lokalizację" and "Edytuj stronę" (EVM-036); gone when the dialog closes. */
 export const SITE_KEY = 'site' as const;
 export const PARTY_KEY = 'party' as const;
+/** The locations of the earlier orders of the chosen customer (EVM-043): `[key, customerId]`; addresses are personal data — memory of the tab only. */
+export const SITE_SUGGESTIONS_KEY = 'site-suggestions' as const;
 
 /** All keys of one order: a `404` removes them together (TM-10 — nothing of a gone order stays in the memory of the tab). */
 export const WORK_ORDER_KEYS = [

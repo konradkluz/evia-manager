@@ -387,7 +387,7 @@ function NewWorkOrderForm({ userId, userName }: { readonly userId: string; reado
           </fieldset>
           <fieldset ref={section('site')} className="flex flex-col gap-stack-md">
             <legend className="mb-stack-sm text-heading-4 text-text-primary">{t('sites.section')}</legend>
-            <LocationSection value={location} onChange={changeLocation} />
+            <LocationSection customerId={customer?.id ?? null} value={location} onChange={changeLocation} />
             {errors.site === undefined ? null : <FieldError>{errors.site}</FieldError>}
           </fieldset>
           <section aria-labelledby="work-order-template" className="flex flex-col gap-stack-md">

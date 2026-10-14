@@ -218,7 +218,9 @@ function customerOf(server: OrderServer, id: string) {
 
 function siteBodyOf(server: OrderServer, id: string) {
   const site = server.sites.find((entry) => entry.id === id);
-  return site === undefined ? null : { id: site.id, city: site.city, street: site.street, buildingNumber: site.buildingNumber };
+  return site === undefined
+    ? null
+    : { id: site.id, siteType: site.siteType, city: site.city, street: site.street, buildingNumber: site.buildingNumber };
 }
 
 /** The orders created in this run, newest first; with `customerId` only the orders of that customer (EVM-039 "Historia zleceń"). */
