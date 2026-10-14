@@ -49,6 +49,7 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - Obszar ryzyka: bezpieczeństwo (nadużycia, SR-API-02, TM-22). Wartość 300/min to ADR-0004; zmiana wartości wymaga zmiany ADR.
 - Decyzja D5 (2026-10-13, Konrad — przekazana przez orkiestratora): limit obejmuje wszystkie żądania z sesją, także odczyty (zgodnie z ADR-0004; inaczej odczyty, ścieżka masowego pobierania, zostałyby bez limitu na użytkownika).
 - Mobile/synchronizacja (M2): partia ≤ 50 mutacji liczy się jako jedno żądanie; wartość 300/min trzeba ponownie ocenić przy EVM synchronizacji.
+- Decyzja 2026-10-14 (Konrad): akceptacja niskiego ryzyka rezydualnego — `logout` zostaje objęty limitem na użytkownika (przejęta sesja może wyczerpać wspólny limit konta i na ≤ 60 s uniemożliwić wylogowanie ofierze; pomaga unieważnienie sesji przez Administratora). AC2 bez zmian; rekomendowane przez security-engineera zwolnienie `logout` flagą polityki odrzucone.
 
 ## Dziennik
 - 2026-10-08 — utworzono (propozycja z przeglądu EVM-022)
@@ -56,3 +57,4 @@ Jako **właściciel systemu** chcę **limitu 300 żądań/min na zalogowanego u�
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
 - 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka pełna, model sonnet, gałąź `feature/EVM-082-limit-na-uzytkownika` ułożona na EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — implementacja (backend-developer): limit 300/min na użytkownika w `decideAccess` (klucz — userId, `consumeSubject`, kubełek `user`), `429` w kontrakcie `listAssignableUsers` + generyczny test kontraktu, testy `EVM-082 AC1–AC4`, dokumentacja (api-guidelines, TM-22, SR-API-02, CHANGELOG)
+- 2026-10-14 — decyzja Konrada: akceptacja ryzyka — `logout` objęty limitem na użytkownika (AC2 bez zmian)
