@@ -93,3 +93,4 @@ _—_
 - 2026-10-14 — ready → in-progress: start /deliver w kolejce (ścieżka pełna — dopisana przy starcie, 3 recenzentów wyklucza lekką; gałąź feature/EVM-042-reczne-procesy-etapy ułożona na EVM-043 → EVM-082 → EVM-079 → EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — backend gotowy (backend-developer): 7 operacji, audyt i dziennik, testy `EVM-042 AC1–AC7` w kontenerze; panel (W-06 (d)) czeka na web-developera
+- 2026-10-15 — panel gotowy (web-developer): W-06 (d) — „Dodaj proces…”, „Dodaj etap…”, „Usuń proces/etap…” z zaleceniem „Nie dotyczy”, „Usunięte procesy i etapy” z „Przywróć” (A), stany offline/412/409/422; testy komponentów, E2E (Chromium, Firefox, Edge), axe, zrzuty w `docs/ux/reviews/EVM-042/`

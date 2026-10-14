@@ -11,7 +11,16 @@ import {
 } from './mock-work-orders.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import { answerPaymentCreate, answerPaymentPatch, answerPayments, paymentsCondition, paymentsEffect } from './mock-payments.ts';
-import { answerProcedures, answerStagePatch, answerStageTransition } from './mock-procedures.ts';
+import {
+  answerCreateProcedure,
+  answerCreateStage,
+  answerDeleted,
+  answerDelete,
+  answerEditedProcedures,
+  answerRestore,
+  type EditingState,
+} from './mock-procedure-editing.ts';
+import { answerStagePatch, answerStageTransition } from './mock-procedures.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -88,6 +97,8 @@ export interface MockApi {
   parties: MockParty[];
   /** EVM-022: the catalogue of templates, the users who can be a coordinator and the orders created so far (W-05, W-10). */
   orders: OrderServer;
+  /** EVM-042: the structure of the processes of the orders after a process or a stage was added, removed or restored by hand. */
+  procedureEdits: EditingState;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -376,6 +387,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       goneSites: new Set(),
       goneParties: new Set(),
     },
+    procedureEdits: new Map(),
     journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
@@ -536,7 +548,38 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     const processes = request.method() === 'GET' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/procedures$/.exec(url.pathname) : null;
     if (processes !== null) {
       if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
-      return route.fulfill(answerProcedures(api.orders, processes[1] ?? ''));
+      return route.fulfill(answerEditedProcedures(api.orders, api.procedureEdits, processes[1] ?? ''));
+    }
+    // EVM-042: processes and stages added, removed and restored by hand, and the list of the deleted ones (Administrator only).
+    const editing =
+      /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/(procedures|procedure-stages|deleted-procedures)(?:\/([0-9a-f-]{36}))?(?:\/(stages|restore))?$/.exec(
+        url.pathname,
+      );
+    if (editing !== null && !(request.method() === 'GET' && editing[2] === 'procedures')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const [, orderId = '', area, id = '', action] = editing;
+      const input = { role: api.role, ifMatch: headers['if-match'], raw: request.postData() ?? '{}' };
+      const method = request.method();
+      if (method === 'GET' && area === 'deleted-procedures' && id === '') {
+        return route.fulfill(answerDeleted(api.orders, api.procedureEdits, orderId, api.role));
+      }
+      if (method !== 'GET' && !csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      if (method === 'POST' && area === 'procedures' && id === '' && action === undefined) {
+        return route.fulfill(answerCreateProcedure(api.orders, api.procedureEdits, orderId, input));
+      }
+      if (method === 'POST' && area === 'procedures' && action === 'stages') {
+        return route.fulfill(answerCreateStage(api.orders, api.procedureEdits, orderId, id, input));
+      }
+      if (method === 'DELETE' && action === undefined && (area === 'procedures' || area === 'procedure-stages')) {
+        return route.fulfill(
+          answerDelete(api.orders, api.procedureEdits, orderId, area === 'procedures' ? 'procedure' : 'stage', id, input),
+        );
+      }
+      if (method === 'POST' && action === 'restore') {
+        return route.fulfill(
+          answerRestore(api.orders, api.procedureEdits, orderId, area === 'procedures' ? 'procedure' : 'stage', id, input),
+        );
+      }
     }
     const stagePatch =
       request.method() === 'PATCH'
