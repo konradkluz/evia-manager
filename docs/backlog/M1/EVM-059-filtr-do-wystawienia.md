@@ -4,7 +4,7 @@ title: Filtr „Do wystawienia” w Płatnościach
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-progress
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -81,3 +81,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`, po EVM-058)
