@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { AUTHZ_MANIFEST } from '../src/authz.ts';
-import { zListWorkOrdersQuery, zWorkOrderList, zWorkOrderSearchRequest, zWorkOrderStatus } from '../src/zod.ts';
+import {
+  zListWorkOrdersQuery,
+  zPaymentMilestone,
+  zPaymentMilestoneWritable,
+  zWorkOrderList,
+  zWorkOrderSearchRequest,
+  zWorkOrderStatus,
+} from '../src/zod.ts';
 
 interface BundledParameter {
   readonly name: string;
@@ -85,6 +92,58 @@ describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPU
       expect(item?.required ?? [], name).not.toContain(name);
     }
     expect(item?.required).toEqual(['id', 'number', 'title', 'status', 'coordinator', 'createdAt']);
+  });
+
+  it('EVM-056 AC2 AC3 the sort "Najpilniejsze" (ascending only) and the views "Po terminie" and "Nieopłacone" are values of the enums of the list and of the search (additive)', () => {
+    expect(zListWorkOrdersQuery.safeParse({ sort: 'urgency' }).success).toBe(true);
+    expect(zListWorkOrdersQuery.safeParse({ sort: '-urgency' }).success).toBe(false);
+    for (const view of ['overdue_payments', 'unpaid']) {
+      expect(zListWorkOrdersQuery.safeParse({ view }).success, view).toBe(true);
+      expect(zWorkOrderSearchRequest.safeParse({ query: 'abc', view, sort: 'urgency' }).success, view).toBe(true);
+    }
+  });
+
+  it('EVM-056 AC1 the field `payment` is read-only and optional (hidden from a role without the payment policy); its state is an extensible enum and the totals are MoneyTotal', () => {
+    const schemas = bundled.components?.schemas ?? {};
+    const item = schemas['WorkOrderListItem'] as { required?: string[]; properties?: Record<string, Record<string, unknown>> } | undefined;
+    expect(item?.properties?.['payment']).toMatchObject({ readOnly: true });
+    expect(item?.required ?? []).not.toContain('payment');
+    const state = schemas['WorkOrderPaymentState'] as Record<string, unknown> | undefined;
+    expect(state?.['x-extensible-enum']).toEqual(['overdue', 'unpaid', 'paid', 'none']);
+    expect(state).not.toHaveProperty('enum');
+    const payment = {
+      state: 'overdue',
+      invoicedCount: 1,
+      invoicedTotal: { amountMinor: 360_000, currency: 'PLN' },
+      overdueTotal: { amountMinor: 360_000, currency: 'PLN' },
+    };
+    const listed = (value: unknown) =>
+      zWorkOrderList.safeParse({
+        items: [
+          {
+            id: '0190a2b4-0000-7000-8000-000000000001',
+            number: 'ZL-2026-0001',
+            title: 't',
+            status: 'new',
+            coordinator: null,
+            createdAt: '2026-10-08T08:00:00.000Z',
+            payment: value,
+          },
+        ],
+        nextCursor: null,
+      }).success;
+    expect(listed(payment)).toBe(true);
+    expect(listed({ ...payment, state: 'something_new' })).toBe(true); // an unknown state is no breaking change (P-12)
+    expect(listed({ ...payment, overdueTotal: { amountMinor: 1, currency: 'EUR' } })).toBe(false);
+    expect(listed({ ...payment, invoicedCount: -1 })).toBe(false);
+  });
+
+  it('EVM-056 AC4 a milestone carries the read-only `overdueDays` (≥ 1 or null) — optional, so an earlier answer stays valid', () => {
+    expect(Object.keys(zPaymentMilestone.shape)).toContain('overdueDays');
+    expect(Object.keys(zPaymentMilestoneWritable.shape)).not.toContain('overdueDays');
+    expect(zPaymentMilestone.shape.overdueDays.safeParse(0).success).toBe(false);
+    expect(zPaymentMilestone.shape.overdueDays.safeParse(null).success).toBe(true);
+    expect(zPaymentMilestone.shape.overdueDays.safeParse(undefined).success).toBe(true);
   });
 
   it('EVM-017 AC3 the cursor and the status list are bounded in the contract (length and pattern)', () => {

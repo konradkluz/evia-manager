@@ -7,6 +7,7 @@ import { BULK_READ_METER, CLOCK, METRICS } from '../../src/platform/tokens.ts';
 import { MINUTE } from '../support/clock.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createSession, createUser } from '../support/identity-fixtures.ts';
+import { insertMilestones } from '../support/payment-fixtures.ts';
 import { insertWorkOrders, numberOf } from '../support/work-order-fixtures.ts';
 
 const PATH = '/api/v1/work-orders';
@@ -88,6 +89,18 @@ describe('mass read (EVM-017 AC5; SR-API-02, SR-LOG-06, SR-LOG-07, P10, RR-13)',
     expect((await heavy.get('?limit=25')).status).toBe(200);
     expect((await heavy.get('?cursor=garbage')).status).toBe(400);
     expect((await heavy.get('?limit=25')).status).toBe(200);
+  });
+
+  it('EVM-056 AC6 T9 the payment views and "Najpilniejsze" are pages like any other: their records count, past the block it is 429', async () => {
+    const { rows } = await sql<{ id: string }>`select id from work_orders.work_orders order by number limit 30`.execute(app.database.admin);
+    for (const { id } of rows)
+      await insertMilestones(app.database.admin, id, [{ status: 'invoiced', dueDate: '2026-09-20', amountMinor: 1_000 }]);
+    const user = await newUser();
+    for (let index = 0; index < 3; index += 1) expect((await user.get('?view=unpaid&sort=urgency&limit=25')).status).toBe(200); // 75 ≥ 60
+    const blocked = await user.get('?view=overdue_payments&sort=urgency&limit=25');
+    expect(blocked.status).toBe(429);
+    expect(codeOf(blocked)).toBe('rate_limited');
+    app.clock.advance(10 * MINUTE);
   });
 
   it('EVM-017 AC5 an empty page counts nothing and an unauthenticated request never reaches the meter', async () => {

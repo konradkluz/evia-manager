@@ -225,6 +225,27 @@ describe('Dialog (styleguide § 3.13; EVM-020 AC2)', () => {
   });
 });
 
+describe('Dialog with a description (styleguide § 3.13; EVM-054)', () => {
+  it('EVM-054 AC1 a dialog with a summary is described by its element with the instalment and the effect (aria-describedby)', async () => {
+    const { container } = render(
+      <Dialog
+        open
+        size="sm"
+        title="Wystawić fakturę?"
+        closeLabel="Zamknij"
+        describedBy="summary"
+        onDismiss={vi.fn()}
+        actions={<Button>Wystaw fakturę</Button>}
+      >
+        <p id="summary">Cofnąć wystawienie może tylko administrator.</p>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Wystawić fakturę?' });
+    expect(dialog.getAttribute('aria-describedby')).toBe('summary');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+});
+
 describe('RadioGroup, TextArea, Disclosure (styleguide § 3.4, § 3.2, § 3.21; EVM-020 AC2)', () => {
   it('EVM-020 AC2 the radio group is a fieldset with a legend; arrows change the choice; an error is announced', async () => {
     function Group({ error }: { error?: string }) {

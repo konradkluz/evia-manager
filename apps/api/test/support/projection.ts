@@ -9,6 +9,7 @@ import { sql, type Kysely } from 'kysely';
 import { ProjectionMaintenance } from '../../src/modules/overview/application/projection-maintenance.ts';
 import { ProjectionRecomputer } from '../../src/modules/overview/application/projection-recomputer.ts';
 import { PartyProjectionSourceService } from '../../src/modules/parties/infrastructure/projection-source.ts';
+import { PaymentProjectionSourceService } from '../../src/modules/payments/infrastructure/projection-source.ts';
 import { ProcedureProjectionSourceService } from '../../src/modules/procedures/infrastructure/projection-source.ts';
 import { SiteProjectionSourceService } from '../../src/modules/sites/infrastructure/projection-source.ts';
 import { WorkOrderProjectionSourceService } from '../../src/modules/work-orders/infrastructure/projection-source.ts';
@@ -42,14 +43,18 @@ export function projectionTools(db: Kysely<Database>): { maintenance: Projection
     new SiteProjectionSourceService(),
     new PartyProjectionSourceService(),
     new ProcedureProjectionSourceService(),
+    new PaymentProjectionSourceService(),
     clock,
     metrics,
   );
   return { recomputer, maintenance: new ProjectionMaintenance(db, recomputer, orders, clock, metrics) };
 }
 
+/** The projection in its CURRENT shape (the last column added — 0031, EVM-056): a database migrated only part of the way has none yet. */
 async function hasProjection(db: Kysely<Database>): Promise<boolean> {
-  const { rows } = await sql<{ present: boolean }>`select to_regclass('overview.work_order_summaries') is not null as present`.execute(db);
+  const { rows } = await sql<{ present: boolean }>`
+    select exists (select 1 from information_schema.columns where table_schema = 'overview'
+      and table_name = 'work_order_summaries' and column_name = 'earliest_invoiced_due_date') as present`.execute(db);
   return rows[0]?.present === true;
 }
 

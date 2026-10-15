@@ -297,6 +297,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       case 'stepUp':
         return t('workOrder.status.failure.stepUp');
       case 'condition':
+        // EVM-054 AC6: an invoiced instalment blocks cancelling the order (only the Administrator cancels an invoice — EVM-057)
+        if (current.reasons?.includes('invoiced_milestones') === true) return t('workOrder.status.failure.invoicedMilestones');
         return current.reasons?.includes('unpaid_milestones') === true
           ? t('workOrder.status.failure.unpaidMilestones')
           : t('workOrder.status.failure.condition');

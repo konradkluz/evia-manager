@@ -37,11 +37,17 @@ interface MilestoneSpec {
   readonly amountMinor?: number | null;
   readonly currency?: string | null;
   readonly deletedAt?: string;
+  /** The data of an invoice (0028 asks for it in `invoiced` and `paid`): number, day, due date; `paidOn` for `paid`. */
+  readonly invoice?: { readonly number: string; readonly on: string; readonly due: string };
+  readonly paidOn?: string;
 }
 const insertMilestone = (workOrderId: string, position: number, spec: MilestoneSpec = {}) =>
-  sql`insert into payments.payment_milestones (id, work_order_id, name, position, status, amount_minor, currency, created_at, updated_at, deleted_at)
+  sql`insert into payments.payment_milestones (id, work_order_id, name, position, status, amount_minor, currency, created_at, updated_at,
+        deleted_at, invoice_number, invoiced_on, due_date, paid_on)
       values (${spec.id ?? uuidv7()}, ${workOrderId}, ${spec.name ?? 'Transza syntetyczna'}, ${position}, ${spec.status ?? 'planned'},
-        ${spec.amountMinor ?? null}, ${spec.currency ?? null}, ${T}, ${T}, ${spec.deletedAt ?? null})`.execute(admin());
+        ${spec.amountMinor ?? null}, ${spec.currency ?? null}, ${T}, ${T}, ${spec.deletedAt ?? null}, ${spec.invoice?.number ?? null},
+        ${spec.invoice?.on ?? null}, ${spec.invoice?.due ?? null}, ${spec.paidOn ?? null})`.execute(admin());
+const INVOICE = { number: 'FV/TEST/1/2026', on: '2026-10-01', due: '2026-10-08' } as const;
 
 const insertEvent = (action: string, amounts: { before?: number | null; after?: number | null; currency?: string | null }) =>
   sql`insert into audit.events (occurred_at, actor_type, origin, action, outcome, object_type, trace_id,
@@ -65,14 +71,14 @@ describe('migration 0026 — payment milestones (EVM-053 AC1, AC3, AC4; ADR-0003
     await insertMilestone(orderId, 1, { amountMinor: 360000, currency: 'PLN' });
     await insertMilestone(orderId, 2, { amountMinor: 99_999_999_999, currency: 'PLN' });
     await insertMilestone(orderId, 3, { status: 'cancelled' });
-    await insertMilestone(orderId, 4, { status: 'paid', amountMinor: 1, currency: 'PLN' });
+    await insertMilestone(orderId, 4, { status: 'paid', amountMinor: 1, currency: 'PLN', invoice: INVOICE, paidOn: '2026-10-05' });
     await fails(insertMilestone(orderId, 5, { amountMinor: 0, currency: 'PLN' }), '23514');
     await fails(insertMilestone(orderId, 6, { amountMinor: -100, currency: 'PLN' }), '23514');
     await fails(insertMilestone(orderId, 7, { amountMinor: 100_000_000_000, currency: 'PLN' }), '23514');
     await fails(insertMilestone(orderId, 8, { amountMinor: 100, currency: 'EUR' }), '23514');
     await fails(insertMilestone(orderId, 9, { amountMinor: 100 }), '23514');
     await fails(insertMilestone(orderId, 10, { currency: 'PLN' }), '23514');
-    await fails(insertMilestone(orderId, 11, { status: 'invoiced' }), '23514');
+    await fails(insertMilestone(orderId, 11, { status: 'invoiced', invoice: INVOICE }), '23514');
     const { rows } = await sql<{ type: string }>`
       select data_type as type from information_schema.columns
       where table_schema = 'payments' and table_name = 'payment_milestones' and column_name = 'amount_minor'`.execute(admin());

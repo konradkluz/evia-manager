@@ -21,4 +21,4 @@ export {
   type CompositionScopeItem,
   type WorkOrderCompositionContributor,
 } from './composition-contributor.ts';
-export { WORK_ORDER_DIRECTORY, type WorkOrderDirectory, type WorkOrderRef } from './work-order-directory.ts';
+export { WORK_ORDER_DIRECTORY, type WorkOrderDirectory, type WorkOrderListRef, type WorkOrderRef } from './work-order-directory.ts';

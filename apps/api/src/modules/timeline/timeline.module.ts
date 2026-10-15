@@ -13,6 +13,7 @@
 import { Module } from '@nestjs/common';
 import { IdentityModule } from '../identity/index.ts';
 import { PartiesModule } from '../parties/index.ts';
+import { PaymentsModule } from '../payments/index.ts';
 import { ProceduresModule } from '../procedures/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateEntryService } from './application/create-entry.service.ts';
@@ -23,7 +24,7 @@ import { ReadEntryService } from './application/read-entry.service.ts';
 import { TimelineController } from './http/timeline.controller.ts';
 
 @Module({
-  imports: [IdentityModule, PartiesModule, WorkOrdersModule, ProceduresModule],
+  imports: [IdentityModule, PartiesModule, WorkOrdersModule, ProceduresModule, PaymentsModule],
   controllers: [TimelineController],
   providers: [EntryPresenter, JournalEventRecorder, ListEntriesService, ReadEntryService, CreateEntryService],
 })

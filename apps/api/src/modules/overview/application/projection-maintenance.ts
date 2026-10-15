@@ -108,7 +108,7 @@ export class ProjectionMaintenance {
   }): Promise<VerifyReport> {
     const size = options.batchSize ?? DEFAULT_BATCH_SIZE;
     const missing: string[] = [];
-    const drift: Record<ColumnGroup, string[]> = { authorization: [], keys: [], waiting: [], deadline: [] };
+    const drift: Record<ColumnGroup, string[]> = { authorization: [], keys: [], waiting: [], deadline: [], payments: [] };
     let checked = 0;
     let inSync = 0;
     for await (const batch of this.#batches(options.only, size)) {
@@ -172,6 +172,9 @@ export class ProjectionMaintenance {
         'longest_waiting_on',
         'longest_waiting_party_id',
         sql<string | null>`to_char(next_due_date, 'YYYY-MM-DD')`.as('next_due_date'),
+        'invoiced_count',
+        'paid_count',
+        sql<string | null>`to_char(earliest_invoiced_due_date, 'YYYY-MM-DD')`.as('earliest_invoiced_due_date'),
       ])
       .where('work_order_id', 'in', ids)
       .execute();
@@ -206,6 +209,9 @@ export class ProjectionMaintenance {
           longestWaitingOn: row.longest_waiting_on,
           longestWaitingPartyId: row.longest_waiting_party_id,
           nextDueDate: row.next_due_date,
+          invoicedCount: row.invoiced_count,
+          paidCount: row.paid_count,
+          earliestInvoicedDueDate: row.earliest_invoiced_due_date,
         },
         waits: waits
           .filter((wait) => wait.work_order_id === row.work_order_id)
