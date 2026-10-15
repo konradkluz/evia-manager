@@ -8,8 +8,8 @@ const limiter = (maxKeys?: number) => {
 };
 
 describe('per-IP rate limits (EVM-016 AC4, AC5; SR-API-02, P10)', () => {
-  it('EVM-016 AC5 the limits are the ones of the guidelines: 1200 per minute overall, 60 anonymous, 20 for sign-in and MFA, 60 searches per user', () => {
-    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20, search: 60 });
+  it('EVM-016 AC5 the limits are the ones of the guidelines: 1200 per minute overall, 60 anonymous, 20 for sign-in and MFA, 60 searches and 300 requests per user', () => {
+    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20, search: 60, user: 300 });
   });
 
   it('EVM-016 AC5 the 21st request of a minute is denied with the seconds left, the next window starts clean', () => {
@@ -84,5 +84,31 @@ describe('per-subject rate limits (EVM-020 AC6; SR-API-02, P10, CWE-770)', () =>
     expect(target.consumeSubject('search', alice, 1).allowed).toBe(true);
     expect(target.consume('search', alice, 1).allowed).toBe(true); // an "address" that is no address: its own bucket
     expect(target.consumeSubject('export', alice, 1).allowed).toBe(true);
+  });
+});
+
+describe('per-user request limit (EVM-082 AC1, AC4; SR-API-02, ADR-0004, ASVS V2.4.1)', () => {
+  const alice = '0198b0a0-0000-7000-8000-00000000a001';
+  const bob = '0198b0a0-0000-7000-8000-00000000a002';
+  const consumeUser = (target: InMemoryRateLimiter, subject: string) => target.consumeSubject('user', subject, RATE_LIMITS.user);
+
+  it('EVM-082 AC4 requests 299 and 300 pass, the 301st is denied with the seconds left, the window resets after 60 s', () => {
+    const { clock, limiter: target } = limiter();
+    for (let index = 1; index <= 299; index += 1) expect(consumeUser(target, alice).allowed, String(index)).toBe(true);
+    expect(consumeUser(target, alice).allowed).toBe(true);
+    clock.advance(25_000);
+    expect(consumeUser(target, alice)).toEqual({ allowed: false, retryAfterSeconds: 35 });
+    clock.advance(WINDOW_MS - 25_000 - 1);
+    expect(consumeUser(target, alice).allowed).toBe(false);
+    clock.advance(1);
+    expect(consumeUser(target, alice)).toEqual({ allowed: true, retryAfterSeconds: 60 });
+  });
+
+  it('EVM-082 AC1 two users are counted separately, the user bucket is not the search bucket', () => {
+    const { limiter: target } = limiter();
+    for (let index = 0; index < RATE_LIMITS.user; index += 1) consumeUser(target, alice);
+    expect(consumeUser(target, alice).allowed).toBe(false);
+    expect(consumeUser(target, bob).allowed).toBe(true);
+    expect(target.consumeSubject('search', alice, RATE_LIMITS.search).allowed).toBe(true);
   });
 });

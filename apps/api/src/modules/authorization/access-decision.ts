@@ -6,15 +6,18 @@
  *    (403 csrf_failed), then the per-IP limit (429); then allowed;
  * 3. no principal → 401 unauthenticated, 401 session_revoked for a recognised but revoked session, or 401 session_expired
  *    for one that ran out of idle time or of its absolute lifetime (EVM-067);
- * 4. a mutation: CSRF — Origin, Sec-Fetch-Site and X-CSRF-Token (403 csrf_failed);
- * 5. the per-IP limit of sign-in and MFA operations (429);
- * 6. a session in `mfa_enrollment` may call only the operations on the enrolment list that also declare it
+ * 4. the per-user limit (EVM-082; 300/min, ADR-0004): every request with a valid session is counted — the user is the key, not
+ *    the session or the address — right here, so that the denials below (403) and a later 400 are counted too, while 401,
+ *    public operations and health are not. Over the limit → 429 and nothing else happens (no side effects);
+ * 5. a mutation: CSRF — Origin, Sec-Fetch-Site and X-CSRF-Token (403 csrf_failed);
+ * 6. the per-IP limit of sign-in and MFA operations (429);
+ * 7. a session in `mfa_enrollment` may call only the operations on the enrolment list that also declare it
  *    (403 mfa_enrollment_required);
- * 7. channel, then role (403 forbidden). A channel outside the policy is forbidden too — there is no separate code;
- * 8. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a passkey authentication of the session within
+ * 8. channel, then role (403 forbidden). A channel outside the policy is forbidden too — there is no separate code;
+ * 9. step-up (EVM-029; SR-SESS-08): an operation with `stepUp: true` needs a passkey authentication of the session within
  *    the last 15 minutes (403 step_up_required). Last on purpose: a role that may not call the operation at all is
  *    forbidden and never learns that the operation exists and is protected (SR-AUTHZ-11);
- * 9. object policies are decided by the use case (404) — never here.
+ * 10. object policies are decided by the use case (404) — never here.
  * A policy without roles or channels is forbidden (fail closed).
  */
 import type { Channel, UserRole } from '@evia/contracts';
@@ -51,6 +54,8 @@ export interface AccessRequest {
   /** True when the X-CSRF-Token of the request equals the token the session expects. */
   readonly csrfMatches: (principal: Principal) => boolean;
   readonly rateLimit: (bucket: 'anonymous' | 'authentication') => RateDecision;
+  /** Counts one request of the signed-in user in the per-user limit (EVM-082); called once per request with a principal. */
+  readonly rateLimitUser: (principal: Principal) => RateDecision;
   /** Role × channel rule of `identity` (SR-AUTHZ-06). */
   readonly channelAllowed: (role: UserRole, channel: Channel) => boolean;
   /** Does the passkey authentication of the session still open the step-up window at the (injected) clock's now? */
@@ -86,6 +91,9 @@ export function decideAccess(request: AccessRequest): AccessDecision {
   const authentication = request.authentication();
   const { principal } = authentication;
   if (principal === null) return deny(UNAUTHENTICATED_CODES[authentication.reason]);
+
+  const userLimit = limited(request.rateLimitUser(principal));
+  if (userLimit !== undefined) return userLimit;
 
   if (request.mutating && !(sameOrigin(request) && request.csrfMatches(principal))) return deny('csrf_failed');
   if (request.authenticationOperations.includes(operationId)) {

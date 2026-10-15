@@ -25,7 +25,7 @@ export interface RateLimiter {
 
 export const RATE_LIMITER = Symbol('RATE_LIMITER');
 
-/** Limits per minute: per client address, or per user for `search` (api-guidelines.md → Limity; P10). */
+/** Limits per minute: per client address, or per user for `search` and `user` (api-guidelines.md → Limity; P10; EVM-082). */
 export const RATE_LIMITS = Object.freeze({
   /** every request */
   global: 1200,
@@ -35,9 +35,13 @@ export const RATE_LIMITS = Object.freeze({
   authentication: 20,
   /** searches of customers, sites and parties, per user and per search bucket (EVM-020 AC6, EVM-021 AC7; `consumeSubject`) */
   search: 60,
+  /** every request of a signed-in user, reads and writes, all sessions and both channels together (EVM-082; ADR-0004; `consumeSubject`) */
+  user: 300,
 });
 
 export type RateBucket = keyof typeof RATE_LIMITS;
+/** Buckets counted per client address; `search` and `user` are per user (`consumeSubject`) and must never be passed to `consume`. */
+export type AddressRateBucket = Exclude<RateBucket, 'search' | 'user'>;
 
 interface Window {
   readonly startedAt: number;
