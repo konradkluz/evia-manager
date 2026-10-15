@@ -4,7 +4,7 @@ title: Korekty płatności (Administrator ze step-upem)
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -160,7 +160,7 @@ Stan „przed → po” to dwie StatusBadge (ikona + etykieta, `color.status.pay
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika (scenariusz C8)
+- [x] Demo i akceptacja użytkownika (scenariusz C8)
 
 ## Notatki
 - Po potoku: backend-developer — dwa wpisy audytu przy łącznej zmianie kwoty i innych pól (T7/SR-LOG-03; wcześniej tylko `amount_corrected`), `api-guidelines` bez sprzecznego opisu, tabela korekt sprawdzana typem (`4a3eb35`); web-developer — zrzuty offline, W-11 i menu Edytora (`24991df`); ux-designer — specyfikacja zgodna ze styleguide'em (`08c1861`).
@@ -180,3 +180,5 @@ Stan „przed → po” to dwie StatusBadge (ikona + etykieta, `color.status.pay
 - 2026-10-14 — po potoku: backend-developer `4a3eb35`, web-developer `24991df`, ux-designer `08c1861` (szczegóły w „Notatkach”)
 - 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 1956/1980, gałęzie 1749/1893), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 10 wywołań agentów, ok. 1,49 mln tokenów subagentów, ok. 112 min (+ poprawki po potoku ok. 0,16 mln, ok. 26 min); rundy poprawek 0; ścieżka pełna; opus
+- 2026-10-15 — przed scaleniem: testy gałęzi dialogów korekt (`c51a95d`) — diff-coverage po scaleniu 053–056 liczony już tylko dla EVM-057 (gałęzie 89,8% → 94,9%)
+- 2026-10-15 — scalona do `main` (PR #73, `98303c8`); in-review → done

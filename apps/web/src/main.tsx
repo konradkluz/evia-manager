@@ -17,4 +17,5 @@ export function mount(container: HTMLElement | null): Root {
   return root;
 }
 
-mount(document.getElementById('root'));
+/** The root of the running panel (the entry point test unmounts it). */
+export const panelRoot = mount(document.getElementById('root'));

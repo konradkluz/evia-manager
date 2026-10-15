@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { AUTHZ_MANIFEST } from '../src/authz.ts';
-import { zCreateCustomerHeaders, zCustomer, zCustomerSearchResult, zCustomerWritable } from '../src/zod.ts';
+import {
+  zCreateCustomerHeaders,
+  zCustomer,
+  zCustomerCard,
+  zCustomerSearchItem,
+  zCustomerSearchResult,
+  zCustomerWritable,
+  zWorkOrderCustomer,
+  zWorkOrderListCustomer,
+} from '../src/zod.ts';
 
 const V7 = '0198b0a0-0000-7000-8000-000000000001';
 const person = { id: V7, kind: 'person', firstName: 'Jan', lastName: 'Przykładowy', phone: '600 000 001' };
@@ -76,5 +85,22 @@ describe('customers contract (EVM-020 AC1, AC2, AC5, AC7; SR-API-04, SR-AUTHZ-04
     };
     expect(zCustomerSearchResult.safeParse({ items: Array.from({ length: 100 }, () => item), nextCursor: null }).success).toBe(true);
     expect(zCustomerSearchResult.safeParse({ items: Array.from({ length: 101 }, () => item), nextCursor: null }).success).toBe(false);
+  });
+});
+
+describe('customer names of 401 characters (EVM-078 AC2)', () => {
+  const accepts = (schema: { shape: Record<string, { safeParse: (value: unknown) => { success: boolean } }> }, key: string) => ({
+    at401: schema.shape[key]?.safeParse('x'.repeat(401)).success,
+    at402: schema.shape[key]?.safeParse('x'.repeat(402)).success,
+  });
+
+  it('EVM-078 AC2 every schema with the name of a customer accepts 401 characters and rejects 402 (displayName and sortName)', () => {
+    const schemas = { zCustomer, zCustomerSearchItem, zWorkOrderCustomer, zWorkOrderListCustomer, zCustomerCard };
+    for (const [name, schema] of Object.entries(schemas)) {
+      expect(accepts(schema, 'displayName'), name).toEqual({ at401: true, at402: false });
+    }
+    for (const schema of [zCustomer, zCustomerSearchItem]) {
+      expect(accepts(schema, 'sortName')).toEqual({ at401: true, at402: false });
+    }
   });
 });

@@ -4,7 +4,7 @@ title: Test regresji — klient z imieniem i nazwiskiem po 200 znaków
 type: bug
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-review
 priority: P2
 path: lekka
 owner: backend-developer
@@ -50,7 +50,15 @@ Jako **Edytor** chcę **zapisać klienta z bardzo długim imieniem i nazwiskiem 
 - Testy mogą od razu przejść (poprawka już jest); jeśli którykolwiek scenariusz nadal daje 500, wykonawca naprawia ten schemat/walidację w ramach tej historyjki.
 - Obszar ryzyka: niski (walidacja wejścia; dane testowe wyłącznie syntetyczne).
 
+## Notatki
+- Weryfikacja orkiestratora (ścieżka lekka): AC1 → `EVM-078 AC1` (`customers-long-name.test.ts`); AC2 → `EVM-078 AC2` ×3 role + kontrakt 401/402 (`packages/contracts/test/customers.test.ts`); AC3 → `EVM-078 AC3`; AC4 → `EVM-078 AC4` (tworzenie i edycja, także `companyName`) — wszystkie zielone.
+- Minor z code-review domknięte przez orkiestratora (`7937200`): `sortName` w wyszukiwaniu klientów (AC2), PATCH `companyName` 201 znaków (AC4). Otwarte (nit): odczyt po PATCH w AC3; kontrakt `SitePartyRef.displayName` ma `maxLength` 400 przy limicie nazwy 200 — propozycja do backlogu.
+
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner; uwaga z EVM-020)
 - 2026-10-13 — refinement: sprawdzono, że EVM-039 podniósł `maxLength` do 401; zakres zawężony do testów regresji i ewentualnych luk (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka lekka, model sonnet, gałąź `feature/EVM-078-regresja-nazwy-klienta` ułożona na EVM-053 — PR #69; EVM-054 zablokowana)
+- 2026-10-14 — implementacja (backend-developer): testy regresji 200+200 (API: integracja, kontrakt); wszystkie ścieżki 200/201, bez zmian w kodzie produkcyjnym
+- 2026-10-14 — potok `wf_84cef3f5-cca`: passed (code-reviewer APPROVE, 2 minor + 1 nit); orkiestrator: luki AC2/AC4 domknięte, `pnpm run gate` zielony, `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $ (tryb nocny); 2 wywołania agentów, ok. 0,11 mln tokenów subagentów, ok. 18 min; rundy poprawek 0; ścieżka lekka; sonnet; vs baseline — do oceny z `/usage` rano
