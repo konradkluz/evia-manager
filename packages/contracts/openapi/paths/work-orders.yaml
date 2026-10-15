@@ -20,7 +20,7 @@ workOrders:
       zlecenie ma etap oczekujący dłużej niż tyle dni). Widok `waiting_on_dso_over_14_days` to „Czekamy na OSD > 14 dni”
       (niezamknięte; łączy się przez AND z pozostałymi filtrami). Dzień „dziś” to dzień `Europe/Warsaw` z zegara serwera; kolejne
       strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby.
-      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site`.
+      Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site` (adres i, od EVM-043, kod typu obiektu `siteType`).
       `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe.
       Płatności (EVM-056): widoki `overdue_payments` i `unpaid`, sortowanie `urgency` („Najpilniejsze”) i pole elementu `payment`
       wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności

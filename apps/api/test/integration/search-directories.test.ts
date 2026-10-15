@@ -78,7 +78,7 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     expect((await customers.displayNamesOf(admin(), caller, [])).size).toBe(0);
   });
 
-  it('EVM-072 AC1 SiteDirectory.searchIds finds "Lodz" and "zolkiewskiego"; linesOf returns the city, the street and the building number only', async () => {
+  it('EVM-072 AC1 SiteDirectory.searchIds finds "Lodz" and "zolkiewskiego"; linesOf returns the type, the city, the street and the building number only', async () => {
     const site = await insertSite(admin(), {
       street: 'ul. Żółkiewskiego',
       buildingNumber: '12',
@@ -93,7 +93,13 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     expect(await sites.searchIds(admin(), caller, 'lodz', 11)).toEqual([site]);
     const lines = await sites.linesOf(admin(), caller, [site, gone]);
     expect([...lines.keys()]).toEqual([site]);
-    expect(lines.get(site)).toEqual({ id: site, city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' });
+    expect(lines.get(site)).toEqual({
+      id: site,
+      siteType: 'multi_family_garage',
+      city: 'Łódź',
+      street: 'ul. Żółkiewskiego',
+      buildingNumber: '12',
+    });
     expect((await sites.linesOf(admin(), caller, [])).size).toBe(0);
   });
 

@@ -281,7 +281,9 @@ function customerOf(customerId: string | null, names: ReadonlyMap<string, string
 function siteOf(siteId: string | null, lines: ReadonlyMap<string, SiteLine>) {
   if (siteId === null) return null;
   const line = lines.get(siteId);
-  return line === undefined ? null : { id: line.id, city: line.city, street: line.street, buildingNumber: line.buildingNumber };
+  return line === undefined
+    ? null
+    : { id: line.id, siteType: line.siteType, city: line.city, street: line.street, buildingNumber: line.buildingNumber };
 }
 
 /** The longest wait of the order: who, since when, for how many days (from the day of the page) and how many others (D3). */

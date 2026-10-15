@@ -52,6 +52,11 @@ export class SiteDirectoryService implements SiteDirectory {
 
   async linesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, SiteLine>> {
     const rows = await findVisibleSiteLines(siteTables(tx), principal, ids);
-    return new Map(rows.map((row) => [row.id, { id: row.id, city: row.city, street: row.street, buildingNumber: row.building_number }]));
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        { id: row.id, siteType: row.site_type, city: row.city, street: row.street, buildingNumber: row.building_number },
+      ]),
+    );
   }
 }

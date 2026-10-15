@@ -32,7 +32,13 @@ function order(index: number, overrides: Partial<WorkOrderListItem> = {}): WorkO
       overdueTotal: { amountMinor: 0, currency: 'PLN' },
     },
     customer: { id: CUSTOMER_ID, displayName: 'Jan Przykładowy' },
-    site: { id: '66666666-6666-4666-8666-666666666666', city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '7' },
+    site: {
+      id: '66666666-6666-4666-8666-666666666666',
+      siteType: 'single_family_house',
+      city: 'Łódź',
+      street: 'ul. Żółkiewskiego',
+      buildingNumber: '7',
+    },
     ...overrides,
   };
 }
@@ -125,7 +131,7 @@ describe('W-10 customer and location on the list (EVM-072 AC1)', () => {
         ok([
           order(9, {
             customer: { id: CUSTOMER_ID, displayName: '<img src=x onerror=alert(1)> Jan' },
-            site: { id: 'x', city: '<b>Łódź</b>', street: '<script>1</script>', buildingNumber: '1' },
+            site: { id: 'x', siteType: 'other', city: '<b>Łódź</b>', street: '<script>1</script>', buildingNumber: '1' },
           }),
         ]),
       ),

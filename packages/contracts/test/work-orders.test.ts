@@ -191,7 +191,7 @@ describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPU
       expect(item?.required ?? [], name).not.toContain(name);
     }
     const site = bundled.components?.schemas?.['WorkOrderListSite'] as { properties?: Record<string, unknown> } | undefined;
-    expect(Object.keys(site?.properties ?? {}).sort()).toEqual(['buildingNumber', 'city', 'id', 'street']);
+    expect(Object.keys(site?.properties ?? {}).sort()).toEqual(['buildingNumber', 'city', 'id', 'siteType', 'street']);
     const base = {
       id: '0198b0a0-0000-7000-8000-000000000001',
       number: 'ZL-2026-0001',
@@ -201,10 +201,46 @@ describe('work orders list contract (EVM-017 AC2, AC3, AC7; SR-AUTHZ-05, SR-INPU
       createdAt: '2026-10-01T08:00:00.000Z',
     };
     const customer = { id: '0198b0a0-0000-7000-8000-000000000003', displayName: 'Jan Przykładowy' };
-    const place = { id: '0198b0a0-0000-7000-8000-000000000004', city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '12' };
+    const place = {
+      id: '0198b0a0-0000-7000-8000-000000000004',
+      siteType: 'single_family_house',
+      city: 'Łódź',
+      street: 'ul. Żółkiewskiego',
+      buildingNumber: '12',
+    };
     for (const value of [customer, { deleted: true }, null])
       expect(zWorkOrderList.safeParse({ items: [{ ...base, customer: value, site: place }], nextCursor: null }).success).toBe(true);
     expect(zWorkOrderList.safeParse({ items: [{ ...base, customer: { deleted: false } }], nextCursor: null }).success).toBe(false);
+  });
+
+  it('EVM-043 AC1 the site of an item carries the type from the dictionary (required), still without postal code or apartment', () => {
+    const site = bundled.components?.schemas?.['WorkOrderListSite'] as
+      { required?: string[]; properties?: Record<string, unknown> } | undefined;
+    expect(site?.required).toContain('siteType');
+    expect(site?.properties).not.toHaveProperty('postalCode');
+    expect(site?.properties).not.toHaveProperty('apartmentNumber');
+    const base = {
+      id: '0198b0a0-0000-7000-8000-000000000001',
+      number: 'ZL-2026-0001',
+      title: 'Montaż wallboxa',
+      status: 'new',
+      coordinator: null,
+      createdAt: '2026-10-01T08:00:00.000Z',
+    };
+    const place = {
+      id: '0198b0a0-0000-7000-8000-000000000004',
+      siteType: 'single_family_house',
+      city: 'Łódź',
+      street: 'ul. Żółkiewskiego',
+      buildingNumber: '12',
+    };
+    const parse = (value: unknown) => zWorkOrderList.safeParse({ items: [{ ...base, site: value }], nextCursor: null }).success;
+    expect(parse(place)).toBe(true);
+    expect(parse(null)).toBe(true);
+    const withoutType: Partial<typeof place> = { ...place };
+    delete withoutType.siteType;
+    expect(parse(withoutType)).toBe(false);
+    expect(parse({ ...place, siteType: 'castle' })).toBe(false);
   });
 
   it('EVM-072 AC2 the search body is a phrase plus the filters of the list; the manifest has the operation for the three roles on the web channel', () => {

@@ -116,6 +116,21 @@ Zlecenia / Nowe zlecenie
  │                                  [Anuluj] [[ Dodaj stronę ]] │
 ```
 
+**Podpowiedź lokalizacji klienta (EVM-043)**
+```text
+ 2. Lokalizacja
+ (•) Istniejąca lokalizacja   ( ) Nowa lokalizacja
+ Lokalizacje z poprzednich zleceń klienta (2)            ‹text.heading-4, h2›
+ ul. Testowa 7, Warszawa · Garaż w budynku wielorodzinnym        [ Wybierz ]
+ ───────────────────────────────────────────────────────────────────────────
+ ul. Przykładowa 2, Łódź · Dom jednorodzinny                     [ Wybierz ]
+ Lokalizacja [Szukaj adresu… ‹search› ▾]
+```
+- **Kiedy:** po wyborze klienta, w trybie „Istniejąca lokalizacja”, dopóki lokalizacja nie jest wybrana; List (§ 3.6) nad polem „Lokalizacja”. Wiersz: adres bez kodu pocztowego i numeru lokalu (lista zleceń ich nie niesie, SR-DATA-03) i typ obiektu z katalogu; „Wybierz” (secondary, nazwa dostępna „Wybierz lokalizację: ul. Testowa 7, Warszawa”). Wybór czyta pełną lokalizację jednym `getSite`, ustawia „Istniejąca lokalizacja” (podsumowanie z kodem pocztowym, miejscem i poziomem, „Zmień lokalizację”; fokus na podsumowaniu jak w EVM-021). Po „Zmień lokalizację” lista wraca bez ponownego pobierania.
+- **Źródło:** `listWorkOrders` z `customerId`, `sort=-createdAt`, `limit=100` (jedna strona, bez stronicowania) — ta sama polityka co W-10 (zlecenie usunięte i lokalizacja niewidoczna nie dają podpowiedzi, AC3). Lokalizacje bez powtórzeń, od najnowszego zlecenia; przy kliencie z ponad 100 zleceniami podpowiedź obejmuje lokalizacje z 100 najnowszych (świadome uproszczenie).
+- **Stany:** pusty (klient bez zleceń, AC2) — nic nie jest pokazane, sekcja działa jak w EVM-021; ładowanie — dwa wiersze szkieletu + ukryty status „Wczytujemy lokalizacje z poprzednich zleceń klienta…”; błąd — alert w miejscu z „Spróbuj ponownie” (jedyne ponowienie; `429` — krótka informacja z czasem, bez przycisku; `403` — bez komunikatu); offline (AC4) — „Podpowiedź lokalizacji jest niedostępna bez połączenia.”, formularz działa; brak uprawnień — Tylko odczyt nie ma W-05 (AC4); `404` przy wyborze (lokalizacja usunięta w międzyczasie) — alert „Ta lokalizacja nie jest już dostępna. Wybierz inną.” i ponowne pobranie listy; w trakcie wyboru wszystkie „Wybierz” są wyłączone.
+- **Dostępność:** nagłówek `h2` (kolejność nagłówków strony), lista `ul` nazwana nagłówkiem, kolor nie jest jedynym nośnikiem (typ obiektu jest tekstem), tekst z danych renderowany jako tekst.
+
 **Stany**
 | Stan | Zachowanie |
 |---|---|

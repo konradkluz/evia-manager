@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { AddPartyDialog } from '../parties/add-party-dialog.tsx';
 import { MANAGER_KINDS, OSD_KINDS } from '../parties/party-form.ts';
 import type { PickedParty } from '../parties/party-picker.tsx';
+import { useOnline } from '../shell/use-online.ts';
 import { useToast } from '../shell/toast-context.tsx';
 import { NewSiteForm, type PartyTarget } from './new-site-form.tsx';
 import { EMPTY_SITE_FORM, siteStarted, type PickedSite, type SiteForm } from './site-form.ts';
 import { SitePicker } from './site-picker.tsx';
+import { SiteSuggestions } from './site-suggestions.tsx';
+import { useSiteSuggestions } from './use-site-suggestions.ts';
 
 /** Everything the section "2. Lokalizacja" holds; the page keeps it (in the memory of the tab, as a draft) and hands it back. */
 export interface LocationState {
@@ -26,6 +29,8 @@ export const locationStarted = (location: LocationState): boolean =>
   location.site !== null || siteStarted(location.form, location.osd, location.manager);
 
 export interface LocationSectionProps {
+  /** The chosen customer (EVM-043): the locations of its earlier orders are suggested; `null` — nothing is suggested. */
+  readonly customerId?: string | null;
   readonly value: LocationState;
   /** Takes the change as a function of the current state: an answer of the server that arrives later never overwrites newer typing. */
   readonly onChange: (update: (current: LocationState) => LocationState) => void;
@@ -35,8 +40,11 @@ export interface LocationSectionProps {
  * W-05 "2. Lokalizacja" (EVM-021): the radio "Istniejąca lokalizacja" / "Nowa lokalizacja", the search of sites or the form of a new
  * one, and the dialogs "Dodaj stronę" for the OSD and the manager (a saved party is chosen in the field it was opened from).
  */
-export function LocationSection({ value, onChange }: LocationSectionProps) {
+export function LocationSection({ customerId = null, value, onChange }: LocationSectionProps) {
   const { t } = useTranslation();
+  const online = useOnline();
+  // Mounted whatever the mode, so that a change of the mode or "Zmień lokalizację" reads nothing again (limit 300/min, EVM-082).
+  const suggestions = useSiteSuggestions(customerId, online);
   const toast = useToast();
   const [adding, setAdding] = useState<PartyTarget | null>(null);
   const patch = (partial: Partial<LocationState>) => {
@@ -62,6 +70,17 @@ export function LocationSection({ value, onChange }: LocationSectionProps) {
           { value: 'new', label: t('sites.mode.new') },
         ]}
       />
+      {value.mode === 'existing' && value.site === null && customerId !== null ? (
+        <SiteSuggestions
+          key={customerId}
+          customerId={customerId}
+          online={online}
+          suggestions={suggestions}
+          onPick={(site) => {
+            patch({ site });
+          }}
+        />
+      ) : null}
       {value.mode === 'existing' ? (
         <SitePicker
           selected={value.site}

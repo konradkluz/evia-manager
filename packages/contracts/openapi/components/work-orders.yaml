@@ -238,14 +238,16 @@ WorkOrderListCustomerDeleted:
       enum: [true]
 WorkOrderListSite:
   type: object
-  description: Lokalizacja na liście zleceń — miasto, ulica i numer budynku (bez kodu pocztowego i numeru lokalu, SR-DATA-03).
-  required: [id, city, street, buildingNumber]
+  description: Lokalizacja na liście zleceń — miasto, ulica i numer budynku (bez kodu pocztowego i numeru lokalu, SR-DATA-03). `siteType` (EVM-043) to kod słownika typu obiektu.
+  required: [id, siteType, city, street, buildingNumber]
   additionalProperties: false
   properties:
     id:
       type: string
       format: uuid
       maxLength: 36
+    siteType:
+      $ref: catalog.yaml#/SiteType
     city:
       type: string
       maxLength: 100
