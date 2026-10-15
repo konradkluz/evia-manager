@@ -4,7 +4,7 @@ title: Test regresji — klient z imieniem i nazwiskiem po 200 znaków
 type: bug
 milestone: M1
 epic: E2 Klienci
-status: in-review
+status: done
 priority: P2
 path: lekka
 owner: backend-developer
@@ -62,3 +62,5 @@ Jako **Edytor** chcę **zapisać klienta z bardzo długim imieniem i nazwiskiem 
 - 2026-10-14 — implementacja (backend-developer): testy regresji 200+200 (API: integracja, kontrakt); wszystkie ścieżki 200/201, bez zmian w kodzie produkcyjnym
 - 2026-10-14 — potok `wf_84cef3f5-cca`: passed (code-reviewer APPROVE, 2 minor + 1 nit); orkiestrator: luki AC2/AC4 domknięte, `pnpm run gate` zielony, `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $ (tryb nocny); 2 wywołania agentów, ok. 0,11 mln tokenów subagentów, ok. 18 min; rundy poprawek 0; ścieżka lekka; sonnet; vs baseline — do oceny z `/usage` rano
+- 2026-10-15 — przed scaleniem: niestabilny test punktu wejścia panelu (`main.test.tsx` — korzeń React nieodmontowany, „window is not defined” w CI) naprawiony `d3161a2`
+- 2026-10-15 — scalona do `main` (PR #74, `072c785`); in-review → done
