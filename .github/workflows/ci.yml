@@ -65,7 +65,8 @@ jobs:
       - name: Types
         run: pnpm exec turbo run typecheck
 
-  # Change detection (EVM-083 AC2, AC3): heavy=false only for a documentation-only change; fail closed (heavy=true).
+  # Change detection (EVM-083, EVM-086): `heavy` (coverage), `e2e` (e2e-web) and `integration` (backend-integration) are
+  # false only when every changed file is on that output's explicit not-applicable list; fail closed (all true).
   changes:
     name: changes
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
@@ -82,7 +83,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Documentation-only change?
+      - name: Change detection (heavy, e2e, integration)
         id: detect
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -320,9 +321,9 @@ jobs:
         run: node tools/diff-coverage/cli.mjs
 
   # ci-gate (K1): runs in full runs only (never for a push to a branch). Requires `changes` success and every job
-  # success; e2e-web, backend-integration and coverage may be skipped only when `changes` reported heavy=false
-  # (documentation only) — and must then be skipped. Failure, cancelled, skipped-with-code-changes, a missing job
-  # or an unreadable `heavy` = red.
+  # success; e2e-web may be skipped only when `changes` reported e2e=false, backend-integration only with
+  # integration=false and coverage only with heavy=false — and must then be skipped. Failure, cancelled, a skip
+  # without its own not-applicable output, a missing job or an unreadable output = red.
   ci-gate:
     name: ci-gate
     if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')
