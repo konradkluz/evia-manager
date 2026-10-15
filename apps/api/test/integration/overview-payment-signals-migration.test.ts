@@ -15,6 +15,7 @@ import { freshDatabaseUrl } from './database.ts';
  * until `rebuild` fills them (the step of the deployment in the CHANGELOG), and from then on the projection equals the recomputation.
  */
 const BEFORE = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0031')) as typeof MIGRATIONS;
+const UP_TO_0031 = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0032')) as typeof MIGRATIONS;
 
 let db: Kysely<Database>;
 let withMilestones = '';
@@ -32,7 +33,7 @@ beforeAll(async () => {
     { status: 'paid', dueDate: '2026-10-01' },
     { status: 'planned' },
   ]);
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0031_overview_payment_signals']);
+  expect((await migrateToLatest(db, UP_TO_0031)).applied).toEqual(['0031_overview_payment_signals']);
 });
 afterAll(async () => {
   await db.destroy();
