@@ -3,7 +3,7 @@ import { answerPlanned, planned } from './mock-planned.ts';
 
 // W-11 "Do wystawienia" in a real browser (EVM-059 AC1, AC5): the chip, the rows of planned instalments and the address with the view only.
 // The list of the view is answered here by a route (the shared synthetic server holds only invoiced instalments); the policy of the
-// real server is covered by the API tests. The screenshots are evidence for the UX review (ADR-0015): docs/ux/reviews/EVM-059 (PNG ignored by git).
+// real server is covered by the API tests. The screenshots are evidence for the UX review (ADR-0015):.
 test.use({ session: 'active' });
 
 test.describe('W-11 "Do wystawienia" (EVM-059)', () => {
