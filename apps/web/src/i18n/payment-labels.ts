@@ -11,5 +11,3 @@ export const paymentStatusLabels: Readonly<Record<PaymentMilestoneStatus, string
   paid: 'Opłacona',
   cancelled: 'Anulowana',
 };
-
-export const paymentOverdueLabel = 'Po terminie';

@@ -49,7 +49,7 @@ export async function insertMilestones(
         currency: amountMinor === null ? null : 'PLN',
         status,
         invoice_number: spec.invoiceNumber ?? (status === 'invoiced' || status === 'paid' ? `FV/${startAt + index + 1}/2026` : null),
-        invoiced_on: status === 'invoiced' || status === 'paid' ? '2026-10-01' : null,
+        invoiced_on: status === 'invoiced' || status === 'paid' ? invoicedOn(spec.dueDate) : null,
         due_date: spec.dueDate ?? (status === 'invoiced' || status === 'paid' ? '2026-10-08' : null),
         paid_on: status === 'paid' ? '2026-10-05' : null,
         source_template_id: null,
@@ -66,3 +66,6 @@ export async function insertMilestones(
   }
   return ids;
 }
+
+/** The day of the invoice: 2026-10-01, or the due day itself when that is earlier (the CHECK of 0028: a due date is not before the invoice). */
+const invoicedOn = (dueDate: string | undefined): string => (dueDate !== undefined && dueDate < '2026-10-01' ? dueDate : '2026-10-01');

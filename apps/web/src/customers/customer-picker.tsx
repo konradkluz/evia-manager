@@ -15,8 +15,10 @@ export interface CustomerPickerProps {
   readonly selected: PickedCustomer | null;
   readonly onSelect: (customer: PickedCustomer) => void;
   readonly onClear: () => void;
-  /** "Dodaj klienta" from the empty result (opens the dialog). */
-  readonly onAdd: () => void;
+  /** "Dodaj klienta" from the empty result (opens the dialog); without it the empty result has no action (a filter does not add customers). */
+  readonly onAdd?: () => void;
+  /** The field does not search (offline filters of W-11). */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface CustomerPickerProps {
  * loading — skeleton of 3 rows, no results — "Brak wyników dla „…”. [Dodaj klienta]", offline, `429`, a server error.
  * The typed phrase lives only in this component (memory of the tab), never in the address or the title of the tab.
  */
-export function CustomerPicker({ selected, onSelect, onClear, onAdd }: CustomerPickerProps) {
+export function CustomerPicker({ selected, onSelect, onClear, onAdd, disabled = false }: CustomerPickerProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const search = useCustomerSearch(text, selected === null);
@@ -72,7 +74,7 @@ export function CustomerPicker({ selected, onSelect, onClear, onAdd }: CustomerP
       notice = (
         <>
           <p>{t('customers.search.empty', { query: phrase })}</p>
-          <Button onClick={onAdd}>{t('customers.search.add')}</Button>
+          {onAdd === undefined ? null : <Button onClick={onAdd}>{t('customers.search.add')}</Button>}
         </>
       );
     }
@@ -104,6 +106,7 @@ export function CustomerPicker({ selected, onSelect, onClear, onAdd }: CustomerP
       announcement={announcement}
       hint={search.state === 'short' ? t('customers.field.hintShort') : search.state === 'long' ? t('customers.field.hintLong') : undefined}
       inputRef={field}
+      disabled={disabled}
     />
   );
 }

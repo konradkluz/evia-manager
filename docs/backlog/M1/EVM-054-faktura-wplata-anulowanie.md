@@ -4,7 +4,7 @@ title: Wystawienie faktury, wpłata i anulowanie transzy planowanej
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -153,7 +153,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona — dokumentacja, CHANGELOG i makieta `08-nieoplacone.md` tak; instrukcji EVM-066 jeszcze nie ma (EVM-066 `ready`) — do decyzji Konrada na demo (jak w EVM-053)
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Notatki
 - Minor security domknięty przez orkiestratora (`37411cc`): warunki przejść zlecenia (`invoiced_milestones`, `unpaid_milestones`) czytają statusy wszystkich żywych transz bez limitu 20 (obrona w głąb; dziś bazę chroni CHECK pozycji 1–20).
@@ -178,3 +178,4 @@ _—_
 - 2026-10-14 — potok `wf_d8aac767-926`: passed po 2 rundach (QA PASS AC1–AC8; runda 1: security-engineer APPROVE, code-reviewer i ux-designer changes — major w dokumentacji makiety, blocker przycinania menu akcji; runda 2: APPROVE)
 - 2026-10-14 — orkiestrator: minor security (limit 20 w warunkach przejść) domknięty `37411cc`; `pnpm run gate` zielony (diff-coverage linie 1148/1163, gałęzie 1009/1110), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 15 wywołań agentów, ok. 2,04 mln tokenów subagentów, ok. 256 min (+ przebieg zablokowany na planie ok. 0,15 mln, poprawka ok. 0,06 mln); rundy poprawek 1; ścieżka pełna; opus
+- 2026-10-15 — scalona do `main` (PR #70, `ea74c3f`); in-review → done. Instrukcja dla biura (EVM-066) pozostaje otwarta — realizuje ją EVM-066 (`ready`)

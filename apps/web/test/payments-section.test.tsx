@@ -175,8 +175,11 @@ describe('W-06 "Płatności" (EVM-053 AC2)', () => {
       api(() => json(200, listOf([{ ...ADVANCE, isOverdue: true }], 360000))),
     );
     await paymentsReady();
-    const badge = within(rowOf('Zaliczka (20%)')).getByText('Wystawiona, po terminie');
+    const row = rowOf('Zaliczka (20%)');
+    const badge = within(row).getByText('Po terminie');
     expect(badge.className).toContain('bg-status-payment-overdue-bg');
+    // the full wording stays the accessible name of the row (styleguide § 4.4)
+    expect(row.getAttribute('aria-label')).toBe('Zaliczka (20%) — wystawiona, po terminie');
   });
 
   it('EVM-053 AC2 a status this panel does not know is the badge of an unknown value; names are text, never markup (SR-WEB-03)', async () => {

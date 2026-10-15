@@ -7,7 +7,6 @@ import {
   IconButton,
   Plus,
   StatusBadge,
-  type ActionMenuItem,
   type DataTableBadgeCell,
   type DataTableColumn,
   type DataTableRow,
@@ -20,11 +19,12 @@ import { useSession } from '../session/session.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { useStateWord } from './edit-failure.ts';
 import { MilestoneAddDialog } from './milestone-add-dialog.tsx';
-import { milestoneActions, type MilestoneAction, type MilestoneActions } from './milestone-actions.ts';
+import { milestoneActions, type MilestoneAction } from './milestone-actions.ts';
 import { MilestoneAmountDialog } from './milestone-amount-dialog.tsx';
 import { MilestoneCancelDialog } from './milestone-cancel-dialog.tsx';
 import { MilestoneDetailsDialog } from './milestone-details-dialog.tsx';
 import { MILESTONES_MAX, paymentBadgeKey, useMilestoneName } from './milestone-form.ts';
+import { menuItems, useMilestoneActionLabels } from './milestone-menu.ts';
 import { MilestoneInvoiceDialog } from './milestone-invoice-dialog.tsx';
 import { MilestonePaidOnDialog } from './milestone-paid-on-dialog.tsx';
 import { MilestonePaymentDialog } from './milestone-payment-dialog.tsx';
@@ -227,29 +227,6 @@ function breakableInvoice(number: string): ReactNode {
   );
 }
 
-/** The items of the menu `⋮`: a separator before each new group, the cancellation as a destructive item, the reasons of § 4.13. */
-function menuItems(
-  actions: MilestoneActions,
-  labels: Readonly<Record<MilestoneAction, string>>,
-  reason: string | undefined,
-  adminOnly: string,
-  onSelect: (action: MilestoneAction) => void,
-): ActionMenuItem[] {
-  return actions.menu.map((entry, index) => {
-    const hint = reason ?? (entry.correction === true ? adminOnly : undefined);
-    return {
-      id: entry.action,
-      label: labels[entry.action],
-      onSelect: () => {
-        onSelect(entry.action);
-      },
-      ...(index > 0 && entry.group !== actions.menu[index - 1]?.group ? { startsGroup: true } : {}),
-      ...(entry.action === 'cancel' ? { tone: 'danger' as const } : {}),
-      ...(hint === undefined ? {} : { disabledHint: hint }),
-    };
-  });
-}
-
 function MilestoneTable({
   items,
   role,
@@ -265,20 +242,7 @@ function MilestoneTable({
   const nameOf = useMilestoneName();
   const none = t('workOrder.payments.none');
   const canEdit = role === 'administrator' || role === 'editor';
-  const labels: Readonly<Record<MilestoneAction, string>> = {
-    invoice: t('workOrder.payments.invoice'),
-    pay: t('workOrder.payments.pay'),
-    amount: t('workOrder.payments.changeAmount'),
-    cancel: t('workOrder.payments.cancel'),
-    details: t('workOrder.payments.details'),
-    paidOn: t('workOrder.payments.paidOn'),
-    withdrawInvoice: t('workOrder.payments.withdrawInvoice'),
-    cancelInvoice: t('workOrder.payments.cancelInvoice'),
-    correctAmount: t('workOrder.payments.correctAmount'),
-    undoPayment: t('workOrder.payments.undoPayment'),
-    restore: t('workOrder.payments.restore'),
-    delete: t('workOrder.payments.delete'),
-  };
+  const labels = useMilestoneActionLabels();
   const adminOnly = t('workOrder.payments.adminOnly');
   const columns: DataTableColumn[] = [
     { id: 'name', header: t('workOrder.payments.columnName'), card: 'primary' },
@@ -307,7 +271,7 @@ function MilestoneTable({
           key="status"
           status={key}
           group="payment"
-          label={key === 'overdue' ? t('workOrder.payments.overdueLabel') : paymentStatusLabels[milestone.status]}
+          label={key === 'overdue' ? t('workOrders.status.paymentOverdue') : paymentStatusLabels[milestone.status]}
         />
       );
     const actions = canEdit ? milestoneActions(milestone.status, role) : { menu: [] };
@@ -363,7 +327,11 @@ function MilestoneTable({
         ),
       );
     }
-    return { id: milestone.id, cells };
+    return {
+      id: milestone.id,
+      ...(key === 'overdue' ? { label: t('workOrder.payments.overdueRow', { name }) } : {}),
+      cells,
+    };
   });
   return <DataTable caption={t('workOrder.payments.caption')} dense columns={columns} rows={rows} />;
 }

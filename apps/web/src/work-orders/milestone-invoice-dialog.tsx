@@ -9,16 +9,14 @@ import { useOnline } from '../shell/use-online.ts';
 import {
   addDays,
   CommandAlert,
-  DAY_MAX,
-  DAY_MIN,
   INVOICE_NUMBER_MAX,
-  isDayInRange,
   plainTextProblem,
   useFieldMessage,
   useMilestoneCommand,
   type MilestoneField,
   type MilestoneFieldErrors,
 } from './milestone-command.tsx';
+import { DAY_MAX, DAY_MIN, isDayInRange } from './milestone-days.ts';
 import { normalizeName, useAmountError, useMilestoneName } from './milestone-form.ts';
 import { MilestoneSummary } from './milestone-summary.tsx';
 import { amountInputOf, formatAmountInput, formatMoney, parseAmount } from './money.ts';

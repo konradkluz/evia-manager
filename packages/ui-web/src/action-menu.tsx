@@ -43,7 +43,9 @@ function placement(trigger: DOMRect, list: DOMRect, align: 'start' | 'end'): { r
   const wanted = align === 'end' ? trigger.right - list.width : trigger.left;
   const left = Math.max(0, Math.min(wanted, window.innerWidth - list.width));
   const fitsBelow = trigger.bottom + list.height <= window.innerHeight;
-  const top = !fitsBelow && trigger.top - list.height >= 0 ? trigger.top - list.height : trigger.bottom;
+  const wantedTop = !fitsBelow && trigger.top - list.height >= 0 ? trigger.top - list.height : trigger.bottom;
+  // Neither side has room (a short window): keep the whole list on screen; max-h-menu makes it scroll.
+  const top = Math.max(0, Math.min(wantedTop, window.innerHeight - list.height));
   return { left, top };
 }
 
@@ -157,7 +159,7 @@ export function ActionMenu({ label, items, trigger, align = 'start' }: ActionMen
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
-          className="fixed z-dropdown w-max max-w-toast-max-width bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
+          className="fixed z-dropdown w-max max-w-menu max-h-menu overflow-y-auto bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
         >
           {items.map((item, index) => (
             <Fragment key={item.id}>

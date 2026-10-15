@@ -1,4 +1,4 @@
-import type { PaymentMilestone, PaymentMilestonePatch, WorkOrderDetails } from '@evia/contracts';
+import type { PaymentMilestone, PaymentMilestonePatch } from '@evia/contracts';
 import { Banner, Button, DateField, Dialog, ErrorSummary, TextField, WifiOff } from '@evia/ui-web';
 import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,16 +7,15 @@ import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import {
   CommandAlert,
-  DAY_MAX,
-  DAY_MIN,
   INVOICE_NUMBER_MAX,
-  isDayInRange,
   plainTextProblem,
   useFieldMessage,
   useMilestoneCommand,
   type MilestoneField,
+  type MilestoneOrder,
   type MilestoneFieldErrors,
 } from './milestone-command.tsx';
+import { DAY_MAX, DAY_MIN, isDayInRange } from './milestone-days.ts';
 import { normalizeName, useMilestoneName } from './milestone-form.ts';
 import { formatMoney } from './money.ts';
 
@@ -33,7 +32,7 @@ export function MilestoneDetailsDialog({
   onClose,
   onSaved,
 }: {
-  readonly order: WorkOrderDetails;
+  readonly order: MilestoneOrder;
   readonly milestone: PaymentMilestone;
   readonly onClose: () => void;
   readonly onSaved: (saved: PaymentMilestone) => void;
