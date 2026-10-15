@@ -4,7 +4,7 @@ title: Ręczne dodanie i usunięcie procesu lub etapu
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-review
+status: done
 priority: P2
 path: pelna
 owner: backend-developer
@@ -109,3 +109,4 @@ _—_
 - 2026-10-15 — po przeglądzie: web-developer `f44091d` (CHANGELOG panelu, widoczny powód wyłączenia „Przywróć”, „Usuń” wyłączone bez wersji procesu), ux-designer `edab7de` (styleguide: Disclosure z akcjami, opcja Select niedostępna)
 - 2026-10-15 — orkiestrator: `pnpm run gate` zielony (diff-coverage 1488/1505, 1094/1171), `docs:check` 0/0; in-progress → in-review
 - 2026-10-15 — Koszt: brak rozbicia w $; potok 11 wywołań agentów, ok. 1,63 mln tokenów subagentów, ok. 176 min (+ poprawki po przeglądzie); rundy poprawek 1; ścieżka pełna; model domyślny
+- 2026-10-15 — scalona do `main` (PR #79, `d05c423`); in-review → done
