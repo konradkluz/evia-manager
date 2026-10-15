@@ -4,7 +4,7 @@ title: Rozliczenie i anulowanie zlecenia a płatności
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-review
 priority: P1
 owner: web-developer
 contributors: [backend-developer]
@@ -100,6 +100,12 @@ _—_
 - [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona
 - [ ] Demo i akceptacja użytkownika (scenariusze A14, B13)
 
+## Notatki
+- UX (minor, przegląd ux-designer 2026-10-15): przegląd tylko na kodzie — przed demo zrzuty 360/768/1280/1440 dialogów „Rozlicz…” / „Anuluj zlecenie…” (zablokowany, 422, 412, offline) do `docs/ux/reviews/EVM-058/`.
+- UX (minor): alert `412` w dialogu bez przycisku „Odśwież” — dane odświeżają się same (wzór W-06: alert, dane zostają); do rozstrzygnięcia przez ux-designer, ewentualnie zapis w W-06.
+- UX (minor): podsumowanie i blokada zmieniają się w otwartym dialogu po dociągnięciu płatności — bez `aria-live`/szkieletu (możliwy przeskok układu).
+- UX (nit): blokada wyprzedzająca jako InlineAlert `error` — rozważyć ton ostrzegawczy; „Opłacone transze (N)” bez odmiany (wzór EVM-053 AC6).
+
 ## Dziennik
 - 2026-10-15 — refinement (product-owner)
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -109,3 +115,5 @@ _—_
 - 2026-10-15 — Konrad zaakceptował AC (6, ścieżka lekka); draft → ready
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`)
 - 2026-10-15 — implementacja (web-developer): podsumowania i blokady w dialogach „Rozlicz…” / „Anuluj zlecenie…”, odświeżenie płatności po 412/422/rozliczeniu; test integracyjny AC4; testy `EVM-058 AC#`
+- 2026-10-15 — przegląd ux-designer: approve (4 minor/nit → „Notatki”); orkiestrator: AC1–AC6 → testy `EVM-058 AC#`, `pnpm run gate` zielony (diff-coverage linie 15/15, gałęzie 55/58), `docs:check` 0/0; in-progress → in-review
+- 2026-10-15 — Koszt: potok 2 wywołania agentów, ok. 0,14 mln tokenów subagentów, ok. 27 min; rundy poprawek 0; ścieżka lekka; sonnet
