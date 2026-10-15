@@ -4,7 +4,7 @@ title: CI — E2E i testy integracyjne tylko przy zmianach, których dotyczą
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P1
 path: lekka
 owner: devops-engineer
@@ -74,6 +74,11 @@ Stan wyjściowy (2026-10-15): `changes` (`tools/ci-changes`) wystawia jedno `hea
 ## Notatki
 - Utworzone przez orkiestratora na demo EVM-083 jako draft; doprecyzowane w /refine 2026-10-15.
 - Ryzyko: szacunek po EVM-086 (~−37 min/dzień z propozycji 4 i 5) nie osiąga celu 53 min/dzień; pozostałe dźwignie: propozycje 2, 3, 6.
+- Ryzyko rezydualne R1 (Low, security, do akceptacji na demo): błąd tylko-Firefox (także CSP/nagłówki) wyjdzie w nocnym przebiegu, po scaleniu; V2 ufa przebiegowi `main` (tylko Chromium). Rekomendacja security: czerwony nocny `e2e-web` wstrzymuje wydanie na prod do wyjaśnienia.
+- Ryzyko rezydualne R2 (minor, security): `tools/ci-changes/` i `tools/repo-policy/` nie są plikami wrażliwymi K3 — PR może zmienić klasyfikator i jego test razem. Rekomendacja: osobna historyjka (`/refine`) — dopisać je do K3 (CODEOWNERS, szablon PR, podsumowanie `security`, log K6); wariant mocniejszy: klasyfikator z commita bazowego.
+- Testy macierzy `GATE_JQ` (AC3) lokalnie pomijane bez `jq` — dowód w logu joba `quality` przebiegu PR (sprawdzić, że nie były pominięte).
+- Szacunek oszczędności: ok. −15 min/dzień (229 → 214), nocny Firefox oddaje część oszczędności; cel 53 min/dzień nadal poza zasięgiem.
+- Wykonawca pobrał `jq` 1.7.1 z wydania GitHub (sha256 sprawdzony) do `.scratch/jqdl/` — tylko lokalnie, poza repo.
 
 ## Dziennik
 - 2026-10-13 — utworzono (orkiestrator, demo EVM-083, decyzja Konrada o cięciach 4 i 5)
@@ -81,3 +86,5 @@ Stan wyjściowy (2026-10-15): `changes` (`tools/ci-changes`) wystawia jedno `hea
 - 2026-10-15 — Konrad zaakceptował AC i rozstrzygnął 2 pytania; draft → ready
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-087-086-proces-ci`, po EVM-087)
 - 2026-10-15 — implementacja (devops-engineer): wyjścia `heavy`/`e2e`/`integration` w `tools/ci-changes`, `GATE_JQ` i trasowanie w `ci.yml` oraz `tools/repo-policy`, Chromium-only w `ci.yml` i pełne E2E z Firefoksem w `nightly.yml`, dokumentacja i szacunek (≈ −15 min/dzień) w `docs/ops/github-i-ci.md`
+- 2026-10-15 — przegląd security-engineer: approve (1 minor, 2 nit → „Notatki”; komentarze `ci.yml` poprawione przez orkiestratora `df9e0b1`); orkiestrator: AC1–AC5 → testy `EVM-086 AC#`, AC6 → `docs/ops/github-i-ci.md`; `pnpm run gate` zielony (diff-coverage 61/61, 36/36), `pnpm run scan` zielony, `docs:check` 0/0; in-progress → in-review
+- 2026-10-15 — Koszt: potok 2 wywołania agentów, ok. 0,22 mln tokenów subagentów, ok. 28 min; rundy poprawek 0; ścieżka lekka; sonnet
