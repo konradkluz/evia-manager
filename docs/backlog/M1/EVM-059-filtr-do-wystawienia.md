@@ -83,3 +83,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`, po EVM-058)
 - 2026-10-15 — backend: widok `view=planned` na `listUnpaidPaymentMilestones` (kontrakt, zapytanie z polityką, testy `EVM-059 AC1–AC4`); panel (chip, dialog, stany AC5) — krok web-developera (backend-developer)
+- 2026-10-15 — panel: chip „Do wystawienia” w W-11 (`view=planned`), tabela transz planowanych, „Wystaw fakturę…” (dialog EVM-054) dla A/E, stany AC5, testy `EVM-059 AC1–AC5` + E2E + zrzuty (web-developer)
