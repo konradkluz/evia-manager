@@ -67,7 +67,7 @@ function suggestionApi(routes: Record<string, Handler> = {}) {
 const suggestionCalls = (api: ReturnType<typeof suggestionApi>) => api.calls(LIST).filter((call) => call.query.has('customerId'));
 
 async function chooseCustomer(name: string) {
-  await userEvent.type(screen.getByRole('combobox', { name: 'Klient' }), name.slice(0, 3));
+  await userEvent.type(await screen.findByRole('combobox', { name: 'Klient' }), name.slice(0, 3));
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(name) }));
 }
 const heading = (count: number) => screen.findByRole('heading', { name: `Lokalizacje z poprzednich zleceń klienta (${String(count)})` });
