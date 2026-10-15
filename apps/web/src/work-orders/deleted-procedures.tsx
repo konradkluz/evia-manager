@@ -202,6 +202,7 @@ export function DeletedProcedures({
 
   return (
     <Disclosure title={t('workOrder.procedureManage.deleted.heading', { count })} expanded={open} onExpandedChange={setOpen}>
+      {hint === undefined ? null : <p className="text-body-sm text-text-secondary">{hint}</p>}
       {alert === null ? null : <InlineAlert tone="error">{alertText()}</InlineAlert>}
       {data.truncated ? <p className="text-body-sm text-text-secondary">{t('workOrder.procedureManage.deleted.truncated')}</p> : null}
       <List label={t('workOrder.procedureManage.deleted.listLabel')}>

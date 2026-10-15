@@ -126,6 +126,17 @@ test.describe('processes and stages added and removed by hand (EVM-042)', () => 
     await expect(section.getByRole('button', { name: /^Uzgodnienia z OSD\s*0 z 3 etapów/ })).toBeVisible();
   });
 
+  test('EVM-042 AC6 the menu buttons of a process and a stage are touch targets of at least 44 px at 360 px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await createOrder(page, true);
+    const section = region(page, /^Procesy i etapy/);
+    for (const name of ['Akcje procesu: Uzgodnienia z OSD', 'Akcje etapu: Wniosek do OSD']) {
+      const box = await section.getByRole('button', { name }).boundingBox();
+      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+  });
+
   test('EVM-042 AC3 "Oznacz jako „Nie dotyczy”" takes the stage out of the progress and keeps it in the order', async ({ page }) => {
     await createOrder(page, true);
     const section = region(page, /^Procesy i etapy/);

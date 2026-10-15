@@ -61,8 +61,9 @@ export function ProcedureRemoveDialog({
   });
 
   const confirm = () => {
-    // Without a version on screen the server would answer `412` anyway: the first number it knows is the reading's.
-    const version = procedure.version ?? 1;
+    // Without a version on screen nothing is sent: guessing one would only provoke a `412`.
+    const version = procedure.version;
+    if (version === undefined) return;
     const { key } = attempt.next(JSON.stringify({ order: order.id, procedure: procedure.id, version }));
     setFailure(null);
     mutation.mutate(
@@ -118,7 +119,7 @@ export function ProcedureRemoveDialog({
           </Button>
           <Button
             loading={mutation.isPending}
-            disabled={!online || failure?.kind === 'closed'}
+            disabled={!online || procedure.version === undefined || failure?.kind === 'closed'}
             {...(online ? {} : { title: t('workOrder.procedureManage.offline') })}
             onClick={confirm}
           >

@@ -739,6 +739,8 @@ describe('W-06 (d) "Usunięte procesy i etapy" (EVM-042 AC3, AC6)', () => {
     const restore = screen.getByRole('button', { name: 'Przywróć proces: Opinia ppoż' });
     expect(restore.getAttribute('aria-disabled')).toBe('true');
     expect(restore.getAttribute('title')).toMatch(/Zlecenie jest już rozliczone/);
+    // the reason is visible text under the heading, not only a tooltip
+    expect(screen.getByText(/Zlecenie jest już rozliczone/).tagName).toBe('P');
   });
 
   it('EVM-042 AC6 a failed read of the deleted ones is told with a retry, only the Administrator sees the section', async () => {
@@ -817,6 +819,39 @@ describe('W-06 (d) the remaining answers of the dialogs (EVM-042 AC1–AC7)', ()
     expect(fake.calls(`POST ${BASE}/procedures/${OSD_ID}/restore`)[0]?.headers.get('If-Match')).toBe('"4"');
   });
 
+  it('EVM-042 AC3 AC6 the process: "Cofnij" of the Administrator restores it and tells it', async () => {
+    const fake = api({
+      deleted: () =>
+        json(200, {
+          procedures: [
+            {
+              id: PPOZ_ID,
+              code: 'ppoz',
+              name: 'Opinia ppoż',
+              position: 2,
+              stageCount: 1,
+              version: 6,
+              deletedAt: '2026-10-14T10:00:00.000Z',
+            },
+          ],
+          stages: [],
+          truncated: false,
+        }),
+      extra: {
+        [`DELETE ${BASE}/procedures/${PPOZ_ID}`]: () => new Response(null, { status: 204 }),
+        [`POST ${BASE}/procedures/${PPOZ_ID}/restore`]: () => json(200, ppoz(), { ETag: '"6"' }),
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Opinia ppoż', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Opinia ppoż”?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Cofnij' }));
+    expect(await screen.findByText('Przywrócono proces „Opinia ppoż”.')).toBeTruthy();
+    expect(fake.calls(`POST ${BASE}/procedures/${PPOZ_ID}/restore`)).toHaveLength(1);
+  });
+
   it('EVM-042 AC7 AC6 the process: 412, 404 and a closed order are told in the dialog; the Editor sees who restores', async () => {
     const answers = [problem(412, 'version_conflict'), problem(404, 'not_found'), problem(409, 'work_order_closed')];
     let call = 0;
@@ -835,6 +870,22 @@ describe('W-06 (d) the remaining answers of the dialogs (EVM-042 AC1–AC7)', ()
     expect(await dialog.findByText('Nie znaleziono procesu. Odśwież zlecenie.')).toBeTruthy();
     await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
     expect(await dialog.findByText(/przez administratora/)).toBeTruthy();
+  });
+
+  it('EVM-042 AC3 a process without a version on screen cannot be removed: "Usuń proces" is disabled and nothing is sent; an empty process says it only leaves the order', async () => {
+    const unversioned: Procedure = { ...osd([]), name: 'Proces bez wersji' };
+    delete unversioned.version;
+    const fake = api({ procedures: () => json(200, list([unversioned])) });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Proces bez wersji', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Proces bez wersji”?' }));
+    expect(dialog.getByText('Proces zniknie ze zlecenia.')).toBeTruthy();
+    expect(dialog.queryByText(/możesz zamiast tego oznaczyć/)).toBeNull();
+    const confirm = dialog.getByRole('button', { name: 'Usuń proces' });
+    expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    await userEvent.click(confirm);
+    expect(fake.calls(`DELETE ${BASE}/procedures/${OSD_ID}`)).toHaveLength(0);
   });
 
   it('EVM-042 AC1 the add dialog: a failed catalogue with a retry, a closed order, the discard of typed data and the offline banner', async () => {
