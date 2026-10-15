@@ -80,3 +80,4 @@ Stan wyjściowy (2026-10-15): `changes` (`tools/ci-changes`) wystawia jedno `hea
 - 2026-10-15 — refinement (product-owner): 6 AC, ścieżka lekka, wspólna gałąź z EVM-087 (087 → 086); status `draft`
 - 2026-10-15 — Konrad zaakceptował AC i rozstrzygnął 2 pytania; draft → ready
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-087-086-proces-ci`, po EVM-087)
+- 2026-10-15 — implementacja (devops-engineer): wyjścia `heavy`/`e2e`/`integration` w `tools/ci-changes`, `GATE_JQ` i trasowanie w `ci.yml` oraz `tools/repo-policy`, Chromium-only w `ci.yml` i pełne E2E z Firefoksem w `nightly.yml`, dokumentacja i szacunek (≈ −15 min/dzień) w `docs/ops/github-i-ci.md`
