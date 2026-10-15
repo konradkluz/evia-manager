@@ -24,6 +24,9 @@ export interface AuditEventsTable {
   amount_before_minor: ColumnType<string | null, number | null, never>;
   amount_after_minor: ColumnType<string | null, number | null, never>;
   currency: 'PLN' | null;
+  /** The codes of the status before and after (EVM-054; 0029): both or neither. */
+  from_code: string | null;
+  to_code: string | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

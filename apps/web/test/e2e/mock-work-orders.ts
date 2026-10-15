@@ -237,6 +237,13 @@ export function createdListItems(server: OrderServer, customerId?: string) {
       // EVM-072: the customer and the location of the order (the address without the postal code and the apartment).
       customer: customerOf(server, created.customerId),
       site: siteBodyOf(server, created.siteId),
+      // EVM-056: the column "Płatność" of an order created in this run (its instalments are planned: nothing invoiced).
+      payment: {
+        state: 'none',
+        invoicedCount: 0,
+        invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+        overdueTotal: { amountMinor: 0, currency: 'PLN' },
+      },
     }))
     .toReversed();
 }

@@ -11,6 +11,7 @@ import { Module } from '@nestjs/common';
 import { CustomersModule } from '../customers/index.ts';
 import { IdentityModule } from '../identity/index.ts';
 import { PartiesModule } from '../parties/index.ts';
+import { PaymentsModule } from '../payments/index.ts';
 import { ProceduresModule } from '../procedures/index.ts';
 import { SitesModule } from '../sites/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
@@ -25,7 +26,7 @@ import { WorkOrdersListController } from './http/work-orders-list.controller.ts'
 import { WorkOrdersSearchController } from './http/work-orders-search.controller.ts';
 
 @Module({
-  imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule, PartiesModule, ProceduresModule],
+  imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule, PartiesModule, ProceduresModule, PaymentsModule],
   controllers: [WorkOrdersListController, WorkOrdersSearchController],
   providers: [
     ProjectionRecomputer,

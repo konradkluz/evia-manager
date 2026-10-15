@@ -6,7 +6,8 @@
  * Order matters, and it is the order of the documentation of the operation:
  * 1. the limiter counts EVERY authorised search (a loop of invalid phrases is no way round it) — `429` with `Retry-After`;
  * 2. the body is validated and the phrase normalised (400 — before the database, so a NUL or a control character is `400`, never a `500`);
- * 3. the cursor is opened (400 `invalid_cursor`: a cursor of the list, of another phrase, another user or an expired one);
+ * 3. the cursor is opened (400 `invalid_cursor`: a cursor of the list, of another phrase, another user or an expired one), and a
+ *    payment view is refused to a caller who may not read payments (403, EVM-056 W4);
  * 4. the mass-read meter is asked (429) BEFORE any query;
  * 5. the three modules are asked for the identifiers the phrase matches — the orders (number, title), the customers (name, company,
  *    tax id, telephone, e-mail, city) and the sites (address) — each under ITS OWN read policy, `LIMIT` 10 001: a phrase that matches
@@ -21,7 +22,6 @@ import type { WorkOrderList } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { BulkReadControl } from '../../../platform/bulk-read/bulk-read-control.ts';
-import { scopeOf } from '../../../platform/crypto/opaque-cursor.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
@@ -80,8 +80,9 @@ export class SearchWorkOrdersService {
       throw new ProblemException('rate_limited', { retryAfterSeconds: decision.retryAfterSeconds });
     }
     const query = resolveWorkOrderSearchQuery(rawBody);
-    const scope = scopeOf(searchFilterPartsOf(query));
+    const scope = this.#pages.scope(principal, searchFilterPartsOf(query));
     const start = this.#pages.start(principal, SEARCH_WORK_ORDERS_OPERATION, query.filters, scope);
+    this.#pages.authorize(principal, query.filters);
     await this.#bulkRead.before(principal.userId, { ...context, sessionId: principal.sessionId });
 
     const narrowing = await this.#matches(principal, query.phrase);

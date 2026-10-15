@@ -199,8 +199,12 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       // From EVM-034 the card "Podsumowanie" has "+ 6 procesów" (nine processes, three of them named) — one more button for everybody.
       // From EVM-042 the Editor has "Dodaj proces…" and the menu of every one of the nine processes (ten more buttons).
       // From EVM-053 the Editor has "Dodaj transzę" and the menus of the four planned instalments; Tylko odczyt has neither.
+      // From EVM-054 each of the four planned instalments also has the button of its row "Wystaw fakturę…".
       const reading = 11;
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 + 10 : reading);
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(
+        role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 + 10 + 4 : reading,
+      );
+      await expect(page.getByRole('button', { name: 'Wystaw fakturę…' })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje transzy/ })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje zlecenia/ })).toHaveCount(role === 'editor' ? 1 : 0);
       await expect(page.getByRole('button', { name: 'Edytuj zakres' })).toHaveCount(role === 'editor' ? 1 : 0);
@@ -222,6 +226,9 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     // the card "Podsumowanie" (EVM-034) is before the tabs: its button "+ 6 procesów" is the next stop
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: '+ 6 procesów' })).toBeFocused();
+    // the tile "Płatności" (EVM-056) is a link to the section of the instalments
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: /^Płatności: / })).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('tab', { name: 'Przegląd' })).toBeFocused();
     // the second tab "Dziennik" (EVM-037) is the next stop of the arrows, and they come back

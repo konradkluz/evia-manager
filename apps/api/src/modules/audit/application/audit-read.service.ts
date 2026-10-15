@@ -115,6 +115,8 @@ function toItem(row: AuditRow, names: ReadonlyMap<string, string>) {
     ...(row.amountBeforeMinor === null && row.amountAfterMinor === null
       ? {}
       : { amountBefore: moneyOf(row.amountBeforeMinor), amountAfter: moneyOf(row.amountAfterMinor) }),
+    // the codes of the status before and after a transition of a payment milestone (EVM-054), only where the event has them
+    ...(row.fromCode === null || row.toCode === null ? {} : { fromCode: row.fromCode, toCode: row.toCode }),
   };
 }
 

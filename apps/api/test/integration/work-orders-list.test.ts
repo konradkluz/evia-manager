@@ -130,6 +130,13 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       // the customer and the site of the order (EVM-072, additive): an order without them has `null`
       customer: null,
       site: null,
+      // the column "Płatność" (EVM-056, additive; a role that may read payments): an order without milestones has nothing issued
+      payment: {
+        state: 'none',
+        invoicedCount: 0,
+        invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+        overdueTotal: { amountMinor: 0, currency: 'PLN' },
+      },
     });
     expect(second?.coordinator).toBeNull();
     expect(Object.keys(first ?? {}).sort()).toEqual([
@@ -140,6 +147,7 @@ describe('the default view and the columns of the list (EVM-017 AC1)', () => {
       'id',
       'nextDueDate',
       'number',
+      'payment',
       'site',
       'status',
       'title',

@@ -6,6 +6,7 @@ import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
+import { PaymentsPage } from './pages/payments-page.tsx';
 import { PrivacyPage } from './pages/privacy-page.tsx';
 import { WorkOrderPage } from './pages/work-order-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
@@ -19,10 +20,12 @@ import {
   LOGIN_SECOND_STEP_PATH,
   MFA_SETUP_PATH,
   NEW_WORK_ORDER_PATH,
+  PAYMENTS_PATH,
   PRIVACY_PATH,
   PUBLIC_PATHS,
   WORK_ORDERS_PATH,
 } from './paths.ts';
+import { validateSearch as validatePaymentsSearch } from './payments/unpaid-filters.ts';
 import { validateSearch } from './work-orders/filters.ts';
 import { ErrorState } from './shell/error-state.tsx';
 import { PrivacyGate } from './shell/privacy-gate.tsx';
@@ -59,6 +62,13 @@ const workOrderRoute = createRoute({ getParentRoute: () => rootRoute, path: `${W
 /** W-14 (EVM-039): the list of customers, and one customer by the UUID of the API. */
 const customersRoute = createRoute({ getParentRoute: () => rootRoute, path: CUSTOMERS_PATH, component: CustomersPage });
 const customerRoute = createRoute({ getParentRoute: () => rootRoute, path: `${CUSTOMERS_PATH}/$customerId`, component: CustomerPage });
+/** W-11 (EVM-055): the address carries only `view=overdue`; a customer, a range of dates and a cursor stay in the memory of the tab. */
+const paymentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: PAYMENTS_PATH,
+  component: PaymentsPage,
+  validateSearch: validatePaymentsSearch,
+});
 const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
 const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
@@ -82,6 +92,7 @@ const routeTree = rootRoute.addChildren([
   workOrderRoute,
   customersRoute,
   customerRoute,
+  paymentsRoute,
   administrationRoute,
   auditRoute,
   activateRoute,

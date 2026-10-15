@@ -12,7 +12,9 @@ import { CustomerCard } from '../work-orders/customer-card.tsx';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDER_KEYS } from '../work-orders/query-keys.ts';
 import { OrderSummary } from '../work-orders/order-summary.tsx';
-import { PaymentsSection } from '../work-orders/payments-section.tsx';
+import { canReadPayments } from '../payments/payment-access.ts';
+import { useSession } from '../session/session.ts';
+import { PAYMENTS_HEADING_ID, PaymentsSection } from '../work-orders/payments-section.tsx';
 import { PROCEDURES_HEADING_ID, ProceduresSection } from '../work-orders/procedures-section.tsx';
 import { ScopeSection } from '../work-orders/scope-section.tsx';
 import { SiteCard } from '../work-orders/site-card.tsx';
@@ -59,6 +61,8 @@ export function WorkOrderPage() {
   const site = useWorkOrderSite(id, active);
   const siteOrders = useWorkOrderSiteOrders(id, active);
   const heading = useRef<HTMLHeadingElement>(null);
+  // The tile "Płatności" of the summary exists for a role that reads payments (EVM-056 AC7; the server decides all the same).
+  const readsPayments = canReadPayments(useSession().data?.user.role);
 
   // The order is gone when the header or the scope says so (a card may be 404 for a customer that was deleted — the order lives).
   const notFound = gone || isNotFound(header.error) || isNotFound(scope.error);
@@ -91,16 +95,23 @@ export function WorkOrderPage() {
     if (focusTarget) heading.current?.focus();
   }, [focusTarget, notFound]);
 
-  // "+ 6 procesów" of the summary: the tab "Przegląd" is opened and the focus goes to the section of the processes (WCAG 2.4.3).
-  const [showing, setShowing] = useState(0);
-  const showProcesses = () => {
+  // "+ 6 procesów" and the tile "Płatności" of the summary: the tab "Przegląd" is opened and the focus goes to the section of the
+  // processes or of the payments (WCAG 2.4.3).
+  const [showing, setShowing] = useState<{ readonly target: string; readonly count: number }>({ target: '', count: 0 });
+  const show = (target: string) => {
     setTab(OVERVIEW_TAB);
-    setShowing((count) => count + 1);
+    setShowing(({ count }) => ({ target, count: count + 1 }));
+  };
+  const showProcesses = () => {
+    show(PROCEDURES_HEADING_ID);
+  };
+  const showPayments = () => {
+    show(PAYMENTS_HEADING_ID);
   };
   useEffect(() => {
-    if (showing === 0) return;
+    if (showing.count === 0) return;
     // Focusing the heading brings it into view.
-    document.getElementById(PROCEDURES_HEADING_ID)?.focus();
+    document.getElementById(showing.target)?.focus();
   }, [showing]);
 
   if (notFound) return <NotFound titleRef={heading} />;
@@ -122,7 +133,11 @@ export function WorkOrderPage() {
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(header.dataUpdatedAt) })}</Banner>}
       <WorkOrderHeader order={order} headingRef={heading} />
       <ClosedBanner order={order} />
-      <OrderSummary query={procedures} onShowProcesses={showProcesses} />
+      <OrderSummary
+        query={procedures}
+        onShowProcesses={showProcesses}
+        {...(readsPayments ? { payments, onShowPayments: showPayments } : {})}
+      />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs

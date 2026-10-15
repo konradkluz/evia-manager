@@ -14,6 +14,8 @@ import {
   zPaymentMilestoneList,
   zPaymentMilestonePatch,
   zUpdatePaymentMilestoneHeaders,
+  zListUnpaidPaymentMilestonesQuery,
+  zUnpaidPaymentMilestoneList,
   zUpdatePaymentMilestonePath,
 } from '../src/zod.ts';
 
@@ -33,6 +35,7 @@ const milestone = {
   paidOn: null,
   isOverdue: false,
   version: 1,
+  allowedTransitions: ['invoiced', 'cancelled'],
 };
 const zero = { amountMinor: 0, currency: 'PLN' };
 
@@ -55,10 +58,11 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     });
   });
 
-  it('EVM-053 AC7 a milestone is addressed by the order AND the milestone in the path — there is no operation with the milestone alone', () => {
+  it('EVM-053 AC7 EVM-054 AC8 a milestone is addressed by the order AND the milestone in the path — there is no operation with the milestone alone', () => {
     const paths = Object.values(AUTHZ_MANIFEST).map((operation) => operation.path);
-    expect(paths.filter((path) => path.includes('{milestoneId}'))).toEqual([
+    expect([...new Set(paths.filter((path) => path.includes('{milestoneId}')))].sort()).toEqual([
       '/api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}',
+      '/api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}/transitions',
     ]);
     expect(zUpdatePaymentMilestonePath.safeParse({ workOrderId: V7, milestoneId: V7 }).success).toBe(true);
     expect(zUpdatePaymentMilestonePath.safeParse({ workOrderId: V7, milestoneId: 'x' }).success).toBe(false);
@@ -76,14 +80,14 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     expect(zMoney.safeParse({ amountMinor: 360000 }).success).toBe(false);
   });
 
-  it('EVM-053 AC3 the change needs If-Match as a strong tag and takes an optional UUIDv7 Idempotency-Key; the patch is the amount only', () => {
+  it('EVM-053 AC3 EVM-054 AC4 the change needs If-Match as a strong tag and takes an optional UUIDv7 Idempotency-Key; the patch is the amount, the data of the invoice and the day of the payment — never the status', () => {
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': '"3"' }).success).toBe(true);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': '"3"', 'Idempotency-Key': V7 }).success).toBe(true);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({}).success).toBe(false);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': 'W/"3"' }).success).toBe(false);
-    expect(Object.keys(zPaymentMilestonePatch.shape)).toEqual(['amount']);
+    expect(Object.keys(zPaymentMilestonePatch.shape)).toEqual(['amount', 'invoiceNumber', 'invoicedOn', 'dueDate', 'paidOn']);
     expect(zPaymentMilestonePatch.safeParse({ amount: null }).success).toBe(false);
-    expect(zPaymentMilestonePatch.safeParse({}).success).toBe(false);
+    expect(zPaymentMilestonePatch.safeParse({ invoiceNumber: null }).success).toBe(false);
   });
 
   it('EVM-053 AC4 the creation needs a UUIDv7 Idempotency-Key, a UUIDv7 id and a name of 1–120 characters; the amount is optional; the fields of the server are not part of it', () => {
@@ -128,7 +132,7 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     expect(zAuditEventList.safeParse({ items: [{ ...event, action: 'payment_milestone.cancelled' }], nextCursor: null }).success).toBe(
       true,
     );
-    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.paid' }).success).toBe(false);
+    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.purged' }).success).toBe(false);
   });
 
   it('EVM-053 P3 SR-AUTHZ-12 no operation open to the mobile channel can answer with a payment milestone or an amount (payments never reach the phone)', () => {
@@ -158,10 +162,64 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     );
     for (const operation of mobile) {
       const names = reachable(operation.responses);
-      for (const name of ['Money', 'MoneyTotal', 'PaymentMilestone', 'PaymentMilestoneList']) expect(names.has(name)).toBe(false);
+      for (const name of ['Money', 'MoneyTotal', 'PaymentMilestone', 'PaymentMilestoneList', 'UnpaidPaymentMilestoneList'])
+        expect(names.has(name)).toBe(false);
     }
     // the payment schemas are really reachable from the web operations (the walk above is not vacuous)
     const web = bundle.paths['/api/v1/work-orders/{workOrderId}/payment-milestones']?.['get'];
     expect(reachable(web?.responses).has('Money')).toBe(true);
+  });
+
+  it('EVM-055 AC7 the summary of unpaid invoices is open to the three roles on the web channel only, with no audit of the read (P3, P6)', () => {
+    expect(AUTHZ_MANIFEST['listUnpaidPaymentMilestones']).toMatchObject({
+      method: 'get',
+      path: '/api/v1/payment-milestones',
+      authz: { roles: ['administrator', 'editor', 'read_only'], channels: ['web'] },
+    });
+    expect(AUTHZ_MANIFEST['listUnpaidPaymentMilestones']?.authz).not.toHaveProperty('audit');
+  });
+
+  it('EVM-055 AC4 the query accepts the closed view, the range of days and an identifier of a customer, and refuses a value outside the lists, a day outside 2000-2100', () => {
+    const parse = (query: unknown) => zListUnpaidPaymentMilestonesQuery.safeParse(query).success;
+    expect(parse({})).toBe(true);
+    expect(parse({ view: 'overdue', dueFrom: '2000-01-01', dueTo: '2100-12-31', customerId: V7, limit: 100 })).toBe(true);
+    expect(parse({ view: 'to_invoice' })).toBe(false);
+    expect(parse({ dueFrom: '1999-12-31' })).toBe(false);
+    expect(parse({ dueTo: '2101-01-01' })).toBe(false);
+    expect(parse({ dueFrom: '2026-1-1' })).toBe(false);
+    expect(parse({ customerId: 'not-a-uuid' })).toBe(false);
+    expect(parse({ limit: 0 })).toBe(false);
+    expect(parse({ limit: 101 })).toBe(false);
+  });
+
+  it('EVM-055 AC3 the answer has the page, the day of the clock and the summary with the money as MoneyTotal', () => {
+    const item = {
+      id: V7,
+      workOrder: { id: V7, number: 'ZL-2026-0031', title: 'Wallbox' },
+      customer: { deleted: true },
+      name: 'Zaliczka',
+      invoiceNumber: 'FV/1/2026',
+      amount: { amountMinor: 360000, currency: 'PLN' },
+      dueDate: '2026-09-28',
+      status: 'invoiced',
+      isOverdue: true,
+      overdueDays: 5,
+      version: 3,
+    };
+    const count = { count: 1, total: { amountMinor: 360000, currency: 'PLN' } };
+    const page = {
+      items: [item],
+      nextCursor: null,
+      asOf: '2026-10-03',
+      summary: {
+        unpaid: count,
+        overdue: count,
+        longestOverdue: { days: 5, workOrder: { id: V7, number: 'ZL-2026-0031' } },
+        filtered: count,
+      },
+    };
+    expect(zUnpaidPaymentMilestoneList.safeParse(page).success).toBe(true);
+    expect(zUnpaidPaymentMilestoneList.safeParse({ ...page, items: [{ ...item, overdueDays: 0 }] }).success).toBe(false);
+    expect(zUnpaidPaymentMilestoneList.safeParse({ ...page, summary: { ...page.summary, longestOverdue: null } }).success).toBe(true);
   });
 });

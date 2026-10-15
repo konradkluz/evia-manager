@@ -19,6 +19,11 @@ export const WORK_ORDER_PROCEDURES_KEY = 'work-order-procedures' as const;
 export const WORK_ORDER_DELETED_PROCEDURES_KEY = 'work-order-deleted-procedures' as const;
 /** The instalments of the order with their totals (EVM-053): the section "Płatności" and the warning of "Anuluj zlecenie…" read the same entry. */
 export const WORK_ORDER_PAYMENTS_KEY = 'work-order-payments' as const;
+/**
+ * The unpaid list (W-11, EVM-055): the pages of the list with its tiles and sum. Rows carry the numbers of invoices, the amounts and the
+ * names of customers — the memory of the tab only; a command on an instalment (W-06 or W-11) refreshes it.
+ */
+export const UNPAID_PAYMENTS_KEY = 'unpaid-payments' as const;
 /** The journal of the order (EVM-037): the pages of the timeline for one filter; the texts are personal data — memory of the tab only. */
 export const WORK_ORDER_JOURNAL_KEY = 'work-order-journal' as const;
 /** The site and the party read for the dialogs "Edytuj lokalizację" and "Edytuj stronę" (EVM-036); gone when the dialog closes. */

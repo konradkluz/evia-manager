@@ -11,6 +11,8 @@ export const workOrderPath = (id: string): string => `${WORK_ORDERS_PATH}/${enco
 /** W-14 (EVM-039): the list of customers and the details of one; only the identifier of a customer is in the address, never a name or a phrase. */
 export const CUSTOMERS_PATH = '/customers';
 export const customerPath = (id: string): string => `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`;
+/** W-11 (EVM-055): the unpaid instalments; the address carries only `view=overdue` — never a customer, a range of dates or a cursor. */
+export const PAYMENTS_PATH = '/payments';
 /** Administration (W-16, W-18; EVM-029): the audit log is the first page of it; only an Administrator sees it in the menu. */
 export const ADMINISTRATION_PATH = '/administration';
 export const AUDIT_PATH = '/administration/audit';

@@ -10,7 +10,6 @@ import {
   type OrderServer,
 } from './mock-work-orders.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
-import { answerPaymentCreate, answerPaymentPatch, answerPayments, paymentsCondition, paymentsEffect } from './mock-payments.ts';
 import {
   answerCreateProcedure,
   answerCreateStage,
@@ -21,6 +20,23 @@ import {
   type EditingState,
 } from './mock-procedure-editing.ts';
 import { answerStagePatch, answerStageTransition } from './mock-procedures.ts';
+import {
+  answerPaymentCreate,
+  answerPaymentDelete,
+  answerPaymentPatch,
+  answerPayments,
+  answerPaymentTransition,
+  paymentsCondition,
+  paymentsEffect,
+} from './mock-payments.ts';
+import {
+  answerUnpaidList,
+  answerUnpaidOrderPayments,
+  answerUnpaidTransition,
+  isUnpaidOrder,
+  newUnpaidServer,
+  type UnpaidServer,
+} from './mock-unpaid.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -99,6 +115,8 @@ export interface MockApi {
   orders: OrderServer;
   /** EVM-042: the structure of the processes of the orders after a process or a stage was added, removed or restored by hand. */
   procedureEdits: EditingState;
+  /** EVM-055: the twelve invoiced instalments of W-11 (the unpaid list). */
+  unpaid: UnpaidServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -237,6 +255,36 @@ const WAITS = [
 
 type MockWait = (typeof WAITS)[number];
 
+const pln = (amountMinor: number) => ({ amountMinor, currency: 'PLN' });
+/**
+ * EVM-056: the column "Płatność" of the synthetic orders, in turn by `index % 5` — after the due date (3 600,00 zł, the oldest
+ * instalment due on 2026-09-26), one invoiced (4 500,00 zł), all paid, nothing invoiced (twice). The state is the server's, counted
+ * from the synthetic day 2026-10-03 (the clock of the server is frozen: the browser compares nothing).
+ */
+const PAYMENTS = [
+  { payment: { state: 'overdue', invoicedCount: 1, invoicedTotal: pln(360_000), overdueTotal: pln(360_000) }, overdueSince: '2026-09-26' },
+  { payment: { state: 'unpaid', invoicedCount: 1, invoicedTotal: pln(450_000), overdueTotal: pln(0) }, overdueSince: null },
+  { payment: { state: 'paid', invoicedCount: 0, invoicedTotal: pln(0), overdueTotal: pln(0) }, overdueSince: null },
+  { payment: { state: 'none', invoicedCount: 0, invoicedTotal: pln(0), overdueTotal: pln(0) }, overdueSince: null },
+  { payment: { state: 'none', invoicedCount: 0, invoicedTotal: pln(0), overdueTotal: pln(0) }, overdueSince: null },
+] as const;
+
+/** "Najpilniejsze" of the synthetic server (ADR-0017 D9, the day 2026-10-03): the group 1–4 and its key; ties go by the identifier. */
+function urgencyOf(entry: {
+  status: string;
+  overdueSince: string | null;
+  hasOverdueStage: boolean;
+  nextDueDate: string | null;
+  waiting: { days: number; since: string } | null;
+}): readonly [number, string] {
+  if (entry.status === 'settled' || entry.status === 'cancelled') return [4, 'infinity'];
+  const overdue = [entry.overdueSince, entry.hasOverdueStage ? entry.nextDueDate : null].filter((day) => day !== null).sort();
+  if (overdue[0] !== undefined) return [1, overdue[0]];
+  if (entry.waiting !== null && entry.waiting.days > 14) return [2, entry.waiting.since];
+  if (entry.nextDueDate !== null) return [3, entry.nextDueDate];
+  return [4, 'infinity'];
+}
+
 /**
  * EVM-072: the customer and the location of a synthetic order. Customers and sites alternate (even — "Jan Przykładowy", odd — "Firma
  * Testowa"; the site by `index % 4`), and every seventh order has a deleted customer (`{ deleted: true }` — no name, no identifier).
@@ -269,6 +317,7 @@ function workOrder(index: number, waits = true, customers: readonly MockCustomer
   return {
     ...placeOf(customers, sites, index),
     ...wait,
+    ...(PAYMENTS[index % PAYMENTS.length] ?? PAYMENTS[3]),
     id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
     number: `ZL-2026-${String(index + 1).padStart(4, '0')}`,
     title: index % 4 === 0 ? 'Garaż — pełny proces z bardzo długim tytułem, który zawija się w komórce tabeli' : 'Dom — pełny pakiet',
@@ -388,6 +437,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       goneParties: new Set(),
     },
     procedureEdits: new Map(),
+    unpaid: newUnpaidServer(),
     journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
@@ -419,6 +469,13 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           query.get('view') !== 'waiting_on_dso_over_14_days' ||
           (!closed(entry.status) && entry.waiting?.party?.kind === 'distribution_system_operator' && entry.waiting.days > 14),
       )
+      // EVM-056 AC2: the payment views — open orders only.
+      .filter((entry) => query.get('view') !== 'overdue_payments' || (!closed(entry.status) && entry.payment.state === 'overdue'))
+      .filter(
+        (entry) =>
+          query.get('view') !== 'unpaid' ||
+          (!closed(entry.status) && (entry.payment.state === 'overdue' || entry.payment.state === 'unpaid')),
+      )
       .filter((entry) => waitingOn === null || entry.waiting?.waitingOn === waitingOn)
       .filter((entry) => waitingKind === null || entry.waiting?.party?.kind === waitingKind)
       .filter((entry) => longerThan === null || (entry.waiting !== null && entry.waiting.days > Number(longerThan)))
@@ -436,17 +493,25 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       (b.waiting?.days ?? -1) - (a.waiting?.days ?? -1);
     const byDue = (a: { nextDueDate: string | null }, b: { nextDueDate: string | null }) =>
       (a.nextDueDate ?? '9999-12-31').localeCompare(b.nextDueDate ?? '9999-12-31');
+    const byUrgency = (a: Parameters<typeof urgencyOf>[0] & { id: string }, b: Parameters<typeof urgencyOf>[0] & { id: string }) => {
+      const [groupA, keyA] = urgencyOf(a);
+      const [groupB, keyB] = urgencyOf(b);
+      return groupA - groupB || keyA.localeCompare(keyB) || a.id.localeCompare(b.id);
+    };
     const sorted =
-      sort === 'longestWaitingSince'
-        ? matching.toSorted(byWait)
-        : sort === 'nextDueDate'
-          ? matching.toSorted(byDue)
-          : [...(sort.startsWith('-') ? matching.toReversed() : matching)];
+      sort === 'urgency'
+        ? matching.toSorted(byUrgency)
+        : sort === 'longestWaitingSince'
+          ? matching.toSorted(byWait)
+          : sort === 'nextDueDate'
+            ? matching.toSorted(byDue)
+            : [...(sort.startsWith('-') ? matching.toReversed() : matching)];
     // The filters work on these two fields; they are not part of the item of the contract.
     const ordered: object[] = sorted.map((entry) => {
       const item: Record<string, unknown> = { ...entry };
       delete item['siteType'];
       delete item['templateId'];
+      delete item['overdueSince'];
       return item;
     });
     // The orders created in this run come first (the newest number is the highest) — only in the list: a phrase and the filters of the panel are not matched by them.
@@ -656,12 +721,51 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         }),
       );
     }
+    // EVM-055: the unpaid list of W-11 (every role of the office reads it).
+    if (request.method() === 'GET' && url.pathname === '/api/v1/payment-milestones') {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      return route.fulfill(answerUnpaidList(api.unpaid, url.searchParams));
+    }
+    // EVM-055: the instalments of the twelve orders of W-11 (what the dialog reads on a `412`) and the payment of one.
+    const unpaidOrder = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36})\/transitions)?$/.exec(
+      url.pathname,
+    );
+    if (unpaidOrder !== null && isUnpaidOrder(api.unpaid, unpaidOrder[1] ?? '')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (request.method() === 'GET' && unpaidOrder[2] === undefined)
+        return route.fulfill(answerUnpaidOrderPayments(api.unpaid, unpaidOrder[1] ?? ''));
+      if (request.method() === 'POST' && unpaidOrder[2] !== undefined) {
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        return route.fulfill(
+          answerUnpaidTransition(api.unpaid, unpaidOrder[1] ?? '', unpaidOrder[2], {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            raw: request.postData() ?? '{}',
+          }),
+        );
+      }
+    }
     // EVM-053: the instalments of one order — the list, "Dodaj transzę" and "Zmień kwotę" (the section "Płatności" of W-06).
-    const payments = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36}))?$/.exec(url.pathname);
+    // EVM-054: also the transitions of an instalment (`…/{milestoneId}/transitions`).
+    const payments = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/payment-milestones(?:\/([0-9a-f-]{36})(\/transitions)?)?$/.exec(
+      url.pathname,
+    );
     if (payments !== null) {
       if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
-      const [, orderId = '', milestoneId] = payments;
-      if (request.method() === 'GET' && milestoneId === undefined) return route.fulfill(answerPayments(api.orders, orderId));
+      const [, orderId = '', milestoneId, transitions] = payments;
+      if (request.method() === 'GET' && milestoneId === undefined) return route.fulfill(answerPayments(api.orders, orderId, api.role));
+      if (request.method() === 'POST' && milestoneId !== undefined && transitions !== undefined) {
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        return route.fulfill(
+          answerPaymentTransition(api.orders, orderId, milestoneId, {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            key: headers['idempotency-key'],
+            raw: request.postData() ?? '{}',
+            stepUpFresh: api.stepUp === 'fresh',
+          }),
+        );
+      }
       if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
       if (request.method() === 'POST' && milestoneId === undefined) {
         return route.fulfill(
@@ -674,6 +778,18 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
             role: api.role,
             ifMatch: headers['if-match'],
             raw: request.postData() ?? '{}',
+            stepUpFresh: api.stepUp === 'fresh',
+          }),
+        );
+      }
+      // EVM-057 AC4: the soft delete of an instalment (the Administrator with a step-up).
+      if (request.method() === 'DELETE' && milestoneId !== undefined && transitions === undefined) {
+        return route.fulfill(
+          answerPaymentDelete(api.orders, orderId, milestoneId, {
+            role: api.role,
+            ifMatch: headers['if-match'],
+            key: headers['idempotency-key'],
+            stepUpFresh: api.stepUp === 'fresh',
           }),
         );
       }

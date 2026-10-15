@@ -1,9 +1,14 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query';
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { userEvent as userEventDefault } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiProvider } from '../src/api/api-context.tsx';
+import { createApiClient } from '../src/api/client.ts';
+import { SiteSuggestions } from '../src/sites/site-suggestions.tsx';
+import { useSiteSuggestions, type SiteSuggestion } from '../src/sites/use-site-suggestions.ts';
 import { clearDrafts } from '../src/session/draft-store.ts';
 import { axeViolations } from './a11y.ts';
-import { json, problem, type Handler } from './api-fake.ts';
+import { createFakeApi, json, problem, type Handler } from './api-fake.ts';
 import { activeSessionApi, renderPanel } from './render.tsx';
 
 const userEvent = userEventDefault.setup({ delay: null });
@@ -356,5 +361,106 @@ describe('W-05 "2. Lokalizacja": the locations of the earlier orders of the cust
     await userEvent.click(screen.getByRole('radio', { name: 'Istniejąca lokalizacja' }));
     await heading(2);
     expect(screen.queryByRole('button', { name: 'Zmień lokalizację' })).toBeNull();
+  });
+
+  it('EVM-043 AC1 a second click in the same moment as the first is ONE read (the guard does not wait for the buttons to be blocked)', async () => {
+    let release: (response: Response) => void = () => undefined;
+    const api = suggestionApi({
+      [SITE(GARAGE_ID)]: () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    const choose = await screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' });
+    act(() => {
+      fireEvent.click(choose);
+      fireEvent.click(choose);
+    });
+    await waitFor(() => {
+      expect(api.calls(SITE(GARAGE_ID))).toHaveLength(1);
+    });
+    release(json(200, GARAGE_CARD, { ETag: '"1"' }));
+    await screen.findByRole('button', { name: 'Zmień lokalizację' });
+    expect(api.calls(SITE(GARAGE_ID))).toHaveLength(1);
+  });
+
+  it('EVM-043 AC1 leaving the section while a site is read and the read FAILS: no message and no site', async () => {
+    let release: (response: Response) => void = () => undefined;
+    const api = suggestionApi({
+      [SITE(GARAGE_ID)]: () =>
+        new Promise<Response>((resolve) => {
+          release = resolve;
+        }),
+    });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await userEvent.click(await screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' }));
+    await waitFor(() => {
+      expect(api.calls(SITE(GARAGE_ID))).toHaveLength(1);
+    });
+    await userEvent.click(screen.getByRole('radio', { name: 'Nowa lokalizacja' }));
+    release(problem(500, 'internal_error'));
+    await userEvent.click(screen.getByRole('radio', { name: 'Istniejąca lokalizacja' }));
+    await heading(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Zmień lokalizację' })).toBeNull();
+  });
+
+  it('EVM-043 AC4 a broken answer of the site read (not an API failure): the general message, no site is set', async () => {
+    const api = suggestionApi({ [SITE(GARAGE_ID)]: () => json(200, null) });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await userEvent.click(await screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Nie udało się wybrać lokalizacji.');
+    expect(screen.queryByRole('button', { name: 'Zmień lokalizację' })).toBeNull();
+  });
+
+  it('EVM-043 AC4 a 429 of the site read without Retry-After: the message says 60 s', async () => {
+    const api = suggestionApi({ [SITE(GARAGE_ID)]: () => problem(429, 'rate_limited') });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    await userEvent.click(await screen.findByRole('button', { name: 'Wybierz lokalizację: ul. Testowa 7, Warszawa' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Zbyt wiele zapytań. Spróbuj ponownie za 60 s.');
+  });
+
+  it('EVM-043 AC4 a 429 of the list without Retry-After: the notice says 60 s', async () => {
+    const api = suggestionApi({ [LIST]: () => problem(429, 'rate_limited') });
+    await renderPanel(NEW, api);
+    await chooseCustomer('Jan Przykładowy');
+    expect(await screen.findByText('Zbyt wiele zapytań. Spróbuj ponownie za 60 s.')).toBeTruthy();
+  });
+
+  it('EVM-043 AC2 a query that has not started (no data, no error): nothing is shown and the live region stays', () => {
+    const idle = { isError: false, isLoading: false, data: undefined } as unknown as UseQueryResult<SiteSuggestion[]>;
+    const client = createApiClient(createFakeApi({}).fetch);
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ApiProvider client={client}>
+          <SiteSuggestions customerId={JAN.id} online suggestions={idle} onPick={() => undefined} />
+        </ApiProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole('status').textContent).toBe('');
+    expect(container.querySelector('section')).toBeNull();
+  });
+
+  it('EVM-043 AC1 the hook without a chosen customer does not read by itself; a manual refetch asks with an empty customer, not a made-up one', async () => {
+    const api = suggestionApi();
+    const queryClient = new QueryClient();
+    const { result } = renderHook(() => useSiteSuggestions(null, true), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>
+          <ApiProvider client={createApiClient(api.fetch)}>{children}</ApiProvider>
+        </QueryClientProvider>
+      ),
+    });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(suggestionCalls(api)).toHaveLength(0);
+    await act(async () => {
+      await result.current.refetch();
+    });
+    expect(api.calls(LIST).map((call) => call.query.get('customerId'))).toEqual(['']);
   });
 });

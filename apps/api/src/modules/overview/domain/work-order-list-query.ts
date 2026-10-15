@@ -33,7 +33,7 @@ export const WAITING_WARNING_DAYS = 14;
 /** The kind of the party of the view "Czekamy na OSD > 14 dni" (D2). */
 export const DSO_PARTY_KIND = 'distribution_system_operator';
 
-export type SortKey = 'number' | 'createdAt' | 'longestWaitingSince' | 'nextDueDate';
+export type SortKey = 'number' | 'createdAt' | 'longestWaitingSince' | 'nextDueDate' | 'urgency';
 export interface SortRule {
   readonly key: SortKey;
   readonly direction: 'asc' | 'desc';
@@ -48,6 +48,8 @@ export const SORT_RULES: Readonly<Record<WorkOrderSort, SortRule>> = Object.free
   // "Najdłużej czekamy" and "Termin" (EVM-034 AC4): ascending only, an order without the date last (`infinity`), a tie by the id
   longestWaitingSince: { key: 'longestWaitingSince', direction: 'asc' },
   nextDueDate: { key: 'nextDueDate', direction: 'asc' },
+  // "Najpilniejsze" (EVM-056 AC3; ADR-0017 D9): ascending only — the group 1..4, the day of its key (`infinity` in group 4), the id
+  urgency: { key: 'urgency', direction: 'asc' },
 });
 
 /** Comma separated statuses of the closed list: no empty element, at most 20 elements; the set is normalised (sorted, no duplicates). */
@@ -148,16 +150,31 @@ export const filterPartsOf = (query: WorkOrderListQuery): string[] => [
   query.waitingLongerThanDays === undefined ? '' : String(query.waitingLongerThanDays),
 ];
 
+export type UrgencyGroup = 1 | 2 | 3 | 4;
+
+/** The place of an order in "Najpilniejsze" (EVM-056, D9 — `payment-signals.ts`): the group, then the day of its key (`infinity` in group 4). */
+export interface Urgency {
+  readonly group: UrgencyGroup;
+  /** `YYYY-MM-DD` or `infinity` */
+  readonly day: string;
+}
+
 /**
  * Where the next page starts: the sort key of the last item (and its id, when the key is not unique). For the two sorts by a date the
  * key is the date or `infinity` (an order without the date), and the id breaks the tie.
  */
 export type Position =
-  { readonly number: string } | { readonly createdAt: Date; readonly id: string } | { readonly day: string; readonly id: string };
+  | { readonly number: string }
+  | { readonly createdAt: Date; readonly id: string }
+  | { readonly day: string; readonly id: string }
+  | { readonly group: UrgencyGroup; readonly day: string; readonly id: string };
 
 const numberPosition = z.tuple([z.string().regex(/^[A-Za-z0-9-]{1,32}$/)]);
 const createdAtPosition = z.tuple([z.iso.datetime(), z.uuid()]);
-const dayPosition = z.tuple([z.union([z.iso.date(), z.literal('infinity')]), z.uuid()]);
+const day = z.union([z.iso.date(), z.literal('infinity')]);
+const dayPosition = z.tuple([day, z.uuid()]);
+/** The group of "Najpilniejsze" is one of 1..4 written as a digit — anything else (`0`, `5`, `01`, `1.0`) is not a position. */
+const urgencyPosition = z.tuple([z.enum(['1', '2', '3', '4']).transform((group) => Number(group) as UrgencyGroup), day, z.uuid()]);
 
 /** @returns the position as a typed value, or undefined for a position that does not fit the sort (validated again after decryption) */
 export function parsePosition(sort: WorkOrderSort, parts: readonly string[]): Position | undefined {
@@ -175,6 +192,10 @@ export function parsePosition(sort: WorkOrderSort, parts: readonly string[]): Po
       const parsed = dayPosition.safeParse(parts);
       return parsed.success ? { day: parsed.data[0], id: parsed.data[1] } : undefined;
     }
+    case 'urgency': {
+      const parsed = urgencyPosition.safeParse(parts);
+      return parsed.success ? { group: parsed.data[0], day: parsed.data[1], id: parsed.data[2] } : undefined;
+    }
   }
 }
 
@@ -187,6 +208,8 @@ export function positionParts(
     readonly createdAt: Date;
     readonly longestWaitingSince: string | null;
     readonly nextDueDate: string | null;
+    /** the group and the day of "Najpilniejsze", as the query computed them (present when the page is sorted by it) */
+    readonly urgency?: Urgency | undefined;
   },
 ): string[] {
   switch (SORT_RULES[sort].key) {
@@ -198,11 +221,16 @@ export function positionParts(
       return [item.longestWaitingSince ?? 'infinity', item.id];
     case 'nextDueDate':
       return [item.nextDueDate ?? 'infinity', item.id];
+    case 'urgency': {
+      // the reader computes the group and the day for every row of a page sorted by "Najpilniejsze": a row without them is a defect
+      if (item.urgency === undefined) throw new Error('a row of a page sorted by urgency without its group');
+      return [String(item.urgency.group), item.urgency.day, item.id];
+    }
   }
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const dayNumber = (day: string): number => Date.parse(`${day}T00:00:00Z`) / DAY_MS;
+export const dayNumber = (day: string): number => Date.parse(`${day}T00:00:00Z`) / DAY_MS;
 
 /**
  * Full calendar days from `since` to `today` (both `YYYY-MM-DD` in `Europe/Warsaw`): a difference of dates, so a change of the clock

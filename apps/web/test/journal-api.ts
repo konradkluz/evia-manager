@@ -113,11 +113,15 @@ export function journalApi({
   const store = [...entries];
   const defaultList: Handler = (request) => {
     const group = request.query.get('eventGroup');
-    const kind = group === 'status_changes' ? 'event' : request.query.get('kind');
+    const kind = group === null ? request.query.get('kind') : 'event';
     const stage = request.query.get('procedureStageId');
     const cursor = request.query.get('cursor');
     const limit = Number(request.query.get('limit') ?? '25');
-    const all = store.filter((item) => (kind === null || item.kind === kind) && (stage === null || item.procedureStageId === stage));
+    // EVM-054: the groups are disjoint — "payments" has the events of the instalments, "status_changes" the others
+    const inGroup = (item: TimelineEntry) => group === null || (group === 'payments') === (item.event?.objectType === 'payment_milestone');
+    const all = store.filter(
+      (item) => (kind === null || item.kind === kind) && (stage === null || item.procedureStageId === stage) && inGroup(item),
+    );
     const start = cursor === null ? 0 : Number(cursor);
     const next = start + limit;
     return json(200, { items: all.slice(start, next), nextCursor: next < all.length ? String(next) : null });

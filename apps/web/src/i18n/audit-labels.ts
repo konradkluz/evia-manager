@@ -48,6 +48,15 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'payment_milestone.created': 'Dodanie transzy płatności',
   'payment_milestone.amount_changed': 'Zmiana kwoty transzy płatności',
   'payment_milestone.cancelled': 'Anulowanie transzy płatności',
+  'payment_milestone.invoiced': 'Wystawienie faktury za transzę płatności',
+  'payment_milestone.paid': 'Odnotowanie wpłaty za transzę płatności',
+  'payment_milestone.details_changed': 'Poprawka danych faktury albo daty wpłaty transzy płatności',
+  'payment_milestone.invoice_withdrawn': 'Korekta: wycofanie faktury za transzę płatności',
+  'payment_milestone.invoice_cancelled': 'Korekta: anulowanie faktury za transzę płatności',
+  'payment_milestone.payment_undone': 'Korekta: cofnięcie wpłaty za transzę płatności',
+  'payment_milestone.restored': 'Korekta: przywrócenie transzy płatności',
+  'payment_milestone.amount_corrected': 'Korekta: zmiana kwoty transzy płatności',
+  'payment_milestone.deleted': 'Korekta: usunięcie transzy płatności',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -85,7 +94,23 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     ],
   },
   { label: 'Dziennik zlecenia', actions: ['timeline_entry.created'] },
-  { label: 'Płatności', actions: ['payment_milestone.created', 'payment_milestone.amount_changed', 'payment_milestone.cancelled'] },
+  {
+    label: 'Płatności',
+    actions: [
+      'payment_milestone.created',
+      'payment_milestone.amount_changed',
+      'payment_milestone.cancelled',
+      'payment_milestone.invoiced',
+      'payment_milestone.paid',
+      'payment_milestone.details_changed',
+      'payment_milestone.invoice_withdrawn',
+      'payment_milestone.invoice_cancelled',
+      'payment_milestone.payment_undone',
+      'payment_milestone.restored',
+      'payment_milestone.amount_corrected',
+      'payment_milestone.deleted',
+    ],
+  },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {

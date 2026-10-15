@@ -2,12 +2,13 @@
 
 > Dokument żywy (EVM-034). Właściciel: `backend-developer`; przegląd: `security-engineer`. Wykonuje Konrad (osoba z dostępem SSH do serwera). Wymagania: ADR-0017 (W2, W11), SR-LOG-02, SR-LOG-03, SR-DATA-08.
 
-Lista zleceń (W-10) czyta **projekcję** (schemat `overview`): wiersz na zlecenie i wiersz na oczekiwanie — same identyfikatory, kody, daty i liczniki. Projekcję aktualizuje w tej samej transakcji każda zmiana zlecenia, etapu, lokalizacji i strony. Polecenia poniżej są potrzebne tylko w trzech sytuacjach.
+Lista zleceń (W-10) czyta **projekcję** (schemat `overview`): wiersz na zlecenie i wiersz na oczekiwanie — same identyfikatory, kody, daty i liczniki. Projekcję aktualizuje w tej samej transakcji każda zmiana zlecenia, etapu, transzy płatności (od EVM-056 — liczniki i najwcześniejszy termin transz wystawionych, bez kwot), lokalizacji i strony. Polecenia poniżej są potrzebne tylko w trzech sytuacjach.
 
 ## Kiedy użyć
 | Sytuacja | Polecenie | Po co |
 |---|---|---|
 | Pierwsze wdrożenie EVM-034 na bazie, w której są już zlecenia (migracja `0023` nie robi backfillu) | `rebuild` | wypełnia projekcję wszystkich zleceń |
+| Wdrożenie EVM-056 (migracja `0031` dodaje kolumny sygnałów płatności z wartościami domyślnymi, bez backfillu) | `rebuild` **zaraz po** `migrate` | wypełnia sygnały płatności; do tego czasu `verify` zgłasza grupę `payments` dla każdego zlecenia z transzą wystawioną lub opłaconą, a widoki „Po terminie” i „Nieopłacone” są puste |
 | Po odtworzeniu bazy z kopii (runbook odtworzenia, EVM-062) | `verify`, a przy rozbieżności `rebuild` | kopia mogła być starsza niż kolumny autoryzacyjne projekcji |
 | Alert bezpieczeństwa `projection_authz_drift` albo wynik `verify` (polecenie lub nocne zadanie) z grupą `authorization` | `verify`, potem `rebuild --only <uuid>` | rozjazd kolumny `deleted_at` — zlecenie usunięte mogło być widoczne na liście; sprawdź też, kto zmieniał dane SQL-em |
 
@@ -24,7 +25,7 @@ docker exec <kontener-api> node dist/src/cli/overview.js rebuild --only <uuid-zl
 - Kody wyjścia: `0` — w porządku, `1` — `verify` znalazł rozbieżność, `2` — błędne argumenty.
 
 ## Co zobaczysz
-Wyłącznie liczby i identyfikatory zleceń (UUID), z podziałem na grupy kolumn: `authorization` (`deleted_at`), `keys` (numer, status, opiekun, klient, lokalizacja, typ obiektu, szablon), `waiting` (oczekiwania), `deadline` (najbliższy termin) oraz `missing` (brak wiersza). Raport nie zawiera dat, nazw ani kwot, a polecenie samo nie zapisuje pliku — wynik jest na standardowym wyjściu (przekierowanie z crona poniżej zapisuje UUID zleceń do logu, który ma mieć ograniczony dostęp). Log (JSON, stderr) ma `traceId` i liczby.
+Wyłącznie liczby i identyfikatory zleceń (UUID), z podziałem na grupy kolumn: `authorization` (`deleted_at`), `keys` (numer, status, opiekun, klient, lokalizacja, typ obiektu, szablon), `waiting` (oczekiwania), `deadline` (najbliższy termin), `payments` (liczniki i najwcześniejszy termin transz wystawionych — EVM-056) oraz `missing` (brak wiersza). Raport nie zawiera dat, nazw ani kwot, a polecenie samo nie zapisuje pliku — wynik jest na standardowym wyjściu (przekierowanie z crona poniżej zapisuje UUID zleceń do logu, który ma mieć ograniczony dostęp). Log (JSON, stderr) ma `traceId` i liczby.
 
 ## Nocne zadanie w workerze
 Od kroku 9 EVM-034 `verify` uruchamia się samo: zadanie `overview.verify-projection` (kolejka pg-boss, schemat `pgboss`) o **03:30 czasu `Europe/Warsaw`** w procesie `worker` (ten sam obraz co API, polecenie `node dist/src/worker.js`, bez portu i bez migracji). Godzina omija lukę i powtórzenie godziny 02:00–03:00 przy zmianie czasu — zadanie wykonuje się raz na dobę, także w dniach zmiany czasu. Przy kilku procesach `worker` harmonogram tworzy jedno wykonanie.

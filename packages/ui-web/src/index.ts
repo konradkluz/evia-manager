@@ -28,7 +28,7 @@ export { Button, IconButton, type ButtonProps, type IconButtonProps } from './bu
 export { Breadcrumbs, type BreadcrumbItem, type BreadcrumbsProps } from './breadcrumbs.tsx';
 export { Card } from './card.tsx';
 export { SearchField, type SearchFieldProps } from './search-field.tsx';
-export { DataTable, type DataTableColumn, type DataTableProps, type DataTableRow } from './data-table.tsx';
+export { DataTable, type DataTableBadgeCell, type DataTableColumn, type DataTableProps, type DataTableRow } from './data-table.tsx';
 export { DateField, type DateFieldProps } from './date-field.tsx';
 export { FilterChip, type FilterChipProps } from './filter-chip.tsx';
 export { Select, type SelectGroup, type SelectOption, type SelectProps } from './select.tsx';

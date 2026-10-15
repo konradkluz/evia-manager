@@ -28,4 +28,18 @@ describe('Button and IconButton (styleguide § 3.1; EVM-008 AC3)', () => {
     rerender(<IconButton icon={Menu} label="Menu" tone="brand" />);
     expect(screen.getByRole('button', { name: 'Menu' }).className).toContain('focus-visible:focus-ring-inverse');
   });
+
+  it('EVM-054 AC3 the danger variant (§ 3.1, color.action.danger.*) is for an action that only the Administrator reverses — "Anuluj transzę"', async () => {
+    const { container } = render(
+      <Button variant="danger" disabled>
+        Anuluj transzę
+      </Button>,
+    );
+    const button = screen.getByRole('button', { name: 'Anuluj transzę' });
+    expect(button.className).toMatch(/(^| )bg-action-danger-bg( |$)/);
+    expect(button.className).toContain('text-action-danger-text');
+    expect(button.className).toContain('aria-disabled:bg-action-danger-bg-disabled');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(await axeViolations(container)).toEqual([]);
+  });
 });

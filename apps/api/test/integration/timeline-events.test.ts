@@ -371,7 +371,7 @@ describe('EVM-038 AC4 — the filter "Zmiany statusów" (SR-INPUT-01, SR-API-04)
     await insertEntries(admin(), id, editor.userId, [{ kind: 'note' }, { kind: 'note' }]);
     await transitionStage(editor, id, stageId, 1, { to: 'done' });
     for (const query of [
-      '?eventGroup=payments',
+      '?eventGroup=media',
       '?eventGroup=',
       '?eventGroup=status_changes&kind=note',
       '?kind=event',
