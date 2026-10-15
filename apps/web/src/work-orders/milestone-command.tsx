@@ -1,0 +1,408 @@
+import {
+  deletePaymentMilestone,
+  listPaymentMilestones,
+  transitionPaymentMilestone,
+  updatePaymentMilestone,
+  type PaymentMilestone,
+  type PaymentMilestoneList,
+  type PaymentMilestonePatch,
+  type PaymentMilestoneTransition,
+} from '@evia/contracts';
+import { Button, InlineAlert } from '@evia/ui-web';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useApi } from '../api/api-context.tsx';
+import { ApiError, unwrap } from '../api/client.ts';
+import { useAttempt } from '../forms/attempt.ts';
+import { refusesAttempt } from '../forms/save-failure.ts';
+import { paymentStatusLabels } from '../i18n/payment-labels.ts';
+import { useSession } from '../session/session.ts';
+import { useStepUp } from '../session/step-up-context.tsx';
+import { useStateWord } from './edit-failure.ts';
+import { DAY_MS, dayMs } from './milestone-days.ts';
+import { etagOf, normalizeName } from './milestone-form.ts';
+import {
+  UNPAID_PAYMENTS_KEY,
+  WORK_ORDER_HEADER_KEY,
+  WORK_ORDER_JOURNAL_KEY,
+  WORK_ORDER_PAYMENTS_KEY,
+  WORK_ORDERS_KEY,
+} from './query-keys.ts';
+
+/** The longest invoice number the API accepts (code points after NFC and trimming). */
+export const INVOICE_NUMBER_MAX = 60;
+/** The longest reason of a cancellation the API accepts. */
+export const MILESTONE_REASON_MAX = 500;
+
+const CONTROL_CHARACTERS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
+/** What is wrong with a free text (the invoice number, the reason) in the codes of the API — or `undefined` when it may be sent. */
+export function plainTextProblem(text: string, max: number): 'required' | 'too_long' | 'invalid_characters' | undefined {
+  const value = normalizeName(text);
+  if (value === '') return 'required';
+  if (CONTROL_CHARACTERS.test(value)) return 'invalid_characters';
+  if ((value.match(/./gsu) ?? []).length > max) return 'too_long';
+  return undefined;
+}
+
+/** `2026-10-03` + 7 → `2026-10-10`: calendar arithmetic, never through a time zone (the server counts the default the same way). */
+export function addDays(day: string, days: number): string {
+  return new Date(dayMs(day) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** The label of a status for the sentences of the dialogs; a status the panel does not know is "Nieznany status" (P-12). */
+export function useMilestoneStatusLabel(): (status: string) => string {
+  const { t } = useTranslation();
+  return (status) =>
+    Object.hasOwn(paymentStatusLabels, status)
+      ? paymentStatusLabels[status as keyof typeof paymentStatusLabels]
+      : t('workOrders.status.unknown');
+}
+
+export type MilestoneField = 'amount' | 'invoiceNumber' | 'invoicedOn' | 'dueDate' | 'paidOn' | 'reason';
+export type MilestoneFieldErrors = Partial<Record<MilestoneField, string>>;
+const FIELDS: readonly MilestoneField[] = ['amount', 'invoiceNumber', 'invoicedOn', 'dueDate', 'paidOn', 'reason'];
+
+/** The message under a field for a code of the API or of the check before sending (flows/08, EVM-054 → "Walidacja"). */
+export function useFieldMessage(): (field: MilestoneField, code: string) => string {
+  const { t } = useTranslation();
+  return (field, code) => {
+    switch (field) {
+      case 'amount':
+        return code === 'precision' ? t('workOrder.paymentDialog.amountPrecision') : t('workOrder.paymentDialog.amountRequired');
+      case 'invoiceNumber':
+        if (code === 'too_long') return t('workOrder.milestoneDialog.invoiceNumberTooLong', { max: INVOICE_NUMBER_MAX });
+        if (code === 'invalid_characters') return t('workOrder.milestoneDialog.invoiceNumberInvalid');
+        return t('workOrder.milestoneDialog.invoiceNumberRequired');
+      case 'reason':
+        if (code === 'too_long') return t('workOrder.milestoneDialog.reasonTooLong', { max: MILESTONE_REASON_MAX });
+        if (code === 'invalid_characters') return t('workOrder.milestoneDialog.reasonInvalid');
+        return t('workOrder.milestoneDialog.reasonRequired');
+      case 'invoicedOn':
+      case 'dueDate':
+      case 'paidOn':
+        if (code === 'before_invoiced_on') return t('workOrder.milestoneDialog.dueBeforeInvoiced');
+        if (code === 'in_future') return t('workOrder.milestoneDialog.paidOnFuture');
+        if (code === 'required' && field === 'dueDate') return t('workOrder.milestoneDialog.dueDateRequired');
+        return t('workOrder.milestoneDialog.dateRange');
+    }
+  };
+}
+
+/** Why a command did not go through, as the dialog tells it; the answers carry no values (SR-ERR-02), the texts come from i18n. */
+export type CommandFailure =
+  /** `412` or `409 invalid_state_transition`: the instalment as it is now (read again), "Odśwież" takes its version. */
+  | { readonly kind: 'changed'; readonly status: string; readonly version: number }
+  | { readonly kind: 'closed' | 'gone' | 'forbidden' | 'failed' | 'inProgress' }
+  /** EVM-057 AC5: W-04 was cancelled — nothing was sent again, the data of the dialog stays. */
+  | { readonly kind: 'notCorrected' }
+  | { readonly kind: 'rate'; readonly seconds: number };
+
+/**
+ * The order a command is about, as much as the dialogs need: W-06 has the whole order, W-11 only the reference of the row (the
+ * identifier, the number and the title; EVM-055). `status` is unknown in W-11 — the alert of a closed order then says it without the state.
+ */
+export interface MilestoneOrder {
+  readonly id: string;
+  readonly number: string;
+  readonly title: string;
+  readonly status?: string;
+}
+
+/** What a command needs of the instalment it was opened for (the row of W-11 carries no more than this). */
+export type OpenedMilestone = Pick<PaymentMilestone, 'id' | 'name' | 'invoiceNumber' | 'amount' | 'dueDate' | 'status' | 'version'>;
+
+export type CommandRequest =
+  | { readonly kind: 'transition'; readonly body: PaymentMilestoneTransition }
+  | { readonly kind: 'patch'; readonly body: PaymentMilestonePatch };
+
+/** A request of the command, with the soft delete of an instalment (EVM-057 AC4, `DELETE` — the answer `204` has no body). */
+type AnyRequest = CommandRequest | { readonly kind: 'delete' };
+
+/**
+ * A correction of a payment (EVM-057): when the server answers `403 step_up_required`, W-04 opens with this title and summary
+ * (flows/01 → "Tytuły operacji M1"); after the confirmation the same request goes once more with the same `Idempotency-Key`.
+ */
+export interface CorrectionStepUp {
+  readonly title: string;
+  readonly details: readonly string[];
+}
+
+/**
+ * One command on an instalment (EVM-054): the transition (`POST …/transitions`) or the correction of the data (`PATCH`), always with
+ * `If-Match` of the version the dialog was opened with and an `Idempotency-Key` that stays the same for a retry of the same content
+ * (a lost answer never makes a second change — § 6.4). The typed data lives only in the dialog (memory of the tab).
+ * - success: the list shows the saved instalment at once and is read again (the totals), the journal and the list of orders too;
+ * - `412` / `409 invalid_state_transition`: the list is read again and the alert names the status of now;
+ * - `409 work_order_closed`, `404`, `403`, `429`, `409 idempotency_in_progress`, `428` and the failures of the network — the alert;
+ * - `400` (and `422 transition_condition_not_met` of a day of the payment in the future) — the messages under the fields.
+ */
+export function useMilestoneCommand(order: MilestoneOrder, opened: OpenedMilestone) {
+  const client = useApi();
+  const queryClient = useQueryClient();
+  const attempt = useAttempt();
+  const message = useFieldMessage();
+  const requestStepUp = useStepUp();
+  const [version, setVersion] = useState(opened.version);
+  // EVM-057 AC5: W-04 is open — the dialog of the correction steps aside (a dialog never stacks on a dialog, § 3.13), its data stays.
+  const [stepping, setStepping] = useState(false);
+  const [failure, setFailure] = useState<CommandFailure | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<MilestoneFieldErrors>({});
+  const paymentsKey = [WORK_ORDER_PAYMENTS_KEY, order.id];
+
+  const mutation = useMutation({
+    mutationFn: async ({
+      request,
+      key,
+      base,
+    }: {
+      readonly request: AnyRequest;
+      readonly key: string;
+      readonly base: number;
+    }): Promise<PaymentMilestone | undefined> => {
+      const options = {
+        client,
+        path: { workOrderId: order.id, milestoneId: opened.id },
+        headers: { 'If-Match': etagOf(base), 'Idempotency-Key': key },
+      };
+      switch (request.kind) {
+        case 'transition':
+          return unwrap(transitionPaymentMilestone({ ...options, body: request.body }));
+        case 'patch':
+          return unwrap(updatePaymentMilestone({ ...options, body: request.body }));
+        case 'delete':
+          await unwrap(deletePaymentMilestone(options));
+          return undefined;
+      }
+    },
+  });
+
+  /**
+   * Reads the instalments of the order again and returns this one as the server has it now (`undefined` — gone). The read is made
+   * here, not only refreshed: in W-11 nothing else holds the instalments of the order (the list shows invoiced ones only, so a paid
+   * one is gone from it). A failed read leaves what the cache had. The unpaid list is read again too (EVM-055).
+   */
+  const reread = async (): Promise<PaymentMilestone | undefined> => {
+    void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
+    let list: PaymentMilestoneList | undefined;
+    try {
+      list = await queryClient.query({
+        queryKey: paymentsKey,
+        queryFn: ({ signal }) => unwrap(listPaymentMilestones({ client, signal, path: { workOrderId: order.id } })),
+        staleTime: 0,
+        gcTime: 0,
+      });
+    } catch {
+      list = queryClient.getQueryData<PaymentMilestoneList>(paymentsKey);
+    }
+    return list?.items.find((entry) => entry.id === opened.id);
+  };
+
+  const fieldsOf = (error: ApiError): MilestoneFieldErrors => {
+    const found: MilestoneFieldErrors = {};
+    for (const entry of error.errors) {
+      const field = FIELDS.find((name) => entry.pointer === `/${name}` || entry.pointer.startsWith(`/${name}/`));
+      if (field !== undefined && found[field] === undefined) found[field] = message(field, entry.code);
+    }
+    return found;
+  };
+
+  const onError = (error: unknown) => {
+    if (refusesAttempt(error)) attempt.forget();
+    if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) {
+      setFailure({ kind: 'failed' });
+      return;
+    }
+    if (error.status === 412 || (error.status === 409 && error.code === 'invalid_state_transition')) {
+      void reread().then((fresh) => {
+        setFailure(fresh === undefined ? { kind: 'gone' } : { kind: 'changed', status: fresh.status, version: fresh.version });
+      });
+      return;
+    }
+    if (error.status === 409 && error.code === 'work_order_closed') {
+      setFailure({ kind: 'closed' });
+      void queryClient.refetchQueries({ queryKey: [WORK_ORDER_HEADER_KEY, order.id] });
+      return;
+    }
+    if (error.status === 409 && error.code === 'idempotency_in_progress') {
+      setFailure({ kind: 'inProgress' });
+      return;
+    }
+    if (error.status === 404) {
+      setFailure({ kind: 'gone' });
+      void queryClient.refetchQueries({ queryKey: paymentsKey });
+      return;
+    }
+    if (error.status === 403) {
+      setFailure({ kind: 'forbidden' });
+      return;
+    }
+    if (error.status === 429) {
+      setFailure({ kind: 'rate', seconds: error.retryAfterSeconds ?? 60 });
+      return;
+    }
+    const fields = error.status === 400 || error.status === 422 ? fieldsOf(error) : {};
+    if (Object.keys(fields).length > 0) {
+      setFieldErrors(fields);
+      return;
+    }
+    setFailure({ kind: 'failed' });
+  };
+
+  const isStepUp = (error: unknown): boolean => error instanceof ApiError && error.status === 403 && error.code === 'step_up_required';
+
+  /** Sends one request; `403 step_up_required` of a correction opens W-04 once and repeats the same request (no loop). */
+  const send = (
+    request: AnyRequest,
+    key: string,
+    base: number,
+    stepUp: CorrectionStepUp | undefined,
+    onDone: (saved: PaymentMilestone | undefined) => void,
+  ) => {
+    mutation.mutate(
+      { request, key, base },
+      {
+        onSuccess: (saved) => {
+          attempt.forget();
+          queryClient.setQueryData<PaymentMilestoneList>(paymentsKey, (list) =>
+            list === undefined
+              ? list
+              : {
+                  ...list,
+                  items:
+                    saved === undefined
+                      ? list.items.filter((entry) => entry.id !== opened.id)
+                      : list.items.map((entry) => (entry.id === saved.id ? saved : entry)),
+                },
+          );
+          void queryClient.invalidateQueries({ queryKey: paymentsKey });
+          // EVM-054 AC3: a change of the status wrote an event of the journal; an open "Dziennik" shows it without a reload.
+          void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
+          void queryClient.invalidateQueries({ queryKey: [WORK_ORDERS_KEY] });
+          // EVM-055: the unpaid list (W-11) is the same fact: a paid or corrected instalment changes its rows, tiles and sum.
+          void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
+          onDone(saved);
+        },
+        onError: (error) => {
+          if (stepUp === undefined || !isStepUp(error)) {
+            onError(error);
+            return;
+          }
+          // The server keeps no key of a refused request (SR-API-05): the same key after W-04 makes the correction once.
+          setStepping(true);
+          void requestStepUp(stepUp.title, stepUp.details).then((confirmed) => {
+            setStepping(false);
+            if (confirmed) send(request, key, base, undefined, onDone);
+            else setFailure({ kind: 'notCorrected' });
+          });
+        },
+      },
+    );
+  };
+
+  const start = (request: AnyRequest, stepUp: CorrectionStepUp | undefined, onDone: (saved: PaymentMilestone | undefined) => void) => {
+    const { key } = attempt.next(JSON.stringify({ milestone: opened.id, version, request }));
+    setFailure(null);
+    send(request, key, version, stepUp, onDone);
+  };
+
+  return {
+    version,
+    failure,
+    fieldErrors,
+    setFieldErrors,
+    pending: mutation.isPending || stepping,
+    /** W-04 is open for this command (EVM-057): the dialog of the correction is hidden meanwhile. */
+    stepping,
+    /** Sends the command; `onSaved` gets the instalment as the server saved it. A correction passes the texts of W-04 (`stepUp`). */
+    run(request: CommandRequest, onSaved: (saved: PaymentMilestone) => void, stepUp?: CorrectionStepUp) {
+      start(request, stepUp, (saved) => {
+        if (saved !== undefined) onSaved(saved);
+      });
+    },
+    /** EVM-057 AC4: the soft delete of the instalment (`DELETE`, `204`); the list drops it at once and is read again. */
+    remove(onDeleted: () => void, stepUp: CorrectionStepUp) {
+      start({ kind: 'delete' }, stepUp, () => {
+        onDeleted();
+      });
+    },
+    /**
+     * "Odśwież" of the alert of a change in the meantime: the instalment still in the status the dialog was opened in — the next save
+     * uses its version and the typed data stays; in another status the dialog has nothing to do (`false` — the caller closes it).
+     */
+    adopt(): boolean {
+      if (failure?.kind !== 'changed' || failure.status !== opened.status) return false;
+      setVersion(failure.version);
+      setFailure(null);
+      return true;
+    },
+  };
+}
+
+/** The alert of a failed command in the dialog (`role="alert"` of InlineAlert error; README → zasada wspólna 16, § 6.4). */
+export function CommandAlert({
+  failure,
+  orderStatus,
+  onRefresh,
+  correction = false,
+}: {
+  readonly failure: CommandFailure | null;
+  readonly orderStatus: string | undefined;
+  readonly onRefresh: () => void;
+  /** A correction of a payment (EVM-057): a closed order is told with the text of AC7 for every role. */
+  readonly correction?: boolean;
+}) {
+  const { t } = useTranslation();
+  const role = useSession().data?.user.role;
+  const stateWord = useStateWord();
+  const statusLabel = useMilestoneStatusLabel();
+  if (failure === null) return null;
+  const text = (() => {
+    switch (failure.kind) {
+      case 'changed':
+        return t('workOrder.milestoneDialog.changed', { status: statusLabel(failure.status) });
+      case 'closed': {
+        // EVM-057 AC7: "Zlecenie jest rozliczone — … Przywrócić zlecenie może tylko administrator." — the same for every role
+        if (correction) {
+          return orderStatus === undefined
+            ? t('workOrder.correction.closedUnknown')
+            : t('workOrder.correction.closed', { state: stateWord(orderStatus) });
+        }
+        if (orderStatus === undefined) {
+          return role === 'editor' ? t('workOrder.paymentDialog.closedUnknownEditor') : t('workOrder.paymentDialog.closedUnknown');
+        }
+        const state = stateWord(orderStatus);
+        return role === 'editor' ? t('workOrder.paymentDialog.closedEditor', { state }) : t('workOrder.paymentDialog.closed', { state });
+      }
+      case 'gone':
+        return t('workOrder.paymentDialog.milestoneGone');
+      case 'forbidden':
+        return t('workOrder.milestoneDialog.forbidden');
+      case 'inProgress':
+        return t('workOrder.paymentDialog.inProgress');
+      case 'rate':
+        return t('workOrder.paymentDialog.rateLimited', { seconds: failure.seconds });
+      case 'failed':
+        return t('workOrder.milestoneDialog.failed');
+      case 'notCorrected':
+        return t('workOrder.correction.notCorrected');
+    }
+  })();
+  return (
+    <InlineAlert
+      tone="error"
+      {...(failure.kind === 'changed'
+        ? {
+            action: (
+              <Button variant="tertiary" onClick={onRefresh}>
+                {t('workOrder.milestoneDialog.refresh')}
+              </Button>
+            ),
+          }
+        : {})}
+    >
+      {text}
+    </InlineAlert>
+  );
+}

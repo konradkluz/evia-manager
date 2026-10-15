@@ -23,6 +23,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createTimelineEntry',
       'createWorkOrder',
       'createWorkOrderScopeItem',
+      'deletePaymentMilestone',
       'deleteWorkOrderScopeItem',
       'extendSession',
       'getCurrentSession',
@@ -47,6 +48,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listProcedureTemplates',
       'listServiceItems',
       'listTimelineEntries',
+      'listUnpaidPaymentMilestones',
       'listWorkOrderProcedures',
       'listWorkOrderScopeItems',
       'listWorkOrderSiteOrders',
@@ -61,6 +63,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'searchWorkOrders',
       'setActivationPassword',
       'stepUp',
+      'transitionPaymentMilestone',
       'transitionProcedureStage',
       'transitionWorkOrder',
       'updateCustomer',
@@ -89,9 +92,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 every operation with stepUp: true lists exactly the web channel; the audit log is the one in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 every operation with stepUp: true lists exactly the web channel and the Administrator; the audit log and the deletion of a payment milestone (EVM-057) are the ones in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
-    expect(stepUp.map(([id]) => id)).toEqual(['listAuditEvents']);
+    expect(stepUp.map(([id]) => id).sort()).toEqual(['deletePaymentMilestone', 'listAuditEvents']);
     for (const [id, operation] of stepUp) {
       expect(operation.authz.channels, id).toEqual(['web']);
       expect(operation.authz.roles, id).toEqual(['administrator']);
@@ -175,6 +178,79 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       },
     };
     expect(() => buildAuthzManifest(noRegistry)).toThrow(/Missing/);
+  });
+
+  it('EVM-056 AC7 the list and the search declare the payment rule (W4): restricted values of `view` and `sort` and the hidden field `payment`', () => {
+    const rule = {
+      'paymentMilestone.read': { params: { view: ['overdue_payments', 'unpaid'], sort: ['urgency'] }, fields: ['payment'] },
+    };
+    expect(AUTHZ_MANIFEST['listWorkOrders']?.authz.restrictedParams).toEqual(rule);
+    expect(AUTHZ_MANIFEST['searchWorkOrders']?.authz.restrictedParams).toEqual(rule);
+    const declaring = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.restrictedParams !== undefined);
+    expect(declaring.map(([id]) => id).sort()).toEqual(['listWorkOrders', 'searchWorkOrders']);
+  });
+
+  describe('EVM-056 AC7 `restrictedParams` is validated against the operation (a typo never becomes a silent gap)', () => {
+    const components = {
+      schemas: {
+        View: { type: 'string', enum: ['all', 'paid'] },
+        Item: { type: 'object', properties: { id: { type: 'string' }, payment: { type: 'object' } } },
+        List: { type: 'object', properties: { items: { type: 'array', items: { $ref: '#/components/schemas/Item' } } } },
+        Body: { type: 'object', properties: { query: { type: 'string' }, view: { $ref: '#/components/schemas/View' } } },
+      },
+      parameters: { Sort: { name: 'sort', in: 'query', schema: { type: 'string', enum: ['a', 'b'] } } },
+    };
+    const ok = { content: { 'application/json': { schema: { $ref: '#/components/schemas/List' } } } };
+    const document = (restrictedParams: unknown, operation: Record<string, unknown> = {}) => ({
+      components,
+      paths: {
+        '/x': {
+          get: {
+            operationId: 'getX',
+            'x-evia-authz': { roles: ['administrator'], channels: ['web'], restrictedParams },
+            parameters: [
+              { name: 'view', in: 'query', schema: { $ref: '#/components/schemas/View' } },
+              { $ref: '#/components/parameters/Sort' },
+            ],
+            responses: { '200': ok },
+            ...operation,
+          },
+        },
+      },
+    });
+    const rule = (params: unknown, fields: unknown = ['payment']) => ({ 'paymentMilestone.read': { params, fields } });
+
+    it('accepts query parameters (inline and by reference), a body property and a field of the item of the list', () => {
+      const manifest = buildAuthzManifest(document(rule({ view: ['paid'], sort: ['b'] })));
+      expect(manifest['getX']?.authz.restrictedParams).toEqual(rule({ view: ['paid'], sort: ['b'] }));
+      const body = {
+        parameters: [],
+        requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Body' } } } },
+      };
+      expect(buildAuthzManifest(document(rule({ view: ['paid'] }), body))['getX']?.authz.restrictedParams).toBeDefined();
+      const single = { responses: { '200': { content: { 'application/json': { schema: { $ref: '#/components/schemas/Item' } } } } } };
+      expect(buildAuthzManifest(document(rule({ sort: ['a'] }), single))['getX']?.authz.restrictedParams).toBeDefined();
+    });
+
+    it('refuses an unknown policy, an unknown parameter, a value outside the enum, an unknown field and an empty rule', () => {
+      const bad: Array<[string, unknown]> = [
+        ['unknown policy', { 'payment.read': { params: { view: ['paid'] }, fields: [] } }],
+        ['unknown key', { 'paymentMilestone.read': { params: { view: ['paid'] }, fields: [], extra: true } }],
+        ['empty values', rule({ view: [] })],
+      ];
+      for (const [label, value] of bad)
+        expect(() => buildAuthzManifest(document(value)), label).toThrow(/getX: nieprawidłowe x-evia-authz/);
+      expect(() => buildAuthzManifest(document(rule({ status: ['paid'] })))).toThrow(/getX: restrictedParams.*status/);
+      expect(() => buildAuthzManifest(document(rule({ view: ['open'] })))).toThrow(/getX: restrictedParams.*view.*open/);
+      expect(() => buildAuthzManifest(document(rule({ sort: ['c'] })))).toThrow(/getX: restrictedParams.*sort.*c/);
+      expect(() => buildAuthzManifest(document(rule({ view: ['paid'] }, ['amount'])))).toThrow(/getX: restrictedParams.*amount/);
+      const noEnum = { parameters: [{ name: 'view', in: 'query', schema: { type: 'string' } }] };
+      expect(() => buildAuthzManifest(document(rule({ view: ['paid'] }), noEnum))).toThrow(/getX: restrictedParams.*view/);
+      const noResponse = { responses: {} };
+      expect(() => buildAuthzManifest(document(rule({ view: ['paid'] }), noResponse))).toThrow(/getX: restrictedParams.*payment/);
+      const missingRef = { parameters: [{ name: 'view', in: 'query', schema: { $ref: '#/components/schemas/Missing' } }] };
+      expect(() => buildAuthzManifest(document(rule({ view: ['paid'] }), missingRef))).toThrow(/Missing/);
+    });
   });
 
   it('EVM-008 AC2 the rendered module is a frozen constant generated from the contract', () => {

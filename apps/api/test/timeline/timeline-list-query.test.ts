@@ -26,7 +26,8 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
       eventGroup: 'status_changes',
       kind: undefined,
     });
-    for (const query of [{ eventGroup: 'payments' }, { eventGroup: '' }, { eventGroup: 'status_changes', kind: 'note' }]) {
+    expect(resolveTimelineListQuery.parse({ eventGroup: 'payments' })).toMatchObject({ eventGroup: 'payments' });
+    for (const query of [{ eventGroup: 'media' }, { eventGroup: '' }, { eventGroup: 'status_changes', kind: 'note' }]) {
       expect(resolveTimelineListQuery.safeParse(query).success, JSON.stringify(query)).toBe(false);
     }
   });

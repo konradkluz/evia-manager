@@ -1,8 +1,9 @@
-import type { TimelineEntry as Entry, TimelineEvent, WorkOrderStatus, StageStatus } from '@evia/contracts';
-import { StatusBadge, type OrderStatusKey, type StageStatusKey } from '@evia/ui-web';
+import type { PaymentMilestoneStatus, TimelineEntry as Entry, TimelineEvent, WorkOrderStatus, StageStatus } from '@evia/contracts';
+import { StatusBadge, type OrderStatusKey, type PaymentStatusKey, type StageStatusKey } from '@evia/ui-web';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { partyKindLabels, waitingOnLabels } from '../i18n/catalog-labels.ts';
+import { paymentStatusLabels } from '../i18n/payment-labels.ts';
 import { stageStatusLabels } from '../i18n/procedure-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { useProcedureTemplates, useServiceItems } from './use-order-lookups.ts';
@@ -10,13 +11,20 @@ import { useProcedureTemplates, useServiceItems } from './use-order-lookups.ts';
 /** A status the panel knows: a code of the contract with a label. Anything else is "Nieznany status" (P-12) — never the raw code. */
 const knownOrder = (code: string | null): code is WorkOrderStatus => code !== null && Object.hasOwn(workOrderStatusLabels, code);
 const knownStage = (code: string | null): code is StageStatus => code !== null && Object.hasOwn(stageStatusLabels, code);
+const knownPayment = (code: string | null): code is PaymentMilestoneStatus => code !== null && Object.hasOwn(paymentStatusLabels, code);
 
 interface Status {
   readonly label: string;
-  readonly badge: { readonly status: OrderStatusKey | StageStatusKey; readonly group: 'order' | 'stage'; readonly hint?: string };
+  readonly badge: {
+    readonly status: OrderStatusKey | StageStatusKey | PaymentStatusKey;
+    readonly group: 'order' | 'stage' | 'payment';
+    readonly hint?: string;
+  };
 }
 
-function statusOf(t: TFunction, group: 'order' | 'stage', code: string | null): Status {
+function statusOf(t: TFunction, group: 'order' | 'stage' | 'payment', code: string | null): Status {
+  // EVM-054 AC3: the status of an instalment — "Po terminie" is not a status, the journal shows the status of the model only
+  if (group === 'payment' && knownPayment(code)) return { label: paymentStatusLabels[code], badge: { status: code, group } };
   if (group === 'order' && knownOrder(code)) {
     return { label: workOrderStatusLabels[code], badge: { status: code.replaceAll('_', '-') as OrderStatusKey, group } };
   }
@@ -113,6 +121,21 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
           : t('workOrder.journal.event.updatedNoName', { what }),
       };
     }
+    case 'payment_milestone_status_changed': {
+      // EVM-054 AC3: the codes of the statuses and the name of NOW (the event carries no amount, no number, no reason)
+      const status = statusOf(t, 'payment', event.toStatus);
+      const name = event.paymentMilestone?.name ?? null;
+      return {
+        text:
+          name === null || name === ''
+            ? t('workOrder.journal.event.milestoneStatusNoName', { status: status.label })
+            : t('workOrder.journal.event.milestoneStatus', { name, status: status.label }),
+        badge: status,
+      };
+    }
+    case 'payment_milestone_deleted':
+      // EVM-057 AC4: the soft delete of an instalment by a correction — no amount, no number, no name (the instalment is gone)
+      return { text: t('workOrder.journal.event.milestoneDeleted') };
     case 'work_order_fields_changed':
       return { text: t('workOrder.journal.event.orderFields', { fields: orderFieldsText(t, event.changedFields) }) };
     case 'scope_item_added': {

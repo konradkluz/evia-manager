@@ -318,7 +318,8 @@ describe('roles (EVM-018 AC6; SR-AUTHZ-05)', () => {
       // "Edytuj lokalizację" and "Edytuj stronę…" are EVM-036 (A and E only, EVM-036 AC7), "Dodaj transzę" is EVM-053 (A and E
       // only, EVM-053 AC7); nothing else on the page changes anything
       expect(screen.queryByRole('button', { name: /Dodaj(?! transzę)|Usuń|Przejdź do klienta/ })).toBeNull();
-      expect(await screen.findByText('Brak transz.')).toBeTruthy();
+      // the section and (EVM-056) the tile "Płatności" of the summary
+      expect(await screen.findAllByText('Brak transz.')).toHaveLength(2);
       expect(screen.queryAllByRole('button', { name: 'Dodaj transzę' })).toHaveLength(role === 'read_only' ? 0 : 1);
       expect(screen.queryAllByRole('button', { name: 'Edytuj lokalizację' })).toHaveLength(role === 'read_only' ? 0 : 1);
       expect(screen.queryAllByRole('button', { name: /^Akcje strony/ })).toHaveLength(role === 'read_only' ? 0 : 2);

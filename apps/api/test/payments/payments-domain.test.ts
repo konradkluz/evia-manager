@@ -3,7 +3,7 @@ import { PaymentPlanLimitError, planMilestones, type PlanMilestone } from '../..
 import {
   MAX_MILESTONE_NAME_LENGTH,
   MAX_MILESTONES_PER_ORDER,
-  mayChangeAmount,
+  amountRule,
   normalizeMilestoneName,
   SETTLED_STATUSES,
 } from '../../src/modules/payments/domain/milestone-rules.ts';
@@ -89,8 +89,13 @@ describe('the rules of a milestone (EVM-053 AC3, AC4, AC6; SR-INPUT-05, SR-AUTHZ
     }
   });
 
-  it('EVM-053 AC3 only a planned milestone takes a new amount', () => {
-    expect(PAYMENT_MILESTONE_STATUSES.filter(mayChangeAmount)).toEqual(['planned']);
+  it('EVM-053 AC3 EVM-057 AC3 AC6 a planned milestone takes a new amount, an invoiced or paid one by a correction only, a cancelled one never', () => {
+    expect(Object.fromEntries(PAYMENT_MILESTONE_STATUSES.map((status) => [status, amountRule(status)]))).toEqual({
+      planned: 'free',
+      invoiced: 'correction',
+      paid: 'correction',
+      cancelled: 'forbidden',
+    });
   });
 
   it('EVM-053 AC6 paid and cancelled milestones do not keep an order from being settled', () => {

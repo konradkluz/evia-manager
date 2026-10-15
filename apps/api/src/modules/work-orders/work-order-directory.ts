@@ -19,6 +19,13 @@ export interface WorkOrderRef {
   readonly closed: boolean;
 }
 
+/** The header of an order a list of another module shows: the number, the title and the customer (a key only — the name comes from `customers`). */
+export interface WorkOrderListRef {
+  readonly number: string;
+  readonly title: string;
+  readonly customerId: string | null;
+}
+
 export interface WorkOrderDirectory {
   /** The order the caller may see, or `undefined` (missing and deleted alike). */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<WorkOrderRef | undefined>;
@@ -37,4 +44,11 @@ export interface WorkOrderDirectory {
    * read policy of work orders IN the query (EVM-072). Only a narrowing for the search of `overview`, never a source of permission.
    */
   searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]>;
+  /**
+   * The number, the title and the customer of every order among `ids` that the caller may see (ONE query, the read policy of work orders
+   * in it, the identifiers as one array parameter); the others are absent. A NARROWING of a set the caller has started on its own side
+   * (the orders with an unpaid invoice — `payments`, EVM-055), never a source of permission: a row of the caller whose order is absent
+   * here is dropped (fail closed; SR-AUTHZ-03, SR-DATA-03, ADR-0017 W2).
+   */
+  refsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, WorkOrderListRef>>;
 }

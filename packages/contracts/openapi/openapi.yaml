@@ -101,10 +101,14 @@ paths:
     $ref: paths/procedures.yaml#/procedureStage
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
     $ref: paths/procedures.yaml#/procedureStageTransitions
+  /api/v1/payment-milestones:
+    $ref: paths/payments.yaml#/unpaidPaymentMilestones
   /api/v1/work-orders/{workOrderId}/payment-milestones:
     $ref: paths/payments.yaml#/workOrderPaymentMilestones
   /api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}:
     $ref: paths/payments.yaml#/paymentMilestone
+  /api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}/transitions:
+    $ref: paths/payments.yaml#/paymentMilestoneTransitions
   /api/v1/work-orders/{workOrderId}/timeline:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
@@ -295,10 +299,18 @@ components:
       $ref: components/payments.yaml#/PaymentTotals
     PaymentMilestoneList:
       $ref: components/payments.yaml#/PaymentMilestoneList
+    UnpaidView:
+      $ref: components/payments.yaml#/UnpaidView
+    UnpaidPaymentMilestone:
+      $ref: components/payments.yaml#/UnpaidPaymentMilestone
+    UnpaidPaymentMilestoneList:
+      $ref: components/payments.yaml#/UnpaidPaymentMilestoneList
     PaymentMilestoneCreate:
       $ref: components/payments.yaml#/PaymentMilestoneCreate
     PaymentMilestonePatch:
       $ref: components/payments.yaml#/PaymentMilestonePatch
+    PaymentMilestoneTransition:
+      $ref: components/payments.yaml#/PaymentMilestoneTransition
     TimelineEntryKind:
       $ref: components/timeline.yaml#/TimelineEntryKind
     TimelineEntryInputKind:

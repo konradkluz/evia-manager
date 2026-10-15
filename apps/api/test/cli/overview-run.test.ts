@@ -55,7 +55,7 @@ function setup(report: Partial<VerifyReport> = {}) {
           checked: 3,
           inSync: 3,
           missing: [],
-          drift: { authorization: [], keys: [], waiting: [], deadline: [] },
+          drift: { authorization: [], keys: [], waiting: [], deadline: [], payments: [] },
           ...report,
         });
       },
@@ -80,7 +80,7 @@ describe('the run of the server command of the read model (EVM-034 AC6; ADR-0017
     const clean = setup();
     expect(await executeOverviewCommand(['verify'], clean.io, clean.deps)).toBe(EXIT_OK);
     expect(clean.calls).toEqual([['verify', { traceId: TRACE }]]);
-    const drift = setup({ inSync: 1, drift: { authorization: [ID], keys: [], waiting: [OTHER], deadline: [] } });
+    const drift = setup({ inSync: 1, drift: { authorization: [ID], keys: [], waiting: [OTHER], deadline: [], payments: [] } });
     expect(await executeOverviewCommand(['verify'], drift.io, drift.deps)).toBe(EXIT_DRIFT);
     const text = drift.out.join('');
     expect(text).toContain(`authorization ${ID}`);

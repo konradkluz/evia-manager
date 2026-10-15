@@ -9,13 +9,25 @@
 import { zTimelineEntryInputKind, zTimelineEventGroup } from '@evia/contracts/zod';
 import { z } from 'zod';
 import type { PagePosition } from '../infrastructure/timeline-store.ts';
-import { JOURNAL_EVENT_CODES } from './event-payload.ts';
+import { JOURNAL_EVENT_CODES, type JournalEventCode } from './event-payload.ts';
 
 export const DEFAULT_LIMIT = 25;
 export const MAX_LIMIT = 100;
 
-/** The codes of every group of events (a closed list; a group of E6 and E7 comes with its story). */
-export const EVENT_GROUP_CODES = { status_changes: JOURNAL_EVENT_CODES } as const;
+/** The codes of the payments (EVM-054 AC3, EVM-057 AC4) - the group "Płatności", disjoint from "Zmiany statusów". */
+const PAYMENT_EVENT_CODES = [
+  'payment_milestone_status_changed',
+  'payment_milestone_deleted',
+] as const satisfies readonly JournalEventCode[];
+
+/**
+ * The codes of every group of events (a closed list of disjoint groups; the group of E6 comes with its story): "Zmiany statusów" is
+ * every code of the order, its stages, data and scope - every code that is not in another group.
+ */
+export const EVENT_GROUP_CODES = {
+  status_changes: JOURNAL_EVENT_CODES.filter((code) => !(PAYMENT_EVENT_CODES as readonly string[]).includes(code)),
+  payments: PAYMENT_EVENT_CODES,
+} as const satisfies Record<z.infer<typeof zTimelineEventGroup>, readonly JournalEventCode[]>;
 
 export const timelineListQuerySchema = z
   .strictObject({

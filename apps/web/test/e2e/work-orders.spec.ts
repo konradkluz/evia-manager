@@ -8,20 +8,24 @@ const PATH = '/work-orders';
 const NEXT = 'Następna strona';
 
 test.describe('work orders list W-10 (EVM-017)', () => {
-  test('EVM-017 AC1 AC3 the default view shows 25 open orders, newest first, and pages follow without a repeat', async ({ page, api }) => {
+  test('EVM-017 AC1 AC3 EVM-056 AC3 the default view shows 25 open orders, the most urgent first, and pages follow without a repeat', async ({
+    page,
+    api,
+  }) => {
     api.workOrders = 60;
     await page.goto(PATH);
     const table = page.getByRole('table', { name: 'Lista zleceń' });
     await expect(table).toBeVisible();
-    // 60 orders, two statuses in eight closed (settled, cancelled): 46 open ones, newest number first.
+    // 60 orders, two statuses in eight closed (settled, cancelled): 46 open ones, "Najpilniejsze" first (EVM-056 AC3: the oldest past
+    // due date of the synthetic payments, the tie broken by the identifier).
     await expect(table.getByRole('row')).toHaveCount(26);
-    await expect(table.getByRole('link').first()).toContainText('ZL-2026-0060');
+    await expect(table.getByRole('link').first()).toContainText('ZL-2026-0001');
     await page.getByRole('button', { name: NEXT }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Lista zleceń' })).toBeFocused();
     await expect(table.getByRole('row')).toHaveCount(22);
     await expect(page.getByRole('button', { name: NEXT })).toHaveAttribute('aria-disabled', 'true');
     await page.getByRole('button', { name: 'Poprzednia strona' }).click();
-    await expect(table.getByRole('link').first()).toContainText('ZL-2026-0060');
+    await expect(table.getByRole('link').first()).toContainText('ZL-2026-0001');
     await expect(page).toHaveTitle('Zlecenia · EVia Manager');
   });
 
