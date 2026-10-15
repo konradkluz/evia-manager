@@ -47,6 +47,15 @@ export interface TemplateProcedureForCopy {
   readonly stages: readonly TemplateStageForCopy[];
 }
 
+/** One milestone of the payment plan of a template, ready to become a milestone of an order (EVM-053: a copy without an amount). */
+export interface TemplatePaymentMilestoneForCopy {
+  readonly sourceTemplateId: string;
+  readonly code: string;
+  readonly name: string;
+  readonly sharePercent: number;
+  readonly paymentTermDays: number;
+}
+
 export interface TemplateDirectory {
   /** @returns the template with its items when it is active; `undefined` when it is missing, retired or deleted */
   findActiveForCopy(tx: Kysely<Database>, id: string): Promise<TemplateForCopy | undefined>;
@@ -55,4 +64,9 @@ export interface TemplateDirectory {
    * caller has resolved the template with {@link findActiveForCopy} in the same transaction; an unknown id gives an empty list.
    */
   findProceduresForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplateProcedureForCopy[]>;
+  /**
+   * The live milestones of the payment plan of a template in the order of the template (EVM-053 AC1). The caller has resolved the
+   * template in the same transaction; an unknown id or a template without a plan gives an empty list.
+   */
+  findPaymentPlanForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplatePaymentMilestoneForCopy[]>;
 }

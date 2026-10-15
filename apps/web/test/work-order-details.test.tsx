@@ -187,7 +187,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     });
   });
 
-  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the six entries leave the memory of the tab', async () => {
+  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the seven entries leave the memory of the tab (EVM-053: the instalments too)', async () => {
     let gone = false;
     const queryClient = createQueryClient();
     const api = detailsApi({
@@ -198,7 +198,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const keys = queryClient.getQueryCache().findAll({ predicate: (query) => query.queryKey[1] === ORDER_ID });
-    expect(keys).toHaveLength(6);
+    expect(keys).toHaveLength(7);
 
     gone = true;
     await act(async () => {
@@ -267,7 +267,7 @@ describe('notes as text (EVM-018 AC4; SR-WEB-03)', () => {
 });
 
 describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
-  it('EVM-018 AC5 the page asks for exactly six reads anchored in the order — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
+  it('EVM-018 AC5 the page asks for exactly seven reads anchored in the order (EVM-053: the instalments) — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
     const api = detailsApi();
     await renderPanel(PATH, api);
     await screen.findByText('Instalacja zasilająca');
@@ -277,6 +277,7 @@ describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
       [
         `GET ${BASE}`,
         `GET ${BASE}/customer`,
+        `GET ${BASE}/payment-milestones`,
         `GET ${BASE}/procedures`,
         `GET ${BASE}/scope-items`,
         `GET ${BASE}/site`,
@@ -314,8 +315,11 @@ describe('roles (EVM-018 AC6; SR-AUTHZ-05)', () => {
       expect(card('Klient').getByText('Jan Przykładowy')).toBeTruthy();
       expect(card('Lokalizacja').getByText('PL-TEST-0001')).toBeTruthy();
       expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
-      // "Edytuj lokalizację" and "Edytuj stronę…" are EVM-036 (A and E only, EVM-036 AC7); nothing else on the page changes anything
-      expect(screen.queryByRole('button', { name: /Dodaj|Usuń|Przejdź do klienta/ })).toBeNull();
+      // "Edytuj lokalizację" and "Edytuj stronę…" are EVM-036 (A and E only, EVM-036 AC7), "Dodaj transzę" is EVM-053 (A and E
+      // only, EVM-053 AC7); nothing else on the page changes anything
+      expect(screen.queryByRole('button', { name: /Dodaj(?! transzę)|Usuń|Przejdź do klienta/ })).toBeNull();
+      expect(await screen.findByText('Brak transz.')).toBeTruthy();
+      expect(screen.queryAllByRole('button', { name: 'Dodaj transzę' })).toHaveLength(role === 'read_only' ? 0 : 1);
       expect(screen.queryAllByRole('button', { name: 'Edytuj lokalizację' })).toHaveLength(role === 'read_only' ? 0 : 1);
       expect(screen.queryAllByRole('button', { name: /^Akcje strony/ })).toHaveLength(role === 'read_only' ? 0 : 2);
       expect(screen.queryByRole('link', { name: /Edytuj/ })).toBeNull();

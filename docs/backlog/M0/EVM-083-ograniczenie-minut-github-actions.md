@@ -4,7 +4,7 @@ title: Ograniczenie zużycia minut GitHub Actions
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P0
 path: lekka
 owner: devops-engineer
@@ -87,3 +87,4 @@ Jako **właściciel produktu** chcę **ograniczyć zużycie minut GitHub Actions
 - 2026-10-13 — weryfikacja orkiestratora: `pnpm run gate` zielony (diff-coverage linie 122/122, gałęzie 67/69), `npm run test:tools` 441/0, testy `repo-policy` 192 + 2 jq (pominięte lokalnie, w CI wymagane); poprawka minor/nit; in-progress → in-review
 - 2026-10-13 — Koszt: potok ok. 49 min, 3 agentów (wykonawca + recenzent + poprawki), ok. 272 tys. tokenów subagentów; ścieżka lekka zgodnie z celem
 - 2026-10-13 — demo: Konrad akceptuje; push i PR
+- 2026-10-13 — scalona do `main` (PR #68, `4ee11b7`); in-review → done

@@ -130,7 +130,7 @@ export const INITIAL_TEMPLATES: MockTemplate[] = [
   },
 ];
 
-/** The templates as the contract sends them — with the processes (EVM-031) and the instalments that the panel must not show yet. */
+/** The templates as the contract sends them — with the processes (EVM-031) and the payment plan (EVM-053). */
 function templateBody(template: MockTemplate) {
   return {
     id: template.id,
@@ -151,10 +151,28 @@ function templateBody(template: MockTemplate) {
       name: process.name,
       stageCount: process.stages.length,
     })),
-    paymentMilestones: [
-      { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
-    ],
+    paymentMilestones: paymentPlanOf(template.items.length),
   };
+}
+
+/** The payment plan of a template (EVM-053 AC1): 20% / 30% / 30% / 20% for the full process, one instalment otherwise. */
+export function paymentPlanOf(itemCount: number) {
+  if (itemCount < 9) {
+    return [{ code: 'whole', name: 'Płatność całościowa', position: 1, sharePercent: 100, invoiceHint: 'Po montażu', paymentTermDays: 7 }];
+  }
+  return [
+    { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
+    { code: 'consents', name: 'Po uzyskaniu zgód', position: 2, sharePercent: 30, invoiceHint: 'Po zgodach', paymentTermDays: 7 },
+    {
+      code: 'installation',
+      name: 'Po wykonaniu instalacji',
+      position: 3,
+      sharePercent: 30,
+      invoiceHint: 'Po montażu',
+      paymentTermDays: 14,
+    },
+    { code: 'final', name: 'Płatność końcowa', position: 4, sharePercent: 20, invoiceHint: 'Po odbiorze', paymentTermDays: 14 },
+  ];
 }
 
 const stateOf = (server: OrderServer, id: string): OrderState => server.states.get(id) ?? { status: 'new', version: 1 };
@@ -370,6 +388,9 @@ interface TransitionInput {
   readonly ifMatch: string | undefined;
   readonly key: string | undefined;
   readonly raw: string;
+  /** EVM-053: the conditions of the participants (a code of the reason, or `undefined` when met) and their effects in the same step. */
+  readonly condition?: (to: string) => string | undefined;
+  readonly effect?: (to: string) => void;
 }
 
 /**
@@ -402,11 +423,14 @@ export function answerTransition(server: OrderServer, id: string, input: Transit
   if (needsReason && (request.reason === undefined || request.reason.trim() === '')) {
     return problem(400, 'validation_failed', { errors: [{ pointer: '/reason', code: 'required' }] });
   }
+  const unmet = input.condition?.(request.to);
+  if (unmet !== undefined) return problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/to', code: unmet }] });
   const next: OrderState = { status: request.to, version: state.version + 1 };
   if (request.to === 'on_hold' && state.status !== 'cancelled') next.resumeStatus = state.status;
   if (request.to === 'completed') next.completedOn = request.completedOn ?? new Date().toISOString().slice(0, 10);
   if (request.to === 'settled' || request.to === 'cancelled') next.closedAt = new Date().toISOString();
   server.states.set(id, next);
+  input.effect?.(request.to);
   const order = answerOrderRead(server, id, '', input.role);
   const answer = { ...order, headers: { ...order.headers, ETag: `"${String(next.version)}"` } };
   if (input.key !== undefined) server.transitionKeys.set(input.key, { scope, answer });

@@ -4,3 +4,35 @@ Semver:
   pattern: '^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$'
   maxLength: 32
   examples: [1.0.0]
+Money:
+  type: object
+  description: >-
+    Kwota (api-guidelines.md → kwota): liczba całkowita w groszach (`amountMinor`, int64) i waluta. Nigdy liczba
+    zmiennoprzecinkowa — `{ "amountMinor": 360000, "currency": "PLN" }` = 3 600,00 zł. W MVP tylko `PLN`; kwota dodatnia, najwyżej
+    99 999 999 999 groszy (suma 20 transz mieści się w bezpiecznym zakresie liczb całkowitych JavaScriptu).
+  required: [amountMinor, currency]
+  additionalProperties: false
+  properties:
+    amountMinor:
+      type: integer
+      description: Kwota w groszach (1 = 0,01 zł). Ułamek grosza, zero i wartość ujemna — `400`.
+      minimum: 1
+      maximum: 99999999999
+    currency:
+      type: string
+      description: Kod waluty ISO 4217 (w MVP wyłącznie `PLN`).
+      enum: [PLN]
+MoneyTotal:
+  type: object
+  description: Suma kwot (np. „Nieopłacone” i „Opłacone” sekcji „Płatności”) — jak `Money`, ale może być zerem.
+  required: [amountMinor, currency]
+  additionalProperties: false
+  properties:
+    amountMinor:
+      type: integer
+      description: Suma w groszach (0 — brak kwot w danym stanie).
+      minimum: 0
+      maximum: 1999999999980
+    currency:
+      type: string
+      enum: [PLN]

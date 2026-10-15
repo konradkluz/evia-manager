@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { IconButton } from './button.tsx';
+import { classNames } from './class-names.ts';
 import { X } from './icons.ts';
 
 export interface DialogProps {
@@ -12,6 +13,8 @@ export interface DialogProps {
   readonly actions: ReactNode;
   /** Esc and `x`: the parent decides what dismissing means (closing, or asking "Odrzucić zmiany?"). */
   readonly onDismiss: () => void;
+  /** `md` (`size.dialog.width.md`, default) for forms; `sm` (`size.dialog.width.sm`) for a short form of one or two fields (§ 3.13). */
+  readonly size?: 'sm' | 'md';
 }
 
 const FIRST_FIELD =
@@ -24,7 +27,7 @@ const FIRST_FIELD =
  * the next step). Not animated and without injected styles (CSP `style-src 'self'`).
  * The content is rendered only while open — the state of a form lives in the parent, so closing never loses it by itself.
  */
-export function Dialog({ open, title, closeLabel, children, actions, onDismiss }: DialogProps) {
+export function Dialog({ open, title, closeLabel, children, actions, onDismiss, size = 'md' }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
 
@@ -50,7 +53,10 @@ export function Dialog({ open, title, closeLabel, children, actions, onDismiss }
         event.preventDefault();
         onDismiss();
       }}
-      className="m-auto p-inset-lg w-full max-w-dialog-width-md overflow-hidden open:flex open:flex-col rounded-dialog shadow-dialog bg-bg-surface text-text-primary backdrop:bg-bg-scrim"
+      className={classNames(
+        'm-auto p-inset-lg w-full overflow-hidden open:flex open:flex-col rounded-dialog shadow-dialog bg-bg-surface text-text-primary backdrop:bg-bg-scrim',
+        size === 'sm' ? 'max-w-dialog-width-sm' : 'max-w-dialog-width-md',
+      )}
     >
       {open ? (
         <div className="flex min-h-0 flex-1 flex-col gap-stack-md">

@@ -6,7 +6,7 @@
  */
 import { MAX_LIST_ITEMS } from '../domain/vocabularies.ts';
 import type { CatalogItemForScope } from '../catalog-item-directory.ts';
-import type { TemplateForCopy, TemplateProcedureForCopy } from '../template-directory.ts';
+import type { TemplateForCopy, TemplatePaymentMilestoneForCopy, TemplateProcedureForCopy } from '../template-directory.ts';
 import type { CatalogDb } from './tables.ts';
 
 export interface DocumentKindRow {
@@ -448,4 +448,18 @@ export async function findCatalogItemProcedures(db: CatalogDb, catalogItemId: st
       outputDocumentKindCodes: stage.outputDocumentKindCodes,
     })),
   }));
+}
+
+/**
+ * The payment plan a work order made from a template gets (EVM-053 AC1): the live milestones of the plan in the order of the template
+ * (`position`). The hint of the invoice stays in the catalogue (the order does not need it); no amount — the plan has none.
+ */
+export function findTemplatePaymentPlan(db: CatalogDb, templateId: string): Promise<TemplatePaymentMilestoneForCopy[]> {
+  return db
+    .selectFrom('catalog.payment_milestone_templates')
+    .select(['id as sourceTemplateId', 'code', 'name', 'share_percent as sharePercent', 'payment_term_days as paymentTermDays'])
+    .where('work_order_template_id', '=', templateId)
+    .where('deleted_at', 'is', null)
+    .orderBy('position')
+    .execute();
 }

@@ -250,6 +250,51 @@ describe('DataTable cards on narrow viewports (styleguide § 3.6; EVM-017 AC1)',
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-053 AC2 a column with cardLabel names its value in the card (visible only below medium), the table keeps its headers', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Transze"
+        columns={[
+          { id: 'name', header: 'Transza', card: 'primary' },
+          { id: 'invoice', header: 'Nr faktury', card: 'detail', cardLabel: true },
+          { id: 'note', header: 'Uwagi', card: 'detail' },
+        ]}
+        rows={[{ id: 'a', cells: ['Zaliczka', '—', 'x'] }]}
+      />,
+    );
+    const cells = screen.getAllByRole('cell');
+    const label = cells[1]?.querySelector('span');
+    expect(label?.textContent).toBe('Nr faktury: ');
+    expect(label?.className).toContain('medium:hidden');
+    expect(cells[1]?.textContent).toBe('Nr faktury: —');
+    expect(cells[2]?.textContent).toBe('x');
+    expect(cells[0]?.textContent).toBe('Zaliczka');
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Transza', 'Nr faktury', 'Uwagi']);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-053 AC2 an action column sits at the top right of the card, under the badge, not on a line of its own', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Transze"
+        columns={[
+          { id: 'name', header: 'Transza', card: 'primary' },
+          { id: 'status', header: 'Status', card: 'badge' },
+          { id: 'actions', header: 'Akcje', card: 'action', cardLabel: true },
+        ]}
+        rows={[{ id: 'a', cells: ['Zaliczka', 'Planowana', 'menu'] }]}
+      />,
+    );
+    const cell = screen.getAllByRole('cell')[2];
+    expect(cell?.className).toContain('max-medium:col-start-3');
+    expect(cell?.className).toContain('max-medium:row-start-2');
+    expect(cell?.className).toContain('max-medium:justify-self-end');
+    expect(cell?.className).not.toContain('max-medium:col-span-3');
+    // an action names itself: no label in the card
+    expect(cell?.textContent).toBe('menu');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-017 AC1 without card roles the table keeps scrolling in its frame', () => {
     render(<DataTable caption="Zlecenia" columns={[{ id: 'a', header: 'A' }]} rows={[{ id: 'a', cells: ['x'] }]} />);
     expect(screen.getByRole('table').className).not.toContain('max-medium');

@@ -20,6 +20,7 @@ const context: TransitionContext = {
   to: 'settled',
   principal: {} as never,
   now: new Date('2026-10-08T08:00:00Z'),
+  request: { origin: 'web', traceId: '4bf92f3577b34da6a3ce929d0e0e4736' },
 };
 
 describe('the registry of the transition participants (EVM-030 AC5; SR-API-06, SR-API-07)', () => {

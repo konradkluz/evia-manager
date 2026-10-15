@@ -53,6 +53,21 @@ export function useProcessesText(): (count: number) => string {
   };
 }
 
+/** "4 transze" — the count of the instalments of the payment plan of a template (EVM-053 AC1). */
+export function useInstalmentsText(): (count: number) => string {
+  const { t } = useTranslation();
+  return (count) => {
+    switch (pluralForm(count)) {
+      case 'one':
+        return t('newWorkOrder.template.instalmentsOne', { count });
+      case 'few':
+        return t('newWorkOrder.template.instalmentsFew', { count });
+      case 'many':
+        return t('newWorkOrder.template.instalmentsMany', { count });
+    }
+  };
+}
+
 /** "7 etapów" — the count of the stages of a process of a template. */
 function useStagesText(): (count: number) => string {
   const { t } = useTranslation();
@@ -71,8 +86,9 @@ function useStagesText(): (count: number) => string {
 /**
  * W-05 "3. Szablon" (EVM-022 AC1–AC3, AC8): cards of the active templates (SelectableCard, P-3) filtered by the type of the
  * object — "Pokaż wszystkie" takes the filter off — and the radio "Puste zlecenie (bez szablonu)". A card and the preview show
- * what the system creates in this version: the scope ("Zakres (9 pozycji)") and the processes ("9 pozycji · 9 procesów",
- * "Procesy (9)", EVM-031 AC1), without the payment plan (EVM-053). The preview stands on the right at `breakpoint.expanded` and in a Disclosure under the cards below it. Loading is
+ * what the system creates: the scope ("Zakres (9 pozycji)"), the processes ("Procesy (9)", EVM-031 AC1) and the payment plan
+ * ("9 pozycji · 9 procesów · 4 transze", "Plan płatności" with the shares and no amounts, EVM-053 AC1); a part the template does not
+ * have is left out. The preview stands on the right at `breakpoint.expanded` and in a Disclosure under the cards below it. Loading is
  * a skeleton of cards; names and texts are shown as React text only.
  */
 export function TemplateSection({
@@ -91,6 +107,7 @@ export function TemplateSection({
   const { t } = useTranslation();
   const itemsText = useItemsText();
   const processesText = useProcessesText();
+  const instalmentsText = useInstalmentsText();
   const [open, setOpen] = useState(false);
   const all = templates.data ?? [];
   const filtering = siteType !== undefined && !showAll;
@@ -104,13 +121,11 @@ export function TemplateSection({
     ...visible.map((entry) => ({
       value: entry.id,
       title: entry.name,
-      description:
-        entry.procedures.length === 0
-          ? itemsText(entry.items.length)
-          : t('newWorkOrder.template.cardDescription', {
-              items: itemsText(entry.items.length),
-              processes: processesText(entry.procedures.length),
-            }),
+      description: [
+        itemsText(entry.items.length),
+        ...(entry.procedures.length === 0 ? [] : [processesText(entry.procedures.length)]),
+        ...(entry.paymentMilestones.length === 0 ? [] : [instalmentsText(entry.paymentMilestones.length)]),
+      ].join(t('newWorkOrder.template.cardSeparator')),
     })),
     { value: EMPTY_CHOICE, title: t('newWorkOrder.template.empty') },
   ];
@@ -202,7 +217,7 @@ export function TemplateSection({
   );
 }
 
-/** The preview of a template: its name, the type of the object, the scope and the processes with their stages — nothing the system does not create yet. */
+/** The preview of a template: its name, the type of the object, the scope, the processes with their stages and the payment plan (shares only). */
 export function TemplatePreview({ template, card = false }: { readonly template: WorkOrderTemplate; readonly card?: boolean }) {
   const { t } = useTranslation();
   const itemsText = useItemsText();
@@ -238,6 +253,21 @@ export function TemplatePreview({ template, card = false }: { readonly template:
               </li>
             ))}
           </ul>
+        </>
+      )}
+      {template.paymentMilestones.length === 0 ? null : (
+        <>
+          <h4 className="text-label text-text-primary">{t('newWorkOrder.template.previewPayments')}</h4>
+          <ul className="flex list-disc flex-col gap-stack-xs ps-inset-lg text-body-sm text-text-secondary">
+            {[...template.paymentMilestones]
+              .sort((a, b) => a.position - b.position)
+              .map((milestone) => (
+                <li key={milestone.code}>
+                  {t('newWorkOrder.template.previewPayment', { name: milestone.name, share: milestone.sharePercent })}
+                </li>
+              ))}
+          </ul>
+          <p className="text-body-sm text-text-secondary">{t('newWorkOrder.template.previewPaymentsNote')}</p>
         </>
       )}
     </>

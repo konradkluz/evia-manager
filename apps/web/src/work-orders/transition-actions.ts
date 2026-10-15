@@ -77,7 +77,9 @@ export function menuEntries(
 export const DIALOG_ACTIONS: ReadonlySet<TransitionAction> = new Set<TransitionAction>(['hold', 'cancel', 'complete', 'settle', 'restore']);
 
 export type TransitionFailure =
-  | { readonly kind: 'conflict' | 'forbidden' | 'stepUp' | 'condition' | 'network' }
+  | { readonly kind: 'conflict' | 'forbidden' | 'stepUp' | 'network' }
+  /** `422 transition_condition_not_met` with the codes of the reasons from the modules (e.g. `unpaid_milestones`, EVM-053). */
+  | { readonly kind: 'condition'; readonly reasons?: readonly string[] }
   | { readonly kind: 'rate'; readonly seconds: number }
   | { readonly kind: 'server'; readonly code: string }
   | { readonly kind: 'fields'; readonly reason?: string; readonly completedOn?: string };
@@ -90,7 +92,10 @@ export function describeTransitionFailure(error: unknown): TransitionFailure {
   if (!(error instanceof ApiError) || error.status === 0 || error.status >= 500) return { kind: 'network' };
   if (error.status === 412 || (error.status === 409 && error.code === 'invalid_state_transition')) return { kind: 'conflict' };
   if (error.status === 403) return { kind: error.code === 'step_up_required' ? 'stepUp' : 'forbidden' };
-  if (error.status === 422 && error.code === 'transition_condition_not_met') return { kind: 'condition' };
+  if (error.status === 422 && error.code === 'transition_condition_not_met') {
+    const reasons = error.errors.filter((entry) => entry.pointer === '/to').map((entry) => entry.code);
+    return reasons.length === 0 ? { kind: 'condition' } : { kind: 'condition', reasons };
+  }
   if (error.status === 429) return { kind: 'rate', seconds: error.retryAfterSeconds ?? 60 };
   if (error.status === 400) {
     const pick = (pointer: string) => error.errors.find((entry) => entry.pointer === pointer)?.code;

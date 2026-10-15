@@ -12,10 +12,17 @@ export interface DataTableColumn {
   /**
    * Role of the column in the card of narrow viewports (below `breakpoint.medium`, § 3.6): `primary` (number and title,
    * first lines on the left), `badge` (status, top right), `meta` (secondary facts, the line below), `detail` (a fact that
-   * needs the whole width — "Czekamy na", "Termin": a full-width line under the others, one per column). When any column has
-   * a role the rows become cards there; without roles the table scrolls inside its frame.
+   * needs the whole width — "Czekamy na", "Termin": a full-width line under the others, one per column), `action` (the menu
+   * `⋮` or an icon button of the row: top right of the card, under the badge — flows/08). When any column has a role the
+   * rows become cards there; without roles the table scrolls inside its frame.
    */
-  readonly card?: 'primary' | 'badge' | 'meta' | 'detail';
+  readonly card?: 'primary' | 'badge' | 'meta' | 'detail' | 'action';
+  /**
+   * In the card the value is preceded by the header ("Nr faktury: —"), visible and read only below `breakpoint.medium`
+   * where the header row is hidden: a bare value ("—", a date) would not say what it is (§ 3.6 — the same priority data).
+   * Ignored for an `action` column (the control names itself).
+   */
+  readonly cardLabel?: boolean;
   /**
    * The column is shown only from `breakpoint.wide` (header and cells); below it the caller shows the same fact elsewhere
    * (e.g. a second line in the first cell, `wide:hidden`) — the table of a list of people keeps the e-mail out of the narrow views (§ 3.6).
@@ -34,6 +41,8 @@ const CARD_CELL = {
   meta: 'max-medium:col-span-2 max-medium:row-start-3 max-medium:min-w-0 text-text-secondary',
   // no row of its own: the grid puts it on the first row below the cards' other lines where three columns are free
   detail: 'max-medium:col-span-3 max-medium:min-w-0',
+  // the second line of the right column is free (the primary cell spans two rows on the left)
+  action: 'max-medium:col-start-3 max-medium:row-start-2 max-medium:justify-self-end',
 } as const;
 
 export interface DataTableRow {
@@ -61,8 +70,8 @@ export interface DataTableProps {
 /**
  * DataTable (styleguide § 3.6), read-only variant: a semantic `<table>` with a caption, column headers with `scope`,
  * the header on `color.bg.surface-subtle` + `text.label`, rows separated by `color.border.subtle`, hover
- * `color.bg.surface-hover`, `text.body-sm`. Below `breakpoint.medium` the table scrolls inside its frame (the card list
- * of § 3.6 is not built yet).
+ * `color.bg.surface-hover`, `text.body-sm`. Below `breakpoint.medium` the rows become cards when the columns have card
+ * roles (values of `cardLabel` columns named by their header), otherwise the table scrolls inside its frame.
  */
 export function DataTable({ caption, columns, rows, link: Link = PlainLink }: DataTableProps) {
   const cards = columns.some((column) => column.card !== undefined);
@@ -111,6 +120,8 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 const wideOnly = columns[index]?.wideOnly === true;
                 const expandedOnly = columns[index]?.expandedOnly === true;
                 const hiddenInCard = wideOnly || expandedOnly;
+                const column = columns[index];
+                const cardLabel = cards && column?.cardLabel === true && role !== 'action' && !hiddenInCard ? column.header : undefined;
                 return (
                   <td
                     key={columns[index]?.id ?? index}
@@ -131,6 +142,11 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                       <Link href={row.href} aria-label={row.label} className="after:absolute after:inset-0 focus-visible:outline-none">
                         {cell}
                       </Link>
+                    ) : cardLabel !== undefined ? (
+                      <>
+                        <span className="medium:hidden text-text-secondary">{`${cardLabel}: `}</span>
+                        {cell}
+                      </>
                     ) : (
                       cell
                     )}

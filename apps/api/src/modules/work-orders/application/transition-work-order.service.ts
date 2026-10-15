@@ -163,7 +163,14 @@ export class TransitionWorkOrderService {
     const fields = normalizeTransitionFields(body, transition, businessDate(now));
     if (!fields.ok) throw new ProblemException('validation_failed', { errors: fields.errors });
 
-    const participantContext: TransitionContext = { workOrderId: locked.id, from: state.status, to: transition.to, principal, now };
+    const participantContext: TransitionContext = {
+      workOrderId: locked.id,
+      from: state.status,
+      to: transition.to,
+      principal,
+      now,
+      request,
+    };
     const unmet = await this.#participants.unmetConditions(tx, participantContext);
     if (unmet.length > 0) {
       throw new ProblemException('transition_condition_not_met', { errors: unmet.map((code) => ({ pointer: '/to', code })) });

@@ -78,5 +78,11 @@ function toItem(row: AuditRow, names: ReadonlyMap<string, string>) {
     objectType: row.objectType,
     objectId: row.objectId,
     ipPrefix: row.ipPrefix,
+    // the exception of the trail for payments (EVM-053): the amount before and after, only on the events of a payment milestone
+    ...(row.amountBeforeMinor === null && row.amountAfterMinor === null
+      ? {}
+      : { amountBefore: moneyOf(row.amountBeforeMinor), amountAfter: moneyOf(row.amountAfterMinor) }),
   };
 }
+
+const moneyOf = (amountMinor: number | null) => (amountMinor === null ? null : { amountMinor, currency: 'PLN' as const });

@@ -2,11 +2,14 @@
  * An audit record before it is written (domain-model.md → AuditEvent; SR-LOG-03, SR-LOG-04). Every field comes from a
  * closed list, an identifier or a time — there is no free text, so no e-mail, name or password can reach the table
  * (the trail is append-only; a filter for personal data in free text would be unreliable, Q3). The schema is strict.
+ * The one described exception (EVM-053): an event of a payment milestone carries the amount before and after in grosze with the
+ * currency `PLN` — the schema refuses an amount on any other action (and the database refuses it too, 0027).
  */
 import { z } from 'zod';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../identity/index.ts';
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../../parties/index.ts';
+import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../procedures/index.ts';
 import { SITE_EVENT_TYPES, type SiteEvent } from '../../sites/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../timeline/index.ts';
@@ -34,6 +37,7 @@ export const AUDIT_ACTIONS = [
   ...WORK_ORDER_EVENT_TYPES,
   ...PROCEDURE_EVENT_TYPES,
   ...TIMELINE_EVENT_TYPES,
+  ...PAYMENT_MILESTONE_EVENT_TYPES,
 ] as const;
 export const AUDIT_OBJECT_TYPES = [
   'user',
@@ -47,23 +51,38 @@ export const AUDIT_OBJECT_TYPES = [
   'party',
   'procedure_stage',
   'timeline_entry',
+  'payment_milestone',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
-export const auditRecordSchema = z.strictObject({
-  occurredAt: z.date(),
-  actorType: z.enum(['user', 'system', 'anonymous']),
-  actorUserId: z.uuid().nullable(),
-  sessionId: z.uuid().nullable(),
-  ipPrefix: z.string().max(43).nullable(),
-  origin: z.enum(['web', 'cli']),
-  action: z.enum(AUDIT_ACTIONS),
-  outcome: z.enum(AUDIT_OUTCOMES),
-  reasonCode: z.enum(REASON_CODES).nullable(),
-  objectType: z.enum(AUDIT_OBJECT_TYPES),
-  objectId: z.uuid().nullable(),
-  traceId: z.string().regex(/^[0-9a-f]{32}$/),
-});
+const PAYMENT_ACTION_PREFIX = 'payment_milestone.';
+const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
+
+export const auditRecordSchema = z
+  .strictObject({
+    occurredAt: z.date(),
+    actorType: z.enum(['user', 'system', 'anonymous']),
+    actorUserId: z.uuid().nullable(),
+    sessionId: z.uuid().nullable(),
+    ipPrefix: z.string().max(43).nullable(),
+    origin: z.enum(['web', 'cli']),
+    action: z.enum(AUDIT_ACTIONS),
+    outcome: z.enum(AUDIT_OUTCOMES),
+    reasonCode: z.enum(REASON_CODES).nullable(),
+    objectType: z.enum(AUDIT_OBJECT_TYPES),
+    objectId: z.uuid().nullable(),
+    traceId: z.string().regex(/^[0-9a-f]{32}$/),
+    amountBeforeMinor: amountMinor,
+    amountAfterMinor: amountMinor,
+    currency: z.literal('PLN').nullable(),
+  })
+  .refine(
+    (record) =>
+      record.amountBeforeMinor === null && record.amountAfterMinor === null
+        ? record.currency === null
+        : record.currency === 'PLN' && record.action.startsWith(PAYMENT_ACTION_PREFIX),
+    { message: 'an amount belongs to an event of a payment milestone only, with its currency' },
+  );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
@@ -78,7 +97,8 @@ export function toAuditRecord(
     | PartyEvent
     | WorkOrderEvent
     | ProcedureStageEvent
-    | TimelineEntryEvent,
+    | TimelineEntryEvent
+    | PaymentMilestoneEvent,
   context: EventContext,
   occurredAt: Date,
 ): AuditRecord {
@@ -95,5 +115,13 @@ export function toAuditRecord(
     objectType: event.objectType,
     objectId: 'objectId' in event ? (event.objectId ?? null) : null,
     traceId: context.traceId,
+    ...amountsOf(event),
   });
+}
+
+/** The amounts of an event of a payment milestone (the exception); `null` for every other event. */
+function amountsOf(event: object): { amountBeforeMinor: number | null; amountAfterMinor: number | null; currency: 'PLN' | null } {
+  const before = 'amountBeforeMinor' in event ? (event.amountBeforeMinor as number | null) : null;
+  const after = 'amountAfterMinor' in event ? (event.amountAfterMinor as number | null) : null;
+  return { amountBeforeMinor: before, amountAfterMinor: after, currency: before === null && after === null ? null : 'PLN' };
 }

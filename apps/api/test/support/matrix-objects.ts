@@ -4,6 +4,7 @@ import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
 import { createUser } from './identity-fixtures.ts';
+import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
 import { insertEntries } from './timeline-fixtures.ts';
@@ -191,6 +192,42 @@ export async function scopeObjects(app: IdentityApp): Promise<Record<string, Obj
   };
 }
 
+/**
+ * The IDOR fixture of the payment milestones (EVM-053 AC7; SR-AUTHZ-02, SR-AUTHZ-05, TM-17, CWE-639): the list and the addition — "own"
+ * is a live order, "foreign" an EXISTING order that is soft deleted (its milestones exist, only the read policy of the order keeps them
+ * from the caller); the change of an amount — "own" is a milestone of the live order in ITS path, "foreign" the milestone of ANOTHER
+ * live order named in the path of the first (the one an attacker tries: /work-orders/{A}/payment-milestones/{milestone of B}).
+ */
+export async function paymentObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const [ownMilestone] = await insertMilestones(db, own, [{}]);
+  const [otherMilestone] = await insertMilestones(db, other, [{}]);
+  await insertMilestones(db, deleted, [{}]);
+  if (ownMilestone === undefined || otherMilestone === undefined) throw new Error('the fixture milestones were not inserted');
+  const milestones: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/payment-milestones`,
+    foreign: () => `${WORK_ORDERS}/${deleted}/payment-milestones`,
+  };
+  return {
+    listPaymentMilestones: milestones,
+    createPaymentMilestone: milestones,
+    updatePaymentMilestone: {
+      own: () => `${WORK_ORDERS}/${own}/payment-milestones/${ownMilestone}`,
+      foreign: () => `${WORK_ORDERS}/${own}/payment-milestones/${otherMilestone}`,
+    },
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -201,5 +238,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await procedureObjects(app)),
     ...(await scopeObjects(app)),
     ...(await timelineObjects(app)),
+    ...(await paymentObjects(app)),
   };
 }

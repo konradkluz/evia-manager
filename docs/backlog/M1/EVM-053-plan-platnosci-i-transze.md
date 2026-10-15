@@ -4,7 +4,7 @@ title: Plan płatności z szablonu i transze w zleceniu
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-review
 priority: P1
 path: pelna
 owner: backend-developer
@@ -110,15 +110,28 @@ _Uzupełnia wykonawca przed implementacją._
 - Rozmiar: 8 AC i moduły `payments`, `work-orders`, `audit` + panel — na granicy DoR (P7): gdyby plan techniczny wykazał przekroczenie, wynik `blocked` z propozycją wydzielenia AC6 (uczestnik przejść) do osobnej historyjki.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-053 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona o płatności
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-053 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona o płatności — dokumentacja i CHANGELOG tak; instrukcji EVM-066 jeszcze nie ma (EVM-066 `ready`) — do decyzji Konrada na demo
 - [ ] Demo i akceptacja użytkownika
+
+## Notatki
+- Minor z code-review domknięte przez orkiestratora po potoku (bez ponownego przeglądu): ostrzeżenie „Planowane transze zostaną anulowane.” także przy braku danych płatności (P1), PATCH z tą samą kwotą bez wersji i audytu, CHECK audytu `NOT VALID` + `VALIDATE`, opis `amount` (`null` także w `cancelled`).
+- Otwarte minor/nit (propozycje do backlogu): widoczna etykieta odznaki „Po terminie” wg styleguide § 4.4 (dziś „Wystawiona, po terminie”; martwy `paymentOverdueLabel`) — przy EVM-054/055; wspólny `bigintToSafeNumber` w `platform/database`; `formatMoney` do wspólnego modułu formatowania; nieużywana `MAX_AMOUNT_MINOR`; kontrakt: `403 channel_not_allowed` w opisach vs `403 forbidden` z guardu (dotyczy też starszych ścieżek).
+- UX: na 360 px długa nazwa transzy wchodzi pod plakietkę statusu (siatka karty DataTable — decyzja ux-designer, poza zakresem).
+- Test EVM-072 AC6 (plan zapytania) był niestabilny w pełnym przebiegu (rozdęta tabela po wcześniejszych plikach) — ustabilizowany `vacuum (full, analyze)` w przygotowaniu testu (`e6dbc6a`, asercje bez zmian). E2E EVM-037 AC3 zależy od zegara (po północy „dziś” → „wczoraj”) — do backlogu.
 
 ## Dziennik
 - 2026-10-13 — `/refine` (product-owner): `path: pelna`, `model: opus`, `depends_on` uzupełnione; doprecyzowano AC1, AC3, AC4, AC6, AC8 (walidacja, `428`/`409`, idempotencja, offline, limit); rozstrzygnięto podział ostrzeżenia z EVM-058 AC3 (Decyzje); status `draft` do akceptacji Konrada
 - 2026-10-13 — draft → ready: AC i decyzje P1–P7 zaakceptowane przez Konrada
+- 2026-10-13 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model opus, gałąź `feature/EVM-053-plan-platnosci-transze`)
+- 2026-10-13 — plan gotowy (backend-developer)
+- 2026-10-13 — backend gotowy (backend-developer): kontrakt (`Money`, 3 operacje `payments`, tylko `web`), migracje `0026`/`0027`, moduł `payments` (kontrybutor kompozycji, uczestnik przejść, lista, dodanie, zmiana kwoty), audyt z kwotą przed/po, testy AC1–AC7 (API); część web (W-05, W-06 „Płatności”, dialogi, AC8) — web-developer
+- 2026-10-13 — web gotowy (web-developer): W-05 (liczba transz, „Plan płatności”), W-06 „Płatności” (tabela, sumy, „Dodaj transzę”, „Zmień kwotę”, stany AC8), komunikaty w „Rozlicz…” i „Anuluj zlecenie…” (AC6), kwoty w audycie; `StatusBadge` płatności i `Dialog` `sm` w bibliotece; testy komponentów i E2E (Chromium, Firefox, Edge) z axe
+- 2026-10-14 — potok `wf_6106e1de-4c0`: passed po 2 rundach (QA PASS AC1–AC8; code-reviewer i security-engineer APPROVE w rundzie 1, ux-designer APPROVE w rundzie 2 po poprawce kart 360 px)
+- 2026-10-14 — orkiestrator: 4 minor z code-review domknięte (backend-developer, web-developer); stabilizacja testu EVM-072 AC6 (`e6dbc6a`); `pnpm run gate` zielony (diff-coverage linie 556/557, gałęzie 432/453), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $ (tryb nocny); potok 12 wywołań agentów, ok. 1,69 mln tokenów subagentów, ok. 222 min; poprawki po potoku 3 wywołania, ok. 0,17 mln tokenów; rundy poprawek 1 (+ minor); ścieżka pełna; opus; vs baseline — do oceny z `/usage` rano
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): przywrócenie transz i „Planu płatności” w karcie i podglądzie szablonu W-05 (AC1)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054

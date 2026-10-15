@@ -13,6 +13,7 @@ export {
   type StatusBadgeProps,
   type OrderStatusKey,
   type StageStatusKey,
+  type PaymentStatusKey,
 } from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
 export { Dialog, type DialogProps } from './dialog.tsx';

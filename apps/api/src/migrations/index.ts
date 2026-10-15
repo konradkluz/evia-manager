@@ -25,6 +25,8 @@ import * as scopeItemNotes from './0022_scope_item_notes.ts';
 import * as overview from './0023_overview.ts';
 import * as jobs from './0024_jobs.ts';
 import * as workOrderSearchText from './0025_work_order_search_text.ts';
+import * as payments from './0026_payments.ts';
+import * as auditPaymentAmounts from './0027_audit_payment_amounts.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -52,4 +54,6 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0023_overview': overview,
   '0024_jobs': jobs,
   '0025_work_order_search_text': workOrderSearchText,
+  '0026_payments': payments,
+  '0027_audit_payment_amounts': auditPaymentAmounts,
 });

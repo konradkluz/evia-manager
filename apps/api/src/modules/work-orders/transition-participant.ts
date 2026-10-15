@@ -13,10 +13,11 @@
  * - both read and write the database only: NO external I/O inside the transaction (a slow or hostile endpoint would hold the lock of
  *   the order and a connection; a call to a URL taken from data is an SSRF). Anything else is done after the commit by a job;
  * - the order of the calls is fixed: ascending `order`, then `name`; two implementations cannot share a name;
- * - it gets identifiers, the two statuses and the principal — never the reason of the command (free text, may name a person).
+ * - it gets identifiers, the two statuses, the principal and the context of the request — never the reason of the command (free text, may name a person).
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
+import type { EventContext } from '../../platform/events/event-bus.ts';
 import type { Principal } from '../../platform/http/principal.ts';
 import type { WorkOrderStatus } from './domain/work-order-status.ts';
 
@@ -26,6 +27,11 @@ export interface TransitionContext {
   readonly to: WorkOrderStatus;
   readonly principal: Principal;
   readonly now: Date;
+  /**
+   * The context of the request of the command (trace, origin, session, address): an event an effect publishes for the audit trail is
+   * recorded with the same context as the command itself (EVM-053 AC6). Never the reason of the command.
+   */
+  readonly request: EventContext;
 }
 
 export interface WorkOrderTransitionParticipant {

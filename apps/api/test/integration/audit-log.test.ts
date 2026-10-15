@@ -516,3 +516,29 @@ describe('the name of a person for other modules (EVM-029; facade of identity)',
     expect([...(await current.app.get(UserDirectory).displayNamesOf([person.id])).keys()]).toEqual([person.id]);
   });
 });
+
+describe('the amounts of the payments in the audit log (EVM-053 AC3, AC6; SR-LOG-03 — the described exception)', () => {
+  it('EVM-053 AC3 an event of a payment milestone shows the amount before and after as Money; other events carry no amount field', async () => {
+    const { reader, anna, now } = await scenario();
+    const milestoneId = '0198b0a0-0000-7000-8000-0000000005a3';
+    await sql`
+      insert into audit.events (occurred_at, actor_type, actor_user_id, origin, action, outcome, object_type, object_id, trace_id,
+        amount_before_minor, amount_after_minor, currency)
+      values (${new Date(now.getTime() - MINUTES(5))}, 'user', ${anna.id}, 'web', 'payment_milestone.amount_changed', 'success',
+        'payment_milestone', ${milestoneId}, ${randomBytes(16).toString('hex')}, 300000, 360000, 'PLN')`.execute(admin());
+    const changed = await list(reader, '?action=payment_milestone.amount_changed');
+    expect(changed.status).toBe(200);
+    expect(changed.body.items).toEqual([
+      expect.objectContaining({
+        action: 'payment_milestone.amount_changed',
+        objectType: 'payment_milestone',
+        objectId: milestoneId,
+        amountBefore: { amountMinor: 300000, currency: 'PLN' },
+        amountAfter: { amountMinor: 360000, currency: 'PLN' },
+      }),
+    ]);
+    const others = await list(reader, '?action=login.succeeded');
+    expect(others.body.items.length).toBeGreaterThan(0);
+    for (const item of others.body.items) expect(Object.keys(item)).not.toContain('amountAfter');
+  });
+});

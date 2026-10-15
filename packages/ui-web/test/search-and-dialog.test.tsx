@@ -212,6 +212,17 @@ describe('Dialog (styleguide § 3.13; EVM-020 AC2)', () => {
     );
     expect(screen.queryByText('Treść')).toBeNull();
   });
+
+  it('EVM-053 AC3 the small variant (size.dialog.width.sm) is for the short dialogs of one field — "Zmień kwotę", "Dodaj transzę"', () => {
+    render(
+      <Dialog open size="sm" title="Zmień kwotę transzy" closeLabel="Zamknij" onDismiss={vi.fn()} actions={<Button>Zapisz</Button>}>
+        <TextField label="Kwota" value="" />
+      </Dialog>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Zmień kwotę transzy' });
+    expect(dialog.className).toContain('max-w-dialog-width-sm');
+    expect(dialog.className).not.toContain('max-w-dialog-width-md');
+  });
 });
 
 describe('RadioGroup, TextArea, Disclosure (styleguide § 3.4, § 3.2, § 3.21; EVM-020 AC2)', () => {

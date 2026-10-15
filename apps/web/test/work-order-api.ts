@@ -1,4 +1,4 @@
-import type { CustomerCard, ProcedureList, ScopeItem, SiteCard, WorkOrderDetails } from '@evia/contracts';
+import type { CustomerCard, PaymentMilestoneList, ProcedureList, ScopeItem, SiteCard, WorkOrderDetails } from '@evia/contracts';
 import { json, type Handler } from './api-fake.ts';
 
 /** Synthetic data of the order ZL-2026-0042 of W-06 (EVM-018): the customer, the garage place and nine scope items. */
@@ -81,6 +81,12 @@ export const SCOPE_ITEMS: ScopeItem[] = NAMES.map((_name, index) => scopeItem(in
 
 export const NO_PROCEDURES: ProcedureList = { items: [], openStageCount: 0 };
 
+/** An order without instalments (EVM-053: orders from before the payment plan, or from a template without one). */
+export const NO_PAYMENTS: PaymentMilestoneList = {
+  items: [],
+  totals: { unpaid: { amountMinor: 0, currency: 'PLN' }, paid: { amountMinor: 0, currency: 'PLN' } },
+};
+
 export interface ReadHandlers {
   readonly header: Handler;
   readonly scope: Handler;
@@ -90,6 +96,8 @@ export interface ReadHandlers {
   readonly siteOrders: Handler;
   /** EVM-031: the processes with their stages (default: an order without processes). */
   readonly procedures: Handler;
+  /** EVM-053: the instalments with their totals (default: an order without instalments). */
+  readonly payments: Handler;
 }
 
 /** The four reads of W-06 for one order (the routes of the fake API); `overrides` replaces any of them. */
@@ -101,6 +109,7 @@ export function workOrderRoutes(id = ORDER_ID, overrides: Partial<ReadHandlers> 
     [`GET ${base}/customer`]: overrides.customer ?? (() => json(200, CUSTOMER)),
     [`GET ${base}/site`]: overrides.site ?? (() => json(200, SITE)),
     [`GET ${base}/procedures`]: overrides.procedures ?? (() => json(200, NO_PROCEDURES)),
+    [`GET ${base}/payment-milestones`]: overrides.payments ?? (() => json(200, NO_PAYMENTS)),
     [`GET ${base}/site-orders`]: overrides.siteOrders ?? (() => json(200, { total: 0, items: [] })),
   };
 }

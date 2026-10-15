@@ -1,0 +1,174 @@
+# Module `payments` — the payment milestones of a work order (EVM-053; W-06 section "Płatności"). The milestones are COPIED from the
+# payment plan of the template at the creation of the order (D1: name, share, payment term — no amount) or added by hand. The amount
+# is gross, in grosze (`Money`, never a float). The status changes only by a command (EVM-054) or as the effect of a transition of the
+# order; in EVM-053 a request changes the amount of a `planned` milestone and nothing else. The amounts and the invoice number are
+# financial data (WF; with a customer who is a natural person also DO-K); the name is free text the panel renders as text.
+# Payments are never sent to the phone (P3): every operation is on the web channel only.
+PaymentMilestoneStatus:
+  type: string
+  description: >-
+    Status transzy (zamknięta lista; klient obsługuje też wartość nieznaną — P-12): `planned` (Planowana), `invoiced` (Wystawiona),
+    `paid` (Opłacona), `cancelled` (Anulowana). „Po terminie” nie jest stanem — wylicza je serwer (`isOverdue`). Status zmienia
+    wyłącznie komenda (EVM-054) albo skutek przejścia zlecenia (anulowanie zlecenia: `planned → cancelled`).
+  enum: [planned, invoiced, paid, cancelled]
+PaymentMilestone:
+  type: object
+  description: >-
+    Transza zlecenia. Z szablonu pochodzą `code`, `name`, `sharePercent` i `paymentTermDays` (kopia — zmiana szablonu nie zmienia
+    zlecenia); transza dodana ręcznie ma `code`, `sharePercent` i `paymentTermDays` równe `null`. `amount` może być `null` tylko w
+    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn`, `dueDate` i
+    `paidOn` wypełnia EVM-054; `isOverdue` liczy serwer (transza `invoiced` z terminem wcześniejszym niż dziś w `Europe/Warsaw`).
+    Pola poza `amount` są tylko do odczytu (`400 read_only_field`).
+  required:
+    - id
+    - code
+    - name
+    - position
+    - sharePercent
+    - paymentTermDays
+    - amount
+    - status
+    - invoiceNumber
+    - invoicedOn
+    - dueDate
+    - paidOn
+    - isOverdue
+    - version
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    code:
+      description: Stały kod pozycji planu płatności szablonu albo `null` (transza dodana ręcznie).
+      oneOf:
+        - type: string
+          maxLength: 64
+        - type: 'null'
+    name:
+      type: string
+      description: Nazwa transzy (kopia z szablonu albo wpisana przy dodaniu) — panel wyświetla ją jako tekst.
+      maxLength: 200
+    position:
+      type: integer
+      description: Kolejność w zleceniu (1…20; transza dodana ręcznie trafia na koniec).
+      minimum: 1
+      maximum: 20
+    sharePercent:
+      description: Udział w procentach z planu szablonu (informacyjnie) albo `null`.
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 100
+        - type: 'null'
+    paymentTermDays:
+      description: Termin płatności w dniach od wystawienia faktury (z planu szablonu) albo `null`.
+      oneOf:
+        - type: integer
+          minimum: 0
+          maximum: 365
+        - type: 'null'
+    amount:
+      description: >-
+        Kwota brutto do zapłaty albo `null` — jeszcze nie wpisana, tylko w statusie `planned` albo `cancelled` (transza anulowana
+        przed wpisaniem kwoty).
+      oneOf:
+        - $ref: common.yaml#/Money
+        - type: 'null'
+    status:
+      $ref: '#/PaymentMilestoneStatus'
+    invoiceNumber:
+      description: Numer faktury (EVM-054) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 60
+        - type: 'null'
+    invoicedOn:
+      description: Dzień wystawienia faktury (`RRRR-MM-DD`, EVM-054) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    dueDate:
+      description: Termin płatności (`RRRR-MM-DD`, EVM-054) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    paidOn:
+      description: Dzień wpłaty (`RRRR-MM-DD`, EVM-054) albo `null`.
+      oneOf:
+        - type: string
+          format: date
+          maxLength: 10
+        - type: 'null'
+    isOverdue:
+      type: boolean
+      description: '`true`, gdy transza jest wystawiona, a termin płatności jest wcześniejszy niż dziś (`Europe/Warsaw`).'
+    version:
+      type: integer
+      description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie kwoty).
+      minimum: 1
+PaymentTotals:
+  type: object
+  description: >-
+    Sumy sekcji „Płatności”: `unpaid` — suma kwot transz `invoiced` (Nieopłacone), `paid` — suma kwot transz `paid` (Opłacone).
+    Transze `planned` i `cancelled` nie wchodzą do sum.
+  required: [unpaid, paid]
+  additionalProperties: false
+  properties:
+    unpaid:
+      $ref: common.yaml#/MoneyTotal
+    paid:
+      $ref: common.yaml#/MoneyTotal
+PaymentMilestoneList:
+  type: object
+  description: Transze zlecenia w kolejności `position` (najwyżej 20 — limit transz jest też limitem zapytania) i ich sumy.
+  required: [items, totals]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 20
+      items:
+        $ref: '#/PaymentMilestone'
+    totals:
+      $ref: '#/PaymentTotals'
+PaymentMilestoneCreate:
+  type: object
+  description: >-
+    Nowa transza („Dodaj transzę”, EVM-053 AC4). `id` (UUIDv7) nadaje klient (istniejące — także transzy innego zlecenia — `409
+    id_conflict`, bez nadpisania). `name` — zwykły tekst: po normalizacji NFC i przycięciu 1–120 znaków (punktów kodowych), bez znaków
+    sterujących i niewidocznych znaków formatujących (`required` / `too_long` / `invalid_characters`). `amount` opcjonalna (reguły
+    `Money`). Transza powstaje w statusie `planned` na końcu listy; `code`, `sharePercent` i `paymentTermDays` są `null`.
+  required: [id, name]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      description: Identyfikator UUIDv7 nadany przez klienta (ponowienie zapisu używa tego samego `id`).
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    name:
+      type: string
+      description: >-
+        Nazwa transzy (zwykły tekst, 1–120 znaków; pole swobodne — może zawierać dane osobowe, nie trafia do audytu, logów ani
+        komunikatów błędów).
+      minLength: 1
+      maxLength: 120
+    amount:
+      $ref: common.yaml#/Money
+PaymentMilestonePatch:
+  type: object
+  description: >-
+    Zmiana kwoty transzy w statusie `planned` („Zmień kwotę”, EVM-053 AC3). Jedyne pole to `amount` (wymagane, bez `null`); każde
+    inne pole transzy — `400 read_only_field`, pole spoza schematu — `400 unknown_field`.
+  required: [amount]
+  additionalProperties: false
+  properties:
+    amount:
+      $ref: common.yaml#/Money

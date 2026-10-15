@@ -2,6 +2,7 @@ import type { AuditEvent, AuditOutcome } from '@evia/contracts';
 import { CircleAlert, CircleCheck, CircleHelp, DataTable, ShieldX, type DataTableColumn, type DataTableRow, type Icon } from '@evia/ui-web';
 import { useTranslation } from 'react-i18next';
 import { auditActionLabels, auditObjectTypeLabels, auditOutcomeLabels, SYSTEM_ACTIONS } from '../i18n/audit-labels.ts';
+import { formatMoney } from '../work-orders/money.ts';
 import { formatEventTime } from './period.ts';
 
 /** Icon and colour role of an outcome (§ "Status konta, stan zaproszenia i wynik zdarzenia"): never the colour alone. */
@@ -28,8 +29,20 @@ export function AuditTable({ items }: { readonly items: readonly AuditEvent[] })
     { id: 'object', header: t('audit.table.object') },
     { id: 'ip', header: t('audit.table.ip') },
   ];
+  // The exception of the audit for payments (EVM-053 AC3, SR-LOG-03): an event of an instalment carries the amount before and after.
+  const amountOf = (event: AuditEvent): string | null => {
+    const money = (value: AuditEvent['amountAfter']): string =>
+      value === null || value === undefined ? t('audit.table.noAmount') : formatMoney(value.amountMinor);
+    if (event.action === 'payment_milestone.amount_changed') {
+      return t('audit.table.amountChange', { before: money(event.amountBefore), after: money(event.amountAfter) });
+    }
+    return event.amountAfter === null || event.amountAfter === undefined
+      ? null
+      : t('audit.table.amount', { amount: money(event.amountAfter) });
+  };
   const rows: DataTableRow[] = items.map((event) => {
     const time = formatEventTime(event.occurredAt);
+    const amount = amountOf(event);
     const action = has(auditActionLabels, event.action) ? auditActionLabels[event.action] : t('audit.table.unknownAction');
     const known = has(OUTCOME_ICONS, event.outcome);
     const outcome = known ? auditOutcomeLabels[event.outcome] : t('audit.table.unknownOutcome');
@@ -47,7 +60,14 @@ export function AuditTable({ items }: { readonly items: readonly AuditEvent[] })
       cells: [
         time,
         actor,
-        action,
+        amount === null ? (
+          action
+        ) : (
+          <span key="action" className="flex flex-col">
+            <span>{action}</span>
+            <span className="text-text-secondary tabular-nums">{amount}</span>
+          </span>
+        ),
         <span key="outcome" className="inline-flex items-center gap-inline-sm">
           <OutcomeIcon aria-hidden="true" className={`size-icon-sm shrink-0 ${marker.tone}`} />
           {outcome}

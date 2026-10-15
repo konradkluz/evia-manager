@@ -34,6 +34,8 @@ tags:
     description: Strony (OSD, zarządcy, eksperci) — wyszukiwanie, dodanie w formularzu nowego zlecenia, szczegóły i edycja (moduł parties).
   - name: procedures
     description: Procesy i etapy zlecenia — odczyt, osoba odpowiedzialna i termin etapu (moduł procedures).
+  - name: payments
+    description: Płatności etapowe zlecenia — transze z planu szablonu, kwoty i sumy (moduł payments; tylko panel web).
   - name: timeline
     description: Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).
 paths:
@@ -99,6 +101,10 @@ paths:
     $ref: paths/procedures.yaml#/procedureStage
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
     $ref: paths/procedures.yaml#/procedureStageTransitions
+  /api/v1/work-orders/{workOrderId}/payment-milestones:
+    $ref: paths/payments.yaml#/workOrderPaymentMilestones
+  /api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}:
+    $ref: paths/payments.yaml#/paymentMilestone
   /api/v1/work-orders/{workOrderId}/timeline:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
@@ -131,6 +137,10 @@ components:
       $ref: components/platform.yaml#/MinSupportedAppVersion
     Semver:
       $ref: components/common.yaml#/Semver
+    Money:
+      $ref: components/common.yaml#/Money
+    MoneyTotal:
+      $ref: components/common.yaml#/MoneyTotal
     Problem:
       $ref: components/problem.yaml#/Problem
     FieldError:
@@ -277,6 +287,18 @@ components:
       $ref: components/procedures.yaml#/TransitionProcedureStageRequest
     ProcedureStagePatch:
       $ref: components/procedures.yaml#/ProcedureStagePatch
+    PaymentMilestoneStatus:
+      $ref: components/payments.yaml#/PaymentMilestoneStatus
+    PaymentMilestone:
+      $ref: components/payments.yaml#/PaymentMilestone
+    PaymentTotals:
+      $ref: components/payments.yaml#/PaymentTotals
+    PaymentMilestoneList:
+      $ref: components/payments.yaml#/PaymentMilestoneList
+    PaymentMilestoneCreate:
+      $ref: components/payments.yaml#/PaymentMilestoneCreate
+    PaymentMilestonePatch:
+      $ref: components/payments.yaml#/PaymentMilestonePatch
     TimelineEntryKind:
       $ref: components/timeline.yaml#/TimelineEntryKind
     TimelineEntryInputKind:

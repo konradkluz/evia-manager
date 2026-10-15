@@ -44,7 +44,24 @@ const itemNames = [
   'Montaż i uruchomienie',
   'Pomiary i odbiór',
 ];
-const template = (id: string, name: string, siteTypeHint: string | null, names: string[], processCount = 1) => ({
+/** The payment plan of "Garaż — pełny proces" (EVM-053 AC1): 20% / 30% / 30% / 20%, no amounts. */
+const FULL_PLAN = [
+  { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
+  { code: 'consents', name: 'Po uzyskaniu zgód', position: 2, sharePercent: 30, invoiceHint: 'Po zgodach', paymentTermDays: 7 },
+  { code: 'installation', name: 'Po wykonaniu instalacji', position: 3, sharePercent: 30, invoiceHint: 'Po montażu', paymentTermDays: 14 },
+  { code: 'final', name: 'Płatność końcowa', position: 4, sharePercent: 20, invoiceHint: 'Po odbiorze', paymentTermDays: 14 },
+];
+const ONE_PAYMENT = [
+  { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 100, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
+];
+const template = (
+  id: string,
+  name: string,
+  siteTypeHint: string | null,
+  names: string[],
+  processCount = 1,
+  paymentMilestones: object[] = ONE_PAYMENT,
+) => ({
   id,
   code: `code_${id.slice(-3)}`,
   name,
@@ -58,19 +75,17 @@ const template = (id: string, name: string, siteTypeHint: string | null, names: 
     parameterSetCode: null,
     defaultParameters: {},
   })),
-  // The card and the preview show the processes (EVM-031 AC1); the payment plan is still hidden (EVM-053).
+  // The card and the preview show the processes (EVM-031 AC1) and the payment plan (EVM-053 AC1).
   procedures: Array.from({ length: processCount }, (_unused, index) => ({
     code: `process_${String(index + 1)}`,
     name: index === 0 ? 'Uzgodnienia z OSD' : `Proces ${String(index + 1)}`,
     stageCount: index === 0 ? 7 : 2,
   })),
-  paymentMilestones: [
-    { code: 'advance', name: 'Zaliczka', position: 1, sharePercent: 20, invoiceHint: 'Po akceptacji', paymentTermDays: 7 },
-  ],
+  paymentMilestones,
 });
-const FULL = template(FULL_ID, 'Garaż — pełny proces', 'multi_family_garage', itemNames, 9);
+const FULL = template(FULL_ID, 'Garaż — pełny proces', 'multi_family_garage', itemNames, 9, FULL_PLAN);
 const INSTALL = template(INSTALL_ID, 'Garaż — sama instalacja', 'multi_family_garage', itemNames.slice(0, 7));
-const HOUSE = template(HOUSE_ID, 'Dom — montaż ładowarki', 'single_family_house', itemNames.slice(0, 2));
+const HOUSE = template(HOUSE_ID, 'Dom — montaż ładowarki', 'single_family_house', itemNames.slice(0, 2), 1, []);
 
 const order = (body: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   id: body['id'],
@@ -156,7 +171,7 @@ async function fillAndChoose(name: string | RegExp = /Garaż — pełny proces/)
 }
 
 describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
-  it('EVM-031 AC1 the cards of templates show the scope and the processes — "9 pozycji · 9 procesów" — and "Pokaż wszystkie" takes the filter off', async () => {
+  it('EVM-053 AC1 the cards of templates show the scope, the processes and the instalments — "9 pozycji · 9 procesów · 4 transze" — and "Pokaż wszystkie" takes the filter off', async () => {
     const api = orderApi();
     await renderPanel(NEW, api);
     expect(await card(/Garaż — pełny proces/)).toBeTruthy();
@@ -164,14 +179,12 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(screen.getByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeTruthy();
     await pickSite();
     expect(screen.getByText('Szablony dla typu: Garaż w budynku wielorodzinnym.')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji · 9 procesów' })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: 'Garaż — sama instalacja 7 pozycji · 1 proces' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Garaż — pełny proces 9 pozycji · 9 procesów · 4 transze' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'Garaż — sama instalacja 7 pozycji · 1 proces · 1 transza' })).toBeTruthy();
     expect(screen.queryByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeNull();
     expect(screen.getByRole('radio', { name: 'Puste zlecenie (bez szablonu)' })).toBeTruthy();
-    // nothing the system does not create yet: no instalments, no payment plan
-    const section = screen.getByRole('region', { name: '3. Szablon' });
-    expect(section.textContent).not.toMatch(/transz|Plan płatności|Kwoty transz/i);
     await userEvent.click(screen.getByRole('button', { name: 'Pokaż wszystkie' }));
+    // a template without a payment plan says nothing about instalments
     expect(screen.getByRole('radio', { name: 'Dom — montaż ładowarki 2 pozycje · 1 proces' })).toBeTruthy();
     expect(screen.getByText('Wszystkie aktywne szablony.')).toBeTruthy();
     expect(api.calls(TEMPLATES)).toHaveLength(1);
@@ -179,7 +192,7 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(screen.queryByRole('radio', { name: /Dom — montaż ładowarki/ })).toBeNull();
   });
 
-  it('EVM-031 AC1 the chosen template shows its preview "Zakres (9 pozycji)" and "Procesy (9)" with the stages of each process in a Disclosure — no instalments or payment plan', async () => {
+  it('EVM-053 AC1 the chosen template shows its preview "Zakres (9 pozycji)", "Procesy (9)" and "Plan płatności" with the shares and "Kwoty transz wpiszesz w zleceniu."', async () => {
     await renderPanel(NEW, orderApi());
     await pickSite();
     expect(screen.queryByRole('button', { name: 'Pokaż szczegóły szablonu' })).toBeNull();
@@ -193,7 +206,37 @@ describe('W-05 section "3. Szablon" (EVM-022 AC1, AC2)', () => {
     expect(screen.getByRole('heading', { name: 'Procesy (9)' })).toBeTruthy();
     expect(screen.getByText('Uzgodnienia z OSD — 7 etapów')).toBeTruthy();
     expect(screen.getByText('Proces 2 — 2 etapy')).toBeTruthy();
-    expect(document.body.textContent).not.toMatch(/transz|Plan płatności|Kwoty transz|Zaliczka/);
+    expect(screen.getByRole('heading', { name: 'Plan płatności' })).toBeTruthy();
+    expect(screen.getByText('Zaliczka 20%')).toBeTruthy();
+    expect(screen.getByText('Po uzyskaniu zgód 30%')).toBeTruthy();
+    expect(screen.getByText('Po wykonaniu instalacji 30%')).toBeTruthy();
+    expect(screen.getByText('Płatność końcowa 20%')).toBeTruthy();
+    expect(screen.getByText('Kwoty transz wpiszesz w zleceniu.')).toBeTruthy();
+    // no amounts in a template (P2 of EVM-002)
+    expect(document.body.textContent).not.toMatch(/zł/);
+  });
+
+  it('EVM-053 AC1 the count of instalments takes the Polish form of the number — "5 transz"', async () => {
+    const plan = Array.from({ length: 5 }, (_unused, index) => ({
+      code: `part_${String(index + 1)}`,
+      name: `Część ${String(index + 1)}`,
+      position: index + 1,
+      sharePercent: 20,
+      invoiceHint: 'Po etapie',
+      paymentTermDays: 7,
+    }));
+    const five = template(HOUSE_ID, 'Dom — w częściach', null, itemNames.slice(0, 2), 1, plan);
+    await renderPanel(NEW, orderApi({ [TEMPLATES]: items(five) }));
+    expect(await card('Dom — w częściach 2 pozycje · 1 proces · 5 transz')).toBeTruthy();
+  });
+
+  it('EVM-053 AC1 a template without a payment plan has no section "Plan płatności" in its preview', async () => {
+    await renderPanel(NEW, orderApi({ [TEMPLATES]: items(HOUSE) }));
+    await userEvent.click(await card(/Dom — montaż ładowarki/));
+    await userEvent.click(screen.getByRole('button', { name: 'Pokaż szczegóły szablonu' }));
+    expect(screen.getByRole('heading', { name: 'Zakres (2 pozycje)' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Plan płatności' })).toBeNull();
+    expect(screen.queryByText('Kwoty transz wpiszesz w zleceniu.')).toBeNull();
   });
 
   it('EVM-022 AC1 at breakpoint.expanded the preview stands on the right (announced politely), without the Disclosure, and follows the choice', async () => {
