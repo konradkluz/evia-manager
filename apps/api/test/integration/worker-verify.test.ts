@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { VERIFY_PROJECTION_JOB } from '../../src/modules/overview/index.ts';
 import { PgBossJobQueue } from '../../src/platform/jobs/pg-boss-job-queue.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
+import { PURGE_IDEMPOTENCY_JOB } from '../../src/platform/idempotency/purge-idempotency.job.ts';
 import { runWorkerFromProcess } from '../../src/worker/worker-process.ts';
 import { UNREACHABLE_DATABASE_URL, validEnv } from '../support/app.ts';
 import { insertCustomer } from '../support/customer-fixtures.ts';
@@ -73,8 +74,11 @@ describe('the worker with the nightly verify (EVM-034 W11; ADR-0010, ADR-0017 W1
     const worker = startWorker({ DATABASE_URL: database.appUrl });
     await until(() => worker.lines().find((line) => line['msg'] === 'worker: ready'), 'the worker is ready');
     const { rows: schedules } = await sql<{ name: string; cron: string; timezone: string }>`
-      select name, cron, timezone from pgboss.schedule`.execute(database.admin);
-    expect(schedules).toEqual([{ name: VERIFY_PROJECTION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' }]);
+      select name, cron, timezone from pgboss.schedule order by name`.execute(database.admin);
+    expect(schedules).toEqual([
+      { name: VERIFY_PROJECTION_JOB, cron: '30 3 * * *', timezone: 'Europe/Warsaw' },
+      { name: PURGE_IDEMPOTENCY_JOB, cron: '10 4 * * *', timezone: 'Europe/Warsaw' }, // EVM-079 AC2
+    ]);
 
     const sender = new PgBossJobQueue({ connectionString: database.appUrl, logger: createLogger({ level: 'fatal' }) });
     await sender.start();

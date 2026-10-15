@@ -14,6 +14,8 @@ import { HealthController } from './health/health.controller.ts';
 import { EventBus } from './events/event-bus.ts';
 import { ProblemFilter } from './http/problem.filter.ts';
 import { IDEMPOTENCY, PgIdempotency } from './idempotency/idempotency.ts';
+import { IDEMPOTENCY_PURGER, PgIdempotencyPurger } from './idempotency/idempotency-purger.ts';
+import { PurgeIdempotencyJob } from './idempotency/purge-idempotency.job.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
@@ -89,6 +91,12 @@ export class PlatformModule {
           inject: [CLOCK, METRICS],
           useFactory: (clock: Clock, metrics: MetricsRegistry) => new PgIdempotency(clock, metrics),
         },
+        {
+          provide: IDEMPOTENCY_PURGER,
+          inject: [DATABASE, CLOCK],
+          useFactory: (db: Kysely<Database>, clock: Clock) => new PgIdempotencyPurger(db, clock),
+        },
+        PurgeIdempotencyJob,
       ],
       exports: [
         DatabaseModule,
@@ -99,6 +107,7 @@ export class PlatformModule {
         METRICS,
         RATE_LIMITER,
         IDEMPOTENCY,
+        PurgeIdempotencyJob,
         SECURITY_ALERT_EMITTER,
         CURSOR_CODEC,
         BULK_READ_CONTROL,

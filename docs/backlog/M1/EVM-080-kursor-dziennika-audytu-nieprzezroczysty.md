@@ -4,7 +4,7 @@ title: Nieprzezroczysty kursor dziennika audytu i CURSOR_KEY tylko dla serwera
 type: bug
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P2
 path: pelna
 owner: backend-developer
@@ -71,3 +71,4 @@ Jako **właściciel systemu** chcę **by kursor paginacji dziennika audytu był 
 - 2026-10-14 — implementacja (backend-developer): kursor audytu przez wspólny kodek (`invalid_cursor`, `asOf` w kursorze, limit 512), `loadMigrationConfig` dla `db:migrate`, kontrakt, testy AC1–AC4 i dokumentacja AC5
 - 2026-10-14 — potok `wf_e19c41c5-d5b` (przerwany ok. 02:45 w QA, wznowiony 07:25): passed w 1 rundzie (QA PASS AC1–AC5; code-reviewer i security-engineer APPROVE); orkiestrator: `pnpm run gate` zielony (diff-coverage linie 587/588, gałęzie 460/481), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; ok. 6 wywołań agentów (plan, konsultacja security, implementacja, QA, 2 przeglądy), ok. 0,5 mln tokenów subagentów łącznie z przerwanym przebiegiem; rundy poprawek 0; ścieżka pełna; sonnet
+- 2026-10-15 — scalona do `main` (PR #75, `4d8f6ff`); in-review → done

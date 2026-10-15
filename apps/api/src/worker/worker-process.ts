@@ -13,6 +13,7 @@ import type { Writable } from 'node:stream';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
+import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import { loadConfig } from '../platform/config/config.ts';
 import { PgBossJobQueue } from '../platform/jobs/pg-boss-job-queue.ts';
 import type { JobDefinition, JobQueue } from '../platform/jobs/index.ts';
@@ -45,7 +46,10 @@ export async function runWorkerFromProcess(
   const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger }), { logger: new NestLoggerAdapter(logger) });
   try {
     const queue = wiring.createQueue?.(config.databaseUrl, logger) ?? new PgBossJobQueue({ connectionString: config.databaseUrl, logger });
-    const jobs: JobDefinition[] = [app.get(VerifyProjectionJob, { strict: false }).definition()];
+    const jobs: JobDefinition[] = [
+      app.get(VerifyProjectionJob, { strict: false }).definition(),
+      app.get(PurgeIdempotencyJob, { strict: false }).definition(),
+    ];
     return await runWorker({ queue, jobs, signals: io.signals, logger });
   } finally {
     await app.close();

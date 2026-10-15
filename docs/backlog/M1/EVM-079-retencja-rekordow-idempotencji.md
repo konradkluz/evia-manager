@@ -4,7 +4,7 @@ title: Sprzątanie wygasłych rekordów idempotencji
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-review
 priority: P2
 path: lekka
 owner: backend-developer
@@ -50,7 +50,18 @@ Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyk
 - Obszar ryzyka: zmiana uprawnień bazy (migracja) i integralność idempotencji — nie wolno usuwać rekordów przed `expires_at` (odczyt i nadpisanie wygasłych działa jak w EVM-020 niezależnie od sprzątania).
 - Migracja tylko „expand” (nowe uprawnienie/mechanizm); wybór techniczny (np. funkcja o ograniczonym zakresie albo osobna rola) należy do wykonawcy, recenzent: `security-engineer`. Ścieżka lekka: jeden recenzent; eskalacja do pełnej, jeśli zmiana wykracza poza uprawnienie do tej jednej tabeli.
 
+## Notatki
+- **Kolejność scalania (security, minor):** migracja `0032` (ta gałąź) musi trafić na `main` po `0028`–`0031` z łańcucha EVM-054 → EVM-057 — migrator Kysely działa w trybie ścisłej kolejności, odwrotna kolejność na bazie trwałej da „corrupted migrations”. Scalać łańcuch płatności przed tą gałęzią; do tego czasu nie uruchamiać `db:migrate` z tej gałęzi na bazach trwałych (dev Konrada). Nie włączać `allowUnorderedMigrations`.
+- Ryzyko rezydualne (niskie, istniało wcześniej) do akceptacji Konrada: `evia_app` ma `UPDATE` na `platform.idempotency_records` (potrzebny od EVM-020), więc przejęta rola mogłaby przesunąć `expires_at` w przeszłość i usunąć rekord funkcją — do modelu zagrożeń przy zamknięciu kamienia (TM-22/TM-25).
+- Nit security: indeks `expires_at` bez `CONCURRENTLY` — dziś pomijalne; przy dużych tabelach indeksy w osobnej migracji `CONCURRENTLY`.
+- Test „rekord wygasa między przebiegami” uniezależniony od czasu rzeczywistego po przeglądzie (`0d9c6bf`).
+
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner; dług z EVM-020)
 - 2026-10-13 — refinement: zadania w tle istnieją (EVM-034), ścieżka lekka z recenzentem security, harmonogram i porcje w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce (ścieżka lekka, model sonnet, gałąź `feature/EVM-079-retencja-idempotencji` ułożona na EVM-080 → EVM-078 → EVM-053 — łańcuch za zgodą Konrada)
+- 2026-10-14 — implementacja: zadanie `platform.purge-idempotency` (04:10 Warsaw, porcje 1000), migracja `0032` (funkcja `SECURITY DEFINER` bez ogólnego `DELETE`), testy `EVM-079 AC1–AC4` (backend-developer)
+- 2026-10-14 — potok `wf_94338dfb-290`: passed po 1 rundzie (ścieżka lekka; security-engineer APPROVE — pierwsza funkcja `SECURITY DEFINER` z przypiętym `search_path`, `pnpm run scan` zielony, `rodo.md` zaktualizowany `a90ed56`)
+- 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 622/623, gałęzie 467/489), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; potok 2 wywołania agentów, ok. 0,17 mln tokenów subagentów, ok. 40 min (+ stabilizacja testu); rundy poprawek 0; ścieżka lekka; sonnet

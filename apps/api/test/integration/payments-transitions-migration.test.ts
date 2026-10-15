@@ -15,6 +15,7 @@ import { freshDatabaseUrl } from './database.ts';
  * the rest): the CHECKs added `NOT VALID` are VALIDATED over the existing rows, and every new rule refuses a row that breaks it.
  */
 const BEFORE = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0028')) as typeof MIGRATIONS;
+const UP_TO_0031 = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0032')) as typeof MIGRATIONS;
 
 let db: Kysely<Database>;
 let evm053Order = '';
@@ -28,7 +29,7 @@ beforeAll(async () => {
   await insertMilestone(evm053Order, 3, { status: 'cancelled' });
   await insertMilestone(evm053Order, 4, { status: 'cancelled', amountMinor: 5 });
   await insertEvent('payment_milestone.cancelled', {});
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual([
+  expect((await migrateToLatest(db, UP_TO_0031)).applied).toEqual([
     '0028_payment_milestone_transitions',
     '0029_audit_status_codes',
     '0030_payment_unpaid_index',
