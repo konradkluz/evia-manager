@@ -32,9 +32,13 @@ for (const name of [owner, ...contributors, ...reviewers]) {
 }
 const implementers = [owner, ...contributors]
 // Story `path` (docs/process/workflow.md → „Ścieżki realizacji”): `lekka` = one implementer, one reviewer, at most one
-// round of fixes without re-review, no plan, consultations or QA agent; `pelna` (default, also without the field) = full flow.
+// round of fixes without re-review, no plan, consultations or QA agent; `pelna` = full flow. EVM-087 AC3: the path is
+// always explicit — a missing `path` stops the workflow, so `pelna` is never assumed silently (the orchestrator asks Konrad).
 const PATHS = ['lekka', 'pelna']
-const storyPath_ = a.path || 'pelna'
+if (!a.path) {
+  throw new Error('deliver-story: brak args.path (lekka | pelna) — ścieżkę ustala orkiestrator pytaniem do użytkownika, bez cichego zapisu pelna')
+}
+const storyPath_ = a.path
 if (!PATHS.includes(storyPath_)) {
   throw new Error(`deliver-story: nieobsługiwana ścieżka "${storyPath_}" (dozwolone: ${PATHS.join(', ')})`)
 }

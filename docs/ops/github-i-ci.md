@@ -29,7 +29,7 @@ Te same polecenia działają lokalnie: `pnpm run gate`, `pnpm run scan` (`CLAUDE
 
 ## Ustawienia repozytorium (K5) — checklista dla Konrada
 Wykonaj po pierwszym pushu gałęzi EVM-006 i potwierdź na demo (dowód `manual`: zrzut ekranu albo potwierdzenie).
-1. **Settings → General → Pull Requests:** zaznaczone wyłącznie **Allow squash merging**; *Default commit message* = **Pull request title and description**; odznaczone *Allow merge commits* i *Allow rebase merging*; zaznaczone **Automatically delete head branches**.
+1. **Settings → General → Pull Requests:** zaznaczone **Allow squash merging** (gałąź z jedną historyjką) i **Allow rebase merging** (PR z kilkoma historyjkami — EVM-087; zachowuje commity `[EVM-###]` per historyjka); *Default commit message* = **Pull request title and description**; odznaczone *Allow merge commits* (merge commit ma dwóch rodziców, a K6 dopuszcza jednego); zaznaczone **Automatically delete head branches**.
 2. **Settings → General → Features:** odznaczone **Allow forking** (jeśli opcja jest widoczna dla repozytorium prywatnego).
 3. **Settings → Actions → General:** *Allow … select actions* — tylko akcje wymienione w workflowach (`actions/*`, `pnpm/action-setup`, `renovatebot/github-action`); **Require actions to be pinned to a full-length commit SHA** (jeśli dostępne na Free); *Workflow permissions* = **Read repository contents and packages permissions**; odznaczone **Allow GitHub Actions to create and approve pull requests**.
 4. **Settings → Billing → Budżet Actions:** wg decyzji 2026-10-13 (EVM-083, AC6) budżet z alertami 50% i 80% i **bez** „Stop usage” — instrukcja w „Budżet Actions (AC6)” niżej. (Wcześniejszy limit 0 USD zatrzymałby CI po przekroczeniu puli.)
@@ -38,6 +38,8 @@ Wykonaj po pierwszym pushu gałęzi EVM-006 i potwierdź na demo (dowód `manual
 7. **Code security:** alerty Dependabot włączone (bezpłatne; źródło dla Renovate). Uwaga: *secret scanning* i *push protection* w repozytorium prywatnym na Free są niedostępne — wiążącą bramką sekretów jest gitleaks w CI.
 
 ## Scalanie (D2, K2)
+> **Kolejka historyjek na jednej gałęzi (EVM-087).** PR z kilkoma ID scalasz przyciskiem **„Rebase and merge”** (nie squash — squash zlałby historyjki w jeden commit z jednym ID). Wymaga to jednorazowo włączenia *Allow rebase merging* w ustawieniach repozytorium (checklista K5, punkt 1) — **krok Konrada, nie wykonywany przez agentów**. Po scaleniu na `main` jest po jednym commicie na commit gałęzi, każdy z `[EVM-###]`; `main-integrity` (K6) akceptuje je (jeden rodzic, fast-forward, format pierwszej linii). Orkiestrator ustawia `status: done` wszystkich historyjek PR przy scaleniu.
+
 1. Orkiestrator wypycha gałąź `feature/EVM-###-…` (bez force) i zakłada PR przez `gh` albo podaje Konradowi tytuł PR. **Tytuł PR = pierwsza linia commita na `main`**: Conventional Commit z ID, np. `ci: add monorepo, quality gates and CI pipeline [EVM-006]`; Renovate — `chore(deps): … [renovate]`; zamknięcie kamienia milowego — `docs(milestone): close M0 [M0]`. Lekcja z PR #1: squash bez tego ustawienia dał „Feature/evm 010 backlog m1 (#1)”.
 2. Konrad sprawdza: demo zaakceptowane; check **`ci-gate` zielony w przebiegu PR (`pull_request`) dla ostatniego commita gałęzi** (szary, pominięty `ci-gate` z przebiegu `push` jest oczekiwany i nie oznacza zgody); checklista z szablonu PR (pliki wrażliwe); **tytuł PR** zgodny z punktem 1.
 3. Konrad klika **„Squash and merge”** (komunikat = tytuł i opis PR — K5).
@@ -129,6 +131,17 @@ Stan 2026-10-13: brak karty i opłat, pula 2000 min przekroczona, brak budżetu.
 5. Zapisz i wpisz datę w „Dzienniku” EVM-083 (dowód `manual`: zrzut ekranu budżetu z alertami 50% i 80% i wyłączonym „Stop usage”).
 
 Skutek przekroczenia: GitHub nalicza użycie ponad pulę jako płatne; bez metody płatności przebiegi mogą zostać wstrzymane lub kolejne zostać odrzucone — przy braku karty traktuj przekroczenie jako zatrzymanie CI do odnowienia puli. Alert 50% i 80% to sygnał do przeglądu propozycji z tabeli wyżej. **Ponowna decyzja o blokadzie (Stop usage): od listopada 2026** (po pierwszym pełnym miesiącu pomiaru), razem z progiem „> 1600 min w dwóch kolejnych miesiącach”.
+
+## E2E web na Linuksie przed pushem (EVM-087)
+Błędy tylko-CI (metryki czcionek Linuksa, układ tabel) wychodziły dopiero po pushu. Dla zmian w `apps/web` i `packages/*` (nie dla samej dokumentacji ani `apps/api`) wykonawca uruchamia przed pushem:
+```
+docker compose -f compose.yaml run --rm backend-install      # po zmianie pnpm-lock.yaml (wspólny wolumen bt-work)
+docker compose -f compose.yaml run --rm web-e2e-linux
+```
+- Usługa `web-e2e-linux` (`infra/docker/web-e2e/Dockerfile`: obraz `mcr.microsoft.com/playwright:v<wersja>-noble` z Node.js 26) uruchamia `pnpm run e2e:linux` — te same testy Playwright co job `e2e-web`, w tych samych przeglądarkach (Chromium i Firefox z `apps/web/playwright.config.ts`), przeciw `vite preview` w kontenerze, z `CI=1` (retry, `forbidOnly`). Jeden dowolny test: `… run --rm web-e2e-linux pnpm --filter @evia/web exec playwright test <plik> --project=chromium`.
+- Utwardzenie jak pozostałe usługi (`tools/repo-policy`): obraz tag + digest, `read_only`, `cap_drop: [ALL]`, `no-new-privileges`, użytkownik 1000, sieć `internal` bez wyjścia na zewnątrz (potrzebny interfejs, inaczej przeglądarka zgłasza `navigator.onLine=false` i panel pokazuje tryb offline), bez portów, sekretów, `env_file` i gniazda Dockera; kod `:ro`, zapis tylko w wolumenie `bt-work`; `shm_size: 1gb` zamiast `--ipc=host`.
+- **Różnice względem CI:** (1) CI uruchamia 2 shardy na runnerze Ubuntu, lokalnie jeden przebieg całości (dłużej: dziesiąt min); (2) CI instaluje przeglądarki `playwright install` w wersji z lockfile, lokalnie są to przeglądarki obrazu Playwright tej samej wersji; (3) czcionki i renderowanie kontenera Noble bliskie runnerowi `ubuntu-24.04`, ale nie identyczne — rozbieżność wyjaśniamy, nie pomijamy; (4) bez WebKit i bez Edge.
+- Natywny Playwright na Windows (`pnpm run e2e`, przeglądarki biura, Edge) pozostaje dowodem lokalnym wg ADR-0015; usługa Linux jest dodatkiem przed pushem.
 
 ## Przegląd dostępów (SR-INFRA-09) — co kwartał
 - Konta z dostępem do repozytorium (Settings → Collaborators): wyłącznie Konrad.

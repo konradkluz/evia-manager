@@ -55,7 +55,7 @@ Główna sesja jest orkiestratorem (Tech Lead) i nie wykonuje pracy specjalistó
 R — wykonuje, A — zatwierdza, C — konsultowany, I — informowany.
 
 ## Ścieżki realizacji
-Ścieżkę wyznacza pole `path` we frontmatter historyjki: `product-owner` proponuje ją w `/refine`, a Konrad zatwierdza razem z AC. Brak pola = `pelna`; dla takiej historyjki `/deliver` proponuje ścieżkę z uzasadnieniem i po odpowiedzi Konrada zapisuje ją we frontmatter.
+Ścieżkę wyznacza pole `path` we frontmatter historyjki: `product-owner` proponuje ją w `/refine`, a Konrad zatwierdza razem z AC. Brak pola nie oznacza `pelna`: `/deliver` wylicza propozycję z tabeli ryzyka poniżej (nie z liczby recenzentów), pyta Konrada i zapisuje wynik we frontmatter; cichy zapis `pelna` bez pytania jest zabroniony (skill `/deliver`, workflow `deliver-story` odrzuca brak `path`). Pytanie jest jedno dla całej kolejki — zob. „Kolejki historyjek”.
 
 | | LEKKA (domyślna dla nowych historyjek) | PEŁNA |
 |---|---|---|
@@ -71,6 +71,19 @@ R — wykonuje, A — zatwierdza, C — konsultowany, I — informowany.
 - **Eskalacja ścieżki:** gdy w trakcie lekkiej wychodzi obszar ryzyka (np. dotyka danych osobowych) albo nowy endpoint, pliki/media, nowa zależność lub dane na urządzeniu, wykonawca zatrzymuje się, a orkiestrator pyta Konrada o zmianę na `pelna` (rekomendacja i konsekwencja kosztowa w pytaniu).
 - **Konsultacje proporcjonalne do ryzyka:** konsultant dostaje wąskie pytanie o ryzyko, które faktycznie występuje w historyjce, i zwraca najwyżej kilka punktów. Konsultacja nie dodaje AC; ustalenia Low w narzędziach wewnętrznych (CI, walidatory, skrypty) trafiają do „Notatek”, a AC rozszerza tylko ustalenie Medium lub wyższe albo zmiana zakresu zatwierdzona przez Konrada. Historyjka, która po konsultacjach przekracza limit AC, jest dzielona.
 - **Co zostaje poza plikiem historyjki:** plany, zapisy konsultacji i raporty agentów (raport QA zostaje w `docs/qa/<EVM-ID>/` tylko w ścieżce pełnej); „Dziennik” ma jedną linię na zdarzenie.
+
+## Kolejki historyjek (EVM-087)
+Kolejka to kilka historyjek realizowanych w jednej sesji. Kolejka z 11 historyjek na łańcuchu gałęzi (PR #69–#79) trwała ponad dobę: każdy squash wymuszał przerabianie następnej gałęzi, a 11 przebiegów CI to ok. 27 min. Dlatego:
+
+1. **Zależne = jedna gałąź.** Historyjki powiązane łańcuchem `depends_on` (bezpośrednio lub pośrednio) oraz niezależne, które zapisują te same pliki (ten sam moduł, `pnpm-lock.yaml`, migracje), idą na **jednej gałęzi od `main`, w jednym PR i jednym przebiegu CI z E2E**. Każda historyjka ma osobne commity `[EVM-###]` (jeden lub kilka), własny wpis „Dziennika” i własny status; `done` ustawiamy przy scaleniu PR. **Gałęzie stacked (gałąź od gałęzi historyjki) są zabronione.**
+   - Nazwa: do 3 ID — `feature/EVM-042-043-opis`; dłuższa kolejka — `feature/queue-YYYY-MM-DD-opis`.
+   - Rozmiar: maks. ok. 5 historyjek lub 1 dzień pracy na PR; większą kolejkę dzielimy na kolejne gałęzie od `main` po scaleniu poprzedniej.
+   - Scalenie PR z kilkoma historyjkami: **rebase merge** (zachowuje commity z ID per historyjka; wymaga włączenia przez Konrada — `docs/ops/github-i-ci.md`). Merge commit odpada, bo kontrola `main-integrity` (K6) dopuszcza tylko commity z jednym rodzicem. Gałąź z jedną historyjką — squash jak dotąd.
+   - Pokrycie zmienionego kodu liczy się dla całej gałęzi (≥ 90% łącznie, nie per historyjka): `docs/process/testing-strategy.md`.
+2. **Niezależne = równolegle.** Historyjki niezależne od siebie (bezpośrednio i pośrednio) i niezapisujące tych samych plików dostają **każda własną gałąź od `main`, własny PR i pełne CI** i mogą iść równolegle. Równoległą gałąź prowadzi się w **osobnym klonie** (`git clone --no-local <ścieżka-lub-adres> <katalog>`, `origin` ustawiony na GitHub), nie w `git worktree`: w worktree plik `.git` wskazuje ścieżkę Windows, której nie rozumieją hooki i bramki w kontenerach. Nakładające się zakresy plików = zależne (punkt 1).
+3. **Ścieżka przy starcie kolejki wg ryzyka.** Gdy pole `path` nie istnieje albo wskazuje `pelna` tylko z powodu liczby recenzentów, orkiestrator wylicza propozycję z tabeli w „Ścieżki realizacji” (obszar ryzyka → `pelna` z uzasadnieniem; reszta → `lekka`), zadaje Konradowi **jedno pytanie dla całej kolejki** (ścieżka i recenzent per historyjka, rekomendacja pierwsza) i zapisuje wynik we frontmatter.
+4. **Budżet tokenów.** Wykonawcy domyślnie `sonnet` (`opus` tylko z uzasadnieniem w historyjce); konsultacje przed implementacją tylko gdy plan lub tabela ryzyka wskazuje ryzyko; jedna sesja obsługuje jedną kolejkę (jedną gałąź albo jedną niezależną historyjkę). Koszt całej kolejki orkiestrator wpisuje do „Dziennika” w formacie z „Pomiar kosztu”.
+5. **E2E Linux przed pushem** dla zmian w `apps/web` i `packages/*`: `docker compose -f compose.yaml run --rm web-e2e-linux` (po `backend-install` — krok „E2E web na Linuksie”). Błędy tylko-CI (metryki czcionek, układ) wychodziły dotąd dopiero po pushu. Zmiana wyłącznie w dokumentacji lub `apps/api` nie wymaga tego kroku.
 
 ## Cykl realizacji historyjki (`/deliver EVM-###`)
 ```mermaid
@@ -118,7 +131,7 @@ Recenzentów wpisuje `product-owner` we frontmatter (`reviewers`) podczas refine
 Pytania zawsze z **rekomendowaną odpowiedzią** i konsekwencją wyboru.
 
 ## Delegowanie przez orkiestratora
-Agenci nie widzą rozmowy. W poleceniu podawaj: ID i ścieżkę historyjki, gałąź, cel kroku, ograniczenia, wcześniejsze ustalenia i decyzje, oczekiwany raport. Niezależne zadania uruchamiaj równolegle; zadania zapisujące te same pliki — sekwencyjnie (albo w osobnych worktree).
+Agenci nie widzą rozmowy. W poleceniu podawaj: ID i ścieżkę historyjki, gałąź, cel kroku, ograniczenia, wcześniejsze ustalenia i decyzje, oczekiwany raport. Niezależne zadania uruchamiaj równolegle; zadania zapisujące te same pliki — sekwencyjnie. Równoległe gałęzie niezależnych historyjek: osobne klony (zob. „Kolejki historyjek”).
 
 ## Modele i effort agentów
 Model i głębokość rozumowania (`effort`) każdego agenta ustawia frontmatter w `.claude/agents/*.md`. Wartości są jawne (bez `inherit`), więc model i effort sesji orkiestratora nie przechodzą na agentów. Tabela opisuje frontmatter; zgodność obu sprawdza test w `tools/repo-policy` (EVM-074).
@@ -155,7 +168,7 @@ Następne kroki
 ```
 
 ## Pomiar kosztu
-Koszt historyjki mierzymy, żeby porównywać historyjki ze sobą i z punktem odniesienia.
+Koszt historyjki (a przy kolejce — całej kolejki, jednym wpisem w „Dzienniku” każdej historyjki gałęzi lub w pierwszej z nich) mierzymy, żeby porównywać historyjki ze sobą i z punktem odniesienia.
 
 - **Baseline — EVM-013** (ścieżka pełna w dawnym kształcie, 8 AC, plik historyjki ok. 85 KB): ok. $59 — orkiestrator (opus, effort max) ok. $18, implementacja (opus) ok. $15, plan ok. $7, przegląd security (sonnet) ok. $9, reszta konsultacje i QA. Ok. 95% kosztu to wczytywany kontekst (cache): agent pracuje na 200–270 tys. tokenów i robi 20–130 wywołań.
 - **Cele (hipoteza, korekta po trzech pomiarach):** ścieżka lekka ≤ $12, pełna ≤ $30.

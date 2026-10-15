@@ -69,7 +69,7 @@ Progi globalne działają jak zapadka: mogą tylko rosnąć. Obniżenie wymaga A
 5. Wynik i obserwacje zapisane w historyjce wydania.
 
 ## Narzędzia
-Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: sprawdzenie hooków git, walidator dokumentacji `node tools/docs-lifecycle/cli.mjs check` — w CI pierwszy krok joba `quality`, bramka 11 — usunięcie starych raportów `lcov.info`, `gate:native` — format, lint, typy, testy z progami w każdym workspace, granice modułów — potem `gate:backend` w kontenerze `backend-tests` i `coverage:diff`). W CI te same polecenia (`.github/workflows/ci.yml`); skany bezpieczeństwa: `pnpm run scan` (`tools/scan/README.md`).
+Stan po EVM-006. Jedno polecenie bramki lokalnej: **`pnpm run gate`** (kolejno: sprawdzenie hooków git, walidator dokumentacji `node tools/docs-lifecycle/cli.mjs check` — w CI pierwszy krok joba `quality`, bramka 11 — usunięcie starych raportów `lcov.info`, `gate:native` — format, lint, typy, testy z progami w każdym workspace, granice modułów — potem `gate:backend` w kontenerze `backend-tests` i `coverage:diff`). **Pokrycie zmienionego kodu dotyczy całej gałęzi:** baza to `merge-base` z `origin/main`, więc zależne historyjki na jednej gałęzi (`workflow.md` → „Kolejki historyjek”) liczą się łącznie (≥ 90% linii i gałęzi, nie per historyjka; ryzyko zaakceptowane przez Konrada 2026-10-15). **E2E web na Linuksie przed pushem** (zmiany w `apps/web`, `packages/*`): `docker compose -f compose.yaml run --rm web-e2e-linux` (`docs/ops/github-i-ci.md`). W CI te same polecenia (`.github/workflows/ci.yml`); skany bezpieczeństwa: `pnpm run scan` (`tools/scan/README.md`).
 
 | Warstwa / rodzaj | Narzędzie | Polecenie | Od |
 |---|---|---|---|

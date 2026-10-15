@@ -156,6 +156,7 @@ async function deliver(extraArgs: Record<string, unknown>, calls: Call[]): Promi
     storyPath: 'docs/backlog/M0/EVM-999-synthetic.md',
     branch: 'feature/EVM-999-synthetic',
     owner: 'devops-engineer',
+    path: 'pelna',
     reviewers: ['code-reviewer', 'security-engineer'],
     ...extraArgs,
   };
@@ -299,6 +300,7 @@ async function deliverWith(
     storyPath: 'docs/backlog/M0/EVM-999-synthetic.md',
     branch: 'feature/EVM-999-synthetic',
     owner: 'devops-engineer',
+    path: 'pelna',
     reviewers: ['code-reviewer'],
     ...extraArgs,
   };
@@ -348,8 +350,8 @@ describe('story path in the workflow (EVM-075 AC2)', () => {
     expect(labels).toEqual([]);
   });
 
-  it('EVM-075 AC2: pelna and a missing path run the full flow (plan, consultations, QA, all reviewers)', async () => {
-    for (const extra of [{ path: 'pelna' }, {}]) {
+  it('EVM-075 AC2: pelna runs the full flow (plan, consultations, QA, all reviewers)', async () => {
+    for (const extra of [{ path: 'pelna' }]) {
       const labels: string[] = [];
       const result = await deliverWith({ ...extra, reviewers: ['code-reviewer', 'security-engineer'] }, labels);
       expect(result['status']).toBe('passed');
@@ -411,7 +413,7 @@ describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
       'LEKKA',
       'PEŁNA',
       '`path`',
-      'Brak pola = `pelna`',
+      'Brak pola nie oznacza `pelna`',
       'uwierzytelnianie',
       'synchronizacja offline',
       'migracje danych',
@@ -428,7 +430,12 @@ describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
   it('EVM-075 AC1: /refine proposes the path, /deliver proposes it for stories without one and passes it to the workflow', () => {
     expect(read('.claude/skills/refine/SKILL.md')).toContain('`path`');
     const deliver = read('.claude/skills/deliver/SKILL.md');
-    for (const phrase of ['`path` ∈ {`lekka`, `pelna`}', 'Brak pola → zaproponuj ścieżkę', '`fixed`', 'wpis „Koszt”'])
+    for (const phrase of [
+      '`path` ∈ {`lekka`, `pelna`}',
+      'Brak pola albo `pelna` tylko z powodu liczby recenzentów → wylicz propozycję',
+      '`fixed`',
+      'wpis „Koszt”',
+    ])
       expect(deliver, phrase).toContain(phrase);
     for (const path of ['docs/process/definition-of-ready.md', 'docs/backlog/README.md']) expect(read(path), path).toContain('`path`');
   });
@@ -519,5 +526,13 @@ describe('lighter process in documents (EVM-075 AC1, AC3, AC4, AC6)', () => {
   it('EVM-075 AC6: workflow.md holds the cost baseline and targets', () => {
     const cost = section(read('docs/process/workflow.md'), '## Pomiar kosztu');
     for (const phrase of ['EVM-013', '$59', 'lekka ≤ $12', 'pełna ≤ $30', 'Koszt']) expect(cost, phrase).toContain(phrase);
+  });
+});
+
+describe('explicit story path (EVM-087 AC3)', () => {
+  it('EVM-087 AC3: a missing path stops the workflow before any agent starts — pelna is never assumed silently', async () => {
+    const labels: string[] = [];
+    await expect(deliverWith({ path: '' }, labels)).rejects.toThrow('brak args.path');
+    expect(labels).toEqual([]);
   });
 });

@@ -79,3 +79,4 @@ Jako **Konrad (właściciel produktu)** chcę **tańszego i krótszego dostarcza
 - 2026-10-15 — utworzono w /refine (product-owner), `draft`; po ustaleniach Konrada z 2026-10-15
 - 2026-10-15 — Konrad zaakceptował historyjkę i rozstrzygnął 4 pytania (decyzje w „Decyzjach i ograniczeniach”); status `ready`
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-087-086-proces-ci`, z EVM-086)
+- 2026-10-15 — implementacja (devops-engineer, kolejka nocna): sekcja „Kolejki historyjek” w workflow.md, usługa `web-e2e-linux` (compose.yaml + infra/docker/web-e2e), `deliver-story` wymaga jawnego `path`, testy repo-policy `EVM-087 AC#`; adnotacja w ADR-0015; krok Konrada: włączyć *Allow rebase merging* (github-i-ci.md); koszt kolejki — do wpisu orkiestratora
