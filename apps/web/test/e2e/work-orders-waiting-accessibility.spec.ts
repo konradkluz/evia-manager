@@ -39,8 +39,8 @@ test.describe('accessibility of "Czekamy na…" in the browser, with colour cont
       expect(await violations(page)).toEqual([]);
       await page.getByRole('textbox', { name: 'Dłużej niż' }).fill('14');
       await page.getByRole('combobox', { name: 'Sortuj' }).selectOption({ label: 'Termin' });
-      // the column "Termin" starts at `expanded` (1024 px); below it the sort is seen in the control (styleguide § 3.6, width budget)
-      if (width >= 1024) await expect(page.getByRole('columnheader', { name: 'Termin' })).toHaveAttribute('aria-sort', 'ascending');
+      // the column "Termin" starts at `expanded` (1280 px); below it the sort is seen in the control (styleguide § 3.6, width budget)
+      if (width >= 1280) await expect(page.getByRole('columnheader', { name: 'Termin' })).toHaveAttribute('aria-sort', 'ascending');
       else await expect(page.getByRole('combobox', { name: 'Sortuj' })).toHaveValue('nextDueDate');
       expect(await violations(page)).toEqual([]);
       await page.getByRole('button', { name: 'Czekamy na OSD > 14 dni' }).click();

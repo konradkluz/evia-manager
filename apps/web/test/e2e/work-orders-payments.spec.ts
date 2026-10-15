@@ -68,15 +68,12 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
     await expect(table(page).getByRole('link', { name: /^ZL-2026-0001, .*, płatność po terminie, 3\s600,00\szł$/ })).toBeVisible();
   });
 
-  // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja",
-  // "Opiekun" and "Utworzono". The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
+  // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja"
+  // ("Opiekun" and "Utworzono" are lines of the first cell at every width). The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
   const LAYOUTS = [
     { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Płatność'] },
     { width: 1280, headers: ['Zlecenie', 'Klient', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
-    {
-      width: 1440,
-      headers: ['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność', 'Opiekun', 'Utworzono'],
-    },
+    { width: 1440, headers: ['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
   ];
   for (const { width, headers } of LAYOUTS) {
     test(`EVM-056 AC1 at ${String(width)} px the column "Płatność" is seen whole, the table does not scroll sideways`, async ({
@@ -99,8 +96,15 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
       expect(box).not.toBeNull();
       expect(badge).not.toBeNull();
       if (box !== null && badge !== null) expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width);
+      // "Opiekun" and "Utworzono" are lines of the first cell at every width, also where "Termin" is a column
+      await expect(row(page, 'ZL-2026-0001').getByText('Opiekun:').filter({ visible: true })).toBeVisible();
+      await expect(
+        row(page, 'ZL-2026-0001')
+          .getByText(/^Utworzono /)
+          .filter({ visible: true }),
+      ).toBeVisible();
       // below `expanded` the due date is a line of the first cell, labelled (the column "Termin" starts at `expanded`)
-      if (width < 1024) await expect(row(page, 'ZL-2026-0001').getByText('Termin:').filter({ visible: true })).toBeVisible();
+      if (width < 1280) await expect(row(page, 'ZL-2026-0001').getByText('Termin:').filter({ visible: true })).toBeVisible();
     });
   }
 
