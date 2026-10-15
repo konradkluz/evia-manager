@@ -102,6 +102,31 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
     });
   }
 
+  // Font metrics differ between platforms (Linux CI has wider glyphs): the table must stay in its frame also when the text is wider
+  // than on the developer's machine (1rem against the 0.875rem of text.body-sm: about the difference of Linux fonts), so the test widens the text of the table itself instead of relying on the platform.
+  for (const { width, headers } of LAYOUTS) {
+    test(`EVM-056 AC1 at ${String(width)} px with wider glyphs the table stays in its frame`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      api.workOrders = 12;
+      await page.goto(PATH);
+      await expect(table(page).getByRole('columnheader').filter({ visible: true })).toHaveText(headers);
+      await table(page).evaluate((element) => {
+        for (const item of element.querySelectorAll<HTMLElement>('*')) item.style.setProperty('font-size', '1rem');
+      });
+      const frame = page.getByRole('region', { name: 'Lista zleceń' });
+      const { scrollWidth, clientWidth } = await frame.evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+      const box = await frame.boundingBox();
+      const badge = await row(page, 'ZL-2026-0001').getByText('Po terminie', { exact: true }).boundingBox();
+      expect(box).not.toBeNull();
+      expect(badge).not.toBeNull();
+      if (box !== null && badge !== null) expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width);
+    });
+  }
+
   test('EVM-056 AC2 the views "Po terminie" and "Nieopłacone" list the open orders with such instalments; the address has the view only', async ({
     page,
     api,

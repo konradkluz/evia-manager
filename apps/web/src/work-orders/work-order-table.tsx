@@ -125,7 +125,7 @@ export function WorkOrderTable({
     );
     const deleted = customer !== undefined && customer !== null && 'deleted' in customer;
     const customerLine = (
-      <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>
+      <span className={deleted ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>
         {customerText ?? <Missing label={t('workOrders.table.noCustomer')} />}
       </span>
     );
@@ -136,14 +136,14 @@ export function WorkOrderTable({
       cells: [
         <span key="order" className="flex flex-col">
           <span className="font-semibold tabular-nums whitespace-nowrap">{item.number}</span>
-          <span className="break-words text-text-secondary">{item.title}</span>
+          <span className="wrap-anywhere text-text-secondary">{item.title}</span>
           {/* Below `expanded` the customer and the location are lines of this cell (and of the card). */}
           {customerText === undefined && siteText === undefined ? null : (
             <span className="expanded:hidden flex flex-col">
               {customerText === undefined ? null : (
-                <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>{customerText}</span>
+                <span className={deleted ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>{customerText}</span>
               )}
-              {siteText === undefined ? null : <span className="break-words text-text-secondary">{siteText}</span>}
+              {siteText === undefined ? null : <span className="wrap-anywhere text-text-secondary">{siteText}</span>}
             </span>
           )}
           {/* The columns "Opiekun" and "Utworzono" are shown from `wide`; below it they are the last lines here (EVM-056, flows/07). */}
@@ -155,14 +155,14 @@ export function WorkOrderTable({
         <span key="customer" className="flex flex-col">
           {customerLine}
           {/* On `wide` the location has a column of its own: no repetition here. */}
-          {siteText === undefined ? null : <span className="wide:hidden break-words text-text-secondary">{siteText}</span>}
+          {siteText === undefined ? null : <span className="wide:hidden wrap-anywhere text-text-secondary">{siteText}</span>}
         </span>,
-        <span key="site" className="flex flex-col break-words">
+        <span key="site" className="flex flex-col wrap-anywhere">
           {site === undefined || site === null ? (
             <Missing label={t('workOrders.table.noLocation')} />
           ) : (
             <>
-              <span className="whitespace-nowrap">{`${site.street} ${site.buildingNumber}`}</span>
+              <span>{`${site.street} ${site.buildingNumber}`}</span>
               <span className="text-text-secondary">{site.city}</span>
             </>
           )}
@@ -175,13 +175,10 @@ export function WorkOrderTable({
         <WaitingCell key="waiting" waiting={item.waiting} />,
         <DueCell key="due" item={item} />,
         ...(payments ? [<PaymentCell key="payment" payment={item.payment} />] : []),
-        <span
-          key="coordinator"
-          className={item.coordinator === null ? 'expanded:whitespace-nowrap text-text-secondary' : 'expanded:whitespace-nowrap'}
-        >
+        <span key="coordinator" className={item.coordinator === null ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>
           {coordinator}
         </span>,
-        <span key="created" className="expanded:whitespace-nowrap">
+        <span key="created" className="wrap-anywhere">
           {created}
         </span>,
       ],

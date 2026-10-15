@@ -57,7 +57,7 @@ export function WaitingCell({ waiting }: { readonly waiting: WorkOrderWaiting | 
   return (
     <span className={long ? 'text-text-warning' : ''}>
       <span className="medium:hidden">{t('workOrders.waiting.prefixWaiting')} </span>
-      <span className="break-words">
+      <span className="wrap-anywhere">
         {t('workOrders.waiting.line', { who: waitingWho(t, waiting), since: sinceText(t, waiting.days) })}
       </span>
       {long ? <TriangleAlert aria-hidden="true" className="ms-inline-xs inline-block size-icon-sm align-text-bottom" /> : null}
