@@ -8,7 +8,9 @@ status: ready
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
-reviewers: [code-reviewer, security-engineer, ux-designer]
+reviewers: [security-engineer]
+path: lekka
+model: sonnet
 depends_on: [EVM-055, EVM-071]
 ---
 
@@ -64,7 +66,7 @@ Jako **pracownik biura** chcę **widzieć transze planowane, dla których trzeba
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-15 — Konrad: ścieżka `lekka`, recenzent `security-engineer`, wspólna gałąź z EVM-058 (058 → 059).
 
 ## Uwagi do rozważenia
 _—_
