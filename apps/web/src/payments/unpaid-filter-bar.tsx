@@ -26,7 +26,7 @@ export interface UnpaidFilterBarProps {
 
 /**
  * The filters of W-11 (EVM-055 AC4; FilterBar § 3.7): "Pokaż" — the chips "Wszystkie wystawione" and "Po terminie" (the status; the
- * only filter in the address; "Do wystawienia" comes with EVM-059), "Termin" — the range of the due dates (two date fields, "od" may
+ * only filter in the address) and "Do wystawienia" (EVM-059; it has no due date, so the range is off there), "Termin" — the range of the due dates (two date fields, "od" may
  * not be after "do") and "Klient" — the search of customers by `POST /customers/search`, after the choice a chip with `x`. The range
  * and the customer are the memory of the tab: they are never in the address or the title of the tab. "Na stronie" is the size of a page.
  * Offline the filters are disabled (they would ask the server).
@@ -45,6 +45,7 @@ export function UnpaidFilterBar({
   const { t } = useTranslation();
   const groupId = useId();
   const problem = rangeProblem(filters);
+  const noRange = disabled || filters.view === 'planned';
   const rangeError =
     problem === 'order' ? t('payments.filters.rangeOrder') : problem === 'range' ? t('payments.filters.rangeYears') : undefined;
   return (
@@ -71,6 +72,15 @@ export function UnpaidFilterBar({
             onView('overdue');
           }}
         />
+        <FilterChip
+          variant="choice"
+          label={t('payments.filters.planned')}
+          selected={filters.view === 'planned'}
+          disabled={disabled}
+          onClick={() => {
+            onView('planned');
+          }}
+        />
         {isFiltered(filters) ? (
           <Button variant="tertiary" disabled={disabled} onClick={onClear}>
             {t('payments.filters.clear')}
@@ -83,7 +93,7 @@ export function UnpaidFilterBar({
           value={filters.dueFrom}
           min={DAY_MIN}
           max={DAY_MAX}
-          disabled={disabled}
+          disabled={noRange}
           onChange={(value) => {
             onRange({ dueFrom: value, dueTo: filters.dueTo });
           }}
@@ -93,7 +103,7 @@ export function UnpaidFilterBar({
           value={filters.dueTo}
           min={DAY_MIN}
           max={DAY_MAX}
-          disabled={disabled}
+          disabled={noRange}
           {...(rangeError === undefined ? {} : { error: rangeError })}
           onChange={(value) => {
             onRange({ dueFrom: filters.dueFrom, dueTo: value });

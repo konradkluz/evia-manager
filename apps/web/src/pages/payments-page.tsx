@@ -3,6 +3,7 @@ import {
   listUnpaidPaymentMilestones,
   type CurrentSession,
   type PaymentMilestone,
+  type PlannedPaymentMilestone,
   type UnpaidPaymentMilestone,
   type UnpaidPaymentMilestoneList,
   type UnpaidView,
@@ -30,7 +31,7 @@ import { PAYMENTS_PATH } from '../paths.ts';
 import { UnpaidFilterBar, type PickedFilterCustomer } from '../payments/unpaid-filter-bar.tsx';
 import {
   DEFAULT_PAGE_SIZE,
-  isFiltered,
+  isNarrowed,
   NO_FILTERS,
   rangeProblem,
   searchOf,
@@ -40,6 +41,7 @@ import {
   type UnpaidSearch,
 } from '../payments/unpaid-filters.ts';
 import { countText } from '../payments/unpaid-format.ts';
+import { PlannedTable } from '../payments/planned-table.tsx';
 import { UnpaidTable } from '../payments/unpaid-table.tsx';
 import { UnpaidTiles } from '../payments/unpaid-tiles.tsx';
 import { SESSION_KEY } from '../session/session.ts';
@@ -50,14 +52,16 @@ import type { MilestoneAction } from '../work-orders/milestone-actions.ts';
 import { MilestoneCorrectAmountDialog } from '../work-orders/milestone-correct-amount-dialog.tsx';
 import { MilestoneCorrectionDialog, type CorrectionKind } from '../work-orders/milestone-correction-dialog.tsx';
 import { MilestoneDetailsDialog } from '../work-orders/milestone-details-dialog.tsx';
+import { MilestoneInvoiceDialog } from '../work-orders/milestone-invoice-dialog.tsx';
 import { MilestonePaymentDialog } from '../work-orders/milestone-payment-dialog.tsx';
 import { formatMoney } from '../work-orders/money.ts';
 import { UNPAID_PAYMENTS_KEY, WORK_ORDER_PAYMENTS_KEY } from '../work-orders/query-keys.ts';
 import { retryMinutes } from './login-failure.tsx';
 
 /** The server did not accept the cursor (changed list, expired, other filters): `invalid_cursor`. */
-// the panel asks for the issued milestones only until the view "Do wystawienia" (EVM-059) is shown here
+// the items of the list are the issued instalments (views "Wszystkie wystawione", "Po terminie") or the planned ones ("Do wystawienia", EVM-059)
 const isIssued = (item: UnpaidPaymentMilestoneList['items'][number]): item is UnpaidPaymentMilestone => item.status !== 'planned';
+const isPlanned = (item: UnpaidPaymentMilestoneList['items'][number]): item is PlannedPaymentMilestone => item.status === 'planned';
 const isBadCursor = (error: unknown): boolean => error instanceof ApiError && error.status === 400 && error.code === 'invalid_cursor';
 
 interface LoadedPage {
@@ -73,6 +77,8 @@ type Dialog =
   | { readonly kind: 'pay'; readonly item: UnpaidPaymentMilestone }
   | { readonly kind: 'correction'; readonly action: CorrectionKind; readonly item: UnpaidPaymentMilestone }
   | { readonly kind: 'correctAmount'; readonly item: UnpaidPaymentMilestone }
+  // EVM-059 AC2: the dialog of EVM-054 for a planned instalment (read in full first — the row has not the days of the term of the plan)
+  | { readonly kind: 'invoice'; readonly order: PlannedPaymentMilestone['workOrder']; readonly milestone: PaymentMilestone }
   | {
       readonly kind: 'details';
       readonly order: UnpaidPaymentMilestone['workOrder'];
@@ -247,12 +253,36 @@ export function PaymentsPage() {
       });
   };
 
+  // EVM-059 AC2: the instalments of the order are read (one request) and the dialog of the invoice opens with the whole planned one.
+  const invoice = (item: PlannedPaymentMilestone) => {
+    setNotice(null);
+    void queryClient
+      .query({
+        queryKey: [WORK_ORDER_PAYMENTS_KEY, item.workOrder.id],
+        queryFn: ({ signal }) => unwrap(listPaymentMilestones({ client, signal, path: { workOrderId: item.workOrder.id } })),
+        staleTime: 0,
+        gcTime: 0,
+      })
+      .then((list) => {
+        const found = list.items.find((entry) => entry.id === item.id);
+        if (found?.status === 'planned') setDialog({ kind: 'invoice', order: item.workOrder, milestone: found });
+        else {
+          setNotice('rowGone');
+          void queryClient.invalidateQueries({ queryKey: [UNPAID_PAYMENTS_KEY] });
+        }
+      })
+      .catch(() => {
+        setNotice('detailsError');
+      });
+  };
+
   const offlineCopy = !online && lastPage !== null ? lastPage : null;
   const shown = offlineCopy?.data ?? data;
   const summary = shown?.summary ?? lastPage?.data.summary;
+  const amount = formatMoney(shown?.summary.filtered.total.amountMinor ?? 0);
   const rateLimited = error instanceof ApiError && error.status === 429;
   const failed = error !== null && !badCursor && offlineCopy === null;
-  const filtered = isFiltered(filters);
+  const filtered = isNarrowed(filters) || view === 'overdue';
 
   const refocusTitle = () => {
     setDialog(null);
@@ -262,7 +292,7 @@ export function PaymentsPage() {
   return (
     <div className="flex flex-col gap-stack-md">
       <h1 ref={title} tabIndex={-1} className="font-display text-heading-1 text-text-primary focus-visible:focus-ring">
-        {t('payments.heading')}
+        {view === 'planned' ? t('payments.headingPlanned') : t('payments.heading')}
       </h1>
       {offlineCopy === null ? null : (
         <Banner icon={WifiOff}>{t('payments.states.offlineStale', { time: formatClock(offlineCopy.at) })}</Banner>
@@ -347,6 +377,8 @@ export function PaymentsPage() {
               </Button>
             }
           />
+        ) : view === 'planned' ? (
+          <EmptyState icon={CircleCheck} title={t('payments.states.plannedTitle')} description={t('payments.states.plannedDescription')} />
         ) : (
           <EmptyState icon={CircleCheck} title={t('payments.states.paidTitle')} description={t('payments.states.paidDescription')} />
         )
@@ -354,18 +386,28 @@ export function PaymentsPage() {
         <div ref={table} className="flex min-w-0 flex-col gap-stack-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-inline-md">
             <h2 ref={heading} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
-              {t('payments.list.heading')}
+              {view === 'planned' ? t('payments.list.headingPlanned') : t('payments.list.heading')}
             </h2>
             <p className="text-body-sm text-text-secondary">
-              {t('payments.list.counterSort', { counted: countText(t, shown.summary.filtered.count) })}
+              {view === 'planned'
+                ? t('payments.list.counterPlanned', { counted: countText(t, shown.summary.filtered.count) })
+                : t('payments.list.counterSort', { counted: countText(t, shown.summary.filtered.count) })}
             </p>
           </div>
-          <UnpaidTable items={shown.items.filter(isIssued)} role={role} online={online} onAction={act} />
+          {view === 'planned' ? (
+            <PlannedTable
+              items={shown.items.filter(isPlanned)}
+              canEdit={role === 'administrator' || role === 'editor'}
+              online={online}
+              onInvoice={invoice}
+            />
+          ) : (
+            <UnpaidTable items={shown.items.filter(isIssued)} role={role} online={online} onAction={act} />
+          )}
           <p className="text-end text-body-sm font-semibold text-text-primary tabular-nums">
-            {t('payments.list.total', {
-              counted: countText(t, shown.summary.filtered.count),
-              amount: formatMoney(shown.summary.filtered.total.amountMinor),
-            })}
+            {view === 'planned'
+              ? t('payments.list.totalPlanned', { counted: countText(t, shown.summary.filtered.count), amount })
+              : t('payments.list.total', { counted: countText(t, shown.summary.filtered.count), amount })}
           </p>
           <nav aria-label={t('workOrders.pages.label')} className="flex flex-wrap items-center justify-center gap-inline-md">
             <Button
@@ -429,6 +471,18 @@ export function PaymentsPage() {
             setDialog(null);
             setFocusId(saved.id);
           }}
+        />
+      ) : null}
+      {dialog?.kind === 'invoice' ? (
+        // EVM-059 AC2: the instalment leaves the view once invoiced — the focus goes to the title of the page
+        <MilestoneInvoiceDialog
+          key={dialog.milestone.id}
+          order={dialog.order}
+          milestone={dialog.milestone}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onSaved={refocusTitle}
         />
       ) : null}
       {dialog?.kind === 'details' ? (

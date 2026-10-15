@@ -1323,6 +1323,7 @@ export const pl = {
   payments: {
     title: 'Płatności',
     heading: 'Płatności — nieopłacone',
+    headingPlanned: 'Płatności — do wystawienia',
     tiles: {
       unpaid: 'Nieopłacone',
       overdue: 'Po terminie',
@@ -1348,6 +1349,7 @@ export const pl = {
       view: 'Pokaż',
       all: 'Wszystkie wystawione',
       overdue: 'Po terminie',
+      planned: 'Do wystawienia',
       dueFrom: 'Termin od',
       dueTo: 'Termin do',
       customer: 'Klient',
@@ -1359,6 +1361,10 @@ export const pl = {
     list: {
       heading: 'Wystawione, nieopłacone transze',
       caption: 'Nieopłacone transze',
+      headingPlanned: 'Transze do wystawienia faktury',
+      captionPlanned: 'Transze do wystawienia faktury',
+      counterPlanned: '{{counted}} · Sortowanie: wg zlecenia',
+      totalPlanned: 'Z kwotą ({{counted}}): {{amount}}',
       counterSort: '{{counted}} · Sortowanie: Najdłużej po terminie',
       pageSize: 'Na stronie',
       total: 'Suma ({{counted}}): {{amount}}',
@@ -1375,8 +1381,15 @@ export const pl = {
       invoice: 'Nr faktury',
       amount: 'Kwota',
       status: 'Status',
+      share: 'Udział',
     },
     row: {
+      plannedLabel: '{{number}} {{title}}, transza {{milestone}}, do wystawienia faktury',
+      invoice: 'Wystaw fakturę…',
+      invoiceLabel: 'Wystaw fakturę: {{name}}, {{number}}',
+      noAmount: 'Brak kwoty',
+      noShare: 'Brak udziału z planu',
+      share: '{{share}}%',
       label: '{{number}} {{title}}, transza {{milestone}}, {{status}}',
       customerDeleted: 'Klient usunięty',
       noCustomer: 'Brak klienta',
@@ -1388,6 +1401,8 @@ export const pl = {
       invoiceLine: 'Faktura {{number}}',
     },
     states: {
+      plannedTitle: 'Wszystkie transze mają wystawione faktury.',
+      plannedDescription: 'Transza w stanie „Planowana” pojawi się tutaj, dopóki nie wystawisz faktury.',
       paidTitle: 'Wszystkie wystawione faktury są opłacone.',
       paidDescription: 'Nowa wystawiona faktura pojawi się tutaj, dopóki nie odnotujesz wpłaty.',
       filteredTitle: 'Brak transz spełniających filtry.',
