@@ -159,6 +159,31 @@ describe('W-11 "Do wystawienia" (EVM-059 AC2)', () => {
   });
 });
 
+describe('W-11 "Do wystawienia" (EVM-059 AC2) failures', () => {
+  it('EVM-059 AC2 the dialog can be closed without an invoice; a failed read of the instalments says so and opens no dialog', async () => {
+    const full = fullMilestone(1, { id: ONE.id, name: 'Zaliczka', paymentTermDays: 7, amount: ONE.amount, version: 2 });
+    const answers = [
+      () => json(200, { items: [full], totals: { unpaid: ONE.amount, paid: { amountMinor: 0, currency: 'PLN' } } }),
+      () => problem(500, 'internal_error'),
+    ];
+    const api = unpaidApi(() => json(200, listOf([ONE])), undefined, {
+      [`GET ${route}`]: (request) => (answers.shift() ?? (() => problem(500, 'internal_error')))(request),
+    });
+    await renderPanel(PLANNED_PATH, api);
+    await ready();
+    const open = screen.getByRole('button', { name: 'Wystaw fakturę: Zaliczka, ZL-2026-0001' });
+    await userEvent.click(open);
+    const view = within(await screen.findByRole('dialog', { name: 'Wystawić fakturę dla transzy „Zaliczka”?' }));
+    await userEvent.click(view.getByRole('button', { name: 'Anuluj' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Wystaw fakturę: Zaliczka, ZL-2026-0001' }));
+    expect(await screen.findByText(/Nie udało się/)).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
 describe('W-11 "Do wystawienia" (EVM-059 AC4)', () => {
   it('EVM-059 AC4 the Administrator and the Editor have "Wystaw fakturę…", Tylko odczyt sees the filter without the action', async () => {
     for (const [session, action] of [
