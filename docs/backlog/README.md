@@ -24,5 +24,5 @@ Każda pozycja to plik `docs/backlog/<M#>/EVM-###-krotki-opis.md` utworzony z `_
 Kolejny numer = najwyższy istniejący `EVM-###` + 1 (bez ponownego użycia numerów, także po odrzuceniu).
 
 ## Kamienie milowe
-- `M0/` — fundamenty (EVM-001 … EVM-013, EVM-074 … EVM-077, EVM-083 … EVM-085; EVM-007 podzielone wg ADR-0018 na 007a = EVM-007, 007b = EVM-084, 007c = EVM-085)
+- `M0/` — fundamenty (EVM-001 … EVM-013, EVM-074 … EVM-077, EVM-083 … EVM-087; EVM-007 podzielone wg ADR-0018 na 007a = EVM-007, 007b = EVM-084, 007c = EVM-085)
 - `M1/` — MVP „Biuro” (EVM-014 … EVM-073, EVM-078 … EVM-082); plan, kolejność, pilot i decyzje: `M1/README.md` (EVM-010, `/milestone plan M1`)
