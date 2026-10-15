@@ -6,8 +6,10 @@ import {
   isFiltered,
   moreFiltersCount,
   NO_FILTERS,
+  noFiltersFor,
   parseWaitingDays,
   searchOf,
+  sortsFor,
   statusesOf,
   toQuery,
   toSearchBody,
@@ -183,5 +185,42 @@ describe('search, "Więcej filtrów" and the address (EVM-072 AC2, AC3, AC4)', (
 
   it('EVM-072 AC1 the location line is the street with the number and the city, without the postal code', () => {
     expect(formatSiteLine({ street: 'ul. Testowa', buildingNumber: '7', city: 'Warszawa' })).toBe('ul. Testowa 7, Warszawa');
+  });
+});
+
+describe('the payment views and "Najpilniejsze" (EVM-056 AC2, AC3, AC7)', () => {
+  it('EVM-056 AC2 "Po terminie" and "Nieopłacone" are views of the address only for a role that reads payments; otherwise "unknown"', () => {
+    expect(viewOf({ view: 'overdue_payments' }, true)).toBe('overdue_payments');
+    expect(viewOf({ view: 'unpaid' }, true)).toBe('unpaid');
+    expect(viewOf({ view: 'overdue_payments' })).toBe('unknown');
+    expect(viewOf({ view: 'unpaid' }, false)).toBe('unknown');
+    expect(viewOf({ view: 'mine' }, false)).toBe('mine');
+  });
+
+  it('EVM-056 AC2 the address carries only the identifier of the view; the query and the body of the search send it', () => {
+    const filters = { ...NO_FILTERS, view: 'overdue_payments' as const };
+    expect(searchOf(filters)).toEqual({ view: 'overdue_payments' });
+    expect(searchOf({ ...NO_FILTERS, view: 'unpaid' })).toEqual({ view: 'unpaid' });
+    expect(toQuery(filters, undefined)).toEqual({ limit: 25, sort: 'urgency', view: 'overdue_payments' });
+    expect(toSearchBody({ ...NO_FILTERS, view: 'unpaid' }, 'Lodz', undefined)).toEqual({
+      query: 'Lodz',
+      limit: 25,
+      sort: 'urgency',
+      view: 'unpaid',
+    });
+    expect(isFiltered({ ...NO_FILTERS, view: 'unpaid' })).toBe(true);
+  });
+
+  it('EVM-056 AC3 "Najpilniejsze" is the default sort and the first option, then "Najdłużej czekamy", "Termin" and the numbers', () => {
+    expect(DEFAULT_SORT).toBe('urgency');
+    expect(NO_FILTERS.sort).toBe('urgency');
+    expect(sortsFor(true)).toEqual(['urgency', 'longestWaitingSince', 'nextDueDate', '-number', 'number', '-createdAt', 'createdAt']);
+    expect(noFiltersFor(true)).toBe(NO_FILTERS);
+  });
+
+  it('EVM-056 AC7 a role without the right to read payments has no "Najpilniejsze": its default is the newest number', () => {
+    expect(sortsFor(false)).not.toContain('urgency');
+    expect(sortsFor(false)[0]).toBe('longestWaitingSince');
+    expect(noFiltersFor(false)).toEqual({ ...NO_FILTERS, sort: '-number' });
   });
 });

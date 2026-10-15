@@ -21,6 +21,8 @@ test.describe('search of work orders on W-10 and in the TopBar (EVM-072)', () =>
     const table = page.getByRole('table', { name: 'Lista zleceń' });
     await expect(table).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Klient' })).toBeVisible();
+    // the newest numbers first (the default "Najpilniejsze" of EVM-056 puts other orders on the first page)
+    await page.getByRole('combobox', { name: 'Sortuj' }).selectOption({ label: 'Numer — od najwyższego' });
     // ZL-2026-0059: "Jan Przykładowy" in Łódź. On this width (1280 px) the location is the second line of "Klient".
     const jan = table.getByRole('row').filter({ hasText: 'ZL-2026-0059' });
     await expect(jan).toContainText('Jan Przykładowy');

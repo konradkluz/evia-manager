@@ -6,6 +6,7 @@ import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 import { WORK_ORDERS_PATH, workOrderPath } from '../paths.ts';
 import { formatSiteLine } from '../sites/format.ts';
 import { formatDate } from './format.ts';
+import { PaymentCell, paymentRowText } from './payment-cell.tsx';
 import { DueCell, dueRowText, WaitingCell, waitingRowText } from './waiting-cells.tsx';
 
 /** Router link for the rows (typed paths of the panel; the details page W-06 arrives with EVM-018). */
@@ -19,11 +20,13 @@ const isKnown = (status: string): status is WorkOrderStatus => Object.hasOwn(wor
 /** The token key of a status: the model code in kebab-case (styleguide § 4.4). */
 const keyOf = (status: WorkOrderStatus): OrderStatusKey => status.replaceAll('_', '-') as OrderStatusKey;
 
-type SortedColumn = 'order' | 'created' | 'waiting' | 'due';
+type SortedColumn = 'order' | 'waiting' | 'due';
 
-/** The column a sort order belongs to (it carries `aria-sort`, § 3.6). */
-function sortedColumn(sort: WorkOrderSort): SortedColumn {
+/** The column a sort order belongs to (it carries `aria-sort`, § 3.6); "Najpilniejsze" is a composite order of no column (§ 4.2). */
+function sortedColumn(sort: WorkOrderSort): SortedColumn | null {
   switch (sort) {
+    case 'urgency':
+      return null;
     case 'number':
     case '-number':
       return 'order';
@@ -32,7 +35,8 @@ function sortedColumn(sort: WorkOrderSort): SortedColumn {
     case 'nextDueDate':
       return 'due';
     default:
-      return 'created';
+      // Sorts by creation date: "Utworzono" is a line of the first cell, not a column, so there is no header to mark.
+      return null;
   }
 }
 
@@ -52,10 +56,24 @@ function Missing({ label }: { readonly label: string }) {
  * city and street of the location; from `expanded` — below it both are lines of the first cell; "Klient usunięty" without a link or
  * any data when the customer is gone), "Lokalizacja" (from `wide`: then "Klient" has one line), "Status" (badge; a value this panel does not
  * know is the "Nieznany status" badge — P-12, never the raw code), "Czekamy na" (the longest wait and "+n"), "Termin" (the nearest
- * due date, with `alarm-clock` when it has passed), "Opiekun" and "Utworzono"; the whole row leads to the details and carries the
+ * due date, with `alarm-clock` when it has passed); the whole row leads to the details and carries the
  * full description as its name. The column the list is sorted by carries `aria-sort`. Texts are shown as React text only.
+ *
+ * EVM-056 AC1: "Płatność" (after "Termin", on the right — § 4.2; the last line of the card) for a role that reads payments
+ * (`payments`); the payment closes the name of the row. With "Najpilniejsze" no column carries `aria-sort`. So that "Płatność" is seen
+ * whole without scrolling (flows/07 "Responsywność"), "Opiekun" and "Utworzono" are never columns: they are lines of the first cell at
+ * every width (sorting by "Utworzono" stays in the "Sortuj" control, so no header carries `aria-sort` for it) and the table is the dense
+ * one (§ 3.6).
  */
-export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkOrderListItem[]; readonly sort: WorkOrderSort }) {
+export function WorkOrderTable({
+  items,
+  sort,
+  payments,
+}: {
+  readonly items: readonly WorkOrderListItem[];
+  readonly sort: WorkOrderSort;
+  readonly payments: boolean;
+}) {
   const { t } = useTranslation();
   const direction: 'ascending' | 'descending' = sort.startsWith('-') ? 'descending' : 'ascending';
   const sorted = sortedColumn(sort);
@@ -68,16 +86,9 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
     { id: 'site', header: t('workOrders.table.location'), wideOnly: true },
     { id: 'status', card: 'badge' as const, header: t('workOrders.table.status') },
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
-    { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
-    { id: 'coordinator', card: 'meta' as const, header: t('workOrders.table.coordinator') },
-    {
-      id: 'created',
-      card: 'meta' as const,
-      header: t('workOrders.table.created'),
-      numeric: true,
-      expandedOnly: true,
-      ...markSort('created'),
-    },
+    // From `expanded` only: below it the due date is a line of the first cell (the width budget, styleguide § 3.6).
+    { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), expandedOnly: true, ...markSort('due') },
+    ...(payments ? [{ id: 'payment', card: 'detail' as const, header: t('workOrders.table.payment'), align: 'end' as const }] : []),
   ];
   const rows: DataTableRow[] = items.map((item) => {
     const known = isKnown(item.status);
@@ -101,10 +112,12 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
       created,
     });
     // What the order waits for and the due date join the name of the row only when there is something to say.
-    const extra = [waitingRowText(t, item.waiting), dueRowText(t, item)].filter((part) => part !== undefined);
+    const extra = [waitingRowText(t, item.waiting), dueRowText(t, item), payments ? paymentRowText(t, item.payment) : undefined].filter(
+      (part) => part !== undefined,
+    );
     const deleted = customer !== undefined && customer !== null && 'deleted' in customer;
     const customerLine = (
-      <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>
+      <span className={deleted ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>
         {customerText ?? <Missing label={t('workOrders.table.noCustomer')} />}
       </span>
     );
@@ -115,30 +128,38 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
       cells: [
         <span key="order" className="flex flex-col">
           <span className="font-semibold tabular-nums whitespace-nowrap">{item.number}</span>
-          <span className="break-words text-text-secondary">{item.title}</span>
+          <span className="wrap-anywhere text-text-secondary">{item.title}</span>
           {/* Below `expanded` the customer and the location are lines of this cell (and of the card). */}
           {customerText === undefined && siteText === undefined ? null : (
             <span className="expanded:hidden flex flex-col">
               {customerText === undefined ? null : (
-                <span className={deleted ? 'break-words text-text-secondary' : 'break-words'}>{customerText}</span>
+                <span className={deleted ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>{customerText}</span>
               )}
-              {siteText === undefined ? null : <span className="break-words text-text-secondary">{siteText}</span>}
+              {siteText === undefined ? null : <span className="wrap-anywhere text-text-secondary">{siteText}</span>}
             </span>
           )}
-          {/* The column "Utworzono" is shown from `expanded`; on a tablet the date is the third line here (EVM-034, 768 px). */}
-          <span className="expanded:hidden text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
+          {item.nextDueDate === null || item.nextDueDate === undefined ? null : (
+            <span className="expanded:hidden">
+              <DueCell item={item} labelled />
+            </span>
+          )}
+          {/* "Opiekun" and "Utworzono" are the last lines of this cell at every width, never columns (EVM-056, flows/07, styleguide § 3.6). */}
+          <span className="text-text-secondary">
+            {item.coordinator === null ? coordinator : t('workOrders.table.coordinatorLine', { name: coordinator })}
+          </span>
+          <span className="text-text-secondary">{t('workOrders.table.createdLine', { date: created })}</span>
         </span>,
         <span key="customer" className="flex flex-col">
           {customerLine}
           {/* On `wide` the location has a column of its own: no repetition here. */}
-          {siteText === undefined ? null : <span className="wide:hidden break-words text-text-secondary">{siteText}</span>}
+          {siteText === undefined ? null : <span className="wide:hidden wrap-anywhere text-text-secondary">{siteText}</span>}
         </span>,
-        <span key="site" className="flex flex-col break-words">
+        <span key="site" className="flex flex-col wrap-anywhere">
           {site === undefined || site === null ? (
             <Missing label={t('workOrders.table.noLocation')} />
           ) : (
             <>
-              <span className="whitespace-nowrap">{`${site.street} ${site.buildingNumber}`}</span>
+              <span>{`${site.street} ${site.buildingNumber}`}</span>
               <span className="text-text-secondary">{site.city}</span>
             </>
           )}
@@ -150,17 +171,9 @@ export function WorkOrderTable({ items, sort }: { readonly items: readonly WorkO
         ),
         <WaitingCell key="waiting" waiting={item.waiting} />,
         <DueCell key="due" item={item} />,
-        <span
-          key="coordinator"
-          className={item.coordinator === null ? 'expanded:whitespace-nowrap text-text-secondary' : 'expanded:whitespace-nowrap'}
-        >
-          {coordinator}
-        </span>,
-        <span key="created" className="expanded:whitespace-nowrap">
-          {created}
-        </span>,
+        ...(payments ? [<PaymentCell key="payment" payment={item.payment} />] : []),
       ],
     };
   });
-  return <DataTable caption={t('workOrders.table.caption')} columns={columns} rows={rows} link={RowLink} />;
+  return <DataTable caption={t('workOrders.table.caption')} dense columns={columns} rows={rows} link={RowLink} />;
 }

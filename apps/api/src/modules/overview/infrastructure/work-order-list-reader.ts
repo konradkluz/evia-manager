@@ -13,11 +13,18 @@
  * `waiting_since < :today − X` with `:today` a PARAMETER (the day of the injected clock, or `asOf` of the cursor) — never `now()`.
  * Dates are compared as `date`; the sort key of a date sort is `coalesce(column, 'infinity'::date)`, so an order without the date
  * comes last, and a row comparison with the id continues the page.
+ *
+ * Payments (EVM-056; ADR-0017 D6, D7, D9, W4, W7): the views "Po terminie" (`earliest_invoiced_due_date < :today`) and "Nieopłacone"
+ * (`invoiced_count > 0`) list open orders only. "Najpilniejsze" computes the group (1..4) and the day of its key ONCE, in a subquery
+ * over the filtered rows; the ORDER BY and the keyset comparison `(group, day, id) > (…)` name its aliases, so the rule is written in
+ * one place. Its CASE is made of constants of this file — `:today` and the threshold of 14 days are parameters — and without the right
+ * to read payments its variant has no column of payments (group 1 from the stages only).
  */
-import { sql, type Expression, type ExpressionBuilder, type Kysely, type SqlBool } from 'kysely';
+import { sql, type Expression, type ExpressionBuilder, type Kysely, type RawBuilder, type SqlBool } from 'kysely';
 import { workOrderReadCondition } from '../../authorization/index.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
+import type { Urgency, UrgencyGroup } from '../domain/work-order-list-query.ts';
 import {
   CLOSED_STATUSES,
   DSO_PARTY_KIND,
@@ -46,9 +53,49 @@ export interface WorkOrderRow {
   readonly longestWaitingPartyId: string | null;
   /** `YYYY-MM-DD` */
   readonly nextDueDate: string | null;
+  /** the signals of payments (EVM-056): counters and a date, no amount */
+  readonly invoicedCount: number;
+  readonly paidCount: number;
+  /** `YYYY-MM-DD` */
+  readonly earliestInvoicedDueDate: string | null;
+  /** the place in "Najpilniejsze" — present when the page is sorted by it */
+  readonly urgency?: Urgency;
+}
+
+/** What the reader needs besides the query: the day of every comparison and whether the caller may read payments (W4). */
+export interface PageScope {
+  /** `YYYY-MM-DD`, `Europe/Warsaw`: the clock of the first page, `asOf` of the cursor after */
+  readonly today: string;
+  readonly withPayments: boolean;
 }
 
 const SUMMARIES = 'overview.work_order_summaries';
+/** The views that list open orders only (ADR-0017 pyt. 7). */
+const OPEN_VIEWS: readonly string[] = ['all_open', 'waiting_on_dso_over_14_days', 'overdue_payments', 'unpaid'];
+
+const NEXT_DUE_DATE = sql.ref('overview.work_order_summaries.next_due_date');
+const LONGEST_WAITING_SINCE = sql.ref('overview.work_order_summaries.longest_waiting_since');
+const EARLIEST_INVOICED_DUE_DATE = sql.ref('overview.work_order_summaries.earliest_invoiced_due_date');
+const isOpen = sql<SqlBool>`${sql.ref('overview.work_order_summaries.status')} not in ('settled', 'cancelled')`;
+
+/**
+ * The group and the day of "Najpilniejsze" (D9) over the same three conditions. Group 1: open with a milestone past its due date (only
+ * `withPayments`) or a stage past its due date — the day is the LEAST of the past dates (`LEAST` skips a NULL); 2: open and waiting for
+ * more than 14 days; 3: open with a stage due from today on; 4: the rest, `infinity`. Constants of the code and two parameters only.
+ */
+function urgencyExpressions(scope: PageScope): { group: RawBuilder<number>; day: RawBuilder<string> } {
+  const today = sql`${scope.today}::date`;
+  const stagePast = sql`case when ${NEXT_DUE_DATE} < ${today} then ${NEXT_DUE_DATE} end`;
+  const milestonePast = sql`case when ${EARLIEST_INVOICED_DUE_DATE} < ${today} then ${EARLIEST_INVOICED_DUE_DATE} end`;
+  const past = scope.withPayments ? sql`least(${milestonePast}, ${stagePast})` : stagePast;
+  const first = sql`${isOpen} and ${past} is not null`;
+  const second = sql`${isOpen} and ${LONGEST_WAITING_SINCE} < ${today} - ${WAITING_WARNING_DAYS}::int`;
+  const third = sql`${isOpen} and ${NEXT_DUE_DATE} >= ${today}`;
+  return {
+    group: sql<number>`case when ${first} then 1 when ${second} then 2 when ${third} then 3 else 4 end`,
+    day: sql<string>`case when ${first} then ${past} when ${second} then ${LONGEST_WAITING_SINCE} when ${third} then ${NEXT_DUE_DATE} else 'infinity'::date end`,
+  };
+}
 
 /** A wait the order must have (all given conditions hold for ONE wait of the order). */
 interface WaitCondition {
@@ -102,7 +149,8 @@ const dayKey = (key: 'longestWaitingSince' | 'nextDueDate'): Expression<string> 
 
 /**
  * @param narrowing the identifiers a phrase matched in the three modules (EVM-072): an ADDITIONAL condition, ANDed with the read policy
- * @param today the day (`YYYY-MM-DD`, `Europe/Warsaw`) every comparison of the query uses: the clock of the first page, `asOf` of the cursor after
+ * @param scope the day (`YYYY-MM-DD`, `Europe/Warsaw`) every comparison of the query uses — the clock of the first page, `asOf` of the
+ * cursor after — and whether the caller may read payments (W4: the variant of "Najpilniejsze")
  * @returns at most `query.limit + 1` rows in the order of the sort
  */
 export async function readWorkOrderPage(
@@ -110,9 +158,10 @@ export async function readWorkOrderPage(
   principal: Principal,
   query: WorkOrderListQuery,
   position: Position | undefined,
-  today: string,
+  scope: PageScope,
   narrowing?: SearchIdSets,
 ): Promise<WorkOrderRow[]> {
+  const { today } = scope;
   const rule = SORT_RULES[query.sort];
   const descending = rule.direction === 'desc';
   let select = overviewTables(db)
@@ -126,23 +175,25 @@ export async function readWorkOrderPage(
       `${SUMMARIES}.customer_id as customerId`,
       `${SUMMARIES}.site_id as siteId`,
       `${SUMMARIES}.waiting_count as waitingCount`,
-      sql<string | null>`to_char(${sql.ref('overview.work_order_summaries.longest_waiting_since')}, 'YYYY-MM-DD')`.as(
-        'longestWaitingSince',
-      ),
+      sql<string | null>`to_char(${LONGEST_WAITING_SINCE}, 'YYYY-MM-DD')`.as('longestWaitingSince'),
       `${SUMMARIES}.longest_waiting_on as longestWaitingOn`,
       `${SUMMARIES}.longest_waiting_party_id as longestWaitingPartyId`,
-      sql<string | null>`to_char(${sql.ref('overview.work_order_summaries.next_due_date')}, 'YYYY-MM-DD')`.as('nextDueDate'),
+      sql<string | null>`to_char(${NEXT_DUE_DATE}, 'YYYY-MM-DD')`.as('nextDueDate'),
+      `${SUMMARIES}.invoiced_count as invoicedCount`,
+      `${SUMMARIES}.paid_count as paidCount`,
+      sql<string | null>`to_char(${EARLIEST_INVOICED_DUE_DATE}, 'YYYY-MM-DD')`.as('earliestInvoicedDueDate'),
     ])
     .where(workOrderReadCondition(principal, SUMMARIES));
   if (query.statuses.length > 0) select = select.where(`${SUMMARIES}.status`, 'in', query.statuses);
-  if (query.view === 'all_open' || query.view === 'waiting_on_dso_over_14_days') {
-    select = select.where(`${SUMMARIES}.status`, 'not in', CLOSED_STATUSES);
-  }
+  if (query.view !== undefined && OPEN_VIEWS.includes(query.view)) select = select.where(`${SUMMARIES}.status`, 'not in', CLOSED_STATUSES);
   // `mine` is the user of the SESSION, never a value of the request; both conditions apply (AND) when both are given.
   if (query.view === 'mine') select = select.where(`${SUMMARIES}.coordinator_user_id`, '=', principal.userId);
   if (query.view === 'waiting_on_dso_over_14_days') {
     select = select.where(hasMatchingWait({ waitingOn: 'party', partyKind: DSO_PARTY_KIND, longerThanDays: WAITING_WARNING_DAYS }, today));
   }
+  // the payment views (D6, D7) — the service has refused them already to a caller who may not read payments (W4)
+  if (query.view === 'overdue_payments') select = select.where(sql<SqlBool>`${EARLIEST_INVOICED_DUE_DATE} < ${today}::date`);
+  if (query.view === 'unpaid') select = select.where(`${SUMMARIES}.invoiced_count`, '>', 0);
   if (query.coordinatorId !== undefined) select = select.where(`${SUMMARIES}.coordinator_user_id`, '=', query.coordinatorId);
   if (query.customerId !== undefined) select = select.where(`${SUMMARIES}.customer_id`, '=', query.customerId);
   if (query.siteType !== undefined) select = select.where(`${SUMMARIES}.site_type`, '=', query.siteType);
@@ -155,6 +206,30 @@ export async function readWorkOrderPage(
         today,
       ),
     );
+  }
+  if (rule.key === 'urgency') {
+    // "Najpilniejsze": the group and the day are computed once, in the subquery `page`; the outer query orders and continues by its aliases
+    const { group, day } = urgencyExpressions(scope);
+    let page = overviewTables(db)
+      .selectFrom(select.select([group.as('urgencyGroup'), day.as('urgencyDate')]).as('page'))
+      .selectAll('page')
+      .select(
+        sql<string>`case when page."urgencyDate" = 'infinity' then 'infinity' else to_char(page."urgencyDate", 'YYYY-MM-DD') end`.as(
+          'urgencyDay',
+        ),
+      );
+    if (position !== undefined && 'group' in position) {
+      page = page.where(
+        sql<SqlBool>`(page."urgencyGroup", page."urgencyDate", page.id) > (${position.group}::int, ${position.day}::date, ${position.id}::uuid)`,
+      );
+    }
+    const rows = await page
+      .orderBy(sql`page."urgencyGroup"`)
+      .orderBy(sql`page."urgencyDate"`)
+      .orderBy(sql`page.id`)
+      .limit(query.limit + 1)
+      .execute();
+    return rows.map((row) => ({ ...(row as WorkOrderRow), urgency: { group: row.urgencyGroup as UrgencyGroup, day: row.urgencyDay } }));
   }
   if (position !== undefined) {
     const comparator = descending ? '<' : '>';

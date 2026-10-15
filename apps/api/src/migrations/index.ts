@@ -30,6 +30,7 @@ import * as auditPaymentAmounts from './0027_audit_payment_amounts.ts';
 import * as paymentMilestoneTransitions from './0028_payment_milestone_transitions.ts';
 import * as auditStatusCodes from './0029_audit_status_codes.ts';
 import * as paymentUnpaidIndex from './0030_payment_unpaid_index.ts';
+import * as overviewPaymentSignals from './0031_overview_payment_signals.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -62,4 +63,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0028_payment_milestone_transitions': paymentMilestoneTransitions,
   '0029_audit_status_codes': auditStatusCodes,
   '0030_payment_unpaid_index': paymentUnpaidIndex,
+  '0031_overview_payment_signals': overviewPaymentSignals,
 });

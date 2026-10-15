@@ -12,7 +12,7 @@ workOrders:
       `customerId` (UUID klienta — „Historia zleceń” w W-14, EVM-039; ta sama polityka odczytu i paginacja; nieistniejący klient daje
       pustą listę, bo filtr nie jest sprawdzeniem istnienia klienta; zlecenia usuniętego klienta pozostają widoczne jak na liście zleceń — decyzja w EVM-041).
       `mine` bierze opiekuna wyłącznie z sesji — parametru z identyfikatorem użytkownika nie ma. `sort`: `-number` (domyślne),
-      `number`, `-createdAt`, `createdAt`, `longestWaitingSince`, `nextDueDate` (dwa ostatnie tylko rosnąco); wartość spoza listy,
+      `number`, `-createdAt`, `createdAt`, `longestWaitingSince`, `nextDueDate`, `urgency` (trzy ostatnie tylko rosnąco); wartość spoza listy,
       zły `limit` (1–100, domyślnie 25) albo zły format `status` — `400 validation_failed`; nieznany parametr —
       `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`.
       „Czekamy na…” (EVM-034): `waitingOn` (`customer` albo `party`), `waitingOnPartyKind` (rodzaj strony; bez `waitingOn` oznacza
@@ -22,6 +22,10 @@ workOrders:
       strony liczą go z kursora (`asOf`), więc zmiana dnia nie miesza stron. Parametry w adresie to wyłącznie kody i liczby.
       Element listy ma pola tylko do odczytu `waiting`, `nextDueDate` i `hasOverdueStage` oraz (EVM-072) `customer` i `site`.
       `siteType` (typ obiektu) i `templateId` (szablon) zawężają listę przez AND; to kody i UUID katalogu, nie dane osobowe.
+      Płatności (EVM-056): widoki `overdue_payments` i `unpaid`, sortowanie `urgency` („Najpilniejsze”) i pole elementu `payment`
+      wymagają prawa odczytu płatności (`restrictedParams` w `x-evia-authz`; v1: wszystkie trzy role). Bez niego widok płatności
+      daje `403 forbidden` (po walidacji, przed odczytem), `urgency` liczy kolejność bez składowej płatności, a pole `payment` nie
+      występuje. Domyślne sortowanie API się nie zmienia (`-number`); panel wysyła `sort=urgency` jawnie.
       Frazy wyszukiwania w adresie nie ma (SR-API-04): do tego służy `searchWorkOrders`. Lista czyta model odczytu (`overview`),
       kontrakt operacji — ścieżka, `operationId`, tag i `x-evia-authz` — jest bez zmian.
       Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu
@@ -31,6 +35,12 @@ workOrders:
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
+      restrictedParams:
+        paymentMilestone.read:
+          params:
+            view: [overdue_payments, unpaid]
+            sort: [urgency]
+          fields: [payment]
     parameters:
       - name: status
         in: query
@@ -233,11 +243,19 @@ workOrdersSearch:
       `400 validation_failed`, kod `too_broad` na `/query` (należy ją doprecyzować). Limit 60 wyszukiwań na minutę na użytkownika
       (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do
       progu masowego odczytu (P10: alert przy 2000 rekordów w 10 minut, `429` od 10 000) i do licznika różnych klientów (alert
-      przy 301. różnym kliencie w ciągu godziny). Fraza nie trafia do logów, metryk ani `errors[]`.
+      przy 301. różnym kliencie w ciągu godziny). Fraza nie trafia do logów, metryk ani `errors[]`. Widoki płatności, `urgency`
+      i pole `payment` — jak w `listWorkOrders` (EVM-056). Pole tylko do odczytu elementu listy (`id`, `number`, `payment` …)
+      w treści — `400 read_only_field` (nie `unknown_field`).
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
       audit: false
+      restrictedParams:
+        paymentMilestone.read:
+          params:
+            view: [overdue_payments, unpaid]
+            sort: [urgency]
+          fields: [payment]
     requestBody:
       required: true
       content:

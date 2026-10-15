@@ -150,6 +150,8 @@ describe('the section "Płatności" (EVM-053 AC2, AC7; P6)', () => {
         'dueDate',
         'paidOn',
         'isOverdue',
+        // EVM-056 AC4: the days overdue of the tile "Płatności" (additive, read-only)
+        'overdueDays',
         'version',
         'allowedTransitions',
       ].sort(),

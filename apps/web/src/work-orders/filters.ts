@@ -21,11 +21,23 @@ export const PAGE_SIZE = 25;
 export const DSO_VIEW = 'waiting_on_dso_over_14_days';
 
 /**
- * `all_open` — "Wszystkie niezamknięte" (the default view of the panel, sent to the API explicitly), `mine` — "Moje",
- * `waiting_on_dso_over_14_days` — "Czekamy na OSD > 14 dni" (EVM-034), `all` — every status (the panel's own identifier:
- * the API gets no `view`), `unknown` — an identifier from a link that this panel does not know ("Nie znaleziono widoku").
+ * The saved views of the payments (EVM-056 AC2; only orders that are not closed): "Po terminie" and "Nieopłacone". They need the
+ * right to read payments (`restrictedParams` of the contract — a test keeps this list equal to it).
  */
-export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | 'unknown';
+export const PAYMENT_VIEWS = ['overdue_payments', 'unpaid'] as const;
+export type PaymentView = (typeof PAYMENT_VIEWS)[number];
+/** The sort that needs the right to read payments (`restrictedParams`): "Najpilniejsze" (EVM-056 AC3). */
+export const PAYMENT_SORTS = ['urgency'] as const satisfies readonly WorkOrderSort[];
+
+/**
+ * `all_open` — "Wszystkie niezamknięte" (the default view of the panel, sent to the API explicitly), `mine` — "Moje",
+ * `waiting_on_dso_over_14_days` — "Czekamy na OSD > 14 dni" (EVM-034), `overdue_payments` and `unpaid` — "Po terminie" and
+ * "Nieopłacone" (EVM-056), `all` — every status (the panel's own identifier: the API gets no `view`), `unknown` — an identifier
+ * from a link that this panel does not know or the person may not use ("Nie znaleziono widoku").
+ */
+export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'unknown';
+
+const isPaymentView = (view: string): view is PaymentView => (PAYMENT_VIEWS as readonly string[]).includes(view);
 
 /**
  * The target of "Czekamy na" (EVM-034 AC2): `customer`, any `party`, or a kind of party (the code of the dictionary) — a code,
@@ -73,7 +85,10 @@ export interface WorkOrderFilters {
   readonly phrase: string;
 }
 
-export const DEFAULT_SORT: WorkOrderSort = '-number';
+/** "Najpilniejsze" (EVM-056 AC3): the default of W-10, sent to the API explicitly (the API's own default stays `-number`). */
+export const DEFAULT_SORT: WorkOrderSort = 'urgency';
+/** The default of a role without the right to read payments (it has no "Najpilniejsze" — W4): the newest number first. */
+const PLAIN_SORT: WorkOrderSort = '-number';
 export const NO_FILTERS: WorkOrderFilters = {
   view: 'all_open',
   statuses: [],
@@ -85,6 +100,19 @@ export const NO_FILTERS: WorkOrderFilters = {
   templateId: '',
   phrase: '',
 };
+
+/** The filters a fresh W-10 starts with — for a role without the right to read payments without "Najpilniejsze". */
+export const noFiltersFor = (paymentsReadable: boolean): WorkOrderFilters =>
+  paymentsReadable ? NO_FILTERS : { ...NO_FILTERS, sort: PLAIN_SORT };
+
+/**
+ * The options of "Sortuj" (EVM-056 AC3; flows/07): "Najpilniejsze" first, then "Najdłużej czekamy", "Termin" and the numbers and
+ * dates of EVM-017; without the right to read payments "Najpilniejsze" is not offered (W4).
+ */
+export function sortsFor(paymentsReadable: boolean): readonly WorkOrderSort[] {
+  const rest: WorkOrderSort[] = ['longestWaitingSince', 'nextDueDate', '-number', 'number', '-createdAt', 'createdAt'];
+  return paymentsReadable ? [...PAYMENT_SORTS, ...rest] : rest;
+}
 
 const isStatus = (value: string): value is WorkOrderStatus => Object.hasOwn(workOrderStatusLabels, value);
 
@@ -110,7 +138,11 @@ export function statusesOf(search: WorkOrderSearch): readonly WorkOrderStatus[] 
   return WORK_ORDER_STATUSES.filter((status) => wanted.has(status));
 }
 
-export function viewOf(search: WorkOrderSearch): ViewId {
+/**
+ * The view of the address. The payment views exist only with the right to read payments (`paymentsReadable`, deny-by-default):
+ * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI").
+ */
+export function viewOf(search: WorkOrderSearch, paymentsReadable = false): ViewId {
   switch (search.view) {
     case undefined:
     case 'all_open':
@@ -120,7 +152,7 @@ export function viewOf(search: WorkOrderSearch): ViewId {
     case DSO_VIEW:
       return search.view;
     default:
-      return 'unknown';
+      return paymentsReadable && isPaymentView(search.view) ? search.view : 'unknown';
   }
 }
 
@@ -191,12 +223,15 @@ function waitingQuery(filters: WorkOrderFilters): NonNullable<ListWorkOrdersData
   return { waitingOn: 'party', waitingOnPartyKind: waitingOn, waitingLongerThanDays: waitingDays };
 }
 
+/** The view sent to the API: every view of the panel but `all` (its own identifier) and `unknown` (nothing is asked). */
+const apiViewOf = (view: ViewId) => (view === 'all' || view === 'unknown' ? {} : { view });
+
 /** The query of `listWorkOrders`: an empty filter is left out; the view `all` sends no `view` at all. */
 export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): NonNullable<ListWorkOrdersData['query']> {
   return {
     limit: PAGE_SIZE,
     sort: filters.sort,
-    ...(filters.view === 'all_open' || filters.view === 'mine' || filters.view === DSO_VIEW ? { view: filters.view } : {}),
+    ...apiViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: filters.statuses.join(',') }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
     ...moreFiltersOf(filters),
@@ -215,7 +250,7 @@ export function toSearchBody(filters: WorkOrderFilters, phrase: string, cursor: 
     query: phrase,
     limit: PAGE_SIZE,
     sort: filters.sort,
-    ...(filters.view === 'all_open' || filters.view === 'mine' || filters.view === DSO_VIEW ? { view: filters.view } : {}),
+    ...apiViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: [...filters.statuses] }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
     ...moreFiltersOf(filters),

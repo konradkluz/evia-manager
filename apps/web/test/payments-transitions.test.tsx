@@ -168,7 +168,8 @@ describe('cancelling an order with instalments (EVM-053 AC6, P1)', () => {
       [TRANSITIONS]: () => json(200, orderWith('cancelled', 4), { ETag: '"4"' }),
     });
     await renderPanel(PATH, api);
-    await screen.findByText('Nie udało się wczytać płatności.');
+    // the section and (EVM-056) the tile "Płatności" of the summary both say so
+    expect(await screen.findAllByText('Nie udało się wczytać płatności.')).toHaveLength(2);
     await choose('W realizacji', 'Anuluj zlecenie…');
     const dialog = within(await screen.findByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' }));
     expect(dialog.getByText('Planowane transze zostaną anulowane.')).toBeTruthy();

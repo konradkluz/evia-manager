@@ -110,6 +110,15 @@ describe('FilterChip (styleguide § 3.7; EVM-029 AC5)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-056 AC2 a chip can carry a description (aria-describedby) that is not part of its name', async () => {
+    const { container } = render(
+      <FilterChip variant="choice" label="Po terminie" description="Tylko zlecenia niezamknięte." onClick={vi.fn()} />,
+    );
+    const chip = screen.getByRole('button', { name: 'Po terminie' });
+    expect(describedBy(chip)).toBe('Tylko zlecenia niezamknięte.');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
   it('EVM-029 AC8 disabled stays focusable and does nothing', async () => {
     const onClick = vi.fn();
     render(
@@ -399,6 +408,28 @@ describe('DataTable columns for the wide view only (styleguide § 3.6; EVM-039 A
     const cell = within(table).getByText('2026-10-01').closest('td');
     expect(cell?.className).toContain('expanded:table-cell');
     expect(cell?.className).not.toContain('max-medium:block');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+  it('EVM-056 AC1 a column aligned to the end has its header and cells on the right in the table and on the left in the card', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Zlecenia"
+        columns={[
+          { id: 'name', header: 'Zlecenie', card: 'primary' },
+          { id: 'payment', header: 'Płatność', card: 'detail', align: 'end' },
+        ]}
+        rows={[{ id: 'a', cells: ['ZL-1', '3 600,00 zł'] }]}
+      />,
+    );
+    const table = screen.getByRole('table', { name: 'Zlecenia' });
+    const header = within(table).getByRole('columnheader', { name: 'Płatność' });
+    expect(header.className).toContain('text-end');
+    expect(header.className).not.toContain('text-start');
+    expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).className).toContain('text-start');
+    const cell = within(table).getByText('3 600,00 zł').closest('td');
+    expect(cell?.className).toContain('text-end');
+    expect(cell?.className).toContain('max-medium:text-start');
+    expect(within(table).getByText('ZL-1').closest('td')?.className).not.toContain('text-end');
     expect(await axeViolations(container)).toEqual([]);
   });
 });

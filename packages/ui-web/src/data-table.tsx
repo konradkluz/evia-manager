@@ -33,6 +33,11 @@ export interface DataTableColumn {
    * collapsed), so the least important fact moves to the caller's second line there (`expanded:hidden`).
    */
   readonly expandedOnly?: boolean;
+  /**
+   * `end`: the header and the cells stand at the right edge of the column (§ 3.6 / § 4.2 — numbers and amounts to the right,
+   * e.g. "Płatność" of W-10); in the card of narrow viewports the value goes back to the start of its line. Default: the start.
+   */
+  readonly align?: 'start' | 'end';
 }
 
 const CARD_CELL = {
@@ -113,7 +118,8 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink, dens
                 aria-sort={column.sort}
                 className={classNames(
                   inline,
-                  'py-inset-sm text-start font-semibold',
+                  'py-inset-sm font-semibold',
+                  column.align === 'end' ? 'text-end' : 'text-start',
                   column.wideOnly === true && 'hidden wide:table-cell',
                   column.expandedOnly === true && 'hidden expanded:table-cell',
                 )}
@@ -164,6 +170,7 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink, dens
                       wideOnly && 'hidden wide:table-cell',
                       expandedOnly && 'hidden expanded:table-cell',
                       columns[index]?.numeric === true && 'tabular-nums',
+                      columns[index]?.align === 'end' && classNames('text-end', cards && 'max-medium:text-start'),
                       cards && !hiddenInCard && 'max-medium:block max-medium:p-0',
                       cards && role !== undefined && CARD_CELL[role],
                       cards &&

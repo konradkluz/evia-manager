@@ -72,8 +72,25 @@ module.exports = {
       to: {
         path: '^apps/api/src/modules/([^/]+)/',
         // the system ports of the read model (`system-ports.ts`) are a separate entry file with its own rule below (ADR-0017 W5)
-        pathNot: ['^apps/api/src/modules/$1/', '^apps/api/src/modules/[^/]+/index\\.ts$', '^apps/api/src/modules/[^/]+/system-ports\\.ts$'],
+        // the facade of the totals of payments (`payments/payment-totals.ts`) is another entry file with its own rule below (EVM-056, K3)
+        pathNot: [
+          '^apps/api/src/modules/$1/',
+          '^apps/api/src/modules/[^/]+/index\\.ts$',
+          '^apps/api/src/modules/[^/]+/system-ports\\.ts$',
+          '^apps/api/src/modules/payments/payment-totals\\.ts$',
+        ],
       },
+    },
+    {
+      name: 'api-payment-totals-only-from-overview',
+      comment:
+        'The facade of the totals of payments (modules/payments/payment-totals.ts) takes identifiers its CALLER has filtered with the read policy of work orders (one page of the list, ADR-0017 W2, the pattern C′): only the application layer of `overview` may import it — never a controller, never another module, so identifiers from a request cannot reach it (EVM-056; CWE-639, CWE-863).',
+      severity: 'error',
+      from: {
+        path: '^apps/api/src/modules/([^/]+)/',
+        pathNot: ['^apps/api/src/modules/overview/application/', '^apps/api/src/modules/payments/'],
+      },
+      to: { path: '^apps/api/src/modules/payments/payment-totals\\.ts$' },
     },
     {
       name: 'api-system-ports-only-from-overview',
