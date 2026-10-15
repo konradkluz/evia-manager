@@ -4,7 +4,7 @@ title: Kolejka historyjek — jedna gałąź dla zależnych, ścieżka lekka dom
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P1
 path: lekka
 owner: devops-engineer
@@ -68,6 +68,7 @@ Jako **Konrad (właściciel produktu)** chcę **tańszego i krótszego dostarcza
   - `coverage:diff` bez zakresu commitów per historyjka (YAGNI) — próg ≥ 90% dla całej gałęzi; ryzyko maskowania słabo pokrytej historyjki zaakceptowane.
   - Rozmiar gałęzi zależnych: maks. ok. 5 historyjek lub 1 dzień pracy na PR; większe kolejki dzielimy na kolejne gałęzie od `main` po scaleniu poprzedniej.
 
+- 2026-10-15 — Konrad (po przeglądzie security, zmiana decyzji z refinementu): PR z kilkoma historyjkami scalamy **squash** (tytuł z ID pierwszej historyjki, pozostałe ID w opisie PR), bo K6 odrzuca rebase merge i merge commit; „Allow rebase merging” odznaczone; rozszerzenie K6 o rebase merge — osobna historyjka (draft).
 ## Zależności
 - Brak blokujących. Uzupełnia EVM-075 (done) i EVM-074 (done); EVM-083 (done) jest motywacją (minuty Actions). Nakłada się z EVM-086 (draft, filtry ścieżek CI): oba zmieniają `docs/ops/github-i-ci.md`; E2E w CI zostaje bez zmian, EVM-087 dodaje tylko lokalny odpowiednik — kolejność dowolna, dokumentację scalić przy drugim z nich.
 
@@ -75,9 +76,14 @@ Jako **Konrad (właściciel produktu)** chcę **tańszego i krótszego dostarcza
 - Konsultacja: security (utwardzenie usługi Playwright w `compose.yaml`, brak egressu/portów wg reguł repo-policy) — przez jednego recenzenta ścieżki lekkiej; architekt tylko do adnotacji w ADR-0015.
 - Istniejące historyjki M1 z 3 recenzentami: rozstrzyga pytanie o ścieżkę w AC3, bez przepisywania frontmatter na zapas.
 
+- Ryzyka rezydualne (security-engineer, do akceptacji Konrada na demo): przeglądarki w `web-e2e-linux` działają bez sandboksu (cap_drop ALL; tylko lokalny vite preview w sieci `internal`), usługa współdzieli zapisywalny wolumen `bt-work` z `backend-tests`; PR zmienia pliki wrażliwe K3 (`.claude/skills`, `.claude/workflows`, `compose.yaml`).
+- Pierwszy przebieg `web-e2e-linux` (12,9 min, równolegle z gałęzią B): Chromium bez porażek, Firefox 14 niestabilnych i 1 czerwony (`page.goto` > 30 s; po ponowieniu zielony).
+
 ## Dziennik
 - 2026-10-15 — utworzono w /refine (product-owner), `draft`; po ustaleniach Konrada z 2026-10-15
 - 2026-10-15 — Konrad zaakceptował historyjkę i rozstrzygnął 4 pytania (decyzje w „Decyzjach i ograniczeniach”); status `ready`
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-087-086-proces-ci`, z EVM-086)
 - 2026-10-15 — implementacja (devops-engineer, kolejka nocna): sekcja „Kolejki historyjek” w workflow.md, usługa `web-e2e-linux` (compose.yaml + infra/docker/web-e2e), `deliver-story` wymaga jawnego `path`, testy repo-policy `EVM-087 AC#`; adnotacja w ADR-0015; krok Konrada: włączyć *Allow rebase merging* (github-i-ci.md); koszt kolejki — do wpisu orkiestratora
 - 2026-10-15 — poprawki rundy 1 (security-engineer, major): K6 nie przyjmie commitów z rebase merge (tylko ostatni = `merge_commit_sha`); dokumentacja zmieniona na squash także dla kolejek (ID w tytule/opisie PR), *Allow rebase merging* zostaje wyłączone; rozszerzenie K6 (`tools/main-integrity/`) = zmiana zakresu, osobna historyjka do decyzji Konrada. Krok Konrada „włączyć Allow rebase merging” z wpisu powyżej jest wycofany.
+- 2026-10-15 — orkiestrator: poprawki security sprawdzone, doprecyzowano tytuł PR (jedno ID — regex K6); AC1–AC6 → testy `EVM-087 AC#`; `pnpm run gate` zielony (diff-coverage 1/1), `docs:check` 0/0; in-progress → in-review
+- 2026-10-15 — Koszt: potok 3 wywołania agentów, ok. 0,28 mln tokenów subagentów, ok. 71 min; rundy poprawek 1; ścieżka lekka; sonnet
