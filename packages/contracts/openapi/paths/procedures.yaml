@@ -37,6 +37,77 @@ workOrderProcedures:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  post:
+    operationId: createWorkOrderProcedure
+    tags: [procedures]
+    summary: Dodanie procesu do zlecenia z szablonu
+    description: >-
+      Ręczne dodanie procesu z szablonu do zlecenia (EVM-042 AC1, AC4–AC6; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01,
+      SR-INPUT-02, SR-API-02, SR-API-05, SR-API-06, SR-LOG-03; W-06 (d)). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`
+      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, z audytem
+      (`procedure.created` — aktor, identyfikator procesu, wynik i `traceId`; bez nazw). Wymaga `X-CSRF-Token`. Jedna transakcja na
+      zablokowanym wierszu zlecenia (`SELECT … FOR UPDATE`): zlecenie (`404` — przed treścią), treść `CreateProcedureRequest` (`400`:
+      schemat; pole serwera — `read_only_field`), powtórka idempotentna, zlecenie zamknięte (`409 work_order_closed`), szablon procesu
+      (`422 template_unavailable` — aktywny; wycofany i nieistniejący to jedna odpowiedź), proces o tym kodzie już aktywny (`409
+      procedure_already_active`), limit 30 procesów (`422 limit_exceeded`, `errors[]` — wskaźnik `""` i kod `too_many_procedures`; szablon
+      z więcej niż 30 etapami — `too_many_stages`), zapis procesu na wybranym miejscu (kolejne procesy przesuwają się o jeden,
+      `position` większe niż liczba procesów + 1 jest przycinane do końca; kod i nazwa — kopia z szablonu) z etapami „Do zrobienia”,
+      zdarzenie dziennika (`procedure_added`: kod procesu), audyt i rekord idempotencji. Błąd któregokolwiek kroku cofa całość. `id`
+      (UUIDv7) nadaje klient; istniejące `id` — także procesu innego zlecenia — `409 id_conflict` bez danych istniejącego zasobu.
+      Idempotencja: `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze; klucz jest związany z użytkownikiem, metodą,
+      szablonem ścieżki I identyfikatorem zlecenia (ten sam klucz i treść na innym zleceniu — `422 idempotency_mismatch`). Powtórka —
+      `201` z bieżącą reprezentacją (odczytaną ponownie warunkiem `id AND work_order_id AND deleted_at is null`; proces usunięty w
+      międzyczasie — `404`) i `Idempotent-Replayed: true`, bez nowego zdarzenia. Odpowiedź ma `ETag` procesu, bez `Location`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/procedures.yaml#/CreateProcedureRequest
+    responses:
+      '201':
+        description: >-
+          Proces dodany (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja procesu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, zleceniem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/Procedure
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ProcedureCreateConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/ProcedureUnprocessable
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 procedureStage:
   patch:
     operationId: updateProcedureStage
@@ -128,6 +199,60 @@ procedureStage:
         $ref: ../components/responses.yaml#/PayloadTooLarge
       '415':
         $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteProcedureStage
+    tags: [procedures]
+    summary: Usunięcie etapu (soft delete; przywraca Administrator)
+    description: >-
+      Usunięcie etapu ze zlecenia (EVM-042 AC3–AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Soft delete: etap
+      znika dla Administratora, Edytora i Tylko odczyt, pozostałe etapy procesu są renumerowane (`position` 1…n) w tej samej
+      transakcji, wersja procesu rośnie (skład procesu), a Administrator może etap przywrócić (`restoreProcedureStage`). Zalecenie
+      „Nie dotyczy” (przejście etapu, zachowuje historię) to decyzja użytkownika w panelu. Role Administrator i Edytor (Tylko odczyt —
+      `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)),
+      kanał `web`, z audytem (`procedure_stage.deleted` — osobna akcja, aktor, identyfikator etapu, wynik i `traceId`; bez nazwy) i
+      zdarzeniem dziennika (`stage_removed`: identyfikator etapu i kod procesu, bez nazwy). Wymaga `X-CSRF-Token` i `If-Match` (silny
+      ETag `"<version>"` etapu): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412` (bez bieżących wartości). Etap jest
+      wyszukiwany warunkiem `id AND work_order_id` w zapytaniu: etap innego zlecenia, nieistniejący, już usunięty i etap usuniętego
+      procesu to jedna odpowiedź `404 not_found`; `404` poprzedza `If-Match`. Zlecenie Rozliczone albo Anulowane — `409
+      work_order_closed` (przed wersją). Powtórka z tym samym `Idempotency-Key` (związanym z użytkownikiem, metodą, szablonem ścieżki,
+      zleceniem i etapem) — `204` z `Idempotent-Replayed: true`, bez drugiego usunięcia. Odpowiedź `204` nie ma treści.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureStageIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '204':
+        description: >-
+          Etap usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, etapem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
       '422':
         $ref: ../components/responses.yaml#/IdempotencyMismatch
       '428':
@@ -248,5 +373,302 @@ procedureStageTransitions:
         $ref: ../components/responses.yaml#/IdempotencyMismatch
       '428':
         $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+ProcedureIdParameter:
+  name: procedureId
+  in: path
+  required: true
+  description: Identyfikator procesu (UUID).
+  schema:
+    type: string
+    format: uuid
+    maxLength: 36
+procedure:
+  delete:
+    operationId: deleteWorkOrderProcedure
+    tags: [procedures]
+    summary: Usunięcie procesu (soft delete; przywraca Administrator)
+    description: >-
+      Usunięcie procesu ze zlecenia razem z etapami (EVM-042 AC3–AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03).
+      Soft delete samego procesu: etapy zostają w bazie bez zmian i znikają razem z procesem (przywrócenie procesu oddaje je w stanie
+      sprzed usunięcia), pozostałe procesy są renumerowane (`position` 1…n) w tej samej transakcji. Role Administrator i Edytor (Tylko
+      odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403
+      forbidden` (kanał niedozwolony)), kanał `web`, z audytem (`procedure.deleted` — osobna akcja, aktor, identyfikator procesu, wynik i
+      `traceId`) i zdarzeniem dziennika (`procedure_removed`: kod procesu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
+      `"<version>"` procesu, pole `Procedure.version`): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412` (bez bieżących
+      wartości). Proces jest wyszukiwany warunkiem `id AND work_order_id` w zapytaniu: proces innego zlecenia, nieistniejący i już
+      usunięty to jedna odpowiedź `404 not_found`; `404` poprzedza `If-Match`. Zlecenie Rozliczone albo Anulowane — `409
+      work_order_closed` (przed wersją). Powtórka z tym samym `Idempotency-Key` — `204` z `Idempotent-Replayed: true`. Odpowiedź
+      `204` nie ma treści.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '204':
+        description: >-
+          Proces usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, procesem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderClosed
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+procedureStages:
+  post:
+    operationId: createProcedureStage
+    tags: [procedures]
+    summary: Dodanie etapu do procesu
+    description: >-
+      Ręczne dodanie etapu do procesu zlecenia (EVM-042 AC2, AC4–AC6; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02,
+      SR-INPUT-05, SR-API-02, SR-API-05, SR-API-06, SR-LOG-03; W-06 (d)). Role Administrator i Edytor (Tylko odczyt — `403 forbidden`
+      dla dowolnej treści; niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, z audytem
+      (`procedure_stage.created` — aktor, identyfikator etapu, wynik i `traceId`; bez nazwy etapu). Wymaga `X-CSRF-Token`. Jedna
+      transakcja na zablokowanym wierszu zlecenia: zlecenie (`404`), proces wyszukiwany warunkiem `id AND work_order_id AND deleted_at
+      is null` (proces innego zlecenia, nieistniejący i usunięty — jedna odpowiedź `404`, przed treścią), treść `CreateProcedureStageRequest`
+      (`400`: schemat, nazwa — NFC, przycięta, 1–120 znaków; pole serwera — `read_only_field`), powtórka idempotentna, zlecenie
+      zamknięte (`409 work_order_closed`), termin (`400`, `/dueDate`, `out_of_range`), osoba odpowiedzialna (`400`, `/responsibleUserId`,
+      `assignee_unavailable` — jedna odpowiedź dla każdego stanu konta), limit 30 etapów (`422 limit_exceeded`, `too_many_stages`), zapis
+      etapu „Do zrobienia” na wybranym miejscu (kolejne etapy przesuwają się o jeden, za duże `position` jest przycinane do końca; kod
+      `custom_…` nadaje serwer), wersja procesu rośnie, zdarzenie dziennika (`stage_added`: identyfikatory i kod procesu — bez nazwy
+      etapu), audyt i rekord idempotencji. Błąd któregokolwiek kroku cofa całość. Nazwa etapu jest polem swobodnym i nigdy nie trafia
+      do audytu, dziennika, logów, błędów ani rekordu idempotencji (tylko skrót treści). `id` (UUIDv7) nadaje klient; istniejące `id`
+      — `409 id_conflict`. Idempotencja jak w `createWorkOrderProcedure`; klucz jest związany z użytkownikiem, metodą, szablonem
+      ścieżki, zleceniem I procesem. Odpowiedź ma `ETag` etapu, bez `Location`.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureIdParameter'
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/procedures.yaml#/CreateProcedureStageRequest
+    responses:
+      '201':
+        description: >-
+          Etap dodany (albo powtórka wcześniejszego zapisu — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Wersja etapu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, procesem i treścią.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/ProcedureStage
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ProcedureStageCreateConflict
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '422':
+        $ref: ../components/responses.yaml#/LimitExceeded
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+procedureRestore:
+  post:
+    operationId: restoreWorkOrderProcedure
+    tags: [procedures]
+    summary: Przywrócenie usuniętego procesu (tylko Administrator)
+    description: >-
+      Przywrócenie usuniętego procesu razem z jego etapami (EVM-042 AC3, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07,
+      SR-LOG-03). Tylko Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia;
+      niezalogowany — `401`; token mobilny — `403 forbidden` (kanał niedozwolony)); bez uwierzytelnienia kluczem dostępu (step-up dotyczy
+      przywracania zleceń, nie procesów). Kanał `web`, z audytem (`procedure.restored` — osobna akcja) i zdarzeniem dziennika
+      (`procedure_restored`: kod procesu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` usuniętego procesu, z
+      `listDeletedWorkOrderProcedures`): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Proces jest wyszukiwany
+      warunkiem `id AND work_order_id AND deleted_at is not null` w zapytaniu: proces innego zlecenia, nieistniejący i nieusunięty to
+      jedna odpowiedź `404`; `404` poprzedza `If-Match`. Kolejność po `404`: `If-Match`, zlecenie zamknięte (`409 work_order_closed`,
+      przed wersją), wersja (`412`), proces o tym kodzie już aktywny (`409 procedure_already_active`), limit 30 procesów (`422
+      limit_exceeded`). Proces wraca na zapamiętane miejsce (przycięte do końca listy; kolejne przesuwają się o jeden) w stanie
+      sprzed usunięcia. Odpowiedź `200` ma `ETag` procesu. Powtórka z tym samym `Idempotency-Key` — `200` z bieżącą reprezentacją i
+      `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '200':
+        description: >-
+          Proces przywrócony (albo powtórka wcześniejszego przywrócenia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja procesu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, procesem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/Procedure
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ProcedureRestoreConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/ProcedureUnprocessable
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+procedureStageRestore:
+  post:
+    operationId: restoreProcedureStage
+    tags: [procedures]
+    summary: Przywrócenie usuniętego etapu (tylko Administrator)
+    description: >-
+      Przywrócenie usuniętego etapu (EVM-042 AC3, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Tylko
+      Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token
+      mobilny — `403 forbidden` (kanał niedozwolony)), bez step-upu. Kanał `web`, z audytem (`procedure_stage.restored`) i zdarzeniem dziennika
+      (`stage_restored`: identyfikatory i kod procesu, bez nazwy). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`
+      usuniętego etapu): brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412`. Etap jest wyszukiwany warunkiem `id AND
+      work_order_id AND deleted_at is not null`: etap innego zlecenia, nieistniejący i nieusunięty to jedna odpowiedź `404`; `404`
+      poprzedza `If-Match`. Kolejność po `404`: `If-Match`, zlecenie zamknięte (`409 work_order_closed`), wersja (`412`), proces etapu
+      usunięty (`409 parent_deleted` — najpierw przywróć proces), limit 30 etapów (`422 limit_exceeded`, `too_many_stages`). Etap wraca
+      na zapamiętane miejsce (przycięte do końca; kolejne przesuwają się o jeden) w stanie sprzed usunięcia, a wersja procesu rośnie.
+      Odpowiedź `200` ma `ETag` etapu.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/ProcedureStageIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '200':
+        description: >-
+          Etap przywrócony (albo powtórka wcześniejszego przywrócenia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja etapu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, etapem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/ProcedureStage
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/ProcedureRestoreConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/ProcedureUnprocessable
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+deletedProcedures:
+  get:
+    operationId: listDeletedWorkOrderProcedures
+    tags: [procedures]
+    summary: Usunięte procesy i etapy zlecenia (tylko Administrator)
+    description: >-
+      Sekcja „Usunięte procesy i etapy (n)” W-06 (d) (EVM-042 AC3, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, SR-API-02). Tylko
+      Administrator (Edytor i Tylko odczyt — `403 forbidden` przed sprawdzeniem istnienia zlecenia; niezalogowany — `401`; token
+      mobilny — `403 forbidden` (kanał niedozwolony)), kanał `web`, bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, polityką odczytu
+      w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Odpowiedź zawiera tylko
+      to, czego potrzebuje wiersz z „Przywróć” (identyfikator, kod, nazwa, miejsce, liczba etapów, `procedureDeleted`, `version`,
+      `deletedAt`) — bez osób odpowiedzialnych, terminów, notatek, „czekamy na” i powodów blokady. Lista jest ograniczona: co najwyżej
+      100 najnowszych usuniętych procesów i 100 najnowszych usuniętych etapów (`truncated`), filtrowanie warunkiem w zapytaniu.
+      `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+    responses:
+      '200':
+        description: Usunięte procesy i etapy zlecenia (puste tablice, gdy nic nie usunięto).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/procedures.yaml#/DeletedProcedureList
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited

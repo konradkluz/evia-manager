@@ -56,6 +56,9 @@ export interface TemplatePaymentMilestoneForCopy {
   readonly paymentTermDays: number;
 }
 
+/** A process template as a process added by hand copies it (EVM-042 AC1): the code, the name and the stages in order. */
+export type ProcedureTemplateForCopy = Omit<TemplateProcedureForCopy, 'broughtByCatalogItemId'>;
+
 export interface TemplateDirectory {
   /** @returns the template with its items when it is active; `undefined` when it is missing, retired or deleted */
   findActiveForCopy(tx: Kysely<Database>, id: string): Promise<TemplateForCopy | undefined>;
@@ -64,6 +67,12 @@ export interface TemplateDirectory {
    * caller has resolved the template with {@link findActiveForCopy} in the same transaction; an unknown id gives an empty list.
    */
   findProceduresForCopy(tx: Kysely<Database>, templateId: string): Promise<TemplateProcedureForCopy[]>;
+  /**
+   * The ACTIVE process template with the stable code `code`, with its stages in order (EVM-042 AC1: a process added to an order by
+   * hand). A template that does not exist, is retired (`isActive = false`) or is deleted is the same answer, `undefined` (no
+   * oracle): the caller answers `422 template_unavailable`.
+   */
+  findActiveProcedureForCopy(tx: Kysely<Database>, code: string): Promise<ProcedureTemplateForCopy | undefined>;
   /**
    * The live milestones of the payment plan of a template in the order of the template (EVM-053 AC1). The caller has resolved the
    * template in the same transaction; an unknown id or a template without a plan gives an empty list.

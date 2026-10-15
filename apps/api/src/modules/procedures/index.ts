@@ -3,6 +3,9 @@ export { ProceduresModule } from './procedures.module.ts';
 export {
   PROCEDURE_EVENT_TYPES,
   PROCEDURE_JOURNAL_EVENT_TYPES,
+  type ProcedureAuditEvent,
+  type ProcedureEvent,
+  type ProcedureMembershipEvent,
   type ProcedureStageEvent,
   type StageFieldsChangedEvent,
   type StageJournalChangeEvent,

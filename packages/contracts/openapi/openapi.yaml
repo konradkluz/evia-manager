@@ -33,7 +33,7 @@ tags:
   - name: parties
     description: Strony (OSD, zarządcy, eksperci) — wyszukiwanie, dodanie w formularzu nowego zlecenia, szczegóły i edycja (moduł parties).
   - name: procedures
-    description: Procesy i etapy zlecenia — odczyt, osoba odpowiedzialna i termin etapu (moduł procedures).
+    description: Procesy i etapy zlecenia — odczyt, osoba odpowiedzialna i termin etapu, ręczne dodanie, usunięcie i przywrócenie procesu lub etapu (moduł procedures).
   - name: payments
     description: Płatności etapowe zlecenia — transze z planu szablonu, kwoty i sumy (moduł payments; tylko panel web).
   - name: timeline
@@ -101,6 +101,16 @@ paths:
     $ref: paths/procedures.yaml#/procedureStage
   /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions:
     $ref: paths/procedures.yaml#/procedureStageTransitions
+  /api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/restore:
+    $ref: paths/procedures.yaml#/procedureStageRestore
+  /api/v1/work-orders/{workOrderId}/procedures/{procedureId}:
+    $ref: paths/procedures.yaml#/procedure
+  /api/v1/work-orders/{workOrderId}/procedures/{procedureId}/stages:
+    $ref: paths/procedures.yaml#/procedureStages
+  /api/v1/work-orders/{workOrderId}/procedures/{procedureId}/restore:
+    $ref: paths/procedures.yaml#/procedureRestore
+  /api/v1/work-orders/{workOrderId}/deleted-procedures:
+    $ref: paths/procedures.yaml#/deletedProcedures
   /api/v1/payment-milestones:
     $ref: paths/payments.yaml#/unpaidPaymentMilestones
   /api/v1/work-orders/{workOrderId}/payment-milestones:
@@ -291,6 +301,16 @@ components:
       $ref: components/procedures.yaml#/TransitionProcedureStageRequest
     ProcedureStagePatch:
       $ref: components/procedures.yaml#/ProcedureStagePatch
+    CreateProcedureRequest:
+      $ref: components/procedures.yaml#/CreateProcedureRequest
+    CreateProcedureStageRequest:
+      $ref: components/procedures.yaml#/CreateProcedureStageRequest
+    DeletedProcedure:
+      $ref: components/procedures.yaml#/DeletedProcedure
+    DeletedProcedureStage:
+      $ref: components/procedures.yaml#/DeletedProcedureStage
+    DeletedProcedureList:
+      $ref: components/procedures.yaml#/DeletedProcedureList
     PaymentMilestoneStatus:
       $ref: components/payments.yaml#/PaymentMilestoneStatus
     PaymentMilestone:

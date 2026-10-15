@@ -44,6 +44,7 @@ export {
   ShieldX,
   ThumbsUp,
   TriangleAlert,
+  Undo2,
   Users,
   WifiOff,
   Wrench,

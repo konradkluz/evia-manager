@@ -187,7 +187,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     });
   });
 
-  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the seven entries leave the memory of the tab (EVM-053: the instalments too)', async () => {
+  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the eight entries leave the memory of the tab (EVM-053: the instalments too; EVM-042: the deleted ones, Administrator only)', async () => {
     let gone = false;
     const queryClient = createQueryClient();
     const api = detailsApi({
@@ -198,7 +198,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const keys = queryClient.getQueryCache().findAll({ predicate: (query) => query.queryKey[1] === ORDER_ID });
-    expect(keys).toHaveLength(7);
+    expect(keys).toHaveLength(8);
 
     gone = true;
     await act(async () => {
@@ -267,7 +267,7 @@ describe('notes as text (EVM-018 AC4; SR-WEB-03)', () => {
 });
 
 describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
-  it('EVM-018 AC5 the page asks for exactly seven reads anchored in the order (EVM-053: the instalments) — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
+  it('EVM-018 AC5 the page asks for exactly the reads anchored in the order (EVM-053: the instalments; EVM-042: the deleted processes, Administrator only) — only the UUID in the path, nothing in the query — and the tab title is the number', async () => {
     const api = detailsApi();
     await renderPanel(PATH, api);
     await screen.findByText('Instalacja zasilająca');
@@ -277,6 +277,7 @@ describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
       [
         `GET ${BASE}`,
         `GET ${BASE}/customer`,
+        `GET ${BASE}/deleted-procedures`,
         `GET ${BASE}/payment-milestones`,
         `GET ${BASE}/procedures`,
         `GET ${BASE}/scope-items`,
@@ -317,7 +318,9 @@ describe('roles (EVM-018 AC6; SR-AUTHZ-05)', () => {
       expect(screen.getByRole('heading', { name: 'Zakres (9 pozycji)' })).toBeTruthy();
       // "Edytuj lokalizację" and "Edytuj stronę…" are EVM-036 (A and E only, EVM-036 AC7), "Dodaj transzę" is EVM-053 (A and E
       // only, EVM-053 AC7); nothing else on the page changes anything
-      expect(screen.queryByRole('button', { name: /Dodaj(?! transzę)|Usuń|Przejdź do klienta/ })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Dodaj(?! transzę| proces)|Usuń|Przejdź do klienta/ })).toBeNull();
+      // "Dodaj proces…" is EVM-042 (A and E only, EVM-042 AC6)
+      expect(screen.queryAllByRole('button', { name: 'Dodaj proces…' })).toHaveLength(role === 'read_only' ? 0 : 1);
       // the section and (EVM-056) the tile "Płatności" of the summary
       expect(await screen.findAllByText('Brak transz.')).toHaveLength(2);
       expect(screen.queryAllByRole('button', { name: 'Dodaj transzę' })).toHaveLength(role === 'read_only' ? 0 : 1);

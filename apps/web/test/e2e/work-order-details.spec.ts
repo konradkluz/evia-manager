@@ -63,7 +63,7 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
     await expect(site.getByText('PL-TEST-0001')).toBeVisible();
     await expect(main.getByRole('heading', { level: 2, name: 'Zakres (9 pozycji)' })).toBeVisible();
     await expect(main.getByText('AC, 11 kW, 3 fazy')).toBeVisible();
-    // AC5: seven reads anchored in the order (EVM-036 added the other orders of the site, EVM-031 the processes, EVM-053 the
+    // AC5: the reads anchored in the order (EVM-036 added the other orders of the site, EVM-031 the processes, EVM-053 the
     // instalments), only the identifier in the path, nothing in the query string
     const mine = reads(api).filter((entry) => entry.url.includes(idOf(path)));
     expect(new Set(mine.map((entry) => new URL(entry.url).pathname.replace(idOf(path), '{id}')))).toEqual(
@@ -71,6 +71,8 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
         '/api/v1/work-orders/{id}',
         '/api/v1/work-orders/{id}/scope-items',
         '/api/v1/work-orders/{id}/procedures',
+        // EVM-042: the Administrator also reads the deleted processes and stages
+        '/api/v1/work-orders/{id}/deleted-procedures',
         '/api/v1/work-orders/{id}/payment-milestones',
         '/api/v1/work-orders/{id}/customer',
         '/api/v1/work-orders/{id}/site',
@@ -195,10 +197,13 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       // only open and close sections; the first process is open, so three stages show their menus and, from EVM-032, their status badges.
       // From EVM-035 the Editor also has the menu "Akcje zlecenia" and "Edytuj zakres"; Tylko odczyt has neither.
       // From EVM-034 the card "Podsumowanie" has "+ 6 procesów" (nine processes, three of them named) — one more button for everybody.
+      // From EVM-042 the Editor has "Dodaj proces…" and the menu of every one of the nine processes (ten more buttons).
       // From EVM-053 the Editor has "Dodaj transzę" and the menus of the four planned instalments; Tylko odczyt has neither.
       // From EVM-054 each of the four planned instalments also has the button of its row "Wystaw fakturę…".
       const reading = 11;
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 + 4 : reading);
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(
+        role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 + 10 + 4 : reading,
+      );
       await expect(page.getByRole('button', { name: 'Wystaw fakturę…' })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje transzy/ })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje zlecenia/ })).toHaveCount(role === 'editor' ? 1 : 0);

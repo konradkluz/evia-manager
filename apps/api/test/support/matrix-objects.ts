@@ -102,12 +102,22 @@ export async function procedureObjects(app: IdentityApp): Promise<Record<string,
   ]);
   const [own, other, deleted] = [...ids.values()];
   if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const gone = new Date('2026-10-01T08:00:00Z');
   const ownProcess = await insertProcedure(db, own);
   const otherProcess = await insertProcedure(db, other);
   await insertProcedure(db, deleted);
+  // EVM-042: a deleted process and a deleted stage of the live order, and the same pair in ANOTHER live order (the one an attacker names)
+  const ownGoneProcess = await insertProcedure(db, own, { position: 2, deletedAt: gone });
+  const ownGoneStageProcess = await insertProcedure(db, own, { position: 3, stages: [{}, { deletedAt: gone }] });
+  const otherGoneProcess = await insertProcedure(db, other, { position: 2, deletedAt: gone });
+  const otherGoneStageProcess = await insertProcedure(db, other, { position: 3, stages: [{}, { deletedAt: gone }] });
   const ownStage = ownProcess.stageIds[0];
   const otherStage = otherProcess.stageIds[0];
-  if (ownStage === undefined || otherStage === undefined) throw new Error('the fixture stages were not inserted');
+  const ownGoneStage = ownGoneStageProcess.stageIds[1];
+  const otherGoneStage = otherGoneStageProcess.stageIds[1];
+  if (ownStage === undefined || otherStage === undefined || ownGoneStage === undefined || otherGoneStage === undefined) {
+    throw new Error('the fixture stages were not inserted');
+  }
   return {
     listWorkOrderProcedures: { own: () => `${WORK_ORDERS}/${own}/procedures`, foreign: () => `${WORK_ORDERS}/${deleted}/procedures` },
     updateProcedureStage: {
@@ -117,6 +127,32 @@ export async function procedureObjects(app: IdentityApp): Promise<Record<string,
     transitionProcedureStage: {
       own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownStage}/transitions`,
       foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherStage}/transitions`,
+    },
+    // EVM-042: the addition (the order of the path is the object), the deletion and the restoration of a process and of a stage
+    createWorkOrderProcedure: { own: () => `${WORK_ORDERS}/${own}/procedures`, foreign: () => `${WORK_ORDERS}/${deleted}/procedures` },
+    createProcedureStage: {
+      own: () => `${WORK_ORDERS}/${own}/procedures/${ownProcess.id}/stages`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedures/${otherProcess.id}/stages`,
+    },
+    deleteWorkOrderProcedure: {
+      own: () => `${WORK_ORDERS}/${own}/procedures/${ownProcess.id}`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedures/${otherProcess.id}`,
+    },
+    restoreWorkOrderProcedure: {
+      own: () => `${WORK_ORDERS}/${own}/procedures/${ownGoneProcess.id}/restore`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedures/${otherGoneProcess.id}/restore`,
+    },
+    deleteProcedureStage: {
+      own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownStage}`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherStage}`,
+    },
+    restoreProcedureStage: {
+      own: () => `${WORK_ORDERS}/${own}/procedure-stages/${ownGoneStage}/restore`,
+      foreign: () => `${WORK_ORDERS}/${own}/procedure-stages/${otherGoneStage}/restore`,
+    },
+    listDeletedWorkOrderProcedures: {
+      own: () => `${WORK_ORDERS}/${own}/deleted-procedures`,
+      foreign: () => `${WORK_ORDERS}/${deleted}/deleted-procedures`,
     },
   };
 }

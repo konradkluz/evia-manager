@@ -5,8 +5,8 @@
  * (EVM-032, SR-DATA-02): no telephone, e-mail, contact person or note — and `null` when the party is no longer visible (deleted). Every answer is parsed with the schema of the
  * contract before it leaves, so only the fields of the contract can leave; a mismatch is a defect of the server (`500`), never data.
  */
-import { zProcedureList, zProcedureStage } from '@evia/contracts/zod';
-import type { ProcedureList, ProcedureStage } from '@evia/contracts';
+import { zProcedure, zProcedureList, zProcedureStage } from '@evia/contracts/zod';
+import type { Procedure, ProcedureList, ProcedureStage } from '@evia/contracts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { currentStageOf, isOpenStage, isOverdue, progressOf } from '../domain/stage-rules.ts';
 import { waitingDays } from '../domain/waiting.ts';
@@ -65,6 +65,32 @@ function stageView(stage: StageRow, names: ResponsibleNames, partyNames: PartyNa
 export const toProcedureStage = (stage: StageRow, names: ResponsibleNames, partyNames: PartyNames, today: string): ProcedureStage =>
   checked(zProcedureStage.safeParse(stageView(stage, names, partyNames, today)));
 
+function procedureView(procedure: ProcedureRow, own: readonly StageRow[], names: ResponsibleNames, partyNames: PartyNames, today: string) {
+  return {
+    id: procedure.id,
+    code: procedure.code,
+    name: procedure.name,
+    position: procedure.position,
+    // the scope item that brought the process (EVM-035 AC3) — it stays after the item is removed
+    ...(procedure.source_scope_item_id === null ? {} : { sourceScopeItemId: procedure.source_scope_item_id }),
+    // the tag of the delete and of the restore (EVM-042): it rises with the make-up of the process
+    version: procedure.version,
+    progress: progressOf(own),
+    // the first unfinished stage by position (EVM-034 D10), worked out here from the stages — not stored, no date in it
+    currentStageId: currentStageOf(own)?.id ?? null,
+    stages: own.map((stage) => stageView(stage, names, partyNames, today)),
+  };
+}
+
+/** One process with its (live) stages — the answer of an addition and of a restore (EVM-042). */
+export const toProcedure = (
+  procedure: ProcedureRow,
+  stages: readonly StageRow[],
+  names: ResponsibleNames,
+  partyNames: PartyNames,
+  today: string,
+): Procedure => checked(zProcedure.safeParse(procedureView(procedure, stages, names, partyNames, today)));
+
 export function toProcedureList(
   procedures: readonly ProcedureRow[],
   stages: readonly StageRow[],
@@ -74,21 +100,15 @@ export function toProcedureList(
 ): ProcedureList {
   return checked(
     zProcedureList.safeParse({
-      items: procedures.map((procedure) => {
-        const own = stages.filter((stage) => stage.procedure_id === procedure.id);
-        return {
-          id: procedure.id,
-          code: procedure.code,
-          name: procedure.name,
-          position: procedure.position,
-          // the scope item that brought the process (EVM-035 AC3) — it stays after the item is removed
-          ...(procedure.source_scope_item_id === null ? {} : { sourceScopeItemId: procedure.source_scope_item_id }),
-          progress: progressOf(own),
-          // the first unfinished stage by position (EVM-034 D10), worked out here from the stages — not stored, no date in it
-          currentStageId: currentStageOf(own)?.id ?? null,
-          stages: own.map((stage) => stageView(stage, names, partyNames, today)),
-        };
-      }),
+      items: procedures.map((procedure) =>
+        procedureView(
+          procedure,
+          stages.filter((stage) => stage.procedure_id === procedure.id),
+          names,
+          partyNames,
+          today,
+        ),
+      ),
       openStageCount: stages.filter((stage) => isOpenStage(stage.status)).length,
     }),
   );

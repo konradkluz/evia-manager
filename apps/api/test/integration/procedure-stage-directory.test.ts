@@ -57,6 +57,32 @@ describe('the facade of the stages for the journal (EVM-037 AC7; SR-AUTHZ-02; CW
     });
   });
 
+  it('EVM-042 AC5 the lock covers the PROCESS of the stage too: while an entry holds it, the row of the process cannot be taken by the deletion of the process (and the stage cannot be deleted either)', async () => {
+    const orderId = await insertOrder();
+    const { id: processId, stageIds } = await insertProcedure(database.admin, orderId, { stages: [{}] });
+    const stageId = stageIds[0] ?? '';
+    await database.admin.transaction().execute(async (entry) => {
+      expect(await directory.existsInOrder(entry, orderId, stageId, { lock: true })).toBe(true);
+      // another connection: the update of the process (what its deletion does) would have to wait — NOWAIT says so at once
+      await expect(
+        database.admin
+          .transaction()
+          .execute((other) => sql`select id from procedures.procedures where id = ${processId} for no key update nowait`.execute(other)),
+      ).rejects.toMatchObject({ code: '55P03' });
+      await expect(
+        database.admin
+          .transaction()
+          .execute((other) =>
+            sql`select id from procedures.procedure_stages where id = ${stageId} for no key update nowait`.execute(other),
+          ),
+      ).rejects.toMatchObject({ code: '55P03' });
+    });
+    // once the entry is written (the transaction ended) the process can be taken again
+    await database.admin
+      .transaction()
+      .execute((other) => sql`select id from procedures.procedures where id = ${processId} for no key update nowait`.execute(other));
+  });
+
   it('EVM-037 AC1 names come in one query, only for the order given; a deleted stage keeps its name', async () => {
     const orderA = await insertOrder();
     const orderB = await insertOrder();

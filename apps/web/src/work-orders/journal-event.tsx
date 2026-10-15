@@ -71,6 +71,8 @@ interface Names {
 const NO_NAMES: Names = { item: () => undefined, process: () => undefined };
 
 const SCOPE_CODES: ReadonlySet<string> = new Set(['scope_item_added', 'scope_item_updated', 'scope_item_removed']);
+/** EVM-042: the events of a process carry its code only; the name comes from the catalogue of the templates. */
+const PROCEDURE_CODES: ReadonlySet<string> = new Set(['procedure_added', 'procedure_removed', 'procedure_restored']);
 
 function orderFieldsText(t: TFunction, fields: readonly string[]): string {
   const known: ReadonlyArray<readonly [string, string]> = [
@@ -174,6 +176,43 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
         text: name === undefined ? t('workOrder.journal.event.scopeRemovedNoName') : t('workOrder.journal.event.scopeRemoved', { name }),
       };
     }
+    case 'procedure_added':
+    case 'procedure_removed':
+    case 'procedure_restored': {
+      const name = event.procedureCodes?.[0] === undefined ? undefined : names.process(event.procedureCodes[0]);
+      if (event.code === 'procedure_added') {
+        return {
+          text:
+            name === undefined ? t('workOrder.journal.event.procedureAddedNoName') : t('workOrder.journal.event.procedureAdded', { name }),
+        };
+      }
+      if (event.code === 'procedure_removed') {
+        return {
+          text:
+            name === undefined
+              ? t('workOrder.journal.event.procedureRemovedNoName')
+              : t('workOrder.journal.event.procedureRemoved', { name }),
+        };
+      }
+      return {
+        text:
+          name === undefined
+            ? t('workOrder.journal.event.procedureRestoredNoName')
+            : t('workOrder.journal.event.procedureRestored', { name }),
+      };
+    }
+    case 'stage_added':
+      return {
+        text: named ? t('workOrder.journal.event.stageAdded', { stage: stageName }) : t('workOrder.journal.event.stageAddedNoName'),
+      };
+    case 'stage_removed':
+      return {
+        text: named ? t('workOrder.journal.event.stageRemoved', { stage: stageName }) : t('workOrder.journal.event.stageRemovedNoName'),
+      };
+    case 'stage_restored':
+      return {
+        text: named ? t('workOrder.journal.event.stageRestored', { stage: stageName }) : t('workOrder.journal.event.stageRestoredNoName'),
+      };
     default:
       return { text: t('workOrder.journal.event.unknown') };
   }
@@ -187,14 +226,16 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
 export function JournalEventContent({ entry }: { readonly entry: Entry & { readonly event: TimelineEvent } }) {
   const { t } = useTranslation();
   const scoped = SCOPE_CODES.has(entry.event.code);
+  const ofProcedure = PROCEDURE_CODES.has(entry.event.code);
   const items = useServiceItems(scoped);
-  const templates = useProcedureTemplates(scoped && (entry.event.procedureCodes?.length ?? 0) > 0);
-  const names: Names = scoped
-    ? {
-        item: (code) => items.data?.find((item) => item.code === code)?.name,
-        process: (code) => templates.data?.find((template) => template.code === code)?.name,
-      }
-    : NO_NAMES;
+  const templates = useProcedureTemplates((scoped || ofProcedure) && (entry.event.procedureCodes?.length ?? 0) > 0);
+  const names: Names =
+    scoped || ofProcedure
+      ? {
+          item: (code) => items.data?.find((item) => item.code === code)?.name,
+          process: (code) => templates.data?.find((template) => template.code === code)?.name,
+        }
+      : NO_NAMES;
   const { text, badge } = compose(t, entry.event, entry.procedureStageName, names);
   return (
     <div className="flex flex-wrap items-center gap-x-inline-sm gap-y-stack-xs">

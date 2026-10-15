@@ -48,7 +48,9 @@ describe('procedures contract (EVM-031; SR-AUTHZ-01, SR-AUTHZ-04, SR-API-02, SR-
     const paths = Object.values(AUTHZ_MANIFEST).map((operation) => operation.path);
     expect(paths.filter((path) => path.includes('{stageId}'))).toEqual([
       '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}',
+      '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}',
       '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/transitions',
+      '/api/v1/work-orders/{workOrderId}/procedure-stages/{stageId}/restore',
     ]);
     expect(zUpdateProcedureStagePath.safeParse({ workOrderId: V7, stageId: V7 }).success).toBe(true);
     expect(zUpdateProcedureStagePath.safeParse({ workOrderId: V7, stageId: 'x' }).success).toBe(false);

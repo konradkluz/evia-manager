@@ -143,12 +143,17 @@ export function planAddedProcedures(input: AddedProceduresInput): PlannedProcedu
   // the active positions are unique within 1…30, so there are as many free ones as processes — unless the positions the caller
   // read do not agree with its codes; then nothing is planned (a number that is not free would fail the unique index)
   if (positions.length < fresh.length) throw new CompositionLimitError('too_many_procedures');
-  return fresh.map((procedure, index): PlannedProcedure => ({
+  return fresh.map((procedure, index): PlannedProcedure => copyOf(procedure, positions[index] as number, input.scopeItemId));
+}
+
+/** A COPY of a process template with its stages in order, numbered 1…n (every stage is `todo`: the server decides it). */
+function copyOf(procedure: ProcedureToCopy, position: number, sourceScopeItemId: string | null): PlannedProcedure {
+  return {
     sourceProcedureTemplateId: procedure.sourceProcedureTemplateId,
-    sourceScopeItemId: input.scopeItemId,
+    sourceScopeItemId,
     code: procedure.code,
     name: procedure.name,
-    position: positions[index] as number,
+    position,
     stages: [...procedure.stages]
       .sort((a, b) => a.position - b.position)
       .map((stage, stageIndex) => ({
@@ -158,5 +163,19 @@ export function planAddedProcedures(input: AddedProceduresInput): PlannedProcedu
         position: stageIndex + 1,
         outputDocumentKindCodes: stage.outputDocumentKindCodes,
       })),
-  }));
+  };
+}
+
+/** A process template as the copy needs it (the catalogue item that brought it is of no interest to a process added by hand). */
+export type ProcedureToCopy = Omit<TemplateProcedure, 'broughtByCatalogItemId'>;
+
+/**
+ * The process ADDED BY HAND (EVM-042 AC1; domain-model.md → `Procedure`): a COPY of the template at `position`, every stage `todo`,
+ * brought by no scope item. The caller has checked that the code is not active yet and that the order has room for one more process.
+ *
+ * @throws {CompositionLimitError} when the template brings more than 30 stages — nothing is cut off
+ */
+export function planProcedureCopy(template: ProcedureToCopy, position: number): PlannedProcedure {
+  if (template.stages.length > MAX_STAGES_PER_PROCEDURE) throw new CompositionLimitError('too_many_stages');
+  return copyOf(template, position, null);
 }

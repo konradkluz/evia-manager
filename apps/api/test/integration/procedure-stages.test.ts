@@ -172,6 +172,7 @@ describe('the processes of an order (EVM-031 AC2, AC4, AC8; SR-AUTHZ-02, SR-DATA
       'position',
       'progress',
       'stages',
+      'version', // EVM-042 (additive): the tag of the delete and of the restore of the process
     ]);
     expect(Object.keys(body.items[0]?.stages[0] ?? {}).sort()).toEqual(
       [

@@ -25,6 +25,17 @@ const itemBase = {
   itemCode: 'supply_installation',
 } as const;
 
+const PROCESS = '0198b0a0-0000-7000-8000-000000000006';
+const processBase = {
+  actor,
+  outcome: 'success',
+  objectType: 'procedure',
+  objectId: PROCESS,
+  workOrderId: ORDER,
+  procedureCode: 'fire_opinion',
+} as const;
+const manualStageBase = { ...stageBase, procedureCode: 'fire_opinion' } as const;
+
 describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () => {
   it('EVM-038 AC1 every source event becomes ONE entry with the code, the order, the stage and the actor', () => {
     const cases: Array<[JournalSourceEvent, string, string | null]> = [
@@ -75,6 +86,12 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
       [{ ...itemBase, type: 'work_order.scope_item_added', procedureCodes: ['electrical_installation'] }, 'scope_item_added', null],
       [{ ...itemBase, type: 'work_order.scope_item_updated', changedFields: ['parameters'] }, 'scope_item_updated', null],
       [{ ...itemBase, type: 'work_order.scope_item_removed' }, 'scope_item_removed', null],
+      [{ ...processBase, type: 'procedure.added' }, 'procedure_added', null],
+      [{ ...processBase, type: 'procedure.removed' }, 'procedure_removed', null],
+      [{ ...processBase, type: 'procedure.reinstated' }, 'procedure_restored', null],
+      [{ ...manualStageBase, type: 'procedure_stage.added' }, 'stage_added', STAGE],
+      [{ ...manualStageBase, type: 'procedure_stage.removed' }, 'stage_removed', STAGE],
+      [{ ...manualStageBase, type: 'procedure_stage.reinstated' }, 'stage_restored', STAGE],
       [
         {
           type: 'payment_milestone.status_changed',
@@ -305,6 +322,53 @@ describe('the events of the data and the scope of an order (EVM-035 AC7; SR-LOG-
       code: UNKNOWN_EVENT_CODE,
       objectType: null,
       itemCode: null,
+    });
+  });
+});
+
+describe('journal events of the processes and stages added by hand (EVM-042 AC5; SR-LOG-03, SR-DATA-01)', () => {
+  it('EVM-042 AC5 the payload of a process holds the object and the code of the process — nothing else', () => {
+    expect(toJournalEvent({ ...processBase, type: 'procedure.added' }).payload).toEqual({
+      objectType: 'procedure',
+      objectId: PROCESS,
+      procedureCode: 'fire_opinion',
+    });
+  });
+
+  it('EVM-042 AC5 the payload of a stage holds the stage and the code of its process — never the name of the stage, a person or a day', () => {
+    const noisy = {
+      ...manualStageBase,
+      type: 'procedure_stage.added',
+      name: 'Uzgodnienie z Janem Kowalskim',
+      responsibleUserId: USER,
+      dueDate: '2026-10-30',
+    } as unknown as JournalSourceEvent;
+    const entry = toJournalEvent(noisy);
+    expect(entry.payload).toEqual({ objectType: 'procedure_stage', objectId: STAGE, procedureCode: 'fire_opinion' });
+    expect(JSON.stringify(entry.payload)).not.toMatch(/Kowalski|2026-10-30/);
+    expect(entry.procedureStageId).toBe(STAGE);
+  });
+
+  it('EVM-042 AC5 a code that is not a stable code of the catalogue (a name, a capital letter) is refused: fail closed', () => {
+    expect(() => toJournalEvent({ ...processBase, type: 'procedure.removed', procedureCode: 'Opinia ppoż' })).toThrow();
+    expect(() => toJournalEvent({ ...manualStageBase, type: 'procedure_stage.removed', procedureCode: 'Fire' })).toThrow();
+  });
+
+  it('EVM-042 AC5 reading gives the one code of the process as a list; a payload that does not fit is the neutral view', () => {
+    expect(
+      readJournalEvent('stage_removed', { objectType: 'procedure_stage', objectId: STAGE, procedureCode: 'fire_opinion', later: 1 }),
+    ).toMatchObject({ code: 'stage_removed', objectType: 'procedure_stage', procedureCodes: ['fire_opinion'], itemCode: null });
+    expect(
+      readJournalEvent('procedure_added', { objectType: 'procedure', objectId: PROCESS, procedureCode: 'fire_opinion' }),
+    ).toMatchObject({
+      code: 'procedure_added',
+      objectType: 'procedure',
+      procedureCodes: ['fire_opinion'],
+    });
+    expect(readJournalEvent('procedure_restored', { objectType: 'procedure', objectId: 'x' })).toMatchObject({
+      code: UNKNOWN_EVENT_CODE,
+      objectType: null,
+      procedureCodes: null,
     });
   });
 });

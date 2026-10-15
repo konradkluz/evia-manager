@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { auditRecordSchema, toAuditRecord } from '../../src/modules/audit/domain/audit-record.ts';
+import { AUDIT_ACTIONS, AUDIT_OBJECT_TYPES, auditRecordSchema, toAuditRecord } from '../../src/modules/audit/domain/audit-record.ts';
 import { truncateIp } from '../../src/modules/audit/domain/ip-prefix.ts';
 import { AuditSubscriber } from '../../src/modules/audit/audit.module.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../src/modules/payments/index.ts';
-import { PROCEDURE_EVENT_TYPES, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
+import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
@@ -451,6 +451,44 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
     );
     expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
     expect(failures.every((failure) => failure !== '')).toBe(true);
+  });
+});
+
+describe('audit of the processes and stages added, deleted and restored by hand (EVM-042 AC3, AC5; SR-LOG-03, TM-21)', () => {
+  const context = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session } as const;
+  const actor = { type: 'user', userId: user } as const;
+
+  it('EVM-042 AC5 every action has a record of its own: the actor, the object, the outcome and the trace — and nothing else', () => {
+    const cases = [
+      ['procedure.created', 'procedure'],
+      ['procedure.deleted', 'procedure'],
+      ['procedure.restored', 'procedure'],
+      ['procedure_stage.created', 'procedure_stage'],
+      ['procedure_stage.deleted', 'procedure_stage'],
+      ['procedure_stage.restored', 'procedure_stage'],
+    ] as const;
+    for (const [type, objectType] of cases) {
+      const record = toAuditRecord({ type, actor, outcome: 'success', objectType, objectId: session } as ProcedureAuditEvent, context, at);
+      expect(record, type).toMatchObject({
+        action: type,
+        objectType,
+        objectId: session,
+        outcome: 'success',
+        actorUserId: user,
+        ipPrefix: '203.0.113.0/24',
+        reasonCode: null,
+        amountBeforeMinor: null,
+        amountAfterMinor: null,
+        currency: null,
+      });
+    }
+  });
+
+  it('EVM-042 AC5 the removal and the return of a record are told apart from a change in the list of actions of the trail', () => {
+    for (const action of ['procedure.deleted', 'procedure.restored', 'procedure_stage.deleted', 'procedure_stage.restored']) {
+      expect(AUDIT_ACTIONS).toContain(action);
+    }
+    expect(AUDIT_OBJECT_TYPES).toContain('procedure');
   });
 });
 

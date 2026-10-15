@@ -4,7 +4,7 @@ title: Podpowiedź lokalizacji klienta w nowym zleceniu
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-review
+status: done
 priority: P2
 path: pelna
 owner: web-developer
@@ -77,7 +77,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Notatki
 - Bez migracji (numer 0033 pozostaje wolny dla EVM-042), bez nowej operacji i bez ADR; `siteType` w `WorkOrderListSite` działa też w wyszukiwarce zleceń i historii klienta W-14 (ten sam `WorkOrderListItem`).
@@ -95,3 +95,5 @@ _—_
 - 2026-10-14 — po przeglądzie (web-developer, `7872479`): stały region `role="status"` dla ładowania i offline, uproszczona obsługa 429, zrzuty stanów ładowania i błędu
 - 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage 697/698, 543/573), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 9 wywołań agentów, ok. 0,61 mln tokenów subagentów, ok. 76 min (+ poprawki po przeglądzie); rundy poprawek 0; ścieżka pełna; model domyślny
+- 2026-10-15 — przed scaleniem: testy pozostałych gałęzi podpowiedzi (`04956af`; diff-coverage gałęzi kodu EVM-043 98,6%)
+- 2026-10-15 — scalona do `main` (PR #78, `290c178`); in-review → done

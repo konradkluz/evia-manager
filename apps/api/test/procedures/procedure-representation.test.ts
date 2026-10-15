@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ProblemException } from '../../src/platform/http/problem.ts';
 import {
   responsibleIdsOf,
+  toProcedure,
   toProcedureList,
   toProcedureStage,
   waitingPartyIdsOf,
@@ -41,6 +42,7 @@ const procedure = (id: string, position: number, sourceScopeItemId: string | nul
   name: `Proces ${id}`,
   position,
   source_scope_item_id: sourceScopeItemId,
+  version: 4,
 });
 
 describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () => {
@@ -117,6 +119,23 @@ describe('the answers of the processes (EVM-031 AC2, AC3, AC4; SR-DATA-03)', () 
     const list = toProcedureList([procedure(P1, 1, item), procedure(P2, 2)], [], new Map(), new Map(), '2026-10-03');
     expect(list.items[0]).toMatchObject({ sourceScopeItemId: item });
     expect(Object.keys(list.items[1] ?? {})).not.toContain('sourceScopeItemId');
+  });
+
+  it('EVM-042 AC3 one process with its live stages: the version is the tag of the delete and of the restore, the progress counts the stages of THIS process only', () => {
+    const own = stage({ procedure_id: P1, position: 1, status: 'done' });
+    const view = toProcedure(
+      procedure(P1, 2),
+      [own, stage({ procedure_id: P1, position: 2, status: 'todo' })],
+      new Map(),
+      new Map(),
+      '2026-10-03',
+    );
+    expect(view).toMatchObject({ id: P1, position: 2, version: 4, progress: { done: 1, total: 2 } });
+    expect(view.stages.map((item) => item.position)).toEqual([1, 2]);
+    expect(Object.keys(view)).not.toContain('sourceScopeItemId');
+    expect(() => toProcedure(procedure(P1, 2), [stage({ status: 'finished' as never })], new Map(), new Map(), '2026-10-03')).toThrow(
+      ProblemException,
+    );
   });
 
   it('EVM-031 AC8 no processes is an empty list', () => {

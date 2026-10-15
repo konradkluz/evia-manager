@@ -3,6 +3,7 @@ export { CatalogModule } from './catalog.module.ts';
 export { CatalogReadService } from './application/catalog-read.service.ts';
 export {
   TEMPLATE_DIRECTORY,
+  type ProcedureTemplateForCopy,
   type TemplateDirectory,
   type TemplateForCopy,
   type TemplatePaymentMilestoneForCopy,

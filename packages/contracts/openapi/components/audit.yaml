@@ -35,6 +35,12 @@ AuditAction:
     - scope_item.deleted
     - procedure_stage.updated
     - procedure_stage.transitioned
+    - procedure.created
+    - procedure.deleted
+    - procedure.restored
+    - procedure_stage.created
+    - procedure_stage.deleted
+    - procedure_stage.restored
     - timeline_entry.created
     - payment_milestone.created
     - payment_milestone.amount_changed
@@ -55,7 +61,22 @@ AuditOutcome:
 AuditObjectType:
   type: string
   description: Typ obiektu, którego dotyczy zdarzenie.
-  enum: [user, session, passkey, audit, work_order, scope_item, customer, site, party, procedure_stage, timeline_entry, payment_milestone]
+  enum:
+    [
+      user,
+      session,
+      passkey,
+      audit,
+      work_order,
+      scope_item,
+      customer,
+      site,
+      party,
+      procedure,
+      procedure_stage,
+      timeline_entry,
+      payment_milestone,
+    ]
 AuditReasonCode:
   type: string
   description: Kod powodu (zamknięta lista, bez wolnego tekstu).
