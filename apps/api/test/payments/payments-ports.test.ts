@@ -77,12 +77,12 @@ describe('the participant of the transitions of an order (EVM-053 AC6; SR-API-06
     request: { origin: 'web', traceId: '4bf92f3577b34da6a3ce929d0e0e4736' },
   });
 
-  it('EVM-053 AC6 it registers itself under the name "payments"; a target other than settled has no condition and other than cancelled no effect (no query at all)', async () => {
+  it('EVM-053 AC6 EVM-054 AC6 it registers itself under the name "payments"; a target other than settled and cancelled has no condition and other than cancelled no effect (no query at all)', async () => {
     const registry = new WorkOrderTransitionRegistry();
     const participant = new PaymentsTransitionParticipant(registry, new EventBus());
     participant.onModuleInit();
     expect(registry.ordered().map((item) => item.name)).toEqual(['payments']);
-    for (const to of ['accepted', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const) {
+    for (const to of ['accepted', 'in_progress', 'on_hold', 'completed'] as const) {
       expect(await participant.check(TRANSACTION, context(to)), to).toBeUndefined();
     }
     for (const to of ['accepted', 'in_progress', 'on_hold', 'completed', 'settled'] as const) {

@@ -4,8 +4,11 @@ import { LoaderCircle, type Icon } from './icons.ts';
 
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'disabled'> {
   readonly children: ReactNode;
-  /** Variants of styleguide § 3.1 used so far: primary (one per view), secondary (outline), tertiary (text). */
-  readonly variant?: 'primary' | 'secondary' | 'tertiary';
+  /**
+   * Variants of styleguide § 3.1 used so far: primary (one per view), secondary (outline), tertiary (text), danger (an action that
+   * the same person cannot reverse — e.g. "Anuluj transzę", which only the Administrator restores; never with "Cofnij").
+   */
+  readonly variant?: 'primary' | 'secondary' | 'tertiary' | 'danger';
   /** md is the default, lg is the main action of a card form (W-13). */
   readonly size?: 'md' | 'lg';
   /** Leading icon; replaced by the loading icon while `loading`. */
@@ -24,9 +27,11 @@ const VARIANTS = {
     'border-w-strong border-action-secondary-border bg-action-secondary-bg text-action-secondary-text hover:bg-action-secondary-bg-hover active:bg-action-secondary-bg-pressed aria-disabled:border-action-secondary-border-disabled aria-disabled:text-action-secondary-text-disabled',
   tertiary:
     'text-action-tertiary-text hover:bg-action-tertiary-bg-hover active:bg-action-tertiary-bg-pressed aria-disabled:text-action-tertiary-text-disabled',
+  danger:
+    'bg-action-danger-bg text-action-danger-text hover:bg-action-danger-bg-hover active:bg-action-danger-bg-pressed aria-disabled:bg-action-danger-bg-disabled aria-disabled:text-action-danger-text-disabled',
 } as const;
 
-/** Button (styleguide § 3.1): primary, secondary and tertiary, md and lg, with loading and disabled states. */
+/** Button (styleguide § 3.1): primary, secondary, tertiary and danger, md and lg, with loading and disabled states. */
 export function Button({
   children,
   className,

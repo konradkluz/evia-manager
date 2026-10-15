@@ -26,4 +26,6 @@ export const workOrderSortLabels: Readonly<Record<WorkOrderSort, string>> = {
   // the two sorts of "Czekamy na…" (EVM-034): the panel offers them in its own step of the story; the label exists so the Record compiles
   longestWaitingSince: 'Najdłużej czekamy',
   nextDueDate: 'Termin',
+  // "Najpilniejsze" (EVM-056): the default sort of W-10
+  urgency: 'Najpilniejsze',
 };

@@ -23,6 +23,8 @@ export async function insertAuditRecord(tx: Kysely<Database>, record: AuditRecor
       amount_before_minor: record.amountBeforeMinor,
       amount_after_minor: record.amountAfterMinor,
       currency: record.currency,
+      from_code: record.fromCode,
+      to_code: record.toCode,
     })
     .execute();
 }

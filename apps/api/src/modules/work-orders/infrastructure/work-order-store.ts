@@ -3,7 +3,7 @@
  * condition of the query, never a filter of the result (SR-AUTHZ-03). Every query names its columns (no `select *`), so a column
  * that is not in the contract (`created_by`, `deleted_by`) cannot leak into a response (SR-DATA-03).
  */
-import { sql } from 'kysely';
+import { sql, type SqlBool } from 'kysely';
 import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
@@ -307,4 +307,30 @@ export async function searchVisibleIds(db: WorkOrdersDb, principal: Principal, t
     .limit(limit)
     .execute();
   return rows.map((row) => row.id);
+}
+
+export interface VisibleOrderRef {
+  readonly number: string;
+  readonly title: string;
+  readonly customerId: string | null;
+}
+
+/**
+ * The number, the title and the customer of the orders among `ids` that the caller may see, in ONE query with the read policy in it
+ * (EVM-055; ADR-0017 W2). The identifiers travel as ONE array parameter (`= any($1::uuid[])`), however many they are. Only a narrowing
+ * of a set that the caller's module has already started — never a source of permission (SR-AUTHZ-03).
+ */
+export async function findVisibleRefs(
+  db: WorkOrdersDb,
+  principal: Principal,
+  ids: readonly string[],
+): Promise<Map<string, VisibleOrderRef>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'number', 'title', 'customer_id'])
+    .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
+    .where(visibleWorkOrders(principal))
+    .execute();
+  return new Map(rows.map((row) => [row.id, { number: row.number, title: row.title, customerId: row.customer_id }]));
 }

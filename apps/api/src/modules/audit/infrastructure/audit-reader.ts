@@ -24,6 +24,8 @@ export interface AuditRow {
   readonly ipPrefix: string | null;
   readonly amountBeforeMinor: number | null;
   readonly amountAfterMinor: number | null;
+  readonly fromCode: string | null;
+  readonly toCode: string | null;
 }
 
 /** A `bigint` of the driver (text) as a number of grosze — a value that is not a safe integer is an error, never a rounded number. */
@@ -59,6 +61,8 @@ function selectAuditPage(tx: Kysely<Database>, query: AuditQuery) {
       'ip_prefix as ipPrefix',
       'amount_before_minor as amountBefore',
       'amount_after_minor as amountAfter',
+      'from_code as fromCode',
+      'to_code as toCode',
     ])
     .where('occurred_at', '>=', query.from)
     .where('occurred_at', '<=', query.to);

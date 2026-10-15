@@ -22,6 +22,7 @@ import { requirePreCommitRegistry, type PreCommitParticipant } from '../../../pl
 import type { DomainEvent, EventBus } from '../../../platform/events/event-bus.ts';
 import { EVENT_BUS } from '../../../platform/tokens.ts';
 import { PARTY_EVENT_TYPES } from '../../parties/index.ts';
+import { PAYMENT_MILESTONE_EVENT_TYPES, PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES } from '../../payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, PROCEDURE_JOURNAL_EVENT_TYPES } from '../../procedures/index.ts';
 import { PROCEDURE_PROJECTION_SOURCE, type ProcedureProjectionSource } from '../../procedures/system-ports.ts';
 import { SITE_EVENT_TYPES } from '../../sites/index.ts';
@@ -44,6 +45,10 @@ export const PROJECTION_EVENT_TYPES: readonly string[] = [
   ...PROCEDURE_JOURNAL_EVENT_TYPES,
   ...SITE_EVENT_TYPES,
   ...PARTY_EVENT_TYPES,
+  // the milestones (EVM-056; P4): every change of a status, a due date or a deletion names its order (`workOrderId`); the milestones
+  // copied from a template are part of `work_order.created`, which recomputes the order after they are inserted (before COMMIT)
+  ...PAYMENT_MILESTONE_EVENT_TYPES,
+  ...PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES,
 ];
 
 @Injectable()

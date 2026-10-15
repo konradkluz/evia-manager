@@ -21,6 +21,13 @@ function order(index: number, overrides: Partial<WorkOrderListItem> = {}): WorkO
     status: 'in_progress',
     coordinator: ANNA,
     createdAt: '2026-10-04T12:05:00.000Z',
+    // EVM-056: no instalment invoiced ("—" in the column "Płatność", "brak wystawionych transz" at the end of the name of the row)
+    payment: {
+      state: 'none',
+      invoicedCount: 0,
+      invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+      overdueTotal: { amountMinor: 0, currency: 'PLN' },
+    },
     waiting: null,
     nextDueDate: null,
     hasOverdueStage: false,
@@ -48,7 +55,7 @@ function listApi(handler: Handler = ok(), session = ACTIVE_SESSION) {
 }
 
 const lastQuery = (api: ReturnType<typeof listApi>): URLSearchParams => api.calls(LIST).at(-1)?.query ?? new URLSearchParams();
-// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin, Opiekun, Utworzono (EVM-072 added the first two).
+// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin (EVM-072 added the first two; "Opiekun" and "Utworzono" are lines of the first cell).
 const WAITING = 4;
 const DUE = 5;
 const cellsOf = async (index = 0) => {
@@ -120,10 +127,10 @@ describe('W-10 column "Czekamy na" (EVM-034 AC1)', () => {
     expect(first.querySelector('[aria-hidden="true"]')?.textContent).toBe('—');
     const links = within(await screen.findByRole('table')).getAllByRole('link');
     expect(links[0]?.getAttribute('aria-label')).toBe(
-      'ZL-2026-0001, Garaż — pełny proces 1, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026',
+      'ZL-2026-0001, Garaż — pełny proces 1, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026, brak wystawionych transz',
     );
     expect(links[1]?.getAttribute('aria-label')).toBe(
-      'ZL-2026-0002, Garaż — pełny proces 2, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026, czekamy na: Stoen Operator (OSD), od 15 dni, termin: 30.09.2026, po terminie',
+      'ZL-2026-0002, Garaż — pełny proces 2, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026, czekamy na: Stoen Operator (OSD), od 15 dni, termin: 30.09.2026, po terminie, brak wystawionych transz',
     );
   });
 

@@ -213,11 +213,12 @@ describe('the filter "dłużej niż X dni" (EVM-034 AC2; D1)', () => {
     expect(problem(await call(session, '?waitingLongerThanDays=14&waitingLongerThanDays=15')).code).toBe('duplicate_parameter');
     expect(problem(await call(session, '?waitingOn=customer&waitingOn=party')).code).toBe('duplicate_parameter');
     expect(problem(await call(session, '?waitingFor=party')).code).toBe('unknown_parameter');
-    for (const query of ['?waitingOn=osd', '?waitingOnPartyKind=Stoen', '?sort=-longestWaitingSince', '?view=overdue_payments']) {
+    // `overdue_payments` became a value of the enum in EVM-056: `overdue` stays outside the list
+    for (const query of ['?waitingOn=osd', '?waitingOnPartyKind=Stoen', '?sort=-longestWaitingSince', '?view=overdue']) {
       const response = await call(session, query);
       expect(response.status, query).toBe(400);
       expect(problem(response).code, query).toBe('validation_failed');
-      expect(JSON.stringify(response.body)).not.toMatch(/osd|Stoen|overdue_payments/);
+      expect(JSON.stringify(response.body)).not.toMatch(/osd|Stoen|overdue/);
     }
   });
 

@@ -20,6 +20,13 @@ function order(index: number, overrides: Partial<WorkOrderListItem> = {}): WorkO
     status: 'in_progress',
     coordinator: ANNA,
     createdAt: '2026-10-04T12:05:00.000Z',
+    // EVM-056: no instalment invoiced ("—" in the column "Płatność", "brak wystawionych transz" at the end of the name of the row)
+    payment: {
+      state: 'none',
+      invoicedCount: 0,
+      invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+      overdueTotal: { amountMinor: 0, currency: 'PLN' },
+    },
     ...overrides,
   };
 }
@@ -43,7 +50,7 @@ afterEach(() => {
 });
 
 describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
-  it('EVM-017 AC1 the default view asks for "Wszystkie niezamknięte" newest number first, 25 on a page, and shows the columns', async () => {
+  it('EVM-017 AC1 EVM-056 AC3 the default view asks for "Wszystkie niezamknięte" by "Najpilniejsze", 25 on a page, and shows the columns', async () => {
     const api = listApi(
       ok([
         order(2, { title: 'Dom — pełny pakiet', status: 'quoting', coordinator: null, createdAt: '2026-10-05T22:30:00.000Z' }),
@@ -54,7 +61,8 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
     const table = await screen.findByRole('table', { name: 'Lista zleceń' });
     const query = lastQuery(api);
     expect(query.get('view')).toBe('all_open');
-    expect(query.get('sort')).toBe('-number');
+    // EVM-056 AC3: "Najpilniejsze" is the default of W-10 (it was the newest number in EVM-017).
+    expect(query.get('sort')).toBe('urgency');
     expect(query.get('limit')).toBe('25');
     expect(query.has('status')).toBe(false);
     expect(query.has('cursor')).toBe(false);
@@ -62,37 +70,40 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Opiekun', 'Utworzono']);
-    expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).getAttribute('aria-sort')).toBe('descending');
+    ).toEqual(['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność']);
+    // "Najpilniejsze" is a composite order: no column carries aria-sort (§ 4.2).
+    expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).hasAttribute('aria-sort')).toBe(false);
     const cells = within(table)
       .getAllByRole('cell')
       .map((cell) => cell.textContent);
     // A day in Warsaw: 22:30 UTC on 5 October is already 6 October there.
     expect(cells).toEqual([
-      'ZL-2026-0002Dom — pełny pakietUtworzono 06.10.2026',
+      'ZL-2026-0002Dom — pełny pakietBrak opiekunaUtworzono 06.10.2026',
       '—Brak klienta',
       '—Brak lokalizacji',
       'Wycena',
       '—Brak oczekiwań',
       '—Brak terminu',
-      'Brak opiekuna',
-      '06.10.2026',
-      'ZL-2026-0001Garaż — pełny proces 1Utworzono 04.10.2026',
+      '—Brak wystawionych transz',
+      'ZL-2026-0001Garaż — pełny proces 1Opiekun: Jan PrzykładowyUtworzono 04.10.2026',
       '—Brak klienta',
       '—Brak lokalizacji',
       'W realizacji',
       '—Brak oczekiwań',
       '—Brak terminu',
-      'Jan Przykładowy',
-      '04.10.2026',
+      '—Brak wystawionych transz',
     ]);
+    // "Opiekun" and "Utworzono" are lines of the first cell at every width (never `wide:hidden`; flows/07 "Responsywność").
+    const first = within(within(table).getAllByRole('row')[2] as HTMLElement).getAllByRole('cell')[0] as HTMLElement;
+    expect(within(first).getByText('Opiekun: Jan Przykładowy').className).not.toContain('hidden');
+    expect(within(first).getByText('Utworzono 04.10.2026').className).not.toContain('hidden');
     expect(document.title).toBe('Zlecenia · EVia Manager');
   });
 
   it('EVM-017 AC1 the whole row is one link to the details, named with the full description', async () => {
     await renderPanel(PATH, listApi(ok([order(42, { title: 'Garaż — pełny proces' })])));
     const link = await screen.findByRole('link', {
-      name: 'ZL-2026-0042, Garaż — pełny proces, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026',
+      name: 'ZL-2026-0042, Garaż — pełny proces, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026, brak wystawionych transz',
     });
     expect(link.getAttribute('href')).toBe('/work-orders/00000000-0000-4000-8000-000000000042');
     expect(link.closest('td')).toBe(screen.getAllByRole('cell')[0]);
@@ -198,8 +209,10 @@ describe('W-10 filters, views and sorting (EVM-017 AC2)', () => {
     expect(history.location.search).toBe('');
     expect(history.location.href).not.toContain(JAN.id);
     expect(screen.getByRole('button', { name: 'Usuń filtr Opiekun: Jan Przykładowy' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Utworzono' }).getAttribute('aria-sort')).toBe('ascending');
-    expect(screen.getByRole('columnheader', { name: 'Zlecenie' }).hasAttribute('aria-sort')).toBe(false);
+    // "Utworzono" is a line of the first cell, not a column: the sort is seen in the control and no header carries aria-sort.
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Sortuj' }).value).toBe('createdAt');
+    expect(screen.queryByRole('columnheader', { name: 'Utworzono' })).toBeNull();
+    for (const header of screen.getAllByRole('columnheader')) expect(header.hasAttribute('aria-sort')).toBe(false);
   });
 
   it('EVM-017 AC2 the statuses and the view of a link are applied; an unknown status code in the address is dropped', async () => {

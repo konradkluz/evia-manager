@@ -27,11 +27,15 @@ const SUMMARY_COLUMNS = [
   'created_at',
   'customer_id',
   'deleted_at',
+  // the signals of payments (EVM-056, 0031): counters and a date, never an amount
+  'earliest_invoiced_due_date',
+  'invoiced_count',
   'longest_waiting_on',
   'longest_waiting_party_id',
   'longest_waiting_since',
   'next_due_date',
   'number',
+  'paid_count',
   'recomputed_at',
   'site_id',
   'site_type',
@@ -62,7 +66,7 @@ describe('migration 0023 — the read model of the list (EVM-034; ADR-0017 W1, W
       select table_name from information_schema.tables where table_schema = 'overview' order by 1`.execute(admin());
     expect(tables.map((row) => row.table_name)).toEqual(['work_order_summaries', 'work_order_waits']);
     expect(rows.map((row) => row.column_name).join(' ')).not.toMatch(
-      /title|name|amount|payment|invoice|note|search|description|reason|phone|email/,
+      /title|name|amount|total|payment|invoice_number|note|search|description|reason|phone|email/,
     );
   });
 

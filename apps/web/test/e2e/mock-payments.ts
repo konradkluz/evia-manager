@@ -5,8 +5,12 @@ import { paymentPlanOf, type OrderServer } from './mock-work-orders.ts';
  * (copied from the payment plan of its template the first time they are read — the real server copies them with the order),
  * "Dodaj transzę" (`POST`, a UUIDv7 from the panel, `Idempotency-Key`, 20 at most), "Zmień kwotę" (`PATCH` with `If-Match`, planned
  * only) and the two rules the instalments bring to the transitions of the order: no settling with an unpaid instalment
- * (`unpaid_milestones`), and cancelling the order cancels the planned ones. Synthetic data only; the rules of the real server are
- * covered by the API integration tests.
+ * (`unpaid_milestones`), and cancelling the order cancels the planned ones. EVM-054: the transitions of an instalment (invoice,
+ * payment, cancellation), the corrections of the data of the invoice and of the day of the payment, and no cancelling of an order
+ * with an invoiced instalment (`invoiced_milestones`). EVM-057: the corrections of payments — the four correction edges, the amount of
+ * an invoiced or paid instalment and `DELETE` — for the Administrator with a fresh step-up (the Editor `403 forbidden`, the
+ * Administrator without it `403 step_up_required`, never a stored key). Synthetic data only; the rules of the real server are covered
+ * by the API integration tests.
  */
 interface MockMilestone {
   id: string;
@@ -17,8 +21,20 @@ interface MockMilestone {
   paymentTermDays: number | null;
   amountMinor: number | null;
   status: 'planned' | 'invoiced' | 'paid' | 'cancelled';
+  invoiceNumber: string | null;
+  invoicedOn: string | null;
+  dueDate: string | null;
+  paidOn: string | null;
   version: number;
 }
+
+/** Today in the business zone as `YYYY-MM-DD` (the default days of the invoice and of the payment). */
+const today = (): string =>
+  new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+const plusDays = (day: string, days: number): string =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const inRange = (day: unknown): day is string => typeof day === 'string' && DAY.test(day) && day >= '2000-01-01' && day <= '2100-12-31';
 
 interface Answer {
   readonly status: number;
@@ -43,6 +59,15 @@ const MAX = 20;
 const AMOUNT_MAX = 99_999_999_999;
 
 const stores = new WeakMap<OrderServer, Map<string, MockMilestone[]>>();
+/** EVM-056: the day of the synthetic server frozen by a test (the reads count "after the due date" from it, never from the browser). */
+const frozenDays = new WeakMap<OrderServer, string>();
+
+/** Freezes the day of the synthetic server for the reads of the instalments (`isOverdue`, `overdueDays`). */
+export function freezeServerDay(server: OrderServer, day: string): void {
+  frozenDays.set(server, day);
+}
+
+const dayOf = (server: OrderServer): string => frozenDays.get(server) ?? today();
 const keys = new WeakMap<OrderServer, Map<string, { readonly scope: string; readonly answer: Answer }>>();
 
 function keysOf(server: OrderServer) {
@@ -75,6 +100,10 @@ function milestonesOf(server: OrderServer, orderId: string): MockMilestone[] | u
       paymentTermDays: plan.paymentTermDays,
       amountMinor: null,
       status: 'planned' as const,
+      invoiceNumber: null,
+      invoicedOn: null,
+      dueDate: null,
+      paidOn: null,
       version: 1,
     }));
     store.set(orderId, items);
@@ -82,7 +111,38 @@ function milestonesOf(server: OrderServer, orderId: string): MockMilestone[] | u
   return items;
 }
 
-function represent(milestone: MockMilestone) {
+/**
+ * EVM-056: sets the instalments of a created order to the given states (in the order of the plan) — the walk through the dialogs is
+ * EVM-054's; here the target is what the summary and the list say about them.
+ */
+export function seedMilestones(
+  server: OrderServer,
+  orderId: string,
+  states: ReadonlyArray<Partial<Pick<MockMilestone, 'status' | 'amountMinor' | 'invoiceNumber' | 'invoicedOn' | 'dueDate' | 'paidOn'>>>,
+): void {
+  const items = milestonesOf(server, orderId) ?? [];
+  states.forEach((state, index) => {
+    const milestone = items[index];
+    if (milestone !== undefined) Object.assign(milestone, state, { version: milestone.version + 1 });
+  });
+}
+
+const ALLOWED: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
+  planned: ['invoiced', 'cancelled'],
+  invoiced: ['paid'],
+  paid: [],
+  cancelled: [],
+};
+/** EVM-057: the targets of the corrections — a hint for the Administrator only (the server asks for the step-up all the same). */
+const CORRECTION_TARGETS: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
+  planned: [],
+  invoiced: ['planned', 'cancelled'],
+  paid: ['invoiced'],
+  cancelled: ['planned'],
+};
+
+function represent(milestone: MockMilestone, role: Role = 'administrator', day = today()) {
+  const overdue = milestone.status === 'invoiced' && milestone.dueDate !== null && milestone.dueDate < day;
   return {
     id: milestone.id,
     code: milestone.code,
@@ -92,23 +152,31 @@ function represent(milestone: MockMilestone) {
     paymentTermDays: milestone.paymentTermDays,
     amount: milestone.amountMinor === null ? null : { amountMinor: milestone.amountMinor, currency: 'PLN' },
     status: milestone.status,
-    invoiceNumber: null,
-    invoicedOn: null,
-    dueDate: null,
-    paidOn: null,
-    isOverdue: false,
+    invoiceNumber: milestone.invoiceNumber,
+    invoicedOn: milestone.invoicedOn,
+    dueDate: milestone.dueDate,
+    paidOn: milestone.paidOn,
+    isOverdue: overdue,
+    // EVM-056: full days from the due date to the day of the server
+    overdueDays: overdue && milestone.dueDate !== null ? Math.round((Date.parse(day) - Date.parse(milestone.dueDate)) / 86_400_000) : null,
     version: milestone.version,
+    allowedTransitions:
+      role === 'read_only'
+        ? []
+        : role === 'administrator'
+          ? [...ALLOWED[milestone.status], ...CORRECTION_TARGETS[milestone.status]]
+          : ALLOWED[milestone.status],
   };
 }
 
 const sum = (items: MockMilestone[], status: MockMilestone['status']) =>
   items.filter((entry) => entry.status === status).reduce((total, entry) => total + (entry.amountMinor ?? 0), 0);
 
-export function answerPayments(server: OrderServer, orderId: string): Answer {
+export function answerPayments(server: OrderServer, orderId: string, role: Role = 'administrator'): Answer {
   const items = milestonesOf(server, orderId);
   if (items === undefined) return NOT_FOUND;
   return json(200, {
-    items: items.map(represent),
+    items: items.map((entry) => represent(entry, role, dayOf(server))),
     totals: {
       unpaid: { amountMinor: sum(items, 'invoiced'), currency: 'PLN' },
       paid: { amountMinor: sum(items, 'paid'), currency: 'PLN' },
@@ -166,6 +234,10 @@ export function answerPaymentCreate(
     paymentTermDays: null,
     amountMinor: amount ?? null,
     status: 'planned',
+    invoiceNumber: null,
+    invoicedOn: null,
+    dueDate: null,
+    paidOn: null,
     version: 1,
   };
   items.push(milestone);
@@ -179,7 +251,7 @@ export function answerPaymentPatch(
   server: OrderServer,
   orderId: string,
   milestoneId: string,
-  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly raw: string },
+  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly raw: string; readonly stepUpFresh?: boolean },
 ): Answer {
   const milestone = milestonesOf(server, orderId)?.find((entry) => entry.id === milestoneId);
   if (milestone === undefined) return NOT_FOUND;
@@ -187,20 +259,181 @@ export function answerPaymentPatch(
   if (input.ifMatch === undefined) return problem(428, 'precondition_required');
   const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
   if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
-  const amount = amountOf((JSON.parse(input.raw) as { amount?: unknown }).amount);
-  if (amount === undefined || amount === 'invalid') {
+  const body = JSON.parse(input.raw) as Record<string, unknown>;
+  const amount = amountOf(body['amount']);
+  if (Object.keys(body).length === 0 || amount === 'invalid') {
     return problem(400, 'validation_failed', { errors: [{ pointer: '/amount', code: 'invalid_value' }] });
   }
+  const number = typeof body['invoiceNumber'] === 'string' ? body['invoiceNumber'].normalize('NFC').trim() : undefined;
+  if (number === '') return problem(400, 'validation_failed', { errors: [{ pointer: '/invoiceNumber', code: 'required' }] });
+  for (const field of ['invoicedOn', 'dueDate', 'paidOn']) {
+    if (field in body && !inRange(body[field])) {
+      return problem(400, 'validation_failed', { errors: [{ pointer: '/' + field, code: 'out_of_range' }] });
+    }
+  }
+  if (typeof body['paidOn'] === 'string' && body['paidOn'] > today()) {
+    return problem(400, 'validation_failed', { errors: [{ pointer: '/paidOn', code: 'in_future' }] });
+  }
+  if (closed(server, orderId)) return problem(409, 'work_order_closed');
+  // the amount outside "Planowana" is a correction of the Administrator with a step-up (EVM-057 AC3, P2): 403 before the version;
+  // a cancelled instalment has no correction of the amount for anyone
+  if (amount !== undefined && milestone.status !== 'planned') {
+    const refused = milestone.status === 'cancelled' ? 'forbidden' : correctionRefusal(input.role, input.stepUpFresh === true);
+    if (refused !== undefined) return problem(403, refused);
+  }
+  const invoiceFields = ['invoiceNumber', 'invoicedOn', 'dueDate'].some((field) => field in body);
+  if ((invoiceFields && milestone.status !== 'invoiced') || ('paidOn' in body && milestone.status !== 'paid')) {
+    return problem(409, 'invalid_state_transition');
+  }
+  if (Number(match[1]) !== milestone.version) return problem(412, 'version_conflict');
+  const invoicedOn = typeof body['invoicedOn'] === 'string' ? body['invoicedOn'] : milestone.invoicedOn;
+  const dueDate = typeof body['dueDate'] === 'string' ? body['dueDate'] : milestone.dueDate;
+  if (invoicedOn !== null && dueDate !== null && dueDate < invoicedOn) {
+    const pointer = 'dueDate' in body ? '/dueDate' : '/invoicedOn';
+    return problem(400, 'validation_failed', { errors: [{ pointer, code: 'before_invoiced_on' }] });
+  }
+  if (amount !== undefined) milestone.amountMinor = amount;
+  if (number !== undefined) milestone.invoiceNumber = number;
+  milestone.invoicedOn = invoicedOn;
+  milestone.dueDate = dueDate;
+  if (typeof body['paidOn'] === 'string') milestone.paidOn = body['paidOn'];
+  milestone.version += 1;
+  return json(200, represent(milestone, input.role), { ETag: `"${String(milestone.version)}"` });
+}
+
+const CORRECTIONS: ReadonlySet<string> = new Set(['invoiced>planned', 'invoiced>cancelled', 'paid>invoiced', 'cancelled>planned']);
+
+/** P2 (EVM-057 AC5, AC6): the role before the step-up — the Editor `forbidden`, the Administrator without a fresh step-up `step_up_required`. */
+function correctionRefusal(role: Role, stepUpFresh: boolean): 'forbidden' | 'step_up_required' | undefined {
+  if (role !== 'administrator') return 'forbidden';
+  return stepUpFresh ? undefined : 'step_up_required';
+}
+const EDGES: ReadonlySet<string> = new Set(['planned>invoiced', 'invoiced>paid', 'planned>cancelled']);
+
+/**
+ * `POST …/payment-milestones/{id}/transitions` (EVM-054): the instalment of this order (404), the role, `If-Match` (428/400), a closed
+ * order, the table of the transitions (a correction is `403` for every role until EVM-057, another edge `409`), the version and the
+ * fields of the transition (the due date of the plan by default; a day of the payment in the future — `422`).
+ */
+export function answerPaymentTransition(
+  server: OrderServer,
+  orderId: string,
+  milestoneId: string,
+  input: {
+    readonly role: Role;
+    readonly ifMatch: string | undefined;
+    readonly key: string | undefined;
+    readonly raw: string;
+    readonly stepUpFresh?: boolean;
+  },
+): Answer {
+  const milestone = milestonesOf(server, orderId)?.find((entry) => entry.id === milestoneId);
+  if (milestone === undefined) return NOT_FOUND;
+  if (input.role === 'read_only') return problem(403, 'forbidden');
+  if (input.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  const scope = 'TRANSITION|' + milestoneId + '|' + input.raw;
+  const replay = input.key === undefined ? undefined : keysOf(server).get(input.key);
+  if (replay !== undefined) {
+    if (replay.scope !== scope) return problem(422, 'idempotency_mismatch');
+    return { ...replay.answer, headers: { ...replay.answer.headers, 'Idempotent-Replayed': 'true' } };
+  }
+  const body = JSON.parse(input.raw) as Record<string, unknown>;
+  const to = String(body['to']);
+  if (closed(server, orderId)) return problem(409, 'work_order_closed');
+  const edge = milestone.status + '>' + to;
+  const correction = CORRECTIONS.has(edge);
+  if (correction) {
+    // a refused correction keeps no key: the same key after W-04 makes the correction once (SR-API-05)
+    const refused = correctionRefusal(input.role, input.stepUpFresh === true);
+    if (refused !== undefined) return problem(403, refused);
+  } else if (!EDGES.has(edge)) return problem(409, 'invalid_state_transition');
+  if (Number(match[1]) !== milestone.version) return problem(412, 'version_conflict');
+  if (correction) {
+    const extra = Object.keys(body).find((field) => field !== 'to');
+    if (extra !== undefined) return problem(400, 'validation_failed', { errors: [{ pointer: '/' + extra, code: 'not_allowed' }] });
+    if (edge === 'invoiced>planned') Object.assign(milestone, { invoiceNumber: null, invoicedOn: null, dueDate: null });
+    if (edge === 'paid>invoiced') milestone.paidOn = null;
+    if (edge === 'cancelled>planned') Object.assign(milestone, { invoiceNumber: null, invoicedOn: null, dueDate: null, paidOn: null });
+    milestone.status = to as MockMilestone['status'];
+  } else if (to === 'invoiced') {
+    const amount = amountOf(body['amount']) ?? milestone.amountMinor ?? undefined;
+    if (amount === undefined || amount === 'invalid') {
+      return problem(400, 'validation_failed', { errors: [{ pointer: '/amount', code: 'required' }] });
+    }
+    const number = typeof body['invoiceNumber'] === 'string' ? body['invoiceNumber'].normalize('NFC').trim() : '';
+    if (number === '') return problem(400, 'validation_failed', { errors: [{ pointer: '/invoiceNumber', code: 'required' }] });
+    const invoicedOn = body['invoicedOn'] ?? today();
+    if (!inRange(invoicedOn)) return problem(400, 'validation_failed', { errors: [{ pointer: '/invoicedOn', code: 'out_of_range' }] });
+    const dueDate = body['dueDate'] ?? (milestone.paymentTermDays === null ? undefined : plusDays(invoicedOn, milestone.paymentTermDays));
+    if (dueDate === undefined) return problem(400, 'validation_failed', { errors: [{ pointer: '/dueDate', code: 'required' }] });
+    if (!inRange(dueDate)) return problem(400, 'validation_failed', { errors: [{ pointer: '/dueDate', code: 'out_of_range' }] });
+    if (dueDate < invoicedOn) return problem(400, 'validation_failed', { errors: [{ pointer: '/dueDate', code: 'before_invoiced_on' }] });
+    Object.assign(milestone, { amountMinor: amount, invoiceNumber: number, invoicedOn, dueDate, status: 'invoiced' });
+  } else if (to === 'paid') {
+    const paidOn = body['paidOn'] ?? today();
+    if (!inRange(paidOn)) return problem(400, 'validation_failed', { errors: [{ pointer: '/paidOn', code: 'out_of_range' }] });
+    if (paidOn > today()) return problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/paidOn', code: 'in_future' }] });
+    Object.assign(milestone, { paidOn, status: 'paid' });
+  } else {
+    const reason = typeof body['reason'] === 'string' ? body['reason'].normalize('NFC').trim() : '';
+    if (reason === '') return problem(400, 'validation_failed', { errors: [{ pointer: '/reason', code: 'required' }] });
+    milestone.status = 'cancelled';
+  }
+  milestone.version += 1;
+  const answer = json(200, represent(milestone, input.role), { ETag: `"${String(milestone.version)}"` });
+  if (input.key !== undefined) keysOf(server).set(input.key, { scope, answer });
+  return answer;
+}
+
+/**
+ * `DELETE …/payment-milestones/{id}` (EVM-057 AC4): the guard first (the Administrator with a fresh step-up — the Editor and Tylko
+ * odczyt `403 forbidden`, without the step-up `403 step_up_required`), then the order (404), `If-Match` (428/400), the key (a replay is
+ * `204` with `Idempotent-Replayed`), the instalment (404), a closed order (409), the version (412); the soft delete takes it off the
+ * list and the next ones move up one place.
+ */
+export function answerPaymentDelete(
+  server: OrderServer,
+  orderId: string,
+  milestoneId: string,
+  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly key: string | undefined; readonly stepUpFresh: boolean },
+): Answer {
+  const refused = correctionRefusal(input.role, input.stepUpFresh);
+  if (refused !== undefined) return problem(403, refused);
+  const items = milestonesOf(server, orderId);
+  if (items === undefined) return NOT_FOUND;
+  if (input.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  if (input.key === undefined)
+    return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/Idempotency-Key', code: 'required' }] });
+  const scope = 'DELETE|' + orderId + '|' + milestoneId;
+  const replay = keysOf(server).get(input.key);
+  if (replay !== undefined) {
+    if (replay.scope !== scope) return problem(422, 'idempotency_mismatch');
+    return { ...replay.answer, headers: { ...replay.answer.headers, 'Idempotent-Replayed': 'true' } };
+  }
+  const index = items.findIndex((entry) => entry.id === milestoneId);
+  const milestone = items[index];
+  if (milestone === undefined) return NOT_FOUND;
   if (closed(server, orderId)) return problem(409, 'work_order_closed');
   if (Number(match[1]) !== milestone.version) return problem(412, 'version_conflict');
-  if (milestone.status !== 'planned') return problem(403, 'forbidden');
-  milestone.amountMinor = amount;
-  milestone.version += 1;
-  return json(200, represent(milestone), { ETag: `"${String(milestone.version)}"` });
+  items.splice(index, 1);
+  items.forEach((entry, position) => {
+    entry.position = position + 1;
+  });
+  const answer: Answer = { status: 204, headers: {}, body: '' };
+  keysOf(server).set(input.key, { scope, answer });
+  return answer;
 }
 
 /** The condition of `completed → settled` (EVM-053 AC6): every instalment is paid or cancelled — otherwise `unpaid_milestones`. */
 export function paymentsCondition(server: OrderServer, orderId: string, to: string): string | undefined {
+  // EVM-054 AC6: an invoiced instalment blocks cancelling the order (checked under the lock of the order on the real server)
+  if (to === 'cancelled') {
+    return (milestonesOf(server, orderId) ?? []).some((entry) => entry.status === 'invoiced') ? 'invoiced_milestones' : undefined;
+  }
   if (to !== 'settled') return undefined;
   const unpaid = (milestonesOf(server, orderId) ?? []).some((entry) => entry.status !== 'paid' && entry.status !== 'cancelled');
   return unpaid ? 'unpaid_milestones' : undefined;

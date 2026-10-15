@@ -8,10 +8,19 @@
  * The cursor of a search is bound to the filters AND the phrase: {@link searchFilterPartsOf} appends the phrase to the filter parts
  * that `scopeOf` hashes, so the phrase appears in the cursor only as part of a digest (ADR-0017 W8).
  */
-import { zPartyKind, zSiteType, zWorkOrderSort, zWorkOrderStatus, zWorkOrderView, zWorkOrderWaitingOnFilter } from '@evia/contracts/zod';
+import {
+  zPartyKind,
+  zSiteType,
+  zWorkOrderListItem,
+  zWorkOrderListItemWritable,
+  zWorkOrderSort,
+  zWorkOrderStatus,
+  zWorkOrderView,
+  zWorkOrderWaitingOnFilter,
+} from '@evia/contracts/zod';
 import { z } from 'zod';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { parseInput } from '../../../platform/http/validation.ts';
+import { parseInput, readOnlyKeys } from '../../../platform/http/validation.ts';
 import { normalizeSearchPhrase } from '../../../platform/input/search-phrase.ts';
 import {
   DEFAULT_LIMIT,
@@ -55,6 +64,12 @@ const searchBodySchema = z
     }
   });
 
+/**
+ * The fields of an item of the list that only the server sets (`readOnly` in the contract — `payment`, EVM-056): naming one in the body
+ * of a search is `read_only_field`, not `unknown_field` (ADR-0017 W7, T3). Derived from the contract, never listed by hand.
+ */
+const SERVER_FIELDS = readOnlyKeys(zWorkOrderListItem, zWorkOrderListItemWritable);
+
 export interface WorkOrderSearchQuery {
   /** the normalised phrase: NFC, white space collapsed, 3–100 code points — never logged, never in a URL */
   readonly phrase: string;
@@ -67,7 +82,7 @@ export interface WorkOrderSearchQuery {
  * `too_long`, `invalid_characters` …) — the value of a field is never echoed
  */
 export function resolveWorkOrderSearchQuery(rawBody: unknown): WorkOrderSearchQuery {
-  const body = parseInput(searchBodySchema, rawBody);
+  const body = parseInput(searchBodySchema, rawBody, SERVER_FIELDS);
   const phrase = normalizeSearchPhrase(body.query);
   if (!phrase.ok) throw new ProblemException('validation_failed', { errors: phrase.errors });
   return {
