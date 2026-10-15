@@ -68,7 +68,7 @@ const statusesOf = async (app: IdentityApp, orderId: string) =>
   ).rows;
 
 describe('the transitions and the deletion of a milestone in the role and channel matrix (EVM-054 AC8; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-06)', () => {
-  it('EVM-054 AC8 completeness: the operations are in the contract, in the router (route policies checked at start) and in the matrix; the transition has an IDOR case', async () => {
+  it('EVM-054 AC8 EVM-057 AC8 completeness: the operations are in the contract, in the router (route policies checked at start) and in the matrix; the transition and the deletion have an IDOR case', async () => {
     current = await createIdentityApp();
     const fromRouter = current.app
       .get(RoutePolicyCheck)
@@ -80,9 +80,10 @@ describe('the transitions and the deletion of a milestone in the role and channe
       expect(fromRouter, operationId).toContain(operationId);
     }
     expect(cells.some((cell) => cell.operationId === 'transitionPaymentMilestone' && cell.idor)).toBe(true);
+    expect(cells.some((cell) => cell.operationId === 'deletePaymentMilestone' && cell.idor)).toBe(true);
   });
 
-  it('EVM-054 AC8 every cell is answered as expected: A and E on the web are let in to the transition, Read-only, mobile and mfa_enrollment are denied, anonymous is 401; the deletion is 403 for every role (step_up_required without a fresh key); the milestone of ANOTHER order is 404', async () => {
+  it('EVM-054 AC8 EVM-057 AC8 every cell is answered as expected: A and E on the web are let in to the transition, Read-only, mobile and mfa_enrollment are denied, anonymous is 401; the deletion lets in the Administrator with a fresh key only (step_up_required without one); the milestone of ANOTHER order is 404', async () => {
     current = await createIdentityApp();
     const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => OPERATIONS.includes(cell.operationId));
     const allowed = cells.filter(
@@ -91,7 +92,11 @@ describe('the transitions and the deletion of a milestone in the role and channe
     expect(new Set(allowed.map((cell) => (cell.caller.kind === 'session' ? `${cell.caller.role}/${cell.caller.channel}` : '')))).toEqual(
       new Set(['administrator/web', 'editor/web']),
     );
-    expect(cells.filter((cell) => cell.operationId === 'deletePaymentMilestone' && cell.expectation.outcome === 'allowed')).toEqual([]);
+    const deletions = cells.filter((cell) => cell.operationId === 'deletePaymentMilestone');
+    expect(deletions.filter((cell) => cell.expectation.outcome === 'allowed').map((cell) => cell.caller)).toEqual([
+      { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },
+    ]);
+    expect(deletions.filter((cell) => cell.idor)).toHaveLength(1);
     expect(await runMatrix(current, cells, await paymentObjects(current))).toEqual([]);
   });
 

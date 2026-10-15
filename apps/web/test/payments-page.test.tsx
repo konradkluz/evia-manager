@@ -592,7 +592,7 @@ describe('W-11 the menu of the row (EVM-055 AC1; EVM-054 AC4, AC5)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('EVM-055 AC1 the Editor sees the corrections disabled with the reason; the Administrator does not see them (EVM-057)', async () => {
+  it('EVM-055 AC1 EVM-057 AC8 the Editor sees the corrections disabled with the reason', async () => {
     await renderPanel(UNPAID_PATH, unpaidApi(undefined, roleSession('editor')));
     await ready();
     await userEvent.click(screen.getByRole('button', { name: 'Akcje transzy: Płatność końcowa, ZL-2026-0031' }));

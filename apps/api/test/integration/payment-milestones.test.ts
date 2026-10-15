@@ -243,14 +243,15 @@ describe('"Zmień kwotę" — the amount of a planned milestone (EVM-053 AC3, AC
     expect(await auditOf(milestoneId)).toEqual([]);
   });
 
-  it('EVM-053 AC3 EVM-054 AC5 the amount of a milestone in another status than "Planowana" is 403 forbidden for the Editor and the Administrator (a correction — EVM-057), before the version (the order of EVM-054: 403 before 409 before 412)', async () => {
+  it('EVM-053 AC3 EVM-054 AC5 EVM-057 AC6 P2 the amount of a milestone in another status than "Planowana" is 403 — forbidden for the Editor, step_up_required for the Administrator without a step-up (a correction), forbidden for a cancelled one — before the version (403 before 409 before 412)', async () => {
     const created = await order({ milestones: [{ status: 'invoiced', amountMinor: 100 }, { status: 'paid' }, { status: 'cancelled' }] });
     for (const role of ['editor', 'administrator'] as const) {
       const browser = await signIn(role);
-      for (const milestoneId of created.milestoneIds) {
+      for (const [index, milestoneId] of created.milestoneIds.entries()) {
         const response = await patch(browser, created.id, milestoneId, { amount: pln(360000) });
         expect(response.status, `${role} ${milestoneId}`).toBe(403);
-        expect(codeOf(response.body)).toBe('forbidden');
+        const expected = role === 'administrator' && index < 2 ? 'step_up_required' : 'forbidden';
+        expect(codeOf(response.body), `${role} ${index}`).toBe(expected);
       }
       const stale = await patch(browser, created.id, created.milestoneIds[0] ?? '', { amount: pln(360000) }, { ifMatch: '"5"' });
       expect(stale.status).toBe(403);

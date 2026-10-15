@@ -1,6 +1,7 @@
 /**
  * The status command of a payment milestone — "Wystaw fakturę…", "Odnotuj wpłatę…", "Anuluj transzę…" (EVM-054 AC1–AC3, AC5–AC8;
- * decisions Q2, Q3a, Q3b, Q3c, Q3e; SR-API-05, SR-API-06, SR-API-07, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-INPUT-01,
+ * decisions Q2, Q3a, Q3b, Q3c, Q3e) and the corrections of the Administrator with a step-up — "Wycofaj fakturę…", "Anuluj fakturę…",
+ * "Cofnij wpłatę…", "Przywróć transzę…" (EVM-057 AC1, AC2, AC4–AC8; P2; SR-SESS-08; SR-API-05, SR-API-06, SR-API-07, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-INPUT-01,
  * SR-INPUT-02, SR-LOG-02, SR-LOG-03, ASVS V2.3.1, V2.3.3, CWE-362, CWE-639, CWE-841). The guard has decided before this runs: a
  * signed-in Administrator or Editor on the web channel with a valid CSRF token — Read-only gets 403 and an anonymous caller 401 without
  * reaching the headers or the body.
@@ -20,13 +21,18 @@
  *   5. a closed order (settled or cancelled, PO-8) is `409 work_order_closed` — before the table, so the answer does not depend on
  *      the status of the milestone;
  *   6. the row of the table for (the status NOW, `to`): none is `409 invalid_state_transition` — unless the version is stale, which is
- *      `412`; a correction (Q2) is `403 forbidden` for EVERY role, the Administrator with a step-up included, before the version;
+ *      `412`; a role the row does not name is `403 forbidden`, then a correction without an authentication with a passkey in the last
+ *      15 minutes is `403 step_up_required` (the role BEFORE the step-up; one implementation of freshness — `stepUpFresh` of
+ *      `identity` with the injected clock). Both before the version and the fields; a `403` rolls back and leaves no idempotency
+ *      record, so a retry with the same key after the step-up performs the correction;
  *   7. the version (`412 version_conflict`, no current value in the answer);
  *   8. the fields of the move (`400`, the due date computed HERE from the day of the invoice and the days of the plan with the
  *      injected clock in `Europe/Warsaw`); a day of payment after today is `422 transition_condition_not_met` (`/paidOn`, `in_future`);
+ *      a correction takes the target alone (any other field — `400 not_allowed`) and clears what the move back undoes;
  *   9. the update (`version + 1`) through the one point of write — no row there after a successful lock is a defect (`500`), never a
- *      silent `200`; the event for the audit trail (`payment_milestone.invoiced|paid|cancelled`: the actor, the amount before and
- *      after, the codes of the status — never the name, the number or the reason) and the event for the journal of the order (the two
+ *      silent `200`; the event for the audit trail (`payment_milestone.invoiced|paid|cancelled`, for a correction
+ *      `payment_milestone.invoice_withdrawn|invoice_cancelled|payment_undone|restored`: the actor, the amount before and after, the
+ *      codes of the status — never the name, the number or the reason) and the event for the journal of the order (the two
  *      codes); the idempotency record. An error anywhere rolls the whole command back; a repeat returns the milestone as it is NOW.
  * The reason of a cancellation is written to its column only: never to an answer, an event, a log or an error.
  */
@@ -51,8 +57,15 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
+import { stepUpFresh } from '../../identity/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { findMilestoneTransition, mayTake, moveFields, type MilestoneTransitionCommand } from '../domain/milestone-transitions.ts';
+import {
+  correctionFields,
+  findMilestoneTransition,
+  mayTake,
+  moveFields,
+  type MilestoneTransitionCommand,
+} from '../domain/milestone-transitions.ts';
 import type { PaymentMilestoneEvent, PaymentMilestoneStatusChangedEvent } from '../events.ts';
 import { lockMilestone, type MilestoneRow } from '../infrastructure/milestone-reader.ts';
 import { updateMilestone } from '../infrastructure/milestone-store.ts';
@@ -68,12 +81,6 @@ export const TRANSITION_MILESTONE_SCOPE = 'POST /api/v1/work-orders/{workOrderId
  */
 export const transitionMilestoneScope = (workOrderId: string, milestoneId: string): string =>
   TRANSITION_MILESTONE_SCOPE.replace('{workOrderId}', workOrderId).replace('{milestoneId}', milestoneId);
-
-const AUDIT_ACTION = {
-  invoice: 'payment_milestone.invoiced',
-  pay: 'payment_milestone.paid',
-  cancel: 'payment_milestone.cancelled',
-} as const;
 
 const pathSchema = strictObjects(zTransitionPaymentMilestonePath);
 const commandBody = strictObjects(zPaymentMilestoneTransition);
@@ -172,12 +179,14 @@ export class TransitionMilestoneService {
     request: EventContext,
   ): Promise<void> {
     const { locked } = target;
+    const now = this.#clock.now();
     const stale = locked.version !== expectedVersion;
     const rule = findMilestoneTransition(locked.status, command.to);
     if (rule === undefined) throw new ProblemException(stale ? 'version_conflict' : 'invalid_state_transition');
-    if (rule.move === 'correction' || !mayTake(rule, principal.role)) throw new ProblemException('forbidden');
+    if (!mayTake(rule, principal.role)) throw new ProblemException('forbidden');
+    if (rule.stepUp && !stepUpFresh(principal.passkeyAuthenticatedAt, now)) throw new ProblemException('step_up_required');
     if (stale) throw new ProblemException('version_conflict');
-    const fields = moveFields(rule.move, command, locked, businessDate(this.#clock.now()));
+    const fields = rule.move === 'correction' ? correctionFields(rule, command) : moveFields(rule.move, command, locked, businessDate(now));
     if (!fields.ok)
       throw new ProblemException(fields.status === 422 ? 'transition_condition_not_met' : 'validation_failed', { errors: fields.errors });
 
@@ -186,12 +195,12 @@ export class TransitionMilestoneService {
       { workOrderId: target.workOrderId, milestoneId: locked.id, expectedVersion, status: locked.status },
       fields.update,
       principal.userId,
-      this.#clock.now(),
+      now,
     );
     if (version === undefined) throw new ProblemException('internal_error');
     const actor = { type: 'user', userId: principal.userId } as const;
     const audited: PaymentMilestoneEvent = {
-      type: AUDIT_ACTION[rule.move],
+      type: `payment_milestone.${rule.action}`,
       actor,
       outcome: 'success',
       objectType: 'payment_milestone',

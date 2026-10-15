@@ -56,7 +56,7 @@ PaymentMilestone:
       maxLength: 200
     position:
       type: integer
-      description: Kolejność w zleceniu (1…20; transza dodana ręcznie trafia na koniec).
+      description: Kolejność w zleceniu (1…20; transza dodana ręcznie trafia na koniec; po usunięciu transzy następne przesuwają się o jedno miejsce — EVM-057).
       minimum: 1
       maximum: 20
     sharePercent:
@@ -133,8 +133,9 @@ PaymentMilestone:
       description: >-
         Statusy docelowe, które ROLA WOŁAJĄCEGO może teraz wybrać (EVM-054; podpowiedź dla panelu — decyduje serwer przy komendzie):
         Administrator i Edytor — z `planned` do `invoiced` i `cancelled`, z `invoiced` do `paid`; Tylko odczyt — pusta lista. Korekty
-        płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`) nie są zwracane żadnej
-        roli do EVM-057. W zleceniu zamkniętym — pusta lista.
+        płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`; EVM-057) — tylko
+        Administratorowi, niezależnie od świeżości step-upu (serwer żąda go przy komendzie — `403 step_up_required`); Edytor ich nie
+        dostaje. W zleceniu zamkniętym — pusta lista.
       maxItems: 4
       items:
         $ref: '#/PaymentMilestoneStatus'
@@ -192,9 +193,9 @@ PaymentMilestonePatch:
   type: object
   description: >-
     Zmiana transzy (merge-patch; EVM-053 AC3, EVM-054 AC4) — co najmniej jedno pole; pole nieobecne zostaje bez zmian, `null` jest
-    niedozwolone. Pola zależą od BIEŻĄCEGO statusu transzy: `amount` — tylko `planned` („Zmień kwotę”; w innym statusie `403
-    forbidden`, także razem z innymi polami — kwotę transzy wystawionej albo opłaconej zmienia Administrator korektą płatności,
-    EVM-057); `invoiceNumber`, `invoicedOn`, `dueDate` — tylko `invoiced` („Popraw dane faktury…”); `paidOn` — tylko `paid` („Popraw
+    niedozwolone. Pola zależą od BIEŻĄCEGO statusu transzy: `amount` — `planned` („Zmień kwotę”, Administrator i Edytor); w
+    `invoiced` i `paid` — korekta kwoty Administratora ze step-upem (EVM-057; Edytor — `403 forbidden`, Administrator bez step-upu —
+    `403 step_up_required`, także razem z innymi polami); w `cancelled` — `403 forbidden` dla każdej roli; `invoiceNumber`, `invoicedOn`, `dueDate` — tylko `invoiced` („Popraw dane faktury…”); `paidOn` — tylko `paid` („Popraw
     datę wpłaty…”); pole spoza bieżącego statusu — `409 invalid_state_transition`. Reguły: `invoiceNumber` — zwykły tekst (NFC,
     przycięty, 1–60 znaków, bez znaków sterujących i niewidocznych znaków formatujących; `required` / `too_long` /
     `invalid_characters`); daty `RRRR-MM-DD` z zakresu 2000-01-01…2100-12-31 (`out_of_range`); termin płatności nie wcześniejszy niż
@@ -231,9 +232,12 @@ PaymentMilestoneTransition:
   description: >-
     Komenda przejścia statusu transzy (EVM-054) wg tabeli przejść „Etap płatności” z `domain-model.md`; `to` — status docelowy.
     Administrator i Edytor: `planned → invoiced` („Wystaw fakturę…”), `invoiced → paid` („Odnotuj wpłatę…”), `planned → cancelled`
-    („Anuluj transzę…”). Korekty płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`) —
-    `403 forbidden` dla każdej roli do EVM-057; przejście spoza tabeli — `409 invalid_state_transition`. Pola zależą od przejścia i
-    są niedozwolone poza nim (`not_allowed`):
+    („Anuluj transzę…”). Korekty płatności (EVM-057: `invoiced → planned` „Wycofaj fakturę…” — czyści numer faktury, datę
+    wystawienia i termin; `invoiced → cancelled` „Anuluj fakturę…” — dane faktury zostają; `paid → invoiced` „Cofnij wpłatę…” —
+    czyści datę wpłaty; `cancelled → planned` „Przywróć transzę…” — czyści dane faktury, datę wpłaty i powód anulowania) wykonuje
+    wyłącznie Administrator ze step-upem (Edytor — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15
+    minutach — `403 step_up_required`); korekta przyjmuje tylko `to` — każde inne pole (także `reason`) to `400 not_allowed`.
+    Przejście spoza tabeli — `409 invalid_state_transition`. Pola zależą od przejścia i są niedozwolone poza nim (`not_allowed`):
     `invoiced` — `amount` (gdy transza ma już kwotę, domyślnie ta kwota; bez kwoty w transzy i w żądaniu — `required`),
     `invoiceNumber` (wymagany; zwykły tekst, NFC, przycięty, 1–60 znaków; `required` / `too_long` / `invalid_characters`),
     `invoicedOn` (domyślnie dziś w `Europe/Warsaw`; 2000-01-01…2100-12-31, może być przyszły; `out_of_range`), `dueDate` (domyślnie

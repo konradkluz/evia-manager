@@ -6,9 +6,11 @@ import { paymentPlanOf, type OrderServer } from './mock-work-orders.ts';
  * "Dodaj transzę" (`POST`, a UUIDv7 from the panel, `Idempotency-Key`, 20 at most), "Zmień kwotę" (`PATCH` with `If-Match`, planned
  * only) and the two rules the instalments bring to the transitions of the order: no settling with an unpaid instalment
  * (`unpaid_milestones`), and cancelling the order cancels the planned ones. EVM-054: the transitions of an instalment (invoice,
- * payment, cancellation; the corrections are `403` for every role until EVM-057), the corrections of the data of the invoice and of
- * the day of the payment, and no cancelling of an order with an invoiced instalment (`invoiced_milestones`). Synthetic data only;
- * the rules of the real server are covered by the API integration tests.
+ * payment, cancellation), the corrections of the data of the invoice and of the day of the payment, and no cancelling of an order
+ * with an invoiced instalment (`invoiced_milestones`). EVM-057: the corrections of payments — the four correction edges, the amount of
+ * an invoiced or paid instalment and `DELETE` — for the Administrator with a fresh step-up (the Editor `403 forbidden`, the
+ * Administrator without it `403 step_up_required`, never a stored key). Synthetic data only; the rules of the real server are covered
+ * by the API integration tests.
  */
 interface MockMilestone {
   id: string;
@@ -131,6 +133,13 @@ const ALLOWED: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
   paid: [],
   cancelled: [],
 };
+/** EVM-057: the targets of the corrections — a hint for the Administrator only (the server asks for the step-up all the same). */
+const CORRECTION_TARGETS: Readonly<Record<MockMilestone['status'], readonly string[]>> = {
+  planned: [],
+  invoiced: ['planned', 'cancelled'],
+  paid: ['invoiced'],
+  cancelled: ['planned'],
+};
 
 function represent(milestone: MockMilestone, role: Role = 'administrator', day = today()) {
   const overdue = milestone.status === 'invoiced' && milestone.dueDate !== null && milestone.dueDate < day;
@@ -151,7 +160,12 @@ function represent(milestone: MockMilestone, role: Role = 'administrator', day =
     // EVM-056: full days from the due date to the day of the server
     overdueDays: overdue && milestone.dueDate !== null ? Math.round((Date.parse(day) - Date.parse(milestone.dueDate)) / 86_400_000) : null,
     version: milestone.version,
-    allowedTransitions: role === 'read_only' ? [] : ALLOWED[milestone.status],
+    allowedTransitions:
+      role === 'read_only'
+        ? []
+        : role === 'administrator'
+          ? [...ALLOWED[milestone.status], ...CORRECTION_TARGETS[milestone.status]]
+          : ALLOWED[milestone.status],
   };
 }
 
@@ -237,7 +251,7 @@ export function answerPaymentPatch(
   server: OrderServer,
   orderId: string,
   milestoneId: string,
-  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly raw: string },
+  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly raw: string; readonly stepUpFresh?: boolean },
 ): Answer {
   const milestone = milestonesOf(server, orderId)?.find((entry) => entry.id === milestoneId);
   if (milestone === undefined) return NOT_FOUND;
@@ -261,8 +275,12 @@ export function answerPaymentPatch(
     return problem(400, 'validation_failed', { errors: [{ pointer: '/paidOn', code: 'in_future' }] });
   }
   if (closed(server, orderId)) return problem(409, 'work_order_closed');
-  // the amount outside "Planowana" is a correction of the Administrator (EVM-057): 403 before the version
-  if (amount !== undefined && milestone.status !== 'planned') return problem(403, 'forbidden');
+  // the amount outside "Planowana" is a correction of the Administrator with a step-up (EVM-057 AC3, P2): 403 before the version;
+  // a cancelled instalment has no correction of the amount for anyone
+  if (amount !== undefined && milestone.status !== 'planned') {
+    const refused = milestone.status === 'cancelled' ? 'forbidden' : correctionRefusal(input.role, input.stepUpFresh === true);
+    if (refused !== undefined) return problem(403, refused);
+  }
   const invoiceFields = ['invoiceNumber', 'invoicedOn', 'dueDate'].some((field) => field in body);
   if ((invoiceFields && milestone.status !== 'invoiced') || ('paidOn' in body && milestone.status !== 'paid')) {
     return problem(409, 'invalid_state_transition');
@@ -284,6 +302,12 @@ export function answerPaymentPatch(
 }
 
 const CORRECTIONS: ReadonlySet<string> = new Set(['invoiced>planned', 'invoiced>cancelled', 'paid>invoiced', 'cancelled>planned']);
+
+/** P2 (EVM-057 AC5, AC6): the role before the step-up — the Editor `forbidden`, the Administrator without a fresh step-up `step_up_required`. */
+function correctionRefusal(role: Role, stepUpFresh: boolean): 'forbidden' | 'step_up_required' | undefined {
+  if (role !== 'administrator') return 'forbidden';
+  return stepUpFresh ? undefined : 'step_up_required';
+}
 const EDGES: ReadonlySet<string> = new Set(['planned>invoiced', 'invoiced>paid', 'planned>cancelled']);
 
 /**
@@ -295,7 +319,13 @@ export function answerPaymentTransition(
   server: OrderServer,
   orderId: string,
   milestoneId: string,
-  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly key: string | undefined; readonly raw: string },
+  input: {
+    readonly role: Role;
+    readonly ifMatch: string | undefined;
+    readonly key: string | undefined;
+    readonly raw: string;
+    readonly stepUpFresh?: boolean;
+  },
 ): Answer {
   const milestone = milestonesOf(server, orderId)?.find((entry) => entry.id === milestoneId);
   if (milestone === undefined) return NOT_FOUND;
@@ -313,10 +343,21 @@ export function answerPaymentTransition(
   const to = String(body['to']);
   if (closed(server, orderId)) return problem(409, 'work_order_closed');
   const edge = milestone.status + '>' + to;
-  if (CORRECTIONS.has(edge)) return problem(403, 'forbidden');
-  if (!EDGES.has(edge)) return problem(409, 'invalid_state_transition');
+  const correction = CORRECTIONS.has(edge);
+  if (correction) {
+    // a refused correction keeps no key: the same key after W-04 makes the correction once (SR-API-05)
+    const refused = correctionRefusal(input.role, input.stepUpFresh === true);
+    if (refused !== undefined) return problem(403, refused);
+  } else if (!EDGES.has(edge)) return problem(409, 'invalid_state_transition');
   if (Number(match[1]) !== milestone.version) return problem(412, 'version_conflict');
-  if (to === 'invoiced') {
+  if (correction) {
+    const extra = Object.keys(body).find((field) => field !== 'to');
+    if (extra !== undefined) return problem(400, 'validation_failed', { errors: [{ pointer: '/' + extra, code: 'not_allowed' }] });
+    if (edge === 'invoiced>planned') Object.assign(milestone, { invoiceNumber: null, invoicedOn: null, dueDate: null });
+    if (edge === 'paid>invoiced') milestone.paidOn = null;
+    if (edge === 'cancelled>planned') Object.assign(milestone, { invoiceNumber: null, invoicedOn: null, dueDate: null, paidOn: null });
+    milestone.status = to as MockMilestone['status'];
+  } else if (to === 'invoiced') {
     const amount = amountOf(body['amount']) ?? milestone.amountMinor ?? undefined;
     if (amount === undefined || amount === 'invalid') {
       return problem(400, 'validation_failed', { errors: [{ pointer: '/amount', code: 'required' }] });
@@ -343,6 +384,47 @@ export function answerPaymentTransition(
   milestone.version += 1;
   const answer = json(200, represent(milestone, input.role), { ETag: `"${String(milestone.version)}"` });
   if (input.key !== undefined) keysOf(server).set(input.key, { scope, answer });
+  return answer;
+}
+
+/**
+ * `DELETE …/payment-milestones/{id}` (EVM-057 AC4): the guard first (the Administrator with a fresh step-up — the Editor and Tylko
+ * odczyt `403 forbidden`, without the step-up `403 step_up_required`), then the order (404), `If-Match` (428/400), the key (a replay is
+ * `204` with `Idempotent-Replayed`), the instalment (404), a closed order (409), the version (412); the soft delete takes it off the
+ * list and the next ones move up one place.
+ */
+export function answerPaymentDelete(
+  server: OrderServer,
+  orderId: string,
+  milestoneId: string,
+  input: { readonly role: Role; readonly ifMatch: string | undefined; readonly key: string | undefined; readonly stepUpFresh: boolean },
+): Answer {
+  const refused = correctionRefusal(input.role, input.stepUpFresh);
+  if (refused !== undefined) return problem(403, refused);
+  const items = milestonesOf(server, orderId);
+  if (items === undefined) return NOT_FOUND;
+  if (input.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(input.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  if (input.key === undefined)
+    return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/Idempotency-Key', code: 'required' }] });
+  const scope = 'DELETE|' + orderId + '|' + milestoneId;
+  const replay = keysOf(server).get(input.key);
+  if (replay !== undefined) {
+    if (replay.scope !== scope) return problem(422, 'idempotency_mismatch');
+    return { ...replay.answer, headers: { ...replay.answer.headers, 'Idempotent-Replayed': 'true' } };
+  }
+  const index = items.findIndex((entry) => entry.id === milestoneId);
+  const milestone = items[index];
+  if (milestone === undefined) return NOT_FOUND;
+  if (closed(server, orderId)) return problem(409, 'work_order_closed');
+  if (Number(match[1]) !== milestone.version) return problem(412, 'version_conflict');
+  items.splice(index, 1);
+  items.forEach((entry, position) => {
+    entry.position = position + 1;
+  });
+  const answer: Answer = { status: 204, headers: {}, body: '' };
+  keysOf(server).set(input.key, { scope, answer });
   return answer;
 }
 

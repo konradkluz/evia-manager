@@ -42,6 +42,12 @@ AuditAction:
     - payment_milestone.invoiced
     - payment_milestone.paid
     - payment_milestone.details_changed
+    - payment_milestone.invoice_withdrawn
+    - payment_milestone.invoice_cancelled
+    - payment_milestone.payment_undone
+    - payment_milestone.restored
+    - payment_milestone.amount_corrected
+    - payment_milestone.deleted
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -127,21 +133,25 @@ AuditEvent:
     amountBefore:
       description: >-
         Kwota transzy przed zmianą — wyjątek audytu dla płatności (EVM-053, SR-LOG-03): tylko akcje `payment_milestone.*`; `null`
-        (albo brak pola), gdy kwoty nie było albo zdarzenie nie dotyczy płatności.
+        (albo brak pola), gdy kwoty nie było albo zdarzenie nie dotyczy płatności. Korekty płatności (EVM-057): przejścia korekty
+        (`.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`) — kwota transzy (przed i po równe),
+        `.amount_corrected` — kwota przed korektą, `.deleted` — kwota usuniętej transzy.
       oneOf:
         - $ref: common.yaml#/Money
         - type: 'null'
     amountAfter:
       description: >-
-        Kwota transzy po zmianie (przy utworzeniu — kwota podana; przy anulowaniu — kwota anulowanej transzy) — tylko akcje
-        `payment_milestone.*`; `null` (albo brak pola), gdy kwoty nie ma.
+        Kwota transzy po zmianie (przy utworzeniu — kwota podana; przy anulowaniu — kwota anulowanej transzy; przy korekcie kwoty
+        `.amount_corrected` — kwota po korekcie, EVM-057) — tylko akcje `payment_milestone.*`; `null` (albo brak pola), gdy kwoty nie
+        ma, także przy usunięciu transzy (`.deleted`).
       oneOf:
         - $ref: common.yaml#/Money
         - type: 'null'
     fromCode:
       description: >-
-        Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`); `null`
-        (albo brak pola), gdy zdarzenie nie zmienia statusu. Zawsze razem z `toCode`.
+        Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057:
+        korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`); `null` (albo brak pola), gdy zdarzenie
+        nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze razem z `toCode`.
       oneOf:
         - type: string
           maxLength: 40

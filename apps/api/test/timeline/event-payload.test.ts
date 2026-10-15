@@ -89,6 +89,18 @@ describe('journal event payloads (EVM-038 AC1, AC2; SR-LOG-03, SR-DATA-01)', () 
         'payment_milestone_status_changed',
         null,
       ],
+      [
+        {
+          type: 'payment_milestone.removed',
+          actor,
+          outcome: 'success',
+          objectType: 'payment_milestone',
+          objectId: MILESTONE,
+          workOrderId: ORDER,
+        },
+        'payment_milestone_deleted',
+        null,
+      ],
     ];
     expect(cases.map(([, code]) => code).sort()).toEqual([...JOURNAL_EVENT_CODES].sort());
     for (const [event, code, stageId] of cases) {

@@ -47,6 +47,8 @@ import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { formatClock } from '../work-orders/format.ts';
 import type { MilestoneAction } from '../work-orders/milestone-actions.ts';
+import { MilestoneCorrectAmountDialog } from '../work-orders/milestone-correct-amount-dialog.tsx';
+import { MilestoneCorrectionDialog, type CorrectionKind } from '../work-orders/milestone-correction-dialog.tsx';
 import { MilestoneDetailsDialog } from '../work-orders/milestone-details-dialog.tsx';
 import { MilestonePaymentDialog } from '../work-orders/milestone-payment-dialog.tsx';
 import { formatMoney } from '../work-orders/money.ts';
@@ -61,9 +63,14 @@ interface LoadedPage {
   readonly at: number;
 }
 
-/** The dialog of the page: the payment of a row, or the correction of the data of an invoice (read in full first — the row has not all of it). */
+/**
+ * The dialog of the page: the payment of a row, the correction of the data of an invoice (read in full first — the row has not all of
+ * it), or a correction of a payment of the Administrator (EVM-057: K1, K2, K4, K6 — what an invoiced instalment allows).
+ */
 type Dialog =
   | { readonly kind: 'pay'; readonly item: UnpaidPaymentMilestone }
+  | { readonly kind: 'correction'; readonly action: CorrectionKind; readonly item: UnpaidPaymentMilestone }
+  | { readonly kind: 'correctAmount'; readonly item: UnpaidPaymentMilestone }
   | {
       readonly kind: 'details';
       readonly order: UnpaidPaymentMilestone['workOrder'];
@@ -79,8 +86,9 @@ type Notice = 'reset' | 'rowGone' | 'detailsError';
  *   memory of this tab and the title of the tab stays "Płatności · EVia Manager" (AC4; SR-WEB-05) — nothing is kept in a store of the
  *   browser; the answer does not stay in the cache once it is not shown (`gcTime: 0`);
  * - offline the last loaded page stays with a banner and the actions are disabled (AC8);
- * - Administrator and Editor run "Odnotuj wpłatę" (the dialog of EVM-054) and the menu `⋮`; Tylko odczyt sees the amounts, the numbers and
- *   the terms without actions (AC5) — the server decides all the same (`403`).
+ * - Administrator and Editor run "Odnotuj wpłatę" (the dialog of EVM-054) and the menu `⋮`; the corrections of payments (EVM-057) are
+ *   the Administrator's (disabled for the Editor); Tylko odczyt sees the amounts, the numbers and the terms without actions (AC5) — the
+ *   server decides all the same (`403`).
  */
 export function PaymentsPage() {
   const { t } = useTranslation();
@@ -199,6 +207,20 @@ export function PaymentsPage() {
     setNotice(null);
     if (action === 'pay') {
       setDialog({ kind: 'pay', item });
+      return;
+    }
+    if (action === 'correctAmount') {
+      setDialog({ kind: 'correctAmount', item });
+      return;
+    }
+    if (
+      action === 'withdrawInvoice' ||
+      action === 'cancelInvoice' ||
+      action === 'undoPayment' ||
+      action === 'restore' ||
+      action === 'delete'
+    ) {
+      setDialog({ kind: 'correction', action, item });
       return;
     }
     if (action !== 'details') return;
@@ -377,6 +399,34 @@ export function PaymentsPage() {
             setDialog(null);
           }}
           onSaved={refocusTitle}
+        />
+      ) : null}
+      {dialog?.kind === 'correction' ? (
+        // EVM-057: a correction takes the row out of the list (no longer invoiced, or deleted) — the focus goes to the title of the page
+        <MilestoneCorrectionDialog
+          key={dialog.item.id}
+          kind={dialog.action}
+          order={dialog.item.workOrder}
+          milestone={dialog.item}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onSaved={refocusTitle}
+          onDeleted={refocusTitle}
+        />
+      ) : null}
+      {dialog?.kind === 'correctAmount' ? (
+        <MilestoneCorrectAmountDialog
+          key={dialog.item.id}
+          order={dialog.item.workOrder}
+          milestone={dialog.item}
+          onClose={() => {
+            setDialog(null);
+          }}
+          onSaved={(saved) => {
+            setDialog(null);
+            setFocusId(saved.id);
+          }}
         />
       ) : null}
       {dialog?.kind === 'details' ? (

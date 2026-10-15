@@ -134,16 +134,20 @@ paymentMilestone:
       data wystawienia i termin transzy `invoiced` („Popraw dane faktury…”), data wpłaty transzy `paid` („Popraw datę wpłaty…”). Role
       Administrator i Edytor (Tylko odczyt — `403 forbidden` przed `If-Match`, treścią i sprawdzeniem istnienia; niezalogowany — `401`;
       token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem: `payment_milestone.amount_changed` (aktor, identyfikator
-      transzy, wynik, `traceId` oraz kwota przed i po — wyjątek audytu dla płatności) albo `payment_milestone.details_changed` (bez
-      wartości: bez numeru faktury, dat i kwoty); nigdy nazwa transzy. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`
+      transzy, wynik, `traceId` oraz kwota przed i po — wyjątek audytu dla płatności), `payment_milestone.amount_corrected` (korekta
+      kwoty transzy `invoiced` albo `paid` przez Administratora ze step-upem, EVM-057 — kwota przed i po) albo
+      `payment_milestone.details_changed` (bez wartości: bez numeru faktury, dat i kwoty); nigdy nazwa transzy. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`
       transzy). Kolejność (jedna transakcja, decyzje na wierszach zablokowanych — najpierw zlecenie `FOR NO KEY UPDATE`, potem transza
       `FOR UPDATE`): guard (rola, CSRF, kanał), ścieżka i `Idempotency-Key` (`400`), zlecenie (polityka odczytu w zapytaniu) i transza
       wyszukiwana warunkiem `id = {milestoneId} AND work_order_id = {workOrderId}` (transza innego zlecenia, nieistniejąca, usunięta i
       transza zlecenia usuniętego — jedna odpowiedź `404 not_found`, przed `If-Match` i treścią), `If-Match` (brak — `428
       precondition_required`; słaby, lista, `*` albo zniekształcony — `400`), treść `PaymentMilestonePatch` (`400`: schemat, zwykły
       tekst numeru faktury, zakres dat; kod i wskaźnik, nigdy wartość; pole serwera — `read_only_field`; pusta treść), powtórka
-      idempotentna, zlecenie zamknięte (`409 work_order_closed`), kwota w statusie innym niż `planned` (`403 forbidden` — także razem z
-      innymi polami; korekta Administratora ze step-upem, EVM-057), pole spoza bieżącego statusu (`409 invalid_state_transition`), wersja
+      idempotentna, zlecenie zamknięte (`409 work_order_closed`), kwota w statusie `invoiced` albo `paid` — korekta płatności (EVM-057,
+      SR-AUTHZ-10, SR-SESS-08; także razem z innymi polami): Edytor — `403 forbidden`, Administrator bez uwierzytelnienia kluczem
+      dostępu w ostatnich 15 minutach — `403 step_up_required` (rola przed step-upem; odpowiedź `403` nie zostawia rekordu
+      idempotencji, więc ponowienie z tym samym kluczem po step-upie wykonuje korektę), kwota w statusie `cancelled` — `403 forbidden`
+      dla każdej roli, pole spoza bieżącego statusu (`409 invalid_state_transition`), wersja
       (`412 version_conflict` — bez bieżących wartości), reguły na stanie po zmianie (`400`: termin przed datą wystawienia —
       `before_invoiced_on`; data wpłaty z przyszłości — `/paidOn`, `in_future`), zapis `version + 1`, audyt i rekord idempotencji.
       Zmiana bez efektu (wszystkie podane wartości równe zapisanym) — `200` z transzą bez nowej wersji i bez zdarzenia. Błąd cofa
@@ -225,17 +229,26 @@ paymentMilestone:
   delete:
     operationId: deletePaymentMilestone
     tags: [payments]
-    summary: Usunięcie transzy (korekta Administratora — skutek w EVM-057)
+    summary: Usunięcie transzy (korekta płatności Administratora ze step-upem)
     description: >-
-      Usunięcie transzy to korekta płatności Administratora ze step-upem (EVM-054 AC5 i decyzja Q1; skutek — EVM-057; SR-AUTHZ-05,
-      SR-AUTHZ-10, SR-AUTHZ-11, SR-SESS-08). Rola Administrator (Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
-      mobilny — `403 channel_not_allowed`), kanał `web`, step-up: Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15
-      minutach — `403 step_up_required` (po roli: rola bez prawa do operacji nigdy się nie dowiaduje o step-upie). **Do EVM-057 każde
-      żądanie po guardzie (rola, step-up) i walidacji ścieżki (`400`) dostaje `403 forbidden` — przed walidacją nagłówków, bez odczytu
-      transzy (odpowiedź nie rozróżnia transzy istniejącej i nieistniejącej), bez zapisu, audytu skutku i rekordu idempotencji** (fail
-      closed). Nagłówki `If-Match` (wymagany) i `Idempotency-Key` (opcjonalny, UUIDv7) oraz odpowiedzi `204`, `404`, `409`, `412`,
-      `428` są zadeklarowane jako docelowe (EVM-057 — bez zmiany łamiącej kontraktu): skutek usunięcia (soft delete, audyt, dziennik),
-      kolejność kontroli i warunki dopisuje EVM-057.
+      Usunięcie transzy (soft delete) to korekta płatności Administratora ze step-upem (EVM-057 AC4, AC6–AC8; EVM-054 AC5, decyzja Q1;
+      SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-10, SR-AUTHZ-11, SR-SESS-08, SR-API-05, SR-API-06, SR-LOG-03). Rola Administrator (Edytor i
+      Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, step-up:
+      Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required` (po roli: rola bez prawa do
+      operacji nigdy się nie dowiaduje o step-upie). Wymaga `X-CSRF-Token` i `If-Match`. Kolejność (jedna transakcja, decyzje na
+      wierszach zablokowanych): guard (rola, CSRF, kanał, step-up), ścieżka i `Idempotency-Key` (`400`), zlecenie (polityka odczytu w
+      zapytaniu, `FOR NO KEY UPDATE`; nieistniejące albo usunięte — `404 not_found`), `If-Match` (brak — `428 precondition_required`;
+      słaby, lista, `*` albo zniekształcony — `400`), powtórka idempotentna (klucz związany z użytkownikiem, metodą, szablonem ścieżki,
+      zleceniem I transzą — powtórka po udanym usunięciu to `204` z `Idempotent-Replayed: true`, choć transzy już nie ma; ten sam klucz
+      dla innej transzy — `422 idempotency_mismatch`), transza wyszukiwana warunkiem `id = {milestoneId} AND work_order_id =
+      {workOrderId} AND deleted_at IS NULL` (`FOR UPDATE`; transza innego zlecenia, nieistniejąca i już usunięta — jedna odpowiedź `404
+      not_found`), zlecenie zamknięte (`409 work_order_closed`), wersja (`412 version_conflict` — bez bieżących wartości), soft delete
+      (`deleted_at`, `deleted_by`, `version + 1`), przesunięcie następnych transz o jedno miejsce (`position`, bez zmiany ich
+      `version`), audyt `payment_milestone.deleted` (aktor, identyfikator transzy, wynik, `traceId`, kwota usuniętej transzy; nigdy
+      nazwa ani numer faktury), wpis dziennika zlecenia `payment_milestone_deleted` (bez kwoty, numeru faktury i nazwy) i rekord
+      idempotencji. Błąd któregokolwiek kroku cofa całość. Usunięta transza znika dla każdej roli z listy transz, sum, zestawienia
+      nieopłaconych i sygnałów płatności zlecenia; nie można jej zmienić, przejść ani usunąć ponownie (`404`). Usunięcia zlecenia nie
+      ma w API.
     x-evia-authz:
       roles: [administrator]
       channels: [web]
@@ -247,7 +260,7 @@ paymentMilestone:
       - name: If-Match
         in: header
         required: true
-        description: Silny ETag wersji transzy, na której Administrator podjął decyzję (`"<version>"`; sprawdzany od EVM-057).
+        description: Silny ETag wersji transzy, na której Administrator podjął decyzję (`"<version>"`, z pola `version` transzy).
         schema:
           type: string
           pattern: '^"[1-9][0-9]{0,9}"$'
@@ -255,7 +268,7 @@ paymentMilestone:
       - name: Idempotency-Key
         in: header
         required: false
-        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika (od EVM-057).
+        description: Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika; panel wysyła go zawsze.
         schema:
           type: string
           format: uuid
@@ -263,7 +276,14 @@ paymentMilestone:
           maxLength: 36
     responses:
       '204':
-        description: Transza usunięta (docelowo — EVM-057; do tego czasu operacja zawsze kończy się `403 forbidden`).
+        description: >-
+          Transza usunięta (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i transzą.'
+            schema:
+              type: string
+              enum: ['true']
       '400':
         $ref: ../components/responses.yaml#/ValidationFailed
       '401':
@@ -289,9 +309,10 @@ paymentMilestoneTransitions:
       Jedyna droga zmiany statusu transzy (`PATCH` pola `status` jest odrzucany — `400 read_only_field`; EVM-054 AC1–AC3, AC5–AC8;
       SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-INPUT-01, SR-INPUT-02, SR-API-05, SR-API-06, SR-API-07, SR-LOG-03):
       `{ "to": "invoiced", "invoiceNumber": "…", … }` wg tabeli przejść „Etap płatności” z `domain-model.md` (pola —
-      `PaymentMilestoneTransition`). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed `If-Match`, treścią i
+      `PaymentMilestoneTransition`; korekty płatności — EVM-057 AC1, AC2, AC4–AC8, SR-SESS-08). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed `If-Match`, treścią i
       sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem
-      (`payment_milestone.invoiced`, `payment_milestone.paid`, `payment_milestone.cancelled` — aktor, identyfikator transzy, wynik,
+      (`payment_milestone.invoiced`, `payment_milestone.paid`, `payment_milestone.cancelled`, a dla korekt
+      `payment_milestone.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored` — aktor, identyfikator transzy, wynik,
       `traceId`, kwota przed i po oraz kody statusu przed i po (`fromCode`, `toCode`); nigdy nazwa transzy, numer faktury ani powód) i
       wpisem dziennika zlecenia (`payment_milestone_status_changed` — kody statusów, bez kwoty). Wymaga `X-CSRF-Token` i `If-Match`
       (silny ETag `"<version>"` transzy). Kolejność (jedna transakcja; decyzje na wierszach zablokowanych — najpierw zlecenie `FOR NO
@@ -301,8 +322,9 @@ paymentMilestoneTransitions:
       odpowiedź `404 not_found`, przed `If-Match` i treścią), `If-Match` (brak — `428 precondition_required`; słaby, lista, `*` albo
       zniekształcony — `400`), treść wg schematu (`400`; pole serwera — `read_only_field`, inne — `unknown_field`), powtórka
       idempotentna (zapisany wynik, bez ponownej kontroli wersji), zlecenie zamknięte (`409 work_order_closed` — przed tabelą), przejście
-      w tabeli (brak: `412` przy nieaktualnej wersji, inaczej `409 invalid_state_transition`), korekta płatności (`403 forbidden` dla
-      każdej roli do EVM-057 — przed wersją), wersja (`412 version_conflict` — bez bieżących wartości), pola przejścia (`400`: kod i
+      w tabeli (brak: `412` przy nieaktualnej wersji, inaczej `409 invalid_state_transition`), korekta płatności — przed wersją (Edytor —
+      `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`; odpowiedź
+      `403` nie zostawia rekordu idempotencji, więc ponowienie z tym samym kluczem po step-upie wykonuje korektę), wersja (`412 version_conflict` — bez bieżących wartości), pola przejścia (`400`: kod i
       wskaźnik, nigdy wartość), warunek (`422 transition_condition_not_met`: data wpłaty z przyszłości — `/paidOn`, `in_future`), zapis
       `version + 1`, audyt, dziennik i rekord idempotencji. Błąd któregokolwiek kroku cofa całość. Idempotencja: `Idempotency-Key`
       (UUIDv7) opcjonalny, panel wysyła go zawsze; klucz związany z użytkownikiem, metodą, szablonem ścieżki, zleceniem I transzą —

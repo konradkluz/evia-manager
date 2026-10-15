@@ -4,8 +4,9 @@
  * - an order holds at most {@link MAX_MILESTONES_PER_ORDER} milestones — the cancelled ones included (api-guidelines → limits);
  * - the name is plain text: a lone UTF-16 surrogate, a control or an invisible formatting character (NUL, the direction controls of
  *   the text included) is refused — NOT removed, the office sees what is stored; normalised to NFC once, trimmed, 1–120 CODE POINTS;
- * - only a `planned` milestone takes a new amount from Administrator and Editor; the amount of an invoiced or paid one is changed by
- *   the Administrator with a correction (EVM-057), so a change here is `403 forbidden`.
+ * - only a `planned` milestone takes a new amount from Administrator and Editor; the amount of an invoiced or paid one is a correction
+ *   of the Administrator with a step-up (EVM-057); the amount of a cancelled one is changed by nobody (`403 forbidden`, deny by
+ *   default — the corrections of domain-model.md name the amount of `invoiced` and `paid` only).
  * An error is a code, never the value (SR-ERR-02) — a name may name a person.
  */
 import type { PaymentMilestoneStatus } from './money.ts';
@@ -38,8 +39,17 @@ function codePoints(text: string): number {
   return points;
 }
 
-/** Only a `planned` milestone takes a new amount in this story (the others: a correction of the Administrator, EVM-057). */
-export const mayChangeAmount = (status: PaymentMilestoneStatus): boolean => status === 'planned';
+/** How the amount of a milestone in the status may change: freely, by a correction (EVM-057), or not at all. */
+export type AmountRule = 'free' | 'correction' | 'forbidden';
+
+const AMOUNT_RULES: Record<PaymentMilestoneStatus, AmountRule> = {
+  planned: 'free',
+  invoiced: 'correction',
+  paid: 'correction',
+  cancelled: 'forbidden',
+};
+
+export const amountRule = (status: PaymentMilestoneStatus): AmountRule => AMOUNT_RULES[status];
 
 /** The statuses of a milestone that does not wait for money any more; any other keeps an order from being settled (domain-model.md → "Zlecenie"). */
 export const SETTLED_STATUSES: readonly PaymentMilestoneStatus[] = ['paid', 'cancelled'];

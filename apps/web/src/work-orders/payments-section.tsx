@@ -22,6 +22,8 @@ import { MilestoneAddDialog } from './milestone-add-dialog.tsx';
 import { milestoneActions, type MilestoneAction } from './milestone-actions.ts';
 import { MilestoneAmountDialog } from './milestone-amount-dialog.tsx';
 import { MilestoneCancelDialog } from './milestone-cancel-dialog.tsx';
+import { MilestoneCorrectAmountDialog } from './milestone-correct-amount-dialog.tsx';
+import { MilestoneCorrectionDialog } from './milestone-correction-dialog.tsx';
 import { MilestoneDetailsDialog } from './milestone-details-dialog.tsx';
 import { MILESTONES_MAX, paymentBadgeKey, useMilestoneName } from './milestone-form.ts';
 import { menuItems, useMilestoneActionLabels } from './milestone-menu.ts';
@@ -36,13 +38,13 @@ import { isClosed } from './transition-actions.ts';
 /** The heading of the section (`#platnosci`): the target of the link "kwoty transz" of the banner of an order from the field (E13). */
 export const PAYMENTS_HEADING_ID = 'platnosci';
 
-/** The dialogs a row opens (EVM-053: the amount; EVM-054: the invoice, the payment, the cancellation and the corrections of the data). */
-type RowDialog = 'amount' | 'invoice' | 'pay' | 'cancel' | 'details' | 'paidOn';
+/**
+ * The dialogs a row opens (EVM-053: the amount; EVM-054: the invoice, the payment, the cancellation and the corrections of the data;
+ * EVM-057: the corrections of payments K1–K6).
+ */
+type RowDialog = MilestoneAction;
 // The instalment as the row showed it stays with the dialog: when a refresh drops it (gone, `404`), the dialog still says so.
 type Dialog = { readonly kind: 'add' } | { readonly kind: RowDialog; readonly milestone: PaymentMilestone };
-
-const ROW_DIALOGS: ReadonlySet<MilestoneAction> = new Set<MilestoneAction>(['amount', 'invoice', 'pay', 'cancel', 'details', 'paidOn']);
-const isRowDialog = (action: MilestoneAction): action is RowDialog => ROW_DIALOGS.has(action);
 
 /**
  * The section "Płatności" of W-06 (EVM-053 AC2–AC5, AC7, AC8; EVM-054 AC1–AC5, AC7, AC8; flows/03 and flows/08): the instalments of
@@ -50,7 +52,7 @@ const isRowDialog = (action: MilestoneAction): action is RowDialog => ROW_DIALOG
  * (StatusBadge § 3.9), the number of the invoice and the due date — and the totals "Nieopłacone … · Opłacone …" as the server
  * counted them (the same policy as the list, SR-AUTHZ-03). Administrator and Editor add an instalment ("Dodaj transzę") and run the
  * actions of the table of the mockup (`milestoneActions`): the button of the row ("Wystaw fakturę…", "Odnotuj wpłatę…") and the
- * menu `⋮`; the corrections of payments are disabled for the Editor and hidden for the Administrator until EVM-057; Tylko odczyt
+ * menu `⋮`; the corrections of payments (EVM-057) are the Administrator's — disabled for the Editor with the reason; Tylko odczyt
  * sees everything without actions (P6). The actions are disabled with a reason for a closed order (PO-8), offline and at the limit
  * of 20 — the server decides all the same. Names are free text: React text only (SR-WEB-03).
  */
@@ -68,6 +70,9 @@ export function PaymentsSection({
   const table = useRef<HTMLDivElement>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  // The id of the deleted last instalment: once the list no longer shows it, the focus goes to "Dodaj transzę".
+  const [focusAdd, setFocusAdd] = useState<string | null>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
   const items = query.data?.items;
   const canEdit = role === 'administrator' || role === 'editor';
   const closed = isClosed(order.status);
@@ -90,6 +95,13 @@ export function PaymentsSection({
     setFocusId(null);
   }, [focusId, items]);
 
+  // After the deletion of the last instalment the focus goes to "Dodaj transzę" (the row is gone; the story → "Fokus").
+  useEffect(() => {
+    if (focusAdd === null || items === undefined || items.some((entry) => entry.id === focusAdd)) return;
+    addRef.current?.focus();
+    setFocusAdd(null);
+  }, [focusAdd, items]);
+
   const edited =
     dialog === null || dialog.kind === 'add' ? undefined : (items?.find((entry) => entry.id === dialog.milestone.id) ?? dialog.milestone);
   const close = () => {
@@ -99,8 +111,17 @@ export function PaymentsSection({
     setDialog(null);
     setFocusId(milestone.id);
   };
+  /** EVM-057 K6: the row is gone — the focus goes to the menu of the next instalment, or to "Dodaj transzę" when there is none. */
+  const deleted = (milestoneId: string) => {
+    setDialog(null);
+    const index = items?.findIndex((entry) => entry.id === milestoneId) ?? -1;
+    const next = index < 0 ? undefined : items?.[index + 1];
+    if (next === undefined) setFocusAdd(milestoneId);
+    else setFocusId(next.id);
+  };
   const addButton = canEdit ? (
     <Button
+      ref={addRef}
       variant="tertiary"
       icon={Plus}
       disabled={addReason !== undefined}
@@ -141,7 +162,7 @@ export function PaymentsSection({
               role={role}
               reason={reason}
               onAction={(action, milestone) => {
-                if (isRowDialog(action)) setDialog({ kind: action, milestone });
+                setDialog({ kind: action, milestone });
               }}
             />
             {addButton === null ? null : <div className="self-start">{addButton}</div>}
@@ -167,6 +188,9 @@ export function PaymentsSection({
           milestone={edited}
           onClose={close}
           onSaved={saved}
+          onDeleted={() => {
+            deleted(edited.id);
+          }}
         />
       )}
     </section>
@@ -179,15 +203,25 @@ function RowDialogOf({
   milestone,
   onClose,
   onSaved,
+  onDeleted,
 }: {
   readonly kind: RowDialog;
   readonly order: WorkOrderDetails;
   readonly milestone: PaymentMilestone;
   readonly onClose: () => void;
   readonly onSaved: (saved: PaymentMilestone) => void;
+  readonly onDeleted: () => void;
 }) {
   const props = { order, milestone, onClose, onSaved };
   switch (kind) {
+    case 'withdrawInvoice':
+    case 'cancelInvoice':
+    case 'undoPayment':
+    case 'restore':
+    case 'delete':
+      return <MilestoneCorrectionDialog kind={kind} {...props} onDeleted={onDeleted} />;
+    case 'correctAmount':
+      return <MilestoneCorrectAmountDialog {...props} />;
     case 'amount':
       return <MilestoneAmountDialog {...props} />;
     case 'invoice':

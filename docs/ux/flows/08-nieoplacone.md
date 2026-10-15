@@ -209,7 +209,7 @@ Dialogi sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegó
   - Wystawiona (także po terminie) — przycisk „Odnotuj wpłatę…”; `⋮`: „Popraw dane faktury…”, w grupie korekt „Wycofaj fakturę…”, „Anuluj fakturę…”, „Zmień kwotę…”, „Usuń transzę…”;
   - Opłacona — `⋮`: „Popraw datę wpłaty…”, w grupie korekt „Cofnij wpłatę…”, „Zmień kwotę…”, „Usuń transzę…”;
   - Anulowana — tylko grupa korekt („Przywróć transzę…”, „Usuń transzę…”).
-- **Korekty do EVM-057** (decyzja Q2): Edytor — pozycje widoczne, `aria-disabled`, podpowiedź „Korektę płatności może wykonać tylko administrator.” (także z klawiatury i dotykiem); Administrator — nie widzi ich (przy transzy Anulowanej bez `⋮`); Tylko odczyt — bez przycisków i `⋮`. API dla każdej roli `403 forbidden`; usunięcie transzy — Administrator bez step-upu `403 step_up_required` (decyzja Q1).
+- **Korekty od EVM-057** (stan od EVM-057; wcześniej decyzja Q2 — Administrator ich nie widział): Administrator — pozycje korekt (grupa oddzielona separatorem; „Korekty” to nazwa grupy tylko w dokumentacji, ActionMenu § 3.20 nie ma nagłówków grup) widoczne i aktywne (przy transzy Anulowanej `⋮` z „Przywróć transzę…” i „Usuń transzę…”), dialogi K1–K6 z „przed → po” i W-04 przy `403 step_up_required` (specyfikacja: historyjka EVM-057, sekcja „UX / UI”); Edytor — pozycje widoczne, `aria-disabled`, podpowiedź „Korektę płatności może wykonać tylko administrator.” (także z klawiatury i dotykiem), API `403 forbidden`; Tylko odczyt — bez przycisków i `⋮`.
 
 **Dialogi** (Dialog / AlertDialog § 3.13 `size.dialog.width.sm`, tytuł `text.heading-3`, zlecenie `text.body-sm` `color.text.secondary`, TextField § 3.2, DatePicker § 3.5, TextArea, InlineAlert § 3.19, Button primary + tertiary „Anuluj”; danger tylko przy anulowaniu)
 

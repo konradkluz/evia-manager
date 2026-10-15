@@ -4,7 +4,7 @@ title: Płatności na liście zleceń i w podsumowaniu zlecenia
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -140,7 +140,7 @@ Specyfikacja (ux-designer, 2026-10-14). Makiety wiążące: [W-10](../../ux/flow
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Notatki
 - Uwagi z przeglądu domknięte po potoku: testy P4 przeliczenia projekcji (korekta terminu, anulowanie zlecenia, dodanie transzy, plan z szablonu), komunikat `aria-live` z licznikiem wyników, opis `400 read_only_field` dla pól tylko-do-odczytu w wyszukiwaniu, nazwy i komentarze.
@@ -161,3 +161,5 @@ Specyfikacja (ux-designer, 2026-10-14). Makiety wiążące: [W-10](../../ux/flow
 - 2026-10-14 — po potoku: backend-developer — testy P4 przeliczenia projekcji, opis `read_only_field` (`e19b9e3`, `dc3a2f4`); web-developer — `aria-live` z licznikiem, nazwy (`418e9e1`); orkiestrator — zaległe commity specyfikacji UX, styleguide'u i modelu zagrożeń (`b39ca6b`)
 - 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 1749/1769, gałęzie 1593/1721), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 13 wywołań agentów, ok. 1,82 mln tokenów subagentów, ok. 160 min (+ poprawki po potoku ok. 0,14 mln, ok. 13 min); rundy poprawek 1; ścieżka pełna; opus
+- 2026-10-15 — przed scaleniem poprawki CI (Ubuntu — szersze glify): układ W-10 odporny na metryki czcionek (`af8ee52`), decyzje UX „budżet szerokości” — „Termin” linią pierwszej komórki poniżej `expanded` (`ec261d4`, `114cd8d`), „Opiekun” i „Utworzono” liniami pierwszej komórki na każdej szerokości (`e827c18`, `829d8d6`); `e2e-web` w dwóch shardach (`4a2bf17`)
+- 2026-10-15 — scalona do `main` (PR #72, `24fd524`); in-review → done

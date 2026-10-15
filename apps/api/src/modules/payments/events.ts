@@ -1,5 +1,5 @@
 /**
- * Domain events of the `payments` module (EVM-053, EVM-054). Published through the platform event bus inside the transaction of the
+ * Domain events of the `payments` module (EVM-053, EVM-054, EVM-057). Published through the platform event bus inside the transaction of the
  * change; `audit` and `timeline` subscribe to them (the dependencies point from those modules to this file, never back). The event
  * type of the audit trail is the action: `<object>.<past tense>`. The object is the milestone; its order is named as well. An event
  * carries identifiers, the codes of the status before and after a transition (EVM-054) and — the exception of the audit trail for
@@ -18,6 +18,14 @@ export const PAYMENT_MILESTONE_EVENT_TYPES = [
   'payment_milestone.invoiced',
   'payment_milestone.paid',
   'payment_milestone.details_changed',
+  // the corrections of the Administrator with a step-up (EVM-057): the four moves back, the amount of an invoiced or paid milestone
+  // and the soft delete — the amount before and after, the codes of a move; never the name, the number or a reason
+  'payment_milestone.invoice_withdrawn',
+  'payment_milestone.invoice_cancelled',
+  'payment_milestone.payment_undone',
+  'payment_milestone.restored',
+  'payment_milestone.amount_corrected',
+  'payment_milestone.deleted',
 ] as const;
 
 export interface PaymentMilestoneEvent extends DomainEvent {
@@ -31,7 +39,7 @@ export interface PaymentMilestoneEvent extends DomainEvent {
   readonly workOrderId: string;
   /** The amount before the change in grosze (PLN), `null` when there was none (a creation, an amount entered the first time). */
   readonly amountBeforeMinor: number | null;
-  /** The amount after the change in grosze (PLN), `null` when there is none (a milestone cancelled before it was priced). */
+  /** The amount after the change in grosze (PLN), `null` when there is none (a milestone cancelled before it was priced, a deleted one). */
   readonly amountAfterMinor: number | null;
   /** The status before a transition (EVM-054), `null` when the event does not change the status. */
   readonly fromCode: PaymentMilestoneStatus | null;
@@ -40,14 +48,16 @@ export interface PaymentMilestoneEvent extends DomainEvent {
 }
 
 /**
- * The change of the status of a milestone for the JOURNAL of its order (EVM-054 AC3; EVM-038), published inside the transaction of
- * the change — by the command of a transition and by the effect of the cancellation of an order. NOT in
- * `PAYMENT_MILESTONE_EVENT_TYPES`: `audit` does not subscribe to it. The two status codes and nothing else — no amount (SR-DATA-01).
+ * The events of the JOURNAL of an order (EVM-038), published inside the transaction of the change; NOT in
+ * `PAYMENT_MILESTONE_EVENT_TYPES`: `audit` does not subscribe to them. No amount, no number, no name (SR-DATA-01):
+ * - `payment_milestone.status_changed` (EVM-054 AC3) — the change of the status of a milestone, by the command of a transition (a
+ *   correction included, EVM-057) and by the effect of the cancellation of an order: the two status codes;
+ * - `payment_milestone.removed` (EVM-057 AC4) — the soft delete of a milestone: the milestone and its order only.
  */
-export const PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES = ['payment_milestone.status_changed'] as const;
+export const PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES = ['payment_milestone.status_changed', 'payment_milestone.removed'] as const;
 
 export interface PaymentMilestoneStatusChangedEvent extends DomainEvent {
-  readonly type: (typeof PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES)[number];
+  readonly type: 'payment_milestone.status_changed';
   readonly actor: { readonly type: 'user'; readonly userId: string };
   readonly outcome: 'success';
   readonly objectType: 'payment_milestone';
@@ -56,3 +66,14 @@ export interface PaymentMilestoneStatusChangedEvent extends DomainEvent {
   readonly fromStatus: PaymentMilestoneStatus;
   readonly toStatus: PaymentMilestoneStatus;
 }
+
+export interface PaymentMilestoneRemovedEvent extends DomainEvent {
+  readonly type: 'payment_milestone.removed';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'success';
+  readonly objectType: 'payment_milestone';
+  readonly objectId: string;
+  readonly workOrderId: string;
+}
+
+export type PaymentMilestoneJournalEvent = PaymentMilestoneStatusChangedEvent | PaymentMilestoneRemovedEvent;

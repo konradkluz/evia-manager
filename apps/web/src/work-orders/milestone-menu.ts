@@ -21,7 +21,10 @@ export function useMilestoneActionLabels(): Readonly<Record<MilestoneAction, str
   };
 }
 
-/** The items of the menu `⋮`: a separator before each new group, the cancellation as a destructive item, the reasons of § 4.13. */
+/** The items whose dialog ends with a danger button (EVM-054 dialog 3, EVM-057 K1, K2, K6): destructive items of the menu (§ 3.20). */
+const DESTRUCTIVE: ReadonlySet<MilestoneAction> = new Set<MilestoneAction>(['cancel', 'withdrawInvoice', 'cancelInvoice', 'delete']);
+
+/** The items of the menu `⋮`: a separator before each new group, the destructive items in danger text, the reasons of § 4.13. */
 export function menuItems(
   actions: MilestoneActions,
   labels: Readonly<Record<MilestoneAction, string>>,
@@ -30,7 +33,7 @@ export function menuItems(
   onSelect: (action: MilestoneAction) => void,
 ): ActionMenuItem[] {
   return actions.menu.map((entry, index) => {
-    const hint = reason ?? (entry.correction === true ? adminOnly : undefined);
+    const hint = reason ?? (entry.adminOnly === true ? adminOnly : undefined);
     return {
       id: entry.action,
       label: labels[entry.action],
@@ -38,7 +41,7 @@ export function menuItems(
         onSelect(entry.action);
       },
       ...(index > 0 && entry.group !== actions.menu[index - 1]?.group ? { startsGroup: true } : {}),
-      ...(entry.action === 'cancel' ? { tone: 'danger' as const } : {}),
+      ...(DESTRUCTIVE.has(entry.action) ? { tone: 'danger' as const } : {}),
       ...(hint === undefined ? {} : { disabledHint: hint }),
     };
   });

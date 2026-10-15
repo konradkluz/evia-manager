@@ -4,17 +4,15 @@
  * `buildMatrix` derives, from `x-evia-authz` alone, what every operation must answer to every kind of caller: the three
  * roles on both channels and in both session states, an anonymous caller, a revoked session and a session that ran out of
  * time (EVM-067) — plus an IDOR case for every
- * operation that addresses an object. The expectation is computed here, independently of the guard (a second
+ * operation that addresses an object: one cell per caller entitled to it — for an operation with a step-up, the Administrator with a
+ * fresh passkey (EVM-057; the only caller it lets through), for any other the callers without a passkey state (the variants with a
+ * key would repeat them). An operation without an object (no path parameter, no anchor — the audit log) has no IDOR case by that
+ * rule, not by a list of exceptions. The expectation is computed here, independently of the guard (a second
  * implementation of the same table in the api-guidelines), so a hole in the guard is a failed cell, not a silent pass.
  * `runMatrix` sends the real requests through the application and returns the cells whose answer differs.
  *
  * "Allowed" means the guard let the request through: a status that is neither 401 nor 403 (the handler then answers with
  * whatever the empty body deserves — usually 400). Denied cells name the exact code.
- *
- * One narrow exception, named here and nowhere else (EVM-054 K3): an operation declared in the contract whose EFFECT a later story
- * implements answers `403 forbidden` to the caller the guard lets through (fail closed) — the cell of that caller expects exactly
- * that, the predicate "allowed" is not loosened and the operation stays in the matrix with every other cell. The list holds the
- * deletion of a payment milestone only; EVM-057 removes it (a test pins the list).
  */
 import type { AuthzManifest } from '@evia/contracts/authz';
 import { randomUUID } from 'node:crypto';
@@ -66,9 +64,6 @@ export interface MatrixLists {
 
 const hasPathParameter = (path: string): boolean => /\{[^}]+\}/.test(path);
 
-/** The operations whose effect comes with a later story (the story that removes the entry): 403 forbidden past the guard. */
-export const PENDING_OPERATIONS: Readonly<Record<string, string>> = Object.freeze({ deletePaymentMilestone: 'EVM-057' });
-
 /** SR-AUTHZ-06: the read-only role has no mobile channel. */
 const roleMayUseChannel = (role: Role, channel: 'web' | 'mobile'): boolean => !(role === 'read_only' && channel === 'mobile');
 
@@ -93,8 +88,6 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   if (!entitled) return { outcome: 'denied', status: 403, code: 'forbidden' };
   // SR-SESS-08: after the role (a role that may not call the operation never learns it is protected), only a fresh passkey passes
   if (authz.stepUp === true && caller.passkey !== 'fresh') return { outcome: 'denied', status: 403, code: 'step_up_required' };
-  // EVM-054 K3: the effect of the operation comes with a later story — the caller the guard lets through is refused by the handler
-  if (PENDING_OPERATIONS[operationId] !== undefined) return { outcome: 'denied', status: 403, code: 'forbidden' };
   return { outcome: 'allowed' };
 }
 
@@ -132,7 +125,10 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
     if (!addressesObject || authz.public === true) return cells;
     // IDOR: every caller entitled to the operation, asking for an object of somebody else, gets 404 (never 403: the object is not disclosed)
     const entitled = cells.filter(
-      (cell) => cell.expectation.outcome === 'allowed' && !(cell.caller.kind === 'session' && cell.caller.passkey !== undefined),
+      (cell) =>
+        cell.expectation.outcome === 'allowed' &&
+        cell.caller.kind === 'session' &&
+        (authz.stepUp === true ? cell.caller.passkey === 'fresh' : cell.caller.passkey === undefined),
     );
     return [...cells, ...entitled.map((cell): MatrixCell => ({ ...cell, expectation: { outcome: 'not_found' }, idor: true }))];
   });

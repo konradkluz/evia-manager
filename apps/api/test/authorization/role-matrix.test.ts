@@ -1,6 +1,6 @@
 import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, PUBLIC_OPERATIONS, type AuthzManifest } from '@evia/contracts/authz';
 import { describe, expect, it } from 'vitest';
-import { buildMatrix, expectationFor, PENDING_OPERATIONS, type Caller, type MatrixLists } from './role-matrix.ts';
+import { buildMatrix, expectationFor, type Caller, type MatrixLists } from './role-matrix.ts';
 
 const lists: MatrixLists = { publicOperations: PUBLIC_OPERATIONS, mfaEnrollmentOperations: MFA_ENROLLMENT_OPERATIONS };
 
@@ -24,6 +24,12 @@ const synthetic: AuthzManifest = {
     path: '/api/protected',
     query: [],
     authz: { roles: ['administrator', 'editor'], channels: ['web'], stepUp: true },
+  },
+  removeThing: {
+    method: 'delete',
+    path: '/api/things/{thingId}/parts/{partId}',
+    query: [],
+    authz: { roles: ['administrator'], channels: ['web'], stepUp: true },
   },
   getThing: {
     method: 'get',
@@ -98,7 +104,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-057 AC8 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel — for the deletion of a milestone (a step-up), the Administrator with a fresh key', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = [
       'getWorkOrderTemplate',
@@ -132,7 +138,10 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     const rolesOf = (operationId: string): string[] =>
       writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
     const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers];
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(all));
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, 'deletePaymentMilestone']));
+    expect(idor.filter((cell) => cell.operationId === 'deletePaymentMilestone').map((cell) => cell.caller)).toEqual([
+      { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },
+    ]);
     for (const operationId of all) {
       expect(
         idor
@@ -197,8 +206,8 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
 
   it('EVM-016 AC8 IDOR: an operation that addresses an object gets one extra cell per entitled caller, expecting 404', () => {
     const cells = buildMatrix(synthetic, syntheticLists);
-    const idor = cells.filter((cell) => cell.idor);
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set(['getThing']));
+    expect(new Set(cells.filter((cell) => cell.idor).map((cell) => cell.operationId))).toEqual(new Set(['getThing', 'removeThing']));
+    const idor = cells.filter((cell) => cell.idor && cell.operationId === 'getThing');
     expect(idor.every((cell) => JSON.stringify(cell.expectation) === JSON.stringify({ outcome: 'not_found' }))).toBe(true);
     // entitled: administrator and editor on web, active session
     expect(idor.map((cell) => JSON.stringify(cell.caller)).sort()).toEqual(
@@ -219,34 +228,32 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
   });
 });
 
-describe('an operation whose effect a later story implements (EVM-054 AC5 Q1, K3; SR-AUTHZ-05, SR-AUTHZ-10)', () => {
-  it('EVM-054 AC5 the list holds the deletion of a payment milestone only, pending EVM-057 — and it is an operation of the contract', () => {
-    expect(PENDING_OPERATIONS).toEqual({ deletePaymentMilestone: 'EVM-057' });
-    for (const operationId of Object.keys(PENDING_OPERATIONS)) expect(AUTHZ_MANIFEST[operationId], operationId).toBeDefined();
+describe('the IDOR case of an operation with a step-up (EVM-057 AC8; uwaga security #1 z EVM-054; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639)', () => {
+  const fresh: Caller = { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' };
+
+  it('EVM-057 AC8 an operation with a step-up that addresses an object gets one IDOR cell: the Administrator with a fresh key, expecting 404', () => {
+    const idor = buildMatrix(synthetic, syntheticLists).filter((cell) => cell.idor && cell.operationId === 'removeThing');
+    expect(idor.map((cell) => [cell.caller, cell.expectation])).toEqual([[fresh, { outcome: 'not_found' }]]);
   });
 
-  it('EVM-054 AC5 deletePaymentMilestone: Editor and Read-only are forbidden, the Administrator without a fresh key needs a step-up, the Administrator with one is forbidden by the handler — no cell is "allowed", none is skipped', () => {
-    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'deletePaymentMilestone');
+  it('EVM-057 AC8 an operation with a step-up and no object (no path parameter, no anchor) has no IDOR cell — by the rule, not by a list', () => {
+    const cells = buildMatrix(synthetic, syntheticLists);
+    expect(cells.filter((cell) => cell.idor && cell.operationId === 'stepThing')).toEqual([]);
+    expect(buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.idor && cell.operationId === 'listAuditEvents')).toEqual([]);
+  });
+
+  it('EVM-057 AC4 AC8 deletePaymentMilestone: the Administrator with a fresh key is let in; without one a step-up; Editor and Read-only forbidden; anonymous 401', () => {
+    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'deletePaymentMilestone' && !cell.idor);
     expect(cells).toHaveLength(19);
-    expect(cells.filter((cell) => cell.expectation.outcome === 'allowed')).toEqual([]);
     const at = (caller: Caller) => cells.find((cell) => JSON.stringify(cell.caller) === JSON.stringify(caller))?.expectation;
     const forbidden = { outcome: 'denied', status: 403, code: 'forbidden' };
+    expect(cells.filter((cell) => cell.expectation.outcome === 'allowed').map((cell) => cell.caller)).toEqual([fresh]);
     expect(at(session('editor', 'web'))).toEqual(forbidden);
     expect(at(session('read_only', 'web'))).toEqual(forbidden);
     expect(at(session('administrator', 'web'))).toEqual({ outcome: 'denied', status: 403, code: 'step_up_required' });
-    expect(at({ kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'stale' })).toEqual({
-      outcome: 'denied',
-      status: 403,
-      code: 'step_up_required',
-    });
-    expect(at({ kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' })).toEqual(forbidden);
+    expect(at({ ...fresh, passkey: 'stale' })).toEqual({ outcome: 'denied', status: 403, code: 'step_up_required' });
+    expect(at({ ...fresh, channel: 'mobile' })).toEqual(forbidden);
     expect(at({ kind: 'anonymous' })).toEqual({ outcome: 'denied', status: 401, code: 'unauthenticated' });
-  });
-
-  it('EVM-054 K3 the exception is keyed by the operation: another operation with a step-up stays "allowed" for the Administrator with a fresh key', () => {
-    const fresh: Caller = { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' };
-    expect(expectationFor('listAuditEvents', AUTHZ_MANIFEST, lists, fresh)).toEqual({ outcome: 'allowed' });
-    expect(expectationFor('stepThing', synthetic, syntheticLists, fresh)).toEqual({ outcome: 'allowed' });
   });
 });
 

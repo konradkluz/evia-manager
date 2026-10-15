@@ -1091,6 +1091,8 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Propozycja do 1.3.0 — 2026-10-14 (EVM-057, do akceptacji Konrada)
+- **§ 4.11 — dialogi korekt Administratora (przed → po, potem W-04):** AlertDialog z podsumowaniem stanu „przed → po” (dwie StatusBadge: ikona + etykieta), zdaniem o skutku i stałym zdaniem „Operacja zostanie zapisana w dzienniku audytu.”; wariant danger dla czynności niszczących lub czyszczących dane (wycofanie i anulowanie faktury, usunięcie transzy), primary dla przywracających (cofnięcie wpłaty, przywrócenie transzy) i zmiany kwoty. Anulowanie W-04 wraca do dialogu z InlineAlert „Nie wykonano korekty.” i zachowanymi danymi (jak „Nie wykonano operacji.” przy anonimizacji). Bez nowych tokenów i komponentów.
 ### Propozycja do 1.3.0 — 2026-10-14 (EVM-056, do akceptacji Konrada)
 - **§ 4.2 — kolumna „Płatność” i sortowanie „Najpilniejsze”:** kolumna płatności wyrównana do prawej (nagłówek też), pierwszeństwo Po terminie (mocna odznaka `color.status.payment.overdue.*` + kwota) > Nieopłacone (n) (`payment.invoiced.*` + suma) > Opłacone (`payment.paid.*`) > „—” z ukrytą nazwą „Brak wystawionych transz”; przy sortowaniu złożonym „Najpilniejsze” nagłówki kolumn bez `aria-sort`, a zmiana sortowania ogłaszana `aria-live="polite"`. Bez nowych tokenów i komponentów.
 - **§ 4.2 / § 3.6 — tabela zleceń W-10:** na `expanded` 6 kolumn priorytetowych; „Opiekun” i „Utworzono” są liniami pierwszej komórki na każdym breakpointcie („Opiekun: …”, „Utworzono …”) — runda 4 (niżej) cofa ich kolumny na `wide`; tabela gęsta ma boczny padding komórek `space.inset.sm`. Bez nowych tokenów.

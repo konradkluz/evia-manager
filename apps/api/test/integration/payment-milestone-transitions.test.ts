@@ -351,15 +351,18 @@ describe('"Popraw dane faktury…" and "Popraw datę wpłaty…" — the PATCH (
     expect(await auditOf(invoiced ?? '')).toEqual([]);
   });
 
-  it('EVM-054 AC4 AC5 the amount of an invoiced or paid milestone is 403 forbidden — also together with other fields, also with a stale version', async () => {
+  it('EVM-054 AC4 AC5 EVM-057 AC6 the amount of an invoiced or paid milestone is 403 — forbidden for the Editor, step_up_required for the Administrator without a step-up — also together with other fields, also with a stale version', async () => {
     const created = await order([invoicedSpec, { ...invoicedSpec, status: 'paid' }]);
-    for (const role of ['editor', 'administrator'] as const) {
+    for (const [role, code] of [
+      ['editor', 'forbidden'],
+      ['administrator', 'step_up_required'],
+    ] as const) {
       const browser = await signIn(role);
       for (const id of created.milestoneIds) {
         for (const options of [{}, { ifMatch: '"7"' }]) {
           const response = await patch(browser, created.id, id, { amount: pln(1), invoiceNumber: 'FV/9' }, options);
           expect(response.status, `${role} ${JSON.stringify(options)}`).toBe(403);
-          expect(codeOf(response.body)).toBe('forbidden');
+          expect(codeOf(response.body)).toBe(code);
         }
       }
     }
@@ -397,8 +400,8 @@ describe('"Popraw dane faktury…" and "Popraw datę wpłaty…" — the PATCH (
   });
 });
 
-describe('the corrections are not available before EVM-057 (EVM-054 AC5; Q1, Q2; SR-AUTHZ-10)', () => {
-  it('EVM-054 AC5 withdraw and cancel an invoice, undo a payment, restore a milestone: 403 forbidden for the Editor AND the Administrator — before the version; nothing changes, no audit, no journal', async () => {
+describe('the corrections without the Administrator with a step-up (EVM-054 AC5; EVM-057 AC5, AC6; P2; SR-AUTHZ-10, SR-SESS-08)', () => {
+  it('EVM-057 AC6 withdraw and cancel an invoice, undo a payment, restore a milestone: 403 forbidden for the Editor, 403 step_up_required for the Administrator without a step-up — before the version; nothing changes, no audit, no journal', async () => {
     const created = await order([{ status: 'invoiced' }, { status: 'invoiced' }, { status: 'paid' }, { status: 'cancelled' }]);
     const [invoicedA, invoicedB, paid, cancelled] = created.milestoneIds;
     const moves = [
@@ -407,14 +410,16 @@ describe('the corrections are not available before EVM-057 (EVM-054 AC5; Q1, Q2;
       [paid, 'invoiced'],
       [cancelled, 'planned'],
     ] as const;
-    for (const role of ['editor', 'administrator'] as const) {
+    for (const [role, code] of [
+      ['editor', 'forbidden'],
+      ['administrator', 'step_up_required'],
+    ] as const) {
       const browser = await signIn(role);
       for (const [id, to] of moves) {
         for (const options of [{}, { ifMatch: '"9"' }]) {
-          const body = to === 'cancelled' ? { to, reason: REASON } : { to };
-          const response = await go(browser, created.id, id ?? '', body, options);
+          const response = await go(browser, created.id, id ?? '', { to }, options);
           expect(response.status, `${role} ${to} ${JSON.stringify(options)}`).toBe(403);
-          expect(codeOf(response.body)).toBe('forbidden');
+          expect(codeOf(response.body)).toBe(code);
         }
       }
     }
@@ -430,7 +435,7 @@ describe('the corrections are not available before EVM-057 (EVM-054 AC5; Q1, Q2;
     expect(await journalOf(created.id)).toEqual([]);
   });
 
-  it('EVM-054 AC5 Q1 the deletion of a milestone: Editor and Read-only 403 forbidden, the Administrator without a step-up 403 step_up_required, with one 403 forbidden (EVM-057) — the same for a milestone that does not exist; nothing is written', async () => {
+  it('EVM-054 AC5 Q1 EVM-057 AC6 the deletion of a milestone: Editor and Read-only 403 forbidden, the Administrator without a step-up 403 step_up_required — the same for a milestone that does not exist; nothing is written', async () => {
     const since = current.clock.now();
     const created = await order([{ status: 'paid' }]);
     const milestoneId = created.milestoneIds[0] ?? '';
@@ -440,7 +445,6 @@ describe('the corrections are not available before EVM-057 (EVM-054 AC5; Q1, Q2;
       [await signIn('editor'), 'forbidden'],
       [await signIn('read_only'), 'forbidden'],
       [await signIn('administrator'), 'step_up_required'],
-      [await signIn('administrator', { freshKey: true }), 'forbidden'],
     ] as const;
     for (const [browser, code] of cases) {
       for (const id of [milestoneId, uuidv7()]) {
@@ -449,7 +453,7 @@ describe('the corrections are not available before EVM-057 (EVM-054 AC5; Q1, Q2;
         expect(codeOf(response.body), code).toBe(code);
       }
     }
-    const fresh = cases[3][0];
+    const fresh = await signIn('administrator', { freshKey: true });
     const bad = await fresh.panel.delete(`${BASE}/${created.id}/payment-milestones/x`, { 'If-Match': '"1"' });
     expect(bad.status).toBe(400);
     expect(await rowOf(milestoneId)).toMatchObject({ status: 'paid', version: 1 });
@@ -526,14 +530,16 @@ describe('the rules of the command (EVM-054 AC7; SR-API-07, SR-INPUT-02, CWE-915
     expect(await rowOf(second ?? '')).toMatchObject({ status: 'invoiced', version: 1 });
   });
 
-  it('EVM-054 AC5 the list offers the moves of the role of the caller: A and E — invoice and cancel a planned one, pay an invoiced one; Read-only — none; never a correction', async () => {
+  it('EVM-054 AC5 EVM-057 AC8 the list offers the moves of the role of the caller: A and E — invoice and cancel a planned one, pay an invoiced one; the Administrator also the corrections, with or without a fresh step-up; Read-only — none', async () => {
     const created = await order([{}, { status: 'invoiced' }, { status: 'paid' }, { status: 'cancelled' }]);
-    for (const [role, expected] of [
-      ['editor', [['invoiced', 'cancelled'], ['paid'], [], []]],
-      ['administrator', [['invoiced', 'cancelled'], ['paid'], [], []]],
-      ['read_only', [[], [], [], []]],
+    const corrections = [['invoiced', 'cancelled'], ['paid', 'planned', 'cancelled'], ['invoiced'], ['planned']];
+    for (const [role, expected, freshKey] of [
+      ['editor', [['invoiced', 'cancelled'], ['paid'], [], []], false],
+      ['administrator', corrections, false],
+      ['administrator', corrections, true],
+      ['read_only', [[], [], [], []], false],
     ] as const) {
-      const browser = await signIn(role);
+      const browser = await signIn(role, { freshKey });
       const listed = await browser.panel.get(`${BASE}/${created.id}/payment-milestones`);
       expect(listed.status).toBe(200);
       expect(
