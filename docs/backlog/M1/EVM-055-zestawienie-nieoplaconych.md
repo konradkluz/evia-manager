@@ -4,7 +4,7 @@ title: Zestawienie nieopłaconych i po terminie
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -97,7 +97,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona — dokumentacja (wytyczne API, README, CHANGELOG) tak; instrukcji EVM-066 jeszcze nie ma (EVM-066 `ready`) — do decyzji Konrada na demo (jak w EVM-053/EVM-054)
-- [ ] Demo i akceptacja użytkownika (scenariusz A12)
+- [x] Demo i akceptacja użytkownika (scenariusz A12)
 
 ## Notatki
 - Uwagi z przeglądu domknięte przez web-developera po potoku (`50237ea`, `2c866fe`, `ec520f0`, `8ba1ef6`): jedna etykieta odznaki „Po terminie” z i18n w W-11 i W-06 (styleguide § 4.4), `CustomerPicker` wyłączony offline (AC8), token szerokości zamiast `w-80`, pomocnicze funkcje dat w osobnym module.
@@ -118,3 +118,4 @@ _—_
 - 2026-10-14 — web-developer: uwagi z przeglądu domknięte (etykieta „Po terminie” z i18n w W-11 i W-06, `CustomerPicker` offline, token szerokości, moduł `milestone-days`); asercje E2E akcji transz dopuszczają „Wystawiona” lub „Po terminie” (zależność od zegara przeglądarki — jak w propozycji dla EVM-037 AC3)
 - 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 1474/1492, gałęzie 1277/1387), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 9 wywołań agentów, ok. 1,21 mln tokenów subagentów, ok. 87 min (+ poprawki web ok. 0,08 mln, 7 min); rundy poprawek 0; ścieżka pełna; sonnet
+- 2026-10-15 — scalona do `main` (PR #71, `66a07ce`); in-review → done. Przed scaleniem poprawka czerwonego `e2e-web` w CI z EVM-054 (`5b56de0`: menu akcji mieści się w viewporcie — na Linuksie przy 360 px wychodziło poza ekran). Instrukcja dla biura (EVM-066) pozostaje otwarta — realizuje ją EVM-066 (`ready`)
