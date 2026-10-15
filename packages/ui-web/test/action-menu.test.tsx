@@ -239,6 +239,17 @@ describe('ActionMenu placement (styleguide § 3.20: under the trigger, lined up 
     expect(screen.getByRole('menu').style.left).toBe('140px');
   });
 
+  it('EVM-054 AC3 a list taller than the room above and below is kept inside the viewport and limited to it', async () => {
+    placed('end', box(100, 100, 40, 40), box(0, 0, 220, 300), { width: 360, height: 280 });
+    await userEvent.click(screen.getByRole('button', { name: 'Akcje' }));
+    const list = screen.getByRole('menu');
+    expect(list.style.top).toBe('0px');
+    // wide labels wrap and a tall list scrolls (the limits are the viewport minus space.inset.sm at each side)
+    expect(list.className).toContain('max-w-menu');
+    expect(list.className).toContain('max-h-menu');
+    expect(list.className).toContain('overflow-y-auto');
+  });
+
   it('EVM-054 AC3 the list follows the trigger when the page or the frame of the table scrolls', async () => {
     let top = 100;
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

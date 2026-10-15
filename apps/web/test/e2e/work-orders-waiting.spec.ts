@@ -25,7 +25,7 @@ test.describe('"Czekamy na…" on the list of work orders (EVM-034)', () => {
     await expect(osd.getByText('Stoen Operator (OSD) · od 15 dni')).toBeVisible();
     await expect(osd.getByText('+1', { exact: true })).toBeVisible();
     await expect(osd.getByText('Czekamy dłużej niż 14 dni.')).toBeAttached();
-    await expect(osd.locator('svg').first()).toBeVisible();
+    await expect(osd.locator('svg:visible').first()).toBeVisible();
     const customer = table.getByRole('row').filter({ hasText: 'ZL-2026-0002' });
     await expect(customer.getByText('Klient · od 3 dni')).toBeVisible();
     await expect(customer.getByText('Czekamy dłużej niż 14 dni.')).toHaveCount(0);
@@ -99,8 +99,8 @@ test.describe('"Czekamy na…" on the list of work orders (EVM-034)', () => {
     await expect(page.getByRole('columnheader', { name: 'Termin' })).toHaveAttribute('aria-sort', 'ascending');
     const first = table.getByRole('row').nth(1);
     await expect(first).toContainText('30.09.2026');
-    await expect(first.getByText('Termin minął.')).toBeAttached();
-    await expect(first.locator('svg').first()).toBeVisible();
+    await expect(first.getByText('Termin minął.').first()).toBeAttached();
+    await expect(first.locator('svg:visible').first()).toBeVisible();
     // the sort is not in the address
     expect(new URL(page.url()).search).toBe('');
   });

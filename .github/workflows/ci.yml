@@ -201,12 +201,18 @@ jobs:
   # EVM-008 AC5: Playwright E2E of the panel (smoke, security headers and CSP, keyboard, axe) against `vite preview` of
   # the production build — Chromium and Firefox on Linux; Windows with Edge is the local evidence (ADR-0015). The shell
   # needs no API or database. The report (synthetic data only) is uploaded on failure.
+  # Two Playwright shards (matrix): a single job passed 20 min as the suite grew (~840 tests, ~16 min before failures and
+  # retries). `needs.e2e-web.result` in ci-gate aggregates the matrix, so the required check keeps working unchanged.
   e2e-web:
-    name: e2e-web
+    name: e2e-web (${{ matrix.shard }}/2)
     needs: [changes]
     if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     permissions:
       contents: read
     steps:
@@ -225,11 +231,13 @@ jobs:
       - name: Playwright browsers (Chromium, Firefox)
         run: pnpm --filter @evia/web exec playwright install --with-deps chromium firefox
       - name: E2E of the panel (Playwright)
-        run: pnpm --filter @evia/web run e2e
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: pnpm --filter @evia/web run e2e --shard="$SHARD/2"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: failure()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             apps/web/playwright-report/
             apps/web/test-results/

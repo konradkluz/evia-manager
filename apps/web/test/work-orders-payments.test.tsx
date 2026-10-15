@@ -57,7 +57,7 @@ function listApi(handler: Handler = ok(), role: UserRole = 'administrator') {
 }
 
 const lastQuery = (api: ReturnType<typeof listApi>): URLSearchParams => api.calls(LIST).at(-1)?.query ?? new URLSearchParams();
-// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin, Płatność, Opiekun, Utworzono.
+// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin, Płatność.
 const PAYMENT = 6;
 const rowsOf = async () => {
   const table = await screen.findByRole('table', { name: 'Lista zleceń' });

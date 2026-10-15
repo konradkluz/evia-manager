@@ -147,8 +147,11 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'pnpm install --frozen-lockfile',
       'pnpm exec turbo run build --filter=@evia/web^...',
       'pnpm --filter @evia/web exec playwright install --with-deps chromium firefox',
-      'pnpm --filter @evia/web run e2e',
+      'pnpm --filter @evia/web run e2e --shard="$SHARD/2"',
     ]);
+    // Two Playwright shards (the suite outgrew a single 20-minute job); ci-gate sees the aggregated matrix result.
+    expect(record(record(e2e['strategy'])['matrix'])['shard']).toEqual([1, 2]);
+    expect(record(e2e['strategy'])['fail-fast']).toBe(false);
     expect(record(record(json('apps/web/package.json'))['scripts'])['e2e']).toBe('playwright test --grep-invert @screenshots');
     const upload = list(e2e['steps'])
       .map(record)

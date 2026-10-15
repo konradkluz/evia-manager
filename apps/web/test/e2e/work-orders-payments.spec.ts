@@ -68,15 +68,12 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
     await expect(table(page).getByRole('link', { name: /^ZL-2026-0001, .*, płatność po terminie, 3\s600,00\szł$/ })).toBeVisible();
   });
 
-  // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja",
-  // "Opiekun" and "Utworzono". The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
+  // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja"
+  // ("Opiekun" and "Utworzono" are lines of the first cell at every width). The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
   const LAYOUTS = [
-    { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
+    { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Płatność'] },
     { width: 1280, headers: ['Zlecenie', 'Klient', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
-    {
-      width: 1440,
-      headers: ['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność', 'Opiekun', 'Utworzono'],
-    },
+    { width: 1440, headers: ['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
   ];
   for (const { width, headers } of LAYOUTS) {
     test(`EVM-056 AC1 at ${String(width)} px the column "Płatność" is seen whole, the table does not scroll sideways`, async ({
@@ -88,6 +85,40 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
       await page.goto(PATH);
       const visible = table(page).getByRole('columnheader').filter({ visible: true });
       await expect(visible).toHaveText(headers);
+      const frame = page.getByRole('region', { name: 'Lista zleceń' });
+      const { scrollWidth, clientWidth } = await frame.evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+      const box = await frame.boundingBox();
+      const badge = await row(page, 'ZL-2026-0001').getByText('Po terminie', { exact: true }).boundingBox();
+      expect(box).not.toBeNull();
+      expect(badge).not.toBeNull();
+      if (box !== null && badge !== null) expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width);
+      // "Opiekun" and "Utworzono" are lines of the first cell at every width, also where "Termin" is a column
+      await expect(row(page, 'ZL-2026-0001').getByText('Opiekun:').filter({ visible: true })).toBeVisible();
+      await expect(
+        row(page, 'ZL-2026-0001')
+          .getByText(/^Utworzono /)
+          .filter({ visible: true }),
+      ).toBeVisible();
+      // below `expanded` the due date is a line of the first cell, labelled (the column "Termin" starts at `expanded`)
+      if (width < 1280) await expect(row(page, 'ZL-2026-0001').getByText('Termin:').filter({ visible: true })).toBeVisible();
+    });
+  }
+
+  // Font metrics differ between platforms (Linux CI has wider glyphs): the table must stay in its frame also when the text is wider
+  // than on the developer's machine (1rem against the 0.875rem of text.body-sm: about the difference of Linux fonts), so the test widens the text of the table itself instead of relying on the platform.
+  for (const { width, headers } of LAYOUTS) {
+    test(`EVM-056 AC1 at ${String(width)} px with wider glyphs the table stays in its frame`, async ({ page, api }) => {
+      await page.setViewportSize({ width, height: 900 });
+      api.workOrders = 12;
+      await page.goto(PATH);
+      await expect(table(page).getByRole('columnheader').filter({ visible: true })).toHaveText(headers);
+      await table(page).evaluate((element) => {
+        for (const item of element.querySelectorAll<HTMLElement>('*')) item.style.setProperty('font-size', '1rem');
+      });
       const frame = page.getByRole('region', { name: 'Lista zleceń' });
       const { scrollWidth, clientWidth } = await frame.evaluate((element) => ({
         scrollWidth: element.scrollWidth,

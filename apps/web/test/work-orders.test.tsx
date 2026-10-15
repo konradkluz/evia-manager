@@ -70,7 +70,7 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       within(table)
         .getAllByRole('columnheader')
         .map((header) => header.textContent),
-    ).toEqual(['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność', 'Opiekun', 'Utworzono']);
+    ).toEqual(['Zlecenie', 'Klient', 'Lokalizacja', 'Status', 'Czekamy na', 'Termin', 'Płatność']);
     // "Najpilniejsze" is a composite order: no column carries aria-sort (§ 4.2).
     expect(within(table).getByRole('columnheader', { name: 'Zlecenie' }).hasAttribute('aria-sort')).toBe(false);
     const cells = within(table)
@@ -85,8 +85,6 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       '—Brak oczekiwań',
       '—Brak terminu',
       '—Brak wystawionych transz',
-      'Brak opiekuna',
-      '06.10.2026',
       'ZL-2026-0001Garaż — pełny proces 1Opiekun: Jan PrzykładowyUtworzono 04.10.2026',
       '—Brak klienta',
       '—Brak lokalizacji',
@@ -94,9 +92,11 @@ describe('W-10 default view, columns and rows (EVM-017 AC1)', () => {
       '—Brak oczekiwań',
       '—Brak terminu',
       '—Brak wystawionych transz',
-      'Jan Przykładowy',
-      '04.10.2026',
     ]);
+    // "Opiekun" and "Utworzono" are lines of the first cell at every width (never `wide:hidden`; flows/07 "Responsywność").
+    const first = within(within(table).getAllByRole('row')[2] as HTMLElement).getAllByRole('cell')[0] as HTMLElement;
+    expect(within(first).getByText('Opiekun: Jan Przykładowy').className).not.toContain('hidden');
+    expect(within(first).getByText('Utworzono 04.10.2026').className).not.toContain('hidden');
     expect(document.title).toBe('Zlecenia · EVia Manager');
   });
 
@@ -209,8 +209,10 @@ describe('W-10 filters, views and sorting (EVM-017 AC2)', () => {
     expect(history.location.search).toBe('');
     expect(history.location.href).not.toContain(JAN.id);
     expect(screen.getByRole('button', { name: 'Usuń filtr Opiekun: Jan Przykładowy' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Utworzono' }).getAttribute('aria-sort')).toBe('ascending');
-    expect(screen.getByRole('columnheader', { name: 'Zlecenie' }).hasAttribute('aria-sort')).toBe(false);
+    // "Utworzono" is a line of the first cell, not a column: the sort is seen in the control and no header carries aria-sort.
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: 'Sortuj' }).value).toBe('createdAt');
+    expect(screen.queryByRole('columnheader', { name: 'Utworzono' })).toBeNull();
+    for (const header of screen.getAllByRole('columnheader')) expect(header.hasAttribute('aria-sort')).toBe(false);
   });
 
   it('EVM-017 AC2 the statuses and the view of a link are applied; an unknown status code in the address is dropped', async () => {

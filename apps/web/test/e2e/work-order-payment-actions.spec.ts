@@ -253,4 +253,37 @@ test.describe('the actions of the instalments (EVM-054)', () => {
       await expect(page.getByRole('menuitem', { name: 'Anuluj transzę…' })).toBeInViewport({ ratio: 1 });
     });
   }
+
+  // Font metrics differ between platforms (Linux CI has wider glyphs): a menu wider than the toast limit must still be
+  // wrapped and kept inside the viewport, so the test widens the text itself instead of relying on the platform.
+  for (const [width, height] of [
+    [360, 900],
+    [360, 240],
+  ] as const) {
+    test(`EVM-054 AC3 AC5 at ${String(width)}x${String(height)} px a menu with wide labels wraps them and stays in the viewport`, async ({
+      page,
+      api,
+    }) => {
+      await page.setViewportSize({ width, height });
+      const path = await createOrder(page);
+      await issueInvoice(page);
+      api.role = 'editor';
+      await page.goto(path);
+      const trigger = page.getByRole('button', { name: 'Akcje transzy: Zaliczka (20%)' });
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.click();
+      const menu = page.getByRole('menu', { name: 'Akcje transzy: Zaliczka (20%)' });
+      await menu.evaluate((element) => {
+        for (const item of element.querySelectorAll<HTMLElement>('*')) item.style.setProperty('font-size', '1.5rem');
+        window.dispatchEvent(new Event('resize'));
+      });
+      const box = await menu.boundingBox();
+      expect(box).not.toBeNull();
+      if (box === null) return;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+    });
+  }
 });

@@ -55,7 +55,7 @@ function listApi(handler: Handler = ok(), session = ACTIVE_SESSION) {
 }
 
 const lastQuery = (api: ReturnType<typeof listApi>): URLSearchParams => api.calls(LIST).at(-1)?.query ?? new URLSearchParams();
-// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin, Opiekun, Utworzono (EVM-072 added the first two).
+// Cells of a row of W-10: Zlecenie, Klient, Lokalizacja, Status, Czekamy na, Termin (EVM-072 added the first two; "Opiekun" and "Utworzono" are lines of the first cell).
 const WAITING = 4;
 const DUE = 5;
 const cellsOf = async (index = 0) => {

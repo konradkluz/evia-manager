@@ -226,8 +226,6 @@ export const pl = {
       heading: 'Lista zleceń',
       order: 'Zlecenie',
       status: 'Status',
-      coordinator: 'Opiekun',
-      created: 'Utworzono',
       createdLine: 'Utworzono {{date}}',
       coordinatorLine: 'Opiekun: {{name}}',
       noCoordinator: 'Brak opiekuna',
