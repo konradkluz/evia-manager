@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
-  decodeCursor,
+  auditPositionParts,
+  auditQuerySchema,
+  auditScope,
   DEFAULT_LIMIT,
-  encodeCursor,
+  LIST_AUDIT_OPERATION,
   MAX_LIMIT,
+  parseAuditPosition,
   resolveAuditQuery,
   type AuditQuery,
 } from '../../src/modules/audit/domain/audit-query.ts';
+import { CursorCodec } from '../../src/platform/crypto/opaque-cursor.ts';
 import { ProblemException } from '../../src/platform/http/problem.ts';
 import { parseInput } from '../../src/platform/http/validation.ts';
 
 const NOW = new Date('2026-10-07T08:00:00.000Z');
 const ID = '0190a1b2-0000-7000-8000-00000000a001';
-const parse = (query: unknown): AuditQuery => parseInput(resolveAuditQuery(NOW), query);
+const parse = (query: unknown, anchor: Date = NOW): AuditQuery => parseInput(resolveAuditQuery(anchor), query);
 const refusal = (query: unknown): { pointer: string; code: string }[] => {
   try {
     parse(query);
@@ -93,34 +97,89 @@ describe('the query of the audit log (EVM-029 AC5; SR-API-02, SR-API-04; ASVS V2
   });
 });
 
-describe('the cursor of the audit log is opaque and exactly what the API issued (EVM-029 AC5; CWE-20)', () => {
-  const position = { occurredAt: new Date('2026-10-06T10:00:00.123Z'), id: ID };
+describe('the cursor of the audit log: shape, scope, position and the anchored period (EVM-080 AC1, AC2; CWE-20, CWE-345)', () => {
+  const ASOF = new Date('2026-10-07T07:00:00.000Z');
+  const LATER = new Date('2026-10-07T07:20:00.000Z');
+  const last = { occurredAt: new Date('2026-10-06T10:00:00.123Z'), id: ID };
 
-  it('EVM-029 AC5 a cursor round-trips and is base64url (no characters that need escaping in a URL)', () => {
-    const cursor = encodeCursor(position);
-    expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(decodeCursor(cursor)).toEqual(position);
-    expect(parse({ cursor }).cursor).toEqual(position);
+  it('EVM-080 AC2 the query only checks the shape of a cursor: base64url, 1..512 characters; the rest is for the codec', () => {
+    expect(parse({ cursor: 'A'.repeat(512) }).cursor).toBeUndefined();
+    for (const cursor of ['', 'a b', 'a+b', 'a=', 'a/b', 'A'.repeat(513), 'żółw'])
+      expect([...new Set(refusal({ cursor }).map((error) => error.pointer))], cursor).toEqual(['/cursor']);
   });
 
-  it('EVM-029 AC5 anything else is a 400, never a 500: garbage, wrong shape, a bad id, a bad time, a non-canonical encoding', () => {
-    const encode = (value: unknown): string => Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
-    const bad = [
-      'not-a-cursor',
-      '!!!',
-      Buffer.from('{"t":1}', 'utf8').toString('base64url'),
-      encode(['2026-10-06T10:00:00.123Z']),
-      encode(['2026-10-06T10:00:00.123Z', 'not-a-uuid']),
-      encode(['not-a-time', ID]),
-      encode(['2026-10-06T10:00:00.123Z', ID, 'extra']),
-      encode(['2026-10-06T10:00:00.123Z', ID]) + 'AA',
-      encode(['2026-10-06T10:00:00+00:00', ID]),
-      encode(['2026-13-45T10:00:00.123Z', ID]),
-      'A'.repeat(300),
+  it('EVM-080 AC1 the cursor of the longest position still passes the shape check (the real token is about 270 characters, the limit 512)', () => {
+    const codec = new CursorCodec(Buffer.alloc(32, 5), { now: () => ASOF });
+    const token = codec.seal(LIST_AUDIT_OPERATION, {
+      position: auditPositionParts(new Date('9999-12-31T23:59:59.999Z'), { occurredAt: new Date('9999-12-31T23:59:59.999Z'), id: ID }),
+      scope: auditScope({
+        action: 'login.failed',
+        actorUserId: ID,
+        outcome: 'failed',
+        from: '2026-10-01T00:00:00.000+02:00',
+        to: '2026-10-02T00:00:00.000+02:00',
+      }),
+      userId: ID,
+    });
+    expect(token.length).toBeGreaterThan(200);
+    expect(token.length).toBeLessThanOrEqual(512);
+    expect(parseInput(auditQuerySchema, { cursor: token }).cursor).toBe(token);
+  });
+
+  it('EVM-080 AC1 the position is [asOf, occurredAt, id] and round-trips; a position of another shape is undefined, never a throw', () => {
+    const parts = auditPositionParts(ASOF, last);
+    expect(parts).toEqual(['2026-10-07T07:00:00.000Z', '2026-10-06T10:00:00.123Z', ID]);
+    expect(parseAuditPosition(parts)).toEqual({ asOf: ASOF, cursor: last });
+    const [asOfText, atText] = ['2026-10-07T07:00:00.000Z', '2026-10-06T10:00:00.123Z'] as const;
+    const bad: string[][] = [
+      [],
+      [ID],
+      ['2026-10-06T10:00:00.123Z', ID],
+      [asOfText, atText],
+      [...parts, 'extra'],
+      ['not-a-time', atText, ID],
+      [asOfText, 'not-a-time', ID],
+      [asOfText, atText, 'not-a-uuid'],
+      ['2026-13-45T10:00:00.123Z', atText, ID],
+      [asOfText, '2026-10-06', ID],
     ];
-    for (const cursor of bad) {
-      expect(decodeCursor(cursor), cursor).toBeUndefined();
-      expect([...new Set(refusal({ cursor }).map((error) => error.pointer))], cursor).toEqual(['/cursor']);
-    }
+    for (const candidate of bad) expect(parseAuditPosition(candidate), candidate.join('|')).toBeUndefined();
+  });
+
+  it('EVM-080 AC1 the scope is the filters as named: stable without `to`, different for an explicit `to`, independent of limit and of the cursor', () => {
+    const base = { action: 'login.failed', actorUserId: ID, outcome: 'failed', from: '2026-10-01T00:00:00.000Z' } as const;
+    const scope = auditScope(base);
+    expect(scope).toBe(auditScope({ ...base, limit: 5, cursor: 'abc' }));
+    expect(scope).not.toBe(auditScope({ ...base, to: '2026-10-07T07:00:00.000Z' }));
+    for (const other of [
+      { ...base, action: 'login.succeeded' },
+      { ...base, actorUserId: '0190a1b2-0000-7000-8000-00000000a002' },
+      { ...base, outcome: 'denied' },
+      { ...base, from: '2026-10-01T00:00:00Z' },
+      { ...base, from: undefined },
+      { action: 'login.failed' },
+      {},
+    ] as const)
+      expect(auditScope(other), JSON.stringify(other)).not.toBe(scope);
+    // the same value in another slot is another scope (a fixed order)
+    expect(auditScope({ from: '2026-10-01T00:00:00Z' })).not.toBe(auditScope({ to: '2026-10-01T00:00:00Z' }));
+  });
+
+  it('EVM-080 AC1 the default period is anchored: with the `asOf` of the cursor it ends at `asOf` and starts 30 days before it, however late the page is asked', () => {
+    const first = parse({}, ASOF);
+    const later = parseInput(resolveAuditQuery(ASOF, last), {});
+    expect(later).toEqual({ ...first, cursor: last });
+    expect(later.to).toEqual(ASOF);
+    expect(later.from).toEqual(new Date('2026-09-07T07:00:00.000Z'));
+    expect(parse({}, LATER).to).toEqual(LATER);
+  });
+
+  it('EVM-080 AC1 named `from` and `to` are used as sent; the rules (from <= to, 2 years) count from the anchor when `to` is not named', () => {
+    const named = parseInput(resolveAuditQuery(ASOF, last), { from: '2026-10-01T00:00:00Z', to: '2026-10-02T00:00:00Z' });
+    expect(named).toMatchObject({ from: new Date('2026-10-01T00:00:00Z'), to: new Date('2026-10-02T00:00:00Z'), cursor: last });
+    expect(() => parseInput(resolveAuditQuery(ASOF, last), { from: '2024-10-07T07:00:00.000Z' })).not.toThrow();
+    expect(() => parseInput(resolveAuditQuery(ASOF, last), { from: '2024-10-07T06:59:59.999Z' })).toThrow(ProblemException);
+    // a page asked later does not stretch the period: the same `from` is still within 2 years of `asOf`
+    expect(() => parseInput(resolveAuditQuery(ASOF, last), { from: '2026-10-07T07:00:00.001Z' })).toThrow(ProblemException);
   });
 });

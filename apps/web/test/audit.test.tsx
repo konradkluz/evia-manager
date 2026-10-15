@@ -519,6 +519,16 @@ describe('W-18: the log (EVM-029 AC5, AC6)', () => {
     expect(lastQuery(api).get('cursor')).toBeNull();
   });
 
+  it('EVM-080 AC2 invalid_cursor (one answer, no field errors) goes back to the first page with the same message', async () => {
+    const api = auditApi([ok([event(1)], 'CURSOR1'), () => problem(400, 'invalid_cursor'), ok([event(1)], 'CURSOR1')]);
+    await renderPanel(AUDIT_PATH, api);
+    await screen.findByRole('table');
+    await userEvent.click(screen.getByRole('button', { name: 'Następna strona' }));
+    expect(await screen.findByText('Lista została zaktualizowana — wróciliśmy na początek.')).toBeTruthy();
+    expect(await screen.findByRole('table')).toBeTruthy();
+    expect(lastQuery(api).get('cursor')).toBeNull();
+  });
+
   it('EVM-029 AC6 the panel offers no operation that changes or deletes events: only GET reads of the log are sent', async () => {
     const api = auditApi([ok([event(1)], 'CURSOR1'), ok()]);
     await renderPanel(AUDIT_PATH, api);

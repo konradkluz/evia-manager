@@ -4,7 +4,7 @@ title: Nieprzezroczysty kursor dziennika audytu i CURSOR_KEY tylko dla serwera
 type: bug
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
 priority: P2
 path: pelna
 owner: backend-developer
@@ -57,7 +57,17 @@ Jako **właściciel systemu** chcę **by kursor paginacji dziennika audytu był 
 - Decyzja D4 (2026-10-13, Konrad — przekazana przez orkiestratora): kursory wydane przed zmianą stają się nieważne — akceptowalne (nie ma jeszcze produkcji).
 - Przekazać `CURSOR_KEY` jako sekret serwera przy wdrożeniu (EVM-084). Obszar ryzyka: bezpieczeństwo (integralność paginacji audytu), konfiguracja sekretu.
 
+## Notatki
+- Przeglądy bez blocker/major; konsultacja security przed implementacją wymusiła limit kursora 512 (przy 256 każdy prawdziwy `nextCursor` byłby odrzucany).
+- Otwarte minor (propozycje do backlogu): test granicy `loadMigrationConfig` skanuje źródła (szczegół implementacji); test kontraktu AC2 porównuje surowy YAML; podwójne parsowanie zapytania w `audit-read.service.ts` (kursor cudzy + zły zakres → `invalid_cursor` zamiast `validation_failed`).
+- Nit: README API wymienia nieistniejące skrypty CLI `overview` / `process-run`; długa linia w `audit.yaml`; `api-guidelines.md` (`listAuditEvents`) bez rozróżnienia `validation_failed` / `invalid_cursor`; TM-107 w modelu zagrożeń bez dziennika audytu (security-engineer dopisze).
+- QA bez ręcznej sesji eksploracyjnej (stos `dev` nieuruchomiony nocą) — zachowanie HTTP pokryte testami integracyjnymi na PostgreSQL.
+
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner; uwagi z przeglądów EVM-029 i EVM-017)
 - 2026-10-13 — refinement: kod `invalid_cursor`, stabilność domyślnego okresu, zakres klucza (tylko `db:migrate`), uprawnienia w AC (product-owner)
 - 2026-10-13 — draft → ready: AC i decyzje (D1–D5) zaakceptowane przez Konrada (refinement przed kolejką nocną)
+- 2026-10-14 — ready → in-progress: start `/deliver` w kolejce nocnej (ścieżka pełna, model sonnet, gałąź `feature/EVM-080-kursor-audytu` ułożona na EVM-078 → EVM-053 — łańcuch nocny)
+- 2026-10-14 — implementacja (backend-developer): kursor audytu przez wspólny kodek (`invalid_cursor`, `asOf` w kursorze, limit 512), `loadMigrationConfig` dla `db:migrate`, kontrakt, testy AC1–AC4 i dokumentacja AC5
+- 2026-10-14 — potok `wf_e19c41c5-d5b` (przerwany ok. 02:45 w QA, wznowiony 07:25): passed w 1 rundzie (QA PASS AC1–AC5; code-reviewer i security-engineer APPROVE); orkiestrator: `pnpm run gate` zielony (diff-coverage linie 587/588, gałęzie 460/481), `docs:check` 0/0; in-progress → in-review
+- 2026-10-14 — Koszt: brak rozbicia w $; ok. 6 wywołań agentów (plan, konsultacja security, implementacja, QA, 2 przeglądy), ok. 0,5 mln tokenów subagentów łącznie z przerwanym przebiegiem; rundy poprawek 0; ścieżka pełna; sonnet

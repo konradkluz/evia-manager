@@ -1,8 +1,18 @@
 import { AUTHZ_MANIFEST } from '@evia/contracts/authz';
-import { zAuditAction, zAuditObjectType, zAuditOutcome, zAuditReasonCode } from '@evia/contracts/zod';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  zAuditAction,
+  zAuditEventList,
+  zAuditObjectType,
+  zAuditOutcome,
+  zAuditReasonCode,
+  zListAuditEventsQuery,
+} from '@evia/contracts/zod';
 import { describe, expect, it } from 'vitest';
 import { auditQuerySchema } from '../../src/modules/audit/domain/audit-query.ts';
 import { AUDIT_ACTIONS, AUDIT_OBJECT_TYPES, AUDIT_OUTCOMES } from '../../src/modules/audit/domain/audit-record.ts';
+import { MAX_CURSOR_LENGTH } from '../../src/platform/crypto/opaque-cursor.ts';
 import { REASON_CODES } from '../../src/modules/identity/index.ts';
 
 // The lists of the contract (what the panel and the clients see) and the lists of the code (what the trail accepts) are
@@ -27,5 +37,23 @@ describe('the audit lists of the contract equal those of the code (EVM-029 AC5; 
       path: '/api/v1/audit/events',
       authz: { roles: ['administrator'], channels: ['web'], stepUp: true, audit: true },
     });
+  });
+});
+
+describe('the cursor of the audit log in the contract (EVM-080 AC1, AC2)', () => {
+  const token = (length: number): string => 'A'.repeat(length);
+
+  it('EVM-080 AC1 the contract admits a cursor and a nextCursor as long as the codec issues (512), no longer', () => {
+    expect(zListAuditEventsQuery.safeParse({ cursor: token(MAX_CURSOR_LENGTH) }).success).toBe(true);
+    expect(zListAuditEventsQuery.safeParse({ cursor: token(MAX_CURSOR_LENGTH + 1) }).success).toBe(false);
+    expect(zAuditEventList.safeParse({ items: [], nextCursor: token(MAX_CURSOR_LENGTH) }).success).toBe(true);
+    expect(zAuditEventList.safeParse({ items: [], nextCursor: token(MAX_CURSOR_LENGTH + 1) }).success).toBe(false);
+  });
+
+  it('EVM-080 AC2 a refused query or cursor is documented as the shared InvalidListQuery response (validation_failed and invalid_cursor)', () => {
+    const file = join(import.meta.dirname, '../../../../packages/contracts/openapi/paths/audit.yaml');
+    const source = readFileSync(file, 'utf8').replaceAll(/\r/g, '');
+    expect(source).toContain("'400':\n        $ref: ../components/responses.yaml#/InvalidListQuery");
+    expect(source).toContain('invalid_cursor');
   });
 });
