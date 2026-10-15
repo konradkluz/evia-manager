@@ -263,6 +263,16 @@
   z-index: var(--evm-layer-dropdown);
 }
 
+/* Floating menus (§ 3.20; position: fixed, so 100% is the viewport): never wider or taller than the viewport minus a margin of space.inset.sm at each side;
+   labels wrap and a taller list scrolls instead of leaving the screen. */
+@utility max-w-menu {
+  max-width: min(var(--evm-size-toast-max-width), calc(100% - 2 * var(--evm-space-inset-sm)));
+}
+
+@utility max-h-menu {
+  max-height: calc(100% - 2 * var(--evm-space-inset-sm));
+}
+
 @utility z-toast {
   z-index: var(--evm-layer-toast);
 }
