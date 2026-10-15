@@ -167,7 +167,7 @@ describe('W-11 "Do wystawienia" (EVM-059 AC2) failures', () => {
       () => problem(500, 'internal_error'),
     ];
     const api = unpaidApi(() => json(200, listOf([ONE])), undefined, {
-      [`GET ${route}`]: (request) => (answers.shift() ?? (() => problem(500, 'internal_error')))(request),
+      [`GET ${route}`]: () => (answers.shift() ?? (() => problem(500, 'internal_error')))(),
     });
     await renderPanel(PLANNED_PATH, api);
     await ready();
