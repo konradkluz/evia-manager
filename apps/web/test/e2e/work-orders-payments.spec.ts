@@ -71,7 +71,7 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
   // flows/07 "Responsywność": medium — the priority columns with "Płatność"; expanded — six priority columns; wide — plus "Lokalizacja",
   // "Opiekun" and "Utworzono". The table must not scroll sideways: the payment of AC1 is seen whole without scrolling.
   const LAYOUTS = [
-    { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
+    { width: 768, headers: ['Zlecenie', 'Status', 'Czekamy na', 'Płatność'] },
     { width: 1280, headers: ['Zlecenie', 'Klient', 'Status', 'Czekamy na', 'Termin', 'Płatność'] },
     {
       width: 1440,
@@ -99,6 +99,8 @@ test.describe('payments on the list W-10 (EVM-056)', () => {
       expect(box).not.toBeNull();
       expect(badge).not.toBeNull();
       if (box !== null && badge !== null) expect(badge.x + badge.width).toBeLessThanOrEqual(box.x + box.width);
+      // below `expanded` the due date is a line of the first cell, labelled (the column "Termin" starts at `expanded`)
+      if (width < 1024) await expect(row(page, 'ZL-2026-0001').getByText('Termin:').filter({ visible: true })).toBeVisible();
     });
   }
 

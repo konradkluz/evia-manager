@@ -84,7 +84,8 @@ export function WorkOrderTable({
     { id: 'site', header: t('workOrders.table.location'), wideOnly: true },
     { id: 'status', card: 'badge' as const, header: t('workOrders.table.status') },
     { id: 'waiting', card: 'detail' as const, header: t('workOrders.table.waiting'), ...markSort('waiting') },
-    { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), ...markSort('due') },
+    // From `expanded` only: below it the due date is a line of the first cell (the width budget, styleguide § 3.6).
+    { id: 'due', card: 'detail' as const, header: t('workOrders.table.due'), expandedOnly: true, ...markSort('due') },
     ...(payments ? [{ id: 'payment', card: 'detail' as const, header: t('workOrders.table.payment'), align: 'end' as const }] : []),
     // "Opiekun" and "Utworzono" only from `wide` (flows/07: six priority columns on `expanded`, "Płatność" seen whole on `medium`);
     // below it both are lines of the first cell (and of the card).
@@ -144,6 +145,11 @@ export function WorkOrderTable({
                 <span className={deleted ? 'wrap-anywhere text-text-secondary' : 'wrap-anywhere'}>{customerText}</span>
               )}
               {siteText === undefined ? null : <span className="wrap-anywhere text-text-secondary">{siteText}</span>}
+            </span>
+          )}
+          {item.nextDueDate === null || item.nextDueDate === undefined ? null : (
+            <span className="expanded:hidden">
+              <DueCell item={item} labelled />
             </span>
           )}
           {/* The columns "Opiekun" and "Utworzono" are shown from `wide`; below it they are the last lines here (EVM-056, flows/07). */}
