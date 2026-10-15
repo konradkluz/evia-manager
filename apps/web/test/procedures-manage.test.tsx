@@ -1017,3 +1017,251 @@ describe('W-06 (d) the remaining answers of the dialogs (EVM-042 AC1–AC7)', ()
     }
   });
 });
+
+describe('W-06 (d) the remaining branches of the process and stage dialogs (EVM-042 AC1–AC7)', () => {
+  const full = (count: number): Procedure[] =>
+    Array.from({ length: count }, (_, index) => ({
+      ...ppoz(),
+      id: `01968f3e-0000-7000-8000-0000000c0${String(index).padStart(3, '0')}`,
+      code: `p${String(index)}`,
+      name: `Proces ${String(index)}`,
+      position: index + 1,
+    }));
+
+  const CATALOGUE = {
+    items: [
+      { code: 'solo', name: 'Proces jednoetapowy', stages: [{ code: 'a', name: 'A' }] },
+      { code: 'big', name: 'Proces pięcioetapowy', stages: [1, 2, 3, 4, 5].map((n) => ({ code: `b${String(n)}`, name: `B${String(n)}` })) },
+    ],
+    nextCursor: null,
+  };
+
+  it('EVM-042 AC1 the add dialog: a clean cancel closes at once, the count of stages is told in the right form, a refused template, key and a full order are told', async () => {
+    let procedures = list([osd([stage(1)])]);
+    const answers = [problem(400, 'validation_failed'), problem(409, 'idempotency_mismatch'), problem(409, 'procedure_already_active')];
+    let call = 0;
+    const fake = api({
+      procedures: () => json(200, procedures),
+      extra: {
+        [TEMPLATES_ROUTE]: () => json(200, CATALOGUE),
+        [`POST ${BASE}/procedures`]: () => {
+          const answer = answers[call++] ?? problem(500, 'internal_error');
+          if (call === 3) procedures = list(full(30));
+          return answer;
+        },
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    let dialog = await openAddProcedure();
+    await dialog.findByRole('option', { name: 'Proces jednoetapowy' });
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('dialog', { name: 'Dodaj proces' })).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    dialog = await openAddProcedure();
+    const choose = await dialog.findByRole('combobox', { name: 'Proces' });
+    await userEvent.selectOptions(choose, 'big');
+    expect(dialog.getByText('Proces dostanie etapy z szablonu w stanie „Do zrobienia”: 5 etapów.')).toBeTruthy();
+    await userEvent.selectOptions(choose, 'solo');
+    expect(dialog.getByText('Proces dostanie etapy z szablonu w stanie „Do zrobienia”: 1 etap.')).toBeTruthy();
+
+    const submit = () => userEvent.click(dialog.getByRole('button', { name: 'Dodaj proces' }));
+    await submit();
+    expect(await dialog.findByText('Ten szablon procesu nie jest już dostępny. Wybierz inny.')).toBeTruthy();
+    await submit();
+    await dialog.findByText(/Nie udało się zapisać zmiany/);
+    await submit();
+    expect(await dialog.findByText('Nie dodano procesu — w zleceniu jest już aktywny proces „Proces jednoetapowy”.')).toBeTruthy();
+    // the refused key is not sent again: the next attempt has a fresh one
+    const keys = fake.calls(`POST ${BASE}/procedures`).map((entry) => entry.headers.get('Idempotency-Key'));
+    expect(keys[2]).not.toBe(keys[1]);
+    // the list was read again and holds the limit: the dialog says so and blocks the button
+    await waitFor(() => {
+      expect(dialog.getAllByText('Zlecenie ma już 30 procesów — to limit.').length).toBeGreaterThan(0);
+    });
+    expect(dialog.getByRole('button', { name: 'Dodaj proces' }).getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('EVM-042 AC2 the stage dialog: a clean cancel closes at once; a name that is too long, a date out of range and a refused key are told', async () => {
+    const answers = [problem(409, 'idempotency_mismatch'), problem(500, 'internal_error')];
+    let call = 0;
+    const fake = api({ extra: { [`POST ${BASE}/procedures/${OSD_ID}/stages`]: () => answers[call++] ?? problem(500, 'internal_error') } });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Uzgodnienia z OSD', 'Dodaj etap…');
+    let dialog = within(await screen.findByRole('dialog', { name: 'Dodaj etap' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('dialog', { name: 'Dodaj etap' })).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+
+    await openProcessMenu('Uzgodnienia z OSD', 'Dodaj etap…');
+    dialog = within(await screen.findByRole('dialog', { name: 'Dodaj etap' }));
+    const name = dialog.getByRole('textbox', { name: 'Nazwa etapu' });
+    await userEvent.click(name);
+    await userEvent.paste('x'.repeat(121));
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Nazwa może mieć najwyżej 120 znaków.')).toBeTruthy();
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Krótka nazwa');
+    await userEvent.type(dialog.getByLabelText('Termin (opcjonalnie)'), '2101-01-01');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Wybierz termin z lat 2000–2100.')).toBeTruthy();
+    expect(fake.calls(`POST ${BASE}/procedures/${OSD_ID}/stages`)).toHaveLength(0);
+
+    await userEvent.clear(dialog.getByLabelText('Termin (opcjonalnie)'));
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    await dialog.findByText(/Nie udało się zapisać zmiany/);
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    await waitFor(() => {
+      expect(fake.calls(`POST ${BASE}/procedures/${OSD_ID}/stages`)).toHaveLength(2);
+    });
+    const [first, second] = fake.calls(`POST ${BASE}/procedures/${OSD_ID}/stages`);
+    expect(second?.headers.get('Idempotency-Key')).not.toBe(first?.headers.get('Idempotency-Key'));
+  });
+
+  it('EVM-042 AC2 the stage dialog: the server points at the date and the person, an unknown field is the general failure', async () => {
+    const answers = [
+      problem(400, 'validation_failed', { errors: [{ pointer: '/dueDate', code: 'out_of_range' }] }),
+      problem(400, 'validation_failed', { errors: [{ pointer: '/responsibleUserId', code: 'unavailable' }] }),
+      problem(400, 'validation_failed', { errors: [{ pointer: '/other', code: 'invalid' }] }),
+    ];
+    let call = 0;
+    const fake = api({ extra: { [`POST ${BASE}/procedures/${OSD_ID}/stages`]: () => answers[call++] ?? problem(500, 'internal_error') } });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Uzgodnienia z OSD', 'Dodaj etap…');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Dodaj etap' }));
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Nazwa etapu' }), 'Nowy etap');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Wybierz termin z lat 2000–2100.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Ta osoba nie jest dostępna. Wybierz inną osobę.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText(/Nie udało się zapisać zmiany/)).toBeTruthy();
+  });
+
+  it('EVM-042 AC2 the stage dialog: a failed list of people has a retry; a process that filled up is told; offline the button is off with the reason', async () => {
+    let people = 0;
+    let stages = [stage(1)];
+    const fake = api({
+      procedures: () => json(200, list([osd(stages), ppoz()])),
+      extra: {
+        'GET /api/v1/users/assignable': () => {
+          people += 1;
+          return people === 1
+            ? problem(500, 'internal_error')
+            : json(200, { items: [{ id: ACTIVE_SESSION.user.id, displayName: 'Anna Testowa' }] });
+        },
+        [`POST ${BASE}/procedures/${OSD_ID}/stages`]: () => {
+          stages = Array.from({ length: 30 }, (_, index) => stage(index + 1));
+          return problem(422, 'limit_exceeded', { errors: [{ pointer: '', code: 'too_many_stages' }] });
+        },
+      },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Uzgodnienia z OSD', 'Dodaj etap…');
+    const dialog = within(await screen.findByRole('dialog', { name: 'Dodaj etap' }));
+    expect(await dialog.findByText('Nie udało się wczytać listy osób.')).toBeTruthy();
+    await userEvent.click(dialog.getByRole('button', { name: 'Spróbuj ponownie' }));
+    expect(await dialog.findByRole('option', { name: 'Anna Testowa' })).toBeTruthy();
+
+    await userEvent.type(dialog.getByRole('textbox', { name: 'Nazwa etapu' }), 'Jeden za dużo');
+    await userEvent.click(dialog.getByRole('button', { name: 'Dodaj etap' }));
+    await waitFor(() => {
+      expect(dialog.getAllByText('Proces ma już 30 etapów — to limit.').length).toBeGreaterThan(1);
+    });
+    expect(dialog.getByRole('button', { name: 'Dodaj etap' }).getAttribute('aria-disabled')).toBe('true');
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    expect((await dialog.findAllByText('Zapiszesz po powrocie połączenia.')).length).toBeGreaterThan(0);
+    expect(dialog.getByRole('button', { name: 'Dodaj etap' }).getAttribute('title')).toBe('Zapiszesz po powrocie połączenia.');
+  });
+
+  it('EVM-042 AC6 the Editor removes a process and is not offered "Cofnij"', async () => {
+    const fake = api({
+      session: roleSession('editor'),
+      extra: { [`DELETE ${BASE}/procedures/${PPOZ_ID}`]: () => new Response(null, { status: 204 }) },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Opinia ppoż', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Opinia ppoż”?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    expect(await screen.findByText('Usunięto proces „Opinia ppoż”.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Cofnij' })).toBeNull();
+  });
+
+  it('EVM-042 AC7 the process dialog: a refused key gets a fresh one; offline it shows the banner and the reason on the button and sends nothing', async () => {
+    const answers = [problem(409, 'idempotency_mismatch'), new Response(null, { status: 204 })];
+    let call = 0;
+    const fake = api({ extra: { [`DELETE ${BASE}/procedures/${PPOZ_ID}`]: () => answers[call++] ?? problem(500, 'internal_error') } });
+    await renderPanel(PATH, fake);
+    await ready();
+    await openProcessMenu('Opinia ppoż', 'Usuń proces…');
+    const dialog = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Opinia ppoż”?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    await dialog.findByText(/Nie udało się zapisać zmiany/);
+    await userEvent.click(dialog.getByRole('button', { name: 'Usuń proces' }));
+    expect(await screen.findByText('Usunięto proces „Opinia ppoż”.')).toBeTruthy();
+    const [first, second] = fake.calls(`DELETE ${BASE}/procedures/${PPOZ_ID}`);
+    expect(second?.headers.get('Idempotency-Key')).not.toBe(first?.headers.get('Idempotency-Key'));
+
+    await openProcessMenu('Uzgodnienia z OSD', 'Usuń proces…');
+    const again = within(await screen.findByRole('alertdialog', { name: 'Usunąć proces „Uzgodnienia z OSD”?' }));
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    expect(await again.findByText('Zapiszesz po powrocie połączenia.')).toBeTruthy();
+    const confirm = again.getByRole('button', { name: 'Usuń proces' });
+    expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    expect(confirm.getAttribute('title')).toBe('Zapiszesz po powrocie połączenia.');
+    expect(fake.calls(`DELETE ${BASE}/procedures/${OSD_ID}`)).toHaveLength(0);
+  });
+
+  it('EVM-042 AC3 AC6 the restore of a process: many stages are counted, a refused key is renewed, 403, a failure of the server and a closed order are told', async () => {
+    let headers = 0;
+    const entry = {
+      id: PPOZ_ID,
+      code: 'ppoz',
+      name: 'Opinia ppoż',
+      position: 2,
+      stageCount: 5,
+      version: 6,
+      deletedAt: '2026-10-14T10:00:00.000Z',
+    };
+    const answers = [
+      problem(409, 'idempotency_mismatch'),
+      problem(403, 'forbidden'),
+      problem(500, 'internal_error'),
+      problem(409, 'work_order_closed'),
+    ];
+    let call = 0;
+    const fake = api({
+      header: () => {
+        headers += 1;
+        return json(200, HEADER, { ETag: '"3"' });
+      },
+      deleted: () => json(200, { procedures: [entry], stages: [], truncated: false }),
+      extra: { [`POST ${BASE}/procedures/${PPOZ_ID}/restore`]: () => answers[call++] ?? problem(500, 'internal_error') },
+    });
+    await renderPanel(PATH, fake);
+    await ready();
+    await userEvent.click(await screen.findByRole('button', { name: 'Usunięte procesy i etapy (1)' }));
+    expect(screen.getByText('proces, 5 etapów')).toBeTruthy();
+    const restore = () => screen.getByRole('button', { name: 'Przywróć proces: Opinia ppoż' });
+    await userEvent.click(restore());
+    await screen.findByText(/Nie udało się zapisać zmiany/);
+    await userEvent.click(restore());
+    expect(await screen.findByText('Nie masz uprawnień do tej zmiany.')).toBeTruthy();
+    await userEvent.click(restore());
+    expect(await screen.findByText(/Nie udało się zapisać zmiany/)).toBeTruthy();
+    await userEvent.click(restore());
+    await waitFor(() => {
+      expect(headers).toBe(2);
+    });
+    const keys = fake.calls(`POST ${BASE}/procedures/${PPOZ_ID}/restore`).map((sent) => sent.headers.get('Idempotency-Key'));
+    expect(keys[1]).not.toBe(keys[0]);
+  });
+});
