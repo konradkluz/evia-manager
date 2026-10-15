@@ -97,18 +97,18 @@ test.describe('payments of a work order (EVM-053)', () => {
     expect(post?.headers['idempotency-key']).toMatch(UUIDV7);
   });
 
-  test('EVM-053 AC6 settling with a planned instalment is refused with the reason; cancelling warns and cancels the planned ones', async ({
+  test('EVM-053 AC6 EVM-058 AC3 settling with a planned instalment is disabled with the reason; cancelling warns and cancels the planned ones', async ({
     page,
     api,
   }) => {
     const path = await createOrder(page);
     await setStatus(page, api, path, 'completed');
     await page.getByRole('button', { name: 'Status zlecenia: Zakończone. Zmień status' }).click();
-    await page.getByRole('menuitem', { name: 'Rozlicz…' }).click();
-    const settle = page.getByRole('alertdialog');
-    await settle.getByRole('button', { name: 'Rozlicz zlecenie' }).click();
-    await expect(settle.getByRole('alert')).toHaveText('Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane.');
-    await settle.getByRole('button', { name: 'Anuluj' }).click();
+    // EVM-058 AC3: the panel knows the instalments are planned, so the item is disabled with the reason and nothing is sent
+    const settleItem = page.getByRole('menuitem', { name: /^Rozlicz…/ });
+    await expect(settleItem).toHaveAttribute('aria-disabled', 'true');
+    await expect(settleItem).toContainText('Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane.');
+    await page.keyboard.press('Escape');
 
     await setStatus(page, api, path, 'on_hold');
     await page.getByRole('button', { name: 'Status zlecenia: Wstrzymane. Zmień status' }).click();

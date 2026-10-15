@@ -484,6 +484,8 @@ export const pl = {
       close: 'Zamknij',
       reasonHint: 'Do {{max}} znaków. Nie wpisuj danych osobowych.',
       plannedMilestonesCancelled: 'Planowane transze ({{count}}) zostaną anulowane.',
+      paidMilestonesUnchanged: 'Opłacone transze ({{count}}) pozostają bez zmian.',
+      settleSummary: 'Opłacone: {{paid}}, anulowane: {{cancelled}}, suma wpłat {{total}}.',
       plannedMilestonesCancelledUnknown: 'Planowane transze zostaną anulowane.',
       field: {
         reasonRequired: 'Wpisz powód.',

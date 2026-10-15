@@ -108,3 +108,4 @@ _—_
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC6 — komunikat `412` wg makiety W-06 (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”; historyjka zostaje w `draft` (zmiana brzmienia przed `/refine`, status bez zmian)
 - 2026-10-15 — Konrad zaakceptował AC (6, ścieżka lekka); draft → ready
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`)
+- 2026-10-15 — implementacja (web-developer): podsumowania i blokady w dialogach „Rozlicz…” / „Anuluj zlecenie…”, odświeżenie płatności po 412/422/rozliczeniu; test integracyjny AC4; testy `EVM-058 AC#`
