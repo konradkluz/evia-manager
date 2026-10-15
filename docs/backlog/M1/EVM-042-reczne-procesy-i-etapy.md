@@ -4,7 +4,7 @@ title: Ręczne dodanie i usunięcie procesu lub etapu
 type: story
 milestone: M1
 epic: E4 Procesy i etapy
-status: in-progress
+status: in-review
 priority: P2
 path: pelna
 owner: backend-developer
@@ -72,20 +72,31 @@ Jako **pracownik biura** chcę **dodać do zlecenia proces albo etap, którego n
 - Moduły: `procedures`, `timeline`, `audit` + panel. Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Plan roboczy: `.scratch/EVM-042/plan.md` (nie jest częścią repozytorium). Skrót: 7 operacji w module `procedures` (kanał web) — `createWorkOrderProcedure`, `createProcedureStage`, `deleteWorkOrderProcedure`, `deleteProcedureStage` (A, E), `restoreWorkOrderProcedure`, `restoreProcedureStage`, `listDeletedWorkOrderProcedures` (tylko A); jedna transakcja pod blokadą zlecenia (zapis, audyt, dziennik, projekcja, idempotencja); 6 akcji audytu (nowy typ obiektu `procedure`) i 6 kodów dziennika EVM-038; nowe kody `409 procedure_already_active` i `409 parent_deleted`; `Procedure.version` addytywnie jako ETag procesu. Bez migracji (soft delete i indeksy częściowe z 0019; numer 0033 pozostaje wolny). Panel: W-06 (d) — dialogi dodania i usunięcia, sekcja „Usunięte procesy i etapy” (A).
 
 ## Decyzje
-_—_
+- Przywrócenie procesu lub etapu — tylko Administrator, **bez step-upu** (step-up P5 dotyczy wyłącznie przywrócenia zlecenia rozliczonego/anulowanego).
+- Usunięcie procesu to soft delete samego procesu: jego etapy znikają przez filtr aktywnego procesu i wracają razem z nim przy przywróceniu.
+- `position` większe niż liczba elementów jest przycinane do końca; po usunięciu numeracja 1…n; wersja procesu rośnie przy zmianie jego składu.
+- Lista usuniętych ograniczona do 100 procesów i 100 etapów (najnowsze) z flagą `truncated`, bez stronicowania — świadome uproszczenie (zlecenie ma najwyżej 30 aktywnych procesów); stronicowanie dopiero przy realnej potrzebie.
+- Audyt i dziennik niosą wyłącznie identyfikatory i kod procesu — bez nazwy etapu (tekst swobodny, możliwe dane osobowe). Kod ręcznego etapu (`custom_` + 12 znaków) nadaje serwer.
+- Dodanie procesu wskazuje szablon przez `procedureTemplateCode` (katalog nie ujawnia identyfikatorów szablonów; jak w EVM-035). `201` bez `Location` (brak odczytu pojedynczego procesu/etapu).
+- Odstępstwa od makiety W-06 (d): „Usuń…” jako przycisk primary (AlertDialog bez wariantu `danger`, jak w EVM-035), ActionMenu bez separatora grupy niszczącej, „Miejsce”: „Na końcu” / „Po: …”.
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-042 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-042 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
+
+## Notatki
+- **Do akceptacji Konrada na demo — RR-25 (Low, threat-model):** nazwy etapu nie da się edytować; sprostowanie to usunięcie i dodanie nowego etapu, a stara nazwa (możliwe dane osobowe) zostaje w bazie przez retencję zlecenia i jest widoczna w dzienniku dla A/E/R — usunięcie tylko przez purge zlecenia. Alternatywa: kolejna historyjka z edycją nazwy etapów `custom_` i/lub redakcją przez Administratora ze step-upem (wzorzec TimelineEntry).
+- Token mobilny dostaje `403 forbidden` (kod `channel_not_allowed` nie istnieje w aplikacji; starsze opisy w kontrakcie nadal o nim wspominają) — do backlogu: ujednolicenie opisów kontraktu.
+- Do backlogu (UX, nit): przy 1280 px nazwy zwiniętych procesów zawijają się w wąskiej kolumnie obok paska postępu (układ sprzed EVM-042, menu „⋮” go zwęża).
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -94,3 +105,7 @@ _—_
 - 2026-10-14 — plan gotowy (backend-developer)
 - 2026-10-14 — backend gotowy (backend-developer): 7 operacji, audyt i dziennik, testy `EVM-042 AC1–AC7` w kontenerze; panel (W-06 (d)) czeka na web-developera
 - 2026-10-15 — panel gotowy (web-developer): W-06 (d) — „Dodaj proces…”, „Dodaj etap…”, „Usuń proces/etap…” z zaleceniem „Nie dotyczy”, „Usunięte procesy i etapy” z „Przywróć” (A), stany offline/412/409/422; testy komponentów, E2E (Chromium, Firefox, Edge), axe, zrzuty w `docs/ux/reviews/EVM-042/`
+- 2026-10-15 — potok `wf_da401e0d-924`: passed po 2 rundach (konsultacja security przed implementacją; runda 1: QA PASS AC1–AC7, code-reviewer i ux-designer APPROVE, security CHANGES — błędny opis sprostowania nazwy etapu w rodo.md; runda 2: poprawka dokumentacji `0a4f290` + RR-25, security APPROVE)
+- 2026-10-15 — po przeglądzie: web-developer `f44091d` (CHANGELOG panelu, widoczny powód wyłączenia „Przywróć”, „Usuń” wyłączone bez wersji procesu), ux-designer `edab7de` (styleguide: Disclosure z akcjami, opcja Select niedostępna)
+- 2026-10-15 — orkiestrator: `pnpm run gate` zielony (diff-coverage 1488/1505, 1094/1171), `docs:check` 0/0; in-progress → in-review
+- 2026-10-15 — Koszt: brak rozbicia w $; potok 11 wywołań agentów, ok. 1,63 mln tokenów subagentów, ok. 176 min (+ poprawki po przeglądzie); rundy poprawek 1; ścieżka pełna; model domyślny
