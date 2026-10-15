@@ -6,9 +6,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detect, isDocumentation } from '../lib/classify.mjs';
+import { detect, isDocumentation, isNotRelevantToE2e, isNotRelevantToIntegration } from '../lib/classify.mjs';
 
 const BASE = 'a'.repeat(40);
+const FULL = 'heavy=true\ne2e=true\nintegration=true';
+const NONE = 'heavy=false\ne2e=false\nintegration=false';
 /** @param {...string} files */
 const list =
   (...files) =>
@@ -82,21 +84,120 @@ describe('EVM-083 AC3: fail-closed detection', () => {
       return readFileSync(out, 'utf8').trim();
     };
     git('commit', '-q', '--allow-empty', '-m', 'empty');
-    assert.equal(run(base), 'heavy=true');
+    assert.equal(run(base), FULL);
     mkdirSync(join(repo, 'docs'));
     writeFileSync(join(repo, 'docs', 'a.md'), 'x');
     git('add', 'docs');
     git('commit', '-qm', 'docs');
-    assert.equal(run(base), 'heavy=false');
+    assert.equal(run(base), NONE);
     writeFileSync(join(repo, 'b.ts'), 'x');
     git('add', 'b.ts');
     git('commit', '-qm', 'code');
-    assert.equal(run(base), 'heavy=true');
-    assert.equal(run('f'.repeat(40)), 'heavy=true');
+    assert.equal(run(base), FULL);
+    assert.equal(run('f'.repeat(40)), FULL);
     // moving a code file into docs/ must not look like a documentation-only change (rename detection off)
     const moved = git('rev-parse', 'HEAD');
     git('mv', 'b.ts', 'docs/b.ts');
     git('commit', '-qm', 'move code into docs');
-    assert.equal(run(moved), 'heavy=true');
+    assert.equal(run(moved), FULL);
+  });
+});
+
+/** @param {...string} files */
+const pr = (...files) => detect({ eventName: 'pull_request', baseSha: BASE, diff: list(...files) });
+
+describe('EVM-086 AC1: explicit lists of paths not relevant to a job', () => {
+  it('EVM-086 AC1: api-only and mobile-only changes skip e2e-web; web-only and mobile-only changes skip backend-integration', () => {
+    assert.deepEqual(
+      [pr('apps/api/src/a.ts').heavy, pr('apps/api/src/a.ts').e2e, pr('apps/api/src/a.ts').integration],
+      [true, false, true],
+    );
+    assert.deepEqual(
+      [pr('apps/web/src/a.ts').heavy, pr('apps/web/src/a.ts').e2e, pr('apps/web/src/a.ts').integration],
+      [true, true, false],
+    );
+    const mobile = pr('apps/mobile/app/a.tsx', 'docs/a.md');
+    assert.deepEqual([mobile.heavy, mobile.e2e, mobile.integration], [true, false, false]);
+    const docs = pr('docs/a.md', 'README.md');
+    assert.deepEqual([docs.heavy, docs.e2e, docs.integration], [false, false, false]);
+  });
+
+  it('EVM-086 AC1: paths that are never "not relevant" run both jobs', () => {
+    for (const path of [
+      'packages/contracts/src/a.ts',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      '.github/workflows/ci.yml',
+      'tools/ci-changes/cli.mjs',
+      'compose.yaml',
+      'compose.dev.yaml',
+      'package.json',
+      'turbo.json',
+      '.claude/agents/a.md',
+      'services/x/a.ts',
+      'unknown/new/file.txt',
+    ]) {
+      assert.equal(isNotRelevantToE2e(path), false, path);
+      assert.equal(isNotRelevantToIntegration(path), false, path);
+      const result = pr(path);
+      assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, true], path);
+    }
+  });
+
+  it('EVM-086 AC1, AC2: a mixed change skips a job only when EVERY file is not relevant to it', () => {
+    const apiDocs = pr('apps/api/src/a.ts', 'docs/a.md');
+    assert.deepEqual([apiDocs.e2e, apiDocs.integration], [false, true]);
+    const webOther = pr('apps/web/src/a.ts', 'packages/ui/a.ts');
+    assert.deepEqual([webOther.e2e, webOther.integration], [true, true]);
+    const webApi = pr('apps/web/src/a.ts', 'apps/api/src/a.ts');
+    assert.deepEqual([webApi.e2e, webApi.integration], [true, true]);
+    const webMobile = pr('apps/web/src/a.ts', 'apps/mobile/a.ts');
+    assert.deepEqual([webMobile.e2e, webMobile.integration], [true, false]);
+  });
+});
+
+describe('EVM-086 AC2: fail-closed', () => {
+  it('EVM-086 AC2: suspicious paths (.., backslash, control characters, absolute, empty) are never "not relevant"', () => {
+    for (const path of [
+      'apps/api/../web/a.ts',
+      'apps\\api\\a.ts',
+      'apps/api/a\nb.ts',
+      'apps/api/a\u0001.ts',
+      '/apps/api/a.ts',
+      'apps/mobile/\u007f',
+    ]) {
+      assert.equal(isNotRelevantToE2e(path), false, JSON.stringify(path));
+      assert.equal(isNotRelevantToIntegration(path), false, JSON.stringify(path));
+    }
+    assert.equal(isNotRelevantToE2e(''), false);
+    const result = pr('apps/api/../web/a.ts');
+    assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, true]);
+  });
+
+  it('EVM-086 AC2: a diff error, an empty or missing base, an empty diff and other events give true for every output', () => {
+    const boom = () => {
+      throw new Error('git failed');
+    };
+    const inputs = [
+      { eventName: 'pull_request', baseSha: BASE, diff: boom },
+      { eventName: 'pull_request', baseSha: BASE, diff: () => '' },
+      { eventName: 'pull_request', baseSha: '', diff: list('apps/api/a.ts') },
+      { eventName: 'pull_request', baseSha: '0'.repeat(40), diff: list('apps/api/a.ts') },
+      { eventName: 'pull_request', baseSha: 'zzz', diff: list('apps/api/a.ts') },
+      { eventName: 'workflow_dispatch', baseSha: BASE, diff: list('apps/api/a.ts') },
+      { eventName: 'schedule', baseSha: BASE, diff: list('docs/a.md') },
+      { eventName: '', baseSha: BASE, diff: list('docs/a.md') },
+    ];
+    for (const input of inputs) {
+      const result = detect(input);
+      assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, true], input.eventName);
+    }
+  });
+
+  it('EVM-086 AC4: a push to main runs everything even for a change limited to apps/api or docs', () => {
+    for (const file of ['apps/api/a.ts', 'apps/web/a.ts', 'docs/a.md']) {
+      const result = detect({ eventName: 'push', baseSha: BASE, diff: list(file) });
+      assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, true], file);
+    }
   });
 });

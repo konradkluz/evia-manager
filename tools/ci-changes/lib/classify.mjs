@@ -1,41 +1,74 @@
 // @ts-check
 /**
- * Documentation-only detection for ci.yml (EVM-083 AC2). Documentation = everything under docs/ and Markdown files in
- * the repository root. Nothing else (workflows, tools, code, configuration, .claude) is documentation.
+ * Change detection for ci.yml (EVM-083 AC2, EVM-086 AC1, AC2). Three outputs, each "true" (the job runs) or "false":
+ *   heavy       — coverage: false only when every changed file is documentation;
+ *   e2e         — e2e-web: false only when every changed file is NOT RELEVANT to the panel E2E;
+ *   integration — backend-integration: false only when every changed file is NOT RELEVANT to the API integration tests.
+ * Lists are of paths "known as not relevant" (EVM-086 AC1): a new or unknown path runs the tests. Never "not relevant"
+ * (they are on no list): packages/**, pnpm-lock.yaml, pnpm-workspace.yaml, .github/**, tools/**, compose*.yaml, root
+ * configuration and .claude/**. Fail closed: anything doubtful means "true" for every output.
  */
 
 const DOCS_PREFIX = 'docs/';
 const ROOT_MARKDOWN = /^[^/]+\.md$/;
 const ZERO_SHA = /^0+$/;
 const SHA = /^[0-9a-f]{40}$/;
+// eslint-disable-next-line no-control-regex -- control characters make a path untrustworthy (fail closed)
+const CONTROL = /[\u0000-\u001f\u007f]/;
+
+/** Not relevant to the panel E2E besides documentation (EVM-086 AC1): the API and the mobile app do not affect the panel. */
+export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobile/']);
+/** Not relevant to the API integration tests besides documentation (EVM-086 AC1). */
+export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/']);
+
+/** @param {string} path */
+function wellFormed(path) {
+  return path !== '' && !path.includes('..') && !path.includes('\\') && !CONTROL.test(path) && !path.startsWith('/');
+}
 
 /** @param {string} path */
 export function isDocumentation(path) {
-  if (path.includes('..') || path.includes('\\')) return false;
+  if (!wellFormed(path)) return false;
   return path.startsWith(DOCS_PREFIX) || ROOT_MARKDOWN.test(path);
 }
 
+/** @param {string} path */
+export function isNotRelevantToE2e(path) {
+  return isDocumentation(path) || (wellFormed(path) && E2E_NOT_RELEVANT_PREFIXES.some((prefix) => path.startsWith(prefix)));
+}
+
+/** @param {string} path */
+export function isNotRelevantToIntegration(path) {
+  return isDocumentation(path) || (wellFormed(path) && INTEGRATION_NOT_RELEVANT_PREFIXES.some((prefix) => path.startsWith(prefix)));
+}
+
+/** @param {string} reason @returns {{ heavy: true, e2e: true, integration: true, reason: string }} */
+const full = (reason) => ({ heavy: true, e2e: true, integration: true, reason });
+
 /**
  * @param {{ eventName: string, baseSha: string, diff: (base: string) => string }} input
- * @returns {{ heavy: boolean, reason: string }}
+ * @returns {{ heavy: boolean, e2e: boolean, integration: boolean, reason: string }}
  */
 export function detect({ eventName, baseSha, diff }) {
   // A push reaching ci.yml's `changes` job is a push to main: the full set always runs there (the deployment verifier
   // trusts that run; a docs-only commit must not hide code that failed e2e/integration on main earlier).
-  if (eventName === 'push') return { heavy: true, reason: 'push na main — pełny zestaw' };
-  if (eventName !== 'pull_request') return { heavy: true, reason: `zdarzenie ${eventName || '?'} — pełny zestaw` };
-  if (!SHA.test(baseSha) || ZERO_SHA.test(baseSha)) return { heavy: true, reason: 'brak poprawnego commitu bazowego — pełny zestaw' };
+  if (eventName === 'push') return full('push na main — pełny zestaw');
+  if (eventName !== 'pull_request') return full(`zdarzenie ${eventName || '?'} — pełny zestaw`);
+  if (!SHA.test(baseSha) || ZERO_SHA.test(baseSha)) return full('brak poprawnego commitu bazowego — pełny zestaw');
   let files;
   try {
     files = diff(baseSha)
       .split('\0')
       .filter((file) => file !== '');
   } catch {
-    return { heavy: true, reason: 'błąd wykrywania zmian — pełny zestaw (fail-closed)' };
+    return full('błąd wykrywania zmian — pełny zestaw (fail-closed)');
   }
-  if (files.length === 0) return { heavy: true, reason: 'pusta lista zmian — pełny zestaw (fail-closed)' };
-  const code = files.filter((file) => !isDocumentation(file));
-  if (code.length > 0)
-    return { heavy: true, reason: `zmiany poza dokumentacją (${String(code.length)} z ${String(files.length)} plików) — pełny zestaw` };
-  return { heavy: false, reason: `tylko dokumentacja (${String(files.length)} plików) — ciężkie joby pominięte` };
+  if (files.length === 0) return full('pusta lista zmian — pełny zestaw (fail-closed)');
+  const heavy = !files.every(isDocumentation);
+  const e2e = !files.every(isNotRelevantToE2e);
+  const integration = !files.every(isNotRelevantToIntegration);
+  const reason = heavy
+    ? `${String(files.length)} plików; e2e-web ${e2e ? 'uruchomiony' : 'pominięty (nie dotyczy)'}, backend-integration ${integration ? 'uruchomiona' : 'pominięta (nie dotyczy)'}`
+    : `tylko dokumentacja (${String(files.length)} plików) — ciężkie joby pominięte`;
+  return { heavy, e2e, integration, reason };
 }

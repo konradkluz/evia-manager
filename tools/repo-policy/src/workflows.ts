@@ -52,19 +52,30 @@ export function workflowProblems(file: string, raw: string, document: unknown): 
 export const FAST_JOBS = ['quick'];
 /** Jobs that always run in a full run (EVM-083 AC2): only `needs: [changes]`, no `if` of their own. */
 const ALWAYS_JOBS = ['quality', 'backend', 'security'];
-/** Jobs skipped for a documentation-only change (EVM-083 AC2) and the exact condition that runs them. */
-const HEAVY_JOBS = ['backend-integration', 'e2e-web', 'coverage'];
-const HEAVY_IF = "needs.changes.outputs.heavy == 'true'";
+/**
+ * Jobs that may be skipped and the exact condition that runs them (EVM-083 AC2, EVM-086 AC1, AC3): e2e-web and
+ * backend-integration by their own output of `changes`; coverage for everything but a documentation-only change and
+ * without the implicit success() (backend-integration may be skipped as "not relevant" without skipping coverage).
+ */
+const HEAVY_IFS: Record<string, string> = {
+  'backend-integration': "needs.changes.outputs.integration == 'true'",
+  'e2e-web': "needs.changes.outputs.e2e == 'true'",
+  coverage: "needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()",
+};
+const HEAVY_JOBS = Object.keys(HEAVY_IFS);
+/** Outputs of `changes`, each "true" or "false" (tools/ci-changes). */
+const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration'];
 const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
 const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
 const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";
 /**
  * The ci-gate decision (EVM-083 AC3), evaluated by `jq -e` on `toJSON(needs)`: the exact set of jobs; `changes` succeeded
- * and reported a readable `heavy`; quality, backend and security succeeded; the heavy jobs succeeded when heavy=true and
- * were skipped when heavy=false. Failure, cancelled, a skip beside code changes, a missing job or output = red.
+ * and reported readable `heavy`, `e2e` and `integration` (heavy=false implies the other two false); quality, backend
+ * and security succeeded; each of e2e-web, backend-integration and coverage succeeded when its output is "true" and was
+ * skipped when it is "false" (EVM-086 AC3). Failure, cancelled, an unexplained skip, a missing job or output = red.
  */
 export const GATE_JQ =
-  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs.heavy as $heavy | ($heavy == "true" or $heavy == "false") and all(.quality, .backend, .security; .result == "success") and all(.["backend-integration"], .["e2e-web"], .coverage; .result == (if $heavy == "true" then "success" else "skipped" end)))';
+  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))';
 
 /**
  * A2, W6, EVM-083 AC3: `ci-gate` depends on every job of the full run (all but the fast ones), runs only in full runs,
@@ -134,13 +145,15 @@ export function ciRoutingProblems(document: unknown): string[] {
     problems.push('ci.yml: quick: brak kroku walidatora dokumentacji (DOCS_CHECK_SCRIPT)');
   const changes = record(jobs['changes']);
   if (text(changes['if']) !== CHANGES_IF) problems.push(`ci.yml: changes: wymagane if: ${CHANGES_IF}`);
+  if (JSON.stringify(Object.keys(record(changes['outputs']))) !== JSON.stringify(CHANGES_OUTPUTS))
+    problems.push(`ci.yml: changes: outputs musi być dokładnie ${CHANGES_OUTPUTS.join(', ')}`);
   if (!list(changes['steps']).some((step) => text(record(step)['run']) === 'node tools/ci-changes/cli.mjs'))
     problems.push('ci.yml: changes: krok node tools/ci-changes/cli.mjs');
   for (const name of [...ALWAYS_JOBS, ...HEAVY_JOBS]) {
     const job = record(jobs[name]);
     if (!list(job['needs']).includes('changes'))
       problems.push(`ci.yml: ${name}: needs musi zawierać changes (pominięcie przy pushu na gałąź)`);
-    const expectedIf = HEAVY_JOBS.includes(name) ? HEAVY_IF : '';
+    const expectedIf = HEAVY_IFS[name] ?? '';
     if (text(job['if']) !== expectedIf)
       problems.push(`ci.yml: ${name}: ${expectedIf === '' ? 'bez własnego if (zawsze w pełnym przebiegu)' : `if: ${expectedIf}`}`);
   }
