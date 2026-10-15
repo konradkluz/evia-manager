@@ -1,7 +1,8 @@
-# Module `payments` — the payment milestones of a work order (EVM-053; W-06 section "Płatności"). The milestones are COPIED from the
-# payment plan of the template at the creation of the order (D1: name, share, payment term — no amount) or added by hand. The amount
-# is gross, in grosze (`Money`, never a float). The status changes only by a command (EVM-054) or as the effect of a transition of the
-# order; in EVM-053 a request changes the amount of a `planned` milestone and nothing else. The amounts and the invoice number are
+# Module `payments` — the payment milestones of a work order (EVM-053, EVM-054; W-06 section "Płatności"). The milestones are COPIED
+# from the payment plan of the template at the creation of the order (D1: name, share, payment term — no amount) or added by hand. The
+# amount is gross, in grosze (`Money`, never a float). The status changes only by the command of a transition (EVM-054) or as the
+# effect of a transition of the order; a PATCH changes the amount of a `planned` milestone, the data of the invoice of an `invoiced`
+# one and the day of the payment of a `paid` one — never the status. The amounts and the invoice number are
 # financial data (WF; with a customer who is a natural person also DO-K); the name is free text the panel renders as text.
 # Payments are never sent to the phone (P3): every operation is on the web channel only.
 PaymentMilestoneStatus:
@@ -9,16 +10,18 @@ PaymentMilestoneStatus:
   description: >-
     Status transzy (zamknięta lista; klient obsługuje też wartość nieznaną — P-12): `planned` (Planowana), `invoiced` (Wystawiona),
     `paid` (Opłacona), `cancelled` (Anulowana). „Po terminie” nie jest stanem — wylicza je serwer (`isOverdue`). Status zmienia
-    wyłącznie komenda (EVM-054) albo skutek przejścia zlecenia (anulowanie zlecenia: `planned → cancelled`).
+    wyłącznie komenda przejścia (`transitionPaymentMilestone`, EVM-054) albo skutek przejścia zlecenia (anulowanie zlecenia:
+    `planned → cancelled`).
   enum: [planned, invoiced, paid, cancelled]
 PaymentMilestone:
   type: object
   description: >-
     Transza zlecenia. Z szablonu pochodzą `code`, `name`, `sharePercent` i `paymentTermDays` (kopia — zmiana szablonu nie zmienia
     zlecenia); transza dodana ręcznie ma `code`, `sharePercent` i `paymentTermDays` równe `null`. `amount` może być `null` tylko w
-    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn`, `dueDate` i
-    `paidOn` wypełnia EVM-054; `isOverdue` liczy serwer (transza `invoiced` z terminem wcześniejszym niż dziś w `Europe/Warsaw`).
-    Pola poza `amount` są tylko do odczytu (`400 read_only_field`).
+    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn` i `dueDate`
+    wypełnia wystawienie faktury, `paidOn` — odnotowanie wpłaty (EVM-054); `isOverdue` liczy serwer (transza `invoiced` z terminem
+    wcześniejszym niż dziś w `Europe/Warsaw`); `allowedTransitions` — przejścia dostępne dla roli wołającego (EVM-054). Pola spoza
+    `PaymentMilestonePatch` są tylko do odczytu (`400 read_only_field`). Powód anulowania transzy nie jest częścią reprezentacji.
   required:
     - id
     - code
@@ -34,6 +37,7 @@ PaymentMilestone:
     - paidOn
     - isOverdue
     - version
+    - allowedTransitions
   additionalProperties: false
   properties:
     id:
@@ -52,7 +56,7 @@ PaymentMilestone:
       maxLength: 200
     position:
       type: integer
-      description: Kolejność w zleceniu (1…20; transza dodana ręcznie trafia na koniec).
+      description: Kolejność w zleceniu (1…20; transza dodana ręcznie trafia na koniec; po usunięciu transzy następne przesuwają się o jedno miejsce — EVM-057).
       minimum: 1
       maximum: 20
     sharePercent:
@@ -79,7 +83,7 @@ PaymentMilestone:
     status:
       $ref: '#/PaymentMilestoneStatus'
     invoiceNumber:
-      description: Numer faktury (EVM-054) albo `null`.
+      description: Numer faktury lub proformy (EVM-054) albo `null`.
       oneOf:
         - type: string
           maxLength: 60
@@ -108,10 +112,33 @@ PaymentMilestone:
     isOverdue:
       type: boolean
       description: '`true`, gdy transza jest wystawiona, a termin płatności jest wcześniejszy niż dziś (`Europe/Warsaw`).'
+    overdueDays:
+      readOnly: true
+      description: >-
+        Pełne dni kalendarzowe od terminu płatności do dziś (`Europe/Warsaw`; ≥ 1) dla transzy po terminie, inaczej `null`
+        (EVM-056, kafel „Płatności” W-06; liczy serwer). `isOverdue` równa się `overdueDays != null`. Pole tylko do odczytu; nie jest
+        w wymaganych, bo dodano je addytywnie — serwer zawsze je zwraca.
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 36600
+        - type: 'null'
     version:
       type: integer
-      description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie kwoty).
+      description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie i przejściu).
       minimum: 1
+    allowedTransitions:
+      type: array
+      readOnly: true
+      description: >-
+        Statusy docelowe, które ROLA WOŁAJĄCEGO może teraz wybrać (EVM-054; podpowiedź dla panelu — decyduje serwer przy komendzie):
+        Administrator i Edytor — z `planned` do `invoiced` i `cancelled`, z `invoiced` do `paid`; Tylko odczyt — pusta lista. Korekty
+        płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`; EVM-057) — tylko
+        Administratorowi, niezależnie od świeżości step-upu (serwer żąda go przy komendzie — `403 step_up_required`); Edytor ich nie
+        dostaje. W zleceniu zamkniętym — pusta lista.
+      maxItems: 4
+      items:
+        $ref: '#/PaymentMilestoneStatus'
 PaymentTotals:
   type: object
   description: >-
@@ -165,10 +192,241 @@ PaymentMilestoneCreate:
 PaymentMilestonePatch:
   type: object
   description: >-
-    Zmiana kwoty transzy w statusie `planned` („Zmień kwotę”, EVM-053 AC3). Jedyne pole to `amount` (wymagane, bez `null`); każde
-    inne pole transzy — `400 read_only_field`, pole spoza schematu — `400 unknown_field`.
-  required: [amount]
+    Zmiana transzy (merge-patch; EVM-053 AC3, EVM-054 AC4) — co najmniej jedno pole; pole nieobecne zostaje bez zmian, `null` jest
+    niedozwolone. Pola zależą od BIEŻĄCEGO statusu transzy: `amount` — `planned` („Zmień kwotę”, Administrator i Edytor); w
+    `invoiced` i `paid` — korekta kwoty Administratora ze step-upem (EVM-057; Edytor — `403 forbidden`, Administrator bez step-upu —
+    `403 step_up_required`, także razem z innymi polami); w `cancelled` — `403 forbidden` dla każdej roli; `invoiceNumber`, `invoicedOn`, `dueDate` — tylko `invoiced` („Popraw dane faktury…”); `paidOn` — tylko `paid` („Popraw
+    datę wpłaty…”); pole spoza bieżącego statusu — `409 invalid_state_transition`. Reguły: `invoiceNumber` — zwykły tekst (NFC,
+    przycięty, 1–60 znaków, bez znaków sterujących i niewidocznych znaków formatujących; `required` / `too_long` /
+    `invalid_characters`); daty `RRRR-MM-DD` z zakresu 2000-01-01…2100-12-31 (`out_of_range`); termin płatności nie wcześniejszy niż
+    data wystawienia, sprawdzany na stanie po zmianie (`before_invoiced_on` — wskaźnik `/invoicedOn`, gdy żądanie zmienia tylko datę
+    wystawienia, inaczej `/dueDate`; zmiana daty wystawienia NIE przelicza terminu); `paidOn` nie później niż dziś w `Europe/Warsaw`
+    (`in_future`). Każde inne pole transzy (`status`, `name`, `version`, `allowedTransitions` …) — `400 read_only_field`, pole spoza
+    schematu — `400 unknown_field`; pusta treść — `400 validation_failed`.
+  minProperties: 1
   additionalProperties: false
   properties:
     amount:
       $ref: common.yaml#/Money
+    invoiceNumber:
+      type: string
+      description: Numer faktury lub proformy (tylko transza `invoiced`; pole swobodne — nie trafia do audytu, logów ani błędów).
+      maxLength: 60
+    invoicedOn:
+      type: string
+      description: Dzień wystawienia faktury, `RRRR-MM-DD` (2000-01-01…2100-12-31, może być przyszły; tylko transza `invoiced`).
+      format: date
+      maxLength: 10
+    dueDate:
+      type: string
+      description: Termin płatności, `RRRR-MM-DD` (2000-01-01…2100-12-31, nie wcześniejszy niż `invoicedOn`; tylko transza `invoiced`).
+      format: date
+      maxLength: 10
+    paidOn:
+      type: string
+      description: Dzień wpłaty, `RRRR-MM-DD` (od 2000-01-01, nie później niż dziś w `Europe/Warsaw`; tylko transza `paid`).
+      format: date
+      maxLength: 10
+PaymentMilestoneTransition:
+  type: object
+  description: >-
+    Komenda przejścia statusu transzy (EVM-054) wg tabeli przejść „Etap płatności” z `domain-model.md`; `to` — status docelowy.
+    Administrator i Edytor: `planned → invoiced` („Wystaw fakturę…”), `invoiced → paid` („Odnotuj wpłatę…”), `planned → cancelled`
+    („Anuluj transzę…”). Korekty płatności (EVM-057: `invoiced → planned` „Wycofaj fakturę…” — czyści numer faktury, datę
+    wystawienia i termin; `invoiced → cancelled` „Anuluj fakturę…” — dane faktury zostają; `paid → invoiced` „Cofnij wpłatę…” —
+    czyści datę wpłaty; `cancelled → planned` „Przywróć transzę…” — czyści dane faktury, datę wpłaty i powód anulowania) wykonuje
+    wyłącznie Administrator ze step-upem (Edytor — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15
+    minutach — `403 step_up_required`); korekta przyjmuje tylko `to` — każde inne pole (także `reason`) to `400 not_allowed`.
+    Przejście spoza tabeli — `409 invalid_state_transition`. Pola zależą od przejścia i są niedozwolone poza nim (`not_allowed`):
+    `invoiced` — `amount` (gdy transza ma już kwotę, domyślnie ta kwota; bez kwoty w transzy i w żądaniu — `required`),
+    `invoiceNumber` (wymagany; zwykły tekst, NFC, przycięty, 1–60 znaków; `required` / `too_long` / `invalid_characters`),
+    `invoicedOn` (domyślnie dziś w `Europe/Warsaw`; 2000-01-01…2100-12-31, może być przyszły; `out_of_range`), `dueDate` (domyślnie
+    `invoicedOn` + `paymentTermDays` transzy, liczone na serwerze; transza bez dni terminu — wymagany, `required`;
+    2000-01-01…2100-12-31; nie wcześniejszy niż `invoicedOn` — `before_invoiced_on`);
+    `paid` — `paidOn` (domyślnie dziś w `Europe/Warsaw`; od 2000-01-01 — `out_of_range`; późniejszy niż dziś — `422
+    transition_condition_not_met`, `/paidOn`, `in_future`);
+    `cancelled` — `reason` (wymagany: zwykły tekst, NFC, przycięty, 1–500 znaków; pole swobodne — może zawierać dane osobowe i
+    nigdy nie trafia do odpowiedzi, audytu, dziennika, logów, komunikatów błędów ani rekordu idempotencji).
+    Pola serwera (`status`, `version`, `name` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
+  required: [to]
+  additionalProperties: false
+  properties:
+    to:
+      $ref: '#/PaymentMilestoneStatus'
+    amount:
+      $ref: common.yaml#/Money
+    invoiceNumber:
+      type: string
+      description: Numer faktury lub proformy (tylko przy `invoiced`; pole swobodne).
+      maxLength: 60
+    invoicedOn:
+      type: string
+      description: Dzień wystawienia faktury, `RRRR-MM-DD` (tylko przy `invoiced`).
+      format: date
+      maxLength: 10
+    dueDate:
+      type: string
+      description: Termin płatności, `RRRR-MM-DD` (tylko przy `invoiced`).
+      format: date
+      maxLength: 10
+    paidOn:
+      type: string
+      description: Dzień wpłaty, `RRRR-MM-DD` (tylko przy `paid`).
+      format: date
+      maxLength: 10
+    reason:
+      type: string
+      description: Powód anulowania transzy (tylko przy `cancelled`; pole swobodne — może zawierać dane osobowe).
+      maxLength: 500
+UnpaidView:
+  type: string
+  description: >-
+    Widok zestawienia nieopłaconych (zamknięta lista; EVM-059 dodaje wartości addytywnie): `unpaid` — wszystkie wystawione
+    (domyślnie), `overdue` — wystawione z terminem wcześniejszym niż dziś (`Europe/Warsaw`).
+  enum: [unpaid, overdue]
+DueDateFilter:
+  type: string
+  description: Dzień `RRRR-MM-DD` w zakresie 2000-01-01…2100-12-31.
+  maxLength: 10
+  pattern: '^(20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+UnpaidWorkOrder:
+  type: object
+  description: Zlecenie transzy — identyfikator (link do W-06), numer i tytuł (pod polityką odczytu zlecenia).
+  required: [id, number, title]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    number:
+      type: string
+      maxLength: 32
+    title:
+      type: string
+      maxLength: 200
+UnpaidPaymentMilestone:
+  type: object
+  description: >-
+    Pozycja zestawienia — transza `invoiced` ze zleceniem i klientem. Tylko pola widoku (bez powodu anulowania, autorów i
+    pozostałych pól transzy). `customer`: `{id, displayName}`, `{deleted: true}` dla klienta usuniętego albo niewidocznego (bez
+    identyfikatora i nazwy) albo `null`, gdy zlecenie nie ma klienta. `overdueDays` — pełne dni od terminu do dnia `asOf`
+    (≥ 1) albo `null`, gdy termin nie minął; `isOverdue` równa się `overdueDays != null`. `version` — do `If-Match` akcji
+    `transitionPaymentMilestone`.
+  required: [id, workOrder, customer, name, invoiceNumber, amount, dueDate, status, isOverdue, overdueDays, version]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    workOrder:
+      $ref: '#/UnpaidWorkOrder'
+    customer:
+      oneOf:
+        - $ref: work-orders.yaml#/WorkOrderListCustomer
+        - $ref: work-orders.yaml#/WorkOrderListCustomerDeleted
+        - type: 'null'
+    name:
+      type: string
+      description: Nazwa transzy — tekst (panel wyświetla bez interpretacji znaczników).
+      maxLength: 200
+    invoiceNumber:
+      type: string
+      description: Numer faktury lub proformy (tekst).
+      maxLength: 60
+    amount:
+      $ref: common.yaml#/Money
+    dueDate:
+      type: string
+      format: date
+      maxLength: 10
+    status:
+      $ref: '#/PaymentMilestoneStatus'
+    isOverdue:
+      type: boolean
+    overdueDays:
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 36600
+        - type: 'null'
+    version:
+      type: integer
+      minimum: 1
+UnpaidCount:
+  type: object
+  description: Liczba transz i ich suma.
+  required: [count, total]
+  additionalProperties: false
+  properties:
+    count:
+      type: integer
+      minimum: 0
+      maximum: 1000000
+    total:
+      $ref: common.yaml#/MoneyTotal
+UnpaidLongestOverdue:
+  type: object
+  description: Najdłużej po terminie — liczba dni i zlecenie transzy (przy remisie decyduje identyfikator transzy).
+  required: [days, workOrder]
+  additionalProperties: false
+  properties:
+    days:
+      type: integer
+      minimum: 1
+      maximum: 36600
+    workOrder:
+      type: object
+      required: [id, number]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+          maxLength: 36
+        number:
+          type: string
+          maxLength: 32
+UnpaidSummary:
+  type: object
+  description: >-
+    Kafle (`unpaid`, `overdue`, `longestOverdue`) liczą wszystkie widoczne wystawione transze niezależnie od filtrów; `filtered` —
+    transze spełniające filtry (licznik i suma pod tabelą). Wszystko tą samą polityką odczytu i z tego samego dnia `asOf`.
+  required: [unpaid, overdue, longestOverdue, filtered]
+  additionalProperties: false
+  properties:
+    unpaid:
+      $ref: '#/UnpaidCount'
+    overdue:
+      $ref: '#/UnpaidCount'
+    longestOverdue:
+      oneOf:
+        - $ref: '#/UnpaidLongestOverdue'
+        - type: 'null'
+    filtered:
+      $ref: '#/UnpaidCount'
+UnpaidPaymentMilestoneList:
+  type: object
+  description: Strona zestawienia nieopłaconych z kafelkami i sumą (EVM-055).
+  required: [items, nextCursor, asOf, summary]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/UnpaidPaymentMilestone'
+    nextCursor:
+      description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie.
+      oneOf:
+        - type: string
+          maxLength: 512
+        - type: 'null'
+    asOf:
+      type: string
+      format: date
+      description: Dzień `Europe/Warsaw`, względem którego liczono „po terminie” (pierwsza strona — dziś, kolejne — z kursora).
+      maxLength: 10
+    summary:
+      $ref: '#/UnpaidSummary'

@@ -70,14 +70,29 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
   });
 
   it('EVM-017 AC2 sort and view are closed lists; coordinatorId is a UUID', () => {
-    for (const sort of ['-number', 'number', '-createdAt', 'createdAt', 'longestWaitingSince', 'nextDueDate'])
+    // EVM-056 adds `urgency` ("Najpilniejsze", ascending only) to the closed list
+    for (const sort of ['-number', 'number', '-createdAt', 'createdAt', 'longestWaitingSince', 'nextDueDate', 'urgency'])
       expect(ok({ sort }).sort).toBe(sort);
-    for (const sort of ['number_desc', 'created_asc', '+number', 'title', '', 'Number', '-longestWaitingSince', '-nextDueDate', 'urgency'])
+    for (const sort of [
+      'number_desc',
+      'created_asc',
+      '+number',
+      'title',
+      '',
+      'Number',
+      '-longestWaitingSince',
+      '-nextDueDate',
+      '-urgency',
+      'Urgency',
+    ])
       expect(parse({ sort }).success, sort).toBe(false);
     expect(ok({ view: 'mine' }).view).toBe('mine');
     expect(ok({ view: 'all_open' }).view).toBe('all_open');
     expect(ok({ view: 'waiting_on_dso_over_14_days' }).view).toBe('waiting_on_dso_over_14_days');
-    for (const view of ['', 'all', 'deleted', 'MINE', 'overdue_payments', 'unpaid']) expect(parse({ view }).success, view).toBe(false);
+    // EVM-056 adds the payment views; `deleted` is EVM-060
+    expect(ok({ view: 'overdue_payments' }).view).toBe('overdue_payments');
+    expect(ok({ view: 'unpaid' }).view).toBe('unpaid');
+    for (const view of ['', 'all', 'deleted', 'MINE', 'overdue', 'Unpaid']) expect(parse({ view }).success, view).toBe(false);
     const id = randomUUID();
     expect(ok({ coordinatorId: id }).coordinatorId).toBe(id);
     for (const coordinatorId of ['', 'abc', `${id}x`]) expect(parse({ coordinatorId }).success, coordinatorId).toBe(false);
@@ -103,7 +118,7 @@ describe('the query of the list of work orders (EVM-017 AC2, AC3; SR-INPUT-01, S
     expect([...CLOSED_STATUSES]).toEqual(['settled', 'cancelled']);
     expect([...WORK_ORDER_STATUSES]).toEqual([...zWorkOrderStatus.options]);
     expect(Object.keys(SORT_RULES).sort()).toEqual([...zWorkOrderSort.options].sort());
-    expect([...zWorkOrderView.options]).toEqual(['all_open', 'mine', 'waiting_on_dso_over_14_days']);
+    expect([...zWorkOrderView.options]).toEqual(['all_open', 'mine', 'waiting_on_dso_over_14_days', 'overdue_payments', 'unpaid']);
     for (const status of CLOSED_STATUSES) expect(WORK_ORDER_STATUSES).toContain(status);
   });
 

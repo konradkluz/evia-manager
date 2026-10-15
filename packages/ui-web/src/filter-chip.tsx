@@ -1,3 +1,4 @@
+import { useId, type ReactElement } from 'react';
 import { classNames } from './class-names.ts';
 import { Check, X } from './icons.ts';
 
@@ -9,6 +10,8 @@ export interface FilterChipProps {
   readonly disabled?: boolean;
   /** Accessible name of the remove button of an `active` chip ("Usuń filtr …"). */
   readonly removeLabel?: string;
+  /** What the chip means beyond its label (e.g. "Tylko zlecenia niezamknięte."): the accessible description, not part of the name. */
+  readonly description?: string;
   readonly onClick: () => void;
 }
 
@@ -20,34 +23,50 @@ const BASE =
  * `color.border.selected` + the `check` icon, so the selection is not carried by colour alone) and `active` (a filter
  * in force with an `x` that removes it). Disabled stays focusable (`aria-disabled`).
  */
-export function FilterChip({ label, variant, selected = false, disabled = false, removeLabel, onClick }: FilterChipProps) {
+export function FilterChip({ label, variant, selected = false, disabled = false, removeLabel, description, onClick }: FilterChipProps) {
+  const descriptionId = useId();
+  const describedBy = description === undefined ? undefined : descriptionId;
+  // The description is a hidden sibling of the button (inside it, it would become part of the name).
+  const withDescription = (button: ReactElement) =>
+    description === undefined ? (
+      button
+    ) : (
+      <>
+        {button}
+        <span id={descriptionId} className="sr-only">
+          {description}
+        </span>
+      </>
+    );
   const handle = () => {
     if (!disabled) onClick();
   };
   if (variant === 'active') {
-    return (
+    return withDescription(
       <button
         type="button"
         aria-label={removeLabel}
+        aria-describedby={describedBy}
         aria-disabled={disabled || undefined}
         onClick={handle}
         className={classNames(BASE, 'border-border-selected bg-bg-selected')}
       >
         <span>{label}</span>
         <X aria-hidden="true" className="size-icon-sm shrink-0" />
-      </button>
+      </button>,
     );
   }
-  return (
+  return withDescription(
     <button
       type="button"
       aria-pressed={selected}
+      aria-describedby={describedBy}
       aria-disabled={disabled || undefined}
       onClick={handle}
       className={classNames(BASE, selected ? 'border-border-selected bg-bg-selected' : 'border-border-strong hover:bg-bg-surface-hover')}
     >
       {selected ? <Check aria-hidden="true" className="size-icon-sm shrink-0" /> : null}
       {label}
-    </button>
+    </button>,
   );
 }

@@ -249,6 +249,7 @@ Dezaktywacja konta działa jak „Zablokuj i wyczyść” dla wszystkich urządz
 | `Document` — pobranie pliku `identity_data` | **nie** (tylko metadane) | PESEL, numer dowodu, podpis |
 | aplikacja mobilna | **nie** — reguła rola × kanał w `identity` (SR-AUTHZ-12): logowanie mobilne i każde żądanie tokenem mobilnym → `403 channel_not_allowed` (proponowany kod — uwaga dla architekta). `x-evia-authz.channels` ogranicza operacje, nie role | minimalizacja danych na telefonach; zmiana roli na Tylko odczyt czyści urządzenia użytkownika po potwierdzeniu niewysłanych elementów (P2) |
 | pola ukryte (`hiddenFields`) | brak w v1 — R widzi wszystkie pola metadanych | ograniczenia dotyczą plików, eksportu i kanału |
+| sygnały płatności na liście zleceń (W4, `restrictedParams.paymentMilestone.read`) | A, E, R (P6) — widoki „Po terminie” i „Nieopłacone”, składowa płatności „Najpilniejsze” i pole `payment`; predykat `canReadPayments` = role `listPaymentMilestones` | rola bez prawa (od M4): widok płatności `403`, „Najpilniejsze” bez płatności, pole `payment` nieobecne (EVM-056, ADR-0017 W4) |
 
 - **Pozostałe komórki „EVM-005” w macierzy** (nie dotyczą zakresu roli): `User` — anonimizacja konta po 2 latach od dezaktywacji (P4, procedura w [`rodo.md`](rodo.md#realizacja-praw-osób-art-1522)); `AuditEvent` — retencja 2 lata (P4).
 - **Płatności poza telefonem** (pytanie P3 z EVM-002): potwierdzamy — technicy nie przyjmują płatności, etapy płatności nie trafiają na urządzenia. Gdyby to się zmieniło — osobna decyzja w M2 (na telefon tylko kwota do zapłaty).

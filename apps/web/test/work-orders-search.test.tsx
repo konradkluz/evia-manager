@@ -24,6 +24,13 @@ function order(index: number, overrides: Partial<WorkOrderListItem> = {}): WorkO
     status: 'in_progress',
     coordinator: ANNA,
     createdAt: '2026-10-04T12:05:00.000Z',
+    // EVM-056: no instalment invoiced ("—" in the column "Płatność", "brak wystawionych transz" at the end of the name of the row)
+    payment: {
+      state: 'none',
+      invoicedCount: 0,
+      invoicedTotal: { amountMinor: 0, currency: 'PLN' },
+      overdueTotal: { amountMinor: 0, currency: 'PLN' },
+    },
     customer: { id: CUSTOMER_ID, displayName: 'Jan Przykładowy' },
     site: { id: '66666666-6666-4666-8666-666666666666', city: 'Łódź', street: 'ul. Żółkiewskiego', buildingNumber: '7' },
     ...overrides,
@@ -87,7 +94,7 @@ describe('W-10 customer and location on the list (EVM-072 AC1)', () => {
   it('EVM-072 AC1 the name of the row has the customer and the location after the title', async () => {
     await renderPanel(PATH, listApi(ok([order(42, { title: 'Garaż — pełny' })])));
     const link = await screen.findByRole('link', {
-      name: 'ZL-2026-0042, Garaż — pełny, Jan Przykładowy, ul. Żółkiewskiego 7, Łódź, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026',
+      name: 'ZL-2026-0042, Garaż — pełny, Jan Przykładowy, ul. Żółkiewskiego 7, Łódź, status: W realizacji, opiekun: Anna Testowa, utworzono 04.10.2026, brak wystawionych transz',
     });
     expect(link.getAttribute('href')).toBe('/work-orders/00000000-0000-4000-8000-000000000042');
   });
@@ -139,7 +146,7 @@ describe('W-10 search by a phrase (EVM-072 AC2)', () => {
     await userEvent.type(field(), 'Lodz');
     expect(await screen.findByRole('link', { name: /ZL-2026-0042/ })).toBeTruthy();
     expect(api.calls(SEARCH)).toHaveLength(1);
-    expect(lastBody(api)).toEqual({ query: 'Lodz', view: 'all_open', sort: '-number', limit: 25 });
+    expect(lastBody(api)).toEqual({ query: 'Lodz', view: 'all_open', sort: 'urgency', limit: 25 });
     expect(api.calls(SEARCH)[0]?.headers.get('content-type')).toContain('application/json');
     // The phrase is nowhere in the address, in the state of the history, in the title or in a store of the browser.
     expect(history.location.pathname + history.location.search + history.location.hash).toBe(PATH);
@@ -267,13 +274,13 @@ describe('W-10 search with filters and pages (EVM-072 AC3)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'W realizacji' }));
     await userEvent.type(field(), 'Przy');
     await screen.findByRole('link', { name: /ZL-2026-0002/ });
-    expect(lastBody(api)).toEqual({ query: 'Przy', view: 'mine', status: ['in_progress'], sort: '-number', limit: 25 });
+    expect(lastBody(api)).toEqual({ query: 'Przy', view: 'mine', status: ['in_progress'], sort: 'urgency', limit: 25 });
     await userEvent.click(screen.getByRole('button', { name: 'Następna strona' }));
     expect(await screen.findByRole('link', { name: /ZL-2026-0027/ })).toBeTruthy();
-    expect(lastBody(api)).toEqual({ query: 'Przy', view: 'mine', status: ['in_progress'], sort: '-number', limit: 25, cursor: 'next-1' });
+    expect(lastBody(api)).toEqual({ query: 'Przy', view: 'mine', status: ['in_progress'], sort: 'urgency', limit: 25, cursor: 'next-1' });
     await userEvent.type(field(), 'k');
     expect(await screen.findByRole('link', { name: /ZL-2026-0002/ })).toBeTruthy();
-    expect(lastBody(api)).toEqual({ query: 'Przyk', view: 'mine', status: ['in_progress'], sort: '-number', limit: 25 });
+    expect(lastBody(api)).toEqual({ query: 'Przyk', view: 'mine', status: ['in_progress'], sort: 'urgency', limit: 25 });
   });
 
   it('EVM-072 AC3 a cursor the server refuses (400 invalid_cursor) returns to the first page with a message and keeps the phrase', async () => {

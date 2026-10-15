@@ -15,6 +15,8 @@ export interface DialogProps {
   readonly onDismiss: () => void;
   /** `md` (`size.dialog.width.md`, default) for forms; `sm` (`size.dialog.width.sm`) for a short form of one or two fields (§ 3.13). */
   readonly size?: 'sm' | 'md';
+  /** The id of an element of the content that describes the dialog (`aria-describedby`) — the object and the effect of a summary (§ 4.11). */
+  readonly describedBy?: string;
 }
 
 const FIRST_FIELD =
@@ -27,7 +29,7 @@ const FIRST_FIELD =
  * the next step). Not animated and without injected styles (CSP `style-src 'self'`).
  * The content is rendered only while open — the state of a form lives in the parent, so closing never loses it by itself.
  */
-export function Dialog({ open, title, closeLabel, children, actions, onDismiss, size = 'md' }: DialogProps) {
+export function Dialog({ open, title, closeLabel, children, actions, onDismiss, size = 'md', describedBy }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();
 
@@ -49,6 +51,7 @@ export function Dialog({ open, title, closeLabel, children, actions, onDismiss, 
     <dialog
       ref={dialog}
       aria-labelledby={`${id}-title`}
+      aria-describedby={describedBy}
       onCancel={(event) => {
         event.preventDefault();
         onDismiss();

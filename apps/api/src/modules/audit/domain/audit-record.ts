@@ -3,7 +3,9 @@
  * closed list, an identifier or a time — there is no free text, so no e-mail, name or password can reach the table
  * (the trail is append-only; a filter for personal data in free text would be unreliable, Q3). The schema is strict.
  * The one described exception (EVM-053): an event of a payment milestone carries the amount before and after in grosze with the
- * currency `PLN` — the schema refuses an amount on any other action (and the database refuses it too, 0027).
+ * currency `PLN` — the schema refuses an amount on any other action (and the database refuses it too, 0027). A transition of a
+ * milestone (EVM-054) carries the codes of the status before and after (`fromCode`, `toCode`: both or neither, codes of a closed list;
+ * 0029 checks the shape) — only an event of a payment milestone has them in EVM-054.
  */
 import { z } from 'zod';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../../customers/index.ts';
@@ -57,6 +59,10 @@ export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
 const PAYMENT_ACTION_PREFIX = 'payment_milestone.';
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
+const statusCode = z
+  .string()
+  .regex(/^[a-z][a-z_]{0,39}$/)
+  .nullable();
 
 export const auditRecordSchema = z
   .strictObject({
@@ -75,6 +81,8 @@ export const auditRecordSchema = z
     amountBeforeMinor: amountMinor,
     amountAfterMinor: amountMinor,
     currency: z.literal('PLN').nullable(),
+    fromCode: statusCode,
+    toCode: statusCode,
   })
   .refine(
     (record) =>
@@ -82,6 +90,13 @@ export const auditRecordSchema = z
         ? record.currency === null
         : record.currency === 'PLN' && record.action.startsWith(PAYMENT_ACTION_PREFIX),
     { message: 'an amount belongs to an event of a payment milestone only, with its currency' },
+  )
+  .refine(
+    (record) =>
+      record.fromCode === null && record.toCode === null
+        ? true
+        : record.fromCode !== null && record.toCode !== null && record.action.startsWith(PAYMENT_ACTION_PREFIX),
+    { message: 'the codes of a status belong to a transition of a payment milestone only, both together' },
   );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
@@ -116,7 +131,16 @@ export function toAuditRecord(
     objectId: 'objectId' in event ? (event.objectId ?? null) : null,
     traceId: context.traceId,
     ...amountsOf(event),
+    ...codesOf(event),
   });
+}
+
+/** The codes of the status before and after of an event of a payment milestone (EVM-054); `null` for every other event. */
+function codesOf(event: object): { fromCode: string | null; toCode: string | null } {
+  return {
+    fromCode: 'fromCode' in event ? (event.fromCode as string | null) : null,
+    toCode: 'toCode' in event ? (event.toCode as string | null) : null,
+  };
 }
 
 /** The amounts of an event of a payment milestone (the exception); `null` for every other event. */

@@ -19,6 +19,8 @@ export interface RepresentationBatch {
   /** The CURRENT name and kind of the parties of the events, read with the policy of the caller; a party not visible is absent. */
   readonly partyNames: ReadonlyMap<string, string>;
   readonly partyKinds: ReadonlyMap<string, string>;
+  /** The CURRENT names of the payment milestones of the events of the order (EVM-054); a deleted milestone is absent. */
+  readonly milestoneNames: ReadonlyMap<string, string>;
   /** The correction of an entry, by the entry it corrects. */
   readonly corrections: ReadonlyMap<string, string>;
 }
@@ -56,6 +58,10 @@ function eventOf(row: EntryRow, batch: RepresentationBatch) {
     // the codes of an item of the catalogue and of its processes (EVM-035): the names are read from the catalogue when shown
     ...(view.itemCode === null ? {} : { itemCode: view.itemCode }),
     ...(view.procedureCodes === null ? {} : { procedureCodes: [...view.procedureCodes] }),
+    // the milestone of a change of a payment (EVM-054 AC3): its identifier and its current name (`null` once it is deleted)
+    ...(view.objectType === 'payment_milestone' && view.objectId !== null
+      ? { paymentMilestone: { id: view.objectId, name: batch.milestoneNames.get(view.objectId) ?? null } }
+      : {}),
   };
 }
 

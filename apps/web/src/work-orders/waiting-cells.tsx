@@ -57,7 +57,7 @@ export function WaitingCell({ waiting }: { readonly waiting: WorkOrderWaiting | 
   return (
     <span className={long ? 'text-text-warning' : ''}>
       <span className="medium:hidden">{t('workOrders.waiting.prefixWaiting')} </span>
-      <span className="break-words">
+      <span className="wrap-anywhere">
         {t('workOrders.waiting.line', { who: waitingWho(t, waiting), since: sinceText(t, waiting.days) })}
       </span>
       {long ? <TriangleAlert aria-hidden="true" className="ms-inline-xs inline-block size-icon-sm align-text-bottom" /> : null}
@@ -76,21 +76,29 @@ export function WaitingCell({ waiting }: { readonly waiting: WorkOrderWaiting | 
  * The cell "Termin" (EVM-034 AC4): the nearest due date of an unfinished stage; `alarm-clock` and the colour of an error when it
  * has passed (the server says so with `hasOverdueStage`, the panel never compares dates).
  */
-export function DueCell({ item }: { readonly item: Pick<WorkOrderListItem, 'nextDueDate' | 'hasOverdueStage'> }) {
+export function DueCell({
+  item,
+  labelled = false,
+}: {
+  readonly item: Pick<WorkOrderListItem, 'nextDueDate' | 'hasOverdueStage'>;
+  /** The line inside the first cell (below `expanded`): the prefix "Termin:" always shown, the text may wrap. */
+  readonly labelled?: boolean;
+}) {
   const { t } = useTranslation();
   const day = item.nextDueDate;
   if (day === null || day === undefined) return <Dash hidden={t('workOrders.waiting.noDue')} />;
-  const prefix = <span className="medium:hidden">{t('workOrders.waiting.prefixDue')}</span>;
+  const prefix = <span className={labelled ? '' : 'medium:hidden'}>{t('workOrders.waiting.prefixDue')}</span>;
+  const layout = labelled ? 'wrap-anywhere' : 'whitespace-nowrap';
   if (item.hasOverdueStage !== true) {
     return (
-      <span className="inline-flex items-center gap-inline-xs whitespace-nowrap">
+      <span className={`inline-flex items-center gap-inline-xs ${layout}`}>
         {prefix}
         <span>{formatDueDate(day)}</span>
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-inline-xs whitespace-nowrap text-text-error">
+    <span className={`inline-flex items-center gap-inline-xs ${layout} text-text-error`}>
       {prefix}
       <AlarmClock aria-hidden="true" className="size-icon-sm shrink-0" />
       <span>{formatDueDate(day)}</span>

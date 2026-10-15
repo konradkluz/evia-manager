@@ -32,7 +32,16 @@ function classify(error: unknown): Failure {
  * rotated session, which replaces the old one at once. A failed key leaves the dialog open with a message; "Anuluj" and
  * Esc close it without doing anything. Offline the dialog says so and sends nothing.
  */
-export function StepUpDialog({ title, onDone }: { readonly title: string; readonly onDone: (confirmed: boolean) => void }) {
+export function StepUpDialog({
+  title,
+  details = [],
+  onDone,
+}: {
+  readonly title: string;
+  /** The summary of the operation under the title (EVM-057: what is corrected, then the instalment, the order and the amount). */
+  readonly details?: readonly string[];
+  readonly onDone: (confirmed: boolean) => void;
+}) {
   const { t } = useTranslation();
   const client = useApi();
   const queryClient = useQueryClient();
@@ -101,6 +110,12 @@ export function StepUpDialog({ title, onDone }: { readonly title: string; readon
         </>
       }
     >
+      {details.map((line, index) => (
+        // The lines of one summary never move: the index is a stable key.
+        <p key={index} className={index === 0 ? 'text-body text-text-primary' : 'text-body-sm text-text-secondary'}>
+          {line}
+        </p>
+      ))}
       {failureText === null ? null : (
         <div id={`${id}-failure`}>
           <InlineAlert tone="error">{failureText}</InlineAlert>
