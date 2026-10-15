@@ -139,12 +139,14 @@ TimelineEntry:
         - type: 'null'
 TimelineEventGroup:
   type: string
-  description: Grupa zdarzeń do filtrowania dziennika (zamknięta lista; rośnie z E6 i E7).
-  enum: [status_changes]
+  description: >-
+    Grupa zdarzeń do filtrowania dziennika (zamknięta lista; rośnie z E6 i E7; grupy są rozłączne): `status_changes` — „Zmiany
+    statusów” (zlecenie, etapy, dane i zakres zlecenia), `payments` — „Płatności” (zmiany statusu transz, EVM-054, i usunięcia transz, EVM-057).
+  enum: [status_changes, payments]
 TimelineEventObjectType:
   type: string
   description: Obiekt, którego dotyczy zdarzenie (zamknięta lista po stronie serwera; klient obsługuje też wartość nieznaną — P-12).
-  enum: [work_order, procedure_stage, scope_item]
+  enum: [work_order, procedure_stage, scope_item, payment_milestone]
 TimelineEventParty:
   type: object
   description: >-
@@ -174,9 +176,11 @@ TimelineEvent:
     Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie
     bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`,
     `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`,
-    `scope_item_removed` (EVM-035; lista rośnie z E6 i E7 — klient pokazuje nieznany kod neutralnym tekstem; zapis,
-    którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola).
-    `fromStatus` / `toStatus` to kody statusów zlecenia albo etapu (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
+    `scope_item_removed` (EVM-035), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania
+    zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora;
+    bez kwoty, numeru faktury i nazwy) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola.
+    `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
     `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu
     (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`;
     pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.
@@ -235,6 +239,27 @@ TimelineEvent:
         type: string
         maxLength: 64
         pattern: '^[a-z][a-z0-9_]{1,63}$'
+    paymentMilestone:
+      $ref: '#/TimelineEventPaymentMilestone'
+TimelineEventPaymentMilestone:
+  type: object
+  description: >-
+    Transza zdarzenia `payment_milestone_status_changed` (EVM-054) i `payment_milestone_deleted` (EVM-057); brak pola poza nimi.
+    Identyfikator z zapisu zdarzenia, nazwa z BIEŻĄCYCH danych transzy tego zlecenia — transza usunięta ma `name` równe `null`
+    (zawsze w `payment_milestone_deleted`). Nazwa to tekst — panel wyświetla ją bez
+    interpretacji znaczników.
+  required: [id, name]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    name:
+      oneOf:
+        - type: string
+          maxLength: 200
+        - type: 'null'
 TimelineEntryList:
   type: object
   description: >-

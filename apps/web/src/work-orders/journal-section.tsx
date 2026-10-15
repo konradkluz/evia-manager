@@ -148,6 +148,15 @@ export function JournalSection({
               choose(null, 'status_changes');
             }}
           />
+          {/* EVM-054 AC3: the status changes of the instalments — a group of its own, disjoint from "Zmiany statusów" */}
+          <FilterChip
+            variant="choice"
+            label={t('workOrder.journal.filters.payments')}
+            selected={eventGroup === 'payments'}
+            onClick={() => {
+              choose(null, 'payments');
+            }}
+          />
         </div>
         <Select
           label={t('workOrder.journal.filters.stage')}

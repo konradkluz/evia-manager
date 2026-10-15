@@ -397,8 +397,9 @@ Przykładowe tytuły: „Potwierdź tożsamość, aby skorygować płatność”
 | Ekran | Operacja | Tytuł W-04 | Zastosowanie |
 |---|---|---|---|
 | [W-14](13-klienci.md#anonimizacja-administrator-ze-step-upem) | anonimizacja klienta (po AlertDialog „Anonimizuj klienta…”; Administrator, `channels: [web]`) | „Potwierdź tożsamość, aby zanonimizować klienta” | step-up |
+| [W-06 / W-11](08-nieoplacone.md#akcje-płatności--status--rola) | korekta płatności (EVM-057, po dialogu K1–K6: wycofanie i anulowanie faktury, cofnięcie wpłaty, zmiana kwoty transzy Wystawionej lub Opłaconej, przywrócenie i usunięcie transzy; Administrator, `channels: [web]`) | „Potwierdź tożsamość, aby skorygować płatność” | step-up |
 
-Podsumowanie operacji w W-04: „Anonimizacja klienta Jan Przykładowy — nieodwracalna.” „Anuluj” w W-04 — dialog anonimizacji wraca z alertem „Nie wykonano operacji.” (EVM-041 AC8). Pozostałe operacje EVM-071 (edycja klienta, lokalizacji, strony, zlecenia i zakresu, procesy i etapy, transze „Planowane”, usunięcie i przywrócenie klienta) nie wymagają step-upu.
+Podsumowanie operacji w W-04: „Anonimizacja klienta Jan Przykładowy — nieodwracalna.” „Anuluj” w W-04 — dialog anonimizacji wraca z alertem „Nie wykonano operacji.” (EVM-041 AC8). Korekta płatności (EVM-057): pierwsza linia zależnie od dialogu — „Wycofanie faktury FV/TEST/0007/2026” · „Anulowanie faktury FV/TEST/0007/2026” · „Cofnięcie wpłaty za fakturę FV/TEST/0007/2026” · „Zmiana kwoty transzy „Zaliczka”: 3 600,00 zł → 3 690,00 zł” · „Przywrócenie transzy „Zaliczka”” · „Usunięcie transzy „Zaliczka””, druga — „Transza „Zaliczka” · ZL-2026-0042 · 3 600,00 zł”; po sukcesie operacja jest wysyłana ponownie z tym samym `Idempotency-Key`; „Anuluj” w W-04 — dialog korekty wraca z alertem „Nie wykonano korekty.” i zachowanymi danymi (EVM-057 AC5). Pozostałe operacje EVM-071 (edycja klienta, lokalizacji, strony, zlecenia i zakresu, procesy i etapy, transze „Planowane”, usunięcie i przywrócenie klienta) nie wymagają step-upu.
 
 **Stany**
 | Stan | Zachowanie |

@@ -4,7 +4,10 @@
  * `buildMatrix` derives, from `x-evia-authz` alone, what every operation must answer to every kind of caller: the three
  * roles on both channels and in both session states, an anonymous caller, a revoked session and a session that ran out of
  * time (EVM-067) — plus an IDOR case for every
- * operation that addresses an object. The expectation is computed here, independently of the guard (a second
+ * operation that addresses an object: one cell per caller entitled to it — for an operation with a step-up, the Administrator with a
+ * fresh passkey (EVM-057; the only caller it lets through), for any other the callers without a passkey state (the variants with a
+ * key would repeat them). An operation without an object (no path parameter, no anchor — the audit log) has no IDOR case by that
+ * rule, not by a list of exceptions. The expectation is computed here, independently of the guard (a second
  * implementation of the same table in the api-guidelines), so a hole in the guard is a failed cell, not a silent pass.
  * `runMatrix` sends the real requests through the application and returns the cells whose answer differs.
  *
@@ -122,7 +125,10 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
     if (!addressesObject || authz.public === true) return cells;
     // IDOR: every caller entitled to the operation, asking for an object of somebody else, gets 404 (never 403: the object is not disclosed)
     const entitled = cells.filter(
-      (cell) => cell.expectation.outcome === 'allowed' && !(cell.caller.kind === 'session' && cell.caller.passkey !== undefined),
+      (cell) =>
+        cell.expectation.outcome === 'allowed' &&
+        cell.caller.kind === 'session' &&
+        (authz.stepUp === true ? cell.caller.passkey === 'fresh' : cell.caller.passkey === undefined),
     );
     return [...cells, ...entitled.map((cell): MatrixCell => ({ ...cell, expectation: { outcome: 'not_found' }, idor: true }))];
   });

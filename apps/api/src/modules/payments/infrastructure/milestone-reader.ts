@@ -5,7 +5,7 @@
  * `work-orders` and its read policy. The amount comes back through `amountFromDatabase` (a safe integer, never a float).
  */
 import { sql } from 'kysely';
-import { MAX_MILESTONES_PER_ORDER, SETTLED_STATUSES } from '../domain/milestone-rules.ts';
+import { MAX_MILESTONES_PER_ORDER } from '../domain/milestone-rules.ts';
 import type { PaymentMilestoneStatus } from '../domain/money.ts';
 import { amountFromDatabase } from './milestone-store.ts';
 import type { PaymentsDb } from './tables.ts';
@@ -133,15 +133,34 @@ export async function milestoneSlots(
   return { count: Number(row.count), lastPosition: row.last ?? 0 };
 }
 
-/** Whether a live milestone of the order still waits for money (neither `paid` nor `cancelled`) — the condition of a settlement. */
-export async function hasUnsettledMilestone(db: PaymentsDb, workOrderId: string): Promise<boolean> {
-  const row = await db
+/**
+ * The DISTINCT statuses of the live milestones of the order (at most the four values of the CHECK) — read under the lock of the order
+ * for the conditions of its transitions. Deliberately WITHOUT a limit of rows: a condition of a transition is a security decision
+ * (SR-AUTHZ-10, CWE-841) and must see every live milestone, whatever the limit of milestones per order says.
+ */
+export async function liveStatuses(db: PaymentsDb, workOrderId: string): Promise<PaymentMilestoneStatus[]> {
+  const rows = await db
     .selectFrom('payments.payment_milestones')
-    .select('id')
+    .select('status')
+    .distinct()
     .where('work_order_id', '=', workOrderId)
     .where('deleted_at', 'is', null)
-    .where('status', 'not in', SETTLED_STATUSES)
-    .limit(1)
-    .executeTakeFirst();
-  return row !== undefined;
+    .execute();
+  return rows.map((row) => row.status);
+}
+
+/**
+ * The names of the LIVE milestones of THIS order among `ids` — ONE query, the anchor in its condition (a milestone of another order is
+ * not in the answer, CWE-639; a deleted one neither: the journal shows it without a name).
+ */
+export async function milestoneNames(db: PaymentsDb, workOrderId: string, ids: readonly string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('payments.payment_milestones')
+    .select(['id', 'name'])
+    .where('work_order_id', '=', workOrderId)
+    .where('id', 'in', ids)
+    .where('deleted_at', 'is', null)
+    .execute();
+  return new Map(rows.map((row) => [row.id, row.name]));
 }

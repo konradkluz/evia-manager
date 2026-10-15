@@ -4,7 +4,7 @@ title: Plan płatności z szablonu i transze w zleceniu
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 path: pelna
 owner: backend-developer
@@ -114,7 +114,7 @@ _Uzupełnia wykonawca przed implementacją._
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; instrukcja dla biura (EVM-066) uzupełniona o płatności — dokumentacja i CHANGELOG tak; instrukcji EVM-066 jeszcze nie ma (EVM-066 `ready`) — do decyzji Konrada na demo
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Notatki
 - Minor z code-review domknięte przez orkiestratora po potoku (bez ponownego przeglądu): ostrzeżenie „Planowane transze zostaną anulowane.” także przy braku danych płatności (P1), PATCH z tą samą kwotą bez wersji i audytu, CHECK audytu `NOT VALID` + `VALIDATE`, opis `amount` (`null` także w `cancelled`).
@@ -137,3 +137,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-03 — poprawki z przeglądu EVM-010 (`solution-architect`, wdrożył backend-developer): uczestnik przejść `payments` przeniesiony tu z EVM-058 — warunek rozliczenia i skutek anulowania zlecenia (AC6); Tylko odczyt włączony do macierzy ról (AC7); wydanie na prod razem z EVM-054
 - 2026-10-03 — plan M1 zaakceptowany przez Konrada (EVM-010); historyjka zostaje w `draft` do `/refine` — doprecyzować podział ostrzeżenia o transzach przy anulowaniu zlecenia między EVM-053 AC6 a EVM-058 AC3 (EVM-010 → „Uwagi do rozważenia” 1)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 1; liczba AC bez zmian): AC8 — komunikat `412` wg makiety dialogów transz W-06 w `08-nieoplacone.md` (forma bezosobowa, `flows/README.md` → zasada wspólna 16) zamiast cytatu „Ktoś zmienił…”; historyjka zostaje w `draft` (zmiana brzmienia przed `/refine`, status bez zmian)
+- 2026-10-15 — scalona do `main` (PR #69, `f66d4f3`); in-review → done. Instrukcja dla biura (EVM-066) pozostaje otwarta — realizuje ją EVM-066 (`ready`)

@@ -1,4 +1,4 @@
-import type { Procedure, ProcedureList, ProcedureStage } from '@evia/contracts';
+import type { PaymentMilestoneList, Procedure, ProcedureList, ProcedureStage } from '@evia/contracts';
 import { AlarmClock, Button, Card, InlineAlert, Skeleton, StatusBadge } from '@evia/ui-web';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
@@ -7,6 +7,7 @@ import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { stageStatusLabels } from '../i18n/procedure-labels.ts';
 import { ErrorBoundary } from '../shell/error-boundary.tsx';
+import { paymentsTileError, PaymentsTile } from './payments-tile.tsx';
 import { formatDueDate, stageStatusKey } from './procedure-format.ts';
 import { StageFacts } from './stage-facts.tsx';
 
@@ -40,28 +41,43 @@ const byLongestWait = (a: ProcedureStage, b: ProcedureStage): number => (b.waiti
 /**
  * The card "Podsumowanie" of W-06 (EVM-034 AC5; flows/03): three tiles put together from the processes of the order — "Na jakim
  * etapie" (the current stage of at most three processes and "+ n procesów"), "Na kogo czekamy" (every wait, the longest first, no
- * empty rows) and "Terminy" (the nearest due date and the stages after it). The tile "Płatności" arrives with EVM-056. The numbers
- * of days and the overdue flag are the server's; the panel only orders and words them. Every tile has its own state of an error:
- * one failing tile leaves the others working. Names are free text: React text only (SR-WEB-03).
+ * empty rows) and "Terminy" (the nearest due date and the stages after it), and — EVM-056 AC4 — "Płatności" from the instalments
+ * of the order (`payments`; absent for a role that does not read payments, then the other three fill the row). The numbers of days
+ * and the overdue flags are the server's; the panel only orders and words them. Every tile has its own state of an error: one
+ * failing tile leaves the others working. Names are free text: React text only (SR-WEB-03). Four tiles: 2×2 on `medium`, a column
+ * on `compact`.
  */
 export function OrderSummary({
   query,
   onShowProcesses,
+  payments,
+  onShowPayments,
 }: {
   readonly query: UseQueryResult<ProcedureList>;
   /** "+ 6 procesów" leads to the section "Procesy i etapy" (the page opens its tab and moves the focus there). */
   readonly onShowProcesses: () => void;
+  /** The instalments of the order (the read of the section "Płatności"); `undefined` — the role does not read payments (W4). */
+  readonly payments?: UseQueryResult<PaymentMilestoneList> | undefined;
+  /** The tile "Płatności" leads to the section `#platnosci` (the page opens its tab and moves the focus there). */
+  readonly onShowPayments?: () => void;
 }) {
   const { t } = useTranslation();
   const headingId = useId();
   const items = query.data?.items;
+  const list = payments?.data;
   return (
     <Card labelledBy={headingId}>
       <h2 id={headingId} className="text-heading-3 text-text-primary">
         {t('workOrder.summary.title')}
         <span className="sr-only"> {t('workOrder.summary.titleSuffix')}</span>
       </h2>
-      <div className="grid grid-cols-1 gap-stack-md expanded:grid-cols-3">
+      <div
+        className={
+          payments === undefined
+            ? 'grid grid-cols-1 gap-stack-md expanded:grid-cols-3'
+            : 'grid grid-cols-1 gap-stack-md medium:grid-cols-2 expanded:grid-cols-4'
+        }
+      >
         <Tile title={t('workOrder.summary.stageTile')} query={query}>
           {items === undefined ? null : <StageTile items={items} onShowProcesses={onShowProcesses} />}
         </Tile>
@@ -71,20 +87,41 @@ export function OrderSummary({
         <Tile title={t('workOrder.summary.dueTile')} query={query}>
           {items === undefined ? null : <DueTile items={items} />}
         </Tile>
+        {payments === undefined ? null : (
+          <Tile
+            title={t('workOrder.summary.paymentsTile')}
+            query={payments}
+            link
+            errorText={(error) => paymentsTileError(t, error)}
+            retryText={t('workOrder.summary.paymentsRetry')}
+          >
+            {list === undefined ? null : <PaymentsTile list={list} onShow={onShowPayments ?? (() => undefined)} />}
+          </Tile>
+        )}
       </div>
     </Card>
   );
 }
 
-/** One tile: a heading, and the content, a skeleton while it loads or an alert with its own retry; a rendering fault stays in the tile. */
+/**
+ * One tile: a heading, and the content, a skeleton while it loads or an alert with its own retry; a rendering fault stays in the tile.
+ * A `link` tile is covered by the link of its content (the focus ring is drawn around the tile); `errorText` and `retryText` word
+ * the failure of a tile with a read of its own (EVM-056: "Nie udało się wczytać płatności.", `429`).
+ */
 function Tile({
   title,
   query,
   children,
+  link = false,
+  errorText,
+  retryText,
 }: {
   readonly title: string;
-  readonly query: UseQueryResult<ProcedureList>;
+  readonly query: UseQueryResult;
   readonly children: ReactNode;
+  readonly link?: boolean;
+  readonly errorText?: (error: unknown) => string;
+  readonly retryText?: string;
 }) {
   const { t } = useTranslation();
   const headingId = useId();
@@ -98,15 +135,15 @@ function Tile({
             void query.refetch();
           }}
         >
-          {t('workOrder.summary.retry')}
+          {retryText ?? t('workOrder.summary.retry')}
         </Button>
       }
     >
-      {t('workOrder.summary.error')}
+      {errorText === undefined ? t('workOrder.summary.error') : errorText(query.error)}
     </InlineAlert>
   );
-  return (
-    <section aria-labelledby={headingId} className="flex flex-col gap-stack-sm p-inset-md rounded-card bg-bg-surface-subtle">
+  const content = (
+    <>
       <h3 id={headingId} className="text-heading-4 text-text-primary">
         {title}
       </h3>
@@ -122,6 +159,20 @@ function Tile({
           <Skeleton />
         </div>
       )}
+    </>
+  );
+  // A tile that is a link is a named group, not a landmark: the section "Płatności" of the page is the region of that name.
+  return link ? (
+    <div
+      role="group"
+      aria-labelledby={headingId}
+      className="relative flex flex-col gap-stack-sm p-inset-md rounded-card bg-bg-surface-subtle hover:bg-bg-surface-hover has-focus-visible:focus-ring"
+    >
+      {content}
+    </div>
+  ) : (
+    <section aria-labelledby={headingId} className="flex flex-col gap-stack-sm p-inset-md rounded-card bg-bg-surface-subtle">
+      {content}
     </section>
   );
 }

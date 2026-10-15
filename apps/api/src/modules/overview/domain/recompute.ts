@@ -7,7 +7,10 @@
  * - `waits`: the stages in the state `waiting` (the stages and processes that are deleted are never passed in);
  * - `waitingCount`: their number; the longest wait is the one with the smallest `waitingSince` (a tie: the position of the process,
  *   then the position of the stage, then the identifier of the stage — a total order, so the result is deterministic);
- * - `nextDueDate`: the smallest due date among the stages that are not finished (`todo`, `in_progress`, `waiting`, `blocked`).
+ * - `nextDueDate`: the smallest due date among the stages that are not finished (`todo`, `in_progress`, `waiting`, `blocked`);
+ * - the signals of payments (EVM-056; W3: the deleted and the cancelled milestones are never passed in): `invoicedCount` and
+ *   `paidCount` — the milestones `invoiced` and `paid`; `earliestInvoicedDueDate` — the smallest due date of the `invoiced` ones.
+ *   No amount (W1): the totals are read per page through the facade of `payments`.
  */
 
 /** What `work-orders` tells about an order (the keys; never a title or a name). */
@@ -38,6 +41,14 @@ export interface UnfinishedStage {
   readonly dueDate: string | null;
 }
 
+/** What `payments` tells about a live milestone that is not cancelled (no amount, no name — W5). */
+export interface MilestoneSignal {
+  readonly workOrderId: string;
+  readonly status: 'planned' | 'invoiced' | 'paid';
+  /** `YYYY-MM-DD` */
+  readonly dueDate: string | null;
+}
+
 export interface SummaryColumns {
   readonly workOrderId: string;
   readonly number: string;
@@ -54,6 +65,10 @@ export interface SummaryColumns {
   readonly longestWaitingOn: 'customer' | 'party' | null;
   readonly longestWaitingPartyId: string | null;
   readonly nextDueDate: string | null;
+  readonly invoicedCount: number;
+  readonly paidCount: number;
+  /** `YYYY-MM-DD` */
+  readonly earliestInvoicedDueDate: string | null;
 }
 
 export interface WaitColumns {
@@ -72,7 +87,7 @@ export interface Projection {
 }
 
 /** The groups of columns `verify` reports separately (W11); `authorization` is a security alert. */
-export const COLUMN_GROUPS = ['authorization', 'keys', 'waiting', 'deadline'] as const;
+export const COLUMN_GROUPS = ['authorization', 'keys', 'waiting', 'deadline', 'payments'] as const;
 export type ColumnGroup = (typeof COLUMN_GROUPS)[number];
 
 /** A stage that waits and can be dated (`waitingSince` is set). */
@@ -104,6 +119,7 @@ function toWait({ stage, since }: DatedWait, workOrderId: string, partyKinds: Re
 /**
  * @param stages the unfinished stages of the order (the caller passes only this order's)
  * @param partyKinds the kind of every party a stage waits for (a party that is waited for always exists: the key is RESTRICT)
+ * @param milestones the live milestones of the order that are not cancelled (the caller passes only this order's)
  * @throws Error when a stage waits for a party whose kind is unknown (the transaction is rolled back — fail closed)
  */
 export function computeProjection(
@@ -111,6 +127,7 @@ export function computeProjection(
   siteType: string | null,
   stages: readonly UnfinishedStage[],
   partyKinds: ReadonlyMap<string, string>,
+  milestones: readonly MilestoneSignal[],
 ): Projection {
   // a stage in `waiting` always has its day through the API (EVM-032); the column is nullable, and a stage without it cannot be
   // dated, so it is not listed as a wait (the recomputation of the whole order must not fail on one row the API cannot write)
@@ -122,7 +139,8 @@ export function computeProjection(
     .map((dated) => toWait(dated, keys.id, partyKinds));
   const first = waits[0];
   const dueDates = stages.flatMap((stage) => (stage.dueDate === null ? [] : [stage.dueDate]));
-  const nextDueDate = dueDates.length === 0 ? null : dueDates.reduce((least, date) => (date < least ? date : least));
+  const nextDueDate = earliest(dueDates);
+  const invoiced = milestones.filter((milestone) => milestone.status === 'invoiced');
   return {
     summary: {
       workOrderId: keys.id,
@@ -140,10 +158,17 @@ export function computeProjection(
       longestWaitingOn: first?.waitingOn ?? null,
       longestWaitingPartyId: first?.partyId ?? null,
       nextDueDate,
+      invoicedCount: invoiced.length,
+      paidCount: milestones.filter((milestone) => milestone.status === 'paid').length,
+      earliestInvoicedDueDate: earliest(invoiced.flatMap((milestone) => (milestone.dueDate === null ? [] : [milestone.dueDate]))),
     },
     waits,
   };
 }
+
+/** The smallest of `YYYY-MM-DD` days (they compare as strings), `null` for none. */
+const earliest = (days: readonly string[]): string | null =>
+  days.length === 0 ? null : days.reduce((least, day) => (day < least ? day : least));
 
 const waitKey = (wait: WaitColumns): string =>
   JSON.stringify([wait.stageId, wait.waitingOn, wait.partyId, wait.partyKind, wait.waitingSince]);
@@ -178,5 +203,8 @@ export function differingGroups(stored: Projection, computed: Projection): Colum
     groups.push('waiting');
   }
   if (a.nextDueDate !== b.nextDueDate) groups.push('deadline');
+  if (a.invoicedCount !== b.invoicedCount || a.paidCount !== b.paidCount || a.earliestInvoicedDueDate !== b.earliestInvoicedDueDate) {
+    groups.push('payments');
+  }
   return groups;
 }

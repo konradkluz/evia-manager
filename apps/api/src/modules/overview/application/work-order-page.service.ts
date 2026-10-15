@@ -14,6 +14,14 @@
  * Defence in depth (ADR-0017 W2): an order of the page that `work-orders` does not show to the caller — which the policy in the
  * query should have excluded — is dropped and counted (`projection_authz_drift`); a title that is not returned is never replaced by
  * a guess. The customer of an order that `customers` does not show (deleted) is `{deleted: true}`: no identifier, no name (TM-18).
+ *
+ * Payments (EVM-056; ADR-0017 D8, W2, W4): the right to read payments (`canReadPayments` of `authorization` — the rule
+ * `restrictedParams.paymentMilestone.read` of the contract) decides three things here, for the list and the search alike: a payment
+ * view without it is `403 forbidden` ({@link WorkOrderPageService.authorize}, after the validation, before the meter), "Najpilniejsze"
+ * is computed without the payments, and the items have no field `payment`. The variant is part of the scope of the cursor
+ * ({@link WorkOrderPageService.scope}), so a cursor of one variant never positions a page of the other. The field `payment` is the
+ * state of the projection on the day of the page plus the totals of the facade of `payments` — ONE batch for the orders that passed
+ * the batch of titles (`visible`), with the same day, skipped when no order of the page has an issued milestone.
  */
 import { zWorkOrderList } from '@evia/contracts/zod';
 import type { WorkOrderList } from '@evia/contracts';
@@ -29,11 +37,15 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { BULK_READ_CONTROL, CLOCK, CURSOR_CODEC, DATABASE, METRICS } from '../../../platform/tokens.ts';
+import { scopeOf } from '../../../platform/crypto/opaque-cursor.ts';
+import { PAYMENT_READ_POLICY, type PaymentReadPolicy } from '../../authorization/index.ts';
 import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
 import { UserDirectory } from '../../identity/index.ts';
 import { PARTY_DIRECTORY, type PartyDirectory } from '../../parties/index.ts';
+import { PAYMENT_TOTALS_DIRECTORY, type PaymentTotals, type PaymentTotalsDirectory } from '../../payments/payment-totals.ts';
 import { SITE_DIRECTORY, type SiteDirectory, type SiteLine } from '../../sites/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
+import { PAYMENT_VIEWS, paymentStateOf } from '../domain/payment-signals.ts';
 import { daysBetween, parsePosition, positionParts, type Position, type WorkOrderListQuery } from '../domain/work-order-list-query.ts';
 import { readWorkOrderPage, type SearchIdSets, type WorkOrderRow } from '../infrastructure/work-order-list-reader.ts';
 
@@ -65,6 +77,8 @@ export class WorkOrderPageService {
   readonly #parties: PartyDirectory;
   readonly #customers: CustomerDirectory;
   readonly #sites: SiteDirectory;
+  readonly #paymentTotals: PaymentTotalsDirectory;
+  readonly #canReadPayments: PaymentReadPolicy;
   readonly #clock: Clock;
   readonly #authzDrift: Counter;
 
@@ -77,6 +91,8 @@ export class WorkOrderPageService {
     @Inject(PARTY_DIRECTORY) parties: PartyDirectory,
     @Inject(CUSTOMER_DIRECTORY) customers: CustomerDirectory,
     @Inject(SITE_DIRECTORY) sites: SiteDirectory,
+    @Inject(PAYMENT_TOTALS_DIRECTORY) paymentTotals: PaymentTotalsDirectory,
+    @Inject(PAYMENT_READ_POLICY) canReadPayments: PaymentReadPolicy,
     @Inject(CLOCK) clock: Clock,
     @Inject(METRICS) metrics: MetricsRegistry,
   ) {
@@ -88,8 +104,31 @@ export class WorkOrderPageService {
     this.#parties = parties;
     this.#customers = customers;
     this.#sites = sites;
+    this.#paymentTotals = paymentTotals;
+    this.#canReadPayments = canReadPayments;
     this.#clock = clock;
     this.#authzDrift = metrics.counter('projection_authz_drift', []);
+  }
+
+  /**
+   * The scope of the cursor: the digest of the normalised filters (and the phrase of a search) and, for a caller who may not read
+   * payments, the mark of the variant without them (W4) — so a cursor of one variant fails (`invalid_cursor`) in the other.
+   */
+  scope(principal: Principal, filterParts: readonly string[]): string {
+    return scopeOf(this.#canReadPayments(principal) ? [...filterParts] : [...filterParts, 'variant:without-payments']);
+  }
+
+  /**
+   * W4: a payment view needs the right to read payments — without it `403 forbidden`, the same answer for every value (no echo). The
+   * sort "Najpilniejsze" is never refused: without the right it is computed without the payments (D9). Called after the validation
+   * and before the meter of mass reading, so a refused request reads and counts nothing.
+   *
+   * @throws ProblemException `forbidden`
+   */
+  authorize(principal: Principal, query: WorkOrderListQuery): void {
+    if (query.view !== undefined && PAYMENT_VIEWS.includes(query.view) && !this.#canReadPayments(principal)) {
+      throw new ProblemException('forbidden');
+    }
   }
 
   /**
@@ -113,7 +152,8 @@ export class WorkOrderPageService {
   async page(principal: Principal, request: PageRequest): Promise<WorkOrderList> {
     const { query, start } = request;
     const { today } = start;
-    const rows = await readWorkOrderPage(this.#db, principal, query, start.position, today, request.narrowing);
+    const withPayments = this.#canReadPayments(principal);
+    const rows = await readWorkOrderPage(this.#db, principal, query, start.position, { today, withPayments }, request.narrowing);
     const shown = rows.slice(0, query.limit);
     const titles = await this.#orders.titlesOf(
       this.#db,
@@ -135,9 +175,13 @@ export class WorkOrderPageService {
     // the customers and the sites: ONE statement each for the whole page, under the read policy of their modules (none when absent)
     const customerNames = await this.#customers.displayNamesOf(this.#db, principal, unique(visible.map(({ row }) => row.customerId)));
     const siteLines = await this.#sites.linesOf(this.#db, principal, unique(visible.map(({ row }) => row.siteId)));
+    const totals = withPayments ? await this.#totalsOf(principal, visible, today) : undefined;
     const last = shown.at(-1);
     const list = {
-      items: visible.map(({ row, title }) => toItem(row, title, { names, partyNames, partyKinds, customerNames, siteLines }, today)),
+      items: visible.map(({ row, title }) => ({
+        ...toItem(row, title, { names, partyNames, partyKinds, customerNames, siteLines }, today),
+        ...(totals === undefined ? {} : { payment: paymentOf(row, totals, today) }),
+      })),
       nextCursor:
         rows.length > query.limit && last !== undefined
           ? this.#cursors.seal(request.operation, {
@@ -161,6 +205,38 @@ export class WorkOrderPageService {
     );
     return checked.data;
   }
+
+  /**
+   * The totals of the issued milestones of the orders of the page that passed the batch of titles — never of a row the fail-closed
+   * batch dropped (K3) — in ONE statement of `payments`, with the day of the page. No statement when no order has an issued milestone.
+   */
+  async #totalsOf(
+    principal: Principal,
+    visible: readonly { readonly row: WorkOrderRow }[],
+    today: string,
+  ): Promise<ReadonlyMap<string, PaymentTotals>> {
+    const ids = visible.flatMap(({ row }) => (row.invoicedCount > 0 ? [row.id] : []));
+    if (ids.length === 0) return new Map();
+    return this.#paymentTotals.paymentTotalsOf(this.#db, principal, ids, today);
+  }
+}
+
+const money = (amountMinor: number) => ({ amountMinor, currency: 'PLN' as const });
+
+/**
+ * The column "Płatność" (D8): the state from the projection and the day of the page, the totals from the facade. The two are read by
+ * separate statements without a common snapshot, so for a moment around a parallel change of a milestone they may disagree (the state
+ * says `overdue`, the total of the overdue ones is 0): a deliberate tolerance — the contract does not tie them, and the next refresh
+ * agrees. An order without an issued milestone has zero totals.
+ */
+function paymentOf(row: WorkOrderRow, totals: ReadonlyMap<string, PaymentTotals>, today: string) {
+  const total = totals.get(row.id);
+  return {
+    state: paymentStateOf(row, today),
+    invoicedCount: row.invoicedCount,
+    invoicedTotal: money(total?.invoicedMinor ?? 0),
+    overdueTotal: money(total?.overdueMinor ?? 0),
+  };
 }
 
 const unique = (ids: readonly (string | null)[]): string[] => [...new Set(ids.filter((id): id is string => id !== null))];

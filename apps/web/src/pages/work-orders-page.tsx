@@ -15,10 +15,13 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
+import { workOrderSortLabels } from '../i18n/work-order-labels.ts';
 import { NEW_WORK_ORDER_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { canReadPayments } from '../payments/payment-access.ts';
 import { phraseOf, phraseState } from '../search/use-phrase-search.ts';
 import { setWorkOrderMoreFilters, setWorkOrderPhrase, useWorkOrderSearch } from '../search/work-order-search-store.ts';
 import { SESSION_KEY } from '../session/session.ts';
@@ -26,11 +29,10 @@ import { useDebounced } from '../shell/use-debounced.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 import {
-  DEFAULT_SORT,
   DEFAULT_WAITING_DAYS,
   DSO_VIEW,
   isFiltered,
-  NO_FILTERS,
+  noFiltersFor,
   searchOf,
   statusesOf,
   toQuery,
@@ -38,11 +40,13 @@ import {
   viewOf,
   waitingDaysOf,
   waitingOnOf,
+  type ViewId,
   type WorkOrderFilters,
   type WorkOrderSearch,
 } from '../work-orders/filters.ts';
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
+import { pluralForm } from '../work-orders/order-form.ts';
 import { WorkOrderFilterBar } from '../work-orders/work-order-filter-bar.tsx';
 import { WorkOrderTable } from '../work-orders/work-order-table.tsx';
 import { retryMinutes } from './login-failure.tsx';
@@ -72,6 +76,8 @@ interface LocalFilters {
 }
 
 interface LoadedPage {
+  /** The filters (with the sort order) the page was read for: offline the page is shown only for the same ones. */
+  readonly key: string;
   readonly items: readonly WorkOrderListItem[];
   readonly at: number;
 }
@@ -87,6 +93,10 @@ interface LoadedPage {
  * "Szablon" narrow the same list. A phrase of 3–100 characters goes — after a pause in typing — in the body of
  * `POST /api/v1/work-orders/search` with the cursor and the filters; a shorter one is never sent and the plain list stays. The
  * answer is not kept once it is not shown (`gcTime: 0`); the phrase is in no address, title or store of the browser.
+ *
+ * EVM-056: "Najpilniejsze" is the default sort (sent as `sort=urgency`), the views "Po terminie" and "Nieopłacone" (the address carries
+ * the identifier only) and the column "Płatność" — for a role that reads payments (W4; the server decides all the same). A change of
+ * the sort or the view is announced when the list arrives (`aria-live="polite"`); the amounts stay in the memory of the tab.
  */
 export function WorkOrdersPage() {
   const { t } = useTranslation();
@@ -98,11 +108,13 @@ export function WorkOrdersPage() {
   const sessionState = session?.state;
   // Only Administrator and Edytor create work orders (R does not see the button; the server decides — EVM-020 AC7).
   const canCreate = session?.user.role === 'administrator' || session?.user.role === 'editor';
+  const payments = canReadPayments(session?.user.role);
+  const noFilters = noFiltersFor(payments);
   const navigate = useNavigate();
   const search: WorkOrderSearch = useSearch({ strict: false });
   // What the address does not carry (coordinator, sort order). A change that also changes the address waits in `pending`
   // until the address has changed, so that the list is never asked for a mix of the old and the new filters (one request).
-  const [local, setLocal] = useState<LocalFilters>({ coordinatorId: '', sort: DEFAULT_SORT });
+  const [local, setLocal] = useState<LocalFilters>({ coordinatorId: '', sort: noFilters.sort });
   const [pending, setPending] = useState<{ readonly key: string; readonly values: LocalFilters } | null>(null);
   // Cursors of the pages passed through (empty = the first page, the last = the current one) with the filters they belong to.
   const [paging, setPaging] = useState<{ readonly key: string; readonly cursors: readonly string[] }>({ key: '', cursors: [] });
@@ -111,9 +123,9 @@ export function WorkOrdersPage() {
   const [notice, setNotice] = useState<'reset' | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
-  const moved = useRef<'next' | 'previous' | 'search' | null>(null);
+  const moved = useRef<'next' | 'previous' | 'search' | 'sort' | 'view' | null>(null);
 
-  const view = viewOf(search);
+  const view = viewOf(search, payments);
   const statuses = statusesOf(search);
   const waitingOn = waitingOnOf(search);
   const waitingDays = waitingDaysOf(search);
@@ -171,7 +183,9 @@ export function WorkOrdersPage() {
 
   // The last loaded page stays in the memory of this tab only — the offline view shows it (AC8); never in a store of the browser.
   useEffect(() => {
-    if (data !== undefined) setLastPage({ items: data.items, at: query.dataUpdatedAt });
+    if (data !== undefined) setLastPage({ key: filterKey, items: data.items, at: query.dataUpdatedAt });
+    // The key belongs to the data it was read for; it changes together with them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, query.dataUpdatedAt]);
 
   // The coordinators seen so far feed the "Opiekun" filter (the list of accounts, W-16, does not exist yet).
@@ -188,11 +202,19 @@ export function WorkOrdersPage() {
   useEffect(() => {
     if (data === undefined || moved.current === null) return;
     if (moved.current === 'search') setAnnouncement(t('workOrders.search.loaded'));
-    else {
+    else if (moved.current === 'sort') {
+      setAnnouncement(
+        t('workOrders.announce.sort', { sort: workOrderSortLabels[sort], counted: countedText(t, data, cursors.length > 0) }),
+      );
+    } else if (moved.current === 'view') {
+      setAnnouncement(t('workOrders.announce.view', { view: viewLabel(t, view), counted: countedText(t, data, cursors.length > 0) }));
+    } else {
       setAnnouncement(moved.current === 'next' ? t('workOrders.pages.loadedNext') : t('workOrders.pages.loadedPrevious'));
       heading.current?.focus();
     }
     moved.current = null;
+    // Only the arrival of the data matters here (the sort and the view are the ones it was read for).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, t]);
 
   // The address has changed to the one a pending change waits for: the change becomes the state of the page.
@@ -219,7 +241,15 @@ export function WorkOrdersPage() {
 
   const change = (changed: WorkOrderFilters) => {
     // A new phrase is announced when its results arrive; the focus stays in the field (WCAG 4.1.3).
-    moved.current = changed.phrase !== filters.phrase && phraseState(changed.phrase) === 'ok' ? 'search' : null;
+    // A new sort order or view is announced when the list arrives (EVM-056; aria-live="polite").
+    moved.current =
+      changed.phrase !== filters.phrase && phraseState(changed.phrase) === 'ok'
+        ? 'search'
+        : changed.sort !== filters.sort
+          ? 'sort'
+          : changed.view !== filters.view && changed.view !== 'all'
+            ? 'view'
+            : null;
     setNotice(null);
     // X means something only with a "Czekamy na" filter: without one the address does not carry it and the default stands.
     const next = changed.waitingOn === '' ? { ...changed, waitingDays: DEFAULT_WAITING_DAYS } : changed;
@@ -274,7 +304,7 @@ export function WorkOrdersPage() {
           action={
             <Button
               onClick={() => {
-                change(NO_FILTERS);
+                change(noFilters);
               }}
             >
               {t('workOrders.viewNotFound.action')}
@@ -285,7 +315,7 @@ export function WorkOrdersPage() {
     );
   }
 
-  const offlineCopy = !online && lastPage !== null ? lastPage : null;
+  const offlineCopy = !online && lastPage?.key === filterKey ? lastPage : null;
   const rateLimited = error instanceof ApiError && error.status === 429;
   const items = offlineCopy?.items ?? (waitingForPause ? undefined : data?.items);
   const failed = error !== null && !badCursor && offlineCopy === null && !waitingForPause;
@@ -294,7 +324,7 @@ export function WorkOrdersPage() {
   return (
     <div className="flex flex-col gap-stack-md">
       {title}
-      <WorkOrderFilterBar filters={filters} people={people} disabled={!online} onChange={change} />
+      <WorkOrderFilterBar filters={filters} people={people} disabled={!online} payments={payments} onChange={change} />
       <p role="status" className="sr-only">
         {announcement}
       </p>
@@ -327,8 +357,16 @@ export function WorkOrdersPage() {
       ) : items === undefined ? (
         <Loading />
       ) : items.length === 0 ? (
-        onlyDsoView(asked) ? (
+        onlyView(asked, DSO_VIEW) ? (
           <EmptyState icon={CircleCheck} title={t('workOrders.dsoEmpty.title')} description={t('workOrders.dsoEmpty.description')} />
+        ) : onlyView(asked, 'overdue_payments') ? (
+          <EmptyState
+            icon={CircleCheck}
+            title={t('workOrders.overduePaymentsEmpty.title')}
+            description={t('workOrders.filters.paymentViewHint')}
+          />
+        ) : onlyView(asked, 'unpaid') ? (
+          <EmptyState icon={CircleCheck} title={t('workOrders.unpaidEmpty.title')} description={t('workOrders.filters.paymentViewHint')} />
         ) : isFiltered(asked) ? (
           <EmptyState
             icon={ClipboardList}
@@ -338,7 +376,7 @@ export function WorkOrdersPage() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  change({ ...NO_FILTERS, sort });
+                  change({ ...noFilters, sort });
                 }}
               >
                 {t('workOrders.filters.clear')}
@@ -353,7 +391,7 @@ export function WorkOrdersPage() {
           <h2 ref={heading} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
             {t('workOrders.table.heading')}
           </h2>
-          <WorkOrderTable items={items} sort={sort} />
+          <WorkOrderTable items={items} sort={sort} payments={payments} />
           <nav aria-label={t('workOrders.pages.label')} className="flex flex-wrap items-center justify-center gap-inline-md">
             <Button
               variant="secondary"
@@ -407,9 +445,48 @@ function Loading() {
   );
 }
 
-/** The saved view "Czekamy na OSD > 14 dni" with nothing narrower: an empty list is good news (EVM-034 AC3). */
-const onlyDsoView = (filters: WorkOrderFilters): boolean =>
-  filters.view === DSO_VIEW &&
+/** "6 zleceń" — the Polish form of the count of the loaded page; "na stronie" when other pages exist (the count is not of all the orders). */
+function countedText(
+  t: TFunction,
+  data: { readonly items: readonly unknown[]; readonly nextCursor: string | null },
+  notFirst: boolean,
+): string {
+  const count = data.items.length;
+  const counted = (() => {
+    switch (pluralForm(count)) {
+      case 'one':
+        return t('workOrders.announce.countOne', { count });
+      case 'few':
+        return t('workOrders.announce.countFew', { count });
+      case 'many':
+        return t('workOrders.announce.countMany', { count });
+    }
+  })();
+  return data.nextCursor !== null || notFirst ? t('workOrders.announce.onPage', { counted }) : counted;
+}
+
+/** The name of a saved view in the announcement of its change ("Widok: Po terminie"); `all` (statuses chosen) is not announced. */
+function viewLabel(t: TFunction, view: ViewId): string {
+  switch (view) {
+    case 'mine':
+      return t('workOrders.filters.viewMine');
+    case DSO_VIEW:
+      return t('workOrders.filters.viewDso');
+    case 'overdue_payments':
+      return t('workOrders.filters.viewOverduePayments');
+    case 'unpaid':
+      return t('workOrders.filters.viewUnpaid');
+    default:
+      return t('workOrders.filters.viewAllOpen');
+  }
+}
+
+/**
+ * A saved view with nothing narrower: an empty list has its own words — "Czekamy na OSD > 14 dni" is good news (EVM-034 AC3),
+ * "Po terminie" and "Nieopłacone" say what is missing (EVM-056 AC2).
+ */
+const onlyView = (filters: WorkOrderFilters, view: ViewId): boolean =>
+  filters.view === view &&
   filters.statuses.length === 0 &&
   filters.coordinatorId === '' &&
   filters.waitingOn === '' &&

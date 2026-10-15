@@ -150,7 +150,11 @@ export class CreateMilestoneService {
       // read again with the order of the URL in the condition — a repeat never names a milestone of another order
       const row = await findMilestone(paymentTables(tx), order.id, input.id);
       if (row === undefined) throw new ProblemException('not_found');
-      return { workOrderId: order.id, milestone: toPaymentMilestone(row, businessDate(this.#clock.now())), replayed };
+      return {
+        workOrderId: order.id,
+        milestone: toPaymentMilestone(row, businessDate(this.#clock.now()), { role: principal.role, orderClosed: order.closed }),
+        replayed,
+      };
     });
   }
 
@@ -179,6 +183,8 @@ export class CreateMilestoneService {
       workOrderId: order.id,
       amountBeforeMinor: null,
       amountAfterMinor: amountMinor,
+      fromCode: null,
+      toCode: null,
     };
     await this.#events.publish(tx, event, request);
   }

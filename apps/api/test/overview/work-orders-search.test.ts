@@ -110,9 +110,16 @@ function service(options: { allowed?: boolean; orders?: string[]; customers?: st
   const bulkRead = { before: track('before', undefined) } as unknown as BulkReadControl;
   const page = track('page', PAGE);
   const pages = {
+    scope: vi.fn(() => {
+      calls.push('scope');
+      return 'scope';
+    }),
     start: vi.fn(() => {
       calls.push('start');
       return { today: '2026-10-13', position: undefined };
+    }),
+    authorize: vi.fn(() => {
+      calls.push('authorize');
     }),
     page,
   } as unknown as WorkOrderPageService;
@@ -134,10 +141,10 @@ const context = { origin: 'web' as const, traceId: '0'.repeat(32) };
 const ids = (count: number): string[] => Array.from({ length: count }, () => randomUUID());
 
 describe('the service of the search of work orders (EVM-072 AC2, AC5; SR-API-02, ADR-0017 W6)', () => {
-  it('EVM-072 AC5 the order is: limiter, cursor, meter, the three modules, the page — and the three sets reach the page as they are', async () => {
+  it('EVM-072 AC5 EVM-056 AC7 the order is: limiter, cursor, the payment rule (W4), meter, the three modules, the page — and the three sets reach the page as they are', async () => {
     const { instance, calls, page } = service({ orders: ids(1), customers: ids(2), sites: ids(3) });
     await expect(instance.search(user, { query: 'wallbox' }, context)).resolves.toEqual(PAGE);
-    expect(calls).toEqual(['limiter', 'start', 'before', 'orders', 'customers', 'sites', 'page']);
+    expect(calls).toEqual(['limiter', 'scope', 'start', 'authorize', 'before', 'orders', 'customers', 'sites', 'page']);
     const request = (page.mock.calls[0] as unknown[] | undefined)?.[1] as {
       operation: string;
       narrowing: { workOrders: string[]; customers: string[]; sites: string[] };
@@ -178,6 +185,23 @@ describe('the service of the search of work orders (EVM-072 AC2, AC5; SR-API-02,
     expect(calls).toEqual(['limiter']);
     const sample = metrics.snapshot().find((entry) => entry.name === 'work_order_search_rate_limited');
     expect(sample).toMatchObject({ value: 1, labels: {} });
+  });
+
+  it('EVM-056 AC7 T3 the field `payment` in the body of a search is read_only_field (a field of the server), a stranger stays unknown_field', () => {
+    const problem = problemOf(() => resolveWorkOrderSearchQuery({ query: 'wallbox', payment: { state: 'paid' }, color: 'red' }));
+    expect(problem.code).toBe('validation_failed');
+    expect(problem.extras.errors).toEqual([
+      { pointer: '/payment', code: 'read_only_field' },
+      { pointer: '/color', code: 'unknown_field' },
+    ]);
+  });
+
+  it('EVM-056 AC3 K5 the descending "-urgency" and a view outside the list are 400 without an echo of the value', () => {
+    for (const body of [{ sort: '-urgency' }, { view: 'overdue' }, { sort: 'Urgency' }]) {
+      const problem = problemOf(() => resolveWorkOrderSearchQuery({ query: 'wallbox', ...body }));
+      expect(problem.code, JSON.stringify(body)).toBe('validation_failed');
+      expect(JSON.stringify(problem.extras), JSON.stringify(body)).not.toMatch(/urgency|Urgency|overdue/);
+    }
   });
 
   it('EVM-072 AC2 an invalid body is 400 before the cursor, the meter and the modules', async () => {

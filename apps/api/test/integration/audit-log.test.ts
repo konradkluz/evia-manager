@@ -542,3 +542,29 @@ describe('the amounts of the payments in the audit log (EVM-053 AC3, AC6; SR-LOG
     for (const item of others.body.items) expect(Object.keys(item)).not.toContain('amountAfter');
   });
 });
+
+describe('the status codes of a transition of a payment milestone in the audit log (EVM-054 AC1; SR-LOG-03)', () => {
+  it('EVM-054 AC1 an invoice shows the amount and the codes before and after; an event without codes carries no code field', async () => {
+    const { reader, anna, now } = await scenario();
+    const milestoneId = '0198b0a0-0000-7000-8000-0000000005a4';
+    await sql`
+      insert into audit.events (occurred_at, actor_type, actor_user_id, origin, action, outcome, object_type, object_id, trace_id,
+        amount_after_minor, currency, from_code, to_code)
+      values (${new Date(now.getTime() - MINUTES(5))}, 'user', ${anna.id}, 'web', 'payment_milestone.invoiced', 'success',
+        'payment_milestone', ${milestoneId}, ${randomBytes(16).toString('hex')}, 123000, 'PLN', 'planned', 'invoiced')`.execute(admin());
+    const invoiced = await list(reader, '?action=payment_milestone.invoiced');
+    expect(invoiced.status).toBe(200);
+    expect(invoiced.body.items).toEqual([
+      expect.objectContaining({
+        action: 'payment_milestone.invoiced',
+        objectId: milestoneId,
+        amountBefore: null,
+        amountAfter: { amountMinor: 123000, currency: 'PLN' },
+        fromCode: 'planned',
+        toCode: 'invoiced',
+      }),
+    ]);
+    const others = await list(reader, '?action=login.succeeded');
+    for (const item of others.body.items) expect(Object.keys(item)).not.toContain('fromCode');
+  });
+});

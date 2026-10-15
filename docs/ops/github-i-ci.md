@@ -105,6 +105,13 @@ Założenia (dane 2026-10-01..13, 13 dni): 164 przebiegi `ci.yml` (100 push na g
 | 5 | `e2e-web`: Chromium na PR/`main`, Firefox tylko nocą | e2e-web | ≈ −17 | słabsze pokrycie przeglądarek w PR |
 | 6 | Pozostały szacunek po 1–5 ≈ 65 min/dzień — nadal powyżej 53; dalej: GitHub Pro (3000 min; odrzucone 2026-10-13), runner na własnej VM (obecnie zabroniony przez politykę repozytorium — wymagałby osobnej decyzji bezpieczeństwa), albo przyspieszenie jobów (osobna historyjka) | — | — | koszt albo ryzyko bezpieczeństwa |
 
+### Job `e2e-web`: dwa shardy Playwright (2026-10-15)
+Zestaw E2E rośnie (≈ 840 testów, Chromium + Firefox, `retries: 1`): przebieg PR #71 trwał 15,5–16,1 min, a PR #72 przekroczył limit 20 min przy ≈ 800 z 840 testów (porażki z ponowieniem i timeouty `page.goto` w Firefoksie). Do kolejki dochodzi 7 historyjek ze specyfikacjami, więc sam wzrost do ≈ 1000 testów dałby ≈ 19–20 min bez żadnych porażek.
+- Zmiana: `e2e-web` to macierz 2 shardów (`--shard=1/2`, `--shard=2/2`, `fail-fast: false`), `timeout-minutes: 20` na shard. Każdy shard ma ≈ 8–10 min testów dziś i zapas ≈ 2× na kolejne historyjki. Liczba workerów bez zmian (domyślnie połowa vCPU, czyli 2 na 4 vCPU) — więcej workerów zwiększyłoby ryzyko timeoutów Firefoksa; retries, przeglądarki i progi bez zmian.
+- `ci-gate`: `needs.e2e-web.result` agreguje macierz (success tylko gdy oba shardy zielone, skipped gdy `heavy=false`), więc wymagany check i jq w `ci-gate` działają bez zmian. Nazwy checków shardów: `e2e-web (1/2)`, `e2e-web (2/2)` (nie są wymagane osobno).
+- Artefakty przy porażce: `playwright-report-1`, `playwright-report-2` (7 dni).
+- Koszt minut: każdy shard powtarza instalację, build i pobranie przeglądarek (≈ 3–4 min). Szacunek: ≈ 16 min → ≈ 2 × (4 + 7) ≈ 22 min na przebieg (≈ +6 min, +35% dla tego joba, ok. +17 min/dzień przy 7,35 przebiegu/dzień). Zysk: czas ścienny ≈ 11 min zamiast ≥ 20, brak przerwanych (zmarnowanych) przebiegów. To zwiększa wcześniejszy szacunek w tabeli powyżej (61 → ≈ 78 min/dzień dla `e2e-web`); decyzja o planie bez zmian (próg > 1600 min w dwóch kolejnych miesiącach). Jeśli minuty okażą się problemem, wariant 5 (Firefox tylko nocą) obniży koszt bez sharda.
+
 ### Potwierdzenie z Billing (poza DoD EVM-083)
 Po ≥ 7 dniach od scalenia EVM-083: Settings → Billing → Actions usage — wpisz minuty/dzień z tego okresu (suma i per job) tutaj i w „Dzienniku” historyjki. Próg ponownej decyzji o planie: > 1600 min w dwóch kolejnych miesiącach (albo wyczerpanie puli).
 

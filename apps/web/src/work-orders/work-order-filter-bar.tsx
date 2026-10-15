@@ -11,7 +11,9 @@ import {
   isFiltered,
   NO_FILTERS,
   parseWaitingDays,
+  sortsFor,
   WORK_ORDER_STATUSES,
+  type PaymentView,
   type ViewId,
   type WaitingTarget,
   type WorkOrderFilters,
@@ -25,10 +27,10 @@ export interface WorkOrderFilterBarProps {
   readonly people: ReadonlyMap<string, string>;
   /** Offline: the filters are disabled and say why. */
   readonly disabled: boolean;
+  /** The role reads payments (EVM-056 AC7): the views "Po terminie" and "Nieopłacone" and the sort "Najpilniejsze" exist. */
+  readonly payments: boolean;
   readonly onChange: (next: WorkOrderFilters) => void;
 }
-
-const SORTS: readonly WorkOrderSort[] = ['-number', 'number', '-createdAt', 'createdAt', 'longestWaitingSince', 'nextDueDate'];
 
 /** The panel waits this long after the last key before it asks for the new "dłużej niż [X] dni" (a request per pause, not per key). */
 const DAYS_PAUSE_MS = 300;
@@ -50,8 +52,12 @@ const KIND_ORDER = Object.keys(partyKindLabels) as Array<keyof typeof partyKindL
  * EVM-072 AC2, AC4: the search field (the phrase is in `filters.phrase`, the memory of the tab; shorter than 3 characters it is
  * never sent) and the panel "Więcej filtrów" ("Typ obiektu", "Szablon" — also memory of the tab). Offline the field is disabled and
  * says "Wyszukasz po powrocie połączenia.".
+ *
+ * EVM-056 AC2, AC3: the saved views "Po terminie" and "Nieopłacone" (described as "Tylko zlecenia niezamknięte."; the address carries
+ * the identifier only) and "Sortuj" with "Najpilniejsze" first — for a role that reads payments only (W4). The views are in the
+ * order of the mockup: "Wszystkie niezamknięte", "Czekamy na OSD > 14 dni", "Po terminie", "Nieopłacone", "Moje".
  */
-export function WorkOrderFilterBar({ filters, people, disabled, onChange }: WorkOrderFilterBarProps) {
+export function WorkOrderFilterBar({ filters, people, disabled, payments, onChange }: WorkOrderFilterBarProps) {
   const { t } = useTranslation();
   const hint = disabled ? t('workOrders.filters.offlineHint') : undefined;
   const [moreOpen, setMoreOpen] = useState(false);
@@ -99,7 +105,13 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
     { value: '', label: t('workOrders.filters.allCoordinators') },
     ...[...people].sort((a, b) => a[1].localeCompare(b[1], 'pl')).map(([value, label]) => ({ value, label })),
   ];
-  const sortOptions: SelectOption[] = SORTS.map((value) => ({ value, label: workOrderSortLabels[value] }));
+  const sortOptions: SelectOption[] = sortsFor(payments).map((value) => ({ value, label: workOrderSortLabels[value] }));
+  const paymentViews: ReadonlyArray<readonly [PaymentView, string]> = payments
+    ? [
+        ['overdue_payments', t('workOrders.filters.viewOverduePayments')],
+        ['unpaid', t('workOrders.filters.viewUnpaid')],
+      ]
+    : [];
   const kindGroup: SelectGroup = {
     label: t('workOrders.filters.waitingKinds'),
     options: KIND_ORDER.map((kind) => ({ value: kind, label: partyKindLabels[kind] })),
@@ -178,20 +190,33 @@ export function WorkOrderFilterBar({ filters, people, disabled, onChange }: Work
         />
         <FilterChip
           variant="choice"
-          label={t('workOrders.filters.viewMine')}
-          selected={filters.view === 'mine'}
-          disabled={disabled}
-          onClick={() => {
-            select(filters.view === 'mine' ? 'all_open' : 'mine');
-          }}
-        />
-        <FilterChip
-          variant="choice"
           label={t('workOrders.filters.viewDso')}
           selected={filters.view === DSO_VIEW}
           disabled={disabled}
           onClick={() => {
             select(filters.view === DSO_VIEW ? 'all_open' : DSO_VIEW);
+          }}
+        />
+        {paymentViews.map(([view, label]) => (
+          <FilterChip
+            key={view}
+            variant="choice"
+            label={label}
+            description={t('workOrders.filters.paymentViewHint')}
+            selected={filters.view === view}
+            disabled={disabled}
+            onClick={() => {
+              select(filters.view === view ? 'all_open' : view);
+            }}
+          />
+        ))}
+        <FilterChip
+          variant="choice"
+          label={t('workOrders.filters.viewMine')}
+          selected={filters.view === 'mine'}
+          disabled={disabled}
+          onClick={() => {
+            select(filters.view === 'mine' ? 'all_open' : 'mine');
           }}
         />
       </div>

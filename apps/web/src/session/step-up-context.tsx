@@ -1,12 +1,17 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { StepUpDialog } from './step-up-dialog.tsx';
 
-type RequestStepUp = (title: string) => Promise<boolean>;
+/**
+ * `title` — "Potwierdź tożsamość, aby …"; `details` — the lines of the summary of the operation under the title (flows/01 → "Tytuły
+ * operacji M1": e.g. the correction of a payment, EVM-057), plain text.
+ */
+type RequestStepUp = (title: string, details?: readonly string[]) => Promise<boolean>;
 
 const StepUpContext = createContext<RequestStepUp | null>(null);
 
 interface Pending {
   readonly title: string;
+  readonly details: readonly string[];
   readonly settle: (confirmed: boolean) => void;
 }
 
@@ -19,11 +24,12 @@ interface Pending {
 export function StepUpProvider({ children }: { readonly children: ReactNode }) {
   const [pending, setPending] = useState<Pending | null>(null);
   const current = useRef<Promise<boolean> | null>(null);
-  const request = useCallback<RequestStepUp>((title) => {
+  const request = useCallback<RequestStepUp>((title, details = []) => {
     if (current.current !== null) return current.current;
     const promise = new Promise<boolean>((resolve) => {
       setPending({
         title,
+        details,
         settle: (confirmed) => {
           current.current = null;
           setPending(null);
@@ -37,7 +43,7 @@ export function StepUpProvider({ children }: { readonly children: ReactNode }) {
   return (
     <StepUpContext value={request}>
       {children}
-      {pending === null ? null : <StepUpDialog title={pending.title} onDone={pending.settle} />}
+      {pending === null ? null : <StepUpDialog title={pending.title} details={pending.details} onDone={pending.settle} />}
     </StepUpContext>
   );
 }

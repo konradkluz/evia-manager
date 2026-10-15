@@ -60,6 +60,13 @@
   --color-action-secondary-text-disabled: var(--evm-color-action-secondary-text-disabled);
   --color-action-tertiary-text: var(--evm-color-action-tertiary-text);
   --color-action-tertiary-text-disabled: var(--evm-color-action-tertiary-text-disabled);
+  --color-action-danger-bg: var(--evm-color-action-danger-bg);
+  --color-action-danger-bg-hover: var(--evm-color-action-danger-bg-hover);
+  --color-action-danger-bg-pressed: var(--evm-color-action-danger-bg-pressed);
+  --color-action-danger-bg-disabled: var(--evm-color-action-danger-bg-disabled);
+  --color-action-danger-text: var(--evm-color-action-danger-text);
+  --color-action-danger-text-disabled: var(--evm-color-action-danger-text-disabled);
+  --color-action-danger-text-subtle: var(--evm-color-action-danger-text-subtle);
   --color-feedback-error-bg: var(--evm-color-feedback-error-bg);
   --color-feedback-error-icon: var(--evm-color-feedback-error-icon);
   --color-feedback-info-bg: var(--evm-color-feedback-info-bg);
@@ -225,6 +232,10 @@
   --text-label: var(--evm-text-label-font-size);
   --text-label--line-height: var(--evm-text-label-line-height);
   --text-label--font-weight: var(--evm-text-label-font-weight);
+  /* text.numeric-lg (§ 2.2): sums and highlighted amounts (the tiles of W-11); `tabular-nums` is set where it is used. */
+  --text-numeric-lg: var(--evm-text-numeric-lg-font-size);
+  --text-numeric-lg--line-height: var(--evm-text-numeric-lg-line-height);
+  --text-numeric-lg--font-weight: var(--evm-text-numeric-lg-font-weight);
   --text-button: var(--evm-text-button-font-size);
   --text-button--line-height: var(--evm-text-button-line-height);
   --text-button--font-weight: var(--evm-text-button-font-weight);
@@ -250,6 +261,16 @@
 /* Layers (§ 2.8): menus and toasts above the page. */
 @utility z-dropdown {
   z-index: var(--evm-layer-dropdown);
+}
+
+/* Floating menus (§ 3.20; position: fixed, so 100% is the viewport): never wider or taller than the viewport minus a margin of space.inset.sm at each side;
+   labels wrap and a taller list scrolls instead of leaving the screen. */
+@utility max-w-menu {
+  max-width: min(var(--evm-size-toast-max-width), calc(100% - 2 * var(--evm-space-inset-sm)));
+}
+
+@utility max-h-menu {
+  max-height: calc(100% - 2 * var(--evm-space-inset-sm));
 }
 
 @utility z-toast {
