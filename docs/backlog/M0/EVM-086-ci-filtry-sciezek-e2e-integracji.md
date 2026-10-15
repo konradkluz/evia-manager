@@ -4,7 +4,7 @@ title: CI — E2E i testy integracyjne tylko przy zmianach, których dotyczą
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: lekka
 owner: devops-engineer
