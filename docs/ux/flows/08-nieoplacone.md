@@ -1,6 +1,6 @@
 # 08 — Zestawienie nieopłaconych
 
-> Dokument żywy (EVM-004; dialogi „Dodaj transzę” i „Zmień kwotę” oraz widok „Do wystawienia” — EVM-071, 2026-10-05) · przepływ AC2 nr 8 · kanał: web (płatności nie trafiają na telefon) · ekran: W-11 (+ akcje płatności w W-06) · indeks: [README.md](README.md)
+> Dokument żywy (EVM-004; dialogi „Dodaj transzę” i „Zmień kwotę” oraz widok „Do wystawienia” — EVM-071, 2026-10-05; dialogi akcji transzy — EVM-054, 2026-10-14) · przepływ AC2 nr 8 · kanał: web (płatności nie trafiają na telefon) · ekran: W-11 (+ akcje płatności w W-06) · indeks: [README.md](README.md)
 > Źródła: `domain-model.md` → `PaymentMilestone`, tabela przejść „Etap płatności”, „Korekta płatności”; słownik „nieopłacone / po terminie” ([`domain.md`](../../product/domain.md)); styleguide § 4.4, § 4.11; polityki P2 (step-up), P6 (Tylko odczyt widzi płatności); SR-AUTHZ-10, SR-SESS-08; konsultacja `security-engineer` EVM-004 (M2, M3). Od EVM-071: historyjki EVM-053 (AC3, AC4, AC5, AC8), EVM-059, decyzja 17; SR-AUTHZ-03, SR-LOG-03, SR-API-05, -07; konsultacja `security-engineer` w EVM-071 (S7, B4).
 
 ## Przepływ
@@ -93,7 +93,7 @@ Wspólna tabela dla W-11 i sekcji „Płatności” w [W-06](03-szczegoly-zlecen
 - menu `⋮` („Akcje transzy: [nazwa]”) ma najpierw „Zmień kwotę…”, a na końcu, w osobnej grupie, „Anuluj transzę…” i „Usuń transzę…”;
 - odnośnik „kwoty transz” z banera „Zlecenie założone w terenie” ustawia fokus na tym wyzwalaczu `⋮` ([W-06 → baner](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia)).
 
-**Dialogi z podsumowaniem** (tytuł-pytanie, skutek, przycisk z czasownikiem; fokus na „Anuluj”)
+**Dialogi z podsumowaniem** (tytuł-pytanie, skutek, przycisk z czasownikiem; fokus na „Anuluj”, a w dialogach z polami do wypełnienia — na pierwszym polu, jeśli Konrad zaakceptuje propozycję § 4.11; szczegóły — [dialogi akcji transzy](#dialogi-akcji-transzy-evm-054))
 | Akcja | Podsumowanie w dialogu | Zdanie o skutku |
 |---|---|---|
 | Wystaw fakturę | transza, zlecenie, kwota, nr faktury, data wystawienia, termin | „Cofnąć wystawienie może tylko administrator.” |
@@ -200,6 +200,54 @@ Dialogi sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegó
 - **Komponenty i tokeny:** Dialog (§ 3.13) `size.dialog.width.sm`, tytuł `text.heading-3`, zlecenie i transza `text.body-sm` `color.text.secondary`; TextField (§ 3.2) — tekst i kwota (`text.numeric`, sufiks „zł”); udział z planu `text.body-sm` `color.text.secondary`; InlineAlert (§ 3.19) `color.feedback.error.*`; StatusBadge (§ 3.9) `color.status.payment.planned.*` w „Aktualnie: …”; Button primary / tertiary (§ 3.1); Toast (§ 3.14).
 - **Mikrocopy:** „Dodaj transzę” · „Nazwa transzy” · „Kwota (opcjonalnie)” · „Kwotę możesz wpisać później — „Zmień kwotę…” w menu transzy.” · „Nowa transza będzie ostatnia na liście i będzie miała status „Planowana”.” · „Dodano transzę „…”.” · „Zlecenie ma już 20 transz — to limit.” · „Zmień kwotę…” · „Zmień kwotę transzy” · „Udział z planu: 30% (tylko informacyjnie)” · „Kwota brutto do zapłaty. Status zostaje „Planowana”.” · „Zapisz kwotę” · „Zmieniono kwotę transzy „…”: 5 400,00 zł.” · „Tę transzę zmieniono w międzyczasie. Twoje zmiany zachowaliśmy — sprawdź aktualne wartości i zapisz ponownie.” · „Transza ma już status «Wystawiona» — kwotę zmieni administrator korektą płatności.” · „Podaj nazwę transzy.” · „Podaj kwotę większą od zera, np. 1 500,00 zł.” · „Kwota może mieć najwyżej 2 miejsca po przecinku.” · kwoty wg § 6.3.
 - **Dostępność:** pułapka fokusu, `aria-labelledby` (tytuł), `aria-describedby` (transza i udział); jednostka „zł” w nazwie dostępnej pola („Kwota, złote”); fokus wg tabeli; wynik ogłasza toast (`role="status"`); pozycja „Zmień kwotę…” wyłączona offline i w zleceniu zamkniętym z `aria-disabled` i podpowiedzią.
+
+## Dialogi akcji transzy (EVM-054)
+Dialogi sekcji „Płatności” w [W-06](03-szczegoly-zlecenia.md#w-06-szczegóły-zlecenia) i w W-11 (EVM-054 AC1–AC7; decyzje Konrada 2026-10-14 Q1–Q3). Specyfikacja `ux-designer` z konsultacji planu EVM-054, wzorzec — [dialogi „Dodaj transzę” i „Zmień kwotę”](#dialogi-dodaj-transzę-i-zmień-kwotę). Kwoty wg § 6.3, daty `DD.MM.RRRR`; **żadna akcja nie ma „Cofnij”**.
+
+- **Wejścia** (dostępność wg [tabeli akcji](#akcje-płatności--status--rola)):
+  - Planowana — przycisk wiersza „Wystaw fakturę…”; menu `⋮` („Akcje transzy: [nazwa]”): „Zmień kwotę…”, potem w osobnej grupie „Anuluj transzę…”;
+  - Wystawiona (także po terminie) — przycisk „Odnotuj wpłatę…”; `⋮`: „Popraw dane faktury…”, w grupie korekt „Wycofaj fakturę…”, „Anuluj fakturę…”, „Zmień kwotę…”, „Usuń transzę…”;
+  - Opłacona — `⋮`: „Popraw datę wpłaty…”, w grupie korekt „Cofnij wpłatę…”, „Zmień kwotę…”, „Usuń transzę…”;
+  - Anulowana — tylko grupa korekt („Przywróć transzę…”, „Usuń transzę…”).
+- **Korekty do EVM-057** (decyzja Q2): Edytor — pozycje widoczne, `aria-disabled`, podpowiedź „Korektę płatności może wykonać tylko administrator.” (także z klawiatury i dotykiem); Administrator — nie widzi ich (przy transzy Anulowanej bez `⋮`); Tylko odczyt — bez przycisków i `⋮`. API dla każdej roli `403 forbidden`; usunięcie transzy — Administrator bez step-upu `403 step_up_required` (decyzja Q1).
+
+**Dialogi** (Dialog / AlertDialog § 3.13 `size.dialog.width.sm`, tytuł `text.heading-3`, zlecenie `text.body-sm` `color.text.secondary`, TextField § 3.2, DatePicker § 3.5, TextArea, InlineAlert § 3.19, Button primary + tertiary „Anuluj”; danger tylko przy anulowaniu)
+
+| # | Dialog | Rodzaj | Pola | Skutek i przyciski |
+|---|---|---|---|---|
+| 1 | „Wystawić fakturę dla transzy „Zaliczka”?” | z podsumowaniem (§ 4.11) | Kwota (wstawiona, jeśli była wpisana; wymagana, reguły z „Zmień kwotę”); „Nr faktury lub proformy” (wymagany); „Data wystawienia” (domyślnie dziś; 01.01.2000–31.12.2100, może być przyszła — Q3a); „Termin płatności” (domyślnie data wystawienia + dni z planu, edytowalny; transza dodana ręcznie bez dni — pusty i wymagany — Q3c; zmiana daty wystawienia przelicza termin, dopóki użytkownik go nie zmienił) | pod polami podsumowanie na żywo (transza, zlecenie, kwota, nr, data, termin); termin w przeszłości — wskazówka (nie błąd) „Termin już minął — faktura będzie od razu po terminie.”; „Cofnąć wystawienie może tylko administrator.”; „Anuluj” / „Wystaw fakturę” |
+| 2 | „Odnotować wpłatę za transzę „Zaliczka”?” | z podsumowaniem — [makieta W-11](#w-11-nieopłacone) | Data wpłaty (domyślnie dziś), „Nie później niż dziś.” | „Cofnąć wpłatę może tylko administrator.”; „Anuluj” / „Odnotuj wpłatę” |
+| 3 | „Anulować transzę „Zaliczka”?” | z podsumowaniem (§ 4.11) | transza i udział (tekst); „Powód anulowania” (TextArea, wymagany, zwykły tekst, 1–500 znaków, licznik znaków) | „Przywrócić transzę może tylko administrator.”; „Anuluj” (tertiary) / „Anuluj transzę” (danger) |
+| 4 | „Popraw dane faktury” | zwykły dialog (odwraca ta sama rola) | Nr faktury lub proformy, Data wystawienia, Termin płatności; kwota tylko do odczytu (`text.body-sm`, „Kwotę zmieni administrator korektą płatności.”) | „Anuluj” / „Zapisz zmiany” — aktywny dopiero po zmianie; tylko w „Wystawiona” (Q3d) |
+| 5 | „Popraw datę wpłaty” | zwykły dialog | Data wpłaty (nie później niż dziś) | „Anuluj” / „Zapisz datę”; tylko w „Opłacona” (Q3d) |
+| 6 | „Anuluj zlecenie…” (AC6) | istniejący dialog zlecenia | — | przy `422` z powodem `invoiced_milestones` — InlineAlert błędu „Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.”; zlecenie i transze bez zmian, dialog zostaje otwarty (blokada przed wysłaniem — EVM-058) |
+
+**Walidacja** (pod polem + podsumowanie § 4.1): „Podaj nr faktury lub proformy.” · „Podaj kwotę większą od zera, np. 1 500,00 zł.” · „Kwota może mieć najwyżej 2 miejsca po przecinku.” · „Podaj datę z lat 2000–2100.” · „Podaj termin płatności.” · „Termin płatności nie może być wcześniejszy niż data wystawienia.” (Q3b) · „Data wpłaty nie może być późniejsza niż dziś.” (`400 in_future` w poprawce i `422 transition_condition_not_met` przy odnotowaniu — Q3e) · „Podaj powód anulowania.”
+
+**Toasty** (`role="status"`, bez akcji, § 3.14): „Wystawiono fakturę FV/TEST/0021/2026 na 1 230,00 zł, termin płatności 10.10.2026.” · „Odnotowano wpłatę 1 230,00 zł za fakturę FV/TEST/0021/2026.” · „Anulowano transzę „Zaliczka”.” · „Zapisano dane faktury FV/TEST/0021/2026.” · „Zapisano datę wpłaty 03.10.2026.”
+
+| Moment | Fokus |
+|---|---|
+| otwarcie dialogu 1 i 3 (pola do wypełnienia) | pierwsze pole — **zależne od akceptacji propozycji § 4.11 z changelogu styleguide'u (2026-10-14, do decyzji Konrada)**; bez akceptacji obowiązuje § 4.11 — „Anuluj” |
+| otwarcie dialogu 2 (jedyne pole ma wartość domyślną) | „Anuluj” |
+| otwarcie dialogu 4 i 5 (zwykłe dialogi formularza) | pierwsze pole (jak „Zmień kwotę”) |
+| „Anuluj”, `x`, Esc | wyzwalacz: przycisk wiersza albo `⋮` |
+| sukces | wyzwalacz `⋮` tej transzy; wynik ogłasza toast |
+| błąd | alert (`role="alert"`), potem pole z błędem |
+
+**Stany**
+
+| Stan | Zachowanie |
+|---|---|
+| Pusty | Nie dotyczy (akcje na istniejących transzach); „Brak transz.” bez zmian (EVM-053). |
+| Ładowanie | Przycisk główny w stanie ładowania, dialog nie zamyka się do wyniku; tabela odświeża się bez przeładowania; podsumowanie z danych wiersza (bez spinnera). |
+| Błąd | `412` / `409 invalid_state_transition` — InlineAlert „Tę transzę zmieniono w międzyczasie (teraz: «Opłacona»). [Odśwież]” (AC7), wprowadzone dane zostają; `409 work_order_closed` — „Zlecenie jest rozliczone — płatności są tylko do odczytu.”; `428` / błąd serwera / sieci — § 6.4 („Nie udało się zapisać. Spróbuj ponownie — nie wykonamy tej operacji dwa razy.”); `429` — wzór z README; `403` (po utracie roli) — „Nie masz uprawnień do tej operacji.” |
+| Offline | Przyciski wiersza i `⋮` wyłączone z podpowiedzią „Zmienisz po powrocie połączenia.”; otwarty dialog zachowuje dane, przycisk operacji wyłączony z podpowiedzią „Zapiszesz po powrocie połączenia.” |
+| Brak uprawnień | Tylko odczyt bez akcji; Edytor — korekty wyłączone (wyżej); transza innego zlecenia — `404`: „Nie znaleziono transzy. Odśwież zlecenie.” |
+| Po terminie | W wierszu Wystawionej odznaka „Po terminie” (ikona `alarm-clock`, etykieta i liczba dni — § 4.2, § 4.4) obok „Odnotuj wpłatę…”; po wpłacie znika (Opłacona). |
+
+- **Responsywność:** `breakpoint.medium` i szersze — dialog `size.dialog.width.sm`, pola w jednej kolumnie, daty obok siebie od `breakpoint.expanded`; `breakpoint.compact` — dialog na pełną szerokość, przyciski na dole (główny nad „Anuluj”), `inputmode="decimal"` dla kwoty, podsumowanie pod polami; przycisk wiersza na pełną szerokość karty transzy.
+- **Dostępność:** pułapka fokusu, `aria-labelledby` (tytuł) i `aria-describedby` (transza, skutek); fokus wg tabeli; błędy powiązane `aria-describedby`; podsumowanie na żywo bez `aria-live` (wynik ogłasza toast); „zł” w nazwie dostępnej pola („Kwota, złote”); wyłączone pozycje `aria-disabled` z podpowiedzią osiągalną klawiaturą (§ 3.1); status nie tylko kolorem (ikona + etykieta: `file-text` Wystawiona, `circle-check` Opłacona, `ban` Anulowana).
 
 ## W-11: widok „Do wystawienia”
 Wariant **„od EVM-059”** (P2). Przed EVM-059 chipa „Do wystawienia” nie ma.

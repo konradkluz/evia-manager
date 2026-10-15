@@ -295,6 +295,59 @@ describe('DataTable cards on narrow viewports (styleguide § 3.6; EVM-017 AC1)',
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-054 AC1 a badge with the main action of the row: under the badge in the table, a full-width line of its own in the card', async () => {
+    const { container } = render(
+      <DataTable
+        caption="Transze"
+        columns={[
+          { id: 'name', header: 'Transza', card: 'primary' },
+          { id: 'status', header: 'Status', card: 'badge' },
+          { id: 'due', header: 'Termin', card: 'detail' },
+        ]}
+        rows={[
+          {
+            id: 'a',
+            cells: ['Zaliczka', { badge: 'Planowana', action: <button type="button">Wystaw fakturę…</button> }, '—'],
+          },
+          { id: 'b', cells: ['Płatność końcowa', { badge: 'Anulowana' }, '—'] },
+        ]}
+      />,
+    );
+    const cell = screen.getAllByRole('cell')[1];
+    // the cell gives its two parts to the grid of the card; in the table they stack in the column "Status"
+    expect(cell?.className).toContain('max-medium:contents');
+    const [badge, action] = [...(cell?.children ?? [])];
+    expect(badge?.textContent).toBe('Planowana');
+    expect(badge?.className).toContain('max-medium:col-start-3');
+    expect(badge?.className).toContain('max-medium:row-start-1');
+    expect(action?.className).toContain('mt-stack-xs');
+    expect(action?.className).toContain('max-medium:col-span-3');
+    expect(action?.querySelector('button')?.textContent).toBe('Wystaw fakturę…');
+    // without an action the cell holds the badge only
+    expect(screen.getAllByRole('cell')[4]?.children).toHaveLength(1);
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-054 AC1 the dense table (§ 3.6 "gęsta") narrows the inline padding of the cells so that it fits a column of the content', () => {
+    const { rerender } = render(
+      <DataTable
+        caption="Transze"
+        dense
+        columns={[
+          { id: 'a', header: 'A', card: 'primary' },
+          { id: 'b', header: 'B', card: 'badge' },
+        ]}
+        rows={[{ id: 'a', cells: ['x', { badge: 'y' }] }]}
+      />,
+    );
+    for (const cell of [...screen.getAllByRole('columnheader'), ...screen.getAllByRole('cell')]) {
+      expect(cell.className).toContain('px-inset-sm');
+      expect(cell.className).not.toContain('px-inset-md');
+    }
+    rerender(<DataTable caption="Transze" columns={[{ id: 'a', header: 'A' }]} rows={[{ id: 'a', cells: ['x'] }]} />);
+    expect(screen.getByRole('cell').className).toContain('px-inset-md');
+  });
+
   it('EVM-017 AC1 without card roles the table keeps scrolling in its frame', () => {
     render(<DataTable caption="Zlecenia" columns={[{ id: 'a', header: 'A' }]} rows={[{ id: 'a', cells: ['x'] }]} />);
     expect(screen.getByRole('table').className).not.toContain('max-medium');

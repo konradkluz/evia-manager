@@ -1,6 +1,6 @@
 import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, PUBLIC_OPERATIONS, type AuthzManifest } from '@evia/contracts/authz';
 import { describe, expect, it } from 'vitest';
-import { buildMatrix, expectationFor, type Caller, type MatrixLists } from './role-matrix.ts';
+import { buildMatrix, expectationFor, PENDING_OPERATIONS, type Caller, type MatrixLists } from './role-matrix.ts';
 
 const lists: MatrixLists = { publicOperations: PUBLIC_OPERATIONS, mfaEnrollmentOperations: MFA_ENROLLMENT_OPERATIONS };
 
@@ -127,6 +127,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'createTimelineEntry',
       'createPaymentMilestone',
       'updatePaymentMilestone',
+      'transitionPaymentMilestone',
     ];
     const rolesOf = (operationId: string): string[] =>
       writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
@@ -215,6 +216,37 @@ describe('expectations of the matrix on a synthetic contract (EVM-016 AC8; SR-AU
       },
     };
     expect(buildMatrix(anchored, syntheticLists).filter((cell) => cell.idor)).toHaveLength(1);
+  });
+});
+
+describe('an operation whose effect a later story implements (EVM-054 AC5 Q1, K3; SR-AUTHZ-05, SR-AUTHZ-10)', () => {
+  it('EVM-054 AC5 the list holds the deletion of a payment milestone only, pending EVM-057 — and it is an operation of the contract', () => {
+    expect(PENDING_OPERATIONS).toEqual({ deletePaymentMilestone: 'EVM-057' });
+    for (const operationId of Object.keys(PENDING_OPERATIONS)) expect(AUTHZ_MANIFEST[operationId], operationId).toBeDefined();
+  });
+
+  it('EVM-054 AC5 deletePaymentMilestone: Editor and Read-only are forbidden, the Administrator without a fresh key needs a step-up, the Administrator with one is forbidden by the handler — no cell is "allowed", none is skipped', () => {
+    const cells = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.operationId === 'deletePaymentMilestone');
+    expect(cells).toHaveLength(19);
+    expect(cells.filter((cell) => cell.expectation.outcome === 'allowed')).toEqual([]);
+    const at = (caller: Caller) => cells.find((cell) => JSON.stringify(cell.caller) === JSON.stringify(caller))?.expectation;
+    const forbidden = { outcome: 'denied', status: 403, code: 'forbidden' };
+    expect(at(session('editor', 'web'))).toEqual(forbidden);
+    expect(at(session('read_only', 'web'))).toEqual(forbidden);
+    expect(at(session('administrator', 'web'))).toEqual({ outcome: 'denied', status: 403, code: 'step_up_required' });
+    expect(at({ kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'stale' })).toEqual({
+      outcome: 'denied',
+      status: 403,
+      code: 'step_up_required',
+    });
+    expect(at({ kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' })).toEqual(forbidden);
+    expect(at({ kind: 'anonymous' })).toEqual({ outcome: 'denied', status: 401, code: 'unauthenticated' });
+  });
+
+  it('EVM-054 K3 the exception is keyed by the operation: another operation with a step-up stays "allowed" for the Administrator with a fresh key', () => {
+    const fresh: Caller = { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' };
+    expect(expectationFor('listAuditEvents', AUTHZ_MANIFEST, lists, fresh)).toEqual({ outcome: 'allowed' });
+    expect(expectationFor('stepThing', synthetic, syntheticLists, fresh)).toEqual({ outcome: 'allowed' });
   });
 });
 

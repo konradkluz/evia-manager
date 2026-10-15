@@ -25,6 +25,8 @@ export interface PaymentMilestonesTable {
   invoiced_on: Generated<string | null>;
   due_date: Generated<string | null>;
   paid_on: Generated<string | null>;
+  /** The reason of a cancellation (EVM-054): free text that may name a person — written, never read into an answer, an event or a log. */
+  status_reason: Generated<string | null>;
   source_template_id: string | null;
   created_at: Date;
   created_by: string | null;

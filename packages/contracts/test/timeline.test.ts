@@ -128,9 +128,10 @@ describe('timeline contract (EVM-037; SR-AUTHZ-01, SR-AUTHZ-04, SR-INPUT-01, SR-
     expect(zTimelineEntry.safeParse({ ...row, event: undefined }).success).toBe(false);
   });
 
-  it('EVM-038 AC4 the query takes the group status_changes only; a value outside the list is refused', () => {
+  it('EVM-038 AC4 EVM-054 AC3 the query takes the groups status_changes and payments; a value outside the list is refused', () => {
     expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'status_changes' }).success).toBe(true);
-    expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'payments' }).success).toBe(false);
+    expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'payments' }).success).toBe(true);
+    expect(zListTimelineEntriesQuery.safeParse({ eventGroup: 'media' }).success).toBe(false);
   });
 
   it('EVM-038 AC6 AC7 SR-AUTHZ-05 the manifest is unchanged: the three roles read the journal on the web channel, no operation creates an event', () => {

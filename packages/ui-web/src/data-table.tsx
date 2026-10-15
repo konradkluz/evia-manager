@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { isValidElement, type ReactNode } from 'react';
 import { classNames } from './class-names.ts';
 import { PlainLink, type LinkComponent } from './navigation.tsx';
 
@@ -45,10 +45,23 @@ const CARD_CELL = {
   action: 'max-medium:col-start-3 max-medium:row-start-2 max-medium:justify-self-end',
 } as const;
 
+/**
+ * The cell of a `badge` column with the main action of the row (flows/08: "[Odnotuj wpłatę]" under the status): in the table
+ * the action stands under the badge, so the row needs no wide column of actions; in the card the cell gives both to the grid
+ * — the badge at the top right, the action a full-width line of its own (`breakpoint.compact`: "na pełną szerokość karty").
+ */
+export interface DataTableBadgeCell {
+  readonly badge: ReactNode;
+  readonly action?: ReactNode;
+}
+
+const isBadgeCell = (cell: ReactNode | DataTableBadgeCell): cell is DataTableBadgeCell =>
+  typeof cell === 'object' && cell !== null && !isValidElement(cell) && 'badge' in cell;
+
 export interface DataTableRow {
   readonly id: string;
-  /** One cell per column, in the order of the columns. */
-  readonly cells: readonly ReactNode[];
+  /** One cell per column, in the order of the columns; a `badge` column may take a DataTableBadgeCell. */
+  readonly cells: readonly (ReactNode | DataTableBadgeCell)[];
   /** Accessible name of the row (e.g. the full time and the outcome in words) — § 3.6. */
   readonly label?: string;
   /**
@@ -65,6 +78,11 @@ export interface DataTableProps {
   readonly rows: readonly DataTableRow[];
   /** Router link for the rows with `href` (the library has no router); a plain anchor by default. */
   readonly link?: LinkComponent;
+  /**
+   * The dense table (§ 3.6 "gęsta"): the cells keep `space.inset.sm` at the sides instead of `space.inset.md`, for a table in
+   * a column of the content (W-06 "Płatności") whose priority columns must fit without scrolling.
+   */
+  readonly dense?: boolean;
 }
 
 /**
@@ -73,8 +91,9 @@ export interface DataTableProps {
  * `color.bg.surface-hover`, `text.body-sm`. Below `breakpoint.medium` the rows become cards when the columns have card
  * roles (values of `cardLabel` columns named by their header), otherwise the table scrolls inside its frame.
  */
-export function DataTable({ caption, columns, rows, link: Link = PlainLink }: DataTableProps) {
+export function DataTable({ caption, columns, rows, link: Link = PlainLink, dense = false }: DataTableProps) {
   const cards = columns.some((column) => column.card !== undefined);
+  const inline = dense ? 'px-inset-sm' : 'px-inset-md';
   // The scrollable frame must be reachable by keyboard (WCAG 2.1.1): it is a focusable region named after the table.
   return (
     <div
@@ -93,7 +112,8 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 scope="col"
                 aria-sort={column.sort}
                 className={classNames(
-                  'px-inset-md py-inset-sm text-start font-semibold',
+                  inline,
+                  'py-inset-sm text-start font-semibold',
                   column.wideOnly === true && 'hidden wide:table-cell',
                   column.expandedOnly === true && 'hidden expanded:table-cell',
                 )}
@@ -122,11 +142,25 @@ export function DataTable({ caption, columns, rows, link: Link = PlainLink }: Da
                 const hiddenInCard = wideOnly || expandedOnly;
                 const column = columns[index];
                 const cardLabel = cards && column?.cardLabel === true && role !== 'action' && !hiddenInCard ? column.header : undefined;
+                if (isBadgeCell(cell)) {
+                  return (
+                    <td
+                      key={columns[index]?.id ?? index}
+                      className={classNames(inline, 'py-inset-sm align-top', cards && 'max-medium:contents')}
+                    >
+                      <span className={classNames('block', cards && CARD_CELL.badge)}>{cell.badge}</span>
+                      {cell.action === undefined ? null : (
+                        <div className={classNames('mt-stack-xs', cards && 'max-medium:col-span-3 max-medium:flex')}>{cell.action}</div>
+                      )}
+                    </td>
+                  );
+                }
                 return (
                   <td
                     key={columns[index]?.id ?? index}
                     className={classNames(
-                      'px-inset-md py-inset-sm align-top',
+                      inline,
+                      'py-inset-sm align-top',
                       wideOnly && 'hidden wide:table-cell',
                       expandedOnly && 'hidden expanded:table-cell',
                       columns[index]?.numeric === true && 'tabular-nums',

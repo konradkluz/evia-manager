@@ -196,8 +196,10 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
       // From EVM-035 the Editor also has the menu "Akcje zlecenia" and "Edytuj zakres"; Tylko odczyt has neither.
       // From EVM-034 the card "Podsumowanie" has "+ 6 procesów" (nine processes, three of them named) — one more button for everybody.
       // From EVM-053 the Editor has "Dodaj transzę" and the menus of the four planned instalments; Tylko odczyt has neither.
+      // From EVM-054 each of the four planned instalments also has the button of its row "Wystaw fakturę…".
       const reading = 11;
-      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 : reading);
+      await expect(page.getByRole('main').getByRole('button')).toHaveCount(role === 'editor' ? 4 + reading + 3 + 3 + 2 + 5 + 4 : reading);
+      await expect(page.getByRole('button', { name: 'Wystaw fakturę…' })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje transzy/ })).toHaveCount(role === 'editor' ? 4 : 0);
       await expect(page.getByRole('button', { name: /^Akcje zlecenia/ })).toHaveCount(role === 'editor' ? 1 : 0);
       await expect(page.getByRole('button', { name: 'Edytuj zakres' })).toHaveCount(role === 'editor' ? 1 : 0);

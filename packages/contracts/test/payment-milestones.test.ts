@@ -33,6 +33,7 @@ const milestone = {
   paidOn: null,
   isOverdue: false,
   version: 1,
+  allowedTransitions: ['invoiced', 'cancelled'],
 };
 const zero = { amountMinor: 0, currency: 'PLN' };
 
@@ -55,10 +56,11 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     });
   });
 
-  it('EVM-053 AC7 a milestone is addressed by the order AND the milestone in the path — there is no operation with the milestone alone', () => {
+  it('EVM-053 AC7 EVM-054 AC8 a milestone is addressed by the order AND the milestone in the path — there is no operation with the milestone alone', () => {
     const paths = Object.values(AUTHZ_MANIFEST).map((operation) => operation.path);
-    expect(paths.filter((path) => path.includes('{milestoneId}'))).toEqual([
+    expect([...new Set(paths.filter((path) => path.includes('{milestoneId}')))].sort()).toEqual([
       '/api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}',
+      '/api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}/transitions',
     ]);
     expect(zUpdatePaymentMilestonePath.safeParse({ workOrderId: V7, milestoneId: V7 }).success).toBe(true);
     expect(zUpdatePaymentMilestonePath.safeParse({ workOrderId: V7, milestoneId: 'x' }).success).toBe(false);
@@ -76,14 +78,14 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     expect(zMoney.safeParse({ amountMinor: 360000 }).success).toBe(false);
   });
 
-  it('EVM-053 AC3 the change needs If-Match as a strong tag and takes an optional UUIDv7 Idempotency-Key; the patch is the amount only', () => {
+  it('EVM-053 AC3 EVM-054 AC4 the change needs If-Match as a strong tag and takes an optional UUIDv7 Idempotency-Key; the patch is the amount, the data of the invoice and the day of the payment — never the status', () => {
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': '"3"' }).success).toBe(true);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': '"3"', 'Idempotency-Key': V7 }).success).toBe(true);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({}).success).toBe(false);
     expect(zUpdatePaymentMilestoneHeaders.safeParse({ 'If-Match': 'W/"3"' }).success).toBe(false);
-    expect(Object.keys(zPaymentMilestonePatch.shape)).toEqual(['amount']);
+    expect(Object.keys(zPaymentMilestonePatch.shape)).toEqual(['amount', 'invoiceNumber', 'invoicedOn', 'dueDate', 'paidOn']);
     expect(zPaymentMilestonePatch.safeParse({ amount: null }).success).toBe(false);
-    expect(zPaymentMilestonePatch.safeParse({}).success).toBe(false);
+    expect(zPaymentMilestonePatch.safeParse({ invoiceNumber: null }).success).toBe(false);
   });
 
   it('EVM-053 AC4 the creation needs a UUIDv7 Idempotency-Key, a UUIDv7 id and a name of 1–120 characters; the amount is optional; the fields of the server are not part of it', () => {
@@ -128,7 +130,7 @@ describe('payments contract (EVM-053; SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-12, SR-
     expect(zAuditEventList.safeParse({ items: [{ ...event, action: 'payment_milestone.cancelled' }], nextCursor: null }).success).toBe(
       true,
     );
-    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.paid' }).success).toBe(false);
+    expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.deleted' }).success).toBe(false);
   });
 
   it('EVM-053 P3 SR-AUTHZ-12 no operation open to the mobile channel can answer with a payment milestone or an amount (payments never reach the phone)', () => {

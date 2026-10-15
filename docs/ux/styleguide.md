@@ -1090,6 +1090,8 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Propozycja do 1.3.0 — 2026-10-14 (EVM-054, do akceptacji Konrada)
+- **§ 4.11 — dialog z podsumowaniem skutku i polami formularza:** gdy dialog potwierdzenia wymaga też danych od użytkownika (EVM-054: „Wystaw fakturę…”, „Anuluj transzę…” z powodem), pola i podsumowanie na żywo są w jednym dialogu (bez drugiego kroku), a fokus domyślny ustawiamy na pierwszym polu do wypełnienia zamiast na „Anuluj”. Reszta wzorca bez zmian (tytuł-pytanie, skutek, przycisk z czasownikiem, danger tylko dla niszczących). Dialog bez pól do wypełnienia (poza prefill) nadal zaczyna na „Anuluj”. Bez nowych tokenów i komponentów.
 ### Propozycja do 1.3.0 — 2026-10-05 (EVM-008, do akceptacji Konrada)
 PATCH/MINOR bez nowych tokenów i komponentów: doprecyzowanie użycia istniejących wzorców dla powłoki panelu przed E1.
 - **§ 3.15 EmptyState — wariant „bez akcji”:** pusty stan pierwszego uruchomienia bez przycisku, gdy nie ma jeszcze funkcji, która mogłaby go wypełnić (EVM-008, W-10: „Brak zleceń”). Tytuł jako nagłówek drugiego poziomu pod `h1` strony; reszta anatomii bez zmian.

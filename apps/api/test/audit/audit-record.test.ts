@@ -73,6 +73,8 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -195,6 +197,8 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 });
@@ -236,6 +240,8 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'amountBeforeMinor',
         'amountAfterMinor',
         'currency',
+        'fromCode',
+        'toCode',
       ].sort(),
     );
   });
@@ -262,6 +268,8 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -315,6 +323,8 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -333,6 +343,8 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
     workOrderId: user,
     amountBeforeMinor: 300000,
     amountAfterMinor: 360000,
+    fromCode: null,
+    toCode: null,
     ...overrides,
   });
   const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
@@ -359,6 +371,8 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       amountBeforeMinor: null,
       amountAfterMinor: null,
       currency: null,
+      fromCode: null,
+      toCode: null,
     });
   });
 
@@ -373,6 +387,9 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       'payment_milestone.created',
       'payment_milestone.amount_changed',
       'payment_milestone.cancelled',
+      'payment_milestone.invoiced',
+      'payment_milestone.paid',
+      'payment_milestone.details_changed',
     ]);
   });
 
@@ -392,5 +409,42 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
     );
     expect(failures.filter((failure) => failure.includes('No handler subscribed'))).toEqual([]);
     expect(failures.every((failure) => failure !== '')).toBe(true);
+  });
+});
+
+describe('the status codes of a transition of a payment milestone (EVM-054 AC1, AC3; SR-LOG-03)', () => {
+  const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
+  const invoiced: PaymentMilestoneEvent = {
+    type: 'payment_milestone.invoiced',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'payment_milestone',
+    objectId: session,
+    workOrderId: user,
+    amountBeforeMinor: null,
+    amountAfterMinor: 123000,
+    fromCode: 'planned',
+    toCode: 'invoiced',
+  };
+
+  it('EVM-054 AC1 the record of an invoice has the amount after and the codes planned → invoiced — never the order, the number or a name', () => {
+    const record = toAuditRecord(invoiced, context, at);
+    expect(record).toMatchObject({
+      action: 'payment_milestone.invoiced',
+      amountAfterMinor: 123000,
+      fromCode: 'planned',
+      toCode: 'invoiced',
+    });
+    expect(JSON.stringify(record)).not.toMatch(/workOrderId|FV/);
+  });
+
+  it('EVM-054 SR-LOG-03 the schema refuses one code without the other, a code that is not a code and codes on an action outside the payments', () => {
+    const base = toAuditRecord(invoiced, context, at);
+    expect(auditRecordSchema.safeParse({ ...base, toCode: null }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, fromCode: 'Planowana' }).success).toBe(false);
+    expect(auditRecordSchema.safeParse({ ...base, action: 'work_order.cancelled', amountAfterMinor: null, currency: null }).success).toBe(
+      false,
+    );
+    expect(auditRecordSchema.safeParse({ ...base, fromCode: null, toCode: null }).success).toBe(true);
   });
 });

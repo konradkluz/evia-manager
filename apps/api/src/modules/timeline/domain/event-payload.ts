@@ -6,15 +6,16 @@
  * Minimisation: the payload of an event is built from a CLOSED list of keys per code and validated with a STRICT schema before it is
  * written: the code of a status, the type and the identifier of the object, the identifier of the party waited for, the stable codes
  * of an item of the catalogue and of its processes (EVM-035) and the NAMES of the changed fields. Never the reason of a block or a
- * hold, a name of a party, a stage or a person, the title, the description, the notes or a value of a parameter, the due date or an
- * amount: the journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
+ * hold, a name of a party, a stage, a payment milestone or a person, the title, the description, the notes or a value of a parameter,
+ * the due date, an amount, an invoice number or the reason of a cancellation (EVM-054): the journal is append-only and the names are read from the current data when the journal is shown, so anonymisation and redaction
  * (RODO art. 17) need no change in the events. A schema that would let a new key through is a defect that fails the write.
  *
  * Reading is TOLERANT (the version of the server may be rolled back after a later story added its codes): an unknown code or a
  * payload that does not fit gives a neutral view, never a failure of the whole page.
  */
-import { zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
+import { zPaymentMilestoneStatus, zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
 import { z } from 'zod';
+import type { PaymentMilestoneStatusChangedEvent } from '../../payments/index.ts';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
 import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
 
@@ -28,6 +29,7 @@ export const JOURNAL_EVENT_CODES = [
   'scope_item_added',
   'scope_item_updated',
   'scope_item_removed',
+  'payment_milestone_status_changed',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
@@ -45,6 +47,7 @@ export const JOURNAL_SCOPE_ITEM_FIELDS = ['parameters', 'notes'] as const satisf
 const workOrderObject = { objectType: z.literal('work_order'), objectId: z.uuid() };
 const stageObject = { objectType: z.literal('procedure_stage'), objectId: z.uuid() };
 const scopeItemObject = { objectType: z.literal('scope_item'), objectId: z.uuid() };
+const paymentMilestoneObject = { objectType: z.literal('payment_milestone'), objectId: z.uuid() };
 
 /** A stable code of the catalogue (`snake_case`) — the item and the processes are named by it, never by a name. */
 const catalogCode = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
@@ -75,6 +78,8 @@ const SHAPES = {
     changedFields: z.array(z.enum(JOURNAL_SCOPE_ITEM_FIELDS)).min(1).max(JOURNAL_SCOPE_ITEM_FIELDS.length),
   },
   scope_item_removed: { ...scopeItemObject, itemCode: catalogCode },
+  // EVM-054 AC3: the two status codes of the milestone - no amount, no invoice number, no reason, no name
+  payment_milestone_status_changed: { ...paymentMilestoneObject, fromStatus: zPaymentMilestoneStatus, toStatus: zPaymentMilestoneStatus },
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -87,11 +92,12 @@ const STRICT = {
   scope_item_added: z.strictObject(SHAPES.scope_item_added),
   scope_item_updated: z.strictObject(SHAPES.scope_item_updated),
   scope_item_removed: z.strictObject(SHAPES.scope_item_removed),
+  payment_milestone_status_changed: z.strictObject(SHAPES.payment_milestone_status_changed),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
-export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent;
+export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneStatusChangedEvent;
 
 /** What the store writes: the columns of the entry that an event decides. */
 export interface JournalEventRecord {
@@ -197,6 +203,13 @@ function candidateOf(event: JournalSourceEvent): Candidate {
         workOrderId: event.workOrderId,
         procedureStageId: event.objectId,
       };
+    case 'payment_milestone.status_changed':
+      return {
+        code: 'payment_milestone_status_changed',
+        payload: { objectType: 'payment_milestone', objectId: event.objectId, fromStatus: event.fromStatus, toStatus: event.toStatus },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
   }
 }
 
@@ -214,7 +227,9 @@ export function toJournalEvent(event: JournalSourceEvent): JournalEventRecord {
 /** What an answer needs from a stored event; every field but `code` may be `null`. */
 export interface JournalEventView {
   readonly code: string;
-  readonly objectType: 'work_order' | 'procedure_stage' | 'scope_item' | null;
+  readonly objectType: 'work_order' | 'procedure_stage' | 'scope_item' | 'payment_milestone' | null;
+  /** The object of the event (its identifier in the payload), else `null` - a payment milestone is named from the current data. */
+  readonly objectId: string | null;
   readonly fromStatus: string | null;
   readonly toStatus: string | null;
   readonly waitingOn: 'customer' | 'party' | null;
@@ -230,6 +245,7 @@ export interface JournalEventView {
 export const UNKNOWN_EVENT_CODE = 'unknown_event';
 
 const EMPTY = {
+  objectId: null,
   fromStatus: null,
   toStatus: null,
   waitingOn: null,
@@ -241,7 +257,7 @@ const EMPTY = {
 
 const objectTypeOf = (payload: unknown): JournalEventView['objectType'] => {
   const type = typeof payload === 'object' && payload !== null ? (payload as { objectType?: unknown }).objectType : undefined;
-  return type === 'work_order' || type === 'procedure_stage' || type === 'scope_item' ? type : null;
+  return type === 'work_order' || type === 'procedure_stage' || type === 'scope_item' || type === 'payment_milestone' ? type : null;
 };
 
 const isKnown = (code: string): code is JournalEventCode => (JOURNAL_EVENT_CODES as readonly string[]).includes(code);
@@ -259,6 +275,7 @@ export function readJournalEvent(code: string, payload: unknown): JournalEventVi
   return {
     code,
     objectType: objectTypeOf(data),
+    objectId: (data['objectId'] ?? null) as string | null,
     fromStatus: (data['fromStatus'] ?? null) as string | null,
     toStatus: (data['toStatus'] ?? null) as string | null,
     waitingOn: (data['waitingOn'] ?? null) as JournalEventView['waitingOn'],

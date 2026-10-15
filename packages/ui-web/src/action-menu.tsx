@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 
 export interface ActionMenuItem {
   readonly id: string;
@@ -7,6 +7,10 @@ export interface ActionMenuItem {
   readonly onSelect: () => void;
   /** A disabled item stays reachable (`aria-disabled`) and says why (§ 3.20, § 4.13); it does nothing when chosen. */
   readonly disabledHint?: string;
+  /** The item opens a new group: a separator (`color.border.subtle`) stands before it (§ 3.20 — destructive actions at the end). */
+  readonly startsGroup?: boolean;
+  /** `danger` — a destructive action (`color.action.danger.text-subtle`, § 3.20); a disabled item keeps the disabled look. */
+  readonly tone?: 'danger';
 }
 
 /** What the trigger must carry for the menu to work (§ 3.20: `aria-haspopup`, `aria-expanded`, `aria-controls`). */
@@ -24,6 +28,23 @@ export interface ActionMenuProps {
   readonly items: readonly ActionMenuItem[];
   /** Renders the trigger (an IconButton `⋮` or the StatusBadge as a button) with the props above. */
   readonly trigger: (props: ActionMenuTriggerProps) => ReactNode;
+  /**
+   * The edge of the trigger the list lines up with: `start` (default — a status badge) or `end` (the menu `⋮` at the end of a
+   * row or a card, § 3.20 "lista wyrównana do prawej krawędzi wyzwalacza `⋮`").
+   */
+  readonly align?: 'start' | 'end';
+}
+
+/**
+ * Where the list goes in the viewport: under the trigger, lined up with its `align` edge; above it when there is no room
+ * below and there is room above (§ 3.20, WCAG 2.4.11); moved back so that it does not leave the viewport at either side.
+ */
+function placement(trigger: DOMRect, list: DOMRect, align: 'start' | 'end'): { readonly left: number; readonly top: number } {
+  const wanted = align === 'end' ? trigger.right - list.width : trigger.left;
+  const left = Math.max(0, Math.min(wanted, window.innerWidth - list.width));
+  const fitsBelow = trigger.bottom + list.height <= window.innerHeight;
+  const top = !fitsBelow && trigger.top - list.height >= 0 ? trigger.top - list.height : trigger.bottom;
+  return { left, top };
 }
 
 /**
@@ -32,12 +53,35 @@ export interface ActionMenuProps {
  * trigger. A disabled item is announced as unavailable with its reason. The item that was chosen closes the menu and the
  * focus is already on the trigger when `onSelect` runs, so a dialog it opens returns the focus there.
  */
-export function ActionMenu({ label, items, trigger }: ActionMenuProps) {
+export function ActionMenu({ label, items, trigger, align = 'start' }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const entries = useRef<(HTMLButtonElement | null)[]>([]);
+  const list = useRef<HTMLUListElement>(null);
+
+  // The list is `position: fixed` (layer.dropdown), so a frame that scrolls or clips — a DataTable — does not cut it. Its
+  // place is measured geometry, not a design value: it is set through the CSSOM (allowed by the CSP `style-src 'self'`)
+  // before the first paint and again whenever the page, a frame or the window moves the trigger.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const trigger = button.current;
+      const element = list.current;
+      if (trigger === null || element === null) return;
+      const { left, top } = placement(trigger.getBoundingClientRect(), element.getBoundingClientRect(), align);
+      element.style.setProperty('left', `${String(left)}px`);
+      element.style.setProperty('top', `${String(top)}px`);
+    };
+    place();
+    document.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      document.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, align]);
 
   useEffect(() => {
     if (!open) return;
@@ -108,43 +152,49 @@ export function ActionMenu({ label, items, trigger }: ActionMenuProps) {
       })}
       {open ? (
         <ul
+          ref={list}
           id={menuId}
           role="menu"
           aria-label={label}
           onKeyDown={onKeyDown}
-          className="absolute start-0 top-full z-dropdown w-max max-w-toast-max-width bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
+          className="fixed z-dropdown w-max max-w-toast-max-width bg-bg-surface border-w-default border-border-default rounded-control shadow-dropdown"
         >
           {items.map((item, index) => (
-            <li key={item.id} role="none">
-              <button
-                ref={(element) => {
-                  entries.current[index] = element;
-                }}
-                type="button"
-                role="menuitem"
-                tabIndex={-1}
-                title={item.disabledHint}
-                aria-disabled={item.disabledHint === undefined ? undefined : true}
-                aria-describedby={item.disabledHint === undefined ? undefined : `${menuId}-${item.id}-hint`}
-                onClick={() => {
-                  if (item.disabledHint !== undefined) return;
-                  close();
-                  item.onSelect();
-                }}
-                className={
-                  item.disabledHint === undefined
-                    ? 'flex items-center w-full min-h-control-height-web-md px-inset-sm text-body-sm text-text-primary text-start hover:bg-bg-surface-hover active:bg-bg-surface-pressed focus-visible:focus-ring-inner'
-                    : 'flex flex-col items-start justify-center w-full min-h-control-height-web-md px-inset-sm text-body-sm text-text-disabled text-start cursor-not-allowed hover:bg-bg-surface-hover focus-visible:focus-ring-inner'
-                }
-              >
-                {item.label}
-                {item.disabledHint === undefined ? null : (
-                  <span id={`${menuId}-${item.id}-hint`} className="text-body-sm text-text-secondary">
-                    {item.disabledHint}
-                  </span>
-                )}
-              </button>
-            </li>
+            <Fragment key={item.id}>
+              {item.startsGroup === true && index > 0 ? (
+                <li role="separator" className="my-stack-xs border-t-w-default border-border-subtle" />
+              ) : null}
+              <li role="none">
+                <button
+                  ref={(element) => {
+                    entries.current[index] = element;
+                  }}
+                  type="button"
+                  role="menuitem"
+                  tabIndex={-1}
+                  title={item.disabledHint}
+                  aria-disabled={item.disabledHint === undefined ? undefined : true}
+                  aria-describedby={item.disabledHint === undefined ? undefined : `${menuId}-${item.id}-hint`}
+                  onClick={() => {
+                    if (item.disabledHint !== undefined) return;
+                    close();
+                    item.onSelect();
+                  }}
+                  className={
+                    item.disabledHint === undefined
+                      ? `flex items-center w-full min-h-control-height-web-md px-inset-sm text-body-sm text-start hover:bg-bg-surface-hover active:bg-bg-surface-pressed focus-visible:focus-ring-inner ${item.tone === 'danger' ? 'text-action-danger-text-subtle' : 'text-text-primary'}`
+                      : 'flex flex-col items-start justify-center w-full min-h-control-height-web-md px-inset-sm text-body-sm text-text-disabled text-start cursor-not-allowed hover:bg-bg-surface-hover focus-visible:focus-ring-inner'
+                  }
+                >
+                  {item.label}
+                  {item.disabledHint === undefined ? null : (
+                    <span id={`${menuId}-${item.id}-hint`} className="text-body-sm text-text-secondary">
+                      {item.disabledHint}
+                    </span>
+                  )}
+                </button>
+              </li>
+            </Fragment>
           ))}
         </ul>
       ) : null}

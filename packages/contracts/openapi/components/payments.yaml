@@ -1,7 +1,8 @@
-# Module `payments` — the payment milestones of a work order (EVM-053; W-06 section "Płatności"). The milestones are COPIED from the
-# payment plan of the template at the creation of the order (D1: name, share, payment term — no amount) or added by hand. The amount
-# is gross, in grosze (`Money`, never a float). The status changes only by a command (EVM-054) or as the effect of a transition of the
-# order; in EVM-053 a request changes the amount of a `planned` milestone and nothing else. The amounts and the invoice number are
+# Module `payments` — the payment milestones of a work order (EVM-053, EVM-054; W-06 section "Płatności"). The milestones are COPIED
+# from the payment plan of the template at the creation of the order (D1: name, share, payment term — no amount) or added by hand. The
+# amount is gross, in grosze (`Money`, never a float). The status changes only by the command of a transition (EVM-054) or as the
+# effect of a transition of the order; a PATCH changes the amount of a `planned` milestone, the data of the invoice of an `invoiced`
+# one and the day of the payment of a `paid` one — never the status. The amounts and the invoice number are
 # financial data (WF; with a customer who is a natural person also DO-K); the name is free text the panel renders as text.
 # Payments are never sent to the phone (P3): every operation is on the web channel only.
 PaymentMilestoneStatus:
@@ -9,16 +10,18 @@ PaymentMilestoneStatus:
   description: >-
     Status transzy (zamknięta lista; klient obsługuje też wartość nieznaną — P-12): `planned` (Planowana), `invoiced` (Wystawiona),
     `paid` (Opłacona), `cancelled` (Anulowana). „Po terminie” nie jest stanem — wylicza je serwer (`isOverdue`). Status zmienia
-    wyłącznie komenda (EVM-054) albo skutek przejścia zlecenia (anulowanie zlecenia: `planned → cancelled`).
+    wyłącznie komenda przejścia (`transitionPaymentMilestone`, EVM-054) albo skutek przejścia zlecenia (anulowanie zlecenia:
+    `planned → cancelled`).
   enum: [planned, invoiced, paid, cancelled]
 PaymentMilestone:
   type: object
   description: >-
     Transza zlecenia. Z szablonu pochodzą `code`, `name`, `sharePercent` i `paymentTermDays` (kopia — zmiana szablonu nie zmienia
     zlecenia); transza dodana ręcznie ma `code`, `sharePercent` i `paymentTermDays` równe `null`. `amount` może być `null` tylko w
-    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn`, `dueDate` i
-    `paidOn` wypełnia EVM-054; `isOverdue` liczy serwer (transza `invoiced` z terminem wcześniejszym niż dziś w `Europe/Warsaw`).
-    Pola poza `amount` są tylko do odczytu (`400 read_only_field`).
+    statusie `planned` albo `cancelled` (transza anulowana przed wpisaniem kwoty). `invoiceNumber`, `invoicedOn` i `dueDate`
+    wypełnia wystawienie faktury, `paidOn` — odnotowanie wpłaty (EVM-054); `isOverdue` liczy serwer (transza `invoiced` z terminem
+    wcześniejszym niż dziś w `Europe/Warsaw`); `allowedTransitions` — przejścia dostępne dla roli wołającego (EVM-054). Pola spoza
+    `PaymentMilestonePatch` są tylko do odczytu (`400 read_only_field`). Powód anulowania transzy nie jest częścią reprezentacji.
   required:
     - id
     - code
@@ -34,6 +37,7 @@ PaymentMilestone:
     - paidOn
     - isOverdue
     - version
+    - allowedTransitions
   additionalProperties: false
   properties:
     id:
@@ -79,7 +83,7 @@ PaymentMilestone:
     status:
       $ref: '#/PaymentMilestoneStatus'
     invoiceNumber:
-      description: Numer faktury (EVM-054) albo `null`.
+      description: Numer faktury lub proformy (EVM-054) albo `null`.
       oneOf:
         - type: string
           maxLength: 60
@@ -110,8 +114,19 @@ PaymentMilestone:
       description: '`true`, gdy transza jest wystawiona, a termin płatności jest wcześniejszy niż dziś (`Europe/Warsaw`).'
     version:
       type: integer
-      description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie kwoty).
+      description: Wersja transzy (`ETag` `"<version>"` dla `If-Match` przy zmianie i przejściu).
       minimum: 1
+    allowedTransitions:
+      type: array
+      readOnly: true
+      description: >-
+        Statusy docelowe, które ROLA WOŁAJĄCEGO może teraz wybrać (EVM-054; podpowiedź dla panelu — decyduje serwer przy komendzie):
+        Administrator i Edytor — z `planned` do `invoiced` i `cancelled`, z `invoiced` do `paid`; Tylko odczyt — pusta lista. Korekty
+        płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`) nie są zwracane żadnej
+        roli do EVM-057. W zleceniu zamkniętym — pusta lista.
+      maxItems: 4
+      items:
+        $ref: '#/PaymentMilestoneStatus'
 PaymentTotals:
   type: object
   description: >-
@@ -165,10 +180,86 @@ PaymentMilestoneCreate:
 PaymentMilestonePatch:
   type: object
   description: >-
-    Zmiana kwoty transzy w statusie `planned` („Zmień kwotę”, EVM-053 AC3). Jedyne pole to `amount` (wymagane, bez `null`); każde
-    inne pole transzy — `400 read_only_field`, pole spoza schematu — `400 unknown_field`.
-  required: [amount]
+    Zmiana transzy (merge-patch; EVM-053 AC3, EVM-054 AC4) — co najmniej jedno pole; pole nieobecne zostaje bez zmian, `null` jest
+    niedozwolone. Pola zależą od BIEŻĄCEGO statusu transzy: `amount` — tylko `planned` („Zmień kwotę”; w innym statusie `403
+    forbidden`, także razem z innymi polami — kwotę transzy wystawionej albo opłaconej zmienia Administrator korektą płatności,
+    EVM-057); `invoiceNumber`, `invoicedOn`, `dueDate` — tylko `invoiced` („Popraw dane faktury…”); `paidOn` — tylko `paid` („Popraw
+    datę wpłaty…”); pole spoza bieżącego statusu — `409 invalid_state_transition`. Reguły: `invoiceNumber` — zwykły tekst (NFC,
+    przycięty, 1–60 znaków, bez znaków sterujących i niewidocznych znaków formatujących; `required` / `too_long` /
+    `invalid_characters`); daty `RRRR-MM-DD` z zakresu 2000-01-01…2100-12-31 (`out_of_range`); termin płatności nie wcześniejszy niż
+    data wystawienia, sprawdzany na stanie po zmianie (`before_invoiced_on` — wskaźnik `/invoicedOn`, gdy żądanie zmienia tylko datę
+    wystawienia, inaczej `/dueDate`; zmiana daty wystawienia NIE przelicza terminu); `paidOn` nie później niż dziś w `Europe/Warsaw`
+    (`in_future`). Każde inne pole transzy (`status`, `name`, `version`, `allowedTransitions` …) — `400 read_only_field`, pole spoza
+    schematu — `400 unknown_field`; pusta treść — `400 validation_failed`.
+  minProperties: 1
   additionalProperties: false
   properties:
     amount:
       $ref: common.yaml#/Money
+    invoiceNumber:
+      type: string
+      description: Numer faktury lub proformy (tylko transza `invoiced`; pole swobodne — nie trafia do audytu, logów ani błędów).
+      maxLength: 60
+    invoicedOn:
+      type: string
+      description: Dzień wystawienia faktury, `RRRR-MM-DD` (2000-01-01…2100-12-31, może być przyszły; tylko transza `invoiced`).
+      format: date
+      maxLength: 10
+    dueDate:
+      type: string
+      description: Termin płatności, `RRRR-MM-DD` (2000-01-01…2100-12-31, nie wcześniejszy niż `invoicedOn`; tylko transza `invoiced`).
+      format: date
+      maxLength: 10
+    paidOn:
+      type: string
+      description: Dzień wpłaty, `RRRR-MM-DD` (od 2000-01-01, nie później niż dziś w `Europe/Warsaw`; tylko transza `paid`).
+      format: date
+      maxLength: 10
+PaymentMilestoneTransition:
+  type: object
+  description: >-
+    Komenda przejścia statusu transzy (EVM-054) wg tabeli przejść „Etap płatności” z `domain-model.md`; `to` — status docelowy.
+    Administrator i Edytor: `planned → invoiced` („Wystaw fakturę…”), `invoiced → paid` („Odnotuj wpłatę…”), `planned → cancelled`
+    („Anuluj transzę…”). Korekty płatności (`invoiced → planned`, `invoiced → cancelled`, `paid → invoiced`, `cancelled → planned`) —
+    `403 forbidden` dla każdej roli do EVM-057; przejście spoza tabeli — `409 invalid_state_transition`. Pola zależą od przejścia i
+    są niedozwolone poza nim (`not_allowed`):
+    `invoiced` — `amount` (gdy transza ma już kwotę, domyślnie ta kwota; bez kwoty w transzy i w żądaniu — `required`),
+    `invoiceNumber` (wymagany; zwykły tekst, NFC, przycięty, 1–60 znaków; `required` / `too_long` / `invalid_characters`),
+    `invoicedOn` (domyślnie dziś w `Europe/Warsaw`; 2000-01-01…2100-12-31, może być przyszły; `out_of_range`), `dueDate` (domyślnie
+    `invoicedOn` + `paymentTermDays` transzy, liczone na serwerze; transza bez dni terminu — wymagany, `required`;
+    2000-01-01…2100-12-31; nie wcześniejszy niż `invoicedOn` — `before_invoiced_on`);
+    `paid` — `paidOn` (domyślnie dziś w `Europe/Warsaw`; od 2000-01-01 — `out_of_range`; późniejszy niż dziś — `422
+    transition_condition_not_met`, `/paidOn`, `in_future`);
+    `cancelled` — `reason` (wymagany: zwykły tekst, NFC, przycięty, 1–500 znaków; pole swobodne — może zawierać dane osobowe i
+    nigdy nie trafia do odpowiedzi, audytu, dziennika, logów, komunikatów błędów ani rekordu idempotencji).
+    Pola serwera (`status`, `version`, `name` …) w treści — `400 read_only_field`, inne — `400 unknown_field`.
+  required: [to]
+  additionalProperties: false
+  properties:
+    to:
+      $ref: '#/PaymentMilestoneStatus'
+    amount:
+      $ref: common.yaml#/Money
+    invoiceNumber:
+      type: string
+      description: Numer faktury lub proformy (tylko przy `invoiced`; pole swobodne).
+      maxLength: 60
+    invoicedOn:
+      type: string
+      description: Dzień wystawienia faktury, `RRRR-MM-DD` (tylko przy `invoiced`).
+      format: date
+      maxLength: 10
+    dueDate:
+      type: string
+      description: Termin płatności, `RRRR-MM-DD` (tylko przy `invoiced`).
+      format: date
+      maxLength: 10
+    paidOn:
+      type: string
+      description: Dzień wpłaty, `RRRR-MM-DD` (tylko przy `paid`).
+      format: date
+      maxLength: 10
+    reason:
+      type: string
+      description: Powód anulowania transzy (tylko przy `cancelled`; pole swobodne — może zawierać dane osobowe).
+      maxLength: 500

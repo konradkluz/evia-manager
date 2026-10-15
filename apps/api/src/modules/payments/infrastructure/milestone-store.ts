@@ -1,14 +1,16 @@
 /**
  * THE ONE POINT OF WRITE of the payment milestones (EVM-053; P4, ADR-0017): every `INSERT` and `UPDATE` of `payments.payment_milestones`
- * — the copy of the plan at the creation of an order, the milestone added by hand, the new amount, the effect of the cancellation of
- * an order — is a function of this file and of no other (a review checks it with a search). EVM-056 hooks the events of the read model
+ * — the copy of the plan at the creation of an order, the milestone added by hand, the change of the amount, of the invoice and of
+ * the payment, the move of a transition (EVM-054), the effect of the cancellation of an order — is a function of this file and of no
+ * other (a review checks it with a search). EVM-056 hooks the events of the read model
  * here. Every value reaches the database as a bound parameter; the anchor `work_order_id` is in the condition of every update
  * (SR-AUTHZ-02, CWE-639). The amount is a `bigint`: what the driver returns as text becomes a number through
  * {@link amountFromDatabase} only.
  */
 import type { PlannedMilestone } from '../domain/composition-plan.ts';
-import { CURRENCY } from '../domain/money.ts';
-import type { PaymentsDb } from './tables.ts';
+import { CURRENCY, type PaymentMilestoneStatus } from '../domain/money.ts';
+import type { PaymentMilestonesTable, PaymentsDb } from './tables.ts';
+import type { Updateable } from 'kysely';
 
 /** A `bigint` of the driver (text) as a number of grosze — a value that is not a safe integer is an error, never a rounded number. */
 export function amountFromDatabase(value: string | number | null): number | null {
@@ -94,31 +96,60 @@ export async function insertMilestone(
   return row?.id;
 }
 
+/** The milestone a write is for: THIS order, the version and the status the caller decided on (under the lock). */
+export interface MilestoneWriteTarget {
+  readonly workOrderId: string;
+  readonly milestoneId: string;
+  readonly expectedVersion: number;
+  readonly status: PaymentMilestoneStatus;
+}
+
+/** The changes of a PATCH (EVM-053 AC3, EVM-054 AC4): only the columns named; the amount with its currency. */
+export interface MilestoneDetailsChange {
+  readonly amountMinor?: number;
+  readonly invoiceNumber?: string;
+  readonly invoicedOn?: string;
+  readonly dueDate?: string;
+  readonly paidOn?: string;
+}
+
+/** The columns of a move (EVM-054 AC1–AC3): the status and what the move writes; absent keeps the column. */
+export interface MilestoneMoveChange extends MilestoneDetailsChange {
+  readonly status: PaymentMilestoneStatus;
+  readonly statusReason?: string;
+}
+
+const columnsOf = (change: MilestoneMoveChange | MilestoneDetailsChange): Updateable<PaymentMilestonesTable> => ({
+  ...('status' in change ? { status: change.status } : {}),
+  ...(change.amountMinor === undefined ? {} : { amount_minor: change.amountMinor, currency: CURRENCY }),
+  ...(change.invoiceNumber === undefined ? {} : { invoice_number: change.invoiceNumber }),
+  ...(change.invoicedOn === undefined ? {} : { invoiced_on: change.invoicedOn }),
+  ...(change.dueDate === undefined ? {} : { due_date: change.dueDate }),
+  ...(change.paidOn === undefined ? {} : { paid_on: change.paidOn }),
+  ...('statusReason' in change && change.statusReason !== undefined ? { status_reason: change.statusReason } : {}),
+});
+
 /**
- * The new amount of a milestone of THIS order at the version the caller holds the lock of (`version + 1`). The status is in the
- * condition as well: a row that is not `planned` any more is not changed (the caller decided on the locked row; this is the last line).
+ * A change of a milestone of THIS order at the version and in the status the caller holds the lock of (`version + 1`) — the change of
+ * the amount, of the invoice and of the payment (a PATCH) and the move of a transition alike. The condition is `id AND work_order_id
+ * AND version AND status AND deleted_at IS NULL`: a row that changed meanwhile is not written (the caller decided on the locked row;
+ * this is the last line, and the caller treats no row as a defect, never as a success).
  * @returns the new version, or `undefined` when no row matched
  */
-export async function updateMilestoneAmount(
+export async function updateMilestone(
   db: PaymentsDb,
-  target: { readonly workOrderId: string; readonly milestoneId: string; readonly expectedVersion: number },
-  amountMinor: number,
+  target: MilestoneWriteTarget,
+  change: MilestoneMoveChange | MilestoneDetailsChange,
   actorUserId: string,
   now: Date,
 ): Promise<number | undefined> {
   const row = await db
     .updateTable('payments.payment_milestones')
-    .set((eb) => ({
-      amount_minor: amountMinor,
-      currency: CURRENCY,
-      version: eb('version', '+', 1),
-      updated_at: now,
-      updated_by: actorUserId,
-    }))
+    .set((eb) => ({ ...columnsOf(change), version: eb('version', '+', 1), updated_at: now, updated_by: actorUserId }))
     .where('id', '=', target.milestoneId)
     .where('work_order_id', '=', target.workOrderId)
     .where('version', '=', target.expectedVersion)
-    .where('status', '=', 'planned')
+    .where('status', '=', target.status)
     .where('deleted_at', 'is', null)
     .returning('version')
     .executeTakeFirst();

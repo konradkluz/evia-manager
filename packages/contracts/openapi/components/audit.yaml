@@ -39,6 +39,9 @@ AuditAction:
     - payment_milestone.created
     - payment_milestone.amount_changed
     - payment_milestone.cancelled
+    - payment_milestone.invoiced
+    - payment_milestone.paid
+    - payment_milestone.details_changed
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -134,6 +137,22 @@ AuditEvent:
         `payment_milestone.*`; `null` (albo brak pola), gdy kwoty nie ma.
       oneOf:
         - $ref: common.yaml#/Money
+        - type: 'null'
+    fromCode:
+      description: >-
+        Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`); `null`
+        (albo brak pola), gdy zdarzenie nie zmienia statusu. Zawsze razem z `toCode`.
+      oneOf:
+        - type: string
+          maxLength: 40
+          pattern: '^[a-z][a-z_]{0,39}$'
+        - type: 'null'
+    toCode:
+      description: Kod statusu obiektu po zmianie (EVM-054); `null` (albo brak pola) razem z `fromCode`.
+      oneOf:
+        - type: string
+          maxLength: 40
+          pattern: '^[a-z][a-z_]{0,39}$'
         - type: 'null'
 AuditEventList:
   type: object
