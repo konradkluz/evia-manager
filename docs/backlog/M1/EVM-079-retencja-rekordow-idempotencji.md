@@ -4,7 +4,7 @@ title: Sprzątanie wygasłych rekordów idempotencji
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P2
 path: lekka
 owner: backend-developer
@@ -65,3 +65,5 @@ Jako **właściciel systemu** chcę **by wygasłe rekordy idempotencji były cyk
 - 2026-10-14 — potok `wf_94338dfb-290`: passed po 1 rundzie (ścieżka lekka; security-engineer APPROVE — pierwsza funkcja `SECURITY DEFINER` z przypiętym `search_path`, `pnpm run scan` zielony, `rodo.md` zaktualizowany `a90ed56`)
 - 2026-10-14 — orkiestrator: `pnpm run gate` zielony (diff-coverage linie 622/623, gałęzie 467/489), `docs:check` 0/0; in-progress → in-review
 - 2026-10-14 — Koszt: brak rozbicia w $; potok 2 wywołania agentów, ok. 0,17 mln tokenów subagentów, ok. 40 min (+ stabilizacja testu); rundy poprawek 0; ścieżka lekka; sonnet
+- 2026-10-15 — przed scaleniem: scalenie z łańcuchem płatności (rejestr migracji 0028–0031 przed 0032; testy migracji EVM-054/056 migrują tylko do swojej migracji `029005d`), test pustego wyniku `purgeBatch` (`f3e237b`; diff-coverage gałęzi 87,5% → 100%)
+- 2026-10-15 — scalona do `main` (PR #76, `2573ffa`); in-review → done
