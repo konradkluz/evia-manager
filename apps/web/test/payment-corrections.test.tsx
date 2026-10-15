@@ -682,3 +682,162 @@ describe('the corrections in W-11 (EVM-057; the story → "UX / UI" → "Ekrany 
     expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1, name: 'Płatności — nieopłacone' }));
   });
 });
+
+/** An answer the test settles itself: a request stays "in flight" until `settle` (no timers, no sleeping). */
+function deferred(): { readonly handler: Handler; readonly settle: (answer: Response) => void } {
+  let settle: (answer: Response) => void = () => undefined;
+  const pending = new Promise<Response>((resolve) => {
+    settle = resolve;
+  });
+  return { handler: () => pending, settle };
+}
+
+describe('closing, blocking and the edge data of the dialogs of a correction (EVM-057 AC3, AC5, AC8)', () => {
+  it('EVM-057 AC5 "Anuluj" closes the dialog of a correction and the dialog of the amount without a request', async () => {
+    const api = paymentsApi(store().read);
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Wycofaj fakturę…');
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await openMenu('Zaliczka (20%)', 'Zmień kwotę…');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(api.calls(transitionRoute(ISSUED))).toHaveLength(0);
+    expect(api.calls(patchRoute(ISSUED))).toHaveLength(0);
+  });
+
+  it('EVM-057 AC8 Escape does not close the dialog of a correction while the request is in flight', async () => {
+    const wait = deferred();
+    const list = store();
+    const api = paymentsApi(list.read, undefined, { [transitionRoute(ISSUED)]: wait.handler });
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Anuluj fakturę…');
+    const dialog = screen.getByRole('alertdialog', { name: 'Anulować fakturę FV/TEST/0007/2026?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anuluj fakturę' }));
+    await waitFor(() => {
+      expect(api.calls(transitionRoute(ISSUED))).toHaveLength(1);
+    });
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('alertdialog', { name: 'Anulować fakturę FV/TEST/0007/2026?' })).toBeTruthy();
+    const cancelled: PaymentMilestone = { ...ISSUED, status: 'cancelled', isOverdue: false, version: 4, allowedTransitions: ['planned'] };
+    list.put(cancelled);
+    wait.settle(json(200, cancelled, { ETag: '"4"' }));
+    expect(await screen.findByText('Anulowano fakturę FV/TEST/0007/2026.')).toBeTruthy();
+  });
+
+  it('EVM-057 AC8 Escape does not close the dialog of the amount while the request is in flight', async () => {
+    const wait = deferred();
+    const list = store();
+    const api = paymentsApi(list.read, undefined, { [patchRoute(ISSUED)]: wait.handler });
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Zmień kwotę…');
+    const field = screen.getByRole('textbox', { name: 'Nowa kwota' });
+    await userEvent.clear(field);
+    await userEvent.type(field, '3690');
+    await userEvent.click(screen.getByRole('button', { name: 'Zmień kwotę' }));
+    await waitFor(() => {
+      expect(api.calls(patchRoute(ISSUED))).toHaveLength(1);
+    });
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Zmienić kwotę transzy „Zaliczka”?' })).toBeTruthy();
+    const corrected: PaymentMilestone = { ...ISSUED, amount: { amountMinor: 369000, currency: 'PLN' }, version: 4 };
+    list.put(corrected);
+    wait.settle(json(200, corrected, { ETag: '"4"' }));
+    expect(await screen.findByText('Zmieniono kwotę transzy „Zaliczka”: 3 600,00 zł → 3 690,00 zł.')).toBeTruthy();
+  });
+
+  it('EVM-057 AC3 Enter in the field of an unchanged amount sends nothing; an empty one is told under the field', async () => {
+    const api = paymentsApi(store().read);
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Zmień kwotę…');
+    const field = screen.getByRole('textbox', { name: 'Nowa kwota' });
+    await userEvent.type(field, '{Enter}');
+    expect(api.calls(patchRoute(ISSUED))).toHaveLength(0);
+    await userEvent.clear(field);
+    await userEvent.type(field, '{Enter}');
+    expect(api.calls(patchRoute(ISSUED))).toHaveLength(0);
+    expect(within(screen.getByRole('dialog')).getByText('Podaj kwotę większą od zera, np. 1 500,00 zł.')).toBeTruthy();
+  });
+
+  it('EVM-057 AC3 an instalment without an amount and an invoice shows "—" for both in the dialog of the amount', async () => {
+    const bare = { ...ISSUED, amount: null, invoiceNumber: null };
+    const api = paymentsApi(store([bare]).read);
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Zmień kwotę…');
+    const dialog = screen.getByRole('dialog', { name: 'Zmienić kwotę transzy „Zaliczka”?' });
+    expect(within(dialog).getAllByText('—')).toHaveLength(2);
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Nowa kwota' }).value).toBe('');
+  });
+
+  it('EVM-057 AC8 412 in the dialog of the amount: the same status keeps the typed amount; a status it no longer fits closes it', async () => {
+    const list = store();
+    let first = true;
+    const api = paymentsApi(list.read, undefined, {
+      [patchRoute(ISSUED)]: () => {
+        if (first) {
+          first = false;
+          list.put({ ...ISSUED, version: 6 });
+        } else {
+          list.put({ ...ISSUED, status: 'cancelled', version: 7 });
+        }
+        return problem(412, 'version_conflict');
+      },
+    });
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Zmień kwotę…');
+    const dialog = screen.getByRole('dialog', { name: 'Zmienić kwotę transzy „Zaliczka”?' });
+    const field = within(dialog).getByRole('textbox', { name: 'Nowa kwota' });
+    await userEvent.clear(field);
+    await userEvent.type(field, '3690');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień kwotę' }));
+    await within(dialog).findByText('Tę transzę zmieniono w międzyczasie (teraz: «Wystawiona»).');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Odśwież' }));
+    expect((field as HTMLInputElement).value).toBe(zl('3 690,00'));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zmień kwotę' }));
+    await within(dialog).findByText('Tę transzę zmieniono w międzyczasie (teraz: «Anulowana»).');
+    expect(api.calls(patchRoute(ISSUED))[1]?.headers.get('If-Match')).toBe('"6"');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Odśwież' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('EVM-057 AC2 "Cofnij wpłatę…" of an instalment without the day of the payment and the due date has neither sentence', async () => {
+    const bare = { ...PAID, paidOn: null, dueDate: null };
+    await renderPanel(PAYMENTS_PATH, paymentsApi(store([ISSUED, bare, CANCELLED]).read));
+    await openMenu('Po uzyskaniu zgód (30%)', 'Cofnij wpłatę…');
+    const dialog = screen.getByRole('alertdialog', { name: 'Cofnąć wpłatę za fakturę FV/TEST/0008/2026?' });
+    expect(within(dialog).queryByText(/Data wpłaty/)).toBeNull();
+    expect(within(dialog).queryByText('Transza może od razu być po terminie, jeśli termin minął.')).toBeNull();
+  });
+
+  it('EVM-057 AC8 offline the dialog of a correction says so and its button is disabled with the reason', async () => {
+    const api = paymentsApi(store().read);
+    await renderPanel(PAYMENTS_PATH, api);
+    await openMenu('Zaliczka (20%)', 'Wycofaj fakturę…');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    window.dispatchEvent(new Event('offline'));
+    const dialog = screen.getByRole('alertdialog', { name: 'Wycofać fakturę FV/TEST/0007/2026?' });
+    const submit = await within(dialog).findByRole('button', { name: 'Wycofaj fakturę' });
+    await waitFor(() => {
+      expect(submit.getAttribute('aria-disabled')).toBe('true');
+    });
+    expect(submit.getAttribute('title')).toBe('Zapiszesz po powrocie połączenia.');
+    expect(within(dialog).getAllByText('Zapiszesz po powrocie połączenia.').length).toBeGreaterThan(0);
+    await userEvent.click(submit);
+    expect(api.calls(transitionRoute(ISSUED))).toHaveLength(0);
+  });
+
+  it('EVM-057 AC5 "Anuluj" closes the dialogs of the corrections of W-11', async () => {
+    const api = unpaidApi();
+    await renderPanel(UNPAID_PATH, api);
+    await screen.findByRole('table');
+    const menu = 'Akcje transzy: Płatność końcowa, ZL-2026-0031';
+    await userEvent.click(screen.getByRole('button', { name: menu }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Wycofaj fakturę…' }));
+    await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: menu }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Zmień kwotę…' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Anuluj' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
