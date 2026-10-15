@@ -1,0 +1,3 @@
+# The build context is this directory only: nothing from the repository enters the image (ADR-0015 M2).
+*
+!Dockerfile

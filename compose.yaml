@@ -63,6 +63,44 @@ services:
     environment:
       EVIA_TEST_DATABASE_URL: postgres://evia:evia-local@postgres:5432/evia
 
+  # Panel E2E on Linux before a push (EVM-087; ADR-0015 pkt 7) - the same Playwright tests as the CI job e2e-web
+  # (Chromium and Firefox, CI=1: retry, forbidOnly), against `vite preview` inside the container. Shares the Linux
+  # node_modules of backend-install (bt-work). Internal network without egress (an interface must exist, or the browser
+  # reports navigator.onLine=false and the panel shows its offline banner); the panel needs neither API nor database.
+  # No published ports (the preview server listens on the container loopback), shm_size instead of --ipc=host.
+  # Run: ... run --rm web-e2e-linux (all tests) or ... run --rm web-e2e-linux pnpm --filter @evia/web exec playwright test ...
+  web-e2e-linux:
+    <<: *hardening
+    image: evia-web-e2e:local
+    build:
+      context: infra/docker/web-e2e
+    pull_policy: build
+    user: '1000:1000'
+    working_dir: /work/repo
+    networks: [web-e2e]
+    shm_size: 1gb
+    command: ['pnpm', 'run', 'e2e:linux']
+    environment:
+      CI: '1'
+      HOME: /home/pwuser
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev
+      - /home/pwuser:uid=1000,gid=1000,mode=0700,nosuid,nodev
+      # the shared entry point exports lcov reports here; they are not needed for E2E and must not touch coverage/backend-tests
+      - /out:uid=1000,gid=1000,mode=0700,noexec,nosuid,nodev
+    volumes:
+      - bt-work:/work
+      - ./package.json:/src/package.json:ro
+      - ./pnpm-lock.yaml:/src/pnpm-lock.yaml:ro
+      - ./pnpm-workspace.yaml:/src/pnpm-workspace.yaml:ro
+      - ./patches:/src/patches:ro
+      - ./turbo.json:/src/turbo.json:ro
+      - ./.nvmrc:/src/.nvmrc:ro
+      - ./apps:/src/apps:ro
+      - ./packages:/src/packages:ro
+      - ./tools:/src/tools:ro
+      - ./design/tokens:/src/design/tokens:ro
+
   # PostgreSQL 18 for integration tests (EVM-008 AC1; ADR-0003, ADR-0015) — ephemeral (tmpfs), internal network, no
   # ports. Image and initdb arguments = apps/api/test/support/postgres.ts (Testcontainers in CI); repo-policy checks
   # they match. Runs directly as the postgres user (uid 999): no chown/gosu, so all capabilities stay dropped.
@@ -187,6 +225,9 @@ services:
       - ./renovate.json:/src/renovate.json:ro
 
 networks:
+  # web-e2e-linux only: loopback plus an interface, no route outside (EVM-087).
+  web-e2e:
+    internal: true
   # backend-tests ↔ postgres only; internal: no route outside the host (EVM-008, A1).
   backend-db:
     internal: true

@@ -32,6 +32,7 @@
     "dev:stop": "node tools/dev-env/cli.mjs stop",
     "dev:reset": "node tools/dev-env/cli.mjs reset",
     "e2e": "turbo run e2e",
+    "e2e:linux": "turbo run build --filter=@evia/web^... && pnpm --filter @evia/web run e2e",
     "scan": "node tools/scan/cli.mjs all"
   },
   "devDependencies": {

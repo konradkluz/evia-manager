@@ -114,7 +114,7 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
   it('EVM-077 AC8: the exception for networks is the development file only — the gates keep internal networks and no ports', () => {
     expect(composeProblems(minimal(), '', reader, GATE_PROFILE).join('\n')).toContain('musi mieć internal: true');
     expect(composeProblems(gates, read('compose.yaml'), reader).filter((problem) => problem.startsWith('compose.yaml'))).toEqual([]);
-    expect(Object.keys(record(gates['networks']))).toEqual(['backend-db']);
+    expect(Object.keys(record(gates['networks']))).toEqual(['web-e2e', 'backend-db']);
     expect(
       composeProblems(minimal({ ports: ['127.0.0.1:5442:5432'] }, { networks: { n: { internal: true } } }), '', reader, GATE_PROFILE).join(
         '\n',
