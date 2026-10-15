@@ -36,22 +36,29 @@ import { BULK_READ_CONTROL, CLOCK, CURSOR_CODEC, DATABASE, METRICS } from '../..
 import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
+  compareOrders,
   filterPartsOf,
+  parsePlannedPosition,
   parsePosition,
+  plannedPositionParts,
   positionParts,
   resolveUnpaidQuery,
+  type PlannedPosition,
   type Position,
   type UnpaidQuery,
 } from '../domain/unpaid-query.ts';
 import { paymentTables } from '../infrastructure/tables.ts';
 import {
+  plannedOrderIds,
   readLongestOverdue,
+  readPlannedPage,
+  readPlannedTotals,
   readUnpaidPage,
   readUnpaidSummary,
   unpaidOrderIds,
   type UnpaidFilters,
 } from '../infrastructure/unpaid-reader.ts';
-import { toSummary, toUnpaidItems } from './unpaid-representation.ts';
+import { toPlannedItems, toSummary, toUnpaidItems } from './unpaid-representation.ts';
 
 /** Identifier of the operation in the contract; the cursor is bound to it. */
 export const LIST_UNPAID_MILESTONES_OPERATION = 'listUnpaidPaymentMilestones';
@@ -60,6 +67,8 @@ export const LIST_UNPAID_MILESTONES_OPERATION = 'listUnpaidPaymentMilestones';
 interface PageStart {
   readonly asOf: string;
   readonly position: Position | undefined;
+  /** The position of "Do wystawienia" (EVM-059) — set instead of `position` on the next pages of that view. */
+  readonly plannedPosition: PlannedPosition | undefined;
 }
 
 @Injectable()
@@ -116,15 +125,22 @@ export class ListUnpaidMilestonesService {
    * of the injected clock on the first page and `asOf` of the cursor on the next ones: the page that continues a list continues THAT day.
    */
   #start(principal: Principal, query: UnpaidQuery, scope: string): PageStart {
-    if (query.cursor === undefined) return { asOf: businessDate(this.#clock.now()), position: undefined };
+    if (query.cursor === undefined) return { asOf: businessDate(this.#clock.now()), position: undefined, plannedPosition: undefined };
     const parts = this.#cursors.open(LIST_UNPAID_MILESTONES_OPERATION, query.cursor, { scope, userId: principal.userId });
     const [asOf, ...rest] = parts ?? [];
-    const position = asOf === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(asOf) ? undefined : parsePosition(rest);
-    if (asOf === undefined || position === undefined) throw new ProblemException('invalid_cursor');
-    return { asOf, position };
+    if (asOf === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(asOf)) throw new ProblemException('invalid_cursor');
+    if (query.view === 'planned') {
+      const plannedPosition = parsePlannedPosition(rest);
+      if (plannedPosition === undefined) throw new ProblemException('invalid_cursor');
+      return { asOf, position: undefined, plannedPosition };
+    }
+    const position = parsePosition(rest);
+    if (position === undefined) throw new ProblemException('invalid_cursor');
+    return { asOf, position, plannedPosition: undefined };
   }
 
   async #read(principal: Principal, query: UnpaidQuery, start: PageStart, scope: string): Promise<UnpaidPaymentMilestoneList> {
+    if (query.view === 'planned') return this.#readPlanned(principal, query, start, scope);
     const { asOf } = start;
     const filters: UnpaidFilters = { overdueOnly: query.view === 'overdue', dueFrom: query.dueFrom, dueTo: query.dueTo };
     return runInTransaction(
@@ -165,6 +181,77 @@ export class ListUnpaidMilestonesService {
               : null,
           asOf,
           summary: toSummary(summary, longest, refs, asOf),
+        };
+      },
+      { isolationLevel: 'repeatable read' },
+    );
+  }
+
+  /**
+   * "Do wystawienia" (EVM-059 AC1, AC3): the milestones `planned` of the orders the caller may see AND that are not closed. The start set
+   * is on this side (`plannedOrderIds`), the facade narrows it under the read policy in ONE query (it also says which orders are closed),
+   * and the page, the count and the sum are read with the visible orders as the condition of the query. The tiles are those of the
+   * other views (issued milestones); only `filtered` differs. The orders are put in the order of their numbers here (the number lives
+   * in `work-orders`), and the cursor keeps the number, the order and the `position` of the last row.
+   */
+  async #readPlanned(principal: Principal, query: UnpaidQuery, start: PageStart, scope: string): Promise<UnpaidPaymentMilestoneList> {
+    const { asOf } = start;
+    return runInTransaction(
+      this.#db,
+      async (tx) => {
+        const tables = paymentTables(tx);
+        const issuedIds = await unpaidOrderIds(tables);
+        const plannedIds = await plannedOrderIds(tables);
+        const refs = await this.#orders.refsOf(tx, principal, [...new Set([...issuedIds, ...plannedIds])]);
+        const tileOrders = issuedIds.filter((id) => refs.has(id));
+        const open = plannedIds.filter((id) => refs.get(id)?.closed === false);
+        const narrowed = await this.#narrowedToCustomer(tx, principal, query.customerId, open, refs);
+        const ordered = narrowed
+          .map((id) => ({ id, number: refs.get(id)?.number ?? '' }))
+          .sort(compareOrders)
+          .map((order) => order.id);
+        const after = start.plannedPosition;
+        const remaining =
+          after === undefined
+            ? ordered
+            : ordered.filter(
+                (id) => compareOrders({ id, number: refs.get(id)?.number ?? '' }, { id: after.workOrderId, number: after.number }) >= 0,
+              );
+        const summary = await readUnpaidSummary(tables, {
+          orderIds: tileOrders,
+          filteredOrderIds: [],
+          filters: { overdueOnly: false, dueFrom: undefined, dueTo: undefined },
+          asOf,
+        });
+        const longest = await readLongestOverdue(tables, { orderIds: tileOrders, asOf });
+        const filtered = await readPlannedTotals(tables, ordered);
+        const rows = await readPlannedPage(tables, { orderIds: remaining, after, limit: query.limit });
+        const shown = rows.slice(0, query.limit);
+        const customerIds = new Set<string>();
+        for (const row of shown) {
+          const customerId = refs.get(row.workOrderId)?.customerId ?? null;
+          if (customerId !== null) customerIds.add(customerId);
+        }
+        const names = await this.#customers.displayNamesOf(tx, principal, [...customerIds]);
+        const { items, dropped } = toPlannedItems(shown, refs, names);
+        for (let drift = 0; drift < dropped; drift += 1) this.#authzDrift.increment({});
+        const last = shown.at(-1);
+        const lastNumber = last === undefined ? undefined : refs.get(last.workOrderId)?.number;
+        return {
+          items,
+          nextCursor:
+            rows.length > query.limit && last !== undefined && lastNumber !== undefined
+              ? this.#cursors.seal(LIST_UNPAID_MILESTONES_OPERATION, {
+                  position: [asOf, ...plannedPositionParts({ number: lastNumber, workOrderId: last.workOrderId, position: last.position })],
+                  scope,
+                  userId: principal.userId,
+                })
+              : null,
+          asOf,
+          summary: {
+            ...toSummary(summary, longest, refs, asOf),
+            filtered: { count: filtered.count, total: { amountMinor: filtered.totalMinor, currency: 'PLN' } },
+          },
         };
       },
       { isolationLevel: 'repeatable read' },

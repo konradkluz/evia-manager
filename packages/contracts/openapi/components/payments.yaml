@@ -281,9 +281,10 @@ PaymentMilestoneTransition:
 UnpaidView:
   type: string
   description: >-
-    Widok zestawienia nieopłaconych (zamknięta lista; EVM-059 dodaje wartości addytywnie): `unpaid` — wszystkie wystawione
-    (domyślnie), `overdue` — wystawione z terminem wcześniejszym niż dziś (`Europe/Warsaw`).
-  enum: [unpaid, overdue]
+    Widok zestawienia (zamknięta lista; wartości dodawane addytywnie): `unpaid` — wszystkie wystawione (domyślnie), `overdue` —
+    wystawione z terminem wcześniejszym niż dziś (`Europe/Warsaw`), `planned` — „Do wystawienia” (EVM-059): transze `planned`
+    w zleceniach niezamkniętych.
+  enum: [unpaid, overdue, planned]
 DueDateFilter:
   type: string
   description: Dzień `RRRR-MM-DD` w zakresie 2000-01-01…2100-12-31.
@@ -354,6 +355,47 @@ UnpaidPaymentMilestone:
     version:
       type: integer
       minimum: 1
+PlannedPaymentMilestone:
+  type: object
+  description: >-
+    Pozycja widoku „Do wystawienia” (EVM-059) — transza `planned` ze zleceniem i klientem, bez faktury i terminu. `sharePercent` —
+    udział z planu płatności (`null` dla transzy dodanej ręcznie); `amount` — `null`, gdy kwoty jeszcze nie wpisano (kwota jest
+    wtedy polem dialogu „Wystaw fakturę”). `customer` jak w `UnpaidPaymentMilestone`. `version` — do `If-Match` akcji
+    `transitionPaymentMilestone`.
+  required: [id, workOrder, customer, name, sharePercent, amount, status, version]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    workOrder:
+      $ref: '#/UnpaidWorkOrder'
+    customer:
+      oneOf:
+        - $ref: work-orders.yaml#/WorkOrderListCustomer
+        - $ref: work-orders.yaml#/WorkOrderListCustomerDeleted
+        - type: 'null'
+    name:
+      type: string
+      description: Nazwa transzy — tekst (panel wyświetla bez interpretacji znaczników).
+      maxLength: 200
+    sharePercent:
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 100
+        - type: 'null'
+    amount:
+      oneOf:
+        - $ref: common.yaml#/Money
+        - type: 'null'
+    status:
+      type: string
+      enum: [planned]
+    version:
+      type: integer
+      minimum: 1
 UnpaidCount:
   type: object
   description: Liczba transz i ich suma.
@@ -415,8 +457,11 @@ UnpaidPaymentMilestoneList:
     items:
       type: array
       maxItems: 100
+      description: Transze `invoiced` (widoki `unpaid` i `overdue`) albo `planned` (widok `planned`, EVM-059) — rozróżnia `status`.
       items:
-        $ref: '#/UnpaidPaymentMilestone'
+        oneOf:
+          - $ref: '#/UnpaidPaymentMilestone'
+          - $ref: '#/PlannedPaymentMilestone'
     nextCursor:
       description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie.
       oneOf:

@@ -8,7 +8,7 @@ import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
-import type { WorkOrderStatus } from '../domain/work-order-status.ts';
+import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-status.ts';
 import { visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
 
@@ -313,6 +313,8 @@ export interface VisibleOrderRef {
   readonly number: string;
   readonly title: string;
   readonly customerId: string | null;
+  /** Settled or cancelled (PO-8). */
+  readonly closed: boolean;
 }
 
 /**
@@ -328,9 +330,14 @@ export async function findVisibleRefs(
   if (ids.length === 0) return new Map();
   const rows = await db
     .selectFrom('work_orders.work_orders')
-    .select(['id', 'number', 'title', 'customer_id'])
+    .select(['id', 'number', 'title', 'customer_id', 'status'])
     .where(sql<SqlBool>`${sql.ref('work_orders.work_orders.id')} = any(${[...ids]}::uuid[])`)
     .where(visibleWorkOrders(principal))
     .execute();
-  return new Map(rows.map((row) => [row.id, { number: row.number, title: row.title, customerId: row.customer_id }]));
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      { number: row.number, title: row.title, customerId: row.customer_id, closed: CLOSED_STATUSES.includes(row.status) },
+    ]),
+  );
 }

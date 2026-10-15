@@ -82,3 +82,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`, po EVM-058)
+- 2026-10-15 — backend: widok `view=planned` na `listUnpaidPaymentMilestones` (kontrakt, zapytanie z polityką, testy `EVM-059 AC1–AC4`); panel (chip, dialog, stany AC5) — krok web-developera (backend-developer)

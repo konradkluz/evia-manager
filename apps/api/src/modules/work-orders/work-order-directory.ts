@@ -24,6 +24,8 @@ export interface WorkOrderListRef {
   readonly number: string;
   readonly title: string;
   readonly customerId: string | null;
+  /** Settled or cancelled (PO-8) — "Do wystawienia" (EVM-059) leaves such orders out. */
+  readonly closed: boolean;
 }
 
 export interface WorkOrderDirectory {

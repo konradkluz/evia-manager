@@ -56,6 +56,8 @@ import { UNPAID_PAYMENTS_KEY, WORK_ORDER_PAYMENTS_KEY } from '../work-orders/que
 import { retryMinutes } from './login-failure.tsx';
 
 /** The server did not accept the cursor (changed list, expired, other filters): `invalid_cursor`. */
+// the panel asks for the issued milestones only until the view "Do wystawienia" (EVM-059) is shown here
+const isIssued = (item: UnpaidPaymentMilestoneList['items'][number]): item is UnpaidPaymentMilestone => item.status !== 'planned';
 const isBadCursor = (error: unknown): boolean => error instanceof ApiError && error.status === 400 && error.code === 'invalid_cursor';
 
 interface LoadedPage {
@@ -358,7 +360,7 @@ export function PaymentsPage() {
               {t('payments.list.counterSort', { counted: countText(t, shown.summary.filtered.count) })}
             </p>
           </div>
-          <UnpaidTable items={shown.items} role={role} online={online} onAction={act} />
+          <UnpaidTable items={shown.items.filter(isIssued)} role={role} online={online} onAction={act} />
           <p className="text-end text-body-sm font-semibold text-text-primary tabular-nums">
             {t('payments.list.total', {
               counted: countText(t, shown.summary.filtered.count),

@@ -44,6 +44,11 @@ export const unpaidQuerySchema = z.strictObject(unpaidQueryShape).superRefine((q
   if (query.dueFrom !== undefined && query.dueTo !== undefined && query.dueFrom > query.dueTo) {
     context.addIssue({ code: 'custom', path: ['dueTo'], message: 'before dueFrom' });
   }
+  // "Do wystawienia" (EVM-059): a milestone not yet invoiced has no due date — a range of due days has nothing to narrow
+  if (query.view === 'planned') {
+    if (query.dueFrom !== undefined) context.addIssue({ code: 'custom', path: ['dueFrom'], message: 'not for planned' });
+    if (query.dueTo !== undefined) context.addIssue({ code: 'custom', path: ['dueTo'], message: 'not for planned' });
+  }
 });
 
 /** The query as the reader needs it: defaults applied. */
@@ -85,6 +90,40 @@ export function parsePosition(parts: readonly string[]): Position | undefined {
 }
 
 export const positionParts = (item: Position): string[] => [item.dueDate, item.id];
+
+/**
+ * Where the next page of "Do wystawienia" starts (EVM-059): the order (its number and identifier) and the `position` of the last
+ * milestone shown. The order is total: number of the order, identifier of the order, `position`.
+ */
+export interface PlannedPosition {
+  readonly number: string;
+  readonly workOrderId: string;
+  readonly position: number;
+}
+
+const plannedPositionSchema = z.tuple([
+  z.string().min(1).max(32),
+  z.uuid(),
+  z
+    .string()
+    .regex(/^[0-9]{1,2}$/)
+    .transform(Number)
+    .pipe(z.int().min(1).max(20)),
+]);
+
+/** @returns the position as a typed value, or `undefined` for parts that do not fit */
+export function parsePlannedPosition(parts: readonly string[]): PlannedPosition | undefined {
+  const parsed = plannedPositionSchema.safeParse(parts);
+  return parsed.success ? { number: parsed.data[0], workOrderId: parsed.data[1], position: parsed.data[2] } : undefined;
+}
+
+export const plannedPositionParts = (item: PlannedPosition): string[] => [item.number, item.workOrderId, String(item.position)];
+
+/** The number of the order, then its identifier — the order of the orders in "Do wystawienia" (identifiers break a tie, numbers are unique). */
+export const compareOrders = (
+  a: { readonly number: string; readonly id: string },
+  b: { readonly number: string; readonly id: string },
+): number => (a.number < b.number ? -1 : a.number > b.number ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const dayNumber = (day: string): number => Date.parse(`${day}T00:00:00Z`) / DAY_MS;
