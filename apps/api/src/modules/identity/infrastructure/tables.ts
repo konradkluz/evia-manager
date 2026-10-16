@@ -47,16 +47,16 @@ export interface PasskeysTable {
 export interface OneTimeLinksTable {
   id: Generated<string>;
   user_id: string;
-  purpose: 'account_activation';
+  purpose: 'account_activation' | 'password_reset';
   token_hash: Buffer;
-  issued_by: 'cli' | 'invitation';
+  issued_by: 'cli' | 'invitation' | 'password_reset';
   issued_at: Date;
   expires_at: Date;
   used_at: Date | null;
   superseded_at: Date | null;
 }
 
-export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired';
+export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired' | 'password_reset';
 
 export interface SessionsTable {
   id: Generated<string>;
