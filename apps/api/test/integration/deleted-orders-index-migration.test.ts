@@ -29,7 +29,8 @@ beforeAll(async () => {
   // the helper has written the projection of both orders (the shape of 0023 is the shape of the helper)
   expect(JSON.parse(await snapshot())).toHaveLength(2);
   snapshotBefore = await snapshot();
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0033_deleted_orders_index']);
+  // later migrations (e.g. 0035+) run in the same call; this test is about 0033 only
+  expect((await migrateToLatest(db, MIGRATIONS)).applied.filter((name) => name <= '0034')).toEqual(['0033_deleted_orders_index']);
 });
 afterAll(async () => {
   await db.destroy();

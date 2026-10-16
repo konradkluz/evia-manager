@@ -106,7 +106,7 @@ export class AdministratorBootstrap {
 
       const token = newToken();
       const expiresAt = new Date(now.getTime() + ACTIVATION_LINK_TTL_MS);
-      await insertLink(tx, { userId, tokenHash: hashToken(token), issuedAt: now, expiresAt });
+      await insertLink(tx, { userId, tokenHash: hashToken(token), issuedAt: now, expiresAt, issuedBy: 'cli' });
       await publish({
         type: 'activation_link.issued',
         actor: { type: 'system' },

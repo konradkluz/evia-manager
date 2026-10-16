@@ -11,7 +11,17 @@
  */
 import { PgBoss } from 'pg-boss';
 import type { Logger } from '../logging/logger.ts';
-import { assertJobName, runHandler, jobPayloadSchema, type JobHandler, type JobQueue, type JobSchedule } from './job-queue.ts';
+import {
+  assertJobName,
+  jobPayloadSchema,
+  runHandler,
+  type JobHandler,
+  type JobQueue,
+  type JobSchedule,
+  type QueueRetryPolicy,
+  type SendOptions,
+  type WorkOptions,
+} from './job-queue.ts';
 
 export const SCHEMA = 'pgboss';
 const DAY_SECONDS = 86_400;
@@ -42,13 +52,15 @@ export interface PgBossJobQueueOptions {
 export class PgBossJobQueue implements JobQueue {
   readonly #boss: PgBoss;
   readonly #logger: Logger;
-  readonly #retryDelay: number;
+  /** Set by the tests only: overrides the delay of every queue, whatever its policy says. */
+  readonly #retryDelayOverride: number | undefined;
   readonly #polling: number;
-  readonly #queues = new Set<string>();
+  /** The queues that exist for this process; `true` when the settings of a policy were applied to it. */
+  readonly #queues = new Map<string, boolean>();
 
   constructor(options: PgBossJobQueueOptions) {
     this.#logger = options.logger;
-    this.#retryDelay = options.retryDelaySeconds ?? QUEUE_SETTINGS.retryDelay;
+    this.#retryDelayOverride = options.retryDelaySeconds;
     this.#polling = options.pollingIntervalSeconds ?? DEFAULT_POLLING_SECONDS;
     this.#boss = new PgBoss({
       connectionString: options.connectionString,
@@ -78,8 +90,8 @@ export class PgBossJobQueue implements JobQueue {
     await this.#boss.stop({ graceful: true, close: true, timeout: 30_000 });
   }
 
-  async work(name: string, handler: JobHandler): Promise<void> {
-    await this.#ensureQueue(name);
+  async work(name: string, handler: JobHandler, options: WorkOptions = {}): Promise<void> {
+    await this.#ensureQueue(name, options.retry);
     await this.#boss.work(
       name,
       { batchSize: 1, localConcurrency: 1, pollingIntervalSeconds: this.#polling },
@@ -92,20 +104,37 @@ export class PgBossJobQueue implements JobQueue {
     await this.#boss.schedule(name, schedule.cron, { ids: [] }, { tz: schedule.timezone });
   }
 
-  async send(name: string, ids: readonly string[]): Promise<void> {
+  async send(name: string, ids: readonly string[], options: SendOptions = {}): Promise<void> {
     assertJobName(name);
     const payload = jobPayloadSchema.parse({ ids });
     await this.#ensureQueue(name);
-    await this.#boss.send(name, payload);
+    // A deterministic id makes a second send of the same job a no-op (`ON CONFLICT DO NOTHING` of the library): no doubled work.
+    await this.#boss.send(name, payload, options.jobId === undefined ? {} : { id: options.jobId });
   }
 
-  async #ensureQueue(name: string): Promise<void> {
+  /**
+   * Creates the queue and its dead-letter queue. `createQueue` does not change a queue that exists, so the settings of a retry policy are
+   * applied once more with `updateQueue` — a queue created by an older version of the worker takes the policy at the next start.
+   */
+  async #ensureQueue(name: string, retry?: QueueRetryPolicy): Promise<void> {
     assertJobName(name);
-    if (this.#queues.has(name)) return;
+    const known = this.#queues.get(name);
+    if (known !== undefined && (retry === undefined || known)) return;
     const deadLetter = `${name}${DEAD_LETTER_SUFFIX}`;
-    const settings = { ...QUEUE_SETTINGS, retryDelay: this.#retryDelay, partition: false };
+    const settings = { ...QUEUE_SETTINGS, retryDelay: this.#retryDelayOverride ?? QUEUE_SETTINGS.retryDelay, partition: false };
+    const policy = retry === undefined ? {} : this.#policySettings(retry);
     await this.#boss.createQueue(deadLetter, { ...settings, retryLimit: 0 });
-    await this.#boss.createQueue(name, { ...settings, deadLetter });
-    this.#queues.add(name);
+    await this.#boss.createQueue(name, { ...settings, ...policy, deadLetter });
+    if (retry !== undefined) await this.#boss.updateQueue(name, policy);
+    this.#queues.set(name, retry !== undefined);
+  }
+
+  #policySettings(retry: QueueRetryPolicy) {
+    return {
+      retryLimit: retry.retryLimit,
+      retryDelay: this.#retryDelayOverride ?? retry.retryDelaySeconds,
+      retryBackoff: retry.retryBackoff,
+      ...(retry.retryDelayMaxSeconds === undefined ? {} : { retryDelayMax: retry.retryDelayMaxSeconds }),
+    };
   }
 }

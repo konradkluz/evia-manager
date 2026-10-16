@@ -6,6 +6,7 @@
  */
 import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
+import { parseEmailAddress } from '../email/email-address.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -145,4 +146,72 @@ export function loadConfig(env: Env): AppConfig {
     trustedProxies: value.TRUSTED_PROXIES,
     cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
   };
+}
+
+/** Where the transactional e-mail goes (EVM-024 AC6): the transport is an explicit, required setting — there is no default. */
+export type EmailConfig =
+  { readonly transport: 'none' } | { readonly transport: 'smtp'; readonly host: string; readonly port: number; readonly from: string };
+
+/** The configuration of the worker process: everything the server has, plus the transport of e-mail (the API sends no mail and never reads `EMAIL_*`). */
+export interface WorkerConfig extends AppConfig {
+  readonly email: EmailConfig;
+}
+
+/**
+ * The hosts the SMTP transport may name (SR-API-13, fail closed): Mailpit of the development environment and the loopback of the machine.
+ * Mail can never leave through it — a real relay is the provider adapter of EVM-089, wrapped in the guard of recipients.
+ */
+export const SMTP_HOSTS = ['mailpit', 'localhost', '127.0.0.1', '::1'] as const;
+
+const emailSchema = z
+  .object({
+    NODE_ENV: commonShape.NODE_ENV,
+    EMAIL_TRANSPORT: z.enum(['smtp', 'none']),
+    EMAIL_SMTP_HOST: z.enum(SMTP_HOSTS).optional(),
+    EMAIL_SMTP_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+    EMAIL_FROM: z
+      .string()
+      .refine((value) => parseEmailAddress(value) === value)
+      .optional(),
+  })
+  // `smtp` needs its host, port and sender — a transport that is half configured is an error at start, never a silent skip.
+  .superRefine((env, context) => {
+    if (env.EMAIL_TRANSPORT !== 'smtp') return;
+    for (const key of ['EMAIL_SMTP_HOST', 'EMAIL_SMTP_PORT', 'EMAIL_FROM'] as const) {
+      if (env[key] === undefined) context.addIssue({ code: 'custom', path: [key] });
+    }
+    // Staging and production (and a missing NODE_ENV, which means production) send through the provider of EVM-089, never through SMTP.
+    if (env.NODE_ENV === 'production') context.addIssue({ code: 'custom', path: ['EMAIL_TRANSPORT'] });
+  });
+
+/** The full configuration of the worker: the settings of the server and the transport of e-mail; one error names the keys of both. */
+export function loadWorkerConfig(env: Env): WorkerConfig {
+  const keys = new Set<string>();
+  const collect = (action: () => void): void => {
+    try {
+      action();
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      for (const key of error.keys) keys.add(key);
+    }
+  };
+  let base: AppConfig | undefined;
+  let email: z.output<typeof emailSchema> | undefined;
+  collect(() => {
+    base = loadConfig(env);
+  });
+  collect(() => {
+    email = parseEnv(emailSchema, env);
+  });
+  if (base === undefined || email === undefined) throw new ConfigError([...keys].sort());
+  const transport: EmailConfig =
+    email.EMAIL_TRANSPORT === 'none'
+      ? { transport: 'none' }
+      : {
+          transport: 'smtp',
+          host: email.EMAIL_SMTP_HOST as string,
+          port: email.EMAIL_SMTP_PORT as number,
+          from: email.EMAIL_FROM as string,
+        };
+  return { ...base, email: transport };
 }

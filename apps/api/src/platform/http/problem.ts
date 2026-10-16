@@ -26,6 +26,7 @@ export const PROBLEMS = Object.freeze({
   not_found: { status: 404, title: 'Not found' },
   method_not_allowed: { status: 405, title: 'Method not allowed' },
   id_conflict: { status: 409, title: 'Identifier already in use' },
+  email_conflict: { status: 409, title: 'A user with this e-mail address already exists' },
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
@@ -61,6 +62,8 @@ export interface ProblemExtras {
   readonly errors?: readonly FieldError[];
   /** Sent as the Retry-After header (429, 503, 409 idempotency_in_progress). */
   readonly retryAfterSeconds?: number;
+  /** Only `email_conflict` (EVM-024): the id of the existing account that is visible in the list of users — never an address or a name. */
+  readonly existingUserId?: string;
 }
 
 /** Thrown by handlers and guards to answer with a problem of the given code. */
@@ -83,15 +86,24 @@ export interface ProblemBody {
   readonly code: ProblemCode;
   readonly traceId: string;
   readonly errors?: readonly FieldError[];
+  readonly existingUserId?: string;
 }
 
-export function problemBody(code: ProblemCode, traceId: string, errors?: readonly FieldError[]): ProblemBody {
+export function problemBody(code: ProblemCode, traceId: string, errors?: readonly FieldError[], existingUserId?: string): ProblemBody {
   const { status, title } = PROBLEMS[code];
-  return { type: `/problems/${code}`, title, status, code, traceId, ...(errors === undefined ? {} : { errors }) };
+  return {
+    type: `/problems/${code}`,
+    title,
+    status,
+    code,
+    traceId,
+    ...(errors === undefined ? {} : { errors }),
+    ...(existingUserId === undefined ? {} : { existingUserId }),
+  };
 }
 
 export function sendProblem(response: Response, code: ProblemCode, traceId: string, extras: ProblemExtras = {}): void {
-  const body = problemBody(code, traceId, extras.errors);
+  const body = problemBody(code, traceId, extras.errors, extras.existingUserId);
   if (extras.retryAfterSeconds !== undefined) response.set('Retry-After', String(extras.retryAfterSeconds));
   response.status(body.status).set('Content-Type', PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
 }

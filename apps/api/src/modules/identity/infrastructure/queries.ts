@@ -4,7 +4,7 @@
  * transaction) narrowed to the identity tables, so a use case decides what runs in one transaction.
  */
 import { sql } from 'kysely';
-import type { IdentityDb, RevokeReason, SessionsTable, UsersTable } from './tables.ts';
+import type { IdentityDb, OneTimeLinksTable, RevokeReason, SessionsTable, UsersTable } from './tables.ts';
 
 export interface LinkRecord {
   readonly linkId: string;
@@ -318,7 +318,7 @@ export async function findPasskeyOfUser(db: IdentityDb, userId: string, credenti
 
 export async function insertLink(
   db: IdentityDb,
-  link: { userId: string; tokenHash: Buffer; issuedAt: Date; expiresAt: Date },
+  link: { userId: string; tokenHash: Buffer; issuedAt: Date; expiresAt: Date; issuedBy: OneTimeLinksTable['issued_by'] },
 ): Promise<string> {
   const row = await db
     .insertInto('identity.one_time_links')
@@ -326,7 +326,7 @@ export async function insertLink(
       user_id: link.userId,
       purpose: 'account_activation',
       token_hash: link.tokenHash,
-      issued_by: 'cli',
+      issued_by: link.issuedBy,
       issued_at: link.issuedAt,
       expires_at: link.expiresAt,
       used_at: null,
@@ -337,7 +337,24 @@ export async function insertLink(
   return row.id;
 }
 
-/** Supersedes every unused, not yet superseded activation link; @returns their ids. */
+/**
+ * Supersedes the unused, not yet superseded activation links of ONE account; @returns their ids. An invitation or a resend must never end the
+ * link of another person (SR-AUTH-12, ASVS V6.4.1, CWE-613, CWE-639): the filter on `user_id` is the whole point of this function.
+ */
+export async function supersedeOpenLinksOfUser(db: IdentityDb, userId: string, now: Date): Promise<string[]> {
+  const rows = await db
+    .updateTable('identity.one_time_links')
+    .set({ superseded_at: now })
+    .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .where('superseded_at', 'is', null)
+    .where('purpose', '=', 'account_activation')
+    .returning('id')
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/** Supersedes every unused, not yet superseded activation link of EVERY account (the command that activates the first Administrator only); @returns their ids. */
 export async function supersedeOpenLinks(db: IdentityDb, now: Date): Promise<string[]> {
   const rows = await db
     .updateTable('identity.one_time_links')
@@ -465,4 +482,152 @@ export async function rotateSession(db: IdentityDb, sessionId: string, userId: s
 /** The keys of an account in the form the options of a ceremony need. */
 export async function listPasskeysOfUser(db: IdentityDb, userId: string) {
   return db.selectFrom('identity.passkeys').select(['credential_id', 'transports']).where('user_id', '=', userId).execute();
+}
+
+export interface UserRow {
+  readonly id: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly role: UsersTable['role'];
+  readonly status: UsersTable['status'];
+  readonly deletedAt: Date | null;
+}
+
+const USER_COLUMNS = ['id', 'email', 'display_name as displayName', 'role', 'status', 'deleted_at as deletedAt'] as const;
+
+/** The account of a normalised address — also a deleted one (the address stays taken: `users.email` is unique for every row). */
+export async function findUserByEmail(db: IdentityDb, email: string): Promise<UserRow | undefined> {
+  return db.selectFrom('identity.users').select(USER_COLUMNS).where('email', '=', email).executeTakeFirst();
+}
+
+/** The account by id, `FOR UPDATE` when `lock` — the FIRST lock of every unit of work that also locks an outbox row (the order of locks). */
+export async function findUserById(db: IdentityDb, id: string, lock: boolean = false): Promise<UserRow | undefined> {
+  let query = db.selectFrom('identity.users').select(USER_COLUMNS).where('id', '=', id);
+  if (lock) query = query.forUpdate();
+  return query.executeTakeFirst();
+}
+
+/** The active, not deleted Administrators: the recipients of an alert (SR-LOG-07). */
+export async function listActiveAdministratorIds(db: IdentityDb): Promise<string[]> {
+  const rows = await db
+    .selectFrom('identity.users')
+    .select('id')
+    .where('role', '=', 'administrator')
+    .where('status', '=', 'active')
+    .where('deleted_at', 'is', null)
+    .orderBy('id')
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+export interface NewUser {
+  readonly id: string;
+  readonly email: string;
+  readonly displayName: string;
+  readonly role: UsersTable['role'];
+  readonly webauthnUserHandle: Buffer;
+  readonly createdBy: string;
+  readonly now: Date;
+}
+
+/** Inserts an account in the state `invited`. @returns false when the `id` is taken (an INSERT only: never an upsert, never a look at the content) */
+export async function insertInvitedUser(db: IdentityDb, user: NewUser): Promise<boolean> {
+  const row = await db
+    .insertInto('identity.users')
+    .values({
+      id: user.id,
+      email: user.email,
+      display_name: user.displayName,
+      role: user.role,
+      status: 'invited',
+      webauthn_user_handle: user.webauthnUserHandle,
+      last_login_at: null,
+      deactivated_at: null,
+      created_at: user.now,
+      created_by: user.createdBy,
+      updated_at: user.now,
+      updated_by: user.createdBy,
+      deleted_at: null,
+      deleted_by: null,
+    })
+    .onConflict((conflict) => conflict.column('id').doNothing())
+    .returning('id')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+export interface UserListRow extends UserRow {
+  readonly lastLinkIssuedAt: Date | null;
+  readonly lastLinkExpiresAt: Date | null;
+  readonly lastLinkUsedAt: Date | null;
+  readonly lastLinkSupersededAt: Date | null;
+}
+
+/** The display name of a user (the sort key of a cursor position) — also a deleted one, so a user deleted while someone pages keeps the position. */
+export async function findDisplayName(db: IdentityDb, id: string): Promise<string | undefined> {
+  const row = await db.selectFrom('identity.users').select('display_name').where('id', '=', id).executeTakeFirst();
+  return row?.display_name;
+}
+
+export interface UserPageRequest {
+  readonly limit: number;
+  readonly after: { readonly displayName: string; readonly id: string } | undefined;
+}
+
+/**
+ * ONE statement per page of the list of users (W-16): the accounts that are not deleted with their LATEST link (a lateral join, no query per
+ * row), in the order of the list — the display name in the ICU `pl-PL` collation of the database, then the id — cut by a keyset (no OFFSET).
+ * One row more than the limit is read to know whether a next page exists.
+ */
+export async function readUserPage(db: IdentityDb, request: UserPageRequest): Promise<UserListRow[]> {
+  let query = db
+    .selectFrom('identity.users as u')
+    .leftJoinLateral(
+      (eb) =>
+        eb
+          .selectFrom('identity.one_time_links as l')
+          .select(['l.issued_at', 'l.expires_at', 'l.used_at', 'l.superseded_at'])
+          .whereRef('l.user_id', '=', 'u.id')
+          .where('l.purpose', '=', 'account_activation')
+          .orderBy('l.issued_at', 'desc')
+          .orderBy('l.id', 'desc')
+          .limit(1)
+          .as('link'),
+      (join) => join.onTrue(),
+    )
+    .select([
+      'u.id',
+      'u.email',
+      'u.display_name as displayName',
+      'u.role',
+      'u.status',
+      'u.deleted_at as deletedAt',
+      'link.issued_at as lastLinkIssuedAt',
+      'link.expires_at as lastLinkExpiresAt',
+      'link.used_at as lastLinkUsedAt',
+      'link.superseded_at as lastLinkSupersededAt',
+    ])
+    .where('u.deleted_at', 'is', null);
+  const { after } = request;
+  if (after !== undefined) {
+    query = query.where((eb) => eb(eb.refTuple('u.display_name', 'u.id'), '>', eb.tuple(after.displayName, after.id)));
+  }
+  return query
+    .orderBy('u.display_name')
+    .orderBy('u.id')
+    .limit(request.limit + 1)
+    .execute();
+}
+
+/** The latest link of one account (the representation of the account after an invitation or a resend). */
+export async function findLatestLink(db: IdentityDb, userId: string) {
+  return db
+    .selectFrom('identity.one_time_links')
+    .select(['issued_at', 'expires_at', 'used_at', 'superseded_at'])
+    .where('user_id', '=', userId)
+    .where('purpose', '=', 'account_activation')
+    .orderBy('issued_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(1)
+    .executeTakeFirst();
 }

@@ -2,6 +2,7 @@ import { ForbiddenException, HttpException, HttpStatus, UnauthorizedException, t
 import type { Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { ProblemFilter } from '../../src/platform/http/problem.filter.ts';
+import { ProblemException, problemBody } from '../../src/platform/http/problem.ts';
 import { traceIdOf } from '../../src/platform/http/request-context.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
 import { LogCapture } from '../support/app.ts';
@@ -33,6 +34,25 @@ describe('problem filter mapping (EVM-008 AC4; SR-API-01)', () => {
     const { filter, host, sent } = harness();
     filter.catch(exception, host);
     expect(sent()).toMatchObject({ code, status });
+  });
+
+  it('EVM-024 AC7 email_conflict is a 409; the id of the existing account is in the body only when the use case gives it — never an address or a name', () => {
+    const { filter, host, sent } = harness();
+    const existingUserId = '0198f2a0-7b1c-7c4e-8d3a-5f6b7c8d9e01';
+    filter.catch(new ProblemException('email_conflict', { existingUserId }), host);
+    expect(sent()).toEqual({
+      type: '/problems/email_conflict',
+      title: 'A user with this e-mail address already exists',
+      status: 409,
+      code: 'email_conflict',
+      traceId: 'c'.repeat(32),
+      existingUserId,
+    });
+    const deleted = harness();
+    deleted.filter.catch(new ProblemException('email_conflict'), deleted.host);
+    expect(deleted.sent()).not.toHaveProperty('existingUserId');
+    expect(problemBody('email_conflict', 'd'.repeat(32), undefined, existingUserId)).toMatchObject({ existingUserId });
+    expect(problemBody('email_conflict', 'd'.repeat(32))).not.toHaveProperty('existingUserId');
   });
 
   it('EVM-008 AC4 after headers were sent the error is only logged', () => {

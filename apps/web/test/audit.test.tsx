@@ -649,8 +649,12 @@ describe('W-18: permissions (EVM-029 AC7)', () => {
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 
-  it('EVM-029 AC7 /administration leads to the log of an Administrator', async () => {
-    const { history } = await renderPanel('/administration', auditApi([ok()]));
+  it('EVM-029 AC7 /administration leads to the first tab (W-16, EVM-024) and the tab "Dziennik audytu" to the log of an Administrator', async () => {
+    const api = auditApi([ok()]);
+    api.set('GET /api/v1/users', () => json(200, { items: [], nextCursor: null }));
+    const { history } = await renderPanel('/administration', api);
+    expect(history.location.pathname).toBe('/administration/users');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Dziennik audytu' }));
     await screen.findByRole('table');
     expect(history.location.pathname).toBe(AUDIT_PATH);
   });

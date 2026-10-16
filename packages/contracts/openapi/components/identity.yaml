@@ -474,3 +474,99 @@ AssignableUserList:
     nextCursor:
       description: Zawsze `null` — lista ma jedną stronę (kursor dojdzie addytywnie, gdy użytkowników będzie więcej niż 100).
       type: 'null'
+UserStatus:
+  type: string
+  description: Status konta — `invited` („Oczekuje na aktywację”), `active`, `deactivated`.
+  enum: [invited, active, deactivated]
+InvitationState:
+  type: string
+  description: >-
+    Stan zaproszenia konta `invited` (EVM-024): `sending` — e-mail czeka w kolejce albo jest ponawiany; `sent` — wysłany, link ważny;
+    `failed` — nie wysłano po wyczerpaniu prób („Nie wysłano”, akcja „Wyślij ponownie”); `expired` — ostatni link wygasł.
+  enum: [sending, sent, failed, expired]
+UserInvitation:
+  type: object
+  description: Stan ostatniego zaproszenia konta `invited`. Bez adresu e-mail i bez tokenu.
+  required: [state, sentAt, expiresAt]
+  properties:
+    state:
+      $ref: '#/InvitationState'
+    sentAt:
+      description: Chwila wysłania e-maila albo `null`, gdy go jeszcze nie wysłano.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    expiresAt:
+      description: Koniec ważności linku (72 godziny od wysłania) albo `null`, gdy link jeszcze nie powstał.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+User:
+  type: object
+  description: >-
+    Konto na liście użytkowników Administratora (W-16). Zawiera dane osobowe (DO-P: e-mail i nazwa) — tylko dla Administratora,
+    bez hasła, kluczy dostępu, adresu IP i metod MFA.
+  required: [id, email, displayName, role, status, invitation]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    email:
+      type: string
+      description: Adres e-mail konta (małe litery) — bez ścisłej walidacji formatu w odpowiedzi, bo konta z polecenia serwera mogą mieć adres luźniejszy niż zaproszenia.
+      maxLength: 254
+    displayName:
+      type: string
+      maxLength: 200
+    role:
+      $ref: '#/UserRole'
+    status:
+      $ref: '#/UserStatus'
+    invitation:
+      description: Stan zaproszenia dla konta `invited`; `null` dla pozostałych statusów.
+      oneOf:
+        - $ref: '#/UserInvitation'
+        - type: 'null'
+UserList:
+  type: object
+  required: [items, nextCursor]
+  properties:
+    items:
+      type: array
+      description: Użytkownicy (poza usuniętymi) posortowani po nazwie wyświetlanej (kolacja `pl-PL`) i identyfikatorze.
+      maxItems: 100
+      items:
+        $ref: '#/User'
+    nextCursor:
+      description: Kursor następnej strony (nieprzezroczysty, ważny 30 minut) albo `null` na ostatniej stronie.
+      oneOf:
+        - type: string
+          maxLength: 512
+        - type: 'null'
+InviteUserRequest:
+  type: object
+  description: >-
+    Zaproszenie użytkownika (EVM-024). `id` (UUIDv7) nadaje klient (ponowienie używa tego samego `id` i `Idempotency-Key`). Adres
+    e-mail jest normalizowany (NFC, małe litery); adres z CR/LF, cudzysłowem, `<>,;` lub więcej niż jednym `@` — `400 validation_failed`
+    (`invalid_email`). Nazwa wyświetlana to zwykły tekst 1–200 znaków bez znaków sterujących.
+  additionalProperties: false
+  required: [id, email, displayName, role]
+  properties:
+    id:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    email:
+      type: string
+      maxLength: 254
+    displayName:
+      type: string
+      maxLength: 200
+    role:
+      $ref: '#/UserRole'

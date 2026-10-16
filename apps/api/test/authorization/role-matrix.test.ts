@@ -104,7 +104,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-057 AC8 EVM-042 AC6 EVM-060 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the deletion and the restoration of an order (Administrator only), the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel — for the deletion of a milestone (a step-up), the Administrator with a fresh key', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-057 AC8 EVM-042 AC6 EVM-060 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the deletion and the restoration of an order (Administrator only), the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel — for the deletion of a milestone (a step-up), the Administrator with a fresh key; the same for the resend of an invitation (EVM-024)', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = [
       'getWorkOrderTemplate',
@@ -154,10 +154,14 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       return writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
     };
     const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers, ...administratorOnly];
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, 'deletePaymentMilestone']));
-    expect(idor.filter((cell) => cell.operationId === 'deletePaymentMilestone').map((cell) => cell.caller)).toEqual([
-      { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },
-    ]);
+    // the operations with a step-up: the only caller they let through is the Administrator with a fresh key (EVM-057; EVM-024: the resend of an invitation)
+    const stepUp = ['deletePaymentMilestone', 'resendUserInvitation'];
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
+    for (const operationId of stepUp) {
+      expect(idor.filter((cell) => cell.operationId === operationId).map((cell) => cell.caller)).toEqual([
+        { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },
+      ]);
+    }
     for (const operationId of all) {
       expect(
         idor

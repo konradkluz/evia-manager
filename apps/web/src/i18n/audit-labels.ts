@@ -19,6 +19,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'passkey.registered': 'Dodanie klucza dostępu',
   'activation_link.issued': 'Wydanie linku aktywacyjnego',
   'account.activated': 'Aktywacja konta',
+  // EVM-024: only the labels the contract needs (the screen W-16 itself is a story of the panel)
+  'user.invited': 'Zaproszenie użytkownika',
+  'invitation.resent': 'Ponowne wysłanie zaproszenia',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -76,7 +79,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     ],
   },
   { label: 'Hasło i drugi krok', actions: ['account.password_set', 'passkey.registered'] },
-  { label: 'Użytkownicy', actions: ['activation_link.issued', 'account.activated', 'account.emergency_reset'] },
+  {
+    label: 'Użytkownicy',
+    actions: ['user.invited', 'invitation.resent', 'activation_link.issued', 'account.activated', 'account.emergency_reset'],
+  },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },

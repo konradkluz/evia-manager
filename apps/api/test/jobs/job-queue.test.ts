@@ -51,6 +51,21 @@ describe('the job queue interface (EVM-034 W11; ADR-0010; TM-26, TM-72)', () => 
     expect(await runHandler(() => Promise.resolve(undefined), undefined)).toBeUndefined();
   });
 
+  it('EVM-024 AC5 a deterministic job id makes the second send of the same job a no-op; the retry policy of a queue is kept per queue', async () => {
+    const queue = new InMemoryJobQueue();
+    const policy = { retryLimit: 5, retryDelaySeconds: 30, retryBackoff: true, retryDelayMaxSeconds: 480 };
+    await queue.work('email.send', () => Promise.resolve({ sent: 1 }), { retry: policy });
+    await queue.work('overview.sample-job', () => Promise.resolve(undefined));
+    const id = uuidv7();
+    await queue.send('email.send', [id], { jobId: id });
+    await queue.send('email.send', [id], { jobId: id });
+    await queue.send('email.send', [id]);
+    await queue.send('overview.sample-job', [id], { jobId: id });
+    expect(queue.pending.map((job) => job.name)).toEqual(['email.send', 'email.send', 'overview.sample-job']);
+    expect(queue.retryPolicies.get('email.send')).toEqual(policy);
+    expect(queue.retryPolicies.has('overview.sample-job')).toBe(false);
+  });
+
   it('EVM-034 W11 the in-memory queue delivers what was sent, one by one, and validates like the real one', async () => {
     const queue = new InMemoryJobQueue();
     const seen: string[][] = [];

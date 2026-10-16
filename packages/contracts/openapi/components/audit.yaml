@@ -9,6 +9,8 @@ AuditAction:
     - account.password_set
     - passkey.registered
     - account.activated
+    - user.invited
+    - invitation.resent
     - session.created
     - session.revoked
     - session.expired

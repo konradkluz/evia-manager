@@ -49,7 +49,7 @@ export interface OneTimeLinksTable {
   user_id: string;
   purpose: 'account_activation';
   token_hash: Buffer;
-  issued_by: 'cli';
+  issued_by: 'cli' | 'invitation';
   issued_at: Date;
   expires_at: Date;
   used_at: Date | null;

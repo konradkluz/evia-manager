@@ -61,15 +61,28 @@ describe('the architecture of the read model (EVM-034; ADR-0017 W2, W11)', () =>
     expect(offenders).toEqual([]);
   });
 
-  it('EVM-034 W11 the job queue library is imported only by its adapter and by the migration of its schema; a module and the platform never import the adapter', () => {
+  it('EVM-034 W11 the job queue library is imported only by its adapter; a module and the platform never import the adapter', () => {
     const offenders = sourceFiles(SRC)
       .map((file) => ({ file: relative(SRC, file).split(sep).join('/'), source: readFileSync(file, 'utf8') }))
       .filter(
         ({ file, source }) =>
-          (/from 'pg-boss'/.test(source) && !['platform/jobs/pg-boss-job-queue.ts', 'migrations/0024_jobs.ts'].includes(file)) ||
+          (/from 'pg-boss'/.test(source) && file !== 'platform/jobs/pg-boss-job-queue.ts') ||
           (/pg-boss-job-queue/.test(source) && !file.startsWith('worker/') && !file.startsWith('platform/jobs/')),
       )
       .map(({ file }) => file);
     expect(offenders).toEqual([]);
+  });
+
+  it('EVM-024 AC6 the SMTP library is imported only by its adapter; the adapter is imported only by platform/email and the worker (one way to send an e-mail)', () => {
+    const offenders = sourceFiles(SRC)
+      .map((file) => ({ file: relative(SRC, file).split(sep).join('/'), source: readFileSync(file, 'utf8') }))
+      .filter(
+        ({ file, source }) =>
+          (/from 'nodemailer'/.test(source) && file !== 'platform/email/smtp-email-sender.ts') ||
+          (/smtp-email-sender/.test(source) && !file.startsWith('worker/') && !file.startsWith('platform/email/')),
+      )
+      .map(({ file }) => file);
+    expect(offenders).toEqual([]);
+    expect(readFileSync(join(SRC, 'platform', 'email', 'smtp-email-sender.ts'), 'utf8')).toMatch(/from 'nodemailer'/);
   });
 });

@@ -40,6 +40,7 @@ import {
   newUnpaidServer,
   type UnpaidServer,
 } from './mock-unpaid.ts';
+import { answerInvite, answerResend, answerUserList, newUsersServer, type UsersServer } from './mock-users.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -120,6 +121,8 @@ export interface MockApi {
   procedureEdits: EditingState;
   /** EVM-055: the twelve invoiced instalments of W-11 (the unpaid list). */
   unpaid: UnpaidServer;
+  /** EVM-024: the accounts of W-16 (the list, the invitations and their idempotency keys). */
+  users: UsersServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -441,6 +444,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     },
     procedureEdits: new Map(),
     unpaid: newUnpaidServer(),
+    users: newUsersServer(),
     journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
@@ -545,6 +549,15 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       headers['x-csrf-token'] === sessionBody(api.session === 'none' ? 'enrollment' : api.session, undefined, active()).csrfToken;
     const body = (): unknown => JSON.parse(request.postData() ?? '{}');
 
+    // EVM-024: the resend of an invitation (W-16) — the account is anchored in the path; it needs the step-up like the invitation.
+    const resend = request.method() === 'POST' ? /^\/api\/v1\/users\/([^/]+)\/invitations$/.exec(url.pathname) : null;
+    if (resend !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+      if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+      return route.fulfill(answerResend(api.users, resend[1] ?? ''));
+    }
     // EVM-018: the four reads of one order (W-06) — the order is anchored in the path (a malformed id is 400, a missing or gone one 404).
     const orderRead =
       request.method() === 'GET'
@@ -983,6 +996,21 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         api.stepUp = 'fresh';
         api.csrf = 'csrf-rotated';
         return route.fulfill(ok(200, { csrfToken: api.csrf }));
+      }
+      case 'GET /api/v1/users': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        return route.fulfill(answerUserList(api.users, url.searchParams));
+      }
+      case 'POST /api/v1/users': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+        const invited = answerInvite(api.users, body() as Record<string, unknown>, headers['idempotency-key']);
+        // The answer is lost after the server has done the work: the retry with the same key must not make a second account.
+        if (invited.status === 201 && api.dropResponseNext.delete(key)) return route.abort('connectionreset');
+        return route.fulfill(invited);
       }
       case 'GET /api/v1/audit/events': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));

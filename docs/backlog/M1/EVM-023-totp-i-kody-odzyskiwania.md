@@ -9,6 +9,8 @@ priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
+path: pelna
+model: sonnet
 depends_on: [EVM-024]
 ---
 
@@ -105,3 +107,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC5 — podpowiedź dla Administratora po logowaniu kodem odzyskiwania zgodna z decyzją 16 (kod odzyskiwania niedostępny przy ponownym uwierzytelnieniu — S1 odrzucone)
+- 2026-10-16 — ścieżka `pelna` (uwierzytelnianie/uprawnienia), `model: sonnet`, realizacja lokalna z portem e-mail i Mailpit z EVM-024 — decyzja Konrada przy planowaniu kolejki 16.10

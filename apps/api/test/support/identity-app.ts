@@ -45,6 +45,8 @@ export interface IdentityApp extends TestApp {
 export const ISSUED_AT = '2026-10-01T08:00:00.000Z';
 
 export interface IdentityAppOptions {
+  /** A database the test migrated itself (to hand the app a wrapped handle of it); closed with the app. */
+  readonly database?: MigratedDatabase;
   readonly now?: string;
   readonly env?: Record<string, string | undefined>;
   readonly imports?: ModuleMetadata['imports'];
@@ -52,7 +54,7 @@ export interface IdentityAppOptions {
 }
 
 export async function createIdentityApp(options: IdentityAppOptions = {}): Promise<IdentityApp> {
-  const database = await migratedDatabase();
+  const database = options.database ?? (await migratedDatabase());
   const clock = new FixedClock(options.now ?? ISSUED_AT);
   const breaches = new FakeBreachedPasswords();
   const app = await createTestApp({

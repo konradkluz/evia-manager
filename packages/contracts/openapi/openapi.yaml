@@ -125,8 +125,12 @@ paths:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
     $ref: paths/timeline.yaml#/timelineEntry
+  /api/v1/users:
+    $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
     $ref: paths/identity.yaml#/assignableUsers
+  /api/v1/users/{userId}/invitations:
+    $ref: paths/identity.yaml#/userInvitations
   /api/v1/customers:
     $ref: paths/customers.yaml#/customers
   /api/v1/customers/search:

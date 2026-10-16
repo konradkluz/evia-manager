@@ -27,6 +27,13 @@ Problem:
       description: Identyfikator korelacji z logami serwera.
       pattern: '^[0-9a-f]{32}$'
       maxLength: 32
+    existingUserId:
+      type: string
+      format: uuid
+      description: >-
+        Tylko `409 email_conflict` (EVM-024): identyfikator istniejącego konta widocznego na liście użytkowników, aby W-16 mogło je
+        wskazać. Nigdy adres ani nazwa; dla konta usuniętego pole nie występuje.
+      maxLength: 36
     errors:
       type: array
       description: Błędy pól — tylko wskaźnik JSON Pointer i kod, nigdy wartość (SR-ERR-02).

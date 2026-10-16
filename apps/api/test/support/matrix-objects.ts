@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { sql } from 'kysely';
 import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
@@ -281,6 +282,21 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
   };
 }
 
+const USERS = '/api/v1/users';
+
+/**
+ * The IDOR fixture of the resend of an invitation (EVM-024 AC8; SR-AUTHZ-02, SR-AUTHZ-11, CWE-639): "own" is an account that waits for its
+ * activation; "foreign" is an EXISTING account that is soft deleted — the row is in the table, and only the rule of the use case (a deleted
+ * account is `404`, like one that never existed) keeps the caller from it.
+ */
+export async function userObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const own = await createUser(db, app.clock, { role: 'editor', status: 'invited' });
+  const foreign = await createUser(db, app.clock, { role: 'editor', status: 'invited' });
+  await sql`update identity.users set deleted_at = ${app.clock.now()} where id = ${foreign.id}`.execute(db);
+  return { resendUserInvitation: { own: () => `${USERS}/${own.id}/invitations`, foreign: () => `${USERS}/${foreign.id}/invitations` } };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -292,5 +308,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await scopeObjects(app)),
     ...(await timelineObjects(app)),
     ...(await paymentObjects(app)),
+    ...(await userObjects(app)),
   };
 }

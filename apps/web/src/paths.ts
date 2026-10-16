@@ -13,9 +13,11 @@ export const CUSTOMERS_PATH = '/customers';
 export const customerPath = (id: string): string => `${CUSTOMERS_PATH}/${encodeURIComponent(id)}`;
 /** W-11 (EVM-055): the unpaid instalments; the address carries only `view=overdue` — never a customer, a range of dates or a cursor. */
 export const PAYMENTS_PATH = '/payments';
-/** Administration (W-16, W-18; EVM-029): the audit log is the first page of it; only an Administrator sees it in the menu. */
+/** Administration (W-16, W-18; EVM-024, EVM-029): the users are its default page, the audit log the second; only an Administrator sees it in the menu. */
 export const ADMINISTRATION_PATH = '/administration';
 export const AUDIT_PATH = '/administration/audit';
+/** W-16 (EVM-024): the users of the office — the first, default page of the administration; never an e-mail or a name in the address. */
+export const USERS_PATH = '/administration/users';
 export const ACTIVATE_PATH = '/activate';
 export const MFA_SETUP_PATH = '/mfa-setup';
 export const LOGIN_PATH = '/login';

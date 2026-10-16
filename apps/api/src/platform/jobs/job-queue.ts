@@ -30,11 +30,36 @@ export interface JobSchedule {
   readonly timezone: string;
 }
 
+/**
+ * The retries of ONE queue (EVM-024 AC5): the library re-runs a handler that threw, after `retryDelaySeconds` (doubled each time with a
+ * jitter when `retryBackoff`, at most `retryDelayMaxSeconds`), at most `retryLimit` times. A queue without a policy has the default of
+ * the platform. The settings of a queue are applied when the queue is registered (`work`) — also to a queue that already exists.
+ */
+export interface QueueRetryPolicy {
+  readonly retryLimit: number;
+  readonly retryDelaySeconds: number;
+  readonly retryBackoff: boolean;
+  readonly retryDelayMaxSeconds?: number;
+}
+
+export interface WorkOptions {
+  readonly retry?: QueueRetryPolicy;
+}
+
+export interface SendOptions {
+  /**
+   * A deterministic identifier of the job (a UUID the sender owns, e.g. the id of an outbox row): sending the same one twice creates ONE job
+   * (the second send is a no-op), so a relay that hands a row over again can never double the work.
+   */
+  readonly jobId?: string;
+}
+
 /** A job with its schedule, as a module hands it to the composition root of the worker. */
 export interface JobDefinition {
   readonly name: string;
   readonly schedule?: JobSchedule;
   readonly handler: JobHandler;
+  readonly retry?: QueueRetryPolicy;
 }
 
 /**
@@ -59,11 +84,11 @@ export interface JobQueue {
   /** Graceful: waits for the running handlers, then releases the connections. */
   stop(): Promise<void>;
   /** Takes the jobs of the queue `name` (creates the queue and its dead-letter queue); one at a time. */
-  work(name: string, handler: JobHandler): Promise<void>;
+  work(name: string, handler: JobHandler, options?: WorkOptions): Promise<void>;
   /** The job `name` is created by the schedule (one run, however many workers run). */
   schedule(name: string, schedule: JobSchedule): Promise<void>;
   /** Enqueues a job with identifiers only. Refuses anything that is not a list of UUIDs. */
-  send(name: string, ids: readonly string[]): Promise<void>;
+  send(name: string, ids: readonly string[], options?: SendOptions): Promise<void>;
 }
 
 export function assertJobName(name: string): void {

@@ -14,14 +14,14 @@ import {
 } from '@evia/ui-web';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { ADMINISTRATION_PATH, AUDIT_PATH, CUSTOMERS_PATH, PAYMENTS_PATH, PRIVACY_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { ADMINISTRATION_PATH, CUSTOMERS_PATH, PAYMENTS_PATH, PRIVACY_PATH, USERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { TopBarSearch } from './top-bar-search.tsx';
 import { useOnline } from './use-online.ts';
 
 /** Router link for the UI library (typed paths of the panel). */
 const RouterLink: LinkComponent = ({ href, children, ...rest }) => (
-  <Link to={href as typeof WORK_ORDERS_PATH | typeof CUSTOMERS_PATH | typeof PAYMENTS_PATH | typeof AUDIT_PATH} {...rest}>
+  <Link to={href as typeof WORK_ORDERS_PATH | typeof CUSTOMERS_PATH | typeof PAYMENTS_PATH | typeof USERS_PATH} {...rest}>
     {children}
   </Link>
 );
@@ -65,7 +65,7 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
           {
             id: 'administration',
             label: t('nav.administration'),
-            href: AUDIT_PATH,
+            href: USERS_PATH,
             icon: ShieldCheck,
             current: pathname.startsWith(ADMINISTRATION_PATH),
           },

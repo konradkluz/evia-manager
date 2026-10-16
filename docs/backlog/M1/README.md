@@ -50,7 +50,8 @@ Kolumna „Ekrany”: identyfikatory z [`docs/ux/flows/README.md`](../../ux/flow
 | [EVM-016](EVM-016-pierwszy-administrator.md) | Pierwszy Administrator — aktywacja konta hasłem i kluczem dostępu, wylogowanie | story | P0 | backend-developer | EVM-008, EVM-014, EVM-015 | W-13, W-03, W-10 (pusty); audyt, macierz ról |
 | [EVM-067](EVM-067-logowanie-i-sesje.md) | Logowanie hasłem i kluczem dostępu, wygasanie i rotacja sesji | story | P0 | backend-developer | EVM-016 | W-01, W-02; P-11 |
 | [EVM-029](EVM-029-step-up-i-dziennik-audytu.md) | Ponowne uwierzytelnienie (step-up) i dziennik audytu dla Administratora | story | P1 | backend-developer | EVM-015, EVM-067 | W-04, W-18 |
-| [EVM-024](EVM-024-zaproszenie-uzytkownika.md) | Zaproszenie użytkownika i aktywacja konta | story | P1 | backend-developer | EVM-007, EVM-029 | W-16, W-13, W-03, W-04; e-mail |
+| [EVM-024](EVM-024-zaproszenie-uzytkownika.md) | Zaproszenie użytkownika i aktywacja konta | story | P1 | backend-developer | EVM-029 | W-16, W-13, W-03, W-04; e-mail (lokalnie, Mailpit) |
+| [EVM-089](EVM-089-email-na-staging.md) | E-mail transakcyjny na staging — Scaleway TEM, lista dozwolonych adresów, SPF / DKIM / DMARC | enabler | P1 | devops-engineer | EVM-007, EVM-024, EVM-076 | demo zaproszenia na staging; decyzje 1, 2, 15 |
 | [EVM-023](EVM-023-totp-i-kody-odzyskiwania.md) | Kod z aplikacji (TOTP) i kody odzyskiwania | story | P1 | backend-developer | EVM-024 | W-02, W-03, W-04; P-4 |
 | [EVM-025](EVM-025-reset-hasla.md) | Reset zapomnianego hasła | story | P1 | backend-developer | EVM-024 | W-01, W-12, W-02 |
 | [EVM-026](EVM-026-ochrona-przed-zgadywaniem-hasel.md) | Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta | story | P1 | backend-developer | EVM-024 | W-01, W-02 |
@@ -142,7 +143,7 @@ Fazy są sekwencyjne dla historyjek z kodem (jedna naraz — `CLAUDE.md`); prace
 |---|---|---|
 | **0 — przygotowanie** (równolegle z EVM-006–EVM-008) | EVM-014 → EVM-015, EVM-071; EVM-069 | styleguide 1.2.0, makiety, ADR modelu odczytu |
 | **1 — przyrost pionowy** | EVM-016 → EVM-067 → EVM-017 → EVM-019 → EVM-020 → EVM-021 → EVM-022 → EVM-018 | **logowanie → lista zleceń → utworzenie zlecenia** → szczegóły |
-| **2 — konta i bezpieczeństwo dostępu (E1)** | EVM-029 → EVM-024 → EVM-023 → EVM-025 → EVM-026 → EVM-027 → EVM-028 | zespół biura ma konta |
+| **2 — konta i bezpieczeństwo dostępu (E1)** | EVM-029 → EVM-024 → EVM-023 → EVM-025 → EVM-026 → EVM-027 → EVM-028; EVM-089 po EVM-007 i EVM-024 (równolegle) | zespół biura ma konta |
 | **3 — prowadzenie zlecenia (E3, E4, E5, E2)** | EVM-072 → EVM-030 → EVM-031 → EVM-032 → EVM-033 → EVM-037 → EVM-038 → EVM-034 → EVM-035 → EVM-036 → EVM-039 → EVM-040 → EVM-041 | → **pilot próbny (A)** |
 | **4 — dokumenty i media (E6)** | EVM-044 → EVM-068 → EVM-045 → EVM-047 → EVM-048 → EVM-049 → EVM-050 → EVM-051 → EVM-046 | zdjęcia, filmy, dokumenty |
 | **5 — gotowość do realnych danych (E8)** | EVM-061 → EVM-062; EVM-063 → EVM-066; EVM-064 (koncepcyjnie od fazy 4); na końcu EVM-065 | → **pilot realny (B)** |
@@ -357,7 +358,7 @@ Roadmapa: „Pilot wewnętrzny możliwy po E1–E5”. Pilot z realnymi danymi w
 |---|---|---|
 | Kiedy | po fazach 0–3 (wszystkie historyjki P0 i P1 tych faz) | po fazach 4 i 5 — E1–E6 + EVM-061–EVM-066 z sign-off EVM-065; E7 (faza 6) dochodzi w trakcie pilota |
 | Gdzie i na czym | **staging, wyłącznie dane syntetyczne** (SR-INFRA-08, SR-PRIV-08); **zakaz wpisywania realnych zleceń** | **prod, realne zlecenia** wybrane przez Konrada, równolegle z dotychczasowymi narzędziami |
-| Kto | Konrad i min. 1 osoba z biura (konta testowe — adresy z listy dozwolonych, decyzja 15) | Konrad i biuro (konta prod; zaproszenia EVM-024) |
+| Kto | Konrad i min. 1 osoba z biura (konta testowe — adresy z listy dozwolonych, decyzja 15; wymaga EVM-089 — żadne wdrożenie z prawdziwymi użytkownikami przed nią) | Konrad i biuro (konta prod; zaproszenia EVM-024) |
 | Po co | sprawdzenie przepływów A–D (bez płatności) i ergonomii przed E6 | realna praca na zleceniach; UAT M1 na realnych zleceniach — tylko tutaj |
 | Ograniczenia | brak zdjęć i dokumentów (E6), brak płatności (E7) | płatności poza systemem do końca fazy 6; **zlecenia założone przed EVM-053 nie mają transz** (bez backfillu — biuro dodaje je ręcznie „Dodaj transzę”); **telefon = panel w przeglądarce prywatnego telefonu** bez kontroli aplikacji M2 — zasady z instrukcji EVM-066 i RR z EVM-065 AC4 (decyzja 19) |
 
@@ -575,7 +576,7 @@ Listy z [`requirements.md`](../../security/requirements.md#wymagania-do-wpleceni
 | SR-AUTHZ-12 | EVM-016, EVM-029, EVM-027 |
 | SR-INPUT-07 | EVM-024, EVM-025, EVM-026, EVM-027 |
 | SR-API-02 | EVM-067, EVM-023, EVM-025, EVM-026 |
-| SR-API-13 | EVM-016, EVM-024 |
+| SR-API-13 | EVM-016, EVM-089 |
 | SR-WEB-05 | EVM-016, EVM-067 |
 | SR-WEB-06 | EVM-067 |
 | SR-DATA-01 | EVM-016, EVM-024 |
@@ -805,14 +806,14 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 - Rekomendacja: **tak, przed planem EVM-007** (ADR-0009, ADR-0011; koszty wg EVM-001).
 - **Decyzja Konrada (2026-10-13):** przyjęta rekomendacja — konto Scaleway założone 2026-10-13, projekt `evia-staging` (pusty, MFA); projekt prod (`evia-prod`, m.in. bucket zatwierdzeń wdrożeń — ADR-0018) przy EVM-061.
 - Konsekwencja „nie teraz”: EVM-007 nie powstanie w zaakceptowanej formie → EVM-008 → całe M1 stoi; alternatywa wymaga zmiany ADR-0009 i ADR-0011.
-- Historyjki: EVM-007, EVM-024, EVM-040, EVM-044, EVM-061, EVM-062.
+- Historyjki: EVM-007, EVM-089, EVM-040, EVM-044, EVM-061, EVM-062.
 
 **2. Domena i adres nadawcy e-maili**
 - Pytanie: jaka domena dla panelu (staging i prod) i adres nadawcy powiadomień?
 - Rekomendacja: **subdomeny istniejącej domeny firmy** (osobne dla staging i prod) i adres nadawcy w tej domenie; MFA i blokada transferu u rejestratora, SPF, DKIM, DMARC `p=reject`, CAA, DNSSEC (SR-INFRA-12).
 - **Decyzja Konrada (2026-10-13):** przyjęta rekomendacja — domena `eviacharge.pl` (rejestrator i strefa DNS w OVH); staging: `staging.eviacharge.pl` (panel i API), nadawca `powiadomienia@staging.eviacharge.pl`; DNSSEC i blokada transferu włączone 2026-10-13. Subdomena i nadawca prod — przy EVM-061. Rekordy stagingu (`A`/`AAAA`, CAA na węźle `staging.eviacharge.pl`, SPF, DKIM i jawny DMARC subdomeny) ustawia Konrad ręcznie w EVM-007a — kolejność w ADR-0018 („DNS, TLS i poczta”).
 - Konsekwencja braku: brak TLS stagingu (EVM-007), kluczy dostępu (stała domena dla WebAuthn — EVM-016) i e-maili (EVM-024 i wszystkie zależne: EVM-023, EVM-025–EVM-028, EVM-049, EVM-052).
-- Historyjki: EVM-007, EVM-016, EVM-024.
+- Historyjki: EVM-007, EVM-016, EVM-089 (e-maile; EVM-024 działa lokalnie bez domeny).
 
 **5. Plan GitHub a wdrożenia**
 - **Decyzja Konrada (2026-10-03):** zostajemy na **GitHub Free** (bez Pro). Skutek: przed planem EVM-007 ADR zmieniający ADR-0012 i SR-INFRA-13 / SR-INFRA-14 — wdrożenie wzorcem pull z weryfikacją na VM, zero sekretów prod w GitHubie, test odtworzenia poza GitHub Actions — oraz nowe RR do akceptacji (`/adr`).
@@ -893,11 +894,11 @@ Każda pozycja: pytanie, rekomendacja, konsekwencja wyboru, historyjki i termin.
 - Konsekwencja „tylko telefony firmowe”: mniejsze ryzyko, ale technicy bez telefonu firmowego przekazują zdjęcia biuru inną drogą — podwójna praca w pilocie.
 - Historyjki: EVM-044, EVM-065, EVM-066. Termin: z akceptacją planu (najpóźniej przed EVM-065).
 
-### Przed EVM-024
+### Przed EVM-089
 **15. Adresy e-mail na staging (lista dozwolonych)**
 - Rekomendacja: **wyłącznie aliasy skrzynki Konrada albo firmowej skrzynki testowej**; nigdy adresy klientów; pozostałe e-maile przechwytywane lokalnie.
 - Konsekwencja braku listy: demo zaproszeń i resetu hasła tylko lokalnie (Mailpit).
-- Historyjki: EVM-024, pilot A.
+- Historyjki: EVM-089, pilot A.
 
 ### Przed EVM-044
 **14. RAM stagingu od E6**

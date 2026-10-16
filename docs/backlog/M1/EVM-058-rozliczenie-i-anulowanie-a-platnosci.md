@@ -4,7 +4,7 @@ title: Rozliczenie i anulowanie zlecenia a płatności
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P1
 owner: web-developer
 contributors: [backend-developer]
@@ -117,3 +117,4 @@ _—_
 - 2026-10-15 — implementacja (web-developer): podsumowania i blokady w dialogach „Rozlicz…” / „Anuluj zlecenie…”, odświeżenie płatności po 412/422/rozliczeniu; test integracyjny AC4; testy `EVM-058 AC#`
 - 2026-10-15 — przegląd ux-designer: approve (4 minor/nit → „Notatki”); orkiestrator: AC1–AC6 → testy `EVM-058 AC#`, `pnpm run gate` zielony (diff-coverage linie 15/15, gałęzie 55/58), `docs:check` 0/0; in-progress → in-review
 - 2026-10-15 — Koszt: potok 2 wywołania agentów, ok. 0,14 mln tokenów subagentów, ok. 27 min; rundy poprawek 0; ścieżka lekka; sonnet
+- 2026-10-16 — scalone do `main` (PR #80, squash), status done (orkiestrator)
