@@ -29,6 +29,7 @@ import { UpdateWorkOrderService } from './application/update-work-order.service.
 import { WorkOrderDirectoryService } from './application/work-order-directory.service.ts';
 import { WorkOrderCompositionRegistry } from './composition-contributor.ts';
 import { WorkOrdersController } from './http/work-orders.controller.ts';
+import { WorkOrderDeletionRegistry } from './deletion-participant.ts';
 import { WorkOrderScopeRegistry } from './scope-participant.ts';
 import { WorkOrderTransitionRegistry } from './transition-participant.ts';
 import { WORK_ORDER_DIRECTORY } from './work-order-directory.ts';
@@ -50,6 +51,7 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     WorkOrderCompositionRegistry,
     WorkOrderScopeRegistry,
     WorkOrderTransitionRegistry,
+    WorkOrderDeletionRegistry,
     { provide: WORK_ORDER_DIRECTORY, useClass: WorkOrderDirectoryService },
     { provide: WORK_ORDER_PROJECTION_SOURCE, useClass: WorkOrderProjectionSourceService },
   ],
@@ -57,6 +59,7 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     WorkOrderCompositionRegistry,
     WorkOrderScopeRegistry,
     WorkOrderTransitionRegistry,
+    WorkOrderDeletionRegistry,
     WORK_ORDER_DIRECTORY,
     WORK_ORDER_PROJECTION_SOURCE,
   ],

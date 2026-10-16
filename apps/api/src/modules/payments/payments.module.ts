@@ -21,6 +21,7 @@ import { DeleteMilestoneService } from './application/delete-milestone.service.t
 import { ListMilestonesService } from './application/list-milestones.service.ts';
 import { ListUnpaidMilestonesService } from './application/list-unpaid-milestones.service.ts';
 import { PaymentsCompositionContributor } from './application/payments-contributor.ts';
+import { PaymentsDeletionParticipant } from './application/payments-deletion-participant.ts';
 import { PaymentsTransitionParticipant } from './application/payments-transition-participant.ts';
 import { PaymentMilestoneDirectoryService } from './application/milestone-directory.service.ts';
 import { TransitionMilestoneService } from './application/transition-milestone.service.ts';
@@ -44,6 +45,7 @@ import { PAYMENT_PROJECTION_SOURCE } from './system-ports.ts';
     DeleteMilestoneService,
     PaymentsCompositionContributor,
     PaymentsTransitionParticipant,
+    PaymentsDeletionParticipant,
     { provide: PAYMENT_MILESTONE_DIRECTORY, useClass: PaymentMilestoneDirectoryService },
     { provide: PAYMENT_PROJECTION_SOURCE, useClass: PaymentProjectionSourceService },
     { provide: PAYMENT_TOTALS_DIRECTORY, useClass: PaymentTotalsDirectoryService },
