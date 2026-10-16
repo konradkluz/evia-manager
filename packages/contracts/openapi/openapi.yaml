@@ -235,6 +235,8 @@ components:
       $ref: components/work-orders.yaml#/WorkOrderSort
     WorkOrderView:
       $ref: components/work-orders.yaml#/WorkOrderView
+    WorkOrderSearchView:
+      $ref: components/work-orders.yaml#/WorkOrderSearchView
     WorkOrderWaitingOnFilter:
       $ref: components/work-orders.yaml#/WorkOrderWaitingOnFilter
     WorkOrderWaitingOn:

@@ -7,7 +7,10 @@ import {
   zDeleteWorkOrderHeaders,
   zDeleteWorkOrderPath,
   zRestoreWorkOrderHeaders,
+  zListWorkOrdersQuery,
   zWorkOrderListItem,
+  zWorkOrderSearchRequest,
+  zWorkOrderSearchView,
   zWorkOrderView,
 } from '../src/zod.ts';
 
@@ -94,6 +97,13 @@ describe('deleting and restoring a work order in the contract (EVM-060; SR-AUTHZ
     expect(zWorkOrderListItem.safeParse(base).success).toBe(true);
     expect(zWorkOrderListItem.safeParse({ ...base, deletedAt: '2026-10-16T09:00:00.000Z', version: 4 }).success).toBe(true);
     expect(zWorkOrderListItem.safeParse({ ...base, version: 0 }).success).toBe(false);
+  });
+
+  it('EVM-060 AC4 the search view is a separate schema without "deleted": the search request refuses it, the list query accepts it', () => {
+    expect(zWorkOrderSearchView.options).toEqual(['all_open', 'mine', 'waiting_on_dso_over_14_days', 'overdue_payments', 'unpaid']);
+    expect(zWorkOrderSearchRequest.safeParse({ query: 'abc', view: 'deleted' }).success).toBe(false);
+    expect(zWorkOrderSearchRequest.safeParse({ query: 'abc', view: 'unpaid' }).success).toBe(true);
+    expect(zListWorkOrdersQuery.safeParse({ view: 'deleted' }).success).toBe(true);
   });
 
   it('EVM-060 AC1 AC4 the audit trail knows work_order.deleted, work_order.undeleted and the reason code step_up_verified', () => {

@@ -14,8 +14,8 @@ import {
   zWorkOrderListItem,
   zWorkOrderListItemWritable,
   zWorkOrderSort,
+  zWorkOrderSearchView,
   zWorkOrderStatus,
-  zWorkOrderView,
   zWorkOrderWaitingOnFilter,
 } from '@evia/contracts/zod';
 import { z } from 'zod';
@@ -41,8 +41,8 @@ const searchBodySchema = z
   .strictObject({
     query: z.string().max(MAX_RAW_PHRASE),
     status: z.array(zWorkOrderStatus).max(MAX_STATUS_LIST).optional(),
-    // the view "Usunięte" is the list's alone (EVM-060): a search is never a second source of deleted orders (`400`, no echo)
-    view: zWorkOrderView.exclude(['deleted']).optional(),
+    // the view "Usunięte" is the list's alone (EVM-060): the contract's search view has no `deleted` (`400`, no echo)
+    view: zWorkOrderSearchView.optional(),
     coordinatorId: z.uuid().optional(),
     customerId: z.uuid().optional(),
     siteType: zSiteType.optional(),

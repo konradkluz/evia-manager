@@ -32,6 +32,12 @@ WorkOrderView:
     usunięte (soft delete), z sortowaniem i paginacją jak w pozostałych widokach; tylko Administrator (Edytor i Tylko odczyt — `403 forbidden`, przed licznikiem masowego odczytu), kanał `web`. To jedyne
     miejsce, w którym API pokazuje zlecenia usunięte. `searchWorkOrders` nie przyjmuje tego widoku (`400 validation_failed`).
   enum: [all_open, mine, waiting_on_dso_over_14_days, overdue_payments, unpaid, deleted]
+WorkOrderSearchView:
+  type: string
+  description: >-
+    Widok w treści `searchWorkOrders`: wartości `WorkOrderView` bez `deleted` — zlecenia usunięte (EVM-060) pokazuje wyłącznie
+    `listWorkOrders`. Znaczenie pozostałych wartości jak w `WorkOrderView`.
+  enum: [all_open, mine, waiting_on_dso_over_14_days, overdue_payments, unpaid]
 WorkOrderWaitingOnFilter:
   type: string
   description: >-
@@ -292,7 +298,7 @@ WorkOrderSearchRequest:
       items:
         $ref: '#/WorkOrderStatus'
     view:
-      $ref: '#/WorkOrderView'
+      $ref: '#/WorkOrderSearchView'
     coordinatorId:
       type: string
       format: uuid

@@ -1,4 +1,12 @@
-import type { ListWorkOrdersData, PartyKind, SiteType, WorkOrderSearchRequest, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
+import type {
+  ListWorkOrdersData,
+  PartyKind,
+  SiteType,
+  WorkOrderSearchRequest,
+  WorkOrderSearchView,
+  WorkOrderSort,
+  WorkOrderStatus,
+} from '@evia/contracts';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 
@@ -229,6 +237,10 @@ function waitingQuery(filters: WorkOrderFilters): NonNullable<ListWorkOrdersData
 /** The view sent to the API: every view of the panel but `all` (its own identifier) and `unknown` (nothing is asked). */
 const apiViewOf = (view: ViewId) => (view === 'all' || view === 'unknown' ? {} : { view });
 
+/** The view of a search: the contract has no `deleted` there (EVM-060) — the list alone shows deleted orders, so nothing is sent. */
+const searchViewOf = (view: ViewId): { view?: WorkOrderSearchView } =>
+  view === 'all' || view === 'unknown' || view === 'deleted' ? {} : { view };
+
 /** The query of `listWorkOrders`: an empty filter is left out; the view `all` sends no `view` at all. */
 export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): NonNullable<ListWorkOrdersData['query']> {
   return {
@@ -253,7 +265,7 @@ export function toSearchBody(filters: WorkOrderFilters, phrase: string, cursor: 
     query: phrase,
     limit: PAGE_SIZE,
     sort: filters.sort,
-    ...apiViewOf(filters.view),
+    ...searchViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: [...filters.statuses] }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
     ...moreFiltersOf(filters),

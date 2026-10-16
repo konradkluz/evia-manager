@@ -461,7 +461,7 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 - **Ocena:** P2 × W2 = 4 Medium → 1 × 2 = 2 Low.
 - **Mitygacje:** SR-API-07 (tylko komendy przejść), SR-AUTHZ-10 (korekty i soft delete zlecenia z transzami — Administrator ze step-upem), SR-LOG-03 (audyt z kwotą przed i po), SR-AUTHZ-05 (testy ścieżek).
 - **Wykrywanie:** audyt `payment_milestone.*`; przegląd zestawień przez Administratora.
-- **Weryfikacja:** macierz ról ze ścieżkami przejść (E7) — EVM-054 (przejścia, ścieżki grafu) i EVM-057 (korekty: polityka `correctionAccess`, testy ścieżek i sekwencji Edytora, TOCTOU, IDOR ze step-upem, audyt z kwotą przed i po). Luka wykrywania: odmowy `403` korekt bez audytu i metryki (SR-LOG-06 — backlog E1).
+- **Weryfikacja:** macierz ról ze ścieżkami przejść (E7) — EVM-054 (przejścia, ścieżki grafu) i EVM-057 (korekty: polityka `correctionAccess`, testy ścieżek i sekwencji Edytora, TOCTOU, IDOR ze step-upem, audyt z kwotą przed i po) oraz EVM-060 (soft delete zlecenia: tylko Administrator, transza `invoiced` → `409 has_active_dependents`, transza `paid` → świeży step-up; decyzja pod blokadą wiersza zlecenia szeregowaną z komendami płatności, fail closed przy braku uczestnika; testy ścieżek (a)–(d): po usunięciu każda komenda na transzach to `404`, przywrócenie nie zmienia transz; audyt `work_order.deleted` z kodem `step_up_verified` i `work_order.undeleted`; przywrócenie bez step-upu — do potwierdzenia na demo EVM-060). Luka wykrywania: odmowy `403` korekt i usunięcia zlecenia bez audytu i metryki (SR-LOG-06 — backlog E1).
 
 ### AB-18 — Wstrzyknięcia przez sortowanie i `LIKE`, DoS przez trigramy (T8)
 - **Aktor:** TA-1 z kontem, TA-4. **Cel:** A-01, A-09.
