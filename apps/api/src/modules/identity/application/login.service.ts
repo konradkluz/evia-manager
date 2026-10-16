@@ -7,9 +7,10 @@
  * policy of the minimum length is not applied here, only the shape of the data is (the contract). The client never
  * learns the reason: it goes to the audit trail and to a counter (`LoginFailures`).
  *
- * A correct password of an active account with a passkey gives a single-use `loginToken` (256 bits, only its SHA-256 is
- * stored, 5 minutes) for the second step; an active account without any second step gets a session in `mfa_enrollment`
- * that is not tied to a link and therefore cannot register a factor (AB-01: only an administrator's one-time link may).
+ * A correct password of an active account with a second step it may use here (a passkey, an active code of the authenticator app — never an
+ * Administrator's TOTP in the panel) gives a single-use `loginToken` (256 bits, only its SHA-256 is stored, 5 minutes) for the second step; an
+ * active account without any gets a session in `mfa_enrollment` that is not tied to a link and therefore cannot register a factor (AB-01: only
+ * an administrator's one-time link may; EVM-023 B1).
  */
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
@@ -21,16 +22,17 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { normalizeEmail } from '../domain/text.ts';
 import { PASSWORD_HASHER, type PasswordHasher } from '../infrastructure/ports.ts';
-import { findLoginUser, hasPasskey, type LoginUser } from '../infrastructure/queries.ts';
+import { findLoginUser, type LoginUser } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures, type LoginFailure } from './login-failures.ts';
-import { openSecondStep } from './second-step.ts';
+import { openSecondStep, secondStepMethods, type SecondStepMethod } from './second-step.ts';
 import { startSession, type StartedSession } from './session-start.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 export type LoginOutcome =
-  { readonly kind: 'second_step'; readonly loginToken: string } | { readonly kind: 'session'; readonly session: StartedSession };
+  | { readonly kind: 'second_step'; readonly loginToken: string; readonly methods: readonly SecondStepMethod[] }
+  | { readonly kind: 'session'; readonly session: StartedSession };
 
 type PasswordVerdict = { readonly failure: undefined; readonly user: LoginUser } | { readonly failure: LoginFailure };
 
@@ -67,7 +69,10 @@ export class LoginService {
     const { user } = verdict;
 
     const now = this.#clock.now();
-    if (!(await hasPasskey(identityTables(this.#db), user.userId))) {
+    // The methods the account really has in this channel, for its role now — the same function as the end of a password reset (B2). An account
+    // whose only factor is a pending TOTP, or a TOTP the role may not use here, has none: it gets the enrolment session, which cannot register anything.
+    const methods = await secondStepMethods(this.#db, user.userId);
+    if (methods.length === 0) {
       const session = await runInTransaction(this.#db, (transaction) =>
         startSession(transaction, this.#events, {
           userId: user.userId,
@@ -75,13 +80,13 @@ export class LoginService {
           previousSessionToken,
           client,
           now,
-          passkeyAuthenticatedAt: null,
+          authenticatedWith: 'none',
         }),
       );
       return { kind: 'session', session };
     }
     const loginToken = await runInTransaction(this.#db, (transaction) => openSecondStep(transaction, user.userId, now));
-    return { kind: 'second_step', loginToken };
+    return { kind: 'second_step', loginToken, methods };
   }
 
   /** Exactly one verification whatever the case: against the stored hash of an active account, otherwise against the dummy. */

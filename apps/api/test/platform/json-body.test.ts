@@ -13,6 +13,7 @@ const principal = {
   state: 'active',
   csrfToken: 't',
   passkeyAuthenticatedAt: null,
+  totpAuthenticatedAt: null,
   lastSeenAt: new Date(0),
   idleExpiresAt: new Date(0),
   absoluteExpiresAt: new Date(0),

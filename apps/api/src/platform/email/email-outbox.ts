@@ -11,7 +11,14 @@
 import type { Generated, Kysely } from 'kysely';
 import type { Database } from '../database/database.ts';
 
-export const EMAIL_KINDS = ['user_invitation', 'administrator_alert', 'password_reset', 'password_changed'] as const;
+export const EMAIL_KINDS = [
+  'user_invitation',
+  'administrator_alert',
+  'password_reset',
+  'password_changed',
+  'mfa_changed',
+  'recovery_code_used',
+] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
 export const EMAIL_STATES = ['pending', 'sent', 'failed', 'superseded'] as const;

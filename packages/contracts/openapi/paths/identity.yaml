@@ -326,6 +326,99 @@ loginPasskey:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+loginTotp:
+  post:
+    operationId: loginTotp
+    tags: [identity]
+    summary: Logowanie — drugi krok (kod z aplikacji)
+    description: >-
+      Publiczna operacja (kanał `web`). Wymaga ważnego `loginToken` i aktywnego czynnika TOTP konta; Administrator w panelu nie ma
+      tej metody (`403 forbidden`; rola czytana z bazy). Kod: dokładnie 6 cyfr, tolerancja ±1 krok (30 s), każdy krok tylko raz
+      (kod już użyty — przy logowaniu, step-upie albo konfiguracji — jest odrzucany). Sukces w jednej transakcji: zużycie
+      `loginToken` i kroku kodu, nowa sesja `active` z nowym identyfikatorem (poprzednia z ciasteczka żądania unieważniona),
+      `lastLoginAt` i audyt; sesja otwiera okno step-upu (15 min). Nieudany kod → `401 totp_failed` (`loginToken` nie jest zużywany;
+      licznik wspólny z kluczem dostępu i kodem odzyskiwania — piąta nieudana próba kończy próbę logowania). Cudzy, zużyty, wygasły
+      i nieznany `loginToken` dają tę samą odpowiedź. Limit 20 prób na minutę z jednego adresu IP (wspólny kubełek z hasłem
+      i kluczem dostępu) → `429 rate_limited` z `Retry-After`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginTotpRequest
+    responses:
+      '200':
+        description: Zalogowano.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+loginRecoveryCode:
+  post:
+    operationId: loginRecoveryCode
+    tags: [identity]
+    summary: Logowanie — drugi krok (kod odzyskiwania)
+    description: >-
+      Publiczna operacja (kanał `web`). Kolejność kontroli: najpierw ważny, niewyczerpany `loginToken`, potem kształt kodu
+      (20 znaków base32 po pominięciu wielkości liter, spacji i myślników — inne wejście jest nieudaną próbą bez haszowania),
+      dopiero potem weryfikacja Argon2id (najwyżej 10 skrótów). Sukces w jednej transakcji: zużycie kodu (jednokrotne, warunkowy
+      `UPDATE`) i `loginToken`, nowa sesja `active` bez okna step-upu (kod odzyskiwania go nie otwiera), e-mail o użyciu kodu
+      i zdarzenie audytu `login.recovery_code_used`; odpowiedź ma `remainingCodes` liczone po zużyciu. Kod odrzucony →
+      `401 recovery_code_failed` (licznik wspólny z innymi metodami drugiego kroku — piąta nieudana próba kończy próbę logowania).
+      Limit i brak buforowania jak przy kodzie z aplikacji.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginRecoveryCodeRequest
+    responses:
+      '200':
+        description: Zalogowano kodem odzyskiwania.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/RecoveryCodeSessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 sessionExtend:
   post:
     operationId: extendSession
@@ -489,13 +582,13 @@ stepUpOptions:
     tags: [identity]
     summary: Opcje ponownego uwierzytelnienia kluczem dostępu (step-up)
     description: >-
-      Tylko Administrator, kanał `web`, sesja `active`; bez treści żądania. Zwraca opcje WebAuthn (`userVerification: required`,
+      Każda rola, kanał `web`, sesja `active` (konto musi mieć klucz dostępu — inaczej `403 forbidden`); bez treści żądania. Zwraca opcje WebAuthn (`userVerification: required`,
       `allowCredentials` tylko z kluczami zalogowanego użytkownika) i zapisuje jednorazowe wyzwanie (≥ 128 bitów, TTL 5 min)
       o celu `passkey_step_up` powiązane z bieżącą sesją; wcześniejsze otwarte wyzwania tej sesji z tym celem tracą ważność.
       Wyzwanie rejestracji klucza i wyzwanie step-upu nie są wymienne. Wymaga `X-CSRF-Token`. Limit 20 żądań na minutę z jednego
       adresu IP (wspólny z logowaniem). Nie wymaga świeżego uwierzytelnienia (to jest ta ścieżka).
     x-evia-authz:
-      roles: [administrator]
+      roles: [administrator, editor, read_only]
       channels: [web]
     responses:
       '200':
@@ -516,10 +609,14 @@ stepUp:
   post:
     operationId: stepUp
     tags: [identity]
-    summary: Ponowne uwierzytelnienie kluczem dostępu (step-up)
+    summary: Ponowne uwierzytelnienie kluczem dostępu albo kodem z aplikacji (step-up)
     description: >-
-      Tylko Administrator, kanał `web`, sesja `active`. Jedyną metodą jest klucz dostępu — kod odzyskiwania nie jest obsługiwany
-      (treść jest ścisła: tylko `credential`, każde inne pole daje `400 validation_failed`). Weryfikuje odpowiedź WebAuthn: klucz
+      Każda rola, kanał `web`, sesja `active`. Metody: klucz dostępu (`{ credential }`) albo kod z aplikacji (`{ method: totp, code }`
+      — Edytor i Tylko odczyt z aktywnym TOTP; Administrator w panelu → `403 forbidden`, rola czytana z bazy). Kod odzyskiwania nie
+      jest obsługiwany (treść jest ścisła: każde inne pole daje `400 validation_failed`). Kod z aplikacji: 6 cyfr, ±1 krok, każdy
+      krok tylko raz (wspólnie z logowaniem); nieudany → `401 totp_failed` (sesja bez zmian, zdarzenie `step_up.failed`), piąty zły
+      kod w sesji unieważnia ją (`401 session_revoked`, `revoke_reason step_up_failed`); sukces — te same skutki co klucz dostępu,
+      z czasem uwierzytelnienia kodem = teraz (kod z aplikacji nie przedłuża limitu 12 h). Klucz: weryfikuje odpowiedź WebAuthn: klucz
       musi należeć do użytkownika sesji, origin i RP ID z konfiguracji, `userVerification: required`, licznik podpisów,
       wyzwanie jednorazowe o celu `passkey_step_up` powiązane z bieżącą sesją (zużywane przy każdej weryfikacji, także nieudanej).
       Sukces w jednej transakcji: poprzednia sesja unieważniona (`rotated`, warunkowy `UPDATE`), nowa sesja z nowym tokenem i nowym
@@ -528,7 +625,7 @@ stepUp:
       bez nowej sesji. Nieudany klucz → `401 passkey_failed` (sesja bez zmian, bez rotacji, zdarzenie `step_up.failed`). Wymaga
       `X-CSRF-Token`. Limit 20 żądań na minutę z jednego adresu IP.
     x-evia-authz:
-      roles: [administrator]
+      roles: [administrator, editor, read_only]
       channels: [web]
       audit: true
     requestBody:
@@ -560,6 +657,130 @@ stepUp:
         $ref: ../components/responses.yaml#/PayloadTooLarge
       '415':
         $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+totpSetup:
+  post:
+    operationId: setupTotp
+    tags: [identity]
+    summary: Konfiguracja kodu z aplikacji — nowy sekret
+    description: >-
+      Tylko sesja `mfa_enrollment` powiązana z jednorazowym linkiem aktywacyjnym (nie z samego logowania hasłem — `403 forbidden`),
+      kanał `web`; Administrator w panelu — `403 forbidden` (TOTP Administratora tylko w aplikacji mobilnej). Konto z aktywnym
+      drugim krokiem (klucz dostępu albo kod z aplikacji) → `409 mfa_already_configured`, bez ujawniania sekretu. Zwraca nowy
+      sekret (160 bitów z CSPRNG; w bazie wyłącznie zaszyfrowany kopertowo, powiązany z kontem) i adres `otpauth://`; ponowne
+      wywołanie przed potwierdzeniem zastępuje sekret oczekujący. Czynnik jest nieaktywny do potwierdzenia poprawnym kodem.
+      Brak kluczy szyfrowania w konfiguracji → `503 service_unavailable`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
+      Wymaga `X-CSRF-Token`; limit 20 żądań na minutę z jednego adresu IP (wspólny kubełek z logowaniem).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+    responses:
+      '200':
+        description: Sekret i adres do kodu QR.
+        headers:
+          Cache-Control:
+            description: '`no-store`.'
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/TotpSetup
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '409':
+        $ref: ../components/responses.yaml#/MfaAlreadyConfigured
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/SecondStepUnavailable
+totpConfirm:
+  post:
+    operationId: confirmTotp
+    tags: [identity]
+    summary: Potwierdzenie kodu z aplikacji — aktywacja metody
+    description: >-
+      Jak `setupTotp` (sesja `mfa_enrollment` z linkiem, bez Administratora w panelu). Poprawny kod z oczekującego sekretu
+      (6 cyfr, ±1 krok) w jednej transakcji: aktywuje czynnik (krok kodu zapisany — ten kod nie zaloguje), zużywa link aktywacyjny,
+      aktywuje konto, unieważnia sesję konfiguracji i tworzy sesję `active` z nowym identyfikatorem i oknem step-upu (nowe
+      ciasteczko), wysyła e-mail o zmianie drugiego kroku i zapisuje zdarzenie `mfa.totp_enrolled`. Dwa równoległe potwierdzenia dają
+      jedną aktywację. Zły kod → `400 totp_verification_failed` (metoda pozostaje nieaktywna); link wygasły lub zastąpiony →
+      `401 session_revoked`. Wymaga `X-CSRF-Token`; limit 20/min/IP; `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+      audit: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/ConfirmTotpRequest
+    responses:
+      '200':
+        description: Metoda aktywna, konto aktywne, nowa sesja.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…` — nowy identyfikator sesji `active`.'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/TotpVerificationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+recoveryCodes:
+  post:
+    operationId: generateRecoveryCodes
+    tags: [identity]
+    summary: Kody odzyskiwania — wygenerowanie (krok 3 konfiguracji)
+    description: >-
+      Sesja `active` ze świeżym ponownym uwierzytelnieniem (`stepUp`), kanał `web`, każda rola. Bez treści żądania. Zwraca 10 kodów po
+      20 znaków base32 z CSPRNG — pokazanych tylko raz (brak operacji odczytu, `Cache-Control: no-store`); w bazie tylko skróty
+      Argon2id. Dozwolone w dwóch przypadkach: konto nie ma jeszcze żadnych kodów, albo bieżące kody wygenerowała ta sama sesja
+      (odświeżenie kroku 3 — poprzednie kody są unieważniane w tej samej transakcji). W każdym innym przypadku
+      `403 recovery_codes_regeneration_unavailable` (zmiana z konta — EVM-028); sesja z kodu odzyskiwania nigdy nie generuje kodów.
+      Zapisuje zdarzenie `mfa.recovery_codes_generated` i wysyła e-mail o zmianie drugiego kroku (bez kodów).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      stepUp: true
+      audit: true
+    responses:
+      '200':
+        description: Nowe kody (jedyne pokazanie).
+        headers:
+          Cache-Control:
+            description: '`no-store`.'
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/RecoveryCodes
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/RecoveryCodesForbidden
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 assignableUsers:

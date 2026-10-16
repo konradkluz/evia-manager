@@ -42,7 +42,7 @@ import { parseInput, strictObjects } from '../../../platform/http/validation.ts'
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { stepUpFresh } from '../../identity/index.ts';
+import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { WorkOrderDeletionRegistry } from '../deletion-participant.ts';
 import { decideDeletion } from '../domain/work-order-deletion.ts';
 import type { WorkOrderEvent } from '../events.ts';
@@ -138,7 +138,7 @@ export class DeleteWorkOrderService {
     if (locked.deleted_at !== null) throw new ProblemException('not_found');
     const now = this.#clock.now();
     const assessments = await this.#participants.assessAll(tx, { workOrderId: locked.id, principal, now, request });
-    const decision = decideDeletion(assessments, stepUpFresh(principal.passkeyAuthenticatedAt, now));
+    const decision = decideDeletion(assessments, stepUpFresh(lastStepUpAuthentication(principal), now));
     switch (decision) {
       case 'blocked':
         throw new ProblemException('has_active_dependents');

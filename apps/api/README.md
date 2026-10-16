@@ -54,7 +54,7 @@ Dwa kroki, wszystkie operacje publiczne, kanał `web` nadaje ścieżka (nie klie
 | bezczynność sesji | **60 min** od ostatniej aktywności | `SESSION_IDLE_MS` (`domain/constants.ts`) |
 | limit bezwzględny sesji | **12 h** od zalogowania, nie przesuwa się | `SESSION_ABSOLUTE_MS` |
 | zapis aktywności | co najwyżej co 30 s; odczyt sesji (`getCurrentSession`) i `extendSession` nie są aktywnością | `SESSION_TOUCH_INTERVAL_MS`, `PASSIVE_OPERATIONS` |
-| `loginToken` (pierwszy krok) | 256 bitów, w bazie tylko SHA-256, **5 min**, jednorazowy, maks. 5 nieudanych kluczy | `LOGIN_ATTEMPT_TTL_MS`, `LOGIN_MAX_FAILED_PASSKEYS` |
+| `loginToken` (pierwszy krok) | 256 bitów, w bazie tylko SHA-256, **5 min**, jednorazowy, maks. 5 nieudanych prób drugiego kroku (klucz, kod z aplikacji, kod odzyskiwania — wspólny licznik) | `LOGIN_ATTEMPT_TTL_MS`, `LOGIN_MAX_FAILED_SECOND_STEPS` |
 | wyzwanie WebAuthn | ≥ 128 bitów (256), w bazie SHA-256, **5 min**, jednorazowe; zużywane przy każdej weryfikacji, nowe opcje unieważniają poprzednie | `CHALLENGE_TTL_MS` |
 | wiersze prób logowania | usuwane przy następnym pierwszym kroku, najpóźniej 24 h po wygaśnięciu; brak adresu IP i user agenta w tabeli (RODO — dane klienta tylko w sesji i prefiks w audycie) | `LOGIN_ATTEMPT_RETENTION_MS`, migracja `0006` |
 | limit prób | 20 na minutę z jednego IP dla `login`, `getLoginPasskeyOptions`, `verifyLoginPasskey` (wspólny), liczony w guardzie przed dostępem do bazy; IP tylko z `request.ip` (`TRUSTED_PROXIES`), nigdy z surowego `X-Forwarded-For`; `429 rate_limited` z `Retry-After` | `AUTHENTICATION_OPERATIONS`, `platform/http/rate-limiter.ts` |

@@ -113,7 +113,7 @@ export interface TotpFactorsTable {
   secret_ciphertext: Buffer;
   state: 'pending' | 'active';
   /** bigint: the driver returns text. */
-  last_used_step: ColumnType<string | null, number | null | undefined, number | null>;
+  last_used_step: ColumnType<string | null, number | string | null | undefined, number | string | null>;
   created_at: Date;
   confirmed_at: Date | null;
 }

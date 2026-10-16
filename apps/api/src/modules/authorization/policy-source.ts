@@ -19,16 +19,21 @@ export interface PolicySource {
 export const POLICY_SOURCE = Symbol('POLICY_SOURCE');
 
 /**
- * The sign-in (both steps), the activation password and the passkey ceremony are guessing targets: the stricter limit
- * (SR-API-02), shared by all of them and counted before any database access.
+ * The sign-in (both steps, whatever the method — a key, a code of the app, a recovery code), the activation password, the passkey ceremony and
+ * the setup of a code of the app are guessing targets: the stricter limit (SR-API-02), ONE bucket shared by all of them (a second bucket would double
+ * the budget of an attacker, EVM-023 B6) and counted before any database access.
  */
 export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
   'login',
   'getLoginPasskeyOptions',
   'verifyLoginPasskey',
+  'loginTotp',
+  'loginRecoveryCode',
   'setActivationPassword',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
+  'setupTotp',
+  'confirmTotp',
   'getStepUpPasskeyOptions',
   'stepUp',
 ]);

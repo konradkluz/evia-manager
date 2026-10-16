@@ -86,6 +86,7 @@ export class SessionService {
       state: record.state,
       csrfToken: deriveCsrfToken(cookie.token),
       passkeyAuthenticatedAt: record.passkeyAuthenticatedAt,
+      totpAuthenticatedAt: record.totpAuthenticatedAt,
       lastSeenAt: record.lastSeenAt,
       idleExpiresAt: record.idleExpiresAt,
       absoluteExpiresAt: record.absoluteExpiresAt,

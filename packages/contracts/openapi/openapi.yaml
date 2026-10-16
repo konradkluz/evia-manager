@@ -57,6 +57,10 @@ paths:
     $ref: paths/identity.yaml#/loginPasskeyOptions
   /api/v1/auth/login/passkey:
     $ref: paths/identity.yaml#/loginPasskey
+  /api/v1/auth/login/totp:
+    $ref: paths/identity.yaml#/loginTotp
+  /api/v1/auth/login/recovery-code:
+    $ref: paths/identity.yaml#/loginRecoveryCode
   /api/v1/auth/session:
     $ref: paths/identity.yaml#/session
   /api/v1/auth/session/extend:
@@ -73,6 +77,12 @@ paths:
     $ref: paths/identity.yaml#/passkeyOptions
   /api/v1/account/passkeys:
     $ref: paths/identity.yaml#/passkeys
+  /api/v1/account/totp/setup:
+    $ref: paths/identity.yaml#/totpSetup
+  /api/v1/account/totp/confirm:
+    $ref: paths/identity.yaml#/totpConfirm
+  /api/v1/account/recovery-codes:
+    $ref: paths/identity.yaml#/recoveryCodes
   /api/v1/catalog/work-order-templates:
     $ref: paths/catalog.yaml#/workOrderTemplates
   /api/v1/catalog/work-order-templates/{templateId}:

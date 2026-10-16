@@ -2,8 +2,8 @@
  * Composes the password e-mails for the worker of the outbox (EVM-025 AC1, AC2, AC5; SR-AUTH-11, SR-AUTH-15, SR-CRYPTO-03, SR-LOG-02, TM-44).
  * Like the invitation, it runs inside the transaction of the job `email.send` (the account is locked FIRST — `lockRecipient` — the outbox row after):
  *
- * - `password_reset`: the account must still be `active`, not deleted, with a passkey (fail-closed: an account without a second step gets no
- *   link — K1), and the request must not be older than the validity of a link (the worker was down: a link long after the request is
+ * - `password_reset`: the account must still be `active`, not deleted, with a second step it may use in the panel (a passkey or a TOTP — fail-closed: an
+ *   account without one gets no link — K1), and the request must not be older than the validity of a link (the worker was down: a link long after the request is
  *   `obsolete`, L2). Then, in this one transaction: the open reset links of THIS account are superseded (a newer link replaces them), a token is
  *   made (`newToken`, 256 bits of the CSPRNG), only its SHA-256 is stored (`issued_by: password_reset`, valid 30 minutes FROM THE SENDING), the
  *   audit event `password_reset_link.issued` is written (actor: the system) and the message is composed from the fixed template. The raw token
@@ -28,8 +28,9 @@ import { PASSWORD_RESET_LINK_TTL_MS } from '../domain/constants.ts';
 import { passwordChangedText, passwordResetLink, passwordResetText } from '../domain/email-templates.ts';
 import { hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
-import { findUserById, hasPasskey, insertResetLink, supersedeOpenResetLinksOfUser, type UserRow } from '../infrastructure/queries.ts';
+import { findUserById, insertResetLink, supersedeOpenResetLinksOfUser, type UserRow } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
+import { secondStepMethods } from './second-step.ts';
 
 const KINDS: readonly EmailKind[] = ['password_reset', 'password_changed'];
 
@@ -60,7 +61,7 @@ export class PasswordEmailComposer implements EmailComposer {
     const now = this.#clock.now();
     if (now.getTime() - message.createdAt.getTime() > PASSWORD_RESET_LINK_TTL_MS) return { status: 'obsolete' };
     const db = identityTables(tx);
-    if (!(await hasPasskey(db, user.id))) return { status: 'obsolete' };
+    if ((await secondStepMethods(tx, user.id)).length === 0) return { status: 'obsolete' };
     const to = parseEmailAddress(user.email);
     if (to === undefined) throw new EmailPermanentError('recipient_rejected');
 

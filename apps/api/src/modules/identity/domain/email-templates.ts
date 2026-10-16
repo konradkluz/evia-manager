@@ -193,3 +193,85 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
     ].join('\n'),
   };
 }
+
+/** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
+export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
+
+export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated';
+export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = ['totp_enrolled', 'recovery_codes_generated'];
+export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
+  SECOND_STEP_CHANGES.some((change) => change === value);
+
+const SECOND_STEP_CHANGE_TEXT: Readonly<Record<SecondStepChange, string>> = {
+  totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
+  recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
+};
+
+export interface SecondStepChangedTextInput {
+  readonly panelOrigin: string;
+  readonly change: SecondStepChange;
+  readonly changedAt: Date;
+}
+
+/** E-mail 5 (a change of the second step, variants of EVM-023): what changed and when; never the secret, a code or the name of a method's device (SR-AUTH-10). */
+export function secondStepChangedText(input: SecondStepChangedTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: zmiana drugiego kroku logowania',
+    text: [
+      'Dzień dobry,',
+      '',
+      `w koncie w EVia Manager zmieniono drugi krok logowania ${formatWarsaw(input.changedAt)}:`,
+      SECOND_STEP_CHANGE_TEXT[input.change],
+      '',
+      'Metody konta sprawdzisz w panelu: Konto → Drugi krok logowania',
+      `${input.panelOrigin}${SECOND_STEP_SETTINGS_PATH}`,
+      '',
+      'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/** "Pozostało 9 kodów." with the Polish forms (the same sentence as W-02 shows after the sign-in; e-maile.md rule 3). */
+export function remainingCodesSentence(remaining: number): string {
+  if (remaining <= 0) return 'Nie zostały już żadne kody.';
+  if (remaining === 1) return 'Pozostał 1 kod.';
+  const lastTwo = remaining % 100;
+  const few = remaining % 10 >= 2 && remaining % 10 <= 4 && (lastTwo < 12 || lastTwo > 14);
+  return few ? `Pozostały ${remaining} kody.` : `Pozostało ${remaining} kodów.`;
+}
+
+export interface RecoveryCodeUsedTextInput {
+  readonly panelOrigin: string;
+  readonly usedAt: Date;
+  readonly remaining: number;
+}
+
+/** E-mail 6 (a recovery code was used to sign in): the time and how many codes are left — never the code or its position (SR-AUTH-15). */
+export function recoveryCodeUsedText(input: RecoveryCodeUsedTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: użyto kodu odzyskiwania',
+    text: [
+      'Dzień dobry,',
+      '',
+      'zalogowano się do konta w EVia Manager kodem odzyskiwania',
+      `${formatWarsaw(input.usedAt)}. ${remainingCodesSentence(input.remaining)}`,
+      '',
+      'Każdy kod działa raz. Gdy zostaną 3 lub mniej, wygeneruj nowe:',
+      'Konto → Drugi krok logowania',
+      `${input.panelOrigin}${SECOND_STEP_SETTINGS_PATH}`,
+      'Jeśli nie masz już żadnej metody drugiego kroku, poproś administratora',
+      'o reset drugiego kroku logowania.',
+      '',
+      'Jeśli to nie Ty, ktoś zna hasło i ma kody odzyskiwania — od razu',
+      'ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}

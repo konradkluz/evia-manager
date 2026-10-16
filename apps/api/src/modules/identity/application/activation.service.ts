@@ -89,6 +89,7 @@ export class ActivationService {
         linkId: locked.linkId,
         now,
         passkeyAuthenticatedAt: null,
+        totpAuthenticatedAt: null,
         idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
         absoluteExpiresAt: new Date(Math.min(now.getTime() + SESSION_ABSOLUTE_MS, locked.expiresAt.getTime())),
         ip: client.context.ip,

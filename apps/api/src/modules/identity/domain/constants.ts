@@ -17,8 +17,13 @@ export const SESSION_TOUCH_INTERVAL_MS = 30_000;
 
 /** The first step of the sign-in (`loginToken`) is valid for 5 minutes and single-use (EVM-067 AC4; SR-AUTH-09). */
 export const LOGIN_ATTEMPT_TTL_MS = 5 * MINUTE;
-/** Failed keys tolerated for one `loginToken`; the fifth ends the attempt (the password has to be entered again). */
-export const LOGIN_MAX_FAILED_PASSKEYS = 5;
+/**
+ * Failed second steps tolerated for one `loginToken` — a wrong key, a wrong code of the app, a wrong recovery code count together; the fifth ends the
+ * attempt (the password has to be entered again; SR-AUTH-05).
+ */
+export const LOGIN_MAX_FAILED_SECOND_STEPS = 5;
+/** Wrong codes of step-up tolerated in one session; the fifth ends the session (a thief of a session has no `loginToken` to run out — ASVS V6.3.1). */
+export const STEP_UP_MAX_FAILED_CODES = 5;
 /** Expired login attempts are deleted opportunistically, at the latest 24 hours after they expired (RODO art. 5(1)(e)). */
 export const LOGIN_ATTEMPT_RETENTION_MS = 24 * HOUR;
 

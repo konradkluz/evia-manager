@@ -320,12 +320,12 @@ describe('the step-up in the matrix (EVM-029 AC7; SR-AUTHZ-05, SR-AUTHZ-11, SR-S
     );
   });
 
-  it('EVM-029 AC7 the two operations of the step-up itself need no fresh key (an Administrator on the web channel may call them from any session)', () => {
+  it('EVM-029 AC7 EVM-023 AC7 the two operations of the step-up itself need no fresh key: every role on the web channel may call them from any active session', () => {
     for (const operationId of ['getStepUpPasskeyOptions', 'stepUp']) {
-      expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('administrator', 'web')), operationId).toEqual({
-        outcome: 'allowed',
-      });
-      expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('editor', 'web')), operationId).toEqual(forbidden);
+      for (const role of ['administrator', 'editor', 'read_only'] as const)
+        expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session(role, 'web')), `${operationId} ${role}`).toEqual({
+          outcome: 'allowed',
+        });
       expect(expectationFor(operationId, AUTHZ_MANIFEST, lists, session('administrator', 'web', 'mfa_enrollment')), operationId).toEqual({
         outcome: 'denied',
         status: 403,

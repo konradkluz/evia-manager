@@ -22,6 +22,9 @@ AuditAction:
     - account.emergency_reset
     - step_up.succeeded
     - step_up.failed
+    - mfa.totp_enrolled
+    - mfa.recovery_codes_generated
+    - login.recovery_code_used
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
@@ -105,6 +108,8 @@ AuditReasonCode:
     - expired
     - step_up_verified
     - password_reset
+    - totp_failed
+    - recovery_code_failed
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

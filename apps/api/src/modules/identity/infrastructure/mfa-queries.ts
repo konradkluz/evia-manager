@@ -81,7 +81,7 @@ export async function claimTotpStep(db: IdentityDb, userId: string, step: number
     .set({ last_used_step: step })
     .where('user_id', '=', userId)
     .where('state', '=', 'active')
-    .where((eb) => eb.or([eb('last_used_step', 'is', null), eb('last_used_step', '<', step)]))
+    .where((eb) => eb.or([eb('last_used_step', 'is', null), eb('last_used_step', '<', String(step))]))
     .returning('id')
     .executeTakeFirst();
   return row !== undefined;

@@ -4,7 +4,7 @@
  *
  * - `request` — ALWAYS the same answer (the caller returns `202 {}`) and the same shape of work for an active, an unknown, an invited, a
  *   deactivated and a deleted account, and for a request held back by the limit of the account; the answer never comes sooner than a floor after
- *   the start of the request (CWE-208). The e-mail goes only to an active account WITH a passkey (no second step → no link, K1); it is written
+ *   the start of the request (CWE-208). The e-mail goes only to an active account WITH a second step it may use in the panel (a passkey or a TOTP; none → no link, K1); it is written
  *   as a row of the outbox (identifiers only) and the worker issues the token when it sends (see `PasswordEmailComposer`). The recipient is read
  *   from the account row by the worker — nothing of the request reaches the mail but the lookup key, which is normalised like at sign-in.
  *   A flood of one mailbox is held back silently: one message per minute and five per hour per account (K7).
@@ -13,7 +13,7 @@
  *   re-checked under the lock, the password is saved, the link is spent, every open reset link and every first step (`loginToken`) of the account
  *   ends, every session of the account ends (`password_reset`, the caller's own included), the notice "password changed" is put in the outbox
  *   and the first step of a new sign-in is opened. The answer holds a `loginToken` and NO session or cookie: the reset does not skip the second
- *   step (AC4). An account without a passkey gets nothing (fail-closed) — the transaction is rolled back with the same code as any dead link.
+ *   step (AC4). An account without such a second step gets nothing (fail-closed) — the transaction is rolled back with the same code as any dead link.
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { LoginSecondStep, PasswordResetLinkInfo } from '@evia/contracts';
@@ -161,7 +161,7 @@ export class PasswordResetService {
       await markLinkUsed(tx, locked.linkId, now);
       await supersedeOpenResetLinksOfUser(tx, locked.userId, now);
       const revoked = await revokeSessions(tx, { userId: locked.userId }, 'password_reset', now);
-      // Every earlier first step ends BEFORE the new one is opened: an old `loginToken` is dead, the new one works only for the key.
+      // Every earlier first step ends BEFORE the new one is opened: an old `loginToken` is dead, the new one works only for a method of the account.
       await revokeLoginAttemptsOfUser(tx, locked.userId, now);
       const loginToken = await openSecondStep(transaction, locked.userId, now);
       await enqueueEmail(transaction, { kind: 'password_changed', variant: null, recipientUserId: locked.userId, now });

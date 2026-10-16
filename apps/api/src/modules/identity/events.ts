@@ -26,6 +26,10 @@ export const IDENTITY_EVENT_TYPES = [
   'account.emergency_reset',
   'step_up.succeeded',
   'step_up.failed',
+  // EVM-023: a TOTP factor was confirmed / ten recovery codes were made / a recovery code was used to sign in (never the secret, a code or its index).
+  'mfa.totp_enrolled',
+  'mfa.recovery_codes_generated',
+  'login.recovery_code_used',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -53,6 +57,9 @@ export const REASON_CODES = [
   'step_up_verified',
   // Every session of the account ended because the password was reset (EVM-025 AC5; SR-AUTH-15).
   'password_reset',
+  // EVM-023: a wrong code of the authenticator app / a wrong recovery code (sign-in, step-up, confirmation). Never shown to the client beyond the 401/400.
+  'totp_failed',
+  'recovery_code_failed',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

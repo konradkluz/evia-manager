@@ -18,6 +18,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'checkActivationLink',
       'checkPasswordResetLink',
       'completePasswordReset',
+      'confirmTotp',
       'createCustomer',
       'createParty',
       'createPaymentMilestone',
@@ -33,6 +34,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'deleteWorkOrderProcedure',
       'deleteWorkOrderScopeItem',
       'extendSession',
+      'generateRecoveryCodes',
       'getCurrentSession',
       'getCustomer',
       'getHealth',
@@ -65,6 +67,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listWorkOrderTemplates',
       'listWorkOrders',
       'login',
+      'loginRecoveryCode',
+      'loginTotp',
       'logout',
       'registerPasskey',
       'requestPasswordReset',
@@ -77,6 +81,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'searchSites',
       'searchWorkOrders',
       'setActivationPassword',
+      'setupTotp',
       'stepUp',
       'transitionPaymentMilestone',
       'transitionProcedureStage',
@@ -107,12 +112,20 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 EVM-054 AC5 every operation with stepUp: true lists exactly the web channel and the Administrator; the audit log, the deletion of a payment milestone (EVM-057) and the invitation of a user and its resend (EVM-024) are the ones in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 EVM-023 AC4 every operation with stepUp: true lists exactly the web channel and the Administrator — except the recovery codes, which every role has (EVM-023); the audit log, the deletion of a payment milestone (EVM-057) and the invitation of a user and its resend (EVM-024) are the others in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
-    expect(stepUp.map(([id]) => id).sort()).toEqual(['deletePaymentMilestone', 'inviteUser', 'listAuditEvents', 'resendUserInvitation']);
+    expect(stepUp.map(([id]) => id).sort()).toEqual([
+      'deletePaymentMilestone',
+      'generateRecoveryCodes',
+      'inviteUser',
+      'listAuditEvents',
+      'resendUserInvitation',
+    ]);
     for (const [id, operation] of stepUp) {
       expect(operation.authz.channels, id).toEqual(['web']);
-      expect(operation.authz.roles, id).toEqual(['administrator']);
+      expect(operation.authz.roles, id).toEqual(
+        id === 'generateRecoveryCodes' ? ['administrator', 'editor', 'read_only'] : ['administrator'],
+      );
     }
   });
 

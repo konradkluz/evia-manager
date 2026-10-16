@@ -101,6 +101,8 @@ export async function createSession(
     linkId?: string;
     /** The last authentication with a passkey of this session (default: none — a session of a password, activation or recovery code). */
     passkeyAuthenticatedAt?: Date | null;
+    /** The last authentication with a TOTP code of this session (default: none). */
+    totpAuthenticatedAt?: Date | null;
   } = {},
 ): Promise<SessionFixture> {
   const token = newToken();
@@ -117,6 +119,7 @@ export async function createSession(
       last_seen_at: now,
       last_authenticated_at: now,
       passkey_authenticated_at: options.passkeyAuthenticatedAt ?? null,
+      totp_authenticated_at: options.totpAuthenticatedAt ?? null,
       idle_expires_at: new Date(now.getTime() + 3_600_000),
       absolute_expires_at: new Date(now.getTime() + 12 * 3_600_000),
       revoked_at: null,
