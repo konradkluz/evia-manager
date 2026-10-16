@@ -84,6 +84,35 @@ describe('TextField (styleguide § 3.2; EVM-016 AC3)', () => {
     expect(await axeViolations(container)).toEqual([]);
   });
 
+  it('EVM-023 AC2 the one-time code field: one-time-code autofill, number keyboard, no spell checker, no capitals, numeric style', async () => {
+    const { container } = render(<TextField label="Kod z aplikacji uwierzytelniającej" value="" variant="one-time-code" hint="6 cyfr." />);
+    const field = screen.getByLabelText('Kod z aplikacji uwierzytelniającej');
+    expect(field.getAttribute('autocomplete')).toBe('one-time-code');
+    expect(field.getAttribute('inputmode')).toBe('numeric');
+    expect(field.getAttribute('spellcheck')).toBe('false');
+    expect(field.getAttribute('autocapitalize')).toBe('off');
+    expect(field.className).toContain('text-numeric-lg');
+    expect(await axeViolations(container)).toEqual([]);
+  });
+
+  it('EVM-023 AC5 the recovery code field: no autofill, no spell checker, no capitals, monospace style', () => {
+    render(<TextField label="Kod odzyskiwania" value="" variant="recovery-code" autoComplete="one-time-code" inputMode="numeric" />);
+    const field = screen.getByLabelText('Kod odzyskiwania');
+    expect(field.getAttribute('autocomplete')).toBe('off');
+    expect(field.getAttribute('inputmode')).toBeNull();
+    expect(field.getAttribute('spellcheck')).toBe('false');
+    expect(field.getAttribute('autocapitalize')).toBe('off');
+    expect(field.className).toContain('text-mono');
+  });
+
+  it('EVM-023 AC1 a plain field keeps the spell checker and capitalisation untouched', () => {
+    render(<TextField label="Nazwa" value="" />);
+    const field = screen.getByLabelText('Nazwa');
+    expect(field.getAttribute('spellcheck')).toBeNull();
+    expect(field.getAttribute('autocapitalize')).toBeNull();
+    expect(field.className).toContain('text-body');
+  });
+
   it('EVM-016 AC3 password show and hide toggles the input type and the button text', async () => {
     const onChange = vi.fn();
     const ref = createRef<HTMLInputElement>();

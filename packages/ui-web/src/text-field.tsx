@@ -22,6 +22,12 @@ export interface TextFieldProps {
   readonly suffix?: string;
   /** Keyboard of a touch device for numbers (`decimal`) without changing the field into `type="number"`. */
   readonly inputMode?: 'decimal' | 'numeric' | 'tel' | 'email';
+  /**
+   * Code field (§ 3.2.1): `one-time-code` — a code from an authenticator app (digits, `text.numeric-lg`, number keyboard, the
+   * system may fill it in); `recovery-code` — a recovery code (`text.mono`, no autofill). Both switch off the spell checker and
+   * the capitalisation (the content of the field must not reach a cloud service). Never submits on its own.
+   */
+  readonly variant?: 'one-time-code' | 'recovery-code';
   readonly onChange?: ChangeEventHandler<HTMLInputElement>;
   readonly onBlur?: FocusEventHandler<HTMLInputElement>;
   readonly inputRef?: Ref<HTMLInputElement>;
@@ -44,6 +50,7 @@ export function TextField({
   disabled = false,
   suffix,
   inputMode,
+  variant,
   onChange,
   onBlur,
   inputRef,
@@ -54,6 +61,7 @@ export function TextField({
   const describedBy =
     [suffix === undefined ? undefined : `${id}-suffix`, message].filter((part) => part !== undefined).join(' ') || undefined;
   const isPassword = type === 'password';
+  const code = variant !== undefined;
   const border = readOnly
     ? 'border-0 px-0'
     : error === undefined
@@ -71,8 +79,10 @@ export function TextField({
           name={name}
           type={isPassword && revealed ? 'text' : type}
           value={value}
-          autoComplete={autoComplete}
-          inputMode={inputMode}
+          autoComplete={variant === undefined ? autoComplete : variant === 'one-time-code' ? 'one-time-code' : 'off'}
+          inputMode={variant === undefined ? inputMode : variant === 'one-time-code' ? 'numeric' : undefined}
+          spellCheck={code ? false : undefined}
+          autoCapitalize={code ? 'off' : undefined}
           readOnly={readOnly}
           disabled={disabled}
           aria-invalid={error === undefined ? undefined : true}
@@ -80,7 +90,8 @@ export function TextField({
           onChange={onChange}
           onBlur={onBlur}
           className={classNames(
-            'min-w-0 flex-1 h-control-height-web-md rounded-control text-body text-text-primary placeholder:text-control-placeholder focus-visible:focus-ring',
+            'min-w-0 flex-1 h-control-height-web-md rounded-control text-text-primary placeholder:text-control-placeholder focus-visible:focus-ring',
+            variant === 'one-time-code' ? 'text-numeric-lg' : variant === 'recovery-code' ? 'text-mono' : 'text-body',
             readOnly
               ? 'bg-transparent'
               : 'bg-control-bg disabled:bg-control-bg-disabled disabled:border-control-border-disabled disabled:text-text-disabled',
