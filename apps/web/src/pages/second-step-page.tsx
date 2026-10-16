@@ -3,6 +3,7 @@ import { Banner, Button, Card, InlineAlert, KeyRound, TextField, TriangleAlert, 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useId, useRef, useState, type RefObject, type SyntheticEvent } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
@@ -38,6 +39,21 @@ function classify(error: unknown, rejected: 'key' | 'code'): Failure {
 function primaryMethods(methods: readonly string[]): ('passkey' | 'totp')[] {
   const known = methods.filter((method): method is 'passkey' | 'totp' => method === 'passkey' || method === 'totp');
   return [...new Set(known)];
+}
+
+/** "Pozostał 1 kod." / "Pozostały 3 kody." / "Pozostało 9 kodów." — the category of `Intl.PluralRules('pl')` (styleguide § 6.3); 0 — the last one. */
+function remainingText(t: TFunction, count: number): string {
+  if (count === 0) return t('secondStep.recovered.last');
+  switch (new Intl.PluralRules('pl').select(count)) {
+    case 'one':
+      return t('secondStep.recovered.remainingOne', { count });
+    case 'few':
+      return t('secondStep.recovered.remainingFew', { count });
+    case 'many':
+      return t('secondStep.recovered.remainingMany', { count });
+    default:
+      return t('secondStep.recovered.remainingOther', { count });
+  }
 }
 
 /** After a login with a recovery code: what the server answered (the count after this code) and the role for the hint. */
@@ -232,11 +248,7 @@ function SecondStep({ flow }: { readonly flow: LoginFlow }) {
           <>
             <Banner icon={TriangleAlert}>
               <p>
-                {t('secondStep.recovered.used')}{' '}
-                {recovered.remaining === 0
-                  ? t('secondStep.recovered.last')
-                  : t('secondStep.recovered.remaining', { count: recovered.remaining })}{' '}
-                {t('secondStep.recovered.emailSent')}
+                {t('secondStep.recovered.used')} {remainingText(t, recovered.remaining)} {t('secondStep.recovered.emailSent')}
               </p>
               <p>
                 {recovered.role === 'administrator' ? t('secondStep.recovered.hintAdministrator') : t('secondStep.recovered.hintOther')}

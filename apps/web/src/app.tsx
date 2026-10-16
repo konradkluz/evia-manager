@@ -25,8 +25,12 @@ export interface AppProps {
   readonly queryClient?: QueryClient;
 }
 
-/** A 401 that ends the session; a key the server did not accept (`passkey_failed`, step-up) leaves the session as it is. */
-const isUnauthorized = (error: unknown): boolean => error instanceof ApiError && error.status === 401 && error.code !== 'passkey_failed';
+/** A credential the server did not accept (a key, a code of the app, a recovery code) is not a lost session: it leaves the session as it is. */
+const REJECTED_CREDENTIAL = new Set(['passkey_failed', 'totp_failed', 'recovery_code_failed']);
+
+/** A 401 that ends the session (not a rejected credential of the second step or of the step-up). */
+const isUnauthorized = (error: unknown): boolean =>
+  error instanceof ApiError && error.status === 401 && !REJECTED_CREDENTIAL.has(error.code);
 
 /**
  * Query cache of the panel: no persistence, no devtools (SR-WEB-05). A `401` means the session is gone (expired, ended

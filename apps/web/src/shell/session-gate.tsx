@@ -3,6 +3,7 @@ import { Navigate, Outlet, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../api/client.ts';
 import { LOGIN_PATH, MFA_SETUP_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { useSetupFinishing } from '../mfa/setup-progress.ts';
 import { DEFAULT_RETURN_TO, resolveReturnTo } from '../session/return-to.ts';
 import { useSession } from '../session/session.ts';
 import { ErrorState } from './error-state.tsx';
@@ -32,6 +33,7 @@ export function SessionGate() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const search = useRouterState({ select: (state) => state.location.searchStr });
   const session = useSession();
+  const finishingSetup = useSetupFinishing();
   // A failed refresh in the background keeps the data: the shell stays (the offline banner does its part). Only 401 or
   // a session that was never read ends the panel.
   if (session.isError && (session.data === undefined || (session.error instanceof ApiError && session.error.status === 401))) {
@@ -43,7 +45,8 @@ export function SessionGate() {
   if (session.isPending) return <SessionLoading />;
   // P-11 sits on every screen after logging in, W-03 included (an enrolment session expires like any other).
   const warning = <SessionExpiryWarning session={session.data} />;
-  if (session.data.state === 'mfa_enrollment') {
+  // The method is already active (the session turned `active`), but W-03 still shows the recovery codes once (step 3).
+  if (session.data.state === 'mfa_enrollment' || (finishingSetup && pathname === MFA_SETUP_PATH)) {
     return pathname === MFA_SETUP_PATH ? (
       <>
         <Outlet />

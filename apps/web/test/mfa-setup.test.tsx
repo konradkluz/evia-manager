@@ -8,6 +8,19 @@ import { renderPanel } from './render.tsx';
 const OPTIONS_ROUTE = 'POST /api/v1/account/passkeys/registration-options';
 const REGISTER_ROUTE = 'POST /api/v1/account/passkeys';
 const LOGOUT_ROUTE = 'POST /api/v1/auth/logout';
+const CODES_ROUTE = 'POST /api/v1/account/recovery-codes';
+const CODES = [
+  'ABCDEFGHIJKLMNOPQRST',
+  'ABCDEFGHIJKLMNOPQRS2',
+  'ABCDEFGHIJKLMNOPQRS3',
+  'ABCDEFGHIJKLMNOPQRS4',
+  'ABCDEFGHIJKLMNOPQRS5',
+  'ABCDEFGHIJKLMNOPQRS6',
+  'ABCDEFGHIJKLMNOPQRS7',
+  'ABCDEFGHIJKLMNOPQR22',
+  'ABCDEFGHIJKLMNOPQR23',
+  'ABCDEFGHIJKLMNOPQR24',
+];
 
 const OPTIONS = {
   rp: { id: 'localhost', name: 'EVia Manager' },
@@ -55,6 +68,7 @@ function enrollmentApi(overrides: Record<string, () => Response | Promise<Respon
       return json(201, PASSKEY);
     },
     [LOGOUT_ROUTE]: () => new Response(null, { status: 204 }),
+    [CODES_ROUTE]: () => json(200, { codes: CODES }),
     'GET /api/v1/work-orders': () => json(200, { items: [], nextCursor: null }),
     ...overrides,
   });
@@ -66,18 +80,28 @@ afterEach(() => {
   FakePublicKeyCredential.parseCreationOptionsFromJSON.mockClear();
 });
 
+/** Step 3: the codes are shown, the box is ticked and "Zakończ konfigurację" leaves for the panel. */
+async function finishCodes() {
+  await screen.findByRole('heading', { level: 2, name: 'Kody odzyskiwania' });
+  await userEvent.click(await screen.findByRole('checkbox', { name: 'Kody są zapisane w bezpiecznym miejscu' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Zakończ konfigurację' }));
+}
+
 describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => {
-  it('EVM-016 AC4 a session in mfa_enrollment lands every address on W-03: only the passkey, no navigation, no data, "Wyloguj" on top', async () => {
+  it('EVM-016 AC4 a session in mfa_enrollment lands every address on W-03: the Administrator goes straight to the passkey, no navigation, no data, "Wyloguj" on top', async () => {
     const api = enrollmentApi();
     const { history } = await renderPanel('/work-orders', api);
     expect(history.location.pathname).toBe('/mfa-setup');
     const title = screen.getByRole('heading', { level: 1, name: 'Skonfiguruj drugi krok logowania' });
     expect(document.activeElement).toBe(title);
     expect(document.title).toBe('Konfiguracja logowania · EVia Manager');
-    expect(screen.getByText(/klucza dostępu: Windows Hello, klucza bezpieczeństwa albo klucza dostępu w telefonie/)).toBeTruthy();
+    expect(screen.getByText('Logowanie do EVia Manager wymaga drugiego kroku.')).toBeTruthy();
+    expect(screen.getByText('Krok 2 z 3')).toBeTruthy();
+    expect(screen.getByText('Klucz dostępu jest obowiązkowy.')).toBeTruthy();
+    expect(screen.getByText(/Klucz dostępu: Windows Hello, klucz bezpieczeństwa albo klucz dostępu w telefonie/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Dodaj klucz dostępu' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Wyloguj' })).toBeTruthy();
-    // No choice of method, no TOTP block, no recovery codes (variant "przed EVM-023").
+    // No choice of method for an Administrator (the code of the app is only for the phone — P1), no recovery codes yet.
     expect(screen.queryByRole('radio')).toBeNull();
     expect(screen.queryByText(/kod z aplikacji|Krok 1 z 3|kody odzyskiwania/i)).toBeNull();
     expect(screen.queryByRole('navigation')).toBeNull();
@@ -92,11 +116,15 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     expect(document.cookie).toBe('');
   });
 
-  it('EVM-016 AC4 registering the key: native WebAuthn JSON helpers, CSRF header on both calls, then the new session, a toast and the panel', async () => {
+  it('EVM-016 AC4 registering the key: native WebAuthn JSON helpers, CSRF header on both calls, then the new session, the recovery codes, a toast and the panel', async () => {
     const create = stubWebAuthn();
     const api = enrollmentApi();
     const { history } = await renderPanel('/mfa-setup', api);
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
+    // The session is `active` now, yet W-03 stays for step 3 (the codes are shown once).
+    expect(await screen.findByRole('heading', { level: 2, name: 'Kody odzyskiwania' })).toBeTruthy();
+    expect(history.location.pathname).toBe('/mfa-setup');
+    await finishCodes();
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Zlecenia' })).toBeTruthy();
     expect(history.location.pathname).toBe('/work-orders');
@@ -141,6 +169,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     await userEvent.click(busy);
     expect(create).toHaveBeenCalledTimes(1);
     finish();
+    await finishCodes();
     await screen.findByRole('heading', { level: 1, name: 'Zlecenia' });
   });
 
@@ -161,7 +190,7 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 
-  it('EVM-016 AC4 the toast can be closed; the key is registered even when the new session cannot be read at once', async () => {
+  it('EVM-016 AC4 the key is registered even when the new session cannot be read at once: the gate reports it', async () => {
     stubWebAuthn();
     let registered = false;
     const api = enrollmentApi({
@@ -172,14 +201,8 @@ describe('W-03 Skonfiguruj drugi krok logowania (EVM-016 AC4; flows/01)', () => 
         return json(201, PASSKEY);
       },
     });
-    const { history } = await renderPanel('/mfa-setup', api);
+    await renderPanel('/mfa-setup', api);
     await userEvent.click(screen.getByRole('button', { name: 'Dodaj klucz dostępu' }));
-    await waitFor(() => {
-      expect(history.location.pathname).toBe('/work-orders');
-    });
-    const toast = await screen.findByText('Drugi krok logowania jest skonfigurowany.');
-    await userEvent.click(screen.getByRole('button', { name: 'Zamknij powiadomienie' }));
-    expect(toast.isConnected).toBe(false);
     // The gate then reports the failed read of the session instead of guessing.
     expect(await screen.findByRole('heading', { level: 1, name: 'Coś poszło nie tak' })).toBeTruthy();
   });
@@ -197,7 +220,9 @@ describe('W-03 offline (EVM-016 AC4; flows/01, § 4.10)', () => {
     const api = enrollmentApi();
     await renderPanel('/mfa-setup', api);
     expect(
-      screen.getByText('Brak połączenia. Dodanie klucza dostępu wymaga połączenia z internetem.').closest('[role="status"]'),
+      screen
+        .getByText('Brak połączenia. Konfiguracja wymaga połączenia z internetem. Postęp zostaje na tej karcie.')
+        .closest('[role="status"]'),
     ).not.toBeNull();
     expect(screen.getByText('Dodasz klucz po powrocie połączenia.')).toBeTruthy();
     const add = screen.getByRole('button', { name: 'Dodaj klucz dostępu' });
