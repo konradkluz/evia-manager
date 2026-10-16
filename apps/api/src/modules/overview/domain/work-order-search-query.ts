@@ -41,7 +41,8 @@ const searchBodySchema = z
   .strictObject({
     query: z.string().max(MAX_RAW_PHRASE),
     status: z.array(zWorkOrderStatus).max(MAX_STATUS_LIST).optional(),
-    view: zWorkOrderView.optional(),
+    // the view "Usunięte" is the list's alone (EVM-060): a search is never a second source of deleted orders (`400`, no echo)
+    view: zWorkOrderView.exclude(['deleted']).optional(),
     coordinatorId: z.uuid().optional(),
     customerId: z.uuid().optional(),
     siteType: zSiteType.optional(),

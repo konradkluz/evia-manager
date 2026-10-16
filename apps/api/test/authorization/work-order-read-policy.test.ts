@@ -29,4 +29,24 @@ describe('the read policy of work orders as a condition of a query (EVM-034 W2; 
     const compiled = workOrderReadCondition(principalOf('editor'), 'overview.work_order_summaries').compile(db);
     expect(compiled.parameters).toEqual([]);
   });
+
+  it('EVM-060 AC4 the mode "deleted" is the Administrator alone: the soft deleted orders for him, a condition that is never true for the Editor and Read-only', () => {
+    expect(workOrderReadCondition(principalOf('administrator'), 'overview.work_order_summaries', 'deleted').compile(db).sql).toBe(
+      '"overview"."work_order_summaries"."deleted_at" is not null',
+    );
+    expect(workOrderReadCondition(principalOf('administrator'), 'work_orders.work_orders', 'deleted').compile(db).sql).toBe(
+      '"work_orders"."work_orders"."deleted_at" is not null',
+    );
+    for (const role of ['editor', 'read_only'] as const) {
+      expect(workOrderReadCondition(principalOf(role), 'overview.work_order_summaries', 'deleted').compile(db).sql, role).toBe('false');
+    }
+  });
+
+  it('EVM-060 AC4 the default mode is "visible": a caller that does not name a mode never sees a deleted order', () => {
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      expect(workOrderReadCondition(principalOf(role), 'work_orders.work_orders').compile(db).sql).toBe(
+        workOrderReadCondition(principalOf(role), 'work_orders.work_orders', 'visible').compile(db).sql,
+      );
+    }
+  });
 });

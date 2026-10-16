@@ -1,6 +1,6 @@
 /**
  * HTTP surface of the work-orders module (EVM-017: the list — moved to `overview` in EVM-034; EVM-022: the creation; EVM-018: the four reads of one order; EVM-030: the status command;
- * EVM-035: the change of the data of an order and the five operations on its scope). The handlers contain no authorization — the
+ * EVM-035: the change of the data of an order and the five operations on its scope; EVM-060: the deletion and the restoration of an order, Administrator only). The handlers contain no authorization — the
  * global guard decides before they run (operation in the manifest, CSRF, channel, role); here only the call and the headers of the
  * answer. The query of the list is validated and its response parsed in the service, with the schemas of the contract. The answers
  * are never cached (the global `Cache-Control: no-store`).
@@ -24,9 +24,11 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { requestEventContext, webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateScopeItemService } from '../application/create-scope-item.service.ts';
 import { CreateWorkOrderService } from '../application/create-work-order.service.ts';
+import { DeleteWorkOrderService } from '../application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from '../application/delete-scope-item.service.ts';
 import { ListSiteOrdersService } from '../application/list-site-orders.service.ts';
 import { ReadWorkOrderService } from '../application/read-work-order.service.ts';
+import { RestoreWorkOrderService } from '../application/restore-work-order.service.ts';
 import { TransitionWorkOrderService } from '../application/transition-work-order.service.ts';
 import { UpdateScopeItemService } from '../application/update-scope-item.service.ts';
 import { UpdateWorkOrderService } from '../application/update-work-order.service.ts';
@@ -47,6 +49,8 @@ export class WorkOrdersController {
   readonly #scopeCreations: CreateScopeItemService;
   readonly #scopeUpdates: UpdateScopeItemService;
   readonly #scopeDeletions: DeleteScopeItemService;
+  readonly #deletions: DeleteWorkOrderService;
+  readonly #restorations: RestoreWorkOrderService;
 
   constructor(
     @Inject(CreateWorkOrderService) creations: CreateWorkOrderService,
@@ -57,6 +61,8 @@ export class WorkOrdersController {
     @Inject(CreateScopeItemService) scopeCreations: CreateScopeItemService,
     @Inject(UpdateScopeItemService) scopeUpdates: UpdateScopeItemService,
     @Inject(DeleteScopeItemService) scopeDeletions: DeleteScopeItemService,
+    @Inject(DeleteWorkOrderService) deletions: DeleteWorkOrderService,
+    @Inject(RestoreWorkOrderService) restorations: RestoreWorkOrderService,
   ) {
     this.#creations = creations;
     this.#reads = reads;
@@ -66,6 +72,8 @@ export class WorkOrdersController {
     this.#scopeCreations = scopeCreations;
     this.#scopeUpdates = scopeUpdates;
     this.#scopeDeletions = scopeDeletions;
+    this.#deletions = deletions;
+    this.#restorations = restorations;
   }
 
   @Get('/api/v1/work-orders/:workOrderId')
@@ -95,6 +103,48 @@ export class WorkOrdersController {
       params,
       ifMatch,
       body,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('ETag', entityTag(workOrder.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return workOrder;
+  }
+
+  @Delete('/api/v1/work-orders/:workOrderId')
+  @OperationId('deleteWorkOrder')
+  @HttpCode(204)
+  async deleteWorkOrder(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const replayed = await this.#deletions.delete(
+      requirePrincipal(request),
+      params,
+      ifMatch,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+  }
+
+  @Post('/api/v1/work-orders/:workOrderId/restore')
+  @OperationId('restoreWorkOrder')
+  @HttpCode(200)
+  async restoreWorkOrder(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<WorkOrderDetails> {
+    const { workOrder, replayed } = await this.#restorations.restore(
+      requirePrincipal(request),
+      params,
+      ifMatch,
       idempotencyKey,
       webEventContext(request, response),
     );

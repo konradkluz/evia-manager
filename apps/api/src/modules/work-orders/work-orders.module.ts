@@ -10,7 +10,8 @@
  * (they depend on this module, not the other way round); the port `WorkOrderTransitionParticipant` lets `payments` add the condition and the effect of a
  * status change (EVM-053, EVM-054). In EVM-035 it serves the editing of the data of an order (`PATCH`, `If-Match`) and of its scope (add an item of
  * the catalogue with the processes it brings, change the parameters and the notes, remove an item); the port `WorkOrderScopeParticipant` lets
- * `procedures` add the processes in the same transaction, and the item of the catalogue and its processes come through the facade `CatalogItemDirectory`.
+ * `procedures` add the processes in the same transaction (EVM-060: the deletion and the restoration of an order, Administrator only; the port
+ * `WorkOrderDeletionParticipant` lets `payments` block the deletion of an order with an issued invoice and ask for a step-up for a paid one), and the item of the catalogue and its processes come through the facade `CatalogItemDirectory`.
  */
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.ts';
@@ -20,9 +21,11 @@ import { PartiesModule } from '../parties/index.ts';
 import { SitesModule } from '../sites/index.ts';
 import { CreateScopeItemService } from './application/create-scope-item.service.ts';
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
+import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
 import { ListSiteOrdersService } from './application/list-site-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
+import { RestoreWorkOrderService } from './application/restore-work-order.service.ts';
 import { TransitionWorkOrderService } from './application/transition-work-order.service.ts';
 import { UpdateScopeItemService } from './application/update-scope-item.service.ts';
 import { UpdateWorkOrderService } from './application/update-work-order.service.ts';
@@ -44,6 +47,8 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     ReadWorkOrderService,
     ListSiteOrdersService,
     TransitionWorkOrderService,
+    DeleteWorkOrderService,
+    RestoreWorkOrderService,
     UpdateWorkOrderService,
     CreateScopeItemService,
     UpdateScopeItemService,

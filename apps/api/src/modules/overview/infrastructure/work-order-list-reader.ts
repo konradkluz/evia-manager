@@ -42,6 +42,8 @@ export interface WorkOrderRow {
   readonly number: string;
   readonly status: WorkOrderStatus;
   readonly createdAt: Date;
+  /** the deletion time — only a row of the view "Usunięte" has one (EVM-060) */
+  readonly deletedAt: Date | null;
   readonly coordinatorUserId: string | null;
   /** keys only — the name and the address come from `customers` and `sites` in batches, under the policy of the caller (W1, W5) */
   readonly customerId: string | null;
@@ -171,6 +173,7 @@ export async function readWorkOrderPage(
       `${SUMMARIES}.number as number`,
       `${SUMMARIES}.status as status`,
       `${SUMMARIES}.created_at as createdAt`,
+      `${SUMMARIES}.deleted_at as deletedAt`,
       `${SUMMARIES}.coordinator_user_id as coordinatorUserId`,
       `${SUMMARIES}.customer_id as customerId`,
       `${SUMMARIES}.site_id as siteId`,
@@ -183,7 +186,8 @@ export async function readWorkOrderPage(
       `${SUMMARIES}.paid_count as paidCount`,
       sql<string | null>`to_char(${EARLIEST_INVOICED_DUE_DATE}, 'YYYY-MM-DD')`.as('earliestInvoicedDueDate'),
     ])
-    .where(workOrderReadCondition(principal, SUMMARIES));
+    // the ONE place that asks the policy for the soft deleted orders: the view "Usunięte" (EVM-060) — the Administrator's, empty for the others
+    .where(workOrderReadCondition(principal, SUMMARIES, query.view === 'deleted' ? 'deleted' : 'visible'));
   if (query.statuses.length > 0) select = select.where(`${SUMMARIES}.status`, 'in', query.statuses);
   if (query.view !== undefined && OPEN_VIEWS.includes(query.view)) select = select.where(`${SUMMARIES}.status`, 'not in', CLOSED_STATUSES);
   // `mine` is the user of the SESSION, never a value of the request; both conditions apply (AND) when both are given.

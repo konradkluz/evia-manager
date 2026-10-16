@@ -126,6 +126,8 @@ export class WorkOrderPageService {
    * @throws ProblemException `forbidden`
    */
   authorize(principal: Principal, query: WorkOrderListQuery): void {
+    // the view "Usunięte" (EVM-060) is the Administrator's: the others are refused here, before the meter of mass reading is asked
+    if (query.view === 'deleted' && principal.role !== 'administrator') throw new ProblemException('forbidden');
     if (query.view !== undefined && PAYMENT_VIEWS.includes(query.view) && !this.#canReadPayments(principal)) {
       throw new ProblemException('forbidden');
     }
@@ -155,14 +157,13 @@ export class WorkOrderPageService {
     const withPayments = this.#canReadPayments(principal);
     const rows = await readWorkOrderPage(this.#db, principal, query, start.position, { today, withPayments }, request.narrowing);
     const shown = rows.slice(0, query.limit);
-    const titles = await this.#orders.titlesOf(
-      this.#db,
-      principal,
-      shown.map((row) => row.id),
-    );
+    // the view "Usunięte" (EVM-060) reads the titles and the versions through the mode `deleted` of the facade — the only door to a
+    // deleted order; every other page through the mode `visible`. Either way an order the facade does not return is dropped and counted.
+    const deletedView = query.view === 'deleted';
+    const refs = await this.#refsOf(principal, shown, deletedView);
     const visible = shown.flatMap((row) => {
-      const title = titles.get(row.id);
-      return title === undefined ? [] : [{ row, title }];
+      const ref = refs.get(row.id);
+      return ref === undefined ? [] : [{ row, title: ref.title, version: ref.version }];
     });
     for (let dropped = visible.length; dropped < shown.length; dropped += 1) this.#authzDrift.increment({});
     const names = await this.#users.displayNamesOf(
@@ -175,11 +176,13 @@ export class WorkOrderPageService {
     // the customers and the sites: ONE statement each for the whole page, under the read policy of their modules (none when absent)
     const customerNames = await this.#customers.displayNamesOf(this.#db, principal, unique(visible.map(({ row }) => row.customerId)));
     const siteLines = await this.#sites.linesOf(this.#db, principal, unique(visible.map(({ row }) => row.siteId)));
-    const totals = withPayments ? await this.#totalsOf(principal, visible, today) : undefined;
+    // the totals of payments are read under the policy of the visible orders: a deleted order has none, so its row has no column of payments
+    const totals = withPayments && !deletedView ? await this.#totalsOf(principal, visible, today) : undefined;
     const last = shown.at(-1);
     const list = {
-      items: visible.map(({ row, title }) => ({
+      items: visible.map(({ row, title, version }) => ({
         ...toItem(row, title, { names, partyNames, partyKinds, customerNames, siteLines }, today),
+        ...(deletedView && row.deletedAt !== null && version !== undefined ? { deletedAt: row.deletedAt.toISOString(), version } : {}),
         ...(totals === undefined ? {} : { payment: paymentOf(row, totals, today) }),
       })),
       nextCursor:
@@ -204,6 +207,18 @@ export class WorkOrderPageService {
       { ...request.context, sessionId: principal.sessionId },
     );
     return checked.data;
+  }
+
+  /** The title (and, in the view of the deleted ones, the version) of every order of the page that the facade shows to the caller. */
+  async #refsOf(
+    principal: Principal,
+    shown: readonly WorkOrderRow[],
+    deletedView: boolean,
+  ): Promise<ReadonlyMap<string, { readonly title: string; readonly version: number | undefined }>> {
+    const ids = shown.map((row) => row.id);
+    if (deletedView) return this.#orders.deletedRefsOf(this.#db, principal, ids);
+    const titles = await this.#orders.titlesOf(this.#db, principal, ids);
+    return new Map([...titles].map(([id, title]) => [id, { title, version: undefined }]));
   }
 
   /**

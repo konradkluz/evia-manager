@@ -4,9 +4,11 @@
  * list and the summary, over the projection) both build their condition here, each naming the column that holds the deletion time in
  * ITS table — so there is one rule, not a copy per table. Nobody filters a page after it was read.
  *
- * Today every signed-in role sees every order that is not soft deleted (RR-13), the Administrator included: the view of deleted
- * orders is a story of its own (EVM-060). The switch over the role is exhaustive: a role added later (the installer of M4) does not
- * compile until this policy says what it may see.
+ * Today every signed-in role sees every order that is not soft deleted (RR-13), the Administrator included. The orders that ARE
+ * soft deleted have a mode of their own (EVM-060, ADR-0017): `deleted` is the ONLY source of a deleted record in the whole API — the
+ * view "Usunięte" of the list, for the Administrator alone; for every other role it is a condition that is never true. No other read
+ * (the detail, the children, the search, the lists of other modules) asks for it. The switches over the role and over the mode are
+ * exhaustive: a role added later (the installer of M4) or a mode does not compile until this policy says what it may see.
  */
 import { sql, type RawBuilder, type SqlBool } from 'kysely';
 import type { Principal } from '../../platform/http/principal.ts';
@@ -20,11 +22,37 @@ const deletedAtOf = (source: WorkOrderPolicySource) =>
     ? sql.ref('work_orders.work_orders.deleted_at')
     : sql.ref('overview.work_order_summaries.deleted_at');
 
-export function workOrderReadCondition(principal: Principal, source: WorkOrderPolicySource): RawBuilder<SqlBool> {
+/** `visible` — the orders of every read; `deleted` — the soft deleted ones, the view of the Administrator (EVM-060). */
+export type WorkOrderReadMode = 'visible' | 'deleted';
+
+function visibleCondition(principal: Principal, source: WorkOrderPolicySource): RawBuilder<SqlBool> {
   switch (principal.role) {
     case 'administrator':
     case 'editor':
     case 'read_only':
       return sql<SqlBool>`${deletedAtOf(source)} is null`;
+  }
+}
+
+function deletedCondition(principal: Principal, source: WorkOrderPolicySource): RawBuilder<SqlBool> {
+  switch (principal.role) {
+    case 'administrator':
+      return sql<SqlBool>`${deletedAtOf(source)} is not null`;
+    case 'editor':
+    case 'read_only':
+      return sql<SqlBool>`false`;
+  }
+}
+
+export function workOrderReadCondition(
+  principal: Principal,
+  source: WorkOrderPolicySource,
+  mode: WorkOrderReadMode = 'visible',
+): RawBuilder<SqlBool> {
+  switch (mode) {
+    case 'visible':
+      return visibleCondition(principal, source);
+    case 'deleted':
+      return deletedCondition(principal, source);
   }
 }

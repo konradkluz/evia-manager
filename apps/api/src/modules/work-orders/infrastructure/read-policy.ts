@@ -7,3 +7,6 @@ import { workOrderReadCondition } from '../../authorization/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 
 export const visibleWorkOrders = (principal: Principal) => workOrderReadCondition(principal, 'work_orders.work_orders');
+
+/** The mode `deleted` of the policy (EVM-060): the soft deleted orders for the Administrator, never true for another role. Used by the view "Usunięte" only. */
+export const deletedWorkOrders = (principal: Principal) => workOrderReadCondition(principal, 'work_orders.work_orders', 'deleted');
