@@ -9,6 +9,8 @@ priority: P2
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer, solution-architect]
+path: pelna
+model: sonnet
 depends_on: [EVM-058]
 ---
 
@@ -94,3 +96,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): warunek wdrożenia na prod (najwcześniej z sign-off EVM-070)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-16 — ścieżka `pelna` (uprawnienia, usuwanie), recenzenci z `reviewers`, `model: sonnet` — decyzja Konrada przy planowaniu kolejki 16.10
