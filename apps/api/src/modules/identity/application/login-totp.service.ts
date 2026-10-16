@@ -86,12 +86,13 @@ export class LoginTotpService {
       return { refusal };
     };
 
-    // The account is read under a share lock: a deactivation cannot slip in between this check and the session insert.
+    // The account is locked FIRST (before the factor and the session rows): a deactivation cannot slip in between this check and the session insert,
+    // and two parallel requests of one account queue here instead of deadlocking on the rows that follow (a share lock would be upgraded by `recordLogin`).
     const account = await tx
       .selectFrom('identity.users')
       .select(['status', 'role'])
       .where('id', '=', attempt.userId)
-      .forShare()
+      .forUpdate()
       .executeTakeFirstOrThrow();
     if (!totpAllowedForRole(account.role, 'web')) return fail('forbidden');
 

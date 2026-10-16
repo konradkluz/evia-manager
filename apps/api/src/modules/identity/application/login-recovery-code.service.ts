@@ -122,11 +122,12 @@ export class LoginRecoveryCodeService {
     const attempt = await findLoginAttempt(tx, hashToken(loginToken));
     if (attempt === undefined || attempt.usedAt !== null || attempt.expiresAt <= now) return { refusal: 'unauthenticated' };
 
+    // The account is locked FIRST (before the code and the session rows): see `LoginTotpService` — two parallel requests queue here, they do not deadlock.
     const account = await tx
       .selectFrom('identity.users')
       .select('status')
       .where('id', '=', attempt.userId)
-      .forShare()
+      .forUpdate()
       .executeTakeFirstOrThrow();
     const spent = matchedId !== undefined && (await consumeRecoveryCode(tx, matchedId, now));
     if (!spent) {
