@@ -4,7 +4,7 @@ title: Zniesienie wyjątków jakości w tools/docs-lifecycle
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P3
 owner: devops-engineer
 contributors: []
@@ -102,3 +102,4 @@ _—_
 - 2026-10-05 — utworzono jako szkic z refinementu EVM-013 („Decyzje” 1) (product-owner)
 - 2026-10-05 — **wstrzymano decyzją Konrada** (EVM-075: priorytet to kod produktu); status zostaje `draft`, wznowienie tylko jego decyzją
 - 2026-10-16 — zaakceptowana przez Konrada (DoR): ścieżka `lekka`, recenzent `code-reviewer`, `model: sonnet`; draft → ready
+- 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B; ścieżka lekka, wykonawca sonnet)
