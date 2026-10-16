@@ -83,6 +83,7 @@ export interface SessionRecord {
   readonly revokeReason: RevokeReason | null;
   readonly lastSeenAt: Date;
   readonly passkeyAuthenticatedAt: Date | null;
+  readonly totpAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly role: UsersTable['role'];
@@ -105,6 +106,7 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
       's.revoke_reason as revokeReason',
       's.last_seen_at as lastSeenAt',
       's.passkey_authenticated_at as passkeyAuthenticatedAt',
+      's.totp_authenticated_at as totpAuthenticatedAt',
       's.idle_expires_at as idleExpiresAt',
       's.absolute_expires_at as absoluteExpiresAt',
       'u.role',
@@ -126,6 +128,7 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
     revokeReason: row.revokeReason,
     lastSeenAt: row.lastSeenAt,
     passkeyAuthenticatedAt: row.passkeyAuthenticatedAt,
+    totpAuthenticatedAt: row.totpAuthenticatedAt,
     idleExpiresAt: row.idleExpiresAt,
     absoluteExpiresAt: row.absoluteExpiresAt,
     role: row.role,
@@ -146,6 +149,8 @@ export interface NewSession {
   readonly now: Date;
   /** Set only by an authentication with a passkey (sign-in with a key, step-up); null for every other origin of a session (SR-SESS-08). */
   readonly passkeyAuthenticatedAt: Date | null;
+  /** Set only by an authentication with a TOTP code (sign-in, step-up, confirmation); null for every other origin, a recovery code included. */
+  readonly totpAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly ip: string | undefined;
@@ -168,6 +173,7 @@ export async function insertSession(db: IdentityDb, session: NewSession): Promis
       last_seen_at: session.now,
       last_authenticated_at: session.now,
       passkey_authenticated_at: session.passkeyAuthenticatedAt,
+      totp_authenticated_at: session.totpAuthenticatedAt,
       idle_expires_at: session.idleExpiresAt,
       absolute_expires_at: session.absoluteExpiresAt,
       revoked_at: null,

@@ -56,7 +56,7 @@ export interface OneTimeLinksTable {
   superseded_at: Date | null;
 }
 
-export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired' | 'password_reset';
+export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired' | 'password_reset' | 'step_up_failed';
 
 export interface SessionsTable {
   id: Generated<string>;
@@ -70,6 +70,10 @@ export interface SessionsTable {
   last_authenticated_at: Date;
   /** The last authentication with a passkey in this session (sign-in with a key, step-up); null for every other origin of a session (0009). */
   passkey_authenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** The last authentication with a TOTP code in this session (sign-in, step-up, confirmation); null for every other origin, a recovery code included (0038). */
+  totp_authenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** Wrong codes of step-up in this session; the fifth ends it (0038). */
+  step_up_failed_attempts: Generated<number>;
   idle_expires_at: Date;
   absolute_expires_at: Date;
   revoked_at: Date | null;
@@ -102,6 +106,30 @@ export interface WebauthnChallengesTable {
   used_at: Date | null;
 }
 
+/** At most one TOTP factor per account; `secret_ciphertext` is the sealed envelope of `platform/crypto/field-encryption` (0038). */
+export interface TotpFactorsTable {
+  id: Generated<string>;
+  user_id: string;
+  secret_ciphertext: Buffer;
+  state: 'pending' | 'active';
+  /** bigint: the driver returns text. */
+  last_used_step: ColumnType<string | null, number | null | undefined, number | null>;
+  created_at: Date;
+  confirmed_at: Date | null;
+}
+
+/** One row per recovery code: only the Argon2id hash. A generation is the ten codes of one request (0038). */
+export interface RecoveryCodesTable {
+  id: Generated<string>;
+  user_id: string;
+  generation_id: string;
+  session_id: string;
+  code_hash: string;
+  created_at: Date;
+  used_at: Date | null;
+  superseded_at: Date | null;
+}
+
 export type IdentityTables = {
   'identity.users': UsersTable;
   'identity.password_credentials': PasswordCredentialsTable;
@@ -110,6 +138,8 @@ export type IdentityTables = {
   'identity.sessions': SessionsTable;
   'identity.webauthn_challenges': WebauthnChallengesTable;
   'identity.login_attempts': LoginAttemptsTable;
+  'identity.totp_factors': TotpFactorsTable;
+  'identity.recovery_codes': RecoveryCodesTable;
 };
 
 /** A handle (pool or transaction) narrowed to the identity tables. */

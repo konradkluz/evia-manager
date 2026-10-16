@@ -36,6 +36,7 @@ import * as deletedOrdersIndex from './0033_deleted_orders_index.ts';
 import * as emailOutbox from './0035_email_outbox.ts';
 import * as userInvitations from './0036_user_invitations.ts';
 import * as passwordReset from './0037_password_reset.ts';
+import * as totpAndRecoveryCodes from './0038_totp_and_recovery_codes.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -74,4 +75,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0035_email_outbox': emailOutbox,
   '0036_user_invitations': userInvitations,
   '0037_password_reset': passwordReset,
+  '0038_totp_and_recovery_codes': totpAndRecoveryCodes,
 });
