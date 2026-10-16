@@ -89,12 +89,13 @@ describe('the transitions of a payment milestone in the contract (EVM-054; SR-AU
     expect(zAuditEvent.safeParse({ ...event, action: 'payment_milestone.purged' }).success).toBe(false);
   });
 
-  it('EVM-057 AC6 SR-AUTHZ-10 the inventory of routes: no deletion of a work order, and the writes of a milestone are its addition, change, transition and deletion only', () => {
-    expect(
-      Object.values(AUTHZ_MANIFEST).some(
-        (operation) => operation.method === 'delete' && operation.path === '/api/v1/work-orders/{workOrderId}',
-      ),
-    ).toBe(false);
+  it('EVM-057 AC6 EVM-060 AC5 SR-AUTHZ-10 the inventory of routes: the only deletion of a work order is deleteWorkOrder (Administrator, web; EVM-060 added it with the rule of the dependents), and the writes of a milestone are its addition, change, transition and deletion only', () => {
+    const deletions = Object.entries(AUTHZ_MANIFEST).filter(
+      ([, operation]) => operation.method === 'delete' && operation.path === '/api/v1/work-orders/{workOrderId}',
+    );
+    expect(deletions.map(([operationId, operation]) => [operationId, operation.authz.roles])).toEqual([
+      ['deleteWorkOrder', ['administrator']],
+    ]);
     const writes = Object.entries(AUTHZ_MANIFEST)
       .filter(([, operation]) => operation.method !== 'get' && operation.path.includes('payment-milestones'))
       .map(([operationId]) => operationId)

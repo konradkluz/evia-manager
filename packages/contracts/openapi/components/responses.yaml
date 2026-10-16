@@ -291,6 +291,63 @@ TransitionForbidden:
         status: 403
         code: step_up_required
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+WorkOrderDeleteForbidden:
+  description: >-
+    Brak uprawnienia (`forbidden`: Edytor i Tylko odczyt zawsze), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
+    (`mfa_enrollment_required`). Administrator przy zleceniu z transzą opłaconą bez uwierzytelnienia kluczem dostępu w ostatnich
+    15 minutach — `step_up_required` (sprawdzane po roli i po regule `409`). Odpowiedź nie mówi, czy zlecenie istnieje, i nie podaje
+    liczby ani kwot transz.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/step_up_required
+        title: Re-authentication required
+        status: 403
+        code: step_up_required
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+WorkOrderDeleteConflict:
+  description: >-
+    Zlecenie ma żywą transzę wystawioną (`has_active_dependents` — usunięcie nie może ukryć należności; odpowiedź nie podaje liczby,
+    kwot ani identyfikatorów transz), albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z
+    `Retry-After`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/has_active_dependents
+        title: The work order has active dependents
+        status: 409
+        code: has_active_dependents
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+IdempotencyInProgress:
+  description: Żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/idempotency_in_progress
+        title: A request with this idempotency key is in progress
+        status: 409
+        code: idempotency_in_progress
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 TransitionConflict:
   description: >-
     Przejścia nie ma w tabeli przejść z bieżącego statusu (`invalid_state_transition` — odpowiedź nie podaje bieżącego statusu; klient

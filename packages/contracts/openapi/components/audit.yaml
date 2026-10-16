@@ -29,6 +29,8 @@ AuditAction:
     - work_order.created
     - work_order.cancelled
     - work_order.restored
+    - work_order.deleted
+    - work_order.undeleted
     - work_order.updated
     - scope_item.created
     - scope_item.updated
@@ -96,6 +98,7 @@ AuditReasonCode:
     - passkey_failed
     - login_expired
     - expired
+    - step_up_verified
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).
