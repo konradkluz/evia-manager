@@ -104,6 +104,7 @@ Jednolity **`application/problem+json`** (RFC 9457) dla każdego błędu:
 | 405 | `method_not_allowed` | metoda spoza `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS` (np. `TRACE`) — odrzucana przed routingiem (EVM-016) |
 | 404 | `not_found` | obiekt nie istnieje, jest poza uprawnieniami albo soft-deleted (poza Administratorem) |
 | 409 | `id_conflict` | `id` z żądania już istnieje (także cudzy lub usunięty obiekt) |
+| 409 | `email_conflict` | adres e-mail zaproszenia należy już do konta (EVM-024); odpowiedź ma dodatkowe pole `existingUserId` — tylko dla konta widocznego na liście Administratora (nigdy adres ani nazwa; dla konta usuniętego bez pola) |
 | 409 | `invalid_state_transition` | przejścia nie ma w tabeli przejść |
 | 409 | `work_order_closed` | zmiana zakresu, procesu, etapu lub płatności w zleceniu zamkniętym (`settled`, `cancelled` — PO-8); odpowiedź nie podaje statusu zlecenia (EVM-031) |
 | 409 | `procedure_already_active` | dodanie albo przywrócenie procesu o kodzie, który jest już aktywny w zleceniu; odpowiedź nie podaje nazwy procesu (EVM-042) |
