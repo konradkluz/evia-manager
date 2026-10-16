@@ -8,7 +8,8 @@
  * ONE transaction, every decision taken on the order LOCKED (`FOR NO KEY UPDATE`, in any state — no read policy; Administrator alone):
  *   1. the order is locked: missing is `404 not_found`; one that is NOT deleted is `404` too (the same answer) — unless the request
  *      repeats a restoration with an idempotency key (step 3);
- *   2. `If-Match` (`428` / `400`);
+ *   2. `If-Match` (`428` / `400`) — for an order that is deleted; for one that is not the header is not looked at, so the `404` does
+ *      not depend on it;
  *   3. the idempotency port (when there is a key): a repeat of the same key and order answers `200` with the order as it is NOW. The key
  *      is bound to the user, the method, the route AND the ORDER (another order or the deletion — `422 idempotency_mismatch`);
  *   4. the version (`412 version_conflict`, no current values);
@@ -93,8 +94,10 @@ export class RestoreWorkOrderService {
 
     return runInTransaction(this.#db, async (tx) => {
       const locked = await lockWorkOrderAnyState(workOrderTables(tx), workOrderId);
-      if (locked === undefined || (locked.deleted_at === null && key === undefined)) throw new ProblemException('not_found');
-      const expectedVersion = parseIfMatch(rawIfMatch);
+      const deleted = locked !== undefined && locked.deleted_at !== null;
+      if (locked === undefined || (!deleted && key === undefined)) throw new ProblemException('not_found');
+      // an order that is not deleted has nothing to restore: `If-Match` is not looked at, so its `404` is the one of a missing order
+      const expectedVersion = deleted ? parseIfMatch(rawIfMatch) : 0;
 
       const perform = async () => {
         await this.#bringBack(tx, principal, locked, expectedVersion, request);

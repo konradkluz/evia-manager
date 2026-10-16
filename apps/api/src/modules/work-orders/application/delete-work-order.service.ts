@@ -11,7 +11,8 @@
  * issued in parallel are serialised), never on an earlier read:
  *   1. the order is locked in any state (this query has no read policy: it is for the Administrator alone): missing is `404 not_found`; an
  *      order that is already deleted is `404` too — the same answer — unless the request repeats a deletion with an idempotency key (step 3);
- *   2. `If-Match` (`428` / `400`);
+ *   2. `If-Match` (`428` / `400`) — for an order that is live; for one that is deleted already the header is not looked at, so the `404`
+ *      does not depend on it;
  *   3. the idempotency port (when there is a key): a repeat of the same key and order answers `204` BEFORE the dependents are asked — a
  *      retry after a lost answer is the same command, not a `404` or a `409`. The key is bound to the user (the port), the method, the
  *      route AND the ORDER: the same key on another order, or on the restoration, is `422 idempotency_mismatch`;
@@ -103,8 +104,10 @@ export class DeleteWorkOrderService {
 
     return runInTransaction(this.#db, async (tx) => {
       const locked = await lockWorkOrderAnyState(workOrderTables(tx), workOrderId);
-      if (locked === undefined || (locked.deleted_at !== null && key === undefined)) throw new ProblemException('not_found');
-      const expectedVersion = parseIfMatch(rawIfMatch);
+      const live = locked !== undefined && locked.deleted_at === null;
+      if (locked === undefined || (!live && key === undefined)) throw new ProblemException('not_found');
+      // an order that is deleted already has no version to compare: `If-Match` is not looked at, so its `404` is the one of a missing order
+      const expectedVersion = live ? parseIfMatch(rawIfMatch) : 0;
 
       const perform = async () => {
         await this.#remove(tx, principal, locked, expectedVersion, request);
