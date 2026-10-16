@@ -15,6 +15,7 @@ import { LoginFailures } from './application/login-failures.ts';
 import { LoginPasskeyService } from './application/login-passkey.service.ts';
 import { LoginService } from './application/login.service.ts';
 import { PasskeyService } from './application/passkey.service.ts';
+import { PasswordSetting } from './application/password-setting.ts';
 import { SessionService } from './application/session.service.ts';
 import { StepUpService } from './application/step-up.service.ts';
 import { UserDirectory } from './application/user-directory.ts';
@@ -33,6 +34,7 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
     LoginPasskeyService,
     LoginService,
     PasskeyService,
+    PasswordSetting,
     SessionService,
     StepUpService,
     UserDirectory,

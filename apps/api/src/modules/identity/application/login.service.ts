@@ -19,14 +19,13 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { LOGIN_ATTEMPT_RETENTION_MS, LOGIN_ATTEMPT_TTL_MS } from '../domain/constants.ts';
 import { normalizeEmail } from '../domain/text.ts';
-import { hashToken, newToken } from '../domain/tokens.ts';
 import { PASSWORD_HASHER, type PasswordHasher } from '../infrastructure/ports.ts';
-import { deleteStaleLoginAttempts, findLoginUser, hasPasskey, insertLoginAttempt, type LoginUser } from '../infrastructure/queries.ts';
+import { findLoginUser, hasPasskey, type LoginUser } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures, type LoginFailure } from './login-failures.ts';
+import { openSecondStep } from './second-step.ts';
 import { startSession, type StartedSession } from './session-start.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
@@ -81,17 +80,7 @@ export class LoginService {
       );
       return { kind: 'session', session };
     }
-    const loginToken = newToken();
-    await runInTransaction(this.#db, async (transaction) => {
-      const tx = identityTables(transaction);
-      await deleteStaleLoginAttempts(tx, new Date(now.getTime() - LOGIN_ATTEMPT_RETENTION_MS));
-      await insertLoginAttempt(tx, {
-        userId: user.userId,
-        tokenHash: hashToken(loginToken),
-        now,
-        expiresAt: new Date(now.getTime() + LOGIN_ATTEMPT_TTL_MS),
-      });
-    });
+    const loginToken = await runInTransaction(this.#db, (transaction) => openSecondStep(transaction, user.userId, now));
     return { kind: 'second_step', loginToken };
   }
 
