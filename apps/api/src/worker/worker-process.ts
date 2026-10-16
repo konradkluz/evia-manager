@@ -50,6 +50,8 @@ export interface WorkerWiring {
   readonly createEmailSender?: (config: Extract<EmailConfig, { transport: 'smtp' }>) => EmailSender;
   /** The file the health of the worker is written to (the container's `tmpfs`); shortened by nothing, moved by the tests only. */
   readonly healthFile?: string;
+  /** The interval of the relay of the outbox; shortened by the tests only (the default is 5 seconds). */
+  readonly relayIntervalMs?: number;
 }
 
 /** @returns the exit code of the process */
@@ -77,7 +79,7 @@ export async function runWorkerFromProcess(
       const composers = [app.get(InvitationEmailComposer, { strict: false })];
       jobs.push(new SendEmailJob({ db, clock, logger, sender, composers }).definition());
       const relay = new EmailRelay(db, queue, clock, logger);
-      tasks.push({ start: () => relay.start() });
+      tasks.push({ start: () => relay.start(wiring.relayIntervalMs) });
       if (sender instanceof SmtpEmailSender) {
         tasks.push({
           start: () => () => {
