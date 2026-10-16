@@ -4,7 +4,7 @@ title: Kod z aplikacji (TOTP) i kody odzyskiwania
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -108,3 +108,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC5 — podpowiedź dla Administratora po logowaniu kodem odzyskiwania zgodna z decyzją 16 (kod odzyskiwania niedostępny przy ponownym uwierzytelnieniu — S1 odrzucone)
 - 2026-10-16 — ścieżka `pelna` (uwierzytelnianie/uprawnienia), `model: sonnet`, realizacja lokalna z portem e-mail i Mailpit z EVM-024 — decyzja Konrada przy planowaniu kolejki 16.10
+- 2026-10-16 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
