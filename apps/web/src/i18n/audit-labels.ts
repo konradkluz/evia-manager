@@ -26,6 +26,10 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'password.reset_requested': 'Prośba o reset hasła',
   'password_reset_link.issued': 'Wydanie linku do resetu hasła',
   'password.reset': 'Reset hasła',
+  // EVM-023: labels the contract needs (the screens W-02, W-03 and W-04 of the second step are the work of the web developer)
+  'mfa.totp_enrolled': 'Dodanie kodu z aplikacji uwierzytelniającej',
+  'mfa.recovery_codes_generated': 'Wygenerowanie kodów odzyskiwania',
+  'login.recovery_code_used': 'Logowanie kodem odzyskiwania',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -82,7 +86,16 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'step_up.failed',
     ],
   },
-  { label: 'Hasło i drugi krok', actions: ['account.password_set', 'passkey.registered'] },
+  {
+    label: 'Hasło i drugi krok',
+    actions: [
+      'account.password_set',
+      'passkey.registered',
+      'mfa.totp_enrolled',
+      'mfa.recovery_codes_generated',
+      'login.recovery_code_used',
+    ],
+  },
   {
     label: 'Użytkownicy',
     actions: ['user.invited', 'invitation.resent', 'activation_link.issued', 'account.activated', 'account.emergency_reset'],

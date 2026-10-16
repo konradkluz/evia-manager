@@ -32,6 +32,14 @@ const SENSITIVE: Record<string, string> = {
   signedUrl: 'https://bucket.invalid/o?X-Amz-Signature=fake-seven',
   'X-Amz-Signature': 'fake-eight',
   apiKey: 'fake-nine',
+  // EVM-023 (C6): the key of the authenticator app, its address, the recovery codes and the code of the app typed at a sign-in
+  totpSecret: 'FAKESECRETFAKESECRETFAKESECRETFA',
+  secret: 'fake-ten',
+  otpauthUri: 'otpauth://totp/EVia%20Manager:x@example.invalid?secret=FAKE',
+  codes: 'AAAAABBBBBCCCCCDDDDD',
+  recoveryCode: 'EEEEEFFFFFGGGGGHHHHH',
+  recovery_code: 'IIIIIJJJJJKKKKKLLLLL',
+  totpCode: '246810',
 };
 
 function capture(level: 'info' | 'warn' = 'info') {
@@ -86,7 +94,8 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
 
   it('EVM-008 AC4 key matching is normalised and covers the ADR-0013 list', () => {
     for (const key of Object.keys(SENSITIVE)) expect(isSensitiveKey(key), key).toBe(true);
-    for (const key of ['traceId', 'status', 'route', 'method', 'durationMs', 'workOrderId', 'userId', 'level', 'msg'])
+    // `code` stays readable: it is the code of an error of RFC 9457 (`totp_failed`), not a secret — the secrets of EVM-023 are caught by their own names
+    for (const key of ['traceId', 'status', 'route', 'method', 'durationMs', 'workOrderId', 'userId', 'level', 'msg', 'code', 'reasonCode'])
       expect(isSensitiveKey(key), key).toBe(false);
   });
 

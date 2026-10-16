@@ -31,7 +31,7 @@ export const MFA_ENROLLMENT_OPERATIONS: readonly string[] = Object.freeze([
   'getCurrentSession',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
-  'setupTotp',
+  'startTotpEnrolment',
   'confirmTotp',
   'extendSession',
   'logout',

@@ -43,7 +43,7 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/audit/events',
       '/api/v1/account/passkeys/registration-options',
       '/api/v1/account/passkeys',
-      '/api/v1/account/totp/setup',
+      '/api/v1/account/totp/enrolment',
       '/api/v1/account/totp/confirm',
       '/api/v1/account/recovery-codes',
       '/api/v1/catalog/work-order-templates',

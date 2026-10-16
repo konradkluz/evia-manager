@@ -77,8 +77,8 @@ paths:
     $ref: paths/identity.yaml#/passkeyOptions
   /api/v1/account/passkeys:
     $ref: paths/identity.yaml#/passkeys
-  /api/v1/account/totp/setup:
-    $ref: paths/identity.yaml#/totpSetup
+  /api/v1/account/totp/enrolment:
+    $ref: paths/identity.yaml#/totpEnrolment
   /api/v1/account/totp/confirm:
     $ref: paths/identity.yaml#/totpConfirm
   /api/v1/account/recovery-codes:

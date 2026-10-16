@@ -81,7 +81,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'searchSites',
       'searchWorkOrders',
       'setActivationPassword',
-      'setupTotp',
+      'startTotpEnrolment',
       'stepUp',
       'transitionPaymentMilestone',
       'transitionProcedureStage',

@@ -210,3 +210,22 @@ describe('a bound on a number is a range, a bound on a text a length (EVM-021 AC
     expect(JSON.stringify(result)).not.toContain('sekret');
   });
 });
+
+describe('strict objects inside a union (EVM-023: the step-up is a passkey or a code)', () => {
+  const schema = strictObjects(
+    z.union([z.object({ credential: z.string() }), z.object({ method: z.literal('totp'), code: z.string().length(6) })]),
+  );
+
+  it('EVM-023 AC7 every branch is closed: a field of the other branch, an injected account or __proto__ is refused, not stripped', () => {
+    expect(schema.safeParse({ credential: 'x' }).success).toBe(true);
+    expect(schema.safeParse({ method: 'totp', code: '123456' }).success).toBe(true);
+    for (const body of [
+      { credential: 'x', userId: 'u' },
+      { method: 'totp', code: '123456', userId: 'u' },
+      { credential: 'x', code: '123456' },
+      JSON.parse('{"method":"totp","code":"123456","__proto__":{"x":1}}'),
+      { method: 'recovery_code', code: '123456' },
+    ])
+      expect(schema.safeParse(body).success, JSON.stringify(body)).toBe(false);
+  });
+});

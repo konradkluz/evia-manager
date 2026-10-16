@@ -82,9 +82,10 @@ describe('the second step of EVM-023 in the contract (SR-AUTH-07, SR-AUTH-08, SR
   it('EVM-023 AC8 the endpoints and their authorization: the sign-in codes are public, the setup belongs to the enrolment, the recovery codes need a step-up, every role may use them', () => {
     expect(AUTHZ_MANIFEST['loginTotp']?.authz).toEqual({ public: true });
     expect(AUTHZ_MANIFEST['loginRecoveryCode']?.authz).toEqual({ public: true });
-    for (const id of ['setupTotp', 'confirmTotp'])
+    // the Administrator has no code of the app in the panel (P1): the manifest itself leaves them out, so the guard answers 403 before any handler
+    for (const id of ['startTotpEnrolment', 'confirmTotp'])
       expect(AUTHZ_MANIFEST[id]?.authz, id).toMatchObject({
-        roles: ['administrator', 'editor', 'read_only'],
+        roles: ['editor', 'read_only'],
         channels: ['web'],
         allowDuringMfaEnrollment: true,
       });

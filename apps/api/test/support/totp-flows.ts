@@ -17,7 +17,7 @@ import { adopt, firstStep, type EnrolledAccount } from './login-flows.ts';
 import type { PanelClient } from './panel-client.ts';
 
 export const SECOND_STEP = {
-  setup: '/api/v1/account/totp/setup',
+  setup: '/api/v1/account/totp/enrolment',
   confirm: '/api/v1/account/totp/confirm',
   recoveryCodes: '/api/v1/account/recovery-codes',
   loginTotp: '/api/v1/auth/login/totp',

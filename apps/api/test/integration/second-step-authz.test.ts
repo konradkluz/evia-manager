@@ -55,19 +55,20 @@ const answer = (response: { status: number; body: unknown }) => ({
 });
 
 describe('the authorization of the second step: the matrix of roles and states (EVM-023 AC8; SR-AUTHZ-05, SR-AUTHZ-12; C5)', () => {
-  it('EVM-023 AC8 the contract: the two sign-in operations are public and the three of the account are sessions of the web channel for every role', () => {
+  it('EVM-023 AC8 the contract: the two sign-in operations are public; the enrolment is for Editor and Read-only (the Administrator has no code of the app in the panel); the codes and the step-up are for every role; all of them are on the web channel', () => {
     for (const id of ['loginTotp', 'loginRecoveryCode']) {
       expect(AUTHZ_MANIFEST[id]?.method, id).toBe('post');
       expect(AUTHZ_MANIFEST[id]?.authz, id).toEqual({ public: true });
       expect(PUBLIC_OPERATIONS, id).toContain(id);
     }
-    for (const id of ['setupTotp', 'confirmTotp', 'generateRecoveryCodes', 'stepUp']) {
+    for (const id of ['startTotpEnrolment', 'confirmTotp']) expect(AUTHZ_MANIFEST[id]?.authz.roles, id).toEqual(['editor', 'read_only']);
+    for (const id of ['generateRecoveryCodes', 'stepUp'])
       expect(AUTHZ_MANIFEST[id]?.authz.roles, id).toEqual(['administrator', 'editor', 'read_only']);
+    for (const id of ['startTotpEnrolment', 'confirmTotp', 'generateRecoveryCodes', 'stepUp'])
       expect(AUTHZ_MANIFEST[id]?.authz.channels, id).toEqual(['web']);
-    }
   });
 
-  it('EVM-023 AC8 B1 setupTotp: only the enrolment of a link, only for Editor and Read-only; the Administrator, a session of the password alone and an active session are 403 forbidden; nobody is 401', async () => {
+  it('EVM-023 AC8 B1 startTotpEnrolment: only the enrolment of a link, only for Editor and Read-only; the Administrator, a session of the password alone and an active session are 403 forbidden; nobody is 401', async () => {
     const anonymous = await current.panel().post(SECOND_STEP.setup);
     expect(answer(anonymous)).toEqual({ status: 401, code: 'unauthenticated' });
     const expected: Record<State, (role: Role) => { status: number; code?: string }> = {

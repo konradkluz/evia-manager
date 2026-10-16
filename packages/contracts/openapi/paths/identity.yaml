@@ -659,9 +659,9 @@ stepUp:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
-totpSetup:
+totpEnrolment:
   post:
-    operationId: setupTotp
+    operationId: startTotpEnrolment
     tags: [identity]
     summary: Konfiguracja kodu z aplikacji — nowy sekret
     description: >-
@@ -673,7 +673,7 @@ totpSetup:
       Brak kluczy szyfrowania w konfiguracji → `503 service_unavailable`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
       Wymaga `X-CSRF-Token`; limit 20 żądań na minutę z jednego adresu IP (wspólny kubełek z logowaniem).
     x-evia-authz:
-      roles: [administrator, editor, read_only]
+      roles: [editor, read_only]
       channels: [web]
       allowDuringMfaEnrollment: true
     responses:
@@ -705,14 +705,14 @@ totpConfirm:
     tags: [identity]
     summary: Potwierdzenie kodu z aplikacji — aktywacja metody
     description: >-
-      Jak `setupTotp` (sesja `mfa_enrollment` z linkiem, bez Administratora w panelu). Poprawny kod z oczekującego sekretu
+      Jak `startTotpEnrolment` (sesja `mfa_enrollment` z linkiem, bez Administratora w panelu). Poprawny kod z oczekującego sekretu
       (6 cyfr, ±1 krok) w jednej transakcji: aktywuje czynnik (krok kodu zapisany — ten kod nie zaloguje), zużywa link aktywacyjny,
       aktywuje konto, unieważnia sesję konfiguracji i tworzy sesję `active` z nowym identyfikatorem i oknem step-upu (nowe
       ciasteczko), wysyła e-mail o zmianie drugiego kroku i zapisuje zdarzenie `mfa.totp_enrolled`. Dwa równoległe potwierdzenia dają
       jedną aktywację. Zły kod → `400 totp_verification_failed` (metoda pozostaje nieaktywna); link wygasły lub zastąpiony →
       `401 session_revoked`. Wymaga `X-CSRF-Token`; limit 20/min/IP; `Cache-Control: no-store`.
     x-evia-authz:
-      roles: [administrator, editor, read_only]
+      roles: [editor, read_only]
       channels: [web]
       allowDuringMfaEnrollment: true
       audit: true

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { deadlinesAt, isExpired, slidIdleDeadline, stepUpFresh, touchDue } from '../../src/modules/identity/domain/session-policy.ts';
+import {
+  deadlinesAt,
+  isExpired,
+  lastStepUpAuthentication,
+  slidIdleDeadline,
+  stepUpFresh,
+  touchDue,
+} from '../../src/modules/identity/domain/session-policy.ts';
 
 const at = (iso: string): Date => new Date(iso);
 // 2026-10-05 08:00 UTC = 10:00 Europe/Warsaw (CEST); the clock is an argument, nothing sleeps.
@@ -55,5 +62,27 @@ describe('the step-up window (EVM-029 AC1, AC2; SR-SESS-08, ADR-0005)', () => {
 
   it('EVM-029 AC2 a time in the future (a clock that went back) is not fresh either', () => {
     expect(stepUpFresh(at('2026-10-07T08:00:00.001Z'), authenticated)).toBe(false);
+  });
+});
+
+describe('the window of step-up opened by a passkey or by a code of the app (EVM-023 AC7; SR-SESS-08)', () => {
+  const earlier = at('2026-10-07T08:00:00.000Z');
+  const later = at('2026-10-07T08:05:00.000Z');
+
+  it('EVM-023 AC7 the later of the two authentications counts; either alone counts; a recovery code is neither', () => {
+    expect(lastStepUpAuthentication({ passkeyAuthenticatedAt: earlier, totpAuthenticatedAt: later })).toEqual(later);
+    expect(lastStepUpAuthentication({ passkeyAuthenticatedAt: later, totpAuthenticatedAt: earlier })).toEqual(later);
+    expect(lastStepUpAuthentication({ passkeyAuthenticatedAt: earlier, totpAuthenticatedAt: null })).toEqual(earlier);
+    expect(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: later })).toEqual(later);
+    expect(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: null })).toBeNull();
+  });
+
+  it('EVM-023 AC7 a session of a code of the app is fresh for 15 minutes like one of a key, and a session of a recovery code never', () => {
+    const now = at('2026-10-07T08:14:00.000Z');
+    expect(stepUpFresh(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: earlier }), now)).toBe(true);
+    expect(
+      stepUpFresh(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: earlier }), at('2026-10-07T08:15:00.000Z')),
+    ).toBe(false);
+    expect(stepUpFresh(lastStepUpAuthentication({ passkeyAuthenticatedAt: null, totpAuthenticatedAt: null }), now)).toBe(false);
   });
 });

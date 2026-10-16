@@ -32,7 +32,7 @@ export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
   'setActivationPassword',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
-  'setupTotp',
+  'startTotpEnrolment',
   'confirmTotp',
   'getStepUpPasskeyOptions',
   'stepUp',

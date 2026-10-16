@@ -318,10 +318,10 @@ export class AuthController {
     return result.passkey;
   }
 
-  @Post('/api/v1/account/totp/setup')
-  @OperationId('setupTotp')
+  @Post('/api/v1/account/totp/enrolment')
+  @OperationId('startTotpEnrolment')
   @HttpCode(200)
-  setupTotp(@Body() body: unknown, @Req() request: Request): Promise<TotpSetup> {
+  startTotpEnrolment(@Body() body: unknown, @Req() request: Request): Promise<TotpSetup> {
     parseInput(emptyBody, body ?? {});
     return this.#totpEnrolment.setup(requirePrincipal(request));
   }
