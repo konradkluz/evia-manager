@@ -55,11 +55,13 @@ function SecondStep({ flow }: { readonly flow: LoginFlow }) {
   const online = useOnline();
   const heading = useId();
   const button = useRef<HTMLButtonElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
 
   useEffect(() => {
-    button.current?.focus();
-  }, []);
+    // After a password reset the success message is read right after the heading, so focus starts on the heading (flows/01 W-02).
+    (flow.passwordChanged === true ? title : button).current?.focus();
+  }, [flow.passwordChanged]);
 
   const back = () => {
     setLoginFlow(null);
@@ -90,9 +92,15 @@ function SecondStep({ flow }: { readonly flow: LoginFlow }) {
   return (
     <AuthLayout>
       <Card labelledBy={heading}>
-        <h1 id={heading} className="text-heading-2">
+        <h1
+          id={heading}
+          ref={title}
+          tabIndex={flow.passwordChanged === true ? -1 : undefined}
+          className="text-heading-2 focus-visible:focus-ring"
+        >
           {t('secondStep.title')}
         </h1>
+        {flow.passwordChanged === true && !expired ? <InlineAlert tone="success">{t('secondStep.passwordChanged')}</InlineAlert> : null}
         {expired ? (
           <InlineAlert
             tone="error"
@@ -102,7 +110,7 @@ function SecondStep({ flow }: { readonly flow: LoginFlow }) {
               </Button>
             }
           >
-            {t('secondStep.tooLong')}
+            {flow.passwordChanged === true ? t('secondStep.tooLongAfterReset') : t('secondStep.tooLong')}
           </InlineAlert>
         ) : (
           <>

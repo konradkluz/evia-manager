@@ -22,6 +22,17 @@ describe('the entry point strips the fragment before the router exists (EVM-016 
     expect(globalThis.location.href).not.toContain(TOKEN);
   });
 
+  it('EVM-025 AC2 a reset link fragment is taken into the reset memory (not the activation one) and stripped from the address', async () => {
+    globalThis.history.replaceState(null, '', `/reset-password#${TOKEN}`);
+    await import('../src/activation/capture-fragment.ts');
+    const { getResetToken } = await import('../src/reset/reset-token.ts');
+    const { getActivationToken } = await import('../src/activation/activation-token.ts');
+    expect(globalThis.location.pathname).toBe('/reset-password');
+    expect(globalThis.location.hash).toBe('');
+    expect(getResetToken()).toBe(TOKEN);
+    expect(getActivationToken()).toBeNull();
+  });
+
   it('EVM-016 AC5 importing the capture module alone removes the token from the address and keeps it in memory', async () => {
     globalThis.history.replaceState(null, '', `/activate#${TOKEN}`);
     await import('../src/activation/capture-fragment.ts');

@@ -6,10 +6,13 @@ import { ApiError } from '../api/client.ts';
 import { isWrongOrigin, supportedPanelAddress } from '../api/panel-address.ts';
 
 /** Message for a request rejected because the panel was opened under an unsupported address (EVM-077 AC6). */
-export function wrongOriginText(t: TFunction, scope: 'login' | 'activation'): string {
+export function wrongOriginText(t: TFunction, scope: 'login' | 'activation' | 'resetRequest'): string {
   const address = supportedPanelAddress();
   if (scope === 'login') {
     return address === undefined ? t('login.wrongOriginNoAddress') : t('login.wrongOrigin', { address });
+  }
+  if (scope === 'resetRequest') {
+    return address === undefined ? t('resetRequest.wrongOriginNoAddress') : t('resetRequest.wrongOrigin', { address });
   }
   return address === undefined ? t('activation.wrongOriginNoAddress') : t('activation.wrongOrigin', { address });
 }

@@ -8,6 +8,11 @@ export interface LoginFlow {
   readonly loginToken: string;
   /** Already resolved with `resolveReturnTo` (a relative path of the panel). */
   readonly returnTo: string;
+  /**
+   * Set by W-12 after a password reset (EVM-025 AC4): W-02 shows the message "Hasło zostało zmienione…" above the method. It
+   * lives only here, in the memory of the tab, never in the address, so a forged link cannot put the message on the page (CWE-451).
+   */
+  readonly passwordChanged?: true;
 }
 
 export type LoginNotice = 'expired';
