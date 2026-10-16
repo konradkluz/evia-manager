@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem } from './api-fake.ts';
@@ -17,7 +17,6 @@ import {
 import { renderPanel } from './render.tsx';
 
 // No pause between keystrokes: typing many characters per test would otherwise run close to the 5 s limit on a slow CI runner.
-const userEvent = userEventDefault.setup({ delay: null });
 const READ = `GET ${SITE_ROUTE}`;
 const PATCH = `PATCH ${SITE_ROUTE}`;
 const NOTES_WARNING = 'Nie wpisuj PESEL, numerów dokumentów ani kodów do bram i alarmów. Notatki zobaczą technicy w aplikacji.';

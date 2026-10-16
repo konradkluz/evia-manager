@@ -1,6 +1,6 @@
 import type { CurrentSession, ProcedureList, ProcedureStage, ProcedureStageTemplate, SiteCard } from '@evia/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { todayWarsaw } from '../src/work-orders/transition-actions.ts';
 import { axeViolations } from './a11y.ts';
@@ -8,7 +8,6 @@ import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE, type Handler, 
 import { activeSessionApi, renderPanel } from './render.tsx';
 import { HEADER, ORDER_ID, SITE, workOrderRoutes } from './work-order-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const PATH = `/work-orders/${ORDER_ID}`;
 const BASE = `/api/v1/work-orders/${ORDER_ID}`;
 const STAGE_ID = '01968f3e-0000-7000-8000-0000000f0001';

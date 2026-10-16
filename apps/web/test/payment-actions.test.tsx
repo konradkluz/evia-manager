@@ -1,5 +1,5 @@
 import { screen, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { milestoneActions } from '../src/work-orders/milestone-actions.ts';
 import { axeViolations } from './a11y.ts';
@@ -7,7 +7,6 @@ import { ACTIVE_SESSION } from './api-fake.ts';
 import { renderPanel } from './render.tsx';
 import { ALL, PAYMENTS_PATH, paymentsApi, roleSession } from './payment-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const ADMIN_ONLY = 'Korektę płatności może wykonać tylko administrator.';
 
 afterEach(() => {

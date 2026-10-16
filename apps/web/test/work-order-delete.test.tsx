@@ -1,6 +1,6 @@
 import type { CurrentSession } from '@evia/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetStepUp } from '../src/session/step-up.ts';
 import { axeViolations } from './a11y.ts';
@@ -10,7 +10,6 @@ import { activeSessionApi, renderPanel } from './render.tsx';
 import { HEADER, ORDER_ID, workOrderRoutes } from './work-order-api.ts';
 
 // W-06 "Usuń zlecenie…" (EVM-060 AC1–AC3, AC5, AC6): the menu `⋮`, the AlertDialog, the answers of the API told in words and W-04.
-const userEvent = userEventDefault.setup({ delay: null });
 const PATH = `/work-orders/${ORDER_ID}`;
 const DELETE = `DELETE /api/v1/work-orders/${ORDER_ID}`;
 const MENU = 'Akcje zlecenia: ZL-2026-0042';

@@ -1,12 +1,11 @@
 import { screen, waitFor } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { json, problem } from './api-fake.ts';
 import { NOW, eventEntry, journalApi } from './journal-api.ts';
 import { renderPanel } from './render.tsx';
 import { ORDER_ID } from './work-order-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const PATH = `/work-orders/${ORDER_ID}`;
 
 beforeEach(() => {

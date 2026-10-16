@@ -1,5 +1,5 @@
 import { act, screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, ENROLLMENT_SESSION, createFakeApi, json, problem, SESSION_ROUTE } from './api-fake.ts';

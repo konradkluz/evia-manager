@@ -1,6 +1,6 @@
 import type { TimelineEntry } from '@evia/contracts';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem, type Handler } from './api-fake.ts';
@@ -9,7 +9,6 @@ import { renderPanel } from './render.tsx';
 import { HEADER, ORDER_ID } from './work-order-api.ts';
 import { clearDrafts } from '../src/session/draft-store.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const PATH = `/work-orders/${ORDER_ID}`;
 const POST = `POST ${TIMELINE}`;
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

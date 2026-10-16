@@ -51,3 +51,4 @@ Jako **deweloper web** chcę **jednego współdzielonego helpera testów z `user
 - 2026-10-07 — utworzono (product-owner)
 - 2026-10-16 — zaakceptowana przez Konrada (DoR): ścieżka `lekka`, recenzent `code-reviewer`, `model: sonnet`; draft → ready
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B; ścieżka lekka, wykonawca sonnet)
+- 2026-10-16 — wdrożono: wspólny helper apps/web/test/user.ts (userEvent bez opóźnienia) we wszystkich testach web; testTimeout 20 s i asyncUtilTimeout 5 s zostają z uzasadnieniem w komentarzach (najwolniejszy test ok. 5 s lokalnie; CI wolniejsze) — decyzja orkiestratora — do potwierdzenia na demo (web-developer)

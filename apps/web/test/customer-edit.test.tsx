@@ -1,6 +1,6 @@
 import type { Customer } from '@evia/contracts';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE } from './api-fake.ts';

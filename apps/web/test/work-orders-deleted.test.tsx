@@ -1,6 +1,6 @@
 import type { CurrentSession, UserRole, WorkOrderList, WorkOrderListItem } from '@evia/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, problem, SESSION_ROUTE, type Handler } from './api-fake.ts';
@@ -8,7 +8,6 @@ import { activeSessionApi, renderPanel } from './render.tsx';
 import { HEADER } from './work-order-api.ts';
 
 // W-10 and the view "Usunięte" (EVM-060 AC4, AC6): the Administrator's filter, the list of the deleted orders and "Przywróć".
-const userEvent = userEventDefault.setup({ delay: null });
 const LIST = 'GET /api/v1/work-orders';
 const ANNA = { id: '11111111-1111-4111-8111-111111111111', displayName: 'Anna Testowa' };
 const UUIDV7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

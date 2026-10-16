@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem } from './api-fake.ts';
@@ -7,7 +7,6 @@ import { locationServer, OSD_ID, OSD_ROUTE, PATH } from './location-edit-api.ts'
 import { renderPanel } from './render.tsx';
 
 // No pause between keystrokes: typing many characters per test would otherwise run close to the 5 s limit on a slow CI runner.
-const userEvent = userEventDefault.setup({ delay: null });
 const READ = `GET ${OSD_ROUTE}`;
 const PATCH = `PATCH ${OSD_ROUTE}`;
 const MENU = { name: 'Akcje strony: Operator Testowy (OSD)' } as const;
