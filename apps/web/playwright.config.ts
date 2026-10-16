@@ -43,6 +43,7 @@ const uxReviewDirPaymentSignals = fileURLToPath(new URL('../../docs/ux/reviews/E
 const uxReviewDirInvitation = fileURLToPath(new URL('../../docs/ux/reviews/EVM-024/', import.meta.url));
 const uxReviewDirPaymentCorrections = fileURLToPath(new URL('../../docs/ux/reviews/EVM-057/', import.meta.url));
 const uxReviewDirDeletion = fileURLToPath(new URL('../../docs/ux/reviews/EVM-060/', import.meta.url));
+const uxReviewDirReset = fileURLToPath(new URL('../../docs/ux/reviews/EVM-025/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -93,6 +94,7 @@ export default defineConfig({
         uxReviewDirPaymentCorrections,
         uxReviewDirInvitation,
         uxReviewDirDeletion,
+        uxReviewDirReset,
       },
     },
   ],

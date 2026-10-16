@@ -63,6 +63,8 @@ import {
 export type SessionKind = 'none' | 'active' | 'enrollment';
 
 export const VALID_TOKEN = 'Vz3-_Aq9'.repeat(5) + 'xyz';
+/** EVM-025: the token of a password reset link of the synthetic server (a different one than the activation link). */
+export const RESET_TOKEN = 'Rs4-_Kd8'.repeat(5) + 'xyz';
 export const EMAIL = 'anna.testowa@example.com';
 export const DISPLAY_NAME = 'Anna Testowa';
 export const PASSWORD = 'zażółć gęślą jaźń!';
@@ -81,6 +83,8 @@ export interface MockApi {
   session: SessionKind;
   /** Decides the answer for `checkActivationLink` (default: valid only for VALID_TOKEN). */
   tokenValid: (token: string) => boolean;
+  /** EVM-025: decides the answer for the check and the completion of a password reset link (default: valid only for RESET_TOKEN, once). */
+  resetLinkValid: (token: string) => boolean;
   /** Answers of the next calls, to rehearse failures. */
   failNext: Map<string, { status: number; code: string; headers?: Record<string, string> }>;
   /** EVM-067: the account of the synthetic server has a passkey (`second_step`) or none (`mfa_enrollment`). */
@@ -342,6 +346,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     seen: [],
     session,
     tokenValid: (token) => token === VALID_TOKEN,
+    resetLinkValid: (token) => token === RESET_TOKEN && !resetLinkUsed,
     failNext: new Map(),
     loginMode: 'second_step',
     credentialId: null,
@@ -458,6 +463,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
   let loginTokenUsed = false;
+  let resetLinkUsed = false;
   let challenge = '';
 
   /** The list of work orders (`GET`) and its search (`POST`, EVM-072): the same filters, the phrase only for the search. */
@@ -900,6 +906,30 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
             absoluteExpiresAt: new Date(api.deadlines.absolute).toISOString(),
           }),
         );
+      }
+      case 'POST /api/v1/auth/password-reset/request':
+        // Always the same answer, whatever the address (EVM-025 AC1).
+        return route.fulfill(ok(202, {}));
+      case 'POST /api/v1/auth/password-reset/check': {
+        const { token } = body() as { token?: string };
+        return api.resetLinkValid(token ?? '')
+          ? route.fulfill(ok(200, { email: EMAIL }))
+          : route.fulfill(problem(400, 'password_reset_link_invalid'));
+      }
+      case 'POST /api/v1/auth/password-reset/complete': {
+        const { token, password } = body() as { token?: string; password?: string };
+        if (!api.resetLinkValid(token ?? '')) return route.fulfill(problem(400, 'password_reset_link_invalid'));
+        const length = Array.from((password ?? '').normalize('NFC')).length;
+        if (length < 15) return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/password', code: 'too_short' }] }));
+        if (/^password/i.test(password ?? '')) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/password', code: 'too_weak' }] }));
+        }
+        // The password is saved, the link is spent, every session is over and none is created (AC4, AC5).
+        resetLinkUsed = true;
+        api.session = 'none';
+        api.loginToken = LOGIN_TOKEN;
+        loginTokenUsed = false;
+        return route.fulfill(ok(200, { state: 'second_step', loginToken: LOGIN_TOKEN, methods: ['passkey'] }));
       }
       case 'POST /api/v1/auth/activation/check': {
         const { token } = body() as { token?: string };
