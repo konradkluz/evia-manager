@@ -45,4 +45,4 @@ exit "$status"
 - **Determinizm:** sortowanie po jednostkach kodu, „dzisiaj” z `Intl` w strefie `Europe/Warsaw`, odwołania rozwiązywane wyłącznie względem listy plików z gita (ścieżek z treści dokumentów nigdy się nie otwiera).
 - **Zmiana reguł:** nowa lokalizacja = zmiana tabeli w polityce i `lifecycle.config.json` w tej samej historyjce.
 
-Wyjątki od wspólnych reguł ESLint i TypeScript (`eslint.config.js`, `tsconfig.json`, lista `RELAXED` w `tools/repo-policy`) znosi [EVM-073](../../docs/backlog/M1/EVM-073-wyjatki-jakosci-docs-lifecycle.md).
+Narzędzie spełnia wspólne reguły ESLint i TypeScript bez wyjątków (`eslint.config.js` i `tsconfig.json` nie łagodzą konfiguracji `@evia/config`; zniesione w [EVM-073](../../docs/backlog/M1/EVM-073-wyjatki-jakosci-docs-lifecycle.md)).

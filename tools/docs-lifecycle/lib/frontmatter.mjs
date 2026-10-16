@@ -23,7 +23,7 @@ const NULL_VALUE = /^(?:~|null|Null|NULL)?$/;
  * @returns {string}
  */
 export function normalizeText(text) {
-  return text.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  return text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
 }
 
 /**
@@ -34,7 +34,7 @@ export function parseFrontmatter(text) {
   /** @type {Map<string, string>} */
   const fields = new Map();
   const lines = normalizeText(text).split('\n');
-  if (!FENCE.test(lines[0])) return fields;
+  if (!FENCE.test(/** @type {string} */ (lines[0]))) return fields;
   const end = lines.findIndex((line, index) => index > 0 && FENCE.test(line));
   if (end === -1) return fields;
   for (const line of lines.slice(1, end)) {
@@ -61,7 +61,7 @@ export function fieldOf(line) {
   if (LINE_BREAK.test(rest)) return null;
   const value = rest.replace(LEADING_BLANKS, '');
   // `key:value` without a blank after the colon is not a field.
-  return rest === '' || value !== rest ? [match[1], value] : null;
+  return rest === '' || value !== rest ? [/** @type {string} */ (match[1]), value] : null;
 }
 
 /**
@@ -71,7 +71,7 @@ export function fieldOf(line) {
 function cleanValue(raw) {
   const value = raw.trim();
   const quoted = QUOTED.exec(value);
-  if (quoted) return quoted[2];
+  if (quoted) return /** @type {string} */ (quoted[2]);
   const plain = value.replace(COMMENT, '').trim();
   return NULL_VALUE.test(plain) ? null : plain;
 }

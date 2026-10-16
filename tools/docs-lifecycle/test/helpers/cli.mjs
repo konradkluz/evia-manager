@@ -23,8 +23,8 @@ export function runMain(argv, { cwd, env, now = NOW }) {
     cwd,
     env,
     now,
-    stdout: { write: (chunk) => out.push(String(chunk)) },
-    stderr: { write: (chunk) => err.push(String(chunk)) },
+    stdout: { write: (chunk) => out.push(chunk) },
+    stderr: { write: (chunk) => err.push(chunk) },
   });
   return { code, stdout: out.join(''), stderr: err.join('') };
 }

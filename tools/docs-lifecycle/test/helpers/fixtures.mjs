@@ -67,7 +67,7 @@ export function baseFiles() {
 export function memoryRepo(files, { extraPaths = [], scratchIgnored = true } = {}) {
   return {
     paths: [...Object.keys(files), ...extraPaths],
-    read: (path) => (Object.hasOwn(files, path) ? files[path] : null),
+    read: (path) => (Object.hasOwn(files, path) ? /** @type {string} */ (files[path]) : null),
     scratchIgnored,
   };
 }

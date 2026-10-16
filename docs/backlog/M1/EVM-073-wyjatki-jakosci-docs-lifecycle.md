@@ -103,3 +103,4 @@ _—_
 - 2026-10-05 — **wstrzymano decyzją Konrada** (EVM-075: priorytet to kod produktu); status zostaje `draft`, wznowienie tylko jego decyzją
 - 2026-10-16 — zaakceptowana przez Konrada (DoR): ścieżka `lekka`, recenzent `code-reviewer`, `model: sonnet`; draft → ready
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B; ścieżka lekka, wykonawca sonnet)
+- 2026-10-16 — implementacja (devops-engineer, ścieżka lekka): zniesiono wyjątki `tools/docs-lifecycle` (`noUncheckedIndexedAccess`, 9 reguł ESLint; typy w JSDoc i pomocnik `at` w testach, bez nowych gałęzi), pusta lista wyjątków w `tools/repo-policy`, README i CHANGELOG zaktualizowane; test EVM-013 AC8 dostosowany (odwołania do EVM-073 tylko w dokumentach); pokrycie narzędzia 100%/100%; lokalnie `pnpm run gate` zielony (Node 26, Docker), `npm run docs:check` 0 błędów

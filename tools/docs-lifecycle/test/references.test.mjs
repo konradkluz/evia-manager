@@ -33,7 +33,7 @@ const LONG = 200 * 1024;
  * @param {Record<string, string>} files
  * @returns {Record<string, string[]>}
  */
-const index = (files) => Object.fromEntries(buildReferenceIndex(Object.keys(files), (path) => files[path]));
+const index = (files) => Object.fromEntries(buildReferenceIndex(Object.keys(files), (path) => /** @type {string} */ (files[path])));
 
 describe('odwołania między dokumentami (EVM-012, ustalenie E)', () => {
   it('EVM-012 AC4: ścieżki .md w linkach, w `kodzie` i w zwykłym tekście, także z polskimi znakami', () => {
@@ -170,13 +170,14 @@ describe('odwołania między dokumentami (EVM-012, ustalenie E)', () => {
 
   it('EVM-012 AC4: polski dokument z ciągiem ≥ 200 KB bez spacji jest analizowany w < 2 s, odwołania dalej działają', async () => {
     const long = 'ZażółćgęśląjaźńŁÓDŹ'.repeat(Math.ceil(LONG / 19)).slice(0, LONG);
-    const { elapsed, result: analysis } = await runTimed('analyze', {
+    const { elapsed, result } = await runTimed('analyze', {
       'docs/product/dlugi.md': `# Długi dokument\n\nOpis: ${long}\n\nZobacz docs/product/cennik.md oraz ${long}/docs/product/inny.md\n`,
       'docs/product/cennik.md': '# Cennik\n',
       'docs/product/inny.md': '# Inny\n',
       'docs/README.md': '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n- product/dlugi.md\n- product/inny.md\n',
     });
     assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+    const analysis = /** @type {import('./helpers/timed-worker.mjs').AnalyzeResult} */ (result);
     assert.deepEqual(analysis.codes, []);
     assert.deepEqual(analysis.references['docs/product/cennik.md'], ['docs/product/dlugi.md']);
     // The long run glued to the path is one token (a nonexistent path) — as before the fix.

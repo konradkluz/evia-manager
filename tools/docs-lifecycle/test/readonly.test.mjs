@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { V1, V2 } from './helpers/runner.mjs';
+import { at } from './helpers/at.mjs';
 
 const TOOL_DIR = fileURLToPath(new URL('..', import.meta.url));
 const SOURCES = ['cli.mjs', ...readdirSync(join(TOOL_DIR, 'lib')).map((name) => `lib/${name}`)].filter((path) => path.endsWith('.mjs'));
@@ -26,9 +27,10 @@ function importedNames(text, specifier) {
   const names = [];
   const pattern = new RegExp(`import\\s+([^;]*?)\\s+from\\s+'${specifier}'`, 'g');
   for (const match of text.matchAll(pattern)) {
-    assert.match(match[1], /^\{[^}]*\}$/, `tylko importy nazwane z ${specifier}: ${match[1]}`);
+    const imported = at(match, 1);
+    assert.match(imported, /^\{[^}]*\}$/, `tylko importy nazwane z ${specifier}: ${imported}`);
     names.push(
-      ...match[1]
+      ...imported
         .slice(1, -1)
         .split(',')
         .map((name) => name.trim())

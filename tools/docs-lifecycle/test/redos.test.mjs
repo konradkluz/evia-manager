@@ -13,6 +13,7 @@ import { runTimed } from './helpers/timed-worker.mjs';
 const LIMIT_MS = 2000;
 const LONG = 200 * 1024;
 /** Line separators that `.` in a regular expression does not match — the trigger of the former backtracking. */
+/** @type {[string, string][]} */
 const SEPARATORS = [
   ['U+2028', '\u2028'],
   ['U+2029', '\u2029'],
@@ -83,12 +84,13 @@ describe('wyrażenia bez katastrofalnego nawracania — pliki 200 KB (EVM-013 AC
     });
 
     it(`EVM-013 AC6: pełna analiza repozytorium z oboma plikami (${name}) — < 2 s, wynik bez zmian`, async () => {
-      const { elapsed, result } = await runTimed('analyze', {
+      const { elapsed, result: raw } = await runTimed('analyze', {
         'docs/product/roadmap.md': roadmapBomb(separator),
         'docs/product/dlugi.md': frontmatterBomb(separator),
         'docs/README.md': '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n- product/dlugi.md\n',
       });
       assert.ok(elapsed < LIMIT_MS, `analiza trwała ${Math.round(elapsed)} ms (limit ${LIMIT_MS} ms)`);
+      const result = /** @type {import('./helpers/timed-worker.mjs').AnalyzeResult} */ (raw);
       assert.deepEqual(result.codes, []);
       assert.deepEqual(result.milestones, ['M0', 'M1', 'M2']);
     });

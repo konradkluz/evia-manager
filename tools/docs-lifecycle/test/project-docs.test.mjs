@@ -14,6 +14,7 @@ import { loadRepository } from '../lib/repository.mjs';
 import { analyzeEveryFinding } from './helpers/fixtures.mjs';
 import { parsePolicyRules, section } from './helpers/markdown.mjs';
 import { V1 } from './helpers/runner.mjs';
+import { at } from './helpers/at.mjs';
 
 const config = loadConfig();
 const repository = loadRepository({ cwd: fileURLToPath(new URL('.', import.meta.url)), env: process.env, config });
@@ -115,7 +116,7 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
     const rows = String(section(policy, '### Błędy (kod wyjścia 1)'))
       .split('\n')
       .filter((line) => line.startsWith('| ') && !line.startsWith('| Błąd |'))
-      .map((line) => line.split('|')[1].trim());
+      .map((line) => at(line.split('|'), 1).trim());
     assert.deepEqual([...rows].sort(), Object.values(NAMES).sort(), 'tabela „Błędy” = kody walidatora');
     const line = String(section(policy, '### Ostrzeżenia (bez wpływu na kod wyjścia)'))
       .split('\n')
@@ -145,12 +146,14 @@ describe('polityka cyklu życia (EVM-012 AC1)', () => {
 });
 
 describe('polecenia npm (EVM-012 AC3, AC8)', () => {
-  const manifest = JSON.parse(read('package.json'));
+  /** @type {unknown} */
+  const parsedManifest = JSON.parse(read('package.json'));
+  const manifest = /** @type {{ private: boolean, scripts: Record<string, string> }} */ (parsedManifest);
 
   it('EVM-012 AC3: jedno polecenie walidatora, raportu i testów; progi pokrycia 90% linii i gałęzi', () => {
     assert.equal(manifest.scripts['docs:check'], 'node tools/docs-lifecycle/cli.mjs check');
     assert.equal(manifest.scripts['docs:cleanup'], 'node tools/docs-lifecycle/cli.mjs cleanup-report');
-    const test = manifest.scripts['test:tools'];
+    const test = String(manifest.scripts['test:tools']);
     for (const part of [
       '--experimental-test-coverage',
       '--test-coverage-lines=90',
@@ -185,12 +188,12 @@ describe('bramka dokumentacji w CI — opis w dokumentach (EVM-013 AC8)', () => 
     /npm run docs:check/,
   ];
 
-  for (const [path, heading] of [
+  for (const [path, heading] of /** @type {[string, string][]} */ ([
     ['CLAUDE.md', '## Stack i komendy'],
     ['docs/ops/github-i-ci.md', '## CI w skrócie'],
     ['docs/process/document-lifecycle.md', '### W CI (bramka 11)'],
     ['tools/docs-lifecycle/README.md', '## W CI (bramka 11)'],
-  ]) {
+  ])) {
     it(`EVM-013 AC8: ${path} → „${heading.replace(/^#+ /, '')}” opisuje bramkę dokumentacji w CI`, () => {
       const text = section(read(path), heading);
       assert.ok(text, `brak sekcji ${heading}`);
@@ -210,20 +213,20 @@ describe('bramka dokumentacji w CI — opis w dokumentach (EVM-013 AC8)', () => 
     assert.ok(read('docs/process/definition-of-done.md').includes('npm run docs:check'));
   });
 
-  it('EVM-013 AC8: odwołania do długu wskazują EVM-073 i nie zapowiadają migracji na TypeScript ani Vitest (6 miejsc z AC8)', () => {
+  it('EVM-013 AC8, EVM-073 AC3: dokumenty wskazują zniesienie długu w EVM-073, a konfiguracja narzędzia nie ma wyjątków ani odwołań do długu', () => {
     const DEBT_EVM_013 =
       /(?:dług|debt)[^.\n]*EVM-013|EVM-013[^.\n]*(?:dług|debt)|migra\w*[^.\n]*(?:TypeScript|Vitest)|TypeScript \+ Vitest/i;
-    for (const path of [
+    const documented = [
       'packages/config/README.md',
       'tools/repo-policy/README.md',
       'tools/repo-policy/test/structure.test.ts',
       'tools/docs-lifecycle/README.md',
-      'tools/docs-lifecycle/eslint.config.js',
-      'tools/docs-lifecycle/tsconfig.json',
-    ]) {
+    ];
+    const configuration = ['tools/docs-lifecycle/eslint.config.js', 'tools/docs-lifecycle/tsconfig.json'];
+    for (const path of [...documented, ...configuration]) {
       const text = read(path);
-      assert.ok(text.includes('EVM-073'), `${path}: brak odwołania do EVM-073`);
       assert.doesNotMatch(text, DEBT_EVM_013, path);
+      assert.equal(text.includes('EVM-073'), documented.includes(path), `${path}: odwołanie do EVM-073`);
     }
   });
 });

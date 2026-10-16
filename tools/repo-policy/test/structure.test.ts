@@ -22,8 +22,6 @@ const root = manifest('package.json');
 const WORKSPACES = workspaces();
 const PNPM = /^pnpm@(\d+\.\d+\.\d+)\+sha512\.[0-9a-f]{128}$/.exec(root.packageManager ?? '');
 
-/** Only this workspace may relax shared checks — EVM-006 W2 exception, lifted by EVM-073. */
-const RELAXED = new Set(['tools/docs-lifecycle']);
 /** Tools that run without installed dependencies (CI jobs and the container entry point run them before `pnpm install`). */
 const DEPENDENCY_FREE = [
   'tools/ci-changes',
@@ -142,13 +140,13 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     }
   });
 
-  it('EVM-006 AC2 (W2): shared checks are relaxed only in the listed workspace (exception lifted by EVM-073)', () => {
+  it('EVM-006 AC2 (W2), EVM-073 AC3: no workspace relaxes shared checks (the list of exceptions is empty)', () => {
     for (const workspace of WORKSPACES) {
       const eslint = read(`${workspace}/eslint.config.js`);
       const tsconfig = record(jsonc(`${workspace}/tsconfig.json`));
       const options = record(tsconfig['compilerOptions']);
       const relaxed = eslint.includes("'off'") || Object.values(options).includes(false) || options['strict'] === false;
-      if (relaxed) expect(RELAXED.has(workspace), `${workspace} relaxes shared checks`).toBe(true);
+      expect(relaxed, `${workspace} relaxes shared checks`).toBe(false);
       expect(eslint, workspace).toMatch(/config\(\{ tsconfigRootDir: import\.meta\.dirname \}\)/);
     }
   });

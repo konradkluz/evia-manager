@@ -23,7 +23,7 @@ export function isolatedEnv(base) {
   /** @type {NodeJS.ProcessEnv} */
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
-    if (/^GIT_/i.test(key)) delete env[key];
+    if (/^GIT_/i.test(key)) Reflect.deleteProperty(env, key);
   }
   const globalConfig = join(base, 'gitconfig-global');
   writeFileSync(globalConfig, '');
@@ -84,7 +84,9 @@ export function createTempRepo({ files = {}, tracked = [], gitignore = DEFAULT_G
     git,
     write,
     track,
-    cleanup: () => rmSync(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+    cleanup: () => {
+      rmSync(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    },
   };
 }
 

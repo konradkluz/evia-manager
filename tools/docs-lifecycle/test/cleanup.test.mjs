@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ACTIONS, buildCleanupReport, proposeAction } from '../lib/cleanup.mjs';
 import { analyzeFiles, doc, story } from './helpers/fixtures.mjs';
+import { at } from './helpers/at.mjs';
 
 /** Synthetic set with every kind of document, milestone files of M0 and M1, expired and orphaned files. */
 function fixture() {
@@ -127,7 +128,7 @@ describe('raport sprzątania (EVM-012 AC5)', () => {
       { 'spikes/stary/README.md': doc({ milestone: 'M1', expires: '2026-09-01' }) },
       { extraPaths: ['spikes/stary/kod.ts'] },
     );
-    const [item] = buildCleanupReport(expired, 'M0').items;
+    const item = at(buildCleanupReport(expired, 'M0').items, 0);
     assert.equal(item.path, 'spikes/stary/');
     assert.equal(item.action, ACTIONS.review);
     assert.match(item.reason, /kamień milowy M1.*README\.md: expires 2026-09-01/);
@@ -146,7 +147,7 @@ describe('raport sprzątania (EVM-012 AC5)', () => {
     const files = { 'docs/notes/plan.md': doc({ lifecycle: 'milestone', milestone: 'M0' }) };
     for (const name of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) files[`docs/product/${name}.md`] = 'docs/notes/plan.md\n';
     files['docs/README.md'] = '- product/a.md product/b.md product/c.md product/d.md product/e.md product/f.md product/g.md\n';
-    const [item] = buildCleanupReport(analyzeFiles(files), 'M0').items;
+    const item = at(buildCleanupReport(analyzeFiles(files), 'M0').items, 0);
     assert.match(item.reason, /odwołania: docs\/product\/a\.md, .*docs\/product\/e\.md i 2 inne/);
   });
 });
@@ -173,15 +174,17 @@ describe('ochrona plików trwałych i żywych (EVM-012 AC6)', () => {
   it('EVM-012 AC6: plik żywy z przeterminowanym review_by — co najwyżej „przejrzyj”', () => {
     for (const target of analysis.milestones) {
       const item = report(target).items.find((entry) => entry.path === 'docs/product/cennik.md');
-      assert.equal(item?.action, ACTIONS.review, target);
-      assert.match(String(item?.reason), /przegląd aktualności/);
+      assert.ok(item, target);
+      assert.equal(item.action, ACTIONS.review, target);
+      assert.match(item.reason, /przegląd aktualności/);
     }
   });
 
   it('EVM-012 AC6: próba obniżenia klasy ADR-a (lifecycle: milestone) nie daje „usuń” — plik liczony wg reguły lokalizacji', () => {
     const adr = analysis.files.find((file) => file.path === 'docs/architecture/adr/0005-obnizona.md');
-    assert.equal(adr?.class, 'permanent');
-    assert.ok(analysis.findings.some((finding) => finding.code === 'class-conflict' && finding.path === adr?.path));
+    assert.ok(adr);
+    assert.equal(adr.class, 'permanent');
+    assert.ok(analysis.findings.some((finding) => finding.code === 'class-conflict' && finding.path === adr.path));
   });
 
   it('EVM-012 AC6: funkcja decyzji — „usuń” wyłącznie dla poprawnego pliku „kamień milowy” wskazanego M#', () => {
