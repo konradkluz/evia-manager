@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   dayProblem,
   isFiltered,
+  isNarrowed,
   NO_FILTERS,
   rangeProblem,
   searchOf,
@@ -57,5 +58,26 @@ describe('the filters of W-11 (EVM-055 AC4)', () => {
     expect(dayProblem('')).toBeUndefined();
     expect(dayProblem('2026-10-01')).toBeUndefined();
     expect(dayProblem('0001-01-01')).toBe('range');
+  });
+});
+
+describe('the view "Do wystawienia" (EVM-059 AC1)', () => {
+  it('EVM-059 AC1 the address carries `view=planned`; the request sends the view without the range of the due dates', () => {
+    expect(validateSearch({ view: 'planned', customerId: 'x' })).toEqual({ view: 'planned' });
+    expect(viewOf({ view: 'planned' })).toBe('planned');
+    expect(searchOf('planned')).toEqual({ view: 'planned' });
+    expect(toQuery({ view: 'planned', dueFrom: '2026-09-01', dueTo: '2026-10-03', customerId: 'c' }, undefined, 25)).toEqual({
+      view: 'planned',
+      customerId: 'c',
+      limit: 25,
+    });
+  });
+
+  it('EVM-059 AC1 the range cannot be a problem there, and the view alone does not narrow the list', () => {
+    expect(rangeProblem({ view: 'planned', dueFrom: '2026-10-02', dueTo: '2026-10-01' })).toBeUndefined();
+    expect(isNarrowed({ ...NO_FILTERS, view: 'planned' })).toBe(false);
+    expect(isNarrowed({ ...NO_FILTERS, view: 'planned', dueFrom: '2026-10-01' })).toBe(false);
+    expect(isNarrowed({ ...NO_FILTERS, view: 'planned', customerId: 'x' })).toBe(true);
+    expect(isNarrowed({ ...NO_FILTERS, dueTo: '2026-10-01' })).toBe(true);
   });
 });

@@ -4,11 +4,13 @@ title: Filtr „Do wystawienia” w Płatnościach
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: ready
+status: in-review
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
-reviewers: [code-reviewer, security-engineer, ux-designer]
+reviewers: [security-engineer]
+path: lekka
+model: sonnet
 depends_on: [EVM-055, EVM-071]
 ---
 
@@ -64,7 +66,7 @@ Jako **pracownik biura** chcę **widzieć transze planowane, dla których trzeba
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- 2026-10-15 — Konrad: ścieżka `lekka`, recenzent `security-engineer`, wspólna gałąź z EVM-058 (058 → 059).
 
 ## Uwagi do rozważenia
 _—_
@@ -76,6 +78,18 @@ _—_
 - [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
+## Notatki
+- Security (nit, CWE-400): widok `planned` czyta bez limitu identyfikatory zleceń z transzą „Planowana” i przekazuje je jednym parametrem do `refsOf` (wzorzec z EVM-055; dziś ogranicza to limit P10) — do backlogu wydajności zestawień: zawężenie w SQL lub indeks częściowy + test wolumenu.
+- Kontrakt: `items` w `listUnpaidPaymentMilestones` to teraz unia pozycji wystawionych i planowanych (rozróżnia `status`) — addytywnie w JSON, zmiana typu dla klienta (panel dostosowany).
+- Poza AC (do potwierdzenia na demo): w widoku „Do wystawienia” pola „Termin od/do” są nieaktywne, bo API zwraca `400` dla `dueFrom`/`dueTo` z `view=planned`.
+- E2E widoku odpowiada na `view=planned` przez `page.route` (syntetyczny serwer zna tylko transze wystawione); pełny przepływ wystawienia — w testach komponentów i integracyjnych.
+- Ścieżka lekka z recenzentem security — UI nie miał przeglądu UX; zrzuty z E2E do obejrzenia na demo.
+
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-15 — ready → in-progress (kolejka nocna, gałąź `feature/EVM-058-059-platnosci-web`, po EVM-058)
+- 2026-10-15 — backend: widok `view=planned` na `listUnpaidPaymentMilestones` (kontrakt, zapytanie z polityką, testy `EVM-059 AC1–AC4`); panel (chip, dialog, stany AC5) — krok web-developera (backend-developer)
+- 2026-10-15 — panel: chip „Do wystawienia” w W-11 (`view=planned`), tabela transz planowanych, „Wystaw fakturę…” (dialog EVM-054) dla A/E, stany AC5, testy `EVM-059 AC1–AC5` + E2E + zrzuty (web-developer)
+- 2026-10-15 — przegląd security-engineer: approve (1 nit → „Notatki”); orkiestrator: poprawka typu w teście (`e213a0f`), AC1–AC5 → testy `EVM-059 AC#`, `pnpm run gate` zielony (diff-coverage gałęzi: linie 123/123, gałęzie 173/183), `docs:check` 0/0; in-progress → in-review
+- 2026-10-15 — Koszt: potok 3 wywołania agentów, ok. 0,33 mln tokenów subagentów, ok. 50 min; rundy poprawek 0; ścieżka lekka; sonnet

@@ -120,8 +120,8 @@ describe('the search and display facades of the three modules (EVM-072 AC2, AC5;
     for (const role of ['administrator', 'editor', 'read_only'] as const) {
       const refs = await orders.refsOf(admin(), principal({ role }), [visible, withoutCustomer, deleted, unknown, visible]);
       expect([...refs.keys()].sort()).toEqual([visible, withoutCustomer].sort());
-      expect(refs.get(visible)).toEqual({ number: 'ZL-2026-0101', title: 'Widoczne', customerId });
-      expect(refs.get(withoutCustomer)).toEqual({ number: 'ZL-2026-0102', title: 'Bez klienta', customerId: null });
+      expect(refs.get(visible)).toEqual({ number: 'ZL-2026-0101', title: 'Widoczne', customerId, closed: false });
+      expect(refs.get(withoutCustomer)).toEqual({ number: 'ZL-2026-0102', title: 'Bez klienta', customerId: null, closed: false });
     }
     expect((await orders.refsOf(admin(), caller, [])).size).toBe(0);
   });

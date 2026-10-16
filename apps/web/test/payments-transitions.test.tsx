@@ -72,10 +72,15 @@ afterEach(() => {
 
 describe('settling an order with instalments (EVM-053 AC6)', () => {
   it('EVM-053 AC6 422 unpaid_milestones: the dialog "Rozlicz…" says "Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane."', async () => {
+    // EVM-058 AC3: the panel blocks what it knows is unpaid, so the instalment appears after the dialog was opened (another person)
+    let payments = listOf(['paid']);
     const api = transitionApi(
       orderWith('completed'),
-      () => listOf(['planned']),
-      () => problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/to', code: 'unpaid_milestones' }] }),
+      () => payments,
+      () => {
+        payments = listOf(['planned']);
+        return problem(422, 'transition_condition_not_met', { errors: [{ pointer: '/to', code: 'unpaid_milestones' }] });
+      },
     );
     await renderPanel(PATH, api);
     await screen.findByRole('table', { name: 'Transze płatności zlecenia' });
@@ -83,7 +88,9 @@ describe('settling an order with instalments (EVM-053 AC6)', () => {
     await choose('Zakończone', 'Rozlicz…');
     const dialog = within(await screen.findByRole('alertdialog'));
     await userEvent.click(dialog.getByRole('button', { name: 'Rozlicz zlecenie' }));
-    expect((await dialog.findByRole('alert')).textContent).toBe('Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane.');
+    // the answer of the server and (after the summary is read again) the panel's own block say the same sentence
+    const alerts = await dialog.findAllByRole('alert');
+    expect(alerts[0]?.textContent).toBe('Rozliczysz, gdy wszystkie transze będą opłacone albo anulowane.');
     // the instalments are read again: the section shows the state the server judged
     await waitFor(() => {
       expect(api.calls(LIST).length).toBeGreaterThan(reads);

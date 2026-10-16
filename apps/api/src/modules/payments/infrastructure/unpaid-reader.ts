@@ -195,3 +195,76 @@ export function amountOfSum(text: string): number {
   if (!Number.isSafeInteger(sum)) throw new RangeError('a sum of the amounts is not a safe integer');
   return sum;
 }
+
+/* "Do wystawienia" (EVM-059): the milestones `planned`. Same pattern as above — the visible orders are ONE array parameter next to the
+ * base predicate, so a milestone of an order the caller may not see (or of a closed one — decided by the facade) is never read. */
+const PLANNED = sql<SqlBool>`${sql.ref('payments.payment_milestones.status')} = 'planned' and ${sql.ref('payments.payment_milestones.deleted_at')} is null`;
+
+export interface PlannedRow {
+  readonly id: string;
+  readonly workOrderId: string;
+  readonly name: string;
+  readonly sharePercent: number | null;
+  readonly amountMinor: number | null;
+  readonly position: number;
+  readonly version: number;
+}
+
+/** The orders that have a milestone `planned` — the set the facade of `work-orders` narrows to the visible, unclosed ones. */
+export async function plannedOrderIds(db: PaymentsDb): Promise<string[]> {
+  const rows = await db.selectFrom(TABLE).select('work_order_id').distinct().where(PLANNED).execute();
+  return rows.map((row) => row.work_order_id);
+}
+
+/**
+ * A page of "Do wystawienia": `orderIds` are ALREADY in the order of the answer (the number of the order) and the page keeps that order
+ * (`array_position`), then `position`. `after` skips what an earlier page showed in the order the cursor names. One row more than
+ * `limit` is read to know whether a next page exists.
+ */
+export async function readPlannedPage(
+  db: PaymentsDb,
+  params: {
+    readonly orderIds: readonly string[];
+    readonly after: { readonly workOrderId: string; readonly position: number } | undefined;
+    readonly limit: number;
+  },
+): Promise<PlannedRow[]> {
+  const orderRef = sql.ref('payments.payment_milestones.work_order_id');
+  let select = db
+    .selectFrom(TABLE)
+    .select(['id', 'work_order_id', 'name', 'share_percent', 'amount_minor', 'position', 'version'])
+    .where(PLANNED)
+    .where(inOrders(params.orderIds));
+  if (params.after !== undefined) {
+    const { workOrderId, position } = params.after;
+    select = select.where(
+      sql<SqlBool>`not (${orderRef} = ${workOrderId}::uuid and ${sql.ref('payments.payment_milestones.position')} <= ${position})`,
+    );
+  }
+  const rows = await select
+    .orderBy(sql`array_position(${[...params.orderIds]}::uuid[], ${orderRef})`)
+    .orderBy('position')
+    .limit(params.limit + 1)
+    .execute();
+  return rows.map((row) => ({
+    id: row.id,
+    workOrderId: row.work_order_id,
+    name: row.name,
+    sharePercent: row.share_percent,
+    amountMinor: amountFromDatabase(row.amount_minor),
+    position: row.position,
+    version: row.version,
+  }));
+}
+
+/** The number of the milestones `planned` of the given orders and the sum of the amounts already entered (a milestone without one adds 0). */
+export async function readPlannedTotals(db: PaymentsDb, orderIds: readonly string[]): Promise<CountAndSum> {
+  const { rows } = await sql<{ planned_count: number; planned_total: string }>`
+    select (count(*))::int as planned_count, coalesce(sum(${sql.ref('payments.payment_milestones.amount_minor')}), 0)::text as planned_total
+    from payments.payment_milestones
+    where ${PLANNED} and ${inOrders(orderIds)}
+  `.execute(db);
+  const row = rows[0];
+  if (row === undefined) throw new RangeError('an aggregate returned no row');
+  return { count: row.planned_count, totalMinor: amountOfSum(row.planned_total) };
+}

@@ -45,9 +45,12 @@ const admin = () => current.database.admin;
 const BASE = '/api/v1/work-orders';
 const REASON = 'Rezygnacja klienta';
 
-async function signIn(role: 'editor' | 'administrator' = 'editor') {
+async function signIn(role: 'editor' | 'administrator' = 'editor', fresh = false) {
   const user = await createUser(admin(), current.clock, { role });
-  const session = await createSession(admin(), current.clock, user, { channel: 'web' });
+  const session = await createSession(admin(), current.clock, user, {
+    channel: 'web',
+    ...(fresh ? { passkeyAuthenticatedAt: current.clock.now() } : {}),
+  });
   const panel = new PanelClient(current.app.getHttpServer(), PANEL_ORIGIN);
   panel.cookie = session.cookie;
   panel.csrfToken = session.csrfToken;
@@ -317,6 +320,24 @@ describe('the cancellation of an order with an invoiced milestone (EVM-054 AC6; 
     const { rows: audit } = await sql<{ from_code: string; to_code: string }>`
       select from_code, to_code from audit.events where object_id = ${created.milestoneIds[1]}`.execute(admin());
     expect(audit).toEqual([{ from_code: 'planned', to_code: 'cancelled' }]);
+  });
+});
+
+describe('the restoration of a cancelled order does not restore its milestones (EVM-058 AC4)', () => {
+  it('EVM-058 AC4 "Anulowane" → "Wstrzymane" by the Administrator (step-up): the order is on hold, the cancelled milestones stay cancelled and untouched', async () => {
+    const administrator = await signIn('administrator', true);
+    const created = await order('in_progress', [{ status: 'paid' }, {}, {}]);
+    expect((await go(administrator, created.id, 'cancelled', { reason: REASON })).status).toBe(200);
+    const before = await milestonesOf(created.id);
+    expect(before.map((milestone) => milestone.status)).toEqual(['paid', 'cancelled', 'cancelled']);
+    const restored = await administrator.panel.post(
+      `${BASE}/${created.id}/transitions`,
+      { to: 'on_hold' },
+      { 'If-Match': '"2"', 'Idempotency-Key': uuidv7() },
+    );
+    expect(restored.status, JSON.stringify(restored.body)).toBe(200);
+    expect(await statusOf(created.id)).toBe('on_hold');
+    expect(await milestonesOf(created.id)).toEqual(before);
   });
 });
 

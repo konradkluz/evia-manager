@@ -179,7 +179,7 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
   });
 
-  test('EVM-054 AC6 an order "Wstrzymane" with an invoiced instalment is not cancelled: the dialog says what to do first', async ({
+  test('EVM-054 AC6 EVM-058 AC3 an order "Wstrzymane" with an invoiced instalment is not cancelled: the dialog says what to do first', async ({
     page,
     api,
   }) => {
@@ -190,7 +190,8 @@ test.describe('the actions of the instalments (EVM-054)', () => {
     await page.getByRole('menuitem', { name: 'Anuluj zlecenie…' }).click();
     const dialog = page.getByRole('dialog', { name: 'Anuluj zlecenie ZL-2026-0042' });
     await dialog.getByRole('textbox', { name: 'Powód anulowania' }).fill('Klient zrezygnował');
-    await dialog.getByRole('button', { name: 'Anuluj zlecenie' }).click();
+    // EVM-058 AC3: the panel knows the invoiced instalment, so the confirmation is disabled and nothing is sent
+    await expect(dialog.getByRole('button', { name: 'Anuluj zlecenie' })).toHaveAttribute('aria-disabled', 'true');
     await expect(dialog.getByRole('alert')).toHaveText('Najpierw odnotuj wpłatę albo poproś administratora o anulowanie faktury.');
     await expect(rowOf(page, 'Zaliczka (20%)').getByText(/^(Wystawiona|Po terminie)$/)).toBeVisible();
     await expect(section(page).getByText('Planowana', { exact: true })).toHaveCount(3);

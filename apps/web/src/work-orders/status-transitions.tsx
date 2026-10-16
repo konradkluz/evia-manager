@@ -36,6 +36,7 @@ import { useSession } from '../session/session.ts';
 import { useStepUp } from '../session/step-up-context.tsx';
 import { useToast } from '../shell/toast-context.tsx';
 import { useOnline } from '../shell/use-online.ts';
+import { formatMoney } from './money.ts';
 import { pluralForm } from './order-form.ts';
 import {
   WORK_ORDER_HEADER_KEY,
@@ -120,7 +121,16 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
   const openStages = useWorkOrderProcedures(order.id, true).data?.openStageCount ?? 0;
   // EVM-053 AC6 (P1): cancelling the order cancels its planned instalments — the dialog says how many; the section reads the same entry.
   // Without the list (still loading or a failed read) the number is unknown (`null`): the dialog warns without it, never stays silent.
-  const plannedMilestones = useWorkOrderPayments(order.id, true).data?.items.filter((entry) => entry.status === 'planned').length ?? null;
+  const milestones = useWorkOrderPayments(order.id, true).data?.items ?? null;
+  const countOf = (status: string): number | null =>
+    milestones === null ? null : milestones.filter((entry) => entry.status === status).length;
+  const plannedMilestones = countOf('planned');
+  // EVM-058 AC3: with the list at hand the panel knows what the server will say; without it the server decides.
+  const invoicedMilestones = countOf('invoiced') ?? 0;
+  const unsettledMilestones = (plannedMilestones ?? 0) + invoicedMilestones;
+  const paidMilestones = countOf('paid');
+  const cancelledMilestones = countOf('cancelled');
+  const paidTotal = (milestones ?? []).reduce((sum, entry) => (entry.status === 'paid' ? sum + (entry.amount?.amountMinor ?? 0) : sum), 0);
   const root = useRef<HTMLDivElement>(null);
   /** The reason of the last hold in this tab — "Cofnij" after "Wznów" sends it again; the API does not return it. */
   const heldReason = useRef<{ readonly orderId: string; readonly reason: string } | null>(null);
@@ -198,7 +208,9 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       // EVM-038: the change wrote a journal event; an open "Dziennik" shows it without a reload.
       void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id] });
       // EVM-053 AC6: cancelling changed the planned instalments in the same transaction — the section shows them as they are now.
-      if (request.to === 'cancelled') void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
+      if (request.to === 'cancelled' || request.to === 'settled') {
+        void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
+      }
       setDialog(null);
       setReason('');
       if (source === 'undo') showToast(transitionUndoneToast);
@@ -216,7 +228,9 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       const described = describeTransitionFailure(error);
       if (described.kind === 'conflict') void refreshHeader();
       // EVM-053 AC6: the server judged the instalments as they are now; the section shows the same state.
-      if (described.kind === 'condition') void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
+      // EVM-058 AC5: a `412` too means the instalments may have changed meanwhile — the summary is read again.
+      if (described.kind === 'condition' || described.kind === 'conflict')
+        void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
       setFailure({ failure: described, source });
       if (described.kind === 'fields') {
         setFieldErrors({
@@ -245,7 +259,8 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       // AC4: the warning counts the open stages as they are now (they may have changed since the page was opened).
       if (entry.action === 'complete') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, order.id] });
       // EVM-053 AC6: the warning counts the planned instalments as they are now.
-      if (entry.action === 'cancel') void queryClient.refetchQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
+      if (entry.action === 'cancel' || entry.action === 'settle')
+        void queryClient.refetchQueries({ queryKey: [WORK_ORDER_PAYMENTS_KEY, order.id] });
       setReason('');
       setCompletedOn(todayWarsaw(serverNow()));
       setDialog(entry);
@@ -285,7 +300,9 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
       ? { disabledHint: t('workOrder.status.offline') }
       : entry.forbidden === true
         ? { disabledHint: t('workOrder.status.restoreAdminOnly') }
-        : {}),
+        : entry.action === 'settle' && unsettledMilestones > 0
+          ? { disabledHint: t('workOrder.status.failure.unpaidMilestones') }
+          : {}),
   }));
 
   const failureText = (current: TransitionFailure, source: Source): string => {
@@ -377,7 +394,7 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
               </Button>
               <Button
                 loading={pending}
-                disabled={!online}
+                disabled={!online || (dialog.action === 'settle' && unsettledMilestones > 0)}
                 onClick={() => {
                   void execute({ action: dialog.action, to: dialog.to }, order, 'dialog');
                 }}
@@ -390,6 +407,18 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
           {alertFor('dialog')}
           {online ? null : <Banner icon={WifiOff}>{t('workOrder.status.offline')}</Banner>}
           <p>{labelsOf(dialog.action).description}</p>
+          {dialog.action === 'settle' && milestones !== null && milestones.length > 0 ? (
+            <p>
+              {t('workOrder.status.settleSummary', {
+                paid: paidMilestones ?? 0,
+                cancelled: cancelledMilestones ?? 0,
+                total: formatMoney(paidTotal),
+              })}
+            </p>
+          ) : null}
+          {dialog.action === 'settle' && unsettledMilestones > 0 ? (
+            <InlineAlert tone="error">{t('workOrder.status.failure.unpaidMilestones')}</InlineAlert>
+          ) : null}
         </AlertDialog>
       ) : (
         <Dialog
@@ -402,7 +431,12 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
               <Button variant="tertiary" onClick={closeDialog}>
                 {dialog.action === 'cancel' ? t('workOrder.status.back') : t('workOrder.status.cancel')}
               </Button>
-              <Button type="submit" form={formId} loading={pending} disabled={!online}>
+              <Button
+                type="submit"
+                form={formId}
+                loading={pending}
+                disabled={!online || (dialog.action === 'cancel' && invoicedMilestones > 0)}
+              >
                 {labelsOf(dialog.action).submit}
               </Button>
             </>
@@ -426,6 +460,12 @@ export function StatusTransitions({ order }: { readonly order: WorkOrderDetails 
             ) : null}
             {dialog.action === 'cancel' && plannedMilestones !== null && plannedMilestones > 0 ? (
               <Banner icon={TriangleAlert}>{t('workOrder.status.plannedMilestonesCancelled', { count: plannedMilestones })}</Banner>
+            ) : null}
+            {dialog.action === 'cancel' && paidMilestones !== null && paidMilestones > 0 ? (
+              <p>{t('workOrder.status.paidMilestonesUnchanged', { count: paidMilestones })}</p>
+            ) : null}
+            {dialog.action === 'cancel' && invoicedMilestones > 0 ? (
+              <InlineAlert tone="error">{t('workOrder.status.failure.invoicedMilestones')}</InlineAlert>
             ) : null}
             {dialog.action === 'complete' ? (
               <DateField

@@ -4,11 +4,11 @@
  * entity. A row whose order the facade of `work-orders` did not show to the caller is DROPPED (never guessed, never shown without its
  * number); the caller counts the drop (ADR-0017 W2: it cannot happen on one snapshot, the policy is already in the query).
  */
-import type { UnpaidPaymentMilestone, UnpaidPaymentMilestoneList } from '@evia/contracts';
+import type { PlannedPaymentMilestone, UnpaidPaymentMilestone, UnpaidPaymentMilestoneList } from '@evia/contracts';
 import type { WorkOrderListRef } from '../../work-orders/index.ts';
 import { overdueDaysOf } from '../domain/unpaid-query.ts';
 import { CURRENCY } from '../domain/money.ts';
-import type { LongestOverdueRow, UnpaidRow, UnpaidSummaryRow } from '../infrastructure/unpaid-reader.ts';
+import type { LongestOverdueRow, PlannedRow, UnpaidRow, UnpaidSummaryRow } from '../infrastructure/unpaid-reader.ts';
 
 type Summary = UnpaidPaymentMilestoneList['summary'];
 
@@ -44,6 +44,30 @@ export function toUnpaidItems(
       status: 'invoiced',
       isOverdue: overdueDays !== null,
       overdueDays,
+      version: row.version,
+    });
+  }
+  return { items, dropped: rows.length - items.length };
+}
+
+/** "Do wystawienia" (EVM-059): a row whose order the facade did not show is dropped, exactly like in {@link toUnpaidItems}. */
+export function toPlannedItems(
+  rows: readonly PlannedRow[],
+  refs: ReadonlyMap<string, WorkOrderListRef>,
+  customerNames: ReadonlyMap<string, string>,
+): { readonly items: PlannedPaymentMilestone[]; readonly dropped: number } {
+  const items: PlannedPaymentMilestone[] = [];
+  for (const row of rows) {
+    const ref = refs.get(row.workOrderId);
+    if (ref === undefined) continue;
+    items.push({
+      id: row.id,
+      workOrder: { id: row.workOrderId, number: ref.number, title: ref.title },
+      customer: customerOf(ref.customerId, customerNames),
+      name: row.name,
+      sharePercent: row.sharePercent,
+      amount: row.amountMinor === null ? null : { amountMinor: row.amountMinor, currency: CURRENCY },
+      status: 'planned',
       version: row.version,
     });
   }

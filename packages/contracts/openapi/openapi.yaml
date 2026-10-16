@@ -323,6 +323,8 @@ components:
       $ref: components/payments.yaml#/UnpaidView
     UnpaidPaymentMilestone:
       $ref: components/payments.yaml#/UnpaidPaymentMilestone
+    PlannedPaymentMilestone:
+      $ref: components/payments.yaml#/PlannedPaymentMilestone
     UnpaidPaymentMilestoneList:
       $ref: components/payments.yaml#/UnpaidPaymentMilestoneList
     PaymentMilestoneCreate:

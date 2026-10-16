@@ -431,6 +431,10 @@ unpaidPaymentMilestones:
       Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), bez audytu odczytu. Masowy odczyt (P10):
       rekordy `items` wliczają się do progu 2000 / 10 000 rekordów w 10 minutach (`429 rate_limited` z `Retry-After`; odrzucone
       żądania nie są liczone), a klienci pozycji do licznika różnych klientów (300 na godzinę). Odpowiedź ma `Cache-Control: no-store`.
+      Widok `planned` („Do wystawienia”, EVM-059 AC1–AC5): transze `planned` zleceń niezamkniętych (bez rozliczonych i anulowanych)
+      tą samą polityką odczytu zlecenia w zapytaniu; pozycje (`status: planned`, bez faktury i terminu) w porządku numer zlecenia,
+      kolejność transz; `summary.filtered` liczy te transze (suma — tylko transz z kwotą), kafle bez zmian; `dueFrom` i `dueTo`
+      z tym widokiem — `400 validation_failed`. Kursor widoku wiąże się z widokiem i filtrem klienta jak pozostałe.
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
@@ -438,7 +442,7 @@ unpaidPaymentMilestones:
       - name: view
         in: query
         required: false
-        description: Widok (`unpaid` — wszystkie wystawione, domyślnie; `overdue` — po terminie). Jedyna wartość w adresie panelu.
+        description: Widok (`unpaid` — wszystkie wystawione, domyślnie; `overdue` — po terminie; `planned` — do wystawienia). Jedyna wartość w adresie panelu.
         schema:
           $ref: ../components/payments.yaml#/UnpaidView
       - name: dueFrom

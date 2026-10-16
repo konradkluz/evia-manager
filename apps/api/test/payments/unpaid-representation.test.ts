@@ -16,7 +16,7 @@ const row = (overrides: Partial<UnpaidRow> = {}): UnpaidRow => ({
   version: 2,
   ...overrides,
 });
-const refs = new Map([[ORDER, { number: 'ZL-2026-0031', title: 'Wallbox', customerId: CUSTOMER }]]);
+const refs = new Map([[ORDER, { number: 'ZL-2026-0031', title: 'Wallbox', customerId: CUSTOMER, closed: false }]]);
 const names = new Map([[CUSTOMER, 'Jan Przykładowy']]);
 
 describe('the items of the summary of unpaid invoices (EVM-055 AC1, AC2; SR-DATA-03)', () => {
