@@ -33,6 +33,8 @@ export class ApiError extends Error {
   readonly traceId: string | undefined;
   readonly errors: readonly FieldError[];
   readonly retryAfterSeconds: number | undefined;
+  /** Only `409 email_conflict` (EVM-024): the account that holds the address, when it is visible on the list; never an address or a name. */
+  readonly existingUserId: string | undefined;
 
   constructor(status: number, problem: Partial<Problem> | undefined, retryAfterSeconds?: number) {
     super(`API ${String(status)} ${problem?.code ?? 'no_response'}`);
@@ -42,6 +44,7 @@ export class ApiError extends Error {
     this.traceId = problem?.traceId;
     this.errors = problem?.errors ?? [];
     this.retryAfterSeconds = retryAfterSeconds;
+    this.existingUserId = problem?.existingUserId;
   }
 }
 

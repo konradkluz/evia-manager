@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Navigate, Outlet, useRouterState, type RouterHistory } from '@tanstack/react-router';
 import { CustomerPage } from './pages/customer-page.tsx';
 import { CustomersPage } from './pages/customers-page.tsx';
+import { AdministrationLayout } from './administration/administration-layout.tsx';
 import { AuditPage } from './pages/audit-page.tsx';
 import { ActivationPage } from './pages/activation-page.tsx';
 import { LoginPage } from './pages/login-page.tsx';
@@ -8,13 +9,13 @@ import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
 import { PaymentsPage } from './pages/payments-page.tsx';
 import { PrivacyPage } from './pages/privacy-page.tsx';
+import { UsersPage } from './pages/users-page.tsx';
 import { WorkOrderPage } from './pages/work-order-page.tsx';
 import { SecondStepPage } from './pages/second-step-page.tsx';
 import { WorkOrdersPage } from './pages/work-orders-page.tsx';
 import {
   ACTIVATE_PATH,
   ADMINISTRATION_PATH,
-  AUDIT_PATH,
   CUSTOMERS_PATH,
   LOGIN_PATH,
   LOGIN_SECOND_STEP_PATH,
@@ -23,6 +24,7 @@ import {
   PAYMENTS_PATH,
   PRIVACY_PATH,
   PUBLIC_PATHS,
+  USERS_PATH,
   WORK_ORDERS_PATH,
 } from './paths.ts';
 import { validateSearch as validatePaymentsSearch } from './payments/unpaid-filters.ts';
@@ -45,7 +47,7 @@ const rootRoute = createRootRoute({ component: Root });
 
 const ToWorkOrders = () => <Navigate to={WORK_ORDERS_PATH} replace />;
 
-const ToAudit = () => <Navigate to={AUDIT_PATH} replace />;
+const ToUsers = () => <Navigate to={USERS_PATH} replace />;
 
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: '/', component: ToWorkOrders });
 
@@ -69,8 +71,11 @@ const paymentsRoute = createRoute({
   component: PaymentsPage,
   validateSearch: validatePaymentsSearch,
 });
-const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: ToAudit });
-const auditRoute = createRoute({ getParentRoute: () => rootRoute, path: AUDIT_PATH, component: AuditPage });
+/** The administration (EVM-024, EVM-029): a layout with tabs; `/administration` is W-16, the users (the default tab). */
+const administrationRoute = createRoute({ getParentRoute: () => rootRoute, path: ADMINISTRATION_PATH, component: AdministrationLayout });
+const administrationIndexRoute = createRoute({ getParentRoute: () => administrationRoute, path: '/', component: ToUsers });
+const usersRoute = createRoute({ getParentRoute: () => administrationRoute, path: 'users', component: UsersPage });
+const auditRoute = createRoute({ getParentRoute: () => administrationRoute, path: 'audit', component: AuditPage });
 const activateRoute = createRoute({ getParentRoute: () => rootRoute, path: ACTIVATE_PATH, component: ActivationPage });
 const mfaSetupRoute = createRoute({ getParentRoute: () => rootRoute, path: MFA_SETUP_PATH, component: MfaSetupPage });
 /** `returnTo` is read as a plain text only; the page resolves it against the origin of the panel (SR-WEB-06). */
@@ -93,8 +98,7 @@ const routeTree = rootRoute.addChildren([
   customersRoute,
   customerRoute,
   paymentsRoute,
-  administrationRoute,
-  auditRoute,
+  administrationRoute.addChildren([administrationIndexRoute, usersRoute, auditRoute]),
   activateRoute,
   mfaSetupRoute,
   loginRoute,

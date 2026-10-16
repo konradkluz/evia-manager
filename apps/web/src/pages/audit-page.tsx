@@ -1,16 +1,15 @@
 import { listAuditEvents } from '@evia/contracts';
-import { Button, ChevronLeft, ChevronRight, CircleAlert, EmptyState, InlineAlert, Lock, Shield, Skeleton } from '@evia/ui-web';
+import { Button, ChevronLeft, ChevronRight, CircleAlert, EmptyState, InlineAlert, Shield, Skeleton } from '@evia/ui-web';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AccessDenied } from '../administration/access-denied.tsx';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
 import { AuditFilterBar } from '../audit/audit-filter-bar.tsx';
 import { AuditTable } from '../audit/audit-table.tsx';
 import { isFiltered, NO_FILTERS, PAGE_SIZE, toQuery, type AuditFilters } from '../audit/filters.ts';
 import { checkPeriod } from '../audit/period.ts';
-import { WORK_ORDERS_PATH } from '../paths.ts';
 import { serverNow } from '../session/server-clock.ts';
 import { useSession } from '../session/session.ts';
 import { lastStepUpAt, STEP_UP_WINDOW_MS, withRotationRetry } from '../session/step-up.ts';
@@ -47,28 +46,6 @@ export function AuditPage() {
   const isAdministrator = session.data?.user.role === 'administrator';
   usePageTitle(isAdministrator ? t('audit.title') : t('audit.denied.pageTitle'));
   return isAdministrator ? <AuditLog /> : <AccessDenied />;
-}
-
-function AccessDenied() {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  return (
-    <EmptyState
-      icon={Lock}
-      headingLevel={1}
-      title={t('audit.denied.title')}
-      description={t('audit.denied.description')}
-      action={
-        <Button
-          onClick={() => {
-            void navigate({ to: WORK_ORDERS_PATH });
-          }}
-        >
-          {t('audit.denied.action')}
-        </Button>
-      }
-    />
-  );
 }
 
 function AuditLog() {

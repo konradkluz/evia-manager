@@ -171,6 +171,9 @@ test.describe('W-04 and W-18 in the browser (EVM-029)', () => {
     api.stepUp = 'fresh';
     await page.goto('/work-orders');
     await page.getByRole('link', { name: 'Administracja' }).first().click();
+    // The administration opens on W-16 (EVM-024); the log is its second tab.
+    await expect(page).toHaveURL(`${ORIGIN}/administration/users`);
+    await page.getByRole('tab', { name: 'Dziennik audytu' }).click();
     await expect(page).toHaveURL(`${ORIGIN}${AUDIT}`);
     await expect(page.getByRole('heading', { level: 1, name: 'Dziennik audytu' })).toBeVisible();
   });
