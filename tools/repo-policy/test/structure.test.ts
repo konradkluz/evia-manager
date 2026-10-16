@@ -145,10 +145,31 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       const eslint = read(`${workspace}/eslint.config.js`);
       const tsconfig = record(jsonc(`${workspace}/tsconfig.json`));
       const options = record(tsconfig['compilerOptions']);
-      const relaxed = eslint.includes("'off'") || Object.values(options).includes(false) || options['strict'] === false;
+      const relaxed =
+        /['"`](off|warn|0|1)['"`]/.test(eslint) ||
+        /\brules\s*:/.test(eslint) ||
+        /\b(?:off|warn)\b/.test(eslint.replace(/\/\/.*$/gm, '')) ||
+        Object.values(options).includes(false) ||
+        options['strict'] === false;
       expect(relaxed, `${workspace} relaxes shared checks`).toBe(false);
       expect(eslint, workspace).toMatch(/config\(\{ tsconfigRootDir: import\.meta\.dirname \}\)/);
     }
+  });
+
+  it('EVM-073 AC1, AC2: tools/docs-lifecycle has no check-suppressing comments and keeps the shared noUncheckedIndexedAccess', () => {
+    const suppression = /@ts-(?:ignore|expect-error|nocheck)\b|eslint-disable/;
+    const sources = filesBelow('tools/docs-lifecycle', (path) => /\.(ts|tsx|mjs|js)$/.test(path));
+    expect(sources.length).toBeGreaterThan(0);
+    for (const path of sources) expect(suppression.test(read(path)), `${path} suppresses a check`).toBe(false);
+    const options = record(record(jsonc('tools/docs-lifecycle/tsconfig.json'))['compilerOptions']);
+    expect(options['noUncheckedIndexedAccess']).toBeUndefined();
+    expect(record(record(jsonc('packages/config/tsconfig.base.json'))['compilerOptions'])['noUncheckedIndexedAccess']).toBe(true);
+  });
+
+  it('EVM-073 AC4: the behaviour of the validator stays covered — its own tests run with the coverage threshold of the tools layer', () => {
+    const command = manifest('tools/docs-lifecycle/package.json').scripts?.['test:coverage'] ?? '';
+    expect(command).toBe('evia-node-test');
+    expect(exists('tools/docs-lifecycle/test')).toBe(true);
   });
 
   it('EVM-006 AC3 (W3a): one source of coverage exclusions for Vitest, node:test and diff-coverage', () => {
