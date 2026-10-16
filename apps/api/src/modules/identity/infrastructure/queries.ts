@@ -27,8 +27,13 @@ export const isLinkUsable = (link: LinkRecord, now: Date): boolean =>
  * A reset link opens a password reset only while it is unused, not superseded, not expired and its account is still ACTIVE and not deleted
  * (an invited account has no password to forget, a deactivated one must not come back this way — EVM-025 AC2).
  */
-export const isResetLinkUsable = (link: LinkRecord, now: Date): boolean =>
-  link.usedAt === null && link.supersededAt === null && link.expiresAt > now && link.userStatus === 'active' && !link.userDeleted;
+export const isResetLinkUsable = (link: LinkRecord | undefined, now: Date): link is LinkRecord =>
+  link !== undefined &&
+  link.usedAt === null &&
+  link.supersededAt === null &&
+  link.expiresAt > now &&
+  link.userStatus === 'active' &&
+  !link.userDeleted;
 
 /** One query by the unique hash — the same work for every outcome (unknown, used, expired, superseded). Activation links only. */
 export function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LinkRecord | undefined> {
@@ -521,8 +526,10 @@ export interface UserRow {
 const USER_COLUMNS = ['id', 'email', 'display_name as displayName', 'role', 'status', 'deleted_at as deletedAt'] as const;
 
 /** The account of a normalised address — also a deleted one (the address stays taken: `users.email` is unique for every row). */
-export async function findUserByEmail(db: IdentityDb, email: string): Promise<UserRow | undefined> {
-  return db.selectFrom('identity.users').select(USER_COLUMNS).where('email', '=', email).executeTakeFirst();
+export async function findUserByEmail(db: IdentityDb, email: string, lock: boolean = false): Promise<UserRow | undefined> {
+  let query = db.selectFrom('identity.users').select(USER_COLUMNS).where('email', '=', email);
+  if (lock) query = query.forUpdate();
+  return query.executeTakeFirst();
 }
 
 /** The account by id, `FOR UPDATE` when `lock` — the FIRST lock of every unit of work that also locks an outbox row (the order of locks). */
@@ -696,16 +703,9 @@ export async function supersedeOpenResetLinksOfUser(db: IdentityDb, userId: stri
   return rows.map((row) => row.id);
 }
 
-/** Spends a link (single use) conditionally; @returns false when it was already used. */
-export async function markLinkUsed(db: IdentityDb, linkId: string, now: Date): Promise<boolean> {
-  const row = await db
-    .updateTable('identity.one_time_links')
-    .set({ used_at: now })
-    .where('id', '=', linkId)
-    .where('used_at', 'is', null)
-    .returning('id')
-    .executeTakeFirst();
-  return row !== undefined;
+/** Spends a link (single use). The caller holds the lock of the link row and has just seen it unused; the condition is the second guard. */
+export async function markLinkUsed(db: IdentityDb, linkId: string, now: Date): Promise<void> {
+  await db.updateTable('identity.one_time_links').set({ used_at: now }).where('id', '=', linkId).where('used_at', 'is', null).execute();
 }
 
 /** Ends every open first step of the account (a `loginToken` made before a reset must not finish a sign-in after it). */

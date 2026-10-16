@@ -134,7 +134,8 @@ export const RESET_FORM_PATH = '/login/reset';
 export const passwordResetLink = (panelOrigin: string, token: string): string => `${panelOrigin}${RESET_PATH}#${token}`;
 
 /** "10:30" in the business zone — the end of the validity of a reset link (e-maile.md, rule 6). */
-const formatWarsawTime = (instant: Date): string => formatWarsaw(instant).split(', ')[1] ?? '';
+const WARSAW_TIME = new Intl.DateTimeFormat('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const formatWarsawTime = (instant: Date): string => WARSAW_TIME.format(instant);
 
 export interface PasswordResetTextInput {
   readonly panelOrigin: string;

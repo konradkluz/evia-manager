@@ -85,11 +85,9 @@ export class PasswordResetService {
     // An address with a control character (a NUL, a line break) is no address of any account — and the database would refuse the NUL.
     if (CONTROL_CHARACTER.test(email)) return;
     const tx = identityTables(transaction);
-    const found = await findUserByEmail(tx, email);
-    if (found === undefined || found.deletedAt !== null) return;
-    // The account is locked, then re-read: of two parallel requests the second sees the message of the first and is held back.
-    const user = await findUserById(tx, found.id, true);
-    if (user === undefined) return;
+    // The row of the account is locked by the lookup itself: of two parallel requests the second sees the message of the first and is held back.
+    const user = await findUserByEmail(tx, email, true);
+    if (user === undefined || user.deletedAt !== null) return;
 
     const eligible = user.status === 'active' && (await secondStepMethods(transaction, user.id)).length > 0;
     if (!eligible) {
@@ -151,7 +149,7 @@ export class PasswordResetService {
       await findUserById(tx, link.userId, true);
       const locked = await findLinkOfPurpose(tx, 'password_reset', hashToken(token), true);
       const now = this.#clock.now();
-      if (locked === undefined || !isResetLinkUsable(locked, now)) throw invalid();
+      if (!isResetLinkUsable(locked, now)) throw invalid();
       const methods = await secondStepMethods(transaction, locked.userId);
       if (methods.length === 0) throw invalid();
 
@@ -160,7 +158,7 @@ export class PasswordResetService {
         .values({ user_id: locked.userId, password_hash: passwordHash, updated_at: now })
         .onConflict((conflict) => conflict.column('user_id').doUpdateSet({ password_hash: passwordHash, updated_at: now }))
         .execute();
-      if (!(await markLinkUsed(tx, locked.linkId, now))) throw invalid();
+      await markLinkUsed(tx, locked.linkId, now);
       await supersedeOpenResetLinksOfUser(tx, locked.userId, now);
       const revoked = await revokeSessions(tx, { userId: locked.userId }, 'password_reset', now);
       // Every earlier first step ends BEFORE the new one is opened: an old `loginToken` is dead, the new one works only for the key.
@@ -188,7 +186,7 @@ export class PasswordResetService {
   /** One answer for every kind of unusable link (unknown, used, superseded, expired, another purpose, an account that is not active). */
   async #usableLink(token: string): Promise<LinkRecord> {
     const link = await findLinkOfPurpose(identityTables(this.#db), 'password_reset', hashToken(token));
-    if (link === undefined || !isResetLinkUsable(link, this.#clock.now())) throw invalid();
+    if (!isResetLinkUsable(link, this.#clock.now())) throw invalid();
     return link;
   }
 }
