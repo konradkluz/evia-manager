@@ -4,7 +4,7 @@ title: Usunięcie i przywrócenie zlecenia (Administrator)
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-progress
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -80,7 +80,7 @@ Jako **Administrator** chcę **usunąć zlecenie założone przez pomyłkę i w 
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+Numeracja migracji (kolejka 2026-10-16): wątek B używa wyłącznie `0033_…` i `0034_…`; wątek A zaczyna od `0035`.
 
 ## Uwagi do rozważenia
 _—_
@@ -97,3 +97,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): warunek wdrożenia na prod (najwcześniej z sign-off EVM-070)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-16 — ścieżka `pelna` (uprawnienia, usuwanie), recenzenci z `reviewers`, `model: sonnet` — decyzja Konrada przy planowaniu kolejki 16.10
+- 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B, gałąź feature/queue-2026-10-16-zlecenia-narzedzia; ścieżka pełna, wykonawcy sonnet)
