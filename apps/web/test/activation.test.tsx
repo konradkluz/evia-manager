@@ -1,5 +1,5 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent, setupUser } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { captureActivationToken, clearActivationToken, getActivationToken } from '../src/activation/activation-token.ts';
 import { axeViolations } from './a11y.ts';
@@ -259,7 +259,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC3 a password shorter than 15 characters is refused on the page: message under the field, no request', async () => {
     const { api } = anonymousApi();
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), 'krótkie hasło');
     await user.tab();
     expect(screen.getByRole('alert').textContent).toBe('Hasło musi mieć co najmniej 15 znaków.');
@@ -273,7 +273,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC3 a password of more than 256 characters is refused on the page', async () => {
     const { api } = anonymousApi();
     await openForm(api);
-    await userEvent.setup().click(screen.getByLabelText('Nowe hasło'));
+    await setupUser().click(screen.getByLabelText('Nowe hasło'));
     await userEvent.paste('ż'.repeat(257));
     await userEvent.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     expect(screen.getByRole('alert').textContent).toBe('Hasło może mieć najwyżej 256 znaków.');
@@ -283,7 +283,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC3 a pasted passphrase with spaces and Polish letters is accepted untrimmed; the token and password leave memory and W-03 opens', async () => {
     const { api } = anonymousApi();
     const { history } = await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getByLabelText('Nowe hasło'));
     await user.paste(` ${GOOD_PASSWORD} `);
     await user.click(screen.getByRole('button', { name: 'Pokaż' }));
@@ -310,7 +310,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
         }),
     }));
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     const button = screen.getByRole('button', { name: 'Ustaw hasło' });
     await user.click(button);
@@ -335,7 +335,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
         [PASSWORD]: () => problem(400, 'validation_failed', { errors: [{ pointer: '/password', code }] }),
       });
       await openForm(api);
-      const user = userEvent.setup();
+      const user = setupUser();
       await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
       await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
       expect((await screen.findByRole('alert')).textContent).toBe(text);
@@ -351,7 +351,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC5 the link stops working between the check and the save: the invalid-link state, password cleared, token dropped', async () => {
     const { api } = anonymousApi({ [PASSWORD]: () => problem(400, 'activation_link_invalid') });
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Link jest nieważny lub wygasł.' })).toBeTruthy();
@@ -366,7 +366,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
       [PASSWORD]: () => (answers++ === 0 ? problem(429, 'rate_limited', {}, { 'Retry-After': '30' }) : grant()),
     }));
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     const alert = await screen.findByRole('alert');
@@ -385,7 +385,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
     try {
       const { api } = anonymousApi({ [PASSWORD]: () => problem(403, 'csrf_failed') });
       await openForm(api);
-      const user = userEvent.setup();
+      const user = setupUser();
       await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
       await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
       const text = (await screen.findByRole('alert')).textContent;
@@ -406,7 +406,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
       },
     });
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Nie udało się ustawić hasła.');
@@ -422,7 +422,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC3 an unreadable OK answer on save keeps the form and the password and offers a new attempt', async () => {
     const { api } = anonymousApi({ [PASSWORD]: () => json(200, null) });
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Nie udało się połączyć z serwerem.');
@@ -432,7 +432,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
   it('EVM-016 AC3 offline after the check: the banner, the button is unavailable with the reason, the password stays in the tab', async () => {
     const { api } = anonymousApi();
     await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
     act(() => {
@@ -458,7 +458,7 @@ describe('W-13 Ustaw hasło: setting the password (EVM-016 AC3, AC4)', () => {
       },
     });
     const { history } = await openForm(api);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Nowe hasło'), GOOD_PASSWORD);
     await user.click(screen.getByRole('button', { name: 'Ustaw hasło' }));
     await waitFor(() => {

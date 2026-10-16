@@ -5,7 +5,9 @@
  * parameters or a name (the audit trail is append-only and cannot be erased, RODO art. 17). The entry of the journal of the order
  * itself (`work_order_created`, EVM-038) is written by `timeline`, which subscribes to `work_order.created` and to the journal
  * events below. The cancellation and the restoration of an order (EVM-030) are audited: the reason of a cancellation is free text
- * and never part of the event. The change of the data of an order and of its scope (EVM-035) is audited too, and the REMOVAL of a
+ * and never part of the event. The deletion of an order and the undoing of it (EVM-060) are two actions of their own,
+ * `work_order.deleted` and `work_order.undeleted` (the latter is not `work_order.restored`, the return from a closed status): identifiers,
+ * the actor and a code of the step-up only — never the title, the customer, the address or an amount. The change of the data of an order and of its scope (EVM-035) is audited too, and the REMOVAL of a
  * scope item is an action of its own (`scope_item.deleted`), so a soft delete is told apart in the trail (domain-model.md →
  * "Przejścia audytowane").
  */
@@ -18,6 +20,8 @@ export const WORK_ORDER_EVENT_TYPES = [
   'work_order.created',
   'work_order.cancelled',
   'work_order.restored',
+  'work_order.deleted',
+  'work_order.undeleted',
   'work_order.updated',
   'scope_item.created',
   'scope_item.updated',
@@ -31,6 +35,11 @@ export interface WorkOrderEvent extends DomainEvent {
   /** `scope_item` for the three events of the scope: the object is the item (its order is a column of the item). */
   readonly objectType: 'work_order' | 'scope_item';
   readonly objectId: string;
+  /**
+   * `step_up_verified` on `work_order.deleted` when the deletion needed (and had) a fresh step-up (EVM-060 AC3; SR-AUTHZ-10). A code,
+   * never a reason typed by a person.
+   */
+  readonly reasonCode?: 'step_up_verified';
 }
 
 /**

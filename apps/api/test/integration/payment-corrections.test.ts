@@ -627,12 +627,12 @@ describe('no way around a correction (EVM-057 AC6; SR-AUTHZ-10, SR-AUTHZ-05; sec
     expect(await rowOf(milestoneId)).toMatchObject({ status: 'invoiced', amount_minor: '10000', version: 2 });
   });
 
-  it('EVM-057 AC6 the API has no deletion of a work order: DELETE of an order is not a route', async () => {
+  it('EVM-057 AC6 EVM-060 AC2 the deletion of a work order is no way round the corrections: with an invoiced milestone it is 409 has_active_dependents even for the Administrator with a fresh step-up, and the milestone is untouched', async () => {
     const browser = await administrator();
     const created = await order([invoiced]);
     const response = await browser.panel.delete(`${BASE}/${created.id}`, { 'If-Match': '"1"' });
-    expect([404, 405]).toContain(response.status);
-    expect(await rowOf(created.milestoneIds[0] ?? '')).toMatchObject({ deleted: false });
+    expect([response.status, codeOf(response.body)]).toEqual([409, 'has_active_dependents']);
+    expect(await rowOf(created.milestoneIds[0] ?? '')).toMatchObject({ deleted: false, status: 'invoiced', version: 1 });
   });
 });
 

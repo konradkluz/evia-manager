@@ -2,10 +2,13 @@ import type { Page, Request, Route } from '@playwright/test';
 import {
   answerAssignable,
   answerCreate,
+  answerOrderDelete,
   answerOrderRead,
+  answerOrderRestore,
   answerTransition,
   answerTemplates,
   createdListItems,
+  deletedListItems,
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
@@ -715,6 +718,21 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       const method = request.method() === 'DELETE' ? 'DELETE' : 'PATCH';
       return route.fulfill(answerScopeChange(api.orders, scopeChange?.[1] ?? '', scopeChange?.[2] ?? '', method, input));
     }
+    // EVM-060: the deletion and the restore of a whole order (the menu `⋮` of W-06, "Przywróć" of the view "Usunięte" of W-10).
+    const wholeOrder = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})(\/restore)?$/.exec(url.pathname);
+    if (
+      wholeOrder !== null &&
+      ((request.method() === 'DELETE' && wholeOrder[2] === undefined) || (request.method() === 'POST' && wholeOrder[2] !== undefined))
+    ) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const input = { role: api.role, ifMatch: headers['if-match'] };
+      return route.fulfill(
+        request.method() === 'DELETE'
+          ? answerOrderDelete(api.orders, wholeOrder[1] ?? '', input)
+          : answerOrderRestore(api.orders, wholeOrder[1] ?? '', input),
+      );
+    }
     // EVM-030: the transition of one order (the status menu of W-06).
     const transition = request.method() === 'POST' ? /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/transitions$/.exec(url.pathname) : null;
     if (transition !== null) {
@@ -1012,6 +1030,11 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'GET /api/v1/work-orders': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         const query = url.searchParams;
+        // EVM-060: the view "Usunięte" is the Administrator's.
+        if (query.get('view') === 'deleted') {
+          if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+          return route.fulfill(ok(200, { items: deletedListItems(api.orders), nextCursor: null }));
+        }
         // EVM-039: "Historia zleceń" of a customer — the orders created in this run for that customer, newest first.
         const ofCustomer = query.get('customerId');
         if (ofCustomer !== null) return route.fulfill(ok(200, { items: createdListItems(api.orders, ofCustomer), nextCursor: null }));

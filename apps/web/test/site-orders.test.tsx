@@ -1,6 +1,6 @@
 import type { SiteOrders } from '@evia/contracts';
 import { screen, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, problem } from './api-fake.ts';
@@ -8,7 +8,6 @@ import { locationServer, OTHER_ORDER_ID, OTHER_ORDERS, PATH, roleSession } from 
 import { renderPanel } from './render.tsx';
 import { ORDER_ID } from './work-order-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const READ = `GET /api/v1/work-orders/${ORDER_ID}/site-orders`;
 const card = () => within(screen.getByRole('region', { name: 'Lokalizacja' }));
 

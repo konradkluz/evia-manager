@@ -15,6 +15,7 @@ import { EXIT } from '../lib/main.mjs';
 import { runCli, runMain } from './helpers/cli.mjs';
 import { analyzeFiles, baseFiles, doc } from './helpers/fixtures.mjs';
 import { createTempRepo } from './helpers/temp-repo.mjs';
+import { at } from './helpers/at.mjs';
 
 const POLICY = 'docs/process/document-lifecycle.md';
 const MIB = 1024 * 1024;
@@ -52,7 +53,7 @@ function parseSummary(markdown) {
     if (open === null) {
       const start = /^(`{3,})text$/.exec(line);
       if (start) {
-        open = { fence: start[1], lines: [] };
+        open = { fence: at(start, 1), lines: [] };
         blocks.push(open);
       } else {
         outside.push(line);
@@ -60,7 +61,7 @@ function parseSummary(markdown) {
       continue;
     }
     const close = /^ {0,3}(`+)[ \t]*$/.exec(line);
-    if (close && close[1].length >= open.fence.length) open = null;
+    if (close && at(close, 1).length >= open.fence.length) open = null;
     else open.lines.push(line);
   }
   assert.equal(open, null, 'każdy blok kodu jest zamknięty');
@@ -79,7 +80,7 @@ const longestBacktickRun = (text) => Math.max(0, ...Array.from(text.matchAll(/`+
 describe('podsumowanie przebiegu — struktura (EVM-013 AC2, AC5)', () => {
   it('EVM-013 AC5: błędy i ostrzeżenia — nagłówek, wynik, licznik, dzień, listy w blokach kodu i podpowiedź npm run docs:check', () => {
     const analysis = analyzeFiles({ 'notatka.md': '# N\n', 'docs/product/zapomniany.md': '# Z\n' });
-    const [error] = formatCheck(analysis, { list: false, policy: POLICY }).split('\n');
+    const error = at(formatCheck(analysis, { list: false, policy: POLICY }).split('\n'), 0);
     assert.ok(error.startsWith('BŁĄD · notatka.md · — · '));
     assert.equal(
       formatSummary(analysis),

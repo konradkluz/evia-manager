@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import { buildCleanupReport } from '../lib/cleanup.mjs';
 import { formatCheck, formatCleanupReport, USAGE } from '../lib/format.mjs';
 import { analyzeFiles, doc } from './helpers/fixtures.mjs';
+import { at } from './helpers/at.mjs';
 
 const POLICY = 'docs/process/document-lifecycle.md';
 
@@ -33,9 +34,9 @@ describe('format wyjścia walidatora (EVM-012)', () => {
       'docs/notes/plan.md': doc({ lifecycle: 'milestone', milestone: 'M0', expires: '2026-10-01' }),
     });
     const lines = formatCheck(analysis, { list: false, policy: POLICY }).split('\n');
-    assert.match(lines[0], /^BŁĄD · notatka\.md · — · plik poza dozwolonymi lokalizacjami/);
-    assert.match(lines[1], /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · przeterminowany: expires 2026-10-01/);
-    assert.match(lines[2], /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · osierocony/);
+    assert.match(at(lines, 0), /^BŁĄD · notatka\.md · — · plik poza dozwolonymi lokalizacjami/);
+    assert.match(at(lines, 1), /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · przeterminowany: expires 2026-10-01/);
+    assert.match(at(lines, 2), /^OSTRZEŻENIE · docs\/notes\/plan\.md · kamień milowy · osierocony/);
     assert.equal(lines[3], '');
     assert.ok(lines.includes('Klasa nadana ręcznie (pole lifecycle w docs/notes/): 1'));
     assert.ok(lines.includes('- docs/notes/plan.md · kamień milowy'));

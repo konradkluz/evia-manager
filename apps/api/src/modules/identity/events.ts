@@ -45,6 +45,8 @@ export const REASON_CODES = [
   'login_expired',
   // A session ran out of idle time or of its absolute lifetime (SR-SESS-03).
   'expired',
+  // The deletion of a work order that needed a fresh step-up (EVM-060): the audit record says it was there, never why or what.
+  'step_up_verified',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

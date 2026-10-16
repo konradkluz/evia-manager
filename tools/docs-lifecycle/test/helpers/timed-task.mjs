@@ -10,17 +10,14 @@ import { parseRoadmapMilestones } from '../../lib/milestones.mjs';
 import { extractPathTokens } from '../../lib/references.mjs';
 import { analyzeFiles, codes } from './fixtures.mjs';
 
-/** @type {Record<string, (input: any) => unknown>} */
+/** @type {Record<string, (input: unknown) => unknown>} */
 const TASKS = {
-  /** @param {string} text */
-  frontmatter: (text) => Object.fromEntries(parseFrontmatter(text)),
-  /** @param {string} text */
-  roadmap: (text) => parseRoadmapMilestones(text, 'Przegląd'),
-  /** @param {string} text */
-  pathTokens: (text) => extractPathTokens(text),
-  /** @param {Record<string, string>} files added to the clean base repository of the fixtures */
+  frontmatter: (text) => Object.fromEntries(parseFrontmatter(/** @type {string} */ (text))),
+  roadmap: (text) => parseRoadmapMilestones(/** @type {string} */ (text), 'Przegląd'),
+  pathTokens: (text) => extractPathTokens(/** @type {string} */ (text)),
+  // `input`: files added to the clean base repository of the fixtures.
   analyze: (files) => {
-    const analysis = analyzeFiles(files);
+    const analysis = analyzeFiles(/** @type {Record<string, string>} */ (files));
     return { codes: codes(analysis), milestones: analysis.milestones, references: Object.fromEntries(analysis.references) };
   },
   // Controls of the mechanism: computations that never finish — only the hard deadline stops them.
@@ -29,11 +26,12 @@ const TASKS = {
       // never ends
     }
   },
-  /** @param {string} text */
-  catastrophicRegex: (text) => /^(a+)+$/.test(text),
+  catastrophicRegex: (text) => /^(a+)+$/.test(/** @type {string} */ (text)),
 };
 
-const { task, input } = /** @type {{ task: string, input: unknown }} */ (workerData);
+/** @type {unknown} */
+const data = workerData;
+const { task, input } = /** @type {{ task: string, input: unknown }} */ (data);
 const run = TASKS[task];
 if (run === undefined) throw new Error(`nieznane zadanie: ${task}`);
 const started = performance.now();

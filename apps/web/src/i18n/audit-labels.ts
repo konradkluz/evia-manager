@@ -35,6 +35,8 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'work_order.created': 'Utworzenie zlecenia',
   'work_order.cancelled': 'Anulowanie zlecenia',
   'work_order.restored': 'Przywrócenie zlecenia',
+  'work_order.deleted': 'Usunięcie zlecenia',
+  'work_order.undeleted': 'Przywrócenie usuniętego zlecenia',
   'work_order.updated': 'Zmiana danych zlecenia',
   'scope_item.created': 'Dodanie pozycji zakresu zlecenia',
   'scope_item.updated': 'Zmiana pozycji zakresu zlecenia',
@@ -84,7 +86,17 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
-  { label: 'Zlecenia', actions: ['work_order.created', 'work_order.updated', 'work_order.cancelled', 'work_order.restored'] },
+  {
+    label: 'Zlecenia',
+    actions: [
+      'work_order.created',
+      'work_order.updated',
+      'work_order.cancelled',
+      'work_order.restored',
+      'work_order.deleted',
+      'work_order.undeleted',
+    ],
+  },
   { label: 'Zakres zlecenia', actions: ['scope_item.created', 'scope_item.updated', 'scope_item.deleted'] },
   {
     label: 'Procesy i etapy',

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { analyzeFiles, codes, doc, story } from './helpers/fixtures.mjs';
+import { at } from './helpers/at.mjs';
 
 /**
  * @param {import('../lib/analyze.mjs').Analysis} analysis
@@ -252,7 +253,7 @@ describe('walidator — błędy blokujące (EVM-012 AC3)', () => {
   it('EVM-012 AC3: katalog .scratch/ nieignorowany przez git', () => {
     const analysis = analyzeFiles({}, { scratchIgnored: false });
     assert.deepEqual(codes(analysis, 'error'), ['scratch-not-ignored .scratch/']);
-    assert.match(analysis.findings[0].reason, /\.gitignore/);
+    assert.match(at(analysis.findings, 0).reason, /\.gitignore/);
   });
 
   it('EVM-012 AC3: dowód QA/UX bez historyjki, z historyjką bez M# albo z kilkoma historyjkami o tym ID', () => {

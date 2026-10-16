@@ -438,7 +438,7 @@ function milestoneFromStory(record, id, fields, ctx, report) {
     );
     return;
   }
-  const [story] = stories;
+  const story = /** @type {{ path: string, milestone: string | undefined }} */ (stories[0]);
   const problem = milestoneProblem(story.milestone, ctx.milestones);
   if (problem === 'missing') {
     report('milestone-missing', `kamień milowy bez M# — historyjka ${id} (${story.path}) nie ma pola milestone`);
@@ -519,7 +519,7 @@ function checkDates(record, fields, today, report) {
         'date-invalid',
         `niepoprawna data w polu ${field}: ${quote(value)} — wymagany format YYYY-MM-DD i prawdziwa data kalendarzowa`,
       );
-    } else if (!ALLOWED_DATE_FIELDS[cls].includes(field)) {
+    } else if (!(/** @type {string[]} */ (ALLOWED_DATE_FIELDS[cls]).includes(field))) {
       report(
         'date-not-allowed',
         field === 'expires'

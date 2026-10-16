@@ -1,6 +1,6 @@
 import type { UnpaidPaymentMilestone } from '@evia/contracts';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem, type Handler } from './api-fake.ts';
@@ -23,8 +23,6 @@ import {
   UNPAID_PATH,
   unpaidApi,
 } from './unpaid-api.ts';
-
-const userEvent = userEventDefault.setup({ delay: null });
 
 afterEach(() => {
   vi.useRealTimers();

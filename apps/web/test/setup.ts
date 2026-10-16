@@ -5,7 +5,7 @@ import { clearActivationToken } from '../src/activation/activation-token.ts';
 import { clearWorkOrderSearch } from '../src/search/work-order-search-store.ts';
 import { setCsrfToken } from '../src/session/csrf.ts';
 
-// findBy*/waitFor wait up to 1 s by default; on the shared CI runner (many workers at once) debounced searches need longer. A passing test is not slowed down.
+// findBy*/waitFor wait up to 1 s by default; on the shared CI runner (many workers at once) debounced searches need longer. A passing test is not slowed down. EVM-081 AC4: kept at 5 s (below testTimeout 20 s, so a failing wait still reports its own message); tests with fake timers (EVM-017 AC8) advance virtual time and do not depend on it.
 configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {

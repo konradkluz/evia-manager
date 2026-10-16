@@ -63,7 +63,7 @@ function translateSegment(segment, groups, invalid) {
   let out = '';
   let index = 0;
   while (index < segment.length) {
-    const char = segment[index];
+    const char = /** @type {string} */ (segment[index]);
     if (char === '*') {
       out += '[^/]*';
       index += 1;

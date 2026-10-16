@@ -8,6 +8,7 @@ import { useOnline } from '../shell/use-online.ts';
 import { useStateWord } from './edit-failure.ts';
 import { formatDate } from './format.ts';
 import { formatDueDate } from './procedure-format.ts';
+import { OrderDeleteDialog } from './order-delete-dialog.tsx';
 import { OrderEditDialog } from './order-edit-dialog.tsx';
 import { StatusTransitions } from './status-transitions.tsx';
 import { isClosed } from './transition-actions.ts';
@@ -19,6 +20,8 @@ import { isClosed } from './transition-actions.ts';
  * the planned date and the date of creation. All of it is React text; a customer, a site or a keeper that is gone is "Brak danych".
  * The menu "Akcje zlecenia" with "Edytuj dane zlecenia…" (EVM-035 AC1, AC6, AC8) is for the Administrator and the Editor: disabled
  * with a reason for a closed order and offline; Tylko odczyt gets no menu. The server decides all the same.
+ * EVM-060 AC1, AC5: "Usuń zlecenie…" closes the menu (danger group) — enabled for the Administrator, disabled with "Usunąć zlecenie może
+ * tylko administrator." for the Editor; even a closed order can be deleted (the API decides by its instalments).
  */
 export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrderDetails; readonly headingRef: Ref<HTMLHeadingElement> }) {
   const { t } = useTranslation();
@@ -26,6 +29,7 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
   const role = useSession().data?.user.role;
   const stateWord = useStateWord();
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const spot = order.site === null ? undefined : formatSpot(t, order.site);
   const address = order.site === null ? null : spot === undefined ? formatAddress(order.site) : `${formatAddress(order.site)} · ${spot}`;
   const missing = t('workOrder.header.missing');
@@ -65,6 +69,21 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
                 },
                 ...(disabledHint === undefined ? {} : { disabledHint }),
               },
+              // EVM-060 AC5: the destructive group at the end; the Editor sees the item disabled with the reason, the API says `403` all the same.
+              {
+                id: 'delete',
+                label: t('workOrder.delete.trigger'),
+                startsGroup: true,
+                tone: 'danger' as const,
+                onSelect: () => {
+                  setDeleting(true);
+                },
+                ...(role === 'editor'
+                  ? { disabledHint: t('workOrder.delete.editorHint') }
+                  : online
+                    ? {}
+                    : { disabledHint: t('workOrder.delete.offlineMenu') }),
+              },
             ]}
             trigger={(props) => (
               <IconButton {...props} icon={EllipsisVertical} label={t('workOrder.edit.menuLabel', { number: order.number })} />
@@ -84,6 +103,14 @@ export function WorkOrderHeader({ order, headingRef }: { readonly order: WorkOrd
           ))}
         </dl>
       </Card>
+      {deleting ? (
+        <OrderDeleteDialog
+          order={order}
+          onClose={() => {
+            setDeleting(false);
+          }}
+        />
+      ) : null}
       {editing ? (
         <OrderEditDialog
           order={order}

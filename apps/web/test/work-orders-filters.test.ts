@@ -224,3 +224,16 @@ describe('the payment views and "Najpilniejsze" (EVM-056 AC2, AC3, AC7)', () => 
     expect(noFiltersFor(false)).toEqual({ ...NO_FILTERS, sort: '-number' });
   });
 });
+
+describe('the view "Usunięte" (EVM-060 AC4, AC6)', () => {
+  it('EVM-060 AC6 the view exists only for the Administrator: for everyone else a link to it is "unknown" (deny by default)', () => {
+    expect(viewOf({ view: 'deleted' }, true, true)).toBe('deleted');
+    expect(viewOf({ view: 'deleted' }, true, false)).toBe('unknown');
+    expect(viewOf({ view: 'deleted' })).toBe('unknown');
+  });
+
+  it('EVM-060 AC4 the address carries `view=deleted` and the API gets `view=deleted`', () => {
+    expect(searchOf({ view: 'deleted', statuses: [] })).toEqual({ view: 'deleted' });
+    expect(toQuery({ ...NO_FILTERS, view: 'deleted' }, undefined)).toMatchObject({ view: 'deleted' });
+  });
+});

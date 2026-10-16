@@ -30,6 +30,7 @@ export const PROBLEMS = Object.freeze({
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
+  has_active_dependents: { status: 409, title: 'The work order has active dependents' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
   procedure_already_active: { status: 409, title: 'A process with this code is already active in the work order' },
   parent_deleted: { status: 409, title: 'The process of the stage is deleted' },

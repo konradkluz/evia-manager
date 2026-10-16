@@ -85,6 +85,8 @@ paths:
     $ref: paths/work-orders.yaml#/workOrder
   /api/v1/work-orders/{workOrderId}/transitions:
     $ref: paths/work-orders.yaml#/workOrderTransitions
+  /api/v1/work-orders/{workOrderId}/restore:
+    $ref: paths/work-orders.yaml#/workOrderRestore
   /api/v1/work-orders/{workOrderId}/scope-items:
     $ref: paths/work-orders.yaml#/workOrderScopeItems
   /api/v1/work-orders/{workOrderId}/scope-items/{scopeItemId}:
@@ -237,6 +239,8 @@ components:
       $ref: components/work-orders.yaml#/WorkOrderSort
     WorkOrderView:
       $ref: components/work-orders.yaml#/WorkOrderView
+    WorkOrderSearchView:
+      $ref: components/work-orders.yaml#/WorkOrderSearchView
     WorkOrderWaitingOnFilter:
       $ref: components/work-orders.yaml#/WorkOrderWaitingOnFilter
     WorkOrderWaitingOn:

@@ -2,7 +2,7 @@
  * The facade of `work-orders` for the other modules (ADR-0001: a module reaches another one through its `index.ts` only). Its first
  * consumer is `procedures` (EVM-031): the stages of an order may be read and changed only through the order, so the question is
  * always "may THIS caller see this order, and is it closed?" — answered by the ONE read policy of work orders (`visibleWorkOrders`:
- * a deleted or missing order is `undefined` for every role, the Administrator included, until EVM-060). The caller passes ITS
+ * a deleted or missing order is `undefined` for every role, the Administrator included — the deleted ones have a mode of their own, `deletedRefsOf`). The caller passes ITS
  * transaction. Nothing but the identifier and the status comes back (no customer, no title, no description — SR-DATA-03).
  */
 import type { Kysely } from 'kysely';
@@ -28,6 +28,12 @@ export interface WorkOrderListRef {
   readonly closed: boolean;
 }
 
+/** A soft deleted order as the view "Usunięte" shows it (EVM-060): the title and the version a restoration needs (`If-Match`). */
+export interface DeletedOrderRef {
+  readonly title: string;
+  readonly version: number;
+}
+
 export interface WorkOrderDirectory {
   /** The order the caller may see, or `undefined` (missing and deleted alike). */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<WorkOrderRef | undefined>;
@@ -41,6 +47,12 @@ export interface WorkOrderDirectory {
    * of `overview` shows nothing for an order this answer leaves out (fail closed, ADR-0017 W2).
    */
   titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  /**
+   * The title and the version of every SOFT DELETED order among `ids` — ONE query with the read policy in its mode `deleted` (EVM-060):
+   * only the Administrator gets an answer, for every other role the condition is never true and the map is empty. The ONLY way another
+   * module reads a deleted order, for the view "Usunięte" of `overview`; never a source of permission (SR-AUTHZ-02).
+   */
+  deletedRefsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, DeletedOrderRef>>;
   /**
    * The identifiers of the orders the caller may see whose number or title contains the (normalised) phrase — at most `limit`, the
    * read policy of work orders IN the query (EVM-072). Only a narrowing for the search of `overview`, never a source of permission.

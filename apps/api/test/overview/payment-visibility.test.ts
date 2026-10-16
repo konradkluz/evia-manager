@@ -34,6 +34,7 @@ function row(overrides: Partial<WorkOrderRow> = {}): WorkOrderRow {
     number: 'ZL-2026-0001',
     status: 'in_progress',
     createdAt: new Date('2026-10-01T08:00:00.000Z'),
+    deletedAt: null,
     coordinatorUserId: null,
     customerId: null,
     siteId: null,

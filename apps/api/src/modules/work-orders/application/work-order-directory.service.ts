@@ -5,8 +5,14 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { CLOSED_STATUSES } from '../domain/work-order-status.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import { findVisibleRefs, findVisibleTitles, findVisibleWorkOrderRef, searchVisibleIds } from '../infrastructure/work-order-store.ts';
-import type { WorkOrderDirectory, WorkOrderListRef, WorkOrderRef } from '../work-order-directory.ts';
+import {
+  findDeletedRefs,
+  findVisibleRefs,
+  findVisibleTitles,
+  findVisibleWorkOrderRef,
+  searchVisibleIds,
+} from '../infrastructure/work-order-store.ts';
+import type { DeletedOrderRef, WorkOrderDirectory, WorkOrderListRef, WorkOrderRef } from '../work-order-directory.ts';
 
 @Injectable()
 export class WorkOrderDirectoryService implements WorkOrderDirectory {
@@ -20,6 +26,10 @@ export class WorkOrderDirectoryService implements WorkOrderDirectory {
 
   titlesOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
     return findVisibleTitles(workOrderTables(tx), principal, [...new Set(ids)]);
+  }
+
+  deletedRefsOf(tx: Kysely<Database>, principal: Principal, ids: readonly string[]): Promise<ReadonlyMap<string, DeletedOrderRef>> {
+    return findDeletedRefs(workOrderTables(tx), principal, [...new Set(ids)]);
   }
 
   searchIds(tx: Kysely<Database>, principal: Principal, term: string, limit: number): Promise<string[]> {

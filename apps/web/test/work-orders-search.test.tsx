@@ -1,6 +1,6 @@
 import type { WorkOrderList, WorkOrderListItem, WorkOrderTemplate } from '@evia/contracts';
 import { act, screen, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { setWorkOrderPhrase } from '../src/search/work-order-search-store.ts';

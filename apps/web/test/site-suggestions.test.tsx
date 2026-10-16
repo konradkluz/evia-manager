@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, type UseQueryResult } from '@tanstack/react-query';
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiProvider } from '../src/api/api-context.tsx';
 import { createApiClient } from '../src/api/client.ts';
@@ -11,7 +11,6 @@ import { axeViolations } from './a11y.ts';
 import { createFakeApi, json, problem, type Handler } from './api-fake.ts';
 import { activeSessionApi, renderPanel } from './render.tsx';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const NEW = '/work-orders/new';
 const CUSTOMER_SEARCH = 'POST /api/v1/customers/search';
 const SITE_SEARCH = 'POST /api/v1/sites/search';

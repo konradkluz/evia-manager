@@ -1,6 +1,6 @@
 import type { AuditEvent, AuditEventList, CurrentSession } from '@evia/contracts';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent, setupUser } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getCsrfToken } from '../src/session/csrf.ts';
 import { resetServerClock } from '../src/session/server-clock.ts';
@@ -388,7 +388,7 @@ describe('W-18: the log (EVM-029 AC5, AC6)', () => {
     const api = auditApi([ok([event(1), event(3, { actor: JAN })])]);
     const { history } = await renderPanel(AUDIT_PATH, api);
     await screen.findByRole('table');
-    const user = userEvent.setup();
+    const user = setupUser();
 
     await user.selectOptions(screen.getByLabelText('Akcja'), 'Logowanie');
     await waitFor(() => {
@@ -463,7 +463,7 @@ describe('W-18: the log (EVM-029 AC5, AC6)', () => {
     const api = auditApi([ok()]);
     await renderPanel(AUDIT_PATH, api);
     await screen.findByRole('table');
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText('Okres od'), '2026-10-04');
     await user.type(screen.getByLabelText('Okres do'), '2026-10-01');
     expect((await screen.findByRole('alert')).textContent).toBe('Data początkowa nie może być późniejsza niż końcowa.');

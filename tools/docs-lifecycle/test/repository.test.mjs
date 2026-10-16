@@ -66,7 +66,7 @@ describe('lista plików z gita i odczyt (EVM-012, ustalenia E, F)', () => {
   it('EVM-012 AC3: polskie znaki w nazwach, CRLF i BOM w plikach na dysku — wynik jak dla LF', () => {
     const crlf = doc({ lifecycle: 'milestone', milestone: 'M9' }).replace(/\n/g, '\r\n');
     const repo = createTempRepo({
-      files: { ...baseFiles(), 'docs/notatka-łódź.md': '# Ż\n', 'docs/notes/źle.md': `﻿${crlf}` },
+      files: { ...baseFiles(), 'docs/notatka-łódź.md': '# Ż\n', 'docs/notes/źle.md': `\uFEFF${crlf}` },
     });
     try {
       const analysis = analyze(load(repo), { config, today: TODAY });

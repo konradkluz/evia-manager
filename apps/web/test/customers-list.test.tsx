@@ -1,6 +1,6 @@
 import type { CustomerList, CustomerSearchItem } from '@evia/contracts';
 import { act, screen, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, parseBody, problem, SESSION_ROUTE, type Handler, type Recorded } from './api-fake.ts';

@@ -104,7 +104,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-057 AC8 EVM-042 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel — for the deletion of a milestone (a step-up), the Administrator with a fresh key; the same for the resend of an invitation (EVM-024)', () => {
+  it('EVM-019 AC7 EVM-018 AC6 EVM-030 AC7 EVM-039 AC7 EVM-036 AC7 EVM-031 AC7 EVM-032 AC7 EVM-037 AC8 EVM-035 AC8 EVM-053 AC7 EVM-057 AC8 EVM-042 AC6 EVM-060 AC6 the operations of the real contract with an object parameter are getWorkOrderTemplate, the five reads of a work order, the status command, the deletion and the restoration of an order (Administrator only), the change of its data, the five operations on its scope, the processes of an order, the change of a stage, the journal of an order, the payment milestones of an order and the detail and edit of a customer, a site and a party: the IDOR cells of each are the roles entitled to it on the web channel — for the deletion of a milestone (a step-up), the Administrator with a fresh key; the same for the resend of an invitation (EVM-024)', () => {
     const idor = cells.filter((cell) => cell.idor);
     const operations = [
       'getWorkOrderTemplate',
@@ -140,8 +140,15 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'deleteProcedureStage',
       'transitionPaymentMilestone',
     ];
-    // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone
-    const administratorOnly = ['restoreWorkOrderProcedure', 'restoreProcedureStage', 'listDeletedWorkOrderProcedures'];
+    // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone; EVM-060: so are the deletion and the
+    // restoration of an order (no step-up at the level of the operation: it depends on the milestones, so the cells are those of any role)
+    const administratorOnly = [
+      'restoreWorkOrderProcedure',
+      'restoreProcedureStage',
+      'listDeletedWorkOrderProcedures',
+      'deleteWorkOrder',
+      'restoreWorkOrder',
+    ];
     const rolesOf = (operationId: string): string[] => {
       if (administratorOnly.includes(operationId)) return ['administrator'];
       return writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];

@@ -412,6 +412,136 @@ workOrder:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteWorkOrder
+    tags: [work-orders]
+    summary: Usunięcie zlecenia (soft delete, tylko Administrator; step-up przy transzy opłaconej)
+    description: >-
+      Usunięcie zlecenia założonego przez pomyłkę (EVM-060 AC1–AC3, AC5, AC6; SR-AUTHZ-05, SR-AUTHZ-10, SR-SESS-08, SR-API-05,
+      SR-API-06, SR-DATA-08, SR-LOG-03; AB-17). Soft delete: zlecenie i jego encje podrzędne (zakres, procesy, transze, dziennik,
+      media) znikają dla każdej roli, w tym dla Administratora poza widokiem `view=deleted` listy; wiersz zostaje i można go
+      przywrócić (`restoreWorkOrder`). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404`,
+      `If-Match` i sprawdzeniem stanu; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem
+      (`work_order.deleted` — aktor, identyfikator zlecenia, wynik, `traceId`, prefiks IP i, gdy wymagano step-upu, kod powodu
+      `step_up_verified`; bez tytułu, klienta, adresu i kwot). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"`):
+      brak — `428`; zniekształcony — `400`; nieaktualna wersja — `412 version_conflict`.
+      Reguła zależności (SR-AUTHZ-10) zależy od stanu transz płatności zlecenia, więc step-up NIE jest warunkiem operacji
+      (`stepUp: false` — tak jak przy `transitionWorkOrder`), tylko kontrolą obiektową przypadku użycia: żywa transza `invoiced`
+      (Wystawiona) — `409 has_active_dependents` (także gdy jest i `paid`; nie da się ukryć należności usunięciem zlecenia);
+      żywa transza `paid` (Opłacona) — wymagane uwierzytelnienie kluczem dostępu w ostatnich 15 minutach, bez niego
+      `403 step_up_required` (sprawdzane po roli i po regule `409`); tylko transze `planned` i `cancelled` albo brak transz —
+      bez step-upu. Odpowiedzi `409` i `403 step_up_required` nie podają liczby, kwot ani identyfikatorów transz.
+      Kolejność (jedna transakcja, decyzje na wierszu zlecenia zablokowanym `SELECT … FOR NO KEY UPDATE`, tym samym wierszem, który
+      blokują komendy płatności — usunięcie i równoległe wystawienie transzy są szeregowane): guard (rola, CSRF, kanał), ścieżka i
+      `Idempotency-Key` (`400`), zlecenie (`404` — nieistniejące, usunięte i cudze to jedna odpowiedź), `If-Match` (`428` / `400`),
+      powtórka idempotentna (zapisany wynik `204`, przed regułą zależności), zależności (`409`), step-up (`403`), wersja (`412`),
+      zapis `version + 1`, `deleted_at` i `deleted_by`, przeliczenie projekcji listy, audyt i rekord idempotencji. Odmowa
+      (`403`, `409`, `412`) cofa całość — nie zostaje rekord idempotencji ani żaden skutek. Klucz idempotencji jest związany z
+      użytkownikiem, metodą, szablonem ścieżki I identyfikatorem zlecenia: ten sam klucz na innym zleceniu —
+      `422 idempotency_mismatch`; powtórka (ten sam klucz i zlecenie) — `204` z `Idempotent-Replayed: true`, także gdy `If-Match`
+      jest już nieaktualny. Odpowiedź `204` nie ma treści. Brak rozstrzygnięcia reguły zależności (błąd modułu płatności) —
+      `500` bez zapisu (fail closed).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: false
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IfMatchHeader'
+      - $ref: '#/IdempotencyKeyHeader'
+    responses:
+      '204':
+        description: >-
+          Zlecenie usunięte (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/WorkOrderDeleteForbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/WorkOrderDeleteConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+workOrderRestore:
+  post:
+    operationId: restoreWorkOrder
+    tags: [work-orders]
+    summary: Przywrócenie usuniętego zlecenia (tylko Administrator)
+    description: >-
+      Przywrócenie zlecenia usuniętego przez `deleteWorkOrder` razem z encjami podrzędnymi (EVM-060 AC4, AC6; SR-AUTHZ-05,
+      SR-API-05, SR-API-06, SR-LOG-03). Statusy i kwoty transz nie zmieniają się — przywrócenie tylko przywraca widoczność, więc
+      nie wymaga step-upu (spójnie z przywracaniem procesów, EVM-042, polityka P5). Tylko Administrator, kanał `web` (Edytor i
+      Tylko odczyt — `403 forbidden` przed `404` i `If-Match`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`),
+      z audytem (`work_order.undeleted` — aktor, identyfikator, wynik, `traceId`, prefiks IP; bez tytułu i kwot; osobna akcja od
+      `work_order.restored`, które oznacza przywrócenie statusu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
+      `"<version>"` usuniętego zlecenia, z pola `version` pozycji widoku `view=deleted`): brak — `428`; zniekształcony — `400`;
+      nieaktualna wersja — `412`. Zlecenie nieusunięte albo nieistniejące — `404 not_found` (jedna odpowiedź). Klient albo
+      lokalizacja usunięte w międzyczasie nie blokują przywrócenia (lista pokazuje „Klient usunięty”).
+      Kolejność (jedna transakcja, wiersz zablokowany `SELECT … FOR NO KEY UPDATE` dopiero po sprawdzeniu roli): zlecenie usunięte
+      (`404`), `If-Match`, powtórka idempotentna, wersja (`412`), zapis, projekcja, audyt, rekord idempotencji. Klucz idempotencji
+      jest związany z użytkownikiem, metodą, szablonem ścieżki i identyfikatorem zlecenia (inne zlecenie — `422
+      idempotency_mismatch`). Powtórka — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: '#/WorkOrderIdParameter'
+      - $ref: '#/IfMatchHeader'
+      - $ref: '#/IdempotencyKeyHeader'
+    responses:
+      '200':
+        description: >-
+          Zlecenie po przywróceniu (albo powtórka wcześniejszego przywrócenia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/work-orders.yaml#/WorkOrderDetails
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/IdempotencyInProgress
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 IfMatchHeader:
   name: If-Match
   in: header

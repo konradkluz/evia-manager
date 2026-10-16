@@ -445,3 +445,75 @@ export function answerTransition(server: OrderServer, id: string, input: Transit
   if (input.key !== undefined) server.transitionKeys.set(input.key, { scope, answer });
   return answer;
 }
+
+/** EVM-060: when and at which version each order was deleted on the synthetic server (the view "Usunięte" and the restore read it). */
+const deletions = new WeakMap<OrderServer, Map<string, { readonly deletedAt: string; readonly version: number }>>();
+
+function deletionsOf(server: OrderServer) {
+  let found = deletions.get(server);
+  if (found === undefined) {
+    found = new Map();
+    deletions.set(server, found);
+  }
+  return found;
+}
+
+const FORBIDDEN = problem(403, 'forbidden');
+
+function versionOf(ifMatch: string | undefined): Answer | number {
+  if (ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d{1,9})"$/.exec(ifMatch);
+  return match === null
+    ? problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] })
+    : Number(match[1]);
+}
+
+/**
+ * `DELETE /work-orders/{id}` of the synthetic API (EVM-060): the Administrator only (the others `403` before anything else), `404` for an
+ * order that is missing or already deleted, `428/400/412` for `If-Match`, then the order is `gone` and `204`. The rules of the instalments
+ * (`409 has_active_dependents`, the step-up of a paid one) are those of the API and are covered by its integration tests.
+ */
+export function answerOrderDelete(
+  server: OrderServer,
+  id: string,
+  input: { readonly role: Role; readonly ifMatch: string | undefined },
+): Answer {
+  if (input.role !== 'administrator') return FORBIDDEN;
+  if (!server.created.some((entry) => entry.id === id) || server.gone.has(id)) return NOT_FOUND;
+  const version = versionOf(input.ifMatch);
+  if (typeof version !== 'number') return version;
+  const state = stateOf(server, id);
+  if (version !== state.version) return problem(412, 'version_conflict');
+  const next = { ...state, version: state.version + 1 };
+  server.states.set(id, next);
+  server.gone.add(id);
+  deletionsOf(server).set(id, { deletedAt: new Date().toISOString(), version: next.version });
+  return { status: 204, headers: {}, body: '' };
+}
+
+/** `POST /work-orders/{id}/restore` (EVM-060): the Administrator only; an order that is not deleted is `404`; the order comes back with `version + 1`. */
+export function answerOrderRestore(
+  server: OrderServer,
+  id: string,
+  input: { readonly role: Role; readonly ifMatch: string | undefined },
+): Answer {
+  if (input.role !== 'administrator') return FORBIDDEN;
+  if (!server.gone.has(id)) return NOT_FOUND;
+  const version = versionOf(input.ifMatch);
+  if (typeof version !== 'number') return version;
+  const state = stateOf(server, id);
+  if (version !== state.version) return problem(412, 'version_conflict');
+  server.states.set(id, { ...state, version: state.version + 1 });
+  server.gone.delete(id);
+  deletionsOf(server).delete(id);
+  return answerOrderRead(server, id, '', input.role);
+}
+
+/** The view "Usunięte" of the list (EVM-060): the deleted orders of this run, newest deletion first, with `deletedAt` and `version`. */
+export function deletedListItems(server: OrderServer) {
+  const deleted = deletionsOf(server);
+  return createdListItems(server)
+    .filter((item) => deleted.has(item.id))
+    .map((item) => ({ ...item, payment: undefined, deletedAt: deleted.get(item.id)?.deletedAt, version: deleted.get(item.id)?.version }))
+    .sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
+}
