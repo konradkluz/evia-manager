@@ -98,3 +98,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-16 — ścieżka `pelna` (uprawnienia, usuwanie), recenzenci z `reviewers`, `model: sonnet` — decyzja Konrada przy planowaniu kolejki 16.10
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B, gałąź feature/queue-2026-10-16-zlecenia-narzedzia; ścieżka pełna, wykonawcy sonnet)
+- 2026-10-16 — plan gotowy (backend-developer)
+- 2026-10-16 — implementacja API (backend-developer): `deleteWorkOrder`, `restoreWorkOrder`, widok `view=deleted`, port uczestnika usunięcia w `payments`, migracja `0033`, audyt `work_order.deleted` / `work_order.undeleted`; panel — osobny krok
