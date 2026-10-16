@@ -4,7 +4,7 @@ title: Wspólny helper testów web (userEvent bez opóźnienia)
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P3
 path: lekka
 owner: web-developer
@@ -50,3 +50,4 @@ Jako **deweloper web** chcę **jednego współdzielonego helpera testów z `user
 ## Dziennik
 - 2026-10-07 — utworzono (product-owner)
 - 2026-10-16 — zaakceptowana przez Konrada (DoR): ścieżka `lekka`, recenzent `code-reviewer`, `model: sonnet`; draft → ready
+- 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B; ścieżka lekka, wykonawca sonnet)
