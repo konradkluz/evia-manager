@@ -7,11 +7,16 @@ import {
   type JobHandler,
   type JobQueue,
   type JobSchedule,
+  type QueueRetryPolicy,
+  type SendOptions,
+  type WorkOptions,
 } from './job-queue.ts';
 
 export class InMemoryJobQueue implements JobQueue {
   readonly handlers = new Map<string, JobHandler>();
   readonly schedules = new Map<string, JobSchedule>();
+  readonly retryPolicies = new Map<string, QueueRetryPolicy>();
+  readonly #jobIds = new Set<string>();
   readonly pending: Array<{ readonly name: string; readonly payload: unknown }> = [];
   started = false;
   stopped = false;
@@ -26,10 +31,11 @@ export class InMemoryJobQueue implements JobQueue {
     return Promise.resolve();
   }
 
-  work(name: string, handler: JobHandler): Promise<void> {
+  work(name: string, handler: JobHandler, options: WorkOptions = {}): Promise<void> {
     return this.#settle(() => {
       assertJobName(name);
       this.handlers.set(name, handler);
+      if (options.retry !== undefined) this.retryPolicies.set(name, options.retry);
     });
   }
 
@@ -40,10 +46,16 @@ export class InMemoryJobQueue implements JobQueue {
     });
   }
 
-  send(name: string, ids: readonly string[]): Promise<void> {
+  send(name: string, ids: readonly string[], options: SendOptions = {}): Promise<void> {
     return this.#settle(() => {
       assertJobName(name);
-      this.pending.push({ name, payload: jobPayloadSchema.parse({ ids }) });
+      const payload = jobPayloadSchema.parse({ ids });
+      if (options.jobId !== undefined) {
+        const key = `${name}|${options.jobId}`;
+        if (this.#jobIds.has(key)) return;
+        this.#jobIds.add(key);
+      }
+      this.pending.push({ name, payload });
     });
   }
 

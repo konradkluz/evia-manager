@@ -11,6 +11,9 @@ export const IDENTITY_EVENT_TYPES = [
   'account.password_set',
   'passkey.registered',
   'account.activated',
+  // EVM-024: an Administrator invited a person / sent the invitation again (no address, no name — the trail cannot be erased).
+  'user.invited',
+  'invitation.resent',
   'session.created',
   'session.revoked',
   'session.expired',

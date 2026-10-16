@@ -17,15 +17,23 @@ export interface SignalSource {
   once(signal: 'SIGTERM' | 'SIGINT', listener: () => void): unknown;
 }
 
+/** Work that runs next to the jobs while the worker is up (the relay of an outbox, the health file): started when the jobs are taken, stopped before the queue. */
+export interface BackgroundTask {
+  /** @returns a function that stops it */
+  start(): () => void;
+}
+
 export interface RunWorkerOptions {
   readonly queue: JobQueue;
   readonly jobs: readonly JobDefinition[];
+  readonly tasks?: readonly BackgroundTask[];
   readonly signals: SignalSource;
   readonly logger: Logger;
 }
 
 /** @returns the exit code once the worker has been stopped by a signal (or failed to start) */
-export async function runWorker({ queue, jobs, signals, logger }: RunWorkerOptions): Promise<number> {
+export async function runWorker({ queue, jobs, tasks = [], signals, logger }: RunWorkerOptions): Promise<number> {
+  const stops: Array<() => void> = [];
   const stopped = new Promise<void>((resolve) => {
     signals.once('SIGTERM', resolve);
     signals.once('SIGINT', resolve);
@@ -33,17 +41,20 @@ export async function runWorker({ queue, jobs, signals, logger }: RunWorkerOptio
   try {
     await queue.start();
     for (const job of jobs) {
-      await queue.work(job.name, job.handler);
+      await queue.work(job.name, job.handler, job.retry === undefined ? {} : { retry: job.retry });
       if (job.schedule !== undefined) await queue.schedule(job.name, job.schedule);
     }
-    logger.info({ jobs: jobs.length }, 'worker: ready');
+    for (const task of tasks) stops.push(task.start());
+    logger.info({ jobs: jobs.length, tasks: tasks.length }, 'worker: ready');
   } catch (error) {
     logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'worker: start failed');
+    for (const stop of stops) stop();
     await queue.stop().catch(() => undefined);
     return EXIT_FAILED;
   }
   await stopped;
   logger.info({}, 'worker: stopping');
+  for (const stop of stops) stop();
   try {
     await queue.stop();
   } catch (error) {

@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { sql } from 'kysely';
@@ -36,9 +37,10 @@ function startWorker(env: Record<string, string | undefined>): Started {
   stdout.on('data', (chunk: Buffer) => text.push(chunk.toString('utf8')));
   const signals = new EventEmitter();
   const exit = runWorkerFromProcess(
-    validEnv({ LOG_LEVEL: 'info', ...env }),
+    validEnv({ LOG_LEVEL: 'info', EMAIL_TRANSPORT: 'none', ...env }),
     { stdout, signals },
     {
+      healthFile: join(tmpdir(), `worker-health-${String(process.pid)}`),
       createQueue: (connectionString, logger) =>
         new PgBossJobQueue({ connectionString, logger, retryDelaySeconds: 0, pollingIntervalSeconds: 0.5 }),
     },

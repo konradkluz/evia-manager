@@ -64,6 +64,26 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     });
   });
 
+  it('EVM-024 W4 the parts of a message (to, text, html, subject, envelope, recipient, link) are redacted as whole words, nested too — an OutgoingEmail never reaches the log', () => {
+    const message = {
+      to: 'anna@mailpit.localhost',
+      subject: 'Zaproszenie',
+      text: 'https://panel.evia.test/activate#secrettoken',
+      html: '<a>x</a>',
+    };
+    const { destination, logger } = capture();
+    logger.info(
+      { email: message, envelope: { to: ['a@b.test'] }, recipients: ['a@b.test'], recipient: 'a@b.test', link: 'https://x.test/#t' },
+      'sent',
+    );
+    for (const value of ['anna@mailpit', 'Zaproszenie', 'activate#', '<a>', 'a@b.test', 'x.test'])
+      expect(destination.text).not.toContain(value);
+    for (const key of ['to', 'text', 'html', 'subject', 'envelope', 'recipient', 'recipients', 'link'])
+      expect(isSensitiveKey(key), key).toBe(true);
+    for (const key of ['topic', 'context', 'textLength', 'subjectKind', 'linkKind', 'tooling', 'outboxId', 'kind', 'code'])
+      expect(isSensitiveKey(key), key).toBe(false);
+  });
+
   it('EVM-008 AC4 key matching is normalised and covers the ADR-0013 list', () => {
     for (const key of Object.keys(SENSITIVE)) expect(isSensitiveKey(key), key).toBe(true);
     for (const key of ['traceId', 'status', 'route', 'method', 'durationMs', 'workOrderId', 'userId', 'level', 'msg'])

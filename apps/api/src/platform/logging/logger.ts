@@ -44,7 +44,18 @@ export const SENSITIVE_KEY_FRAGMENTS = Object.freeze([
   'csrf',
 ]);
 /** Keys sensitive only as a whole word (as a fragment they would hide e.g. `operationName`). */
-const SENSITIVE_KEYS = new Set(['name']);
+const SENSITIVE_KEYS = new Set([
+  'name',
+  // EVM-024: the parts of a message (the recipient, the subject, the body, the link with a token) — an OutgoingEmail is never logged.
+  'to',
+  'text',
+  'html',
+  'subject',
+  'envelope',
+  'recipient',
+  'recipients',
+  'link',
+]);
 
 export function isSensitiveKey(key: string): boolean {
   const normalised = key.toLowerCase().replace(/[_.-]/g, '');

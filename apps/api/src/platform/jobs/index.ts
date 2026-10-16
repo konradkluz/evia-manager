@@ -13,5 +13,8 @@ export {
   type JobPayload,
   type JobQueue,
   type JobSchedule,
+  type QueueRetryPolicy,
+  type SendOptions,
+  type WorkOptions,
 } from './job-queue.ts';
 export { InMemoryJobQueue } from './in-memory-job-queue.ts';

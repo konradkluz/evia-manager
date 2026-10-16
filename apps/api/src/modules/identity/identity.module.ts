@@ -8,6 +8,9 @@ import type { AppConfig } from '../../platform/config/config.ts';
 import { APP_CONFIG } from '../../platform/tokens.ts';
 import { ActivationService } from './application/activation.service.ts';
 import { AdministratorBootstrap } from './application/administrator-bootstrap.service.ts';
+import { InvitationEmailComposer } from './application/invitation-email.composer.ts';
+import { InvitationService } from './application/invitation.service.ts';
+import { ListUsersService } from './application/list-users.service.ts';
 import { LoginFailures } from './application/login-failures.ts';
 import { LoginPasskeyService } from './application/login-passkey.service.ts';
 import { LoginService } from './application/login.service.ts';
@@ -34,6 +37,9 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
     StepUpService,
     UserDirectory,
     AdministratorBootstrap,
+    InvitationEmailComposer,
+    InvitationService,
+    ListUsersService,
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: BREACHED_PASSWORD_CHECK, useFactory: () => new PwnedPasswordsCheck() },
     {
@@ -43,6 +49,6 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
         new SimpleWebAuthnPasskeys({ rpId: config.webauthn.rpId, rpName: config.webauthn.rpName, origin: config.panelOrigin }),
     },
   ],
-  exports: [SessionService, AdministratorBootstrap, UserDirectory],
+  exports: [SessionService, AdministratorBootstrap, UserDirectory, InvitationEmailComposer],
 })
 export class IdentityModule {}
