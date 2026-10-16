@@ -16,7 +16,7 @@ export const RESET = {
 } as const;
 
 /** A new password that passes every rule (synthetic). */
-export const NEW_PASSWORD = 'meadow lantern copper river 2026';
+export const NEW_PASSWORD = 'meadow lantern copper river seven';
 
 export const requestReset = (panel: PanelClient, email: string): Promise<Response> => Promise.resolve(panel.post(RESET.request, { email }));
 
