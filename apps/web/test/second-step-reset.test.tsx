@@ -21,7 +21,7 @@ afterEach(() => {
 
 describe('W-02 after a password reset (EVM-025 AC4; flows/01 "Po resecie hasła")', () => {
   it('EVM-025 AC4 the success message comes from the memory of the tab, is a polite status with an icon and the heading has the focus', async () => {
-    setLoginFlow({ loginToken: LOGIN_TOKEN, returnTo: '/work-orders', passwordChanged: true });
+    setLoginFlow({ loginToken: LOGIN_TOKEN, methods: ['passkey'], returnTo: '/work-orders', passwordChanged: true });
     await renderPanel('/login/second-step', api(), { heading: false });
     const title = await screen.findByRole('heading', { level: 1, name: 'Potwierdź logowanie' });
     expect(screen.getByText(CHANGED).closest('[role="status"]')).toBeTruthy();
@@ -30,7 +30,7 @@ describe('W-02 after a password reset (EVM-025 AC4; flows/01 "Po resecie hasła"
   });
 
   it('EVM-025 AC4 a plain login has no such message and the focus starts on the key button', async () => {
-    setLoginFlow({ loginToken: LOGIN_TOKEN, returnTo: '/work-orders' });
+    setLoginFlow({ loginToken: LOGIN_TOKEN, methods: ['passkey'], returnTo: '/work-orders' });
     await renderPanel('/login/second-step', api(), { heading: false });
     const button = await screen.findByRole('button', { name: 'Użyj klucza dostępu' });
     expect(screen.queryByText(CHANGED)).toBeNull();
@@ -53,7 +53,7 @@ describe('W-02 after a password reset (EVM-025 AC4; flows/01 "Po resecie hasła"
   });
 
   it('EVM-025 AC4 the second step that took too long says the new password already works and leads back to W-01', async () => {
-    setLoginFlow({ loginToken: LOGIN_TOKEN, returnTo: '/work-orders', passwordChanged: true });
+    setLoginFlow({ loginToken: LOGIN_TOKEN, methods: ['passkey'], returnTo: '/work-orders', passwordChanged: true });
     const { history } = await renderPanel('/login/second-step', api({ [OPTIONS_ROUTE]: () => problem(401, 'login_expired') }), {
       heading: false,
     });
@@ -69,7 +69,7 @@ describe('W-02 after a password reset (EVM-025 AC4; flows/01 "Po resecie hasła"
   });
 
   it('EVM-025 AC4 the ordinary expiry keeps its own text', async () => {
-    setLoginFlow({ loginToken: LOGIN_TOKEN, returnTo: '/work-orders' });
+    setLoginFlow({ loginToken: LOGIN_TOKEN, methods: ['passkey'], returnTo: '/work-orders' });
     await renderPanel('/login/second-step', api({ [OPTIONS_ROUTE]: () => problem(401, 'login_expired') }), { heading: false });
     await userEvent.click(await screen.findByRole('button', { name: 'Użyj klucza dostępu' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Logowanie trwało zbyt długo. Zaloguj się ponownie.');

@@ -6,6 +6,11 @@
  */
 export interface LoginFlow {
   readonly loginToken: string;
+  /**
+   * Methods of the second step offered by the server for this account, in the order of the server (`passkey`, `totp`,
+   * `recovery_code`). Values the panel does not know are ignored by W-02, never an error (EVM-023).
+   */
+  readonly methods: readonly string[];
   /** Already resolved with `resolveReturnTo` (a relative path of the panel). */
   readonly returnTo: string;
   /**

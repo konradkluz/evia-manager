@@ -55,7 +55,11 @@ export function LoginPage() {
     mutationFn: async ({ address, secret }: { address: string; secret: string }) => {
       const result = await unwrap(login({ client, body: { email: address, password: secret } }));
       if (result.state === 'second_step') {
-        setLoginFlow({ loginToken: result.loginToken, returnTo: resolveReturnTo(returnTo, globalThis.location.origin) });
+        setLoginFlow({
+          loginToken: result.loginToken,
+          methods: result.methods,
+          returnTo: resolveReturnTo(returnTo, globalThis.location.origin),
+        });
         await navigate({ to: LOGIN_SECOND_STEP_PATH });
         return;
       }

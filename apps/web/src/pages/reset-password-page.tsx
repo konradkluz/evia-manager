@@ -183,7 +183,7 @@ function ResetForm({ token, email, otherAccount, online }: ResetFormProps) {
       // (clearing it earlier would swap this page for the invalid-link state under the eyes of the user).
       setCsrfToken(null);
       queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== LINK_KEY });
-      setLoginFlow({ loginToken: result.loginToken, returnTo: DEFAULT_RETURN_TO, passwordChanged: true });
+      setLoginFlow({ loginToken: result.loginToken, methods: result.methods, returnTo: DEFAULT_RETURN_TO, passwordChanged: true });
       await navigate({ to: LOGIN_SECOND_STEP_PATH, replace: true });
       clearResetToken();
     },
