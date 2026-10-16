@@ -100,3 +100,4 @@ _—_
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B, gałąź feature/queue-2026-10-16-zlecenia-narzedzia; ścieżka pełna, wykonawcy sonnet)
 - 2026-10-16 — plan gotowy (backend-developer)
 - 2026-10-16 — implementacja API (backend-developer): `deleteWorkOrder`, `restoreWorkOrder`, widok `view=deleted`, port uczestnika usunięcia w `payments`, migracja `0033`, audyt `work_order.deleted` / `work_order.undeleted`; panel — osobny krok
+- 2026-10-16 — implementacja panelu (web-developer): „Usuń zlecenie…” w W-06 (AlertDialog, step-up W-04, 409/412), widok „Usunięte” z „Przywróć” w W-10; testy komponentów, E2E i a11y
