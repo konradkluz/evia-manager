@@ -97,6 +97,21 @@ ActivationLinkInvalid:
         status: 400
         code: activation_link_invalid
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PasswordResetLinkInvalid:
+  description: >-
+    Link jest użyty, wygasły, zastąpiony, nieznany, innego rodzaju (np. aktywacyjny) albo jego konto nie jest aktywne
+    (`password_reset_link_invalid`) — jedna odpowiedź dla wszystkich przypadków, bez informacji o koncie — albo treść niezgodna
+    ze schematem (`validation_failed`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/password_reset_link_invalid
+        title: Password reset link is invalid or expired
+        status: 400
+        code: password_reset_link_invalid
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 InvalidCredentials:
   description: >-
     Nieprawidłowy e-mail lub hasło (`invalid_credentials`) — jedna odpowiedź (kod, treść i nagłówki) dla złego hasła,

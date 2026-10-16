@@ -11,6 +11,9 @@ AuditAction:
     - account.activated
     - user.invited
     - invitation.resent
+    - password.reset_requested
+    - password_reset_link.issued
+    - password.reset
     - session.created
     - session.revoked
     - session.expired
@@ -101,6 +104,7 @@ AuditReasonCode:
     - login_expired
     - expired
     - step_up_verified
+    - password_reset
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

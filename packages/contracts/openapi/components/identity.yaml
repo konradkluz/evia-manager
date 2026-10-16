@@ -57,6 +57,57 @@ SetActivationPasswordRequest:
         Spacje i wklejanie są dozwolone, hasło nie jest przycinane.
       maxLength: 256
       writeOnly: true
+RequestPasswordResetRequest:
+  type: object
+  additionalProperties: false
+  required: [email]
+  properties:
+    email:
+      type: string
+      description: Adres e-mail konta. Sprawdzany jest tylko kształt danych; odbiorcą wiadomości jest adres z rekordu konta, nie ten z żądania.
+      minLength: 1
+      maxLength: 254
+PasswordResetRequested:
+  type: object
+  description: Pusty obiekt — zawsze ta sama odpowiedź, niezależnie od konta.
+  additionalProperties: false
+  properties: {}
+PasswordResetToken:
+  type: string
+  description: Jednorazowy token linku resetu hasła (256 bitów, base64url) — wyłącznie w treści POST, nigdy w adresie (fragment `#…` zostaje w przeglądarce).
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  minLength: 43
+  maxLength: 43
+CheckPasswordResetLinkRequest:
+  type: object
+  additionalProperties: false
+  required: [token]
+  properties:
+    token:
+      $ref: '#/PasswordResetToken'
+PasswordResetLinkInfo:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 254
+CompletePasswordResetRequest:
+  type: object
+  additionalProperties: false
+  required: [token, password]
+  properties:
+    token:
+      $ref: '#/PasswordResetToken'
+    password:
+      type: string
+      description: >-
+        Nowe hasło — te same reguły co przy aktywacji: minimum 15 znaków Unicode po normalizacji NFC (`too_short`),
+        maksimum 256 (`too_long`; górna granica chroni Argon2id). Spacje i wklejanie są dozwolone, hasło nie jest przycinane.
+        Brak pytań pomocniczych i podpowiedzi hasła.
+      maxLength: 256
+      writeOnly: true
 ActivationPasswordResult:
   type: object
   required: [csrfToken]

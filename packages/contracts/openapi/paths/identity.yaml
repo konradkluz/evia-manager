@@ -81,6 +81,121 @@ activationPassword:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+passwordResetRequest:
+  post:
+    operationId: requestPasswordReset
+    tags: [identity]
+    summary: Prośba o link do ustawienia nowego hasła
+    description: >-
+      Publiczna operacja (tylko `web`, SR-AUTHZ-12). Zawsze `202` z pustym obiektem — jedna odpowiedź (status, treść i nagłówki)
+      dla konta aktywnego, nieistniejącego, zaproszonego, dezaktywowanego i usuniętego oraz przy cichym limicie na konto
+      (SR-AUTH-05 analogicznie; CWE-204, CWE-208). Czas odpowiedzi ma podłogę liczoną od początku żądania. E-mail z linkiem
+      (wyłącznie link, SR-INPUT-07) trafia do aktywnego konta z kluczem dostępu; adres odbiorcy pochodzi z rekordu konta, nigdy z
+      żądania. Link jest wydawany przez worker przy wysyłce (30 minut od wysyłki, tylko skrót w bazie), nowszy link unieważnia
+      starsze. Limity: 60 żądań na minutę z jednego IP (`429 rate_limited` z `Retry-After`, ta sama treść dla każdego adresu);
+      na konto — 1 wiadomość na 60 s i 5 na godzinę (nadmiarowe żądanie nie wysyła nic i dostaje to samo `202`).
+      `400 validation_failed` tylko dla składni treści.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/RequestPasswordResetRequest
+    responses:
+      '202':
+        description: Prośba przyjęta (niezależnie od tego, czy konto istnieje).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasswordResetRequested
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passwordResetCheck:
+  post:
+    operationId: checkPasswordResetLink
+    tags: [identity]
+    summary: Sprawdzenie linku resetu hasła (nie zużywa linku)
+    description: >-
+      Publiczna operacja (tylko `web`): token linku (z fragmentu adresu `#…`, usuniętego z paska przez panel) trafia wyłącznie w
+      treści `POST`. Zwraca e-mail konta do wyświetlenia w W-12. Nie zużywa linku — skaner linków w poczcie go nie „spali”.
+      Link użyty, wygasły (30 min od wysyłki), zastąpiony nowszym, nieznany, link aktywacyjny i link konta, które nie jest
+      aktywne, dają tę samą odpowiedź `400 password_reset_link_invalid`.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/CheckPasswordResetLinkRequest
+    responses:
+      '200':
+        description: Link jest ważny.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasswordResetLinkInfo
+            example:
+              email: jan.przykladowy@example.invalid
+      '400':
+        $ref: ../components/responses.yaml#/PasswordResetLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passwordResetComplete:
+  post:
+    operationId: completePasswordReset
+    tags: [identity]
+    summary: Ustawienie nowego hasła z linku resetu
+    description: >-
+      Publiczna operacja (tylko `web`): ważny link + nowe hasło (te same reguły co przy aktywacji: min. 15 znaków Unicode,
+      nie z listy popularnych, bez słów kontekstowych, nie z wycieku — Pwned Passwords wyłącznie k-anonimowo; przy
+      niedostępności tej usługi kontrola lokalna). Kolejność: token → polityka → Pwned → Argon2id → transakcja. W jednej
+      transakcji: zapis hasła, zużycie linku, koniec wszystkich sesji konta (`401 session_revoked` przy następnym żądaniu),
+      unieważnienie wcześniejszych prób logowania, wiadomość „Hasło zostało zmienione” (skrzynka nadawcza) i audyt. Reset NIE
+      omija drugiego kroku: odpowiedź nie ustawia ciasteczka i nie tworzy sesji — zwraca `loginToken` pierwszego kroku (jednorazowy,
+      5 min) do ekranu W-02; sesja powstaje dopiero po `verifyLoginPasskey`. Konto bez klucza dostępu nie dostaje ani sesji, ani
+      `loginToken` (`400 password_reset_link_invalid`).
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/CompletePasswordResetRequest
+    responses:
+      '200':
+        description: Hasło zmienione; wymagany drugi krok (bez `Set-Cookie`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/LoginSecondStep
+      '400':
+        $ref: ../components/responses.yaml#/PasswordResetLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 login:
   post:
     operationId: login
