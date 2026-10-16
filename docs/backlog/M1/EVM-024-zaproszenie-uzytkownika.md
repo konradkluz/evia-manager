@@ -4,7 +4,7 @@ title: Zaproszenie użytkownika i aktywacja konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -107,7 +107,7 @@ Jako **Administrator** chcę **zaprosić pracownika e-mailem z wybraną rolą**,
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+Numeracja migracji (kolejka 2026-10-16): wątek A zaczyna od `0035_…`; `0033`–`0034` zarezerwowane dla wątku B (EVM-060).
 
 ## Uwagi do rozważenia
 _—_
@@ -128,3 +128,4 @@ _—_
 - 2026-10-16 — podział: część staging (TEM, SPF/DKIM/DMARC, lista dozwolonych, demo na staging) → EVM-089; depends_on bez EVM-007 (propozycja product-owner, do akceptacji Konrada)
 - 2026-10-16 — warunki security-engineer wpisane: fail-closed w AC6, „Poza zakresem”, notatki (a)–(d); liczba AC bez zmian
 - 2026-10-16 — podział i warunki security-engineer zaakceptowane przez Konrada (planowanie kolejki 16.10); status ready
+- 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek A, gałąź feature/queue-2026-10-16-logowanie; ścieżka pełna, wykonawcy sonnet)
