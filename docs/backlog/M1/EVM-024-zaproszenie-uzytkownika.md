@@ -146,3 +146,4 @@ _—_
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek A, gałąź feature/queue-2026-10-16-logowanie; ścieżka pełna, wykonawcy sonnet)
 - 2026-10-16 — plan gotowy (backend-developer)
 - 2026-10-16 — implementacja backendu (backend-developer): AC1–AC8 po stronie API i workera z testami integracyjnymi (PostgreSQL, kontener `backend-tests`); decyzje D1–D12 do potwierdzenia na demo; panel (W-16, W-13, W-04) — web-developer
+- 2026-10-16 — implementacja panelu (web-developer): W-16 (lista, "Zaproś użytkownika", "Wyślij ponownie", "Nie wysłano", zakładki Administracji), W-04 z tytułami, testy komponentów i E2E (Chromium, Edge, Firefox), axe i zrzuty 360/768/1280/1440 w docs/ux/reviews/EVM-024; bez kolumny "Ostatnie logowanie" i linku do Konta (brak w kontrakcie / W-15 — EVM-027, EVM-028)

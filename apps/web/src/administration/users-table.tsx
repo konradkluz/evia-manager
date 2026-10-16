@@ -134,9 +134,9 @@ export function UsersTable({ users, selfId, online, now, onResend, nameRef }: Us
           >
             {self ? `${user.displayName} ${t('users.table.you')}` : user.displayName}
           </span>
-          <span className="wide:hidden text-text-secondary break-all">{user.email}</span>
+          <span className="wide:hidden text-text-secondary wrap-anywhere">{user.email}</span>
         </span>,
-        <span key="email" className="break-all">
+        <span key="email" className="wrap-anywhere">
           {user.email}
         </span>,
         role,

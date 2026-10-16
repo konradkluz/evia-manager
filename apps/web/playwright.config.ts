@@ -40,6 +40,7 @@ const uxReviewDirPaymentActions = fileURLToPath(new URL('../../docs/ux/reviews/E
 const uxReviewDirUnpaid = fileURLToPath(new URL('../../docs/ux/reviews/EVM-055/', import.meta.url));
 const uxReviewDirPlanned = fileURLToPath(new URL('../../docs/ux/reviews/EVM-059/', import.meta.url));
 const uxReviewDirPaymentSignals = fileURLToPath(new URL('../../docs/ux/reviews/EVM-056/', import.meta.url));
+const uxReviewDirInvitation = fileURLToPath(new URL('../../docs/ux/reviews/EVM-024/', import.meta.url));
 const uxReviewDirPaymentCorrections = fileURLToPath(new URL('../../docs/ux/reviews/EVM-057/', import.meta.url));
 
 export default defineConfig({
@@ -89,6 +90,7 @@ export default defineConfig({
         uxReviewDirPlanned,
         uxReviewDirPaymentSignals,
         uxReviewDirPaymentCorrections,
+        uxReviewDirInvitation,
       },
     },
   ],
