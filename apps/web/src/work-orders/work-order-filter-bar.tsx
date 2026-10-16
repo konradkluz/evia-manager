@@ -27,6 +27,8 @@ export interface WorkOrderFilterBarProps {
   readonly people: ReadonlyMap<string, string>;
   /** Offline: the filters are disabled and say why. */
   readonly disabled: boolean;
+  /** The Administrator (EVM-060 AC4): the view "Usunięte" exists for this role only; the server decides all the same. */
+  readonly deletable: boolean;
   /** The role reads payments (EVM-056 AC7): the views "Po terminie" and "Nieopłacone" and the sort "Najpilniejsze" exist. */
   readonly payments: boolean;
   readonly onChange: (next: WorkOrderFilters) => void;
@@ -56,8 +58,10 @@ const KIND_ORDER = Object.keys(partyKindLabels) as Array<keyof typeof partyKindL
  * EVM-056 AC2, AC3: the saved views "Po terminie" and "Nieopłacone" (described as "Tylko zlecenia niezamknięte."; the address carries
  * the identifier only) and "Sortuj" with "Najpilniejsze" first — for a role that reads payments only (W4). The views are in the
  * order of the mockup: "Wszystkie niezamknięte", "Czekamy na OSD > 14 dni", "Po terminie", "Nieopłacone", "Moje".
+ *
+ * EVM-060 AC4: "Usunięte" — the last view, for the Administrator only; the search field is off there (the API does not search the deleted).
  */
-export function WorkOrderFilterBar({ filters, people, disabled, payments, onChange }: WorkOrderFilterBarProps) {
+export function WorkOrderFilterBar({ filters, people, disabled, payments, deletable, onChange }: WorkOrderFilterBarProps) {
   const { t } = useTranslation();
   const hint = disabled ? t('workOrders.filters.offlineHint') : undefined;
   const [moreOpen, setMoreOpen] = useState(false);
@@ -65,9 +69,11 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, onChan
   const phrase = phraseState(filters.phrase);
   const searchHint = disabled
     ? t('workOrders.search.offlineHint')
-    : phrase === 'long'
-      ? t('workOrders.search.hintLong')
-      : t('workOrders.search.hint');
+    : filters.view === 'deleted'
+      ? t('workOrders.search.deletedHint')
+      : phrase === 'long'
+        ? t('workOrders.search.hintLong')
+        : t('workOrders.search.hint');
   const select = (view: ViewId) => {
     // "Wszystkie niezamknięte" and a closed status exclude each other; the view takes the statuses back to "all".
     // The view "Czekamy na OSD > 14 dni" is a "Czekamy na" filter itself: the filter of the bar is taken away.
@@ -173,7 +179,7 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, onChan
         value={filters.phrase}
         hint={searchHint}
         clearLabel={t('workOrders.search.clear')}
-        disabled={disabled}
+        disabled={disabled || filters.view === 'deleted'}
         onChange={(phraseText) => {
           onChange({ ...filters, phrase: phraseText });
         }}
@@ -219,6 +225,17 @@ export function WorkOrderFilterBar({ filters, people, disabled, payments, onChan
             select(filters.view === 'mine' ? 'all_open' : 'mine');
           }}
         />
+        {deletable ? (
+          <FilterChip
+            variant="choice"
+            label={t('workOrders.filters.viewDeleted')}
+            selected={filters.view === 'deleted'}
+            disabled={disabled}
+            onClick={() => {
+              select(filters.view === 'deleted' ? 'all_open' : 'deleted');
+            }}
+          />
+        ) : null}
       </div>
       <div role="group" aria-label={t('workOrders.filters.status')} className="flex flex-wrap items-center gap-inline-sm">
         {WORK_ORDER_STATUSES.map((status) => (

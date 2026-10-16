@@ -47,6 +47,7 @@ import {
 import { formatClock } from '../work-orders/format.ts';
 import { WORK_ORDERS_KEY } from '../work-orders/query-keys.ts';
 import { pluralForm } from '../work-orders/order-form.ts';
+import { DeletedOrdersTable } from '../work-orders/deleted-orders-table.tsx';
 import { WorkOrderFilterBar } from '../work-orders/work-order-filter-bar.tsx';
 import { WorkOrderTable } from '../work-orders/work-order-table.tsx';
 import { retryMinutes } from './login-failure.tsx';
@@ -97,6 +98,9 @@ interface LoadedPage {
  * EVM-056: "Najpilniejsze" is the default sort (sent as `sort=urgency`), the views "Po terminie" and "Nieopłacone" (the address carries
  * the identifier only) and the column "Płatność" — for a role that reads payments (W4; the server decides all the same). A change of
  * the sort or the view is announced when the list arrives (`aria-live="polite"`); the amounts stay in the memory of the tab.
+ *
+ * EVM-060 AC4: the view "Usunięte" (Administrator only; the address carries `view=deleted`) lists the deleted orders with "Przywróć"
+ * (`DeletedOrdersTable`); the search is off there, and a link to it for any other role is "Nie znaleziono widoku".
  */
 export function WorkOrdersPage() {
   const { t } = useTranslation();
@@ -109,6 +113,8 @@ export function WorkOrdersPage() {
   // Only Administrator and Edytor create work orders (R does not see the button; the server decides — EVM-020 AC7).
   const canCreate = session?.user.role === 'administrator' || session?.user.role === 'editor';
   const payments = canReadPayments(session?.user.role);
+  // EVM-060 AC4: "Usunięte" is the Administrator's view (the server answers `403` to the others all the same).
+  const deletable = session?.user.role === 'administrator';
   const noFilters = noFiltersFor(payments);
   const navigate = useNavigate();
   const search: WorkOrderSearch = useSearch({ strict: false });
@@ -123,9 +129,10 @@ export function WorkOrdersPage() {
   const [notice, setNotice] = useState<'reset' | null>(null);
   const [announcement, setAnnouncement] = useState('');
   const heading = useRef<HTMLHeadingElement>(null);
+  const pageTitle = useRef<HTMLHeadingElement>(null);
   const moved = useRef<'next' | 'previous' | 'search' | 'sort' | 'view' | null>(null);
 
-  const view = viewOf(search, payments);
+  const view = viewOf(search, payments, deletable);
   const statuses = statusesOf(search);
   const waitingOn = waitingOnOf(search);
   const waitingDays = waitingDaysOf(search);
@@ -135,7 +142,8 @@ export function WorkOrdersPage() {
   const stored = useWorkOrderSearch();
   const typed = phraseOf(stored.phrase);
   const settledPhrase = useDebounced(typed, SEARCH_DELAY_MS);
-  const searching = phraseState(stored.phrase) === 'ok';
+  // The API does not search the deleted orders (`400`): in that view the phrase is never sent.
+  const searching = phraseState(stored.phrase) === 'ok' && view !== 'deleted';
   // The phrase the query is made for: one that is too short or too long is never sent (the plain list stays).
   const activePhrase = searching ? settledPhrase : '';
   const waitingForPause = searching && settledPhrase !== typed;
@@ -277,7 +285,11 @@ export function WorkOrdersPage() {
     void query.refetch();
   };
 
-  const heading1 = <h1 className="font-display text-heading-1 text-text-primary">{t('workOrders.title')}</h1>;
+  const heading1 = (
+    <h1 ref={pageTitle} tabIndex={-1} className="font-display text-heading-1 text-text-primary focus-visible:focus-ring">
+      {t('workOrders.title')}
+    </h1>
+  );
   const title = canCreate ? (
     <div className="flex flex-wrap items-center justify-between gap-inline-md">
       {heading1}
@@ -324,7 +336,14 @@ export function WorkOrdersPage() {
   return (
     <div className="flex flex-col gap-stack-md">
       {title}
-      <WorkOrderFilterBar filters={filters} people={people} disabled={!online} payments={payments} onChange={change} />
+      <WorkOrderFilterBar
+        filters={filters}
+        people={people}
+        disabled={!online}
+        payments={payments}
+        deletable={deletable}
+        onChange={change}
+      />
       <p role="status" className="sr-only">
         {announcement}
       </p>
@@ -357,7 +376,13 @@ export function WorkOrdersPage() {
       ) : items === undefined ? (
         <Loading />
       ) : items.length === 0 ? (
-        onlyView(asked, DSO_VIEW) ? (
+        onlyView(asked, 'deleted') ? (
+          <EmptyState
+            icon={CircleCheck}
+            title={t('workOrders.deleted.empty.title')}
+            description={t('workOrders.deleted.empty.description')}
+          />
+        ) : onlyView(asked, DSO_VIEW) ? (
           <EmptyState icon={CircleCheck} title={t('workOrders.dsoEmpty.title')} description={t('workOrders.dsoEmpty.description')} />
         ) : onlyView(asked, 'overdue_payments') ? (
           <EmptyState
@@ -389,9 +414,19 @@ export function WorkOrdersPage() {
       ) : (
         <>
           <h2 ref={heading} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
-            {t('workOrders.table.heading')}
+            {view === 'deleted' ? t('workOrders.deleted.heading') : t('workOrders.table.heading')}
           </h2>
-          <WorkOrderTable items={items} sort={sort} payments={payments} />
+          {view === 'deleted' ? (
+            <DeletedOrdersTable
+              items={items}
+              onRestored={() => {
+                // The restored row is gone from the list: the focus goes to the heading of the page, which stays (WCAG 2.4.3).
+                pageTitle.current?.focus();
+              }}
+            />
+          ) : (
+            <WorkOrderTable items={items} sort={sort} payments={payments} />
+          )}
           <nav aria-label={t('workOrders.pages.label')} className="flex flex-wrap items-center justify-center gap-inline-md">
             <Button
               variant="secondary"
@@ -476,6 +511,8 @@ function viewLabel(t: TFunction, view: ViewId): string {
       return t('workOrders.filters.viewOverduePayments');
     case 'unpaid':
       return t('workOrders.filters.viewUnpaid');
+    case 'deleted':
+      return t('workOrders.filters.viewDeleted');
     default:
       return t('workOrders.filters.viewAllOpen');
   }

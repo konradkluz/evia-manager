@@ -35,7 +35,7 @@ export const PAYMENT_SORTS = ['urgency'] as const satisfies readonly WorkOrderSo
  * "Nieopłacone" (EVM-056), `all` — every status (the panel's own identifier: the API gets no `view`), `unknown` — an identifier
  * from a link that this panel does not know or the person may not use ("Nie znaleziono widoku").
  */
-export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'unknown';
+export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'deleted' | 'unknown';
 
 const isPaymentView = (view: string): view is PaymentView => (PAYMENT_VIEWS as readonly string[]).includes(view);
 
@@ -140,9 +140,10 @@ export function statusesOf(search: WorkOrderSearch): readonly WorkOrderStatus[] 
 
 /**
  * The view of the address. The payment views exist only with the right to read payments (`paymentsReadable`, deny-by-default):
- * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI").
+ * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI"). "Usunięte" (EVM-060) is the Administrator's
+ * (`deletedReadable`): for the others a link to it is the same "Nie znaleziono widoku".
  */
-export function viewOf(search: WorkOrderSearch, paymentsReadable = false): ViewId {
+export function viewOf(search: WorkOrderSearch, paymentsReadable = false, deletedReadable = false): ViewId {
   switch (search.view) {
     case undefined:
     case 'all_open':
@@ -151,6 +152,8 @@ export function viewOf(search: WorkOrderSearch, paymentsReadable = false): ViewI
     case 'all':
     case DSO_VIEW:
       return search.view;
+    case 'deleted':
+      return deletedReadable ? 'deleted' : 'unknown';
     default:
       return paymentsReadable && isPaymentView(search.view) ? search.view : 'unknown';
   }
