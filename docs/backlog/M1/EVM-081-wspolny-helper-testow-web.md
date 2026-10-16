@@ -4,7 +4,7 @@ title: Wspólny helper testów web (userEvent bez opóźnienia)
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P3
 path: lekka
 owner: web-developer
@@ -52,3 +52,6 @@ Jako **deweloper web** chcę **jednego współdzielonego helpera testów z `user
 - 2026-10-16 — zaakceptowana przez Konrada (DoR): ścieżka `lekka`, recenzent `code-reviewer`, `model: sonnet`; draft → ready
 - 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B; ścieżka lekka, wykonawca sonnet)
 - 2026-10-16 — wdrożono: wspólny helper apps/web/test/user.ts (userEvent bez opóźnienia) we wszystkich testach web; testTimeout 20 s i asyncUtilTimeout 5 s zostają z uzasadnieniem w komentarzach (najwolniejszy test ok. 5 s lokalnie; CI wolniejsze) — decyzja orkiestratora — do potwierdzenia na demo (web-developer)
+- 2026-10-16 — przegląd `code-reviewer`: APPROVE (runda 1, bez blocker/major); tabela AC1–AC4 → dowody: wyszukiwanie `delay: null` / importów `user-event` poza helperem (AC1), `web test:coverage` 1334 testów, linie 98,8% (AC2), komentarze w `vitest.config.ts` (AC3, AC4); pełna bramka orkiestratora po EVM-073 (czas kolejki)
+- Notatki (minor/nit): 4 lokalne `userEvent.setup({ advanceTimers })` w `audit.test.tsx` — rozważyć parametr opcji w `setupUser`; współdzielona instancja `userEvent` (stan klawiatury); brak reguły ESLint `no-restricted-imports` pilnującej helpera; `packages/ui-web/test` poza zakresem; pomiar czasów w CI do dopisania po pierwszym przebiegu (do potwierdzenia na demo)
+- 2026-10-16 — Koszt: 2 agenty, ok. 86 tys. tokenów podagentów, 23 wywołania narzędzi, ok. 14 min; status → in-review
