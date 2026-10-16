@@ -71,6 +71,8 @@
   --color-feedback-error-icon: var(--evm-color-feedback-error-icon);
   --color-feedback-info-bg: var(--evm-color-feedback-info-bg);
   --color-feedback-info-icon: var(--evm-color-feedback-info-icon);
+  --color-feedback-success-bg: var(--evm-color-feedback-success-bg);
+  --color-feedback-success-icon: var(--evm-color-feedback-success-icon);
   --color-icon-success: var(--evm-color-icon-success);
   --color-action-tertiary-bg-hover: var(--evm-color-action-tertiary-bg-hover);
   --color-action-tertiary-bg-pressed: var(--evm-color-action-tertiary-bg-pressed);
@@ -319,6 +321,10 @@
 
 @utility border-s-indicator-info {
   border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-info-border);
+}
+
+@utility border-s-indicator-success {
+  border-inline-start: var(--evm-border-width-indicator) solid var(--evm-color-feedback-success-border);
 }
 
 /* The line of the timeline (§ 3.10: color.border.default, border-width.strong) that joins the markers of the entries. */
