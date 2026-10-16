@@ -145,7 +145,7 @@ export function RecoveryCodesStep({
           <Card>
             <ul aria-label={t('mfa.codes.list')} className="grid grid-cols-1 gap-stack-sm medium:grid-cols-2">
               {codes.map((code) => (
-                <li key={code} className="text-mono text-text-primary">
+                <li key={code} className="font-mono text-mono text-text-primary">
                   {grouped(code)}
                 </li>
               ))}

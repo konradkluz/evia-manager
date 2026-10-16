@@ -171,7 +171,7 @@ export function TotpEnrolment({
             onExpandedChange={setExpanded}
           >
             <p className="text-body-sm text-text-secondary">{t('mfa.totp.manualHint')}</p>
-            <p className="text-mono break-all text-text-primary">{grouped(setup.secret)}</p>
+            <p className="font-mono text-mono break-all text-text-primary">{grouped(setup.secret)}</p>
           </Disclosure>
           <p className="text-body">{t('mfa.totp.enter')}</p>
           <TextField

@@ -91,7 +91,7 @@ export function TextField({
           onBlur={onBlur}
           className={classNames(
             'min-w-0 flex-1 h-control-height-web-md rounded-control text-text-primary placeholder:text-control-placeholder focus-visible:focus-ring',
-            variant === 'one-time-code' ? 'text-numeric-lg' : variant === 'recovery-code' ? 'text-mono' : 'text-body',
+            variant === 'one-time-code' ? 'text-numeric-lg' : variant === 'recovery-code' ? 'font-mono text-mono' : 'text-body',
             readOnly
               ? 'bg-transparent'
               : 'bg-control-bg disabled:bg-control-bg-disabled disabled:border-control-border-disabled disabled:text-text-disabled',
