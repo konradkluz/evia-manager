@@ -4,7 +4,7 @@ title: Zaproszenie użytkownika i aktywacja konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -132,7 +132,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook kolejki e-mail)
-- [ ] Demo lokalne (zaproszenie widoczne w Mailpit, aktywacja konta) i akceptacja użytkownika; demo na staging — EVM-089
+- [x] Demo lokalne (zaproszenie widoczne w Mailpit, aktywacja konta) i akceptacja użytkownika; demo na staging — EVM-089
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -152,3 +152,4 @@ _—_
 - Notatki (minor/nit z przeglądów): wiersz outboxa może utknąć w `pending` po wyczerpaniu ponowień pg-boss bez zapisu stanu; lista użytkowników nie odświeża się sama przy „Wysyłanie…”; brak „Wyślij ponownie” dla `sent` z ważnym linkiem do czasu EVM-027; ważny, niedostarczony link zostaje po `failed` (do 72 h); audyt zdarzeń workera ma `origin: 'cli'`; brak limitu ponownego wysyłania per odbiorca (tylko 300/min na użytkownika); powód wyłączenia „Wyślij ponownie” offline tylko w `title`; tabela 768 px łamie adres e-mail; AC3 — test wycieku tokenu nie obejmuje logów Caddy i Sentry; `GuardedEmailSender` bez użycia produkcyjnego do EVM-089; 3 testy Playwright pominięte w specyfikacji zaproszeń (do wyjaśnienia)
 - Ryzyka rezydualne security (do decyzji Konrada): licencja `nodemailer` 10.1.1 to MIT-0 (nie ma jej na liście ALLOWED_LICENSES) — wyjątek serwerowy w `.trivyignore.yaml` (≤ 90 dni); trwałe dopisanie MIT-0 do listy to decyzja Konrada
 - 2026-10-16 — Koszt: 10 agentów, ok. 1,69 mln tokenów podagentów, 613 wywołań narzędzi, ok. 4,1 h (równolegle z wątkiem B); porównanie z baseline EVM-013 — do uzupełnienia na demo
+- 2026-10-16 — demo i akceptacja Konrada; PR #82 scalony (squash, 51973ce); in-review → done
