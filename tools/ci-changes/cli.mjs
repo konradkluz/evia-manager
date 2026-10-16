@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Change detection of ci.yml (EVM-083, ADR-0018) — decides whether the heavy jobs (e2e-web, backend-integration,
- * coverage) may be skipped: only when every changed file is documentation (see lib/classify.mjs).
+ * Change detection of ci.yml (EVM-083, ADR-0018) — decides which heavy jobs may be skipped (EVM-083, EVM-086): coverage
+ * only for documentation-only changes, e2e-web / backend-integration when every changed file is listed as not relevant
+ * (see lib/classify.mjs).
  * Environment: EVENT_NAME, BASE_SHA (from .github/workflows/ci.yml), GITHUB_OUTPUT. Fail closed: any problem
- * means heavy=true (the full set runs).
+ * means heavy=e2e=integration=true (the full set runs).
  */
 import { appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -19,6 +20,7 @@ const result = detect({
       maxBuffer: 64 * 1024 * 1024,
     }),
 });
-console.log(`heavy=${String(result.heavy)} (${result.reason})`);
+const lines = [`heavy=${String(result.heavy)}`, `e2e=${String(result.e2e)}`, `integration=${String(result.integration)}`];
+console.log(`${lines.join(' ')} (${result.reason})`);
 const output = process.env['GITHUB_OUTPUT'];
-if (output) appendFileSync(output, `heavy=${String(result.heavy)}\n`);
+if (output) appendFileSync(output, `${lines.join('\n')}\n`);

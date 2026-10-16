@@ -10,6 +10,7 @@ export const SERVICES = Object.freeze([
   'backend-install',
   'backend-tests',
   'postgres',
+  'web-e2e-linux',
   'scan-gitleaks',
   'scan-semgrep',
   'scan-osv',

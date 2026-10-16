@@ -3,7 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 // E2E of the panel (EVM-008 AC4–AC6; ADR-0015): against `vite preview` of the production build — the same strict
 // headers as production (security-headers.ts). The shell does not call the API, so no API or database is needed.
-// Browsers: Chromium and Firefox everywhere (CI Linux: job e2e-web), Edge (`msedge`) on Windows — the evidence of
+// Browsers: both projects (Chromium, Firefox) are kept for local and nightly runs; CI Linux job e2e-web (PR, main) passes
+// --project=chromium and nightly.yml runs both (EVM-086, docs/ops/github-i-ci.md); Edge (`msedge`) on Windows — the evidence of
 // ADR-0015. Screenshots for the UX review are a separate project (`pnpm run e2e:screenshots`), not visual assertions.
 const CI = Boolean(process.env['CI']);
 const PORT = 4173;

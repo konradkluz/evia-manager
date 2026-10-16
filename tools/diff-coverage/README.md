@@ -16,4 +16,7 @@ Bramka z EVM-006 (AC3): **≥ 90% linii i gałęzi zmienionego kodu** (`docs/pro
 | Raporty | `<apps\|packages\|services\|tools>/<workspace>/coverage/lcov.info` (host, CI) i każdy `lcov.info` pod `coverage/backend-tests/` (kontener `backend-tests`); ścieżki `SF:` względne, Windows, `/work/repo/…` i runnera CI są normalizowane do ścieżek repozytorium, trafienia scalane (maksimum) |
 | Wynik | linie (`DA`) i gałęzie (`BRDA`) na zmienionych liniach; **zmieniony plik źródłowy bez raportu = niepokryty** (niepuste zmienione linie) |
 
+## Jedna gałąź, wiele historyjek (EVM-087)
+Baza to `merge-base` z `origin/main`, więc gdy zależne historyjki leżą na jednej gałęzi od `main`, wynik obejmuje **całą gałąź**: próg ≥ 90% linii i gałęzi dotyczy sumy zmian, nie każdej historyjki osobno (świadomie: bez zakresu commitów per historyjka — YAGNI; słabo pokryta historyjka może zniknąć w średniej). Łańcuch nie jest rozdzielany na gałęzie stacked, więc nie powstaje spadek poniżej progu po rozdzieleniu (EVM-057: 89,8%).
+
 Bezpieczeństwo: czyta wyłącznie zwykłe pliki (bez podążania za dowiązaniami), git bez powłoki, nazwy plików wypisywane w jednej linii bez znaków sterujących (brak wstrzyknięcia komend workflow `::`).

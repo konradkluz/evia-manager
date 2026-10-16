@@ -140,15 +140,17 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
     );
   });
 
-  it('EVM-008 AC5: e2e-web runs the Playwright E2E of the panel in Chromium and Firefox with read-only permissions', () => {
+  it('EVM-008 AC5, EVM-086 AC5: e2e-web runs the Playwright E2E of the panel in Chromium only (Firefox runs in nightly.yml) with read-only permissions', () => {
     const e2e = job('e2e-web');
     expect(e2e['permissions']).toEqual({ contents: 'read' });
     expect(runs('e2e-web')).toEqual([
       'pnpm install --frozen-lockfile',
       'pnpm exec turbo run build --filter=@evia/web^...',
-      'pnpm --filter @evia/web exec playwright install --with-deps chromium firefox',
-      'pnpm --filter @evia/web run e2e --shard="$SHARD/2"',
+      'pnpm --filter @evia/web exec playwright install --with-deps chromium',
+      'pnpm --filter @evia/web run e2e --project=chromium --shard="$SHARD/2"',
     ]);
+    expect(read('.github/workflows/ci.yml')).not.toContain('firefox --');
+    expect(runs('e2e-web').join(' ')).not.toContain('firefox');
     // Two Playwright shards (the suite outgrew a single 20-minute job); ci-gate sees the aggregated matrix result.
     expect(record(record(e2e['strategy'])['matrix'])['shard']).toEqual([1, 2]);
     expect(record(e2e['strategy'])['fail-fast']).toBe(false);
@@ -221,7 +223,105 @@ describe('main-integrity.yml (EVM-006 AC4; A1, K6, code and security review)', (
   });
 });
 
+describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
+  it('EVM-086 AC1, AC4: the lists of paths are explicit and never contain the paths that must always run the tests', async () => {
+    const classify = (await import(new URL('../../ci-changes/lib/classify.mjs', import.meta.url).href)) as {
+      E2E_NOT_RELEVANT_PREFIXES: string[];
+      INTEGRATION_NOT_RELEVANT_PREFIXES: string[];
+      isNotRelevantToE2e: (path: string) => boolean;
+      isNotRelevantToIntegration: (path: string) => boolean;
+    };
+    expect(classify.E2E_NOT_RELEVANT_PREFIXES).toEqual(['apps/api/', 'apps/mobile/']);
+    expect(classify.INTEGRATION_NOT_RELEVANT_PREFIXES).toEqual(['apps/web/', 'apps/mobile/']);
+    const always = [
+      'packages/contracts/a.ts',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      '.github/workflows/ci.yml',
+      'tools/ci-changes/cli.mjs',
+      'compose.yaml',
+      'compose.dev.yaml',
+      'package.json',
+      'turbo.json',
+      '.claude/agents/a.md',
+      'unknown/file.txt',
+    ];
+    for (const path of always) {
+      expect(classify.isNotRelevantToE2e(path), path).toBe(false);
+      expect(classify.isNotRelevantToIntegration(path), path).toBe(false);
+    }
+    for (const prefix of [...classify.E2E_NOT_RELEVANT_PREFIXES, ...classify.INTEGRATION_NOT_RELEVANT_PREFIXES])
+      expect(prefix.startsWith('apps/') && prefix.endsWith('/') && !prefix.includes('*'), prefix).toBe(true);
+  });
+
+  it('EVM-086 AC4: the filter exists only in the changes job (never a trigger filter), pull_request is the only event that can skip, ci-gate is the only job with always()', () => {
+    expect(ciTriggerProblems(ci)).toEqual([]);
+    const cli = read('tools/ci-changes/cli.mjs');
+    expect(cli).toContain("process.env['EVENT_NAME']");
+    for (const [name, value] of Object.entries(jobs)) {
+      const condition = text(record(value)['if']);
+      expect(condition.includes('always()'), name).toBe(name === 'ci-gate');
+    }
+    // No other workflow can skip the E2E or the integration tests by path.
+    for (const file of ['main-integrity.yml', 'nightly.yml', 'renovate.yml']) {
+      const raw = read(`.github/workflows/${file}`);
+      expect(raw, file).not.toContain('needs.changes');
+      expect(raw, file).not.toMatch(/paths(-ignore)?:/);
+    }
+  });
+
+  it('EVM-086 AC4: workflows use only the already pinned actions (no new action, every one pinned to a full SHA with a version comment)', () => {
+    const allowed = new Set([
+      'actions/checkout',
+      'actions/setup-node',
+      'actions/upload-artifact',
+      'actions/download-artifact',
+      'pnpm/action-setup',
+      'renovatebot/github-action',
+    ]);
+    for (const file of WORKFLOWS) {
+      for (const line of read(`.github/workflows/${file}`).split('\n')) {
+        const match = /^\s*-?\s*uses:\s*(\S+)\s+#\s*v\d+/.exec(line);
+        if (!/uses:/.test(line)) continue;
+        expect(match, `${file}: ${line}`).not.toBeNull();
+        expect(allowed.has((match?.[1] ?? '').split('@')[0] ?? ''), `${file}: ${line}`).toBe(true);
+      }
+    }
+  });
+
+  it('EVM-086 AC3: coverage runs for every change beyond documentation and downloads the integration report only when the integration ran', () => {
+    expect(job('coverage')['if']).toBe("needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()");
+    const download = list(job('coverage')['steps'])
+      .map(record)
+      .find((step) => record(step['with'])['name'] === 'lcov-integration');
+    expect(download?.['if']).toBe("needs.changes.outputs.integration == 'true'");
+    expect(job('e2e-web')['if']).toBe("needs.changes.outputs.e2e == 'true'");
+    expect(job('backend-integration')['if']).toBe("needs.changes.outputs.integration == 'true'");
+  });
+});
+
 describe('nightly.yml and renovate.yml (EVM-006 AC4, AC8; A7, SR-SUPPLY-02)', () => {
+  it('EVM-086 AC5: nightly.yml runs the full E2E (Chromium and Firefox) on main with the same shards and timeout as ci.yml and uploads the report on failure', () => {
+    const nightly = record(yaml('.github/workflows/nightly.yml'));
+    const e2e = record(record(nightly['jobs'])['e2e-web']);
+    const reference = job('e2e-web');
+    expect(e2e['if']).toBe("github.ref == 'refs/heads/main'");
+    expect(e2e['timeout-minutes']).toBe(reference['timeout-minutes']);
+    expect(record(e2e['strategy'])).toEqual(record(reference['strategy']));
+    expect(e2e['permissions']).toEqual({ contents: 'read' });
+    const commands = list(e2e['steps']).map((step) => text(record(step)['run']));
+    expect(commands).toContain('pnpm --filter @evia/web exec playwright install --with-deps chromium firefox');
+    expect(commands).toContain('pnpm --filter @evia/web run e2e --project=chromium --project=firefox --shard="$SHARD/2"');
+    const upload = list(e2e['steps'])
+      .map(record)
+      .find((step) => text(step['uses']).startsWith('actions/upload-artifact@'));
+    expect(upload?.['if']).toBe('failure()');
+    // Local and nightly runs keep both browsers: playwright.config.ts defines the two projects.
+    const config = read('apps/web/playwright.config.ts');
+    expect(config).toContain("name: 'chromium'");
+    expect(config).toContain("name: 'firefox'");
+  });
+
   it('EVM-006 AC4 (SR-SUPPLY-02): nightly scans run on main with the OSV gate and pnpm audit as a report', () => {
     const nightly = record(yaml('.github/workflows/nightly.yml'));
     expect(Object.keys(record(nightly['on']))).toEqual(['schedule', 'workflow_dispatch']);

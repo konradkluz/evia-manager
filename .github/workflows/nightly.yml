@@ -1,5 +1,7 @@
 # Nightly scans of main (EVM-006, SR-SUPPLY-02): full history of secrets, SAST, dependencies and the scanner
 # self-test; `pnpm audit` as a second source (report only). A failed run sends GitHub's e-mail to Konrad.
+# EVM-086 AC5: the full Playwright E2E of the panel with Firefox runs here only (ci.yml runs Chromium alone): the same
+# two shards and timeout as the ci.yml job, the report is uploaded on failure.
 name: nightly
 
 on:
@@ -40,3 +42,44 @@ jobs:
           path: .scratch/scans/*.json
           if-no-files-found: warn
           retention-days: 14
+
+  # Full E2E of the panel (Chromium and Firefox) on main — ci.yml (pull requests and main) runs Chromium only.
+  e2e-web:
+    name: e2e-web-full (${{ matrix.shard }}/2)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Build the dependencies of the panel (contract client, design tokens)
+        run: pnpm exec turbo run build --filter=@evia/web^...
+      - name: Playwright browsers (Chromium, Firefox)
+        run: pnpm --filter @evia/web exec playwright install --with-deps chromium firefox
+      - name: E2E of the panel (Playwright, Chromium and Firefox)
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: pnpm --filter @evia/web run e2e --project=chromium --project=firefox --shard="$SHARD/2"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: nightly-playwright-report-${{ matrix.shard }}
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

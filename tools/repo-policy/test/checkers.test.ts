@@ -195,6 +195,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     if?: string;
     needs?: string[];
     'continue-on-error'?: boolean;
+    outputs?: Record<string, string>;
     steps: Array<{ run?: string }>;
   }
   interface Doc {
@@ -272,7 +273,32 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
         (w) => {
           delete ciJob(w, 'e2e-web').if;
         },
-        "ci.yml: e2e-web: if: needs.changes.outputs.heavy == 'true'",
+        "ci.yml: e2e-web: if: needs.changes.outputs.e2e == 'true'",
+      ],
+      [
+        'e2e keyed to the coarse heavy output',
+        (w) => void (ciJob(w, 'e2e-web').if = "needs.changes.outputs.heavy == 'true'"),
+        "ci.yml: e2e-web: if: needs.changes.outputs.e2e == 'true'",
+      ],
+      [
+        'integration keyed to the e2e output',
+        (w) => void (ciJob(w, 'backend-integration').if = "needs.changes.outputs.e2e == 'true'"),
+        "ci.yml: backend-integration: if: needs.changes.outputs.integration == 'true'",
+      ],
+      [
+        'coverage with the implicit success() (skipped with the skipped integration)',
+        (w) => void (ciJob(w, 'coverage').if = "needs.changes.outputs.heavy == 'true'"),
+        'ci.yml: coverage: if: needs.changes.outputs.heavy',
+      ],
+      [
+        'coverage skipped together with a skipped integration',
+        (w) => void (ciJob(w, 'coverage').if = "needs.changes.outputs.integration == 'true'"),
+        'ci.yml: coverage: if: needs.changes.outputs.heavy',
+      ],
+      [
+        'changes without the new outputs',
+        (w) => void (ciJob(w, 'changes').outputs = { heavy: 'x' }),
+        'ci.yml: changes: outputs musi być dokładnie heavy, e2e, integration',
       ],
       [
         'quality skipped on heavy=false',
@@ -298,7 +324,15 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
   // EVM-083 AC3: the real jq program of ci-gate against every case (needs jq: present on GitHub runners; JQ=<path> overrides).
   const jq = process.env['JQ'] ?? 'jq';
   const hasJq = spawnSync(jq, ['--version']).status === 0;
-  const need = (result: string, heavy?: string): Record<string, unknown> => ({ result, outputs: heavy === undefined ? {} : { heavy } });
+  const need = (
+    result: string,
+    heavy?: string,
+    e2e: string | null = heavy ?? null,
+    integration: string | null = heavy ?? null,
+  ): Record<string, unknown> => ({
+    result,
+    outputs: heavy === undefined ? {} : { heavy, ...(e2e === null ? {} : { e2e }), ...(integration === null ? {} : { integration }) },
+  });
   const needs = (over: Record<string, Record<string, unknown>>): string =>
     JSON.stringify({
       changes: need('success', 'true'),
@@ -318,6 +352,39 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     () => {
       expect(gate(needs({}))).toBe(0);
       expect(gate(needs({ changes: need('success', 'false'), ...skipped }))).toBe(0);
+    },
+  );
+
+  it.skipIf(!hasJq && !process.env['CI'])(
+    'EVM-086 AC3: ci-gate accepts a skipped e2e-web or backend-integration only with its own explicit "not relevant"; coverage still runs',
+    () => {
+      const apiOnly = (over: Record<string, Record<string, unknown>> = {}): string =>
+        needs({ changes: need('success', 'true', 'false', 'true'), 'e2e-web': need('skipped'), ...over });
+      const webOnly = (over: Record<string, Record<string, unknown>> = {}): string =>
+        needs({ changes: need('success', 'true', 'true', 'false'), 'backend-integration': need('skipped'), ...over });
+      expect(gate(apiOnly()), 'api only: e2e not relevant').toBe(0);
+      expect(gate(webOnly()), 'web only: integration not relevant').toBe(0);
+      expect(
+        gate(
+          needs({ changes: need('success', 'true', 'false', 'false'), 'e2e-web': need('skipped'), 'backend-integration': need('skipped') }),
+        ),
+        'mobile only',
+      ).toBe(0);
+      // A skip without its own "not relevant" is red, also when the other job is legitimately skipped.
+      expect(gate(webOnly({ 'e2e-web': need('skipped') })), 'e2e skipped though relevant').toBe(1);
+      expect(gate(apiOnly({ 'backend-integration': need('skipped') })), 'integration skipped though relevant').toBe(1);
+      expect(gate(needs({ 'e2e-web': need('skipped') })), 'e2e skipped, all outputs true').toBe(1);
+      // A job that ran although "not relevant" is inconsistent; coverage skipped for code changes is red.
+      expect(gate(apiOnly({ 'e2e-web': need('success') })), 'e2e ran though not relevant').toBe(1);
+      expect(gate(apiOnly({ coverage: need('skipped') })), 'coverage skipped beside code').toBe(1);
+      expect(gate(apiOnly({ 'e2e-web': need('failure') })), 'e2e failure').toBe(1);
+      expect(gate(apiOnly({ 'e2e-web': need('cancelled') })), 'e2e cancelled').toBe(1);
+      // Missing, unreadable or inconsistent outputs.
+      expect(gate(needs({ changes: need('success', 'true', null, 'true') })), 'e2e output missing').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', null) })), 'integration output missing').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'maybe', 'true') })), 'e2e output unreadable').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', '') })), 'integration output empty').toBe(1);
+      expect(gate(needs({ changes: need('success', 'false', 'true', 'false'), ...skipped })), 'heavy=false with e2e=true').toBe(1);
     },
   );
 
