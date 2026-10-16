@@ -111,10 +111,26 @@ module.exports = {
     {
       name: 'api-pg-boss-only-in-jobs-adapter',
       comment:
-        'The job queue library is imported only by its adapter (platform/jobs/pg-boss-job-queue.ts) and by the migration that builds its schema (ADR-0010; EVM-034): a module knows the interface JobQueue, never the library.',
+        'The job queue library is imported only by its adapter (platform/jobs/pg-boss-job-queue.ts; ADR-0010; EVM-034): a module knows the interface JobQueue, never the library. The migration that builds its schema runs a frozen script and never imports it.',
       severity: 'error',
-      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(platform/jobs/pg-boss-job-queue\\.ts$|migrations/0024_jobs\\.ts$)' },
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/platform/jobs/pg-boss-job-queue\\.ts$' },
       to: { path: 'node_modules/pg-boss(/|$)' },
+    },
+    {
+      name: 'api-smtp-only-in-email-adapter',
+      comment:
+        'The SMTP library is imported only by its adapter (platform/email/smtp-email-sender.ts; ADR-0010; EVM-024 (b)): there is one way to send an e-mail — the outbox, the queue `email.send`, the port `EmailSender` — and a module never opens its own connection.',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/platform/email/smtp-email-sender\\.ts$' },
+      to: { path: 'node_modules/nodemailer(/|$)' },
+    },
+    {
+      name: 'api-email-adapter-only-from-worker',
+      comment:
+        'The adapter of the SMTP transport is wired by the composition root of the worker only (and the other adapters of the e-mail port next to it): a module and the rest of the platform use the port `EmailSender` (EVM-024).',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(platform/email/|worker/)' },
+      to: { path: '^apps/api/src/platform/email/smtp-email-sender\\.ts$' },
     },
     {
       name: 'api-jobs-adapter-only-from-worker',

@@ -32,6 +32,8 @@ import * as auditStatusCodes from './0029_audit_status_codes.ts';
 import * as paymentUnpaidIndex from './0030_payment_unpaid_index.ts';
 import * as overviewPaymentSignals from './0031_overview_payment_signals.ts';
 import * as idempotencyPurge from './0032_idempotency_purge.ts';
+import * as emailOutbox from './0035_email_outbox.ts';
+import * as userInvitations from './0036_user_invitations.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -66,4 +68,6 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0030_payment_unpaid_index': paymentUnpaidIndex,
   '0031_overview_payment_signals': overviewPaymentSignals,
   '0032_idempotency_purge': idempotencyPurge,
+  '0035_email_outbox': emailOutbox,
+  '0036_user_invitations': userInvitations,
 });
