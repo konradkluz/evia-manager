@@ -49,7 +49,7 @@ const minimal = (service: Record<string, unknown> = {}, extra: Record<string, un
 describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 AC8)', () => {
   it('EVM-077 AC8: the real file passes the rules of the profile', () => {
     expect(problemsOf(dev, read('compose.dev.yaml'))).toEqual([]);
-    expect(Object.keys(services).sort()).toEqual(['api', 'postgres-dev', 'worker']);
+    expect(Object.keys(services).sort()).toEqual(['api', 'mailpit', 'postgres-dev', 'worker']);
   });
 
   it('EVM-077 AC8: the minimal valid file passes, so every negative below fails for its own reason', () => {
@@ -144,9 +144,11 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
     expect(worker['command']).toEqual(['node', 'dist/src/worker.js']);
     expect(worker['ports']).toBeUndefined();
     expect(worker['env_file']).toBeUndefined();
-    expect(worker['healthcheck']).toBeUndefined();
+    // EVM-024 AC6: the healthcheck reads the health file of the worker (red when stale or when the transport is `none`)
+    expect(record(worker['healthcheck'])['test']).toEqual(['CMD', 'node', 'dist/src/cli/worker-health.js']);
     expect(worker['user']).toBe('node');
     expect(record(record(worker['depends_on'])['api'])['condition']).toBe('service_healthy');
+    expect(record(record(worker['depends_on'])['mailpit'])['condition']).toBe('service_healthy');
     expect(record(worker['environment'])).toEqual({
       NODE_ENV: 'development',
       LOG_LEVEL: 'info',
@@ -156,6 +158,11 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
       PANEL_ORIGIN: 'http://localhost:5173',
       WEBAUTHN_RP_ID: 'localhost',
       CURSOR_KEY: null,
+      // EVM-024 AC6: the transport is explicit; SMTP only to Mailpit
+      EMAIL_TRANSPORT: 'smtp',
+      EMAIL_SMTP_HOST: 'mailpit',
+      EMAIL_SMTP_PORT: '1025',
+      EMAIL_FROM: 'noreply@evia-manager.localhost',
     });
   });
 
@@ -206,6 +213,51 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
     expect(read('apps/api/dev/database-facts.ts')).toContain('pg_db_role_setting');
     expect(read('apps/api/dev/database-facts.ts')).toContain('s.setrole = 0');
     expect(read('apps/api/dev/database-facts.ts')).not.toContain('current_setting');
+  });
+});
+
+describe('Mailpit in the development environment (EVM-024 AC6; security-engineer W13; ADR-0011, ADR-0015; SR-INFRA-01, SR-API-13)', () => {
+  const mailpit = service('mailpit');
+  const environment = record(mailpit['environment']);
+
+  it('EVM-024 AC6 the image is pinned by tag and digest, runs as a non-root user on a read-only file system with no capabilities', () => {
+    expect(String(mailpit['image'])).toMatch(/^axllent\/mailpit:v\d+\.\d+\.\d+@sha256:[0-9a-f]{64}$/);
+    expect(mailpit['user']).toBe('65534:65534');
+    expect(mailpit['read_only']).toBe(true);
+    expect(mailpit['cap_drop']).toEqual(['ALL']);
+    expect(mailpit['security_opt']).toEqual(['no-new-privileges:true']);
+    expect(mailpit['privileged']).toBeUndefined();
+    expect(mailpit['volumes']).toBeUndefined();
+    expect(list(mailpit['tmpfs']).map(String)).toEqual(['/tmp:noexec,nosuid,nodev,mode=1777']);
+  });
+
+  it('EVM-024 AC6 both ports are published on the loopback only: 127.0.0.1:1025 (SMTP) and 127.0.0.1:8025 (the interface)', () => {
+    expect(mailpit['ports']).toEqual(['127.0.0.1:1025:1025', '127.0.0.1:8025:8025']);
+    expect(problemsOf(minimal({ ports: ['1025:1025'] })).join(' ')).toMatch(/port/);
+    expect(problemsOf(minimal({ ports: ['0.0.0.0:8025:8025'] })).join(' ')).toMatch(/port/);
+  });
+
+  it('EVM-024 AC6 nothing leaves the machine through it: no relay, no forwarding, no storage on disk, no check for a newer version — and only these settings', () => {
+    expect(Object.keys(environment).sort()).toEqual([
+      'MP_DISABLE_VERSION_CHECK',
+      'MP_MAX_MESSAGES',
+      'MP_SMTP_BIND_ADDR',
+      'MP_UI_BIND_ADDR',
+    ]);
+    expect(environment['MP_DISABLE_VERSION_CHECK']).toBe('true');
+    const raw = read('compose.dev.yaml').replace(/#.*$/gm, '');
+    expect(raw).not.toMatch(/MP_SMTP_RELAY|MP_SMTP_AUTH|MP_SMTP_TLS|MP_DATABASE|MP_POP3|relay/i);
+    expect(mailpit['env_file']).toBeUndefined();
+  });
+
+  it('EVM-024 AC6 the worker is the only client of its SMTP port, by the name of the service; the API takes no setting of e-mail', () => {
+    expect(record(service('worker')['environment'])['EMAIL_SMTP_HOST']).toBe('mailpit');
+    expect(Object.keys(record(service('api')['environment'])).filter((key) => key.startsWith('EMAIL_'))).toEqual([]);
+    expect(Object.keys(record(service('postgres-dev')['environment'])).filter((key) => key.startsWith('EMAIL_'))).toEqual([]);
+  });
+
+  it('EVM-024 AC6 the healthcheck of Mailpit is its own readiness probe (the worker starts after it)', () => {
+    expect(record(mailpit['healthcheck'])['test']).toEqual(['CMD', '/mailpit', 'readyz']);
   });
 });
 

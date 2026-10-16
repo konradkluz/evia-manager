@@ -66,6 +66,11 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/audit/http/audit.controller.ts',
   'src/modules/audit/infrastructure/**/*.ts',
   'src/platform/alerts/**/*.ts',
+  // EVM-024: the outbox of e-mails, the relay to the queue and the job that sends — locks (FOR UPDATE, SKIP LOCKED), conditional UPDATEs and the order of
+  // transactions: SQL against PostgreSQL; the port, the address, the guard, the SMTP adapter and the health file are unit tests
+  'src/platform/email/email-outbox.ts',
+  'src/platform/email/email-relay.ts',
+  'src/platform/email/send-email.job.ts',
   // EVM-034 step 9: the adapter of the job queue over pg-boss, the script runner of the migration 0024 and the wiring of the worker
   // need the real database (grants, DDL refused for the application role); the queue interface, the handler and the run are unit tests
   'src/platform/jobs/pg-boss-job-queue.ts',

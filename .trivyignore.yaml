@@ -1,4 +1,7 @@
 # Trivy exceptions (bramki 4–6). Every entry needs `statement` ("<reason> · owner: <role> · EVM-###") and
 # `expired_at` (≤ 90 days; licenses only for non-distributed tools). Expired entries fail tools/repo-policy.
 misconfigurations: []
-licenses: []
+licenses:
+  - id: MIT-0
+    statement: 'nodemailer — server-only (api/worker), not distributed; MIT-0 is more permissive than MIT; no runtime dependencies · owner: security-engineer · EVM-024'
+    expired_at: 2027-01-10

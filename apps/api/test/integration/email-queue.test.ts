@@ -171,6 +171,28 @@ describe('the settings of the queue email.send (EVM-024 AC5; SR-ERR-02)', () => 
     expect(await settings(EMAIL_QUEUE)).toMatchObject({ retry_limit: 5, retry_delay: 30, retry_backoff: true, retry_delay_max: 480 });
   });
 
+  it('EVM-024 AC5 a policy without a ceiling for the break leaves it open, and registering the same queue twice in one process asks the library once', async () => {
+    const real = new PgBossJobQueue({ connectionString: database.appUrl, logger });
+    await real.start();
+    try {
+      await real.work('overview.other-job', () => Promise.resolve({}), {
+        retry: { retryLimit: 3, retryDelaySeconds: 10, retryBackoff: false },
+      });
+      await real.work('overview.other-job', () => Promise.resolve({}), {
+        retry: { retryLimit: 3, retryDelaySeconds: 10, retryBackoff: false },
+      });
+      await real.send('overview.other-job', [uuidv7()]); // a send after the policy keeps it
+    } finally {
+      await real.stop();
+    }
+    expect(await settings('overview.other-job')).toMatchObject({
+      retry_limit: 3,
+      retry_delay: 10,
+      retry_backoff: false,
+      retry_delay_max: null,
+    });
+  });
+
   it('EVM-024 AC5 a queue without a policy keeps the defaults of the platform (the other jobs are not changed)', async () => {
     await queue.work('overview.sample-job', () => Promise.resolve({}));
     expect(await settings('overview.sample-job')).toMatchObject({ retry_limit: 2, retry_backoff: false, retry_delay_max: null });

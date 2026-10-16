@@ -81,9 +81,38 @@ services:
       timeout: 5s
       retries: 40
 
-  # The worker (ADR-0010; EVM-034 step 9): the same image as the API, another command — it takes the background jobs of the queue
-  # (the nightly `verify` of the projection of the list). No port, no HTTP server; migrations are applied by the api, so it starts
-  # after it. The configuration is validated as for the API (debt for EVM-024), so the same settings are written out (no API_PORT).
+  # Mailpit (EVM-024 AC6; ADR-0011, ADR-0015; SR-INFRA-01): the catcher of the e-mails of the development environment — the worker sends the
+  # invitations here (plain SMTP on port 1025), a person reads them in the web interface on 127.0.0.1:8025. Both ports are published on the
+  # loopback ONLY. Nothing leaves the machine through it: there is NO relay (no MP_SMTP_RELAY_*) and no forwarding, the messages live in
+  # memory (no MP_DATABASE: gone with the container), and the check for a newer version is off. Synthetic data only. Placed in this file —
+  # not in compose.yaml with a profile (as the story words it): the rules of tools/repo-policy allow published ports here only, and
+  # this file is a profile of its own (decision of the orchestrator, to confirm at the demo).
+  mailpit:
+    <<: *hardening
+    image: axllent/mailpit:v1.31.5@sha256:94f6b70c1436defae6799d9ac7ff0eeff9540465b842026d5cdb018f1c0234ea
+    user: '65534:65534'
+    networks: [dev-net]
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+    environment:
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+      MP_DISABLE_VERSION_CHECK: 'true'
+      MP_MAX_MESSAGES: '500'
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev,mode=1777
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # The worker (ADR-0010; EVM-034 step 9; EVM-024): the same image as the API, another command — it takes the background jobs of the queue
+  # (the nightly `verify` of the projection of the list, the e-mails of invitations). No port, no HTTP server; migrations are applied by the
+  # api, so it starts after it. The configuration is validated as for the API plus the transport of e-mail (EMAIL_TRANSPORT is required, no
+  # default; `smtp` only to Mailpit and never in production), so the same settings are written out (no API_PORT). Its healthcheck reads the
+  # file the worker writes every 30 seconds in its tmpfs: red when the file is stale or the transport is `none`.
   worker:
     <<: *hardening
     image: evia-api-dev:local
@@ -99,6 +128,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
     environment:
       NODE_ENV: development
       LOG_LEVEL: info
@@ -108,8 +139,18 @@ services:
       PANEL_ORIGIN: http://localhost:5173
       WEBAUTHN_RP_ID: localhost
       CURSOR_KEY:
+      EMAIL_TRANSPORT: smtp
+      EMAIL_SMTP_HOST: mailpit
+      EMAIL_SMTP_PORT: '1025'
+      EMAIL_FROM: noreply@evia-manager.localhost
     tmpfs:
       - /tmp:noexec,nosuid,nodev,mode=1777
+    healthcheck:
+      test: ['CMD', 'node', 'dist/src/cli/worker-health.js']
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 networks:
   dev-net:

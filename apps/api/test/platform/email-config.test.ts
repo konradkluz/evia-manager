@@ -100,6 +100,18 @@ describe('the transport of e-mail in the configuration of the worker (EVM-024 AC
     expect(JSON.stringify({ message: error.message, stack: error.stack })).not.toContain('secret-relay');
   });
 
+  it('EVM-024 AC6 a failure that is not a ConfigError (a defect of the environment object) is not swallowed into one', () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new TypeError('synthetic defect');
+        },
+      },
+    );
+    expect(() => loadWorkerConfig(hostile)).toThrow(TypeError);
+  });
+
   it('EVM-024 AC6 the server (and the CLI) read no EMAIL_* key: the API sends no mail, so its start needs none — only the worker loads the transport', () => {
     expect(loadConfig(validEnv())).not.toHaveProperty('email');
     expect(

@@ -251,6 +251,7 @@ export async function devCommand(deps) {
       `  Panel:  ${PANEL_URL}   (jedyny wspierany adres wejścia: localhost, nie 127.0.0.1)`,
       `  API:    ${API_URL}   (tylko przez panel pod /api)`,
       '  Baza:   127.0.0.1:5442   (evia_dev)',
+      '  Poczta: http://127.0.0.1:8025   (Mailpit: tu trafiają e-maile zaproszeń; dane syntetyczne)',
       'Zatrzymanie: Ctrl+C (panel), potem pnpm run dev:stop (kontenery).',
       '',
       '',

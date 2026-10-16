@@ -39,16 +39,20 @@ export class EmailRelay {
   /** Starts the polling (an interval timer that never keeps the process alive). @returns a function that stops it */
   start(intervalMs: number = RELAY_INTERVAL_MS): () => void {
     let running = false;
+    // Async, so that a failure that is thrown (not rejected) is caught as well: a round that dies must neither stop the polling nor the process.
+    const round = async (): Promise<void> => {
+      try {
+        await this.relayPending();
+      } catch (error) {
+        this.#logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'email relay failed; will retry');
+      } finally {
+        running = false;
+      }
+    };
     const timer = setInterval(() => {
       if (running) return;
       running = true;
-      this.relayPending()
-        .catch((error: unknown) => {
-          this.#logger.warn({ errorType: error instanceof Error ? error.name : 'unknown' }, 'email relay failed; will retry');
-        })
-        .finally(() => {
-          running = false;
-        });
+      void round();
     }, intervalMs);
     timer.unref();
     return () => {
