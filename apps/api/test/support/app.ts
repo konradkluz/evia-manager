@@ -22,6 +22,13 @@ export const PANEL_ORIGIN = 'https://panel.evia.test';
 /** Synthetic test key of the cursors (32 identical bytes — a placeholder the production configuration refuses). Test use only. */
 export const TEST_CURSOR_KEY = 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc';
 
+/**
+ * Synthetic test master key of the encrypted fields: 32 distinct bytes (0..31) — random-looking enough for the production check of placeholders,
+ * yet public: it protects nothing. Test use only.
+ */
+export const TEST_FIELD_ENCRYPTION_KEY = Buffer.from(Array.from({ length: 32 }, (_, index) => index)).toString('base64url');
+export const TEST_FIELD_ENCRYPTION_KEYS = `test:${TEST_FIELD_ENCRYPTION_KEY}`;
+
 export function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     NODE_ENV: 'test',
@@ -31,6 +38,7 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): Re
     PANEL_ORIGIN: PANEL_ORIGIN,
     WEBAUTHN_RP_ID: 'panel.evia.test',
     CURSOR_KEY: TEST_CURSOR_KEY,
+    FIELD_ENCRYPTION_KEYS: TEST_FIELD_ENCRYPTION_KEYS,
     ...overrides,
   };
 }

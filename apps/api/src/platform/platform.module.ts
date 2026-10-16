@@ -23,6 +23,7 @@ import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
 import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
+import { fieldEncryptionFor } from './crypto/field-encryption.ts';
 import { CursorCodec } from './crypto/opaque-cursor.ts';
 import {
   APP_CONFIG,
@@ -31,6 +32,7 @@ import {
   DISTINCT_READ_METER,
   CLOCK,
   CURSOR_CODEC,
+  FIELD_ENCRYPTION,
   DATABASE,
   EVENT_BUS,
   LOGGER,
@@ -71,6 +73,7 @@ export class PlatformModule {
           inject: [CLOCK],
           useFactory: (clock: Clock) => new CursorCodec(config.cursorKey, clock),
         },
+        { provide: FIELD_ENCRYPTION, useFactory: () => fieldEncryptionFor(config.fieldEncryptionKeys) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
@@ -114,6 +117,7 @@ export class PlatformModule {
         PurgeIdempotencyJob,
         SECURITY_ALERT_EMITTER,
         CURSOR_CODEC,
+        FIELD_ENCRYPTION,
         BULK_READ_CONTROL,
       ],
     };

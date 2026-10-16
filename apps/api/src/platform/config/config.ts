@@ -6,6 +6,7 @@
  */
 import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
+import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
 import { parseEmailAddress } from '../email/email-address.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
@@ -25,6 +26,11 @@ export interface AppConfig {
   readonly trustedProxies: readonly string[];
   /** 32-byte key of the opaque cursors (AES-256-GCM, EVM-017). A secret: never logged, rotation invalidates cursors. */
   readonly cursorKey: Buffer;
+  /**
+   * Master keys of the envelope encryption of database fields (EVM-023; SR-CRYPTO-02): the first seals, all open. A secret: never logged. Empty only
+   * outside production — everything that needs a key is then refused (fail closed).
+   */
+  readonly fieldEncryptionKeys: readonly FieldKey[];
 }
 
 const postgresUrl = z.string().refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol));
@@ -57,6 +63,14 @@ const cursorKey = z.string().refine((value) => {
 const MIN_DISTINCT_KEY_BYTES = 16;
 const isPlaceholderKey = (value: string): boolean => new Set(Buffer.from(value, 'base64url')).size < MIN_DISTINCT_KEY_BYTES;
 
+/** `FIELD_ENCRYPTION_KEYS` is absent (or empty) or a well-formed list `id:base64url32,…`; production additionally needs it (see the schema). */
+const fieldEncryptionKeys = z
+  .string()
+  .optional()
+  .refine((value) => value === undefined || value === '' || parseFieldEncryptionKeys(value) !== undefined);
+const keysOf = (value: string | undefined): readonly FieldKey[] =>
+  value === undefined || value === '' ? [] : (parseFieldEncryptionKeys(value) ?? []);
+
 const hostOf = (value: string): string => (URL.canParse(value) ? new URL(value).hostname : '');
 const isLocalHost = (host: string): boolean => host === 'localhost' || host.endsWith('.localhost');
 
@@ -80,6 +94,7 @@ const schema = z
     WEBAUTHN_RP_NAME: z.string().trim().min(1).max(64).default('EVia Manager'),
     TRUSTED_PROXIES: proxyList,
     CURSOR_KEY: cursorKey,
+    FIELD_ENCRYPTION_KEYS: fieldEncryptionKeys,
   })
   .refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
@@ -95,7 +110,18 @@ const schema = z
     path: ['PANEL_ORIGIN'],
   })
   // Production never runs with a development or test key.
-  .refine((env) => env.NODE_ENV !== 'production' || !isPlaceholderKey(env.CURSOR_KEY), { path: ['CURSOR_KEY'] });
+  .refine((env) => env.NODE_ENV !== 'production' || !isPlaceholderKey(env.CURSOR_KEY), { path: ['CURSOR_KEY'] })
+  // The keys of the encrypted fields: required in production, never a placeholder, and never the key of the cursors (one key, one purpose).
+  .refine((env) => env.NODE_ENV !== 'production' || keysOf(env.FIELD_ENCRYPTION_KEYS).length > 0, { path: ['FIELD_ENCRYPTION_KEYS'] })
+  .refine(
+    (env) =>
+      keysOf(env.FIELD_ENCRYPTION_KEYS).every(
+        ({ key }) =>
+          !key.equals(Buffer.from(env.CURSOR_KEY, 'base64url')) &&
+          (env.NODE_ENV !== 'production' || new Set(key).size >= MIN_DISTINCT_KEY_BYTES),
+      ),
+    { path: ['FIELD_ENCRYPTION_KEYS'] },
+  );
 
 export class ConfigError extends Error {
   readonly keys: readonly string[];
@@ -145,6 +171,7 @@ export function loadConfig(env: Env): AppConfig {
     webauthn: { rpId: value.WEBAUTHN_RP_ID, rpName: value.WEBAUTHN_RP_NAME },
     trustedProxies: value.TRUSTED_PROXIES,
     cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
+    fieldEncryptionKeys: keysOf(value.FIELD_ENCRYPTION_KEYS),
   };
 }
 

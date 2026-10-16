@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig, loadMigrationConfig } from '../../src/platform/config/config.ts';
-import { validEnv } from '../support/app.ts';
+import { TEST_FIELD_ENCRYPTION_KEY, TEST_FIELD_ENCRYPTION_KEYS, validEnv } from '../support/app.ts';
 
 /** A key that looks random (production refuses the placeholders of development and tests). Generated per run, never committed. */
 const randomKey = (): string => randomBytes(32).toString('base64url');
@@ -30,6 +30,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       webauthn: { rpId: 'panel.evia.test', rpName: 'EVia Manager' },
       trustedProxies: [],
       cursorKey: Buffer.alloc(32, 7),
+      fieldEncryptionKeys: [{ id: 'test', key: Buffer.from(TEST_FIELD_ENCRYPTION_KEY, 'base64url') }],
     });
     expect(
       loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),
@@ -155,6 +156,43 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       expect(loadConfig({ ...env, NODE_ENV: 'development' }).nodeEnv).toBe('development');
     }
     expect(loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production' }).nodeEnv).toBe('production');
+  });
+
+  it('EVM-023 AC1 the keys of the encrypted fields are required in production only; elsewhere an absent or empty list means none (fail closed at use)', () => {
+    for (const value of [undefined, '']) {
+      expect(loadConfig({ ...validEnv({ FIELD_ENCRYPTION_KEYS: value }), NODE_ENV: 'development' }).fieldEncryptionKeys).toEqual([]);
+      expect(loadConfig({ ...validEnv({ FIELD_ENCRYPTION_KEYS: value }), NODE_ENV: 'test' }).fieldEncryptionKeys).toEqual([]);
+      expect(errorOf({ ...validEnv({ CURSOR_KEY: randomKey(), FIELD_ENCRYPTION_KEYS: value }), NODE_ENV: 'production' }).keys).toEqual([
+        'FIELD_ENCRYPTION_KEYS',
+      ]);
+    }
+  });
+
+  it('EVM-023 AC1 a malformed list stops the start in every environment and the error names the key, never the value (SR-LOG-02)', () => {
+    const good = randomKey();
+    for (const nodeEnv of ['development', 'test', 'production'])
+      for (const value of ['k1', `k1:${good.slice(1)}`, `K1:${good}`, `k1:${good},k1:${randomKey()}`, `k1:${good}=`]) {
+        const error = errorOf({ ...validEnv({ CURSOR_KEY: randomKey(), FIELD_ENCRYPTION_KEYS: value }), NODE_ENV: nodeEnv });
+        expect(error.keys, `${nodeEnv} ${value}`).toEqual(['FIELD_ENCRYPTION_KEYS']);
+        expect(JSON.stringify({ message: error.message, keys: error.keys })).not.toContain(good);
+      }
+  });
+
+  it('EVM-023 AC1 production refuses a placeholder key and the key of the cursors; several keys are kept in order (the first seals)', () => {
+    const production = { ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: 'production' };
+    for (const placeholder of [Buffer.alloc(32), Buffer.alloc(32, 7), Buffer.from('abcdefgh'.repeat(4))])
+      expect(errorOf({ ...production, FIELD_ENCRYPTION_KEYS: `k1:${placeholder.toString('base64url')}` }).keys).toEqual([
+        'FIELD_ENCRYPTION_KEYS',
+      ]);
+    const cursor = randomKey();
+    expect(errorOf({ ...production, CURSOR_KEY: cursor, FIELD_ENCRYPTION_KEYS: `k1:${cursor}` }).keys).toEqual(['FIELD_ENCRYPTION_KEYS']);
+    expect(errorOf({ ...production, CURSOR_KEY: cursor, FIELD_ENCRYPTION_KEYS: `k2:${randomKey()},k1:${cursor}` }).keys).toEqual([
+      'FIELD_ENCRYPTION_KEYS',
+    ]);
+    const [first, second] = [randomKey(), randomKey()];
+    const config = loadConfig({ ...production, FIELD_ENCRYPTION_KEYS: `k2:${first},k1:${second}` });
+    expect(config.fieldEncryptionKeys.map((key) => key.id)).toEqual(['k2', 'k1']);
+    expect(loadConfig({ ...production, FIELD_ENCRYPTION_KEYS: TEST_FIELD_ENCRYPTION_KEYS }).fieldEncryptionKeys).toHaveLength(1);
   });
 });
 
