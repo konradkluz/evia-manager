@@ -4,7 +4,7 @@ title: Usunięcie i przywrócenie zlecenia (Administrator)
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: in-progress
+status: in-review
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -86,10 +86,10 @@ Numeracja migracji (kolejka 2026-10-16): wątek B używa wyłącznie `0033_…` 
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-060 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX / architektura (wg `reviewers`) — APPROVE
-- [ ] `domain-model.md` i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-060 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX / architektura (wg `reviewers`) — APPROVE
+- [x] `domain-model.md` i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -101,3 +101,5 @@ _—_
 - 2026-10-16 — plan gotowy (backend-developer)
 - 2026-10-16 — implementacja API (backend-developer): `deleteWorkOrder`, `restoreWorkOrder`, widok `view=deleted`, port uczestnika usunięcia w `payments`, migracja `0033`, audyt `work_order.deleted` / `work_order.undeleted`; panel — osobny krok
 - 2026-10-16 — implementacja panelu (web-developer): „Usuń zlecenie…” w W-06 (AlertDialog, step-up W-04, 409/412), widok „Usunięte” z „Przywróć” w W-10; testy komponentów, E2E i a11y
+- 2026-10-16 — workflow `deliver-story` (pełna): `passed` po 2 rundach, wszyscy recenzenci APPROVE; bramka `pnpm run gate` zielona (orkiestrator, 12:32), `docs:check` 0/0; status → in-review (demo i akceptacja — następna sesja z Konradem)
+- 2026-10-16 — Koszt: 12 agentów, ok. 1,43 mln tokenów podagentów, 486 wywołań narzędzi, ok. 3,2 h (równolegle z wątkiem A); porównanie z baseline EVM-013 — do uzupełnienia na demo
