@@ -1,6 +1,6 @@
 import type { PaymentMilestone } from '@evia/contracts';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addDays, plainTextProblem } from '../src/work-orders/milestone-command.tsx';
 import { daysBetween, isDayInRange } from '../src/work-orders/milestone-days.ts';
@@ -23,7 +23,6 @@ import {
   UUIDV7,
 } from './payment-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const NBSP = String.fromCharCode(0xa0);
 /** "1 230,00 zł" as the panel writes it — with non-breaking spaces (styleguide § 6.3). */
 const zl = (text: string): string => text.replaceAll(' ', NBSP);

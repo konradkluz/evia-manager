@@ -1,6 +1,6 @@
 import type { Procedure, ProcedureList, ProcedureStage } from '@evia/contracts';
 import { render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { describe, expect, it } from 'vitest';
 import { OrderSummary, currentStageOf } from '../src/work-orders/order-summary.tsx';
 import { createI18n } from '../src/i18n/i18n.ts';
@@ -11,7 +11,6 @@ import { json, problem, type Handler } from './api-fake.ts';
 import { renderPanel, activeSessionApi } from './render.tsx';
 import { ORDER_ID, workOrderRoutes } from './work-order-api.ts';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const PATH = `/work-orders/${ORDER_ID}`;
 
 const stage = (id: string, extra: Partial<ProcedureStage> = {}): ProcedureStage => ({

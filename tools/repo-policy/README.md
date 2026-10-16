@@ -13,4 +13,4 @@ EVM-006 (AC1–AC8; ADR-0012, ADR-0015, ADR-0016). Reguły, których nie sprawdz
 | `test/docs.test.ts`       | „Szybki start” w README, „Stack i komendy” w `CLAUDE.md`, „Narzędzia” w `testing-strategy.md`, tryb scalania przez PR (D2)                                                                                                                                                                                                                                     |
 | `test/checkers.test.ts`   | każdy checker z `src/` wykrywa naruszenia na danych syntetycznych — zielony test prawdziwego repozytorium coś znaczy                                                                                                                                                                                                                                           |
 
-Jedynym workspace'em, który może łagodzić wspólne reguły ESLint i TypeScript, jest `tools/docs-lifecycle` (wyjątek z EVM-006 znosi EVM-073).
+Żaden workspace nie może łagodzić wspólnych reguł ESLint i TypeScript (lista wyjątków jest pusta od EVM-073) — test `structure.test.ts` kończy się błędem z nazwą workspace'u.

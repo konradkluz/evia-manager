@@ -1,5 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createI18n } from '../src/i18n/i18n.ts';
 import { ErrorBoundary } from '../src/shell/error-boundary.tsx';

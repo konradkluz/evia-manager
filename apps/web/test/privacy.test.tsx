@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent, setupUser } from './user.ts';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../src/app.tsx';
@@ -31,7 +31,7 @@ afterEach(() => {
 
 describe('W-19 in the panel (EVM-063 AC1, AC5)', () => {
   it('EVM-063 AC1 the account menu has "Prywatność i pomoc" above "Wyloguj" and opens W-19 inside the shell', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     await renderPanel('/work-orders');
     await user.click(screen.getByRole('button', { name: 'Konto: Anna Testowa' }));
     const items = screen.getAllByRole('menuitem').map((item) => item.textContent);
@@ -127,7 +127,7 @@ describe('W-19 before logging in (EVM-063 AC1, AC5; SR-AUTHZ-05, TM-10)', () => 
   });
 
   it('EVM-063 AC1 the footer link of W-01 opens W-19 without a session and focus lands on the heading of the section', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const api = unauthenticated();
     const { history } = await renderPanel('/login', api);
     await user.click(screen.getByRole('link', { name: 'Pomoc' }));
@@ -155,7 +155,7 @@ describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
   });
 
   it('EVM-063 AC2 three clauses with a version and a date, collapsed; the controller is a visible marker for the owner to fill in', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     await renderPage();
     expect(screen.getByRole('heading', { level: 3, name: 'Administrator danych' })).toBeTruthy();
     expect(screen.getByText('Nazwa:').nextElementSibling?.textContent).toBe('[DO UZUPEŁNIENIA]');
@@ -184,7 +184,7 @@ describe('content of W-19 (EVM-063 AC2, AC3, AC6)', () => {
   });
 
   it('EVM-063 AC6 headings are in order: one h1, h2 sections, h3 clauses, h4 inside clauses; the page has no axe violations', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { container } = await renderPage('/privacy', createFakeApi({ [SESSION_ROUTE]: () => json(200, ACTIVE_SESSION) }));
     for (const toggle of screen.getAllByRole('button', { name: /^Klauzula/ })) await user.click(toggle);
     const levels = screen.getAllByRole('heading').map((heading) => Number(heading.tagName.slice(1)));

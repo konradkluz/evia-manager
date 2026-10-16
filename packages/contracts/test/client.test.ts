@@ -47,6 +47,7 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/work-orders/search',
       '/api/v1/work-orders/{workOrderId}',
       '/api/v1/work-orders/{workOrderId}/transitions',
+      '/api/v1/work-orders/{workOrderId}/restore',
       '/api/v1/work-orders/{workOrderId}/scope-items',
       '/api/v1/work-orders/{workOrderId}/scope-items/{scopeItemId}',
       '/api/v1/work-orders/{workOrderId}/customer',

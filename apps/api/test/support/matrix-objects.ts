@@ -33,9 +33,10 @@ export async function workOrderObjects(app: IdentityApp): Promise<Record<string,
   const ids = await insertWorkOrders(db, [
     { number: `ZL-${year}-${String(randomInt(1000, 9000))}`, customerId, siteId },
     { number: `ZL-${year}-${String(randomInt(9000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+    { number: `ZL-${year + 1}-${String(randomInt(1000, 9000))}`, customerId, siteId },
   ]);
-  const [own, foreign] = [...ids.values()];
-  if (own === undefined || foreign === undefined) throw new Error('the fixture orders were not inserted');
+  const [own, foreign, live] = [...ids.values()];
+  if (own === undefined || foreign === undefined || live === undefined) throw new Error('the fixture orders were not inserted');
   await insertScopeItems(db, own, [{ position: 1, parameters: { powerKw: 11 } }]);
   await insertScopeItems(db, foreign, [{ position: 1 }]);
   return {
@@ -47,6 +48,13 @@ export async function workOrderObjects(app: IdentityApp): Promise<Record<string,
     ),
     // the status command (EVM-030 AC7): the same pair — a live order, and an EXISTING order that is soft deleted
     transitionWorkOrder: { own: () => `${WORK_ORDERS}/${own}/transitions`, foreign: () => `${WORK_ORDERS}/${foreign}/transitions` },
+    // EVM-060: the deletion of an order and its restoration (Administrator only). The matrix sends `If-Match: "1"` with a DELETE, so the
+    // first allowed cell really deletes `own` (the later ones are 404, which the guard-level check accepts); a POST has no `If-Match` (428,
+    // nothing happens). The deletion is addressed to a live order, the restoration to the deleted one; the foreign object is the order in
+    // the wrong state — the deletion of one that is deleted already and the restoration of one that is live (`live`, which no cell deletes)
+    // are the same 404 as for an order that does not exist.
+    deleteWorkOrder: { own: () => `${WORK_ORDERS}/${own}`, foreign: () => `${WORK_ORDERS}/${foreign}` },
+    restoreWorkOrder: { own: () => `${WORK_ORDERS}/${foreign}/restore`, foreign: () => `${WORK_ORDERS}/${live}/restore` },
   };
 }
 

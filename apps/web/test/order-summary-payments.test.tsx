@@ -1,6 +1,6 @@
 import type { CurrentSession, UserRole } from '@evia/contracts';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, problem } from './api-fake.ts';
@@ -20,7 +20,6 @@ import { renderPanel } from './render.tsx';
 
 // W-06, the tile "Płatności" of the card "Podsumowanie" (EVM-056 AC4, AC7, AC8): read from the instalments of the order (the same
 // read as the section "Płatności"); the server says which instalment is after its due date and for how many days.
-const userEvent = userEventDefault.setup({ delay: null });
 const NBSP = ' ';
 
 const pln = (amountMinor: number) => ({ amountMinor, currency: 'PLN' as const });

@@ -84,7 +84,7 @@ describe('safeLine — linia wyjścia, której runner nie weźmie za polecenie (
       const label = `U+${Number(blank.codePointAt(0)).toString(16).toUpperCase()}`;
       assert.equal(printable(safeLine(`${blank}${V2}error${V2}x`)), printable(`${blank}\\u{3A}:error${V2}x`), label);
     }
-    for (const [blank, escaped] of [
+    for (const [blank, escaped] of /** @type {[string, string][]} */ ([
       ['\t', '\\u{9}'],
       ['\u000b', '\\u{B}'],
       ['\u0085', '\\u{85}'],
@@ -92,7 +92,7 @@ describe('safeLine — linia wyjścia, której runner nie weźmie za polecenie (
       ['\u2029', '\\u{2029}'],
       ['\u180e', '\\u{180E}'],
       ['\ufeff', '\\u{FEFF}'],
-    ]) {
+    ])) {
       assert.equal(printable(safeLine(`${blank}${V2}error${V2}x`)), printable(`${escaped}${V2}error${V2}x`), escaped);
     }
   });

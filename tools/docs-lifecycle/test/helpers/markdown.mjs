@@ -1,6 +1,7 @@
 // @ts-check
 /** Test helpers for reading project documents: sections and the policy rules table. */
 import { normalizeText } from '../../lib/frontmatter.mjs';
+import { at } from './at.mjs';
 
 /**
  * Text of a section from its heading (exact line) to the next heading of the same or higher level.
@@ -44,14 +45,14 @@ export function parsePolicyRules(policy) {
       .split('|')
       .slice(1, -1)
       .map((cell) => cell.trim());
-    const backticked = (/** @type {string} */ cell) => Array.from(cell.matchAll(/`([^`]+)`/g), (match) => match[1]);
-    const classes = backticked(cells[2]);
-    if (classes.length !== 1) throw new Error(`wiersz ${cells[0]}: oczekiwano jednego kodu klasy, jest: ${classes.join(', ')}`);
+    const backticked = (/** @type {string} */ cell) => Array.from(cell.matchAll(/`([^`]+)`/g), (match) => at(match, 1));
+    const classes = backticked(at(cells, 2));
+    if (classes.length !== 1) throw new Error(`wiersz ${at(cells, 0)}: oczekiwano jednego kodu klasy, jest: ${classes.join(', ')}`);
     rules.push({
-      id: cells[0] === '—' ? null : Number(cells[0]),
-      patterns: backticked(cells[1]),
-      class: classes[0],
-      orphanCheck: cells[4].startsWith('tak'),
+      id: at(cells, 0) === '—' ? null : Number(at(cells, 0)),
+      patterns: backticked(at(cells, 1)),
+      class: at(classes, 0),
+      orphanCheck: at(cells, 4).startsWith('tak'),
     });
   }
   return rules;

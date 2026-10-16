@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { analyzeEveryFinding, analyzeFiles, codes, doc, story } from './helpers/fixtures.mjs';
+import { at } from './helpers/at.mjs';
 
 const README = '# Dokumentacja\n- process/workflow.md\n- product/roadmap.md\n';
 
@@ -15,7 +16,8 @@ describe('walidator — ostrzeżenia (EVM-012 AC4)', () => {
     assert.deepEqual(codes(analysis), ['expired docs/notes/plan.md', 'expired docs/product/cennik.md']);
     assert.equal(analysis.errorCount, 0);
     assert.equal(analysis.warningCount, 2);
-    const [plan, cennik] = analysis.findings;
+    const plan = at(analysis.findings, 0);
+    const cennik = at(analysis.findings, 1);
     assert.equal(plan.severity, 'warning');
     assert.match(plan.reason, /przeterminowany: expires 2026-10-01 \(dzisiaj 2026-10-02\)/);
     assert.match(cennik.reason, /przeterminowany: review_by 2026-09-30/);
@@ -47,7 +49,7 @@ describe('walidator — ostrzeżenia (EVM-012 AC4)', () => {
     });
     assert.deepEqual(codes(analysis), ['orphan docs/notes/sierota.md', 'orphan docs/product/zapomniany.md']);
     assert.equal(analysis.errorCount, 0);
-    assert.match(analysis.findings[0].reason, /osierocony/);
+    assert.match(at(analysis.findings, 0).reason, /osierocony/);
   });
 
   it('EVM-012 AC4: odwołanie linkiem, ścieżką w `kodzie`, ścieżką względną i od katalogu głównego usuwa ostrzeżenie', () => {

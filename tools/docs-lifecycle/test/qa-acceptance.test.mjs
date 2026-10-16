@@ -29,6 +29,7 @@ import { runCli, runMain } from './helpers/cli.mjs';
 import { baseFiles, config, doc, story, TODAY } from './helpers/fixtures.mjs';
 import { parsePolicyRules, section } from './helpers/markdown.mjs';
 import { createTempRepo, isolatedEnv, snapshotRepo } from './helpers/temp-repo.mjs';
+import { at } from './helpers/at.mjs';
 
 /**
  * @typedef {object} ViolationCase
@@ -201,6 +202,7 @@ describe('QA: ostrzeżenia i granica doby (EVM-012 AC4)', () => {
   });
 
   /** [expires, last valid instant (UTC), first expired instant (UTC), the next day in Warsaw] */
+  /** @type {[string, string, string, string][]} */
   const DST_BOUNDARIES = [
     ['2027-03-27', '2027-03-27T22:59:59Z', '2027-03-27T23:00:00Z', '2027-03-28'], // CET (UTC+1), night before the spring change
     ['2027-03-28', '2027-03-28T21:59:59Z', '2027-03-28T22:00:00Z', '2027-03-29'], // 23-hour day, CEST (UTC+2) from 03:00
@@ -292,7 +294,7 @@ function reportRows(stdout) {
     .map((line) => {
       const match = /^\| `([^`]+)` \| ([^|]+) \| ([^|]+) \| (.+) \|$/.exec(line);
       assert.ok(match, `wiersz raportu w nieoczekiwanym formacie: ${line}`);
-      return { path: match[1], cls: match[2].trim(), action: match[3].trim(), reason: match[4].trim() };
+      return { path: at(match, 1), cls: at(match, 2).trim(), action: at(match, 3).trim(), reason: at(match, 4).trim() };
     });
 }
 
@@ -353,8 +355,9 @@ describe('QA: wydruk raportu sprzątania dla każdego kamienia (EVM-012 AC5, AC6
           assert.ok(!rows.some((row) => row.path === path), `${target}: plik trwały ${path} w raporcie`);
         }
         const cennik = rows.find((row) => row.path === 'docs/product/cennik.md');
-        assert.equal(cennik?.action, 'przejrzyj', target);
-        assert.match(String(cennik?.reason), /przeterminowany: review_by 2026-09-01/);
+        assert.ok(cennik, target);
+        assert.equal(cennik.action, 'przejrzyj', target);
+        assert.match(cennik.reason, /przeterminowany: review_by 2026-09-01/);
         // ADR with `lifecycle: milestone` (attempt to lower its class) stays permanent and blocks nothing silently.
         assert.match(result.stdout, /> \*\*Uwaga:\*\* walidator zgłasza błędy \(1\)/);
       }
@@ -574,7 +577,7 @@ describe('QA: walidator czyta wyłącznie pliki .md ze zbioru gita (EVM-012 AC5,
         paths: Object.keys(contents),
         read: (path) => {
           reads.push(path);
-          return Object.hasOwn(contents, path) ? contents[path] : null;
+          return Object.hasOwn(contents, path) ? /** @type {string} */ (contents[path]) : null;
         },
         scratchIgnored: true,
       },
@@ -636,7 +639,7 @@ describe('QA: kotwice polityki, kroku sprzątania i instrukcji agentów (EVM-012
     const cleanup = steps.findIndex((line) => line.includes('**Sprzątanie dokumentacji**'));
     const roadmap = steps.findIndex((line) => line.includes('Zaktualizuj roadmapę'));
     assert.ok(retro >= 0 && cleanup === retro + 1 && roadmap === cleanup + 1, steps.join('\n'));
-    const cleanupStep = close.slice(close.indexOf(steps[cleanup]), close.indexOf(steps[roadmap]));
+    const cleanupStep = close.slice(close.indexOf(at(steps, cleanup)), close.indexOf(at(steps, roadmap)));
     for (const anchor of [
       '**wszystkie**',
       '**wybrane**',

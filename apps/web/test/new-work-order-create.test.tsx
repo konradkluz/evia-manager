@@ -1,6 +1,6 @@
 import type { CurrentSession } from '@evia/contracts';
 import { act, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearDrafts } from '../src/session/draft-store.ts';
 import { axeViolations } from './a11y.ts';
@@ -9,7 +9,6 @@ import { activeSessionApi, renderPanel } from './render.tsx';
 import { CUSTOMER, SITE, workOrderRoutes } from './work-order-api.ts';
 
 // No pause between keystrokes: typing many characters per test would otherwise run close to the 5 s limit on a slow CI runner.
-const userEvent = userEventDefault.setup({ delay: null });
 const CUSTOMER_SEARCH = 'POST /api/v1/customers/search';
 const SITE_SEARCH = 'POST /api/v1/sites/search';
 const TEMPLATES = 'GET /api/v1/catalog/work-order-templates';

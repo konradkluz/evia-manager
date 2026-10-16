@@ -4,11 +4,13 @@ title: Usunięcie i przywrócenie zlecenia (Administrator)
 type: story
 milestone: M1
 epic: E3 Zlecenia — rdzeń
-status: ready
+status: in-review
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer, solution-architect]
+path: pelna
+model: sonnet
 depends_on: [EVM-058]
 ---
 
@@ -78,19 +80,26 @@ Jako **Administrator** chcę **usunąć zlecenie założone przez pomyłkę i w 
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+Numeracja migracji (kolejka 2026-10-16): wątek B używa wyłącznie `0033_…` i `0034_…`; wątek A zaczyna od `0035`.
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-060 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX / architektura (wg `reviewers`) — APPROVE
-- [ ] `domain-model.md` i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-060 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX / architektura (wg `reviewers`) — APPROVE
+- [x] `domain-model.md` i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): warunek wdrożenia na prod (najwcześniej z sign-off EVM-070)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-16 — ścieżka `pelna` (uprawnienia, usuwanie), recenzenci z `reviewers`, `model: sonnet` — decyzja Konrada przy planowaniu kolejki 16.10
+- 2026-10-16 — ready → in-progress (kolejka 2026-10-16, wątek B, gałąź feature/queue-2026-10-16-zlecenia-narzedzia; ścieżka pełna, wykonawcy sonnet)
+- 2026-10-16 — plan gotowy (backend-developer)
+- 2026-10-16 — implementacja API (backend-developer): `deleteWorkOrder`, `restoreWorkOrder`, widok `view=deleted`, port uczestnika usunięcia w `payments`, migracja `0033`, audyt `work_order.deleted` / `work_order.undeleted`; panel — osobny krok
+- 2026-10-16 — implementacja panelu (web-developer): „Usuń zlecenie…” w W-06 (AlertDialog, step-up W-04, 409/412), widok „Usunięte” z „Przywróć” w W-10; testy komponentów, E2E i a11y
+- 2026-10-16 — workflow `deliver-story` (pełna): `passed` po 2 rundach, wszyscy recenzenci APPROVE; bramka `pnpm run gate` zielona (orkiestrator, 12:32), `docs:check` 0/0; status → in-review (demo i akceptacja — następna sesja z Konradem)
+- 2026-10-16 — Koszt: 12 agentów, ok. 1,43 mln tokenów podagentów, 486 wywołań narzędzi, ok. 3,2 h (równolegle z wątkiem A); porównanie z baseline EVM-013 — do uzupełnienia na demo

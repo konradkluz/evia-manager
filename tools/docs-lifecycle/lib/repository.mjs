@@ -24,7 +24,7 @@ const MAX_BUFFER = 64 * 1024 * 1024;
  * @returns {GitResult}
  */
 export function runGit(args, { cwd, env }) {
-  if (!ALLOWED_GIT_COMMANDS.has(args[0])) {
+  if (!ALLOWED_GIT_COMMANDS.has(/** @type {string} */ (args[0]))) {
     throw new ToolError(`niedozwolone polecenie git: ${args[0]} (narzędzie tylko czyta repozytorium)`);
   }
   try {
@@ -51,7 +51,7 @@ export function runGit(args, { cwd, env }) {
  * @returns {string}
  */
 function firstLine(stderr) {
-  return stderr.trim().split('\n')[0];
+  return /** @type {string} */ (stderr.trim().split('\n')[0]);
 }
 
 /**

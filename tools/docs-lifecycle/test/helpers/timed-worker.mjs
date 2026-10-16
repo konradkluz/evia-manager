@@ -12,7 +12,8 @@ export const DEADLINE_MS = 10_000;
 
 const TASK_MODULE = new URL('./timed-task.mjs', import.meta.url);
 
-/** @typedef {{ elapsed: number, result: any }} TimedResult time measured inside the worker (ms) and the task's result */
+/** @typedef {{ elapsed: number, result: unknown }} TimedResult time measured inside the worker (ms) and the task's result */
+/** @typedef {{ codes: string[], milestones: string[], references: Record<string, string[]> }} AnalyzeResult result of the `analyze` task */
 
 /**
  * @param {string} task name of a task in timed-task.mjs

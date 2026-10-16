@@ -9,7 +9,7 @@ import type { TemplateScopeItem } from '../../catalog/index.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { ActiveStatus } from '../domain/work-order-transitions.ts';
 import { CLOSED_STATUSES, type WorkOrderStatus } from '../domain/work-order-status.ts';
-import { visibleWorkOrders } from './read-policy.ts';
+import { deletedWorkOrders, visibleWorkOrders } from './read-policy.ts';
 import type { WorkOrdersDb } from './tables.ts';
 
 export interface WorkOrderToInsert {
@@ -294,6 +294,25 @@ export async function findVisibleTitles(db: WorkOrdersDb, principal: Principal, 
 }
 
 /**
+ * The title and the version of the SOFT DELETED orders among `ids`, in ONE query whose read policy is the mode `deleted` (EVM-060): the
+ * Administrator gets them, every other role an empty answer. Named columns only (no author, no `deleted_by`).
+ */
+export async function findDeletedRefs(
+  db: WorkOrdersDb,
+  principal: Principal,
+  ids: readonly string[],
+): Promise<Map<string, { readonly title: string; readonly version: number }>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'title', 'version'])
+    .where('id', 'in', ids)
+    .where(deletedWorkOrders(principal))
+    .execute();
+  return new Map(rows.map((row) => [row.id, { title: row.title, version: row.version }]));
+}
+
+/**
  * The identifiers of the orders whose search text (the number and the title) contains the phrase (see `searchTextMatches`), under the
  * read policy IN the query (EVM-072). The caller asks for one row more than it will accept; the order is not defined (it only
  * narrows the page of `overview`, which sorts and cuts it by itself).
@@ -340,4 +359,74 @@ export async function findVisibleRefs(
       { number: row.number, title: row.title, customerId: row.customer_id, closed: CLOSED_STATUSES.includes(row.status) },
     ]),
   );
+}
+
+/**
+ * The order in ANY state — visible or soft deleted — LOCKED (`SELECT … FOR NO KEY UPDATE`, the lock every command of payments takes
+ * on the same row through `lockVisible`, so the deletion and a parallel issue of a milestone are serialised; EVM-060, SR-API-06). This
+ * is the one query that does NOT carry the read policy: it exists for the deletion and the restoration, which only an ADMINISTRATOR
+ * may run — the services check the role BEFORE calling it, and no read path may use it (SR-AUTHZ-02). Only the columns the decision needs.
+ */
+export function lockWorkOrderAnyState(db: WorkOrdersDb, id: string) {
+  return db
+    .selectFrom('work_orders.work_orders')
+    .select(['id', 'version', 'deleted_at'])
+    .where('id', '=', id)
+    .forNoKeyUpdate()
+    .executeTakeFirst();
+}
+
+export type AnyStateWorkOrderRow = NonNullable<Awaited<ReturnType<typeof lockWorkOrderAnyState>>>;
+
+/**
+ * Soft delete: `deleted_at` and `deleted_by`, `version + 1`, only for the version the command decided on and only for an order that is
+ * not deleted (the lock already guarantees both; the condition is the second line of defence). `undefined` — nothing was updated.
+ */
+export async function softDeleteWorkOrder(
+  db: WorkOrdersDb,
+  id: string,
+  expectedVersion: number,
+  actorUserId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('work_orders.work_orders')
+    .set({
+      deleted_at: now,
+      deleted_by: actorUserId,
+      updated_at: now,
+      updated_by: actorUserId,
+      version: sql<number>`version + 1`,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is', null)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
+}
+
+/** The inverse: clears `deleted_at` and `deleted_by`, `version + 1`, only for a DELETED order of the given version. `undefined` — nothing was updated. */
+export async function restoreDeletedWorkOrder(
+  db: WorkOrdersDb,
+  id: string,
+  expectedVersion: number,
+  actorUserId: string,
+  now: Date,
+): Promise<number | undefined> {
+  const row = await db
+    .updateTable('work_orders.work_orders')
+    .set({
+      deleted_at: null,
+      deleted_by: null,
+      updated_at: now,
+      updated_by: actorUserId,
+      version: sql<number>`version + 1`,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is not', null)
+    .returning('version')
+    .executeTakeFirst();
+  return row?.version;
 }

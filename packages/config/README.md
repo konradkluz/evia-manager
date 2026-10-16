@@ -14,4 +14,4 @@ Zasady:
 
 - Progi działają jak zapadka — tylko w górę; obniżenie wymaga ADR i zgody Konrada (`docs/process/testing-strategy.md`).
 - Nowe wykluczenie pokrycia = nowy wpis w `coverage-exclusions.json` z polem `reason`.
-- Złagodzenie wspólnych reguł w workspace jest dozwolone wyłącznie dla workspace'ów z listy wyjątków w `tools/repo-policy` (dziś: `tools/docs-lifecycle` — wyjątek znosi EVM-073).
+- Żaden workspace nie łagodzi wspólnych reguł ESLint i TypeScript — test niezmienników w `tools/repo-policy` wskazuje workspace, który to zrobi (EVM-073).

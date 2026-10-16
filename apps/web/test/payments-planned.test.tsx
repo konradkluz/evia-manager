@@ -1,14 +1,12 @@
 import type { PlannedPaymentMilestone } from '@evia/contracts';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { json, parseBody, problem } from './api-fake.ts';
 import { milestone as fullMilestone } from './payment-api.ts';
 import { renderPanel } from './render.tsx';
 import { CUSTOMERS, lastQuery, pageOf, roleSession, UNPAID_LIST, UNPAID_PATH, unpaidApi } from './unpaid-api.ts';
-
-const userEvent = userEventDefault.setup({ delay: null });
 
 afterEach(() => {
   vi.useRealTimers();

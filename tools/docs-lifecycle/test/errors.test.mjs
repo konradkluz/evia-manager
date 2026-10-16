@@ -5,8 +5,15 @@ import { check, errorMessage, ToolError } from '../lib/errors.mjs';
 
 describe('błędy narzędzia (EVM-012)', () => {
   it('EVM-012 AC3: check zgłasza ToolError z komunikatem tylko przy niespełnionym warunku', () => {
-    assert.doesNotThrow(() => check(true, 'nie powinno się zdarzyć'));
-    assert.throws(() => check(false, 'opis błędu'), { name: 'ToolError', message: 'opis błędu' });
+    assert.doesNotThrow(() => {
+      check(true, 'nie powinno się zdarzyć');
+    });
+    assert.throws(
+      () => {
+        check(false, 'opis błędu');
+      },
+      { name: 'ToolError', message: 'opis błędu' },
+    );
     assert.ok(new ToolError('x') instanceof Error);
   });
 

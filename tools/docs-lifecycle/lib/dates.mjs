@@ -19,7 +19,7 @@ export function isValidIsoDate(value) {
   const day = Number(match[3]);
   if (month < 1 || month > 12) return false;
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-  const lastDay = month === 2 && leap ? 29 : DAYS_IN_MONTH[month - 1];
+  const lastDay = month === 2 && leap ? 29 : /** @type {number} */ (DAYS_IN_MONTH[month - 1]);
   return day >= 1 && day <= lastDay;
 }
 

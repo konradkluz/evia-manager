@@ -41,7 +41,7 @@ const isBlank = (char) => char === ' ' || char === '\t';
 export function headingText(line) {
   const match = HEADING.exec(line);
   if (!match) return null;
-  const text = match[1];
+  const text = /** @type {string} */ (match[1]);
   let start = 0;
   let end = text.length;
   while (start < end && isBlank(text[start])) start += 1;
@@ -66,7 +66,7 @@ export function parseRoadmapMilestones(text, section) {
   for (const line of lines.slice(start + 1)) {
     if (headingText(line) !== null) break;
     const cell = TABLE_FIRST_CELL.exec(line);
-    const value = cell ? cell[1].replace(/[*_`\s]/g, '') : '';
+    const value = cell ? /** @type {string} */ (cell[1]).replace(/[*_`\s]/g, '') : '';
     if (isMilestoneId(value)) found.push(value);
   }
   return found;

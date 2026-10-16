@@ -7,7 +7,12 @@ import { describe, it } from 'node:test';
 import { CONFIG_FILE, loadConfig, matchRule, parseConfig } from '../lib/config.mjs';
 import { ToolError } from '../lib/errors.mjs';
 
-/** Minimal valid raw configuration (synthetic) used to test validation. */
+/** @typedef {{ rules: unknown[], [key: string]: unknown }} RawConfig */
+
+/**
+ * Minimal valid raw configuration (synthetic) used to test validation.
+ * @returns {RawConfig}
+ */
 function rawConfig() {
   return {
     policy: 'docs/process/document-lifecycle.md',
@@ -27,7 +32,16 @@ function rawConfig() {
 }
 
 /**
- * @param {(raw: any) => void} mutate
+ * @param {RawConfig} raw
+ * @param {number} index
+ * @returns {Record<string, unknown>}
+ */
+function ruleOf(raw, index) {
+  return /** @type {Record<string, unknown>} */ (raw.rules[index]);
+}
+
+/**
+ * @param {(raw: RawConfig) => void} mutate
  * @param {RegExp} message
  */
 function assertInvalid(mutate, message) {
@@ -129,31 +143,31 @@ describe('konfiguracja reguł lokalizacji (EVM-012)', () => {
       raw.rules[0] = 'x';
     }, /reguła 1/);
     assertInvalid((raw) => {
-      raw.rules[1].id = 7;
+      ruleOf(raw, 1).id = 7;
     }, /id/);
     assertInvalid((raw) => {
-      raw.rules[0].patterns = [];
+      ruleOf(raw, 0).patterns = [];
     }, /patterns/);
     assertInvalid((raw) => {
-      raw.rules[0].class = 'archive';
+      ruleOf(raw, 0).class = 'archive';
     }, /klasa/);
     assertInvalid((raw) => {
-      raw.rules[0].orphanCheck = 'nie';
+      ruleOf(raw, 0).orphanCheck = 'nie';
     }, /orphanCheck/);
     assertInvalid((raw) => {
-      raw.rules[0].milestoneFrom = 'story';
+      ruleOf(raw, 0).milestoneFrom = 'story';
     }, /milestoneFrom/);
     assertInvalid((raw) => {
-      delete raw.rules[1].milestoneFrom;
+      delete ruleOf(raw, 1).milestoneFrom;
     }, /milestoneFrom/);
     assertInvalid((raw) => {
-      raw.rules[1].patterns = ['docs/qa/**/*.md'];
+      ruleOf(raw, 1).patterns = ['docs/qa/**/*.md'];
     }, /<EVM-ID>/);
     assertInvalid((raw) => {
-      raw.rules[2].patterns = ['spikes/**/*.md'];
+      ruleOf(raw, 2).patterns = ['spikes/**/*.md'];
     }, /<nazwa>/);
     assertInvalid((raw) => {
-      raw.rules[2].patterns = ['eksperymenty/<nazwa>/**/*.md'];
+      ruleOf(raw, 2).patterns = ['eksperymenty/<nazwa>/**/*.md'];
     }, /spikesDir/);
     assertInvalid((raw) => {
       raw.defaultRule = { class: 'living' };
@@ -177,7 +191,7 @@ describe('konfiguracja reguł lokalizacji (EVM-012)', () => {
       raw.spikesDir = 'spikes/x';
     }, /spikesDir/);
     assertInvalid((raw) => {
-      raw.rules[0].patterns = ['docs/<foo>.md'];
+      ruleOf(raw, 0).patterns = ['docs/<foo>.md'];
     }, /wzorzec/);
     assert.throws(() => parseConfig(null), ToolError);
   });

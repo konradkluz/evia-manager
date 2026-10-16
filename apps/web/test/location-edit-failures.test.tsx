@@ -1,11 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import { userEvent as userEventDefault } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { json, parseBody, problem } from './api-fake.ts';
 import { locationServer, MANAGER_ID, MANAGER_ROUTE, OSD_ID, OSD_ROUTE, PARTY_CREATE, PATH, SITE_ROUTE } from './location-edit-api.ts';
 import { renderPanel } from './render.tsx';
 
-const userEvent = userEventDefault.setup({ delay: null });
 const SITE_PATCH = `PATCH ${SITE_ROUTE}`;
 const PARTY_PATCH = `PATCH ${OSD_ROUTE}`;
 const EDIT = { name: 'Edytuj lokalizację' } as const;

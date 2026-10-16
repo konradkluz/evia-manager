@@ -26,6 +26,7 @@ const MILESTONE_FROM_BY_CLASS = new Map([
 ]);
 
 /** Placeholder each pattern of a rule must contain for its `milestoneFrom`. */
+/** @type {Map<string | undefined, { group: string, placeholder: string }>} */
 const REQUIRED_PLACEHOLDER = new Map([
   ['story', { group: 'evmId', placeholder: '<EVM-ID>' }],
   ['spike', { group: 'name', placeholder: '<nazwa>' }],
@@ -57,6 +58,7 @@ const REQUIRED_PLACEHOLDER = new Map([
  * @returns {Config}
  */
 export function loadConfig(file = CONFIG_FILE) {
+  /** @type {unknown} */
   let raw;
   try {
     raw = JSON.parse(readFileSync(file, 'utf8'));
@@ -66,7 +68,7 @@ export function loadConfig(file = CONFIG_FILE) {
   return parseConfig(raw);
 }
 
-/** @param {unknown} value @returns {value is Record<string, any>} */
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
 const isObject = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** @param {unknown} value @returns {value is string} */
@@ -87,14 +89,15 @@ export function parseConfig(raw) {
   );
   check(Array.isArray(raw.rules) && raw.rules.length > 0, 'konfiguracja: rules musi być niepustą listą reguł');
   check(isObject(raw.defaultRule) && raw.defaultRule.class === 'forbidden', 'konfiguracja: defaultRule musi mieć klasę forbidden');
+  const spikesDir = raw.spikesDir;
   return {
     policy: raw.policy,
     scratchDir: raw.scratchDir,
     roadmap: { path: raw.roadmap.path, section: raw.roadmap.section },
     milestoneDirPattern: patternWith(raw.milestoneDirPattern, 'milestone', '<M#>', 'milestoneDirPattern'),
     storyPattern: patternWith(raw.storyPattern, 'evmId', '<EVM-ID>', 'storyPattern'),
-    spikesDir: raw.spikesDir,
-    rules: raw.rules.map((rule, index) => parseRule(rule, index, raw.spikesDir)),
+    spikesDir,
+    rules: raw.rules.map((rule, index) => parseRule(rule, index, spikesDir)),
     defaultRule: { id: null, patterns: [], class: 'forbidden', milestoneFrom: null, orphanCheck: false },
   };
 }
@@ -126,30 +129,32 @@ function parseRule(raw, index, spikesDir) {
     Array.isArray(raw.patterns) && raw.patterns.length > 0 && raw.patterns.every(isText),
     `${where}: patterns musi być niepustą listą wzorców`,
   );
-  check(RULE_CLASSES.includes(raw.class), `${where}: nieznana klasa ${String(raw.class)}`);
+  check(RULE_CLASSES.includes(/** @type {string} */ (raw.class)), `${where}: nieznana klasa ${String(raw.class)}`);
   check(typeof raw.orphanCheck === 'boolean', `${where}: orphanCheck musi być true albo false`);
-  const allowedSources = MILESTONE_FROM_BY_CLASS.get(raw.class) ?? [undefined];
+  const ruleClass = /** @type {string} */ (raw.class);
+  const milestoneFrom = /** @type {string | undefined} */ (raw.milestoneFrom);
+  const allowedSources = MILESTONE_FROM_BY_CLASS.get(ruleClass) ?? [undefined];
   check(
-    /** @type {readonly (string | undefined)[]} */ (allowedSources).includes(raw.milestoneFrom),
-    `${where}: niepoprawne milestoneFrom dla klasy ${raw.class}`,
+    /** @type {readonly (string | undefined)[]} */ (allowedSources).includes(milestoneFrom),
+    `${where}: niepoprawne milestoneFrom dla klasy ${ruleClass}`,
   );
-  const patterns = raw.patterns.map(compilePattern);
-  const required = REQUIRED_PLACEHOLDER.get(raw.milestoneFrom);
+  const patterns = /** @type {string[]} */ (raw.patterns).map(compilePattern);
+  const required = REQUIRED_PLACEHOLDER.get(milestoneFrom);
   for (const pattern of patterns) {
     check(
       required === undefined || pattern.groups.includes(required.group),
       `${where}: wzorzec ${pattern.source} musi zawierać symbol ${required?.placeholder}`,
     );
     check(
-      raw.milestoneFrom !== 'spike' || pattern.source.startsWith(`${spikesDir}/<nazwa>/`),
+      milestoneFrom !== 'spike' || pattern.source.startsWith(`${spikesDir}/<nazwa>/`),
       `${where}: wzorzec ${pattern.source} musi zaczynać się od ${spikesDir}/<nazwa>/ (spikesDir)`,
     );
   }
   return {
-    id: raw.id,
+    id: /** @type {number} */ (raw.id),
     patterns,
-    class: raw.class,
-    milestoneFrom: raw.milestoneFrom ?? null,
+    class: ruleClass,
+    milestoneFrom: milestoneFrom ?? null,
     orphanCheck: raw.orphanCheck,
   };
 }

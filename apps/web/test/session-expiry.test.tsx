@@ -1,6 +1,6 @@
 import type { CurrentSession } from '@evia/contracts';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent } from './user.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveDraft, readDraft, clearDrafts } from '../src/session/draft-store.ts';
 import { setLoginNotice } from '../src/session/login-flow.ts';

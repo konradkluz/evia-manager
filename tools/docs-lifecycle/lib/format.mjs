@@ -34,7 +34,7 @@ Kody wyjścia: 0 — brak błędów (ostrzeżenia dozwolone) albo raport wygener
  * @returns {string}
  */
 export function classLabel(cls) {
-  return cls === null ? '—' : CLASS_LABELS[cls];
+  return cls === null ? '—' : /** @type {string} */ (CLASS_LABELS[cls]);
 }
 
 /**

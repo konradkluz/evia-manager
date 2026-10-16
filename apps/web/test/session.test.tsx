@@ -1,5 +1,5 @@
 import { act, screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent, setupUser } from './user.ts';
 import { describe, expect, it } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, createFakeApi, json, problem, SESSION_ROUTE } from './api-fake.ts';
@@ -8,7 +8,7 @@ import { activeSessionApi, renderPanel } from './render.tsx';
 const LOGOUT_ROUTE = 'POST /api/v1/auth/logout';
 
 async function openAccountMenu() {
-  const user = userEvent.setup();
+  const user = setupUser();
   await user.click(screen.getByRole('button', { name: 'Konto: Anna Testowa' }));
   return user;
 }
@@ -71,7 +71,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     });
     const { history } = await renderPanel('/work-orders', api);
     expect(api.calls(SESSION_ROUTE)).toHaveLength(1);
-    const user = userEvent.setup();
+    const user = setupUser();
     screen.getByRole('button', { name: 'Konto: Anna Testowa' }).focus();
     await user.keyboard('{Enter}');
     await user.keyboard('{ArrowDown}');

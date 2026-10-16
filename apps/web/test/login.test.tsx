@@ -1,5 +1,5 @@
 import { act, screen, waitFor } from '@testing-library/react';
-import { userEvent } from '@testing-library/user-event';
+import { userEvent, setupUser } from './user.ts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clearDrafts, readDraft, saveDraft } from '../src/session/draft-store.ts';
 import { getLoginFlow, setLoginFlow, setLoginNotice } from '../src/session/login-flow.ts';
@@ -64,7 +64,7 @@ function loginApi(overrides: Record<string, () => Response | Promise<Response>> 
 }
 
 async function fillAndSubmit(email = EMAIL, password = PASSWORD) {
-  const user = userEvent.setup();
+  const user = setupUser();
   await user.clear(screen.getByLabelText('E-mail'));
   await user.type(screen.getByLabelText('E-mail'), email);
   await user.type(screen.getByLabelText('Hasło'), password);

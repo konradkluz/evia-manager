@@ -28,7 +28,15 @@ WorkOrderView:
     predykatu widoku; domyślny widok panelu („Wszystkie niezamknięte”) wysyła `view=all_open` jawnie. Widoki płatności (EVM-056,
     tylko zlecenia niezamknięte): `overdue_payments` („Po terminie”: transza wystawiona z terminem wcześniejszym niż dziś) i
     `unpaid` („Nieopłacone”: co najmniej jedna transza wystawiona, także po terminie); wymagają prawa odczytu płatności
-    (`x-evia-authz.restrictedParams`) — bez niego `403 forbidden`.
+    (`x-evia-authz.restrictedParams`) — bez niego `403 forbidden`. Widok `deleted` („Usunięte”, EVM-060; tylko `listWorkOrders`): zlecenia
+    usunięte (soft delete), z sortowaniem i paginacją jak w pozostałych widokach; tylko Administrator (Edytor i Tylko odczyt — `403 forbidden`, przed licznikiem masowego odczytu), kanał `web`. To jedyne
+    miejsce, w którym API pokazuje zlecenia usunięte. `searchWorkOrders` nie przyjmuje tego widoku (`400 validation_failed`).
+  enum: [all_open, mine, waiting_on_dso_over_14_days, overdue_payments, unpaid, deleted]
+WorkOrderSearchView:
+  type: string
+  description: >-
+    Widok w treści `searchWorkOrders`: wartości `WorkOrderView` bez `deleted` — zlecenia usunięte (EVM-060) pokazuje wyłącznie
+    `listWorkOrders`. Znaczenie pozostałych wartości jak w `WorkOrderView`.
   enum: [all_open, mine, waiting_on_dso_over_14_days, overdue_payments, unpaid]
 WorkOrderWaitingOnFilter:
   type: string
@@ -186,6 +194,21 @@ WorkOrderListItem:
         Kolumna „Płatność” (EVM-056; tylko do odczytu). Pole jest tylko dla ról z prawem odczytu płatności
         (`x-evia-authz.restrictedParams`; v1: Administrator, Edytor, Tylko odczyt) — dla pozostałych nie występuje.
       $ref: '#/WorkOrderPayment'
+    deletedAt:
+      readOnly: true
+      description: >-
+        Chwila usunięcia zlecenia (UTC; EVM-060) — pole tylko w widoku `view=deleted` (tylko Administrator); poza nim nie występuje.
+      type: string
+      format: date-time
+      maxLength: 40
+    version:
+      readOnly: true
+      description: >-
+        Wersja usuniętego zlecenia (EVM-060) — wartość do `If-Match` przy `restoreWorkOrder`; pole tylko w widoku `view=deleted`
+        (tylko Administrator), poza nim nie występuje.
+      type: integer
+      minimum: 1
+      maximum: 2147483647
 WorkOrderPaymentState:
   type: string
   description: >-
@@ -275,7 +298,7 @@ WorkOrderSearchRequest:
       items:
         $ref: '#/WorkOrderStatus'
     view:
-      $ref: '#/WorkOrderView'
+      $ref: '#/WorkOrderSearchView'
     coordinatorId:
       type: string
       format: uuid

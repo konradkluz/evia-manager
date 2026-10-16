@@ -1,4 +1,12 @@
-import type { ListWorkOrdersData, PartyKind, SiteType, WorkOrderSearchRequest, WorkOrderSort, WorkOrderStatus } from '@evia/contracts';
+import type {
+  ListWorkOrdersData,
+  PartyKind,
+  SiteType,
+  WorkOrderSearchRequest,
+  WorkOrderSearchView,
+  WorkOrderSort,
+  WorkOrderStatus,
+} from '@evia/contracts';
 import { partyKindLabels } from '../i18n/catalog-labels.ts';
 import { workOrderStatusLabels } from '../i18n/work-order-labels.ts';
 
@@ -35,7 +43,7 @@ export const PAYMENT_SORTS = ['urgency'] as const satisfies readonly WorkOrderSo
  * "Nieopłacone" (EVM-056), `all` — every status (the panel's own identifier: the API gets no `view`), `unknown` — an identifier
  * from a link that this panel does not know or the person may not use ("Nie znaleziono widoku").
  */
-export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'unknown';
+export type ViewId = 'all_open' | 'mine' | 'all' | typeof DSO_VIEW | PaymentView | 'deleted' | 'unknown';
 
 const isPaymentView = (view: string): view is PaymentView => (PAYMENT_VIEWS as readonly string[]).includes(view);
 
@@ -140,9 +148,10 @@ export function statusesOf(search: WorkOrderSearch): readonly WorkOrderStatus[] 
 
 /**
  * The view of the address. The payment views exist only with the right to read payments (`paymentsReadable`, deny-by-default):
- * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI").
+ * without it a link to one is "Nie znaleziono widoku" (EVM-056 → "UX / UI"). "Usunięte" (EVM-060) is the Administrator's
+ * (`deletedReadable`): for the others a link to it is the same "Nie znaleziono widoku".
  */
-export function viewOf(search: WorkOrderSearch, paymentsReadable = false): ViewId {
+export function viewOf(search: WorkOrderSearch, paymentsReadable = false, deletedReadable = false): ViewId {
   switch (search.view) {
     case undefined:
     case 'all_open':
@@ -151,6 +160,8 @@ export function viewOf(search: WorkOrderSearch, paymentsReadable = false): ViewI
     case 'all':
     case DSO_VIEW:
       return search.view;
+    case 'deleted':
+      return deletedReadable ? 'deleted' : 'unknown';
     default:
       return paymentsReadable && isPaymentView(search.view) ? search.view : 'unknown';
   }
@@ -226,6 +237,10 @@ function waitingQuery(filters: WorkOrderFilters): NonNullable<ListWorkOrdersData
 /** The view sent to the API: every view of the panel but `all` (its own identifier) and `unknown` (nothing is asked). */
 const apiViewOf = (view: ViewId) => (view === 'all' || view === 'unknown' ? {} : { view });
 
+/** The view of a search: the contract has no `deleted` there (EVM-060) — the list alone shows deleted orders, so nothing is sent. */
+const searchViewOf = (view: ViewId): { view?: WorkOrderSearchView } =>
+  view === 'all' || view === 'unknown' || view === 'deleted' ? {} : { view };
+
 /** The query of `listWorkOrders`: an empty filter is left out; the view `all` sends no `view` at all. */
 export function toQuery(filters: WorkOrderFilters, cursor: string | undefined): NonNullable<ListWorkOrdersData['query']> {
   return {
@@ -250,7 +265,7 @@ export function toSearchBody(filters: WorkOrderFilters, phrase: string, cursor: 
     query: phrase,
     limit: PAGE_SIZE,
     sort: filters.sort,
-    ...apiViewOf(filters.view),
+    ...searchViewOf(filters.view),
     ...(filters.statuses.length === 0 ? {} : { status: [...filters.statuses] }),
     ...(filters.coordinatorId === '' ? {} : { coordinatorId: filters.coordinatorId }),
     ...moreFiltersOf(filters),

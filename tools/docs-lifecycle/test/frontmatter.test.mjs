@@ -34,9 +34,9 @@ describe('frontmatter (EVM-012, ustalenie D)', () => {
   it('EVM-012 AC3: CRLF, samotne CR i BOM są parsowane jak LF', () => {
     const lf = fields(NOTE.join('\n'));
     assert.deepEqual(fields(NOTE.join('\r\n')), lf);
-    assert.deepEqual(fields(`﻿${NOTE.join('\r\n')}`), lf);
+    assert.deepEqual(fields(`\uFEFF${NOTE.join('\r\n')}`), lf);
     assert.deepEqual(fields(NOTE.join('\r')), lf);
-    assert.equal(normalizeText('﻿a\r\nb\rc\n'), 'a\nb\nc\n');
+    assert.equal(normalizeText('\uFEFFa\r\nb\rc\n'), 'a\nb\nc\n');
   });
 
   it('EVM-012 AC3: brak frontmattera, frontmatter nie w pierwszej linii albo niezamknięty = brak metadanych', () => {
