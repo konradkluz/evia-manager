@@ -4,7 +4,7 @@ title: Kolejka historyjek — jedna gałąź dla zależnych, ścieżka lekka dom
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 path: lekka
 owner: devops-engineer
@@ -87,3 +87,4 @@ Jako **Konrad (właściciel produktu)** chcę **tańszego i krótszego dostarcza
 - 2026-10-15 — poprawki rundy 1 (security-engineer, major): K6 nie przyjmie commitów z rebase merge (tylko ostatni = `merge_commit_sha`); dokumentacja zmieniona na squash także dla kolejek (ID w tytule/opisie PR), *Allow rebase merging* zostaje wyłączone; rozszerzenie K6 (`tools/main-integrity/`) = zmiana zakresu, osobna historyjka do decyzji Konrada. Krok Konrada „włączyć Allow rebase merging” z wpisu powyżej jest wycofany.
 - 2026-10-15 — orkiestrator: poprawki security sprawdzone, doprecyzowano tytuł PR (jedno ID — regex K6); AC1–AC6 → testy `EVM-087 AC#`; `pnpm run gate` zielony (diff-coverage 1/1), `docs:check` 0/0; in-progress → in-review
 - 2026-10-15 — Koszt: potok 3 wywołania agentów, ok. 0,28 mln tokenów subagentów, ok. 71 min; rundy poprawek 1; ścieżka lekka; sonnet
+- 2026-10-16 — scalone do `main` (PR #81, squash), status done (orkiestrator)

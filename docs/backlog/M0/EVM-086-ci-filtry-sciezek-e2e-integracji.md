@@ -4,7 +4,7 @@ title: CI — E2E i testy integracyjne tylko przy zmianach, których dotyczą
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 path: lekka
 owner: devops-engineer
@@ -88,3 +88,4 @@ Stan wyjściowy (2026-10-15): `changes` (`tools/ci-changes`) wystawia jedno `hea
 - 2026-10-15 — implementacja (devops-engineer): wyjścia `heavy`/`e2e`/`integration` w `tools/ci-changes`, `GATE_JQ` i trasowanie w `ci.yml` oraz `tools/repo-policy`, Chromium-only w `ci.yml` i pełne E2E z Firefoksem w `nightly.yml`, dokumentacja i szacunek (≈ −15 min/dzień) w `docs/ops/github-i-ci.md`
 - 2026-10-15 — przegląd security-engineer: approve (1 minor, 2 nit → „Notatki”; komentarze `ci.yml` poprawione przez orkiestratora `df9e0b1`); orkiestrator: AC1–AC5 → testy `EVM-086 AC#`, AC6 → `docs/ops/github-i-ci.md`; `pnpm run gate` zielony (diff-coverage 61/61, 36/36), `pnpm run scan` zielony, `docs:check` 0/0; in-progress → in-review
 - 2026-10-15 — Koszt: potok 2 wywołania agentów, ok. 0,22 mln tokenów subagentów, ok. 28 min; rundy poprawek 0; ścieżka lekka; sonnet
+- 2026-10-16 — dowód EVM-086 AC3: w CI PR #81 (run 38808771847) `repo-policy` 210/210 bez pominięć, w tym testy `GATE_JQ`; scalone do `main` (PR #81, squash), status done (orkiestrator)

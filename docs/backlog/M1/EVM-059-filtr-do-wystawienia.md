@@ -4,7 +4,7 @@ title: Filtr „Do wystawienia” w Płatnościach
 type: story
 milestone: M1
 epic: E7 Płatności etapowe
-status: in-review
+status: done
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
@@ -93,3 +93,4 @@ _—_
 - 2026-10-15 — panel: chip „Do wystawienia” w W-11 (`view=planned`), tabela transz planowanych, „Wystaw fakturę…” (dialog EVM-054) dla A/E, stany AC5, testy `EVM-059 AC1–AC5` + E2E + zrzuty (web-developer)
 - 2026-10-15 — przegląd security-engineer: approve (1 nit → „Notatki”); orkiestrator: poprawka typu w teście (`e213a0f`), AC1–AC5 → testy `EVM-059 AC#`, `pnpm run gate` zielony (diff-coverage gałęzi: linie 123/123, gałęzie 173/183), `docs:check` 0/0; in-progress → in-review
 - 2026-10-15 — Koszt: potok 3 wywołania agentów, ok. 0,33 mln tokenów subagentów, ok. 50 min; rundy poprawek 0; ścieżka lekka; sonnet
+- 2026-10-16 — scalone do `main` (PR #80, squash), status done (orkiestrator)
