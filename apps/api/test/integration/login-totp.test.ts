@@ -365,6 +365,47 @@ describe('limits and secrets (EVM-023 AC8; SR-API-02, SR-LOG-02; B6, C6)', () =>
     expect((await post(SECOND_STEP.loginRecoveryCode, { loginToken: token, code: 'ABCDEFGHIJKLMNOPQRST' })).status).toBe(429);
   });
 
+  it('EVM-023 AC8 B6 the setup, the confirmation and the step-up with a code count in the same bucket: the 21st request within a minute is 429, from the first state of the answer', async () => {
+    const account = await totpAccount(current);
+    nextStep(current);
+    for (let attempt = 1; attempt <= 20; attempt += 1) {
+      const response = await account.panel.post(SECOND_STEP.stepUp, { method: 'totp', code: '12345' }); // refused by the schema: no failure counted on the session
+      expect(response.status, `${attempt}`).toBe(400);
+    }
+    const limited = await account.panel.post(SECOND_STEP.stepUp, { method: 'totp', code: '12345' });
+    expect(limited.status).toBe(429);
+    expect(limited.headers['retry-after']).toBeDefined();
+    // the confirmation of the setup shares the bucket (a session in the enrolment is checked the same way)
+    const confirmation = await account.panel.post(SECOND_STEP.confirm, { code: '12345' });
+    expect(confirmation.status).toBe(429);
+    current.clock.advance(61_000);
+    expect((await account.panel.post(SECOND_STEP.stepUp, { method: 'totp', code: '12345' })).status).toBe(400);
+  });
+
+  it('EVM-023 AC1 SR-CRYPTO-02 a sealed secret that does not open is an error of the server (500, no detail), never a wrong code and never a session', async () => {
+    const account = await totpAccount(current);
+    await sql`update identity.totp_factors set secret_ciphertext = set_byte(secret_ciphertext, 40, get_byte(secret_ciphertext, 40) # 1) where user_id = ${account.user.id}`.execute(
+      current.database.admin,
+    );
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const before = (await sessionsOf(account.user.id)).length;
+    const response = await sendLoginTotp(panel, loginToken, codeNow(current, account.secret));
+    expect(response.status).toBe(500);
+    expect(response.body).toMatchObject({ code: 'internal_error' });
+    expect(JSON.stringify(response.body)).not.toMatch(/field encryption|ciphertext|totp/i);
+    expect((await sessionsOf(account.user.id)).length).toBe(before);
+    // the same account in another account's envelope: a ciphertext copied between accounts does not open either
+    const other = await totpAccount(current);
+    await sql`
+      update identity.totp_factors set secret_ciphertext = (select secret_ciphertext from identity.totp_factors where user_id = ${other.user.id})
+      where user_id = ${account.user.id}`.execute(current.database.admin);
+    nextStep(current);
+    const again = current.panel();
+    const second = await sendLoginTotp(again, await startLogin(again, account), codeNow(current, other.secret));
+    expect(second.status).toBe(500);
+  });
+
   it('EVM-023 AC1 AC2 C6 neither the key, nor a code, nor the loginToken reach the log, the audit trail or the outbox', async () => {
     const account = await totpAccount(current);
     const panel = current.panel();
