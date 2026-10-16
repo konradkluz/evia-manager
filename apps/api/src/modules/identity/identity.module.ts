@@ -15,6 +15,8 @@ import { LoginFailures } from './application/login-failures.ts';
 import { LoginPasskeyService } from './application/login-passkey.service.ts';
 import { LoginService } from './application/login.service.ts';
 import { PasskeyService } from './application/passkey.service.ts';
+import { PasswordEmailComposer } from './application/password-email.composer.ts';
+import { PasswordResetService } from './application/password-reset.service.ts';
 import { PasswordSetting } from './application/password-setting.ts';
 import { SessionService } from './application/session.service.ts';
 import { StepUpService } from './application/step-up.service.ts';
@@ -34,6 +36,8 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
     LoginPasskeyService,
     LoginService,
     PasskeyService,
+    PasswordEmailComposer,
+    PasswordResetService,
     PasswordSetting,
     SessionService,
     StepUpService,
@@ -51,6 +55,6 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
         new SimpleWebAuthnPasskeys({ rpId: config.webauthn.rpId, rpName: config.webauthn.rpName, origin: config.panelOrigin }),
     },
   ],
-  exports: [SessionService, AdministratorBootstrap, UserDirectory, InvitationEmailComposer],
+  exports: [SessionService, AdministratorBootstrap, UserDirectory, InvitationEmailComposer, PasswordEmailComposer],
 })
 export class IdentityModule {}

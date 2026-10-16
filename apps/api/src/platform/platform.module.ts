@@ -17,6 +17,7 @@ import { IDEMPOTENCY, PgIdempotency } from './idempotency/idempotency.ts';
 import { IDEMPOTENCY_PURGER, PgIdempotencyPurger } from './idempotency/idempotency-purger.ts';
 import { PurgeIdempotencyJob } from './idempotency/purge-idempotency.job.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
+import { TimerSleeper } from './http/response-floor.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
@@ -35,6 +36,7 @@ import {
   LOGGER,
   METRICS,
   SECURITY_ALERT_EMITTER,
+  SLEEPER,
 } from './tokens.ts';
 import { runInTransaction } from './database/transactional.ts';
 
@@ -56,6 +58,7 @@ export class PlatformModule {
         { provide: LOGGER, useValue: logger },
         { provide: APP_FILTER, useClass: ProblemFilter },
         { provide: CLOCK, useClass: SystemClock },
+        { provide: SLEEPER, useClass: TimerSleeper },
         { provide: EVENT_BUS, useValue: new EventBus() },
         { provide: METRICS, useValue: new MetricsRegistry() },
         {
@@ -103,6 +106,7 @@ export class PlatformModule {
         APP_CONFIG,
         LOGGER,
         CLOCK,
+        SLEEPER,
         EVENT_BUS,
         METRICS,
         RATE_LIMITER,

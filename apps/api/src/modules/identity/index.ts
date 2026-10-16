@@ -2,6 +2,7 @@
 export { IdentityModule } from './identity.module.ts';
 export { SessionService } from './application/session.service.ts';
 export { InvitationEmailComposer } from './application/invitation-email.composer.ts';
+export { PasswordEmailComposer } from './application/password-email.composer.ts';
 export { UserDirectory, DISPLAY_NAMES_BATCH_LIMIT, type UserSummary } from './application/user-directory.ts';
 export { AdministratorBootstrap, type BootstrapRequest, type BootstrapResult } from './application/administrator-bootstrap.service.ts';
 export { channelAllowedForRole } from './domain/channel-rules.ts';

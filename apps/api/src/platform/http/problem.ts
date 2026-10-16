@@ -12,6 +12,7 @@ export const PROBLEMS = Object.freeze({
   duplicate_parameter: { status: 400, title: 'Duplicate query parameter' },
   unknown_parameter: { status: 400, title: 'Unknown query parameter' },
   activation_link_invalid: { status: 400, title: 'Activation link is invalid or expired' },
+  password_reset_link_invalid: { status: 400, title: 'Password reset link is invalid or expired' },
   passkey_verification_failed: { status: 400, title: 'Passkey verification failed' },
   unauthenticated: { status: 401, title: 'Authentication required' },
   invalid_credentials: { status: 401, title: 'Invalid email or password' },

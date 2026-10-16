@@ -22,6 +22,10 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   // EVM-024: only the labels the contract needs (the screen W-16 itself is a story of the panel)
   'user.invited': 'Zaproszenie użytkownika',
   'invitation.resent': 'Ponowne wysłanie zaproszenia',
+  // EVM-025: labels the contract needs (the reset screens W-12 are a story of the panel)
+  'password.reset_requested': 'Prośba o reset hasła',
+  'password_reset_link.issued': 'Wydanie linku do resetu hasła',
+  'password.reset': 'Reset hasła',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -82,6 +86,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   {
     label: 'Użytkownicy',
     actions: ['user.invited', 'invitation.resent', 'activation_link.issued', 'account.activated', 'account.emergency_reset'],
+  },
+  {
+    label: 'Reset hasła',
+    actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
@@ -156,6 +164,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
 export const SYSTEM_ACTIONS: ReadonlySet<string> = new Set<AuditAction>([
   'activation_link.issued',
+  'password_reset_link.issued',
   'session.expired',
   'account.emergency_reset',
 ]);

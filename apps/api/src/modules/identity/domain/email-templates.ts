@@ -125,3 +125,70 @@ export function alertText(input: AlertTextInput): EmailText {
     ].join('\n'),
   };
 }
+
+/** W-12 (the page a reset link leads to; the token is in the fragment) and the "Zresetuj hasło" form of W-01 (no token): paths of the panel. */
+export const RESET_PATH = '/reset-password';
+export const RESET_FORM_PATH = '/login/reset';
+
+/** The one-time link of a password reset: the token only in the fragment. */
+export const passwordResetLink = (panelOrigin: string, token: string): string => `${panelOrigin}${RESET_PATH}#${token}`;
+
+/** "10:30" in the business zone — the end of the validity of a reset link (e-maile.md, rule 6). */
+const formatWarsawTime = (instant: Date): string => formatWarsaw(instant).split(', ')[1] ?? '';
+
+export interface PasswordResetTextInput {
+  readonly panelOrigin: string;
+  /** The link with the token (see {@link passwordResetLink}). */
+  readonly link: string;
+  readonly expiresAt: Date;
+}
+
+/** E-mail 2 (the link to set a new password): only the link, its validity and the footer — no name, no address (SR-INPUT-07). */
+export function passwordResetText(input: PasswordResetTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: link do ustawienia nowego hasła',
+    text: [
+      'Dzień dobry,',
+      '',
+      'otrzymaliśmy prośbę o ustawienie nowego hasła do konta w EVia Manager.',
+      '',
+      'Aby ustawić nowe hasło, otwórz link:',
+      input.link,
+      '',
+      `Link jest jednorazowy i ważny 30 minut — do ${formatWarsawTime(input.expiresAt)}.`,
+      'Po ustawieniu hasła zakończymy wszystkie sesje konta, a logowanie',
+      'potwierdzisz drugim krokiem.',
+      '',
+      'Jeśli ta prośba nie pochodzi od Ciebie, zignoruj tę wiadomość —',
+      'hasło się nie zmieni.',
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface PasswordChangedTextInput {
+  readonly panelOrigin: string;
+  readonly changedAt: Date;
+}
+
+/** E-mail 4, the variant "after a reset with a link": the time, the sessions that ended, a link to the reset form without a token. */
+export function passwordChangedText(input: PasswordChangedTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: hasło zostało zmienione',
+    text: [
+      'Dzień dobry,',
+      '',
+      `hasło do konta w EVia Manager zostało zmienione ${formatWarsaw(input.changedAt)}.`,
+      '',
+      'Zakończyliśmy wszystkie sesje konta.',
+      '',
+      'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}

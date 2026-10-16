@@ -26,3 +26,11 @@ export const LOGIN_ATTEMPT_RETENTION_MS = 24 * HOUR;
 export const ADMINISTRATOR_LOCK_KEY = 7_016_001;
 
 export const SESSION_COOKIE_NAME = '__Host-evia_session';
+
+/** Password reset link: valid 30 minutes from the SENDING (SR-AUTH-11; P2) — measured in real time like the activation link. */
+export const PASSWORD_RESET_LINK_TTL_MS = 30 * MINUTE;
+/** A person can ask for a reset link at most once per minute and five times per hour per account (a flood of one mailbox — K7, D5). */
+export const PASSWORD_RESET_MIN_INTERVAL_MS = MINUTE;
+export const PASSWORD_RESET_HOURLY_LIMIT = 5;
+/** The response of a request for a reset link never comes sooner than this after the start of the request (CWE-208; a floor, not a guarantee). */
+export const PASSWORD_RESET_RESPONSE_FLOOR_MS = 250;

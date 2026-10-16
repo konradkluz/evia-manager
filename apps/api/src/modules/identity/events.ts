@@ -14,6 +14,10 @@ export const IDENTITY_EVENT_TYPES = [
   // EVM-024: an Administrator invited a person / sent the invitation again (no address, no name — the trail cannot be erased).
   'user.invited',
   'invitation.resent',
+  // EVM-025: a reset link was asked for / issued by the worker / used to set a new password (no address, no name, no token).
+  'password.reset_requested',
+  'password_reset_link.issued',
+  'password.reset',
   'session.created',
   'session.revoked',
   'session.expired',
@@ -47,6 +51,8 @@ export const REASON_CODES = [
   'expired',
   // The deletion of a work order that needed a fresh step-up (EVM-060): the audit record says it was there, never why or what.
   'step_up_verified',
+  // Every session of the account ended because the password was reset (EVM-025 AC5; SR-AUTH-15).
+  'password_reset',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

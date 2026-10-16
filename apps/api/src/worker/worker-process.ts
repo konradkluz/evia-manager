@@ -16,7 +16,7 @@ import 'reflect-metadata';
 import type { Writable } from 'node:stream';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.ts';
-import { InvitationEmailComposer } from '../modules/identity/index.ts';
+import { InvitationEmailComposer, PasswordEmailComposer } from '../modules/identity/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import type { Kysely } from 'kysely';
@@ -76,7 +76,7 @@ export async function runWorkerFromProcess(
 
     if (config.email.transport === 'smtp') {
       const sender = wiring.createEmailSender?.(config.email) ?? new SmtpEmailSender(config.email);
-      const composers = [app.get(InvitationEmailComposer, { strict: false })];
+      const composers = [app.get(InvitationEmailComposer, { strict: false }), app.get(PasswordEmailComposer, { strict: false })];
       jobs.push(new SendEmailJob({ db, clock, logger, sender, composers }).definition());
       const relay = new EmailRelay(db, queue, clock, logger);
       tasks.push({ start: () => relay.start(wiring.relayIntervalMs) });

@@ -13,6 +13,7 @@ export interface LinkRecord {
   readonly displayName: string;
   readonly role: UsersTable['role'];
   readonly userStatus: UsersTable['status'];
+  readonly userDeleted: boolean;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
   readonly supersededAt: Date | null;
@@ -22,8 +23,28 @@ export interface LinkRecord {
 export const isLinkUsable = (link: LinkRecord, now: Date): boolean =>
   link.usedAt === null && link.supersededAt === null && link.expiresAt > now && link.userStatus === 'invited';
 
-/** One query by the unique hash — the same work for every outcome (unknown, used, expired, superseded). */
-export async function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LinkRecord | undefined> {
+/**
+ * A reset link opens a password reset only while it is unused, not superseded, not expired and its account is still ACTIVE and not deleted
+ * (an invited account has no password to forget, a deactivated one must not come back this way — EVM-025 AC2).
+ */
+export const isResetLinkUsable = (link: LinkRecord, now: Date): boolean =>
+  link.usedAt === null && link.supersededAt === null && link.expiresAt > now && link.userStatus === 'active' && !link.userDeleted;
+
+/** One query by the unique hash — the same work for every outcome (unknown, used, expired, superseded). Activation links only. */
+export function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LinkRecord | undefined> {
+  return findLinkOfPurpose(db, 'account_activation', tokenHash, lock);
+}
+
+/**
+ * The link of a hash AND a purpose: the purpose is part of the condition, so a link of one kind never opens the route of the other
+ * (EVM-025 K4; CWE-639). One query, the same work for every outcome.
+ */
+export async function findLinkOfPurpose(
+  db: IdentityDb,
+  purpose: OneTimeLinksTable['purpose'],
+  tokenHash: Buffer,
+  lock: boolean = false,
+): Promise<LinkRecord | undefined> {
   let query = db
     .selectFrom('identity.one_time_links as l')
     .innerJoin('identity.users as u', 'u.id', 'l.user_id')
@@ -34,14 +55,18 @@ export async function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, loc
       'u.display_name as displayName',
       'u.role',
       'u.status as userStatus',
+      'u.deleted_at as userDeletedAt',
       'l.expires_at as expiresAt',
       'l.used_at as usedAt',
       'l.superseded_at as supersededAt',
     ])
     .where('l.token_hash', '=', tokenHash)
-    .where('l.purpose', '=', 'account_activation');
+    .where('l.purpose', '=', purpose);
   if (lock) query = query.forUpdate();
-  return query.executeTakeFirst();
+  const row = await query.executeTakeFirst();
+  if (row === undefined) return undefined;
+  const { userDeletedAt, ...link } = row;
+  return { ...link, userDeleted: userDeletedAt !== null };
 }
 
 export interface SessionRecord {
@@ -630,4 +655,65 @@ export async function findLatestLink(db: IdentityDb, userId: string) {
     .orderBy('id', 'desc')
     .limit(1)
     .executeTakeFirst();
+}
+
+/** Stores the hash of a password reset link (issued by the worker when it sends the e-mail; `issued_by: password_reset`). @returns the id of the link */
+export async function insertResetLink(
+  db: IdentityDb,
+  link: { userId: string; tokenHash: Buffer; issuedAt: Date; expiresAt: Date },
+): Promise<string> {
+  const row = await db
+    .insertInto('identity.one_time_links')
+    .values({
+      user_id: link.userId,
+      purpose: 'password_reset',
+      token_hash: link.tokenHash,
+      issued_by: 'password_reset',
+      issued_at: link.issuedAt,
+      expires_at: link.expiresAt,
+      used_at: null,
+      superseded_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return row.id;
+}
+
+/**
+ * Supersedes the unused, not yet superseded RESET links of ONE account (a newer link replaces the older ones). Both filters — the account and
+ * the purpose — are the point: a reset never ends an activation link, and never the link of another person (EVM-025 K4; CWE-639).
+ */
+export async function supersedeOpenResetLinksOfUser(db: IdentityDb, userId: string, now: Date): Promise<string[]> {
+  const rows = await db
+    .updateTable('identity.one_time_links')
+    .set({ superseded_at: now })
+    .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .where('superseded_at', 'is', null)
+    .where('purpose', '=', 'password_reset')
+    .returning('id')
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/** Spends a link (single use) conditionally; @returns false when it was already used. */
+export async function markLinkUsed(db: IdentityDb, linkId: string, now: Date): Promise<boolean> {
+  const row = await db
+    .updateTable('identity.one_time_links')
+    .set({ used_at: now })
+    .where('id', '=', linkId)
+    .where('used_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
+/** Ends every open first step of the account (a `loginToken` made before a reset must not finish a sign-in after it). */
+export async function revokeLoginAttemptsOfUser(db: IdentityDb, userId: string, now: Date): Promise<void> {
+  await db
+    .updateTable('identity.login_attempts')
+    .set({ used_at: now })
+    .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .execute();
 }

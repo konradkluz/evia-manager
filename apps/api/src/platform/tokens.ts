@@ -11,3 +11,4 @@ export const CURSOR_CODEC = Symbol('CURSOR_CODEC');
 export const BULK_READ_METER = Symbol('BULK_READ_METER');
 export const DISTINCT_READ_METER = Symbol('DISTINCT_READ_METER');
 export const BULK_READ_CONTROL = Symbol('BULK_READ_CONTROL');
+export const SLEEPER = Symbol('SLEEPER');

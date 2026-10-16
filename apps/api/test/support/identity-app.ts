@@ -7,7 +7,8 @@ import type { ModuleMetadata } from '@nestjs/common';
 import type { TestingModuleBuilder } from '@nestjs/testing';
 import { sql } from 'kysely';
 import { BREACHED_PASSWORD_CHECK, type BreachedPasswordCheck, type BreachResult } from '../../src/modules/identity/infrastructure/ports.ts';
-import { CLOCK } from '../../src/platform/tokens.ts';
+import type { Sleeper } from '../../src/platform/http/response-floor.ts';
+import { CLOCK, SLEEPER } from '../../src/platform/tokens.ts';
 import { migratedDatabase, type MigratedDatabase } from '../integration/database.ts';
 import { createTestApp, PANEL_ORIGIN, type TestApp } from './app.ts';
 import { FixedClock } from './clock.ts';
@@ -25,6 +26,16 @@ export class FakeBreachedPasswords implements BreachedPasswordCheck {
   }
 }
 
+/** Records the waits the app asks for and returns at once (no test waits for the floor of a response). */
+export class RecordingSleeper implements Sleeper {
+  readonly slept: number[] = [];
+
+  sleep(milliseconds: number): Promise<void> {
+    this.slept.push(milliseconds);
+    return Promise.resolve();
+  }
+}
+
 interface Row {
   row: string;
 }
@@ -33,6 +44,7 @@ export interface IdentityApp extends TestApp {
   readonly database: MigratedDatabase;
   readonly clock: FixedClock;
   readonly breaches: FakeBreachedPasswords;
+  readonly sleeper: RecordingSleeper;
   /** A browser of the panel talking to this API. */
   panel(): PanelClient;
   /** An invited Administrator with an unused activation link (what the server command leaves behind). */
@@ -57,11 +69,18 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
   const database = options.database ?? (await migratedDatabase());
   const clock = new FixedClock(options.now ?? ISSUED_AT);
   const breaches = new FakeBreachedPasswords();
+  const sleeper = new RecordingSleeper();
   const app = await createTestApp({
     env: { DATABASE_URL: database.appUrl, ...options.env },
     ...(options.imports === undefined ? {} : { imports: options.imports }),
     configure: (builder) => {
-      const base = builder.overrideProvider(CLOCK).useValue(clock).overrideProvider(BREACHED_PASSWORD_CHECK).useValue(breaches);
+      const base = builder
+        .overrideProvider(CLOCK)
+        .useValue(clock)
+        .overrideProvider(BREACHED_PASSWORD_CHECK)
+        .useValue(breaches)
+        .overrideProvider(SLEEPER)
+        .useValue(sleeper);
       return options.configure === undefined ? base : options.configure(base);
     },
   });
@@ -70,6 +89,7 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
     database,
     clock,
     breaches,
+    sleeper,
     panel: () => new PanelClient(app.app.getHttpServer(), PANEL_ORIGIN),
     pendingAdministrator: async ({ email, ttlMs }: { email?: string; ttlMs?: number } = {}) => {
       const user = await createUser(database.admin, clock, {

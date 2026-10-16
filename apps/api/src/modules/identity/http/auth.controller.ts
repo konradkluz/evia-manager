@@ -6,6 +6,9 @@
 import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import {
   zCheckActivationLinkRequest,
+  zCheckPasswordResetLinkRequest,
+  zCompletePasswordResetRequestWritable,
+  zRequestPasswordResetRequest,
   zLoginPasskeyOptionsRequest,
   zLoginRequestWritable,
   zRegisterPasskeyRequest,
@@ -18,6 +21,9 @@ import type {
   ActivationPasswordResult,
   CurrentSession,
   LoginResult,
+  LoginSecondStep,
+  PasswordResetLinkInfo,
+  PasswordResetRequested,
   Passkey,
   PasskeyAuthenticationOptions,
   PasskeyRegistrationOptions,
@@ -39,12 +45,16 @@ import { ActivationService, type ClientInfo } from '../application/activation.se
 import { LoginPasskeyService } from '../application/login-passkey.service.ts';
 import { LoginService } from '../application/login.service.ts';
 import { PasskeyService } from '../application/passkey.service.ts';
+import { PasswordResetService } from '../application/password-reset.service.ts';
 import { SessionService } from '../application/session.service.ts';
 import { StepUpService } from '../application/step-up.service.ts';
 import { clearedSessionCookie, readSessionCookie, sessionCookie } from './session-cookie.ts';
 
 const checkLinkBody = strictObjects(zCheckActivationLinkRequest);
 const setPasswordBody = strictObjects(zSetActivationPasswordRequestWritable);
+const requestResetBody = strictObjects(zRequestPasswordResetRequest);
+const checkResetBody = strictObjects(zCheckPasswordResetLinkRequest);
+const completeResetBody = strictObjects(zCompletePasswordResetRequestWritable);
 const registerPasskeyBody = strictObjects(zRegisterPasskeyRequest);
 const loginBody = strictObjects(zLoginRequestWritable);
 const loginOptionsBody = strictObjects(zLoginPasskeyOptionsRequest);
@@ -78,6 +88,7 @@ export class AuthController {
   readonly #logins: LoginService;
   readonly #passkeyLogins: LoginPasskeyService;
   readonly #passkeys: PasskeyService;
+  readonly #passwordResets: PasswordResetService;
   readonly #sessions: SessionService;
   readonly #stepUps: StepUpService;
 
@@ -86,6 +97,7 @@ export class AuthController {
     @Inject(LoginService) logins: LoginService,
     @Inject(LoginPasskeyService) passkeyLogins: LoginPasskeyService,
     @Inject(PasskeyService) passkeys: PasskeyService,
+    @Inject(PasswordResetService) passwordResets: PasswordResetService,
     @Inject(SessionService) sessions: SessionService,
     @Inject(StepUpService) stepUps: StepUpService,
   ) {
@@ -93,6 +105,7 @@ export class AuthController {
     this.#logins = logins;
     this.#passkeyLogins = passkeyLogins;
     this.#passkeys = passkeys;
+    this.#passwordResets = passwordResets;
     this.#sessions = sessions;
     this.#stepUps = stepUps;
   }
@@ -117,6 +130,41 @@ export class AuthController {
     const session = await this.#activation.setPassword(token, password, clientOf(request, response));
     response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
     return { csrfToken: session.csrfToken };
+  }
+
+  /** Always 202 with an empty object (AC1): what the service did is not the answer. */
+  @Post('/api/v1/auth/password-reset/request')
+  @OperationId('requestPasswordReset')
+  @HttpCode(202)
+  async requestPasswordReset(
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PasswordResetRequested> {
+    const { email } = parseInput(requestResetBody, body) as { email: string };
+    await this.#passwordResets.request(email, clientOf(request, response));
+    return {};
+  }
+
+  @Post('/api/v1/auth/password-reset/check')
+  @OperationId('checkPasswordResetLink')
+  @HttpCode(200)
+  checkPasswordResetLink(@Body() body: unknown): Promise<PasswordResetLinkInfo> {
+    const { token } = parseInput(checkResetBody, body) as { token: string };
+    return this.#passwordResets.check(token);
+  }
+
+  /** No cookie and no session: the answer is the first step of a sign-in (AC4). */
+  @Post('/api/v1/auth/password-reset/complete')
+  @OperationId('completePasswordReset')
+  @HttpCode(200)
+  completePasswordReset(
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<LoginSecondStep> {
+    const { token, password } = parseInput(completeResetBody, body) as { token: string; password: string };
+    return this.#passwordResets.complete(token, password, clientOf(request, response));
   }
 
   @Post('/api/v1/auth/login')
