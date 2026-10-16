@@ -4,7 +4,7 @@ title: Zaproszenie użytkownika i aktywacja konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -128,10 +128,10 @@ Decyzje orkiestratora i wykonawcy podjęte bez Konrada (kolejka 2026-10-16) — 
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-024 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook kolejki e-mail)
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-024 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane (runbook kolejki e-mail)
 - [ ] Demo lokalne (zaproszenie widoczne w Mailpit, aktywacja konta) i akceptacja użytkownika; demo na staging — EVM-089
 
 ## Dziennik
@@ -148,3 +148,7 @@ _—_
 - 2026-10-16 — implementacja backendu (backend-developer): AC1–AC8 po stronie API i workera z testami integracyjnymi (PostgreSQL, kontener `backend-tests`); decyzje D1–D12 do potwierdzenia na demo; panel (W-16, W-13, W-04) — web-developer
 - 2026-10-16 — implementacja panelu (web-developer): W-16 (lista, "Zaproś użytkownika", "Wyślij ponownie", "Nie wysłano", zakładki Administracji), W-04 z tytułami, testy komponentów i E2E (Chromium, Edge, Firefox), axe i zrzuty 360/768/1280/1440 w docs/ux/reviews/EVM-024; bez kolumny "Ostatnie logowanie" i linku do Konta (brak w kontrakcie / W-15 — EVM-027, EVM-028)
 - 2026-10-16 — bramka lokalna (`pnpm run gate`) zielona: testy natywne i kontener Linux, integracja z PostgreSQL, pokrycie zmienionego kodu 98,5% linii / 94,3% gałęzi (devops-engineer)
+- 2026-10-16 — workflow `deliver-story` (pełna): `passed` po 1 rundzie, APPROVE: code-reviewer, security-engineer, ux-designer; bramka `pnpm run gate` zielona (orkiestrator, 13:17), `docs:check` 0/0; status → in-review (demo lokalne z Mailpit i akceptacja — następna sesja z Konradem)
+- Notatki (minor/nit z przeglądów): wiersz outboxa może utknąć w `pending` po wyczerpaniu ponowień pg-boss bez zapisu stanu; lista użytkowników nie odświeża się sama przy „Wysyłanie…”; brak „Wyślij ponownie” dla `sent` z ważnym linkiem do czasu EVM-027; ważny, niedostarczony link zostaje po `failed` (do 72 h); audyt zdarzeń workera ma `origin: 'cli'`; brak limitu ponownego wysyłania per odbiorca (tylko 300/min na użytkownika); powód wyłączenia „Wyślij ponownie” offline tylko w `title`; tabela 768 px łamie adres e-mail; AC3 — test wycieku tokenu nie obejmuje logów Caddy i Sentry; `GuardedEmailSender` bez użycia produkcyjnego do EVM-089; 3 testy Playwright pominięte w specyfikacji zaproszeń (do wyjaśnienia)
+- Ryzyka rezydualne security (do decyzji Konrada): licencja `nodemailer` 10.1.1 to MIT-0 (nie ma jej na liście ALLOWED_LICENSES) — wyjątek serwerowy w `.trivyignore.yaml` (≤ 90 dni); trwałe dopisanie MIT-0 do listy to decyzja Konrada
+- 2026-10-16 — Koszt: 10 agentów, ok. 1,69 mln tokenów podagentów, 613 wywołań narzędzi, ok. 4,1 h (równolegle z wątkiem B); porównanie z baseline EVM-013 — do uzupełnienia na demo
