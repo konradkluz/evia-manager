@@ -27,12 +27,16 @@ import {
 class CountingHasher implements PasswordHasher {
   readonly real = new Argon2PasswordHasher();
   verifications = 0;
+  /** Runs while a verification is under way — the moment the world can change between the first look at the token and the decision. */
+  during: (() => void) | undefined;
   hash(password: string): Promise<string> {
     return this.real.hash(password);
   }
-  verify(hash: string, password: string): Promise<boolean> {
+  async verify(hash: string, password: string): Promise<boolean> {
     this.verifications += 1;
-    return this.real.verify(hash, password);
+    const result = await this.real.verify(hash, password);
+    this.during?.();
+    return result;
   }
 }
 
@@ -328,6 +332,49 @@ describe('sign-in with a recovery code (EVM-023 AC5; SR-AUTH-08, SR-AUTH-15)', (
     );
     expect((await codeRows(account.user.id)).filter((row) => row.used_at !== null)).toHaveLength(1);
     expect(await audit('login.recovery_code_used')).toHaveLength(1);
+  });
+
+  it('EVM-023 AC5 C2 a loginToken that ran out while the hashes were computed is refused at the decision: no session, the code stays unused', async () => {
+    const account = await totpAccount(current, { withCodes: true });
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    hasher.during = () => {
+      current.clock.advance(5 * 60_000 + 1);
+    };
+    const response = await sendLoginRecoveryCode(panel, loginToken, account.codes[0] ?? '');
+    hasher.during = undefined;
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ code: 'unauthenticated' });
+    expect((await codeRows(account.user.id)).every((row) => row.used_at === null)).toBe(true);
+  });
+
+  it('EVM-023 AC5 C2 an account deactivated while the hashes were computed gets no session and the code is not spent (the whole decision is rolled back)', async () => {
+    const account = await totpAccount(current, { withCodes: true });
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const deactivate = sql`update identity.users set status = 'deactivated', deactivated_at = ${current.clock.now()} where id = ${account.user.id}`;
+    let done: Promise<unknown> | undefined;
+    hasher.during = () => {
+      done = deactivate.execute(current.database.admin);
+    };
+    const response = await sendLoginRecoveryCode(panel, loginToken, account.codes[0] ?? '');
+    hasher.during = undefined;
+    await done;
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ code: 'unauthenticated' });
+    expect((await codeRows(account.user.id)).every((row) => row.used_at === null)).toBe(true);
+  });
+
+  it('EVM-023 AC5 C2 the same loginToken used at the same moment with two different codes gives one session: the second finds the attempt spent and its code stays unused', async () => {
+    const account = await totpAccount(current, { withCodes: true });
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const results = await Promise.all([
+      sendLoginRecoveryCode(panel, loginToken, account.codes[0] ?? ''),
+      sendLoginRecoveryCode(panel, loginToken, account.codes[1] ?? ''),
+    ]);
+    expect(results.map((response) => response.status).sort()).toEqual([200, 401]);
+    expect((await codeRows(account.user.id)).filter((row) => row.used_at !== null)).toHaveLength(1);
   });
 
   it('EVM-023 AC5 a code of another account does not sign in anyone: the account is the one of the loginToken', async () => {

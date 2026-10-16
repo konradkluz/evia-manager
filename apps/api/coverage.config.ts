@@ -10,6 +10,8 @@
 export const DATABASE_BOUND: readonly string[] = [
   'src/modules/identity/application/**/*.ts',
   'src/modules/identity/infrastructure/queries.ts',
+  // EVM-023: the conditional UPDATEs of the TOTP factor and of the recovery codes (single use, replay guard) — SQL against PostgreSQL
+  'src/modules/identity/infrastructure/mfa-queries.ts',
   'src/modules/identity/infrastructure/tables.ts',
   'src/modules/identity/http/auth.controller.ts',
   'src/modules/identity/http/users.controller.ts',

@@ -127,6 +127,30 @@ describe('sign-in with a code of the app (EVM-023 AC2; SR-AUTH-07, SR-AUTH-06)',
     expect(spent.body).toMatchObject({ code: 'unauthenticated' });
   });
 
+  it('EVM-023 AC2 the same loginToken used at the same moment with the codes of two steps gives one session: the second finds the attempt spent', async () => {
+    const account = await totpAccount(current);
+    const panel = current.panel();
+    const loginToken = await startLogin(panel, account);
+    const before = (await sessionsOf(account.user.id)).length;
+    const results = await Promise.all([
+      sendLoginTotp(panel, loginToken, codeNow(current, account.secret, 0)),
+      sendLoginTotp(panel, loginToken, codeNow(current, account.secret, 1)),
+    ]);
+    expect(results.map((response) => response.status).sort()).toEqual([200, 401]);
+    expect((await sessionsOf(account.user.id)).length).toBe(before + 1);
+  });
+
+  it('EVM-023 AC2 an account with no active code of the app (it only has a passkey) gets 401 totp_failed and the failure is counted: nothing tells it from a wrong code', async () => {
+    const account = await enrolledAccount(current, { role: 'editor' });
+    const panel = current.panel();
+    const first = await firstStep(panel, account.email, account.password);
+    const { loginToken } = first.body as { loginToken: string };
+    const response = await sendLoginTotp(panel, loginToken, '123456');
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ code: 'totp_failed' });
+    expect(await failures()).toEqual([{ reason_code: 'totp_failed', actor_user_id: account.user.id }]);
+  });
+
   it('EVM-023 AC2 the cookie of an earlier session of the browser is replaced (rotation), exactly like after a key', async () => {
     const account = await totpAccount(current);
     const panel = account.panel; // still holds the session of the enrolment

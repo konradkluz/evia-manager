@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { totpAllowedForRole } from '../../src/modules/identity/domain/channel-rules.ts';
 import {
   newRecoveryCode,
   newRecoveryCodes,
@@ -96,5 +97,16 @@ describe('recovery codes (EVM-023 AC4, AC5; SR-AUTH-08)', () => {
     const code = newRecoveryCode();
     for (const value of ['', code.slice(1), `${code}A`, `${code.slice(1)}1`, `${code.slice(1)}0`, `${code.slice(1)}ı`, `${code.slice(1)}!`])
       expect(normalizeRecoveryCode(value), value).toBeUndefined();
+  });
+});
+
+describe('who may use a code of the app where (EVM-023 AC3; P1)', () => {
+  it('EVM-023 AC3 the Administrator has no code of the app in the panel (a code is phishable); on the mobile channel they do, and every other role has it on both', () => {
+    expect(totpAllowedForRole('administrator', 'web')).toBe(false);
+    expect(totpAllowedForRole('administrator', 'mobile')).toBe(true);
+    for (const role of ['editor', 'read_only'] as const) {
+      expect(totpAllowedForRole(role, 'web'), role).toBe(true);
+      expect(totpAllowedForRole(role, 'mobile'), role).toBe(true);
+    }
   });
 });

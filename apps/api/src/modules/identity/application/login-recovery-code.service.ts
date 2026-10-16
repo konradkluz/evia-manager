@@ -81,9 +81,9 @@ export class LoginRecoveryCodeService {
     const code = normalizeRecoveryCode(body.code);
     const matched = code === undefined ? undefined : await this.#match(candidates.codes, code);
 
-    // 4. One transaction decides.
+    // 4. One transaction decides — at the instant of the decision (the hashes took time: a token that ran out meanwhile is no first step).
     const outcome = await runInTransaction(this.#db, (transaction) =>
-      this.#finish(transaction, body.loginToken, matched, client, previousSessionToken, now),
+      this.#finish(transaction, body.loginToken, matched, client, previousSessionToken, this.#clock.now()),
     );
     if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
     return outcome;
