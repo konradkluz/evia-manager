@@ -43,7 +43,7 @@ function fakeHost(overrides = {}) {
         return true;
       },
     },
-    readFile: () => 'CURSOR_KEY=zzkey\nOTHER=1\n',
+    readFile: () => 'CURSOR_KEY=zzkey\nFIELD_ENCRYPTION_KEYS=k1:yykey\nOTHER=1\n',
     spawn: (/** @type {string} */ command, /** @type {string[]} */ args, /** @type {Record<string, unknown>} */ options) => {
       calls.spawn.push({ command, args, options });
       /** @type {EventEmitter & { stderr?: EventEmitter | null }} */
@@ -124,12 +124,15 @@ describe('EVM-077 AC2: wiring to the process', () => {
     assert.deepEqual(call.args, ['compose', '-f', 'compose.dev.yaml', 'down']);
     assert.equal(call.options['cwd'], ROOT);
     assert.equal(/** @type {Record<string, string>} */ (call.options['env'])['CURSOR_KEY'], 'zzkey');
+    assert.equal(/** @type {Record<string, string>} */ (call.options['env'])['FIELD_ENCRYPTION_KEYS'], 'k1:yykey');
     assert.ok(!JSON.stringify(call.args).includes('zzkey'));
+    assert.ok(!JSON.stringify(call.args).includes('yykey'));
     const noKey = fakeHost({ readFile: () => 'OTHER=1' });
     await processDeps(ROOT, noKey.host).docker('down');
     const [second] = noKey.calls.spawn;
     assert.ok(second);
     assert.equal('CURSOR_KEY' in /** @type {Record<string, string>} */ (second.options['env']), false);
+    assert.equal('FIELD_ENCRYPTION_KEYS' in /** @type {Record<string, string>} */ (second.options['env']), false);
   });
 
   it('EVM-077 AC2: builds the tools with the compiler of the API workspace, in that directory, with the given environment', () => {

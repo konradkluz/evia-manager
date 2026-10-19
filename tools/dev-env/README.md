@@ -6,7 +6,7 @@ Działa **bez instalacji zależności** (tylko `node:*`). Polecenia (`node tools
 
 | Skrypt | Polecenie | Co robi |
 |---|---|---|
-| `dev:init` | `init` | tworzy `.env` z `.env.example` z losowym `CURSOR_KEY` (flaga `wx` — nigdy nie nadpisuje; wartość nie jest wypisywana) |
+| `dev:init` | `init` | tworzy `.env` z `.env.example` z losowymi `CURSOR_KEY` i `FIELD_ENCRYPTION_KEYS=k1:<klucz>` (EVM-023; osobne losowania; flaga `wx` — nigdy nie nadpisuje; wartości nie są wypisywane). Oba klucze trafiają do kontenera `api` samą nazwą w `compose.dev.yaml`. Istniejący `.env` bez `FIELD_ENCRYPTION_KEYS`: dopisz wiersz ręcznie (`.env.example`) albo usuń `.env` i uruchom `dev:init` (bez `FIELD_ENCRYPTION_KEYS` konfiguracja kodu z aplikacji zwraca 503) |
 | `dev` | `dev` | terminal → `.env` → strażnik → `up` → narzędzia dev → strażnik w bazie + stan Administratora → Administrator → dane demo → panel |
 | `dev:admin` | `admin` | tylko procedura Administratora (EVM-016) |
 | `dev:seed` | `seed` | tylko dane demo (wymagają aktywnego Administratora) |

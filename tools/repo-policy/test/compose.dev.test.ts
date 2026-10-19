@@ -166,7 +166,7 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
     });
   });
 
-  it('EVM-077 AC4 (M3): the api service has every setting written out — only CURSOR_KEY is taken from the host, by name', () => {
+  it('EVM-077 AC4 (M3): the api service has every setting written out — only CURSOR_KEY and FIELD_ENCRYPTION_KEYS are taken from the host, by name', () => {
     const api = service('api');
     const environment = record(api['environment']);
     expect(environment).toEqual({
@@ -180,6 +180,8 @@ describe('compose.dev.yaml follows the same hardening as compose.yaml (EVM-077 A
       WEBAUTHN_RP_ID: 'localhost',
       WEBAUTHN_RP_NAME: 'EVia Manager',
       CURSOR_KEY: null,
+      // EVM-023: the master key of the TOTP secrets, by name only (dev:init draws it)
+      FIELD_ENCRYPTION_KEYS: null,
     });
     expect(read('compose.dev.yaml').replace(/#.*$/gm, '')).not.toContain('${');
     expect(api['env_file']).toBeUndefined();
@@ -424,6 +426,7 @@ describe('agent permissions and secrets of the local environment (EVM-077 AC1; M
     expect(gitIgnores('.env.example')).toBe(false);
     const example = read('.env.example');
     expect(example).toMatch(/^CURSOR_KEY=$/m);
+    expect(example).toMatch(/^FIELD_ENCRYPTION_KEYS=$/m);
     expect(example).toMatch(/^DATABASE_URL=postgres:\/\/evia:evia-local@localhost:5442\/evia_dev$/m);
     expect(example).toMatch(/^NODE_ENV=development$/m);
     expect(example).toMatch(/^WEBAUTHN_RP_ID=localhost$/m);

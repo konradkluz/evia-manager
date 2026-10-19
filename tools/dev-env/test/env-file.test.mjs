@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { initEnvFile } from '../src/env-file.mjs';
 
-const EXAMPLE = '# example\nNODE_ENV=development\nCURSOR_KEY=\nOTHER=1\n';
+const EXAMPLE = '# example\nNODE_ENV=development\nCURSOR_KEY=\nFIELD_ENCRYPTION_KEYS=\nOTHER=1\n';
 
 /** @param {(directory: string) => void} run */
 function withDirectory(run) {
@@ -26,8 +26,25 @@ describe('EVM-077 AC1: dev:init', () => {
       const key = /^CURSOR_KEY=(.*)$/m.exec(content)?.[1] ?? '';
       assert.match(key, /^[A-Za-z0-9_-]{43}$/);
       assert.equal(Buffer.from(key, 'base64url').length, 32);
-      assert.equal(content.replace(key, ''), EXAMPLE);
+      const fieldKeys = /^FIELD_ENCRYPTION_KEYS=(.*)$/m.exec(content)?.[1] ?? '';
+      assert.match(fieldKeys, /^k1:[A-Za-z0-9_-]{43}$/);
+      assert.notEqual(fieldKeys.slice(3), key);
+      assert.equal(content.replace(key, '').replace(fieldKeys, ''), EXAMPLE);
     });
+  });
+
+  it('EVM-023 AC1: draws the field encryption key separately from CURSOR_KEY (the configuration rejects equal keys)', () => {
+    let drawn = 0;
+    /** @type {string[]} */
+    const written = [];
+    initEnvFile('/repo', {
+      readFile: () => EXAMPLE,
+      writeFile: (_path, data) => void written.push(data),
+      random: () => Buffer.alloc(32, ++drawn),
+    });
+    assert.equal(drawn, 2);
+    assert.ok(written[0]?.includes(`CURSOR_KEY=${Buffer.alloc(32, 1).toString('base64url')}`));
+    assert.ok(written[0]?.includes(`FIELD_ENCRYPTION_KEYS=k1:${Buffer.alloc(32, 2).toString('base64url')}`));
   });
 
   it('EVM-077 AC1: never overwrites an existing .env', () => {

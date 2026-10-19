@@ -76,9 +76,14 @@ export function processDeps(root, host = realHost()) {
     },
     readDotenv,
     docker: (name) => {
-      // CURSOR_KEY reaches the container as a bare name (compose.dev.yaml): the value comes from this process only.
-      const { CURSOR_KEY } = parseDotenv(readDotenv() ?? '');
-      const env = { ...host.env, ...(CURSOR_KEY === undefined ? {} : { CURSOR_KEY }) };
+      // CURSOR_KEY and FIELD_ENCRYPTION_KEYS reach the container as bare names (compose.dev.yaml): the values come from this
+      // process only.
+      const { CURSOR_KEY, FIELD_ENCRYPTION_KEYS } = parseDotenv(readDotenv() ?? '');
+      const env = {
+        ...host.env,
+        ...(CURSOR_KEY === undefined ? {} : { CURSOR_KEY }),
+        ...(FIELD_ENCRYPTION_KEYS === undefined ? {} : { FIELD_ENCRYPTION_KEYS }),
+      };
       return dockerRunner({ cwd: root, env, spawnProcess: host.spawn, stderr: host.stderr })(name);
     },
     buildTools: (env) =>

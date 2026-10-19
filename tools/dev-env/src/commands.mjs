@@ -76,7 +76,7 @@ export function initCommand(deps, init = initEnvFile) {
   const { status } = init(deps.root);
   if (status === 'created') {
     deps.out(
-      'Utworzono .env z losowym CURSOR_KEY (wartość nie jest wypisywana; plik jest ignorowany przez git).\nNastępny krok: pnpm run dev\n',
+      'Utworzono .env z losowymi CURSOR_KEY i FIELD_ENCRYPTION_KEYS (wartość nie jest wypisywana; plik jest ignorowany przez git).\nNastępny krok: pnpm run dev\n',
     );
     return EXIT_OK;
   }
