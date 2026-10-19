@@ -1,5 +1,7 @@
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EVENT_BUS } from '../../src/platform/tokens.ts';
+import { EventBus, type DomainEvent, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { UserAccessService } from '../../src/modules/identity/application/user-access.service.ts';
 import { PATHS } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
@@ -417,11 +419,13 @@ describe('two Administrators at the same time (EVM-027 AC6; CWE-362, ASVS V2.3.3
     }
   });
 
-  it('EVM-027 AC6 each takes the role from the other in parallel: at least one Administrator stays; the loser did not act as an Administrator any more (403 forbidden)', async () => {
+  it('EVM-027 AC6 each takes the role from the other in parallel: at least one Administrator stays; the loser did not act as an Administrator any more (403 forbidden from the use case, or 401 when the guard already saw its ended session)', async () => {
     for (let round = 0; round < 5; round += 1) {
       const { a, b } = await pair();
       const [x, y] = await Promise.all([changeRole(current, a, b.user.id, 'editor'), changeRole(current, b, a.user.id, 'editor')]);
-      expect([x.status, y.status].sort(), `round ${round}`).toEqual([200, 403]);
+      const statuses = [x.status, y.status].sort();
+      expect(statuses[0], `round ${round}`).toBe(200);
+      expect([401, 403], `round ${round}`).toContain(statuses[1]);
       expect(await activeAdministrators(), `round ${round}`).toBe(1);
     }
   });
@@ -645,6 +649,29 @@ describe('no personal data in the audit trail (EVM-027; SR-LOG-03, SR-DATA-03)',
     const text = rows.map((row) => row.row).join('\n');
     expect(text).not.toMatch(/szef\.audytu|anna\.audytowana|Szef Audytu|Anna Audytowana|example\.com/i);
     expect((await auditOf(current, 'user.second_step_reset'))[0]?.reason_code).toBe('identity_verified_video_call');
+    // nor in the log of the process (pino): the operations write down identifiers and codes, never an address or a name
+    expect(current.logs.text).not.toMatch(/szef\.audytu|anna\.audytowana|Szef Audytu|Anna Audytowana|example\.com/i);
+  });
+
+  it('EVM-027 AC1 the change, the end of the sessions, the alerts and the audit event are ONE transaction: when the audit write fails, nothing is changed (500, role and sessions as they were, no alert)', async () => {
+    await current.close();
+    const failing = new (class extends EventBus {
+      override async publish(tx: Parameters<EventBus['publish']>[0], event: DomainEvent, context: EventContext): Promise<void> {
+        if (event.type === 'user.role_changed') throw new Error('synthetic audit failure');
+        await super.publish(tx, event, context);
+      }
+    })();
+    current = await createIdentityApp({ configure: (builder) => builder.overrideProvider(EVENT_BUS).useValue(failing) });
+    const admin = await browserOf(current);
+    const anna = await accountWithSessions(current, { role: 'editor', count: 1, key: true });
+    const before = await current.snapshot();
+
+    const response = await changeRole(current, admin, anna.user.id, 'administrator');
+
+    expect(response.status).toBe(500);
+    expect(await current.snapshot()).toBe(before);
+    expect(await alertRows(current)).toEqual([]);
+    expect((await sessionAnswer(firstSession(anna).panel)).status).toBe(200);
   });
 });
 
