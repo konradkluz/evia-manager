@@ -128,7 +128,7 @@ const typeInvitation = async (email = 'anna.nowak@example.com', name = 'Anna Now
 };
 
 describe('W-16 the list (EVM-024 AC5, AC7, AC8)', () => {
-  it('EVM-024 AC5 the table shows name with "(Ty)", role, status with icon and word, the state of the invitation, and a menu only for the account that waits', async () => {
+  it('EVM-024 AC5 the table shows name with "(Ty)", role, status with icon and word, the state of the invitation, and a menu on every row but the own one', async () => {
     const api = usersApi(ok([ANNA, JAN, biuro(SENT)]));
     await renderPanel(PATH, api);
     const table = await screen.findByRole('table', { name: 'Użytkownicy' });
@@ -142,8 +142,8 @@ describe('W-16 the list (EVM-024 AC5, AC7, AC8)', () => {
     expect(within(rows[2] as HTMLElement).getByText('Dezaktywowane')).toBeTruthy();
     expect(within(rows[3] as HTMLElement).getByText('Oczekuje na aktywację')).toBeTruthy();
     expect(within(rows[3] as HTMLElement).getByText('Wysłano 03.10.2026 · ważne do 06.10.2026, 10:00')).toBeTruthy();
-    // Own row and the not waiting account: no menu; the waiting one: the menu of the row named with the e-mail.
-    expect(within(table).getAllByRole('button', { name: /^Akcje konta/ })).toHaveLength(1);
+    // The own row has no menu (EVM-027: nothing is allowed on the own account); the others have the menu named with the e-mail.
+    expect(within(table).getAllByRole('button', { name: /^Akcje konta/ })).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Akcje konta: Biuro Testowe, biuro@example.com' })).toBeTruthy();
     expect(api.calls(LIST)[0]?.query.get('limit')).toBe('25');
     // No link and no token anywhere on the page.
