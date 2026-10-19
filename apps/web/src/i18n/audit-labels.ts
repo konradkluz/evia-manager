@@ -30,6 +30,12 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'mfa.totp_enrolled': 'Dodanie kodu z aplikacji uwierzytelniającej',
   'mfa.recovery_codes_generated': 'Wygenerowanie kodów odzyskiwania',
   'login.recovery_code_used': 'Logowanie kodem odzyskiwania',
+  // EVM-027: labels the contract needs (the screen W-16 with its dialogs is the work of the web developer)
+  'user.role_changed': 'Zmiana roli użytkownika',
+  'user.deactivated': 'Dezaktywacja konta',
+  'user.reactivated': 'Reaktywacja konta',
+  'user.sessions_ended': 'Zakończenie sesji użytkownika',
+  'user.second_step_reset': 'Reset drugiego kroku logowania',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',

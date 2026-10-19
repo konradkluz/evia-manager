@@ -44,6 +44,9 @@ const ANNA: User = {
   role: 'administrator',
   status: 'active',
   invitation: null,
+  version: 1,
+  activatedAt: '2026-09-01T08:00:00.000Z',
+  secondStepMethods: ['passkey'],
 };
 const JAN: User = {
   id: JAN_ID,
@@ -52,6 +55,9 @@ const JAN: User = {
   role: 'editor',
   status: 'deactivated',
   invitation: null,
+  version: 3,
+  activatedAt: '2026-09-01T08:00:00.000Z',
+  secondStepMethods: ['passkey'],
 };
 const biuro = (invitation: User['invitation'], role: User['role'] = 'read_only'): User => ({
   id: BIURO_ID,
@@ -60,6 +66,9 @@ const biuro = (invitation: User['invitation'], role: User['role'] = 'read_only')
   role,
   status: 'invited',
   invitation,
+  version: 1,
+  activatedAt: null,
+  secondStepMethods: [],
 });
 const SENT = { state: 'sent', sentAt: '2026-10-03T08:00:00.000Z', expiresAt: '2026-10-06T08:00:00.000Z' } as const;
 
