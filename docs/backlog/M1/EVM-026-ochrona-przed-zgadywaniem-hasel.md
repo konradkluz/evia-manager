@@ -84,7 +84,7 @@ _Uzupełnia wykonawca przed implementacją._
 _—_
 
 ## Uwagi do rozważenia
-_—_
+- **Propozycja zmiany AC (z przeglądu EVM-023, ryzyko RR-26 w `docs/security/threat-model.md`; wymaga potwierdzenia Konrada przy refine EVM-026 — istniejące AC bez zmian do tego czasu):** porażki drugiego kroku logowania (`totp_failed`, `recovery_code_failed` z EVM-023) liczą się do opóźnienia (AC1) i blokady konta (AC2) razem z porażkami hasła, a e-mail i audyt blokady (AC3) obejmują także ten przypadek; test `EVM-026 AC#` dla obu zdarzeń. Konrad zaakceptował 2026-10-19 ryzyko rezydualne RR-26 do czasu tej historyjki (jej wdrożenie wygasza RR-26).
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-026 AC#`)
@@ -96,3 +96,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-19 — dopisano propozycję zmiany AC do „Uwag do rozważenia” (porażki drugiego kroku z EVM-023 w blokadzie konta; RR-26) — do potwierdzenia przy refine

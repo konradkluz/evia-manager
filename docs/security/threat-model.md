@@ -805,6 +805,15 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Konsekwencja innego wyboru:** koszt dodatkowej historyjki i migracji; do tego czasu sprostowanie = usunięcie i dodanie etapu.
 - **Decyzja Konrada:** oczekuje na akceptację.
 
+### RR-26 — Brak limitu porażek drugiego kroku (kod z aplikacji, kod odzyskiwania) na konto do czasu EVM-026 (EVM-023)
+- **Opis:** drugi krok logowania (`loginTotp`, `loginRecoveryCode`) limitują dziś tylko 5 prób na `loginToken` i wspólny kubełek 20/min/IP. Napastnik znający hasło dostaje nowy `loginToken` po ponownym podaniu hasła, więc z jednego IP może zgadywać kod z aplikacji (6 cyfr, okno ±1 krok) ok. 16 razy na minutę; zgadywanie kodu odzyskiwania (20 znaków base32) jest nierealne. Brak licznika porażek (`totp_failed`, `recovery_code_failed`) na konto, więc brak opóźnienia, blokady i e-maila o blokadzie dla tego przypadku. Przy ciągłym ataku z jednego IP (ok. 23 tys. prób na dobę, szansa trafienia ok. 3 na milion na próbę) to rząd kilku procent na dobę na konto z ujawnionym hasłem — dlatego tylko do czasu EVM-026.
+- **Źródło:** EVM-023 (przegląd bezpieczeństwa, major); TM-16; SR-AUTH-05; CWE-307; ASVS V2.2.
+- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium (wymaga znajomości hasła; limit 20/min/IP; każde nieudane logowanie trafia do audytu, a hasła sprawdza się względem listy z wycieków).
+- **Rekomendacja:** **akceptuj** do czasu EVM-026 (M1 nie zostanie zamknięty bez niej); w EVM-026 porażki drugiego kroku liczą się do opóźnienia i blokady konta, a e-mail o blokadzie obejmuje ten przypadek (propozycja zmiany AC w historyjce EVM-026, do potwierdzenia przy refine).
+- **Konsekwencja innego wyboru:** licznik porażek na konto już w EVM-023 (np. >= 10 w 15 min, brak wydania nowego `loginToken`): dodatkowa tabela lub kolumny, duplikacja mechanizmu z EVM-026 i ryzyko jego rozjazdu.
+- **Wygaszenie:** po wdrożeniu EVM-026 z obsługą drugiego kroku (test `EVM-026 AC#` dla `totp_failed` i `recovery_code_failed`) — wpis przenieść do zamkniętych.
+- **Decyzja Konrada:** przyjęta rekomendacja — opcja (b) (2026-10-19, przegląd EVM-023).
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.

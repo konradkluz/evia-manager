@@ -115,9 +115,10 @@ Decyzje orkiestratora — do potwierdzenia na demo:
 - D6. Wspólny kubełek limitu 20/min/IP dla hasła, `loginTotp`, `loginRecoveryCode` i step-upu.
 - D7. Operacja `setupTotp` przemianowana na `startTotpEnrolment` (test EVM-016 zabrania ścieżek ze słowem „setup”).
 - D8. Kody odzyskiwania: 10 x 20 znaków base32, skróty Argon2id, jednorazowe; kod odzyskiwania nie działa w step-upie.
+- D9. Brak limitu nieudanych prób drugiego kroku na konto (SR-AUTH-05, CWE-307; przegląd bezpieczeństwa, major) — **Konrad, 2026-10-19: opcja (b)**, akceptuje ryzyko rezydualne RR-26 (`docs/security/threat-model.md` sekcja 8; ok. 16 prób/min/IP przy znanym haśle) do czasu EVM-026; w EVM-026 dopisano propozycję zmiany AC (porażki `totp_failed` i `recovery_code_failed` liczą się do opóźnienia i blokady konta, e-mail o blokadzie obejmuje ten przypadek). Opcja (a) — licznik na konto w EVM-023 — odrzucona.
 
 ## Uwagi do rozważenia
-- **Do decyzji Konrada (security-engineer, major): brak limitu nieudanych prób drugiego kroku na konto** (SR-AUTH-05, CWE-307). Dziś limitują tylko: 5 prób na `loginToken` i 20/min/IP; napastnik znający hasło dostaje nowy `loginToken` po ponownym podaniu hasła, więc z jednego IP to ok. 16 prób kodu na minutę. Opcje: (a) licznik porażek (`totp_failed`, `recovery_code_failed`) na konto, np. >= 10 w 15 min, po przekroczeniu nowy `loginToken` nie jest wydawany (odpowiedź jak `invalid_credentials`) + test `EVM-023 AC8`; (b) ryzyko rezydualne w `docs/security/threat-model.md` z akceptacją Konrada i dopisanie do AC EVM-026, że porażki drugiego kroku liczą się do opóźnienia i blokady konta. Rekomendacja security: (b), bo M1 nie wyjdzie bez EVM-026. Wymaga decyzji przed zamknięciem historyjki.
+_—_
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-023 AC#`)
@@ -134,3 +135,4 @@ Decyzje orkiestratora — do potwierdzenia na demo:
 - 2026-10-16 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
 - 2026-10-16 — backend gotowy (backend-developer, lokalnie w kontenerze `backend-tests`): migracja `0038`, szyfrowanie kopertowe pól (`FIELD_ENCRYPTION_KEYS`), `otpauth` 9.5.2, operacje `loginTotp`, `loginRecoveryCode`, `startTotpEnrolment`, `confirmTotp`, `generateRecoveryCodes` i `stepUp` z kodem, e-maile i audyt; uwagi bezpieczeństwa B1–B6 wpisane do planu; panel (W-02, W-03, W-04) — zadanie web-developera
 - 2026-10-16 — web gotowy (web-developer): W-02 (kod z aplikacji, kod odzyskiwania), W-03 w wariancie „od EVM-023” (wybór metody, QR lokalnie, 10 kodów), W-04 z polem kodu; `TextField` z wariantem kodu i `QrCode` w bibliotece UI; testy komponentów i E2E z `EVM-023 AC#`
+- 2026-10-19 — przegląd: decyzja Konrada w sprawie braku limitu porażek drugiego kroku na konto — opcja (b), ryzyko rezydualne RR-26 do czasu EVM-026 (D9); poprawka lokalnego środowiska: `FIELD_ENCRYPTION_KEYS` przekazywany do kontenera `api` i losowany przez `dev:init`
