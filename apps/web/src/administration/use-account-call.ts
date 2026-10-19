@@ -25,9 +25,5 @@ export function useAccountCall(stepUpTitle: string) {
       },
     });
   };
-  const clear = () => {
-    setFailure(null);
-    mutation.reset();
-  };
-  return { stepping: guarded.stepping, pending: mutation.isPending, failure, run, clear };
+  return { stepping: guarded.stepping, pending: mutation.isPending, failure, run };
 }
