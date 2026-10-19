@@ -124,3 +124,4 @@ _—_
 - 2026-10-19 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
 - 2026-10-19 — plan gotowy (backend-developer)
 - 2026-10-19 — backend zaimplementowany (backend-developer): 5 operacji, migracja 0039, okno konfiguracji drugiego kroku, alerty i audyt; decyzja Konrada o `administrator_passkey_required` oraz zmiana planu D4 (reset hasła nie omija okna) po konsultacji security; panel W-16 — osobny krok
+- 2026-10-19 — panel W-16 zaimplementowany (web-developer): menu wiersza, dialogi 3–7 ze stanami (412, 409, 429, offline, W-04), komunikat W-01 po końcu okna konfiguracji; testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty 360/768/1280/1440 w docs/ux/reviews/EVM-027

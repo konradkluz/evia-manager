@@ -195,13 +195,20 @@ export function UsersTable({ users, selfId, online, now, onResend, onOperation, 
   return <DataTable caption={t('users.table.caption')} columns={columns} rows={rows} />;
 }
 
-const OPERATION_LABELS = {
-  role: 'users.menu.role',
-  sessions: 'users.menu.sessions',
-  reset: 'users.menu.reset',
-  deactivate: 'users.menu.deactivate',
-  reactivate: 'users.menu.reactivate',
-} as const;
+function operationLabel(t: TFunction, operation: AccountOperation): string {
+  switch (operation) {
+    case 'role':
+      return t('users.menu.role');
+    case 'sessions':
+      return t('users.menu.sessions');
+    case 'reset':
+      return t('users.menu.reset');
+    case 'deactivate':
+      return t('users.menu.deactivate');
+    case 'reactivate':
+      return t('users.menu.reactivate');
+  }
+}
 /** The destructive items go last, after a separator (§ 3.20). */
 const DANGEROUS: readonly AccountOperation[] = ['reset', 'deactivate'];
 
@@ -226,7 +233,7 @@ function menuItems(
     const dangerous = DANGEROUS.includes(operation);
     items.push({
       id: operation,
-      label: t(OPERATION_LABELS[operation]),
+      label: operationLabel(t, operation),
       onSelect: () => {
         onOperation(operation, user);
       },

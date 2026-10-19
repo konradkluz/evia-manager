@@ -40,7 +40,15 @@ import {
   newUnpaidServer,
   type UnpaidServer,
 } from './mock-unpaid.ts';
-import { answerInvite, answerResend, answerUserList, newUsersServer, type UsersServer } from './mock-users.ts';
+import {
+  answerAccountOperation,
+  answerInvite,
+  answerResend,
+  answerUserList,
+  newUsersServer,
+  type AccountOperationName,
+  type UsersServer,
+} from './mock-users.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -576,6 +584,24 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
       if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
       return route.fulfill(answerResend(api.users, resend[1] ?? ''));
+    }
+    // EVM-027: the five operations on an account (W-16) — role, deactivation, reactivation, end of sessions, reset of the second step.
+    const accountOperation = /^\/api\/v1\/users\/([^/]+)\/(role|deactivation|reactivation|sessions|second-step-reset)$/.exec(url.pathname);
+    if (accountOperation !== null && ['PUT', 'POST', 'DELETE'].includes(request.method())) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+      if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+      const input = (request.postData() ?? '') === '' ? {} : (body() as Record<string, unknown>);
+      return route.fulfill(
+        answerAccountOperation(
+          api.users,
+          (accountOperation[2] ?? 'role') as AccountOperationName,
+          accountOperation[1] ?? '',
+          headers['if-match'],
+          input,
+        ),
+      );
     }
     // EVM-018: the four reads of one order (W-06) — the order is anchored in the path (a malformed id is 400, a missing or gone one 404).
     const orderRead =

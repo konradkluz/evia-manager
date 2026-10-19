@@ -16,6 +16,10 @@ export interface MockUser {
   role: 'administrator' | 'editor' | 'read_only';
   status: 'invited' | 'active' | 'deactivated';
   invitation: { state: 'sending' | 'sent' | 'failed' | 'expired'; sentAt: string | null; expiresAt: string | null } | null;
+  /** EVM-027: the version of the account (`If-Match`), the first activation and the kinds of the methods of the second step. */
+  version: number;
+  activatedAt: string | null;
+  secondStepMethods: ('passkey' | 'totp')[];
 }
 
 export interface UsersServer {
@@ -44,6 +48,9 @@ export const newUsersServer = (): UsersServer => {
         role: 'read_only',
         status: 'invited',
         invitation: { state: 'sent', sentAt: new Date(now - 24 * HOUR).toISOString(), expiresAt: new Date(now + 48 * HOUR).toISOString() },
+        version: 1,
+        activatedAt: null,
+        secondStepMethods: [],
       },
       {
         id: '33333333-3333-4333-8333-333333333303',
@@ -52,6 +59,9 @@ export const newUsersServer = (): UsersServer => {
         role: 'editor',
         status: 'active',
         invitation: null,
+        version: 3,
+        activatedAt: new Date(now - 30 * 24 * HOUR).toISOString(),
+        secondStepMethods: ['passkey'],
       },
       {
         id: KASIA_ID,
@@ -60,6 +70,9 @@ export const newUsersServer = (): UsersServer => {
         role: 'editor',
         status: 'invited',
         invitation: { state: 'failed', sentAt: null, expiresAt: null },
+        version: 1,
+        activatedAt: null,
+        secondStepMethods: [],
       },
       {
         id: '33333333-3333-4333-8333-333333333304',
@@ -68,6 +81,9 @@ export const newUsersServer = (): UsersServer => {
         role: 'editor',
         status: 'deactivated',
         invitation: null,
+        version: 5,
+        activatedAt: new Date(now - 60 * 24 * HOUR).toISOString(),
+        secondStepMethods: ['passkey'],
       },
       {
         id: SELF_ID,
@@ -76,6 +92,9 @@ export const newUsersServer = (): UsersServer => {
         role: 'administrator',
         status: 'active',
         invitation: null,
+        version: 1,
+        activatedAt: new Date(now - 90 * 24 * HOUR).toISOString(),
+        secondStepMethods: ['passkey'],
       },
     ],
     deletedEmails: ['usuniety@example.com'],
@@ -130,6 +149,9 @@ export function answerInvite(server: UsersServer, input: Record<string, unknown>
     role,
     status: 'invited',
     invitation: { state: 'sending', sentAt: null, expiresAt: null },
+    version: 1,
+    activatedAt: null,
+    secondStepMethods: [],
   };
   server.users.push(created);
   server.accepted += 1;
@@ -144,4 +166,70 @@ export function answerResend(server: UsersServer, id: string): Answer {
   if (user.status !== 'invited') return problem(409, 'invalid_state_transition');
   user.invitation = { state: 'sending', sentAt: null, expiresAt: null };
   return respond(200, user);
+}
+
+export type AccountOperationName = 'role' | 'deactivation' | 'reactivation' | 'sessions' | 'second-step-reset';
+
+/**
+ * The five operations of EVM-027 on an account (the policy of the real server — the roles, the blocking, the audit, the sessions —
+ * is covered by the API integration tests): 404 first, then `If-Match` (428 / 412), then the rules of the story in their order
+ * (the state, the last active Administrator, the own account, the passkey of a new Administrator). Every change raises the version.
+ */
+export function answerAccountOperation(
+  server: UsersServer,
+  operation: AccountOperationName,
+  id: string,
+  ifMatch: string | undefined,
+  input: Record<string, unknown>,
+): Answer {
+  const user = server.users.find((entry) => entry.id === id);
+  if (user === undefined) return problem(404, 'not_found');
+  if (operation !== 'sessions') {
+    if (ifMatch === undefined) return problem(428, 'precondition_required');
+    if (ifMatch !== `"${String(user.version)}"`) return problem(412, 'version_conflict');
+  }
+  const activeAdministrators = server.users.filter((entry) => entry.role === 'administrator' && entry.status === 'active');
+  const sole = user.role === 'administrator' && user.status === 'active' && activeAdministrators.length === 1;
+  const done = (): Answer => {
+    user.version += 1;
+    return respond(200, user, { ETag: `"${String(user.version)}"` });
+  };
+  switch (operation) {
+    case 'role': {
+      const role = input['role'];
+      if (role !== 'administrator' && role !== 'editor' && role !== 'read_only') return problem(400, 'validation_failed');
+      if (user.status === 'deactivated' || user.role === role) return problem(409, 'invalid_state_transition');
+      if (sole) return problem(409, 'last_active_administrator');
+      if (user.id === SELF_ID) return problem(409, 'own_account_not_allowed');
+      if (role === 'administrator' && !user.secondStepMethods.includes('passkey')) return problem(409, 'administrator_passkey_required');
+      user.role = role;
+      return done();
+    }
+    case 'deactivation':
+      if (user.status === 'deactivated') return problem(409, 'invalid_state_transition');
+      if (sole) return problem(409, 'last_active_administrator');
+      if (user.id === SELF_ID) return problem(409, 'own_account_not_allowed');
+      user.status = 'deactivated';
+      user.invitation = null;
+      return done();
+    case 'reactivation':
+      if (user.status !== 'deactivated') return problem(409, 'invalid_state_transition');
+      if (user.activatedAt === null) {
+        user.status = 'invited';
+        user.invitation = { state: 'expired', sentAt: null, expiresAt: new Date(Date.now() - HOUR).toISOString() };
+      } else user.status = 'active';
+      return done();
+    case 'sessions':
+      if (user.id === SELF_ID) return problem(409, 'own_account_not_allowed');
+      return { status: 204, headers: {}, body: '' };
+    case 'second-step-reset':
+      if (input['identityVerification'] !== 'in_person' && input['identityVerification'] !== 'video_call') {
+        return problem(400, 'validation_failed');
+      }
+      if (user.status !== 'active') return problem(409, 'invalid_state_transition');
+      if (sole) return problem(409, 'last_active_administrator');
+      if (user.id === SELF_ID) return problem(409, 'own_account_not_allowed');
+      user.secondStepMethods = [];
+      return done();
+  }
 }

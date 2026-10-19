@@ -56,7 +56,7 @@ export function AccountConfirmDialog({
   return (
     <AlertDialog
       open={!call.stepping}
-      title={t(`users.account.${operation}.title`, { name: user.displayName })}
+      title={titleOf(t, operation, user)}
       onDismiss={onClose}
       actions={
         <>
@@ -64,7 +64,7 @@ export function AccountConfirmDialog({
             {t('users.account.cancel')}
           </Button>
           <Button variant={operation === 'deactivate' ? 'danger' : 'primary'} loading={call.pending} disabled={!online} onClick={send}>
-            {t(`users.account.${operation}.submit`)}
+            {submitOf(t, operation)}
           </Button>
         </>
       }
@@ -95,5 +95,28 @@ function summary(t: TFunction, operation: ConfirmOperation, user: User) {
       );
     case 'sessions':
       return <p>{t('users.account.sessions.summary')}</p>;
+  }
+}
+
+function titleOf(t: TFunction, operation: ConfirmOperation, user: User): string {
+  const name = user.displayName;
+  switch (operation) {
+    case 'deactivate':
+      return t('users.account.deactivate.title', { name });
+    case 'reactivate':
+      return t('users.account.reactivate.title', { name });
+    case 'sessions':
+      return t('users.account.sessions.title', { name });
+  }
+}
+
+function submitOf(t: TFunction, operation: ConfirmOperation): string {
+  switch (operation) {
+    case 'deactivate':
+      return t('users.account.deactivate.submit');
+    case 'reactivate':
+      return t('users.account.reactivate.submit');
+    case 'sessions':
+      return t('users.account.sessions.submit');
   }
 }

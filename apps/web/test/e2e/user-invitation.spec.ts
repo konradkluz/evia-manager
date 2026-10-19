@@ -48,7 +48,7 @@ async function invite(page: Page, email: string, name: string): Promise<void> {
 }
 
 test.describe('W-16 Użytkownicy in the browser (EVM-024)', () => {
-  test('EVM-024 AC8 an Administrator reaches W-16 from the menu: the tab "Użytkownicy", the list with the invitation states, the menu only on the account that waits', async ({
+  test('EVM-024 AC8 an Administrator reaches W-16 from the menu: the tab "Użytkownicy", the list with the invitation states, a menu on every row but the own one', async ({
     page,
     api,
   }) => {
@@ -66,7 +66,7 @@ test.describe('W-16 Użytkownicy in the browser (EVM-024)', () => {
     await expect(table.getByText('Anna Testowa (Ty)')).toBeVisible();
     await expect(table.getByText('Nie wysłano')).toBeVisible();
     await expect(table.getByText(/^Wysłano \d{2}\.\d{2}\.\d{4} · ważne do \d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/)).toBeVisible();
-    await expect(table.getByRole('button', { name: /^Akcje konta:/ })).toHaveCount(2);
+    await expect(table.getByRole('button', { name: /^Akcje konta:/ })).toHaveCount(4);
     // The arrows move between the tabs and the focus stays on the tab bar (the tabs belong to the layout).
     await page.getByRole('tab', { name: 'Użytkownicy' }).focus();
     await page.keyboard.press('ArrowRight');
