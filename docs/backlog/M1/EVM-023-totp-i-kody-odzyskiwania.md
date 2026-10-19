@@ -4,7 +4,7 @@ title: Kod z aplikacji (TOTP) i kody odzyskiwania
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -121,10 +121,10 @@ Decyzje orkiestratora — do potwierdzenia na demo:
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-023 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-023 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -136,3 +136,4 @@ _—_
 - 2026-10-16 — backend gotowy (backend-developer, lokalnie w kontenerze `backend-tests`): migracja `0038`, szyfrowanie kopertowe pól (`FIELD_ENCRYPTION_KEYS`), `otpauth` 9.5.2, operacje `loginTotp`, `loginRecoveryCode`, `startTotpEnrolment`, `confirmTotp`, `generateRecoveryCodes` i `stepUp` z kodem, e-maile i audyt; uwagi bezpieczeństwa B1–B6 wpisane do planu; panel (W-02, W-03, W-04) — zadanie web-developera
 - 2026-10-16 — web gotowy (web-developer): W-02 (kod z aplikacji, kod odzyskiwania), W-03 w wariancie „od EVM-023” (wybór metody, QR lokalnie, 10 kodów), W-04 z polem kodu; `TextField` z wariantem kodu i `QrCode` w bibliotece UI; testy komponentów i E2E z `EVM-023 AC#`
 - 2026-10-19 — przegląd: decyzja Konrada w sprawie braku limitu porażek drugiego kroku na konto — opcja (b), ryzyko rezydualne RR-26 do czasu EVM-026 (D9); poprawka lokalnego środowiska: `FIELD_ENCRYPTION_KEYS` przekazywany do kontenera `api` i losowany przez `dev:init`
+- 2026-10-19 — przeglądy (code, security, ux) po poprawkach: majory naprawione/rozstrzygnięte (D9 = RR-26, akceptacja Konrada); bramka zielona; in-progress → in-review (czeka na demo) [orkiestrator]
