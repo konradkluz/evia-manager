@@ -814,6 +814,14 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Wygaszenie:** po wdrożeniu EVM-026 z obsługą drugiego kroku (test `EVM-026 AC#` dla `totp_failed` i `recovery_code_failed`) — wpis przenieść do zamkniętych.
 - **Decyzja Konrada:** przyjęta rekomendacja — opcja (b) (2026-10-19, przegląd EVM-023).
 
+### RR-27 — Okno konfiguracji drugiego kroku po resecie: przez 24 h samo hasło wystarcza (EVM-027)
+- **Opis:** po resecie drugiego kroku przez Administratora (SR-AUTH-13) konto `active` nie ma żadnej metody, a przez 24 h (okno `mfa_setup`) poprawne hasło daje sesję `mfa_enrollment`, w której można zarejestrować nową metodę (dla konta Administratora — tylko klucz dostępu). Kto zna hasło, a zdąży przed właścicielem, rejestruje własny czynnik i przejmuje konto — dla Administratora to przejęcie systemu. Typowy przypadek: telefon zgubiony lub skradziony razem z hasłem zapisanym w przeglądarce albo w skrzynce. Reset hasła w oknie nie działa (konto bez metod nie dostaje linku — skrzynka e-mail nie jest czynnikiem), więc właściciel nie zmieni hasła już po resecie.
+- **Źródło:** EVM-027 (decyzje D1, D2, D4; przegląd bezpieczeństwa); AB-01, AB-22, TM-16; SR-AUTH-13; CWE-308, CWE-640; ASVS V6.4.4.
+- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium. Mitygacje: okno jednorazowe (zużywane warunkowym `UPDATE` przy pierwszej rejestracji — kto pierwszy, ten jedyny), 24 h, kończone nowym resetem i dezaktywacją; e-mail do właściciela bez linku logującego; alert do wszystkich Administratorów przy resecie konta Administratora; w oknie Administratora tylko klucz dostępu; runbook „Aktywacja i tryb awaryjny” i podpowiedź w dialogu 7 W-16 — przy podejrzeniu ujawnienia hasła użytkownik **najpierw** zmienia hasło z innego urządzenia, dopiero potem Administrator resetuje drugi krok; każda rejestracja metody wysyła e-mail i trafia do audytu.
+- **Rekomendacja:** **akceptuj** na demo EVM-027; alternatywa do rozważenia w `/refine` (np. przy EVM-028): okno wymaga dodatkowo jednorazowego kodu konfiguracji, który Administrator widzi raz w dialogu resetu i przekazuje osobiście lub na wideo (wiązanie okna z weryfikacją tożsamości, nie tylko z hasłem).
+- **Konsekwencja innego wyboru:** kod konfiguracji — nowe pole w W-02/W-03, zmiana kontraktu i makiet, dodatkowy stan „kod niepoprawny” z limitem prób; skrócenie okna (np. 2 h) — więcej ponownych resetów.
+- **Decyzja Konrada:** oczekuje na akceptację (demo EVM-027).
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.
