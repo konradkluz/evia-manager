@@ -147,6 +147,16 @@ paths:
     $ref: paths/identity.yaml#/assignableUsers
   /api/v1/users/{userId}/invitations:
     $ref: paths/identity.yaml#/userInvitations
+  /api/v1/users/{userId}/role:
+    $ref: paths/identity.yaml#/userRole
+  /api/v1/users/{userId}/deactivation:
+    $ref: paths/identity.yaml#/userDeactivation
+  /api/v1/users/{userId}/reactivation:
+    $ref: paths/identity.yaml#/userReactivation
+  /api/v1/users/{userId}/sessions:
+    $ref: paths/identity.yaml#/userSessions
+  /api/v1/users/{userId}/second-step-reset:
+    $ref: paths/identity.yaml#/userSecondStepReset
   /api/v1/customers:
     $ref: paths/customers.yaml#/customers
   /api/v1/customers/search:

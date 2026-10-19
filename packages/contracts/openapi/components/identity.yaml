@@ -670,7 +670,7 @@ User:
   description: >-
     Konto na liście użytkowników Administratora (W-16). Zawiera dane osobowe (DO-P: e-mail i nazwa) — tylko dla Administratora,
     bez hasła, kluczy dostępu, adresu IP i metod MFA.
-  required: [id, email, displayName, role, status, invitation]
+  required: [id, email, displayName, role, status, invitation, version, activatedAt, secondStepMethods]
   properties:
     id:
       type: string
@@ -692,6 +692,57 @@ User:
       oneOf:
         - $ref: '#/UserInvitation'
         - type: 'null'
+    version:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+      description: >-
+        Wersja konta (EVM-027) — wartość `If-Match` (`"<version>"`, także w `ETag` odpowiedzi) przy zmianie roli, dezaktywacji,
+        reaktywacji i resecie drugiego kroku. Rośnie tylko przy zmianach zarządzanych (rola, status, reset, aktywacja), nie przy logowaniu.
+    activatedAt:
+      description: >-
+        Chwila pierwszej aktywacji konta (EVM-027) albo `null`, gdy konto nigdy nie zostało aktywowane. Rozstrzyga wariant
+        dialogu reaktywacji w W-16: konto z `activatedAt` wraca do `active`, bez — do `invited`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    secondStepMethods:
+      type: array
+      description: >-
+        Rodzaje aktywnych metod drugiego kroku konta (`passkey`, `totp`; EVM-027) — bez identyfikatorów poświadczeń, liczby kodów
+        odzyskiwania i sekretów (SR-DATA-03). Pusta tablica = konto bez drugiego kroku.
+      maxItems: 2
+      uniqueItems: true
+      items:
+        $ref: '#/UserSecondStepMethod'
+UserSecondStepMethod:
+  type: string
+  description: Rodzaj metody drugiego kroku widoczny dla Administratora w liście użytkowników.
+  enum: [passkey, totp]
+ChangeUserRoleRequest:
+  type: object
+  description: Zmiana roli konta (EVM-027). Tylko `role`; pole spoza kontraktu — `400 validation_failed` (`unknown_field`).
+  additionalProperties: false
+  required: [role]
+  properties:
+    role:
+      $ref: '#/UserRole'
+IdentityVerification:
+  type: string
+  description: >-
+    Jak Administrator potwierdził tożsamość pracownika przed resetem drugiego kroku (EVM-027, SR-AUTH-13): osobiście albo wideo.
+    Zamknięta lista — bez wolnego tekstu (trafia do audytu jako kod powodu).
+  enum: [in_person, video_call]
+ResetUserSecondStepRequest:
+  type: object
+  description: Reset drugiego kroku logowania konta (EVM-027). Pole potwierdzenia tożsamości jest wymagane.
+  additionalProperties: false
+  required: [identityVerification]
+  properties:
+    identityVerification:
+      $ref: '#/IdentityVerification'
 UserList:
   type: object
   required: [items, nextCursor]

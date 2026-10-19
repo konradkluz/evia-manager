@@ -15,6 +15,8 @@ export interface UsersTable {
   webauthn_user_handle: Buffer;
   last_login_at: Date | null;
   deactivated_at: Date | null;
+  /** The first activation (a passkey registered or a TOTP code confirmed); null = never activated (0039). Written by the code of the activation only. */
+  activated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;
@@ -47,16 +49,28 @@ export interface PasskeysTable {
 export interface OneTimeLinksTable {
   id: Generated<string>;
   user_id: string;
-  purpose: 'account_activation' | 'password_reset';
+  purpose: 'account_activation' | 'password_reset' | 'mfa_setup';
   token_hash: Buffer;
-  issued_by: 'cli' | 'invitation' | 'password_reset';
+  /** `mfa_reset`: the window to set up a second step that a reset by an Administrator opens — its hash is random, nobody holds the token (0039). */
+  issued_by: 'cli' | 'invitation' | 'password_reset' | 'mfa_reset';
   issued_at: Date;
   expires_at: Date;
   used_at: Date | null;
   superseded_at: Date | null;
 }
 
-export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired' | 'password_reset' | 'step_up_failed';
+export type RevokeReason =
+  | 'logout'
+  | 'rotated'
+  | 'emergency_reset'
+  | 'link_superseded'
+  | 'expired'
+  | 'password_reset'
+  | 'step_up_failed'
+  | 'role_changed'
+  | 'account_deactivated'
+  | 'sessions_ended'
+  | 'second_step_reset';
 
 export interface SessionsTable {
   id: Generated<string>;

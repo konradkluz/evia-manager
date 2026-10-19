@@ -28,8 +28,8 @@ Unauthenticated:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 Forbidden:
   description: >-
-    Brak uprawnienia (`forbidden`), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
-    (`mfa_enrollment_required`).
+    Brak uprawnienia (`forbidden`), nieudana kontrola CSRF (`csrf_failed`), konto bez klucza dostępu
+    (`mfa_enrollment_required`) albo wygasła konfiguracja drugiego kroku po resecie (`mfa_setup_expired`, tylko logowanie).
   content:
     application/problem+json:
       schema:
@@ -359,6 +359,22 @@ UserStateConflict:
         title: Transition is not allowed from the current state
         status: 409
         code: invalid_state_transition
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+UserAccessConflict:
+  description: >-
+    Operacja na koncie jest niedozwolona (EVM-027): `last_active_administrator` — to jedyny aktywny Administrator (dezaktywacja albo
+    zmiana roli); `own_account_not_allowed` — własne konto (zmiana roli, dezaktywacja, reset drugiego kroku, zakończenie sesji);
+    `administrator_passkey_required` — konto bez klucza dostępu nie może zostać Administratorem (tylko zmiana roli);
+    `invalid_state_transition` — konto w stanie, z którego operacja nie jest możliwa (także ta sama rola). Bez danych konta.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/last_active_administrator
+        title: The account is the last active Administrator
+        status: 409
+        code: last_active_administrator
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 IdempotencyMismatch:
   description: Ten sam klucz idempotencji z inną treścią albo na innej operacji (`idempotency_mismatch`).
