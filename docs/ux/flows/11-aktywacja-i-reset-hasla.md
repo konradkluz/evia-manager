@@ -201,15 +201,15 @@ Obowiązuje W-13, W-12 i formularz „Zmień hasło” w [W-15](12-konto-i-admin
 | Ładowanie | Jak W-13: „Sprawdzamy link…” i Skeleton pól bez e-maila; zapis — „Ustaw nowe hasło” w stanie ładowania. |
 | Błąd | Link nieważny — stan z makiety: „Wyślij nowy link” otwiera w W-01 formularz „Zresetuj hasło” **bez wpisanego e-maila** (ASVS V6.4.3), „Wróć do logowania” — W-01. Link wygasł w trakcie wpisywania — ten sam stan, hasło czyszczone. Hasło — [Pole nowego hasła](#pole-nowego-hasła). `429` — jak W-13. Błąd serwera — § 6.4. Drugi krok po zapisie trwał za długo — W-02 „Logowanie trwało zbyt długo. Zaloguj się ponownie — nowe hasło już działa.” → W-01. |
 | Offline | Jak W-13: przy wczytaniu baner § 4.10 „Brak połączenia. Ustawienie hasła wymaga połączenia z internetem.” i „Spróbuj ponownie”; po sprawdzeniu — „Ustaw nowe hasło” wyłączony z podpowiedzią, hasło zostaje w pamięci karty. Link działa 30 minut — tekst nie obiecuje dłuższej ważności. |
-| Brak uprawnień | nd. przed zalogowaniem — dostęp daje wyłącznie ważny link. Konto dezaktywowane nie dostaje linku (EVM-025 AC1); link wydany przed dezaktywacją — stan linku nieważnego. Konto bez drugiego kroku poza oknem konfiguracji też nie dostaje linku, a link wydany w oknie przestaje działać z jego końcem — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Konto zablokowane po nieudanych logowaniach — reset działa i zdejmuje blokadę (EVM-026 AC7). |
+| Brak uprawnień | nd. przed zalogowaniem — dostęp daje wyłącznie ważny link. Konto dezaktywowane nie dostaje linku (EVM-025 AC1); link wydany przed dezaktywacją — stan linku nieważnego. Konto bez drugiego kroku nie dostaje linku wcale (także w oknie konfiguracji), a link wydany przed resetem drugiego kroku przestaje działać z chwilą resetu — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Konto zablokowane po nieudanych logowaniach — reset działa i zdejmuje blokadę (EVM-026 AC7). |
 
-**Po zapisie** (SR-AUTH-11, EVM-025 AC4–AC5): serwer kończy wszystkie sesje web konta (następne żądanie — `401 session_revoked`) i wysyła e-mail „Hasło zostało zmienione” ([e-maile.md](e-maile.md)). Panel przechodzi do W-02 z InlineAlert z makiety — dopiero po drugim kroku powstaje sesja. Komunikat pochodzi wyłącznie ze stanu nawigacji w pamięci tej samej karty, nigdy z parametru adresu (CWE-451); odświeżenie → W-01 bez komunikatu ([01 → W-02](01-logowanie-mfa.md#w-02-drugi-krok)). Konto bez drugiego kroku przechodzi do W-03 **wyłącznie w oknie konfiguracji** po resecie przez administratora — [Konto bez drugiego kroku](#konto-bez-drugiego-kroku). Sesje urządzeń mobilnych — od E9.
+**Po zapisie** (SR-AUTH-11, EVM-025 AC4–AC5): serwer kończy wszystkie sesje web konta (następne żądanie — `401 session_revoked`) i wysyła e-mail „Hasło zostało zmienione” ([e-maile.md](e-maile.md)). Panel przechodzi do W-02 z InlineAlert z makiety — dopiero po drugim kroku powstaje sesja. Komunikat pochodzi wyłącznie ze stanu nawigacji w pamięci tej samej karty, nigdy z parametru adresu (CWE-451); odświeżenie → W-01 bez komunikatu ([01 → W-02](01-logowanie-mfa.md#w-02-drugi-krok)). Konto bez drugiego kroku nie przechodzi tą drogą do W-03 — do W-03 prowadzi tylko logowanie hasłem w oknie konfiguracji po resecie przez administratora ([Konto bez drugiego kroku](#konto-bez-drugiego-kroku)). Sesje urządzeń mobilnych — od E9.
 
 **Role** (kolumny A / E / R — rola konta z linku; ekran działa bez logowania)
 | Akcja | Operacja | A | E | R | Niezalogowany |
 |---|---|---|---|---|---|
 | Sprawdzenie linku | `POST` z tokenem, bez zużycia; odpowiedź: e-mail konta albo jeden błąd | tak | tak | tak | tak — tylko z ważnym linkiem; 60 / min / IP (P10) |
-| Ustaw nowe hasło | reset (SR-AUTH-11): hasło (SR-AUTH-01, -02), koniec sesji, e-mail, audyt; potem W-02 (W-03 — tylko konto bez drugiego kroku w oknie konfiguracji po resecie przez administratora) | tak — W-02: klucz dostępu | tak | tak | tak — z ważnym linkiem |
+| Ustaw nowe hasło | reset (SR-AUTH-11): hasło (SR-AUTH-01, -02), koniec sesji, e-mail, audyt; potem W-02 | tak — W-02: klucz dostępu | tak | tak | tak — z ważnym linkiem |
 | Wyślij nowy link | W-01 „Zresetuj hasło” (pole e-mail puste); odpowiedź zawsze ta sama (EVM-025 AC1) | tak | tak | tak | tak |
 
 - **Responsywność:** jak W-13.
@@ -223,9 +223,9 @@ Ustalenie `security-engineer` z przeglądu EVM-015 (SR-AUTH-06, SR-AUTH-11, SR-A
 | Sytuacja | Zachowanie |
 |---|---|
 | Okno konfiguracji | otwiera je reset drugiego kroku przez administratora; długość — plan EVM-027 (rekomendacja ≤ 24 h; makiety i e-maile pokazują 24 h); najlepiej konfiguracja od razu, w trakcie rozmowy weryfikującej tożsamość; ponowny reset otwiera nowe okno |
-| W oknie | W-12 → W-03 po zapisie hasła; logowanie hasłem w W-01 → W-03 (`403 mfa_enrollment_required`) |
-| Prośba o link po końcu okna | konto nie dostaje linku; W-01 pokazuje ten sam komunikat co zawsze — bez enumeracji |
-| Link wydany w oknie, użyty po jego końcu | stan „Link jest nieważny lub wygasł.” (ważność linku kończy się najpóźniej z końcem okna) |
+| W oknie | logowanie hasłem w W-01 → W-03 (`403 mfa_enrollment_required`); **reset hasła nie otwiera drogi do W-03** — konto bez metod nie dostaje linku także w oknie (zmiana EVM-027 po przeglądzie security: skrzynka e-mail nie jest czynnikiem, CWE-640); kto zapomniał hasła i zgubił telefon, najpierw sam resetuje hasło (konto ma jeszcze metody), potem Administrator resetuje drugi krok |
+| Prośba o link (w oknie i po jego końcu) | konto bez metod nie dostaje linku; W-01 pokazuje ten sam komunikat co zawsze — bez enumeracji |
+| Link resetu wydany przed resetem drugiego kroku | nieważny od chwili resetu (stan „Link jest nieważny lub wygasł.”) |
 | Logowanie hasłem po końcu okna | W-01, po poprawnym haśle: „Konfiguracja drugiego kroku wygasła — poproś administratora o ponowny reset.” — bez W-03 ([W-01](01-logowanie-mfa.md#w-01-logowanie); kod odpowiedzi — plan EVM-027) |
 | Koniec okna w trakcie W-03 | serwer odrzuca rejestrację metody → W-01 z tym samym komunikatem ([W-03](01-logowanie-mfa.md#w-03-konfiguracja-mfa)) |
 

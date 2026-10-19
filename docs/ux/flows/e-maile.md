@@ -156,7 +156,7 @@ Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:
 
 | Wariant | Treść `[wariant]` |
 |---|---|
-| Klucz dostępu dodany | „dodano klucz dostępu.” |
+| Klucz dostępu dodany | „dodano klucz dostępu.” (EVM-027: także rejestracja klucza w oknie po resecie przez Administratora) |
 | Klucz dostępu usunięty | „usunięto klucz dostępu.” |
 | Kod z aplikacji dodany | „dodano kod z aplikacji uwierzytelniającej.” |
 | Kod z aplikacji usunięty | „usunięto kod z aplikacji uwierzytelniającej.” |
@@ -261,6 +261,7 @@ i skontaktuj się z pozostałymi administratorami.
 | Odebranie roli Administrator | odebrana rola | „odebrano rolę Administrator jednemu z kont.” | EVM-027 AC7 |
 | Zaproszenie z rolą Administrator (także wysłane ponownie) | zaproszenie administratora | „wysłano zaproszenie z rolą Administrator.” | EVM-024 AC1 |
 | Reaktywacja konta Administratora | reaktywacja administratora | „reaktywowano konto z rolą Administrator.” | EVM-027 AC7 |
+| Dezaktywacja konta Administratora | dezaktywacja administratora | „dezaktywowano konto z rolą Administrator.” | EVM-027 AC7 (wariant dopisany przy realizacji: dezaktywacja to też „przestaje być Administratorem”) |
 | Reset drugiego kroku Administratora | reset drugiego kroku | „zresetowano drugi krok logowania konta administratora.” | EVM-027 AC7 |
 | Zmiana drugiego kroku konta Administratora | zmiana drugiego kroku | „zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).” | EVM-028 AC3 i AC5 (nowe kody — alert wymagany przez SR-LOG-07; wejście do planu EVM-028) |
 

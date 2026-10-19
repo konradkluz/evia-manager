@@ -8,7 +8,7 @@ import { ProblemException } from '../../src/platform/http/problem.ts';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import { passkeyOptions, PATHS, registerPasskey, setPassword } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
-import { createSession, createUser } from '../support/identity-fixtures.ts';
+import { createSession, createSetupWindow, createUser } from '../support/identity-fixtures.ts';
 import { enrolledAccount, firstStep, LOGIN, PASSWORD, signIn } from '../support/login-flows.ts';
 import { HOUR, MINUTE } from '../support/clock.ts';
 import type { PanelClient } from '../support/panel-client.ts';
@@ -241,7 +241,7 @@ describe('extension of the session, the warning P-11 (EVM-067 AC6; SR-SESS-03, S
 });
 
 describe('a session that has no second step yet (EVM-067 AC8; SR-AUTH-06, AB-01)', () => {
-  /** An active account with a password and no key: the first step gives it a limited session without a link. */
+  /** An active account with a password and no key, in the window that a reset of the second step opened (EVM-027 D1): the first step gives it a limited session. */
   async function passwordOnly() {
     const user = await createUser(current.database.admin, current.clock, { role: 'editor', status: 'active' });
     const hash = await new Argon2PasswordHasher().hash(PASSWORD);
@@ -249,6 +249,7 @@ describe('a session that has no second step yet (EVM-067 AC8; SR-AUTH-06, AB-01)
       .insertInto('identity.password_credentials')
       .values({ user_id: user.id, password_hash: hash, updated_at: current.clock.now() })
       .execute();
+    await createSetupWindow(current.database.admin, current.clock, user.id);
     const panel = current.panel();
     const response = await firstStep(panel, user.email, PASSWORD);
     panel.adopt(response.headers['set-cookie']);
@@ -277,8 +278,22 @@ describe('a session that has no second step yet (EVM-067 AC8; SR-AUTH-06, AB-01)
     expect((await panel.post(LOGIN.extend)).body).toMatchObject({ code: 'session_expired' });
   });
 
-  it('EVM-067 AC8 a password alone cannot register a factor: the key is refused, nothing is stored, the account stays as it was (the session has no link)', async () => {
-    const { user, panel } = await passwordOnly();
+  it('EVM-067 AC8 EVM-027 D2 a password alone gives an account without a second step and without a window no session at all (403 mfa_setup_expired); a limited session without a link, made before, cannot register a factor: the key is refused, nothing is stored, the account stays as it was', async () => {
+    const user = await createUser(current.database.admin, current.clock, { role: 'editor', status: 'active' });
+    const hash = await new Argon2PasswordHasher().hash(PASSWORD);
+    await db()
+      .insertInto('identity.password_credentials')
+      .values({ user_id: user.id, password_hash: hash, updated_at: current.clock.now() })
+      .execute();
+    const refusedFirstStep = await firstStep(current.panel(), user.email, PASSWORD);
+    expect(refusedFirstStep.status).toBe(403);
+    expect(refusedFirstStep.body).toMatchObject({ code: 'mfa_setup_expired' });
+    expect(refusedFirstStep.headers['set-cookie']).toBeUndefined();
+
+    const bare = await createSession(current.database.admin, current.clock, user, { state: 'mfa_enrollment' });
+    const panel = current.panel();
+    panel.cookie = bare.cookie;
+    panel.csrfToken = bare.csrfToken;
     const { response, options } = await passkeyOptions(panel);
     expect(response.status).toBe(200);
     const refused = await registerPasskey(panel, options, new VirtualAuthenticator());

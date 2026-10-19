@@ -410,11 +410,14 @@ describe('sign-in with a recovery code (EVM-023 AC5; SR-AUTH-08, SR-AUTH-15)', (
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ remainingCodes: 9 });
 
-    // an account that has codes but no factor at all is not offered a second step: it still has to enrol
+    // an account that has codes but no factor at all is not offered a second step: it still has to enrol — and, with no window opened by a reset
+    // of the second step, the password alone gives it no session at all (EVM-027 D2)
     const lone = await totpAccount(current, { withCodes: true });
     await sql`delete from identity.totp_factors where user_id = ${lone.user.id}`.execute(current.database.admin);
     const alone = await firstStep(current.panel(), lone.email, lone.password);
-    expect(alone.body).toMatchObject({ state: 'mfa_enrollment' });
+    expect(alone.status).toBe(403);
+    expect(alone.body).toMatchObject({ code: 'mfa_setup_expired' });
+    expect((alone.body as { loginToken?: string }).loginToken).toBeUndefined();
   });
 
   it('EVM-023 AC5 the body is strict and the answer of a code of the wrong kind never leaks the codes', async () => {
