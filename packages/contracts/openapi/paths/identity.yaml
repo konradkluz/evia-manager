@@ -1000,9 +1000,7 @@ userRole:
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
       mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
-      Kolejność: guard (rola, CSRF, kanał, step-up), `userId`, `If-Match` i treść (`400`/`428`), jedna transakcja: blokada administratorów (jedna dla
-      wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta
-      docelowego (nieistniejące albo usunięte — `404 not_found`), wersja (`412 version_conflict` — po `404`, nie przed nim), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Skutki: od następnego żądania obowiązuje nowa rola (rola jest czytana z bazy przy każdym żądaniu), a wszystkie sesje web konta
       kończą się (`401 session_revoked`) razem z wiszącymi `loginToken` i wyzwaniami WebAuthn; sesja wywołującego pozostaje.
       Odrzucenia `409`: `last_active_administrator` (jedyny aktywny Administrator — przed `own_account_not_allowed`),
@@ -1066,9 +1064,7 @@ userDeactivation:
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
       mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
-      Kolejność: guard (rola, CSRF, kanał, step-up), `userId`, `If-Match` (`400`/`428`), jedna transakcja: blokada administratorów (jedna dla
-      wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta
-      docelowego (nieistniejące albo usunięte — `404 not_found`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Konto `active` albo `invited` przechodzi w `deactivated`; wszystkie jego sesje web kończą się (`401 session_revoked`), wiszące
       `loginToken`, wyzwania WebAuthn, oczekujące konfiguracje kodu z aplikacji, linki resetu hasła, zaproszenia i okno konfiguracji
       drugiego kroku są unieważnione. Logowanie daje tę samą odpowiedź co złe hasło. Metody drugiego kroku zostają (reaktywacja je
@@ -1120,9 +1116,7 @@ userReactivation:
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
       mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
-      Kolejność: guard (rola, CSRF, kanał, step-up), `userId`, `If-Match` (`400`/`428`), jedna transakcja: blokada administratorów (jedna dla
-      wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta
-      docelowego (nieistniejące albo usunięte — `404 not_found`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Konto `deactivated` wraca do `active` z dotychczasowymi metodami drugiego kroku (hasło i klucze zostają), jeśli było kiedyś
       aktywowane (`activatedAt`); konto nigdy nieaktywowane wraca do `invited` (poprzedni link zaproszenia pozostaje unieważniony —
       „Wyślij ponownie”). Odrzucenie `409 invalid_state_transition` — konto nie jest dezaktywowane (także własne, które jest aktywne).
@@ -1173,9 +1167,7 @@ userSessions:
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
       mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
-      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`/`428`), jedna transakcja: blokada administratorów (jedna dla
-      wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta
-      docelowego (nieistniejące albo usunięte — `404 not_found`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Każda sesja web konta (w każdym stanie) kończy się — następne żądanie to `401 session_revoked` — razem z wiszącymi `loginToken`
       i wyzwaniami WebAuthn. Konto, hasło i metody drugiego kroku zostają. Operacja jest idempotentna (`204` także bez otwartych
       sesji) i nie zmienia wersji konta, więc nie wymaga `If-Match`. Własne konto — `409 own_account_not_allowed` (własne sesje:
@@ -1211,9 +1203,7 @@ userSecondStepReset:
       Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
       mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
       Wymaga `X-CSRF-Token`.
-      Kolejność: guard (rola, CSRF, kanał, step-up), `userId`, `If-Match` i treść (`400`/`428`), jedna transakcja: blokada administratorów (jedna dla
-      wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta
-      docelowego (nieistniejące albo usunięte — `404 not_found`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
       Tylko konto `active`. Klucze dostępu i sekrety kodu z aplikacji są usuwane (materiał szyfrowany znika), kody odzyskiwania
       przestają działać, wszystkie sesje web konta, wiszące `loginToken`, wyzwania i linki resetu hasła są unieważnione. Otwiera się okno
       konfiguracji drugiego kroku (24 godziny, bez tokenu): logowanie hasłem daje wtedy sesję `mfa_enrollment` (`403

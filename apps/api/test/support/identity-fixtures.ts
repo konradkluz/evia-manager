@@ -83,6 +83,31 @@ export async function createLink(
   return { id: row.id, token };
 }
 
+/** The window to set up a second step that a reset by an Administrator opens (EVM-027 D1): an unused link of the purpose `mfa_setup`, valid for `ttlMs` (default 24 hours). */
+export async function createSetupWindow(
+  db: Kysely<Database>,
+  clock: Clock,
+  userId: string,
+  options: { ttlMs?: number } = {},
+): Promise<{ readonly id: string }> {
+  const issuedAt = clock.now();
+  const row = await identityTables(db)
+    .insertInto('identity.one_time_links')
+    .values({
+      user_id: userId,
+      purpose: 'mfa_setup',
+      token_hash: hashToken(newToken()),
+      issued_by: 'mfa_reset',
+      issued_at: issuedAt,
+      expires_at: new Date(issuedAt.getTime() + (options.ttlMs ?? 24 * 3_600_000)),
+      used_at: null,
+      superseded_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return { id: row.id };
+}
+
 export interface SessionFixture {
   readonly id: string;
   readonly token: string;

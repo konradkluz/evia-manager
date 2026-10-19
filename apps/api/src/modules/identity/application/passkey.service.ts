@@ -15,6 +15,7 @@ import type { PublicKeyCredentialCreationOptionsJSON } from '@simplewebauthn/ser
 import { sql, type Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
+import { enqueueEmail } from '../../../platform/email/email-outbox.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
@@ -24,7 +25,7 @@ import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
 import { claimedChallenge, toRegistrationResponse } from '../domain/webauthn-input.ts';
 import type { IdentityEvent } from '../events.ts';
 import { PASSKEY_VERIFIER, type PasskeyVerifier, type VerifiedPasskey } from '../infrastructure/ports.ts';
-import { insertSession, revokeSessions } from '../infrastructure/queries.ts';
+import { findUserById, insertSession, revokeSessions } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
@@ -121,6 +122,9 @@ export class PasskeyService {
     const now = this.#clock.now();
     const result = await runInTransaction(this.#db, async (transaction) => {
       const tx = identityTables(transaction);
+      // The account is locked FIRST — the order of locks of every unit of work that changes the account or ends its sessions (an Administrator's reset or
+      // deactivation holds this lock before it touches a session, a ceremony or a link), so the two never wait for each other's rows (EVM-027).
+      await findUserById(tx, principal.userId, true);
       const used = await tx
         .updateTable('identity.webauthn_challenges')
         .set({ used_at: now })
@@ -149,7 +153,7 @@ export class PasskeyService {
         .where('used_at', 'is', null)
         .where('superseded_at', 'is', null)
         .where('expires_at', '>', now)
-        .returning('id')
+        .returning(['id', 'purpose'])
         .executeTakeFirst();
       if (link === undefined) throw new EnrolmentSessionGone();
 
@@ -169,14 +173,25 @@ export class PasskeyService {
         .returning(['id', 'created_at', 'device_type', 'backed_up'])
         .executeTakeFirstOrThrow();
 
+      // The link of an invitation activates the account (`invited` → `active`, the first activation); the WINDOW of a reset by an Administrator belongs to an
+      // account that is `active` already — it only gets its second step back (EVM-027 D1). Anything else is no enrolment at all.
+      const activation = link.purpose === 'account_activation';
+      if (!activation && link.purpose !== 'mfa_setup') throw new EnrolmentSessionGone();
       const activated = await tx
         .updateTable('identity.users')
-        .set({ status: 'active', last_login_at: now, updated_at: now, version: sql`version + 1` })
+        .set(
+          activation
+            ? { status: 'active', last_login_at: now, activated_at: now, updated_at: now, version: sql`version + 1` }
+            : { last_login_at: now, updated_at: now },
+        )
         .where('id', '=', principal.userId)
-        .where('status', '=', 'invited')
+        .where('status', '=', activation ? 'invited' : 'active')
         .returning('id')
         .executeTakeFirst();
       if (activated === undefined) throw new EnrolmentSessionGone();
+      if (!activation) {
+        await enqueueEmail(transaction, { kind: 'mfa_changed', variant: 'passkey_enrolled', recipientUserId: principal.userId, now });
+      }
 
       // A new identifier after the change of authentication level (SR-SESS-02): the enrolment session ends here.
       await revokeSessions(tx, { sessionId: principal.sessionId }, 'rotated', now);
@@ -200,7 +215,9 @@ export class PasskeyService {
       const publish = (event: IdentityEvent, context: EventContext) => this.#events.publish(transaction, event, context);
       const current = { ...client.context, sessionId: principal.sessionId };
       await publish({ type: 'passkey.registered', actor, outcome: 'success', objectType: 'passkey', objectId: passkey.id }, current);
-      await publish({ type: 'account.activated', actor, outcome: 'success', objectType: 'user', objectId: principal.userId }, current);
+      if (activation) {
+        await publish({ type: 'account.activated', actor, outcome: 'success', objectType: 'user', objectId: principal.userId }, current);
+      }
       await publish(
         { type: 'session.revoked', actor, outcome: 'success', reasonCode: 'rotated', objectType: 'session', objectId: principal.sessionId },
         current,

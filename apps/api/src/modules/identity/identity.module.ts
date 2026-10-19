@@ -25,6 +25,7 @@ import { RecoveryCodeService } from './application/recovery-code.service.ts';
 import { SessionService } from './application/session.service.ts';
 import { StepUpService } from './application/step-up.service.ts';
 import { TotpEnrolmentService } from './application/totp-enrolment.service.ts';
+import { UserAccessService } from './application/user-access.service.ts';
 import { UserDirectory } from './application/user-directory.ts';
 import { AuthController } from './http/auth.controller.ts';
 import { UsersController } from './http/users.controller.ts';
@@ -52,6 +53,7 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
     SessionService,
     StepUpService,
     TotpEnrolmentService,
+    UserAccessService,
     UserDirectory,
     AdministratorBootstrap,
     InvitationEmailComposer,

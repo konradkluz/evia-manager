@@ -45,11 +45,21 @@ describe('the list of users for the Administrator (EVM-024 AC5, AC8; W-16; SR-AU
     expect(enrolling.body).toMatchObject({ code: 'mfa_enrollment_required' });
   });
 
-  it('EVM-024 AC5 the list holds the fields of the contract and nothing else: no hash, no handle, no credential, no IP address, no method of MFA', async () => {
+  it('EVM-024 AC5 EVM-027 the list holds the fields of the contract and nothing else: no hash, no handle, no credential, no IP address — only the version, the first activation and the KINDS of the active second steps', async () => {
     current = await createIdentityApp();
     const admin = await browserOf(current);
     const response = await admin.panel.get(USERS);
-    expect(Object.keys(bodyOf(response).items[0] ?? {}).sort()).toEqual(['displayName', 'email', 'id', 'invitation', 'role', 'status']);
+    expect(Object.keys(bodyOf(response).items[0] ?? {}).sort()).toEqual([
+      'activatedAt',
+      'displayName',
+      'email',
+      'id',
+      'invitation',
+      'role',
+      'secondStepMethods',
+      'status',
+      'version',
+    ]);
     expect(JSON.stringify(response.body)).not.toMatch(/hash|handle|passkey|credential|ip_|webauthn/i);
   });
 

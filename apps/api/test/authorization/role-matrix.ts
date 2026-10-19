@@ -251,9 +251,9 @@ export async function runMatrix(
     }
 
     app.clock.advance(61_000); // a new minute: the per-IP limits are not what the matrix measures
-    let call = request(server)[cell.method as 'get' | 'post' | 'patch' | 'delete'](path).set(headers);
-    // a PATCH and a DELETE need their precondition before they look at the object (428 comes before 404, EVM-039, EVM-035): the matrix sends a well-formed one
-    if (cell.method === 'patch' || cell.method === 'delete') call = call.set('If-Match', '"1"');
+    let call = request(server)[cell.method as 'get' | 'post' | 'put' | 'patch' | 'delete'](path).set(headers);
+    // a PATCH, a PUT and a DELETE need their precondition before they look at the object (428 comes before 404, EVM-039, EVM-035): the matrix sends a well-formed one
+    if (cell.method === 'patch' || cell.method === 'put' || cell.method === 'delete') call = call.set('If-Match', '"1"');
     // a DELETE has no body
     if (mutating && cell.method !== 'delete') call = call.set('Content-Type', 'application/json').send('{}');
     const response = await call;

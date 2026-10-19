@@ -121,6 +121,7 @@ AuditReasonCode:
     - second_step_reset
     - identity_verified_in_person
     - identity_verified_video_call
+    - mfa_setup_expired
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

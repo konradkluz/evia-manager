@@ -112,14 +112,18 @@ describe('setup of the code of the app (EVM-023 AC1; SR-AUTH-07, SR-CRYPTO-02, B
     expect(confirmation.status).toBe(403);
   });
 
-  it('EVM-023 AC1 B1 a session that came from the password alone has no link and enrols nothing: setup and confirmation are 403 (AB-01)', async () => {
+  it('EVM-023 AC1 B1 EVM-027 D2 the password alone gives no session to an account without a second step (403 mfa_setup_expired), and a session without a link enrols nothing: setup and confirmation are 403 (AB-01)', async () => {
     const account = await enrolledAccount(current, { role: 'editor' });
     await sql`delete from identity.passkeys where user_id = ${account.user.id}`.execute(current.database.admin);
+    const login = await current.panel().post('/api/v1/auth/login', { email: account.email, password: account.password });
+    expect(login.status).toBe(403);
+    expect(login.body).toMatchObject({ code: 'mfa_setup_expired' });
+    expect(login.headers['set-cookie']).toBeUndefined();
+    // a session of the earlier code (EVM-067) that has no link: it exists in a database that was running before the change, and enrols nothing
+    const session = await createSession(current.database.admin, current.clock, account.user, { state: 'mfa_enrollment' });
     const panel = current.panel();
-    const login = await panel.post('/api/v1/auth/login', { email: account.email, password: account.password });
-    expect(login.body).toMatchObject({ state: 'mfa_enrollment' });
-    panel.adopt(login.headers['set-cookie']);
-    panel.csrfToken = (login.body as { csrfToken: string }).csrfToken;
+    panel.cookie = session.cookie;
+    panel.csrfToken = session.csrfToken;
     const attempt = await setup(panel);
     expect(attempt.response.status).toBe(403);
     expect(attempt.response.body).toMatchObject({ code: 'forbidden' });

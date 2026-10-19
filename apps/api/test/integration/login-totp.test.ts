@@ -297,22 +297,24 @@ describe('the methods of the account and the Administrator in the panel (EVM-023
     expect((await sendLoginTotp(panel, loginToken, codeNow(current, secret))).body).toMatchObject({ code: 'unauthenticated' });
   });
 
-  it('EVM-023 AC3 B2 an Administrator whose only factor is a code of the app has no method in the panel: no loginToken, only the session that cannot enrol', async () => {
+  it('EVM-023 AC3 B2 EVM-027 D2 an Administrator whose only factor is a code of the app has no method in the panel: no loginToken, and — with no window opened by a reset — no session either (403 mfa_setup_expired)', async () => {
     const account = await enrolledAccount(current, { role: 'administrator' });
     await insertTotpFactor(current, account.user.id);
     await sql`delete from identity.passkeys where user_id = ${account.user.id}`.execute(current.database.admin);
     const first = await firstStep(current.panel(), account.email, account.password);
-    expect(first.status).toBe(200);
-    expect(first.body).toMatchObject({ state: 'mfa_enrollment' });
+    expect(first.status).toBe(403);
+    expect(first.body).toMatchObject({ code: 'mfa_setup_expired' });
     expect((first.body as { loginToken?: string }).loginToken).toBeUndefined();
+    expect(first.headers['set-cookie']).toBeUndefined();
   });
 
-  it('EVM-023 AC2 B2 an Editor whose only factor is a code of the app is offered the code, and a pending factor is no method at all (the account still has to enrol)', async () => {
+  it('EVM-023 AC2 B2 EVM-027 D2 an Editor whose only factor is a code of the app is offered the code, and a pending factor is no method at all (the account still has to enrol: no session without a window)', async () => {
     const account = await enrolledAccount(current, { role: 'editor' });
     await sql`delete from identity.passkeys where user_id = ${account.user.id}`.execute(current.database.admin);
     await insertTotpFactor(current, account.user.id, { state: 'pending' });
     const pending = await firstStep(current.panel(), account.email, account.password);
-    expect(pending.body).toMatchObject({ state: 'mfa_enrollment' });
+    expect(pending.status).toBe(403);
+    expect(pending.body).toMatchObject({ code: 'mfa_setup_expired' });
     await sql`update identity.totp_factors set state = 'active', confirmed_at = ${current.clock.now()} where user_id = ${account.user.id}`.execute(
       current.database.admin,
     );

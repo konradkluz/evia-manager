@@ -88,7 +88,12 @@ export interface SessionRecord {
   readonly absoluteExpiresAt: Date;
   readonly role: UsersTable['role'];
   readonly userStatus: UsersTable['status'];
-  readonly link: { readonly usedAt: Date | null; readonly supersededAt: Date | null; readonly expiresAt: Date } | null;
+  readonly link: {
+    readonly purpose: OneTimeLinksTable['purpose'];
+    readonly usedAt: Date | null;
+    readonly supersededAt: Date | null;
+    readonly expiresAt: Date;
+  } | null;
 }
 
 /** The session of a token hash with its account and, for an enrolment session, its link — one query per request. */
@@ -112,6 +117,7 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
       'u.role',
       'u.status as userStatus',
       'l.id as linkId',
+      'l.purpose as linkPurpose',
       'l.used_at as linkUsedAt',
       'l.superseded_at as linkSupersededAt',
       'l.expires_at as linkExpiresAt',
@@ -134,9 +140,9 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
     role: row.role,
     userStatus: row.userStatus,
     link:
-      row.linkId === null || row.linkExpiresAt === null
+      row.linkId === null || row.linkExpiresAt === null || row.linkPurpose === null
         ? null
-        : { usedAt: row.linkUsedAt, supersededAt: row.linkSupersededAt, expiresAt: row.linkExpiresAt },
+        : { purpose: row.linkPurpose, usedAt: row.linkUsedAt, supersededAt: row.linkSupersededAt, expiresAt: row.linkExpiresAt },
   };
 }
 
@@ -527,9 +533,22 @@ export interface UserRow {
   readonly role: UsersTable['role'];
   readonly status: UsersTable['status'];
   readonly deletedAt: Date | null;
+  /** Rises only with a managed change (role, status, reset, activation) — the value of `If-Match` (EVM-027). */
+  readonly version: number;
+  /** The first activation; null = never activated. */
+  readonly activatedAt: Date | null;
 }
 
-const USER_COLUMNS = ['id', 'email', 'display_name as displayName', 'role', 'status', 'deleted_at as deletedAt'] as const;
+const USER_COLUMNS = [
+  'id',
+  'email',
+  'display_name as displayName',
+  'role',
+  'status',
+  'deleted_at as deletedAt',
+  'version',
+  'activated_at as activatedAt',
+] as const;
 
 /** The account of a normalised address — also a deleted one (the address stays taken: `users.email` is unique for every row). */
 export async function findUserByEmail(db: IdentityDb, email: string, lock: boolean = false): Promise<UserRow | undefined> {
@@ -640,6 +659,8 @@ export async function readUserPage(db: IdentityDb, request: UserPageRequest): Pr
       'u.role',
       'u.status',
       'u.deleted_at as deletedAt',
+      'u.version',
+      'u.activated_at as activatedAt',
       'link.issued_at as lastLinkIssuedAt',
       'link.expires_at as lastLinkExpiresAt',
       'link.used_at as lastLinkUsedAt',

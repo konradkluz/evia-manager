@@ -209,13 +209,19 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
 /** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
 export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
 
-export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'second_step_reset';
-export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = ['totp_enrolled', 'recovery_codes_generated', 'second_step_reset'];
+export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset';
+export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = [
+  'totp_enrolled',
+  'recovery_codes_generated',
+  'passkey_enrolled',
+  'second_step_reset',
+];
 export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
   SECOND_STEP_CHANGES.some((change) => change === value);
 
 const SECOND_STEP_CHANGE_TEXT: Readonly<Record<Exclude<SecondStepChange, 'second_step_reset'>, string>> = {
   totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
+  passkey_enrolled: 'dodano klucz dostępu.',
   recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
 };
 

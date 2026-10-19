@@ -40,6 +40,12 @@ import { openTotpSecret, sealTotpSecret } from './totp-secret.ts';
 /** The enrolment session or its link is no longer valid — answered with 401 session_revoked, nothing is changed. */
 class EnrolmentSessionGone extends Error {}
 
+/** The link an enrolment session is bound to, still usable: an invitation's (the first activation) or the window of a reset (EVM-027). */
+interface LockedLink {
+  readonly id: string;
+  readonly activation: boolean;
+}
+
 type ConfirmOutcome = NewSessionResult | { readonly refusal: 'totp_verification_failed' };
 
 @Injectable()
@@ -109,8 +115,10 @@ export class TotpEnrolmentService {
    * the password alone (no link) or is not an enrolment, `EnrolmentSessionGone` for one that has ended or whose link is spent, superseded or expired.
    * @returns the id of the link
    */
-  async #lockEnrolment(tx: IdentityDb, principal: Principal, now: Date): Promise<string> {
+  async #lockEnrolment(tx: IdentityDb, principal: Principal, now: Date): Promise<LockedLink> {
     if (principal.state !== 'mfa_enrollment') throw new ProblemException('forbidden');
+    // The account FIRST: the order of locks of an Administrator's reset or deactivation, which holds it before it touches a session or a link (EVM-027).
+    await findUserById(tx, principal.userId, true);
     const session = await tx
       .selectFrom('identity.sessions')
       .select('one_time_link_id')
@@ -122,14 +130,14 @@ export class TotpEnrolmentService {
     if (session.one_time_link_id === null) throw new ProblemException('forbidden');
     const link = await tx
       .selectFrom('identity.one_time_links')
-      .select('id')
+      .select(['id', 'purpose'])
       .where('id', '=', session.one_time_link_id)
       .where('used_at', 'is', null)
       .where('superseded_at', 'is', null)
       .where('expires_at', '>', now)
       .executeTakeFirst();
-    if (link === undefined) throw new EnrolmentSessionGone();
-    return link.id;
+    if (link === undefined || (link.purpose !== 'account_activation' && link.purpose !== 'mfa_setup')) throw new EnrolmentSessionGone();
+    return { id: link.id, activation: link.purpose === 'account_activation' };
   }
 
   async #confirmInTransaction(
@@ -140,7 +148,7 @@ export class TotpEnrolmentService {
     now: Date,
   ): Promise<ConfirmOutcome> {
     const tx = identityTables(transaction);
-    const linkId = await this.#lockEnrolment(tx, principal, now);
+    const { id: linkId, activation } = await this.#lockEnrolment(tx, principal, now);
     const actor = { type: 'user', userId: principal.userId } as const;
     const current = { ...client.context, sessionId: principal.sessionId };
     const publish = (event: IdentityEvent, context: EventContext) => this.#events.publish(transaction, event, context);
@@ -178,11 +186,17 @@ export class TotpEnrolmentService {
       .returning('id')
       .executeTakeFirst();
     if (link === undefined) throw new EnrolmentSessionGone();
+    // An invitation's link activates the account (the first activation); the window of a reset by an Administrator belongs to an account that is already
+    // `active` — it only gets a second step back (EVM-027 D1).
     const activated = await tx
       .updateTable('identity.users')
-      .set({ status: 'active', last_login_at: now, updated_at: now, version: sql`version + 1` })
+      .set(
+        activation
+          ? { status: 'active', last_login_at: now, activated_at: now, updated_at: now, version: sql`version + 1` }
+          : { last_login_at: now, updated_at: now },
+      )
       .where('id', '=', principal.userId)
-      .where('status', '=', 'invited')
+      .where('status', '=', activation ? 'invited' : 'active')
       .returning('id')
       .executeTakeFirst();
     if (activated === undefined) throw new EnrolmentSessionGone();
@@ -208,7 +222,9 @@ export class TotpEnrolmentService {
     await enqueueEmail(transaction, { kind: 'mfa_changed', variant: 'totp_enrolled', recipientUserId: principal.userId, now });
 
     await publish({ type: 'mfa.totp_enrolled', actor, outcome: 'success', objectType: 'user', objectId: principal.userId }, current);
-    await publish({ type: 'account.activated', actor, outcome: 'success', objectType: 'user', objectId: principal.userId }, current);
+    if (activation) {
+      await publish({ type: 'account.activated', actor, outcome: 'success', objectType: 'user', objectId: principal.userId }, current);
+    }
     await publish(
       { type: 'session.revoked', actor, outcome: 'success', reasonCode: 'rotated', objectType: 'session', objectId: principal.sessionId },
       current,

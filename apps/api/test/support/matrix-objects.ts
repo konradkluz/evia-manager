@@ -285,7 +285,7 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
 const USERS = '/api/v1/users';
 
 /**
- * The IDOR fixture of the resend of an invitation (EVM-024 AC8; SR-AUTHZ-02, SR-AUTHZ-11, CWE-639): "own" is an account that waits for its
+ * The IDOR fixture of the resend of an invitation (EVM-024 AC8) and of the administration of accounts (EVM-027 AC8; SR-AUTHZ-02, SR-AUTHZ-11, CWE-639): "own" is an account that waits for its
  * activation; "foreign" is an EXISTING account that is soft deleted — the row is in the table, and only the rule of the use case (a deleted
  * account is `404`, like one that never existed) keeps the caller from it.
  */
@@ -294,7 +294,19 @@ export async function userObjects(app: IdentityApp): Promise<Record<string, Obje
   const own = await createUser(db, app.clock, { role: 'editor', status: 'invited' });
   const foreign = await createUser(db, app.clock, { role: 'editor', status: 'invited' });
   await sql`update identity.users set deleted_at = ${app.clock.now()} where id = ${foreign.id}`.execute(db);
-  return { resendUserInvitation: { own: () => `${USERS}/${own.id}/invitations`, foreign: () => `${USERS}/${foreign.id}/invitations` } };
+  const pair = (suffix: string): ObjectPaths => ({
+    own: () => `${USERS}/${own.id}${suffix}`,
+    foreign: () => `${USERS}/${foreign.id}${suffix}`,
+  });
+  return {
+    resendUserInvitation: pair('/invitations'),
+    // EVM-027 AC8: the five operations of the administration of accounts address the same pair — a live account and an EXISTING one that is deleted
+    changeUserRole: pair('/role'),
+    deactivateUser: pair('/deactivation'),
+    reactivateUser: pair('/reactivation'),
+    endUserSessions: pair('/sessions'),
+    resetUserSecondStep: pair('/second-step-reset'),
+  };
 }
 
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */

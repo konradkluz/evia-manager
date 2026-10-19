@@ -155,7 +155,15 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     };
     const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers, ...administratorOnly];
     // the operations with a step-up: the only caller they let through is the Administrator with a fresh key (EVM-057; EVM-024: the resend of an invitation)
-    const stepUp = ['deletePaymentMilestone', 'resendUserInvitation'];
+    const stepUp = [
+      'deletePaymentMilestone',
+      'resendUserInvitation',
+      'changeUserRole',
+      'deactivateUser',
+      'reactivateUser',
+      'endUserSessions',
+      'resetUserSecondStep',
+    ];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
     for (const operationId of stepUp) {
       expect(idor.filter((cell) => cell.operationId === operationId).map((cell) => cell.caller)).toEqual([

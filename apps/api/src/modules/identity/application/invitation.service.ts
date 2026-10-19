@@ -24,7 +24,7 @@ import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
-import { enqueueEmail, latestEmailStatus, supersedePendingEmails } from '../../../platform/email/email-outbox.ts';
+import { enqueueEmail, supersedePendingEmails } from '../../../platform/email/email-outbox.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
@@ -35,7 +35,6 @@ import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { normalizeInvitation, type InvitationInput, type NewInvitation } from '../domain/invitation-input.ts';
 import type { IdentityEvent } from '../events.ts';
 import {
-  findLatestLink,
   findUserByEmail,
   findUserById,
   insertInvitedUser,
@@ -45,7 +44,7 @@ import {
   type UserRow,
 } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
-import { toUser } from './user-representation.ts';
+import { representUser } from './user-view.ts';
 
 /** Method and route template: what an idempotency key is bound to besides the user. */
 export const INVITE_USER_SCOPE = 'POST /api/v1/users';
@@ -119,7 +118,7 @@ export class InvitationService {
       }
       const row = await findUserById(identityTables(tx), id);
       if (row === undefined || row.deletedAt !== null) throw new ProblemException('not_found');
-      return { user: await this.#represent(tx, row, this.#clock.now()), replayed };
+      return { user: await representUser(tx, row, this.#clock.now()), replayed };
     });
   }
 
@@ -156,7 +155,7 @@ export class InvitationService {
         objectType: 'user',
         objectId: userId,
       });
-      return this.#represent(tx, account, now);
+      return representUser(tx, account, now);
     });
   }
 
@@ -203,19 +202,6 @@ export class InvitationService {
     for (const recipientUserId of await listActiveAdministratorIds(identityTables(tx))) {
       await enqueueEmail(tx, { kind: 'administrator_alert', variant: ALERT_VARIANT, recipientUserId, now });
     }
-  }
-
-  async #represent(tx: Kysely<Database>, row: UserRow, now: Date): Promise<User> {
-    const link = await findLatestLink(identityTables(tx), row.id);
-    const status = (await latestEmailStatus(tx, [row.id], 'user_invitation')).get(row.id);
-    return toUser(
-      row,
-      link === undefined
-        ? null
-        : { issuedAt: link.issued_at, expiresAt: link.expires_at, usedAt: link.used_at, supersededAt: link.superseded_at },
-      status,
-      now,
-    );
   }
 }
 

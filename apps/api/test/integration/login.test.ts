@@ -9,7 +9,7 @@ import { METRICS } from '../../src/platform/tokens.ts';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import { setPassword } from '../support/flows.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
-import { createLink, createUser } from '../support/identity-fixtures.ts';
+import { createLink, createSetupWindow, createUser } from '../support/identity-fixtures.ts';
 import { enrolledAccount, firstStep, LOGIN, PASSWORD } from '../support/login-flows.ts';
 
 /** Records every verification: the hash it ran against (the stored one or the dummy) and the password it was given. */
@@ -242,13 +242,14 @@ describe('the first step succeeds (EVM-067 AC1, AC4; SR-AUTH-06, SR-AUTH-09)', (
     expect(await db().selectFrom('identity.login_attempts').select('id').execute()).toHaveLength(2);
   });
 
-  it('EVM-067 AC8 an active account without a second step gets a limited session (mfa_enrollment) with the cookie, a new token and the channel web', async () => {
+  it('EVM-067 AC8 EVM-027 D1 an active account without a second step, while the window of a reset by an Administrator is open, gets a limited session (mfa_enrollment) bound to the window, with the cookie, a new token and the channel web', async () => {
     const user = await createUser(current.database.admin, current.clock, { role: 'editor', status: 'active' });
     const hash = await new Argon2PasswordHasher().hash(PASSWORD);
     await db()
       .insertInto('identity.password_credentials')
       .values({ user_id: user.id, password_hash: hash, updated_at: current.clock.now() })
       .execute();
+    const window = await createSetupWindow(current.database.admin, current.clock, user.id);
     const response = await firstStep(current.panel(), user.email, PASSWORD);
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ state: 'mfa_enrollment', csrfToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/) as unknown });
@@ -258,7 +259,7 @@ describe('the first step succeeds (EVM-067 AC1, AC4; SR-AUTH-06, SR-AUTH-09)', (
       ) as unknown,
     ]);
     const [session] = await db().selectFrom('identity.sessions').selectAll().where('user_id', '=', user.id).execute();
-    expect(session).toMatchObject({ channel: 'web', state: 'mfa_enrollment', one_time_link_id: null, revoked_at: null });
+    expect(session).toMatchObject({ channel: 'web', state: 'mfa_enrollment', one_time_link_id: window.id, revoked_at: null });
     expect(await db().selectFrom('identity.login_attempts').select('id').execute()).toEqual([]);
   });
 });
@@ -397,6 +398,7 @@ describe('the first step is a public operation with CSRF protection (EVM-067 AC7
       .insertInto('identity.password_credentials')
       .values({ user_id: user.id, password_hash: hash, updated_at: current.clock.now() })
       .execute();
+    await createSetupWindow(current.database.admin, current.clock, user.id);
     const response = await firstStep(current.panel(), user.email, PASSWORD);
     const [cookie] = response.headers['set-cookie'] ?? [];
     const [pair, ...attributes] = (cookie ?? '').split('; ');

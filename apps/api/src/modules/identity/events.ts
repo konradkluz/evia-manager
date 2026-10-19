@@ -74,6 +74,8 @@ export const REASON_CODES = [
   'second_step_reset',
   'identity_verified_in_person',
   'identity_verified_video_call',
+  // The correct password of an account whose window to set up a second step is over, or never was open (EVM-027 D2).
+  'mfa_setup_expired',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

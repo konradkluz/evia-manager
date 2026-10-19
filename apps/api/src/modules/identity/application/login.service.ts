@@ -22,6 +22,7 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { normalizeEmail } from '../domain/text.ts';
 import { PASSWORD_HASHER, type PasswordHasher } from '../infrastructure/ports.ts';
+import { findOpenSetupWindow } from '../infrastructure/access-queries.ts';
 import { findLoginUser, type LoginUser } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
@@ -72,21 +73,42 @@ export class LoginService {
     // The methods the account really has in this channel, for its role now — the same function as the end of a password reset (B2). An account
     // whose only factor is a pending TOTP, or a TOTP the role may not use here, has none: it gets the enrolment session, which cannot register anything.
     const methods = await secondStepMethods(this.#db, user.userId);
-    if (methods.length === 0) {
-      const session = await runInTransaction(this.#db, (transaction) =>
-        startSession(transaction, this.#events, {
-          userId: user.userId,
-          state: 'mfa_enrollment',
-          previousSessionToken,
-          client,
-          now,
-          authenticatedWith: 'none',
-        }),
-      );
-      return { kind: 'session', session };
-    }
+    if (methods.length === 0) return this.#withoutSecondStep(user, client, previousSessionToken, now);
     const loginToken = await runInTransaction(this.#db, (transaction) => openSecondStep(transaction, user.userId, now));
     return { kind: 'second_step', loginToken, methods };
+  }
+
+  /**
+   * An active account with no second step it may use. Only the WINDOW that a reset by an Administrator opened (EVM-027 D1) gives it a way to set one up: a
+   * session `mfa_enrollment` bound to the window, which ends with it. Without an open window — after its end, or for an account that never had a second
+   * step — the correct password gives nothing but `403 mfa_setup_expired` (D2): a session that cannot enrol anything would only be a thing to steal, and
+   * nobody may add a second step to an account by the password alone (AB-01; ASVS V6.4.4). The refusal is audited and counted; no session is made.
+   */
+  async #withoutSecondStep(
+    user: LoginUser,
+    client: ClientInfo,
+    previousSessionToken: string | undefined,
+    now: Date,
+  ): Promise<LoginOutcome> {
+    const windowId = await findOpenSetupWindow(identityTables(this.#db), user.userId, now);
+    if (windowId === undefined) {
+      await runInTransaction(this.#db, (transaction) =>
+        this.#failures.record(transaction, 'mfa_setup_expired', user.userId, client.context),
+      );
+      throw new ProblemException('mfa_setup_expired');
+    }
+    const session = await runInTransaction(this.#db, (transaction) =>
+      startSession(transaction, this.#events, {
+        userId: user.userId,
+        state: 'mfa_enrollment',
+        linkId: windowId,
+        previousSessionToken,
+        client,
+        now,
+        authenticatedWith: 'none',
+      }),
+    );
+    return { kind: 'session', session };
   }
 
   /** Exactly one verification whatever the case: against the stored hash of an active account, otherwise against the dummy. */
