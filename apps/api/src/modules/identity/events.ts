@@ -30,6 +30,13 @@ export const IDENTITY_EVENT_TYPES = [
   'mfa.totp_enrolled',
   'mfa.recovery_codes_generated',
   'login.recovery_code_used',
+  // EVM-027: an Administrator changed a role / deactivated or reactivated an account / ended the sessions of a user / reset the second step. Identifiers
+  // and codes only (the role before and after as codes) — never a name, an address or a free text.
+  'user.role_changed',
+  'user.deactivated',
+  'user.reactivated',
+  'user.sessions_ended',
+  'user.second_step_reset',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -60,6 +67,13 @@ export const REASON_CODES = [
   // EVM-023: a wrong code of the authenticator app / a wrong recovery code (sign-in, step-up, confirmation). Never shown to the client beyond the 401/400.
   'totp_failed',
   'recovery_code_failed',
+  // EVM-027: why a session ended by an Administrator's operation, and how the Administrator verified the identity before a reset of the second step.
+  'role_changed',
+  'account_deactivated',
+  'sessions_ended',
+  'second_step_reset',
+  'identity_verified_in_person',
+  'identity_verified_video_call',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
@@ -80,6 +94,9 @@ export interface IdentityEvent extends DomainEvent {
   readonly actor: EventActor;
   readonly outcome: 'success' | 'denied' | 'failed';
   readonly reasonCode?: ReasonCode;
+  /** The role before and after a change (`user.role_changed` only; both together, EVM-027) — codes of the closed list of roles. */
+  readonly fromCode?: string;
+  readonly toCode?: string;
   readonly objectType: 'user' | 'session' | 'passkey';
   /** Absent when the event has no object to point at (a sign-in with an unknown e-mail address). */
   readonly objectId?: string;

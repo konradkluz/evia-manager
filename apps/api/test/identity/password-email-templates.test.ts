@@ -103,9 +103,10 @@ describe('the fixed texts of the e-mails about the second step (EVM-023 AC5, AC6
     );
   });
 
-  it('EVM-023 AC6 only the two known changes are texts: anything else is refused before a message is made', () => {
+  it('EVM-023 AC6 only the known changes are texts (EVM-027 adds the reset by an Administrator): anything else is refused before a message is made', () => {
     expect(isSecondStepChange('totp_enrolled')).toBe(true);
     expect(isSecondStepChange('recovery_codes_generated')).toBe(true);
+    expect(isSecondStepChange('second_step_reset')).toBe(true);
     for (const value of [null, '', 'passkey_added', 'TOTP_ENROLLED']) expect(isSecondStepChange(value), String(value)).toBe(false);
   });
 

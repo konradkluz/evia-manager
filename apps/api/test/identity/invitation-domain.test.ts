@@ -86,7 +86,14 @@ describe('the fixed texts of the e-mails (EVM-024 AC2; docs/ux/flows/e-maile.md)
     expect(text).toContain('wysłano zaproszenie z rolą Administrator.');
     expect(text).toContain(`${ORIGIN}${AUDIT_LOG_PATH}`);
     expect(text).not.toMatch(/#|@|token/i);
-    expect(ALERT_VARIANTS).toEqual(['administrator_invitation']);
+    expect(ALERT_VARIANTS).toEqual([
+      'administrator_invitation',
+      'administrator_granted',
+      'administrator_revoked',
+      'administrator_deactivated',
+      'administrator_reactivated',
+      'administrator_second_step_reset',
+    ]);
     expect(isAlertVariant('administrator_invitation')).toBe(true);
     for (const other of [null, '', 'emergency_reset', 'ADMINISTRATOR_INVITATION']) expect(isAlertVariant(other)).toBe(false);
   });

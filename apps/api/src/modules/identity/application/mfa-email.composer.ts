@@ -2,7 +2,7 @@
  * Composes the e-mails about the second step for the worker of the outbox (EVM-023 AC5, AC6; SR-AUTH-10, SR-AUTH-15, SR-INPUT-07, SR-LOG-02).
  * Like the other composers it runs inside the transaction of the job `email.send`, the account locked first:
  *
- * - `mfa_changed` (variant `totp_enrolled` | `recovery_codes_generated`): what changed and when (the time the change was asked for) — never the secret,
+ * - `mfa_changed` (variant `totp_enrolled` | `recovery_codes_generated` | `second_step_reset`): what changed and when (the time the change was asked for; a reset also says until when the setup stays open — 24 hours from then) — never the secret,
  *   the address of the authenticator, a code or the position of a code;
  * - `recovery_code_used`: a recovery code signed in at that time; the number of codes still unused is read when the message is composed.
  *
@@ -18,6 +18,7 @@ import type { ComposedEmail, EmailComposer } from '../../../platform/email/email
 import { EmailPermanentError } from '../../../platform/email/email-errors.ts';
 import type { EmailKind, OutboxMessage } from '../../../platform/email/email-outbox.ts';
 import { APP_CONFIG } from '../../../platform/tokens.ts';
+import { SECOND_STEP_SETUP_WINDOW_MS } from '../domain/constants.ts';
 import { isSecondStepChange, recoveryCodeUsedText, secondStepChangedText } from '../domain/email-templates.ts';
 import { countAvailableRecoveryCodes } from '../infrastructure/mfa-queries.ts';
 import { findUserById } from '../infrastructure/queries.ts';
@@ -51,6 +52,7 @@ export class MfaEmailComposer implements EmailComposer {
         panelOrigin: this.#panelOrigin,
         change: message.variant,
         changedAt: message.createdAt,
+        windowEndsAt: new Date(message.createdAt.getTime() + SECOND_STEP_SETUP_WINDOW_MS),
       });
       return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
     }

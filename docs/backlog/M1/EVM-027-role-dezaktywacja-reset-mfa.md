@@ -113,3 +113,4 @@ _—_
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC7 — alert także przy reaktywacji konta z rolą Administrator; AC8 — komunikat `412` wg makiety W-16 (forma bezosobowa)
 - 2026-10-16 — ścieżka `pelna` (uwierzytelnianie/uprawnienia), `model: sonnet`, realizacja lokalna z portem e-mail i Mailpit z EVM-024 — decyzja Konrada przy planowaniu kolejki 16.10
 - 2026-10-19 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
+- 2026-10-19 — plan gotowy (backend-developer)

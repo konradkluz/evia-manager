@@ -85,12 +85,24 @@ export function invitationText(input: InvitationTextInput): EmailText {
   };
 }
 
-/** The variants of the alert for Administrators this story sends (the others belong to EVM-026, -027, -028). */
-export const ALERT_VARIANTS = ['administrator_invitation'] as const;
+/** The variants of the alert for Administrators (EVM-024, EVM-027; the others belong to EVM-026, -028). */
+export const ALERT_VARIANTS = [
+  'administrator_invitation',
+  'administrator_granted',
+  'administrator_revoked',
+  'administrator_deactivated',
+  'administrator_reactivated',
+  'administrator_second_step_reset',
+] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
 const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string }>> = {
   administrator_invitation: { kind: 'zaproszenie administratora', sentence: 'wysłano zaproszenie z rolą Administrator.' },
+  administrator_granted: { kind: 'nowy administrator', sentence: 'nadano rolę Administrator jednemu z kont.' },
+  administrator_revoked: { kind: 'odebrana rola', sentence: 'odebrano rolę Administrator jednemu z kont.' },
+  administrator_deactivated: { kind: 'dezaktywacja administratora', sentence: 'dezaktywowano konto z rolą Administrator.' },
+  administrator_reactivated: { kind: 'reaktywacja administratora', sentence: 'reaktywowano konto z rolą Administrator.' },
+  administrator_second_step_reset: { kind: 'reset drugiego kroku', sentence: 'zresetowano drugi krok logowania konta administratora.' },
 };
 
 export const isAlertVariant = (value: string | null): value is AlertVariant => ALERT_VARIANTS.includes(value as AlertVariant);
@@ -197,12 +209,12 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
 /** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
 export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
 
-export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated';
-export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = ['totp_enrolled', 'recovery_codes_generated'];
+export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'second_step_reset';
+export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = ['totp_enrolled', 'recovery_codes_generated', 'second_step_reset'];
 export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
   SECOND_STEP_CHANGES.some((change) => change === value);
 
-const SECOND_STEP_CHANGE_TEXT: Readonly<Record<SecondStepChange, string>> = {
+const SECOND_STEP_CHANGE_TEXT: Readonly<Record<Exclude<SecondStepChange, 'second_step_reset'>, string>> = {
   totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
   recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
 };
@@ -211,23 +223,39 @@ export interface SecondStepChangedTextInput {
   readonly panelOrigin: string;
   readonly change: SecondStepChange;
   readonly changedAt: Date;
+  /** The end of the window to set up a second step — only for `second_step_reset`. */
+  readonly windowEndsAt?: Date;
 }
 
-/** E-mail 5 (a change of the second step, variants of EVM-023): what changed and when; never the secret, a code or the name of a method's device (SR-AUTH-10). */
+/**
+ * E-mail 5 (a change of the second step, variants of EVM-023 and EVM-027): what changed and when; never the secret, a code, the name of a method's device or
+ * who did it (SR-AUTH-10). The variant "reset by an Administrator" says that every session ended and until when the setup is open; it carries NO link that
+ * signs in or sets a password (SR-INPUT-07) — only the address of the panel — and asks to contact the administrator instead of "set a new password".
+ */
 export function secondStepChangedText(input: SecondStepChangedTextInput): EmailText {
+  const reset = input.change === 'second_step_reset';
+  const what = reset
+    ? [
+        'zresetowano drugi krok logowania w panelu administracji. Wszystkie sesje konta zostały zakończone.',
+        'Przy następnym logowaniu panel poprowadzi przez konfigurację od nowa.',
+        `Skonfiguruj drugi krok do ${formatWarsaw(input.windowEndsAt ?? input.changedAt)} — po tym czasie poproś administratora o ponowny reset.`,
+      ]
+    : [SECOND_STEP_CHANGE_TEXT[input.change]];
+  const warning = reset
+    ? ['Jeśli nie zgłaszasz utraty drugiego kroku, od razu skontaktuj się z administratorem.']
+    : ['Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:', `${input.panelOrigin}${RESET_FORM_PATH}`];
   return {
     subject: 'EVia Manager: zmiana drugiego kroku logowania',
     text: [
       'Dzień dobry,',
       '',
       `w koncie w EVia Manager zmieniono drugi krok logowania ${formatWarsaw(input.changedAt)}:`,
-      SECOND_STEP_CHANGE_TEXT[input.change],
+      ...what,
       '',
       'Metody konta sprawdzisz w panelu: Konto → Drugi krok logowania',
       `${input.panelOrigin}${SECOND_STEP_SETTINGS_PATH}`,
       '',
-      'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
-      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      ...warning,
       '',
       footer(input.panelOrigin),
       '',
