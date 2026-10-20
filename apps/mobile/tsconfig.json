@@ -1,0 +1,14 @@
+{
+  "extends": "@evia/config/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2024"],
+    "types": ["node", "jest"],
+    "jsx": "react-native",
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "index.ts", "test/**/*.ts", "test/**/*.tsx", "plugins/**/*.ts", "*.config.ts", "*.config.mjs"],
+  "exclude": ["node_modules", "android", "ios", "coverage", ".expo"]
+}

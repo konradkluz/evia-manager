@@ -25,6 +25,12 @@ allowBuilds:
   # EVM-008: protobufjs (transitive via dockerode -> testcontainers) has a legacy postinstall that only tries to run
   # the CLI dependency installer; it is unused here, so the script stays blocked (SR-SUPPLY-06).
   protobufjs: false
+  # EVM-009: @parcel/watcher (transitive via jest-haste-map and Expo CLI) only compiles a native file watcher from source when no
+  # prebuilt binary matches; the prebuilt optional packages are used, so the script stays blocked (SR-SUPPLY-06).
+  '@parcel/watcher': false
+  # EVM-009: unrs-resolver (transitive via jest-resolve) has a postinstall that only checks for its prebuilt binding package, which
+  # comes from optional dependencies, so the script stays blocked (SR-SUPPLY-06).
+  unrs-resolver: false
 
 catalog:
   '@types/node': 26.6.3
