@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import { sql, type Kysely } from 'kysely';
 import type { Response } from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { deletePasswordThrottle, deleteThrottles } from '../../src/modules/identity/infrastructure/throttle-queries.ts';
+import {
+  deleteExpiredThrottles,
+  deletePasswordThrottle,
+  deleteThrottles,
+} from '../../src/modules/identity/infrastructure/throttle-queries.ts';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
 import { DEVICE_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
@@ -12,7 +16,7 @@ import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts'
 import { createLink, createUser } from '../support/identity-fixtures.ts';
 import { setPassword } from '../support/flows.ts';
 import { enrolledAccount, firstStep, signIn } from '../support/login-flows.ts';
-import { outboxRows } from '../support/invitation-fixtures.ts';
+import { emailHarness, outboxRows } from '../support/invitation-fixtures.ts';
 import {
   accountKeyOf,
   accountRow,
@@ -253,6 +257,23 @@ describe('the browser the account knows (EVM-026 AC2, M5)', () => {
     expect((await lockEvents(current)).map((event) => event.action)).toEqual(['account.locked', 'account.browser_locked']);
   });
 
+  it('EVM-026 AC4 the lock of a browser the account knows is told as that: the variant of the browser, and an e-mail that names THIS browser and says that the others are not covered', async () => {
+    const { account, deviceCookie } = await accountWithBrowser();
+    await wrongPasswords(current, account.email, 10, { panel: () => browserWith(deviceCookie) });
+    const rows = await outboxRows(current, { recipient: account.user.id, kind: 'account_locked' });
+    expect(rows.map((row) => row.variant)).toEqual(['browser_password']);
+    const harness = emailHarness(current);
+    await harness.job.run({ ids: rows.map((row) => row.id) });
+    expect(harness.sender.sent).toHaveLength(1);
+    const { subject, text } = harness.sender.sent[0] ?? { subject: '', text: '' };
+    expect(subject).toBe('EVia Manager: logowanie zablokowane na 15 minut');
+    expect(text).toContain('z przeglądarki, której Twoje konto używa na co dzień, od ');
+    expect(text).toContain('Ta blokada dotyczy tylko tej przeglądarki');
+    expect(text).not.toContain('z nieznanych przeglądarek');
+    expect(text).not.toContain('nie jest zablokowane');
+    expect(text).not.toMatch(/#|token/i);
+  });
+
   it('EVM-026 AC2 the browsers the account does not know cannot be kept signed out by the tries from a browser it knows (and the other way round)', async () => {
     const { account, deviceCookie } = await accountWithBrowser();
     await wrongPasswords(current, account.email, 10, { panel: () => browserWith(deviceCookie) });
@@ -305,6 +326,22 @@ describe('the lift of a lock never waits for a sign-in (EVM-026 AC7; CWE-833)', 
     });
     expect(await accountRow(current, known.email)).toMatchObject({ failures: 10, lock_cause: 'password' });
     expect(await deletePasswordThrottle(app, key)).toBe(true);
+    expect(await accountRow(current, known.email)).toBeUndefined();
+  });
+
+  it('EVM-026 AC7 the retention skips a counter that a sign-in holds locked instead of waiting for it (CWE-833) and deletes it on the next run', async () => {
+    const known = await enrolledAccount(current);
+    current.clock.set(NINE);
+    await wrongPasswords(current, known.email, 1);
+    const key = accountKeyOf(current, known.email);
+    const app = identityTables(current.app.get<Kysely<Database>>(DATABASE, { strict: false }));
+    const later = new Date(new Date(NINE).getTime() + 60 * MINUTE);
+    await current.database.admin.transaction().execute(async (trx) => {
+      await sql`select 1 from identity.login_throttle where scope_key = ${key} for update`.execute(trx);
+      await deleteExpiredThrottles(app, later); // returned at once — it did not queue behind the lock
+      expect(await accountRow(current, known.email)).toBeDefined();
+    });
+    expect(await deleteExpiredThrottles(app, later)).toBeGreaterThanOrEqual(1);
     expect(await accountRow(current, known.email)).toBeUndefined();
   });
 });
