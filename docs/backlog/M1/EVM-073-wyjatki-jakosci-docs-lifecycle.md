@@ -4,7 +4,7 @@ title: Zniesienie wyjątków jakości w tools/docs-lifecycle
 type: enabler
 milestone: M1
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P3
 owner: devops-engineer
 contributors: []
@@ -96,7 +96,7 @@ _—_
 - [x] `npm run test:tools` i `npm run docs:check` (0 błędów) natywnie; lint, typy, testy `tools/repo-policy` i `pnpm run gate` — lokalnie z Node 26 albo przez zielony `ci-gate` na HEAD gałęzi (raport QA zaznacza, które bramki sprawdzono tylko w CI).
 - [x] Przegląd `code-reviewer` — APPROVE.
 - [x] Dokumentacja (`packages/config/README.md`, `tools/repo-policy/README.md`, `tools/docs-lifecycle/README.md`) i `CHANGELOG.md` zaktualizowane.
-- [ ] Demo i akceptacja Konrada.
+- [x] Demo i akceptacja Konrada.
 
 ## Dziennik
 - 2026-10-05 — utworzono jako szkic z refinementu EVM-013 („Decyzje” 1) (product-owner)
@@ -107,3 +107,4 @@ _—_
 - 2026-10-16 — przegląd `code-reviewer`: changes_required (major: brak testów `EVM-073 AC1/AC2`, wąskie wykrywanie w AC3) → runda poprawek (commit `5de0f59`: testy AC1/AC2/AC4 w `tools/repo-policy`, ostrzejsze wykrywanie wyjątków); poprawki zweryfikowane przez orkiestratora (diff, `pnpm run gate` zielony 13:40, `docs:check` 0/0)
 - Notatki (minor/nit): AC4 sprawdzone tylko na Node 26 (Node 22 niezweryfikowany — do potwierdzenia w CI/na demo); zmieniono oczekiwanie istniejącego testu EVM-013 AC8 (odwołania do EVM-073 tylko w dokumentach, nie w konfiguracji) — zgodne z AC3, do oceny na demo; adnotacja „Szkic” w sekcji AC i pusty „Plan techniczny” (ścieżka lekka); pomiar błędów lokalny (47 TS, 62 ESLint), bez przebiegu CI
 - 2026-10-16 — Koszt: 3 agenty, ok. 232 tys. tokenów podagentów, 106 wywołań narzędzi, ok. 44 min; status → in-review
+- 2026-10-20 — demo/akceptacja Konrada → in-review → done
