@@ -7,7 +7,15 @@ import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts'
 import { enrolledAccount, firstStep, loginOptions, LOGIN, secondStep } from '../support/login-flows.ts';
 import { outboxRows } from '../support/invitation-fixtures.ts';
 import { accountRow, alertCodes, CountingHasher, InspectingSleeper, lockEvents, wrongPasswords } from '../support/throttle-flows.ts';
-import { codeNow, SECOND_STEP, sendLoginRecoveryCode, sendLoginTotp, startLogin, totpAccount } from '../support/totp-flows.ts';
+import {
+  codeNow,
+  SECOND_STEP,
+  sendLoginRecoveryCode,
+  sendLoginTotp,
+  signInWithTotp,
+  startLogin,
+  totpAccount,
+} from '../support/totp-flows.ts';
 import type { PanelClient } from '../support/panel-client.ts';
 import { VirtualAuthenticator } from '../support/virtual-authenticator.ts';
 
@@ -321,5 +329,52 @@ describe('a token that names no first step (EVM-026 AC3)', () => {
     const unknown = await current.panel().post(SECOND_STEP.loginTotp, { loginToken: 'B'.repeat(43), code: '123456' });
     expect(unknown.status).toBe(401);
     expect(unknown.body).toMatchObject({ code: 'unauthenticated' });
+  });
+});
+
+describe('the lock ends the loginToken of its own scope only (EVM-026 AC3)', () => {
+  /** An account with a code of the app and one browser it knows; @returns a panel that holds only the cookie of that browser. */
+  async function accountWithKnownBrowser() {
+    const account = await totpAccount(current, { withCodes: true });
+    const signedIn = await signInWithTotp(current, account);
+    expect(signedIn.response.status).toBe(200);
+    current.clock.advance(61_000);
+    const knownBrowser = (): PanelClient => {
+      const panel = current.panel();
+      panel.deviceCookie = signedIn.panel.deviceCookie;
+      return panel;
+    };
+    expect(knownBrowser().deviceCookie).toBeDefined();
+    return { account, knownBrowser };
+  }
+
+  it('EVM-026 AC3 the lock of the browsers the account does not know does NOT end the loginToken of the browser it knows', async () => {
+    const { account, knownBrowser } = await accountWithKnownBrowser();
+    const knownPanel = knownBrowser();
+    const unknownPanel = current.panel();
+    const knownToken = await startLogin(knownPanel, account);
+    const unknownToken = await startLogin(unknownPanel, account);
+    await wrongPasswords(current, account.email, 10);
+    expect((await accountRow(current, account.email))?.lock_cause).toBe('password');
+    expect(await openAttempts()).toBe(1); // the one of the known browser stands
+
+    expect((await sendLoginTotp(unknownPanel, unknownToken, codeNow(current, account.secret))).status).toBe(429);
+    const kept = await sendLoginTotp(knownPanel, knownToken, codeNow(current, account.secret));
+    expect(kept.status).toBe(200);
+  });
+
+  it('EVM-026 AC3 the lock of one known browser does NOT end the loginToken of the browsers the account does not know', async () => {
+    const { account, knownBrowser } = await accountWithKnownBrowser();
+    const knownPanel = knownBrowser();
+    const unknownPanel = current.panel();
+    const knownToken = await startLogin(knownPanel, account);
+    const unknownToken = await startLogin(unknownPanel, account);
+    await wrongPasswords(current, account.email, 10, { panel: knownBrowser });
+    expect((await lockEvents(current)).map((event) => event.action)).toEqual(['account.browser_locked']);
+    expect(await openAttempts()).toBe(1); // the one of the unknown browsers stands
+
+    expect((await sendLoginTotp(knownPanel, knownToken, codeNow(current, account.secret))).status).toBe(429);
+    const kept = await sendLoginTotp(unknownPanel, unknownToken, codeNow(current, account.secret));
+    expect(kept.status).toBe(200);
   });
 });
