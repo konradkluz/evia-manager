@@ -4,7 +4,7 @@ title: Role, dezaktywacja, sesje i reset MFA użytkownika
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -114,7 +114,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX / architektura (wg `reviewers`) — APPROVE
 - [x] `domain-model.md` (reguły `User`), `api-guidelines.md` (kody) i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -126,3 +126,4 @@ _—_
 - 2026-10-19 — backend zaimplementowany (backend-developer): 5 operacji, migracja 0039, okno konfiguracji drugiego kroku, alerty i audyt; decyzja Konrada o `administrator_passkey_required` oraz zmiana planu D4 (reset hasła nie omija okna) po konsultacji security; panel W-16 — osobny krok
 - 2026-10-19 — panel W-16 zaimplementowany (web-developer): menu wiersza, dialogi 3–7 ze stanami (412, 409, 429, offline, W-04), komunikat W-01 po końcu okna konfiguracji; testy komponentów i E2E (Chromium, Edge, Firefox), zrzuty 360/768/1280/1440 w docs/ux/reviews/EVM-027
 - 2026-10-19 — przegląd (code, security, ux, solution-architect) po 2 rundach — APPROVE; bramka zielona; in-progress → in-review (czeka na demo) [orkiestrator]
+- 2026-10-20 — demo/akceptacja Konrada → in-review → done
