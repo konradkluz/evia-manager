@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { coverageExclusions } from '../src/coverage-exclusions.ts';
 import { COVERAGE_THRESHOLDS, coverage } from '../src/vitest.ts';
@@ -33,5 +34,12 @@ describe('Vitest preset (EVM-006 AC3)', () => {
 
   it('EVM-006 AC3: an empty include list is rejected (uninstrumented code would look green)', () => {
     expect(() => coverage({ layer: 'backend', include: [] })).toThrow(/include/);
+  });
+
+  it('EVM-009 AC4: the thresholds come from coverage-thresholds.json, the same file the Jest configuration of apps/mobile reads', () => {
+    const file: unknown = JSON.parse(readFileSync(new URL('../coverage-thresholds.json', import.meta.url), 'utf8'));
+    expect(file).toMatchObject({ shared: COVERAGE_THRESHOLDS.shared, backend: COVERAGE_THRESHOLDS.backend });
+    expect(file).toMatchObject({ web: COVERAGE_THRESHOLDS.web, mobile: COVERAGE_THRESHOLDS.mobile });
+    expect(COVERAGE_THRESHOLDS.mobile).toBeGreaterThanOrEqual(80);
   });
 });
