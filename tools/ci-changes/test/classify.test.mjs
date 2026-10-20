@@ -9,8 +9,10 @@ import { fileURLToPath } from 'node:url';
 import { detect, isDocumentation, isNotRelevantToE2e, isNotRelevantToIntegration } from '../lib/classify.mjs';
 
 const BASE = 'a'.repeat(40);
-const FULL = 'heavy=true\ne2e=true\nintegration=true';
-const NONE = 'heavy=false\ne2e=false\nintegration=false';
+const FULL = 'heavy=true\ne2e=true\nintegration=true\nmobile=true';
+const NONE = 'heavy=false\ne2e=false\nintegration=false\nmobile=false';
+/** Code outside the Android package: every job but mobile-apk runs. */
+const CODE_NOT_MOBILE = 'heavy=true\ne2e=true\nintegration=true\nmobile=false';
 /** @param {...string} files */
 const list =
   (...files) =>
@@ -93,13 +95,13 @@ describe('EVM-083 AC3: fail-closed detection', () => {
     writeFileSync(join(repo, 'b.ts'), 'x');
     git('add', 'b.ts');
     git('commit', '-qm', 'code');
-    assert.equal(run(base), FULL);
+    assert.equal(run(base), CODE_NOT_MOBILE);
     assert.equal(run('f'.repeat(40)), FULL);
     // moving a code file into docs/ must not look like a documentation-only change (rename detection off)
     const moved = git('rev-parse', 'HEAD');
     git('mv', 'b.ts', 'docs/b.ts');
     git('commit', '-qm', 'move code into docs');
-    assert.equal(run(moved), FULL);
+    assert.equal(run(moved), CODE_NOT_MOBILE);
   });
 });
 

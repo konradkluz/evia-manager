@@ -67,6 +67,7 @@ jobs:
 
   # Change detection (EVM-083, EVM-086): `heavy` (coverage), `e2e` (e2e-web) and `integration` (backend-integration) are
   # false only when every changed file is on that output's explicit not-applicable list; fail closed (all true).
+  # `mobile` (EVM-009; mobile-apk) is the one POSITIVE list: false when no changed file can change the Android package.
   changes:
     name: changes
     if: github.event_name != 'push' || github.ref == 'refs/heads/main'
@@ -78,12 +79,13 @@ jobs:
       heavy: ${{ steps.detect.outputs.heavy }}
       e2e: ${{ steps.detect.outputs.e2e }}
       integration: ${{ steps.detect.outputs.integration }}
+      mobile: ${{ steps.detect.outputs.mobile }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Change detection (heavy, e2e, integration)
+      - name: Change detection (heavy, e2e, integration, mobile)
         id: detect
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -248,6 +250,161 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # EVM-009 AC5, AC6: the Android package of the app, built from the generated native project (`expo prebuild`, Gradle
+  # assembleRelease) WITHOUT any secret and WITHOUT signing: the artifact is `*-release-unsigned.apk` (it cannot be installed).
+  # The manifest, the XML resources and the contents of the finished package are verified (tools/mobile-apk), then the SHA-256 is
+  # written to the summary. No Expo/EAS account, no telemetry. The signing key is used by `mobile-sign` below, on main only.
+  # The API address of the build is the repository variable EVIA_API_BASE_URL (https only; a build with another scheme fails).
+  mobile-apk:
+    name: mobile-apk
+    needs: [changes]
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.EVIA_API_BASE_URL || 'https://api.example.invalid' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: gradle-${{ runner.os }}-
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Build the dependencies of the app (design tokens, contract client)
+        run: pnpm exec turbo run build --filter=@evia/mobile^...
+      - name: Accept the Android SDK licenses (Gradle installs the missing platform and NDK)
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      - name: Native project (expo prebuild, clean; the version code is the run number plus an offset)
+        working-directory: apps/mobile
+        run: |
+          EVIA_ANDROID_VERSION_CODE="$((GITHUB_RUN_NUMBER + 100000))" pnpm exec expo prebuild --platform android --clean --no-install
+      - name: Release package (Gradle assembleRelease, unsigned)
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew assembleRelease --no-daemon --console=plain \
+            -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
+            "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+      - name: Name the package (version from app.config, run number)
+        id: name
+        run: |
+          version="$(node --input-type=module -e "import { APP_VERSION } from './apps/mobile/plugins/expo-config.ts'; process.stdout.write(APP_VERSION)")"
+          mkdir -p dist
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk "dist/evia-manager-${version}-b${GITHUB_RUN_NUMBER}-release-unsigned.apk"
+          echo "file=dist/evia-manager-${version}-b${GITHUB_RUN_NUMBER}-release-unsigned.apk" >> "$GITHUB_OUTPUT"
+      - name: Verify the finished package (manifest, backup and network rules, secrets in the contents)
+        env:
+          APK: ${{ steps.name.outputs.file }}
+        run: node tools/mobile-apk/cli.mjs verify --apk "$APK"
+      - name: SHA-256 of the package to the summary
+        env:
+          APK: ${{ steps.name.outputs.file }}
+        run: node tools/mobile-apk/cli.mjs digest --apk "$APK"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-apk-unsigned
+          path: dist/*-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # EVM-009 AC5 (security-engineer B1): signing of the package of THIS run on main only — a separate job that checks out
+  # nothing, installs nothing and uses no cache: the signing key is visible to the signing step only (its `env`), the keystore
+  # is a temporary file removed at the end, the passwords reach apksigner through environment variables and never through
+  # arguments. Without the secrets the job succeeds and says that the package stays unsigned. Outside ci-gate: signing is a
+  # release step, judged by its own run (tools/repo-policy → mobileSignJobProblems).
+  mobile-sign:
+    name: mobile-sign
+    needs: [mobile-apk]
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: mobile-apk-unsigned
+          path: unsigned
+      - name: Sign the package with the key from the secrets (or leave it unsigned and say so)
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          unsigned="$(find unsigned -maxdepth 1 -name '*-release-unsigned.apk' | head -n 1)"
+          test -n "$unsigned"
+          mkdir -p signed
+          present=0
+          missing=""
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -n "${!name:-}" ]; then present=$((present + 1)); else missing="$missing $name"; fi
+          done
+          if [ "$present" -eq 0 ]; then
+            echo "::warning::No signing secrets: the package stays unsigned (docs/ops/dystrybucja-apk-android.md)"
+            {
+              echo '### APK NIEPODPISANY'
+              echo
+              echo 'Brak sekretów podpisu (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD) — artefakt mobile-apk-unsigned nie da się zainstalować. Kroki dodania sekretów: docs/ops/dystrybucja-apk-android.md.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$present" -ne 4 ]; then
+            echo "::error::The signing secrets are incomplete; missing:$missing"
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/evia-release.keystore"
+          trap 'rm -f "$keystore"' EXIT
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$keystore"
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$tools/zipalign" -c -P 16 4 "$unsigned"
+          signed="signed/$(basename "${unsigned%-unsigned.apk}").apk"
+          "$tools/apksigner" sign --ks "$keystore" --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
+            --out "$signed" "$unsigned"
+          report="$("$tools/apksigner" verify --verbose --print-certs "$signed")"
+          echo "$report" | grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true'
+          echo "$report" | grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true'
+          {
+            echo '### APK podpisany'
+            echo
+            echo "- Plik: \`$(basename "$signed")\`"
+            echo "- SHA-256 pliku: \`$(sha256sum "$signed" | cut -d ' ' -f 1)\`"
+            echo "$report" | grep 'certificate SHA-256 digest' | sed 's/^/- /'
+            echo
+            echo 'Porównaj oba skróty z danymi z przekazania pliku przed instalacją (docs/ops/dystrybucja-apk-android.md).'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the keystore from the runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/evia-release.keystore"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mobile-apk-signed
+          path: signed/*.apk
+          if-no-files-found: ignore
+          retention-days: 30
+
   security:
     name: security
     needs: [changes]
@@ -322,12 +479,12 @@ jobs:
 
   # ci-gate (K1): runs in full runs only (never for a push to a branch). Requires `changes` success and every job
   # success; e2e-web may be skipped only when `changes` reported e2e=false, backend-integration only with
-  # integration=false and coverage only with heavy=false — and must then be skipped. Failure, cancelled, a skip
+  # integration=false, mobile-apk only with mobile=false and coverage only with heavy=false — and must then be skipped. Failure, cancelled, a skip
   # without its own not-applicable output, a missing job or an unreadable output = red.
   ci-gate:
     name: ci-gate
     if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')
-    needs: [changes, quality, backend, backend-integration, e2e-web, security, coverage]
+    needs: [changes, quality, backend, backend-integration, e2e-web, mobile-apk, security, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -337,4 +494,4 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))' > /dev/null
+          echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "mobile-apk", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.mobile == "true" or $o.mobile == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false" and $o.mobile == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.["mobile-apk"].result == (if $o.mobile == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))' > /dev/null

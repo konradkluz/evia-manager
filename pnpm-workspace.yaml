@@ -45,6 +45,10 @@ overrides:
   # (GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh: CPU exhaustion on crafted YAML). 4.3.2 is a
   # compatible patch release. Remove when the generator ships js-yaml >= 4.3.2.
   'js-yaml@4.2.0': 4.3.2
+  # EVM-009: uuid@7.0.3 (via xcode@3.0.1 <- @expo/config-plugins, prebuild only) carries GHSA-w5hq-g745-h8pq (missing buffer bounds
+  # check in v3/v5/v6 when a buffer is passed; fixed in 11.1.1). xcode only calls v4(), so it is not reachable, but the scan is
+  # blocking and 11.1.1 is the first fixed release that still ships CommonJS (xcode uses require). Remove when xcode drops uuid 7.
+  'uuid@7.0.3': 11.1.1
 patchedDependencies:
   busboy@1.6.0: patches/busboy@1.6.0.patch
   streamsearch@1.1.0: patches/streamsearch@1.1.0.patch

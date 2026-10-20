@@ -20,7 +20,8 @@ export function workflowProblems(file: string, raw: string, document: unknown): 
     problems.push(`${file}: permissions na poziomie pliku = { contents: read }`);
   if (/\b(write-all|read-all)\b/.test(raw)) problems.push(`${file}: zabronione write-all / read-all`);
   if (/secrets:\s*inherit/.test(raw)) problems.push(`${file}: zabronione secrets: inherit`);
-  if (raw.includes('secrets.') && !file.endsWith('renovate.yml')) problems.push(`${file}: sekrety (secrets.) wyłącznie w renovate.yml`);
+  if (raw.includes('secrets.') && !file.endsWith('renovate.yml') && !(file.endsWith('ci.yml') && secretsOnlyInMobileSign(document)))
+    problems.push(`${file}: sekrety (secrets.) wyłącznie w renovate.yml i w kroku podpisu joba mobile-sign (ci.yml)`);
   for (const [line, index] of raw.split('\n').map((value, position) => [value, position + 1] as const)) {
     const match = USES.exec(line);
     if (!match) continue;
@@ -50,6 +51,8 @@ export function workflowProblems(file: string, raw: string, document: unknown): 
 
 /** Jobs of the fast run of a push to a branch (EVM-083 AC1): outside ci-gate, which never runs for such a push. */
 export const FAST_JOBS = ['quick'];
+/** Release steps after the build (EVM-009): outside ci-gate, judged by their own run; the signing job of the Android package. */
+export const POST_JOBS = ['mobile-sign'];
 /** Jobs that always run in a full run (EVM-083 AC2): only `needs: [changes]`, no `if` of their own. */
 const ALWAYS_JOBS = ['quality', 'backend', 'security'];
 /**
@@ -60,11 +63,12 @@ const ALWAYS_JOBS = ['quality', 'backend', 'security'];
 const HEAVY_IFS: Record<string, string> = {
   'backend-integration': "needs.changes.outputs.integration == 'true'",
   'e2e-web': "needs.changes.outputs.e2e == 'true'",
+  'mobile-apk': "needs.changes.outputs.mobile == 'true'",
   coverage: "needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()",
 };
 const HEAVY_JOBS = Object.keys(HEAVY_IFS);
 /** Outputs of `changes`, each "true" or "false" (tools/ci-changes). */
-const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration'];
+const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'mobile'];
 const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
 const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
 const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";
@@ -75,7 +79,7 @@ const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/mai
  * skipped when it is "false" (EVM-086 AC3). Failure, cancelled, an unexplained skip, a missing job or output = red.
  */
 export const GATE_JQ =
-  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))';
+  '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "mobile-apk", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.mobile == "true" or $o.mobile == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false" and $o.mobile == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.["mobile-apk"].result == (if $o.mobile == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))';
 
 /**
  * A2, W6, EVM-083 AC3: `ci-gate` depends on every job of the full run (all but the fast ones), runs only in full runs,
@@ -87,7 +91,7 @@ export function ciGateProblems(document: unknown): string[] {
   const gate = record(jobs['ci-gate']);
   const needs = list(gate['needs']).map(String).sort();
   const expected = Object.keys(jobs)
-    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name))
+    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name) && !POST_JOBS.includes(name))
     .sort();
   const problems: string[] = [];
   if (JSON.stringify(needs) !== JSON.stringify(expected)) problems.push(`ci-gate: needs musi obejmować ${expected.join(', ')}`);
@@ -275,6 +279,115 @@ export function docsCheckStepProblems(document: unknown): string[] {
   const step = steps[index];
   if (step === undefined) return [...problems, `${QUALITY}: brak kroku walidatora dokumentacji (node tools/docs-lifecycle/cli.mjs check)`];
   return [...problems, ...setupProblems(steps.slice(0, index)), ...docsStepProblems(step)];
+}
+
+/** The names of the signing secrets of the Android package (EVM-009; docs/ops/dystrybucja-apk-android.md). */
+export const MOBILE_SIGN_SECRETS = Object.freeze([
+  'ANDROID_KEYSTORE_BASE64',
+  'ANDROID_KEYSTORE_PASSWORD',
+  'ANDROID_KEY_ALIAS',
+  'ANDROID_KEY_PASSWORD',
+]);
+const MOBILE_SIGN = 'ci.yml: mobile-sign';
+const MOBILE_SIGN_IF = "(github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'";
+/** Steps that run project code or restore caches: none of them may be in the job that holds the signing key (B1, TM-112). */
+const MOBILE_SIGN_FORBIDDEN_USES = [
+  'actions/checkout@',
+  'pnpm/action-setup@',
+  'actions/setup-node@',
+  'actions/setup-java@',
+  'actions/cache@',
+];
+const MOBILE_SIGN_ALLOWED_USES = ['actions/download-artifact@', 'actions/upload-artifact@'];
+const SECRET_REFERENCE = /\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}/g;
+
+const stepsOf = (job: Record<string, unknown>): Array<Record<string, unknown>> => list(job['steps']).map(record);
+
+/**
+ * EVM-009 (security-engineer B1): `secrets.` outside renovate.yml only in ci.yml — and there only as the four signing secrets in
+ * the `env` of ONE step of the job `mobile-sign`, each under its own name. Any other place (another job, a `with`, a `run`, the
+ * job `env`) is a violation, so a secret cannot reach code that the project controls.
+ */
+export function secretsOnlyInMobileSign(document: unknown): boolean {
+  const jobs = record(record(document)['jobs']);
+  for (const [name, value] of Object.entries(jobs)) {
+    const job = record(value);
+    if (name !== 'mobile-sign') {
+      if (JSON.stringify(job).includes('secrets.')) return false;
+      continue;
+    }
+    const { steps, ...rest } = job;
+    if (JSON.stringify(rest).includes('secrets.')) return false;
+    const holders = list(steps)
+      .map(record)
+      .filter((step) => JSON.stringify(step).includes('secrets.'));
+    if (holders.length !== 1) return false;
+    const env = record(holders[0]?.['env']);
+    const { env: ignored, ...withoutEnv } = holders[0] ?? {};
+    if (ignored === undefined || JSON.stringify(withoutEnv).includes('secrets.')) return false;
+    if (JSON.stringify(Object.keys(env)) !== JSON.stringify(MOBILE_SIGN_SECRETS)) return false;
+    if (!Object.entries(env).every(([key, reference]) => text(reference) === '${{ secrets.' + key + ' }}')) return false;
+  }
+  return true;
+}
+
+/**
+ * EVM-009 AC5 (security-engineer B1 a–d): the job that holds the signing key. It runs after mobile-apk on main only (push or a
+ * manual run), outside ci-gate; it checks out nothing, installs nothing and uses no cache — only download-artifact and
+ * upload-artifact. The key is in the env of the signing step alone; the keystore is a temporary file removed by a trap and by an
+ * `always()` step; passwords reach apksigner as environment variables (`env:`), never as arguments; the script prints no secret.
+ */
+export function mobileSignJobProblems(document: unknown): string[] {
+  const jobs = record(record(document)['jobs']);
+  if (!('mobile-sign' in jobs)) return [`${MOBILE_SIGN}: brak joba`];
+  const job = record(jobs['mobile-sign']);
+  const problems: string[] = [];
+  if (text(job['if']) !== MOBILE_SIGN_IF) problems.push(`${MOBILE_SIGN}: wymagane if: ${MOBILE_SIGN_IF}`);
+  if (JSON.stringify(job['needs']) !== JSON.stringify(['mobile-apk'])) problems.push(`${MOBILE_SIGN}: needs = [mobile-apk]`);
+  if (JSON.stringify(job['permissions']) !== JSON.stringify({ contents: 'read' }))
+    problems.push(`${MOBILE_SIGN}: permissions = { contents: read }`);
+  for (const key of ['env', 'defaults', 'container', 'services', 'continue-on-error', 'strategy', 'outputs']) {
+    if (key in job) problems.push(`${MOBILE_SIGN}: zabronione ${key} na poziomie joba`);
+  }
+  const steps = stepsOf(job);
+  for (const step of steps) {
+    const uses = text(step['uses']);
+    if (MOBILE_SIGN_FORBIDDEN_USES.some((prefix) => uses.startsWith(prefix)))
+      problems.push(`${MOBILE_SIGN}: bez checkoutu, instalacji i cache — zabronione ${uses.split('@')[0] ?? uses}`);
+    else if (uses !== '' && !MOBILE_SIGN_ALLOWED_USES.some((prefix) => uses.startsWith(prefix)))
+      problems.push(`${MOBILE_SIGN}: dozwolone wyłącznie download-artifact i upload-artifact (znaleziono ${uses.split('@')[0] ?? uses})`);
+  }
+  const signing = steps.find((step) => JSON.stringify(step).includes('secrets.'));
+  if (signing === undefined) return [...problems, `${MOBILE_SIGN}: brak kroku podpisu z sekretami w env`];
+  const run = text(signing['run']);
+  if (signing['shell'] !== 'bash') problems.push(`${MOBILE_SIGN}: krok podpisu wymaga shell: bash`);
+  if ('if' in signing || 'continue-on-error' in signing) problems.push(`${MOBILE_SIGN}: krok podpisu bez if i continue-on-error`);
+  if (run.includes('${{')) problems.push(`${MOBILE_SIGN}: bez wyrażeń \${{ }} w run kroku podpisu`);
+  for (const required of [
+    'set -euo pipefail',
+    'umask 077',
+    'trap ',
+    '--ks-pass env:ANDROID_KEYSTORE_PASSWORD',
+    '--key-pass env:ANDROID_KEY_PASSWORD',
+  ])
+    if (!run.includes(required)) problems.push(`${MOBILE_SIGN}: krok podpisu musi zawierać ${required}`);
+  if (/set\s+-[a-z]*x/.test(run)) problems.push(`${MOBILE_SIGN}: krok podpisu bez set -x (echo poleceń ujawniłby sekrety)`);
+  if (/--(?:ks|key)-pass\s+(?:pass|file|stdin):/.test(run)) problems.push(`${MOBILE_SIGN}: hasła do apksigner wyłącznie przez env:`);
+  const leaks = run
+    .split('\n')
+    .filter(
+      (line) =>
+        /\b(?:echo|printf|cat|tee)\b/.test(line) &&
+        /\$\{?!?(?:ANDROID_KEYSTORE_PASSWORD|ANDROID_KEY_PASSWORD|ANDROID_KEYSTORE_BASE64)\b/.test(line),
+    )
+    .filter((line) => line.trim() !== 'printf \'%s\' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$keystore"');
+  if (leaks.length > 0) problems.push(`${MOBILE_SIGN}: krok podpisu wypisuje sekret (${leaks.length} linii)`);
+  const cleanup = steps.find((step) => text(step['run']).includes('rm -f "$RUNNER_TEMP/evia-release.keystore"'));
+  if (cleanup === undefined || text(cleanup['if']) !== 'always()')
+    problems.push(`${MOBILE_SIGN}: krok usuwający keystore z if: always() (rm -f "$RUNNER_TEMP/evia-release.keystore")`);
+  const references = [...JSON.stringify(signing).matchAll(SECRET_REFERENCE)].map((match) => match[1]);
+  if (references.length !== MOBILE_SIGN_SECRETS.length) problems.push(`${MOBILE_SIGN}: sekrety wyłącznie cztery nazwy podpisu`);
+  return problems;
 }
 
 /** A7: the Renovate token is visible to the Renovate step only. */

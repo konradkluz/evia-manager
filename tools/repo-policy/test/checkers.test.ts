@@ -219,7 +219,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     const broken = real();
     broken.jobs['ci-gate'] = { needs: ['quality'], steps: [{ run: 'true' }] };
     expect(ciGateProblems(broken)).toEqual([
-      'ci-gate: needs musi obejmować backend, backend-integration, changes, coverage, e2e-web, quality, security',
+      'ci-gate: needs musi obejmować backend, backend-integration, changes, coverage, e2e-web, mobile-apk, quality, security',
       "ci-gate: wymagane if: always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')",
       'ci-gate: skrypt musi sprawdzać dokładną listę jobów z needs',
       'ci-gate: skrypt musi zawierać GATE_JQ (success wszystkich jobów; pominięcie ciężkich tylko przy heavy=false)',
@@ -298,7 +298,7 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
       [
         'changes without the new outputs',
         (w) => void (ciJob(w, 'changes').outputs = { heavy: 'x' }),
-        'ci.yml: changes: outputs musi być dokładnie heavy, e2e, integration',
+        'ci.yml: changes: outputs musi być dokładnie heavy, e2e, integration, mobile',
       ],
       [
         'quality skipped on heavy=false',
@@ -329,9 +329,18 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
     heavy?: string,
     e2e: string | null = heavy ?? null,
     integration: string | null = heavy ?? null,
+    mobile: string | null = heavy ?? null,
   ): Record<string, unknown> => ({
     result,
-    outputs: heavy === undefined ? {} : { heavy, ...(e2e === null ? {} : { e2e }), ...(integration === null ? {} : { integration }) },
+    outputs:
+      heavy === undefined
+        ? {}
+        : {
+            heavy,
+            ...(e2e === null ? {} : { e2e }),
+            ...(integration === null ? {} : { integration }),
+            ...(mobile === null ? {} : { mobile }),
+          },
   });
   const needs = (over: Record<string, Record<string, unknown>>): string =>
     JSON.stringify({
@@ -340,12 +349,18 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
       backend: need('success'),
       'backend-integration': need('success'),
       'e2e-web': need('success'),
+      'mobile-apk': need('success'),
       security: need('success'),
       coverage: need('success'),
       ...over,
     });
   const gate = (input: string): number | null => spawnSync(jq, ['-e', GATE_JQ], { input }).status;
-  const skipped = { 'backend-integration': need('skipped'), 'e2e-web': need('skipped'), coverage: need('skipped') };
+  const skipped = {
+    'backend-integration': need('skipped'),
+    'e2e-web': need('skipped'),
+    'mobile-apk': need('skipped'),
+    coverage: need('skipped'),
+  };
 
   it.skipIf(!hasJq && !process.env['CI'])(
     'EVM-083 AC3: ci-gate is green for a full success and for a documentation-only change with the heavy jobs skipped',
@@ -389,9 +404,31 @@ describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {
   );
 
   it.skipIf(!hasJq && !process.env['CI'])(
+    'EVM-009 AC5: ci-gate accepts a skipped mobile-apk only with mobile=false, requires success with mobile=true, and a documentation-only change builds nothing',
+    () => {
+      const noMobile = (over: Record<string, Record<string, unknown>> = {}): string =>
+        needs({ changes: need('success', 'true', 'true', 'true', 'false'), 'mobile-apk': need('skipped'), ...over });
+      expect(gate(noMobile()), 'mobile not relevant').toBe(0);
+      expect(gate(noMobile({ 'mobile-apk': need('success') })), 'ran though not relevant').toBe(1);
+      expect(gate(needs({ 'mobile-apk': need('skipped') })), 'skipped though relevant').toBe(1);
+      expect(gate(needs({ 'mobile-apk': need('failure') })), 'build failure').toBe(1);
+      expect(gate(needs({ 'mobile-apk': need('cancelled') })), 'build cancelled').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', 'true', null) })), 'mobile output missing').toBe(1);
+      expect(gate(needs({ changes: need('success', 'true', 'true', 'true', 'maybe') })), 'mobile output unreadable').toBe(1);
+      expect(gate(needs({ changes: need('success', 'false', 'false', 'false', 'true'), ...skipped })), 'heavy=false with mobile=true').toBe(
+        1,
+      );
+      expect(gate(needs({ changes: need('success', 'false'), ...skipped })), 'documentation only').toBe(0);
+      const missing = JSON.parse(needs({})) as Record<string, unknown>;
+      delete missing['mobile-apk'];
+      expect(gate(JSON.stringify(missing)), 'missing mobile-apk').toBe(1);
+    },
+  );
+
+  it.skipIf(!hasJq && !process.env['CI'])(
     'EVM-083 AC3: ci-gate is red for a failure, cancelled, a skip beside code changes, a failed or unreadable change detection and a missing job',
     () => {
-      for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'security', 'coverage']) {
+      for (const job of ['quality', 'backend', 'backend-integration', 'e2e-web', 'mobile-apk', 'security', 'coverage']) {
         expect(gate(needs({ [job]: need('failure') })), `${job} failure`).toBe(1);
         expect(gate(needs({ [job]: need('cancelled') })), `${job} cancelled`).toBe(1);
         expect(gate(needs({ [job]: need('skipped') })), `${job} skipped with heavy=true`).toBe(1);
