@@ -317,9 +317,16 @@ export function recoveryCodeUsedText(input: RecoveryCodeUsedTextInput): EmailTex
   };
 }
 
-/** The cause of a lock of the sign-in, as the e-mail 3 knows it (EVM-026 AC4): the failures of the password, or at least one of the second step. */
-export type LockVariant = 'password' | 'second_step';
-export const isLockVariant = (value: string | null): value is LockVariant => value === 'password' || value === 'second_step';
+/**
+ * The variant of e-mail 3 (EVM-026 AC4): the cause of the lock — the failures of the password, or at least one of the second step — and the scope of it: the
+ * browsers the account does not know (`password`, `second_step`) or ONE browser it knows (`browser_…`). The variant is what the outbox stores.
+ */
+export type LockVariant = 'password' | 'second_step' | 'browser_password' | 'browser_second_step';
+const LOCK_VARIANTS: readonly string[] = ['password', 'second_step', 'browser_password', 'browser_second_step'];
+export const isLockVariant = (value: string | null): value is LockVariant => value !== null && LOCK_VARIANTS.includes(value);
+
+export const lockVariant = (cause: 'password' | 'second_step', scope: 'account' | 'browser'): LockVariant =>
+  scope === 'browser' ? (`browser_${cause}` as LockVariant) : cause;
 
 export interface AccountLockedTextInput {
   readonly panelOrigin: string;
@@ -331,41 +338,60 @@ export interface AccountLockedTextInput {
 
 /**
  * E-mail 3 (a lock of the sign-in after ten failed tries): the time, for how long, the one thing to do — a link to the form "Zresetuj hasło" WITHOUT a token
- * (SR-INPUT-07, SR-AUTH-15). It names no address, no IP and no number of tries. The variant of the second step says that someone seems to know the password and
- * that setting a new one does not lift this lock (only the time does); the variant of the password says that a new password does.
+ * (SR-INPUT-07, SR-AUTH-15). It names no address, no IP and no number of tries. The variants of the browsers the account does not know: with the second step,
+ * someone seems to know the password and a new one does not lift the lock (only the time does); with the password, a new one does. The variants of a browser
+ * the account knows say that THAT browser is locked and nothing else; there a new password lifts the lock in both causes, because it makes the account forget
+ * its browsers with their counters (`forgetBrowsers`).
  */
 export function accountLockedText(input: AccountLockedTextInput): EmailText {
   const resetForm = `${input.panelOrigin}${RESET_FORM_PATH}`;
-  const body =
-    input.variant === 'second_step'
-      ? [
-          'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
-          `logowanie z nieznanych przeglądarek od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`,
-          '',
-          'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
-          'administratora. Zmiana hasła nie zdejmie tej blokady — ustąpi z upływem czasu.',
-          resetForm,
-        ]
-      : [
-          'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
-          `z nieznanych przeglądarek od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`,
-          '',
-          'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
-          'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
-          resetForm,
-        ];
-  return {
-    subject: 'EVia Manager: logowanie zablokowane na 15 minut',
-    text: [
-      'Dzień dobry,',
+  const period = `od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`;
+  const bodies: Record<LockVariant, string[]> = {
+    second_step: [
+      'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
+      `logowanie z nieznanych przeglądarek ${period}`,
       '',
-      ...body,
+      'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
+      'administratora. Zmiana hasła nie zdejmie tej blokady — ustąpi z upływem czasu.',
+      resetForm,
       '',
       'Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.',
+    ],
+    password: [
+      'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
+      `z nieznanych przeglądarek ${period}`,
       '',
-      footer(input.panelOrigin),
+      'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
+      'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
+      resetForm,
       '',
-    ].join('\n'),
+      'Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.',
+    ],
+    browser_second_step: [
+      'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
+      `logowanie z przeglądarki, której Twoje konto używa na co dzień, ${period}`,
+      '',
+      'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
+      'administratora. Zmiana hasła zdejmie tę blokadę — zapomnimy przeglądarki konta,',
+      'więc następne logowanie będzie z „nowej” przeglądarki i wyślemy o nim wiadomość.',
+      resetForm,
+      '',
+      'Ta blokada dotyczy tylko tej przeglądarki.',
+    ],
+    browser_password: [
+      'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
+      `z przeglądarki, której Twoje konto używa na co dzień, ${period}`,
+      '',
+      'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
+      'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
+      resetForm,
+      '',
+      'Ta blokada dotyczy tylko tej przeglądarki.',
+    ],
+  };
+  return {
+    subject: 'EVia Manager: logowanie zablokowane na 15 minut',
+    text: ['Dzień dobry,', '', ...bodies[input.variant], '', footer(input.panelOrigin), ''].join('\n'),
   };
 }
 

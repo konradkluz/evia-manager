@@ -2,8 +2,8 @@
  * Composes the e-mails about the security of the sign-in for the worker of the outbox (EVM-026 AC4, AC5; SR-AUTH-15, SR-INPUT-07, SR-LOG-02). Like the other
  * composers it runs inside the transaction of the job `email.send`, the account locked first:
  *
- * - `account_locked` (variant `password` | `second_step`): e-mail 3 — the sign-in was locked for 15 minutes; the variant says whether a new password lifts the
- *   lock. The link leads to the form "Zresetuj hasło" and carries NO token;
+ * - `account_locked` (variant `password` | `second_step` | `browser_password` | `browser_second_step`): e-mail 3 — the sign-in was locked for 15 minutes; the
+ *   variant says which browsers (the unknown ones, or one the account knows) and whether a new password lifts the lock. The link leads to the form "Zresetuj hasło" and carries NO token;
  * - `new_browser`: e-mail 7 — a full sign-in from a browser the account did not know (the time only: no IP, no place, no device is stored).
  *
  * The account must still be `active` and not deleted — otherwise the message is `obsolete`. The recipient is ALWAYS the address of the account row read here,

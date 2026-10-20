@@ -96,10 +96,10 @@ hasło się nie zmieni.
 ```
 
 ## 3. Blokada konta
-- **Kiedy:** 10 nieudanych prób w 15 minut (SR-AUTH-05, EVM-026 AC2–AC4) — hasło i drugi krok liczą się razem. Blokada dotyczy logowania z przeglądarek **nieznanych koncie** (albo osobno jednej przeglądarki znanej koncie); przeglądarka, której konto używa na co dzień, nie jest zablokowana (EVM-026 AC2). Jeden e-mail na okres blokady, najwyżej 3 na dobę na konto; tylko do kont aktywnych. Dwa warianty — wg przyczyny blokady.
+- **Kiedy:** 10 nieudanych prób w 15 minut (SR-AUTH-05, EVM-026 AC2–AC4) — hasło i drugi krok liczą się razem. Blokada dotyczy logowania z przeglądarek **nieznanych koncie** (albo osobno jednej przeglądarki znanej koncie); przeglądarka, której konto używa na co dzień, nie jest zablokowana (EVM-026 AC2). Jeden e-mail na okres blokady, najwyżej 3 na dobę na konto; tylko do kont aktywnych. Cztery warianty: wg przyczyny blokady (hasło / drugi krok) i wg zakresu — przeglądarki nieznane koncie albo **jedna przeglądarka znana koncie** (osobny licznik, EVM-026 AC2); e-mail zawsze mówi, której przeglądarki dotyczy blokada.
 - **Temat:** `EVia Manager: logowanie zablokowane na 15 minut`
 
-**Wariant „hasło”** (w oknie same porażki hasła) — nowe hasło **zdejmuje** blokadę (EVM-026 AC7):
+**Wariant „nieznane przeglądarki — hasło”** (w oknie same porażki hasła) — nowe hasło **zdejmuje** blokadę (EVM-026 AC7):
 ```text
 Dzień dobry,
 
@@ -115,7 +115,7 @@ Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.
 [stopka]
 ```
 
-**Wariant „drugi krok”** (w oknie choć jedna porażka kodu z aplikacji, kodu odzyskiwania albo klucza dostępu) — osoba, która zna hasło; nowe hasło blokady **nie zdejmuje**, ustępuje z upływem czasu:
+**Wariant „nieznane przeglądarki — drugi krok”** (w oknie choć jedna porażka kodu z aplikacji, kodu odzyskiwania albo klucza dostępu) — osoba, która zna hasło; nowe hasło blokady **nie zdejmuje**, ustępuje z upływem czasu:
 ```text
 Dzień dobry,
 
@@ -130,6 +130,40 @@ Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.
 
 [stopka]
 ```
+**Wariant „przeglądarka znana — hasło”** (blokada jednej przeglądarki, której konto używa na co dzień; w oknie same porażki hasła) — nowe hasło zdejmuje blokadę:
+```text
+Dzień dobry,
+
+po 10 nieudanych próbach logowania zablokowaliśmy logowanie
+z przeglądarki, której Twoje konto używa na co dzień, od 05.10.2026, 09:10 do 05.10.2026, 09:25.
+
+Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;
+zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.
+[link: Zresetuj hasło]
+
+Ta blokada dotyczy tylko tej przeglądarki.
+
+[stopka]
+```
+
+**Wariant „przeglądarka znana — drugi krok”** — nowe hasło **zdejmuje** tę blokadę (konto zapomina swoje przeglądarki wraz z ich licznikami), ale następne logowanie będzie z „nowej” przeglądarki (e-mail 7):
+```text
+Dzień dobry,
+
+po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy
+logowanie z przeglądarki, której Twoje konto używa na co dzień, od 05.10.2026, 09:10 do 05.10.2026, 09:25.
+
+Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom
+administratora. Zmiana hasła zdejmie tę blokadę — zapomnimy przeglądarki konta,
+więc następne logowanie będzie z „nowej” przeglądarki i wyślemy o nim wiadomość.
+[link: Zresetuj hasło]
+
+Ta blokada dotyczy tylko tej przeglądarki.
+
+[stopka]
+```
+W wariantach przeglądarki znanej nie ma zdania „Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane” — byłoby nieprawdą.
+
 Link prowadzi do formularza „Zresetuj hasło” w W-01 — bez tokenu i bez wpisanego adresu (EVM-026 AC4). Tekst nie zawiera adresu e-mail, IP, liczby prób ani danych klientów (SR-INPUT-07).
 
 ## 4. Hasło zostało zmienione

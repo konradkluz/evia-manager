@@ -5,6 +5,7 @@ import {
   accountLockedText,
   alertText,
   isLockVariant,
+  lockVariant,
   newBrowserText,
 } from '../../src/modules/identity/domain/email-templates.ts';
 import { deviceCookie, readDeviceCookie } from '../../src/modules/identity/http/device-cookie.ts';
@@ -46,8 +47,55 @@ describe('the texts of the security e-mails of the sign-in (EVM-026 AC4, AC5; do
     expect(text).not.toMatch(/#|token|@/i);
   });
 
-  it('EVM-026 AC4 only the two causes of a lock are variants', () => {
-    expect(['password', 'second_step', 'other', null].map(isLockVariant)).toEqual([true, true, false, false]);
+  it('EVM-026 AC4 e-mail 3 of a browser the account knows, by the password: THIS browser is locked, the others are not covered, and a new password lifts it', () => {
+    const { text } = accountLockedText({
+      panelOrigin: ORIGIN,
+      variant: 'browser_password',
+      lockedAt: LOCKED_AT,
+      lockedUntil: new Date(LOCKED_AT.getTime() + 15 * 60_000),
+    });
+    expect(text).toContain('po 10 nieudanych próbach logowania zablokowaliśmy logowanie');
+    expect(text).toContain('z przeglądarki, której Twoje konto używa na co dzień, od 05.10.2026, 09:10 do 05.10.2026, 09:25.');
+    expect(text).toContain('Ta blokada dotyczy tylko tej przeglądarki');
+    expect(text).toContain('zmiana hasła zdejmie tę blokadę');
+    expect(text).toContain(LINK);
+    expect(text).not.toContain('z nieznanych przeglądarek');
+    expect(text).not.toContain('nie jest zablokowane');
+    expect(text).not.toMatch(/#|token|@/i);
+  });
+
+  it('EVM-026 AC4 e-mail 3 of a browser the account knows, by the second step: someone knows the password, and a new password lifts THIS lock (the browsers are forgotten)', () => {
+    const { text } = accountLockedText({
+      panelOrigin: ORIGIN,
+      variant: 'browser_second_step',
+      lockedAt: LOCKED_AT,
+      lockedUntil: new Date(LOCKED_AT.getTime() + 15 * 60_000),
+    });
+    expect(text).toContain('po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy');
+    expect(text).toContain('z przeglądarki, której Twoje konto używa na co dzień, od 05.10.2026, 09:10 do 05.10.2026, 09:25.');
+    expect(text).toContain('ktoś zna Twoje hasło');
+    expect(text).toContain('Zmiana hasła zdejmie tę blokadę');
+    expect(text).toContain('zapomnimy przeglądarki konta');
+    expect(text).not.toContain('nie zdejmie');
+    expect(text).toContain('Ta blokada dotyczy tylko tej przeglądarki');
+    expect(text).toContain(LINK);
+    expect(text).not.toMatch(/#|token|@/i);
+  });
+
+  it('EVM-026 AC4 only the causes of a lock, for the two scopes, are variants', () => {
+    expect(['password', 'second_step', 'browser_password', 'browser_second_step', 'other', 'browser', null].map(isLockVariant)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+    expect(lockVariant('password', 'account')).toBe('password');
+    expect(lockVariant('second_step', 'account')).toBe('second_step');
+    expect(lockVariant('password', 'browser')).toBe('browser_password');
+    expect(lockVariant('second_step', 'browser')).toBe('browser_second_step');
   });
 
   it('EVM-026 AC5 e-mail 7: the time of the sign-in and the way back — no IP, no place, no device, no token', () => {

@@ -24,6 +24,7 @@ import type { EventBus, EventContext } from '../../../platform/events/event-bus.
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { APP_CONFIG, EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
 import { LOCK_EMAIL_DAILY_LIMIT } from '../domain/constants.ts';
+import { lockVariant } from '../domain/email-templates.ts';
 import { accountKey, browserKey, spikeKey } from '../domain/throttle-keys.ts';
 import {
   confirm,
@@ -31,6 +32,7 @@ import {
   pendingDelay,
   release as releaseState,
   reserve as reserveState,
+  THROTTLE_RETENTION_MS,
   type CountedFailure,
   type LockCause,
   type Reservation,
@@ -42,6 +44,7 @@ import { identityTables } from '../infrastructure/tables.ts';
 import {
   countSpike,
   deleteBrowsersOfUser,
+  deleteExpiredLoginAttempts,
   deleteExpiredThrottles,
   deletePasswordThrottle,
   deleteStaleBrowsers,
@@ -163,12 +166,22 @@ export class LoginThrottle {
     );
   }
 
-  /** The retention (M6; RODO art. 5(1)(e)): counters past their time, and browsers not seen for 30 days with their counters. */
-  async purge(tx: Kysely<Database>, now: Date): Promise<{ readonly throttles: number; readonly browsers: number }> {
+  /**
+   * The retention (M6; RODO art. 5(1)(e)): counters past their time, first steps 30 minutes after they expired (they carry the HMAC of the address), and
+   * browsers not seen for 30 days with their counters.
+   */
+  async purge(
+    tx: Kysely<Database>,
+    now: Date,
+  ): Promise<{ readonly throttles: number; readonly browsers: number; readonly loginAttempts: number }> {
     const db = identityTables(tx);
     const stale = await deleteStaleBrowsers(db, new Date(now.getTime() - DEVICE_RETENTION_MS));
     await this.dropBrowserCounters(tx, stale);
-    return { throttles: await deleteExpiredThrottles(db, now), browsers: stale.length };
+    return {
+      throttles: await deleteExpiredThrottles(db, now),
+      browsers: stale.length,
+      loginAttempts: await deleteExpiredLoginAttempts(db, new Date(now.getTime() - THROTTLE_RETENTION_MS)),
+    };
   }
 
   #alert(tx: Kysely<Database>, code: SecurityAlertCode, now: Date, context: EventContext): Promise<void> {
@@ -205,6 +218,11 @@ export class LoginThrottle {
     const user = await findUserById(db, userId);
     if (user?.status !== 'active' || user.deletedAt !== null) return;
     if ((await countRecentEmails(tx, userId, 'account_locked', new Date(now.getTime() - DAY_MS))) >= LOCK_EMAIL_DAILY_LIMIT) return;
-    await enqueueEmail(tx, { kind: 'account_locked', variant: cause, recipientUserId: userId, now });
+    await enqueueEmail(tx, {
+      kind: 'account_locked',
+      variant: lockVariant(cause, lock.kind === 'browser' ? 'browser' : 'account'),
+      recipientUserId: userId,
+      now,
+    });
   }
 }
