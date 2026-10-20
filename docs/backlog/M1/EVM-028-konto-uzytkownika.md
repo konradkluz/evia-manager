@@ -4,12 +4,14 @@ title: Konto — profil, hasło, drugi krok logowania i moje sesje
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
 depends_on: [EVM-023]
+path: pelna
+model: sonnet
 ---
 
 # EVM-028: Konto — profil, hasło, drugi krok logowania i moje sesje
@@ -90,7 +92,7 @@ Jako **użytkownik** chcę **samodzielnie zmienić nazwę, hasło i metody drugi
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- **2026-10-20 (Konrad):** ścieżka `pelna` (uwierzytelnianie, sesje), model `sonnet`, recenzenci code + security + ux; realizacja na jednej gałęzi z EVM-026 (nakładanie plików `identity`: logowanie, sesje, hasło, drugi krok), jeden PR, demo obu historyjek razem.
 
 ## Uwagi do rozważenia
 _—_
@@ -106,3 +108,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC3 — dopisany alert bezpieczeństwa dla Administratorów przy zmianie drugiego kroku konta Administratora
+- 2026-10-20 — ready → in-progress: start realizacji w kolejce z EVM-026 (gałąź feature/EVM-026-ochrona-przed-zgadywaniem), pelna, sonnet

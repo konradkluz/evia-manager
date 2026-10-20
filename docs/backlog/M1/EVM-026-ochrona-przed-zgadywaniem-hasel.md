@@ -4,7 +4,7 @@ title: Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -107,19 +107,26 @@ _Uzupełnia wykonawca przed implementacją._
 - **P3 — nowa przeglądarka i RODO:** ciasteczko `__Host-evia_device` (AC5); wpis do polityki prywatności / W-19 i `rodo.md` (DO-P).
 - **P4 — zakres porażek:** do licznika wchodzą `bad_password`, `unknown_user`, `not_active`, `totp_failed`, `recovery_code_failed`, `passkey_failed` (tylko odrzucona asercja); nie `login_expired`, `mfa_setup_expired` (AC1). Licznik po HMAC e-maila w PostgreSQL (AC1).
 - **P5 — alerty:** progi i metryka w AC6; test dostarczenia na staging w EVM-085/076.
+- **2026-10-20 (wykonawca, do akceptacji Konrada na demo):** blokada kończy otwarte `loginToken` wyłącznie zablokowanego zakresu (konto dla przeglądarek nieznanych albo jedna przeglądarka znana), nie wszystkie tokeny konta — zawężenie brzmienia AC3 wynikające z hybrydy AC2 (inaczej atakujący blokujący zakres nieznany zrywałby drugi krok właściciela ze znanej przeglądarki); testy `EVM-026 AC3` w obu kierunkach. Ponadto: próba rezerwowana atomowo przed weryfikacją; tokeny sprzed migracji 0040 mają ścieżkę zgodności; reset hasła kasuje rejestr przeglądarek konta.
 - **Ścieżka `pelna`:** uwierzytelnianie, dane osobowe, antyenumeracja, ochrona przed DoS konta. **Model `sonnet`:** rozszerza istniejące klocki; przy trudnej serializacji liczników orkiestrator może podnieść plan do `opus`.
 - **Zależności:** `depends_on: [EVM-024]` (port e-mail/outbox) bez zmian; brak zależności od EVM-007/085.
+
+## Notatki (uwagi nieblokujące z przeglądów)
+- UX: komunikat 429 zaokrągla czas do 1 min także dla opóźnień < 60 s; W-02 nie przenosi fokusu na alert blokady (jak W-01); żargon „zapomnimy przeglądarki konta” w e-mailu 3 — kandydaci do backlogu.
+- Kod: martwe `ThrottleTicket.reserved` i `'spike'` w `#lock`; `#scopeOf` zawsze `account` (audyt błędnego typu, gdy wiersz znanej przeglądarki zniknie w trakcie); brak indeksu na `login_attempts.throttle_key`; jedno ciasteczko na przeglądarkę — dwie osoby na wspólnym komputerze nadpisują sobie rejestr (e-mail 7 przy każdym logowaniu).
+- Security: limit 3 e-maili na dobę ma wąski wyścig; alert `account_locked` także dla nieistniejących adresów — agregacja w EVM-085; klauzula polityki nie wymienia pierwszych kroków logowania (jest w `rodo.md`).
+- Proces: filtr po wzorcu w `test:integration` nie zawęża przebiegu — pojedynczy plik: `pnpm --filter @evia/api exec vitest run --config vitest.integration.config.ts <plik>` w kontenerze.
 
 ## Uwagi do rozważenia
 - Ten sam licznik i ta sama kolejność decyzji powinny obsłużyć logowanie mobilne w E9 — bez rozdwajania mechanizmu.
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-026 AC#`; AC1–AC3 dla `bad_password`, `totp_failed`, `recovery_code_failed`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane; dokumentacja modułu `identity` (SR-AUTH-05), komentarz `login-failures.ts`, `e-maile.md` (wariant blokady, reset)
-- [ ] Model zagrożeń: RR-26 wygaszone (przeniesione do zamkniętych, z odwołaniem do testów AC3); nowe pozycje TM/RR: wymuszona blokada kont, enumeracja przez blokadę, rozproszony credential stuffing poniżej progu
-- [ ] `rodo.md` (DO-P: licznik HMAC e-maila, rejestr przeglądarek) i polityka prywatności / W-19 zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-026 AC#`; AC1–AC3 dla `bad_password`, `totp_failed`, `recovery_code_failed`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane; dokumentacja modułu `identity` (SR-AUTH-05), komentarz `login-failures.ts`, `e-maile.md` (wariant blokady, reset)
+- [x] Model zagrożeń: RR-26 wygaszone (przeniesione do zamkniętych, z odwołaniem do testów AC3); nowe pozycje TM/RR: wymuszona blokada kont, enumeracja przez blokadę, rozproszony credential stuffing poniżej progu
+- [x] `rodo.md` (DO-P: licznik HMAC e-maila, rejestr przeglądarek) i polityka prywatności / W-19 zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -130,3 +137,7 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-20 — ready → in-progress: start realizacji (/deliver, ścieżka pelna, model sonnet), gałąź feature/EVM-026-ochrona-przed-zgadywaniem
 - 2026-10-20 — plan gotowy (backend-developer)
 - 2026-10-20 — implementacja (backend-developer): migracja 0040, licznik HMAC z rezerwacją próby, opóźnienie i blokada hybrydowa (hasło + drugi krok), ciasteczko `__Host-evia_device` z rejestrem przeglądarek, e-maile 3 i 7, alert 9, audyt, alerty i metryka, zadanie retencji; ustalenia security M1–M6 wdrożone; AC8 bez zmian w web (test komunikatu); dokumentacja, TM/RR (RR-26 zamknięte, RR-28–31), rodo, CHANGELOG
+- 2026-10-20 — devops-engineer: przegląd wdrożeniowy (LOGIN_THROTTLE_KEY w `.env.example`, `rotacja-sekretow.md`, walidacja startu w prod), bramka lokalna `pnpm run gate`
+- 2026-10-20 — implementacja (backend-developer, web-developer, devops-engineer; workflow deliver-story, sonnet) i weryfikacja QA: AC1–AC8 PASS
+- 2026-10-20 — przeglądy runda 1: code-reviewer, security-engineer, ux-designer — CHANGES (0 blocker; major: e-mail 3 dla przeglądarki znanej, test zakresu loginToken, polityka prywatności/W-19); poprawki w 7 commitach
+- 2026-10-20 — runda 2 (węższa): wszyscy APPROVE; bramka orkiestratora zielona (gate: 1900 testów integracji; coverage:diff 348/348 linii, 185/191 gałęzi; docs:check 0). Status in-review; demo razem z EVM-028 (jedna gałąź)
