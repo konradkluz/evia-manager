@@ -4,12 +4,14 @@ title: Chodzący szkielet — aplikacja mobilna
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 owner: mobile-developer
 contributors: [devops-engineer]
 reviewers: [code-reviewer, ux-designer, security-engineer]
 depends_on: [EVM-003, EVM-006, EVM-008]
+path: pelna
+model: sonnet
 ---
 
 # EVM-009: Chodzący szkielet — aplikacja mobilna
@@ -26,7 +28,7 @@ Podejście mobilne i dystrybucja: ADR-y z EVM-001. API ze szkieletu: EVM-008.
 - Wtedy widzę ekran startowy i nawigację wg styleguide'u (tokeny, teksty przez i18n pl) z pustym stanem listy zleceń.
 
 **AC2 — Połączenie z API**
-- Zakładając działający endpoint zdrowia na staging
+- Zakładając działający endpoint zdrowia (lokalne API z EVM-008 w kontenerze; staging od EVM-007 — zmiana AC 2026-10-20)
 - Gdy aplikacja startuje z siecią i bez sieci
 - Wtedy odpowiednio łączy się z API albo pokazuje czytelny stan „offline / brak połączenia z serwerem”.
 
@@ -39,8 +41,8 @@ Podejście mobilne i dystrybucja: ADR-y z EVM-001. API ze szkieletu: EVM-008.
 - Wtedy testy jednostkowe i komponentowe działają w CI z progami pokrycia, a test dymny E2E mobile działa wg ADR.
 
 **AC5 — Build i dystrybucja**
-- Wtedy CI buduje wersję Android, a kanał dystrybucji wewnętrznej dla Androida jest skonfigurowany.
-- Weryfikacja ręczna (Konrad): build zainstalowany na min. 1 telefonie Android.
+- Wtedy CI buduje podpisany APK Androida (lokalny build Gradle po `expo prebuild`, klucz podpisu wyłącznie w sekretach CI) i publikuje go jako artefakt do instalacji ręcznej (sideload) na telefonach firmy — bez Google Play i EAS na MVP (zmiana AC 2026-10-20).
+- Weryfikacja ręczna (Konrad): APK z artefaktu CI zainstalowany na min. 1 telefonie Android.
 - _iOS odłożony (decyzja Konrada 2026-10-03, ADR-0015) — bez buildu iOS i bez instalacji na iPhonie w tej historyjce._
 
 **AC6 — Bezpieczeństwo bazowe**
@@ -65,7 +67,8 @@ Testy (AC4) wg ADR-0015: jednostkowe i komponentowe natywnie i w CI Linux; test 
 _Uzupełnia wykonawca._
 
 ## Decyzje
-_—_
+- **2026-10-20 (Konrad):** na MVP bez konta Google Play i bez EAS — dystrybucja APK jako artefakt CI (sideload); Play/EAS Submit odroczone do wydania szerszego. `solution-architect` dopisuje notkę do ADR-0007/0012 (zakres: dystrybucja Androida) do akceptacji Konrada. AC2 na lokalnym API, nie na staging. Maestro CLI 2.11.0 zainstalowane lokalnie (`%USERPROFILE%.evia	oolsmaestro-2.11.0`, suma SHA-256 zweryfikowana); emulator `Medium_Phone_API_35`.
+- Ścieżka `pelna`, model `sonnet` (Konrad 2026-10-20).
 
 ## Uwagi do rozważenia
 _—_
@@ -81,3 +84,5 @@ _—_
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
 - 2026-10-03 — zmiana AC — do potwierdzenia przez Konrada: AC5 tylko Android (iOS odłożony, decyzja Konrada 2026-10-03, ADR-0015); iOS dopisany do „Poza zakresem”; „Notatki techniczne” wg ADR-0015 (product-owner)
 - 2026-10-03 — zmiana AC (iOS odłożony, ADR-0015) potwierdzona przez Konrada; status bez zmian: ready
+- 2026-10-20 — zmiana AC zaakceptowana przez Konrada: AC2 (lokalne API), AC5 (APK z CI jako artefakt, bez Google Play/EAS); `path: pelna`, `model: sonnet`
+- 2026-10-20 — ready → in-progress: start realizacji (kolejka B: EVM-009 → EVM-011, gałąź feature/EVM-009-011-aplikacja-mobilna, pelna, sonnet)

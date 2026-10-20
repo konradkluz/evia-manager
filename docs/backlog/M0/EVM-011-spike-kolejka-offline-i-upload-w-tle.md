@@ -10,6 +10,8 @@ owner: mobile-developer
 contributors: []
 reviewers: [solution-architect, security-engineer]
 depends_on: [EVM-001]
+path: pelna
+model: sonnet
 ---
 
 # EVM-011: Spike — kolejka offline i upload w tle
@@ -52,7 +54,8 @@ Scenariusze Androida na emulatorze na Windows i na fizycznym telefonie (ADR-0015
 _Uzupełnia wykonawca._
 
 ## Decyzje
-_—_
+- **2026-10-20 (Konrad):** noc: scenariusze na emulatorze Android (`Medium_Phone_API_35`, Maestro 2.11.0) i storage zgodny z S3 uruchamiany lokalnie; scenariusze wymagające fizycznego telefonu (AC2 część „telefon”, AC5) zostają do ręcznej weryfikacji Konrada — historyjka kończy nocą w `in-review`, nie `done`; raport oznacza jawnie, co zmierzono tylko na emulatorze.
+- Ścieżka `pelna` (dwóch recenzentów, upload plików), model `sonnet`.
 
 ## Uwagi do rozważenia
 _—_
@@ -67,3 +70,4 @@ _—_
 - 2026-10-02 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M0)
 - 2026-10-03 — zmiana AC — do potwierdzenia przez Konrada: AC2 i AC5 tylko Android (emulator na Windows + fizyczny telefon; iOS odłożony, decyzja Konrada 2026-10-03, ADR-0015); iOS dopisany do „Poza zakresem”; „Notatki techniczne” wg ADR-0015 (product-owner)
 - 2026-10-03 — zmiana AC (iOS odłożony, ADR-0015) potwierdzona przez Konrada; status bez zmian: ready
+- 2026-10-20 — zmiana zakresu nocnego zaakceptowana przez Konrada: emulator tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano; `path: pelna`, `model: sonnet`
