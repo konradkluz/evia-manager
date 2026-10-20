@@ -120,11 +120,25 @@ describe('content of W-19 (EVM-063)', () => {
   it('EVM-063 AC2 the BYOD part describes only the panel of today; the mobile application is a later stage (K9)', () => {
     const employees = CLAUSES.find((clause) => clause.id === 'employees');
     const text = (employees?.blocks ?? []).flatMap((block) => (block.kind === 'list' ? block.items : [block.text])).join('\n');
-    expect(text).toContain('tylko plik cookie sesji');
+    expect(text).not.toContain('tylko plik cookie sesji'); // the second cookie exists since EVM-026
     expect(text).toContain('po wylogowaniu panel czyści dane');
     expect(text).toContain('planowana na późniejszy etap');
     // no promise of features of an application that does not exist yet
     expect(text).not.toMatch(/aplikacja (zapisuje|szyfruje|usuwa|czyści)|zdaln\w+ (wymazan|czyszczen)/i);
+  });
+
+  it('EVM-026 AC5 the clause for employees names the second cookie, __Host-evia_device: purpose, content, 30 days, no authentication, and the register and the counters with their retention', () => {
+    const employees = CLAUSES.find((clause) => clause.id === 'employees');
+    const text = (employees?.blocks ?? []).flatMap((block) => (block.kind === 'list' ? block.items : [block.text])).join('\n');
+    expect(text).toContain('dwa pliki cookie: sesji oraz „__Host-evia_device”');
+    expect(text).toContain('losowy identyfikator, bez danych o urządzeniu, adresie IP i lokalizacji');
+    expect(text).toContain('powiadomienie o logowaniu z nowej przeglądarki');
+    expect(text).toContain('osobnego licznika prób logowania');
+    expect(text).toContain('wygasa po 30 dniach od ostatniego użycia, nie uwierzytelnia Cię i nie pomija drugiego kroku logowania');
+    expect(text).toContain('rejestr przeglądarek konta: zabezpieczony losowy identyfikator');
+    expect(text).toContain('liczniki nieudanych prób logowania — w postaci pseudonimowej, bez adresu e-mail');
+    expect(text).toContain('rejestr przeglądarek konta — 30 dni od ostatniego użycia');
+    expect(text).toContain('liczniki nieudanych prób logowania — 30 minut');
   });
 
   it('EVM-063 AC4 sources render elements from data: no raw HTML, no Markdown parser, no external link in the files of the page', () => {
