@@ -210,7 +210,7 @@ login:
       Zły e-mail, złe hasło, konto zaproszone i dezaktywowane dają tę samą odpowiedź `401 invalid_credentials` (kod, treść,
       nagłówki) w porównywalnym czasie (równoważna weryfikacja Argon2id). Limit 20 prób na minutę z jednego adresu IP
       (wspólny z drugim krokiem) liczony przed dostępem do bazy → `429 rate_limited` z `Retry-After`. Ciasteczko poprzedniej
-      sesji z żądania jest unieważniane (rotacja).
+      sesji z żądania jest unieważniane (rotacja). Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
     x-evia-authz:
       public: true
     requestBody:
@@ -255,7 +255,7 @@ loginPasskeyOptions:
       Publiczna operacja: wymaga ważnego `loginToken`. Zwraca opcje WebAuthn (`userVerification: required`,
       `allowCredentials` tylko z kluczami tego konta) i zapisuje jednorazowe wyzwanie (≥ 128 bitów, TTL 5 min) powiązane
       z próbą logowania; poprzednie wyzwania tej próby tracą ważność. Brak lub nieznany `loginToken` → `401 unauthenticated`,
-      wygasły → `401 login_expired`. Ten sam limit prób co pierwszy krok.
+      wygasły → `401 login_expired`. Ten sam limit prób co pierwszy krok; zablokowany zakres to `429 rate_limited` (bez opóźnienia — opcje nie są zgadywaniem). Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
     x-evia-authz:
       public: true
     requestBody:
@@ -294,7 +294,7 @@ loginPasskey:
       Sukces w jednej transakcji: zużycie `loginToken` i wyzwania, nowa sesja `active` z nowym identyfikatorem (poprzednia
       z ciasteczka żądania unieważniona), `lastLoginAt`, licznik klucza i audyt. Nieudany klucz → `401 passkey_failed`
       (`loginToken` nie jest zużywany — można ponowić; po 5 nieudanych próbach próba logowania wygasa), po upływie 5 min →
-      `401 login_expired`, bez poprawnego pierwszego kroku → `401 unauthenticated`.
+      `401 login_expired`, bez poprawnego pierwszego kroku → `401 unauthenticated`. Zablokowany zakres: `429 rate_limited` także dla poprawnej asercji (bez sesji). Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
     x-evia-authz:
       public: true
     requestBody:
@@ -308,7 +308,8 @@ loginPasskey:
         description: Zalogowano.
         headers:
           Set-Cookie:
-            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            description: >-
+              Dwa ciasteczka (EVM-026): `__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji) i `__Host-evia_device=…; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000` (rotowane ciasteczko przeglądarki znanej koncie; nie uwierzytelnia i nie pomija drugiego kroku).
             schema:
               type: string
               maxLength: 512
@@ -341,7 +342,7 @@ loginTotp:
       `lastLoginAt` i audyt; sesja otwiera okno step-upu (15 min). Nieudany kod → `401 totp_failed` (`loginToken` nie jest zużywany;
       licznik wspólny z kluczem dostępu i kodem odzyskiwania — piąta nieudana próba kończy próbę logowania). Cudzy, zużyty, wygasły
       i nieznany `loginToken` dają tę samą odpowiedź. Limit 20 prób na minutę z jednego adresu IP (wspólny kubełek z hasłem
-      i kluczem dostępu) → `429 rate_limited` z `Retry-After`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
+      i kluczem dostępu) → `429 rate_limited` z `Retry-After`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`). Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
     x-evia-authz:
       public: true
     requestBody:
@@ -355,7 +356,8 @@ loginTotp:
         description: Zalogowano.
         headers:
           Set-Cookie:
-            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            description: >-
+              Dwa ciasteczka (EVM-026): `__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji) i `__Host-evia_device=…; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000` (rotowane ciasteczko przeglądarki znanej koncie; nie uwierzytelnia i nie pomija drugiego kroku).
             schema:
               type: string
               maxLength: 512
@@ -387,7 +389,7 @@ loginRecoveryCode:
       `UPDATE`) i `loginToken`, nowa sesja `active` bez okna step-upu (kod odzyskiwania go nie otwiera), e-mail o użyciu kodu
       i zdarzenie audytu `login.recovery_code_used`; odpowiedź ma `remainingCodes` liczone po zużyciu. Kod odrzucony →
       `401 recovery_code_failed` (licznik wspólny z innymi metodami drugiego kroku — piąta nieudana próba kończy próbę logowania).
-      Limit i brak buforowania jak przy kodzie z aplikacji.
+      Limit i brak buforowania jak przy kodzie z aplikacji. Ochrona przed zgadywaniem (EVM-026): od szóstej nieudanej próby odpowiedź jest opóźniana (1, 2, 4, 8, najwyżej 10 s); 10 nieudanych prób w 15 minutach — hasło i drugi krok razem — blokuje logowanie z przeglądarek nieznanych koncie na 15 minut: każda próba, także z poprawnym hasłem lub kodem, to `429 rate_limited` z `Retry-After` (ta sama odpowiedź co przy limicie adresu IP). Przeglądarka znana koncie (ciasteczko `__Host-evia_device`) ma własny licznik. Blokadę zdejmuje upływ czasu albo — gdy wynikała z haseł — reset hasła; nie ma odblokowania przez Administratora.
     x-evia-authz:
       public: true
     requestBody:
@@ -401,7 +403,8 @@ loginRecoveryCode:
         description: Zalogowano kodem odzyskiwania.
         headers:
           Set-Cookie:
-            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            description: >-
+              Dwa ciasteczka (EVM-026): `__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji) i `__Host-evia_device=…; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000` (rotowane ciasteczko przeglądarki znanej koncie; nie uwierzytelnia i nie pomija drugiego kroku).
             schema:
               type: string
               maxLength: 512

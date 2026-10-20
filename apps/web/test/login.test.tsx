@@ -173,6 +173,18 @@ describe('W-01 Zaloguj się (EVM-067 AC1-AC3, AC8; flows/01)', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Hasło').value).toBe('');
   });
 
+  it('EVM-026 AC8 a lock of the account (429, Retry-After 900 s) is announced in role="alert" as "za 15 min", exactly like the limit of the address — no CAPTCHA and no cognitive test (WCAG 3.3.8)', async () => {
+    const api = loginApi({ [LOGIN_ROUTE]: () => problem(429, 'rate_limited', {}, { 'Retry-After': '900' }) });
+    await renderPanel('/login', api);
+    await fillAndSubmit();
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Zbyt wiele prób logowania. Spróbuj ponownie za 15 min.');
+    expect(document.querySelector('iframe, [class*="captcha" i], [id*="captcha" i], [name*="captcha" i], [data-sitekey]')).toBeNull();
+    expect(screen.queryByText(/captcha|nie jestem robotem|rozwiąż/i)).toBeNull();
+    // the form is usable again at once (the time of the server decides, not the page): same fields, same button
+    expect(screen.getByLabelText<HTMLInputElement>('Hasło').disabled).toBe(false);
+  });
+
   it('EVM-067 AC3 the 429 text is the same for an existing and a non-existing account', async () => {
     const api = loginApi({ [LOGIN_ROUTE]: () => problem(429, 'rate_limited', {}, { 'Retry-After': '60' }) });
     await renderPanel('/login', api);

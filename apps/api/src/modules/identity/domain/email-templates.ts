@@ -93,16 +93,23 @@ export const ALERT_VARIANTS = [
   'administrator_deactivated',
   'administrator_reactivated',
   'administrator_second_step_reset',
+  // EVM-026 (alert 9): an Administrator's account signed in from a browser it did not know.
+  'administrator_new_browser',
 ] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
-const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string }>> = {
+const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string; readonly lead?: string }>> = {
   administrator_invitation: { kind: 'zaproszenie administratora', sentence: 'wysłano zaproszenie z rolą Administrator.' },
   administrator_granted: { kind: 'nowy administrator', sentence: 'nadano rolę Administrator jednemu z kont.' },
   administrator_revoked: { kind: 'odebrana rola', sentence: 'odebrano rolę Administrator jednemu z kont.' },
   administrator_deactivated: { kind: 'dezaktywacja administratora', sentence: 'dezaktywowano konto z rolą Administrator.' },
   administrator_reactivated: { kind: 'reaktywacja administratora', sentence: 'reaktywowano konto z rolą Administrator.' },
   administrator_second_step_reset: { kind: 'reset drugiego kroku', sentence: 'zresetowano drugi krok logowania konta administratora.' },
+  administrator_new_browser: {
+    kind: 'logowanie z nowej przeglądarki',
+    sentence: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
+    lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
 };
 
 export const isAlertVariant = (value: string | null): value is AlertVariant => ALERT_VARIANTS.includes(value as AlertVariant);
@@ -115,13 +122,13 @@ export interface AlertTextInput {
 
 /** E-mail 9 (an alert for Administrators): the event and the time, no person, no address, no token — who and when is in the audit log. */
 export function alertText(input: AlertTextInput): EmailText {
-  const { kind, sentence } = ALERT_KINDS[input.variant];
+  const { kind, sentence, lead = 'zdarzenie dotyczące uprawnień administratora' } = ALERT_KINDS[input.variant];
   return {
     subject: `EVia Manager: alert bezpieczeństwa — ${kind}`,
     text: [
       'Dzień dobry,',
       '',
-      'w EVia Manager wystąpiło zdarzenie dotyczące uprawnień administratora',
+      `w EVia Manager wystąpiło ${lead}`,
       `(${formatWarsaw(input.occurredAt)}):`,
       sentence,
       '',
@@ -302,6 +309,83 @@ export function recoveryCodeUsedText(input: RecoveryCodeUsedTextInput): EmailTex
       '',
       'Jeśli to nie Ty, ktoś zna hasło i ma kody odzyskiwania — od razu',
       'ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/** The cause of a lock of the sign-in, as the e-mail 3 knows it (EVM-026 AC4): the failures of the password, or at least one of the second step. */
+export type LockVariant = 'password' | 'second_step';
+export const isLockVariant = (value: string | null): value is LockVariant => value === 'password' || value === 'second_step';
+
+export interface AccountLockedTextInput {
+  readonly panelOrigin: string;
+  readonly variant: LockVariant;
+  /** When the lock began (the time the lock was asked for) and for how long it holds. */
+  readonly lockedAt: Date;
+  readonly lockedUntil: Date;
+}
+
+/**
+ * E-mail 3 (a lock of the sign-in after ten failed tries): the time, for how long, the one thing to do — a link to the form "Zresetuj hasło" WITHOUT a token
+ * (SR-INPUT-07, SR-AUTH-15). It names no address, no IP and no number of tries. The variant of the second step says that someone seems to know the password and
+ * that setting a new one does not lift this lock (only the time does); the variant of the password says that a new password does.
+ */
+export function accountLockedText(input: AccountLockedTextInput): EmailText {
+  const resetForm = `${input.panelOrigin}${RESET_FORM_PATH}`;
+  const body =
+    input.variant === 'second_step'
+      ? [
+          'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
+          `logowanie z nieznanych przeglądarek od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`,
+          '',
+          'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
+          'administratora. Zmiana hasła nie zdejmie tej blokady — ustąpi z upływem czasu.',
+          resetForm,
+        ]
+      : [
+          'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
+          `z nieznanych przeglądarek od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`,
+          '',
+          'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
+          'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
+          resetForm,
+        ];
+  return {
+    subject: 'EVia Manager: logowanie zablokowane na 15 minut',
+    text: [
+      'Dzień dobry,',
+      '',
+      ...body,
+      '',
+      'Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.',
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface NewBrowserTextInput {
+  readonly panelOrigin: string;
+  readonly signedInAt: Date;
+}
+
+/** E-mail 7 (a sign-in from a browser the account did not know): the time and the way back — a link to the form "Zresetuj hasło" without a token; no IP, no place, no device. */
+export function newBrowserText(input: NewBrowserTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: logowanie z nowej przeglądarki',
+    text: [
+      'Dzień dobry,',
+      '',
+      `${formatWarsaw(input.signedInAt)} zalogowano się do Twojego konta w EVia Manager z przeglądarki,`,
+      'której to konto wcześniej nie używało.',
+      '',
+      'Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło',
+      'i powiadom administratora:',
       `${input.panelOrigin}${RESET_FORM_PATH}`,
       '',
       footer(input.panelOrigin),

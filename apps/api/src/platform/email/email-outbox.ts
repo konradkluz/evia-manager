@@ -18,6 +18,9 @@ export const EMAIL_KINDS = [
   'password_changed',
   'mfa_changed',
   'recovery_code_used',
+  // EVM-026: e-mail 3 (a lock of the sign-in) and e-mail 7 (a sign-in from a browser the account did not know)
+  'account_locked',
+  'new_browser',
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 

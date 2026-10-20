@@ -37,6 +37,9 @@ export const IDENTITY_EVENT_TYPES = [
   'user.reactivated',
   'user.sessions_ended',
   'user.second_step_reset',
+  // EVM-026: sign-in was locked after ten failed tries — for the browsers the account does not know / for one browser it knows (no address, no key of the counter).
+  'account.locked',
+  'account.browser_locked',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -76,6 +79,9 @@ export const REASON_CODES = [
   'identity_verified_video_call',
   // The correct password of an account whose window to set up a second step is over, or never was open (EVM-027 D2).
   'mfa_setup_expired',
+  // EVM-026: what a lock of the sign-in was caused by — failures of the password only, or at least one of the second step in the window.
+  'password',
+  'second_step',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

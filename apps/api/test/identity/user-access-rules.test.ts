@@ -169,6 +169,8 @@ describe('the texts of EVM-027 (docs/ux/flows/e-maile.md nr 5 and 9; SR-INPUT-07
       administrator_reactivated: 'reaktywowano konto z rolą Administrator.',
       administrator_second_step_reset: 'zresetowano drugi krok logowania konta administratora.',
       administrator_invitation: 'wysłano zaproszenie z rolą Administrator.',
+      // EVM-026 (alert 9): a new browser
+      administrator_new_browser: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
     } as const;
     expect(Object.keys(sentences).sort()).toEqual([...ALERT_VARIANTS].sort());
     for (const variant of ALERT_VARIANTS) {

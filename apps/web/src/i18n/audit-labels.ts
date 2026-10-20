@@ -36,6 +36,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'user.reactivated': 'Reaktywacja konta',
   'user.sessions_ended': 'Zakończenie sesji użytkownika',
   'user.second_step_reset': 'Reset drugiego kroku logowania',
+  // EVM-026: a lock of the sign-in after ten failed tries (for the browsers the account does not know / for one browser it knows)
+  'account.locked': 'Blokada logowania konta',
+  'account.browser_locked': 'Blokada logowania z przeglądarki znanej koncie',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -90,6 +93,8 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'session.expired',
       'step_up.succeeded',
       'step_up.failed',
+      'account.locked',
+      'account.browser_locked',
     ],
   },
   {

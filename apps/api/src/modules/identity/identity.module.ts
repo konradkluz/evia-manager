@@ -11,9 +11,13 @@ import { AdministratorBootstrap } from './application/administrator-bootstrap.se
 import { InvitationEmailComposer } from './application/invitation-email.composer.ts';
 import { InvitationService } from './application/invitation.service.ts';
 import { ListUsersService } from './application/list-users.service.ts';
+import { BrowserRegister } from './application/browser-register.ts';
+import { LoginAttemptGate } from './application/login-attempt.ts';
 import { LoginFailures } from './application/login-failures.ts';
 import { LoginPasskeyService } from './application/login-passkey.service.ts';
 import { LoginRecoveryCodeService } from './application/login-recovery-code.service.ts';
+import { LoginSecurityEmailComposer } from './application/login-security-email.composer.ts';
+import { LoginThrottle } from './application/login-throttle.ts';
 import { LoginTotpService } from './application/login-totp.service.ts';
 import { MfaEmailComposer } from './application/mfa-email.composer.ts';
 import { LoginService } from './application/login.service.ts';
@@ -21,6 +25,7 @@ import { PasskeyService } from './application/passkey.service.ts';
 import { PasswordEmailComposer } from './application/password-email.composer.ts';
 import { PasswordResetService } from './application/password-reset.service.ts';
 import { PasswordSetting } from './application/password-setting.ts';
+import { PurgeLoginSecurityJob } from './application/purge-login-security.job.ts';
 import { RecoveryCodeService } from './application/recovery-code.service.ts';
 import { SessionService } from './application/session.service.ts';
 import { StepUpService } from './application/step-up.service.ts';
@@ -39,7 +44,12 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
   controllers: [AuthController, UsersController],
   providers: [
     ActivationService,
+    BrowserRegister,
+    LoginAttemptGate,
     LoginFailures,
+    LoginSecurityEmailComposer,
+    LoginThrottle,
+    PurgeLoginSecurityJob,
     LoginPasskeyService,
     LoginRecoveryCodeService,
     LoginService,
@@ -69,6 +79,15 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
         new SimpleWebAuthnPasskeys({ rpId: config.webauthn.rpId, rpName: config.webauthn.rpName, origin: config.panelOrigin }),
     },
   ],
-  exports: [SessionService, AdministratorBootstrap, UserDirectory, InvitationEmailComposer, PasswordEmailComposer, MfaEmailComposer],
+  exports: [
+    SessionService,
+    AdministratorBootstrap,
+    UserDirectory,
+    InvitationEmailComposer,
+    PasswordEmailComposer,
+    MfaEmailComposer,
+    LoginSecurityEmailComposer,
+    PurgeLoginSecurityJob,
+  ],
 })
 export class IdentityModule {}

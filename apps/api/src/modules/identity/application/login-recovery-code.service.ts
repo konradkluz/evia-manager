@@ -33,17 +33,19 @@ import { consumeLoginAttempt, findLoginAttempt, recordLogin } from '../infrastru
 import { identityTables } from '../infrastructure/tables.ts';
 import { hashToken } from '../domain/tokens.ts';
 import type { ClientInfo } from './activation.service.ts';
-import { openLoginAttempt, recordSecondStepFailure, type AttemptRefusal } from './login-attempt.ts';
+import { BrowserRegister } from './browser-register.ts';
+import { LoginAttemptGate, problemOf, type AttemptRefusal } from './login-attempt.ts';
 import { LoginFailures } from './login-failures.ts';
-import { startSession, type StartedSession } from './session-start.ts';
+import type { ThrottleTicket } from './login-throttle.ts';
+import { startSession, type SignedInSession } from './session-start.ts';
 
 export interface RecoveryCodeSession {
-  readonly session: StartedSession;
+  readonly session: SignedInSession;
   /** The codes that are still unused, counted after this use. */
   readonly remainingCodes: number;
 }
 
-type Refusal = AttemptRefusal | 'recovery_code_failed';
+type Refusal = AttemptRefusal | { readonly refusal: 'recovery_code_failed' };
 
 @Injectable()
 export class LoginRecoveryCodeService {
@@ -52,6 +54,8 @@ export class LoginRecoveryCodeService {
   readonly #events: EventBus;
   readonly #hasher: PasswordHasher;
   readonly #failures: LoginFailures;
+  readonly #gate: LoginAttemptGate;
+  readonly #browsers: BrowserRegister;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -59,23 +63,30 @@ export class LoginRecoveryCodeService {
     @Inject(EVENT_BUS) events: EventBus,
     @Inject(PASSWORD_HASHER) hasher: PasswordHasher,
     @Inject(LoginFailures) failures: LoginFailures,
+    @Inject(LoginAttemptGate) gate: LoginAttemptGate,
+    @Inject(BrowserRegister) browsers: BrowserRegister,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
     this.#hasher = hasher;
     this.#failures = failures;
+    this.#gate = gate;
+    this.#browsers = browsers;
   }
 
   async verify(
     body: LoginRecoveryCodeRequestWritable,
     client: ClientInfo,
     previousSessionToken: string | undefined,
+    deviceToken: string | undefined,
   ): Promise<RecoveryCodeSession> {
+    // 0. The wait that the failures so far demand — outside any transaction, before a single hash is computed (EVM-026 M1).
+    await this.#gate.wait(body.loginToken);
     const now = this.#clock.now();
-    // 1. The token first: nothing below costs anything for a caller who does not hold a first step.
+    // 1. The token first: nothing below costs anything for a caller who does not hold a first step. The try is reserved in the counter of its scope here.
     const candidates = await runInTransaction(this.#db, (transaction) => this.#candidates(transaction, body.loginToken, now, client));
-    if ('refusal' in candidates) throw new ProblemException(candidates.refusal);
+    if ('refusal' in candidates) throw problemOf(candidates);
 
     // 2 and 3. The shape, then at most ten Argon2id verifications — outside of any transaction.
     const code = normalizeRecoveryCode(body.code);
@@ -83,9 +94,9 @@ export class LoginRecoveryCodeService {
 
     // 4. One transaction decides — at the instant of the decision (the hashes took time: a token that ran out meanwhile is no first step).
     const outcome = await runInTransaction(this.#db, (transaction) =>
-      this.#finish(transaction, body.loginToken, matched, client, previousSessionToken, this.#clock.now()),
+      this.#finish(transaction, body.loginToken, matched, candidates.ticket, client, previousSessionToken, deviceToken, this.#clock.now()),
     );
-    if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
+    if ('refusal' in outcome) throw problemOf(outcome);
     return outcome;
   }
 
@@ -95,10 +106,10 @@ export class LoginRecoveryCodeService {
     loginToken: string,
     now: Date,
     client: ClientInfo,
-  ): Promise<{ readonly codes: readonly { id: string; hash: string }[] } | { readonly refusal: AttemptRefusal }> {
-    const opened = await openLoginAttempt(transaction, this.#failures, loginToken, now, client.context);
+  ): Promise<{ readonly codes: readonly { id: string; hash: string }[]; readonly ticket: ThrottleTicket } | AttemptRefusal> {
+    const opened = await this.#gate.open(transaction, loginToken, now, client.context);
     if ('refusal' in opened) return opened;
-    return { codes: await listAvailableRecoveryCodes(identityTables(transaction), opened.attempt.userId) };
+    return { codes: await listAvailableRecoveryCodes(identityTables(transaction), opened.attempt.userId), ticket: opened.ticket };
   }
 
   /** @returns the id of the code that matches, or undefined; stops at the first match */
@@ -113,14 +124,20 @@ export class LoginRecoveryCodeService {
     transaction: Kysely<Database>,
     loginToken: string,
     matchedId: string | undefined,
+    ticket: ThrottleTicket,
     client: ClientInfo,
     previousSessionToken: string | undefined,
+    deviceToken: string | undefined,
     now: Date,
-  ): Promise<RecoveryCodeSession | { readonly refusal: Refusal }> {
+  ): Promise<RecoveryCodeSession | Refusal> {
     const tx = identityTables(transaction);
     // The attempt is read again: it may have been spent, ended by five failures or have expired while the hashes were computed.
     const attempt = await findLoginAttempt(tx, hashToken(loginToken));
-    if (attempt === undefined || attempt.usedAt !== null || attempt.expiresAt <= now) return { refusal: 'unauthenticated' };
+    if (attempt === undefined || attempt.usedAt !== null || attempt.expiresAt <= now) {
+      // The try is not a guess any more (the token ended meanwhile): it gives its reservation back.
+      await this.#gate.pass(transaction, ticket, now);
+      return { refusal: 'unauthenticated' };
+    }
 
     // The account is locked FIRST (before the code and the session rows): see `LoginTotpService` — two parallel requests queue here, they do not deadlock.
     const account = await tx
@@ -131,9 +148,10 @@ export class LoginRecoveryCodeService {
       .executeTakeFirstOrThrow();
     const spent = matchedId !== undefined && (await consumeRecoveryCode(tx, matchedId, now));
     if (!spent) {
-      await recordSecondStepFailure(transaction, this.#failures, attempt, 'recovery_code_failed', now, client.context);
+      await this.#gate.fail(transaction, attempt, ticket, 'recovery_code_failed', now, client.context);
       return { refusal: 'recovery_code_failed' };
     }
+    await this.#gate.pass(transaction, ticket, now);
     if (!(await consumeLoginAttempt(tx, attempt.id, now))) throw new ProblemException('unauthenticated');
     if (account.status !== 'active') {
       await this.#failures.record(transaction, 'not_active', attempt.userId, client.context);
@@ -149,6 +167,7 @@ export class LoginRecoveryCodeService {
       now,
       authenticatedWith: 'none',
     });
+    const browser = await this.#browsers.remember(transaction, attempt.userId, deviceToken, now);
     await enqueueEmail(transaction, { kind: 'recovery_code_used', variant: null, recipientUserId: attempt.userId, now });
     const actor = { type: 'user', userId: attempt.userId } as const;
     const context = { ...client.context, sessionId: session.sessionId };
@@ -168,6 +187,9 @@ export class LoginRecoveryCodeService {
       objectId: session.sessionId,
     };
     await this.#events.publish(transaction, succeeded, context);
-    return { session, remainingCodes: await countAvailableRecoveryCodes(tx, attempt.userId) };
+    return {
+      session: { ...session, deviceToken: browser.deviceToken },
+      remainingCodes: await countAvailableRecoveryCodes(tx, attempt.userId),
+    };
   }
 }

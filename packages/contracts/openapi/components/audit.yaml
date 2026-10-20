@@ -30,6 +30,8 @@ AuditAction:
     - user.reactivated
     - user.sessions_ended
     - user.second_step_reset
+    - account.locked
+    - account.browser_locked
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
@@ -122,6 +124,8 @@ AuditReasonCode:
     - identity_verified_in_person
     - identity_verified_video_call
     - mfa_setup_expired
+    - password
+    - second_step
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

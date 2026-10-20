@@ -76,3 +76,8 @@ export async function startSession(
 
   return { sessionId, sessionToken, csrfToken: deriveCsrfToken(sessionToken), maxAgeSeconds: Math.floor(SESSION_ABSOLUTE_MS / 1000) };
 }
+
+/** A session of a FULL sign-in with the token of the new cookie of the browser (EVM-026 AC5): the controller sets both cookies. */
+export interface SignedInSession extends StartedSession {
+  readonly deviceToken: string;
+}

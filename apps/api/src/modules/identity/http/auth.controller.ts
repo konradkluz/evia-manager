@@ -61,6 +61,7 @@ import { RecoveryCodeService } from '../application/recovery-code.service.ts';
 import { SessionService } from '../application/session.service.ts';
 import { StepUpService } from '../application/step-up.service.ts';
 import { TotpEnrolmentService } from '../application/totp-enrolment.service.ts';
+import { deviceCookie, readDeviceCookie } from './device-cookie.ts';
 import { clearedSessionCookie, readSessionCookie, sessionCookie } from './session-cookie.ts';
 
 const checkLinkBody = strictObjects(zCheckActivationLinkRequest);
@@ -92,6 +93,15 @@ const previousSessionToken = (request: Request): string | undefined => {
   const cookie = readSessionCookie(request.headers.cookie);
   return cookie.kind === 'token' ? cookie.token : undefined;
 };
+
+/** The token of the cookie of a known browser when the request carried exactly one well-formed cookie. */
+const deviceToken = (request: Request): string | undefined => readDeviceCookie(request.headers.cookie);
+
+/** The cookies of a FULL sign-in: the session and the (rotated) cookie of the browser (EVM-026 AC5). */
+const signInCookies = (session: { sessionToken: string; maxAgeSeconds: number; deviceToken: string }): string[] => [
+  sessionCookie(session.sessionToken, session.maxAgeSeconds),
+  deviceCookie(session.deviceToken),
+];
 
 const clientOf = (request: Request, response: Response): ClientInfo => ({
   context: webEventContext(request, response),
@@ -200,7 +210,13 @@ export class AuthController {
   @HttpCode(200)
   async login(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<LoginResult> {
     const { email, password } = parseInput(loginBody, body) as { email: string; password: string };
-    const outcome = await this.#logins.login(email, password, clientOf(request, response), previousSessionToken(request));
+    const outcome = await this.#logins.login(
+      email,
+      password,
+      clientOf(request, response),
+      previousSessionToken(request),
+      deviceToken(request),
+    );
     if (outcome.kind === 'second_step') return { state: 'second_step', loginToken: outcome.loginToken, methods: [...outcome.methods] };
     response.set('Set-Cookie', sessionCookie(outcome.session.sessionToken, outcome.session.maxAgeSeconds));
     return { state: 'mfa_enrollment', csrfToken: outcome.session.csrfToken };
@@ -227,8 +243,13 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ): Promise<SessionStarted> {
     const input = parseInput(verifyLoginBody, body) as VerifyLoginPasskeyRequest;
-    const session = await this.#passkeyLogins.verify(input, clientOf(request, response), previousSessionToken(request));
-    response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
+    const session = await this.#passkeyLogins.verify(
+      input,
+      clientOf(request, response),
+      previousSessionToken(request),
+      deviceToken(request),
+    );
+    response.set('Set-Cookie', signInCookies(session));
     return { state: 'active', csrfToken: session.csrfToken };
   }
 
@@ -237,8 +258,8 @@ export class AuthController {
   @HttpCode(200)
   async loginTotp(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<SessionStarted> {
     const input = parseInput(loginTotpBody, body) as LoginTotpRequestWritable;
-    const session = await this.#totpLogins.verify(input, clientOf(request, response), previousSessionToken(request));
-    response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
+    const session = await this.#totpLogins.verify(input, clientOf(request, response), previousSessionToken(request), deviceToken(request));
+    response.set('Set-Cookie', signInCookies(session));
     return { state: 'active', csrfToken: session.csrfToken };
   }
 
@@ -255,8 +276,9 @@ export class AuthController {
       input,
       clientOf(request, response),
       previousSessionToken(request),
+      deviceToken(request),
     );
-    response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
+    response.set('Set-Cookie', signInCookies(session));
     return { state: 'active', csrfToken: session.csrfToken, remainingCodes };
   }
 
