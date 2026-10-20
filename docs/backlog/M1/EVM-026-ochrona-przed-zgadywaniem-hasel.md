@@ -4,7 +4,7 @@ title: Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -127,3 +127,6 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-19 — dopisano propozycję zmiany AC do „Uwag do rozważenia” (porażki drugiego kroku z EVM-023 w blokadzie konta; RR-26) — do potwierdzenia przy refine
 - 2026-10-20 — refinement: zmiany AC zaakceptowane przez Konrada 2026-10-20 (decyzje przekazane przez orkiestratora): hybryda z ciasteczkiem `__Host-evia_device`, licznik HMAC w PostgreSQL, reset hasła, alerty lokalnie, ustalenia security H1/H3, RR-26 w AC1–AC3; dodane `path: pelna`, `model: sonnet`; pytania P1–P5 rozstrzygnięte; 8 AC; status `ready`
+- 2026-10-20 — ready → in-progress: start realizacji (/deliver, ścieżka pelna, model sonnet), gałąź feature/EVM-026-ochrona-przed-zgadywaniem
+- 2026-10-20 — plan gotowy (backend-developer)
+- 2026-10-20 — implementacja (backend-developer): migracja 0040, licznik HMAC z rezerwacją próby, opóźnienie i blokada hybrydowa (hasło + drugi krok), ciasteczko `__Host-evia_device` z rejestrem przeglądarek, e-maile 3 i 7, alert 9, audyt, alerty i metryka, zadanie retencji; ustalenia security M1–M6 wdrożone; AC8 bez zmian w web (test komunikatu); dokumentacja, TM/RR (RR-26 zamknięte, RR-28–31), rodo, CHANGELOG

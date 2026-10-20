@@ -181,7 +181,7 @@ Kolumny: P, W — ryzyko bazowe; „Rezyd.” — ryzyko rezydualne po mitygacja
 | TM-13 | C-03 | D | Zalew żądań, slowloris, nadużycie uploadu | 2 | 2 | 4 Medium | ochrona DDoS Hetzner, limity Caddy · SR-API-02, SR-INFRA-11 | 1×2=2 Low | — |
 | TM-14 | C-03 | T | Request smuggling, sfałszowany `X-Forwarded-For` (obejście limitów per IP, fałszywe IP w audycie) | 2 | 1 | 2 Low | SR-API-09, SR-API-11 | 1×1=1 Low | — |
 | TM-15 | C-03 | I | Ujawnienie `.git`, map źródeł, listingu katalogów, wersji serwera | 2 | 1 | 2 Low | SR-INFRA-06, SR-API-12 | 1×1=1 Low | — |
-| TM-16 | C-04 | S | Credential stuffing, brute force i enumeracja kont | 3 | 3 | 9 Critical | ADR-0005 · SR-AUTH-02, SR-AUTH-05, SR-AUTH-06, SR-LOG-07 | 1×3=3 Medium | RR-17 |
+| TM-16 | C-04 | S | Credential stuffing, brute force i enumeracja kont | 3 | 3 | 9 Critical | ADR-0005 · SR-AUTH-02, SR-AUTH-05, SR-AUTH-06, SR-LOG-07 · EVM-026 (licznik HMAC w PostgreSQL, opóźnienie, blokada hybrydowa z ciasteczkiem przeglądarki, drugi krok w tym samym liczniku) | 1×3=3 Medium | RR-17, RR-28, RR-29, RR-30, RR-31 |
 | TM-17 | C-04 | E | IDOR/BOLA: UUID z klienta, obiekt innej kotwicy w ścieżce zagnieżdżonej (T1 z EVM-002); od EVM-042 także dodanie etapu do procesu i przywrócenie procesu lub etapu innego zlecenia oraz lista usuniętych (`404` przed `If-Match` i treścią, identyczne jak dla obiektu nieistniejącego; przywracanie i lista tylko dla Administratora) | 3 | 3 | 9 Critical | ADR-0001, 0004 · SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05 | 1×3=3 Medium | RR-10 |
 | TM-18 | C-04 | E | Endpoint bez polityki, BOPLA, mass assignment, obejście ról sekwencją przejść lub soft delete; wyszukiwanie zleceń po nazwisku klienta usuniętego (EVM-072): warunek `deleted_at IS NULL` w zapytaniu fasady klientów (ta sama polityka dla `searchIds` i `displayNamesOf`), więc usunięty klient nie jest znajdowany po nazwisku, a element zlecenia niesie `customer: { deleted: true }` bez `id` i nazwy | 2 | 3 | 6 High | ADR-0001, 0004 · SR-AUTHZ-01, SR-AUTHZ-04, SR-AUTHZ-05, SR-AUTHZ-10, SR-API-07 | 1×3=3 Medium | RR-10 |
 | TM-19 | C-04 | T | Wstrzyknięcia: SQL przez sortowanie, filtr lub `LIKE`, prototype pollution, HTTP parameter pollution (T8); wyszukiwanie zleceń (EVM-072): fraza tylko przez `searchTextMatches` (escapowanie po `f_unaccent`), zbiory identyfikatorów jako jeden parametr tablicowy `uuid[]`, treść ścisła, NUL i znaki sterujące → `400` przed bazą | 2 | 3 | 6 High | ADR-0002, 0003 · SR-INPUT-01, SR-INPUT-03, SR-INPUT-06, SR-INPUT-08 | 1×3=3 Medium | RR-10 |
@@ -805,14 +805,12 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Konsekwencja innego wyboru:** koszt dodatkowej historyjki i migracji; do tego czasu sprostowanie = usunięcie i dodanie etapu.
 - **Decyzja Konrada:** oczekuje na akceptację.
 
-### RR-26 — Brak limitu porażek drugiego kroku (kod z aplikacji, kod odzyskiwania) na konto do czasu EVM-026 (EVM-023)
-- **Opis:** drugi krok logowania (`loginTotp`, `loginRecoveryCode`) limitują dziś tylko 5 prób na `loginToken` i wspólny kubełek 20/min/IP. Napastnik znający hasło dostaje nowy `loginToken` po ponownym podaniu hasła, więc z jednego IP może zgadywać kod z aplikacji (6 cyfr, okno ±1 krok) ok. 16 razy na minutę; zgadywanie kodu odzyskiwania (20 znaków base32) jest nierealne. Brak licznika porażek (`totp_failed`, `recovery_code_failed`) na konto, więc brak opóźnienia, blokady i e-maila o blokadzie dla tego przypadku. Przy ciągłym ataku z jednego IP (ok. 23 tys. prób na dobę, szansa trafienia ok. 3 na milion na próbę) to rząd kilku procent na dobę na konto z ujawnionym hasłem — dlatego tylko do czasu EVM-026.
+### RR-26 — ZAMKNIĘTE: brak limitu porażek drugiego kroku (kod z aplikacji, kod odzyskiwania) na konto (EVM-023 → EVM-026)
+- **Opis (historyczny):** drugi krok logowania (`loginTotp`, `loginRecoveryCode`) limitowały tylko 5 prób na `loginToken` i wspólny kubełek 20/min/IP. Napastnik znający hasło dostawał nowy `loginToken` po ponownym podaniu hasła, więc z jednego IP mógł zgadywać kod z aplikacji (6 cyfr, okno ±1 krok) ok. 16 razy na minutę; zgadywanie kodu odzyskiwania (20 znaków base32) jest nierealne.
 - **Źródło:** EVM-023 (przegląd bezpieczeństwa, major); TM-16; SR-AUTH-05; CWE-307; ASVS V2.2.
-- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium (wymaga znajomości hasła; limit 20/min/IP; każde nieudane logowanie trafia do audytu, a hasła sprawdza się względem listy z wycieków).
-- **Rekomendacja:** **akceptuj** do czasu EVM-026 (M1 nie zostanie zamknięty bez niej); w EVM-026 porażki drugiego kroku liczą się do opóźnienia i blokady konta, a e-mail o blokadzie obejmuje ten przypadek (propozycja zmiany AC w historyjce EVM-026, do potwierdzenia przy refine).
-- **Konsekwencja innego wyboru:** licznik porażek na konto już w EVM-023 (np. >= 10 w 15 min, brak wydania nowego `loginToken`): dodatkowa tabela lub kolumny, duplikacja mechanizmu z EVM-026 i ryzyko jego rozjazdu.
-- **Wygaszenie:** po wdrożeniu EVM-026 z obsługą drugiego kroku (test `EVM-026 AC#` dla `totp_failed` i `recovery_code_failed`) — wpis przenieść do zamkniętych.
-- **Decyzja Konrada:** przyjęta rekomendacja — opcja (b) (2026-10-19, przegląd EVM-023).
+- **Wygaszenie (EVM-026, 2026-10-20):** porażki `totp_failed`, `recovery_code_failed` i `passkey_failed` liczą się do **jednego** licznika zakresu razem z porażkami hasła (10 w oknie 15 min blokuje na 15 min; od szóstej próby opóźnienie 1–10 s); licznik jest rezerwowany atomowo **przed** weryfikacją (równoległe próby i wiele `loginToken` nie obchodzą progu), poprawne hasło nie zeruje licznika (napastnik nie przeplata „hasło OK + 4× zły kod”), blokada unieważnia otwarte `loginToken` zakresu, a poprawny kod w trakcie blokady to `429` bez sesji. Dowód: testy `EVM-026 AC3` (`totp_failed`, `recovery_code_failed`, `passkey_failed`; `apps/api/test/integration/login-throttle-second-step.test.ts`), `EVM-026 AC2` (współbieżność i brak zerowania; `login-throttle.test.ts`) i `EVM-026 AC1` (kolejność: opóźnienie przed weryfikacją).
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low (pozostałość: RR-28, RR-29, RR-30).
+- **Decyzja Konrada:** przyjęta rekomendacja — opcja (b) (2026-10-19, przegląd EVM-023); wygaszone wdrożeniem EVM-026.
 
 ### RR-27 — Okno konfiguracji drugiego kroku po resecie: przez 24 h samo hasło wystarcza (EVM-027)
 - **Opis:** po resecie drugiego kroku przez Administratora (SR-AUTH-13) konto `active` nie ma żadnej metody, a przez 24 h (okno `mfa_setup`) poprawne hasło daje sesję `mfa_enrollment`, w której można zarejestrować nową metodę (dla konta Administratora — tylko klucz dostępu). Kto zna hasło, a zdąży przed właścicielem, rejestruje własny czynnik i przejmuje konto — dla Administratora to przejęcie systemu. Typowy przypadek: telefon zgubiony lub skradziony razem z hasłem zapisanym w przeglądarce albo w skrzynce. Reset hasła w oknie nie działa (konto bez metod nie dostaje linku — skrzynka e-mail nie jest czynnikiem), więc właściciel nie zmieni hasła już po resecie.
@@ -821,6 +819,38 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Rekomendacja:** **akceptuj** na demo EVM-027; alternatywa do rozważenia w `/refine` (np. przy EVM-028): okno wymaga dodatkowo jednorazowego kodu konfiguracji, który Administrator widzi raz w dialogu resetu i przekazuje osobiście lub na wideo (wiązanie okna z weryfikacją tożsamości, nie tylko z hasłem).
 - **Konsekwencja innego wyboru:** kod konfiguracji — nowe pole w W-02/W-03, zmiana kontraktu i makiet, dodatkowy stan „kod niepoprawny” z limitem prób; skrócenie okna (np. 2 h) — więcej ponownych resetów.
 - **Decyzja Konrada:** oczekuje na akceptację (demo EVM-027).
+
+### RR-28 — Wymuszona blokada konta: utrzymywanie blokady nieznanych przeglądarek ofiary (EVM-026, decyzja P1)
+- **Opis:** blokada po 10 nieudanych próbach jest wymuszalna z zewnątrz (AB-01 odwrócone: DoS konta). Hybryda z ciasteczkiem `__Host-evia_device` ogranicza skutek do **przeglądarek nieznanych koncie** — ofiara na swoim komputerze z ciasteczkiem loguje się normalnie, ma własny licznik, a atak z zewnątrz go nie dotyka. Zostaje: ofiara na **nowym** komputerze albo po wyczyszczeniu ciasteczek jest „nieznaną przeglądarką”, więc napastnik, który co 15 minut wysyła 10 złych haseł, utrzymuje blokadę. Reset hasła zdejmuje blokadę z przyczyny „hasło” tylko na chwilę (napastnik zablokuje ponownie), a blokady z przyczyny „drugi krok” nie zdejmuje wcale. Skutek ograniczony do jednego konta; limit 20 prób/min/IP spowalnia napastnika z jednego adresu, nie z wielu.
+- **Źródło:** EVM-026 (przegląd bezpieczeństwa 2026-10-20); AB-01, TM-16; SR-AUTH-05; CWE-645, CWE-307; ASVS V6.3.1.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium. Mitygacje: ciasteczko znanej przeglądarki (osobny licznik), odpowiedź `429` bez ujawnienia powodu (ta sama co przy limicie IP), e-mail o blokadzie (najwyżej 3 na dobę), alert `account_locked` i metryka `evia_account_lockouts_total{cause}` (powtarzające się blokady jednego konta są widoczne), brak CAPTCHA (WCAG 3.3.8), Administrator może zresetować drugi krok po weryfikacji tożsamości (inna ścieżka niż blokada).
+- **Rekomendacja:** **akceptuj** (świadoma decyzja P1 z 2026-10-20: blokada jest akceptowalnym kosztem ochrony przed zgadywaniem; alternatywa — brak blokady, tylko opóźnienia — zostawia RR-26 otwarte).
+- **Konsekwencja innego wyboru:** ręczne odblokowanie przez Administratora (poza M1) albo blokada tylko per IP (nie chroni przed rozproszonym zgadywaniem).
+- **Decyzja Konrada:** oczekuje na akceptację (demo EVM-026).
+
+### RR-29 — Rozproszony credential stuffing poniżej progu (EVM-026)
+- **Opis:** napastnik z wielu adresów IP próbuje na jednym koncie do 9 haseł w oknie 15 minut (licznik jest per konto, nie per IP) — nie dochodzi do blokady ani e-maila; opóźnienie 1–8 s od szóstej próby spowalnia tylko tego, kto próbuje szybko. Ten sam napastnik rozkłada próby na wiele kont (po 1–2 próby na konto). Okno stałe od pierwszej porażki pozwala na granicy okien na ok. 2 × 9 prób w krótkim czasie.
+- **Źródło:** EVM-026 (przegląd bezpieczeństwa 2026-10-20); TM-16, AB-01; SR-AUTH-05, SR-AUTH-02; CWE-307, CWE-521.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium. Mitygacje: MFA dla wszystkich kont (P1) — samo hasło nie daje sesji, lista haseł z wycieków przy ustawianiu hasła (SR-AUTH-02), alert >30 nieudanych haseł wszystkich kont w 5 minut (`login_failure_spike`) i alert ≥3 porażek drugiego kroku jednego zakresu (`second_step_failure_spike`, critical), każda porażka w audycie (`login.failed`).
+- **Rekomendacja:** **akceptuj**; kolejny krok (poza M1): reguła dostarczenia alertów (EVM-085) i ewentualny licznik per konto w dłuższym oknie.
+- **Konsekwencja innego wyboru:** niższy próg blokady zwiększa podatność na RR-28.
+- **Decyzja Konrada:** oczekuje na akceptację (demo EVM-026).
+
+### RR-30 — Skradzione ciasteczko znanej przeglądarki daje osobny budżet prób (EVM-026)
+- **Opis:** kto ukradnie ciasteczko `__Host-evia_device` (HttpOnly, Secure, SameSite=Strict — wymaga dostępu do profilu przeglądarki ofiary), dostaje licznik „przeglądarki znanej koncie”: osobny budżet 10 prób / 15 minut obok licznika konta. Ciasteczko **nie uwierzytelnia** i nie pomija drugiego kroku; token jest rotowany przy każdym pełnym logowaniu, więc skradziona wartość traci ważność po następnym logowaniu właściciela.
+- **Źródło:** EVM-026 (przegląd bezpieczeństwa 2026-10-20); SR-AUTH-15; CWE-539, CWE-1004.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low. Mitygacje: atrybuty ciasteczka, rotacja, w bazie tylko SHA-256, kasowanie przy dezaktywacji, resecie drugiego kroku i resecie hasła, limit 20 przeglądarek na konto, osobny alert przy każdej nowej przeglądarce (e-mail 7, alert 9 dla Administratora).
+- **Rekomendacja:** **akceptuj**.
+- **Konsekwencja innego wyboru:** brak osobnego licznika znanej przeglądarki = RR-28 w pełnym zakresie (każdy mógłby zablokować właściciela we własnej przeglądarce).
+- **Decyzja Konrada:** oczekuje na akceptację (demo EVM-026).
+
+### RR-31 — Różnice czasu przy przejściu w blokadę i okno stałe (EVM-026)
+- **Opis:** dziesiąta porażka istniejącego, aktywnego konta robi więcej pracy niż porażka nieistniejącego adresu (wpis do skrzynki nadawczej, zdarzenie audytu, unieważnienie `loginToken`) — różnica rzędu milisekund, widoczna tylko dla napastnika, który zna dokładny moment przejścia. Odpowiedź (kod, treść, `Retry-After`) jest taka sama dla konta istniejącego, nieistniejącego i nieaktywnego (CWE-204); zawsze jedna weryfikacja Argon2id (przy blokadzie względem skrótu zastępczego).
+- **Źródło:** EVM-026 (przegląd bezpieczeństwa 2026-10-20); CWE-208; ASVS V6.3.8.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** **akceptuj**.
+- **Konsekwencja innego wyboru:** odroczenie skutków blokady do zadania w tle (e-mail, audyt) wyrównałoby czas, kosztem opóźnienia powiadomienia.
+- **Decyzja Konrada:** oczekuje na akceptację (demo EVM-026).
 
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.

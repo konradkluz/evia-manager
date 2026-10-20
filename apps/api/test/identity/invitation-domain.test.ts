@@ -93,6 +93,7 @@ describe('the fixed texts of the e-mails (EVM-024 AC2; docs/ux/flows/e-maile.md)
       'administrator_deactivated',
       'administrator_reactivated',
       'administrator_second_step_reset',
+      'administrator_new_browser', // EVM-026 (alert 9)
     ]);
     expect(isAlertVariant('administrator_invitation')).toBe(true);
     for (const other of [null, '', 'emergency_reset', 'ADMINISTRATOR_INVITATION']) expect(isAlertVariant(other)).toBe(false);

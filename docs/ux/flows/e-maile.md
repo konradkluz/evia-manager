@@ -16,7 +16,7 @@
 6. **Ważność linku w treści** — reset hasła 30 minut, zaproszenie 72 godziny (P2) — z godziną końca ważności.
 7. **Adres panelu widoczny jako tekst** w stopce — odbiorca może wpisać go sam zamiast klikać.
 8. **Czas zdarzenia** w strefie `Europe/Warsaw`, format § 6.3 („04.10.2026, 14:05”).
-9. **Przeglądarka i system** (e-maile 7 i 8) z zamkniętego słownika — rodzina przeglądarki · system, bez wersji, z wartością zastępczą „Nieznana przeglądarka” / „Nieznany system”; ten sam słownik co „Moje sesje” w W-15 (S6). Bez adresu IP i bez geolokalizacji — żadnej nowej usługi zewnętrznej.
+9. **Przeglądarka i system** (e-mail 8) z zamkniętego słownika — rodzina przeglądarki · system, bez wersji, z wartością zastępczą „Nieznana przeglądarka” / „Nieznany system”; ten sam słownik co „Moje sesje” w W-15 (S6). Bez adresu IP i bez geolokalizacji — żadnej nowej usługi zewnętrznej.
 10. **Alert dla Administratorów nie wskazuje osoby** — kto i kiedy: W-18 (po step-upie).
 11. **U dostawcy e-maili wyłączone śledzenie otwarć i kliknięć** — przepisanie linków przez dostawcę wysłałoby mu token z fragmentu adresu. Wymóg dla EVM-007 i EVM-024 (konfiguracja Scaleway TEM).
 12. **Stopka antyphishingowa** — w każdym e-mailu (niżej).
@@ -45,7 +45,7 @@ wpisz adres panelu samodzielnie i skontaktuj się z administratorem.
 | 4 | Hasło zostało zmienione | adres konta | W-01 „Zresetuj hasło” — bez tokenu | EVM-025, EVM-028 | SR-AUTH-03, SR-AUTH-10, SR-AUTH-15 |
 | 5 | Zmiana drugiego kroku (6 wariantów) | adres konta | W-15 `#drugi-krok` — bez tokenu | EVM-023, EVM-027, EVM-028 | SR-AUTH-10, SR-AUTH-13, SR-AUTH-15 |
 | 6 | Użycie kodu odzyskiwania | adres konta | W-15 `#drugi-krok` — bez tokenu | EVM-023 | SR-AUTH-08, SR-AUTH-15 |
-| 7 | Logowanie z nowej przeglądarki | adres konta | W-01 „Zresetuj hasło”, W-15 — bez tokenu | EVM-026 | SR-AUTH-15 |
+| 7 | Logowanie z nowej przeglądarki | adres konta | W-01 „Zresetuj hasło” — bez tokenu | EVM-026 | SR-AUTH-15 |
 | 8 | Zakończenie najstarszej sesji | adres konta | W-15 — bez tokenu | EVM-028 | SR-SESS-04 |
 | 9 | Alert dla Administratorów (7 wariantów) | wszyscy aktywni Administratorzy | W-18 — bez tokenu | EVM-024, EVM-026, EVM-027, EVM-028 | SR-LOG-07, SR-AUTH-15 |
 
@@ -96,23 +96,41 @@ hasło się nie zmieni.
 ```
 
 ## 3. Blokada konta
-- **Kiedy:** 10 nieudanych prób w 15 minut (SR-AUTH-05, EVM-026 AC3) — także w pełnym ponownym uwierzytelnieniu (S7).
-- **Temat:** `EVia Manager: konto tymczasowo zablokowane`
+- **Kiedy:** 10 nieudanych prób w 15 minut (SR-AUTH-05, EVM-026 AC2–AC4) — hasło i drugi krok liczą się razem. Blokada dotyczy logowania z przeglądarek **nieznanych koncie** (albo osobno jednej przeglądarki znanej koncie); przeglądarka, której konto używa na co dzień, nie jest zablokowana (EVM-026 AC2). Jeden e-mail na okres blokady, najwyżej 3 na dobę na konto; tylko do kont aktywnych. Dwa warianty — wg przyczyny blokady.
+- **Temat:** `EVia Manager: logowanie zablokowane na 15 minut`
 
+**Wariant „hasło”** (w oknie same porażki hasła) — nowe hasło **zdejmuje** blokadę (EVM-026 AC7):
 ```text
 Dzień dobry,
 
-po wielu nieudanych próbach logowania konto w EVia Manager zostało
-zablokowane na 15 minut — do 09:25.
+po 10 nieudanych próbach logowania zablokowaliśmy logowanie
+z nieznanych przeglądarek od 05.10.2026, 09:10 do 05.10.2026, 09:25.
 
-Po tym czasie zalogujesz się jak zwykle. Jeśli nie pamiętasz hasła
-albo próby nie pochodziły od Ciebie, ustaw nowe hasło — nowe hasło
-zdejmuje blokadę:
+Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;
+zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.
 [link: Zresetuj hasło]
+
+Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.
 
 [stopka]
 ```
-Link prowadzi do formularza „Zresetuj hasło” w W-01 — bez tokenu i bez wpisanego adresu (EVM-026 AC3).
+
+**Wariant „drugi krok”** (w oknie choć jedna porażka kodu z aplikacji, kodu odzyskiwania albo klucza dostępu) — osoba, która zna hasło; nowe hasło blokady **nie zdejmuje**, ustępuje z upływem czasu:
+```text
+Dzień dobry,
+
+po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy
+logowanie z nieznanych przeglądarek od 05.10.2026, 09:10 do 05.10.2026, 09:25.
+
+Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom
+administratora. Zmiana hasła nie zdejmie tej blokady — ustąpi z upływem czasu.
+[link: Zresetuj hasło]
+
+Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.
+
+[stopka]
+```
+Link prowadzi do formularza „Zresetuj hasło” w W-01 — bez tokenu i bez wpisanego adresu (EVM-026 AC4). Tekst nie zawiera adresu e-mail, IP, liczby prób ani danych klientów (SR-INPUT-07).
 
 ## 4. Hasło zostało zmienione
 - **Kiedy:** po ustawieniu hasła z linku (W-12, EVM-025 AC5) i po zmianie w W-15 (EVM-028 AC2).
@@ -190,23 +208,18 @@ ustaw nowe hasło i powiadom administratora:
 Zmienne: czas zdarzenia, liczba pozostałych kodów (odmiana i treść przy 0 — zasada 3; tak samo jak w W-02). Zdanie o resecie przez administratora jest stałe — nowe kody wymagają działającej metody (pełne ponowne uwierzytelnienie bez kodu odzyskiwania); blok „Jeśli to nie Ty…” zostaje bez zmian.
 
 ## 7. Logowanie z nowej przeglądarki
-- **Kiedy:** udane logowanie z przeglądarki, z której konto wcześniej się nie logowało (EVM-026 AC4; mechanizm rozpoznania — plan EVM-026, bez odcisku przeglądarki). Konto Administratora — dodatkowo alert 9.
+- **Kiedy:** udane, pełne logowanie (po drugim kroku, z sesją) z przeglądarki, która nie ma ciasteczka `__Host-evia_device` znanego koncie (EVM-026 AC5) — bez ciasteczka każde logowanie to e-mail, bez limitu. Konto Administratora — dodatkowo alert 9. Ciasteczko nie zawiera przeglądarki ani systemu, a w bazie nie ma User-Agenta, IP ani miejsca — dlatego e-mail podaje tylko czas.
 - **Temat:** `EVia Manager: logowanie z nowej przeglądarki`
 
 ```text
 Dzień dobry,
 
-zalogowano się do konta w EVia Manager z przeglądarki, której konto
-wcześniej nie używało:
+05.10.2026, 09:10 zalogowano się do Twojego konta w EVia Manager z przeglądarki,
+której to konto wcześniej nie używało.
 
-Przeglądarka: Firefox · Windows
-Czas: 04.10.2026, 14:05
-
-Jeśli to Ty — nic nie musisz robić.
-Jeśli nie, od razu ustaw nowe hasło i powiadom administratora:
+Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło
+i powiadom administratora:
 [link: Zresetuj hasło]
-Sesje konta zobaczysz w panelu: Konto → Moje sesje
-[link: Moje sesje]
 
 [stopka]
 ```
@@ -256,7 +269,7 @@ i skontaktuj się z pozostałymi administratorami.
 
 | Wariant | `[rodzaj]` w temacie | Treść `[wariant]` | Historyjka |
 |---|---|---|---|
-| Logowanie Administratora z nowej przeglądarki | nowa przeglądarka | „zalogowano się do konta administratora z nowej przeglądarki.” | EVM-026 AC4 |
+| Logowanie Administratora z nowej przeglądarki | logowanie z nowej przeglądarki | „zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.” (zdanie wstępne: „zdarzenie dotyczące logowania do konta administratora”) | EVM-026 AC5 |
 | Nadanie roli Administrator | nowy administrator | „nadano rolę Administrator jednemu z kont.” | EVM-027 AC7 |
 | Odebranie roli Administrator | odebrana rola | „odebrano rolę Administrator jednemu z kont.” | EVM-027 AC7 |
 | Zaproszenie z rolą Administrator (także wysłane ponownie) | zaproszenie administratora | „wysłano zaproszenie z rolą Administrator.” | EVM-024 AC1 |
