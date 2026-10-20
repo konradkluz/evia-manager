@@ -22,6 +22,7 @@ import {
   MfaEmailComposer,
   PasswordEmailComposer,
   PurgeLoginSecurityJob,
+  PurgeSessionsJob,
 } from '../modules/identity/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
@@ -76,6 +77,7 @@ export async function runWorkerFromProcess(
       app.get(VerifyProjectionJob, { strict: false }).definition(),
       app.get(PurgeIdempotencyJob, { strict: false }).definition(),
       app.get(PurgeLoginSecurityJob, { strict: false }).definition(),
+      app.get(PurgeSessionsJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });

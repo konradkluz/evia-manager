@@ -97,7 +97,7 @@ describe('registering the passkey (EVM-016 AC4; SR-AUTH-09, SR-SESS-02, ASVS V6.
     const response = await registerPasskey(panel, options);
 
     expect(response.status).toBe(201);
-    expect(Object.keys(response.body as object).sort()).toEqual(['backedUp', 'createdAt', 'deviceType', 'id']);
+    expect(Object.keys(response.body as object).sort()).toEqual(['backedUp', 'createdAt', 'deviceType', 'id', 'name']);
     expect(response.body).toMatchObject({ deviceType: 'single_device', backedUp: false });
     expect(JSON.stringify(response.body)).not.toMatch(/csrf|session|token|publicKey/i);
 
@@ -295,12 +295,11 @@ describe('registering the passkey (EVM-016 AC4; SR-AUTH-09, SR-SESS-02, ASVS V6.
     expect((await db().selectFrom('identity.webauthn_challenges').select('used_at').execute())[0]?.used_at).toBeNull();
   });
 
-  it('EVM-016 AC4 an active account cannot register a further key here (that is EVM-028)', async () => {
+  it('EVM-016 AC4 EVM-028 AC3 an active account cannot ask for the options of a further key without the full re-authentication: 403 reauthentication_required, nothing is stored', async () => {
     const { panel } = await activateAdministrator(current);
-    const { options } = await passkeyOptions(panel);
-    const response = await registerPasskey(panel, options);
-    expect(response.status).toBe(403);
-    expect(response.body).toMatchObject({ code: 'forbidden' });
+    const { response: asked } = await passkeyOptions(panel);
+    expect(asked.status).toBe(403);
+    expect(asked.body).toMatchObject({ code: 'reauthentication_required' });
     expect(await db().selectFrom('identity.passkeys').selectAll().execute()).toHaveLength(1);
   });
 });

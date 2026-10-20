@@ -3,7 +3,7 @@
  * of the caller: a new token from the CSPRNG, the session of the `web` channel (the channel is given by the path, never
  * by the client), the revocation of the session of the request's cookie with the reason `rotated` — only when the request
  * carried exactly one such cookie (a doubled cookie may be planted: nothing is revoked on its word) — and the audit
- * events of both.
+ * events of both. An `active` session first makes room under the limit of five (`enforceSessionLimit`, EVM-028).
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
@@ -15,6 +15,7 @@ import type { IdentityEvent } from '../events.ts';
 import { insertSession, revokeSessionByTokenHash } from '../infrastructure/queries.ts';
 import { identityTables, type SessionsTable } from '../infrastructure/tables.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
+import { enforceSessionLimit } from './session-limit.ts';
 
 export interface StartedSession extends NewSessionResult {
   readonly sessionId: string;
@@ -57,6 +58,9 @@ export async function startSession(
     };
     await events.publish(transaction, event, { ...client.context, sessionId: id });
   }
+
+  // The limit comes after the rotation (the session of the cookie has made room) and before the insert — and only for an `active` session (K8, Z5).
+  if (state === 'active') await enforceSessionLimit(transaction, events, { userId, now, context: client.context });
 
   const sessionId = await insertSession(tx, {
     userId,

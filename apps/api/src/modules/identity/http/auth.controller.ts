@@ -318,7 +318,7 @@ export class AuthController {
   @HttpCode(200)
   async stepUp(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<StepUpResult> {
     const input = parseInput(stepUpBody, body) as StepUpRequestWritable;
-    const session = await this.#stepUps.verify(requirePrincipal(request), input, clientOf(request, response));
+    const session = await this.#stepUps.verify(requirePrincipal(request), input, clientOf(request, response), deviceToken(request));
     response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
     return { csrfToken: session.csrfToken };
   }
@@ -336,7 +336,10 @@ export class AuthController {
   async registerPasskey(@Body() body: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<Passkey> {
     const input = parseInput(registerPasskeyBody, body) as RegisterPasskeyRequest;
     const result = await this.#passkeys.register(requirePrincipal(request), input, clientOf(request, response));
-    response.set('Set-Cookie', sessionCookie(result.sessionToken, result.maxAgeSeconds));
+    // A key that finished an enrolment starts a new session; a key added from the account leaves the session (and its cookie) as it is.
+    if (result.sessionToken !== undefined && result.maxAgeSeconds !== undefined) {
+      response.set('Set-Cookie', sessionCookie(result.sessionToken, result.maxAgeSeconds));
+    }
     return result.passkey;
   }
 
@@ -358,7 +361,7 @@ export class AuthController {
   ): Promise<SessionStarted> {
     const { code } = parseInput(confirmTotpBody, body) as { code: string };
     const session = await this.#totpEnrolment.confirm(requirePrincipal(request), code, clientOf(request, response));
-    response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
+    if ('sessionToken' in session) response.set('Set-Cookie', sessionCookie(session.sessionToken, session.maxAgeSeconds));
     return { state: 'active', csrfToken: session.csrfToken };
   }
 

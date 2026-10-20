@@ -5,6 +5,7 @@ export { InvitationEmailComposer } from './application/invitation-email.composer
 export { LoginSecurityEmailComposer } from './application/login-security-email.composer.ts';
 export { MfaEmailComposer } from './application/mfa-email.composer.ts';
 export { PurgeLoginSecurityJob } from './application/purge-login-security.job.ts';
+export { PurgeSessionsJob } from './application/purge-sessions.job.ts';
 export { PasswordEmailComposer } from './application/password-email.composer.ts';
 export { UserDirectory, DISPLAY_NAMES_BATCH_LIMIT, type UserSummary } from './application/user-directory.ts';
 export { AdministratorBootstrap, type BootstrapRequest, type BootstrapResult } from './application/administrator-bootstrap.service.ts';

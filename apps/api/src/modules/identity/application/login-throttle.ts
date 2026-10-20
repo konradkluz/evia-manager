@@ -31,6 +31,7 @@ import {
   isPasswordFailure,
   pendingDelay,
   release as releaseState,
+  retryAfterSeconds,
   reserve as reserveState,
   THROTTLE_RETENTION_MS,
   type CountedFailure,
@@ -107,6 +108,12 @@ export class LoginThrottle {
   /** The wait a try would be given now — a look, nothing is reserved (the wait before a second step, which reserves inside its own transaction). */
   async delayFor(tx: Kysely<Database>, key: Buffer, now: Date): Promise<number> {
     return pendingDelay(await readThrottle(identityTables(tx), key), now);
+  }
+
+  /** How long the scope stays locked from `now` — undefined when no lock holds (the caller of a verification that has just failed asks whether it brought the lock). */
+  async lockRemaining(tx: Kysely<Database>, scope: ThrottleScope, now: Date): Promise<number | undefined> {
+    const state = await readThrottle(identityTables(tx), scope.key);
+    return state?.lockedUntil != null && state.lockedUntil > now ? retryAfterSeconds(state, now) : undefined;
   }
 
   /** The try was right: only its own reservation is given back. */

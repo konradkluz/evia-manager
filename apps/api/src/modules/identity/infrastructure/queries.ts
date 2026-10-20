@@ -199,7 +199,11 @@ export async function revokeSessions(
   reason: RevokeReason,
   now: Date,
 ): Promise<string[]> {
-  let query = db.updateTable('identity.sessions').set({ revoked_at: now, revoke_reason: reason }).where('revoked_at', 'is', null);
+  // The one-time mark of the re-authentication goes with the session (EVM-028 K5).
+  let query = db
+    .updateTable('identity.sessions')
+    .set({ revoked_at: now, revoke_reason: reason, reauthenticated_at: null, reauth_purpose: null })
+    .where('revoked_at', 'is', null);
   if (filter.sessionId !== undefined) query = query.where('id', '=', filter.sessionId);
   if (filter.userId !== undefined) query = query.where('user_id', '=', filter.userId);
   if (filter.linkIds !== undefined) {
@@ -214,7 +218,7 @@ export async function revokeSessions(
 export async function revokeSessionByTokenHash(db: IdentityDb, tokenHash: Buffer, reason: RevokeReason, now: Date): Promise<string[]> {
   const rows = await db
     .updateTable('identity.sessions')
-    .set({ revoked_at: now, revoke_reason: reason })
+    .set({ revoked_at: now, revoke_reason: reason, reauthenticated_at: null, reauth_purpose: null })
     .where('token_hash', '=', tokenHash)
     .where('revoked_at', 'is', null)
     .returning('id')
@@ -513,7 +517,7 @@ export interface RotatedSession {
 export async function rotateSession(db: IdentityDb, sessionId: string, userId: string, now: Date): Promise<RotatedSession | undefined> {
   const row = await db
     .updateTable('identity.sessions')
-    .set({ revoked_at: now, revoke_reason: 'rotated' })
+    .set({ revoked_at: now, revoke_reason: 'rotated', reauthenticated_at: null, reauth_purpose: null })
     .where('id', '=', sessionId)
     .where('user_id', '=', userId)
     .where('revoked_at', 'is', null)

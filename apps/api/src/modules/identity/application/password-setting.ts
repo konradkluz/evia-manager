@@ -40,17 +40,17 @@ export class PasswordSetting {
     this.#breaches = breaches;
   }
 
-  /** @returns the Argon2id hash of the NFC form of an acceptable password; @throws `400 validation_failed` on `/password` otherwise */
-  async hashAcceptable(password: string, context: PasswordContext): Promise<string> {
+  /** @returns the Argon2id hash of the NFC form of an acceptable password; @throws `400 validation_failed` on `pointer` (`/password` by default) otherwise */
+  async hashAcceptable(password: string, context: PasswordContext, pointer: string = '/password'): Promise<string> {
     const fault = checkPassword(password, { email: context.email, displayName: context.displayName, now: this.#clock.now() });
-    if (fault !== null) throw new ProblemException('validation_failed', { errors: [{ pointer: '/password', code: fault }] });
-    await this.#rejectBreached(password);
+    if (fault !== null) throw new ProblemException('validation_failed', { errors: [{ pointer, code: fault }] });
+    await this.#rejectBreached(password, pointer);
     return this.#hasher.hash(password.normalize('NFC'));
   }
 
-  async #rejectBreached(password: string): Promise<void> {
+  async #rejectBreached(password: string, pointer: string): Promise<void> {
     const result = await this.#breaches.check(password.normalize('NFC'));
-    if (result === 'breached') throw new ProblemException('validation_failed', { errors: [{ pointer: '/password', code: 'too_weak' }] });
+    if (result === 'breached') throw new ProblemException('validation_failed', { errors: [{ pointer, code: 'too_weak' }] });
     if (result === 'unavailable') this.#logger.warn('pwned passwords unavailable; the local password checks were used');
   }
 }
