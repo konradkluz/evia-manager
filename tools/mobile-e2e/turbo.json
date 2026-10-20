@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/e2e/**", "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts"]
+    },
+    "test:coverage": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/e2e/**", "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}

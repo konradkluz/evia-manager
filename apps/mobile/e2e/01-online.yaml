@@ -1,0 +1,22 @@
+# EVM-009 AC1, AC2: the app starts with the network and a healthy API — the shell, the empty list, the "connected" capsule.
+# The scenario server (tools/mobile-e2e) answers GET /api/health with a minimum version below the app version.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000
+- assertVisible: 'Moje zlecenia'
+- assertVisible: 'Zlecenia pojawią się tu po zalogowaniu i synchronizacji.'
+- assertVisible: 'Połączono. Otwórz kolejkę'
+- assertNotVisible: 'Brak zasięgu.*'
+- assertNotVisible: 'Brak połączenia z serwerem'
+- assertNotVisible: 'Zaktualizuj aplikację'
+# the bottom navigation works
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: 'Nic nie czeka na wysłanie.'
+- tapOn:
+    id: 'nav-orders'
+- assertVisible: 'Brak zleceń'

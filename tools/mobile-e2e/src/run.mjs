@@ -1,0 +1,271 @@
+// @ts-check
+/**
+ * The smoke test of the mobile app on one Android emulator (EVM-009 AC4; ADR-0015): preflight, the e2e build, the install, the
+ * scenario server, the Maestro flows, the report. Every effect goes through the `host`, so the sequence is tested with fakes.
+ * Exit codes: 0 all flows passed, 1 a problem or a failed flow, 2 usage (main.mjs).
+ */
+import { join } from 'node:path';
+import { emulatorsOf, parseAdbDevices, selectEmulator } from './adb.mjs';
+import {
+  adbArgs,
+  airplaneArgs,
+  apkPath,
+  APPLICATION_ID,
+  buildEnv,
+  emulatorArgs,
+  gradleCommand,
+  localProperties,
+  maestroCommand,
+  prebuildCommand,
+  toolPaths,
+} from './commands.mjs';
+import { checkPreflight } from './preflight.mjs';
+import { buildReport, isGreen, scanLogcat } from './report.mjs';
+import { BACKGROUND_WAIT_MS, NETWORK_RESTORE_WAIT_MS, SCENARIOS } from './scenarios.mjs';
+
+const BOOT_ATTEMPTS = 90;
+const BOOT_POLL_MS = 2000;
+
+/**
+ * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
+ * @typedef {{
+ *   repoRoot: string,
+ *   platform: string,
+ *   env: NodeJS.ProcessEnv,
+ *   homedir: string,
+ *   execPath: string,
+ *   exists: (path: string) => boolean,
+ *   writeText: (path: string, text: string) => void,
+ *   makeDirectory: (path: string) => void,
+ *   run: (command: string, args: string[], options?: { cwd?: string, env?: Record<string, string>, stream?: boolean }) => Outcome,
+ *   startDetached: (command: string, args: string[], options?: { env?: Record<string, string> }) => void,
+ *   sleep: (ms: number) => Promise<void>,
+ *   now: () => number,
+ *   longPathsEnabled: () => boolean | null,
+ *   resolveExpoCli: (directory: string) => string,
+ *   readAppVersion: (appDirectory: string) => string,
+ *   startStub: (port: number) => Promise<import('./stub-api.mjs').StubApi>,
+ *   log: (line: string) => void,
+ *   today: () => string,
+ * }} Host
+ */
+
+/** @param {Host} host */
+function sdkDefault(host) {
+  return host.platform === 'win32'
+    ? join(host.env['LOCALAPPDATA'] ?? host.homedir, 'Android', 'Sdk')
+    : join(host.homedir, 'Android', 'Sdk');
+}
+
+/**
+ * @param {{ skipBuild: boolean, port: number }} options
+ * @param {Host} host
+ * @returns {Promise<number>}
+ */
+export async function runE2e({ skipBuild, port }, host) {
+  const appDirectory = join(host.repoRoot, 'apps', 'mobile');
+  const reportDirectory = join(host.repoRoot, '.scratch', 'mobile-e2e');
+  const androidHome = host.env['ANDROID_HOME'] ?? sdkDefault(host);
+  const maestroHome = host.env['EVIA_MAESTRO_HOME'] ?? join(host.homedir, '.evia', 'tools', 'maestro-2.11.0');
+  const tools = toolPaths({ androidHome, javaHome: host.env['JAVA_HOME'], maestroHome, platform: host.platform });
+  const apk = apkPath(appDirectory);
+
+  const problems = checkPreflight({
+    platform: host.platform,
+    longPathsEnabled: host.longPathsEnabled(),
+    androidHomeSet: host.exists(androidHome),
+    present: {
+      adb: host.exists(tools.adb),
+      emulator: host.exists(tools.emulator),
+      java: tools.java === 'java' || tools.java === 'java.exe' ? true : host.exists(tools.java),
+      maestro: host.exists(tools.maestroLibrary),
+    },
+    skipBuild,
+    apkPresent: host.exists(apk),
+  });
+  if (problems.length > 0) {
+    for (const problem of problems) host.log(`PREFLIGHT: ${problem}`);
+    return 1;
+  }
+
+  const env = buildEnv(host.env, { androidHome, port });
+  /** @param {string[]} args @returns {Outcome} */
+  const adb = (...args) => host.run(tools.adb, args, { env });
+
+  const serial = await ensureEmulator(host, tools, env, adb);
+  if (serial === null) return 1;
+
+  if (!skipBuild && !build(host, { appDirectory, androidHome, tools, env, apk })) return 1;
+
+  host.makeDirectory(reportDirectory);
+  const stub = await host.startStub(port);
+  let airplane = false;
+  /** @type {import('./report.mjs').Result[]} */
+  const results = [];
+  /** @type {import('./report.mjs').Evidence['logcat'] | undefined} */
+  let logcat;
+  try {
+    const installed = adb(...adbArgs(serial, 'install', '-r', apk));
+    if (installed.status !== 0) {
+      host.log('INSTALL: adb install failed');
+      return 1;
+    }
+    for (const scenario of SCENARIOS) {
+      let failed = false;
+      for (const step of scenario.steps) {
+        if (failed) {
+          results.push({ scenario: scenario.name, flow: step.flow, status: 'skipped', seconds: 0 });
+          continue;
+        }
+        stub.setMode(step.server);
+        if (step.background === true) {
+          adb(...adbArgs(serial, 'shell', 'input', 'keyevent', 'KEYCODE_HOME'));
+          await host.sleep(BACKGROUND_WAIT_MS);
+        }
+        if (step.airplane !== airplane) {
+          adb(...adbArgs(serial, ...airplaneArgs(step.airplane)));
+          airplane = step.airplane;
+          await host.sleep(NETWORK_RESTORE_WAIT_MS);
+        }
+        const started = host.now();
+        const command = maestroCommand({
+          java: tools.java,
+          classpath: tools.maestroClasspath,
+          serial,
+          flow: join(appDirectory, 'e2e', step.flow),
+          junitFile: join(reportDirectory, `${step.flow}.xml`),
+        });
+        const outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
+        const passed = outcome.status === 0;
+        failed = !passed;
+        results.push({
+          scenario: scenario.name,
+          flow: step.flow,
+          status: passed ? 'passed' : 'failed',
+          seconds: (host.now() - started) / 1000,
+        });
+      }
+    }
+    logcat = collectLogcat(adb, serial);
+  } finally {
+    if (airplane) adb(...adbArgs(serial, ...airplaneArgs(false)));
+    await stub.close();
+  }
+
+  const evidence = {
+    date: host.today(),
+    device: deviceInfo(adb, serial),
+    maestroVersion: maestroVersion(host, tools, env),
+    appVersion: host.readAppVersion(appDirectory),
+    results,
+    requests: stub.requests(),
+    logcat: logcat ?? null,
+  };
+  host.writeText(join(reportDirectory, 'report.md'), buildReport(evidence));
+  host.log(buildReport(evidence));
+  return isGreen(evidence) ? 0 : 1;
+}
+
+/**
+ * Uses the one running emulator, starts the AVD when none runs, and refuses when several run (ADR-0015: one at a time).
+ * @param {Host} host
+ * @param {ReturnType<typeof toolPaths>} tools
+ * @param {Record<string, string>} env
+ * @param {(...args: string[]) => Outcome} adb
+ * @returns {Promise<string | null>} the serial, or null after a logged refusal
+ */
+async function ensureEmulator(host, tools, env, adb) {
+  let choice = selectEmulator(parseAdbDevices(adb('devices').stdout));
+  if (!choice.ok && choice.reason === 'several') {
+    host.log(
+      `EMULATOR: more than one emulator is running (${choice.serials.join(', ')}); stop all but one — the machine runs one at a time.`,
+    );
+    return null;
+  }
+  if (!choice.ok && choice.reason === 'none') {
+    host.log('EMULATOR: none running, starting the AVD');
+    host.startDetached(tools.emulator, emulatorArgs(), { env });
+  }
+  for (let attempt = 0; attempt < BOOT_ATTEMPTS; attempt += 1) {
+    choice = selectEmulator(parseAdbDevices(adb('devices').stdout));
+    if (choice.ok && adb(...adbArgs(choice.serial, 'shell', 'getprop', 'sys.boot_completed')).stdout.trim() === '1') return choice.serial;
+    if (!choice.ok && choice.reason === 'several') {
+      host.log('EMULATOR: a second emulator appeared; stop all but one.');
+      return null;
+    }
+    await host.sleep(BOOT_POLL_MS);
+  }
+  host.log(
+    `EMULATOR: not ready after ${String((BOOT_ATTEMPTS * BOOT_POLL_MS) / 1000)} s (${String(emulatorsOf(parseAdbDevices(adb('devices').stdout)).length)} seen)`,
+  );
+  return null;
+}
+
+/**
+ * @param {Host} host
+ * @param {{ appDirectory: string, androidHome: string, tools: ReturnType<typeof toolPaths>, env: Record<string, string>, apk: string }} context
+ * @returns {boolean}
+ */
+function build(host, { appDirectory, androidHome, tools, env, apk }) {
+  const androidDirectory = join(appDirectory, 'android');
+  const prebuild = prebuildCommand(host.execPath, host.resolveExpoCli(appDirectory));
+  if (host.run(prebuild.command, prebuild.args, { cwd: appDirectory, env, stream: true }).status !== 0) {
+    host.log('BUILD: expo prebuild failed');
+    return false;
+  }
+  host.writeText(join(androidDirectory, 'local.properties'), localProperties(androidHome));
+  const wrapperJar = join(androidDirectory, 'gradle', 'wrapper', 'gradle-wrapper.jar');
+  const gradle = gradleCommand({ java: tools.java, wrapperJar, cmakeVersion: host.env['EVIA_ANDROID_CMAKE_VERSION'] });
+  if (host.run(gradle.command, gradle.args, { cwd: androidDirectory, env, stream: true }).status !== 0) {
+    host.log('BUILD: Gradle assembleRelease failed');
+    return false;
+  }
+  if (!host.exists(apk)) {
+    host.log('BUILD: the APK was not produced');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @param {(...args: string[]) => Outcome} adb
+ * @param {string} serial
+ */
+function deviceInfo(adb, serial) {
+  /** @param {string} property */
+  const prop = (property) => adb(...adbArgs(serial, 'shell', 'getprop', property)).stdout.trim();
+  return {
+    serial,
+    apiLevel: prop('ro.build.version.sdk'),
+    androidRelease: prop('ro.build.version.release'),
+    model: prop('ro.product.model'),
+  };
+}
+
+/**
+ * @param {Host} host
+ * @param {ReturnType<typeof toolPaths>} tools
+ * @param {Record<string, string>} env
+ */
+function maestroVersion(host, tools, env) {
+  const outcome = host.run(
+    tools.java,
+    ['--enable-native-access=ALL-UNNAMED', '-classpath', tools.maestroClasspath, 'maestro.cli.AppKt', '--version'],
+    { env },
+  );
+  return outcome.stdout.trim().split(/\r?\n/).at(-1) ?? 'unknown';
+}
+
+/**
+ * @param {(...args: string[]) => Outcome} adb
+ * @param {string} serial
+ * @returns {import('./report.mjs').Evidence['logcat']}
+ */
+function collectLogcat(adb, serial) {
+  const pid =
+    adb(...adbArgs(serial, 'shell', 'pidof', APPLICATION_ID))
+      .stdout.trim()
+      .split(/\s+/)[0] ?? '';
+  if (!/^\d+$/.test(pid)) return null;
+  return scanLogcat(adb(...adbArgs(serial, 'logcat', '-d', `--pid=${pid}`)).stdout);
+}

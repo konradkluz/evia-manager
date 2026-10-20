@@ -1,0 +1,11 @@
+# EVM-009 AC2: the server is back (the scenario server answers 200 again) — "Spróbuj ponownie" repeats the check and the alert goes.
+# Continues the app state of 05-server-down.yaml (no launchApp).
+appId: pl.eviacharge.manager
+---
+- tapOn:
+    id: 'retry-server'
+- extendedWaitUntil:
+    visible: 'Połączono. Otwórz kolejkę'
+    timeout: 30000
+- assertNotVisible: 'Brak połączenia z serwerem'
+- assertVisible: 'Brak zleceń'

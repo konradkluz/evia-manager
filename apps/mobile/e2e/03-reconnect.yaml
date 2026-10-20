@@ -1,0 +1,11 @@
+# EVM-009 AC2: the network returns while the app was in the background (tools/mobile-e2e pressed Home, switched airplane mode
+# off and waited); bringing the app back to the foreground repeats the check by itself and the banner goes away.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Połączono. Otwórz kolejkę'
+    timeout: 45000
+- assertNotVisible: 'Brak zasięgu.*'
+- assertNotVisible: 'Brak połączenia z serwerem'
