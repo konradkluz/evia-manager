@@ -46,3 +46,12 @@ export const PASSWORD_RESET_MIN_INTERVAL_MS = MINUTE;
 export const PASSWORD_RESET_HOURLY_LIMIT = 5;
 /** The response of a request for a reset link never comes sooner than this after the start of the request (CWE-208; a floor, not a guarantee). */
 export const PASSWORD_RESET_RESPONSE_FLOOR_MS = 250;
+
+/** The cookie of a browser the account signed in from (EVM-026 AC5): `__Host-`, so Secure, Path=/ and no Domain are forced by the browser. */
+export const DEVICE_COOKIE_NAME = '__Host-evia_device';
+/** A browser is forgotten 30 days after its last use; the cookie is given the same life (RODO art. 5(1)(e)). */
+export const DEVICE_RETENTION_MS = 30 * 24 * HOUR;
+/** The browsers kept per account: the oldest go first (a colleague cannot swell the register by signing in without the cookie). */
+export const MAX_BROWSERS_PER_USER = 20;
+/** The e-mail about a lock (e-mail 3) goes at most this many times in 24 hours to one account (SR-AUTH-15). */
+export const LOCK_EMAIL_DAILY_LIMIT = 3;

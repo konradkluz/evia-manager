@@ -4,6 +4,7 @@
  * The minimum supported app version uses the Semver schema generated from the contract (one source of the pattern);
  * EVM-009 (meta/client-config, 426) reads the same `minSupportedAppVersion` object.
  */
+import { randomBytes } from 'node:crypto';
 import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
@@ -31,6 +32,14 @@ export interface AppConfig {
    * outside production — everything that needs a key is then refused (fail closed).
    */
   readonly fieldEncryptionKeys: readonly FieldKey[];
+  /**
+   * Key of the HMAC under which the counters against guessing passwords are keyed (EVM-026; at least 32 bytes). A secret: never logged, a different one
+   * from the other keys. Required in production; elsewhere an absent key is a random key of this process (the counters of an earlier process are
+   * then never found again — acceptable for development and tests, never for a server).
+   */
+  readonly loginThrottleKey: Buffer;
+  /** Thresholds of the alerts about guessing (SR-LOG-07): failed passwords of all accounts in 5 minutes (more than) / failures of the second step of one scope in its window (at least). */
+  readonly loginAlerts: { readonly passwordFailures: number; readonly secondStepFailures: number };
 }
 
 const postgresUrl = z.string().refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol));
@@ -62,6 +71,19 @@ const cursorKey = z.string().refine((value) => {
 /** A key with few distinct bytes is a placeholder (all zeros, a repeated byte), never the output of a random generator. */
 const MIN_DISTINCT_KEY_BYTES = 16;
 const isPlaceholderKey = (value: string): boolean => new Set(Buffer.from(value, 'base64url')).size < MIN_DISTINCT_KEY_BYTES;
+
+/** The key of the counters against guessing: base64url of at least 32 random bytes (EVM-026); the round trip rejects a value with stray trailing bits. */
+const LOGIN_THROTTLE_KEY_MIN_BYTES = 32;
+const loginThrottleKey = z
+  .string()
+  .optional()
+  .refine((value) => {
+    if (value === undefined || value === '') return true;
+    const bytes = Buffer.from(value, 'base64url');
+    return /^[A-Za-z0-9_-]+$/.test(value) && bytes.length >= LOGIN_THROTTLE_KEY_MIN_BYTES && bytes.toString('base64url') === value;
+  });
+const keyOfLoginThrottle = (value: string | undefined): Buffer | undefined =>
+  value === undefined || value === '' ? undefined : Buffer.from(value, 'base64url');
 
 /** `FIELD_ENCRYPTION_KEYS` is absent (or empty) or a well-formed list `id:base64url32,…`; production additionally needs it (see the schema). */
 const fieldEncryptionKeys = z
@@ -95,6 +117,9 @@ const schema = z
     TRUSTED_PROXIES: proxyList,
     CURSOR_KEY: cursorKey,
     FIELD_ENCRYPTION_KEYS: fieldEncryptionKeys,
+    LOGIN_THROTTLE_KEY: loginThrottleKey,
+    LOGIN_ALERT_PASSWORD_FAILURES: z.coerce.number().int().min(1).max(100_000).default(30),
+    LOGIN_ALERT_SECOND_STEP_FAILURES: z.coerce.number().int().min(1).max(10).default(3),
   })
   .refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
@@ -121,6 +146,21 @@ const schema = z
           (env.NODE_ENV !== 'production' || new Set(key).size >= MIN_DISTINCT_KEY_BYTES),
       ),
     { path: ['FIELD_ENCRYPTION_KEYS'] },
+  )
+  // The key of the counters against guessing: required in production, never a placeholder, and one key serves one purpose (EVM-026; SR-CRYPTO).
+  .refine((env) => env.NODE_ENV !== 'production' || (env.LOGIN_THROTTLE_KEY !== undefined && env.LOGIN_THROTTLE_KEY !== ''), {
+    path: ['LOGIN_THROTTLE_KEY'],
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || !isPlaceholderKey(env.LOGIN_THROTTLE_KEY ?? ''), { path: ['LOGIN_THROTTLE_KEY'] })
+  .refine(
+    (env) => {
+      const key = keyOfLoginThrottle(env.LOGIN_THROTTLE_KEY);
+      if (key === undefined) return true;
+      return (
+        !key.equals(Buffer.from(env.CURSOR_KEY, 'base64url')) && keysOf(env.FIELD_ENCRYPTION_KEYS).every((field) => !field.key.equals(key))
+      );
+    },
+    { path: ['LOGIN_THROTTLE_KEY'] },
   );
 
 export class ConfigError extends Error {
@@ -172,6 +212,8 @@ export function loadConfig(env: Env): AppConfig {
     trustedProxies: value.TRUSTED_PROXIES,
     cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
     fieldEncryptionKeys: keysOf(value.FIELD_ENCRYPTION_KEYS),
+    loginThrottleKey: keyOfLoginThrottle(value.LOGIN_THROTTLE_KEY) ?? randomBytes(LOGIN_THROTTLE_KEY_MIN_BYTES),
+    loginAlerts: { passwordFailures: value.LOGIN_ALERT_PASSWORD_FAILURES, secondStepFailures: value.LOGIN_ALERT_SECOND_STEP_FAILURES },
   };
 }
 

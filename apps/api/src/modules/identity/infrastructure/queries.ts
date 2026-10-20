@@ -274,11 +274,13 @@ export interface LoginAttemptRecord {
   readonly userId: string;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
+  /** The scope of the counter against guessing this first step was counted in; null on an attempt made before 0040. */
+  readonly throttleKey: Buffer | null;
 }
 
 export async function insertLoginAttempt(
   db: IdentityDb,
-  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date },
+  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer },
 ): Promise<string> {
   const row = await db
     .insertInto('identity.login_attempts')
@@ -288,6 +290,7 @@ export async function insertLoginAttempt(
       created_at: attempt.now,
       expires_at: attempt.expiresAt,
       used_at: null,
+      throttle_key: attempt.throttleKey,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -303,7 +306,7 @@ export async function deleteStaleLoginAttempts(db: IdentityDb, cutoff: Date): Pr
 export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer): Promise<LoginAttemptRecord | undefined> {
   return db
     .selectFrom('identity.login_attempts')
-    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt'])
+    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'throttle_key as throttleKey'])
     .where('token_hash', '=', tokenHash)
     .executeTakeFirst();
 }
@@ -741,6 +744,16 @@ export async function revokeLoginAttemptsOfUser(db: IdentityDb, userId: string, 
     .updateTable('identity.login_attempts')
     .set({ used_at: now })
     .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .execute();
+}
+
+/** Ends the open first steps counted in one scope (a lock of that scope must not leave a `loginToken` that could still guess; other scopes are untouched). */
+export async function revokeLoginAttemptsOfScope(db: IdentityDb, throttleKey: Buffer, now: Date): Promise<void> {
+  await db
+    .updateTable('identity.login_attempts')
+    .set({ used_at: now })
+    .where('throttle_key', '=', throttleKey)
     .where('used_at', 'is', null)
     .execute();
 }

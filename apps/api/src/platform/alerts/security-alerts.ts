@@ -11,7 +11,13 @@ import type { Database } from '../database/database.ts';
 import type { Logger } from '../logging/logger.ts';
 import { runInTransaction } from '../database/transactional.ts';
 
-export type SecurityAlertCode = 'emergency_reset' | 'projection_authz_drift';
+export type SecurityAlertCode =
+  | 'emergency_reset'
+  | 'projection_authz_drift'
+  // EVM-026: a flood of failed passwords across accounts (warning), failed second steps of one scope (critical), an account or a browser locked
+  | 'login_failure_spike'
+  | 'second_step_failure_spike'
+  | 'account_locked';
 
 export interface SecurityAlertsTable {
   id: string;
