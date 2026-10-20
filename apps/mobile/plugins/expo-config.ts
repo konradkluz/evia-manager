@@ -22,6 +22,11 @@ export const BLOCKED_ANDROID_PERMISSIONS: readonly string[] = [
   'android.permission.VIBRATE',
   'android.permission.RECORD_AUDIO',
   'android.permission.CAMERA',
+  // Added by expo-secure-store for biometric prompts; the decision on biometrics is an ADR (not in the skeleton).
+  'android.permission.USE_BIOMETRIC',
+  'android.permission.USE_FINGERPRINT',
+  // Added by expo-modules-core for the Google Play install referrer; the app is distributed outside Google Play.
+  'com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE',
 ];
 
 export function resolveVersionCode(value: string | undefined): number {

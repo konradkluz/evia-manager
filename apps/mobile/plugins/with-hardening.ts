@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { LOCAL_HTTP_HOSTS } from '../src/config/api-base-url.ts';
 import type { BuildVariant } from '../src/config/api-base-url.ts';
 
+const PROFILE_INSTALL_RECEIVER = 'androidx.profileinstaller.ProfileInstallReceiver';
 const XML_HEADER = '<?xml version="1.0" encoding="utf-8"?>\n';
 
 export function dataExtractionRulesXml(): string {
@@ -61,6 +62,9 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
     application.$['android:fullBackupContent'] = '@xml/evia_backup_rules';
     application.$['android:networkSecurityConfig'] = '@xml/evia_network_security_config';
     application.$['android:usesCleartextTraffic'] = 'false';
+    // The only exported component is MainActivity: the AndroidX profile installer receiver (exported, guarded by DUMP) is removed.
+    modConfig.modResults.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+    application.receiver = [...(application.receiver ?? []), { $: { 'android:name': PROFILE_INSTALL_RECEIVER, 'tools:node': 'remove' } }];
     return modConfig;
   });
   config = withDangerousMod(config, [

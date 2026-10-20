@@ -43,6 +43,9 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
         'android.permission.WRITE_EXTERNAL_STORAGE',
         'android.permission.SYSTEM_ALERT_WINDOW',
         'android.permission.VIBRATE',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+        'com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE',
       ]),
     );
   });

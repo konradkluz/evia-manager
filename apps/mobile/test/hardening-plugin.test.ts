@@ -77,7 +77,7 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
   });
 
   it('EVM-009 AC6: the manifest mod disables backup, points to the rules and forbids cleartext in the manifest itself', async () => {
-    const manifest = { manifest: { application: [{ $: { 'android:name': '.MainApplication' }, activity: [] }] } };
+    const manifest = { manifest: { $: {}, application: [{ $: { 'android:name': '.MainApplication' }, activity: [] }] } };
     const mod = plugged('release')['manifest'];
     const result = (await mod?.({ modResults: manifest, modRequest: {}, mods: {} })) as { modResults: typeof manifest };
     const attributes = result.modResults.manifest.application[0]?.$ as Record<string, string>;
@@ -86,6 +86,21 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
     expect(attributes['android:dataExtractionRules']).toBe('@xml/evia_data_extraction_rules');
     expect(attributes['android:fullBackupContent']).toBe('@xml/evia_backup_rules');
     expect(attributes['android:networkSecurityConfig']).toBe('@xml/evia_network_security_config');
+  });
+
+  it('EVM-009 AC6: the manifest mod removes the exported AndroidX profile installer receiver (only MainActivity stays exported; SR-MOB-07)', async () => {
+    const manifest = {
+      manifest: {
+        $: {},
+        application: [{ $: { 'android:name': '.MainApplication' }, receiver: [{ $: { 'android:name': 'other.Receiver' } }] }],
+      },
+    };
+    const mod = plugged('release')['manifest'];
+    const result = (await mod?.({ modResults: manifest, modRequest: {}, mods: {} })) as { modResults: typeof manifest };
+    const receivers = (result.modResults.manifest.application[0] as { receiver: { $: Record<string, string> }[] }).receiver;
+    expect(receivers.at(-1)?.$).toEqual({ 'android:name': 'androidx.profileinstaller.ProfileInstallReceiver', 'tools:node': 'remove' });
+    expect(receivers[0]?.$['android:name']).toBe('other.Receiver');
+    expect((result.modResults.manifest as { $: Record<string, string> }).$['xmlns:tools']).toBe('http://schemas.android.com/tools');
   });
 
   it('EVM-009 AC6: the resource mod writes the three XML files into res/xml of the app module', async () => {

@@ -1,0 +1,1 @@
+pl.eviacharge.manager	1	0.1.0
