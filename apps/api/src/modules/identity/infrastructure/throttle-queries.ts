@@ -138,9 +138,33 @@ export async function countSpike(db: IdentityDb, key: Buffer, now: Date): Promis
   return row.failures;
 }
 
-/** The retention (RODO art. 5(1)(e)): rows past their `expires_at`. @returns how many were deleted */
+/**
+ * The retention (RODO art. 5(1)(e)): rows past their `expires_at`. A row that a sign-in holds locked is SKIPPED, never waited for (see
+ * {@link deletePasswordThrottle}; CWE-833) — the next run deletes it. @returns how many were deleted
+ */
 export async function deleteExpiredThrottles(db: IdentityDb, now: Date): Promise<number> {
-  const rows = await db.deleteFrom('identity.login_throttle').where('expires_at', '<', now).returning('scope_key').execute();
+  const rows = await db
+    .deleteFrom('identity.login_throttle')
+    .where(
+      'scope_key',
+      'in',
+      db.selectFrom('identity.login_throttle').select('scope_key').where('expires_at', '<', now).forUpdate().skipLocked(),
+    )
+    .returning('scope_key')
+    .execute();
+  return rows.length;
+}
+
+/**
+ * The retention of the first steps (`throttle_key` is the HMAC of an address, so a row does not outlive the counters): those that expired before `cutoff`
+ * (their challenges go with them: ON DELETE CASCADE). A row that a second step holds locked is skipped, as above. @returns how many were deleted
+ */
+export async function deleteExpiredLoginAttempts(db: IdentityDb, cutoff: Date): Promise<number> {
+  const rows = await db
+    .deleteFrom('identity.login_attempts')
+    .where('id', 'in', db.selectFrom('identity.login_attempts').select('id').where('expires_at', '<', cutoff).forUpdate().skipLocked())
+    .returning('id')
+    .execute();
   return rows.length;
 }
 

@@ -239,15 +239,31 @@ describe('the register is cleared (EVM-026 AC5, M6; RODO art. 5(1)(e))', () => {
     const idle = await enrolledAccount(current, { role: 'editor' });
     await wrongPasswords(current, idle.email, 1);
     const job = current.app.get(PurgeLoginSecurityJob, { strict: false });
-    expect(await job.run()).toEqual({ throttles: 0, browsers: 0 });
+    expect(await job.run()).toEqual({ throttles: 0, browsers: 0, loginAttempts: 0 });
     current.clock.advance(50 * 60_000); // 15 minutes of the window and 30 of retention are over
+    const firstSteps = Number((await sql<{ n: string }>`select count(*)::text as n from identity.login_attempts`.execute(db())).rows[0]?.n);
+    expect(firstSteps).toBeGreaterThan(0);
     // the idle address, the address of the account, the counter of its browser and the one shared counter of the alert about a flood of failed passwords
-    expect(await job.run()).toEqual({ throttles: 4, browsers: 0 });
+    expect(await job.run()).toEqual({ throttles: 4, browsers: 0, loginAttempts: firstSteps });
     expect(await throttleRows(current)).toEqual([]);
     current.clock.advance(28 * DAY);
     expect((await job.run()).browsers).toBe(0); // used 28 days and almost an hour ago
     current.clock.advance(2 * DAY);
     expect(await job.run()).toMatchObject({ browsers: 1 });
     expect(await devices(account.user.id)).toEqual([]);
+  });
+
+  it('EVM-026 M6 the job of retention deletes a first step 30 minutes after it expired — the HMAC of the address (throttle_key) does not outlive the counters', async () => {
+    const account = await enrolledAccount(current);
+    expect((await firstStep(current.panel(), account.email, account.password)).status).toBe(200);
+    const attempts = async () =>
+      Number((await sql<{ n: string }>`select count(*)::text as n from identity.login_attempts`.execute(db())).rows[0]?.n);
+    const job = current.app.get(PurgeLoginSecurityJob, { strict: false });
+    current.clock.advance(20 * 60_000); // expired 15 minutes ago (five minutes of life)
+    expect(await job.run()).toMatchObject({ loginAttempts: 0 });
+    expect(await attempts()).toBe(1);
+    current.clock.advance(16 * 60_000); // expired 31 minutes ago
+    expect(await job.run()).toMatchObject({ loginAttempts: 1 });
+    expect(await attempts()).toBe(0);
   });
 });

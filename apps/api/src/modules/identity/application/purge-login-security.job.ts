@@ -1,6 +1,7 @@
 /**
  * The retention of the data of the protection against guessing (EVM-026 M6; RODO art. 5(1)(e)): a job of the worker, every 15 minutes, deletes the counters
- * past their `expires_at` (30 minutes after the end of their window or lock) and the browsers not seen for 30 days (with their counters). A purge that only
+ * past their `expires_at` (30 minutes after the end of their window or lock), the first steps 30 minutes after they expired (they carry the HMAC of the
+ * address) and the browsers not seen for 30 days (with their counters). A purge that only
  * happened when somebody touched a row again would leave the rows nobody touches for ever.
  *
  * It is idempotent (two runs, or a retry, delete nothing twice); a failure leaves as `JobFailure` with a fixed code, so the queue retries and stores nothing of
