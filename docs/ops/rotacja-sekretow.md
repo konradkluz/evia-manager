@@ -18,6 +18,9 @@
 | PAT `gh` orkiestratora (fine-grained) | Windows keyring stacji (`gh auth`) — nigdy w repozytorium | tylko to repozytorium: Pull requests RW, Actions R, Contents R, Metadata R — **bez Contents write** (nie scali PR) | 30 dni; przypomnienie w kalendarzu Konrada | orkiestrator: zakładanie PR, odczyt wyników CI |
 | Klucz wdrożeniowy agentów (SSH) | `~/.ssh/evia_manager` (alias `github-evia-manager`), poza repozytorium | zapis do tego repozytorium (wypycha gałęzie) | przy incydencie, odejściu osoby z dostępem do stacji albo co 12 miesięcy | orkiestrator (push gałęzi za zgodą Konrada) |
 
+### Klucz podpisu APK Androida (EVM-009 — wyjątek od K7, do akceptacji Konrada)
+Cztery sekrety repozytorium: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` — widoczne wyłącznie dla kroku podpisu joba `mobile-sign` (`ci.yml`, tylko `main`). **Dodaje je Konrad dopiero po akceptacji ryzyka** (`docs/ops/dystrybucja-apk-android.md` → „Ryzyko do akceptacji”). Keystore generowany lokalnie (RSA 4096, ważność > 25 lat), kopia zaszyfrowana w menedżerze haseł w dwóch miejscach, nigdy w repozytorium. Bez Google Play nie ma resetu klucza: utrata lub kompromitacja = rotacja przez APK Signature Scheme v3 (`apksigner rotate`) albo ponowna instalacja aplikacji (utrata danych offline od M2). Plan rotacji: przy podejrzeniu wycieku (nowe, nieznane przebiegi w Actions z dostępem do sekretów, zmiana workflowów w nieznanej gałęzi) — usuń cztery sekrety, wygeneruj nowy klucz z historią v3, poinformuj techników, wpis w Dzienniku.
+
 ## Procedury
 **Utworzenie / rotacja `RENOVATE_TOKEN`**
 1. GitHub → Settings → Developer settings → Fine-grained tokens → *Generate new token*: Resource owner `konradkluz`, *Only select repositories* = `evia-manager`, uprawnienia z tabeli, wygaśnięcie 90 dni.
