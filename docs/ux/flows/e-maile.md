@@ -187,6 +187,8 @@ Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:
 [stopka]
 ```
 
+> **Realizacja e-maili 4, 5, 8 i 9 w EVM-028** (kolejka `platform.email_outbox`, bez ładunku — wiersz niesie rodzaj, wariant i odbiorcę po identyfikatorze): e-mail 4 po zmianie w Koncie to rodzaj `password_changed` z wariantem `from_account` (po resecie z linku wariant pusty); e-mail 5 — `mfa_changed` z wariantami `passkey_enrolled`, `passkey_removed`, `totp_enrolled`, `totp_removed`, `recovery_codes_generated`; e-mail 8 — rodzaj `session_limit` (przeglądarkę i system zakończonej sesji oraz nowego logowania oraz ich czasy worker odczytuje z wierszy sesji, wyłącznie przez zamknięty słownik — bez adresu IP i bez surowego User-Agenta); e-mail 9 — `administrator_alert` z wariantem `administrator_second_step_changed`. Teksty: `apps/api/src/modules/identity/domain/email-templates.ts`.
+
 ## 5. Zmiana drugiego kroku logowania
 - **Kiedy:** po każdej zmianie metod drugiego kroku (SR-AUTH-10; EVM-023 AC6, EVM-028 AC3, AC5) i po resecie przez Administratora (EVM-027 AC4). Wysyłany na adres konta.
 - **Temat:** `EVia Manager: zmiana drugiego kroku logowania`
@@ -215,7 +217,7 @@ Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:
 | Nowe kody odzyskiwania | „wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.” |
 | Reset przez Administratora | „zresetowano drugi krok logowania w panelu administracji. Wszystkie sesje konta zostały zakończone. Przy następnym logowaniu panel poprowadzi przez konfigurację od nowa. Skonfiguruj drugi krok do 05.10.2026, 14:05 — po tym czasie poproś administratora o ponowny reset.” — zamiast „Jeśli to nie Ty…”: „Jeśli nie zgłaszasz utraty drugiego kroku, od razu skontaktuj się z administratorem.” |
 
-Bez nazwy klucza dostępu i bez wskazania, kto wykonał reset. Termin w wariancie „Reset przez Administratora” to koniec okna konfiguracji — długość z planu EVM-027 (rekomendacja ≤ 24 h; przykład: reset 04.10.2026, 14:05 + 24 h); zasady okna — [11 → Konto bez drugiego kroku](11-aktywacja-i-reset-hasla.md#konto-bez-drugiego-kroku).
+Bez nazwy klucza dostępu i bez wskazania, kto wykonał reset ani zmianę (EVM-028: nazwa klucza, którą wpisuje osoba, nie trafia do żadnego e-maila). Termin w wariancie „Reset przez Administratora” to koniec okna konfiguracji — długość z planu EVM-027 (rekomendacja ≤ 24 h; przykład: reset 04.10.2026, 14:05 + 24 h); zasady okna — [11 → Konto bez drugiego kroku](11-aktywacja-i-reset-hasla.md#konto-bez-drugiego-kroku).
 
 ## 6. Użycie kodu odzyskiwania
 - **Kiedy:** logowanie kodem odzyskiwania w W-02 (EVM-023 AC5). Kod odzyskiwania działa wyłącznie w logowaniu — w żadnym ponownym uwierzytelnieniu (decyzja 16), więc e-mail ma jeden wariant.

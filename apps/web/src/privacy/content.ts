@@ -194,8 +194,8 @@ const EMPLOYEES: Clause = {
     heading('Jakie dane o Tobie przetwarzamy'),
     list(
       'dane konta: adres e-mail, nazwa wyświetlana, rola, status konta i data ostatniego logowania,',
-      'dane logowania: hasło i drugi składnik logowania — wyłącznie w postaci zabezpieczonej, której nikt w firmie nie odczytuje,',
-      'dane o sesjach: adres IP (w skróconej postaci w narzędziach do monitorowania), rodzaj przeglądarki, czasy aktywności,',
+      'dane logowania: hasło i drugi składnik logowania — wyłącznie w postaci zabezpieczonej, której nikt w firmie nie odczytuje — oraz nazwy, które sam nadajesz swoim kluczom dostępu (np. „Telefon Jana”): widzisz je tylko Ty, a usuwamy je razem z kluczem,',
+      'dane o sesjach: adres IP (w skróconej postaci w narzędziach do monitorowania; pełny adres widzisz tylko Ty, w sekcji „Moje sesje” na stronie „Konto”), rodzaj przeglądarki, czasy aktywności,',
       'rejestr przeglądarek konta: zabezpieczony losowy identyfikator przeglądarki, z której zalogowano się do konta, oraz data jego pierwszego i ostatniego użycia — bez adresu IP, lokalizacji i danych o urządzeniu,',
       'liczniki nieudanych prób logowania — w postaci pseudonimowej, bez adresu e-mail; służą wyłącznie ochronie przed zgadywaniem haseł i kodów,',
       'dziennik audytu: kto, co, kiedy, skąd (skrócony adres IP) i z jakim wynikiem — bez treści danych wprowadzanych do zleceń (wyjątek: kwoty płatności),',
@@ -211,7 +211,7 @@ const EMPLOYEES: Clause = {
     list(
       'konto — 2 lata od dezaktywacji, potem anonimizacja,',
       'dziennik audytu — 2 lata,',
-      'sesje — 30 dni od wygaśnięcia lub unieważnienia,',
+      'sesje — 30 dni od wygaśnięcia lub unieważnienia (usuwamy je automatycznie, raz na dobę),',
       'rejestr przeglądarek konta — 30 dni od ostatniego użycia przeglądarki (wcześniej, gdy konto zostanie dezaktywowane albo zresetujemy hasło lub drugi krok logowania),',
       'liczniki nieudanych prób logowania — 30 minut po zakończeniu okna prób albo blokady,',
       'logi na serwerze — 7 dni, logi i metryki w narzędziu do monitorowania — 14 dni, raporty błędów — 30 dni,',

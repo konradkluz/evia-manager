@@ -109,3 +109,5 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC3 — dopisany alert bezpieczeństwa dla Administratorów przy zmianie drugiego kroku konta Administratora
 - 2026-10-20 — ready → in-progress: start realizacji w kolejce z EVM-026 (gałąź feature/EVM-026-ochrona-przed-zgadywaniem), pelna, sonnet
+- 2026-10-20 — plan gotowy (backend-developer)
+- 2026-10-20 — backend gotowy (backend-developer): API konta (9 operacji + 5 rozszerzonych), migracja 0041, licznik zgadywania w reauth/step-upie, limit 5 sesji, retencja sesji, testy AC1–AC8, dokumentacja; panel W-15 i dialog W-04 czekają na web-developera (kontrakt stabilny)

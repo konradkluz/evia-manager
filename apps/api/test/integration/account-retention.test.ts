@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { sql } from 'kysely';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PurgeSessionsJob } from '../../src/modules/identity/application/purge-sessions.job.ts';
+import { PURGE_SESSIONS_FAILED, PurgeSessionsJob } from '../../src/modules/identity/application/purge-sessions.job.ts';
+import { JobFailure } from '../../src/platform/jobs/index.ts';
 import { SESSION_RETENTION_MS } from '../../src/modules/identity/domain/constants.ts';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
@@ -94,5 +95,27 @@ describe('the retention of sessions (EVM-028 AC7; SR-DATA-07, P4; RODO art. 5(1)
     expect(await job().run()).toEqual({ sessions: 1 });
     expect(await job().run()).toEqual({ sessions: 0 });
     expect(await events()).toBe(before);
+  });
+});
+
+describe('the job of retention of sessions fails closed (EVM-028 AC7)', () => {
+  it('EVM-028 AC7 a failing purge leaves as a JobFailure with a fixed code — nothing of the database error reaches the queue or the log', async () => {
+    await sql`revoke delete on identity.sessions from evia_app`.execute(current.database.admin);
+    const owner = await createUser(current.database.admin, current.clock, { role: 'editor', status: 'active' });
+    await endedSession(owner.id, new Date('2026-09-01T08:00:00.000Z'));
+    current.clock.set('2026-10-02T08:00:00.000Z');
+    const failure = await job()
+      .run()
+      .catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(JobFailure);
+    expect((failure as JobFailure).code).toBe(PURGE_SESSIONS_FAILED);
+    expect(current.logs.text).toContain('sessions purge: failed');
+    expect(current.logs.text).not.toMatch(/identity\.sessions|permission denied/i);
+  });
+
+  it('EVM-028 AC7 the job is a definition of the worker: the name, the nightly schedule in the business zone and a handler that runs the purge', async () => {
+    const definition = job().definition();
+    expect(definition).toMatchObject({ name: 'identity.purge-sessions', schedule: { cron: '50 3 * * *', timezone: 'Europe/Warsaw' } });
+    expect(await definition.handler({ ids: [] })).toEqual({ sessions: 0 });
   });
 });
