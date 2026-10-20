@@ -1093,6 +1093,11 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
+### Propozycja do 1.3.0 — 2026-10-20 (EVM-009, do akceptacji Konrada)
+Szkielet aplikacji mobilnej przed M2; bez nowych tokenów i komponentów.
+- **§ 3.18 BottomNav — szkielet z 2 pozycjami:** wyjątkowo „Moje zlecenia” i „Kolejka” (zamiast 3–5), bo pozostałe pozycje (Aparat/Dodaj, Więcej) nie mają jeszcze funkcji, a pozycji bez funkcji nie pokazujemy; pełny zestaw od M2.
+- **§ 3.15 / § 3.15.1 — „Aktualizacja wymagana” bez logowania:** wariant M-02 działa także przed logowaniem (wymóg minimalnej wersji, AC3 EVM-009); przy dystrybucji sideload (bez Google Play) akcja „Zaktualizuj aplikację” otwiera adres pobrania z konfiguracji, a do czasu jego ustalenia zastępuje ją tekst „Poproś administratora o nową wersję aplikacji.”.
+- **§ 4.9 / § 5.4 — rozróżnienie „offline” i „serwer niedostępny”:** brak sieci urządzenia = baner offline § 5.4; sieć jest, API nie odpowiada = InlineAlert „Brak połączenia z serwerem” z „Spróbuj ponownie”; kapsuła w obu przypadkach „Offline”.
 ### Propozycja do 1.3.0 — 2026-10-14 (EVM-057, do akceptacji Konrada)
 - **§ 4.11 — dialogi korekt Administratora (przed → po, potem W-04):** AlertDialog z podsumowaniem stanu „przed → po” (dwie StatusBadge: ikona + etykieta), zdaniem o skutku i stałym zdaniem „Operacja zostanie zapisana w dzienniku audytu.”; wariant danger dla czynności niszczących lub czyszczących dane (wycofanie i anulowanie faktury, usunięcie transzy), primary dla przywracających (cofnięcie wpłaty, przywrócenie transzy) i zmiany kwoty. Anulowanie W-04 wraca do dialogu z InlineAlert „Nie wykonano korekty.” i zachowanymi danymi (jak „Nie wykonano operacji.” przy anonimizacji). Bez nowych tokenów i komponentów.
 ### Propozycja do 1.3.0 — 2026-10-14 (EVM-056, do akceptacji Konrada)
