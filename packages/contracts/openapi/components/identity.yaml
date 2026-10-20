@@ -57,6 +57,57 @@ SetActivationPasswordRequest:
         Spacje i wklejanie są dozwolone, hasło nie jest przycinane.
       maxLength: 256
       writeOnly: true
+RequestPasswordResetRequest:
+  type: object
+  additionalProperties: false
+  required: [email]
+  properties:
+    email:
+      type: string
+      description: Adres e-mail konta. Sprawdzany jest tylko kształt danych; odbiorcą wiadomości jest adres z rekordu konta, nie ten z żądania.
+      minLength: 1
+      maxLength: 254
+PasswordResetRequested:
+  type: object
+  description: Pusty obiekt — zawsze ta sama odpowiedź, niezależnie od konta.
+  additionalProperties: false
+  properties: {}
+PasswordResetToken:
+  type: string
+  description: Jednorazowy token linku resetu hasła (256 bitów, base64url) — wyłącznie w treści POST, nigdy w adresie (fragment `#…` zostaje w przeglądarce).
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  minLength: 43
+  maxLength: 43
+CheckPasswordResetLinkRequest:
+  type: object
+  additionalProperties: false
+  required: [token]
+  properties:
+    token:
+      $ref: '#/PasswordResetToken'
+PasswordResetLinkInfo:
+  type: object
+  required: [email]
+  properties:
+    email:
+      type: string
+      format: email
+      maxLength: 254
+CompletePasswordResetRequest:
+  type: object
+  additionalProperties: false
+  required: [token, password]
+  properties:
+    token:
+      $ref: '#/PasswordResetToken'
+    password:
+      type: string
+      description: >-
+        Nowe hasło — te same reguły co przy aktywacji: minimum 15 znaków Unicode po normalizacji NFC (`too_short`),
+        maksimum 256 (`too_long`; górna granica chroni Argon2id). Spacje i wklejanie są dozwolone, hasło nie jest przycinane.
+        Brak pytań pomocniczych i podpowiedzi hasła.
+      maxLength: 256
+      writeOnly: true
 ActivationPasswordResult:
   type: object
   required: [csrfToken]
@@ -291,7 +342,7 @@ LoginRequest:
       writeOnly: true
 LoginSecondStep:
   type: object
-  description: Hasło poprawne, konto ma klucz dostępu — wymagany drugi krok (W-02).
+  description: Hasło poprawne, konto ma aktywny drugi krok dostępny w tym kanale dla tej roli — wymagany drugi krok (W-02).
   required: [state, loginToken, methods]
   properties:
     state:
@@ -301,11 +352,14 @@ LoginSecondStep:
       $ref: '#/LoginToken'
     methods:
       type: array
-      description: Dostępne metody drugiego kroku. Do EVM-023 wyłącznie klucz dostępu.
+      description: >-
+        Dostępne metody drugiego kroku tego konta w tym kanale, dla jego roli (rola czytana z bazy w chwili żądania): `passkey` — klucz
+        dostępu; `totp` — kod z aplikacji uwierzytelniającej (aktywny czynnik; nigdy dla Administratora w panelu); `recovery_code` — kod
+        odzyskiwania (są nieużyte kody). Konfiguracja w toku (czynnik niepotwierdzony) nie jest metodą. Klient ignoruje nieznane wartości.
       maxItems: 4
       items:
         type: string
-        enum: [passkey]
+        enum: [passkey, totp, recovery_code]
 SessionStarted:
   type: object
   description: Sesja rozpoczęta (ciasteczko w `Set-Cookie`) — pełna (`active`) albo ograniczona do konfiguracji drugiego kroku (`mfa_enrollment`).
@@ -322,6 +376,94 @@ LoginResult:
   oneOf:
     - $ref: '#/LoginSecondStep'
     - $ref: '#/SessionStarted'
+TotpCode:
+  type: string
+  description: Sześciocyfrowy kod z aplikacji uwierzytelniającej (dokładnie 6 cyfr ASCII, bez spacji).
+  pattern: '^[0-9]{6}$'
+  minLength: 6
+  maxLength: 6
+  writeOnly: true
+RecoveryCodeInput:
+  type: string
+  description: >-
+    Kod odzyskiwania — 20 znaków base32 (A–Z, 2–7); wielkość liter, spacje i myślniki są pomijane. Dłuższe wejście nie jest kodem.
+  minLength: 1
+  maxLength: 64
+  writeOnly: true
+LoginTotpRequest:
+  type: object
+  additionalProperties: false
+  required: [loginToken, code]
+  properties:
+    loginToken:
+      $ref: '#/LoginToken'
+    code:
+      $ref: '#/TotpCode'
+LoginRecoveryCodeRequest:
+  type: object
+  additionalProperties: false
+  required: [loginToken, code]
+  properties:
+    loginToken:
+      $ref: '#/LoginToken'
+    code:
+      $ref: '#/RecoveryCodeInput'
+RecoveryCodeSessionStarted:
+  type: object
+  description: Zalogowano kodem odzyskiwania (ciasteczko sesji w `Set-Cookie`); liczba pozostałych, nieużytych kodów — po zużyciu tego.
+  required: [state, csrfToken, remainingCodes]
+  properties:
+    state:
+      $ref: '#/SessionState'
+    csrfToken:
+      $ref: '#/CsrfToken'
+    remainingCodes:
+      type: integer
+      minimum: 0
+      maximum: 9
+TotpSetup:
+  type: object
+  description: >-
+    Nowy sekret czynnika TOTP (jeszcze niepotwierdzony). Sekret pokazywany jest wyłącznie w tej odpowiedzi (`Cache-Control: no-store`);
+    panel generuje kod QR lokalnie, w przeglądarce — sekret nie trafia do żadnej zewnętrznej usługi.
+  required: [secret, otpauthUri]
+  properties:
+    secret:
+      type: string
+      description: Klucz do wpisania ręcznie ("Pokaż klucz do wpisania") — base32 bez dopełnienia, 160 bitów.
+      pattern: '^[A-Z2-7]{32}$'
+      minLength: 32
+      maxLength: 32
+      readOnly: true
+    otpauthUri:
+      type: string
+      description: Adres `otpauth://totp/…` do kodu QR; wydawca "EVia Manager", etykieta — e-mail pracownika.
+      maxLength: 512
+      readOnly: true
+ConfirmTotpRequest:
+  type: object
+  additionalProperties: false
+  required: [code]
+  properties:
+    code:
+      $ref: '#/TotpCode'
+RecoveryCodes:
+  type: object
+  description: >-
+    Dziesięć kodów odzyskiwania, każdy 20 znaków base32. Pokazane tylko raz (`Cache-Control: no-store`, brak operacji odczytu);
+    w bazie tylko skróty Argon2id.
+  required: [codes]
+  properties:
+    codes:
+      type: array
+      minItems: 10
+      maxItems: 10
+      readOnly: true
+      items:
+        type: string
+        pattern: '^[A-Z2-7]{20}$'
+        minLength: 20
+        maxLength: 20
 LoginPasskeyOptionsRequest:
   type: object
   additionalProperties: false
@@ -434,14 +576,32 @@ SessionExpiry:
       type: string
       format: date-time
       maxLength: 40
-StepUpRequest:
+PasskeyStepUpRequest:
   type: object
-  description: Odpowiedź klucza dostępu na wyzwanie step-upu. Jedyna metoda (kod odzyskiwania nie jest obsługiwany — decyzja 16).
+  description: Odpowiedź klucza dostępu na wyzwanie step-upu.
   additionalProperties: false
   required: [credential]
   properties:
     credential:
       $ref: '#/AuthenticationCredential'
+TotpStepUpRequest:
+  type: object
+  description: Kod z aplikacji uwierzytelniającej (Edytor, Tylko odczyt; Administrator w panelu — nie).
+  additionalProperties: false
+  required: [method, code]
+  properties:
+    method:
+      type: string
+      const: totp
+    code:
+      $ref: '#/TotpCode'
+StepUpRequest:
+  description: >-
+    Ponowne uwierzytelnienie: odpowiedź klucza dostępu (`{ credential }`) albo kod z aplikacji (`{ method: totp, code }`). Kod
+    odzyskiwania nie jest obsługiwany (decyzja 16).
+  oneOf:
+    - $ref: '#/PasskeyStepUpRequest'
+    - $ref: '#/TotpStepUpRequest'
 StepUpResult:
   type: object
   description: Nowy token CSRF (ciasteczko nowej sesji w `Set-Cookie`) — panel podmienia token i ponawia żądanie, które dostało `step_up_required`.
@@ -510,7 +670,7 @@ User:
   description: >-
     Konto na liście użytkowników Administratora (W-16). Zawiera dane osobowe (DO-P: e-mail i nazwa) — tylko dla Administratora,
     bez hasła, kluczy dostępu, adresu IP i metod MFA.
-  required: [id, email, displayName, role, status, invitation]
+  required: [id, email, displayName, role, status, invitation, version, activatedAt, secondStepMethods]
   properties:
     id:
       type: string
@@ -532,6 +692,57 @@ User:
       oneOf:
         - $ref: '#/UserInvitation'
         - type: 'null'
+    version:
+      type: integer
+      minimum: 1
+      maximum: 2147483647
+      description: >-
+        Wersja konta (EVM-027) — wartość `If-Match` (`"<version>"`, także w `ETag` odpowiedzi) przy zmianie roli, dezaktywacji,
+        reaktywacji i resecie drugiego kroku. Rośnie tylko przy zmianach zarządzanych (rola, status, reset, aktywacja), nie przy logowaniu.
+    activatedAt:
+      description: >-
+        Chwila pierwszej aktywacji konta (EVM-027) albo `null`, gdy konto nigdy nie zostało aktywowane. Rozstrzyga wariant
+        dialogu reaktywacji w W-16: konto z `activatedAt` wraca do `active`, bez — do `invited`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    secondStepMethods:
+      type: array
+      description: >-
+        Rodzaje aktywnych metod drugiego kroku konta (`passkey`, `totp`; EVM-027) — bez identyfikatorów poświadczeń, liczby kodów
+        odzyskiwania i sekretów (SR-DATA-03). Pusta tablica = konto bez drugiego kroku.
+      maxItems: 2
+      uniqueItems: true
+      items:
+        $ref: '#/UserSecondStepMethod'
+UserSecondStepMethod:
+  type: string
+  description: Rodzaj metody drugiego kroku widoczny dla Administratora w liście użytkowników.
+  enum: [passkey, totp]
+ChangeUserRoleRequest:
+  type: object
+  description: Zmiana roli konta (EVM-027). Tylko `role`; pole spoza kontraktu — `400 validation_failed` (`unknown_field`).
+  additionalProperties: false
+  required: [role]
+  properties:
+    role:
+      $ref: '#/UserRole'
+IdentityVerification:
+  type: string
+  description: >-
+    Jak Administrator potwierdził tożsamość pracownika przed resetem drugiego kroku (EVM-027, SR-AUTH-13): osobiście albo wideo.
+    Zamknięta lista — bez wolnego tekstu (trafia do audytu jako kod powodu).
+  enum: [in_person, video_call]
+ResetUserSecondStepRequest:
+  type: object
+  description: Reset drugiego kroku logowania konta (EVM-027). Pole potwierdzenia tożsamości jest wymagane.
+  additionalProperties: false
+  required: [identityVerification]
+  properties:
+    identityVerification:
+      $ref: '#/IdentityVerification'
 UserList:
   type: object
   required: [items, nextCursor]

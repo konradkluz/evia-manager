@@ -85,12 +85,24 @@ export function invitationText(input: InvitationTextInput): EmailText {
   };
 }
 
-/** The variants of the alert for Administrators this story sends (the others belong to EVM-026, -027, -028). */
-export const ALERT_VARIANTS = ['administrator_invitation'] as const;
+/** The variants of the alert for Administrators (EVM-024, EVM-027; the others belong to EVM-026, -028). */
+export const ALERT_VARIANTS = [
+  'administrator_invitation',
+  'administrator_granted',
+  'administrator_revoked',
+  'administrator_deactivated',
+  'administrator_reactivated',
+  'administrator_second_step_reset',
+] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
 const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string }>> = {
   administrator_invitation: { kind: 'zaproszenie administratora', sentence: 'wysłano zaproszenie z rolą Administrator.' },
+  administrator_granted: { kind: 'nowy administrator', sentence: 'nadano rolę Administrator jednemu z kont.' },
+  administrator_revoked: { kind: 'odebrana rola', sentence: 'odebrano rolę Administrator jednemu z kont.' },
+  administrator_deactivated: { kind: 'dezaktywacja administratora', sentence: 'dezaktywowano konto z rolą Administrator.' },
+  administrator_reactivated: { kind: 'reaktywacja administratora', sentence: 'reaktywowano konto z rolą Administrator.' },
+  administrator_second_step_reset: { kind: 'reset drugiego kroku', sentence: 'zresetowano drugi krok logowania konta administratora.' },
 };
 
 export const isAlertVariant = (value: string | null): value is AlertVariant => ALERT_VARIANTS.includes(value as AlertVariant);
@@ -119,6 +131,178 @@ export function alertText(input: AlertTextInput): EmailText {
       '',
       'Jeśli zdarzenie nie było zaplanowane, sprawdź dziennik audytu',
       'i skontaktuj się z pozostałymi administratorami.',
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/** W-12 (the page a reset link leads to; the token is in the fragment) and the "Zresetuj hasło" form of W-01 (no token): paths of the panel. */
+export const RESET_PATH = '/reset-password';
+export const RESET_FORM_PATH = '/login/reset';
+
+/** The one-time link of a password reset: the token only in the fragment. */
+export const passwordResetLink = (panelOrigin: string, token: string): string => `${panelOrigin}${RESET_PATH}#${token}`;
+
+/** "10:30" in the business zone — the end of the validity of a reset link (e-maile.md, rule 6). */
+const WARSAW_TIME = new Intl.DateTimeFormat('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const formatWarsawTime = (instant: Date): string => WARSAW_TIME.format(instant);
+
+export interface PasswordResetTextInput {
+  readonly panelOrigin: string;
+  /** The link with the token (see {@link passwordResetLink}). */
+  readonly link: string;
+  readonly expiresAt: Date;
+}
+
+/** E-mail 2 (the link to set a new password): only the link, its validity and the footer — no name, no address (SR-INPUT-07). */
+export function passwordResetText(input: PasswordResetTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: link do ustawienia nowego hasła',
+    text: [
+      'Dzień dobry,',
+      '',
+      'otrzymaliśmy prośbę o ustawienie nowego hasła do konta w EVia Manager.',
+      '',
+      'Aby ustawić nowe hasło, otwórz link:',
+      input.link,
+      '',
+      `Link jest jednorazowy i ważny 30 minut — do ${formatWarsawTime(input.expiresAt)}.`,
+      'Po ustawieniu hasła zakończymy wszystkie sesje konta, a logowanie',
+      'potwierdzisz drugim krokiem.',
+      '',
+      'Jeśli ta prośba nie pochodzi od Ciebie, zignoruj tę wiadomość —',
+      'hasło się nie zmieni.',
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface PasswordChangedTextInput {
+  readonly panelOrigin: string;
+  readonly changedAt: Date;
+}
+
+/** E-mail 4, the variant "after a reset with a link": the time, the sessions that ended, a link to the reset form without a token. */
+export function passwordChangedText(input: PasswordChangedTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: hasło zostało zmienione',
+    text: [
+      'Dzień dobry,',
+      '',
+      `hasło do konta w EVia Manager zostało zmienione ${formatWarsaw(input.changedAt)}.`,
+      '',
+      'Zakończyliśmy wszystkie sesje konta.',
+      '',
+      'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
+export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
+
+export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset';
+export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = [
+  'totp_enrolled',
+  'recovery_codes_generated',
+  'passkey_enrolled',
+  'second_step_reset',
+];
+export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
+  SECOND_STEP_CHANGES.some((change) => change === value);
+
+const SECOND_STEP_CHANGE_TEXT: Readonly<Record<Exclude<SecondStepChange, 'second_step_reset'>, string>> = {
+  totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
+  passkey_enrolled: 'dodano klucz dostępu.',
+  recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
+};
+
+export interface SecondStepChangedTextInput {
+  readonly panelOrigin: string;
+  readonly change: SecondStepChange;
+  readonly changedAt: Date;
+  /** The end of the window to set up a second step — only for `second_step_reset`. */
+  readonly windowEndsAt?: Date;
+}
+
+/**
+ * E-mail 5 (a change of the second step, variants of EVM-023 and EVM-027): what changed and when; never the secret, a code, the name of a method's device or
+ * who did it (SR-AUTH-10). The variant "reset by an Administrator" says that every session ended and until when the setup is open; it carries NO link that
+ * signs in or sets a password (SR-INPUT-07) — only the address of the panel — and asks to contact the administrator instead of "set a new password".
+ */
+export function secondStepChangedText(input: SecondStepChangedTextInput): EmailText {
+  const reset = input.change === 'second_step_reset';
+  const what = reset
+    ? [
+        'zresetowano drugi krok logowania w panelu administracji. Wszystkie sesje konta zostały zakończone.',
+        'Przy następnym logowaniu panel poprowadzi przez konfigurację od nowa.',
+        `Skonfiguruj drugi krok do ${formatWarsaw(input.windowEndsAt ?? input.changedAt)} — po tym czasie poproś administratora o ponowny reset.`,
+      ]
+    : [SECOND_STEP_CHANGE_TEXT[input.change]];
+  const warning = reset
+    ? ['Jeśli nie zgłaszasz utraty drugiego kroku, od razu skontaktuj się z administratorem.']
+    : ['Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:', `${input.panelOrigin}${RESET_FORM_PATH}`];
+  return {
+    subject: 'EVia Manager: zmiana drugiego kroku logowania',
+    text: [
+      'Dzień dobry,',
+      '',
+      `w koncie w EVia Manager zmieniono drugi krok logowania ${formatWarsaw(input.changedAt)}:`,
+      ...what,
+      '',
+      'Metody konta sprawdzisz w panelu: Konto → Drugi krok logowania',
+      `${input.panelOrigin}${SECOND_STEP_SETTINGS_PATH}`,
+      '',
+      ...warning,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/** "Pozostało 9 kodów." with the Polish forms (the same sentence as W-02 shows after the sign-in; e-maile.md rule 3). */
+export function remainingCodesSentence(remaining: number): string {
+  if (remaining <= 0) return 'Nie zostały już żadne kody.';
+  if (remaining === 1) return 'Pozostał 1 kod.';
+  const lastTwo = remaining % 100;
+  const few = remaining % 10 >= 2 && remaining % 10 <= 4 && (lastTwo < 12 || lastTwo > 14);
+  return few ? `Pozostały ${remaining} kody.` : `Pozostało ${remaining} kodów.`;
+}
+
+export interface RecoveryCodeUsedTextInput {
+  readonly panelOrigin: string;
+  readonly usedAt: Date;
+  readonly remaining: number;
+}
+
+/** E-mail 6 (a recovery code was used to sign in): the time and how many codes are left — never the code or its position (SR-AUTH-15). */
+export function recoveryCodeUsedText(input: RecoveryCodeUsedTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: użyto kodu odzyskiwania',
+    text: [
+      'Dzień dobry,',
+      '',
+      'zalogowano się do konta w EVia Manager kodem odzyskiwania',
+      `${formatWarsaw(input.usedAt)}. ${remainingCodesSentence(input.remaining)}`,
+      '',
+      'Każdy kod działa raz. Gdy zostaną 3 lub mniej, wygeneruj nowe:',
+      'Konto → Drugi krok logowania',
+      `${input.panelOrigin}${SECOND_STEP_SETTINGS_PATH}`,
+      'Jeśli nie masz już żadnej metody drugiego kroku, poproś administratora',
+      'o reset drugiego kroku logowania.',
+      '',
+      'Jeśli to nie Ty, ktoś zna hasło i ma kody odzyskiwania — od razu',
+      'ustaw nowe hasło i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
       '',
       footer(input.panelOrigin),
       '',

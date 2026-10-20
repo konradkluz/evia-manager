@@ -7,9 +7,10 @@
  * policy of the minimum length is not applied here, only the shape of the data is (the contract). The client never
  * learns the reason: it goes to the audit trail and to a counter (`LoginFailures`).
  *
- * A correct password of an active account with a passkey gives a single-use `loginToken` (256 bits, only its SHA-256 is
- * stored, 5 minutes) for the second step; an active account without any second step gets a session in `mfa_enrollment`
- * that is not tied to a link and therefore cannot register a factor (AB-01: only an administrator's one-time link may).
+ * A correct password of an active account with a second step it may use here (a passkey, an active code of the authenticator app — never an
+ * Administrator's TOTP in the panel) gives a single-use `loginToken` (256 bits, only its SHA-256 is stored, 5 minutes) for the second step; an
+ * active account without any gets a session in `mfa_enrollment` that is not tied to a link and therefore cannot register a factor (AB-01: only
+ * an administrator's one-time link may; EVM-023 B1).
  */
 import { randomBytes } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
@@ -19,19 +20,20 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { LOGIN_ATTEMPT_RETENTION_MS, LOGIN_ATTEMPT_TTL_MS } from '../domain/constants.ts';
 import { normalizeEmail } from '../domain/text.ts';
-import { hashToken, newToken } from '../domain/tokens.ts';
 import { PASSWORD_HASHER, type PasswordHasher } from '../infrastructure/ports.ts';
-import { deleteStaleLoginAttempts, findLoginUser, hasPasskey, insertLoginAttempt, type LoginUser } from '../infrastructure/queries.ts';
+import { findOpenSetupWindow } from '../infrastructure/access-queries.ts';
+import { findLoginUser, type LoginUser } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
 import { LoginFailures, type LoginFailure } from './login-failures.ts';
+import { openSecondStep, secondStepMethods, type SecondStepMethod } from './second-step.ts';
 import { startSession, type StartedSession } from './session-start.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 export type LoginOutcome =
-  { readonly kind: 'second_step'; readonly loginToken: string } | { readonly kind: 'session'; readonly session: StartedSession };
+  | { readonly kind: 'second_step'; readonly loginToken: string; readonly methods: readonly SecondStepMethod[] }
+  | { readonly kind: 'session'; readonly session: StartedSession };
 
 type PasswordVerdict = { readonly failure: undefined; readonly user: LoginUser } | { readonly failure: LoginFailure };
 
@@ -68,31 +70,45 @@ export class LoginService {
     const { user } = verdict;
 
     const now = this.#clock.now();
-    if (!(await hasPasskey(identityTables(this.#db), user.userId))) {
-      const session = await runInTransaction(this.#db, (transaction) =>
-        startSession(transaction, this.#events, {
-          userId: user.userId,
-          state: 'mfa_enrollment',
-          previousSessionToken,
-          client,
-          now,
-          passkeyAuthenticatedAt: null,
-        }),
+    // The methods the account really has in this channel, for its role now — the same function as the end of a password reset (B2). An account
+    // whose only factor is a pending TOTP, or a TOTP the role may not use here, has none: it gets the enrolment session, which cannot register anything.
+    const methods = await secondStepMethods(this.#db, user.userId);
+    if (methods.length === 0) return this.#withoutSecondStep(user, client, previousSessionToken, now);
+    const loginToken = await runInTransaction(this.#db, (transaction) => openSecondStep(transaction, user.userId, now));
+    return { kind: 'second_step', loginToken, methods };
+  }
+
+  /**
+   * An active account with no second step it may use. Only the WINDOW that a reset by an Administrator opened (EVM-027 D1) gives it a way to set one up: a
+   * session `mfa_enrollment` bound to the window, which ends with it. Without an open window — after its end, or for an account that never had a second
+   * step — the correct password gives nothing but `403 mfa_setup_expired` (D2): a session that cannot enrol anything would only be a thing to steal, and
+   * nobody may add a second step to an account by the password alone (AB-01; ASVS V6.4.4). The refusal is audited and counted; no session is made.
+   */
+  async #withoutSecondStep(
+    user: LoginUser,
+    client: ClientInfo,
+    previousSessionToken: string | undefined,
+    now: Date,
+  ): Promise<LoginOutcome> {
+    const windowId = await findOpenSetupWindow(identityTables(this.#db), user.userId, now);
+    if (windowId === undefined) {
+      await runInTransaction(this.#db, (transaction) =>
+        this.#failures.record(transaction, 'mfa_setup_expired', user.userId, client.context),
       );
-      return { kind: 'session', session };
+      throw new ProblemException('mfa_setup_expired');
     }
-    const loginToken = newToken();
-    await runInTransaction(this.#db, async (transaction) => {
-      const tx = identityTables(transaction);
-      await deleteStaleLoginAttempts(tx, new Date(now.getTime() - LOGIN_ATTEMPT_RETENTION_MS));
-      await insertLoginAttempt(tx, {
+    const session = await runInTransaction(this.#db, (transaction) =>
+      startSession(transaction, this.#events, {
         userId: user.userId,
-        tokenHash: hashToken(loginToken),
+        state: 'mfa_enrollment',
+        linkId: windowId,
+        previousSessionToken,
+        client,
         now,
-        expiresAt: new Date(now.getTime() + LOGIN_ATTEMPT_TTL_MS),
-      });
-    });
-    return { kind: 'second_step', loginToken };
+        authenticatedWith: 'none',
+      }),
+    );
+    return { kind: 'session', session };
   }
 
   /** Exactly one verification whatever the case: against the stored hash of an active account, otherwise against the dummy. */

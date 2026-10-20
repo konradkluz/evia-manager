@@ -9,8 +9,8 @@
 #   - one network with egress (an `internal` network cannot publish ports): dev-net.
 # Names of services, network and volume are disjoint from compose.yaml (both files share the Compose project), so `down -v`
 # here never touches bt-work or the containers of the gates.
-# The api service has every setting written out — nothing is taken from the environment of the host except CURSOR_KEY (a
-# secret, by name only). Migrations run at its start, before the marker of the database is checked by the tools, so the
+# The api service has every setting written out — nothing is taken from the environment of the host except CURSOR_KEY and
+# FIELD_ENCRYPTION_KEYS (secrets, by name only; EVM-023). Migrations run at its start, before the marker of the database is checked by the tools, so the
 # target database is fixed here: only postgres-dev/evia_dev is reachable, whatever the host environment says.
 
 x-hardening: &hardening
@@ -73,6 +73,7 @@ services:
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_RP_NAME: EVia Manager
       CURSOR_KEY:
+      FIELD_ENCRYPTION_KEYS:
     tmpfs:
       - /tmp:noexec,nosuid,nodev,mode=1777
     healthcheck:

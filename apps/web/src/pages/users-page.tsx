@@ -16,9 +16,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccessDenied } from '../administration/access-denied.tsx';
+import { AccountConfirmDialog } from '../administration/account-confirm-dialog.tsx';
+import type { AccountOperation } from '../administration/account-operations.ts';
+import { ChangeRoleDialog } from '../administration/change-role-dialog.tsx';
 import { InviteUserDialog } from '../administration/invite-user-dialog.tsx';
 import { USERS_KEY } from '../administration/query-keys.ts';
 import { ResendInvitationDialog } from '../administration/resend-invitation-dialog.tsx';
+import { ResetSecondStepDialog } from '../administration/reset-second-step-dialog.tsx';
 import { UsersTable } from '../administration/users-table.tsx';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
@@ -70,6 +74,7 @@ function UsersList({ selfId }: { readonly selfId: string }) {
   const [inviting, setInviting] = useState(false);
   const [resending, setResending] = useState<User | null>(null);
   const [shown, setShown] = useState<string | null>(null);
+  const [operation, setOperation] = useState<{ readonly kind: AccountOperation; readonly user: User } | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const moved = useRef<'next' | 'previous' | null>(null);
   const names = useRef(new Map<string, HTMLElement>());
@@ -130,6 +135,29 @@ function UsersList({ selfId }: { readonly selfId: string }) {
     void queryClient.invalidateQueries({ queryKey: [USERS_KEY] });
   };
   const find = (id: string): User | undefined => (data ?? lastPage?.list)?.items.find((user) => user.id === id);
+  // The account of an open dialog is read from the list again after "Odśwież dane konta": a fresh version, the same choice.
+  const operated = operation === null ? null : (find(operation.user.id) ?? operation.user);
+  const closeOperation = () => {
+    setOperation(null);
+  };
+  const operationDone = (message: string) => () => {
+    setOperation(null);
+    showToast(message);
+    refresh();
+  };
+  const dialogProps = (done: string) =>
+    operated === null
+      ? null
+      : {
+          user: operated,
+          onClose: closeOperation,
+          onDone: operationDone(done),
+          onRefreshAccount: refresh,
+          onRefreshList: () => {
+            setOperation(null);
+            refresh();
+          },
+        };
   const go = (direction: 'next' | 'previous') => {
     moved.current = direction;
     setNotice(false);
@@ -229,6 +257,9 @@ function UsersList({ selfId }: { readonly selfId: string }) {
             online={online}
             now={now}
             onResend={setResending}
+            onOperation={(kind, user) => {
+              setOperation({ kind, user });
+            }}
             nameRef={(id, element) => {
               if (element === null) names.current.delete(id);
               else names.current.set(id, element);
@@ -283,6 +314,9 @@ function UsersList({ selfId }: { readonly selfId: string }) {
           setShown(id);
         }}
       />
+      {operation === null ? null : (
+        <AccountDialog kind={operation.kind} key={`${operation.kind}-${operation.user.id}`} props={dialogProps} />
+      )}
       <ResendInvitationDialog
         user={resending}
         now={now}
@@ -322,4 +356,33 @@ function Loading() {
       ))}
     </div>
   );
+}
+
+type DialogProps = (done: string) => Parameters<typeof ChangeRoleDialog>[0] | null;
+
+/** The dialog of an operation on an account (flows/12 → W-16 dialogs 3 to 7); each dialog keeps its own choice while it is open. */
+function AccountDialog({ kind, props }: { readonly kind: AccountOperation; readonly props: DialogProps }) {
+  const { t } = useTranslation();
+  switch (kind) {
+    case 'role': {
+      const shared = props(t('users.account.toast.role'));
+      return shared === null ? null : <ChangeRoleDialog {...shared} />;
+    }
+    case 'reset': {
+      const shared = props(t('users.account.toast.reset'));
+      return shared === null ? null : <ResetSecondStepDialog {...shared} />;
+    }
+    case 'deactivate': {
+      const shared = props(t('users.account.toast.deactivated'));
+      return shared === null ? null : <AccountConfirmDialog operation="deactivate" {...shared} />;
+    }
+    case 'reactivate': {
+      const shared = props(t('users.account.toast.reactivated'));
+      return shared === null ? null : <AccountConfirmDialog operation="reactivate" {...shared} />;
+    }
+    case 'sessions': {
+      const shared = props(t('users.account.toast.sessions'));
+      return shared === null ? null : <AccountConfirmDialog operation="sessions" {...shared} />;
+    }
+  }
 }

@@ -30,3 +30,15 @@ export function statusLabel(t: TFunction, status: string): string {
       return t('users.status.unknown');
   }
 }
+
+/** A role with what it allows (flows/12 → dialog 1 and 3): Edytor — zlecenia, klienci, płatności i media; Tylko odczyt — podgląd bez zmian. */
+export function roleDescription(t: TFunction, role: UserRole): string {
+  switch (role) {
+    case 'administrator':
+      return t('users.dialog.roleAdministrator');
+    case 'read_only':
+      return t('users.dialog.roleReadOnly');
+    case 'editor':
+      return t('users.dialog.roleEditor');
+  }
+}

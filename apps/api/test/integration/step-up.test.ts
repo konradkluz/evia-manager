@@ -611,14 +611,14 @@ describe('the challenge of a step-up (EVM-029 AC4; SR-AUTH-09, ASVS V7.5.3, CWE-
 });
 
 describe('access to the step-up operations (EVM-029 AC7; SR-AUTHZ-01, SR-AUTHZ-12, SR-API-02)', () => {
-  it('EVM-029 AC7 Editor and Read-only are 403 forbidden on both operations, anonymous is 401, a session in mfa_enrollment is 403 mfa_enrollment_required', async () => {
+  it('EVM-029 AC7 EVM-023 AC7 Editor and Read-only reach both operations (they may step up since EVM-023: the options of a key they have, the verification validated first), anonymous is 401, a session in mfa_enrollment is 403 mfa_enrollment_required', async () => {
     for (const role of ['editor', 'read_only'] as const) {
       const account = await signedInAdministrator(current, { role });
-      for (const path of [STEP_UP.options, STEP_UP.verify]) {
-        const response = await account.panel.post(path, path === STEP_UP.verify ? { credential: {} } : undefined);
-        expect(response.status, `${role} ${path}`).toBe(403);
-        expect(response.body, `${role} ${path}`).toMatchObject({ code: 'forbidden' });
-      }
+      const options = await account.panel.post(STEP_UP.options);
+      expect(options.status, `${role} options`).toBe(200);
+      const verify = await account.panel.post(STEP_UP.verify, { credential: {} });
+      expect(verify.status, `${role} verify`).toBe(400);
+      expect(verify.body, `${role} verify`).toMatchObject({ code: 'validation_failed' });
     }
     for (const path of [STEP_UP.options, STEP_UP.verify]) {
       const anonymous = await request(server()).post(path).set('Origin', PANEL_ORIGIN).set('Sec-Fetch-Site', 'same-origin').send({});

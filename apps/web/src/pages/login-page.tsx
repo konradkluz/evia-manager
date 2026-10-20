@@ -1,18 +1,19 @@
 import { login } from '@evia/contracts';
-import { Banner, Button, Card, InlineAlert, TextField, WifiOff } from '@evia/ui-web';
+import { Banner, Button, Card, InlineAlert, TextField, TextLink, WifiOff } from '@evia/ui-web';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type SyntheticEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
-import { LOGIN_SECOND_STEP_PATH, MFA_SETUP_PATH } from '../paths.ts';
+import { LOGIN_RESET_PATH, LOGIN_SECOND_STEP_PATH, MFA_SETUP_PATH } from '../paths.ts';
 import { completeLogin } from '../session/complete-login.ts';
 import { useOpenPath } from '../session/open-path.ts';
 import { getLoginNotice, setLoginFlow, subscribeLoginFlow } from '../session/login-flow.ts';
 import { resolveReturnTo } from '../session/return-to.ts';
 import { AuthFooter } from '../shell/auth-footer.tsx';
 import { AuthLayout } from '../shell/auth-layout.tsx';
+import { RouterLink } from '../shell/router-link.tsx';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { describeLoginFailure, LoginFailureAlert, type LoginFailure } from './login-failure.tsx';
@@ -54,7 +55,11 @@ export function LoginPage() {
     mutationFn: async ({ address, secret }: { address: string; secret: string }) => {
       const result = await unwrap(login({ client, body: { email: address, password: secret } }));
       if (result.state === 'second_step') {
-        setLoginFlow({ loginToken: result.loginToken, returnTo: resolveReturnTo(returnTo, globalThis.location.origin) });
+        setLoginFlow({
+          loginToken: result.loginToken,
+          methods: result.methods,
+          returnTo: resolveReturnTo(returnTo, globalThis.location.origin),
+        });
         await navigate({ to: LOGIN_SECOND_STEP_PATH });
         return;
       }
@@ -118,6 +123,9 @@ export function LoginPage() {
             {t('login.submit')}
           </Button>
           {online ? null : <p className="text-body-sm text-text-tertiary">{t('login.offlineHint')}</p>}
+          <TextLink href={LOGIN_RESET_PATH} link={RouterLink}>
+            {t('login.forgot')}
+          </TextLink>
         </form>
       </Card>
     </AuthLayout>

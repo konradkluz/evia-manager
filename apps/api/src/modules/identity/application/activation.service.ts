@@ -13,16 +13,14 @@ import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import type { Logger } from '../../../platform/logging/logger.ts';
-import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
+import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../domain/constants.ts';
-import { checkPassword } from '../domain/password-policy.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
-import { BREACHED_PASSWORD_CHECK, PASSWORD_HASHER, type BreachedPasswordCheck, type PasswordHasher } from '../infrastructure/ports.ts';
 import { findLinkByTokenHash, insertSession, isLinkUsable, revokeSessions, type LinkRecord } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
+import { PasswordSetting } from './password-setting.ts';
 
 export interface NewSessionResult {
   /** The opaque token for the cookie. */
@@ -43,24 +41,18 @@ export class ActivationService {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #events: EventBus;
-  readonly #logger: Logger;
-  readonly #hasher: PasswordHasher;
-  readonly #breaches: BreachedPasswordCheck;
+  readonly #password: PasswordSetting;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(CLOCK) clock: Clock,
     @Inject(EVENT_BUS) events: EventBus,
-    @Inject(LOGGER) logger: Logger,
-    @Inject(PASSWORD_HASHER) hasher: PasswordHasher,
-    @Inject(BREACHED_PASSWORD_CHECK) breaches: BreachedPasswordCheck,
+    @Inject(PasswordSetting) password: PasswordSetting,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
-    this.#logger = logger;
-    this.#hasher = hasher;
-    this.#breaches = breaches;
+    this.#password = password;
   }
 
   /** @returns the account of a usable link (e-mail and role to show in W-13); never changes anything */
@@ -71,11 +63,7 @@ export class ActivationService {
 
   async setPassword(token: string, password: string, client: ClientInfo): Promise<NewSessionResult> {
     const link = await this.#usableLink(token);
-    const fault = checkPassword(password, { email: link.email, displayName: link.displayName, now: this.#clock.now() });
-    if (fault !== null) throw new ProblemException('validation_failed', { errors: [{ pointer: '/password', code: fault }] });
-    await this.#rejectBreached(password);
-    // Hash the NFC form: the same password typed with a different Unicode composition must verify (EVM-067).
-    const passwordHash = await this.#hasher.hash(password.normalize('NFC'));
+    const passwordHash = await this.#password.hashAcceptable(password, link);
 
     const sessionToken = newToken();
     const now = this.#clock.now();
@@ -101,6 +89,7 @@ export class ActivationService {
         linkId: locked.linkId,
         now,
         passkeyAuthenticatedAt: null,
+        totpAuthenticatedAt: null,
         idleExpiresAt: new Date(now.getTime() + SESSION_IDLE_MS),
         absoluteExpiresAt: new Date(Math.min(now.getTime() + SESSION_ABSOLUTE_MS, locked.expiresAt.getTime())),
         ip: client.context.ip,
@@ -144,12 +133,5 @@ export class ActivationService {
     const link = await findLinkByTokenHash(identityTables(this.#db), hashToken(token));
     if (link === undefined || !isLinkUsable(link, this.#clock.now())) throw invalid();
     return link;
-  }
-
-  /** Pwned Passwords is a second opinion: when it cannot be reached the local checks stand and the activation goes on. */
-  async #rejectBreached(password: string): Promise<void> {
-    const result = await this.#breaches.check(password.normalize('NFC'));
-    if (result === 'breached') throw new ProblemException('validation_failed', { errors: [{ pointer: '/password', code: 'too_weak' }] });
-    if (result === 'unavailable') this.#logger.warn('pwned passwords unavailable; the local password checks were used');
   }
 }

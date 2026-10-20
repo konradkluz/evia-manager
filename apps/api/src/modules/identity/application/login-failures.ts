@@ -12,7 +12,15 @@ import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics
 import { EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
 
-export type LoginFailure = 'bad_password' | 'unknown_user' | 'not_active' | 'passkey_failed' | 'login_expired';
+export type LoginFailure =
+  | 'bad_password'
+  | 'unknown_user'
+  | 'not_active'
+  | 'passkey_failed'
+  | 'totp_failed'
+  | 'recovery_code_failed'
+  | 'login_expired'
+  | 'mfa_setup_expired';
 
 export const LOGIN_FAILURES_METRIC = 'evia_login_failures_total';
 

@@ -12,20 +12,27 @@ export const PUBLIC_OPERATIONS: readonly string[] = Object.freeze([
   'getHealth',
   'checkActivationLink',
   'setActivationPassword',
+  'requestPasswordReset',
+  'checkPasswordResetLink',
+  'completePasswordReset',
   'login',
   'getLoginPasskeyOptions',
   'verifyLoginPasskey',
+  'loginTotp',
+  'loginRecoveryCode',
 ]);
 
 /**
  * Operations a session in the `mfa_enrollment` state may call (`x-evia-authz.allowDuringMfaEnrollment: true`): the
- * passkey enrolment itself, reading the session (the panel recovers its CSRF token after a reload) and logging out.
+ * passkey and TOTP enrolment itself, reading the session (the panel recovers its CSRF token after a reload) and logging out.
  * Everything else answers `403 mfa_enrollment_required` (AC4).
  */
 export const MFA_ENROLLMENT_OPERATIONS: readonly string[] = Object.freeze([
   'getCurrentSession',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
+  'startTotpEnrolment',
+  'confirmTotp',
   'extendSession',
   'logout',
 ]);

@@ -167,6 +167,15 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     await page.goto('/mfa-setup');
     await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
 
+    // EVM-023 AC4: the key does not open the window of the step-up, so the codes ask for the key once more (W-04), then step 3 shows them.
+    await expect(page.getByRole('alertdialog')).toContainText('Potwierdź tożsamość, aby wygenerować kody odzyskiwania');
+    await page.getByRole('button', { name: 'Użyj klucza dostępu' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Kody odzyskiwania', exact: true })).toBeVisible();
+    await expect(page).toHaveURL(`${ORIGIN}/mfa-setup`);
+    await expect(page.getByRole('list', { name: 'Kody odzyskiwania' }).getByRole('listitem')).toHaveCount(10);
+    await page.getByRole('checkbox', { name: 'Kody są zapisane w bezpiecznym miejscu' }).check();
+    await page.getByRole('button', { name: 'Zakończ konfigurację' }).click();
+
     await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
     await expect(page).toHaveURL(`${ORIGIN}/work-orders`);
     await expect(page.getByText('Drugi krok logowania jest skonfigurowany.')).toBeVisible();
@@ -181,7 +190,7 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     await page.getByRole('button', { name: `Konto: ${DISPLAY_NAME}` }).click();
     await page.getByRole('menuitem', { name: 'Wyloguj' }).click();
     await expect(page).toHaveURL(`${ORIGIN}/login`);
-    expect(api.seen.findLast((entry) => entry.url.endsWith('/auth/logout'))?.headers['x-csrf-token']).toBe('csrf-active');
+    expect(api.seen.findLast((entry) => entry.url.endsWith('/auth/logout'))?.headers['x-csrf-token']).toBe('csrf-rotated');
   });
 
   test('EVM-016 AC4 a failed or refused ceremony shows one error and W-03 stays', async ({ page, api, browserName }) => {
@@ -193,7 +202,10 @@ test.describe('W-03 and the panel after registering the key (EVM-016 AC4)', () =
     await expect(page.getByRole('alert')).toContainText('Nie udało się dodać klucza dostępu. Spróbuj ponownie.');
     await expect(page).toHaveURL(`${ORIGIN}/mfa-setup`);
     expect(api.session).toBe('enrollment');
+    api.stepUp = 'fresh';
     await page.getByRole('button', { name: 'Dodaj klucz dostępu' }).click();
+    await page.getByRole('checkbox', { name: 'Kody są zapisane w bezpiecznym miejscu' }).check();
+    await page.getByRole('button', { name: 'Zakończ konfigurację' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Zlecenia' })).toBeVisible();
   });
 });

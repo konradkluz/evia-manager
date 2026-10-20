@@ -8,6 +8,8 @@ import { LoginPage } from './pages/login-page.tsx';
 import { MfaSetupPage } from './pages/mfa-setup-page.tsx';
 import { NewWorkOrderPage } from './pages/new-work-order-page.tsx';
 import { PaymentsPage } from './pages/payments-page.tsx';
+import { ResetPasswordPage } from './pages/reset-password-page.tsx';
+import { ResetRequestPage } from './pages/reset-request-page.tsx';
 import { PrivacyPage } from './pages/privacy-page.tsx';
 import { UsersPage } from './pages/users-page.tsx';
 import { WorkOrderPage } from './pages/work-order-page.tsx';
@@ -18,12 +20,14 @@ import {
   ADMINISTRATION_PATH,
   CUSTOMERS_PATH,
   LOGIN_PATH,
+  LOGIN_RESET_PATH,
   LOGIN_SECOND_STEP_PATH,
   MFA_SETUP_PATH,
   NEW_WORK_ORDER_PATH,
   PAYMENTS_PATH,
   PRIVACY_PATH,
   PUBLIC_PATHS,
+  RESET_PASSWORD_PATH,
   USERS_PATH,
   WORK_ORDERS_PATH,
 } from './paths.ts';
@@ -88,6 +92,9 @@ const loginRoute = createRoute({
 });
 /** W-19 (EVM-063): static content for every role and for a visitor without a session. */
 const privacyRoute = createRoute({ getParentRoute: () => rootRoute, path: PRIVACY_PATH, component: PrivacyPage });
+/** W-12 (EVM-025): the token of the link is in memory (the fragment was removed before the router); W-01 "Zresetuj hasło" asks for a link. */
+const resetPasswordRoute = createRoute({ getParentRoute: () => rootRoute, path: RESET_PASSWORD_PATH, component: ResetPasswordPage });
+const resetRequestRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_RESET_PATH, component: ResetRequestPage });
 const secondStepRoute = createRoute({ getParentRoute: () => rootRoute, path: LOGIN_SECOND_STEP_PATH, component: SecondStepPage });
 
 const routeTree = rootRoute.addChildren([
@@ -103,6 +110,8 @@ const routeTree = rootRoute.addChildren([
   mfaSetupRoute,
   loginRoute,
   secondStepRoute,
+  resetPasswordRoute,
+  resetRequestRoute,
   privacyRoute,
 ]);
 

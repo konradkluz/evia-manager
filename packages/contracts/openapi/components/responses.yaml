@@ -28,8 +28,8 @@ Unauthenticated:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 Forbidden:
   description: >-
-    Brak uprawnienia (`forbidden`), nieudana kontrola CSRF (`csrf_failed`) albo konto bez klucza dostępu
-    (`mfa_enrollment_required`).
+    Brak uprawnienia (`forbidden`), nieudana kontrola CSRF (`csrf_failed`), konto bez klucza dostępu
+    (`mfa_enrollment_required`) albo wygasła konfiguracja drugiego kroku po resecie (`mfa_setup_expired`, tylko logowanie).
   content:
     application/problem+json:
       schema:
@@ -97,6 +97,21 @@ ActivationLinkInvalid:
         status: 400
         code: activation_link_invalid
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+PasswordResetLinkInvalid:
+  description: >-
+    Link jest użyty, wygasły, zastąpiony, nieznany, innego rodzaju (np. aktywacyjny) albo jego konto nie jest aktywne
+    (`password_reset_link_invalid`) — jedna odpowiedź dla wszystkich przypadków, bez informacji o koncie — albo treść niezgodna
+    ze schematem (`validation_failed`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/password_reset_link_invalid
+        title: Password reset link is invalid or expired
+        status: 400
+        code: password_reset_link_invalid
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 InvalidCredentials:
   description: >-
     Nieprawidłowy e-mail lub hasło (`invalid_credentials`) — jedna odpowiedź (kod, treść i nagłówki) dla złego hasła,
@@ -113,8 +128,10 @@ InvalidCredentials:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 LoginSecondStepFailed:
   description: >-
-    Drugi krok nie powiódł się: klucz dostępu odrzucony (`passkey_failed` — można ponowić z tym samym `loginToken`),
-    czas na drugi krok minął (`login_expired`) albo brak ważnego pierwszego kroku (`unauthenticated`).
+    Drugi krok nie powiódł się: klucz dostępu odrzucony (`passkey_failed`), kod z aplikacji odrzucony (`totp_failed`) albo kod
+    odzyskiwania odrzucony (`recovery_code_failed`) — można ponowić z tym samym `loginToken`, ale piąta nieudana próba kończy próbę
+    logowania (trzeba wpisać hasło od nowa); czas na drugi krok minął (`login_expired`) albo brak ważnego pierwszego kroku
+    (`unauthenticated` — także dla cudzego, zużytego i nieznanego `loginToken`: jedna odpowiedź).
   content:
     application/problem+json:
       schema:
@@ -151,6 +168,63 @@ PasskeyVerificationFailed:
         status: 400
         code: passkey_verification_failed
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+TotpVerificationFailed:
+  description: >-
+    Kod z aplikacji niepoprawny przy konfiguracji (`totp_verification_failed` — metoda pozostaje nieaktywna; można ponowić z tym
+    samym sekretem), treść niezgodna ze schematem (`validation_failed`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/totp_verification_failed
+        title: Authenticator code verification failed
+        status: 400
+        code: totp_verification_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MfaAlreadyConfigured:
+  description: >-
+    Konto ma już aktywny drugi krok (klucz dostępu albo kod z aplikacji — `mfa_already_configured`); zmiana metod to EVM-028.
+    Sekret aktywnego czynnika nigdy nie jest zwracany.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/mfa_already_configured
+        title: A second step is already configured
+        status: 409
+        code: mfa_already_configured
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+RecoveryCodesForbidden:
+  description: >-
+    Brak dostępu: `step_up_required` (ostatnie uwierzytelnienie kodem z aplikacji lub kluczem dostępu minęło 15 minut temu albo go nie
+    było — także sesja z kodu odzyskiwania), `recovery_codes_regeneration_unavailable` (konto ma już kody z innej sesji: ponowne
+    generowanie z konta to EVM-028; odświeżyć kroku 3 może tylko sesja, która wygenerowała bieżące kody), `forbidden`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/recovery_codes_regeneration_unavailable
+        title: Recovery codes cannot be regenerated from this session
+        status: 403
+        code: recovery_codes_regeneration_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+SecondStepUnavailable:
+  description: >-
+    Konfiguracja kodu z aplikacji niedostępna (`service_unavailable`): brak skonfigurowanych kluczy szyfrowania pól
+    (`FIELD_ENCRYPTION_KEYS`) — nic nie jest zapisywane jawnie.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/service_unavailable
+        title: Service unavailable
+        status: 503
+        code: service_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 NotFound:
   description: Zasób nie istnieje albo nie jest dostępny dla wywołującego (`not_found`) — jedna odpowiedź, bez szczegółów.
   content:
@@ -180,7 +254,8 @@ StepUpRequired:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 StepUpFailed:
   description: >-
-    Klucz dostępu odrzucony (`passkey_failed` — sesja bez zmian, wyzwanie zużyte; trzeba poprosić o nowe opcje), brak sesji
+    Klucz dostępu odrzucony (`passkey_failed` — sesja bez zmian, wyzwanie zużyte; trzeba poprosić o nowe opcje), kod z aplikacji
+    odrzucony (`totp_failed` — sesja bez zmian; piąty zły kod w sesji unieważnia ją: `session_revoked`), brak sesji
     (`unauthenticated`), sesja unieważniona (`session_revoked`) albo wygasła (`session_expired`).
   content:
     application/problem+json:
@@ -284,6 +359,22 @@ UserStateConflict:
         title: Transition is not allowed from the current state
         status: 409
         code: invalid_state_transition
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+UserAccessConflict:
+  description: >-
+    Operacja na koncie jest niedozwolona (EVM-027): `last_active_administrator` — to jedyny aktywny Administrator (dezaktywacja albo
+    zmiana roli); `own_account_not_allowed` — własne konto (zmiana roli, dezaktywacja, reset drugiego kroku, zakończenie sesji);
+    `administrator_passkey_required` — konto bez klucza dostępu nie może zostać Administratorem (tylko zmiana roli);
+    `invalid_state_transition` — konto w stanie, z którego operacja nie jest możliwa (także ta sama rola). Bez danych konta.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/last_active_administrator
+        title: The account is the last active Administrator
+        status: 409
+        code: last_active_administrator
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 IdempotencyMismatch:
   description: Ten sam klucz idempotencji z inną treścią albo na innej operacji (`idempotency_mismatch`).

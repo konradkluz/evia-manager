@@ -1,10 +1,10 @@
-import { ACTIVATE_PATH, LOGIN_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { ACTIVATE_PATH, LOGIN_PATH, RESET_PASSWORD_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 
 /** Where a login without a usable `returnTo` ends: the list of work orders (W-10). */
 export const DEFAULT_RETURN_TO = WORK_ORDERS_PATH;
 
 /** Paths a return would loop through or that are not pages of the panel: the API and the pages before the session. */
-const FORBIDDEN_PREFIXES = ['/auth', '/api', LOGIN_PATH, ACTIVATE_PATH] as const;
+const FORBIDDEN_PREFIXES = ['/auth', '/api', LOGIN_PATH, ACTIVATE_PATH, RESET_PASSWORD_PATH] as const;
 
 const isForbiddenPath = (pathname: string): boolean =>
   FORBIDDEN_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

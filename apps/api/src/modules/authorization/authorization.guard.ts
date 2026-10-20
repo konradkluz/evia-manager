@@ -16,7 +16,7 @@ import { ProblemException } from '../../platform/http/problem.ts';
 import { assertQueryParameters, SAFE_METHODS } from '../../platform/http/query-parameters.ts';
 import { RATE_LIMITER, RATE_LIMITS, type RateLimiter } from '../../platform/http/rate-limiter.ts';
 import { APP_CONFIG, CLOCK } from '../../platform/tokens.ts';
-import { channelAllowedForRole, csrfMatches, stepUpFresh } from '../identity/index.ts';
+import { channelAllowedForRole, csrfMatches, lastStepUpAuthentication, stepUpFresh } from '../identity/index.ts';
 import { decideAccess } from './access-decision.ts';
 import { POLICY_SOURCE, type PolicySource } from './policy-source.ts';
 
@@ -61,7 +61,7 @@ export class AuthorizationGuard implements CanActivate {
       rateLimit: (bucket) => this.#limiter.consume(bucket, request.ip, RATE_LIMITS[bucket]),
       rateLimitUser: (principal) => this.#limiter.consumeSubject('user', principal.userId, RATE_LIMITS.user),
       channelAllowed: channelAllowedForRole,
-      stepUpFresh: (principal) => stepUpFresh(principal.passkeyAuthenticatedAt, this.#clock.now()),
+      stepUpFresh: (principal) => stepUpFresh(lastStepUpAuthentication(principal), this.#clock.now()),
     });
     if (!decision.allowed) {
       throw new ProblemException(

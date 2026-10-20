@@ -46,6 +46,7 @@ export function seedPrincipal(userId: string, now: Date): Principal {
     state: 'active',
     csrfToken: '',
     passkeyAuthenticatedAt: null,
+    totpAuthenticatedAt: null,
     lastSeenAt: now,
     idleExpiresAt: now,
     absoluteExpiresAt: now,

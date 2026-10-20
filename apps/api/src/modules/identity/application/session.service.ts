@@ -43,11 +43,15 @@ function judge(record: SessionRecord, now: Date): Verdict {
 
 function accountAllows(record: SessionRecord, now: Date): boolean {
   if (record.state === 'active') return record.userStatus === 'active';
-  // An enrolment session of an invitation lives as long as its link is valid (A1a). One without a link comes from a
-  // password sign-in of an active account that has no second step yet (EVM-067): it has no link to depend on.
+  // An enrolment session lives as long as the link it is bound to is valid (A1a). An invitation's link belongs to an `invited` account; the window that a
+  // reset of the second step opens (EVM-027 D1) to an `active` one — it ends at once with the window (used, replaced, expired) or with a deactivation. A link
+  // of any other purpose binds no session. One without a link comes from a password sign-in of an active account that has no second step (EVM-067,
+  // before EVM-027 D2): it has no link to depend on and can enrol nothing.
   const { link } = record;
   if (link === null) return record.userStatus === 'active';
-  return record.userStatus === 'invited' && link.usedAt === null && link.supersededAt === null && link.expiresAt > now;
+  if (link.usedAt !== null || link.supersededAt !== null || link.expiresAt <= now) return false;
+  if (link.purpose === 'account_activation') return record.userStatus === 'invited';
+  return link.purpose === 'mfa_setup' && record.userStatus === 'active';
 }
 
 @Injectable()
@@ -86,6 +90,7 @@ export class SessionService {
       state: record.state,
       csrfToken: deriveCsrfToken(cookie.token),
       passkeyAuthenticatedAt: record.passkeyAuthenticatedAt,
+      totpAuthenticatedAt: record.totpAuthenticatedAt,
       lastSeenAt: record.lastSeenAt,
       idleExpiresAt: record.idleExpiresAt,
       absoluteExpiresAt: record.absoluteExpiresAt,

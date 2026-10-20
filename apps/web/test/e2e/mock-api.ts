@@ -40,7 +40,15 @@ import {
   newUnpaidServer,
   type UnpaidServer,
 } from './mock-unpaid.ts';
-import { answerInvite, answerResend, answerUserList, newUsersServer, type UsersServer } from './mock-users.ts';
+import {
+  answerAccountOperation,
+  answerInvite,
+  answerResend,
+  answerUserList,
+  newUsersServer,
+  type AccountOperationName,
+  type UsersServer,
+} from './mock-users.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -63,11 +71,20 @@ import {
 export type SessionKind = 'none' | 'active' | 'enrollment';
 
 export const VALID_TOKEN = 'Vz3-_Aq9'.repeat(5) + 'xyz';
+/** EVM-025: the token of a password reset link of the synthetic server (a different one than the activation link). */
+export const RESET_TOKEN = 'Rs4-_Kd8'.repeat(5) + 'xyz';
 export const EMAIL = 'anna.testowa@example.com';
 export const DISPLAY_NAME = 'Anna Testowa';
 export const PASSWORD = 'zażółć gęślą jaźń!';
 /** Relying party of the synthetic server: `localhost` is the only host that WebAuthn accepts besides domain names. */
 export const RP_ID = 'localhost';
+/** EVM-023: the codes of the synthetic server — a code of the authenticator app is valid once (the same code twice is refused), as is the recovery code. */
+export const TOTP_CODE = '123456';
+export const RECOVERY_CODE = 'ABCDEFGHIJKLMNOPQRST';
+export const TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+const RECOVERY_CODES = Array.from({ length: 10 }, (_, index) =>
+  index === 0 ? RECOVERY_CODE : `ABCDEFGHIJKLMNOPQR${String(index).padStart(2, '2')}`,
+);
 
 export interface Seen {
   readonly method: string;
@@ -81,10 +98,16 @@ export interface MockApi {
   session: SessionKind;
   /** Decides the answer for `checkActivationLink` (default: valid only for VALID_TOKEN). */
   tokenValid: (token: string) => boolean;
+  /** EVM-025: decides the answer for the check and the completion of a password reset link (default: valid only for RESET_TOKEN, once). */
+  resetLinkValid: (token: string) => boolean;
   /** Answers of the next calls, to rehearse failures. */
   failNext: Map<string, { status: number; code: string; headers?: Record<string, string> }>;
   /** EVM-067: the account of the synthetic server has a passkey (`second_step`) or none (`mfa_enrollment`). */
   loginMode: 'second_step' | 'mfa_enrollment';
+  /** EVM-023: the methods of the second step that the server offers in the answer of the password (the order of the server). */
+  methods: string[];
+  /** EVM-023: the codes of the authenticator app and the recovery codes the server has already accepted (each works once). */
+  usedCodes: Set<string>;
   /** EVM-067: id (base64url) of the passkey the test registered in the virtual authenticator; the login accepts only it. */
   credentialId: string | null;
   /** EVM-067: the server has ended the session (`GET /session` answers `401 session_expired`). */
@@ -342,8 +365,11 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     seen: [],
     session,
     tokenValid: (token) => token === VALID_TOKEN,
+    resetLinkValid: (token) => token === RESET_TOKEN && !resetLinkUsed,
     failNext: new Map(),
     loginMode: 'second_step',
+    methods: ['passkey'],
+    usedCodes: new Set(),
     credentialId: null,
     expired: false,
     sessionMinutes: { idle: 60, absolute: 720 },
@@ -458,6 +484,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const active = () => ({ csrf: api.csrf, role: api.role });
   let loginChallenge = '';
   let loginTokenUsed = false;
+  let resetLinkUsed = false;
   let challenge = '';
 
   /** The list of work orders (`GET`) and its search (`POST`, EVM-072): the same filters, the phrase only for the search. */
@@ -557,6 +584,24 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
       if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
       return route.fulfill(answerResend(api.users, resend[1] ?? ''));
+    }
+    // EVM-027: the five operations on an account (W-16) — role, deactivation, reactivation, end of sessions, reset of the second step.
+    const accountOperation = /^\/api\/v1\/users\/([^/]+)\/(role|deactivation|reactivation|sessions|second-step-reset)$/.exec(url.pathname);
+    if (accountOperation !== null && ['PUT', 'POST', 'DELETE'].includes(request.method())) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
+      if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+      const input = (request.postData() ?? '') === '' ? {} : (body() as Record<string, unknown>);
+      return route.fulfill(
+        answerAccountOperation(
+          api.users,
+          (accountOperation[2] ?? 'role') as AccountOperationName,
+          accountOperation[1] ?? '',
+          headers['if-match'],
+          input,
+        ),
+      );
     }
     // EVM-018: the four reads of one order (W-06) — the order is anchored in the path (a malformed id is 400, a missing or gone one 404).
     const orderRead =
@@ -846,8 +891,61 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         }
         api.loginToken = LOGIN_TOKEN;
         loginTokenUsed = false;
-        return route.fulfill(ok(200, { state: 'second_step', loginToken: LOGIN_TOKEN, methods: ['passkey'] }));
+        return route.fulfill(ok(200, { state: 'second_step', loginToken: LOGIN_TOKEN, methods: api.methods }));
       }
+      case 'POST /api/v1/auth/login/totp': {
+        const { loginToken, code } = body() as { loginToken?: string; code?: string };
+        if (loginToken !== api.loginToken || loginTokenUsed) return route.fulfill(problem(401, 'unauthenticated'));
+        // Administrator in the panel has no code of the app (P1); a code is valid once.
+        if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(401, 'totp_failed'));
+        api.usedCodes.add(`totp:${code}`);
+        loginTokenUsed = true;
+        api.session = 'active';
+        api.deadlines = null;
+        return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf }));
+      }
+      case 'POST /api/v1/auth/login/recovery-code': {
+        const { loginToken, code } = body() as { loginToken?: string; code?: string };
+        if (loginToken !== api.loginToken || loginTokenUsed) return route.fulfill(problem(401, 'unauthenticated'));
+        if (code !== RECOVERY_CODE || api.usedCodes.has(`recovery:${code}`)) return route.fulfill(problem(401, 'recovery_code_failed'));
+        api.usedCodes.add(`recovery:${code}`);
+        loginTokenUsed = true;
+        api.session = 'active';
+        api.deadlines = null;
+        return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf, remainingCodes: 9 }));
+      }
+      case 'POST /api/v1/account/totp/enrolment':
+        if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 409, 'mfa_already_configured'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
+        return route.fulfill(
+          ok(
+            200,
+            {
+              secret: TOTP_SECRET,
+              otpauthUri: `otpauth://totp/EVia%20Manager:${encodeURIComponent(EMAIL)}?secret=${TOTP_SECRET}&issuer=EVia%20Manager`,
+            },
+            { 'Cache-Control': 'no-store' },
+          ),
+        );
+      case 'POST /api/v1/account/totp/confirm': {
+        if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const { code } = body() as { code?: string };
+        if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(400, 'totp_verification_failed'));
+        api.usedCodes.add(`totp:${code}`);
+        // The confirmation opens the window of the step-up (the code has just been verified); the session is a new one.
+        api.session = 'active';
+        api.stepUp = 'fresh';
+        api.deadlines = null;
+        return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf }));
+      }
+      case 'POST /api/v1/account/recovery-codes':
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
+        return route.fulfill(ok(200, { codes: RECOVERY_CODES }, { 'Cache-Control': 'no-store' }));
       case 'POST /api/v1/auth/login/passkey/options': {
         const { loginToken } = body() as { loginToken?: string };
         if (loginToken !== api.loginToken || loginTokenUsed || api.credentialId === null)
@@ -901,6 +999,30 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           }),
         );
       }
+      case 'POST /api/v1/auth/password-reset/request':
+        // Always the same answer, whatever the address (EVM-025 AC1).
+        return route.fulfill(ok(202, {}));
+      case 'POST /api/v1/auth/password-reset/check': {
+        const { token } = body() as { token?: string };
+        return api.resetLinkValid(token ?? '')
+          ? route.fulfill(ok(200, { email: EMAIL }))
+          : route.fulfill(problem(400, 'password_reset_link_invalid'));
+      }
+      case 'POST /api/v1/auth/password-reset/complete': {
+        const { token, password } = body() as { token?: string; password?: string };
+        if (!api.resetLinkValid(token ?? '')) return route.fulfill(problem(400, 'password_reset_link_invalid'));
+        const length = Array.from((password ?? '').normalize('NFC')).length;
+        if (length < 15) return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/password', code: 'too_short' }] }));
+        if (/^password/i.test(password ?? '')) {
+          return route.fulfill(problem(400, 'validation_failed', { errors: [{ pointer: '/password', code: 'too_weak' }] }));
+        }
+        // The password is saved, the link is spent, every session is over and none is created (AC4, AC5).
+        resetLinkUsed = true;
+        api.session = 'none';
+        api.loginToken = LOGIN_TOKEN;
+        loginTokenUsed = false;
+        return route.fulfill(ok(200, { state: 'second_step', loginToken: LOGIN_TOKEN, methods: api.methods }));
+      }
       case 'POST /api/v1/auth/activation/check': {
         const { token } = body() as { token?: string };
         return api.tokenValid(token ?? '')
@@ -939,7 +1061,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'POST /api/v1/account/passkeys': {
         if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        const { credential } = body() as { credential: { response: { clientDataJSON: string; attestationObject: string } } };
+        const { credential } = body() as { credential: { id: string; response: { clientDataJSON: string; attestationObject: string } } };
         const client = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
           type: string;
           challenge: string;
@@ -951,6 +1073,8 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           client.origin === origin &&
           credential.response.attestationObject.length > 0;
         if (!verified) return route.fulfill(problem(400, 'passkey_verification_failed'));
+        // The server stores the key of the account: the step-up and the login accept it from now on.
+        api.credentialId = credential.id;
         api.session = 'active';
         return route.fulfill(
           ok(201, {
@@ -963,7 +1087,6 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       }
       case 'POST /api/v1/auth/step-up/options': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
-        if (api.role !== 'administrator') return route.fulfill(problem(403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
         stepUpChallenge = Buffer.from(`step-up-challenge-${String(api.seen.length)}-0123456789abcdef`).toString('base64url');
         return route.fulfill(
@@ -979,7 +1102,19 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'POST /api/v1/auth/step-up': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        const { credential } = body() as { credential: { id: string; response: { clientDataJSON: string } } };
+        const stepUpBody = body() as { method?: string; code?: string; credential: { id: string; response: { clientDataJSON: string } } };
+        if (stepUpBody.method === 'totp') {
+          // EVM-023 AC7: the code of the app (an Editor or a Read-only user; never the Administrator in the panel).
+          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
+          if (stepUpBody.code !== TOTP_CODE || api.usedCodes.has(`totp:${stepUpBody.code}`)) {
+            return route.fulfill(problem(401, 'totp_failed'));
+          }
+          api.usedCodes.add(`totp:${stepUpBody.code}`);
+          api.stepUp = 'fresh';
+          api.csrf = 'csrf-rotated';
+          return route.fulfill(ok(200, { csrfToken: api.csrf }));
+        }
+        const { credential } = stepUpBody;
         const client = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
           type: string;
           challenge: string;

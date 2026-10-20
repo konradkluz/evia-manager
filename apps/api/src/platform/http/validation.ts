@@ -77,6 +77,10 @@ export function strictObjects(schema: z.ZodType): z.ZodType {
   if (schema instanceof z.ZodNullable) {
     return z.core.clone(schema, { ...schema._zod.def, innerType: strictObjects(schema.unwrap() as z.ZodType) });
   }
+  if (schema instanceof z.ZodUnion) {
+    const options = schema.options.map((option) => strictObjects(option as z.ZodType));
+    return z.core.clone(schema, { ...schema._zod.def, options });
+  }
   if (schema instanceof z.ZodArray) {
     return z.core.clone(schema, { ...schema._zod.def, element: strictObjects(schema.element as z.ZodType) });
   }

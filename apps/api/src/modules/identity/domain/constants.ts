@@ -17,12 +17,32 @@ export const SESSION_TOUCH_INTERVAL_MS = 30_000;
 
 /** The first step of the sign-in (`loginToken`) is valid for 5 minutes and single-use (EVM-067 AC4; SR-AUTH-09). */
 export const LOGIN_ATTEMPT_TTL_MS = 5 * MINUTE;
-/** Failed keys tolerated for one `loginToken`; the fifth ends the attempt (the password has to be entered again). */
-export const LOGIN_MAX_FAILED_PASSKEYS = 5;
+/**
+ * Failed second steps tolerated for one `loginToken` — a wrong key, a wrong code of the app, a wrong recovery code count together; the fifth ends the
+ * attempt (the password has to be entered again; SR-AUTH-05).
+ */
+export const LOGIN_MAX_FAILED_SECOND_STEPS = 5;
+/** Wrong codes of step-up tolerated in one session; the fifth ends the session (a thief of a session has no `loginToken` to run out — ASVS V6.3.1). */
+export const STEP_UP_MAX_FAILED_CODES = 5;
 /** Expired login attempts are deleted opportunistically, at the latest 24 hours after they expired (RODO art. 5(1)(e)). */
 export const LOGIN_ATTEMPT_RETENTION_MS = 24 * HOUR;
 
 /** `pg_advisory_xact_lock` key serialising everything that decides who the administrators are (also EVM-027). */
 export const ADMINISTRATOR_LOCK_KEY = 7_016_001;
 
+/**
+ * The window to set up a second step that a reset by an Administrator opens (EVM-027 D1; SR-AUTH-13; ASVS V6.4.4): 24 hours from the reset. It ends at
+ * once with a new reset, a deactivation, the first successful enrolment and its own deadline. Anyone who knows the password may use it (RR-27) — hence the
+ * short time, the single use, the e-mail to the owner and — for an Administrator — a passkey only.
+ */
+export const SECOND_STEP_SETUP_WINDOW_MS = 24 * HOUR;
+
 export const SESSION_COOKIE_NAME = '__Host-evia_session';
+
+/** Password reset link: valid 30 minutes from the SENDING (SR-AUTH-11; P2) — measured in real time like the activation link. */
+export const PASSWORD_RESET_LINK_TTL_MS = 30 * MINUTE;
+/** A person can ask for a reset link at most once per minute and five times per hour per account (a flood of one mailbox — K7, D5). */
+export const PASSWORD_RESET_MIN_INTERVAL_MS = MINUTE;
+export const PASSWORD_RESET_HOURLY_LIMIT = 5;
+/** The response of a request for a reset link never comes sooner than this after the start of the request (CWE-208; a floor, not a guarantee). */
+export const PASSWORD_RESET_RESPONSE_FLOOR_MS = 250;

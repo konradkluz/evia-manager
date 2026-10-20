@@ -116,6 +116,18 @@ describe('W-01 Zaloguj się (EVM-067 AC1-AC3, AC8; flows/01)', () => {
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 
+  it('EVM-027 AC4 the correct password of an account whose window of the second step ended says the setup expired: the message, no session, focus on the message', async () => {
+    const api = loginApi({ [LOGIN_ROUTE]: () => problem(403, 'mfa_setup_expired') });
+    const { history } = await renderPanel('/login', api);
+    await fillAndSubmit();
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Konfiguracja drugiego kroku wygasła — poproś administratora o ponowny reset.');
+    expect(document.activeElement).toBe(alert);
+    expect(screen.getByLabelText<HTMLInputElement>('Hasło').value).toBe('');
+    expect(history.location.pathname).toBe('/login');
+    expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
+  });
+
   it('EVM-067 AC2 empty fields get the same message without a request', async () => {
     const api = loginApi();
     await renderPanel('/login', api);

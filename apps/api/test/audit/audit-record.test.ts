@@ -115,7 +115,7 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
     expect(() => auditRecordSchema.parse({ ...toAuditRecord(event(), context, at), email: 'jan@evia.invalid' })).toThrow();
   });
 
-  it('EVM-016 AC7 the closed lists contain the events of the stories (EVM-016, EVM-067, EVM-029, EVM-024) and no free-text reason', () => {
+  it('EVM-016 AC7 the closed lists contain the events of the stories (EVM-016, EVM-067, EVM-029, EVM-024, EVM-025, EVM-023, EVM-027) and no free-text reason', () => {
     expect([...IDENTITY_EVENT_TYPES]).toEqual([
       'activation_link.issued',
       'account.password_set',
@@ -123,6 +123,9 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'account.activated',
       'user.invited',
       'invitation.resent',
+      'password.reset_requested',
+      'password_reset_link.issued',
+      'password.reset',
       'session.created',
       'session.revoked',
       'session.expired',
@@ -131,8 +134,42 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'account.emergency_reset',
       'step_up.succeeded',
       'step_up.failed',
+      'mfa.totp_enrolled',
+      'mfa.recovery_codes_generated',
+      'login.recovery_code_used',
+      'user.role_changed',
+      'user.deactivated',
+      'user.reactivated',
+      'user.sessions_ended',
+      'user.second_step_reset',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
+  });
+});
+
+describe('the codes of a change of a role (EVM-027 AC1; SR-LOG-03)', () => {
+  const changed = (overrides: Partial<IdentityEvent> = {}): IdentityEvent =>
+    event({ type: 'user.role_changed', objectType: 'user', objectId: user, fromCode: 'editor', toCode: 'read_only', ...overrides });
+  const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.200', sessionId: session };
+
+  it('EVM-027 AC1 a change of a role carries the codes of the roles before and after, both together', () => {
+    expect(toAuditRecord(changed(), context, at)).toMatchObject({ action: 'user.role_changed', fromCode: 'editor', toCode: 'read_only' });
+  });
+
+  it('EVM-027 AC1 the codes belong to the change of a role (or of a payment milestone) only, and only both together: any other event or half a pair is refused', () => {
+    expect(() => toAuditRecord(event({ fromCode: 'editor', toCode: 'read_only' }), context, at)).toThrow();
+    expect(() => toAuditRecord(event({ type: 'user.deactivated', objectType: 'user', fromCode: 'a', toCode: 'b' }), context, at)).toThrow();
+    const { type, actor, outcome, objectType, objectId, fromCode } = changed();
+    expect(() =>
+      toAuditRecord({ type, actor, outcome, objectType, objectId, ...(fromCode === undefined ? {} : { fromCode }) }, context, at),
+    ).toThrow();
+    expect(() => toAuditRecord(changed({ fromCode: 'Editor Jan Kowalski' }), context, at)).toThrow();
+  });
+
+  it('EVM-027 AC4 the reason of a reset is a code of the closed list (how the identity was verified), never a text', () => {
+    const reset = event({ type: 'user.second_step_reset', objectType: 'user', reasonCode: 'identity_verified_video_call' });
+    expect(toAuditRecord(reset, context, at)).toMatchObject({ reasonCode: 'identity_verified_video_call' });
+    expect(() => toAuditRecord(event({ type: 'user.second_step_reset', reasonCode: 'dowod osobisty' as never }), context, at)).toThrow();
   });
 });
 

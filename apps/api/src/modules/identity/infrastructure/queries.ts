@@ -13,6 +13,7 @@ export interface LinkRecord {
   readonly displayName: string;
   readonly role: UsersTable['role'];
   readonly userStatus: UsersTable['status'];
+  readonly userDeleted: boolean;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
   readonly supersededAt: Date | null;
@@ -22,8 +23,33 @@ export interface LinkRecord {
 export const isLinkUsable = (link: LinkRecord, now: Date): boolean =>
   link.usedAt === null && link.supersededAt === null && link.expiresAt > now && link.userStatus === 'invited';
 
-/** One query by the unique hash — the same work for every outcome (unknown, used, expired, superseded). */
-export async function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LinkRecord | undefined> {
+/**
+ * A reset link opens a password reset only while it is unused, not superseded, not expired and its account is still ACTIVE and not deleted
+ * (an invited account has no password to forget, a deactivated one must not come back this way — EVM-025 AC2).
+ */
+export const isResetLinkUsable = (link: LinkRecord | undefined, now: Date): link is LinkRecord =>
+  link !== undefined &&
+  link.usedAt === null &&
+  link.supersededAt === null &&
+  link.expiresAt > now &&
+  link.userStatus === 'active' &&
+  !link.userDeleted;
+
+/** One query by the unique hash — the same work for every outcome (unknown, used, expired, superseded). Activation links only. */
+export function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, lock: boolean = false): Promise<LinkRecord | undefined> {
+  return findLinkOfPurpose(db, 'account_activation', tokenHash, lock);
+}
+
+/**
+ * The link of a hash AND a purpose: the purpose is part of the condition, so a link of one kind never opens the route of the other
+ * (EVM-025 K4; CWE-639). One query, the same work for every outcome.
+ */
+export async function findLinkOfPurpose(
+  db: IdentityDb,
+  purpose: OneTimeLinksTable['purpose'],
+  tokenHash: Buffer,
+  lock: boolean = false,
+): Promise<LinkRecord | undefined> {
   let query = db
     .selectFrom('identity.one_time_links as l')
     .innerJoin('identity.users as u', 'u.id', 'l.user_id')
@@ -34,14 +60,18 @@ export async function findLinkByTokenHash(db: IdentityDb, tokenHash: Buffer, loc
       'u.display_name as displayName',
       'u.role',
       'u.status as userStatus',
+      'u.deleted_at as userDeletedAt',
       'l.expires_at as expiresAt',
       'l.used_at as usedAt',
       'l.superseded_at as supersededAt',
     ])
     .where('l.token_hash', '=', tokenHash)
-    .where('l.purpose', '=', 'account_activation');
+    .where('l.purpose', '=', purpose);
   if (lock) query = query.forUpdate();
-  return query.executeTakeFirst();
+  const row = await query.executeTakeFirst();
+  if (row === undefined) return undefined;
+  const { userDeletedAt, ...link } = row;
+  return { ...link, userDeleted: userDeletedAt !== null };
 }
 
 export interface SessionRecord {
@@ -53,11 +83,17 @@ export interface SessionRecord {
   readonly revokeReason: RevokeReason | null;
   readonly lastSeenAt: Date;
   readonly passkeyAuthenticatedAt: Date | null;
+  readonly totpAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly role: UsersTable['role'];
   readonly userStatus: UsersTable['status'];
-  readonly link: { readonly usedAt: Date | null; readonly supersededAt: Date | null; readonly expiresAt: Date } | null;
+  readonly link: {
+    readonly purpose: OneTimeLinksTable['purpose'];
+    readonly usedAt: Date | null;
+    readonly supersededAt: Date | null;
+    readonly expiresAt: Date;
+  } | null;
 }
 
 /** The session of a token hash with its account and, for an enrolment session, its link — one query per request. */
@@ -75,11 +111,13 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
       's.revoke_reason as revokeReason',
       's.last_seen_at as lastSeenAt',
       's.passkey_authenticated_at as passkeyAuthenticatedAt',
+      's.totp_authenticated_at as totpAuthenticatedAt',
       's.idle_expires_at as idleExpiresAt',
       's.absolute_expires_at as absoluteExpiresAt',
       'u.role',
       'u.status as userStatus',
       'l.id as linkId',
+      'l.purpose as linkPurpose',
       'l.used_at as linkUsedAt',
       'l.superseded_at as linkSupersededAt',
       'l.expires_at as linkExpiresAt',
@@ -96,14 +134,15 @@ export async function findSessionByTokenHash(db: IdentityDb, tokenHash: Buffer):
     revokeReason: row.revokeReason,
     lastSeenAt: row.lastSeenAt,
     passkeyAuthenticatedAt: row.passkeyAuthenticatedAt,
+    totpAuthenticatedAt: row.totpAuthenticatedAt,
     idleExpiresAt: row.idleExpiresAt,
     absoluteExpiresAt: row.absoluteExpiresAt,
     role: row.role,
     userStatus: row.userStatus,
     link:
-      row.linkId === null || row.linkExpiresAt === null
+      row.linkId === null || row.linkExpiresAt === null || row.linkPurpose === null
         ? null
-        : { usedAt: row.linkUsedAt, supersededAt: row.linkSupersededAt, expiresAt: row.linkExpiresAt },
+        : { purpose: row.linkPurpose, usedAt: row.linkUsedAt, supersededAt: row.linkSupersededAt, expiresAt: row.linkExpiresAt },
   };
 }
 
@@ -116,6 +155,8 @@ export interface NewSession {
   readonly now: Date;
   /** Set only by an authentication with a passkey (sign-in with a key, step-up); null for every other origin of a session (SR-SESS-08). */
   readonly passkeyAuthenticatedAt: Date | null;
+  /** Set only by an authentication with a TOTP code (sign-in, step-up, confirmation); null for every other origin, a recovery code included. */
+  readonly totpAuthenticatedAt: Date | null;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
   readonly ip: string | undefined;
@@ -138,6 +179,7 @@ export async function insertSession(db: IdentityDb, session: NewSession): Promis
       last_seen_at: session.now,
       last_authenticated_at: session.now,
       passkey_authenticated_at: session.passkeyAuthenticatedAt,
+      totp_authenticated_at: session.totpAuthenticatedAt,
       idle_expires_at: session.idleExpiresAt,
       absolute_expires_at: session.absoluteExpiresAt,
       revoked_at: null,
@@ -491,13 +533,28 @@ export interface UserRow {
   readonly role: UsersTable['role'];
   readonly status: UsersTable['status'];
   readonly deletedAt: Date | null;
+  /** Rises only with a managed change (role, status, reset, activation) — the value of `If-Match` (EVM-027). */
+  readonly version: number;
+  /** The first activation; null = never activated. */
+  readonly activatedAt: Date | null;
 }
 
-const USER_COLUMNS = ['id', 'email', 'display_name as displayName', 'role', 'status', 'deleted_at as deletedAt'] as const;
+const USER_COLUMNS = [
+  'id',
+  'email',
+  'display_name as displayName',
+  'role',
+  'status',
+  'deleted_at as deletedAt',
+  'version',
+  'activated_at as activatedAt',
+] as const;
 
 /** The account of a normalised address — also a deleted one (the address stays taken: `users.email` is unique for every row). */
-export async function findUserByEmail(db: IdentityDb, email: string): Promise<UserRow | undefined> {
-  return db.selectFrom('identity.users').select(USER_COLUMNS).where('email', '=', email).executeTakeFirst();
+export async function findUserByEmail(db: IdentityDb, email: string, lock: boolean = false): Promise<UserRow | undefined> {
+  let query = db.selectFrom('identity.users').select(USER_COLUMNS).where('email', '=', email);
+  if (lock) query = query.forUpdate();
+  return query.executeTakeFirst();
 }
 
 /** The account by id, `FOR UPDATE` when `lock` — the FIRST lock of every unit of work that also locks an outbox row (the order of locks). */
@@ -602,6 +659,8 @@ export async function readUserPage(db: IdentityDb, request: UserPageRequest): Pr
       'u.role',
       'u.status',
       'u.deleted_at as deletedAt',
+      'u.version',
+      'u.activated_at as activatedAt',
       'link.issued_at as lastLinkIssuedAt',
       'link.expires_at as lastLinkExpiresAt',
       'link.used_at as lastLinkUsedAt',
@@ -630,4 +689,58 @@ export async function findLatestLink(db: IdentityDb, userId: string) {
     .orderBy('id', 'desc')
     .limit(1)
     .executeTakeFirst();
+}
+
+/** Stores the hash of a password reset link (issued by the worker when it sends the e-mail; `issued_by: password_reset`). @returns the id of the link */
+export async function insertResetLink(
+  db: IdentityDb,
+  link: { userId: string; tokenHash: Buffer; issuedAt: Date; expiresAt: Date },
+): Promise<string> {
+  const row = await db
+    .insertInto('identity.one_time_links')
+    .values({
+      user_id: link.userId,
+      purpose: 'password_reset',
+      token_hash: link.tokenHash,
+      issued_by: 'password_reset',
+      issued_at: link.issuedAt,
+      expires_at: link.expiresAt,
+      used_at: null,
+      superseded_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return row.id;
+}
+
+/**
+ * Supersedes the unused, not yet superseded RESET links of ONE account (a newer link replaces the older ones). Both filters — the account and
+ * the purpose — are the point: a reset never ends an activation link, and never the link of another person (EVM-025 K4; CWE-639).
+ */
+export async function supersedeOpenResetLinksOfUser(db: IdentityDb, userId: string, now: Date): Promise<string[]> {
+  const rows = await db
+    .updateTable('identity.one_time_links')
+    .set({ superseded_at: now })
+    .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .where('superseded_at', 'is', null)
+    .where('purpose', '=', 'password_reset')
+    .returning('id')
+    .execute();
+  return rows.map((row) => row.id);
+}
+
+/** Spends a link (single use). The caller holds the lock of the link row and has just seen it unused; the condition is the second guard. */
+export async function markLinkUsed(db: IdentityDb, linkId: string, now: Date): Promise<void> {
+  await db.updateTable('identity.one_time_links').set({ used_at: now }).where('id', '=', linkId).where('used_at', 'is', null).execute();
+}
+
+/** Ends every open first step of the account (a `loginToken` made before a reset must not finish a sign-in after it). */
+export async function revokeLoginAttemptsOfUser(db: IdentityDb, userId: string, now: Date): Promise<void> {
+  await db
+    .updateTable('identity.login_attempts')
+    .set({ used_at: now })
+    .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .execute();
 }

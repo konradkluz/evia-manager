@@ -7,7 +7,7 @@ E-mail transakcyjny przechodzi **jedną drogą**: transakcja zmiany zapisuje wie
 ## Jak to działa
 | Element | Gdzie | Co robi |
 |---|---|---|
-| Skrzynka nadawcza | tabela `platform.email_outbox` (migracja `0035`) | wiersz na wiadomość: rodzaj (`user_invitation`, `administrator_alert`), identyfikator odbiorcy, stan (`pending` → `sent` / `failed` / `superseded`), liczba prób, czasy; rola aplikacji bez `DELETE` |
+| Skrzynka nadawcza | tabela `platform.email_outbox` (migracja `0035`) | wiersz na wiadomość: rodzaj (`user_invitation`, `administrator_alert`, od EVM-025 `password_reset` i `password_changed` — migracja `0037`), identyfikator odbiorcy, stan (`pending` → `sent` / `failed` / `superseded`), liczba prób, czasy; rola aplikacji bez `DELETE` |
 | Przekaźnik | worker, co 5 s | bierze wiersze `pending` bez przekazania (albo przekazane ponad 20 minut temu), wysyła zadanie `email.send` z `id` = `id` wiersza, dopiero potem oznacza `enqueued_at`; `FOR UPDATE SKIP LOCKED` |
 | Zadanie `email.send` | worker, kolejka pg-boss | blokuje konto, potem wiersz; sprawdza, że wiersz jest `pending` i konto nadal czeka na aktywację; tworzy token (w bazie tylko skrót, ważność 72 h od wysłania), unieważnia poprzednie linki tego konta; **po zatwierdzeniu transakcji** wysyła wiadomość; zapisuje wynik |
 | Port i transport | `EMAIL_TRANSPORT` | `smtp` → Mailpit (dev); `none` → nic nie jest wysyłane |
@@ -15,6 +15,8 @@ E-mail transakcyjny przechodzi **jedną drogą**: transakcja zmiany zapisuje wie
 **Ponowienia (AC5):** przerwy około 30, 60, 120, 240 i 480 s (z losowym rozrzutem). Błąd przejściowy (brak połączenia, limit czasu, odpowiedź 4xx) zwiększa `attempts` i ponawia zadanie; **po 5. nieudanej próbie wiersz dostaje stan `failed`, a zadanie kończy się bez błędu**. Błąd trwały (odrzucony odbiorca, odpowiedź 5xx) daje `failed` od razu. W panelu (W-16) `failed` to „Nie wysłano” z akcją „Wyślij ponownie” — konto zostaje `invited`, nic nie jest tracone.
 
 **Duplikat wiadomości (świadomie):** gdy wiadomość wyszła, a zapis stanu `sent` się nie powiódł (awaria procesu), zadanie powtórzy wysyłkę z **nowszym** tokenem — odbiorca może dostać dwie wiadomości, ale działa tylko ten nowszy link (poprzedni jest unieważniony). To dostarczanie „co najmniej raz”.
+
+**Reset hasła (EVM-025):** rodzaj `password_reset` — zadanie tworzy token linku przy wysyłce (w bazie tylko skrót w `identity.one_time_links`, `purpose = password_reset`, ważność 30 minut od wysyłki), poprzednie otwarte linki resetu tego konta kończy w tej samej transakcji; wiersz starszy niż 30 minut (worker nie działał), konto nieaktywne, usunięte albo bez klucza dostępu jest `superseded` bez tokenu i bez wysyłki. Rodzaj `password_changed` — powiadomienie „Hasło zostało zmienione”, zapisywane w transakcji resetu (wycofanie resetu = brak wiadomości). Prośby o link są ograniczone do jednej na minutę i pięciu na godzinę na konto (liczone z tej tabeli, cichy brak wiersza). Surowy token nigdy nie trafia do wiersza, zadania ani logu.
 
 ## Stany i co z nimi zrobić
 | Stan wiersza | Znaczenie | Działanie |

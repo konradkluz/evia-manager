@@ -38,7 +38,7 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { stepUpFresh } from '../../identity/index.ts';
+import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { businessDate } from '../domain/business-date.ts';
 import { normalizeTransitionFields, type TransitionBody } from '../domain/transition-input.ts';
 import { applyTransition, findTransition, mayUse, type TransitionState } from '../domain/work-order-transitions.ts';
@@ -157,7 +157,7 @@ export class TransitionWorkOrderService {
     const transition = findTransition(state, body.to);
     if (transition === undefined) throw new ProblemException(stale ? 'version_conflict' : 'invalid_state_transition');
     if (!mayUse(transition, principal.role)) throw new ProblemException('forbidden');
-    if (transition.rule.stepUp && !stepUpFresh(principal.passkeyAuthenticatedAt, now)) throw new ProblemException('step_up_required');
+    if (transition.rule.stepUp && !stepUpFresh(lastStepUpAuthentication(principal), now)) throw new ProblemException('step_up_required');
     if (stale) throw new ProblemException('version_conflict');
 
     const fields = normalizeTransitionFields(body, transition, businessDate(now));

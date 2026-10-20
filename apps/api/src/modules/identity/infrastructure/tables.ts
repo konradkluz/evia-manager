@@ -15,6 +15,8 @@ export interface UsersTable {
   webauthn_user_handle: Buffer;
   last_login_at: Date | null;
   deactivated_at: Date | null;
+  /** The first activation (a passkey registered or a TOTP code confirmed); null = never activated (0039). Written by the code of the activation only. */
+  activated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;
@@ -47,16 +49,28 @@ export interface PasskeysTable {
 export interface OneTimeLinksTable {
   id: Generated<string>;
   user_id: string;
-  purpose: 'account_activation';
+  purpose: 'account_activation' | 'password_reset' | 'mfa_setup';
   token_hash: Buffer;
-  issued_by: 'cli' | 'invitation';
+  /** `mfa_reset`: the window to set up a second step that a reset by an Administrator opens — its hash is random, nobody holds the token (0039). */
+  issued_by: 'cli' | 'invitation' | 'password_reset' | 'mfa_reset';
   issued_at: Date;
   expires_at: Date;
   used_at: Date | null;
   superseded_at: Date | null;
 }
 
-export type RevokeReason = 'logout' | 'rotated' | 'emergency_reset' | 'link_superseded' | 'expired';
+export type RevokeReason =
+  | 'logout'
+  | 'rotated'
+  | 'emergency_reset'
+  | 'link_superseded'
+  | 'expired'
+  | 'password_reset'
+  | 'step_up_failed'
+  | 'role_changed'
+  | 'account_deactivated'
+  | 'sessions_ended'
+  | 'second_step_reset';
 
 export interface SessionsTable {
   id: Generated<string>;
@@ -70,6 +84,10 @@ export interface SessionsTable {
   last_authenticated_at: Date;
   /** The last authentication with a passkey in this session (sign-in with a key, step-up); null for every other origin of a session (0009). */
   passkey_authenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** The last authentication with a TOTP code in this session (sign-in, step-up, confirmation); null for every other origin, a recovery code included (0038). */
+  totp_authenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  /** Wrong codes of step-up in this session; the fifth ends it (0038). */
+  step_up_failed_attempts: Generated<number>;
   idle_expires_at: Date;
   absolute_expires_at: Date;
   revoked_at: Date | null;
@@ -102,6 +120,30 @@ export interface WebauthnChallengesTable {
   used_at: Date | null;
 }
 
+/** At most one TOTP factor per account; `secret_ciphertext` is the sealed envelope of `platform/crypto/field-encryption` (0038). */
+export interface TotpFactorsTable {
+  id: Generated<string>;
+  user_id: string;
+  secret_ciphertext: Buffer;
+  state: 'pending' | 'active';
+  /** bigint: the driver returns text. */
+  last_used_step: ColumnType<string | null, number | string | null | undefined, number | string | null>;
+  created_at: Date;
+  confirmed_at: Date | null;
+}
+
+/** One row per recovery code: only the Argon2id hash. A generation is the ten codes of one request (0038). */
+export interface RecoveryCodesTable {
+  id: Generated<string>;
+  user_id: string;
+  generation_id: string;
+  session_id: string;
+  code_hash: string;
+  created_at: Date;
+  used_at: Date | null;
+  superseded_at: Date | null;
+}
+
 export type IdentityTables = {
   'identity.users': UsersTable;
   'identity.password_credentials': PasswordCredentialsTable;
@@ -110,6 +152,8 @@ export type IdentityTables = {
   'identity.sessions': SessionsTable;
   'identity.webauthn_challenges': WebauthnChallengesTable;
   'identity.login_attempts': LoginAttemptsTable;
+  'identity.totp_factors': TotpFactorsTable;
+  'identity.recovery_codes': RecoveryCodesTable;
 };
 
 /** A handle (pool or transaction) narrowed to the identity tables. */

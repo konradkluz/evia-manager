@@ -24,23 +24,21 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { CHALLENGE_TTL_MS, LOGIN_MAX_FAILED_PASSKEYS } from '../domain/constants.ts';
+import { CHALLENGE_TTL_MS } from '../domain/constants.ts';
 import { hashToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
 import { PASSKEY_VERIFIER, type PasskeyVerifier } from '../infrastructure/ports.ts';
 import {
   consumeLoginAttempt,
   consumeLoginChallenges,
-  findLoginAttempt,
   findPasskeyOfUser,
-  recordFailedKey,
   recordKeyUse,
   recordLogin,
   storeLoginChallenge,
-  type LoginAttemptRecord,
 } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
+import { openLoginAttempt, recordSecondStepFailure, type OpenedAttempt } from './login-attempt.ts';
 import { LoginFailures } from './login-failures.ts';
 import { verifyAssertionOfKey } from './passkey-assertion.ts';
 import { startSession, type StartedSession } from './session-start.ts';
@@ -48,7 +46,7 @@ import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** How a transaction that created no session ended: the refusal is raised after it commits (its audit rows stay). */
 type Refusal = 'unauthenticated' | 'login_expired' | 'passkey_failed';
-type Opened = { readonly attempt: LoginAttemptRecord } | { readonly refusal: Refusal };
+type Opened = OpenedAttempt;
 
 @Injectable()
 export class LoginPasskeyService {
@@ -139,8 +137,7 @@ export class LoginPasskeyService {
       open,
     });
     if (assertion === null) {
-      await recordFailedKey(tx, attempt.id, now, LOGIN_MAX_FAILED_PASSKEYS);
-      await this.#failures.record(transaction, 'passkey_failed', attempt.userId, client.context);
+      await recordSecondStepFailure(transaction, this.#failures, attempt, 'passkey_failed', now, client.context);
       return { refusal: 'passkey_failed' };
     }
 
@@ -157,7 +154,7 @@ export class LoginPasskeyService {
       previousSessionToken,
       client,
       now,
-      passkeyAuthenticatedAt: now,
+      authenticatedWith: 'passkey',
     });
     const succeeded: IdentityEvent = {
       type: 'login.succeeded',
@@ -175,10 +172,6 @@ export class LoginPasskeyService {
    * and is audited.
    */
   async #open(transaction: Kysely<Database>, loginToken: string, now: Date, context: EventContext): Promise<Opened> {
-    const attempt = await findLoginAttempt(identityTables(transaction), hashToken(loginToken));
-    if (attempt === undefined || attempt.usedAt !== null) return { refusal: 'unauthenticated' };
-    if (attempt.expiresAt > now) return { attempt };
-    await this.#failures.record(transaction, 'login_expired', attempt.userId, context);
-    return { refusal: 'login_expired' };
+    return openLoginAttempt(transaction, this.#failures, loginToken, now, context);
   }
 }

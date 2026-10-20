@@ -8,8 +8,15 @@ import { useTranslation } from 'react-i18next';
 import { clearActivationToken, getTokenSnapshot, subscribeToken } from '../activation/activation-token.ts';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
-import { isWrongOrigin } from '../api/panel-address.ts';
-import { wrongOriginText } from './login-failure.tsx';
+import {
+  describeFailure,
+  FailureAlert,
+  lengthProblem,
+  passwordProblemOf,
+  problemText,
+  type FieldProblem,
+  type Failure,
+} from '../forms/password-link.tsx';
 import { LOGIN_PATH, MFA_SETUP_PATH } from '../paths.ts';
 import { setCsrfToken } from '../session/csrf.ts';
 import { SESSION_KEY, sessionQueryOptions, useSession } from '../session/session.ts';
@@ -18,30 +25,8 @@ import { AuthLayout } from '../shell/auth-layout.tsx';
 import { usePageTitle } from '../shell/use-page-title.ts';
 import { useOnline } from '../shell/use-online.ts';
 
-/** Password rules of P2 as the server counts them: Unicode code points after NFC (SR-AUTH-01). */
 /** First element of the key of the link check; the token itself is never part of a key. */
 const LINK_KEY = 'activation-link';
-const MIN_LENGTH = 15;
-const MAX_LENGTH = 256;
-
-type FieldProblem = 'too_short' | 'too_long' | 'too_weak';
-
-function lengthProblem(password: string): FieldProblem | null {
-  const length = Array.from(password.normalize('NFC')).length;
-  if (length < MIN_LENGTH) return 'too_short';
-  return length > MAX_LENGTH ? 'too_long' : null;
-}
-
-function problemText(t: TFunction, problem: FieldProblem): string {
-  switch (problem) {
-    case 'too_short':
-      return t('activation.tooShort');
-    case 'too_long':
-      return t('activation.tooLong');
-    case 'too_weak':
-      return t('activation.tooWeak');
-  }
-}
 
 function roleText(t: TFunction, role: UserRole): string {
   switch (role) {
@@ -51,64 +36,6 @@ function roleText(t: TFunction, role: UserRole): string {
       return t('roles.editor');
     case 'read_only':
       return t('roles.readOnly');
-  }
-}
-
-/** Failures that keep the form (the link is still fine) and what the user sees. */
-type Failure =
-  | { readonly kind: 'rate'; readonly minutes: number }
-  | { readonly kind: 'server'; readonly code: string }
-  | { readonly kind: 'network' }
-  | { readonly kind: 'origin' };
-
-function describeFailure(error: unknown): Failure {
-  if (error instanceof ApiError) {
-    if (error.status === 429) return { kind: 'rate', minutes: Math.max(1, Math.ceil((error.retryAfterSeconds ?? 60) / 60)) };
-    if (error.status === 0) return { kind: 'network' };
-    if (isWrongOrigin(error)) return { kind: 'origin' };
-    return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
-  }
-  return { kind: 'network' };
-}
-
-function FailureAlert({
-  failure,
-  action,
-  serverKey,
-}: {
-  readonly failure: Failure;
-  readonly action: () => void;
-  readonly serverKey: 'checkFailed' | 'submitFailed';
-}) {
-  const { t } = useTranslation();
-  const retry = (
-    <Button variant="tertiary" onClick={action}>
-      {t('activation.retry')}
-    </Button>
-  );
-  switch (failure.kind) {
-    case 'rate':
-      return (
-        <InlineAlert tone="error" action={retry}>
-          {t('activation.rateLimited', { minutes: failure.minutes })}
-        </InlineAlert>
-      );
-    case 'origin':
-      return <InlineAlert tone="error">{wrongOriginText(t, 'activation')}</InlineAlert>;
-    case 'network':
-      return (
-        <InlineAlert tone="error" action={retry}>
-          {t('activation.noConnection')}
-        </InlineAlert>
-      );
-    case 'server':
-      return (
-        <InlineAlert tone="error" action={retry}>
-          {serverKey === 'checkFailed'
-            ? t('activation.checkFailed', { code: failure.code })
-            : t('activation.submitFailed', { code: failure.code })}
-        </InlineAlert>
-      );
   }
 }
 
@@ -266,9 +193,9 @@ function ActivationForm({ token, email, role, otherAccount, online }: Activation
       clearActivationToken();
     },
     onError: (error) => {
-      const field = error instanceof ApiError ? error.errors.find((entry) => entry.pointer === '/password') : undefined;
-      if (field?.code === 'too_short' || field?.code === 'too_long' || field?.code === 'too_weak') {
-        setProblem(field.code);
+      const field = passwordProblemOf(error);
+      if (field !== null) {
+        setProblem(field);
         setPassword('');
         input.current?.focus();
       } else if (error instanceof ApiError && error.status === 400) {

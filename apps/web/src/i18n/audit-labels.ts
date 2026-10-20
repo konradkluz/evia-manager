@@ -22,6 +22,20 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   // EVM-024: only the labels the contract needs (the screen W-16 itself is a story of the panel)
   'user.invited': 'Zaproszenie użytkownika',
   'invitation.resent': 'Ponowne wysłanie zaproszenia',
+  // EVM-025: labels the contract needs (the reset screens W-12 are a story of the panel)
+  'password.reset_requested': 'Prośba o reset hasła',
+  'password_reset_link.issued': 'Wydanie linku do resetu hasła',
+  'password.reset': 'Reset hasła',
+  // EVM-023: labels the contract needs (the screens W-02, W-03 and W-04 of the second step are the work of the web developer)
+  'mfa.totp_enrolled': 'Dodanie kodu z aplikacji uwierzytelniającej',
+  'mfa.recovery_codes_generated': 'Wygenerowanie kodów odzyskiwania',
+  'login.recovery_code_used': 'Logowanie kodem odzyskiwania',
+  // EVM-027: labels the contract needs (the screen W-16 with its dialogs is the work of the web developer)
+  'user.role_changed': 'Zmiana roli użytkownika',
+  'user.deactivated': 'Dezaktywacja konta',
+  'user.reactivated': 'Reaktywacja konta',
+  'user.sessions_ended': 'Zakończenie sesji użytkownika',
+  'user.second_step_reset': 'Reset drugiego kroku logowania',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -78,10 +92,23 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'step_up.failed',
     ],
   },
-  { label: 'Hasło i drugi krok', actions: ['account.password_set', 'passkey.registered'] },
+  {
+    label: 'Hasło i drugi krok',
+    actions: [
+      'account.password_set',
+      'passkey.registered',
+      'mfa.totp_enrolled',
+      'mfa.recovery_codes_generated',
+      'login.recovery_code_used',
+    ],
+  },
   {
     label: 'Użytkownicy',
     actions: ['user.invited', 'invitation.resent', 'activation_link.issued', 'account.activated', 'account.emergency_reset'],
+  },
+  {
+    label: 'Reset hasła',
+    actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
@@ -156,6 +183,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
 export const SYSTEM_ACTIONS: ReadonlySet<string> = new Set<AuditAction>([
   'activation_link.issued',
+  'password_reset_link.issued',
   'session.expired',
   'account.emergency_reset',
 ]);

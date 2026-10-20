@@ -81,6 +81,121 @@ activationPassword:
         $ref: ../components/responses.yaml#/UnsupportedMediaType
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+passwordResetRequest:
+  post:
+    operationId: requestPasswordReset
+    tags: [identity]
+    summary: Prośba o link do ustawienia nowego hasła
+    description: >-
+      Publiczna operacja (tylko `web`, SR-AUTHZ-12). Zawsze `202` z pustym obiektem — jedna odpowiedź (status, treść i nagłówki)
+      dla konta aktywnego, nieistniejącego, zaproszonego, dezaktywowanego i usuniętego oraz przy cichym limicie na konto
+      (SR-AUTH-05 analogicznie; CWE-204, CWE-208). Czas odpowiedzi ma podłogę liczoną od początku żądania. E-mail z linkiem
+      (wyłącznie link, SR-INPUT-07) trafia do aktywnego konta z kluczem dostępu; adres odbiorcy pochodzi z rekordu konta, nigdy z
+      żądania. Link jest wydawany przez worker przy wysyłce (30 minut od wysyłki, tylko skrót w bazie), nowszy link unieważnia
+      starsze. Limity: 60 żądań na minutę z jednego IP (`429 rate_limited` z `Retry-After`, ta sama treść dla każdego adresu);
+      na konto — 1 wiadomość na 60 s i 5 na godzinę (nadmiarowe żądanie nie wysyła nic i dostaje to samo `202`).
+      `400 validation_failed` tylko dla składni treści.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/RequestPasswordResetRequest
+    responses:
+      '202':
+        description: Prośba przyjęta (niezależnie od tego, czy konto istnieje).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasswordResetRequested
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passwordResetCheck:
+  post:
+    operationId: checkPasswordResetLink
+    tags: [identity]
+    summary: Sprawdzenie linku resetu hasła (nie zużywa linku)
+    description: >-
+      Publiczna operacja (tylko `web`): token linku (z fragmentu adresu `#…`, usuniętego z paska przez panel) trafia wyłącznie w
+      treści `POST`. Zwraca e-mail konta do wyświetlenia w W-12. Nie zużywa linku — skaner linków w poczcie go nie „spali”.
+      Link użyty, wygasły (30 min od wysyłki), zastąpiony nowszym, nieznany, link aktywacyjny i link konta, które nie jest
+      aktywne, dają tę samą odpowiedź `400 password_reset_link_invalid`.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/CheckPasswordResetLinkRequest
+    responses:
+      '200':
+        description: Link jest ważny.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/PasswordResetLinkInfo
+            example:
+              email: jan.przykladowy@example.invalid
+      '400':
+        $ref: ../components/responses.yaml#/PasswordResetLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+passwordResetComplete:
+  post:
+    operationId: completePasswordReset
+    tags: [identity]
+    summary: Ustawienie nowego hasła z linku resetu
+    description: >-
+      Publiczna operacja (tylko `web`): ważny link + nowe hasło (te same reguły co przy aktywacji: min. 15 znaków Unicode,
+      nie z listy popularnych, bez słów kontekstowych, nie z wycieku — Pwned Passwords wyłącznie k-anonimowo; przy
+      niedostępności tej usługi kontrola lokalna). Kolejność: token → polityka → Pwned → Argon2id → transakcja. W jednej
+      transakcji: zapis hasła, zużycie linku, koniec wszystkich sesji konta (`401 session_revoked` przy następnym żądaniu),
+      unieważnienie wcześniejszych prób logowania, wiadomość „Hasło zostało zmienione” (skrzynka nadawcza) i audyt. Reset NIE
+      omija drugiego kroku: odpowiedź nie ustawia ciasteczka i nie tworzy sesji — zwraca `loginToken` pierwszego kroku (jednorazowy,
+      5 min) do ekranu W-02; sesja powstaje dopiero po `verifyLoginPasskey`. Konto bez klucza dostępu nie dostaje ani sesji, ani
+      `loginToken` (`400 password_reset_link_invalid`).
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/CompletePasswordResetRequest
+    responses:
+      '200':
+        description: Hasło zmienione; wymagany drugi krok (bez `Set-Cookie`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/LoginSecondStep
+      '400':
+        $ref: ../components/responses.yaml#/PasswordResetLinkInvalid
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 login:
   post:
     operationId: login
@@ -89,7 +204,9 @@ login:
     description: >-
       Publiczna operacja (kanał `web`). Poprawne hasło aktywnego konta z kluczem dostępu → `200 { state: second_step, loginToken,
       methods: [passkey] }` (`loginToken` jest jednorazowy, ważny 5 min, trzymany w pamięci karty); aktywne konto bez klucza dostępu →
-      `200 { state: mfa_enrollment, csrfToken }` z ciasteczkiem sesji ograniczonej (`403 mfa_enrollment_required` na resztę).
+      `200 { state: mfa_enrollment, csrfToken }` z ciasteczkiem sesji ograniczonej (`403 mfa_enrollment_required` na resztę) — tylko w oknie
+      konfiguracji otwartym resetem drugiego kroku przez Administratora (EVM-027); po końcu okna albo bez resetu poprawne hasło takiego
+      konta to `403 mfa_setup_expired` (bez sesji).
       Zły e-mail, złe hasło, konto zaproszone i dezaktywowane dają tę samą odpowiedź `401 invalid_credentials` (kod, treść,
       nagłówki) w porównywalnym czasie (równoważna weryfikacja Argon2id). Limit 20 prób na minutę z jednego adresu IP
       (wspólny z drugim krokiem) liczony przed dostępem do bazy → `429 rate_limited` z `Retry-After`. Ciasteczko poprzedniej
@@ -199,6 +316,99 @@ loginPasskey:
           application/json:
             schema:
               $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+loginTotp:
+  post:
+    operationId: loginTotp
+    tags: [identity]
+    summary: Logowanie — drugi krok (kod z aplikacji)
+    description: >-
+      Publiczna operacja (kanał `web`). Wymaga ważnego `loginToken` i aktywnego czynnika TOTP konta; Administrator w panelu nie ma
+      tej metody (`403 forbidden`; rola czytana z bazy). Kod: dokładnie 6 cyfr, tolerancja ±1 krok (30 s), każdy krok tylko raz
+      (kod już użyty — przy logowaniu, step-upie albo konfiguracji — jest odrzucany). Sukces w jednej transakcji: zużycie
+      `loginToken` i kroku kodu, nowa sesja `active` z nowym identyfikatorem (poprzednia z ciasteczka żądania unieważniona),
+      `lastLoginAt` i audyt; sesja otwiera okno step-upu (15 min). Nieudany kod → `401 totp_failed` (`loginToken` nie jest zużywany;
+      licznik wspólny z kluczem dostępu i kodem odzyskiwania — piąta nieudana próba kończy próbę logowania). Cudzy, zużyty, wygasły
+      i nieznany `loginToken` dają tę samą odpowiedź. Limit 20 prób na minutę z jednego adresu IP (wspólny kubełek z hasłem
+      i kluczem dostępu) → `429 rate_limited` z `Retry-After`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginTotpRequest
+    responses:
+      '200':
+        description: Zalogowano.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/LoginSecondStepFailed
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+loginRecoveryCode:
+  post:
+    operationId: loginRecoveryCode
+    tags: [identity]
+    summary: Logowanie — drugi krok (kod odzyskiwania)
+    description: >-
+      Publiczna operacja (kanał `web`). Kolejność kontroli: najpierw ważny, niewyczerpany `loginToken`, potem kształt kodu
+      (20 znaków base32 po pominięciu wielkości liter, spacji i myślników — inne wejście jest nieudaną próbą bez haszowania),
+      dopiero potem weryfikacja Argon2id (najwyżej 10 skrótów). Sukces w jednej transakcji: zużycie kodu (jednokrotne, warunkowy
+      `UPDATE`) i `loginToken`, nowa sesja `active` bez okna step-upu (kod odzyskiwania go nie otwiera), e-mail o użyciu kodu
+      i zdarzenie audytu `login.recovery_code_used`; odpowiedź ma `remainingCodes` liczone po zużyciu. Kod odrzucony →
+      `401 recovery_code_failed` (licznik wspólny z innymi metodami drugiego kroku — piąta nieudana próba kończy próbę logowania).
+      Limit i brak buforowania jak przy kodzie z aplikacji.
+    x-evia-authz:
+      public: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/LoginRecoveryCodeRequest
+    responses:
+      '200':
+        description: Zalogowano kodem odzyskiwania.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…; Path=/; Secure; HttpOnly; SameSite=Strict` (nowy identyfikator sesji).'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/RecoveryCodeSessionStarted
       '400':
         $ref: ../components/responses.yaml#/ValidationFailed
       '401':
@@ -374,13 +584,13 @@ stepUpOptions:
     tags: [identity]
     summary: Opcje ponownego uwierzytelnienia kluczem dostępu (step-up)
     description: >-
-      Tylko Administrator, kanał `web`, sesja `active`; bez treści żądania. Zwraca opcje WebAuthn (`userVerification: required`,
+      Każda rola, kanał `web`, sesja `active` (konto musi mieć klucz dostępu — inaczej `403 forbidden`); bez treści żądania. Zwraca opcje WebAuthn (`userVerification: required`,
       `allowCredentials` tylko z kluczami zalogowanego użytkownika) i zapisuje jednorazowe wyzwanie (≥ 128 bitów, TTL 5 min)
       o celu `passkey_step_up` powiązane z bieżącą sesją; wcześniejsze otwarte wyzwania tej sesji z tym celem tracą ważność.
       Wyzwanie rejestracji klucza i wyzwanie step-upu nie są wymienne. Wymaga `X-CSRF-Token`. Limit 20 żądań na minutę z jednego
       adresu IP (wspólny z logowaniem). Nie wymaga świeżego uwierzytelnienia (to jest ta ścieżka).
     x-evia-authz:
-      roles: [administrator]
+      roles: [administrator, editor, read_only]
       channels: [web]
     responses:
       '200':
@@ -401,10 +611,14 @@ stepUp:
   post:
     operationId: stepUp
     tags: [identity]
-    summary: Ponowne uwierzytelnienie kluczem dostępu (step-up)
+    summary: Ponowne uwierzytelnienie kluczem dostępu albo kodem z aplikacji (step-up)
     description: >-
-      Tylko Administrator, kanał `web`, sesja `active`. Jedyną metodą jest klucz dostępu — kod odzyskiwania nie jest obsługiwany
-      (treść jest ścisła: tylko `credential`, każde inne pole daje `400 validation_failed`). Weryfikuje odpowiedź WebAuthn: klucz
+      Każda rola, kanał `web`, sesja `active`. Metody: klucz dostępu (`{ credential }`) albo kod z aplikacji (`{ method: totp, code }`
+      — Edytor i Tylko odczyt z aktywnym TOTP; Administrator w panelu → `403 forbidden`, rola czytana z bazy). Kod odzyskiwania nie
+      jest obsługiwany (treść jest ścisła: każde inne pole daje `400 validation_failed`). Kod z aplikacji: 6 cyfr, ±1 krok, każdy
+      krok tylko raz (wspólnie z logowaniem); nieudany → `401 totp_failed` (sesja bez zmian, zdarzenie `step_up.failed`), piąty zły
+      kod w sesji unieważnia ją (`401 session_revoked`, `revoke_reason step_up_failed`); sukces — te same skutki co klucz dostępu,
+      z czasem uwierzytelnienia kodem = teraz (kod z aplikacji nie przedłuża limitu 12 h). Klucz: weryfikuje odpowiedź WebAuthn: klucz
       musi należeć do użytkownika sesji, origin i RP ID z konfiguracji, `userVerification: required`, licznik podpisów,
       wyzwanie jednorazowe o celu `passkey_step_up` powiązane z bieżącą sesją (zużywane przy każdej weryfikacji, także nieudanej).
       Sukces w jednej transakcji: poprzednia sesja unieważniona (`rotated`, warunkowy `UPDATE`), nowa sesja z nowym tokenem i nowym
@@ -413,7 +627,7 @@ stepUp:
       bez nowej sesji. Nieudany klucz → `401 passkey_failed` (sesja bez zmian, bez rotacji, zdarzenie `step_up.failed`). Wymaga
       `X-CSRF-Token`. Limit 20 żądań na minutę z jednego adresu IP.
     x-evia-authz:
-      roles: [administrator]
+      roles: [administrator, editor, read_only]
       channels: [web]
       audit: true
     requestBody:
@@ -445,6 +659,130 @@ stepUp:
         $ref: ../components/responses.yaml#/PayloadTooLarge
       '415':
         $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+totpEnrolment:
+  post:
+    operationId: startTotpEnrolment
+    tags: [identity]
+    summary: Konfiguracja kodu z aplikacji — nowy sekret
+    description: >-
+      Tylko sesja `mfa_enrollment` powiązana z jednorazowym linkiem aktywacyjnym (nie z samego logowania hasłem — `403 forbidden`),
+      kanał `web`; Administrator w panelu — `403 forbidden` (TOTP Administratora tylko w aplikacji mobilnej). Konto z aktywnym
+      drugim krokiem (klucz dostępu albo kod z aplikacji) → `409 mfa_already_configured`, bez ujawniania sekretu. Zwraca nowy
+      sekret (160 bitów z CSPRNG; w bazie wyłącznie zaszyfrowany kopertowo, powiązany z kontem) i adres `otpauth://`; ponowne
+      wywołanie przed potwierdzeniem zastępuje sekret oczekujący. Czynnik jest nieaktywny do potwierdzenia poprawnym kodem.
+      Brak kluczy szyfrowania w konfiguracji → `503 service_unavailable`. Odpowiedź nie jest buforowana (`Cache-Control: no-store`).
+      Wymaga `X-CSRF-Token`; limit 20 żądań na minutę z jednego adresu IP (wspólny kubełek z logowaniem).
+    x-evia-authz:
+      roles: [editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+    responses:
+      '200':
+        description: Sekret i adres do kodu QR.
+        headers:
+          Cache-Control:
+            description: '`no-store`.'
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/TotpSetup
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '409':
+        $ref: ../components/responses.yaml#/MfaAlreadyConfigured
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/SecondStepUnavailable
+totpConfirm:
+  post:
+    operationId: confirmTotp
+    tags: [identity]
+    summary: Potwierdzenie kodu z aplikacji — aktywacja metody
+    description: >-
+      Jak `startTotpEnrolment` (sesja `mfa_enrollment` z linkiem, bez Administratora w panelu). Poprawny kod z oczekującego sekretu
+      (6 cyfr, ±1 krok) w jednej transakcji: aktywuje czynnik (krok kodu zapisany — ten kod nie zaloguje), zużywa link aktywacyjny,
+      aktywuje konto, unieważnia sesję konfiguracji i tworzy sesję `active` z nowym identyfikatorem i oknem step-upu (nowe
+      ciasteczko), wysyła e-mail o zmianie drugiego kroku i zapisuje zdarzenie `mfa.totp_enrolled`. Dwa równoległe potwierdzenia dają
+      jedną aktywację. Zły kod → `400 totp_verification_failed` (metoda pozostaje nieaktywna); link wygasły lub zastąpiony →
+      `401 session_revoked`. Wymaga `X-CSRF-Token`; limit 20/min/IP; `Cache-Control: no-store`.
+    x-evia-authz:
+      roles: [editor, read_only]
+      channels: [web]
+      allowDuringMfaEnrollment: true
+      audit: true
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/ConfirmTotpRequest
+    responses:
+      '200':
+        description: Metoda aktywna, konto aktywne, nowa sesja.
+        headers:
+          Set-Cookie:
+            description: '`__Host-evia_session=…` — nowy identyfikator sesji `active`.'
+            schema:
+              type: string
+              maxLength: 512
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/SessionStarted
+      '400':
+        $ref: ../components/responses.yaml#/TotpVerificationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+recoveryCodes:
+  post:
+    operationId: generateRecoveryCodes
+    tags: [identity]
+    summary: Kody odzyskiwania — wygenerowanie (krok 3 konfiguracji)
+    description: >-
+      Sesja `active` ze świeżym ponownym uwierzytelnieniem (`stepUp`), kanał `web`, każda rola. Bez treści żądania. Zwraca 10 kodów po
+      20 znaków base32 z CSPRNG — pokazanych tylko raz (brak operacji odczytu, `Cache-Control: no-store`); w bazie tylko skróty
+      Argon2id. Dozwolone w dwóch przypadkach: konto nie ma jeszcze żadnych kodów, albo bieżące kody wygenerowała ta sama sesja
+      (odświeżenie kroku 3 — poprzednie kody są unieważniane w tej samej transakcji). W każdym innym przypadku
+      `403 recovery_codes_regeneration_unavailable` (zmiana z konta — EVM-028); sesja z kodu odzyskiwania nigdy nie generuje kodów.
+      Zapisuje zdarzenie `mfa.recovery_codes_generated` i wysyła e-mail o zmianie drugiego kroku (bez kodów).
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+      stepUp: true
+      audit: true
+    responses:
+      '200':
+        description: Nowe kody (jedyne pokazanie).
+        headers:
+          Cache-Control:
+            description: '`no-store`.'
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/RecoveryCodes
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/RecoveryCodesForbidden
       '429':
         $ref: ../components/responses.yaml#/RateLimited
 assignableUsers:
@@ -642,5 +980,283 @@ userInvitations:
         $ref: ../components/responses.yaml#/NotFound
       '409':
         $ref: ../components/responses.yaml#/UserStateConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+UserIfMatchHeader:
+  name: If-Match
+  in: header
+  required: true
+  description: Silny ETag wersji konta, na której Administrator podjął decyzję (`"<version>"`, z `ETag` albo pola `version`).
+  schema:
+    type: string
+    pattern: '^"[1-9][0-9]{0,9}"$'
+    maxLength: 12
+userRole:
+  put:
+    operationId: changeUserRole
+    tags: [identity]
+    summary: Zmiana roli użytkownika (W-16)
+    description: >-
+      Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
+      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      Wymaga `X-CSRF-Token`.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Skutki: od następnego żądania obowiązuje nowa rola (rola jest czytana z bazy przy każdym żądaniu), a wszystkie sesje web konta
+      kończą się (`401 session_revoked`) razem z wiszącymi `loginToken` i wyzwaniami WebAuthn; sesja wywołującego pozostaje.
+      Odrzucenia `409`: `last_active_administrator` (jedyny aktywny Administrator — przed `own_account_not_allowed`),
+      `own_account_not_allowed` (własne konto), `administrator_passkey_required` (konto bez klucza dostępu nie zostaje Administratorem —
+      stan niezmieniony, bez alertu), `invalid_state_transition` (ta sama rola albo konto dezaktywowane). Alert bezpieczeństwa do
+      wszystkich aktywnych Administratorów, gdy ktoś zostaje albo przestaje być Administratorem (nie przy zmianie Edytor ↔ Tylko
+      odczyt). Zdarzenie audytu `user.role_changed` z kodami ról przed i po (`fromCode`, `toCode`).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/UserIdParameter'
+      - $ref: '#/UserIfMatchHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/ChangeUserRoleRequest
+    responses:
+      '200':
+        description: Rola zmieniona; konto po zmianie.
+        headers:
+          ETag:
+            description: Nowa wersja konta (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/User
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/UserAccessConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+userDeactivation:
+  post:
+    operationId: deactivateUser
+    tags: [identity]
+    summary: Dezaktywacja konta (W-16)
+    description: >-
+      Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
+      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      Wymaga `X-CSRF-Token`.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Konto `active` albo `invited` przechodzi w `deactivated`; wszystkie jego sesje web kończą się (`401 session_revoked`), wiszące
+      `loginToken`, wyzwania WebAuthn, oczekujące konfiguracje kodu z aplikacji, linki resetu hasła, zaproszenia i okno konfiguracji
+      drugiego kroku są unieważnione. Logowanie daje tę samą odpowiedź co złe hasło. Metody drugiego kroku zostają (reaktywacja je
+      przywraca). Odrzucenia `409`: `last_active_administrator`, `own_account_not_allowed`, `invalid_state_transition` (konto już
+      dezaktywowane). Alert bezpieczeństwa, gdy dezaktywowane jest konto aktywnego Administratora. Audyt `user.deactivated`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/UserIdParameter'
+      - $ref: '#/UserIfMatchHeader'
+    responses:
+      '200':
+        description: Konto dezaktywowane.
+        headers:
+          ETag:
+            description: Nowa wersja konta (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/User
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/UserAccessConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+userReactivation:
+  post:
+    operationId: reactivateUser
+    tags: [identity]
+    summary: Reaktywacja konta (W-16)
+    description: >-
+      Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
+      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      Wymaga `X-CSRF-Token`.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Konto `deactivated` wraca do `active` z dotychczasowymi metodami drugiego kroku (hasło i klucze zostają), jeśli było kiedyś
+      aktywowane (`activatedAt`); konto nigdy nieaktywowane wraca do `invited` (poprzedni link zaproszenia pozostaje unieważniony —
+      „Wyślij ponownie”). Odrzucenie `409 invalid_state_transition` — konto nie jest dezaktywowane (także własne, które jest aktywne).
+      Alert bezpieczeństwa, gdy reaktywowane jest konto z rolą Administrator. Audyt `user.reactivated`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/UserIdParameter'
+      - $ref: '#/UserIfMatchHeader'
+    responses:
+      '200':
+        description: Konto reaktywowane.
+        headers:
+          ETag:
+            description: Nowa wersja konta (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/User
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/UserAccessConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+userSessions:
+  delete:
+    operationId: endUserSessions
+    tags: [identity]
+    summary: Zakończenie wszystkich sesji użytkownika (W-16)
+    description: >-
+      Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
+      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      Wymaga `X-CSRF-Token`.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Każda sesja web konta (w każdym stanie) kończy się — następne żądanie to `401 session_revoked` — razem z wiszącymi `loginToken`
+      i wyzwaniami WebAuthn. Konto, hasło i metody drugiego kroku zostają. Operacja jest idempotentna (`204` także bez otwartych
+      sesji) i nie zmienia wersji konta, więc nie wymaga `If-Match`. Własne konto — `409 own_account_not_allowed` (własne sesje:
+      „Moje sesje”). Audyt `user.sessions_ended`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/UserIdParameter'
+    responses:
+      '204':
+        description: Sesje zakończone.
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/UserAccessConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+userSecondStepReset:
+  post:
+    operationId: resetUserSecondStep
+    tags: [identity]
+    summary: Reset drugiego kroku logowania użytkownika (W-16)
+    description: >-
+      Rola Administrator po step-upie, kanał `web`, z audytem. Edytor i Tylko odczyt — `403 forbidden`; niezalogowany — `401`; token
+      mobilny — `403 forbidden`; Administrator bez uwierzytelnienia kluczem dostępu w ostatnich 15 minutach — `403 step_up_required`.
+      Wymaga `X-CSRF-Token`.
+      Kolejność: guard (rola, CSRF, kanał, step-up), `userId` (`400`), jedna transakcja: blokada administratorów (jedna dla wszystkich operacji na kontach), ponowne sprawdzenie wywołującego pod blokadą (konto nieaktywne — `401 session_revoked`), blokada konta docelowego (nieistniejące albo usunięte — `404 not_found`), potem `If-Match` i treść (`428`/`400`), wersja (`412 version_conflict`), reguły (`409`), zmiana, unieważnienie sesji, e-maile, alerty i audyt.
+      Tylko konto `active`. Klucze dostępu i sekrety kodu z aplikacji są usuwane (materiał szyfrowany znika), kody odzyskiwania
+      przestają działać, wszystkie sesje web konta, wiszące `loginToken`, wyzwania i linki resetu hasła są unieważnione. Otwiera się okno
+      konfiguracji drugiego kroku (24 godziny, bez tokenu): logowanie hasłem daje wtedy sesję `mfa_enrollment` (`403
+      mfa_enrollment_required` na resztę, ekran W-03); w oknie konta Administratora wolno zarejestrować wyłącznie klucz dostępu. Po
+      końcu okna logowanie poprawnym hasłem to `403 mfa_setup_expired`. Reset hasła nie otwiera drogi omijającej okno — konto bez
+      metod nie dostaje linku. Ponowny reset zastępuje okno. Właściciel dostaje e-mail ze stałego szablonu (bez linku logowania).
+      `identityVerification` (`in_person`, `video_call`) trafia do audytu jako kod powodu. Reset własnego drugiego kroku —
+      `409 own_account_not_allowed`; konto nieaktywne — `409 invalid_state_transition`. Alert bezpieczeństwa, gdy reset dotyczy konta
+      Administratora. Audyt `user.second_step_reset`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/UserIdParameter'
+      - $ref: '#/UserIfMatchHeader'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/ResetUserSecondStepRequest
+    responses:
+      '200':
+        description: Drugi krok zresetowany; konto po zmianie.
+        headers:
+          ETag:
+            description: Nowa wersja konta (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/User
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/UserAccessConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited

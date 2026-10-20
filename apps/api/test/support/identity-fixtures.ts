@@ -83,6 +83,31 @@ export async function createLink(
   return { id: row.id, token };
 }
 
+/** The window to set up a second step that a reset by an Administrator opens (EVM-027 D1): an unused link of the purpose `mfa_setup`, valid for `ttlMs` (default 24 hours). */
+export async function createSetupWindow(
+  db: Kysely<Database>,
+  clock: Clock,
+  userId: string,
+  options: { ttlMs?: number } = {},
+): Promise<{ readonly id: string }> {
+  const issuedAt = clock.now();
+  const row = await identityTables(db)
+    .insertInto('identity.one_time_links')
+    .values({
+      user_id: userId,
+      purpose: 'mfa_setup',
+      token_hash: hashToken(newToken()),
+      issued_by: 'mfa_reset',
+      issued_at: issuedAt,
+      expires_at: new Date(issuedAt.getTime() + (options.ttlMs ?? 24 * 3_600_000)),
+      used_at: null,
+      superseded_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  return { id: row.id };
+}
+
 export interface SessionFixture {
   readonly id: string;
   readonly token: string;
@@ -101,6 +126,8 @@ export async function createSession(
     linkId?: string;
     /** The last authentication with a passkey of this session (default: none — a session of a password, activation or recovery code). */
     passkeyAuthenticatedAt?: Date | null;
+    /** The last authentication with a TOTP code of this session (default: none). */
+    totpAuthenticatedAt?: Date | null;
   } = {},
 ): Promise<SessionFixture> {
   const token = newToken();
@@ -117,6 +144,7 @@ export async function createSession(
       last_seen_at: now,
       last_authenticated_at: now,
       passkey_authenticated_at: options.passkeyAuthenticatedAt ?? null,
+      totp_authenticated_at: options.totpAuthenticatedAt ?? null,
       idle_expires_at: new Date(now.getTime() + 3_600_000),
       absolute_expires_at: new Date(now.getTime() + 12 * 3_600_000),
       revoked_at: null,

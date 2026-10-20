@@ -57,7 +57,7 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { stepUpFresh } from '../../identity/index.ts';
+import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
   changedDetails,
@@ -185,7 +185,7 @@ export class UpdateMilestoneService {
   ): Promise<void> {
     const { locked } = target;
     const now = this.#clock.now();
-    const correction = correctionAccess(principal.role, stepUpFresh(principal.passkeyAuthenticatedAt, now));
+    const correction = correctionAccess(principal.role, stepUpFresh(lastStepUpAuthentication(principal), now));
     const decision = statusDecision(locked.status, patch, correction);
     if (decision !== 'ok') throw new ProblemException(decision);
     if (locked.version !== expectedVersion) throw new ProblemException('version_conflict');

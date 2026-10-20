@@ -10,6 +10,7 @@ export function principal(overrides: Partial<Principal> = {}): Principal {
     state: 'active',
     csrfToken: 'synthetic-csrf-token',
     passkeyAuthenticatedAt: null,
+    totpAuthenticatedAt: null,
     lastSeenAt: new Date('2026-10-05T06:00:00Z'),
     idleExpiresAt: new Date('2026-10-05T07:00:00Z'),
     absoluteExpiresAt: new Date('2026-10-05T18:00:00Z'),

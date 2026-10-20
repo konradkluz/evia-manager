@@ -29,6 +29,8 @@ describe('returnTo after logging in (EVM-067 AC1; SR-WEB-06, CWE-601)', () => {
     ['login page (loop)', '/login'],
     ['second step page (loop)', '/login/second-step'],
     ['activation page', '/activate'],
+    ['reset link page (EVM-025)', '/reset-password'],
+    ['reset request page (EVM-025)', '/login/reset'],
     ['empty', ''],
     ['not a text', 42],
     ['nothing', undefined],

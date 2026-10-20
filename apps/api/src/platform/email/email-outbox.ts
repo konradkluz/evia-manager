@@ -11,7 +11,14 @@
 import type { Generated, Kysely } from 'kysely';
 import type { Database } from '../database/database.ts';
 
-export const EMAIL_KINDS = ['user_invitation', 'administrator_alert'] as const;
+export const EMAIL_KINDS = [
+  'user_invitation',
+  'administrator_alert',
+  'password_reset',
+  'password_changed',
+  'mfa_changed',
+  'recovery_code_used',
+] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 
 export const EMAIL_STATES = ['pending', 'sent', 'failed', 'superseded'] as const;
@@ -85,6 +92,21 @@ export async function supersedePendingEmails(tx: Kysely<Database>, recipientUser
     .returning('id')
     .execute();
   return rows.map((row) => row.id);
+}
+
+/**
+ * How many messages of the kind were asked for the recipient since the given instant — every state counts (a superseded or failed one was still a request).
+ * It serves a limit per mailbox (EVM-025: a flood of reset links); the answer holds no address.
+ */
+export async function countRecentEmails(tx: Kysely<Database>, recipientUserId: string, kind: EmailKind, since: Date): Promise<number> {
+  const row = await outbox(tx)
+    .selectFrom('platform.email_outbox')
+    .select((eb) => eb.fn.countAll<string>().as('total'))
+    .where('recipient_user_id', '=', recipientUserId)
+    .where('kind', '=', kind)
+    .where('created_at', '>=', since)
+    .executeTakeFirstOrThrow();
+  return Number(row.total);
 }
 
 export interface EmailStatus {

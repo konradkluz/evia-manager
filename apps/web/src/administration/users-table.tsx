@@ -1,6 +1,7 @@
 import type { User } from '@evia/contracts';
 import {
   ActionMenu,
+  type ActionMenuItem,
   Ban,
   Button,
   CircleAlert,
@@ -20,6 +21,7 @@ import {
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { formatClock, formatDate } from '../work-orders/format.ts';
+import { operationsOf, type AccountOperation } from './account-operations.ts';
 import { roleLabel, statusLabel } from './labels.ts';
 
 /** Icon and colour role of the status of an account (flows/12 → "Status konta, stan zaproszenia…"): never the colour alone. */
@@ -88,6 +90,8 @@ export interface UsersTableProps {
   readonly now: number;
   /** "Wyślij ponownie" and the item of the menu of a row. */
   readonly onResend: (user: User) => void;
+  /** The other items of the menu of a row: role, sessions, reset, deactivation, reactivation (EVM-027). */
+  readonly onOperation: (operation: AccountOperation, user: User) => void;
   /** A ref for the name of a row, so that "Pokaż konto" can bring the focus to it. */
   readonly nameRef: (id: string, element: HTMLElement | null) => void;
 }
@@ -95,9 +99,10 @@ export interface UsersTableProps {
 /**
  * The table of W-16 (EVM-024 AC5, AC7; flows/12 → W-16): name (with the e-mail under it on narrow screens), role, status as icon +
  * word, the state of the invitation and the menu of the row. The Administrator never sees a link or a token — only the state.
- * Only an account that waits for activation has an operation today (resend); the rest comes with EVM-027, so other rows have no `⋮`.
+ * The menu of a row (flows/12 → "Menu wiersza"): resend for an account that waits, then the operations of its status
+ * (EVM-027); the destructive ones (reset, deactivation) stand last in their own group. The own row has no menu.
  */
-export function UsersTable({ users, selfId, online, now, onResend, nameRef }: UsersTableProps) {
+export function UsersTable({ users, selfId, online, now, onResend, onOperation, nameRef }: UsersTableProps) {
   const { t } = useTranslation();
   const columns: DataTableColumn[] = [
     { id: 'name', header: t('users.table.name'), card: 'primary', sort: 'ascending' },
@@ -117,7 +122,7 @@ export function UsersTable({ users, selfId, online, now, onResend, nameRef }: Us
     const InvitationIcon = invitation?.icon;
     const resendLabel = t('users.invitation.resendLabel', { name: user.displayName, email: user.email });
     const hint = online ? undefined : t('users.offlineHint');
-    const waiting = user.status === 'invited';
+    const items = self ? [] : menuItems(t, user, onResend, onOperation);
     return {
       id: user.id,
       label: self
@@ -167,21 +172,13 @@ export function UsersTable({ users, selfId, online, now, onResend, nameRef }: Us
             ) : null}
           </span>
         ),
-        // The own account has no operation; an account that is not waiting has none yet (EVM-027).
-        !self && waiting ? (
+        // The own account has no operation (its role and sessions are in "Konto").
+        items.length > 0 ? (
           <ActionMenu
             key="actions"
             align="end"
             label={t('users.menu.label', { name: user.displayName, email: user.email })}
-            items={[
-              {
-                id: 'resend',
-                label: t('users.menu.resend'),
-                onSelect: () => {
-                  onResend(user);
-                },
-              },
-            ]}
+            items={items}
             trigger={(props) => (
               <IconButton
                 {...props}
@@ -196,4 +193,53 @@ export function UsersTable({ users, selfId, online, now, onResend, nameRef }: Us
     };
   });
   return <DataTable caption={t('users.table.caption')} columns={columns} rows={rows} />;
+}
+
+function operationLabel(t: TFunction, operation: AccountOperation): string {
+  switch (operation) {
+    case 'role':
+      return t('users.menu.role');
+    case 'sessions':
+      return t('users.menu.sessions');
+    case 'reset':
+      return t('users.menu.reset');
+    case 'deactivate':
+      return t('users.menu.deactivate');
+    case 'reactivate':
+      return t('users.menu.reactivate');
+  }
+}
+/** The destructive items go last, after a separator (§ 3.20). */
+const DANGEROUS: readonly AccountOperation[] = ['reset', 'deactivate'];
+
+function menuItems(
+  t: TFunction,
+  user: User,
+  onResend: (user: User) => void,
+  onOperation: (operation: AccountOperation, user: User) => void,
+): ActionMenuItem[] {
+  const items: ActionMenuItem[] = [];
+  if (user.status === 'invited') {
+    items.push({
+      id: 'resend',
+      label: t('users.menu.resend'),
+      onSelect: () => {
+        onResend(user);
+      },
+    });
+  }
+  let firstDangerous = true;
+  for (const operation of operationsOf(user)) {
+    const dangerous = DANGEROUS.includes(operation);
+    items.push({
+      id: operation,
+      label: operationLabel(t, operation),
+      onSelect: () => {
+        onOperation(operation, user);
+      },
+      ...(dangerous ? { tone: 'danger' as const, startsGroup: firstDangerous } : {}),
+    });
+    if (dangerous) firstDangerous = false;
+  }
+  return items;
 }

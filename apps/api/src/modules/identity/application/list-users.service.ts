@@ -21,6 +21,7 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput } from '../../../platform/http/validation.ts';
 import { CLOCK, CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
 import { parseUserPosition, resolveUserListQuery } from '../domain/user-list-query.ts';
+import { listSecondStepKinds } from '../infrastructure/access-queries.ts';
 import { findDisplayName, readUserPage } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import { toUser } from './user-representation.ts';
@@ -54,6 +55,10 @@ export class ListUsersService {
       shown.map((row) => row.id),
       'user_invitation',
     );
+    const kinds = await listSecondStepKinds(
+      db,
+      shown.map((row) => row.id),
+    );
     const now = this.#clock.now();
     const list = zUserList.safeParse({
       items: shown.map((row) =>
@@ -69,6 +74,7 @@ export class ListUsersService {
               },
           statuses.get(row.id),
           now,
+          kinds.get(row.id) ?? [],
         ),
       ),
       nextCursor:

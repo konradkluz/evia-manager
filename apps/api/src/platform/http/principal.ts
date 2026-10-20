@@ -23,6 +23,8 @@ export interface Principal {
   readonly csrfToken: string;
   /** The last authentication with a passkey in this session; null when there was none (SR-SESS-08: a step-up is then required). */
   readonly passkeyAuthenticatedAt: Date | null;
+  /** The last authentication with a TOTP code in this session (EVM-023); null when there was none. The window of step-up is the later of the two. */
+  readonly totpAuthenticatedAt: Date | null;
   /** Session clock (EVM-067): the last recorded activity and the two deadlines — the guard and `getCurrentSession` read them. */
   readonly lastSeenAt: Date;
   readonly idleExpiresAt: Date;

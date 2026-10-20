@@ -17,11 +17,13 @@ import { IDEMPOTENCY, PgIdempotency } from './idempotency/idempotency.ts';
 import { IDEMPOTENCY_PURGER, PgIdempotencyPurger } from './idempotency/idempotency-purger.ts';
 import { PurgeIdempotencyJob } from './idempotency/purge-idempotency.job.ts';
 import { InMemoryRateLimiter, RATE_LIMITER } from './http/rate-limiter.ts';
+import { TimerSleeper } from './http/response-floor.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
 import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
+import { fieldEncryptionFor } from './crypto/field-encryption.ts';
 import { CursorCodec } from './crypto/opaque-cursor.ts';
 import {
   APP_CONFIG,
@@ -30,11 +32,13 @@ import {
   DISTINCT_READ_METER,
   CLOCK,
   CURSOR_CODEC,
+  FIELD_ENCRYPTION,
   DATABASE,
   EVENT_BUS,
   LOGGER,
   METRICS,
   SECURITY_ALERT_EMITTER,
+  SLEEPER,
 } from './tokens.ts';
 import { runInTransaction } from './database/transactional.ts';
 
@@ -56,6 +60,7 @@ export class PlatformModule {
         { provide: LOGGER, useValue: logger },
         { provide: APP_FILTER, useClass: ProblemFilter },
         { provide: CLOCK, useClass: SystemClock },
+        { provide: SLEEPER, useClass: TimerSleeper },
         { provide: EVENT_BUS, useValue: new EventBus() },
         { provide: METRICS, useValue: new MetricsRegistry() },
         {
@@ -68,6 +73,7 @@ export class PlatformModule {
           inject: [CLOCK],
           useFactory: (clock: Clock) => new CursorCodec(config.cursorKey, clock),
         },
+        { provide: FIELD_ENCRYPTION, useFactory: () => fieldEncryptionFor(config.fieldEncryptionKeys) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
@@ -103,6 +109,7 @@ export class PlatformModule {
         APP_CONFIG,
         LOGGER,
         CLOCK,
+        SLEEPER,
         EVENT_BUS,
         METRICS,
         RATE_LIMITER,
@@ -110,6 +117,7 @@ export class PlatformModule {
         PurgeIdempotencyJob,
         SECURITY_ALERT_EMITTER,
         CURSOR_CODEC,
+        FIELD_ENCRYPTION,
         BULK_READ_CONTROL,
       ],
     };

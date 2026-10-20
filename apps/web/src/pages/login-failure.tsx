@@ -6,10 +6,13 @@ import { ApiError } from '../api/client.ts';
 import { isWrongOrigin, supportedPanelAddress } from '../api/panel-address.ts';
 
 /** Message for a request rejected because the panel was opened under an unsupported address (EVM-077 AC6). */
-export function wrongOriginText(t: TFunction, scope: 'login' | 'activation'): string {
+export function wrongOriginText(t: TFunction, scope: 'login' | 'activation' | 'resetRequest'): string {
   const address = supportedPanelAddress();
   if (scope === 'login') {
     return address === undefined ? t('login.wrongOriginNoAddress') : t('login.wrongOrigin', { address });
+  }
+  if (scope === 'resetRequest') {
+    return address === undefined ? t('resetRequest.wrongOriginNoAddress') : t('resetRequest.wrongOrigin', { address });
   }
   return address === undefined ? t('activation.wrongOriginNoAddress') : t('activation.wrongOrigin', { address });
 }
@@ -17,6 +20,7 @@ export function wrongOriginText(t: TFunction, scope: 'login' | 'activation'): st
 /** What the user sees after a failed login step; the first two are the same for every account (SR-AUTH-05, CWE-204). */
 export type LoginFailure =
   | { readonly kind: 'invalid' }
+  | { readonly kind: 'setupExpired' }
   | { readonly kind: 'rate'; readonly minutes: number }
   | { readonly kind: 'network' }
   | { readonly kind: 'origin' }
@@ -31,6 +35,7 @@ export function describeLoginFailure(error: unknown): LoginFailure {
   if (!(error instanceof ApiError)) return { kind: 'network' };
   if (error.status === 429) return { kind: 'rate', minutes: retryMinutes(error) };
   if (error.status === 0) return { kind: 'network' };
+  if (error.status === 403 && error.code === 'mfa_setup_expired') return { kind: 'setupExpired' };
   if (error.status === 400 || error.status === 401) return { kind: 'invalid' };
   if (isWrongOrigin(error)) return { kind: 'origin' };
   return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
@@ -43,6 +48,8 @@ export function LoginFailureAlert({ failure, alertRef }: { readonly failure: Log
     switch (failure.kind) {
       case 'invalid':
         return t('login.invalid');
+      case 'setupExpired':
+        return t('login.setupExpired');
       case 'rate':
         return t('login.rateLimited', { minutes: failure.minutes });
       case 'network':

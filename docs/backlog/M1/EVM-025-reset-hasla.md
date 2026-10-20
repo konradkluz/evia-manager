@@ -4,7 +4,7 @@ title: Reset zapomnianego hasła
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -81,19 +81,22 @@ Jako **pracownik, który zapomniał hasła** chcę **ustawić nowe hasło z link
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Backend (moduły `identity`, `audit`, `platform`): trzy operacje publiczne `/api/v1/auth/password-reset/{request,check,complete}` (`PasswordResetService`), wiadomości przez skrzynkę z EVM-024 (komposer `PasswordEmailComposer` w workerze, token tworzony przy wysyłce, w bazie tylko skrót), wspólny `PasswordSetting` z aktywacją, `openSecondStep` wspólny z logowaniem, migracja `0037`. Panel (W-01, W-12, W-02) — krok web-developera po kontrakcie. Szczegóły: plan roboczy wykonawcy (`.scratch/EVM-025/plan.md`).
 
 ## Decyzje
-_—_
+- Decyzja orkiestratora — do potwierdzenia na demo (AC4): po ustawieniu hasła API zwraca `loginToken` pierwszego kroku (jednorazowy, 5 min) i `methods` z faktycznie zarejestrowanych czynników — bez sesji i ciasteczka; sesja powstaje dopiero po `verifyLoginPasskey` w W-02. Konto bez klucza dostępu nie dostaje ani linku, ani `loginToken`, ani sesji `mfa_enrollment` (kontrola security K1).
+- Decyzja orkiestratora — do potwierdzenia na demo (AC1, AC6): oprócz limitu 60/min/IP z AC6 prośby o link są ograniczone do 1 wiadomości na 60 s i 5 na godzinę na konto (cichy brak wysyłki, to samo `202`) jako ochrona skrzynki przed zalewem; podłoga czasu odpowiedzi 250 ms to ograniczenie kanału bocznego, nie gwarancja.
+- Decyzja orkiestratora — do potwierdzenia na demo (AC2): ważność 30 minut liczona od wysyłki wiadomości (token tworzy worker); wiadomość czekająca w skrzynce dłużej niż 30 minut jest pomijana. Ścieżki panelu w e-mailach: `/reset-password#token` (W-12) i `/login/reset` (formularz W-01).
+- Migracja `0037_password_reset` (expand): numeracja 0034 pozostaje nieużyta. Akcja audytu `password.reset` ma aktora `user` (posiadacz linku); kody powodu: dodany `password_reset`.
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-025 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-025 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -101,3 +104,7 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): token resetu tylko we fragmencie URL, otwarcie nie zużywa linku (AC2)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-16 — ścieżka `pelna` (uwierzytelnianie/uprawnienia), `model: sonnet`, realizacja lokalna z portem e-mail i Mailpit z EVM-024 — decyzja Konrada przy planowaniu kolejki 16.10
+- 2026-10-16 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
+- 2026-10-16 — backend (API, migracja 0037, testy integracyjne i macierz ról) gotowy, lokalna bramka backendu zielona; panel (W-01, W-12, W-02) i e2e czekają na web-developera [backend-developer]
+- 2026-10-16 — panel (W-01 „Zresetuj hasło”, W-12, komunikat nad W-02, wariant `success` InlineAlert), testy komponentów, Playwright (Chromium, Firefox, Edge), axe i zrzuty gotowe [web-developer]
+- 2026-10-16 — przegląd r1: code-reviewer, security-engineer, ux-designer — APPROVE; QA: AC1–AC7 pass; bramka `pnpm run gate` zielona; in-progress → in-review (czeka na demo) [orkiestrator]

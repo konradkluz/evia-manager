@@ -42,6 +42,9 @@ export const SENSITIVE_KEY_FRAGMENTS = Object.freeze([
   'attestation',
   'assertion',
   'csrf',
+  // EVM-023: a recovery code (`recoveryCode`, `recovery_code_…`). The bare key `code` is NOT here — it would also hide the codes of RFC 9457 errors; the TOTP
+  // secret and the otpauth address are caught by `secret` and `otp`.
+  'recoverycode',
 ]);
 /** Keys sensitive only as a whole word (as a fragment they would hide e.g. `operationName`). */
 const SENSITIVE_KEYS = new Set([
@@ -55,6 +58,8 @@ const SENSITIVE_KEYS = new Set([
   'recipient',
   'recipients',
   'link',
+  // EVM-023: the list of the ten recovery codes of a response.
+  'codes',
 ]);
 
 export function isSensitiveKey(key: string): boolean {

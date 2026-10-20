@@ -88,6 +88,7 @@ export { InlineAlert, type InlineAlertProps } from './inline-alert.tsx';
 export { ErrorSummary, type ErrorSummaryItem, type ErrorSummaryProps } from './error-summary.tsx';
 export { FieldError, SelectableCardGroup, type SelectableCardGroupProps, type SelectableCardOption } from './selectable-card.tsx';
 export { List, ListItem } from './list.tsx';
+export { QrCode, type QrCodeProps } from './qr-code.tsx';
 export { Skeleton } from './skeleton.tsx';
 export { Tabs, type TabItem, type TabsProps } from './tabs.tsx';
 export { TextLink } from './text-link.tsx';

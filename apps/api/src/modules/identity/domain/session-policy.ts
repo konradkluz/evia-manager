@@ -35,12 +35,26 @@ export function touchDue(lastSeenAt: Date, now: Date): boolean {
 }
 
 /**
- * Does the last authentication with a passkey still open the step-up window (SR-SESS-08)? Exactly 15 minutes after it
- * the window is closed (elapsed >= window); no passkey authentication (null — password, activation, recovery code) and a
+ * The instant of the last authentication that opens the window of step-up operations (SR-SESS-08): a passkey or a TOTP code, whichever is later
+ * (EVM-023). A recovery code is neither — both are null — so a session that came from it has to prove itself again.
+ */
+export function lastStepUpAuthentication(session: {
+  readonly passkeyAuthenticatedAt: Date | null;
+  readonly totpAuthenticatedAt: Date | null;
+}): Date | null {
+  const { passkeyAuthenticatedAt, totpAuthenticatedAt } = session;
+  if (passkeyAuthenticatedAt === null) return totpAuthenticatedAt;
+  if (totpAuthenticatedAt === null) return passkeyAuthenticatedAt;
+  return passkeyAuthenticatedAt > totpAuthenticatedAt ? passkeyAuthenticatedAt : totpAuthenticatedAt;
+}
+
+/**
+ * Does the last authentication (see {@link lastStepUpAuthentication}) still open the step-up window (SR-SESS-08)? Exactly 15 minutes after it
+ * the window is closed (elapsed >= window); no such authentication (null — password, activation, recovery code) and a
  * time in the future never count (fail closed).
  */
-export function stepUpFresh(passkeyAuthenticatedAt: Date | null, now: Date): boolean {
-  if (passkeyAuthenticatedAt === null) return false;
-  const elapsed = now.getTime() - passkeyAuthenticatedAt.getTime();
+export function stepUpFresh(authenticatedAt: Date | null, now: Date): boolean {
+  if (authenticatedAt === null) return false;
+  const elapsed = now.getTime() - authenticatedAt.getTime();
   return elapsed >= 0 && elapsed < STEP_UP_WINDOW_MS;
 }

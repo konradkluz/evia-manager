@@ -26,15 +26,20 @@ export async function startSession(
   request: {
     readonly userId: string;
     readonly state: SessionsTable['state'];
+    /** The window to set up a second step this session is bound to (EVM-027 D1) — the session ends with it; absent for every other session. */
+    readonly linkId?: string;
     /** The session token of the request's cookie, when it carried exactly one. */
     readonly previousSessionToken: string | undefined;
     readonly client: ClientInfo;
     readonly now: Date;
-    /** `now` for the sign-in with a passkey; null for every other way (password only, recovery code — SR-SESS-08). */
-    readonly passkeyAuthenticatedAt: Date | null;
+    /**
+     * How the person proved themselves at this step: a passkey or a TOTP code open the window of step-up operations (`now` is recorded in the matching
+     * column); every other way (password only, recovery code) records nothing (SR-SESS-08).
+     */
+    readonly authenticatedWith: 'passkey' | 'totp' | 'none';
   },
 ): Promise<StartedSession> {
-  const { userId, state, previousSessionToken, client, now, passkeyAuthenticatedAt } = request;
+  const { userId, state, previousSessionToken, client, now, authenticatedWith } = request;
   const tx = identityTables(transaction);
   const actor = { type: 'user', userId } as const;
   const sessionToken = newToken();
@@ -58,9 +63,10 @@ export async function startSession(
     channel: 'web',
     state,
     tokenHash: hashToken(sessionToken),
-    linkId: null,
+    linkId: request.linkId ?? null,
     now,
-    passkeyAuthenticatedAt,
+    passkeyAuthenticatedAt: authenticatedWith === 'passkey' ? now : null,
+    totpAuthenticatedAt: authenticatedWith === 'totp' ? now : null,
     ...deadlinesAt(now),
     ip: client.context.ip,
     userAgent: client.userAgent,

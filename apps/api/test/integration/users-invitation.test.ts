@@ -56,6 +56,9 @@ describe('the invitation of a user (EVM-024 AC1; SR-AUTH-12, SR-SESS-08, SR-LOG-
       role: 'editor',
       status: 'invited',
       invitation: { state: 'sending', sentAt: null, expiresAt: null },
+      version: 1,
+      activatedAt: null,
+      secondStepMethods: [],
     });
     expect(await usersTable()).toContainEqual({ id: body.id, email: 'anna.testowa@example.com', status: 'invited', role: 'editor' });
 

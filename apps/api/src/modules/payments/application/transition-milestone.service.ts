@@ -57,7 +57,7 @@ import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { stepUpFresh } from '../../identity/index.ts';
+import { lastStepUpAuthentication, stepUpFresh } from '../../identity/index.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import {
   correctionFields,
@@ -184,7 +184,7 @@ export class TransitionMilestoneService {
     const rule = findMilestoneTransition(locked.status, command.to);
     if (rule === undefined) throw new ProblemException(stale ? 'version_conflict' : 'invalid_state_transition');
     if (!mayTake(rule, principal.role)) throw new ProblemException('forbidden');
-    if (rule.stepUp && !stepUpFresh(principal.passkeyAuthenticatedAt, now)) throw new ProblemException('step_up_required');
+    if (rule.stepUp && !stepUpFresh(lastStepUpAuthentication(principal), now)) throw new ProblemException('step_up_required');
     if (stale) throw new ProblemException('version_conflict');
     const fields = rule.move === 'correction' ? correctionFields(rule, command) : moveFields(rule.move, command, locked, businessDate(now));
     if (!fields.ok)

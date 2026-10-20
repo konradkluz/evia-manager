@@ -4,7 +4,7 @@ title: Kod z aplikacji (TOTP) i kody odzyskiwania
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -88,19 +88,43 @@ Jako **pracownik bez klucza dostępu na komputerze** chcę **logować się kodem
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+- Moduły: `identity` (domena TOTP i kodów, serwisy enrolmentu, logowania, step-upu), `platform/crypto` (szyfrowanie kopertowe pól), `audit`, e-maile przez outbox z EVM-024. Migracja `0038` (expand): `identity.totp_factors`, `identity.recovery_codes`, `sessions.totp_authenticated_at`, `sessions.step_up_failed_attempts`.
+- Kontrakt (`paths/identity.yaml`): `loginTotp`, `loginRecoveryCode`, `startTotpEnrolment`, `confirmTotp`, `generateRecoveryCodes`, `stepUp` z `{ method: totp, code }`; `LoginSecondStep.methods` rozszerzone o `totp` i `recovery_code`.
+- Kolejność: szyfrowanie pól i config -> migracja -> domena i kontrakt -> enrolment i kody (AC1, AC4, AC6) -> logowanie (AC2, AC3, AC5, AC8) -> step-up (AC7) -> dokumentacja; panel (W-02, W-03, W-04) po API.
+
+### Uwagi bezpieczeństwa z konsultacji (B1–B6; wpisane do planu przed implementacją)
+- B1: enrolment tylko w sesji `mfa_enrollment` związanej z linkiem; potwierdzenie w jednej transakcji (link, aktywacja konta, nowa sesja); `409 mfa_already_configured` przy aktywnym czynniku.
+- B2: metody drugiego kroku z jednego miejsca (`secondStepMethods`, rola z bazy), także po resecie hasła; czynnik `pending` nie jest metodą; Administrator w panelu — tylko klucz dostępu.
+- B3: licznik porażek: na `loginToken` (5) i na sesji w step-upie (`step_up_failed_attempts`, piąta unieważnia sesję).
+- B4: generowanie kodów tylko gdy brak generacji albo z tej samej sesji, która bieżącą wygenerowała; inaczej `403 recovery_codes_regeneration_unavailable`.
+- B5: szyfrowanie kopertowe (DEK na wartość owinięty KEK-iem, nagłówek i kontekst `totp:<userId>` w AAD), fail-closed w produkcji, klucz inny niż `CURSOR_KEY`.
+- B6: nowe operacje w `AUTHENTICATION_OPERATIONS` (jeden kubełek 20/min/IP z hasłem).
+- Odwołanie „decision 16” w kodzie = decyzja 16 z EVM-015 (kod odzyskiwania nie otwiera okna step-upu; AC5).
+
+### Nowe zależności (SR-SUPPLY-06)
+- `otpauth` 9.5.2 (`apps/api`): licencja MIT; wskazana w ADR-0005 i SR-CRYPTO-01 (zaakceptowana przez architekta); jedyna zależność `@noble/hashes` 2.4.0 (MIT, audytowana); sprawdzono w źródle, że `TOTP.validate` porównuje kody w czasie stałym; wersja przypięta dokładnie, `osv-scanner` w `pnpm run scan` bez nowych podatności.
+- `qr` 0.7.2 (`packages/ui-web`): licencja MIT lub Apache-2.0, zero zależności, generuje macierz modułów (własny `svg` — bez HTML z danych, bez sieci i bez zewnętrznego serwisu QR); sprawdzono `package.json` (licencja, brak zależności) i brak skryptów instalacyjnych; wersja przypięta.
 
 ## Decyzje
-_—_
+Decyzje orkiestratora — do potwierdzenia na demo:
+- D1. TOTP przez `otpauth` (ADR-0005), sekret 160 bitów; okno ±1 krok, każdy krok działa raz (`last_used_step`).
+- D2. Szyfrowanie pól `FIELD_ENCRYPTION_KEYS` (rotacja: nowy klucz na początek; w M1 bez narzędzia re-wrap, stary klucz zostaje — `docs/ops/rotacja-sekretow.md`); poza produkcją brak klucza = `503`, nigdy zapis jawny.
+- D3. Przy konfiguracji TOTP albo klucz dostępu (nie oba); TOTP „obok klucza” z W-03 — EVM-028.
+- D4. Zasada pierwszej generacji kodów: (a) brak generacji albo (b) ta sama sesja co bieżąca generacja; sesja z kodu odzyskiwania nie wygeneruje kodów.
+- D5. Enrolment kodem z aplikacji otwiera okno step-upu (kod właśnie zweryfikowany), więc krok 3 generuje kody bez dialogu; po kluczu dostępu okno jest zamknięte, więc krok 3 w W-03 prosi o step-up kluczem.
+- D6. Wspólny kubełek limitu 20/min/IP dla hasła, `loginTotp`, `loginRecoveryCode` i step-upu.
+- D7. Operacja `setupTotp` przemianowana na `startTotpEnrolment` (test EVM-016 zabrania ścieżek ze słowem „setup”).
+- D8. Kody odzyskiwania: 10 x 20 znaków base32, skróty Argon2id, jednorazowe; kod odzyskiwania nie działa w step-upie.
+- D9. Brak limitu nieudanych prób drugiego kroku na konto (SR-AUTH-05, CWE-307; przegląd bezpieczeństwa, major) — **Konrad, 2026-10-19: opcja (b)**, akceptuje ryzyko rezydualne RR-26 (`docs/security/threat-model.md` sekcja 8; ok. 16 prób/min/IP przy znanym haśle) do czasu EVM-026; w EVM-026 dopisano propozycję zmiany AC (porażki `totp_failed` i `recovery_code_failed` liczą się do opóźnienia i blokady konta, e-mail o blokadzie obejmuje ten przypadek). Opcja (a) — licznik na konto w EVM-023 — odrzucona.
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-023 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-023 AC#`)
+- [x] Bramki CI zielone, progi pokrycia spełnione
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika
 
 ## Dziennik
@@ -108,3 +132,8 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-04 — zmiana AC zaakceptowana przez Konrada na demo EVM-015 (propozycja `product-owner`, EVM-015 → „Uwagi do rozważenia” 2; liczba AC bez zmian): AC5 — podpowiedź dla Administratora po logowaniu kodem odzyskiwania zgodna z decyzją 16 (kod odzyskiwania niedostępny przy ponownym uwierzytelnieniu — S1 odrzucone)
 - 2026-10-16 — ścieżka `pelna` (uwierzytelnianie/uprawnienia), `model: sonnet`, realizacja lokalna z portem e-mail i Mailpit z EVM-024 — decyzja Konrada przy planowaniu kolejki 16.10
+- 2026-10-16 — ready → in-progress (kolejka 025 → 023 → 027, gałąź feature/queue-2026-10-16-logowanie-2; ścieżka pełna, wykonawcy sonnet)
+- 2026-10-16 — backend gotowy (backend-developer, lokalnie w kontenerze `backend-tests`): migracja `0038`, szyfrowanie kopertowe pól (`FIELD_ENCRYPTION_KEYS`), `otpauth` 9.5.2, operacje `loginTotp`, `loginRecoveryCode`, `startTotpEnrolment`, `confirmTotp`, `generateRecoveryCodes` i `stepUp` z kodem, e-maile i audyt; uwagi bezpieczeństwa B1–B6 wpisane do planu; panel (W-02, W-03, W-04) — zadanie web-developera
+- 2026-10-16 — web gotowy (web-developer): W-02 (kod z aplikacji, kod odzyskiwania), W-03 w wariancie „od EVM-023” (wybór metody, QR lokalnie, 10 kodów), W-04 z polem kodu; `TextField` z wariantem kodu i `QrCode` w bibliotece UI; testy komponentów i E2E z `EVM-023 AC#`
+- 2026-10-19 — przegląd: decyzja Konrada w sprawie braku limitu porażek drugiego kroku na konto — opcja (b), ryzyko rezydualne RR-26 do czasu EVM-026 (D9); poprawka lokalnego środowiska: `FIELD_ENCRYPTION_KEYS` przekazywany do kontenera `api` i losowany przez `dev:init`
+- 2026-10-19 — przeglądy (code, security, ux) po poprawkach: majory naprawione/rozstrzygnięte (D9 = RR-26, akceptacja Konrada); bramka zielona; in-progress → in-review (czeka na demo) [orkiestrator]
