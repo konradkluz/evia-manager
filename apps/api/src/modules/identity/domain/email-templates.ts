@@ -95,6 +95,8 @@ export const ALERT_VARIANTS = [
   'administrator_second_step_reset',
   // EVM-026 (alert 9): an Administrator's account signed in from a browser it did not know.
   'administrator_new_browser',
+  // EVM-028 (alert 9): a method of the second step of an Administrator's account was added or removed, or new recovery codes were made.
+  'administrator_second_step_changed',
 ] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
@@ -109,6 +111,10 @@ const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readon
     kind: 'logowanie z nowej przeglądarki',
     sentence: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
     lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
+  administrator_second_step_changed: {
+    kind: 'zmiana drugiego kroku',
+    sentence: 'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
   },
 };
 
@@ -188,13 +194,28 @@ export function passwordResetText(input: PasswordResetTextInput): EmailText {
   };
 }
 
+/** The panel page "Moje sesje" (W-15 anchor): the mails that mention the sessions of the account point here, without a token. */
+export const SESSIONS_SETTINGS_PATH = '/account#moje-sesje';
+
+/** Where the new password came from: a reset with a link (every session ended), or the page of the account (the other sessions go on until the owner ends them). */
+export type PasswordChangeSource = 'reset' | 'account';
+export const PASSWORD_CHANGE_ACCOUNT_VARIANT = 'from_account';
+
 export interface PasswordChangedTextInput {
   readonly panelOrigin: string;
   readonly changedAt: Date;
+  readonly source?: PasswordChangeSource;
 }
 
-/** E-mail 4, the variant "after a reset with a link": the time, the sessions that ended, a link to the reset form without a token. */
+/**
+ * E-mail 4: the time, what happened to the sessions and a link to the reset form without a token. After a reset with a link every session ended; after a change
+ * on the page of the account the other sessions stay, and the mail says where to end them ("Konto → Moje sesje"). No IP, no browser, no name of the doer.
+ */
 export function passwordChangedText(input: PasswordChangedTextInput): EmailText {
+  const sessions =
+    input.source === 'account'
+      ? ['Pozostałe sesje możesz zakończyć w panelu: Konto → Moje sesje', `${input.panelOrigin}${SESSIONS_SETTINGS_PATH}`]
+      : ['Zakończyliśmy wszystkie sesje konta.'];
   return {
     subject: 'EVia Manager: hasło zostało zmienione',
     text: [
@@ -202,7 +223,7 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
       '',
       `hasło do konta w EVia Manager zostało zmienione ${formatWarsaw(input.changedAt)}.`,
       '',
-      'Zakończyliśmy wszystkie sesje konta.',
+      ...sessions,
       '',
       'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
       `${input.panelOrigin}${RESET_FORM_PATH}`,
@@ -216,12 +237,15 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
 /** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
 export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
 
-export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset';
+export type SecondStepChange =
+  'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset' | 'passkey_removed' | 'totp_removed';
 export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = [
   'totp_enrolled',
   'recovery_codes_generated',
   'passkey_enrolled',
   'second_step_reset',
+  'passkey_removed',
+  'totp_removed',
 ];
 export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
   SECOND_STEP_CHANGES.some((change) => change === value);
@@ -230,6 +254,8 @@ const SECOND_STEP_CHANGE_TEXT: Readonly<Record<Exclude<SecondStepChange, 'second
   totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
   passkey_enrolled: 'dodano klucz dostępu.',
   recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
+  passkey_removed: 'usunięto klucz dostępu.',
+  totp_removed: 'usunięto kod z aplikacji uwierzytelniającej.',
 };
 
 export interface SecondStepChangedTextInput {
@@ -413,6 +439,43 @@ export function newBrowserText(input: NewBrowserTextInput): EmailText {
       'Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło',
       'i powiadom administratora:',
       `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface SessionLimitTextInput {
+  readonly panelOrigin: string;
+  /** The session that ended: browser and system out of the closed dictionary (never the raw user agent) and its last activity. */
+  readonly ended: { readonly browser: string; readonly os: string; readonly lastSeenAt: Date };
+  /** The sign-in that went over the limit: the same dictionary and the moment. */
+  readonly signedIn: { readonly browser: string; readonly os: string; readonly at: Date };
+}
+
+/**
+ * E-mail 8 (the sixth sign-in ended the oldest session; SR-SESS-04): which session ended and which sign-in caused it, by browser and system and time —
+ * no IP address, no raw user agent. The links lead to the reset form (without a token) and to "Moje sesje".
+ */
+export function sessionLimitText(input: SessionLimitTextInput): EmailText {
+  const { ended, signedIn } = input;
+  return {
+    subject: 'EVia Manager: zakończono najstarszą sesję',
+    text: [
+      'Dzień dobry,',
+      '',
+      'nowe logowanie do konta w EVia Manager przekroczyło limit 5 równoczesnych',
+      'sesji, więc zakończyliśmy najstarszą sesję:',
+      '',
+      `Zakończona sesja: ${ended.browser} · ${ended.os}, ostatnia aktywność ${formatWarsaw(ended.lastSeenAt)}`,
+      `Nowe logowanie: ${signedIn.browser} · ${signedIn.os}, ${formatWarsaw(signedIn.at)}`,
+      '',
+      'Jeśli nowe logowanie nie pochodzi od Ciebie, od razu ustaw nowe hasło',
+      'i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      'Sesje konta zobaczysz w panelu: Konto → Moje sesje',
+      `${input.panelOrigin}${SESSIONS_SETTINGS_PATH}`,
       '',
       footer(input.panelOrigin),
       '',

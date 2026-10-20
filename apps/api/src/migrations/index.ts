@@ -39,6 +39,7 @@ import * as passwordReset from './0037_password_reset.ts';
 import * as totpAndRecoveryCodes from './0038_totp_and_recovery_codes.ts';
 import * as userAccessManagement from './0039_user_access_management.ts';
 import * as loginThrottle from './0040_login_throttle.ts';
+import * as account from './0041_account.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -80,4 +81,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0038_totp_and_recovery_codes': totpAndRecoveryCodes,
   '0039_user_access_management': userAccessManagement,
   '0040_login_throttle': loginThrottle,
+  '0041_account': account,
 });

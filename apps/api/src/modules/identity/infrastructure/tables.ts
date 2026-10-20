@@ -44,6 +44,8 @@ export interface PasskeysTable {
   backed_up: boolean;
   created_at: Date;
   last_used_at: Date | null;
+  /** The name the owner gave the key (EVM-028, 0041); null on a key made before — the answer says "Klucz dostępu". */
+  name: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface OneTimeLinksTable {
@@ -70,7 +72,11 @@ export type RevokeReason =
   | 'role_changed'
   | 'account_deactivated'
   | 'sessions_ended'
-  | 'second_step_reset';
+  | 'second_step_reset'
+  | 'session_limit'
+  | 'ended_by_user';
+
+export type ReauthPurpose = 'second_step_change' | 'password_change';
 
 export interface SessionsTable {
   id: Generated<string>;
@@ -94,6 +100,9 @@ export interface SessionsTable {
   revoke_reason: RevokeReason | null;
   ip_address: string | null;
   user_agent: string | null;
+  /** The one-time mark of the full re-authentication and what it is for (EVM-028, 0041); both null or both set. */
+  reauthenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  reauth_purpose: ColumnType<ReauthPurpose | null, ReauthPurpose | null | undefined, ReauthPurpose | null>;
 }
 
 /** The first step of a sign-in waiting for the second one (EVM-067). No address and no user agent are stored (RODO). */

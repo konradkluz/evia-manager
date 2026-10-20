@@ -70,6 +70,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0038_totp_and_recovery_codes',
       '0039_user_access_management',
       '0040_login_throttle',
+      '0041_account',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });

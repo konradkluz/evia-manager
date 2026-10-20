@@ -144,6 +144,12 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'user.second_step_reset',
       'account.locked', // EVM-026
       'account.browser_locked',
+      'account.profile_updated', // EVM-028
+      'password.changed',
+      'passkey.removed',
+      'mfa.totp_removed',
+      'reauthentication.succeeded',
+      'reauthentication.failed',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
   });

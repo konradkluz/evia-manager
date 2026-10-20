@@ -210,6 +210,12 @@ RegisterPasskeyRequest:
   properties:
     credential:
       $ref: '#/RegistrationCredential'
+    name:
+      type: string
+      description: >-
+        Nazwa klucza (EVM-028): zwykły tekst, NFC, przycięty, 1–60 znaków bez znaków sterujących i formatujących (ten sam walidator co
+        nazwa wyświetlana). Brak pola → „Klucz dostępu”.
+      maxLength: 60
 RegistrationCredential:
   type: object
   description: Wynik `PublicKeyCredential.toJSON()` (WebAuthn `RegistrationResponseJSON`).
@@ -266,12 +272,18 @@ RegistrationCredential:
             enum: [ble, cable, hybrid, internal, nfc, smart-card, usb]
 Passkey:
   type: object
-  required: [id, createdAt, deviceType, backedUp]
+  required: [id, name, createdAt, deviceType, backedUp]
   properties:
     id:
       type: string
       format: uuid
       maxLength: 36
+    name:
+      type: string
+      description: >-
+        Nazwa nadana kluczowi przez właściciela (zwykły tekst, 1–60 znaków; EVM-028) albo „Klucz dostępu”, gdy nie podano nazwy
+        (także klucze sprzed EVM-028). To dana osobowa wpisana przez osobę — usuwana razem z kluczem, nie trafia do e-maili, audytu ani logów.
+      maxLength: 60
     createdAt:
       type: string
       format: date-time
@@ -781,3 +793,197 @@ InviteUserRequest:
       maxLength: 200
     role:
       $ref: '#/UserRole'
+ReauthenticationPurpose:
+  type: string
+  description: >-
+    Cel pełnego ponownego uwierzytelnienia (EVM-028; SR-AUTH-10, ASVS V7.5.1): `second_step_change` — zmiana metod drugiego kroku
+    albo nowe kody odzyskiwania (hasło + drugi krok); `password_change` — zmiana hasła (sam drugi krok; bieżące hasło podaje
+    `changePassword`). Znacznik jest związany z sesją i celem, jednorazowy i ważny 5 minut.
+  enum: [second_step_change, password_change]
+ReauthenticationPassword:
+  type: string
+  description: >-
+    Bieżące hasło — wymagane dla celu `second_step_change`, niedozwolone dla `password_change` (`400 validation_failed`). Normalizowane
+    do NFC, bez przycinania; maksimum 1024 znaki.
+  minLength: 1
+  maxLength: 1024
+  writeOnly: true
+ReauthenticationPasskeyRequest:
+  type: object
+  description: Pełne ponowne uwierzytelnienie kluczem dostępu (odpowiedź na wyzwanie z `getStepUpPasskeyOptions`).
+  additionalProperties: false
+  required: [purpose, credential]
+  properties:
+    purpose:
+      $ref: '#/ReauthenticationPurpose'
+    password:
+      $ref: '#/ReauthenticationPassword'
+    credential:
+      $ref: '#/AuthenticationCredential'
+ReauthenticationTotpRequest:
+  type: object
+  description: Pełne ponowne uwierzytelnienie kodem z aplikacji (Edytor, Tylko odczyt).
+  additionalProperties: false
+  required: [purpose, method, code]
+  properties:
+    purpose:
+      $ref: '#/ReauthenticationPurpose'
+    password:
+      $ref: '#/ReauthenticationPassword'
+    method:
+      type: string
+      const: totp
+    code:
+      $ref: '#/TotpCode'
+ReauthenticationRequest:
+  description: >-
+    Pełne ponowne uwierzytelnienie: cel, hasło (tylko dla `second_step_change`) i drugi krok — klucz dostępu (`{ credential }`) albo kod
+    z aplikacji (`{ method: totp, code }`). Kod odzyskiwania nie jest obsługiwany (decyzja 16).
+  oneOf:
+    - $ref: '#/ReauthenticationPasskeyRequest'
+    - $ref: '#/ReauthenticationTotpRequest'
+AccountTotp:
+  type: object
+  description: Kod z aplikacji uwierzytelniającej dodany do konta (bez sekretu).
+  required: [addedAt]
+  properties:
+    addedAt:
+      type: string
+      format: date-time
+      maxLength: 40
+AccountRecoveryCodes:
+  type: object
+  description: Stan kodów odzyskiwania (bez kodów i skrótów).
+  required: [remaining, generatedAt]
+  properties:
+    remaining:
+      type: integer
+      minimum: 0
+      maximum: 10
+    generatedAt:
+      type: string
+      format: date-time
+      maxLength: 40
+AccountSecondStep:
+  type: object
+  description: Metody drugiego kroku konta (bez sekretów, kluczy publicznych i identyfikatorów poświadczeń).
+  required: [passkeys, totp, recoveryCodes]
+  properties:
+    passkeys:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/Passkey'
+    totp:
+      description: Kod z aplikacji albo `null`, gdy go nie dodano (Administrator — służy tylko do aplikacji na telefonie).
+      oneOf:
+        - $ref: '#/AccountTotp'
+        - type: 'null'
+    recoveryCodes:
+      description: Stan kodów odzyskiwania albo `null`, gdy konto nigdy ich nie wygenerowało.
+      oneOf:
+        - $ref: '#/AccountRecoveryCodes'
+        - type: 'null'
+Account:
+  type: object
+  description: >-
+    Własne konto zalogowanego użytkownika (W-15; EVM-028). Zawiera dane osobowe (e-mail, nazwa, nazwy kluczy) — wyłącznie dla właściciela,
+    `Cache-Control: no-store`.
+  required: [displayName, email, role, secondStep]
+  properties:
+    displayName:
+      type: string
+      maxLength: 200
+    email:
+      type: string
+      maxLength: 254
+    role:
+      $ref: '#/UserRole'
+    secondStep:
+      $ref: '#/AccountSecondStep'
+UpdateAccountRequest:
+  type: object
+  description: >-
+    Zmiana własnej nazwy wyświetlanej (EVM-028 AC1): zwykły tekst, NFC, przycięty, 1–200 znaków bez znaków sterujących i formatujących
+    (`required`, `too_long`, `invalid_characters`). Identyfikator konta nie jest polem żądania — konto to sesja (pole `userId` → `400`).
+  additionalProperties: false
+  required: [displayName]
+  properties:
+    displayName:
+      type: string
+      maxLength: 200
+ChangePasswordRequest:
+  type: object
+  description: >-
+    Zmiana hasła (EVM-028 AC2): bieżące hasło i nowe. Nowe hasło przechodzi reguły SR-AUTH-01 i SR-AUTH-02 (minimum 15 znaków po NFC,
+    hasła popularne i kontekstowe, Pwned Passwords) i różni się od bieżącego.
+  additionalProperties: false
+  required: [currentPassword, newPassword]
+  properties:
+    currentPassword:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      writeOnly: true
+    newPassword:
+      type: string
+      maxLength: 256
+      writeOnly: true
+PasswordChanged:
+  type: object
+  description: Wynik zmiany hasła — liczba pozostałych aktywnych sesji konta (do propozycji „Zakończ pozostałe sesje”).
+  required: [otherActiveSessions]
+  properties:
+    otherActiveSessions:
+      type: integer
+      minimum: 0
+      maximum: 1000
+AccountSession:
+  type: object
+  description: >-
+    Własna sesja web konta (W-15 „Moje sesje”; SR-SESS-07, P9). `id` to nieprzezroczysty identyfikator rekordu (nie token ani jego skrót).
+    `browser` i `os` pochodzą ze zamkniętego słownika (bez wersji, nigdy surowy User-Agent). `ipAddress` to pełny adres własnej sesji (P9).
+  required: [id, current, browser, os, ipAddress, lastSeenAt]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    current:
+      type: boolean
+      description: Sesja bieżącego żądania („Ta sesja”).
+    browser:
+      type: string
+      maxLength: 40
+    os:
+      type: string
+      maxLength: 40
+    ipAddress:
+      description: Pełny adres IP zapisany przy logowaniu albo `null`, gdy go nie zapisano.
+      oneOf:
+        - type: string
+          maxLength: 45
+        - type: 'null'
+    lastSeenAt:
+      type: string
+      format: date-time
+      maxLength: 40
+AccountSessionList:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      description: Aktywne, niewygasłe sesje web konta — najstarsza pierwsza (konto ma ich najwyżej 5).
+      maxItems: 20
+      items:
+        $ref: '#/AccountSession'
+EndedSessions:
+  type: object
+  description: Liczba zakończonych sesji (bieżąca zostaje).
+  required: [ended]
+  properties:
+    ended:
+      type: integer
+      minimum: 0
+      maximum: 1000

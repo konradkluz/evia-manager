@@ -32,6 +32,12 @@ AuditAction:
     - user.second_step_reset
     - account.locked
     - account.browser_locked
+    - account.profile_updated
+    - password.changed
+    - passkey.removed
+    - mfa.totp_removed
+    - reauthentication.succeeded
+    - reauthentication.failed
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
@@ -126,6 +132,9 @@ AuditReasonCode:
     - mfa_setup_expired
     - password
     - second_step
+    - session_limit
+    - ended_by_user
+    - rate_limited
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

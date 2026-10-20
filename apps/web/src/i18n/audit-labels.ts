@@ -39,6 +39,13 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   // EVM-026: a lock of the sign-in after ten failed tries (for the browsers the account does not know / for one browser it knows)
   'account.locked': 'Blokada logowania konta',
   'account.browser_locked': 'Blokada logowania z przeglądarki znanej koncie',
+  // EVM-028: the owner's own changes of the account (the screen W-15 is a story of the panel)
+  'account.profile_updated': 'Zmiana nazwy wyświetlanej',
+  'password.changed': 'Zmiana hasła',
+  'passkey.removed': 'Usunięcie klucza dostępu',
+  'mfa.totp_removed': 'Usunięcie kodu z aplikacji uwierzytelniającej',
+  'reauthentication.succeeded': 'Pełne ponowne uwierzytelnienie',
+  'reauthentication.failed': 'Nieudane pełne ponowne uwierzytelnienie',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -95,6 +102,8 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'step_up.failed',
       'account.locked',
       'account.browser_locked',
+      'reauthentication.succeeded',
+      'reauthentication.failed',
     ],
   },
   {
@@ -105,11 +114,21 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'mfa.totp_enrolled',
       'mfa.recovery_codes_generated',
       'login.recovery_code_used',
+      'password.changed',
+      'passkey.removed',
+      'mfa.totp_removed',
     ],
   },
   {
     label: 'Użytkownicy',
-    actions: ['user.invited', 'invitation.resent', 'activation_link.issued', 'account.activated', 'account.emergency_reset'],
+    actions: [
+      'user.invited',
+      'invitation.resent',
+      'activation_link.issued',
+      'account.activated',
+      'account.emergency_reset',
+      'account.profile_updated',
+    ],
   },
   {
     label: 'Reset hasła',

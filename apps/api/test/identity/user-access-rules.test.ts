@@ -171,6 +171,9 @@ describe('the texts of EVM-027 (docs/ux/flows/e-maile.md nr 5 and 9; SR-INPUT-07
       administrator_invitation: 'wysłano zaproszenie z rolą Administrator.',
       // EVM-026 (alert 9): a new browser
       administrator_new_browser: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
+      // EVM-028 (alert 9): a method of the second step added or removed, new recovery codes
+      administrator_second_step_changed:
+        'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
     } as const;
     expect(Object.keys(sentences).sort()).toEqual([...ALERT_VARIANTS].sort());
     for (const variant of ALERT_VARIANTS) {
