@@ -134,6 +134,22 @@ describe('mobile UI lint rules (EVM-009 AC1, AC6; styleguide § 7.2, SR-LOG-08)'
     expect(lintMobile("sql.raw('select 1');")).toEqual([expect.stringContaining('SR-INPUT-03')]);
   });
 
+  it('EVM-009 AC6 only the API client imports the generated contract, and nobody imports the authorization manifest (ADR-0004)', () => {
+    for (const code of [
+      "import { client } from '@evia/contracts';",
+      "import { z } from '@evia/contracts/zod';",
+      "import { m } from '@evia/contracts/authz';",
+    ]) {
+      expect(lintMobile(code, 'src/screens/orders.js'), code).toEqual([expect.stringContaining('no-restricted-imports')]);
+    }
+    const apiClient = "import { createClient } from '@evia/contracts';\nimport { z } from '@evia/contracts/zod';";
+    expect(lintMobile(apiClient, 'src/api/health.js')).toEqual([]);
+    expect(lintMobile("import { m } from '@evia/contracts/authz';", 'src/api/health.js')).toEqual([
+      expect.stringContaining('no-restricted-imports'),
+    ]);
+    expect(lintMobile("import { Pool } from 'pg';", 'src/api/health.js')).toEqual([expect.stringContaining('no-restricted-imports')]);
+  });
+
   it('EVM-009 AC1 the rules of hooks are enforced in mobile UI code', () => {
     const code = 'export function Shell({ open }) { if (open) { useEffect(() => {}); } return null; }\nimport { useEffect } from "react";';
     expect(lintMobile(code)).toEqual([expect.stringContaining('react-hooks/rules-of-hooks')]);
@@ -141,6 +157,6 @@ describe('mobile UI lint rules (EVM-009 AC1, AC6; styleguide § 7.2, SR-LOG-08)'
 
   it('EVM-009 AC1 by default the rules cover TypeScript and TSX sources of src/', () => {
     expect(MOBILE_UI_FILES).toEqual(['src/**/*.ts', 'src/**/*.tsx']);
-    expect(mobileUi().every((block) => block.files === MOBILE_UI_FILES)).toBe(true);
+    expect(mobileUi().every((block) => block.files === MOBILE_UI_FILES || block.files?.[0] === 'src/api/**')).toBe(true);
   });
 });
