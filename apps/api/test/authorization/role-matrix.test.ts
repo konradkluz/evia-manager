@@ -153,7 +153,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       if (administratorOnly.includes(operationId)) return ['administrator'];
       return writers.includes(operationId) ? ['administrator', 'editor'] : ['administrator', 'editor', 'read_only'];
     };
-    const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers, ...administratorOnly];
+    // EVM-028: the key of somebody else — the removal of a key is for every role (no step-up of the guard: the mark of the re-authentication is the use case's)
+    const all = [...operations, 'getCustomer', 'getSite', 'getParty', ...writers, ...administratorOnly, 'removePasskey'];
     // the operations with a step-up: the only caller they let through is the Administrator with a fresh key (EVM-057; EVM-024: the resend of an invitation)
     const stepUp = [
       'deletePaymentMilestone',
@@ -163,6 +164,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'reactivateUser',
       'endUserSessions',
       'resetUserSecondStep',
+      'endAccountSession', // EVM-028: the session of somebody else
     ];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
     for (const operationId of stepUp) {
