@@ -71,21 +71,40 @@ export async function saveThrottle(db: IdentityDb, key: Buffer, state: ThrottleS
 
 /**
  * The end of a reset of the password lifts the lock whose cause is the password (EVM-026 AC7): the row goes — unless a failure of the second step is in
- * it, which a new password does not undo. @returns whether a row was deleted
+ * it, which a new password does not undo. A row that a sign-in holds locked at this moment is SKIPPED, never waited for: that sign-in may be waiting for
+ * the row of the account which the caller holds (users → counter in one transaction, counter → users in the other: a deadlock). A skipped lock ends
+ * with its own time. @returns whether a row was deleted
  */
 export async function deletePasswordThrottle(db: IdentityDb, key: Buffer): Promise<boolean> {
   const rows = await db
     .deleteFrom('identity.login_throttle')
-    .where('scope_key', '=', key)
-    .where('second_step_failures', '=', 0)
+    .where(
+      'scope_key',
+      'in',
+      db
+        .selectFrom('identity.login_throttle')
+        .select('scope_key')
+        .where('scope_key', '=', key)
+        .where('second_step_failures', '=', 0)
+        .forUpdate()
+        .skipLocked(),
+    )
     .returning('scope_key')
     .execute();
   return rows.length > 0;
 }
 
+/** The counters of browsers that no longer exist; a row held locked by a sign-in is skipped (see above) — it can match nothing and the retention deletes it. */
 export async function deleteThrottles(db: IdentityDb, keys: readonly Buffer[]): Promise<void> {
   if (keys.length === 0) return;
-  await db.deleteFrom('identity.login_throttle').where('scope_key', 'in', keys).execute();
+  await db
+    .deleteFrom('identity.login_throttle')
+    .where(
+      'scope_key',
+      'in',
+      db.selectFrom('identity.login_throttle').select('scope_key').where('scope_key', 'in', keys).forUpdate().skipLocked(),
+    )
+    .execute();
 }
 
 /**

@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
-import { sql } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 import type { Response } from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { deletePasswordThrottle, deleteThrottles } from '../../src/modules/identity/infrastructure/throttle-queries.ts';
+import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
+import type { Database } from '../../src/platform/database/database.ts';
 import { DEVICE_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
 import { PASSWORD_HASHER } from '../../src/modules/identity/infrastructure/ports.ts';
-import { SLEEPER } from '../../src/platform/tokens.ts';
+import { DATABASE, SLEEPER } from '../../src/platform/tokens.ts';
 import { createIdentityApp, type IdentityApp } from '../support/identity-app.ts';
 import { createLink, createUser } from '../support/identity-fixtures.ts';
 import { setPassword } from '../support/flows.ts';
@@ -285,5 +288,23 @@ describe('the browser the account knows (EVM-026 AC2, M5)', () => {
     const doubled = `${deviceCookie}; ${deviceCookie.replace(/.$/, (last) => (last === 'A' ? 'B' : 'A'))}`;
     await wrongPasswords(current, account.email, 1, { panel: () => browserWith(doubled) });
     expect(await accountRow(current, account.email)).toMatchObject({ failures: 1 });
+  });
+});
+
+describe('the lift of a lock never waits for a sign-in (EVM-026 AC7; CWE-833)', () => {
+  it('EVM-026 AC7 a counter that a sign-in holds locked is skipped by the end of a reset, and so are the counters of forgotten browsers: no deadlock between users → counter and counter → users', async () => {
+    const known = await enrolledAccount(current);
+    current.clock.set(NINE);
+    await wrongPasswords(current, known.email, 10, { everyMs: 1000 });
+    const key = accountKeyOf(current, known.email);
+    const app = identityTables(current.app.get<Kysely<Database>>(DATABASE, { strict: false }));
+    await current.database.admin.transaction().execute(async (trx) => {
+      await sql`select 1 from identity.login_throttle where scope_key = ${key} for update`.execute(trx);
+      expect(await deletePasswordThrottle(app, key)).toBe(false); // returned at once — it did not queue behind the lock
+      await deleteThrottles(app, [key]);
+    });
+    expect(await accountRow(current, known.email)).toMatchObject({ failures: 10, lock_cause: 'password' });
+    expect(await deletePasswordThrottle(app, key)).toBe(true);
+    expect(await accountRow(current, known.email)).toBeUndefined();
   });
 });

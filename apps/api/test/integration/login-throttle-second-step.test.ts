@@ -193,6 +193,18 @@ describe('the second step counts in the same budget (EVM-026 AC1, AC3; RR-26)', 
   });
 });
 
+describe('a loginToken made before the migration (EVM-026 0040)', () => {
+  it('EVM-026 AC3 a first step without a recorded scope is counted in the account scope: the failures of its second step stand in the row of the address', async () => {
+    const account = await totpAccount(current, { withCodes: true });
+    current.clock.set(NINE);
+    const panel = current.panel();
+    const token = await startLogin(panel, account);
+    await sql`update identity.login_attempts set throttle_key = null`.execute(current.database.admin);
+    expect((await sendLoginTotp(panel, token, wrongTotp(account.secret))).status).toBe(401);
+    expect(await accountRow(current, account.email)).toMatchObject({ failures: 1, second_step_failures: 1 });
+  });
+});
+
 describe('the order of a try (EVM-026 M1; CWE-307)', () => {
   it('EVM-026 AC1 a code of the app is checked only AFTER the wait: the sixth failure waits 1 s before the engine looks at the code', async () => {
     const account = await totpAccount(current, { withCodes: true });
