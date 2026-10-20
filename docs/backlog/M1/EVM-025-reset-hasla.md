@@ -4,7 +4,7 @@ title: Reset zapomnianego hasła
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -97,7 +97,7 @@ _—_
 - [x] Bramki CI zielone, progi pokrycia spełnione
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika
+- [x] Demo i akceptacja użytkownika
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -108,3 +108,4 @@ _—_
 - 2026-10-16 — backend (API, migracja 0037, testy integracyjne i macierz ról) gotowy, lokalna bramka backendu zielona; panel (W-01, W-12, W-02) i e2e czekają na web-developera [backend-developer]
 - 2026-10-16 — panel (W-01 „Zresetuj hasło”, W-12, komunikat nad W-02, wariant `success` InlineAlert), testy komponentów, Playwright (Chromium, Firefox, Edge), axe i zrzuty gotowe [web-developer]
 - 2026-10-16 — przegląd r1: code-reviewer, security-engineer, ux-designer — APPROVE; QA: AC1–AC7 pass; bramka `pnpm run gate` zielona; in-progress → in-review (czeka na demo) [orkiestrator]
+- 2026-10-20 — demo/akceptacja Konrada → in-review → done
