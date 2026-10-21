@@ -171,7 +171,6 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'backend-integration',
       'e2e-web',
       'mobile-apk',
-      'mobile-sign',
       'security',
       'coverage',
       'ci-gate',

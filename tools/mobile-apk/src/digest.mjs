@@ -18,7 +18,7 @@ export function digestSummary({ name, sha256: digest, signed, notes }) {
     '',
     signed
       ? 'Status: **podpisany**'
-      : 'Status: **NIEPODPISANY** — nie da się go zainstalować; podpis dodaje job `mobile-sign` na `main` (docs/ops/dystrybucja-apk-android.md).',
+      : 'Status: **NIEPODPISANY** — nie da się go zainstalować; podpis lokalny wg docs/ops/dystrybucja-apk-android.md (CI nie ma klucza).',
     '',
     `- Plik: \`${name}\``,
     `- SHA-256: \`${digest}\``,

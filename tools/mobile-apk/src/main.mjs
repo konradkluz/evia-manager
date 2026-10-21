@@ -1,24 +1,19 @@
 // @ts-check
 /**
- * Dispatch of `node tools/mobile-apk/cli.mjs verify|digest --apk <file> [--application-id <id>] [--signed]` (EVM-009 AC5, AC6).
- * Exit codes: 0 ok, 1 findings or a failed read, 2 usage.
+ * Dispatch of `node tools/mobile-apk/cli.mjs verify|digest --apk <file> [--application-id <id>] [--signed]` and of `sign` (local
+ * signing, src/sign.mjs) (EVM-009 AC5, AC6). Exit codes: 0 ok, 1 findings, a refusal or a failed read, 2 usage.
  */
 import { basename, join } from 'node:path';
 import { digestSummary, sha256 } from './digest.mjs';
+import { parseSignArguments, signApk } from './sign.mjs';
 import { verifyApk } from './verify.mjs';
 
-export const USAGE = 'Usage: node tools/mobile-apk/cli.mjs verify|digest --apk <file> [--application-id <id>] [--signed]';
+export const USAGE =
+  'Usage: node tools/mobile-apk/cli.mjs verify|digest --apk <file> [--application-id <id>] [--signed] | sign --apk <file> --expect-sha256 <digest> --keystore <file> --key-alias <alias> --out <file>';
 const APPLICATION_ID = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/i;
 
 /**
- * @typedef {{
- *   env: NodeJS.ProcessEnv,
- *   platform: string,
- *   readFile: (path: string) => Uint8Array,
- *   appendFile: (path: string, text: string) => void,
- *   run: import('./verify.mjs').Host['run'],
- *   log: (line: string) => void,
- * }} Host
+ * @typedef {import('./sign.mjs').SignHost & { appendFile: (path: string, text: string) => void }} Host
  */
 
 /**
@@ -54,6 +49,14 @@ export function parseArguments(argv) {
  * @returns {number}
  */
 export function main(argv, host) {
+  if (argv[0] === 'sign') {
+    const parsed = parseSignArguments(argv.slice(1), host.env);
+    if ('error' in parsed) {
+      host.log(parsed.error);
+      return 2;
+    }
+    return signApk(parsed.options, host);
+  }
   const options = parseArguments(argv);
   if (options === null) {
     host.log(USAGE);
@@ -79,7 +82,22 @@ export function main(argv, host) {
   host.log(`SHA-256 ${digest}  ${basename(options.apk)}`);
   const summaryFile = host.env['GITHUB_STEP_SUMMARY'];
   if (options.command === 'digest' && summaryFile !== undefined && summaryFile !== '') {
-    host.appendFile(summaryFile, digestSummary({ name: basename(options.apk), sha256: digest, signed: options.signed, notes: [] }));
+    host.appendFile(
+      summaryFile,
+      digestSummary({ name: basename(options.apk), sha256: digest, signed: options.signed, notes: runNotes(host.env) }),
+    );
   }
   return 0;
+}
+
+/**
+ * The branch and the commit of the CI run (public data): the owner compares them with the run on main before signing.
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {string[]}
+ */
+function runNotes(env) {
+  const clean = (/** @type {string | undefined} */ value) => (value ?? '').replace(/[^\w./@+-]/g, '').slice(0, 200);
+  const branch = clean(env['GITHUB_REF_NAME']);
+  const commit = clean(env['GITHUB_SHA']);
+  return [...(branch === '' ? [] : [`Gałąź: \`${branch}\``]), ...(commit === '' ? [] : [`Commit: \`${commit}\``])];
 }

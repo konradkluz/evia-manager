@@ -253,7 +253,8 @@ jobs:
   # EVM-009 AC5, AC6: the Android package of the app, built from the generated native project (`expo prebuild`, Gradle
   # assembleRelease) WITHOUT any secret and WITHOUT signing: the artifact is `*-release-unsigned.apk` (it cannot be installed).
   # The manifest, the XML resources and the contents of the finished package are verified (tools/mobile-apk), then the SHA-256 is
-  # written to the summary. No Expo/EAS account, no telemetry. The signing key is used by `mobile-sign` below, on main only.
+  # written to the summary. No Expo/EAS account, no telemetry. The package is signed LOCALLY by the owner (tools/mobile-apk sign,
+  # docs/ops/dystrybucja-apk-android.md); CI holds no signing key and no secret (RR-21).
   # The API address of the build is the repository variable EVIA_API_BASE_URL (https only; a build with another scheme fails).
   mobile-apk:
     name: mobile-apk
@@ -323,87 +324,6 @@ jobs:
           path: dist/*-release-unsigned.apk
           if-no-files-found: error
           retention-days: 14
-
-  # EVM-009 AC5 (security-engineer B1): signing of the package of THIS run on main only — a separate job that checks out
-  # nothing, installs nothing and uses no cache: the signing key is visible to the signing step only (its `env`), the keystore
-  # is a temporary file removed at the end, the passwords reach apksigner through environment variables and never through
-  # arguments. Without the secrets the job succeeds and says that the package stays unsigned. Outside ci-gate: signing is a
-  # release step, judged by its own run (tools/repo-policy → mobileSignJobProblems).
-  mobile-sign:
-    name: mobile-sign
-    needs: [mobile-apk]
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: mobile-apk-unsigned
-          path: unsigned
-      - name: Sign the package with the key from the secrets (or leave it unsigned and say so)
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          umask 077
-          unsigned="$(find unsigned -maxdepth 1 -name '*-release-unsigned.apk' | head -n 1)"
-          test -n "$unsigned"
-          mkdir -p signed
-          present=0
-          missing=""
-          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
-            if [ -n "${!name:-}" ]; then present=$((present + 1)); else missing="$missing $name"; fi
-          done
-          if [ "$present" -eq 0 ]; then
-            echo "::warning::No signing secrets: the package stays unsigned (docs/ops/dystrybucja-apk-android.md)"
-            {
-              echo '### APK NIEPODPISANY'
-              echo
-              echo 'Brak sekretów podpisu (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD) — artefakt mobile-apk-unsigned nie da się zainstalować. Kroki dodania sekretów: docs/ops/dystrybucja-apk-android.md.'
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          if [ "$present" -ne 4 ]; then
-            echo "::error::The signing secrets are incomplete; missing:$missing"
-            exit 1
-          fi
-          keystore="$RUNNER_TEMP/evia-release.keystore"
-          trap 'rm -f "$keystore"' EXIT
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$keystore"
-          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-          "$tools/zipalign" -c -P 16 4 "$unsigned"
-          signed="signed/$(basename "${unsigned%-unsigned.apk}").apk"
-          "$tools/apksigner" sign --ks "$keystore" --ks-key-alias "$ANDROID_KEY_ALIAS" \
-            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
-            --out "$signed" "$unsigned"
-          report="$("$tools/apksigner" verify --verbose --print-certs "$signed")"
-          echo "$report" | grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true'
-          echo "$report" | grep -q 'Verified using v3 scheme (APK Signature Scheme v3): true'
-          {
-            echo '### APK podpisany'
-            echo
-            echo "- Plik: \`$(basename "$signed")\`"
-            echo "- SHA-256 pliku: \`$(sha256sum "$signed" | cut -d ' ' -f 1)\`"
-            echo "$report" | grep 'certificate SHA-256 digest' | sed 's/^/- /'
-            echo
-            echo 'Porównaj oba skróty z danymi z przekazania pliku przed instalacją (docs/ops/dystrybucja-apk-android.md).'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - name: Remove the keystore from the runner
-        if: always()
-        shell: bash
-        run: rm -f "$RUNNER_TEMP/evia-release.keystore"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: mobile-apk-signed
-          path: signed/*.apk
-          if-no-files-found: ignore
-          retention-days: 30
 
   security:
     name: security

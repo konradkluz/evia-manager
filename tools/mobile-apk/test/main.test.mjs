@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, mock } from 'node:test';
@@ -166,7 +166,17 @@ describe('wiring of the APK verification to the machine (EVM-009)', () => {
       host.appendFile(join(root, 's.md'), 'x');
       host.appendFile(join(root, 's.md'), 'y');
       assert.equal(readFileSync(join(root, 's.md'), 'utf8'), 'xy');
-      assert.deepEqual(host.run(process.execPath, ['-e', 'process.stdout.write("é")']), { status: 0, stdout: 'é' });
+      assert.deepEqual(host.run(process.execPath, ['-e', 'process.stdout.write("é")']), { status: 0, stdout: 'é', stderr: '' });
+      const quiet = host.run(process.execPath, ['-e', 'process.stderr.write("warn")'], { quiet: true });
+      assert.deepEqual([quiet.status, quiet.stderr], [0, 'warn']);
+      assert.equal(host.run(process.execPath, ['-e', '0'], { interactive: true }).stdout, '');
+      assert.equal(host.cwd(), process.cwd());
+      assert.deepEqual([host.exists(file), host.exists(join(root, 'none'))], [true, false]);
+      assert.equal(host.realpath(file), realpathSync.native(file));
+      assert.deepEqual([host.listDir(root).includes('a.bin'), host.listDir(join(root, 'none'))], [true, []]);
+      host.remove(file);
+      host.remove(file);
+      assert.equal(host.exists(file), false);
       assert.equal(host.run(process.execPath, ['-e', 'process.stdout.write(Buffer.from([0xe9]))'], { binary: true }).stdout, 'é');
       assert.equal(host.platform, process.platform);
       const write = mock.method(process.stdout, 'write', () => true);
