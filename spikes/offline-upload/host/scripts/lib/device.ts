@@ -8,7 +8,7 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
-export const ANDROID_HOME = process.env.ANDROID_HOME ?? 'C:\\Users\\Konrad\\AppData\\Local\\Android\\Sdk';
+export const ANDROID_HOME = process.env.ANDROID_HOME ?? join(homedir(), 'AppData', 'Local', 'Android', 'Sdk');
 export const ADB = join(ANDROID_HOME, 'platform-tools', 'adb.exe');
 export const EMULATOR = join(ANDROID_HOME, 'emulator', 'emulator.exe');
 export const AVD = 'Medium_Phone_API_35';

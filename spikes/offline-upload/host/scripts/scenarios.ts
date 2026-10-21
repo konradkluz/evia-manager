@@ -2,6 +2,7 @@
 //   node scripts/scenarios.ts <scenario> [--runs N] [--mib N]
 // Scenarios: airplane | forcestop | kill9 | killcomplete | reboot | reboot-pin | background | big | wifi-lte | checks
 // Results (JSON, no tokens or signed URLs) go to .scratch/EVM-011/results/. Synthetic pseudo-random files only; NOT camera footage.
+import { spawn } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -234,6 +235,46 @@ async function airplaneMid(mib: number) {
   return { ok, msAfterNetworkBack: Date.now() - tOn, files: await verifyAll([p]) };
 }
 
+/** AC1: camera -> app sandbox -> queue -> S3, driven by Maestro (virtualscene camera of the AVD; muted video; no gallery). */
+async function cameraFlow() {
+  // async spawn: the issuer lives in this process and must keep answering while Maestro drives the app
+  const exitCode = await new Promise<number | null>((resolve) => {
+    spawn(process.execPath, ['scripts/maestro.ts', '../app/maestro/capture.yaml'], { stdio: 'inherit' }).on('close', resolve);
+  });
+  const maestro = { status: exitCode };
+  note('Maestro flow finished', { exitCode });
+  const ok = await waitFor(
+    async () => {
+      const jobs = await dev.readJobs();
+      return jobs.length >= 2 && jobs.every((j) => j.state === 'uploaded');
+    },
+    180_000,
+    1500,
+  );
+  const jobs = await dev.readJobs();
+  const files = [];
+  for (const j of jobs) {
+    const rec = issuer.sessions().find((x) => x.assetId === j.assetId);
+    const stored = rec ? await objectSha256(s3, local.bucket, rec.key) : undefined;
+    files.push({
+      assetId: j.assetId,
+      contentType: rec?.contentType,
+      ok: stored?.sha256 === j.sha256 && stored?.size === j.size,
+      sizeBytes: j.size,
+      objectShaMatchesDevice: stored?.sha256 === j.sha256,
+      uploadMs: j.finishedAt && j.startedAt ? j.finishedAt - j.startedAt : undefined,
+      retries: j.retries ?? 0,
+      partPuts: j.partPuts ?? 0,
+    });
+  }
+  const mediaStore = {
+    images: await safe(() => dev.sh('content query --uri content://media/external/images/media --projection _display_name 2>&1 | head -3')),
+    video: await safe(() => dev.sh('content query --uri content://media/external/video/media --projection _display_name 2>&1 | head -3')),
+  };
+  const cache = await safe(() => dev.runAs('ls -la cache/Camera 2>&1 | head -8'));
+  return { ok: ok && maestro.status === 0, maestroExit: maestro.status, files, mediaStore, cacheCameraDir: cache };
+}
+
 async function interrupt(mode: 'forcestop' | 'kill9', point: 'begin' | 'middle' | 'end', mib: number) {
   await throttle(24_000); // ~3 MB/s so that a part takes a few seconds and the cut can hit a chosen part
   const p = await plant(mib * MiB, `${mode}-${point}-${nonce}`, 'video/mp4');
@@ -438,6 +479,9 @@ try {
       await finish('airplane', { runs: all });
       break;
     }
+    case 'camera':
+      await finish('camera', { run: await cameraFlow() });
+      break;
     case 'airplane-mid':
       await finish('airplane-mid', { run: await airplaneMid(flag('mib', 200)) });
       break;

@@ -2,11 +2,12 @@
 // Same invocation as tools/mobile-e2e: `java -classpath <maestro>/lib/* maestro.cli.AppKt ...` (no shell, no .bat launcher).
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { RESULTS_DIR } from '../src/local.ts';
 
 const flow = resolve(process.argv[2] ?? '');
-const maestroHome = process.env.EVIA_MAESTRO_HOME ?? 'C:\Users\Konrad\.evia\tools\maestro-2.11.0';
+const maestroHome = process.env.EVIA_MAESTRO_HOME ?? join(homedir(), '.evia', 'tools', 'maestro-2.11.0');
 const java = process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', 'java.exe') : 'java';
 const out = join(RESULTS_DIR, 'maestro');
 mkdirSync(out, { recursive: true });
