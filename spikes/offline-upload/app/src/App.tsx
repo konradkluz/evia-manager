@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { uuidv7 } from '@evm011/core/portable';
 import Native, { type LaunchCommand, type NativeJob } from '../modules/spike-uploader/src';
-import { openQueueDb } from './db';
+import { benchmarkQueueDb, openQueueDb } from './db';
 
 type Kind = 'photo' | 'video' | 'synthetic';
 
@@ -21,6 +21,8 @@ export default function App() {
   const [jobs, setJobs] = useState<NativeJob[]>([]);
   const [notice, setNotice] = useState('starting');
   const [freeMb, setFreeMb] = useState(0);
+  const [dbInfo, setDbInfo] = useState('db=?');
+  const [cameraMode, setCameraMode] = useState<'picture' | 'video'>('picture');
 
   const ingest = useCallback(async (path: string, kind: Kind, contentType: string, flag?: string) => {
     const sha = await Native.sha256File(path);
@@ -39,6 +41,10 @@ export default function App() {
     async (c: LaunchCommand) => {
       if (c.cmd === 'enqueue' && c.path) {
         await ingest(c.path, 'synthetic', c.type === 'image/jpeg' ? 'image/jpeg' : 'video/mp4', c.flag);
+      } else if (c.cmd === 'bench') {
+        const r = await benchmarkQueueDb(db.current!);
+        console.log(`EVM011-JS bench ${JSON.stringify(r)}`);
+        setNotice(`bench ${JSON.stringify(r)}`);
       } else if (c.cmd === 'reschedule') {
         setNotice(`rescheduled ${await Native.ensureScheduled()}`);
       } else if (c.cmd === 'confirm' && c.asset && c.sha) {
@@ -56,12 +62,17 @@ export default function App() {
   // Start-up: open the encrypted DB, re-create jobs lost to a force-stop, re-register rows whose job file is missing.
   useEffect(() => {
     void (async () => {
+      const tOpen = Date.now();
       db.current = await openQueueDb();
+      const rows = await db.current.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM media');
+      setDbInfo(`dbOpenMs=${Date.now() - tOpen} dbRows=${rows?.n ?? -1}`);
+      console.log(`EVM011-JS db opened ms=${Date.now() - tOpen} mediaRows=${rows?.n ?? -1}`);
       const known = new Set((await Native.getJobs()).map((j) => j.assetId));
-      const rows = await db.current.getAllAsync<{ asset_id: string; path: string; sha256: string; content_type: string }>(
+      const pendingRows = await db.current.getAllAsync<{ asset_id: string; path: string; sha256: string; content_type: string }>(
         "SELECT asset_id, path, sha256, content_type FROM media WHERE state = 'pending'",
       );
-      for (const r of rows) if (!known.has(r.asset_id)) await Native.registerJob(r.asset_id, r.path, r.sha256, r.content_type, false);
+      for (const r of pendingRows)
+        if (!known.has(r.asset_id)) await Native.registerJob(r.asset_id, r.path, r.sha256, r.content_type, false);
       const n = await Native.ensureScheduled();
       setFreeMb(Math.round((await Native.freeBytes()) / (1024 * 1024)));
       setNotice(`ready (rescheduled ${n})`);
@@ -89,6 +100,11 @@ export default function App() {
   const capture = async (kind: 'photo' | 'video') => {
     if (!camera.current) return;
     try {
+      const wanted = kind === 'photo' ? 'picture' : 'video';
+      if (!recording && cameraMode !== wanted) {
+        setCameraMode(wanted);
+        await new Promise((r) => setTimeout(r, 2000)); // the camera session is re-bound when the mode changes
+      }
       if (kind === 'photo') {
         const pic = await camera.current.takePictureAsync({ quality: 0.6, exif: false, skipProcessing: true });
         const moved = await Native.moveToSandbox(pic.uri);
@@ -118,7 +134,7 @@ export default function App() {
     <View style={styles.root}>
       <Text style={styles.title}>EVM-011 SPIKE (Android, throwaway)</Text>
       <Text testID="notice">{notice}</Text>
-      <Text testID="summary">{`items=${total} uploaded=${uploaded} retries=${retries} freeMB=${freeMb} config=${Native.hasConfig()}`}</Text>
+      <Text testID="summary">{`items=${total} uploaded=${uploaded} retries=${retries} freeMB=${freeMb} config=${Native.hasConfig()} ${dbInfo}`}</Text>
       <View style={styles.row}>
         <Btn
           id="btn-permissions"
@@ -138,7 +154,7 @@ export default function App() {
       </View>
       {cameraOpen && permission?.granted ? (
         <View>
-          <CameraView ref={camera} style={styles.camera} mode="video" mute facing="back" />
+          <CameraView ref={camera} style={styles.camera} mode={cameraMode} mute facing="back" />
           <View style={styles.row}>
             <Btn id="btn-photo" label="Photo" onPress={() => void capture('photo')} />
             <Btn id="btn-video" label={recording ? 'Stop video' : 'Record video'} onPress={() => void capture('video')} />

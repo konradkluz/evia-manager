@@ -46,7 +46,7 @@ class SpikeUploaderModule : Module() {
       }
       return mapOf("cmd" to "configured")
     }
-    val allowed = setOf("enqueue", "reschedule", "confirm")
+    val allowed = setOf("enqueue", "reschedule", "confirm", "bench")
     if (cmd !in allowed) return null
     val out = mutableMapOf("cmd" to cmd)
     for (k in listOf("path", "type", "asset", "sha", "flag")) intent.getStringExtra("evm011_$k")?.let { out[k] = it }

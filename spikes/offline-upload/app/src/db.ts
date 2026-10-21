@@ -41,3 +41,38 @@ export async function openQueueDb(): Promise<SQLite.SQLiteDatabase> {
   );
   return db;
 }
+
+/** ADR-0007 question 5: 2,000 orders and 5,000 entries in the encrypted database; timings of typical operations (emulator, not a phone). */
+export async function benchmarkQueueDb(db: SQLite.SQLiteDatabase) {
+  await db.execAsync(
+    `DROP TABLE IF EXISTS bench_entries; DROP TABLE IF EXISTS bench_orders;
+     CREATE TABLE bench_orders (id INTEGER PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL, updated INTEGER NOT NULL);
+     CREATE TABLE bench_entries (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL, body TEXT NOT NULL, created INTEGER NOT NULL);
+     CREATE INDEX bench_entries_order ON bench_entries(order_id, created);`,
+  );
+  const t0 = Date.now();
+  await db.withTransactionAsync(async () => {
+    for (let i = 0; i < 2000; i++) {
+      await db.runAsync('INSERT INTO bench_orders (title, status, updated) VALUES (?, ?, ?)', [
+        `synthetic order ${i}`,
+        i % 5 === 0 ? 'closed' : 'open',
+        i,
+      ]);
+    }
+    for (let i = 0; i < 5000; i++) {
+      await db.runAsync('INSERT INTO bench_entries (order_id, body, created) VALUES (?, ?, ?)', [1 + (i % 2000), 'x'.repeat(200), i]);
+    }
+  });
+  const insertMs = Date.now() - t0;
+  const t1 = Date.now();
+  const list = await db.getAllAsync(
+    "SELECT o.id, o.title, (SELECT COUNT(*) FROM bench_entries e WHERE e.order_id = o.id) AS n FROM bench_orders o WHERE o.status = 'open' ORDER BY o.updated DESC LIMIT 50",
+  );
+  const listMs = Date.now() - t1;
+  const t2 = Date.now();
+  const entries = await db.getAllAsync('SELECT * FROM bench_entries WHERE order_id = ? ORDER BY created DESC LIMIT 50', [1000]);
+  const entriesMs = Date.now() - t2;
+  const t3 = Date.now();
+  const total = await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM bench_entries');
+  return { insertMs, listMs, entriesMs, countMs: Date.now() - t3, listRows: list.length, entryRows: entries.length, total: total?.n };
+}

@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { createIssuer, type Issuer } from '../src/issuer.ts';
 import { RESULTS_DIR, S3_ENDPOINT, countDuplicates, ensureBucket, loadLocal, s3Client } from '../src/local.ts';
 import { makeSyntheticFile } from '../src/synthetic.ts';
+import { createThrottleProxy, type ThrottleProxy } from '../src/throttle-proxy.ts';
 import { objectSha256 } from '../src/verify.ts';
 import * as dev from './lib/device.ts';
 
@@ -35,11 +36,11 @@ const note = (step: string, data?: unknown) => {
   console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s] ${step}${data === undefined ? '' : ` ${JSON.stringify(data)}`}`);
 };
 
-async function startIssuer(ttl = 3600) {
+async function startIssuer(ttl = 3600, signPort = 8333) {
   await ensureBucket(s3, local.bucket);
   issuer = createIssuer({
     s3Endpoint: S3_ENDPOINT,
-    signEndpoint: 'http://10.0.2.2:8333',
+    signEndpoint: `http://10.0.2.2:${signPort}`,
     bucket: local.bucket,
     accessKey: local.accessKey,
     secretKey: local.secretKey,
@@ -55,6 +56,12 @@ async function startIssuer(ttl = 3600) {
 
 /** Clean slate: app data (jobs, DB, token), S3 objects, open multiparts, issuer mapping. Each scenario then measures on its own. */
 async function resetAll() {
+  // undo anything an earlier (possibly interrupted) run may have left behind
+  for (const c of ['svc wifi enable', 'dumpsys deviceidle unforce', 'dumpsys battery reset', 'cmd connectivity airplane-mode disable']) {
+    await dev.sh(c).catch(() => undefined);
+  }
+  await dev.sh(`am set-standby-bucket ${dev.PKG} active`).catch(() => undefined);
+  await dev.consoleCommand('network speed full').catch(() => undefined);
   await dev.sh(`pm clear ${dev.PKG}`);
   await dev.sh(`pm grant ${dev.PKG} android.permission.CAMERA`);
   await dev.sh(`pm grant ${dev.PKG} android.permission.POST_NOTIFICATIONS`);
@@ -168,6 +175,7 @@ async function finish(name: string, extra: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ duplicates: dup, ...extra }, null, 1).slice(0, 3000));
 }
 
+/** NOTE: measured to have NO effect on the transfer speed of the emulator (uploads ran at the natural ~4 MiB/s with the setting at 24000/3000 kbit/s); kept only as a record of what was tried. The background scenarios use the host-side throttling proxy. */
 async function throttle(kbps: number | 'full') {
   note('network speed', { kbps });
   await dev.consoleCommand(kbps === 'full' ? 'network speed full' : `network speed ${kbps}:${kbps}`);
@@ -323,10 +331,16 @@ async function rebootScenario(withPin: boolean) {
   return { ok, withPin, resumedWithoutApp, progressBeforeUnlock: [progress1, progress2], files: await verifyAll([p]) };
 }
 
-async function background(mib: number, kbps: number, deepIdle: boolean) {
-  await throttle(kbps);
+let proxy: ThrottleProxy | undefined;
+
+/** Long scenario: the S3 traffic goes through a host-side rate-limiting proxy (:8334) so that the transfer outlasts 10 minutes. */
+async function background(mib: number, kBps: number, deepIdle: boolean) {
+  proxy = createThrottleProxy({ listenPort: 8334, targetPort: 8333, bytesPerSecond: kBps * 1000 });
+  await proxy.listen();
+  note('throttling proxy on the host', { kBps });
   const p = await plant(mib * MiB, `bg-${deepIdle ? 'idle' : 'base'}-${nonce}`, 'video/mp4');
   await dev.sleep(5000);
+  note('effective path', { wifiOn: (await dev.sh('dumpsys wifi | grep -m1 "Wi-Fi is"')).trim() });
   await dev.sh('input keyevent KEYCODE_HOME');
   note('app sent to background (HOME)');
   if (deepIdle) {
@@ -349,8 +363,9 @@ async function background(mib: number, kbps: number, deepIdle: boolean) {
     await dev.sh('dumpsys deviceidle unforce');
     await dev.sh('dumpsys battery reset');
   }
-  const ok = finished || (await waitFor(() => allUploaded([p]), 300_000, 2000));
-  await throttle('full');
+  const ok = finished || (await waitFor(() => allUploaded([p]), 600_000, 2000));
+  note('proxy bytes forwarded', { bytesUp: proxy.bytesUp() });
+  await proxy.close();
   return { ok, deepIdle, backgroundMs: Date.now() - start, samples, files: await verifyAll([p]) };
 }
 
@@ -412,7 +427,7 @@ async function checks() {
 
 if (!(await dev.emulatorRunning())) await dev.startEmulator();
 if (scenario !== 'checks' && !args.includes('--keep')) await resetAll();
-await startIssuer();
+await startIssuer(3600, scenario.startsWith('background') ? 8334 : 8333);
 await configureApp();
 const runs = flag('runs', 1);
 try {
@@ -446,10 +461,10 @@ try {
       await finish('reboot-pin', { run: await rebootScenario(true) });
       break;
     case 'background':
-      await finish('background', { run: await background(flag('mib', 256), flag('kbps', 3000), false) });
+      await finish('background', { run: await background(flag('mib', 256), flag('kBps', 350), false) });
       break;
     case 'background-idle':
-      await finish('background-idle', { run: await background(flag('mib', 256), flag('kbps', 3000), true) });
+      await finish('background-idle', { run: await background(flag('mib', 256), flag('kBps', 350), true) });
       break;
     case 'wifi-lte':
       await finish('wifi-lte', { run: await wifiLte() });
