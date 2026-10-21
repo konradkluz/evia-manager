@@ -8,14 +8,21 @@ const read = (/** @type {string} */ name) => readFileSync(join(FIXTURES, name), 
  * The recorded answers of apkanalyzer for the package of the app (synthetic), keyed by the arguments after the main class.
  * @param {string[]} args arguments of the java process
  * @param {string} apk the name of the package in the arguments
+ * @param {string} [bundle] contents of assets/index.android.bundle; when given, the package has such an entry
  * @returns {string | undefined}
  */
-export function analyzerAnswers(args, apk) {
+export function analyzerAnswers(args, apk, bundle) {
   const key = args.slice(args.indexOf('com.android.tools.apk.analyzer.ApkAnalyzerCli') + 1).join(' ');
   /** @type {Record<string, string>} */
   const answers = {
     [`manifest print ${apk}`]: read('manifest-print.txt'),
-    [`files list ${apk}`]: read('files-list.txt'),
+    [`files list ${apk}`]:
+      bundle === undefined
+        ? read('files-list.txt')
+        : `${read('files-list.txt')}
+/assets/index.android.bundle
+`,
+    [`files cat --file assets/index.android.bundle ${apk}`]: bundle ?? '',
     [`apk summary ${apk}`]: read('apk-summary.txt'),
     [`resources value --config default --type xml --name evia_network_security_config ${apk}`]: 'x/n.xml',
     [`resources value --config default --type xml --name evia_backup_rules ${apk}`]: 'x/b.xml',

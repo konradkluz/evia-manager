@@ -6,6 +6,9 @@
  * matched text, so a report cannot leak what it found.
  */
 
+/** Host of the stand-in API address that CI uses while the repository variable EVIA_API_BASE_URL is empty (.github/workflows/ci.yml). */
+export const PLACEHOLDER_API_HOST = 'api.example.invalid';
+
 export const ALLOWED_PUBLIC_VARIABLES = Object.freeze(['EXPO_PUBLIC_API_BASE_URL']);
 
 /** Files that never belong in a package (keys, certificates, environment files, source maps with sources). */

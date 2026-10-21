@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { basename, join, resolve } from 'node:path';
+import { basename, delimiter, join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { sha256 } from '../src/digest.mjs';
 import { main } from '../src/main.mjs';
-import { DEFAULT_KEY_PASS_ENV, DEFAULT_KS_PASS_ENV, parseSignArguments, redact, signApk } from '../src/sign.mjs';
+import { compareVersions, DEFAULT_KEY_PASS_ENV, DEFAULT_KS_PASS_ENV, parseSignArguments, redact, signApk } from '../src/sign.mjs';
 import { analyzerAnswers } from './helpers.mjs';
 
 const UNSIGNED = Buffer.from('synthetic unsigned apk bytes');
@@ -14,6 +14,15 @@ const STORE_PW = 'synthetic-store-pw-7f3a';
 const ENTRY_PW = 'synthetic-entry-pw-91bc';
 const win = process.platform === 'win32';
 const P = (/** @type {string} */ path) => resolve(path);
+const OTHER_SECRET = 'synthetic-token-5d21';
+/** The environment of the owner's shell: the SDK, the JDK, PATH, the password variables and an unrelated secret. */
+const SHELL_ENV = {
+  ANDROID_HOME: P('/sdk'),
+  JAVA_HOME: P('/jdk'),
+  PATH: P('/bin'),
+  SOME_TOKEN: OTHER_SECRET,
+};
+const GIT = P(win ? '/bin/git.exe' : '/bin/git');
 
 /**
  * @param {{ v2?: boolean, v3?: boolean, signers?: number, cert?: string, dn?: string }} [over]
@@ -36,7 +45,7 @@ function report({ v2 = true, v3 = true, signers = 1, cert = CERT, dn = 'CN=Synth
  */
 function world(config = {}) {
   const cfg = {
-    env: { ANDROID_HOME: P('/sdk'), JAVA_HOME: P('/jdk'), [DEFAULT_KS_PASS_ENV]: STORE_PW, [DEFAULT_KEY_PASS_ENV]: ENTRY_PW },
+    env: { ...SHELL_ENV, [DEFAULT_KS_PASS_ENV]: STORE_PW, [DEFAULT_KEY_PASS_ENV]: ENTRY_PW },
     versions: ['9.0.0', '35.0.0', '36.0.0', '36.0.0-rc1', 'notes'],
     jar: true,
     zipalign: true,
@@ -45,6 +54,9 @@ function world(config = {}) {
     outDirectory: true,
     repo: P('/repo'),
     gitMissing: false,
+    gitInPath: true,
+    gitError: '',
+    bundle: /** @type {string | undefined} */ (undefined),
     ignored: false,
     alias: /** @type {Record<string, string>} */ ({}),
     signedAlready: false,
@@ -59,6 +71,7 @@ function world(config = {}) {
   /** @type {Map<string, Uint8Array>} */
   const files = new Map();
   if (cfg.apk) files.set(P('/work/in.apk'), UNSIGNED);
+  if (cfg.gitInPath) files.set(GIT, Buffer.from('git'));
   if (cfg.keystore) files.set(P('/keys/release.p12'), Buffer.from('synthetic keystore'));
   if (cfg.jar)
     for (const version of cfg.versions) files.set(join(P('/sdk'), 'build-tools', version, 'lib', 'apksigner.jar'), Buffer.from('jar'));
@@ -97,13 +110,13 @@ function world(config = {}) {
     appendFile: () => undefined,
     run: (/** @type {string} */ command, /** @type {string[]} */ args, /** @type {Record<string, unknown>} */ options = {}) => {
       runs.push({ command, args, options });
-      if (command === 'git') {
+      if (basename(command).replace(/.exe$/, '') === 'git') {
         if (cfg.gitMissing) return { status: null, stdout: '', stderr: '' };
         const directory = args[1] ?? '';
         if (args[2] === 'check-ignore') return { status: cfg.ignored ? 0 : 1, stdout: '', stderr: '' };
         return inRepo(directory)
           ? { status: 0, stdout: `${cfg.repo}\n`, stderr: '' }
-          : { status: 128, stdout: '', stderr: 'not a git repository' };
+          : { status: 128, stdout: '', stderr: cfg.gitError === '' ? 'fatal: not a git repository' : cfg.gitError };
       }
       if (command.endsWith('zipalign') || command.endsWith('zipalign.exe')) {
         if (cfg.zipStatus === 0) files.set(P(args.at(-1) ?? ''), Buffer.from('aligned'));
@@ -120,7 +133,7 @@ function world(config = {}) {
       }
       const target = args.at(-1) ?? '';
       if (cfg.analyzerFails.includes(P(target))) return { status: 1, stdout: '', stderr: '' };
-      const stdout = analyzerAnswers(args, target);
+      const stdout = analyzerAnswers(args, target, cfg.bundle);
       return stdout === undefined ? { status: 1, stdout: '', stderr: '' } : { status: 0, stdout, stderr: '' };
     },
   };
@@ -144,6 +157,7 @@ const options = (over = {}) => ({
   ksPassEnv: DEFAULT_KS_PASS_ENV,
   keyPassEnv: DEFAULT_KEY_PASS_ENV,
   buildTools: '',
+  allowPlaceholderApi: false,
   ...over,
 });
 
@@ -163,12 +177,19 @@ describe('arguments of the local signing (EVM-009 AC5)', () => {
       ksPassEnv: 'EVIA_APK_KS_PASS',
       keyPassEnv: 'EVIA_APK_KEY_PASS',
       buildTools: '',
+      allowPlaceholderApi: false,
     });
     const named = parseSignArguments([...ARGV, '--ks-pass-env', 'MY_STORE', '--key-pass-env', 'MY_KEY', '--build-tools', '36.0.0'], {});
     assert.ok('options' in named);
     assert.equal(named.options.ksPassEnv, 'MY_STORE');
     assert.equal(named.options.keyPassEnv, 'MY_KEY');
     assert.equal(named.options.buildTools, '36.0.0');
+    assert.equal(named.options.allowPlaceholderApi, false);
+    const allowed = parseSignArguments(['--allow-placeholder-api', ...ARGV], {});
+    assert.ok('options' in allowed && allowed.options.allowPlaceholderApi);
+    assert.equal(allowed.options.out, 'out.apk');
+    const last = parseSignArguments([...ARGV, '--allow-placeholder-api'], {});
+    assert.ok('options' in last && last.options.allowPlaceholderApi);
   });
 
   it('EVM-009 AC5: the keystore, the alias and the pinned certificate may come from the environment of the owner', () => {
@@ -233,7 +254,7 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
     assert.deepEqual(sign.args.slice(0, 3), ['-jar', join(tools, 'lib', 'apksigner.jar'), 'sign']);
     assert.ok(sign.args.join(' ').includes('--ks-pass env:EVIA_APK_KS_PASS --key-pass env:EVIA_APK_KEY_PASS'));
     assert.ok(sign.args.includes('--v2-signing-enabled') && sign.args.includes('--v3-signing-enabled'));
-    assert.deepEqual(sign.options, { quiet: true });
+    assert.equal(sign.options['quiet'], true);
     const order = runs.map((run) => (basename(run.command).startsWith('zipalign') ? 'zipalign' : (run.args[2] ?? run.command)));
     assert.ok(order.indexOf('zipalign') < order.indexOf('sign') && order.indexOf('sign') < order.lastIndexOf('verify'));
     assert.deepEqual(logs, [`Signed: ${P('/out/signed.apk')}`, `SHA-256 file: ${sha256(SIGNED)}`, `SHA-256 certificate: ${CERT}`]);
@@ -244,29 +265,165 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
   it('EVM-009 AC5: no password ever reaches argv, the log or the summary; no process gets a shell', () => {
     const { host, runs, logs } = world();
     signApk(options(), host);
-    const everything = JSON.stringify(runs) + logs.join('\n');
+    const everything = JSON.stringify(runs.map(({ command, args }) => [command, ...args])) + logs.join('\n');
     assert.ok(!everything.includes(STORE_PW) && !everything.includes(ENTRY_PW));
     for (const run of runs) assert.ok(!('shell' in run.options) && !/\.(bat|cmd)$/i.test(run.command), run.command);
   });
 
+  it('EVM-009 AC5: the passwords reach the environment of apksigner sign only; git, zipalign and every other process get the allow-list', () => {
+    const { host, runs, logs } = world();
+    assert.equal(signApk(options(), host), 0, logs.join('\n'));
+    const envOf = (/** @type {{ options: Record<string, unknown> }} */ run) => /** @type {Record<string, string>} */ (run.options['env']);
+    const signRuns = runs.filter((run) => run.args[2] === 'sign');
+    assert.equal(signRuns.length, 1);
+    const signEnv = envOf(must(signRuns[0]));
+    assert.equal(signEnv[DEFAULT_KS_PASS_ENV], STORE_PW);
+    assert.equal(signEnv[DEFAULT_KEY_PASS_ENV], ENTRY_PW);
+    assert.ok(runs.some((run) => basename(run.command).startsWith('git')));
+    assert.ok(runs.some((run) => basename(run.command).startsWith('zipalign')));
+    assert.ok(runs.some((run) => run.args.includes('com.android.tools.apk.analyzer.ApkAnalyzerCli')));
+    assert.ok(runs.some((run) => run.args.includes('verify')));
+    for (const run of runs) {
+      const env = envOf(run);
+      assert.equal(env['NoDefaultCurrentDirectoryInExePath'], '1');
+      assert.equal(env['JAVA_HOME'], P('/jdk'));
+      assert.equal(env['SOME_TOKEN'], undefined, 'an unrelated variable is not passed on');
+      if (run.args[2] === 'sign') continue;
+      assert.ok(!(DEFAULT_KS_PASS_ENV in env) && !(DEFAULT_KEY_PASS_ENV in env), 'no password variable for ' + run.command);
+      assert.ok(!JSON.stringify(env).includes(STORE_PW) && !JSON.stringify(env).includes(ENTRY_PW));
+    }
+    assert.ok(!JSON.stringify(signEnv).includes(OTHER_SECRET));
+  });
+
+  it('EVM-009 AC5: git runs by its absolute path found in PATH (never from the current folder) and in English', () => {
+    const { host, runs } = world();
+    signApk(options(), host);
+    const gitRuns = runs.filter((run) => basename(run.command).startsWith('git'));
+    assert.ok(gitRuns.length >= 3);
+    for (const run of gitRuns) {
+      assert.equal(run.command, GIT);
+      assert.equal(/** @type {Record<string, string>} */ (run.options['env'])['LC_ALL'], 'C');
+    }
+    const relative = world({ env: { ...SHELL_ENV, PATH: '.' + delimiter + P('/other') } });
+    assert.equal(signApk(options(), relative.host), 1);
+    assert.match(relative.logs.join('\n'), /git was not found in PATH/);
+    const absent = world({ gitInPath: false });
+    assert.equal(signApk(options(), absent.host), 1);
+    assert.match(absent.logs.join('\n'), /git is needed/);
+    assert.ok(!absent.runs.some((run) => basename(run.command).startsWith('git')));
+    const mixedCase = world({ env: { ANDROID_HOME: P('/sdk'), JAVA_HOME: P('/jdk'), Path: P('/bin') } });
+    assert.equal(signApk(options(), mixedCase.host), 0, mixedCase.logs.join('\n'));
+  });
+
+  it('EVM-009 AC5: signing needs JAVA_HOME; a bare "java" is never started', () => {
+    const { host, runs, logs } = world({ env: { ...SHELL_ENV, JAVA_HOME: undefined } });
+    assert.equal(signApk(options(), host), 1);
+    assert.deepEqual(logs, ['sign: JAVA_HOME is not set (signing needs an explicit JDK)']);
+    assert.equal(runs.length, 0);
+  });
+
+  it('EVM-009 AC5: v4 signing is switched off explicitly, so that no .idsig file appears next to the result', () => {
+    const { host, runs } = world();
+    signApk(options(), host);
+    const sign = must(runs.find((run) => run.args[2] === 'sign'));
+    const at = sign.args.indexOf('--v4-signing-enabled');
+    assert.ok(at > 0);
+    assert.equal(sign.args[at + 1], 'false');
+  });
+
+  it('EVM-009 AC5: zipalign older than build-tools 35 gets a readable message with the required and the found version', () => {
+    const { host, runs, logs, files } = world();
+    assert.equal(signApk(options({ buildTools: '9.0.0' }), host), 1);
+    assert.deepEqual(logs, [
+      'sign: zipalign -P 16 needs build-tools 35.0.0 or newer, found 9.0.0 (install a newer one with sdkmanager or pass --build-tools)',
+    ]);
+    assert.ok(!runs.some((run) => basename(run.command).startsWith('zipalign')));
+    assert.ok(!files.has(P('/out/signed.apk') + '.aligned.tmp'));
+    const exact = world();
+    assert.equal(signApk(options({ buildTools: '35.0.0' }), exact.host), 0, exact.logs.join('\n'));
+  });
+
+  it('EVM-009 AC5: git errors other than "not a git repository" (dubious ownership, no access) refuse signing with a clear reason', () => {
+    for (const gitError of ['fatal: detected dubious ownership in repository', 'fatal: cannot change to the folder: Permission denied']) {
+      const { host, logs, runs } = world({ gitError });
+      assert.equal(signApk(options(), host), 1, gitError);
+      assert.match(
+        logs.join('\n'),
+        /git is needed to prove that the keystore is outside the repository, but it failed or refused the folder/,
+      );
+      assert.ok(!runs.some((run) => run.args[2] === 'sign'));
+    }
+    // the keystore is fine, the current folder is refused: the check of the work tree cannot be skipped
+    const { host, logs } = world();
+    const run = host.run;
+    host.run = (command, args, opts) =>
+      args[0] === '-C' && args[1] === P('/repo')
+        ? { status: 128, stdout: '', stderr: 'fatal: dubious ownership' }
+        : run(command, args, opts);
+    assert.equal(signApk(options(), host), 1);
+    assert.match(logs.join('\n'), /read the work tree of the current folder/);
+  });
+
+  it('EVM-009 AC5: a git failure without any message is an error, not "not a repository"', () => {
+    const { host: fake, logs } = world();
+    const host = /** @type {import('../src/sign.mjs').SignHost} */ (fake);
+    const run = host.run;
+    host.run = (command, args, opts) => (args[0] === '-C' ? { status: 128, stdout: '' } : run(command, args, opts));
+    assert.equal(signApk(options(), host), 1);
+    assert.match(logs.join('\n'), /failed or refused the folder/);
+  });
+
+  it('EVM-009 AC5: build-tools versions are compared part by part and a missing part counts as zero', () => {
+    assert.ok(compareVersions('35.0.0', '9.0.0') > 0);
+    assert.ok(compareVersions('36.0.0', '36.0.1') < 0);
+    assert.equal(compareVersions('35', '35.0.0'), 0);
+    assert.ok(compareVersions('35.0.0', '35') === 0 && compareVersions('35.1', '35') > 0);
+  });
+
+  it('EVM-009 AC5: a git error for the output folder refuses signing, a non-repository output folder is fine', () => {
+    const { host, logs } = world();
+    const run = host.run;
+    host.run = (command, args, opts) =>
+      args[0] === '-C' && args[1] === P('/out')
+        ? { status: 128, stdout: '', stderr: 'fatal: dubious ownership' }
+        : run(command, args, opts);
+    assert.equal(signApk(options(), host), 1);
+    assert.match(logs.join('\n'), /check the place of the output, but it failed or refused/);
+    const plain = world();
+    assert.equal(signApk(options(), plain.host), 0, plain.logs.join('\n'));
+  });
+
+  it('EVM-009 AC5: a package with the placeholder API address is refused unless --allow-placeholder-api is given', () => {
+    const bundle = 'var url="https://api.example.invalid"';
+    const refused = world({ bundle });
+    assert.equal(signApk(options(), refused.host), 1);
+    assert.match(refused.logs.join('\n'), /placeholder API address/);
+    assert.ok(!refused.runs.some((run) => run.args[2] === 'sign'));
+    const allowed = world({ bundle });
+    assert.equal(signApk(options({ allowPlaceholderApi: true }), allowed.host), 0, allowed.logs.join('\n'));
+    const real = world({ bundle: 'var url="https://api.evia.example.test"' });
+    assert.equal(signApk(options(), real.host), 0, real.logs.join('\n'));
+  });
+
   it('EVM-009 AC5: without the password variables apksigner prompts on the inherited terminal and gets no password option', () => {
-    const { host, runs, logs } = world({ env: { ANDROID_HOME: P('/sdk') } });
+    const { host, runs, logs } = world({ env: { ...SHELL_ENV } });
     assert.equal(signApk(options(), host), 0, logs.join('\n'));
     const sign = must(runs.find((run) => run.args[2] === 'sign'));
-    assert.deepEqual(sign.options, { interactive: true });
+    assert.equal(sign.options['interactive'], true);
+    assert.equal(sign.options['quiet'], undefined);
     assert.ok(!sign.args.includes('--ks-pass') && !sign.args.includes('--key-pass'));
-    assert.equal(sign.command, 'java');
+    assert.equal(sign.command, join(P('/jdk'), 'bin', win ? 'java.exe' : 'java'));
   });
 
   it('EVM-009 AC5: the key password defaults to the keystore password when only that variable is set', () => {
-    const { host, runs } = world({ env: { ANDROID_HOME: P('/sdk'), EVIA_APK_KS_PASS: STORE_PW } });
+    const { host, runs } = world({ env: { ...SHELL_ENV, EVIA_APK_KS_PASS: STORE_PW } });
     signApk(options(), host);
     const sign = must(runs.find((run) => run.args[2] === 'sign'));
     assert.ok(sign.args.includes('--ks-pass') && !sign.args.includes('--key-pass'));
   });
 
   it('EVM-009 AC5: an explicit build-tools version is used and a missing one is reported; the SDK may come from ANDROID_SDK_ROOT', () => {
-    const chosen = world({ env: { ANDROID_SDK_ROOT: P('/sdk'), EVIA_APK_KS_PASS: STORE_PW } });
+    const chosen = world({ env: { ...SHELL_ENV, ANDROID_HOME: undefined, ANDROID_SDK_ROOT: P('/sdk'), EVIA_APK_KS_PASS: STORE_PW } });
     assert.equal(signApk(options({ buildTools: '35.0.0' }), chosen.host), 0);
     assert.ok(chosen.runs.some((run) => run.args.includes(join(P('/sdk'), 'build-tools', '35.0.0', 'lib', 'apksigner.jar'))));
     const missing = world();

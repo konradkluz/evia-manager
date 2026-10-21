@@ -5,6 +5,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { childEnv } from './env.mjs';
 
 /** @param {unknown} value */
 const text = (value) => (typeof value === 'string' ? value : '');
@@ -27,12 +28,14 @@ export function realHost() {
     remove: (path) => {
       rmSync(path, { force: true });
     },
-    run: (command, args, { binary = false, quiet = false, interactive = false } = {}) => {
+    run: (command, args, { binary = false, quiet = false, interactive = false, env } = {}) => {
       const result = spawnSync(command, args, {
         encoding: binary ? 'latin1' : 'utf8',
         // interactive: the terminal is inherited for the prompt of apksigner; quiet: nothing reaches the terminal
         stdio: interactive ? 'inherit' : ['ignore', 'pipe', quiet ? 'pipe' : 'inherit'],
         maxBuffer: MAX_OUTPUT,
+        // a process gets the allow-list unless the caller passes its own environment (only apksigner sign gets the passwords)
+        env: env ?? childEnv(process.env),
         windowsHide: true,
       });
       return { status: result.status, stdout: text(result.stdout), stderr: text(result.stderr) };

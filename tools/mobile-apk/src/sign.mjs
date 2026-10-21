@@ -15,12 +15,15 @@
  */
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { sha256 } from './digest.mjs';
+import { childEnv, resolveProgram } from './env.mjs';
 import { verifyApk } from './verify.mjs';
 
 export const SIGN_USAGE =
-  'Usage: node tools/mobile-apk/cli.mjs sign --apk <unsigned.apk> --expect-sha256 <digest from the CI summary> --keystore <file outside the repository> --key-alias <alias> --out <signed.apk> [--expected-cert-sha256 <digest>] [--ks-pass-env <NAME>] [--key-pass-env <NAME>] [--build-tools <version>]';
+  'Usage: node tools/mobile-apk/cli.mjs sign --apk <unsigned.apk> --expect-sha256 <digest from the CI summary> --keystore <file outside the repository> --key-alias <alias> --out <signed.apk> [--expected-cert-sha256 <digest>] [--ks-pass-env <NAME>] [--key-pass-env <NAME>] [--build-tools <version>] [--allow-placeholder-api]';
 
 const HEX_64 = /^[0-9a-f]{64}$/i;
+/** zipalign learned `-P 16` (16 KB pages) in build-tools 35.0.0. */
+export const ZIPALIGN_PAGE_SIZE_MIN_VERSION = '35.0.0';
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const VERSION = /^\d+\.\d+\.\d+$/;
 const FORBIDDEN_PASSWORD_FORMS = /^(?:pass|file|stdin|env):/i;
@@ -38,7 +41,7 @@ export const DEFAULT_KEY_PASS_ENV = 'EVIA_APK_KEY_PASS';
  *   realpath: (path: string) => string,
  *   listDir: (path: string) => string[],
  *   remove: (path: string) => void,
- *   run: (command: string, args: string[], options?: { binary?: boolean, quiet?: boolean, interactive?: boolean }) => import('./verify.mjs').Outcome & { stderr?: string },
+ *   run: (command: string, args: string[], options?: { binary?: boolean, quiet?: boolean, interactive?: boolean, env?: Record<string, string> }) => import('./verify.mjs').Outcome & { stderr?: string },
  *   log: (line: string) => void,
  * }} SignHost
  */
@@ -46,7 +49,7 @@ export const DEFAULT_KEY_PASS_ENV = 'EVIA_APK_KEY_PASS';
 /**
  * @typedef {{
  *   apk: string, expectSha256: string, keystore: string, keyAlias: string, out: string, expectedCertSha256: string,
- *   ksPassEnv: string, keyPassEnv: string, buildTools: string,
+ *   ksPassEnv: string, keyPassEnv: string, buildTools: string, allowPlaceholderApi: boolean,
  * }} SignOptions
  */
 
@@ -69,8 +72,15 @@ export function parseSignArguments(argv, env) {
     '--key-pass-env',
     '--build-tools',
   ];
+  let allowPlaceholderApi = false;
   for (let index = 0; index < argv.length; index += 2) {
     const name = argv[index] ?? '';
+    if (name === '--allow-placeholder-api') {
+      // the only option without a value
+      allowPlaceholderApi = true;
+      index -= 1;
+      continue;
+    }
     if (FORBIDDEN_OPTIONS.includes(name))
       return { error: 'passwords are never passed as arguments: use the environment variables (docs/ops/dystrybucja-apk-android.md)' };
     const value = argv[index + 1];
@@ -101,11 +111,13 @@ export function parseSignArguments(argv, env) {
     return { error: '--expect-sha256 must be the 64 hex characters of the SHA-256 from the summary of the CI run' };
   if (expectedCertSha256 !== '' && !HEX_64.test(expectedCertSha256)) return { error: '--expected-cert-sha256 must be 64 hex characters' };
   if (buildTools !== '' && !VERSION.test(buildTools)) return { error: '--build-tools must be a version such as 36.0.0' };
-  return { options: { apk, expectSha256, keystore, keyAlias, out, expectedCertSha256, ksPassEnv, keyPassEnv, buildTools } };
+  return {
+    options: { apk, expectSha256, keystore, keyAlias, out, expectedCertSha256, ksPassEnv, keyPassEnv, buildTools, allowPlaceholderApi },
+  };
 }
 
 /** @param {string} a @param {string} b */
-function compareVersions(a, b) {
+export function compareVersions(a, b) {
   const left = a.split('.').map(Number);
   const right = b.split('.').map(Number);
   for (let index = 0; index < 3; index += 1) {
@@ -169,8 +181,10 @@ export function signApk(options, host) {
   const sdk = host.env['ANDROID_HOME'] ?? host.env['ANDROID_SDK_ROOT'] ?? '';
   if (sdk === '') return fail('ANDROID_HOME is not set');
   const tools = buildToolsDirectory(host, sdk, options.buildTools);
-  const javaHome = host.env['JAVA_HOME'];
-  const java = javaHome === undefined ? 'java' : join(javaHome, 'bin', platform === 'win32' ? 'java.exe' : 'java');
+  // an explicit JDK: a bare `java` could be found in the current folder on Windows
+  const javaHome = host.env['JAVA_HOME'] ?? '';
+  if (javaHome === '') return fail('JAVA_HOME is not set (signing needs an explicit JDK)');
+  const java = join(javaHome, 'bin', platform === 'win32' ? 'java.exe' : 'java');
   const zipalign = tools === null ? '' : join(tools, platform === 'win32' ? 'zipalign.exe' : 'zipalign');
   const apksignerJar = tools === null ? '' : join(tools, 'lib', 'apksigner.jar');
   if (tools === null || !host.exists(zipalign) || !host.exists(apksignerJar)) {
@@ -182,13 +196,29 @@ export function signApk(options, host) {
   const keystore = host.realpath(options.keystore);
   if (!host.exists(options.apk)) return fail('the package does not exist');
   const apk = host.realpath(options.apk);
-  const keystoreRepo = host.run('git', ['-C', dirname(keystore), 'rev-parse', '--show-toplevel'], { quiet: true });
-  if (keystoreRepo.status === null || (keystoreRepo.status !== 0 && keystoreRepo.status !== 128)) {
-    return fail('git is needed to prove that the keystore is outside the repository');
-  }
-  const cwdRepo = host.run('git', ['-C', host.cwd(), 'rev-parse', '--show-toplevel'], { quiet: true });
-  const repoRoot = cwdRepo.status === 0 ? host.realpath(cwdRepo.stdout.trim()) : '';
-  if (keystoreRepo.status === 0 || (repoRoot !== '' && isInside(keystore, repoRoot, platform))) {
+  // every child process gets the allow-list of the environment; only `apksigner sign` gets the password variables (below)
+  const baseEnv = childEnv(host.env);
+  const git = resolveProgram('git', host);
+  if (git === null) return fail('git is needed to prove that the keystore is outside the repository (git was not found in PATH)');
+  /** @type {import('./verify.mjs').Host & { run: SignHost['run'] }} */
+  const plainHost = { ...host, run: (command, args, runOptions) => host.run(command, args, { ...runOptions, env: baseEnv }) };
+  // English messages, so that "not a git repository" can be told from other failures (dubious ownership, no access)
+  const gitEnv = { ...baseEnv, LC_ALL: 'C' };
+  /** @param {string} directory @returns {{ state: 'repository', top: string } | { state: 'none' } | { state: 'error' }} */
+  const repositoryOf = (directory) => {
+    const result = host.run(git, ['-C', directory, 'rev-parse', '--show-toplevel'], { quiet: true, env: gitEnv });
+    if (result.status === 0) return { state: 'repository', top: result.stdout.trim() };
+    if (result.status === 128 && /not a git repository/i.test(result.stderr ?? '')) return { state: 'none' };
+    return { state: 'error' };
+  };
+  const refusedByGit = (/** @type {string} */ what) =>
+    fail(`git is needed to ${what}, but it failed or refused the folder (not installed, "dubious ownership", no access)`);
+  const keystoreRepo = repositoryOf(dirname(keystore));
+  if (keystoreRepo.state === 'error') return refusedByGit('prove that the keystore is outside the repository');
+  const cwdRepo = repositoryOf(host.cwd());
+  if (cwdRepo.state === 'error') return refusedByGit('read the work tree of the current folder');
+  const repoRoot = cwdRepo.state === 'repository' ? host.realpath(cwdRepo.top) : '';
+  if (keystoreRepo.state === 'repository' || (repoRoot !== '' && isInside(keystore, repoRoot, platform))) {
     return fail(`refused: ${basename(keystore)} is inside a git work tree; keep the key outside the repository, also outside .scratch`);
   }
 
@@ -197,15 +227,15 @@ export function signApk(options, host) {
   if (!host.exists(outDirectory)) return fail('the folder of --out does not exist');
   const out = join(host.realpath(outDirectory), basename(options.out));
   if (normalized(out, platform) === normalized(apk, platform)) return fail('refused: the output would overwrite the input package');
-  const outRepo = host.run('git', ['-C', dirname(out), 'rev-parse', '--show-toplevel'], { quiet: true });
-  if (outRepo.status === 0) {
-    const ignored = host.run('git', ['-C', dirname(out), 'check-ignore', '-q', '--', out], { quiet: true });
+  const outRepo = repositoryOf(dirname(out));
+  if (outRepo.state === 'repository') {
+    const ignored = host.run(git, ['-C', dirname(out), 'check-ignore', '-q', '--', out], { quiet: true, env: gitEnv });
     if (ignored.status !== 0)
       return fail(
         'refused: the output is a tracked part of a git work tree; write the signed package outside it or into an ignored folder',
       );
-  } else if (outRepo.status !== 128) {
-    return fail('git is needed to check the place of the output');
+  } else if (outRepo.state === 'error') {
+    return refusedByGit('check the place of the output');
   }
   if (host.exists(out)) return fail(`refused: ${basename(out)} already exists`);
 
@@ -214,25 +244,40 @@ export function signApk(options, host) {
   if (digest !== options.expectSha256)
     return fail('the SHA-256 of the package differs from --expect-sha256 (the artifact of another run or a changed file)');
   const cmdlineTools = join(sdk, 'cmdline-tools', 'latest');
-  const alreadySigned = host.run(java, ['-jar', apksignerJar, 'verify', apk], { quiet: true });
+  const alreadySigned = host.run(java, ['-jar', apksignerJar, 'verify', apk], { quiet: true, env: baseEnv });
   if (alreadySigned.status === 0) return fail('refused: the package is signed already (a debug or foreign signature)');
-  const inputCheck = verifyApk({ apk, applicationId: 'pl.eviacharge.manager', java, cmdlineTools }, host);
+  const inputCheck = verifyApk({ apk, applicationId: 'pl.eviacharge.manager', java, cmdlineTools }, plainHost);
   if (inputCheck.problems.length > 0) {
     for (const problem of inputCheck.problems) host.log(`sign: APK: ${problem}`);
     return fail('refused: the package does not pass the verification');
+  }
+  if (inputCheck.placeholderApi && !options.allowPlaceholderApi) {
+    return fail(
+      'refused: the package was built with the placeholder API address (set the repository variable EVIA_API_BASE_URL and build again; --allow-placeholder-api only for a test build)',
+    );
+  }
+
+  // zipalign -P 16 (16 KB pages) exists from build-tools 35.0.0: say so instead of a general failure of zipalign
+  const toolsVersion = basename(tools);
+  if (compareVersions(toolsVersion, ZIPALIGN_PAGE_SIZE_MIN_VERSION) < 0) {
+    return fail(
+      `zipalign -P 16 needs build-tools ${ZIPALIGN_PAGE_SIZE_MIN_VERSION} or newer, found ${toolsVersion} (install a newer one with sdkmanager or pass --build-tools)`,
+    );
   }
 
   const aligned = `${out}.aligned.tmp`;
   cleanup.push(aligned);
   try {
-    const align = host.run(zipalign, ['-P', '16', '-f', '4', apk, aligned], { quiet: true });
+    const align = host.run(zipalign, ['-P', '16', '-f', '4', apk, aligned], { quiet: true, env: baseEnv });
     if (align.status !== 0)
       return fail(
         `zipalign failed (exit ${String(align.status)}): ${redact(`${align.stdout}\n${align.stderr ?? ''}`, secrets, [keystore, apk, out])}`,
       );
 
-    const ksPass = (host.env[options.ksPassEnv] ?? '') !== '';
-    const keyPass = (host.env[options.keyPassEnv] ?? '') !== '';
+    const ksSecret = host.env[options.ksPassEnv] ?? '';
+    const keySecret = host.env[options.keyPassEnv] ?? '';
+    const ksPass = ksSecret !== '';
+    const keyPass = keySecret !== '';
     const args = [
       '-jar',
       apksignerJar,
@@ -247,12 +292,19 @@ export function signApk(options, host) {
       'true',
       '--v3-signing-enabled',
       'true',
+      // newer build-tools may write <out>.idsig next to the result: the package is installed directly, not streamed
+      '--v4-signing-enabled',
+      'false',
       '--out',
       out,
       aligned,
     ];
     // a missing password variable means the prompt of apksigner itself: the terminal is inherited and nothing is captured
-    const signed = host.run(java, args, ksPass ? { quiet: true } : { interactive: true });
+    // the passwords are in the environment of THIS process only (apksigner reads them through env:NAME)
+    const signEnv = { ...baseEnv };
+    if (ksPass) signEnv[options.ksPassEnv] = ksSecret;
+    if (keyPass) signEnv[options.keyPassEnv] = keySecret;
+    const signed = host.run(java, args, { ...(ksPass ? { quiet: true } : { interactive: true }), env: signEnv });
     if (signed.status !== 0) {
       cleanup.push(out);
       return fail(
@@ -261,7 +313,7 @@ export function signApk(options, host) {
     }
     cleanup.push(out);
 
-    const report = host.run(java, ['-jar', apksignerJar, 'verify', '--verbose', '--print-certs', out], { quiet: true });
+    const report = host.run(java, ['-jar', apksignerJar, 'verify', '--verbose', '--print-certs', out], { quiet: true, env: baseEnv });
     if (report.status !== 0)
       return fail(
         `apksigner verify failed (exit ${String(report.status)}): ${redact(`${report.stdout}\n${report.stderr ?? ''}`, secrets, [keystore, apk, out])}`,
@@ -280,7 +332,7 @@ export function signApk(options, host) {
       );
     }
 
-    const finalCheck = verifyApk({ apk: out, applicationId: 'pl.eviacharge.manager', java, cmdlineTools }, host);
+    const finalCheck = verifyApk({ apk: out, applicationId: 'pl.eviacharge.manager', java, cmdlineTools }, plainHost);
     if (finalCheck.problems.length > 0) {
       for (const problem of finalCheck.problems) host.log(`sign: APK: ${problem}`);
       return fail('the signed package does not pass the verification');

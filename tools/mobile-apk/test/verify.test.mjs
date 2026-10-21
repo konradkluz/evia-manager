@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { PLACEHOLDER_API_HOST } from '../src/contents.mjs';
 import { apkanalyzerCommand, verifyApk } from '../src/verify.mjs';
 
 /** @param {string} name */
@@ -121,6 +122,24 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
       'private-key-block in /assets/index.android.bundle',
       'public variable EXPO_PUBLIC_SENTRY_DSN in /assets/index.android.bundle',
     ]);
+  });
+
+  it('EVM-009 AC6: the stand-in API address of CI in the bundle is reported as a note and a flag, not as a finding', () => {
+    const placeholder = verifyApk(
+      OPTIONS,
+      analyzer({ 'files cat --file assets/index.android.bundle app.apk': 'var url="https://' + PLACEHOLDER_API_HOST + '"' }).host,
+    );
+    assert.equal(placeholder.placeholderApi, true);
+    assert.deepEqual(placeholder.problems, []);
+    assert.ok(placeholder.notes.some((note) => /placeholder of CI/.test(note)));
+    const real = verifyApk(OPTIONS, analyzer().host);
+    assert.equal(real.placeholderApi, false);
+    assert.ok(!real.notes.some((note) => /placeholder/.test(note)));
+  });
+
+  it('EVM-009 AC6: the stand-in address of the verification is the one that ci.yml builds with', () => {
+    const workflow = readFileSync(join(import.meta.dirname, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+    assert.ok(workflow.includes("'https://" + PLACEHOLDER_API_HOST + "'"));
   });
 
   it('EVM-009 AC6: a keystore in the package is reported', () => {

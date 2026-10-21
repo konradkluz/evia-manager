@@ -170,6 +170,18 @@ describe('wiring of the APK verification to the machine (EVM-009)', () => {
       const quiet = host.run(process.execPath, ['-e', 'process.stderr.write("warn")'], { quiet: true });
       assert.deepEqual([quiet.status, quiet.stderr], [0, 'warn']);
       assert.equal(host.run(process.execPath, ['-e', '0'], { interactive: true }).stdout, '');
+      // EVM-009 AC5: a child gets the allow-list, not the password variables of the owner; an explicit environment replaces it
+      const probe = [
+        '-e',
+        'process.stdout.write(JSON.stringify([process.env.EVIA_APK_KS_PASS ?? null, process.env.NoDefaultCurrentDirectoryInExePath ?? null]))',
+      ];
+      process.env['EVIA_APK_KS_PASS'] = 'synthetic-pass-3c1d';
+      try {
+        assert.equal(host.run(process.execPath, probe).stdout, '[null,"1"]');
+        assert.equal(host.run(process.execPath, probe, { env: { EVIA_APK_KS_PASS: 'explicit' } }).stdout, '["explicit",null]');
+      } finally {
+        delete process.env['EVIA_APK_KS_PASS'];
+      }
       assert.equal(host.cwd(), process.cwd());
       assert.deepEqual([host.exists(file), host.exists(join(root, 'none'))], [true, false]);
       assert.equal(host.realpath(file), realpathSync.native(file));

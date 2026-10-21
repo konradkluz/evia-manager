@@ -5,7 +5,7 @@
  * is tested with the recorded output of a real package (test/fixtures). Processes get an array of arguments, never a shell.
  */
 import { join } from 'node:path';
-import { isScannable, checkFileList, scanText } from './contents.mjs';
+import { isScannable, checkFileList, scanText, PLACEHOLDER_API_HOST } from './contents.mjs';
 import { checkManifest } from './manifest.mjs';
 import { checkBackupRules, checkDataExtractionRules, checkNetworkSecurityConfig } from './resources.mjs';
 
@@ -39,13 +39,14 @@ export function apkanalyzerCommand({ java, cmdlineTools, args }) {
 /**
  * @param {{ apk: string, applicationId: string, java: string, cmdlineTools: string }} options
  * @param {Host} host
- * @returns {{ problems: string[], notes: string[] }}
+ * @returns {{ problems: string[], notes: string[], placeholderApi: boolean }} placeholderApi: the bundle holds the stand-in API address
  */
 export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
   /** @type {string[]} */
   const problems = [];
   /** @type {string[]} */
   const notes = [];
+  let placeholderApi = false;
   /**
    * @param {string[]} args
    * @param {string} what
@@ -79,7 +80,9 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
     problems.push(...checkFileList(paths));
     for (const path of paths.filter(isScannable)) {
       const content = analyzer(['files', 'cat', '--file', path.replace(/^\//, ''), apk], `cat ${path}`, { binary: true });
-      if (content !== null) problems.push(...scanText(path, content));
+      if (content === null) continue;
+      problems.push(...scanText(path, content));
+      if (content.includes(PLACEHOLDER_API_HOST)) placeholderApi = true;
     }
   }
 
@@ -89,7 +92,8 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
     notes.push(`application id ${id ?? '?'}, versionCode ${versionCode ?? '?'}, versionName ${versionName ?? '?'}`);
     if (id !== applicationId) problems.push(`application id of the package is not ${applicationId}`);
   }
-  return { problems, notes };
+  if (placeholderApi) notes.push('API address is the placeholder of CI (not for distribution)');
+  return { problems, notes, placeholderApi };
 }
 
 /**
