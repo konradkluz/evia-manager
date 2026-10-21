@@ -35,6 +35,12 @@ const replaceRun = (from: string | RegExp, to: string) => (job: Record<string, u
   steps: steps(job).map((step) => (typeof step['run'] === 'string' ? { ...step, run: step['run'].replace(from, to) } : step)),
 });
 
+/** Replaces the env of the step running `run`. */
+const replaceRunEnv = (run: string, env: Record<string, string>) => (job: Record<string, unknown>) => ({
+  ...job,
+  steps: steps(job).map((step) => (step['run'] === run ? { ...step, env } : step)),
+});
+
 describe('publish on the repository (EVM-007 AC2)', () => {
   it('EVM-007 AC2: publish runs only for a push to main with a changed build input after a green ci-gate — hermetic, with bramka 6 before the push', () => {
     expect(publishProblems(ci)).toEqual([]);
@@ -75,6 +81,13 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     );
     expect(publishProblems(withPublish((job) => ({ ...job, needs: ['changes', 'ci-gate', 'quality'] })))).not.toEqual([]);
     expect(publishProblems(withPublish((job) => ({ ...job, permissions: { contents: 'write', packages: 'write' } })))).not.toEqual([]);
+    expect(
+      publishProblems(
+        withPublish(
+          replaceRunEnv('node tools/ghcr-retention/cli.mjs', { GITHUB_TOKEN: '${{ github.token }}', GHCR_RETENTION_MODE: 'delete' }),
+        ),
+      ),
+    ).not.toEqual([]);
     expect(publishProblems({ jobs: {} })).toEqual(['ci.yml: publish: brak joba publish']);
   });
 

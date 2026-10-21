@@ -64,8 +64,11 @@ export function publishProblems(document: unknown): string[] {
   const problems: string[] = [];
   if (text(job['if']) !== PUBLISH_IF) problems.push(`${where}: wymagane if: ${PUBLISH_IF}`);
   if (JSON.stringify(job['needs']) !== '["changes","ci-gate"]') problems.push(`${where}: needs wyłącznie [changes, ci-gate]`);
-  if (JSON.stringify(job['permissions']) !== JSON.stringify({ contents: 'read', packages: 'write' }))
-    problems.push(`${where}: permissions = { contents: read, packages: write }`);
+  if (JSON.stringify(job['permissions']) !== JSON.stringify({ contents: 'read', packages: 'write', actions: 'read' }))
+    problems.push(`${where}: permissions = { contents: read, packages: write, actions: read }`);
+  const retention = steps(job).find((step) => text(step['run']) === 'node tools/ghcr-retention/cli.mjs');
+  if (JSON.stringify(retention?.['env']) !== JSON.stringify({ GITHUB_TOKEN: '${{ github.token }}', GHCR_RETENTION_MODE: 'dry-run' }))
+    problems.push(`${where}: retencja GHCR w trybie dry-run z tokenem joba`);
   for (const step of steps(job)) {
     const uses = text(step['uses']);
     const action = CACHE_ACTIONS.find((name) => uses.startsWith(`${name}@`));

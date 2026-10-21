@@ -1,0 +1,19 @@
+{
+  "name": "@evia/ghcr-retention",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GHCR retention of the publish job (EVM-007 AC2; ADR-0018 n2): keeps the 20 newest versions of evia-api and evia-web and never the digests of the release manifests of the last 30 push runs on main; dry-run by default and fail-closed; runs without installed dependencies.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "evia-node-test"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

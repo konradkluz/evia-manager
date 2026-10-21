@@ -371,6 +371,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     outputs:
       manifestSha256: ${{ steps.manifest.outputs.sha256 }}
     env:
@@ -448,6 +449,13 @@ jobs:
             .scratch/scans/trivy-image-*.json
           if-no-files-found: error
           retention-days: 90
+      # GHCR retention (n2; architect 20): dry-run until the IaC session confirms that GITHUB_TOKEN may delete versions;
+      # fail-closed — an unreadable manifest of the last 30 push runs on main means nothing is deleted.
+      - name: GHCR retention (dry-run)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GHCR_RETENTION_MODE: dry-run
+        run: node tools/ghcr-retention/cli.mjs
       - name: Notice when staging-verify is disabled (a skipped bramka 10 is not a pass)
         if: vars.STAGING_VERIFY_ENABLED != 'true'
         run: echo "::warning title=staging-verify::STAGING_VERIFY_ENABLED is not true - bramka 10 did not run for this release"

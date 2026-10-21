@@ -624,6 +624,21 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  tools/ghcr-retention:
+    devDependencies:
+      '@evia/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.3
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0(jiti@2.7.0)(supports-color@7.2.0)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
   tools/git-hooks:
     devDependencies:
       '@evia/config':
