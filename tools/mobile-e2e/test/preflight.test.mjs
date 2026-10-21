@@ -45,6 +45,8 @@ describe('preflight of the smoke test (EVM-009 AC4)', () => {
     assert.match(LONG_PATHS_REMEDY, /administrator/i);
     assert.match(LONG_PATHS_REMEDY, /EVIA_E2E_SHORT_PATHS=1/);
     assert.match(LONG_PATHS_REMEDY, /nodeLinker: hoisted/);
+    assert.match(LONG_PATHS_REMEDY, /@evia\/tokens/);
+    assert.match(LONG_PATHS_REMEDY, /@evia\/contracts/);
   });
 
   it('EVM-009 AC4: EVIA_E2E_SHORT_PATHS skips only the long-path check, other problems stay', () => {

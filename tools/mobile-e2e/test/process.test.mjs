@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, mock } from 'node:test';
-import { parseAppVersion, parseLongPathsEnabled, realHost } from '../src/process.mjs';
+import { parseAppVersion, parseLongPathsEnabled, realHost, startStubInWorker } from '../src/process.mjs';
 
 describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
   it('EVM-009 AC4: the registry answer of LongPathsEnabled is read exactly (0x1 only)', () => {
@@ -85,6 +85,31 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
     }
   });
 
+  it('EVM-009 AC4: requests recorded before close() are still returned after it', async () => {
+    const stub = await realHost(process.cwd()).startStub(0);
+    await fetch(`http://127.0.0.1:${String(stub.port)}/api/health`, {
+      headers: { 'X-Client-Platform': 'android', 'X-Client-Version': '0.1.0' },
+    });
+    await stub.close();
+    assert.deepEqual(stub.requests(), [{ platform: 'android', version: '0.1.0' }]);
+  });
+
+  it('EVM-009 AC4: a worker that ends before it reports a port is a rejection, not a wait', async () => {
+    await assert.rejects(startStubInWorker(0, new URL('./fixtures/exit-before-port.mjs', import.meta.url)), /stub worker exited/);
+  });
+
+  it('EVM-009 AC4: close() of a server whose worker is already gone resolves at once', async () => {
+    const stub = await startStubInWorker(0, new URL('./fixtures/exit-after-port.mjs', import.meta.url));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const timeout = new Promise((_resolve, reject) => {
+      setTimeout(() => {
+        reject(new Error('close() hangs'));
+      }, 3000).unref();
+    });
+    await Promise.race([stub.close(), timeout]);
+    assert.deepEqual(stub.requests(), []);
+  });
+
   it('EVM-009 AC4: the scenario server answers while the runner is blocked in a synchronous child process (Maestro)', async () => {
     const host = realHost(process.cwd());
     const stub = await host.startStub(0);
@@ -92,12 +117,14 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
     try {
       assert.equal(host.run(process.execPath, ['-e', fetchStatus]).status, 0);
       stub.setMode('down');
-      await host.sleep(200);
-      assert.equal(host.run(process.execPath, ['-e', fetchStatus]).status, 3);
-      assert.deepEqual(stub.requests(), [
-        { platform: 'android', version: '0.1.0' },
-        { platform: 'android', version: '0.1.0' },
-      ]);
+      // the mode reaches the worker asynchronously: poll until the answer changes, with a limit
+      let calls = 1;
+      let status = host.run(process.execPath, ['-e', fetchStatus]).status;
+      for (const deadline = Date.now() + 10_000; status !== 3 && Date.now() < deadline; calls += 1) {
+        status = host.run(process.execPath, ['-e', fetchStatus]).status;
+      }
+      assert.equal(status, 3);
+      assert.equal(stub.requests().length, calls + 1);
     } finally {
       await stub.close();
     }

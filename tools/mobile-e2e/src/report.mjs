@@ -18,7 +18,7 @@ export function scanLogcat(logcat) {
 }
 
 /**
- * @typedef {{ scenario: string, flow: string, status: 'passed' | 'failed' | 'skipped', seconds: number }} Result
+ * @typedef {{ scenario: string, flow: string, status: 'passed' | 'failed' | 'skipped', seconds: number, attempts?: 1 | 2 }} Result
  * @typedef {{
  *   date: string,
  *   device: { serial: string, apiLevel: string, androidRelease: string, model: string },
@@ -37,8 +37,10 @@ export function buildReport(evidence) {
   const headersSent =
     evidence.requests.length > 0 && evidence.requests.every((request) => request.platform === 'android' && request.version !== undefined);
   const rows = evidence.results.map(
-    (result) => `| ${result.scenario} | ${result.flow} | ${result.status} | ${result.seconds.toFixed(1)} |`,
+    (result) =>
+      `| ${result.scenario} | ${result.flow} | ${result.status}${result.attempts === 2 ? ' (retried)' : ''} | ${result.seconds.toFixed(1)} |`,
   );
+  const retried = evidence.results.filter((result) => result.attempts === 2).map((result) => result.flow);
   return [
     `# Maestro smoke test — ${evidence.date}`,
     '',
@@ -46,6 +48,7 @@ export function buildReport(evidence) {
     `- Maestro: ${evidence.maestroVersion}`,
     `- Application version in the build: ${evidence.appVersion}`,
     `- Result: ${String(passed)} passed, ${String(failed)} failed, ${String(evidence.results.length - passed - failed)} skipped`,
+    `- Retried flows: ${retried.length === 0 ? 'none' : retried.join(', ')}`,
     `- Requests that reached the scenario server: ${String(evidence.requests.length)}; X-Client-Platform=android and X-Client-Version on every request: ${headersSent ? 'yes' : 'NO'}`,
     evidence.logcat === null
       ? '- Logcat of the app process: not collected'

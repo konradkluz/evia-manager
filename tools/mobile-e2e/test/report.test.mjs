@@ -40,6 +40,21 @@ describe('report of the smoke test (EVM-009 AC4; ADR-0015)', () => {
     assert.match(report, /120 lines, 0 with an address, 0 with a secret-like word/);
   });
 
+  it('EVM-009 AC4: a retried flow is explicit in the table and in the list of retried flows, and stays green', () => {
+    const retried = evidence({
+      results: [
+        { scenario: 'online', flow: '01-online.yaml', status: 'passed', seconds: 12.34, attempts: 2 },
+        { scenario: 'update-required', flow: '04-update-required.yaml', status: 'passed', seconds: 8, attempts: 1 },
+      ],
+    });
+    const report = buildReport(retried);
+    assert.match(report, /\| online \| 01-online\.yaml \| passed \(retried\) \| 12\.3 \|/);
+    assert.match(report, /\| update-required \| 04-update-required\.yaml \| passed \| 8\.0 \|/);
+    assert.match(report, /^- Retried flows: 01-online\.yaml$/m);
+    assert.equal(isGreen(retried), true);
+    assert.match(buildReport(evidence()), /^- Retried flows: none$/m);
+  });
+
   it('EVM-009 AC4: failures, skips and a missing log are shown', () => {
     const report = buildReport(
       evidence({

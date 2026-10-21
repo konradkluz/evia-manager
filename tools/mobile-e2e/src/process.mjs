@@ -18,36 +18,52 @@ const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSys
  * The scenario server runs in a worker thread: spawnSync blocks this thread while Maestro runs, and the app needs answers meanwhile.
  * Requests come back on a channel read with receiveMessageOnPort, which works synchronously.
  * @param {number} port
+ * @param {URL} [workerUrl] the worker module; tests pass a fixture that ends early
  * @returns {Promise<import('./stub-api.mjs').StubApi>}
  */
-async function startStubInWorker(port) {
+export async function startStubInWorker(port, workerUrl = new URL('./stub-worker.mjs', import.meta.url)) {
   const { port1, port2 } = new MessageChannel();
-  const worker = new Worker(new URL('./stub-worker.mjs', import.meta.url), { workerData: { port, channel: port2 }, transferList: [port2] });
+  const worker = new Worker(workerUrl, { workerData: { port, channel: port2 }, transferList: [port2] });
+  /** @type {import('./stub-api.mjs').RecordedRequest[]} */
+  const recorded = [];
+  const drain = () => {
+    for (let next = receiveMessageOnPort(port1); next !== undefined; next = receiveMessageOnPort(port1)) {
+      const message = /** @type {unknown} */ (next.message);
+      recorded.push(/** @type {import('./stub-api.mjs').RecordedRequest} */ (message));
+    }
+  };
+  let exited = false;
+  worker.on('exit', () => {
+    exited = true;
+    drain();
+    port1.close();
+  });
   /** @type {Promise<number>} */
   const listening = new Promise((resolve, reject) => {
     worker.once('message', (/** @type {{ port: number }} */ message) => {
       resolve(message.port);
     });
     worker.once('error', reject);
+    worker.once('exit', () => {
+      reject(new Error('stub worker exited'));
+    });
   });
-  /** @type {import('./stub-api.mjs').RecordedRequest[]} */
-  const recorded = [];
   return {
     port: await listening,
     setMode: (mode) => {
       worker.postMessage({ mode });
     },
     requests: () => {
-      for (let next = receiveMessageOnPort(port1); next !== undefined; next = receiveMessageOnPort(port1)) {
-        const message = /** @type {unknown} */ (next.message);
-        recorded.push(/** @type {import('./stub-api.mjs').RecordedRequest} */ (message));
-      }
+      if (!exited) drain();
       return [...recorded];
     },
     close: () =>
       new Promise((resolve) => {
+        if (exited) {
+          resolve();
+          return;
+        }
         worker.once('exit', () => {
-          port1.close();
           resolve();
         });
         worker.postMessage({ close: true });
