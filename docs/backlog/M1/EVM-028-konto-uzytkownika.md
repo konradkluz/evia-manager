@@ -99,7 +99,7 @@ Skrót planu (pełny plan z kontrolami K1–K14 to plik roboczy poza gitem):
 
 ## Decyzje
 - **2026-10-20 (Konrad):** ścieżka `pelna` (uwierzytelnianie, sesje), model `sonnet`, recenzenci code + security + ux; realizacja na jednej gałęzi z EVM-026 (nakładanie plików `identity`: logowanie, sesje, hasło, drugi krok), jeden PR, demo obu historyjek razem.
-- **2026-10-21 (orkiestrator, do decyzji Konrada):** ustalenie OSV dla `apps/web` (vite 8.3.2: GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw; poprawka od 8.3.3) pochodzi z `main`, nie z tej gałęzi. Naprawa osobną zmianą utrzymaniową na `main` (dokładna wersja, `pnpm add`), potem scalenie `main` do gałęzi; do tego czasu skan OSV, a z nim `ci-gate`, jest czerwony dla każdego PR. Nie poprawiamy przy okazji EVM-028 bez Twojej zgody.
+- **2026-10-21 (orkiestrator, do decyzji Konrada):** ustalenie OSV dla `apps/web` (vite 8.3.2: GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw; poprawka od 8.3.3) pochodzi z `main`, nie z tej gałęzi. Naprawa osobną zmianą utrzymaniową na `main` (dokładna wersja, `pnpm add`), potem scalenie `main` do gałęzi; do tego czasu skan OSV, a z nim `ci-gate`, jest czerwony dla każdego PR. Nie poprawiamy przy okazji EVM-028 bez Twojej zgody. **Decyzja Konrada (2026-10-21): wspólny commit z bumpem `vite` 8.3.2 → 8.3.4 w gałęziach obu kolejek (`feature/EVM-026…` i `feature/EVM-009-011…`) — bez osobnego PR-a.**
 
 ## Notatki (uwagi nieblokujące z przeglądów)
 - Kod i testy: `account-queries.ts` i `account.controller.ts` nie są w `DATABASE_BOUND` (`apps/api/coverage.config.ts`); `revokeOtherSessions` nie filtruje po terminach wygaśnięcia (zawyżone `ended`, szum w audycie); podwójny zapis porażki (`login.failed` i zdarzenie własne) zawyża `evia_login_failures_total`; `account-failure-alert.tsx` 56% linii, `add-passkey-dialog.tsx` 82% gałęzi (testy wariantów błędu do dopisania).
@@ -115,7 +115,7 @@ _—_
 - [x] Bramki lokalne zielone, progi pokrycia spełnione (bramka orkiestratora etapami, zob. Dziennik); bramki CI — po PR
 - [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE (UX po poprawce listy sesji 360 px)
 - [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
-- [ ] Demo i akceptacja użytkownika (decyzja 3 — drugi klucz dostępu Administratora)
+- [x] Demo i akceptacja użytkownika (decyzja 3 — drugi klucz dostępu Administratora; potwierdzona 2026-10-21)
 
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
@@ -131,3 +131,4 @@ _—_
 - 2026-10-21 — ponowny przegląd UX (ux-designer): poprawka listy „Moje sesje” przy 360 px — APPROVE; uwagi nieblokujące w „Notatkach”
 - 2026-10-21 — weryfikacja orkiestratora: `pnpm run gate` etapami na HEAD kodu (1cd5cbd): natywny (format, lint, typy, testy z progami, granice modułów) zielony; parytet Linux (`gate:backend`) zielony; testy integracyjne z PostgreSQL 143 pliki / 1985 testów zielone; `coverage:diff` zielony — zmieniony kod: linie 94,7% (1289/1361), gałęzie 91,6% (855/933); `docs:check` 0 błędów; `web-e2e-linux` (po poprawce UX) 1169 przeszło, 0 błędów. Przebiegi, które padły losowo lub z obciążenia (2 testy `ui-web` z limitem 5 s, `work-orders-create` przez losowy `traceId`, `worker-email` z limitem czasu), nie powtórzyły się — zob. „Notatki”
 - 2026-10-21 — in-progress → in-review: demo razem z EVM-026 (decyzja 3 — drugi klucz dostępu Administratora; jedna gałąź, jeden PR); naprawa vite (OSV) osobno — zob. „Decyzje”
+- 2026-10-21 — demo zaakceptowane przez Konrada (razem z EVM-026): decyzja 3 (drugi klucz dostępu Administratora) potwierdzona; bump `vite` 8.3.2 → 8.3.4 jako osobny commit w tej gałęzi (decyzja Konrada), PR #86
