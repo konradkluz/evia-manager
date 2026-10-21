@@ -1,0 +1,26 @@
+# EVM-011 spike: local S3-compatible storage (SeaweedFS, ADR-0011 dev emulator; NOT MinIO). Throwaway, synthetic data only.
+# Start:  node infra/gen-local-secrets.mjs && docker compose -f infra/compose.seaweedfs.yaml up -d
+# Stop:   docker compose -f infra/compose.seaweedfs.yaml down -v     (always with -f and this project name)
+# Only the S3 port is published, on loopback only: the filer HTTP port would bypass S3 authentication.
+name: evm011-spike-s3
+
+services:
+  seaweedfs:
+    # tag@digest (SR-SUPPLY-03); digest resolved 2026-10-21 from the Docker Hub registry index of 4.48.
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    # -master.volumeSizeLimitMB keeps volumes small (no large preallocation); identities come from the generated file.
+    command: >-
+      server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 -volume.max=6
+      -s3 -s3.port=8333 -s3.config=/run/secrets-local/s3.json
+    ports:
+      - '127.0.0.1:8333:8333'
+    volumes:
+      - seaweed-data:/data
+      - type: bind
+        source: ${EVM011_SECRETS_DIR:?run node infra/gen-local-secrets.mjs and export EVM011_SECRETS_DIR}
+        target: /run/secrets-local
+        read_only: true
+    restart: 'no'
+
+volumes:
+  seaweed-data:
