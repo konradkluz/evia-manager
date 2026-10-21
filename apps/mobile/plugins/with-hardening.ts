@@ -5,12 +5,13 @@
  *   the e2e variant adds plain HTTP for the emulator host 10.0.2.2 and localhost only;
  * - R8 minification and resource shrinking in the release build;
  * - the release variant produces an UNSIGNED APK (the Gradle template signs it with the public debug key otherwise): the key of the
- *   app lives outside the repository and signs it in the signing job (docs/ops/dystrybucja-apk-android.md); the e2e variant keeps
- *   the debug signature so that the emulator can install it.
+ *   app lives outside the repository and the owner signs the package locally (tools/mobile-apk sign, docs/ops/dystrybucja-apk-android.md,
+ *   ADR-0019); the e2e variant keeps the debug signature so that the emulator can install it;
+ * - the Gradle wrapper verifies its download: distributionSha256Sum is pinned to the published SHA-256 of the distribution.
  */
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, withDangerousMod, withGradleProperties } from 'expo/config-plugins';
 import type { ConfigPlugin } from 'expo/config-plugins';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_HTTP_HOSTS } from '../src/config/api-base-url.ts';
 import type { BuildVariant } from '../src/config/api-base-url.ts';
@@ -46,6 +47,25 @@ export function networkSecurityConfigXml(variant: BuildVariant): string {
   );
 }
 
+/** The Gradle distribution of the Expo template and its published SHA-256 (https://gradle.org/release-checksums/, 9.4.1 -bin). */
+export const GRADLE_DISTRIBUTION_URL = 'https\\://services.gradle.org/distributions/gradle-9.4.1-bin.zip';
+export const GRADLE_DISTRIBUTION_SHA256 = '2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb';
+
+/**
+ * Pins the checksum of the Gradle distribution in gradle-wrapper.properties (supply chain: the wrapper verifies the download).
+ * A template with another Gradle version fails the build until the checksum is updated together with the version.
+ */
+export function withGradleDistributionChecksum(properties: string): string {
+  const lines = properties.split(/\r?\n/).filter((line) => !line.startsWith('distributionSha256Sum='));
+  const at = lines.indexOf(`distributionUrl=${GRADLE_DISTRIBUTION_URL}`);
+  if (at < 0)
+    throw new Error(
+      'with-hardening: gradle-wrapper.properties has another distributionUrl than the pinned Gradle (template changed): update GRADLE_DISTRIBUTION_SHA256 from https://gradle.org/release-checksums/',
+    );
+  lines.splice(at + 1, 0, `distributionSha256Sum=${GRADLE_DISTRIBUTION_SHA256}`);
+  return lines.join('\n');
+}
+
 /** Removes the debug signature from the release build type (the first `signingConfig` after `release {`). */
 export function withoutReleaseDebugSigning(gradle: string): string {
   const release = /(\n\s*release \{[^}]*?)\n\s*signingConfig signingConfigs\.debug/;
@@ -75,6 +95,9 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
       writeFileSync(join(directory, 'evia_data_extraction_rules.xml'), dataExtractionRulesXml());
       writeFileSync(join(directory, 'evia_backup_rules.xml'), backupRulesXml());
       writeFileSync(join(directory, 'evia_network_security_config.xml'), networkSecurityConfigXml(variant));
+      const wrapper = join(modConfig.modRequest.platformProjectRoot, 'gradle', 'wrapper', 'gradle-wrapper.properties');
+      if (!existsSync(wrapper)) throw new Error('with-hardening: gradle-wrapper.properties was not found (template changed)');
+      writeFileSync(wrapper, withGradleDistributionChecksum(readFileSync(wrapper, 'utf8')));
       return modConfig;
     },
   ]);
