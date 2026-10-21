@@ -18,6 +18,9 @@ export default {
   collectCoverageFrom: ['src/**/*.{ts,tsx}', 'plugins/**/*.ts', '!**/*.d.ts'],
   coverageReporters: ['text', 'lcov'],
   coverageDirectory: 'coverage',
+  // The first render of a worker loads react-native lazily and transforms its modules; on a cold Babel cache (a CI runner) that exceeded
+  // the 5 s default of Jest (CI run 39540211872, app.test.tsx) — even a 16-core machine needs about 11 s for the cold file.
+  testTimeout: 30_000,
   // jest-expo default (pnpm paths: the first allowed segment is .pnpm).
   transformIgnorePatterns: [
     '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts))',
