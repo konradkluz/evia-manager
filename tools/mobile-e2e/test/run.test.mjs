@@ -18,15 +18,26 @@ const DEVICES_TWO = 'List of devices attached\nemulator-5554\tdevice\nemulator-5
  *   pid?: string,
  *   longPaths?: boolean | null,
  *   env?: Record<string, string>,
+ *   packageServiceAfter?: number,
  * }} [options]
  */
-function fakeMachine({ devices = [DEVICES_ONE], failing = () => false, exists, requests, pid = '4242', longPaths = true, env } = {}) {
+function fakeMachine({
+  devices = [DEVICES_ONE],
+  failing = () => false,
+  exists,
+  requests,
+  pid = '4242',
+  longPaths = true,
+  env,
+  packageServiceAfter = 0,
+} = {}) {
   /** @type {{ command: string, args: string[], cwd?: string, env?: Record<string, string> }[]} */
   const processes = [];
   /** @type {string[]} */
   const logs = [];
   /** @type {Record<string, string>} */
   const written = {};
+  let packagePolls = 0;
   /** @type {string[]} */
   const modes = [];
   let closed = false;
@@ -64,6 +75,10 @@ function fakeMachine({ devices = [DEVICES_ONE], failing = () => false, exists, r
           return { status: 0, stdout: answer, stderr: '' };
         }
         if (joined.endsWith('sys.boot_completed')) return { status: 0, stdout: '1\n', stderr: '' };
+        if (joined.endsWith('pm path android')) {
+          packagePolls += 1;
+          return { status: 0, stdout: packagePolls > packageServiceAfter ? 'package:/system/framework/framework-res.apk' : '', stderr: '' };
+        }
         if (joined.endsWith('ro.build.version.sdk')) return { status: 0, stdout: '35\n', stderr: '' };
         if (joined.endsWith('ro.build.version.release')) return { status: 0, stdout: '15\n', stderr: '' };
         if (joined.endsWith('ro.product.model')) return { status: 0, stdout: 'sdk_gphone64_x86_64\n', stderr: '' };
@@ -262,6 +277,13 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
       assert.match(machine.logs.join('\n'), /BUILD:/, name);
       assert.ok(!machine.processes.some((entry) => entry.args.includes('install')), name);
     }
+  });
+
+  it('EVM-009 AC4: a freshly booted emulator is used only when its package service answers (install right after the boot flag fails)', async () => {
+    const machine = fakeMachine({ packageServiceAfter: 3 });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...machine.host, exists: () => true }), 0);
+    const polls = machine.processes.filter((entry) => entry.args.join(' ').endsWith('pm path android')).length;
+    assert.ok(polls >= 4, String(polls));
   });
 
   it('EVM-009 AC4: a failed install ends the run, switches nothing on and closes the server', async () => {

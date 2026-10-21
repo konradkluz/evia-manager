@@ -109,7 +109,7 @@ export async function runE2e({ skipBuild, port }, host) {
   try {
     const installed = adb(...adbArgs(serial, 'install', '-r', apk));
     if (installed.status !== 0) {
-      host.log('INSTALL: adb install failed');
+      host.log(`INSTALL: adb install failed: ${`${installed.stderr} ${installed.stdout}`.trim().slice(0, 300)}`);
       return 1;
     }
     for (const scenario of SCENARIOS) {
@@ -190,7 +190,13 @@ async function ensureEmulator(host, tools, env, adb) {
   }
   for (let attempt = 0; attempt < BOOT_ATTEMPTS; attempt += 1) {
     choice = selectEmulator(parseAdbDevices(adb('devices').stdout));
-    if (choice.ok && adb(...adbArgs(choice.serial, 'shell', 'getprop', 'sys.boot_completed')).stdout.trim() === '1') return choice.serial;
+    if (
+      choice.ok &&
+      adb(...adbArgs(choice.serial, 'shell', 'getprop', 'sys.boot_completed')).stdout.trim() === '1' &&
+      adb(...adbArgs(choice.serial, 'shell', 'pm', 'path', 'android')).stdout.includes('package:')
+    ) {
+      return choice.serial;
+    }
     if (!choice.ok && choice.reason === 'several') {
       host.log('EMULATOR: a second emulator appeared; stop all but one.');
       return null;
