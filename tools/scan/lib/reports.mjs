@@ -222,7 +222,9 @@ function reviewedPlatformLicenses(options) {
  *   snapshot of the package is `optional: true`, it has at least one parent (a snapshot listing it in `dependencies` or
  *   `optionalDependencies`) and EVERY parent is a platform package or itself qualifies (recursively; a cycle does not
  *   disqualify). A direct dependency of an importer disqualifies the package, so does one snapshot without `optional: true`.
- * Snapshot keys and versions are compared as name@version, without the peer-dependency suffix `(...)`.
+ * The package must also be reachable going forward from a platform package (an isolated optional cycle is not covered).
+ * Snapshot keys and versions are compared as name@version, without the peer-dependency suffix `(...)`; aliases
+ * (`alias: name@1.0.0`, `alias: npm:name@1.0.0`) point at the real package, in snapshots and in importers.
  * @param {string} lockfile
  * @returns {Set<string>} name@version
  */
@@ -236,6 +238,12 @@ function platformPackages(lockfile) {
   /** @type {Set<string>} direct dependencies of importers */
   const direct = new Set();
   const base = (/** @type {string} */ value) => value.replace(/\(.*$/, '');
+  // Id of the package a dependency value points at: a plain version, or an alias (`npm:name@1.0.0`, pnpm 9+ `name@1.0.0`).
+  const target = (/** @type {string} */ name, /** @type {string} */ value) => {
+    const range = base(value);
+    if (range.startsWith('npm:')) return range.slice(4);
+    return /^(@[^@/]+\/)?[^@]+@\d/.test(range) ? range : `${name}@${range}`;
+  };
   let section = '';
   let current = '';
   let currentOptional = false;
@@ -255,7 +263,7 @@ function platformPackages(lockfile) {
       const key = /^ {6}'?([^'\s][^']*?)'?:\s*$/.exec(line);
       if (key !== null) importerKey = key[1] ?? '';
       const version = /^ {8}version:\s*'?([^'\s]+)'?\s*$/.exec(line);
-      if (version !== null && importerKey !== '') direct.add(`${importerKey}@${base(version[1] ?? '')}`);
+      if (version !== null && importerKey !== '') direct.add(target(importerKey, version[1] ?? ''));
     } else if (section !== '') {
       const key = /^ {2}'?([^'\s][^']*?)'?:(?:\s*\{\})?\s*$/.exec(line);
       if (key !== null) {
@@ -268,8 +276,7 @@ function platformPackages(lockfile) {
         if (header !== null) block = header[1] ?? '';
         const dependency = /^ {6}'?([^'\s][^']*?)'?:\s*'?([^'\s]+)'?\s*$/.exec(line);
         if (dependency !== null && (block === 'dependencies' || block === 'optionalDependencies') && current !== '') {
-          const range = base(dependency[2] ?? '');
-          const child = range.startsWith('npm:') ? range.slice(4) : `${dependency[1] ?? ''}@${range}`;
+          const child = target(dependency[1] ?? '', dependency[2] ?? '');
           const set = parents.get(child) ?? new Set();
           set.add(current);
           parents.set(child, set);
@@ -291,8 +298,23 @@ function platformPackages(lockfile) {
     const path = new Set(visiting).add(id);
     return [...set].every((parent) => onlyFromPlatform(parent, path));
   };
+  // Reachable going forward from the platform packages (an isolated optional cycle is not).
+  /** @type {Map<string, string[]>} */
+  const children = new Map();
+  for (const [child, set] of parents) {
+    for (const parent of set) children.set(parent, [...(children.get(parent) ?? []), child]);
+  }
+  const reachable = new Set(platform);
+  const queue = [...platform];
+  for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+    for (const child of children.get(id) ?? []) {
+      if (reachable.has(child)) continue;
+      reachable.add(child);
+      queue.push(child);
+    }
+  }
   const found = new Set(platform);
-  for (const id of optional.keys()) if (onlyFromPlatform(id, new Set())) found.add(id);
+  for (const id of optional.keys()) if (reachable.has(id) && onlyFromPlatform(id, new Set())) found.add(id);
   return found;
 }
 

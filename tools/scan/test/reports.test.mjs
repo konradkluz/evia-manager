@@ -438,6 +438,84 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
       );
       assert.equal(verdict.passed, true, verdict.problems.join(', '));
     });
+
+    /**
+     * @param {string[]} snapshotLines snapshot entries after the platform package
+     * @param {string[]} [importerLines]
+     */
+    const aliasLock = (snapshotLines, importerLines = []) =>
+      [
+        'importers:',
+        '',
+        '  .:',
+        '    dependencies:',
+        ...importerLines,
+        '',
+        'packages:',
+        '',
+        "  'plat@1.0.0':",
+        '    cpu: [wasm32]',
+        '',
+        'snapshots:',
+        '',
+        "  'plat@1.0.0':",
+        '    dependencies:',
+        '      x: 1.0.0',
+        '    optional: true',
+        '',
+        "  'x@1.0.0':",
+        '    optional: true',
+        '',
+        ...snapshotLines,
+      ].join('\n');
+    /** @param {string} lock */
+    const xCovered = (lock) =>
+      trivyLicenseVerdict(scan('x', '1.0.0'), { lockfile: lock, entries: [{ ...base, name: 'x', version: '1.0.0' }], today: '2026-10-21' })
+        .passed;
+    const plainParent = (/** @type {string} */ dependency) => ["  'plain@1.0.0':", '    dependencies:', `      ${dependency}`, ''];
+
+    it('EVM-009: control — x with a platform parent only is covered', () => {
+      assert.equal(xCovered(aliasLock([])), true);
+    });
+
+    it('EVM-009: a plain parent depending on the package through a pnpm 9 alias (name@version) or npm: alias disqualifies it', () => {
+      assert.equal(xCovered(aliasLock(plainParent('x-alias: x@1.0.0'))), false);
+      assert.equal(xCovered(aliasLock(plainParent("'@s/x-alias': x@1.0.0(peer@1.0.0)"))), false);
+      assert.equal(xCovered(aliasLock(plainParent('x-alias: npm:x@1.0.0'))), false);
+    });
+
+    it('EVM-009: a direct importer dependency written as an alias disqualifies the package', () => {
+      const alias = (/** @type {string} */ version) => ['      x-alias:', '        specifier: npm:x@^1.0.0', `        version: ${version}`];
+      assert.equal(xCovered(aliasLock([], alias('x@1.0.0'))), false);
+      assert.equal(xCovered(aliasLock([], alias('npm:x@1.0.0'))), false);
+      assert.equal(xCovered(aliasLock([], alias('x@1.0.0(peer@1.0.0)'))), false);
+    });
+
+    it('EVM-009: an isolated optional cycle, not entered from a platform package, is not covered', () => {
+      const lock = [
+        'packages:',
+        '',
+        "  'plat@1.0.0':",
+        '    cpu: [wasm32]',
+        '',
+        'snapshots:',
+        '',
+        "  'plat@1.0.0':",
+        '    optional: true',
+        '',
+        "  'a@1.0.0':",
+        '    dependencies:',
+        '      x: 1.0.0',
+        '    optional: true',
+        '',
+        "  'x@1.0.0':",
+        '    dependencies:',
+        '      a: 1.0.0',
+        '    optional: true',
+        '',
+      ].join('\n');
+      assert.equal(xCovered(lock), false);
+    });
   });
 
   it('EVM-006 AC4: SPDX expressions — OR needs one allowed alternative, AND needs all', () => {
