@@ -9,6 +9,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
+import { createServer as createTlsServer } from 'node:tls';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -18,6 +19,7 @@ import { HOST, defaultIo, main } from '../lib/main.mjs';
 import { bucketCheck, summarize } from '../lib/summary.mjs';
 import { waitForVersion } from '../lib/version.mjs';
 import { evaluateZap, parseRules } from '../lib/zap.mjs';
+import { selfSigned } from './self-signed.mjs';
 
 /** @param {string} path @returns {unknown} */
 const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
@@ -104,6 +106,62 @@ describe('EVM-007 AC6: TLS', () => {
 
   it('EVM-007 AC6: a TLS connection that fails is reported as an error', async () => {
     await assert.rejects(readTls('127.0.0.1', { port: 1, timeoutMs: 500 }));
+  });
+});
+
+describe('EVM-007 AC6: the TLS 1.1 probe against local TLS servers', () => {
+  const certificate = selfSigned({ host: 'localhost', organization: "Let's Encrypt" });
+  /** @param {import('node:tls').TlsOptions} versions @returns {Promise<{ port: number, close: () => void }>} */
+  function tlsServer(versions) {
+    // Accepts the legacy handshake only when the options allow it (the Node default refuses TLS 1.1 on both sides).
+    const server = createTlsServer({ ...certificate, ...versions }, (socket) => socket.end());
+    return new Promise((resolve) => {
+      server.listen(0, () => {
+        resolve({ port: /** @type {import('node:net').AddressInfo} */ (server.address()).port, close: () => server.close() });
+      });
+    });
+  }
+  /** @param {number} port */
+  async function tlsCheckAgainst(port) {
+    const steps = {
+      env: {},
+      outDir: mkdtempSync(join(tmpdir(), 'staging-verify-tls-')),
+      host: 'localhost',
+      fetchImpl: async () => new Response(''),
+      probe: async (/** @type {number} */ probed) => [80, 443].includes(probed),
+      tls: (/** @type {import('node:tls').SecureVersion | undefined} */ maxVersion) =>
+        readTls('localhost', { port, ca: certificate.cert, timeoutMs: 3000, ...(maxVersion ? { maxVersion } : {}) }),
+      dns: async () => GOOD_DNS,
+      now: () => new Date(),
+      print: () => undefined,
+    };
+    assert.equal(await main('checks', steps), 0);
+    const checks = /** @type {Array<{ id: string, passed: boolean, details: string[] }>} */ (readJson(join(steps.outDir, 'checks.json')));
+    return checks.find((check) => check.id === 'tls') ?? assert.fail('no TLS check');
+  }
+
+  it('EVM-007 AC6: a server accepting TLS 1.1 makes the TLS check red', async () => {
+    const legacy = await tlsServer({ minVersion: 'TLSv1', ciphers: 'DEFAULT@SECLEVEL=0' });
+    try {
+      const facts = await readTls('localhost', { port: legacy.port, maxVersion: 'TLSv1.1', timeoutMs: 3000 });
+      assert.equal(facts.protocol, 'TLSv1.1');
+      const check = await tlsCheckAgainst(legacy.port);
+      assert.equal(check.passed, false);
+      assert.deepEqual(check.details, ['serwer przyjmuje TLS 1.1']);
+    } finally {
+      legacy.close();
+    }
+  });
+
+  it('EVM-007 AC6: a server with TLS 1.2+ only refuses the probe and the TLS check is green', async () => {
+    const modern = await tlsServer({ minVersion: 'TLSv1.2' });
+    try {
+      await assert.rejects(readTls('localhost', { port: modern.port, maxVersion: 'TLSv1.1', timeoutMs: 3000 }));
+      const check = await tlsCheckAgainst(modern.port);
+      assert.equal(check.passed, true, check.details.join('; '));
+    } finally {
+      modern.close();
+    }
   });
 });
 

@@ -69,7 +69,10 @@ export function evaluateTls(facts, host, now, legacyRefused) {
   };
 }
 
-/** @param {string} host @param {{ maxVersion?: import('node:tls').SecureVersion, port?: number, timeoutMs?: number, ca?: string }} options @returns {Promise<TlsFacts>} */
+/**
+ * With maxVersion (the legacy probe) the client offers TLS 1.0 up to maxVersion with SECLEVEL 0 ciphers.
+ * @param {string} host @param {{ maxVersion?: import('node:tls').SecureVersion, port?: number, timeoutMs?: number, ca?: string }} options @returns {Promise<TlsFacts>}
+ */
 export function readTls(host, { maxVersion, port = 443, timeoutMs = 5000, ca } = {}) {
   return new Promise((resolve, reject) => {
     // reason: inspection only — no data is sent; evaluateTls fails on socket.authorized === false, so an untrusted certificate is a red check, never accepted · owner: devops-engineer · review_by: 2027-01-15
@@ -80,7 +83,9 @@ export function readTls(host, { maxVersion, port = 443, timeoutMs = 5000, ca } =
       servername: host,
       timeout: timeoutMs,
       rejectUnauthorized: false,
-      ...(maxVersion ? { maxVersion } : {}),
+      // A legacy probe must really offer TLS 1.0–1.1: the Node default (minVersion TLS 1.2, SECLEVEL 1) fails locally
+      // with "no protocols available", which would read as "the server refuses TLS 1.1" — a check that always passed.
+      ...(maxVersion ? { maxVersion, minVersion: /** @type {const} */ ('TLSv1'), ciphers: 'DEFAULT@SECLEVEL=0' } : {}),
       ...(ca ? { ca } : {}),
     });
     socket.once('secureConnect', () => {
