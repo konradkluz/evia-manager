@@ -4,7 +4,7 @@ title: "Spike: kolejka offline i upload w tle"
 type: spike
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: in-review
 priority: P1
 owner: mobile-developer
 contributors: []
@@ -57,13 +57,19 @@ Spike poza workspace'em repozytorium: `spikes/offline-upload/` (własny `pnpm-wo
 - **2026-10-20 (Konrad):** noc: scenariusze na emulatorze Android (`Medium_Phone_API_35`, Maestro 2.11.0) i storage zgodny z S3 uruchamiany lokalnie; scenariusze wymagające fizycznego telefonu (AC2 część „telefon”, AC5) zostają do ręcznej weryfikacji Konrada — historyjka kończy nocą w `in-review`, nie `done`; raport oznacza jawnie, co zmierzono tylko na emulatorze.
 - Ścieżka `pelna` (dwóch recenzentów, upload plików), model `sonnet`.
 
+## Notatki (uwagi nieblokujące z przeglądów)
+- **Dowody tylko z emulatora (API 35):** tryb oszczędzania (`deviceidle force-idle`) wymuszono 1 s po starcie zadania — nie sprawdzono zadania startującego w trakcie idle/restricted (telefon, krok 6c instrukcji); pliki scenariuszy rozmiarowych i film ≥ 500 MB są syntetyczne, nie z kamery; bateria, Wi-Fi ↔ LTE, restart telefonu i Android ≤ 13 — tylko telefon.
+- **Przed M2 (ADR-0020, Proponowana):** uwierzytelnianie natywnego workera bez JS (statyczny token testowy jest niedopuszczalny produkcyjnie — decyzja przed M2); nowy kod błędu `409 completed_object_mismatch` do kontraktu OpenAPI; `expo-camera` 58 dołącza ML Kit (`MlKitInitProvider`, `firebase-*`) — telemetria niezbadana (ruch sieciowy albo `react-native-vision-camera`).
+- **Zależności spike'a:** Renovate nie obejmuje `spikes/**` (jest wyłączony, RR-21 Q1); OSV na lockfile spike'a: `braces`, `node-forge`, `uuid` (narzędzia budowania, poza APK) — do decyzji Konrada: `ignorePaths: ["spikes/**"]` albo usunięcie spike'a po decyzji o ADR-0020.
+- **Proces:** po rundzie 2 (APPROVE) mobile-developer domknął 3 uwagi minor/nit bez ponownego przeglądu (UTF-8 w tytule testu, `complete()` ukończonego uploadu nie kasuje obiektu ani mapowania, wiersz pytania 7(b)) — commit 9eff742; weryfikacja orkiestratora: `core` 33/33, `host` 20/20 względem SeaweedFS.
+
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] AC1–AC4 spełnione; AC5 potwierdzone przez Konrada
-- [ ] Przeglądy: solution-architect, security-engineer — APPROVE
-- [ ] Decyzja Konrada: kontynuujemy z podejściem z ADR / zmieniamy ADR
+- [ ] AC1–AC4 spełnione; AC5 potwierdzone przez Konrada — AC1–AC4 ✔ (QA PASS, emulator API 35); AC5 i część „telefon” AC2 czekają na Konrada
+- [x] Przeglądy: solution-architect, security-engineer — APPROVE (runda 2)
+- [ ] Decyzja Konrada: kontynuujemy z podejściem z ADR / zmieniamy ADR — ADR-0020 (Proponowana) czeka na akceptację
 
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
@@ -73,3 +79,7 @@ _—_
 - 2026-10-20 — zmiana zakresu nocnego zaakceptowana przez Konrada: emulator tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano; `path: pelna`, `model: sonnet`
 - 2026-10-21 — ready → in-progress: start realizacji w kolejce B po EVM-009 (gałąź feature/EVM-009-011-aplikacja-mobilna, pelna, sonnet); emulator Android tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano
 - 2026-10-21 — implementacja spike'a na emulatorze (mobile-developer): prototyp, scenariusze AC2 (emulator), pomiary AC3, wnioski AC4 i ADR-0020 (Proponowana); AC5 i część „telefon” AC2 niewykonane — czekają na Konrada (instrukcja w raporcie)
+- 2026-10-21 — QA (qa-engineer): AC1–AC4 PASS, AC5 manual (telefon). Przeglądy, runda 1: solution-architect i security-engineer — CHANGES_REQUIRED (5 problemów blokujących: `409 id_conflict` ze skutkami ubocznymi i możliwością nadpisania ukończonego obiektu, ADR-0020 bez uwierzytelniania workera bez JS i bez Kotlina jako drugiego języka, opis tras w media-pipeline); poprawki (mobile-developer, 5eaf8f3); runda 2: obaj APPROVE
+- 2026-10-21 — drobne uwagi po rundzie 2 domknięte bez ponownego przeglądu (mobile-developer, 9eff742): kodowanie UTF-8 tytułu testu, `complete()` dla ukończonej sesji nigdy nie kasuje obiektu ani mapowania (`409 completed_object_mismatch` + zdarzenie w logu issuera), wiersz pytania 7(b) w raporcie, SHA-256 APK w instrukcji telefonu
+- 2026-10-21 — weryfikacja orkiestratora: spike `core` 33/33 i `host` 20/20 względem SeaweedFS (compose up/down); `pnpm run gate` zielony w jednym przebiegu (start na HEAD 841e6c3, zmiany tools/scan fea00b4 i 3f9afaa przetestowane osobno: `npm run test:tools` 634/638 pass, 0 fail, `pnpm --filter @evia/scan run test:coverage` 53/53, `node tools/scan/cli.mjs licenses` ZIELONY, i wliczone do `coverage:diff` tego przebiegu): etap natywny 56 zadań, parytet Linux 17 zadań, testy integracyjne 130 plików / 1835 testów, `coverage:diff` zmienionego kodu — linie 98,9% (2419/2445), gałęzie 95,0% (995/1047); `docs:check` 0 błędów
+- 2026-10-21 — in-progress → in-review: AC1–AC4 zweryfikowane na emulatorze; AC5, część „telefon” AC2 (instrukcja i SHA-256 APK w raporcie) oraz akceptacja ADR-0020 czekają na Konrada; historyjka nie przechodzi w `done` do czasu wyniku z telefonu
