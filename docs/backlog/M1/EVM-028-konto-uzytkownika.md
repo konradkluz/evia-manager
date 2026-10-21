@@ -4,7 +4,7 @@ title: Konto — profil, hasło, drugi krok logowania i moje sesje
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -89,19 +89,32 @@ Jako **użytkownik** chcę **samodzielnie zmienić nazwę, hasło i metody drugi
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Skrót planu (pełny plan z kontrolami K1–K14 to plik roboczy poza gitem):
+- **Pełne ponowne uwierzytelnienie:** znacznik na wierszu sesji (migracja 0041), z `POST /api/v1/account/reauthentication`; ważny 5 minut, jednorazowy, związany z sesją i celem; zużywa go warunkowy `UPDATE` w transakcji operacji docelowej; bez niego `403 reauthentication_required` (dialog W-04).
+- **Licznik prób z EVM-026:** weryfikacje hasła i drugiego kroku w koncie (reauth, zmiana hasła, step-up z EVM-029) przechodzą przez `VerificationGate` → `LoginThrottle`/`LoginFailures`; trwająca blokada zakresu kończy sesję przed weryfikacją (`429`).
+- **API:** `getAccount`, `updateAccount`, `changePassword`, `removePasskey`, `removeTotp`, `listAccountSessions`, `endAccountSession`, `endOtherAccountSessions` oraz gałąź dla sesji `active` w operacjach z EVM-023 (klucze, kod z aplikacji, kody odzyskiwania); własność obiektu w `WHERE` (cudzy = nieistniejący = `404`), `DELETE` bieżącej sesji = `409 current_session`.
+- **Zmiana hasła:** bieżące hasło → reguły nowego → drugi krok → zapis; zdejmuje tylko blokadę z przyczyną `password`, woła `forgetBrowsers`, wysyła e-mail 4; sesje nie kończą się same (odpowiedź niesie `otherActiveSessions` dla „Zakończ pozostałe sesje”).
+- **Ostatnia metoda drugiego kroku** rozstrzygana pod blokadą wiersza konta (Administrator `409 last_second_step_method`, Edytor `method_required`); limit 5 sesji (szósta kończy najstarszą, e-mail 8); retencja sesji 30 dni po wygaśnięciu (zadanie pg-boss).
+- **Panel:** strona W-15 (Profil, Hasło, Drugi krok logowania, Moje sesje), dialog W-04 w trybie pełnego ponownego uwierzytelnienia, menu „Konto”.
 
 ## Decyzje
 - **2026-10-20 (Konrad):** ścieżka `pelna` (uwierzytelnianie, sesje), model `sonnet`, recenzenci code + security + ux; realizacja na jednej gałęzi z EVM-026 (nakładanie plików `identity`: logowanie, sesje, hasło, drugi krok), jeden PR, demo obu historyjek razem.
+- **2026-10-21 (orkiestrator, do decyzji Konrada):** ustalenie OSV dla `apps/web` (vite 8.3.2: GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw; poprawka od 8.3.3) pochodzi z `main`, nie z tej gałęzi. Naprawa osobną zmianą utrzymaniową na `main` (dokładna wersja, `pnpm add`), potem scalenie `main` do gałęzi; do tego czasu skan OSV, a z nim `ci-gate`, jest czerwony dla każdego PR. Nie poprawiamy przy okazji EVM-028 bez Twojej zgody.
+
+## Notatki (uwagi nieblokujące z przeglądów)
+- Kod i testy: `account-queries.ts` i `account.controller.ts` nie są w `DATABASE_BOUND` (`apps/api/coverage.config.ts`); `revokeOtherSessions` nie filtruje po terminach wygaśnięcia (zawyżone `ended`, szum w audycie); podwójny zapis porażki (`login.failed` i zdarzenie własne) zawyża `evia_login_failures_total`; `account-failure-alert.tsx` 56% linii, `add-passkey-dialog.tsx` 82% gałęzi (testy wariantów błędu do dopisania).
+- Security: znacznik reauth leży na wierszu sesji (id sesji się nie zmienia); odświeżenie kroku 3 kodów odzyskiwania w oknie 15 minut nie wymaga pełnego reauth; blokada zakresu konta kończy sesję z przeglądarki nieznanej koncie (rozszerza RR-28, wpisane do threat-model); po usunięciu TOTP/klucza świeżość step-upu trwa do 15 minut.
+- UX: tertiary „Usuń…” poniżej 48 px na 360 px; komplet zrzutów 1440 px niepełny (zrzuty są lokalne, `docs/ux/reviews/**/*.png` jest w `.gitignore`).
+- Proces: `pnpm --filter @evia/web run e2e:screenshots` ma 10 błędów w specach EVM-030/032/034 (zmienione lokatory; gałąź nie dotyka work-orders; poza CI); testy niestabilne pod obciążeniem lub losowo, niezwiązane z gałęzią: `work-orders-create` (EVM-022 AC3: asercja `/TTTT|DDDD|1999/` na całym ciele trafia losowo w `traceId`), `worker-email` (EVM-024 AC5: limit czasu ponowień SMTP), `ui-web` (selectable-card, timeline: limit 5 s) — drobna historyjka utrzymaniowa.
 
 ## Uwagi do rozważenia
 _—_
 
 ## Definition of Done
-- [ ] Wszystkie AC spełnione i pokryte testami (`EVM-028 AC#`)
-- [ ] Bramki CI zielone, progi pokrycia spełnione
-- [ ] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE
-- [ ] Dokumentacja i `CHANGELOG.md` zaktualizowane
+- [x] Wszystkie AC spełnione i pokryte testami (`EVM-028 AC#`; QA: AC1–AC8 PASS)
+- [x] Bramki lokalne zielone, progi pokrycia spełnione (bramka orkiestratora etapami, zob. Dziennik); bramki CI — po PR
+- [x] Przeglądy: kod / bezpieczeństwo / UX (wg `reviewers`) — APPROVE (UX po poprawce listy sesji 360 px)
+- [x] Dokumentacja i `CHANGELOG.md` zaktualizowane
 - [ ] Demo i akceptacja użytkownika (decyzja 3 — drugi klucz dostępu Administratora)
 
 ## Dziennik
@@ -112,3 +125,9 @@ _—_
 - 2026-10-20 — plan gotowy (backend-developer)
 - 2026-10-20 — backend gotowy (backend-developer): API konta (9 operacji + 5 rozszerzonych), migracja 0041, licznik zgadywania w reauth/step-upie, limit 5 sesji, retencja sesji, testy AC1–AC8, dokumentacja; panel W-15 i dialog W-04 czekają na web-developera (kontrakt stabilny)
 - 2026-10-21 — web gotowy (web-developer): strona W-15 (Profil, Hasło, Drugi krok logowania, Moje sesje), dialog W-04 w trybie pełnego ponownego uwierzytelnienia, menu „Konto”, testy komponentów, E2E i axe (360/768/1280/1440 px), zrzuty do przeglądu UX w `docs/ux/reviews/EVM-028/`
+- 2026-10-21 — QA (qa-engineer): PASS AC1–AC8; `pnpm run gate` zielony (pokrycie zmienionego kodu: linie 94,7%, gałęzie 91,6%); `web-e2e-linux` 1170 przeszło, 2 flaky w Firefoxie (EVM-018 AC6, EVM-032 AC3/AC5 — niezwiązane); `docs:check` 0 błędów
+- 2026-10-21 — przeglądy, runda 1: code-reviewer APPROVE (4 minor, 2 nit); security-engineer APPROVE (w kodzie EVM-028 brak blocker/major; major infra: vite z `main`, zob. „Decyzje”); ux-designer changes_required (major: lista sesji przy 360 px, minor: „Usuń…” poniżej 48 px). Uwagi nieblokujące → „Notatki”
+- 2026-10-21 — poprawki, runda 1: web-developer — lista „Moje sesje” w jednej kolumnie przy 360 px, „Zakończ sesję” na pełną szerokość (7bf4218); `web-e2e-linux` zielony; devops-engineer — vite poza zakresem, pytanie do Konrada; workflow zakończył się `blocked`; security-engineer dopisał rozszerzenie RR-28 do threat-model (1cd5cbd)
+- 2026-10-21 — ponowny przegląd UX (ux-designer): poprawka listy „Moje sesje” przy 360 px — APPROVE; uwagi nieblokujące w „Notatkach”
+- 2026-10-21 — weryfikacja orkiestratora: `pnpm run gate` etapami na HEAD kodu (1cd5cbd): natywny (format, lint, typy, testy z progami, granice modułów) zielony; parytet Linux (`gate:backend`) zielony; testy integracyjne z PostgreSQL 143 pliki / 1985 testów zielone; `coverage:diff` zielony — zmieniony kod: linie 94,7% (1289/1361), gałęzie 91,6% (855/933); `docs:check` 0 błędów; `web-e2e-linux` (po poprawce UX) 1169 przeszło, 0 błędów. Przebiegi, które padły losowo lub z obciążenia (2 testy `ui-web` z limitem 5 s, `work-orders-create` przez losowy `traceId`, `worker-email` z limitem czasu), nie powtórzyły się — zob. „Notatki”
+- 2026-10-21 — in-progress → in-review: demo razem z EVM-026 (decyzja 3 — drugi klucz dostępu Administratora; jedna gałąź, jeden PR); naprawa vite (OSV) osobno — zob. „Decyzje”
