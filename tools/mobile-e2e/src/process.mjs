@@ -9,10 +9,51 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { startStubApi } from './stub-api.mjs';
+import { MessageChannel, receiveMessageOnPort, Worker } from 'node:worker_threads';
 
 const MAX_OUTPUT = 64 * 1024 * 1024;
 const FILE_SYSTEM_KEY = String.raw`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`;
+
+/**
+ * The scenario server runs in a worker thread: spawnSync blocks this thread while Maestro runs, and the app needs answers meanwhile.
+ * Requests come back on a channel read with receiveMessageOnPort, which works synchronously.
+ * @param {number} port
+ * @returns {Promise<import('./stub-api.mjs').StubApi>}
+ */
+async function startStubInWorker(port) {
+  const { port1, port2 } = new MessageChannel();
+  const worker = new Worker(new URL('./stub-worker.mjs', import.meta.url), { workerData: { port, channel: port2 }, transferList: [port2] });
+  /** @type {Promise<number>} */
+  const listening = new Promise((resolve, reject) => {
+    worker.once('message', (/** @type {{ port: number }} */ message) => {
+      resolve(message.port);
+    });
+    worker.once('error', reject);
+  });
+  /** @type {import('./stub-api.mjs').RecordedRequest[]} */
+  const recorded = [];
+  return {
+    port: await listening,
+    setMode: (mode) => {
+      worker.postMessage({ mode });
+    },
+    requests: () => {
+      for (let next = receiveMessageOnPort(port1); next !== undefined; next = receiveMessageOnPort(port1)) {
+        const message = /** @type {unknown} */ (next.message);
+        recorded.push(/** @type {import('./stub-api.mjs').RecordedRequest} */ (message));
+      }
+      return [...recorded];
+    },
+    close: () =>
+      new Promise((resolve) => {
+        worker.once('exit', () => {
+          port1.close();
+          resolve();
+        });
+        worker.postMessage({ close: true });
+      }),
+  };
+}
 
 /** @param {string} text the registry answer for LongPathsEnabled */
 export function parseLongPathsEnabled(text) {
@@ -69,7 +110,7 @@ export function realHost(repoRoot) {
     },
     resolveExpoCli: (directory) => createRequire(join(directory, 'package.json')).resolve('expo/bin/cli'),
     readAppVersion: (directory) => parseAppVersion(readFileSync(join(directory, 'plugins', 'expo-config.ts'), 'utf8')),
-    startStub: (port) => startStubApi({ port }),
+    startStub: startStubInWorker,
     log: (line) => {
       process.stdout.write(`${line}\n`);
     },

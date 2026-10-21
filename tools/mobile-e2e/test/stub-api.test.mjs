@@ -50,6 +50,22 @@ describe('scenario server (EVM-009 AC2, AC3)', () => {
     }
   });
 
+  it('EVM-009 AC2: every recorded request is also reported to the optional listener', async () => {
+    /** @type {unknown[]} */
+    const seen = [];
+    const stub = await startStubApi({
+      onRequest: (request) => {
+        seen.push(request);
+      },
+    });
+    try {
+      await call(stub.port, '/api/health');
+      assert.deepEqual(seen, [{ platform: 'android', version: '0.1.0' }]);
+    } finally {
+      await stub.close();
+    }
+  });
+
   it('EVM-009 AC2: anything but GET /api/health is 404 and is not recorded', async () => {
     const stub = await startStubApi();
     try {

@@ -31,10 +31,10 @@ export function healthAnswer(mode) {
 }
 
 /**
- * @param {{ port?: number }} [options] 0 = a free port
+ * @param {{ port?: number, onRequest?: (request: RecordedRequest) => void }} [options] port 0 = a free port; onRequest sees every recorded request
  * @returns {Promise<{ port: number, setMode: (mode: StubMode) => void, requests: () => RecordedRequest[], close: () => Promise<void> }>}
  */
-export async function startStubApi({ port = 0 } = {}) {
+export async function startStubApi({ port = 0, onRequest } = {}) {
   /** @type {StubMode} */
   let mode = 'ok';
   /** @type {RecordedRequest[]} */
@@ -48,7 +48,9 @@ export async function startStubApi({ port = 0 } = {}) {
       const value = request.headers[name];
       return Array.isArray(value) ? value[0] : value;
     };
-    recorded.push({ platform: header('x-client-platform'), version: header('x-client-version') });
+    const request_ = { platform: header('x-client-platform'), version: header('x-client-version') };
+    recorded.push(request_);
+    onRequest?.(request_);
     const answer = healthAnswer(mode);
     response.writeHead(answer.status, { 'Content-Type': answer.type, 'Cache-Control': 'no-store' }).end(JSON.stringify(answer.body));
   });

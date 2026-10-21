@@ -84,4 +84,22 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
       await stub.close();
     }
   });
+
+  it('EVM-009 AC4: the scenario server answers while the runner is blocked in a synchronous child process (Maestro)', async () => {
+    const host = realHost(process.cwd());
+    const stub = await host.startStub(0);
+    const fetchStatus = `fetch('http://127.0.0.1:${String(stub.port)}/api/health', { headers: { 'X-Client-Platform': 'android', 'X-Client-Version': '0.1.0' } }).then((r) => process.exit(r.status === 200 ? 0 : 3), () => process.exit(4))`;
+    try {
+      assert.equal(host.run(process.execPath, ['-e', fetchStatus]).status, 0);
+      stub.setMode('down');
+      await host.sleep(200);
+      assert.equal(host.run(process.execPath, ['-e', fetchStatus]).status, 3);
+      assert.deepEqual(stub.requests(), [
+        { platform: 'android', version: '0.1.0' },
+        { platform: 'android', version: '0.1.0' },
+      ]);
+    } finally {
+      await stub.close();
+    }
+  });
 });
