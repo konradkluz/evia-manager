@@ -34,7 +34,8 @@ const DEPENDENCY_FREE = [
   'tools/scan',
 ];
 /** Tests that read the whole repository and today's date (exception expiry, document classes) — never cached. */
-const UNCACHED_TESTS = ['tools/docs-lifecycle', 'tools/repo-policy'];
+// services/deploy-agent (EVM-007): its tests read the committed compose file of the channel (infra/runtime)
+const UNCACHED_TESTS = ['services/deploy-agent', 'tools/docs-lifecycle', 'tools/repo-policy'];
 /** A module that resolves the repository root from its own location (`new URL('../../..', import.meta.url)`). */
 const ROOT_REFERENCE = /new URL\(\s*['"]\.\.\/\.\.\/\.\.(?:\/|['"])/;
 
@@ -80,6 +81,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
     expect(WORKSPACES).toEqual([
       'apps/api',
       'apps/web',
+      'services/deploy-agent',
       'packages/config',
       'packages/contracts',
       'packages/tokens',
@@ -294,12 +296,17 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     }
   });
 
-  it('EVM-006 AC1 (SR-SUPPLY-06): yaml is a devDependency of tools/repo-policy only', () => {
+  it('EVM-006 AC1 (SR-SUPPLY-06), EVM-007 AC3: yaml is a devDependency of tools/repo-policy and the runtime dependency of the deployment verifier only', () => {
+    // services/deploy-agent: the strict parser of V4 (uniqueKeys, no merge, no aliases) — justification in its README
+    const allowed = ['tools/repo-policy/package.json', 'services/deploy-agent/package.json'];
     for (const path of ['package.json', ...WORKSPACES.map((workspace) => `${workspace}/package.json`)]) {
       const pkg = manifest(path);
       const has = 'yaml' in { ...pkg.dependencies, ...pkg.devDependencies };
-      expect(has, path).toBe(path === 'tools/repo-policy/package.json');
+      expect(has, path).toBe(allowed.includes(path));
     }
+    expect(manifest('services/deploy-agent/package.json').dependencies).toEqual({
+      yaml: manifest('tools/repo-policy/package.json').devDependencies?.['yaml'],
+    });
   });
 });
 

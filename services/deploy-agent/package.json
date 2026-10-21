@@ -1,0 +1,24 @@
+{
+  "name": "@evia/deploy-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deployment verifier of the VM (EVM-007 AC3, AC4; ADR-0018 V0–V4, V6): reads GitHub (Activity, history, pull requests, runs, the release manifest and the compose file) and decides fail-closed what root may deploy. Runs without a build (Node.js type stripping) in a distroless image pinned by digest in the IaC session.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

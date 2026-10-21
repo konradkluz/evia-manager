@@ -31,6 +31,23 @@ module.exports = {
       to: { path: '^(apps|services)/' },
     },
     {
+      name: 'deploy-agent-self-contained',
+      comment:
+        'EVM-007 (architect 1): the deployment verifier runs on the VM from its own image — it never imports applications, shared packages or tools (only node:* and yaml).',
+      severity: 'error',
+      // the lint and test configuration (eslint.config.js, vitest.config.ts) use the shared @evia/config at development time
+      from: { path: '^services/deploy-agent/(src|test)/' },
+      to: { path: '^(apps|packages|tools|services/(?!deploy-agent/))' },
+    },
+    {
+      name: 'nothing-imports-deploy-agent',
+      comment:
+        'EVM-007 (architect 1): no other code depends on the verifier — two independent implementations (it and tools/main-integrity, K6).',
+      severity: 'error',
+      from: { pathNot: '^services/deploy-agent/' },
+      to: { path: '^services/deploy-agent/' },
+    },
+    {
       name: 'tools-not-to-apps-or-services',
       comment: 'Repository tools never import application or service code (W13).',
       severity: 'error',

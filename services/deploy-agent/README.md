@@ -1,0 +1,31 @@
+# Weryfikator wdrożeń — `services/deploy-agent/`
+
+EVM-007 AC3, AC4 (ADR-0018 V0–V4, V6). Program w TypeScript uruchamiany na VM przez jednostkę systemd co 90 s (jeden przebieg na takt). Czyta wyłącznie GitHub (tylko do odczytu, fine-grained PAT) i decyduje **fail-closed**, co root może wdrożyć; nie ma gniazda Dockera, portów ani zapisu poza własnym katalogiem wyniku i stanu. Pull obrazów, migracje, start i przełączenie ruchu wykonuje skrypt roota `infra/deploy-agent/deploy.sh`, który wynik weryfikatora traktuje jako niezaufany i waliduje ponownie.
+
+## Kontrole (moduły `src/`)
+| Kontrola | Moduł | Reguła |
+|---|---|---|
+| V0 Activity | `activity.ts` | od zdarzenia kotwicy (poprzednie wdrożenie albo `BASELINE`, po **ID zdarzenia**, nie po czasie) wszystkie zdarzenia `refs/heads/main` to `pr_merge` z numerycznym ID Konrada i tworzą nieprzerwany łańcuch `before → after` do HEAD; każdy inny typ (`push`, `force_push`, `branch_deletion`, `branch_creation`, `merge_queue_merge`, nieznany) blokuje; kotwica poza zasięgiem API = `reject`; zdarzenie w okresie już wdrożonym = rollback do poprzedniego wpisu rejestru (n5) |
+| V1 historia | `history.ts` | HEAD z `git/ref/heads/main`; `compare` od wdrożonego commita: `ahead`, `behind_by = 0`, wszystkie strony, łańcuch rodziców do HEAD; zestaw commitów = `after` zdarzeń `pr_merge` |
+| V2 PR | `pulls.ts` | każdy commit zakresu: 1 rodzic (squash), dokładnie jeden PR z `merge_commit_sha`, `merged`, baza `main`, `merged_by.id` = Konrad; przebieg `pull_request` workflowu o numerycznym ID dla końcowego HEAD PR z jobem `ci-gate` = `success` z API jobów (nie check run, nie przebieg szybki gałęzi) |
+| V3 wydanie | `release.ts`, `zip.ts`, `manifest.ts`, `github.ts` | najstarszy przebieg `push` (`head_branch = main`, `head_sha = X`) i jego najnowsza udana próba z `ci-gate` i `publish` = `success`; artefakt `release-manifest` tego przebiegu i commita, niewygasły; pobranie: przekierowanie tylko na hosty z listy, drugie żądanie **bez** nagłówka `Authorization`; ZIP w pamięci, jeden wpis `release-manifest.json`, limit 1 MiB liczony przy rozpakowaniu, CRC; manifest ze ścisłym schematem |
+| V4 Compose | `compose-policy.ts` | **lista dozwolonych**: usługi `api`, `worker`, `web`, `migrate`, zamknięty zbiór kluczy i wartości, zakaz `$`, kotwic, aliasów, `<<`, tagów, duplikatów, kilku dokumentów; wynik to kanoniczny JSON z digestami z manifestu i siecią `runtimeNetwork` — tylko ten plik uruchamia root |
+
+Wynik (`/out/result.json`): `deploy` | `rollback` | `none` | `reject` z powodami (identyfikatory i kody, bez tokenu, tytułów PR, treści commitów i adresów e-mail — SR-LOG-02). Kod wyjścia: `0` decyzja, `3` odrzucenie (systemd: alert lokalny przez `OnFailure=`, `deploy.sh` się nie uruchamia), `2` niebezpieczne środowisko (`NODE_TLS_REJECT_UNAUTHORIZED`, proxy, `NODE_OPTIONS`). Limit API: budżet zapytań na cykl (`requestBudget`), wyczerpany limit, 5xx, przekroczony czas, błąd parsowania = `reject`; po limicie 15 min przerwy bez zapytań. Stan i metryki heartbeat (`/state/state.json`, `/state/metrics.prom` dla Alloy w EVM-085) — bez danych osobowych.
+
+## `manifestSha256` — jedna definicja
+**SHA-256 (hex, małe litery) dokładnych bajtów pliku `release-manifest.json`** tak, jak leży w artefakcie `release-manifest` (bez normalizacji JSON, końców linii ani BOM — manifest z BOM jest odrzucany). Ta sama wartość: wyjście `manifestSha256` joba `publish` (wejście `staging-verify`), wynik weryfikatora, rejestr wdrożeń (`registry.json`, wpis zawiera też dokładny tekst manifestu) i `GET /api/version` (plik `EVIA_RELEASE_MANIFEST_FILE` zapisany przez `deploy.sh`).
+
+## Konfiguracja VM i rejestr
+- `config.json` (root, tylko do odczytu w kontenerze): repozytorium, numeryczne ID Konrada i workflowu `ci.yml`, `baseline` (`commit` + `activityEventId`), stała ścieżka Compose, repozytoria GHCR, hosty przekierowań artefaktów, budżet zapytań, sieć runtime, limit commitów. Nieznany klucz lub zła wartość = `reject`. Zmiana wyłącznie w sesji IaC Konrada.
+- `registry.json` — pisze wyłącznie root (`deploy.sh`) po udanym przełączeniu, atomowo; weryfikator czyta tylko do odczytu. Rollback (`rollback` — plik z pełnym SHA, polecenie administratora) dozwolony tylko dla commita z rejestru.
+
+## Zależności (SR-SUPPLY-06)
+- `yaml` 2.9.1 (ISC, bez zależności, ta sama wersja co w `tools/repo-policy`) — jedyna zależność czasu działania: ścisły parser V4 (`uniqueKeys`, bez `merge`, kontrola kotwic, aliasów i tagów na drzewie dokumentu).
+- ZIP: `node:zlib` (`inflateRawSync` z `maxOutputLength`, `crc32`) — bez `fflate`; HTTP: natywny `fetch`; brak SDK GitHuba.
+- Granice modułów (`.dependency-cruiser.cjs`): kod nie importuje `apps/`, `packages/` ani `tools/` i nic nie importuje weryfikatora (osobna implementacja niż `tools/main-integrity`, K6).
+
+## Polecenia
+- Testy z progiem pokrycia warstwy `shared` (90%): `pnpm --filter @evia/deploy-agent run test:coverage` (atrapa API GitHub na `node:http`, dane syntetyczne; testy oznaczone `EVM-007 AC#`); lint i typy: `pnpm --filter @evia/deploy-agent run lint`, `… run typecheck`.
+- Uruchamianie bez budowania (Node.js 26 usuwa typy): `node src/cli.ts` w kontenerze `infra/deploy-agent/compose.agent.yaml`; obraz budowany i przypinany po digeście wyłącznie w sesji IaC (m5).
+- Pliki wrażliwe (K3): `services/deploy-agent/**`, `infra/**` — `docs/ops/github-i-ci.md`.

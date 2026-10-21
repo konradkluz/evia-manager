@@ -22,7 +22,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
-    "deps:check": "depcruise --config .dependency-cruiser.cjs apps packages tools",
+    "deps:check": "depcruise --config .dependency-cruiser.cjs apps services packages tools",
     "coverage:diff": "node tools/diff-coverage/cli.mjs",
     "build": "turbo run build",
     "dev": "node tools/dev-env/cli.mjs dev",

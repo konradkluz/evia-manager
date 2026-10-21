@@ -5,6 +5,7 @@
 /compose*.yaml         @konradkluz
 /lefthook.yml          @konradkluz
 /infra/                @konradkluz
+/services/deploy-agent/ @konradkluz
 /.gitleaks.toml        @konradkluz
 /.gitleaksignore       @konradkluz
 /osv-scanner.toml      @konradkluz
