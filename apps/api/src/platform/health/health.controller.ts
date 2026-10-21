@@ -1,10 +1,12 @@
 /**
- * GET /api/health (EVM-008 AC1; SR-API-12): public technical operation `getHealth`. Answers only the status and the
- * minimum supported mobile app version — no versions of libraries, host, database name or timings. A database
- * failure gives 503 service_unavailable without details.
+ * Public technical operations (SR-API-12):
+ * - GET /api/health (EVM-008 AC1) `getHealth`: only the status and the minimum supported mobile app version — no versions of libraries, host,
+ *   database name or timings. A database failure gives 503 service_unavailable without details.
+ * - GET /api/version (EVM-007 AC4, AC6) `getVersion`: the commit of the image and the SHA-256 of the release manifest, read by the deployment
+ *   channel before it switches traffic and by staging-verify. Nothing else: no build time, versions or host.
  */
 import { Controller, Get, Inject } from '@nestjs/common';
-import type { Health } from '@evia/contracts';
+import type { Health, Version } from '@evia/contracts';
 import type { AppConfig } from '../config/config.ts';
 import type { DatabaseProbe } from '../database/database-probe.ts';
 import { OperationId } from '../http/operation-id.ts';
@@ -35,5 +37,12 @@ export class HealthController {
     }
     const { android, ios } = this.#config.minSupportedAppVersion;
     return { status: 'ok', minSupportedAppVersion: { android, ios } };
+  }
+
+  @Get('/api/version')
+  @OperationId('getVersion')
+  getVersion(): Version {
+    const { commit, manifestSha256 } = this.#config.release;
+    return { commit, manifestSha256 };
   }
 }

@@ -10,6 +10,7 @@
  */
 export const PUBLIC_OPERATIONS: readonly string[] = Object.freeze([
   'getHealth',
+  'getVersion',
   'checkActivationLink',
   'setActivationPassword',
   'requestPasswordReset',

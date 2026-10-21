@@ -4,6 +4,8 @@
  * The minimum supported app version uses the Semver schema generated from the contract (one source of the pattern);
  * EVM-009 (meta/client-config, 426) reads the same `minSupportedAppVersion` object.
  */
+import { readFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
@@ -31,7 +33,22 @@ export interface AppConfig {
    * outside production — everything that needs a key is then refused (fail closed).
    */
   readonly fieldEncryptionKeys: readonly FieldKey[];
+  /**
+   * The release this process runs (EVM-007 AC4; GET /api/version): the commit baked into the image (`EVIA_RELEASE_COMMIT`, public) and the SHA-256
+   * of the release manifest written by the deployment channel (`EVIA_RELEASE_MANIFEST_SHA256_FILE`). `null` outside the channel (locally).
+   */
+  readonly release: { readonly commit: string | null; readonly manifestSha256: string | null };
 }
+
+/**
+ * Settings that may come from a file instead of the environment (`<KEY>_FILE`, EVM-007 AC7): the deployment channel mounts the secrets as files
+ * (tmpfs, 0400, one directory per service), never as values of the compose file. Only these keys — a `_FILE` of any other key is not read.
+ */
+export const FILE_KEYS = ['DATABASE_URL', 'CURSOR_KEY', 'FIELD_ENCRYPTION_KEYS', 'EVIA_RELEASE_MANIFEST_SHA256'] as const;
+const MAX_FILE_BYTES = 64 * 1024;
+/** Reads the file of a `<KEY>_FILE` setting (tests pass their own). */
+export type ReadConfigFile = (path: string) => string;
+const readConfigFile: ReadConfigFile = (path) => readFileSync(path, 'utf8');
 
 const postgresUrl = z.string().refine((value) => URL.canParse(value) && /^postgres(ql)?:$/.test(new URL(value).protocol));
 
@@ -71,6 +88,13 @@ const fieldEncryptionKeys = z
 const keysOf = (value: string | undefined): readonly FieldKey[] =>
   value === undefined || value === '' ? [] : (parseFieldEncryptionKeys(value) ?? []);
 
+/** An optional value of the release: absent or empty = null, otherwise exactly the pattern. */
+const releaseValue = (pattern: RegExp) =>
+  z
+    .union([z.literal(''), z.string().regex(pattern)])
+    .optional()
+    .transform((value) => (value === undefined || value === '' ? null : value));
+
 const hostOf = (value: string): string => (URL.canParse(value) ? new URL(value).hostname : '');
 const isLocalHost = (host: string): boolean => host === 'localhost' || host.endsWith('.localhost');
 
@@ -95,6 +119,9 @@ const schema = z
     TRUSTED_PROXIES: proxyList,
     CURSOR_KEY: cursorKey,
     FIELD_ENCRYPTION_KEYS: fieldEncryptionKeys,
+    // Empty (an image built without the argument, the example file) is the same as absent.
+    EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
+    EVIA_RELEASE_MANIFEST_SHA256: releaseValue(/^[0-9a-f]{64}$/),
   })
   .refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
@@ -153,14 +180,42 @@ function parseEnv<S extends z.ZodType>(parser: S, env: Env): z.output<S> {
   return result.data;
 }
 
-export function loadMigrationConfig(env: Env): MigrationConfig {
-  const value = parseEnv(migrationSchema, env);
+/**
+ * Replaces every `<KEY>_FILE` of FILE_KEYS by the content of its file (one trailing line break removed). Fail-fast, keys only in the error:
+ * both `<KEY>` and `<KEY>_FILE` set (ambiguous), a relative path, an unreadable file or one over 64 KiB.
+ */
+export function resolveFileKeys(env: Env, read: ReadConfigFile = readConfigFile): Env {
+  const resolved: Record<string, string | undefined> = { ...env };
+  const keys: string[] = [];
+  for (const key of FILE_KEYS) {
+    const path = env[`${key}_FILE`];
+    if (path === undefined || path === '') continue;
+    resolved[`${key}_FILE`] = undefined;
+    if (env[key] !== undefined && env[key] !== '') {
+      keys.push(key);
+      continue;
+    }
+    try {
+      if (!isAbsolute(path)) throw new Error('relative path');
+      const text = read(path);
+      if (Buffer.byteLength(text, 'utf8') > MAX_FILE_BYTES) throw new Error('too large');
+      resolved[key] = text.replace(/\r?\n$/, '');
+    } catch {
+      keys.push(`${key}_FILE`);
+    }
+  }
+  if (keys.length > 0) throw new ConfigError(keys.sort());
+  return resolved;
+}
+
+export function loadMigrationConfig(env: Env, read: ReadConfigFile = readConfigFile): MigrationConfig {
+  const value = parseEnv(migrationSchema, resolveFileKeys(env, read));
   return { nodeEnv: value.NODE_ENV, logLevel: value.LOG_LEVEL, databaseUrl: value.DATABASE_URL };
 }
 
 /** The full configuration of the server, the worker and the CLI. */
-export function loadConfig(env: Env): AppConfig {
-  const value = parseEnv(schema, env);
+export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): AppConfig {
+  const value = parseEnv(schema, resolveFileKeys(env, read));
   return {
     nodeEnv: value.NODE_ENV,
     port: value.API_PORT,
@@ -172,6 +227,7 @@ export function loadConfig(env: Env): AppConfig {
     trustedProxies: value.TRUSTED_PROXIES,
     cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
     fieldEncryptionKeys: keysOf(value.FIELD_ENCRYPTION_KEYS),
+    release: { commit: value.EVIA_RELEASE_COMMIT, manifestSha256: value.EVIA_RELEASE_MANIFEST_SHA256 },
   };
 }
 
@@ -212,7 +268,7 @@ const emailSchema = z
   });
 
 /** The full configuration of the worker: the settings of the server and the transport of e-mail; one error names the keys of both. */
-export function loadWorkerConfig(env: Env): WorkerConfig {
+export function loadWorkerConfig(env: Env, read: ReadConfigFile = readConfigFile): WorkerConfig {
   const keys = new Set<string>();
   const collect = (action: () => void): void => {
     try {
@@ -225,7 +281,7 @@ export function loadWorkerConfig(env: Env): WorkerConfig {
   let base: AppConfig | undefined;
   let email: z.output<typeof emailSchema> | undefined;
   collect(() => {
-    base = loadConfig(env);
+    base = loadConfig(env, read);
   });
   collect(() => {
     email = parseEnv(emailSchema, env);

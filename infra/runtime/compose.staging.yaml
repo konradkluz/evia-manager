@@ -45,11 +45,13 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: info
-      PORT: '3000'
+      API_PORT: '3000'
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
       PANEL_ORIGIN: https://staging.eviacharge.pl
       WEBAUTHN_RP_ID: staging.eviacharge.pl
       TRUSTED_PROXIES: 172.16.0.0/12
-      EVIA_RELEASE_MANIFEST_FILE: /run/secrets/release-manifest-sha256
+      EVIA_RELEASE_MANIFEST_SHA256_FILE: /run/secrets/release-manifest-sha256
       DATABASE_URL_FILE: /run/secrets/database-url-app
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
@@ -73,8 +75,13 @@ services:
     environment:
       NODE_ENV: production
       LOG_LEVEL: info
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
       PANEL_ORIGIN: https://staging.eviacharge.pl
       WEBAUTHN_RP_ID: staging.eviacharge.pl
+      TRUSTED_PROXIES: 172.16.0.0/12
+      # No e-mail on staging until the TEM adapter of EVM-089 (the firewall lets only 443/tcp out).
+      EMAIL_TRANSPORT: none
       DATABASE_URL_FILE: /run/secrets/database-url-app
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys

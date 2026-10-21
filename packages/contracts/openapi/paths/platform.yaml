@@ -33,3 +33,27 @@ health:
               status: 503
               code: service_unavailable
               traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+version:
+  get:
+    operationId: getVersion
+    tags: [platform]
+    summary: Wdrożona wersja — commit i skrót manifestu wydania
+    description: >-
+      Publiczna operacja techniczna kanału wdrożeń (EVM-007 AC4, AC6): commit, z którego zbudowano obraz API,
+      i SHA-256 dokładnych bajtów pliku release-manifest.json zapisany przez kanał wdrożeń. Na krawędzi
+      dostępna też jako /version. Bez wersji bibliotek, hosta i czasu budowy. Wartość `null` poza kanałem
+      wdrożeń (np. lokalnie).
+    x-evia-authz:
+      public: true
+    responses:
+      '200':
+        description: Wersja procesu API.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/platform.yaml#/Version
+            example:
+              commit: 3f1c2b9a8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a
+              manifestSha256: 9b2f8e1d4c7a6b5e3f2d1c0b9a8e7f6d5c4b3a2918e7d6c5b4a3f2e1d0c9b8a7
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

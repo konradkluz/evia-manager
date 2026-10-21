@@ -31,6 +31,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       trustedProxies: [],
       cursorKey: Buffer.alloc(32, 7),
       fieldEncryptionKeys: [{ id: 'test', key: Buffer.from(TEST_FIELD_ENCRYPTION_KEY, 'base64url') }],
+      release: { commit: null, manifestSha256: null },
     });
     expect(
       loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),
