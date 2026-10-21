@@ -23,7 +23,7 @@ class UploadJobService : JobService() {
   override fun onStartJob(params: JobParameters): Boolean {
     val assetId = params.extras.getString("assetId") ?: return false
     if (!UUID_REGEX.matches(assetId)) return false
-    val short = assetId.substring(0, 8)
+    val short = assetId.takeLast(8)
     Log.i("EVM011", "job start asset=$short job=${params.jobId}")
     if (Build.VERSION.SDK_INT >= 34) {
       setNotification(params, NOTIFICATION_ID, notification(this), JobService.JOB_END_NOTIFICATION_POLICY_DETACH)

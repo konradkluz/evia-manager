@@ -156,7 +156,7 @@ class UploadEngine(private val ctx: Context, private val stop: AtomicBoolean) {
       Jobs.write(ctx, job)
       return Result.FAILED
     }
-    val short = assetId.substring(0, 8)
+    val short = assetId.takeLast(8)
     if (job.optLong("startedAt") == 0L) job.put("startedAt", System.currentTimeMillis())
     inc(job, "runs")
     try {

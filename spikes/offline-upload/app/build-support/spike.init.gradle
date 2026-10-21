@@ -1,0 +1,13 @@
+// EVM-011 spike: Gradle init script, passed with -I. Never used for any shipped build.
+// 1. CMAKE_OBJECT_PATH_MAX=250: builds without Windows long paths (same trick as tools/mobile-e2e, droga A in docs/ops/dystrybucja-apk-android.md).
+// 2. The release variant is made debuggable (and keeps the template debug signature) so that `adb run-as` can read the app sandbox for
+//    the scenario measurements; JS is bundled into the APK (no Metro needed on the emulator).
+allprojects {
+  plugins.withId('com.android.application') {
+    android.defaultConfig.externalNativeBuild.cmake.arguments '-DCMAKE_OBJECT_PATH_MAX=250'
+    android.buildTypes.release.debuggable = true
+  }
+  plugins.withId('com.android.library') {
+    android.defaultConfig.externalNativeBuild.cmake.arguments '-DCMAKE_OBJECT_PATH_MAX=250'
+  }
+}

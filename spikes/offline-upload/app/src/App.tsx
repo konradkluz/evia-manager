@@ -32,22 +32,26 @@ export default function App() {
       [assetId, kind, path, size, sha, contentType, Date.now(), 'pending'],
     );
     const result = await Native.scheduleUpload(assetId);
-    setNotice(`saved ${assetId.slice(0, 8)} (${result})`);
+    setNotice(`saved ${assetId.slice(-8)} (${result})`);
   }, []);
 
-  const handleCommand = useCallback(
-    async (c: LaunchCommand | null) => {
-      if (!c || !db.current) return;
+  const handleOne = useCallback(
+    async (c: LaunchCommand) => {
       if (c.cmd === 'enqueue' && c.path) {
         await ingest(c.path, 'synthetic', c.type === 'image/jpeg' ? 'image/jpeg' : 'video/mp4', c.flag);
       } else if (c.cmd === 'reschedule') {
         setNotice(`rescheduled ${await Native.ensureScheduled()}`);
       } else if (c.cmd === 'confirm' && c.asset && c.sha) {
-        setNotice(`confirm ${c.asset.slice(0, 8)} -> ${await Native.confirmAndDelete(c.asset, c.sha)}`);
+        setNotice(`confirm ${c.asset.slice(-8)} -> ${await Native.confirmAndDelete(c.asset, c.sha)}`);
       }
     },
     [ingest],
   );
+
+  const handleCommands = useCallback(async () => {
+    if (!db.current) return;
+    for (const c of Native.takeCommands()) await handleOne(c);
+  }, [handleOne]);
 
   // Start-up: open the encrypted DB, re-create jobs lost to a force-stop, re-register rows whose job file is missing.
   useEffect(() => {
@@ -61,11 +65,11 @@ export default function App() {
       const n = await Native.ensureScheduled();
       setFreeMb(Math.round((await Native.freeBytes()) / (1024 * 1024)));
       setNotice(`ready (rescheduled ${n})`);
-      await handleCommand(Native.getLaunchCommand());
+      await handleCommands();
     })();
-    const sub = Native.addListener('onCommand', (c) => void handleCommand(c));
+    const sub = Native.addListener('onCommand', () => void handleCommands());
     return () => sub.remove();
-  }, [handleCommand]);
+  }, [handleCommands]);
 
   // Poll the native job files (JS reconciles state into the DB; it is the only writer of the DB).
   useEffect(() => {
@@ -144,7 +148,7 @@ export default function App() {
       <ScrollView testID="queue">
         {jobs.map((j) => (
           <Text key={j.assetId} style={styles.item}>
-            {`${j.assetId.slice(0, 8)} ${j.state} ${Math.round((100 * j.bytesDone) / Math.max(1, j.size))}% parts ${j.partsDone}/${j.partCount} retries ${j.retries} stops ${j.stops}`}
+            {`${j.assetId.slice(-8)} ${j.state} ${Math.round((100 * j.bytesDone) / Math.max(1, j.size))}% parts ${j.partsDone}/${j.partCount} retries ${j.retries} stops ${j.stops}`}
           </Text>
         ))}
       </ScrollView>

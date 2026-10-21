@@ -23,7 +23,7 @@ export interface NativeJob {
 export type LaunchCommand = { cmd: string; path?: string; type?: string; asset?: string; sha?: string; flag?: string };
 
 interface SpikeUploaderNative {
-  getLaunchCommand(): LaunchCommand | null;
+  takeCommands(): LaunchCommand[];
   hasConfig(): boolean;
   deviceInfo(): { sdk: number; release: string; model: string; patch: string };
   freeBytes(): Promise<number>;
@@ -34,7 +34,7 @@ interface SpikeUploaderNative {
   ensureScheduled(): Promise<number>;
   getJobs(): Promise<NativeJob[]>;
   confirmAndDelete(assetId: string, remoteSha256: string): Promise<boolean>;
-  addListener(event: 'onCommand', listener: (c: LaunchCommand) => void): { remove(): void };
+  addListener(event: 'onCommand', listener: () => void): { remove(): void };
 }
 
 export default requireNativeModule<SpikeUploaderNative>('SpikeUploader');

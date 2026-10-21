@@ -20,6 +20,9 @@ class SpikeUploaderModule : Module() {
   private val ctx: Context
     get() = appContext.reactContext ?: throw Exceptions.ReactContextLost()
 
+  /** Commands received while JS was not listening yet are kept here until JS asks for them (an event alone could be lost). */
+  private val pending = java.util.concurrent.ConcurrentLinkedQueue<Map<String, String>>()
+
   private fun mediaDir(): File = File(ctx.filesDir, "media").also { it.mkdirs() }
 
   private fun inside(dir: File, f: File): Boolean = f.canonicalPath.startsWith(dir.canonicalPath + File.separator)
@@ -55,10 +58,16 @@ class SpikeUploaderModule : Module() {
     Events("onCommand")
 
     OnNewIntent { intent ->
-      consume(intent)?.let { sendEvent("onCommand", bundleOf(*it.entries.map { e -> e.key to e.value }.toTypedArray())) }
+      consume(intent)?.let { pending.add(it) }
+      sendEvent("onCommand", bundleOf())
     }
 
-    Function("getLaunchCommand") { consume(appContext.currentActivity?.intent) }
+    Function("takeCommands") {
+      consume(appContext.currentActivity?.intent)?.let { pending.add(it) }
+      val out = mutableListOf<Map<String, String>>()
+      while (true) out.add(pending.poll() ?: break)
+      out
+    }
 
     Function("hasConfig") { ConfigStore.hasConfig(ctx) }
 
