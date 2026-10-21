@@ -26,6 +26,7 @@ const FAKE_DOCKER = `#!/bin/bash
 printf 'docker %s | COMPOSE_FILE=%s\\n' "$*" "\${COMPOSE_FILE-unset}" >> "$FAKE_LOG"
 case "$*" in
   *" run --rm --no-deps migrate"*) exit "\${FAKE_MIGRATE_EXIT:-0}" ;;
+  "pull "*) exit "\${FAKE_PULL_EXIT:-0}" ;;
   *" exec -T caddy caddy reload"*) exit "\${FAKE_RELOAD_EXIT:-0}" ;;
   "inspect "*) echo 10.0.0.5 ;;
   "image ls "*) cat "$FAKE_IMAGES" 2> /dev/null || true ;;
@@ -475,6 +476,23 @@ describe('EVM-007 AC7: secrets of the services', () => {
       assert.notEqual(restoreSecrets([sha256('m')]).status, 0, JSON.stringify(services));
     }
     writeFileSync(manifest, original);
+  });
+
+  it('EVM-007 AC7 (architect): a deployment that fails before the switch leaves the manifest hash of the serving release', () => {
+    const hash = () => join(root, 'run/evia/secrets/api/release-manifest-sha256');
+    // Before the first deployment there is no release: a failed first deployment leaves no hash behind.
+    const first = deploy(result('c1'), { FAKE_MIGRATE_EXIT: '1' });
+    assert.notEqual(first.status, 0);
+    assert.equal(existsSync(hash()), false);
+    assert.equal(deploy(result('c1')).status, 0);
+    for (const env of [{ FAKE_PULL_EXIT: '1' }, { FAKE_MIGRATE_EXIT: '1' }, { FAKE_HEALTH_EXIT: '22' }, { FAKE_EDGE: '{}' }]) {
+      const run = deploy(result('c2'), env);
+      assert.notEqual(run.status, 0, JSON.stringify(env));
+      assert.equal(readFileSync(hash(), 'utf8'), result('c1').manifestSha256, JSON.stringify(env));
+      assert.equal(registry().length, 1);
+    }
+    assert.equal(deploy(result('c2')).status, 0);
+    assert.equal(readFileSync(hash(), 'utf8'), result('c2').manifestSha256);
   });
 
   it('EVM-007 AC7: a repeated materialisation keeps the directory of a running container and removes files no longer in the manifest', () => {

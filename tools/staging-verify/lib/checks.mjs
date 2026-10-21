@@ -72,6 +72,8 @@ export function evaluateTls(facts, host, now, legacyRefused) {
 /** @param {string} host @param {{ maxVersion?: import('node:tls').SecureVersion, port?: number, timeoutMs?: number, ca?: string }} options @returns {Promise<TlsFacts>} */
 export function readTls(host, { maxVersion, port = 443, timeoutMs = 5000, ca } = {}) {
   return new Promise((resolve, reject) => {
+    // reason: inspection only — no data is sent; evaluateTls fails on socket.authorized === false, so an untrusted certificate is a red check, never accepted · owner: devops-engineer · review_by: 2027-01-15
+    // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification — verification happens in evaluateTls (EVM-007 AC6)
     const socket = tlsConnect({
       host,
       port,

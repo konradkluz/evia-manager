@@ -123,6 +123,15 @@ fi
 
 # Secrets (AC7; architect 14): one materialisation shared with the boot unit evia-secrets.service (a reboot empties
 # /run) — every service of secrets.manifest.json gets a tmpfs copy of only its files, the API the manifest hash.
+# Until the edge serves the new release, every exit (a refusal or an error under set -e) restores the secrets of the
+# serving release: evia-secrets without an argument takes the hash from the last registry entry (none before the first
+# deployment), so a restart of the serving API never reports the manifest hash of a release that failed (architect).
+switched=0
+restore_secrets() {
+  [ "$switched" = 1 ] && return 0
+  "$ROOT/usr/local/sbin/evia-secrets" || log "restoring the secrets of the serving release failed"
+}
+trap restore_secrets EXIT
 "$ROOT/usr/local/sbin/evia-secrets" "$manifest_sha" || fail "secrets of the services"
 
 active="$(cat -- "$WORK/active-color" 2> /dev/null || echo none)"
@@ -191,6 +200,7 @@ if ! jq -e --arg c "$commit" --arg m "$manifest_sha" '.commit == $c and .manifes
   compose_of "$project" "$release/compose.json" down --remove-orphans || true
   fail "the edge does not serve $commit — switched back"
 fi
+switched=1
 
 if [ "$active" != none ] && [ -f "$WORK/colors/$active/compose.json" ]; then
   compose_of "evia-$active" "$WORK/colors/$active/compose.json" down --remove-orphans || log "stopping evia-$active failed"
