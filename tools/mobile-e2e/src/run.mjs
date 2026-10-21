@@ -82,6 +82,7 @@ export async function runE2e({ skipBuild, port }, host) {
     },
     skipBuild,
     apkPresent: host.exists(apk),
+    shortPaths: host.env['EVIA_E2E_SHORT_PATHS'] === '1',
   });
   if (problems.length > 0) {
     for (const problem of problems) host.log(`PREFLIGHT: ${problem}`);

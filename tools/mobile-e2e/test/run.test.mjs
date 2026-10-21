@@ -198,6 +198,14 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.match(machine.logs.join('\n'), /PREFLIGHT: .*LongPathsEnabled/);
   });
 
+  it('EVM-009 AC4: EVIA_E2E_SHORT_PATHS=1 lets the build start without long paths, any other value does not', async () => {
+    const short = fakeMachine({ longPaths: false, env: { EVIA_E2E_SHORT_PATHS: '1' } });
+    assert.equal(await runE2e({ skipBuild: false, port: 3199 }, short.host), 0);
+    assert.ok(short.processes.some((entry) => entry.args.includes('prebuild')));
+    const other = fakeMachine({ longPaths: false, env: { EVIA_E2E_SHORT_PATHS: 'yes' } });
+    assert.equal(await runE2e({ skipBuild: false, port: 3199 }, other.host), 1);
+  });
+
   it('EVM-009 AC4: a Java without JAVA_HOME is looked up on the PATH, not as a file', async () => {
     const machine = fakeMachine({ env: { JAVA_HOME: '' }, exists: (path) => !path.endsWith('app-release.apk') || true });
     machine.host.env['JAVA_HOME'] = undefined;

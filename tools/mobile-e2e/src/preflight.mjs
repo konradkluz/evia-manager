@@ -12,14 +12,18 @@
  *   present: { adb: boolean, emulator: boolean, java: boolean, maestro: boolean },
  *   skipBuild: boolean,
  *   apkPresent: boolean,
+ *   shortPaths: boolean,
  * }} Facts
  */
 
 export const LONG_PATHS_REMEDY =
   'Windows long paths are off (LongPathsEnabled=0). The React Native native build (CMake/Ninja) fails on the deep pnpm paths with ' +
-  '"Filename longer than 260 characters". Enable them once as administrator: ' +
-  'reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f — restart Windows, and set ' +
-  'EVIA_ANDROID_CMAKE_VERSION=3.31.6 (install it first: sdkmanager "cmake;3.31.6"). See docs/ops/dystrybucja-apk-android.md.';
+  '"Filename longer than 260 characters". Two ways out. (A) Without administrator: build from a SHORT clone (e.g. C:\\e) with a flat ' +
+  'node_modules (nodeLinker: hoisted in its pnpm-workspace.yaml, never committed; pnpm install --frozen-lockfile --filter "@evia/mobile...") ' +
+  'and run with EVIA_E2E_SHORT_PATHS=1 (skips only this check; set EVIA_ANDROID_CMAKE_VERSION=3.31.6 only if CMake 3.22.1 fails). ' +
+  '(B) As administrator, once: reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f — ' +
+  'restart Windows, and set EVIA_ANDROID_CMAKE_VERSION=3.31.6 (install it first: sdkmanager "cmake;3.31.6"). ' +
+  'See docs/ops/dystrybucja-apk-android.md.';
 
 /**
  * @param {Facts} facts
@@ -36,6 +40,7 @@ export function checkPreflight(facts) {
     problems.push('Maestro CLI was not found: set EVIA_MAESTRO_HOME to the folder with the unpacked Maestro (it holds maestro/lib).');
   }
   if (facts.skipBuild && !facts.apkPresent) problems.push('--skip-build was given but there is no APK from an earlier build.');
-  if (!facts.skipBuild && facts.platform === 'win32' && facts.longPathsEnabled !== true) problems.push(LONG_PATHS_REMEDY);
+  if (!facts.skipBuild && facts.platform === 'win32' && facts.longPathsEnabled !== true && !facts.shortPaths)
+    problems.push(LONG_PATHS_REMEDY);
   return problems;
 }
