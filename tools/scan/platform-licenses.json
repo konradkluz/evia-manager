@@ -1,5 +1,5 @@
 {
-  "_comment": "Reviewed licenses of optional platform binaries that are in pnpm-lock.yaml but not installed in the Linux container, so Trivy has no license for them (EVM-016, SR-SUPPLY-06). Each entry is one exact name@version, must be a lockfile package with os/cpu or one whose every snapshot is optional: true (EVM-009: wasm32 fallback packages); expires <= 90 days after verified; owner: devops-engineer. Source: npm registry metadata (npm view <name>@<version> license).",
+  "_comment": "Reviewed licenses of optional platform binaries that are in pnpm-lock.yaml but not installed in the Linux container, so Trivy has no license for them (EVM-016, SR-SUPPLY-06). Each entry is one exact name@version, must be a lockfile package with os/cpu or one reachable only from such platform packages that the Linux container does not install (EVM-009: wasm32 fallback chain; every snapshot optional: true, every parent platform or itself so reachable, no direct importer dependency); expires <= 90 days after verified; owner: devops-engineer. Source: npm registry metadata (npm view <name>@<version> license).",
   "entries": [
     {
       "name": "@emnapi/core",

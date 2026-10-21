@@ -211,6 +211,17 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
       assert.equal(verdict.passed, true, verdict.problems.join(', '));
     });
 
+    it('EVM-009: every entry of platform-licenses.json is verified and expires at most 90 days after verification', () => {
+      const raw = /** @type {unknown} */ (JSON.parse(readFileSync(new URL('../platform-licenses.json', import.meta.url), 'utf8')));
+      const reviewed = /** @type {{ entries: { name: string, verified?: string, expires?: string }[] }} */ (raw);
+      for (const item of reviewed.entries) {
+        const verified = Date.parse(item.verified ?? '');
+        const expires = Date.parse(item.expires ?? '');
+        assert.ok(!Number.isNaN(verified) && !Number.isNaN(expires), `dates of ${item.name}`);
+        assert.ok(expires > verified && expires - verified <= 90 * 86_400_000, `90 days: ${item.name}`);
+      }
+    });
+
     it('EVM-016: an expired entry, another version, a disallowed license or a non-platform package stay red', () => {
       const name = '@node-rs/argon2-linux-x64-musl';
       assert.equal(trivyLicenseVerdict(scan(name), { ...options, today: '2027-01-05' }).passed, false);
@@ -229,30 +240,44 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
     });
   });
 
-  describe('EVM-009: reviewed licenses of packages reachable only through optional packages', () => {
+  describe('EVM-009: reviewed licenses of packages reachable only from optional platform packages', () => {
     const lockfile = [
+      'importers:',
+      '',
+      '  .:',
+      '    dependencies:',
+      '      direct-dep:',
+      '        specifier: ^1.0.0',
+      '        version: 1.0.0',
+      '',
       'packages:',
+      '',
+      "  'plat@1.0.0':",
+      '    resolution: {integrity: sha512-p}',
+      '    cpu: [wasm32]',
       '',
       "  '@scope/only-optional@1.0.0':",
       '    resolution: {integrity: sha512-a}',
       '',
-      "  '@scope/peer-wrapped@2.0.0':",
-      '    resolution: {integrity: sha512-b}',
-      '',
-      "  'mixed@3.0.0':",
-      '    resolution: {integrity: sha512-c}',
-      '',
-      "  'never-optional@4.0.0':",
-      '    resolution: {integrity: sha512-d}',
-      '',
       'snapshots:',
+      '',
+      "  'plat@1.0.0':",
+      '    dependencies:',
+      "      '@scope/only-optional': 1.0.0",
+      "      '@scope/peer-wrapped': 2.0.0(peer@1.0.0)",
+      '      mixed: 3.0.0',
+      '      chain-a: 1.0.0',
+      '      direct-dep: 1.0.0',
+      '      oneline: 5.0.0',
+      '      oneline-reversed: 6.0.0',
+      '    optional: true',
       '',
       "  '@scope/only-optional@1.0.0':",
       '    optional: true',
       '',
-      "  '@scope/peer-wrapped@2.0.0(@scope/only-optional@1.0.0)(peer@1.0.0)':",
+      "  '@scope/peer-wrapped@2.0.0(peer@1.0.0)':",
       '    dependencies:',
-      "      '@scope/only-optional': 1.0.0",
+      '      peer: 1.0.0',
       '    optional: true',
       '',
       "  '@scope/peer-wrapped@2.0.0(peer@2.0.0)':",
@@ -265,48 +290,153 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
       '    dependencies:',
       '      peer: 1.0.0',
       '',
+      "  'chain-a@1.0.0':",
+      '    dependencies:',
+      '      chain-b: 1.0.0',
+      '    optional: true',
+      '',
+      "  'chain-b@1.0.0':",
+      '    optional: true',
+      '',
+      "  'normal-parent@1.0.0':",
+      '    dependencies:',
+      '      under-normal: 1.0.0',
+      '',
+      "  'under-normal@1.0.0':",
+      '    optional: true',
+      '',
+      "  'orphan@1.0.0':",
+      '    optional: true',
+      '',
+      "  'direct-dep@1.0.0':",
+      '    optional: true',
+      '',
+      '  oneline@5.0.0: {}',
+      '',
+      "  'oneline@5.0.0(peer@1.0.0)':",
+      '    optional: true',
+      '',
+      "  'oneline-reversed@6.0.0(peer@1.0.0)':",
+      '    optional: true',
+      '',
+      '  oneline-reversed@6.0.0: {}',
+      '',
       "  'never-optional@4.0.0':",
       '    dependencies:',
       '      x: 1.0.0',
       '',
     ].join('\n');
     const base = { license: 'MIT', expires: '2027-01-19' };
-    const entries = [
-      { ...base, name: '@scope/only-optional', version: '1.0.0' },
-      { ...base, name: '@scope/peer-wrapped', version: '2.0.0' },
-      { ...base, name: 'mixed', version: '3.0.0' },
-      { ...base, name: 'never-optional', version: '4.0.0' },
+    const names = [
+      ['@scope/only-optional', '1.0.0'],
+      ['@scope/peer-wrapped', '2.0.0'],
+      ['mixed', '3.0.0'],
+      ['chain-a', '1.0.0'],
+      ['chain-b', '1.0.0'],
+      ['under-normal', '1.0.0'],
+      ['orphan', '1.0.0'],
+      ['direct-dep', '1.0.0'],
+      ['oneline', '5.0.0'],
+      ['oneline-reversed', '6.0.0'],
+      ['never-optional', '4.0.0'],
     ];
+    const entries = names.map(([name, version]) => ({ ...base, name, version }));
     const options = { lockfile, entries, today: '2026-10-21' };
     /** @param {string} name @param {string} version */
     const scan = (name, version) => ({
       Results: [{ Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: [{ Name: name, Version: version }] }],
     });
+    /** @param {string} name @param {string} version */
+    const covered = (name, version) => trivyLicenseVerdict(scan(name, version), options).passed;
 
-    it('EVM-009: a package whose snapshots are all optional passes with an entry and is unknown without one', () => {
-      assert.equal(trivyLicenseVerdict(scan('@scope/only-optional', '1.0.0'), options).passed, true);
+    it('EVM-009: a package reachable only from a platform package passes with an entry and is unknown without one', () => {
+      assert.equal(covered('@scope/only-optional', '1.0.0'), true);
       assert.deepEqual(trivyLicenseVerdict(scan('@scope/only-optional', '1.0.0'), { ...options, entries: [] }).problems, [
         'licencja nieznana · @scope/only-optional@1.0.0',
       ]);
     });
 
     it('EVM-009: snapshot keys with a peer-dependency suffix are matched by name@version', () => {
-      assert.equal(trivyLicenseVerdict(scan('@scope/peer-wrapped', '2.0.0'), options).passed, true);
+      assert.equal(covered('@scope/peer-wrapped', '2.0.0'), true);
     });
 
-    it('EVM-009: one snapshot without optional: true, or no optional snapshot at all, keeps the entry ignored', () => {
-      assert.deepEqual(trivyLicenseVerdict(scan('mixed', '3.0.0'), options).problems, ['licencja nieznana · mixed@3.0.0']);
-      assert.deepEqual(trivyLicenseVerdict(scan('never-optional', '4.0.0'), options).problems, [
-        'licencja nieznana · never-optional@4.0.0',
-      ]);
+    it('EVM-009: a two-level chain (platform → A → B) is covered', () => {
+      assert.equal(covered('chain-a', '1.0.0'), true);
+      assert.equal(covered('chain-b', '1.0.0'), true);
     });
 
-    it('EVM-009: an expired entry, another version or a disallowed license stay red for an optional-only package', () => {
+    it('EVM-009: a non-optional snapshot, a plain parent, a direct importer dependency or no parent keep the entry ignored', () => {
+      for (const [name, version] of [
+        ['mixed', '3.0.0'],
+        ['never-optional', '4.0.0'],
+        ['under-normal', '1.0.0'],
+        ['direct-dep', '1.0.0'],
+        ['orphan', '1.0.0'],
+      ]) {
+        assert.deepEqual(trivyLicenseVerdict(scan(name ?? '', version ?? ''), options).problems, [
+          `licencja nieznana · ${name}@${version}`,
+        ]);
+      }
+    });
+
+    it('EVM-009: a one-line "{}" snapshot is a non-optional variant, in either order of the peer variant', () => {
+      assert.equal(covered('oneline', '5.0.0'), false);
+      assert.equal(covered('oneline-reversed', '6.0.0'), false);
+    });
+
+    it('EVM-009: an expired entry, another version or a disallowed license stay red', () => {
       const name = '@scope/only-optional';
       assert.equal(trivyLicenseVerdict(scan(name, '1.0.0'), { ...options, today: '2027-01-20' }).passed, false);
       assert.equal(trivyLicenseVerdict(scan(name, '1.0.1'), options).passed, false);
       const gpl = trivyLicenseVerdict(scan(name, '1.0.0'), { ...options, entries: [{ ...entries[0], license: 'GPL-3.0-only' }] });
       assert.deepEqual(gpl.problems, ['GPL-3.0-only · @scope/only-optional@1.0.0']);
+    });
+
+    it('EVM-009: a dependency cycle between optional packages does not hang and stays covered by a platform parent', () => {
+      const cyclic = [
+        'packages:',
+        '',
+        "  'plat@1.0.0':",
+        '    cpu: [wasm32]',
+        '',
+        'snapshots:',
+        '',
+        "  'plat@1.0.0':",
+        '    dependencies:',
+        '      a: 1.0.0',
+        '    optional: true',
+        '',
+        "  'a@1.0.0':",
+        '    dependencies:',
+        '      b: 1.0.0',
+        '    optional: true',
+        '',
+        "  'b@1.0.0':",
+        '    dependencies:',
+        '      a: 1.0.0',
+        '    optional: true',
+        '',
+      ].join('\n');
+      const cycleEntries = [
+        { ...base, name: 'a', version: '1.0.0' },
+        { ...base, name: 'b', version: '1.0.0' },
+      ];
+      const verdict = trivyLicenseVerdict(
+        {
+          Results: [
+            {
+              Target: 'pnpm-lock.yaml',
+              Type: 'pnpm',
+              Packages: [
+                { Name: 'a', Version: '1.0.0' },
+                { Name: 'b', Version: '1.0.0' },
+              ],
+            },
+          ],
+        },
+        { lockfile: cyclic, entries: cycleEntries, today: '2026-10-21' },
+      );
+      assert.equal(verdict.passed, true, verdict.problems.join(', '));
     });
   });
 
