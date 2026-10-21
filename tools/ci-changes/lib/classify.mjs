@@ -32,8 +32,10 @@ export const MOBILE_RELEVANT_PREFIXES = Object.freeze([
   'tools/mobile-apk/',
   'patches/',
 ]);
-/** Files of the root that can change the package. */
+/** Files of the root that can change the package (the dependencies and the build environment: Node version of the job, pnpm settings). */
 export const MOBILE_RELEVANT_FILES = Object.freeze([
+  '.nvmrc',
+  '.npmrc',
   'pnpm-lock.yaml',
   'pnpm-workspace.yaml',
   'package.json',

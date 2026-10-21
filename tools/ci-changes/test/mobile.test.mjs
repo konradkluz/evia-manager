@@ -16,6 +16,8 @@ describe('EVM-009 AC5: the output `mobile` (mobile-apk) is a positive list', () 
       'packages/contracts/openapi/openapi.yaml',
       'design/tokens/color.json',
       'tools/mobile-apk/src/verify.mjs',
+      '.nvmrc',
+      '.npmrc',
       'pnpm-lock.yaml',
       'pnpm-workspace.yaml',
       'package.json',
@@ -39,6 +41,10 @@ describe('EVM-009 AC5: the output `mobile` (mobile-apk) is a positive list', () 
       'README.md',
       '.github/workflows/nightly.yml',
       'tools/scan/cli.mjs',
+      '.prettierrc.json',
+      '.gitleaks.toml',
+      'renovate.json',
+      'compose.yaml',
     ]) {
       assert.equal(isRelevantToMobile(path), false, path);
       assert.equal(pr(path).mobile, false, path);

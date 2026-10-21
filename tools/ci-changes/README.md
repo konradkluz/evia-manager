@@ -20,7 +20,7 @@ Dane: `git diff --name-only <baza> HEAD` (bez wykrywania zmian nazw: przeniesien
 - Zmiana mieszana: job jest pominięty tylko, gdy KAŻDY plik jest „nie dotyczy” tego joba (np. `apps/api` + `docs` pomija E2E, ale nie integrację; `apps/web` + plik spoza list uruchamia oba).
 
 ## Lista „dotyczy” dla `mobile` (EVM-009; `MOBILE_RELEVANT_*` w `lib/classify.mjs`)
-`apps/mobile/`, `packages/tokens/`, `packages/contracts/`, `design/tokens/`, `tools/mobile-apk/`, `patches/` oraz pliki `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `turbo.json`, `.github/workflows/ci.yml`. Inaczej niż w listach „nie dotyczy”, nieznana ścieżka **nie** uruchamia budowy; podejrzana ścieżka (z `..`, backslashem, znakiem sterującym, bezwzględna, pusta), błąd `git diff` i każde zdarzenie inne niż `pull_request` — tak. Zmiana wyłącznie dokumentacji nigdy nie buduje paczki (`heavy=false` ⇒ `mobile=false`).
+`apps/mobile/`, `packages/tokens/`, `packages/contracts/`, `design/tokens/`, `tools/mobile-apk/`, `patches/` oraz pliki `.nvmrc` (wersja Node w jobie), `.npmrc`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `turbo.json`, `.github/workflows/ci.yml`. Inaczej niż w listach „nie dotyczy”, nieznana ścieżka **nie** uruchamia budowy; podejrzana ścieżka (z `..`, backslashem, znakiem sterującym, bezwzględna, pusta), błąd `git diff` i każde zdarzenie inne niż `pull_request` — tak. Zmiana wyłącznie dokumentacji nigdy nie buduje paczki (`heavy=false` ⇒ `mobile=false`).
 
 ## Fail-closed (wszystkie cztery wyjścia `true`)
 
