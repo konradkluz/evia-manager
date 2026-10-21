@@ -18,7 +18,7 @@
 
 ## Rotacja sekretu aplikacji
 1. Nowa wartość w `/etc/evia/secrets/<plik>` (`0600` root), dla haseł ról także `ALTER ROLE … PASSWORD` i `database-url-*`.
-2. Ponowne wdrożenie bieżącego commita: polecenie rollbacku nie pomoże (to ten sam commit) — restart kolorów przez `deploy.sh` następuje przy kolejnym wdrożeniu; do tego czasu `docker compose --project-name evia-<aktywny kolor> … restart` w sesji administratora po skopiowaniu plików do `/run/evia/secrets/` (tak jak robi to `deploy.sh`).
+2. Ponowne wdrożenie bieżącego commita: polecenie rollbacku nie pomoże (to ten sam commit) — restart kolorów przez `deploy.sh` następuje przy kolejnym wdrożeniu; do tego czasu w sesji administratora `sudo /usr/local/sbin/evia-secrets` (ten sam skrypt co `deploy.sh` i jednostka rozruchowa `evia-secrets.service`; kopie tmpfs w `/run/evia/secrets/<usługa>/` z `secrets.manifest.json`, hash manifestu API z rejestru), potem `docker compose --project-name evia-<aktywny kolor> … restart` (dla `postgres-password` — `evia-infra`). Nigdy kopia ręczna ani sekret w zmiennej środowiskowej.
 3. Kopia do Bitwarden; zestaw awaryjny offline dla `field-encryption-keys`.
 
 ## Wyciek
