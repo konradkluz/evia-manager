@@ -66,6 +66,33 @@ describe('scenario server (EVM-009 AC2, AC3)', () => {
     }
   });
 
+  it('EVM-009 AC1: the hang mode records the request and never answers, so the app stays in its loading state', async () => {
+    const stub = await startStubApi();
+    try {
+      stub.setMode('hang');
+      const controller = new AbortController();
+      const pending = fetch(`http://127.0.0.1:${String(stub.port)}/api/health`, {
+        headers: { 'X-Client-Platform': 'android', 'X-Client-Version': '0.1.0' },
+        signal: controller.signal,
+      });
+      /** @type {string} */
+      const outcome = await Promise.race([
+        pending.then(() => 'answered'),
+        new Promise((/** @type {(value: string) => void} */ resolve) => {
+          setTimeout(() => {
+            resolve('silent');
+          }, 400);
+        }),
+      ]);
+      assert.equal(outcome, 'silent');
+      assert.deepEqual(stub.requests(), [{ platform: 'android', version: '0.1.0' }]);
+      controller.abort();
+      await assert.rejects(pending, /abort/i);
+    } finally {
+      await stub.close();
+    }
+  });
+
   it('EVM-009 AC2: anything but GET /api/health is 404 and is not recorded', async () => {
     const stub = await startStubApi();
     try {

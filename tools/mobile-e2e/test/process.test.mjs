@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, mock } from 'node:test';
@@ -69,6 +69,49 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
         write.mock.calls.map((call) => call.arguments[0]),
         ['hello\n'],
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('EVM-009 AC4: screenshots of Maestro are collected flat into every target, the later run of a flow wins, other files are left', () => {
+    const root = mkdtempSync(join(tmpdir(), 'evia-e2e-'));
+    try {
+      const host = realHost(root);
+      const source = join(root, 'out');
+      /** @param {string[]} parts @param {string} text */
+      const put = (parts, text) => {
+        mkdirSync(join(source, ...parts.slice(0, -1)), { recursive: true });
+        writeFileSync(join(source, ...parts), text);
+      };
+      put(['2026-10-21_040000', '01-online', 'takeScreenshot', 's01-online.png'], 'old');
+      put(['2026-10-21_050000', '01-online', 'takeScreenshot', 's01-online.png'], 'new');
+      put(['2026-10-21_050000', '01-online', 'takeScreenshot', 'kolejka-empty.png'], 'queue');
+      put(['2026-10-21_050000', '01-online', 'takeScreenshot', 'notes.txt'], 'not an image');
+      put(['2026-10-21_050000', '01-online', 'logs', 'trace.png'], 'not a screenshot');
+      const first = join(root, 'a');
+      const second = join(root, 'b', 'c');
+      assert.deepEqual(host.collectScreenshots(source, [first, second]), ['kolejka-empty.png', 's01-online.png']);
+      for (const target of [first, second]) {
+        assert.deepEqual(readdirSync(target).sort(), ['kolejka-empty.png', 's01-online.png']);
+        assert.equal(readFileSync(join(target, 's01-online.png'), 'utf8'), 'new');
+      }
+      assert.deepEqual(host.collectScreenshots(join(root, 'missing'), [first]), []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('EVM-009 AC4: resetDirectory leaves an empty directory, also where there was none', () => {
+    const root = mkdtempSync(join(tmpdir(), 'evia-e2e-'));
+    try {
+      const host = realHost(root);
+      const directory = join(root, 'shots');
+      host.resetDirectory(directory);
+      assert.deepEqual(readdirSync(directory), []);
+      writeFileSync(join(directory, 'stale.png'), 'x');
+      host.resetDirectory(directory);
+      assert.deepEqual(readdirSync(directory), []);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

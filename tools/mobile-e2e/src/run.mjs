@@ -38,6 +38,8 @@ const BOOT_POLL_MS = 2000;
  *   exists: (path: string) => boolean,
  *   writeText: (path: string, text: string) => void,
  *   makeDirectory: (path: string) => void,
+ *   resetDirectory: (path: string) => void,
+ *   collectScreenshots: (source: string, targets: string[]) => string[],
  *   run: (command: string, args: string[], options?: { cwd?: string, env?: Record<string, string>, stream?: boolean }) => Outcome,
  *   startDetached: (command: string, args: string[], options?: { env?: Record<string, string> }) => void,
  *   sleep: (ms: number) => Promise<void>,
@@ -100,6 +102,11 @@ export async function runE2e({ skipBuild, port }, host) {
   if (!skipBuild && !build(host, { appDirectory, androidHome, tools, env, apk })) return 1;
 
   host.makeDirectory(reportDirectory);
+  // Maestro artifacts of this run only (a stale screenshot of an earlier run must not pass for a current one)
+  const maestroOutput = join(reportDirectory, 'maestro-output');
+  const screenshotsDirectory = join(reportDirectory, 'screenshots');
+  host.resetDirectory(maestroOutput);
+  host.resetDirectory(screenshotsDirectory);
   const stub = await host.startStub(port);
   let airplane = false;
   /** @type {import('./report.mjs').Result[]} */
@@ -136,6 +143,7 @@ export async function runE2e({ skipBuild, port }, host) {
           serial,
           flow: join(appDirectory, 'e2e', step.flow),
           junitFile: join(reportDirectory, `${step.flow}.xml`),
+          outputDirectory: maestroOutput,
         });
         let outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
         /** @type {1 | 2} */
@@ -163,6 +171,11 @@ export async function runE2e({ skipBuild, port }, host) {
     await stub.close();
   }
 
+  // The review screenshots (ignored by git, docs/ux/reviews/**/*.png): .scratch for the run, docs/ux/reviews/EVM-009 for the UX review
+  const screenshots = host.collectScreenshots(maestroOutput, [
+    screenshotsDirectory,
+    join(host.repoRoot, 'docs', 'ux', 'reviews', 'EVM-009'),
+  ]);
   const evidence = {
     date: host.today(),
     device: deviceInfo(adb, serial),
@@ -171,6 +184,7 @@ export async function runE2e({ skipBuild, port }, host) {
     results,
     requests: stub.requests(),
     logcat: logcat ?? null,
+    screenshots,
   };
   host.writeText(join(reportDirectory, 'report.md'), buildReport(evidence));
   host.log(buildReport(evidence));

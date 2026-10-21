@@ -27,6 +27,7 @@ export function scanLogcat(logcat) {
  *   results: Result[],
  *   requests: { platform: string | undefined, version: string | undefined }[],
  *   logcat: { lines: number, withAddress: number, withSecret: number } | null,
+ *   screenshots?: string[],
  * }} Evidence
  */
 
@@ -40,6 +41,7 @@ export function buildReport(evidence) {
     (result) =>
       `| ${result.scenario} | ${result.flow} | ${result.status}${result.attempts === 2 ? ' (retried)' : ''} | ${result.seconds.toFixed(1)} |`,
   );
+  const screenshots = evidence.screenshots ?? [];
   const retried = evidence.results.filter((result) => result.attempts === 2).map((result) => result.flow);
   return [
     `# Maestro smoke test — ${evidence.date}`,
@@ -53,6 +55,7 @@ export function buildReport(evidence) {
     evidence.logcat === null
       ? '- Logcat of the app process: not collected'
       : `- Logcat of the app process: ${String(evidence.logcat.lines)} lines, ${String(evidence.logcat.withAddress)} with an address, ${String(evidence.logcat.withSecret)} with a secret-like word`,
+    `- Screenshots for the UX review: ${screenshots.length === 0 ? 'none' : `${String(screenshots.length)} (${screenshots.join(', ')})`}`,
     '',
     '| Scenario | Flow | Status | Seconds |',
     '| --- | --- | --- | --- |',

@@ -13,10 +13,13 @@ appId: pl.eviacharge.manager
 - assertNotVisible: 'Brak zasięgu.*'
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertNotVisible: 'Zaktualizuj aplikację'
+# review screenshot (EVM-009 UX review): S-01 online, empty state, bottom navigation, "Połączono" capsule
+- takeScreenshot: s01-online
 # the bottom navigation works
 - tapOn:
     id: 'nav-queue'
 - assertVisible: 'Nic nie czeka na wysłanie.'
+- takeScreenshot: kolejka-empty
 - tapOn:
     id: 'nav-orders'
 - assertVisible: 'Brak zleceń'

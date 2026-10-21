@@ -11,8 +11,11 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Brak zleceń'
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertNotVisible: 'Zaktualizuj aplikację'
+# review screenshots (EVM-009 UX review): S-01 and the queue in airplane mode
+- takeScreenshot: s01-offline
 # the queue stays reachable offline and still carries the banner
 - tapOn:
     id: 'nav-queue'
 - assertVisible: 'Nic nie czeka na wysłanie.'
 - assertVisible: 'Brak zasięgu.*'
+- takeScreenshot: kolejka-offline

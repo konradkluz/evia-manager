@@ -15,3 +15,5 @@ appId: pl.eviacharge.manager
     id: 'nav-queue'
 - assertNotVisible:
     id: 'sync-indicator'
+# review screenshot (EVM-009 UX review): S-02
+- takeScreenshot: s02-update-required

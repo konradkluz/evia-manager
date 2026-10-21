@@ -135,9 +135,10 @@ export const airplaneArgs = (on) => ['shell', 'cmd', 'connectivity', 'airplane-m
 export const emulatorArgs = () => ['-avd', AVD_NAME, '-no-snapshot-save', '-no-boot-anim'];
 
 /**
- * @param {{ java: string, classpath: string, serial: string, flow: string, junitFile: string }} options
+ * @param {{ java: string, classpath: string, serial: string, flow: string, junitFile: string, outputDirectory: string }} options
+ * `outputDirectory`: Maestro writes the artifacts of the flow there, among them <timestamp>/<flow>/takeScreenshot/*.png
  */
-export function maestroCommand({ java, classpath, serial, flow, junitFile }) {
+export function maestroCommand({ java, classpath, serial, flow, junitFile, outputDirectory }) {
   return {
     command: java,
     args: [
@@ -153,6 +154,8 @@ export function maestroCommand({ java, classpath, serial, flow, junitFile }) {
       'JUNIT',
       '--output',
       junitFile,
+      '--test-output-dir',
+      outputDirectory,
     ],
   };
 }

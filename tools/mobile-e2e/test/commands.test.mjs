@@ -124,9 +124,21 @@ describe('commands of the smoke test (EVM-009 AC4)', () => {
       serial: 'emulator-5554',
       flow: 'f.yaml',
       junitFile: 'f.xml',
+      outputDirectory: 'out',
     });
     assert.equal(command, 'java');
-    assert.deepEqual(args.slice(-8), ['--device', 'emulator-5554', 'test', 'f.yaml', '--format', 'JUNIT', '--output', 'f.xml']);
+    assert.deepEqual(args.slice(-10), [
+      '--device',
+      'emulator-5554',
+      'test',
+      'f.yaml',
+      '--format',
+      'JUNIT',
+      '--output',
+      'f.xml',
+      '--test-output-dir',
+      'out',
+    ]);
     assert.ok(args.includes('maestro.cli.AppKt'));
   });
 

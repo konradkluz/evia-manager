@@ -5,7 +5,7 @@
  * commands.mjs from an allow-list, and nothing here prints an environment.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -71,6 +71,33 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
   };
 }
 
+/**
+ * Gathers the screenshots of Maestro (<source>/<timestamp>/<flow>/takeScreenshot/*.png) flat into every target directory. The
+ * traversal is in name order and the timestamps sort in time order, so a later run of a flow overwrites an earlier one.
+ * @param {string} source
+ * @param {string[]} targets
+ * @returns {string[]} the sorted file names that were copied
+ */
+export function collectScreenshots(source, targets) {
+  /** @type {Map<string, string>} */
+  const found = new Map();
+  /** @param {string} directory @param {boolean} inScreenshots */
+  const walk = (directory, inScreenshots) => {
+    if (!existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) walk(path, entry.name === 'takeScreenshot');
+      else if (inScreenshots && entry.name.endsWith('.png')) found.set(entry.name, path);
+    }
+  };
+  walk(source, false);
+  for (const target of targets) {
+    mkdirSync(target, { recursive: true });
+    for (const [name, path] of found) copyFileSync(path, join(target, name));
+  }
+  return [...found.keys()].sort();
+}
+
 /** @param {string} text the registry answer for LongPathsEnabled */
 export function parseLongPathsEnabled(text) {
   return /LongPathsEnabled\s+REG_DWORD\s+0x1\b/i.test(text);
@@ -99,6 +126,11 @@ export function realHost(repoRoot) {
     makeDirectory: (path) => {
       mkdirSync(path, { recursive: true });
     },
+    resetDirectory: (path) => {
+      rmSync(path, { recursive: true, force: true });
+      mkdirSync(path, { recursive: true });
+    },
+    collectScreenshots,
     run: (command, args, { cwd, env, stream = false } = {}) => {
       const result = spawnSync(command, args, {
         ...(cwd === undefined ? {} : { cwd }),

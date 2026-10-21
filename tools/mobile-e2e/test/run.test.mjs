@@ -34,6 +34,10 @@ function fakeMachine({
   /** @type {{ command: string, args: string[], cwd?: string, env?: Record<string, string> }[]} */
   const processes = [];
   /** @type {string[]} */
+  const resets = [];
+  /** @type {{ source: string, targets: string[] }[]} */
+  const collected = [];
+  /** @type {string[]} */
   const logs = [];
   /** @type {Record<string, string>} */
   const written = {};
@@ -59,6 +63,13 @@ function fakeMachine({
       written[path] = text;
     },
     makeDirectory: () => undefined,
+    resetDirectory: (path) => {
+      resets.push(path);
+    },
+    collectScreenshots: (source, targets) => {
+      collected.push({ source, targets });
+      return ['s01-online.png', 'kolejka-empty.png'];
+    },
     run: (command, args, options = {}) => {
       processes.push({
         command,
@@ -129,6 +140,8 @@ function fakeMachine({
     logs,
     written,
     modes,
+    resets,
+    collected,
     detached,
     isClosed: () => closed,
     stubPort: () => stubPort,
@@ -196,8 +209,28 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')];
     assert.match(report ?? '', /API 35/);
     assert.match(report ?? '', /Maestro: 2\.11\.0/);
-    assert.match(report ?? '', /6 passed, 0 failed, 0 skipped/);
+    assert.match(report ?? '', /7 passed, 0 failed, 0 skipped/);
     assert.ok(machine.logs.some((line) => line.includes('Maestro smoke test')));
+  });
+
+  it('EVM-009 AC4: Maestro writes into a fresh output directory and the screenshots are gathered for the UX review, listed in the report', async () => {
+    const machine = fakeMachine({ exists: () => true });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, machine.host), 0);
+    const output = join('/repo', '.scratch', 'mobile-e2e', 'maestro-output');
+    const screenshots = join('/repo', '.scratch', 'mobile-e2e', 'screenshots');
+    assert.deepEqual(machine.resets, [output, screenshots]);
+    assert.deepEqual(machine.collected, [{ source: output, targets: [screenshots, join('/repo', 'docs', 'ux', 'reviews', 'EVM-009')] }]);
+    const maestro = machine.processes.filter((entry) => entry.args.includes('test'));
+    assert.equal(maestro.length, ALL_FLOWS.length);
+    for (const entry of maestro) assert.equal(entry.args[entry.args.indexOf('--test-output-dir') + 1], output);
+    const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')];
+    assert.match(report ?? '', /Screenshots for the UX review: 2 \(s01-online\.png, kolejka-empty\.png\)/);
+  });
+
+  it('EVM-009 AC4: the screenshots of a failed run are gathered too, they show where it stopped', async () => {
+    const machine = fakeMachine({ exists: () => true, failing: (_command, args) => args.some((arg) => arg.endsWith('02-offline.yaml')) });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, machine.host), 1);
+    assert.equal(machine.collected.length, 1);
   });
 
   it('EVM-009 AC4: --skip-build uses the APK of the earlier build', async () => {

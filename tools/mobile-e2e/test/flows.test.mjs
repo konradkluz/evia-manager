@@ -40,4 +40,35 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     assert.equal(step('update-required', 0)?.server, 'update');
     assert.equal(step('server-down-and-retry', 0)?.server, 'down');
   });
+
+  it('EVM-009 AC4: the flows take the review screenshots of the key states, each name once, in kebab-case', () => {
+    const names = referenced.flatMap((flow) =>
+      [...readFileSync(join(FLOWS, flow), 'utf8').matchAll(/^- takeScreenshot: (\S+)$/gm)].map((match) => match[1]),
+    );
+    assert.equal(new Set(names).size, names.length);
+    for (const name of names) assert.match(name ?? '', /^[a-z0-9]+(-[a-z0-9]+)*$/);
+    assert.deepEqual(
+      [...names].sort(),
+      [
+        'kolejka-empty',
+        'kolejka-offline',
+        's01-loading',
+        's01-loading-slow',
+        's01-offline',
+        's01-online',
+        's01-reconnected',
+        's01-server-back',
+        's01-server-down',
+        's02-update-required',
+      ].sort(),
+    );
+  });
+
+  it('EVM-009 AC1: the loading flow runs last, against a server that holds the health request', () => {
+    const steps = SCENARIOS.flatMap((scenario) => scenario.steps);
+    const last = steps.at(-1);
+    assert.equal(last?.flow, '07-loading.yaml');
+    assert.equal(last.server, 'hang');
+    assert.equal(last.airplane, false);
+  });
 });

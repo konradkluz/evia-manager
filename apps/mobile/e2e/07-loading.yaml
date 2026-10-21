@@ -1,0 +1,18 @@
+# EVM-009 AC1: the first check of the API does not finish (the scenario server holds the request) — the shell is there at once and
+# the list area shows the skeleton; after 5 s it adds "Ładowanie trwa dłużej niż zwykle…". Nothing blocks the navigation.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'orders-skeleton'
+    timeout: 30000
+- assertVisible: 'Moje zlecenia'
+- assertNotVisible: 'Brak zleceń'
+# review screenshot (EVM-009 UX review): S-01 while loading
+- takeScreenshot: s01-loading
+- extendedWaitUntil:
+    visible: 'Ładowanie trwa dłużej niż zwykle…'
+    timeout: 15000
+- takeScreenshot: s01-loading-slow

@@ -33,6 +33,8 @@ export const SCENARIOS = [
       { flow: '06-server-retry.yaml', server: 'ok', airplane: false },
     ],
   },
+  // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
+  { name: 'loading', ac: 'AC1', steps: [{ flow: '07-loading.yaml', server: 'hang', airplane: false }] },
 ];
 
 /** Waits (ms) around the state changes; they exceed the debounce of the foreground check (5 s) and the network restore. */

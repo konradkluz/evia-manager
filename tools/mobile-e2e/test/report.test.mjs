@@ -55,6 +55,12 @@ describe('report of the smoke test (EVM-009 AC4; ADR-0015)', () => {
     assert.match(buildReport(evidence()), /^- Retried flows: none$/m);
   });
 
+  it('EVM-009 AC4: the report lists the review screenshots, or says that none were taken', () => {
+    assert.match(buildReport(evidence()), /^- Screenshots for the UX review: none$/m);
+    const report = buildReport(evidence({ screenshots: ['s01-online.png', 'kolejka-empty.png'] }));
+    assert.match(report, /^- Screenshots for the UX review: 2 \(s01-online\.png, kolejka-empty\.png\)$/m);
+  });
+
   it('EVM-009 AC4: failures, skips and a missing log are shown', () => {
     const report = buildReport(
       evidence({

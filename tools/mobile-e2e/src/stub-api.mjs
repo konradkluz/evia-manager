@@ -2,12 +2,12 @@
 /**
  * Scenario server for the smoke test (EVM-009 AC2, AC3): answers `GET /api/health` like the API of EVM-008
  * ({ status: 'ok', minSupportedAppVersion: { android, ios } }; 503 problem+json when "the database is down"), in the mode the
- * scenario needs. It listens on the loopback only (the emulator reaches it as 10.0.2.2) — never on all interfaces. It records only
+ * scenario needs ('hang' never answers, for the loading state). It listens on the loopback only (the emulator reaches it as 10.0.2.2) — never on all interfaces. It records only
  * the compatibility headers of the requests (api-guidelines → "Minimalna wersja aplikacji"), no addresses and no bodies.
  */
 import { createServer } from 'node:http';
 
-/** @typedef {'ok' | 'update' | 'down'} StubMode */
+/** @typedef {'ok' | 'update' | 'down' | 'hang'} StubMode */
 /** @typedef {Awaited<ReturnType<typeof startStubApi>>} StubApi */
 /** @typedef {{ platform: string | undefined, version: string | undefined }} RecordedRequest */
 
@@ -51,6 +51,8 @@ export async function startStubApi({ port = 0, onRequest } = {}) {
     const request_ = { platform: header('x-client-platform'), version: header('x-client-version') };
     recorded.push(request_);
     onRequest?.(request_);
+    // 'hang': the request is held without an answer (the app keeps its loading state until its own timeout); close() ends it
+    if (mode === 'hang') return;
     const answer = healthAnswer(mode);
     response.writeHead(answer.status, { 'Content-Type': answer.type, 'Cache-Control': 'no-store' }).end(JSON.stringify(answer.body));
   });

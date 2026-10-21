@@ -12,3 +12,5 @@ appId: pl.eviacharge.manager
 - assertVisible: 'Offline. Otwórz kolejkę'
 - assertVisible: 'Brak zleceń'
 - assertNotVisible: 'Zaktualizuj aplikację'
+# review screenshot (EVM-009 UX review): S-01 with the server alert and the retry button
+- takeScreenshot: s01-server-down

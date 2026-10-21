@@ -9,3 +9,5 @@ appId: pl.eviacharge.manager
     timeout: 30000
 - assertNotVisible: 'Brak połączenia z serwerem'
 - assertVisible: 'Brak zleceń'
+# review screenshot (EVM-009 UX review): S-01 after the retry
+- takeScreenshot: s01-server-back
