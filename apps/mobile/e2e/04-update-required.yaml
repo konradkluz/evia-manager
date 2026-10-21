@@ -1,0 +1,19 @@
+# EVM-009 AC3: the server confirms a minimum version above the app version (the scenario server answers 99.0.0) — the blocking
+# update screen: no navigation, no work-order content, no download link, only the instruction to ask the administrator.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Zaktualizuj aplikację'
+    timeout: 30000
+- assertVisible: 'Poproś administratora o nową wersję aplikacji.'
+- assertVisible: 'Twoja wersja: 0.1.0 · Wymagana: 99.0.0'
+- assertNotVisible: 'Moje zlecenia'
+- assertNotVisible: 'Brak zleceń'
+- assertNotVisible:
+    id: 'nav-queue'
+- assertNotVisible:
+    id: 'sync-indicator'
+# review screenshot (EVM-009 UX review): S-02
+- takeScreenshot: s02-update-required

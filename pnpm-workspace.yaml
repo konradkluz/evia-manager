@@ -25,6 +25,12 @@ allowBuilds:
   # EVM-008: protobufjs (transitive via dockerode -> testcontainers) has a legacy postinstall that only tries to run
   # the CLI dependency installer; it is unused here, so the script stays blocked (SR-SUPPLY-06).
   protobufjs: false
+  # EVM-009: @parcel/watcher (transitive via jest-haste-map and Expo CLI) only compiles a native file watcher from source when no
+  # prebuilt binary matches; the prebuilt optional packages are used, so the script stays blocked (SR-SUPPLY-06).
+  '@parcel/watcher': false
+  # EVM-009: unrs-resolver (transitive via jest-resolve) has a postinstall that only checks for its prebuilt binding package, which
+  # comes from optional dependencies, so the script stays blocked (SR-SUPPLY-06).
+  unrs-resolver: false
 
 catalog:
   '@types/node': 26.6.3
@@ -39,6 +45,10 @@ overrides:
   # (GHSA-52cp-r559-cp3m, GHSA-5p4m-2wfm-xmqj, GHSA-2883-xcg3-v3hh: CPU exhaustion on crafted YAML). 4.3.2 is a
   # compatible patch release. Remove when the generator ships js-yaml >= 4.3.2.
   'js-yaml@4.2.0': 4.3.2
+  # EVM-009: uuid@7.0.3 (via xcode@3.0.1 <- @expo/config-plugins, prebuild only) carries GHSA-w5hq-g745-h8pq (missing buffer bounds
+  # check in v3/v5/v6 when a buffer is passed; fixed in 11.1.1). xcode only calls v4(), so it is not reachable, but the scan is
+  # blocking and 11.1.1 is the first fixed release that still ships CommonJS (xcode uses require). Remove when xcode drops uuid 7.
+  'uuid@7.0.3': 11.1.1
   # Maintenance: vite 8.3.2 (auto-installed peer of vitest in the non-web workspaces) bundles launch-editor with
   # GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw. 8.3.4 is a compatible patch release.
   # Remove when apps/web and the vitest peer resolve to the same vite >= 8.3.3 without this override.

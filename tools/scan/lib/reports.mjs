@@ -148,8 +148,9 @@ export function trivyConfigVerdict(report) {
  * license finding for such a package, so it is judged from the package list). The scan must have read a pnpm lockfile
  * with packages. Exceptions: only .trivyignore.yaml → licenses (by license name, with expired_at) — Trivy cannot bind a
  * license exception to a package, so an unknown license has no exception; such a dependency needs a story.
- * Single exception to "unknown": optional platform packages (os/cpu in the lockfile) that the Linux container does not
- * install — their license is taken from the reviewed, expiring list tools/scan/platform-licenses.json (EVM-016).
+ * Single exception to "unknown": optional platform packages (os/cpu in the lockfile) and packages reachable only from
+ * such platform packages (EVM-009), which the Linux container does not install — their license is taken from the
+ * reviewed, expiring list tools/scan/platform-licenses.json (EVM-016).
  * @param {unknown} report
  * @param {LicenseOptions} [options]
  * @returns {Verdict}
@@ -196,9 +197,9 @@ export function trivyLicenseVerdict(report, options = {}) {
  */
 
 /**
- * Reviewed licenses (tools/scan/platform-licenses.json) of optional platform packages (lockfile entry with os/cpu):
- * Trivy has no license for them, because only the host platform is installed. One entry = one exact name@version,
- * valid up to its `expires` date; a package that is not platform-specific in the lockfile never gets an entry applied.
+ * Reviewed licenses (tools/scan/platform-licenses.json) of optional platform packages (lockfile entry with os/cpu) and of packages
+ * reachable only from them: Trivy has no license for them, because only the host platform is installed. One entry =
+ * one exact name@version, valid up to its `expires` date; any other package never gets an entry applied.
  * @param {LicenseOptions} options
  * @returns {Map<string, string>} name@version → reviewed license
  */
@@ -215,25 +216,105 @@ function reviewedPlatformLicenses(options) {
 }
 
 /**
- * Packages of the `packages:` section of pnpm-lock.yaml that declare `os:` or `cpu:` (line-based, no YAML dependency).
+ * Optional platform packages of a pnpm lockfile (line-based, no YAML dependency):
+ * - packages of the `packages:` section that declare `os:` or `cpu:`;
+ * - (EVM-009) packages reachable only from platform packages, which the Linux container does not install: every
+ *   snapshot of the package is `optional: true`, it has at least one parent (a snapshot listing it in `dependencies` or
+ *   `optionalDependencies`) and EVERY parent is a platform package or itself qualifies (recursively; a cycle does not
+ *   disqualify). A direct dependency of an importer disqualifies the package, so does one snapshot without `optional: true`.
+ * The package must also be reachable going forward from a platform package (an isolated optional cycle is not covered).
+ * Snapshot keys and versions are compared as name@version, without the peer-dependency suffix `(...)`; aliases
+ * (`alias: name@1.0.0`, `alias: npm:name@1.0.0`) point at the real package, in snapshots and in importers.
  * @param {string} lockfile
  * @returns {Set<string>} name@version
  */
 function platformPackages(lockfile) {
   /** @type {Set<string>} */
-  const found = new Set();
-  let inPackages = false;
+  const platform = new Set();
+  /** @type {Map<string, boolean>} name@version → every snapshot so far is optional */
+  const optional = new Map();
+  /** @type {Map<string, Set<string>>} child → parents (snapshots listing it as a dependency) */
+  const parents = new Map();
+  /** @type {Set<string>} direct dependencies of importers */
+  const direct = new Set();
+  const base = (/** @type {string} */ value) => value.replace(/\(.*$/, '');
+  // Id of the package a dependency value points at: a plain version, or an alias (`npm:name@1.0.0`, pnpm 9+ `name@1.0.0`).
+  const target = (/** @type {string} */ name, /** @type {string} */ value) => {
+    const range = base(value);
+    if (range.startsWith('npm:')) return range.slice(4);
+    return /^(@[^@/]+\/)?[^@]+@\d/.test(range) ? range : `${name}@${range}`;
+  };
+  let section = '';
   let current = '';
+  let currentOptional = false;
+  let block = '';
+  let importerKey = '';
+  const closeSnapshot = () => {
+    if (section === 'snapshots' && current !== '') optional.set(current, (optional.get(current) ?? true) && currentOptional);
+    current = '';
+    currentOptional = false;
+    block = '';
+  };
   for (const line of lockfile.split(/\r?\n/)) {
     if (/^\S/.test(line)) {
-      inPackages = line.startsWith('packages:');
-      current = '';
-    } else if (inPackages) {
-      const key = /^ {2}'?([^'\s][^']*?)'?:\s*$/.exec(line);
-      if (key !== null) current = key[1] ?? '';
-      else if (current !== '' && /^ {4}(os|cpu):/.test(line)) found.add(current);
+      closeSnapshot();
+      section = ['packages', 'snapshots', 'importers'].find((name) => line.startsWith(`${name}:`)) ?? '';
+    } else if (section === 'importers') {
+      const key = /^ {6}'?([^'\s][^']*?)'?:\s*$/.exec(line);
+      if (key !== null) importerKey = key[1] ?? '';
+      const version = /^ {8}version:\s*'?([^'\s]+)'?\s*$/.exec(line);
+      if (version !== null && importerKey !== '') direct.add(target(importerKey, version[1] ?? ''));
+    } else if (section !== '') {
+      const key = /^ {2}'?([^'\s][^']*?)'?:(?:\s*\{\})?\s*$/.exec(line);
+      if (key !== null) {
+        closeSnapshot();
+        current = section === 'snapshots' ? base(key[1] ?? '') : (key[1] ?? '');
+      } else if (section === 'packages' && current !== '' && /^ {4}(os|cpu):/.test(line)) platform.add(current);
+      else if (section === 'snapshots' && /^ {4}optional: true\s*$/.test(line)) currentOptional = true;
+      else if (section === 'snapshots') {
+        const header = /^ {4}(\w+):\s*$/.exec(line);
+        if (header !== null) block = header[1] ?? '';
+        const dependency = /^ {6}'?([^'\s][^']*?)'?:\s*'?([^'\s]+)'?\s*$/.exec(line);
+        if (dependency !== null && (block === 'dependencies' || block === 'optionalDependencies') && current !== '') {
+          const child = target(dependency[1] ?? '', dependency[2] ?? '');
+          const set = parents.get(child) ?? new Set();
+          set.add(current);
+          parents.set(child, set);
+        }
+      }
     }
   }
+  closeSnapshot();
+  /**
+   * @param {string} id
+   * @param {Set<string>} visiting
+   * @returns {boolean}
+   */
+  const onlyFromPlatform = (id, visiting) => {
+    if (platform.has(id) || visiting.has(id)) return true;
+    if (optional.get(id) !== true || direct.has(id)) return false;
+    const set = parents.get(id);
+    if (set === undefined || set.size === 0) return false;
+    const path = new Set(visiting).add(id);
+    return [...set].every((parent) => onlyFromPlatform(parent, path));
+  };
+  // Reachable going forward from the platform packages (an isolated optional cycle is not).
+  /** @type {Map<string, string[]>} */
+  const children = new Map();
+  for (const [child, set] of parents) {
+    for (const parent of set) children.set(parent, [...(children.get(parent) ?? []), child]);
+  }
+  const reachable = new Set(platform);
+  const queue = [...platform];
+  for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+    for (const child of children.get(id) ?? []) {
+      if (reachable.has(child)) continue;
+      reachable.add(child);
+      queue.push(child);
+    }
+  }
+  const found = new Set(platform);
+  for (const id of optional.keys()) if (reachable.has(id) && onlyFromPlatform(id, new Set())) found.add(id);
   return found;
 }
 

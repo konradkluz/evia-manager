@@ -324,4 +324,4 @@ Pełna tabela (siedziba, rola, dane, region, umowa) i ocena ryzyka CLOUD Act: [A
 | [`domain-model.md`](domain-model.md) | model domeny i danych (ERD), stany, uprawnienia, gotowość offline, klasyfikacja danych, walidacja na scenariuszach A–F | EVM-002 (do akceptacji na demo) |
 | [`api-guidelines.md`](api-guidelines.md) | styl API, błędy, paginacja, wyszukiwanie z polskimi znakami, idempotencja, wersjonowanie, kompatybilność, autoryzacja, limity | EVM-002 |
 | [`offline-sync.md`](offline-sync.md) | identyfikatory, kolejka, kursory zmian, konflikty, zakres urządzenia | szkic: EVM-002; wnioski: EVM-011 |
-| `media-pipeline.md` | upload, przetwarzanie, przechowywanie, dostęp, retencja | EVM-011 (do tego czasu: [ADR-0009](adr/0009-storage-i-przetwarzanie-mediow.md); encje i stany plików w `domain-model.md`) |
+| [`media-pipeline.md`](media-pipeline.md) | upload z urządzenia (protokół, wznawianie, podpisane URL-e, limity); przetwarzanie, przechowywanie, dostęp i retencja — [ADR-0009](adr/0009-storage-i-przetwarzanie-mediow.md); encje i stany plików w `domain-model.md` | EVM-011 (upload, Android; reszta w M2) |

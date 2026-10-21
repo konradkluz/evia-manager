@@ -18,6 +18,12 @@
 | PAT `gh` orkiestratora (fine-grained) | Windows keyring stacji (`gh auth`) — nigdy w repozytorium | tylko to repozytorium: Pull requests RW, Actions R, Contents R, Metadata R — **bez Contents write** (nie scali PR) | 30 dni; przypomnienie w kalendarzu Konrada | orkiestrator: zakładanie PR, odczyt wyników CI |
 | Klucz wdrożeniowy agentów (SSH) | `~/.ssh/evia_manager` (alias `github-evia-manager`), poza repozytorium | zapis do tego repozytorium (wypycha gałęzie) | przy incydencie, odejściu osoby z dostępem do stacji albo co 12 miesięcy | orkiestrator (push gałęzi za zgodą Konrada) |
 
+### Klucz podpisu APK Androida (EVM-009 — lokalny, bez GitHuba)
+Klucz **nie jest sekretem GitHuba** (decyzja Konrada 2026-10-20, RR-21, ADR-0019 — zaakceptowana 2026-10-21): CI buduje niepodpisany APK, a Konrad podpisuje go lokalnie (`node tools/mobile-apk/cli.mjs sign`). Keystore (PKCS12, RSA 4096 lub EC P-256, ważność ≥ 25 lat) jest w **Bitwarden Konrada (MFA)** z kopią offline; na czas podpisu odtwarzany poza repozytorium i usuwany po podpisie; agenci nigdy nie używają prawdziwego klucza. Odcisk certyfikatu (nie sekret) jest przypięty w `EVIA_APK_CERT_SHA256`. Procedury: `docs/ops/dystrybucja-apk-android.md`.
+- **Jednorazowo (Konrad):** w Settings → Secrets and variables → Actions sprawdź, że **nie ma** sekretów `ANDROID_*`. Gdyby keystore kiedykolwiek był wgrany do GitHuba — uznaj go za skompromitowany i wygeneruj nowy (bazy instalacji jeszcze nie ma, koszt zerowy).
+- **Rotacja planowana:** `apksigner rotate` (linia rotacji APK Signature Scheme v3), bez reinstalacji; wykonaj z zapasem przed końcem ważności certyfikatu.
+- **Utrata lub kompromitacja:** nowa aplikacja na telefonach (odinstalowanie kasuje bazę i kolejkę offline — wcześniej zsynchronizuj), nowy klucz, nowy odcisk w runbooku, wpis w Dzienniku.
+
 ## Procedury
 **Utworzenie / rotacja `RENOVATE_TOKEN`**
 1. GitHub → Settings → Developer settings → Fine-grained tokens → *Generate new token*: Resource owner `konradkluz`, *Only select repositories* = `evia-manager`, uprawnienia z tabeli, wygaśnięcie 90 dni.

@@ -16,7 +16,9 @@
 | | `architecture/adr/` | decyzje architektoniczne |
 | | `architecture/domain-model.md` | model domeny i danych: ERD, encje, stany, uprawnienia, gotowość offline, klasyfikacja danych |
 | | `architecture/api-guidelines.md` | wytyczne API: zasoby, błędy, paginacja, wyszukiwanie, idempotencja, wersjonowanie, autoryzacja, limity |
-| | `architecture/offline-sync.md` | synchronizacja offline (szkic): zasady, komendy mobilne, zakres urządzenia |
+| | `architecture/offline-sync.md` | synchronizacja offline (szkic): zasady, komendy mobilne, zakres urządzenia; wnioski ze spike'a EVM-011 |
+| | `architecture/media-pipeline.md` | upload mediów z urządzenia: protokół, wznawianie, podpisane URL-e, limity (wnioski ze spike'a EVM-011, Android) |
+| | `spikes/` | raporty spike'ów (EVM-011: kolejka offline i upload w tle) |
 | Bezpieczeństwo | `security/README.md` | wymagania bazowe (non-negotiable) |
 | | `security/threat-model.md` | model zagrożeń: STRIDE, przypadki nadużyć, ryzyka rezydualne do akceptacji |
 | | `security/requirements.md` | wymagania bezpieczeństwa `SR-…` (ASVS 5.0 L2, MASVS 2.1) per moduł i epik, bramki CI |

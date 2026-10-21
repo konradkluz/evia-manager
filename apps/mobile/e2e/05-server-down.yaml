@@ -1,0 +1,16 @@
+# EVM-009 AC2: a network exists but the API answers 503 — "Brak połączenia z serwerem" with a retry; the content stays usable.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Brak połączenia z serwerem'
+    timeout: 30000
+- assertVisible: 'Nie możemy połączyć się z serwerem EVia. Spróbuj ponownie za chwilę.'
+- assertVisible:
+    id: 'retry-server'
+- assertVisible: 'Offline. Otwórz kolejkę'
+- assertVisible: 'Brak zleceń'
+- assertNotVisible: 'Zaktualizuj aplikację'
+# review screenshot (EVM-009 UX review): S-01 with the server alert and the retry button
+- takeScreenshot: s01-server-down

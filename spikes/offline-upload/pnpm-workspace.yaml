@@ -1,0 +1,18 @@
+# EVM-011 spike: a standalone pnpm project, deliberately OUTSIDE the root workspace (root pnpm-workspace.yaml lists only
+# apps/*, services/*, packages/*, tools/*). Same supply-chain settings as the root file (SR-SUPPLY-01); never lower them.
+packages:
+  - core
+  - host
+  - app
+
+# hoisted: flat node_modules gives shorter native paths on Windows (LongPathsEnabled=0) and is what Metro/Gradle expect.
+nodeLinker: hoisted
+
+savePrefix: ''
+engineStrict: true
+
+minimumReleaseAge: 1440
+blockExoticSubdeps: true
+strictDepBuilds: true
+allowBuilds: {}
+verifyDepsBeforeRun: false

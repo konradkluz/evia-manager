@@ -31,6 +31,8 @@ const DEPENDENCY_FREE = [
   'tools/docs-lifecycle',
   'tools/git-hooks',
   'tools/main-integrity',
+  'tools/mobile-apk',
+  'tools/mobile-e2e',
   'tools/scan',
 ];
 /** Tests that read the whole repository and today's date (exception expiry, document classes) — never cached. */
@@ -79,6 +81,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
   it('EVM-006 AC1: workspaces exist only where there is content (YAGNI) and follow apps/services/packages/tools', () => {
     expect(WORKSPACES).toEqual([
       'apps/api',
+      'apps/mobile',
       'apps/web',
       'packages/config',
       'packages/contracts',
@@ -91,6 +94,8 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'tools/docs-lifecycle',
       'tools/git-hooks',
       'tools/main-integrity',
+      'tools/mobile-apk',
+      'tools/mobile-e2e',
       'tools/repo-policy',
       'tools/scan',
     ]);
@@ -134,6 +139,14 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
         expect(config, workspace).toContain(
           `coverage: ${expected[workspace] ?? "coverage({ layer: 'shared', include: ['src/**/*.ts'] })"}`,
         );
+      } else if (command.startsWith('jest')) {
+        // EVM-009: the mobile app tests with Jest (jest-expo); the threshold is the 'mobile' layer of the same JSON file as the Vitest preset.
+        expect(command, workspace).toBe('jest --coverage');
+        const config = read(`${workspace}/jest.config.mjs`);
+        expect(config, workspace).toContain('coverage-thresholds.json');
+        expect(config, workspace).toContain('coverageThreshold: { global: { lines: mobile, branches: mobile } }');
+        expect(config, workspace).toContain("coverageReporters: ['text', 'lcov']");
+        expect(record(json('packages/config/coverage-thresholds.json'))['mobile']).toBeGreaterThanOrEqual(80);
       } else {
         expect(command, workspace).toBe('evia-node-test');
       }
@@ -278,8 +291,17 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     expect(settings['savePrefix']).toBe('');
     expect(settings['minimumReleaseAgeExclude'] ?? []).toEqual([]);
     for (const key of ['dangerouslyAllowAllBuilds', 'ignoreScripts', 'trustPolicyExclude']) expect(settings[key], key).toBeUndefined();
-    // Only explicit denials: lefthook (EVM-006 W1); ssh2, cpu-features and protobufjs of Testcontainers (EVM-008, B11).
-    expect(record(settings['allowBuilds'])).toEqual({ lefthook: false, 'cpu-features': false, ssh2: false, protobufjs: false });
+    // Only explicit denials: lefthook (EVM-006 W1); ssh2, cpu-features and protobufjs of Testcontainers (EVM-008, B11);
+    // @parcel/watcher and unrs-resolver, transitive packages of the Jest and Expo tooling of the mobile app (EVM-009) whose
+    // install scripts only look for prebuilt binaries that come from optional dependencies.
+    expect(record(settings['allowBuilds'])).toEqual({
+      lefthook: false,
+      'cpu-features': false,
+      ssh2: false,
+      protobufjs: false,
+      '@parcel/watcher': false,
+      'unrs-resolver': false,
+    });
   });
 
   it('EVM-006 AC1 (SR-SUPPLY-03, W4): dependencies are exact registry versions, catalog: or workspace:; @evia/* only via workspace:', () => {

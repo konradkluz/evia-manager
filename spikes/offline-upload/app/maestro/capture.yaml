@@ -1,0 +1,34 @@
+# EVM-011 AC1 (emulator): camera -> sandbox -> queue. Camera of the AVD = virtualscene (back), no host webcam. Muted video, no microphone.
+appId: pl.eviacharge.spike.offlineupload
+---
+- launchApp
+- extendedWaitUntil:
+    visible: 'ready.*'
+    timeout: 60000
+- tapOn:
+    id: 'btn-camera'
+- extendedWaitUntil:
+    visible: 'Photo'
+    timeout: 15000
+- tapOn:
+    id: 'btn-photo'
+- extendedWaitUntil:
+    visible: 'items=1 .*'
+    timeout: 30000
+- takeScreenshot: photo-saved
+- tapOn:
+    id: 'btn-video'
+- extendedWaitUntil:
+    visible: 'Stop video'
+    timeout: 15000
+# record about 6 seconds (no sleep command in Maestro: wait for an element that never appears)
+- extendedWaitUntil:
+    visible: 'this text never appears'
+    timeout: 6000
+    optional: true
+- tapOn:
+    id: 'btn-video'
+- extendedWaitUntil:
+    visible: 'items=2 .*'
+    timeout: 60000
+- takeScreenshot: video-saved

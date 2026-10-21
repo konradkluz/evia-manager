@@ -67,8 +67,8 @@ services:
       API_PORT: '3000'
       LOG_LEVEL: info
       DATABASE_URL: postgres://evia:evia-local@postgres-dev:5432/evia_dev
-      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
-      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 0.1.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 0.1.0
       PANEL_ORIGIN: http://localhost:5173
       WEBAUTHN_RP_ID: localhost
       WEBAUTHN_RP_NAME: EVia Manager
@@ -135,8 +135,8 @@ services:
       NODE_ENV: development
       LOG_LEVEL: info
       DATABASE_URL: postgres://evia:evia-local@postgres-dev:5432/evia_dev
-      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
-      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 0.1.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 0.1.0
       PANEL_ORIGIN: http://localhost:5173
       WEBAUTHN_RP_ID: localhost
       CURSOR_KEY:

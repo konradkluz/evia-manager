@@ -7,6 +7,7 @@
   "exports": {
     "./coverage-exclusions": "./src/coverage-exclusions.ts",
     "./coverage-exclusions.json": "./coverage-exclusions.json",
+    "./coverage-thresholds.json": "./coverage-thresholds.json",
     "./eslint": "./src/eslint.ts",
     "./tsconfig.base.json": "./tsconfig.base.json",
     "./vitest": "./src/vitest.ts"
