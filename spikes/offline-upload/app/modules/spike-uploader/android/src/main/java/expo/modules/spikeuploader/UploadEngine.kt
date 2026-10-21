@@ -85,9 +85,10 @@ class UploadEngine(private val ctx: Context, private val stop: AtomicBoolean) {
   }
 
   /** PUT of one file range to a signed URL; Content-Length is fixed (and signed by the issuer). Returns the ETag. */
-  private fun putPart(url: String, file: File, offset: Long, length: Long, assetId: String): String {
+  private fun putPart(url: String, file: File, offset: Long, length: Long, assetId: String, job: JSONObject): String {
     val conn = URL(url).openConnection() as HttpURLConnection
     var sent = 0L
+    var succeeded = false
     try {
       conn.requestMethod = "PUT"
       conn.doOutput = true
@@ -114,24 +115,14 @@ class UploadEngine(private val ctx: Context, private val stop: AtomicBoolean) {
         throw PartHttpException(code)
       }
       conn.inputStream?.close()
-      return conn.getHeaderField("ETag") ?: throw IOException("missing etag")
+      val etag = conn.getHeaderField("ETag") ?: throw IOException("missing etag")
+      succeeded = true
+      return etag
     } catch (e: IOException) {
-      val job = Jobs.read(ctx, assetId)
-      if (job != null) {
-        job.put("retransmittedBytes", job.optLong("retransmittedBytes") + sent)
-        Jobs.write(ctx, job)
-      }
       throw NetworkException(e)
-    } catch (e: PartHttpException) {
-      if (e.status != 403) {
-        val job = Jobs.read(ctx, assetId)
-        if (job != null) {
-          job.put("retransmittedBytes", job.optLong("retransmittedBytes") + sent)
-          Jobs.write(ctx, job)
-        }
-      }
-      throw e
     } finally {
+      // bytes sent in an attempt that did not produce an ETag will be sent again (wasted bytes); the engine persists the job right after
+      if (!succeeded && sent > 0) job.put("retransmittedBytes", job.optLong("retransmittedBytes") + sent)
       conn.disconnect()
       Progress.inFlight.remove(assetId)
     }
@@ -195,7 +186,7 @@ class UploadEngine(private val ctx: Context, private val stop: AtomicBoolean) {
           checkStop()
           try {
             val url = api(cfg, "GET", "/v1/uploads/$assetId/parts/$n/url").getString("url")
-            val etag = putPart(url, file, offset, length, assetId)
+            val etag = putPart(url, file, offset, length, assetId, job)
             etags.put(n.toString(), etag)
             inc(job, "partPuts")
             job.put("etags", etags)
@@ -212,10 +203,8 @@ class UploadEngine(private val ctx: Context, private val stop: AtomicBoolean) {
             }
             attempt++
             inc(job, "retries")
-            if (attempt >= MAX_ATTEMPTS_PER_PART) {
-              Jobs.write(ctx, job)
-              return Result.RETRY_LATER
-            }
+            Jobs.write(ctx, job)
+            if (attempt >= MAX_ATTEMPTS_PER_PART) return Result.RETRY_LATER
             backoff(attempt - 1)
           } catch (e: NetworkException) {
             attempt++
