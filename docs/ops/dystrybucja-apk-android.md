@@ -1,51 +1,54 @@
 # Dystrybucja aplikacji na Androida — APK z CI (sideload)
 
-> Dokument żywy (EVM-009). Właściciel: `devops-engineer`; kroki jednorazowe i instalację wykonuje Konrad. Decyzja Konrada z 2026-10-20: na MVP **bez konta Google Play i bez EAS** — CI buduje APK z lokalnego buildu Gradle po `expo prebuild`, a plik trafia do telefonów firmy ręcznie (sideload). Odroczenie Google Play / EAS Submit opisuje notka do ADR-0007 i ADR-0012 (`solution-architect`, status „do akceptacji Konrada”). iOS jest odłożony (ADR-0015). Wymagania bezpieczeństwa: [`docs/security/requirements.md`](../security/requirements.md) (SR-MOB, SR-SUPPLY-08), ryzyka: `docs/security/threat-model.md` (aktualizuje `security-engineer`).
+> Dokument żywy (EVM-009). Właściciel: `devops-engineer`; kroki jednorazowe i instalację wykonuje Konrad. Decyzja Konrada z 2026-10-20: na MVP **bez konta Google Play i bez EAS** — CI buduje APK z lokalnego buildu Gradle po `expo prebuild`, a plik trafia do telefonów firmy ręcznie (sideload). Odroczenie Google Play / EAS Submit opisuje ADR-0019 (proponowana, do akceptacji Konrada); podpis wyłącznie lokalny (RR-21), CI bez sekretów. iOS jest odłożony (ADR-0015). Wymagania bezpieczeństwa: [`docs/security/requirements.md`](../security/requirements.md) (SR-MOB, SR-SUPPLY-08), ryzyka: `docs/security/threat-model.md` (aktualizuje `security-engineer`).
 
 ## Jak to działa
 | Element | Co robi |
 |---|---|
-| Job `mobile-apk` (`ci.yml`) | Buduje **niepodpisany** `*-release-unsigned.apk` (`expo prebuild --clean`, `gradlew assembleRelease`), **bez żadnego sekretu**, z kodu danego przebiegu. Sprawdza gotowy plik (`tools/mobile-apk`: manifest, reguły kopii i sieci, sekrety w zawartości), wpisuje SHA-256 do podsumowania przebiegu i wystawia artefakt `mobile-apk-unsigned` (14 dni). Plik niepodpisany **nie da się zainstalować**. Uruchamia się, gdy zmiana dotyczy aplikacji (`tools/ci-changes`: `apps/mobile`, tokeny, klient kontraktu, lockfile, workflow) i zawsze na `main` |
-| Job `mobile-sign` (`ci.yml`) | Tylko `push` na `main` i uruchomienie ręczne z `main`. **Niczego nie pobiera z repozytorium, nie instaluje i nie używa cache** — bierze artefakt z `mobile-apk` tego samego przebiegu i podpisuje go (`apksigner`, schematy v2 i v3). Klucz jest widoczny tylko dla kroku podpisu, keystore to plik tymczasowy usuwany na końcu, hasła idą do `apksigner` zmiennymi środowiskowymi (`env:`), nigdy argumentami. W podsumowaniu: SHA-256 pliku i odcisk SHA-256 certyfikatu. Artefakt `mobile-apk-signed` (30 dni). **Bez sekretów job kończy się sukcesem i mówi, że APK zostaje niepodpisany** |
+| Job `mobile-apk` (`ci.yml`) | Buduje **niepodpisany** `*-release-unsigned.apk` (`expo prebuild --clean`, `gradlew assembleRelease`), **bez żadnego sekretu** (`contents: read`), z kodu danego przebiegu. Sprawdza gotowy plik (`tools/mobile-apk`: manifest, reguły kopii i sieci, sekrety w zawartości), wpisuje do podsumowania przebiegu **SHA-256 pliku, gałąź i SHA commita** i wystawia artefakt `mobile-apk-unsigned` (14 dni). Plik niepodpisany **nie da się zainstalować**. Uruchamia się, gdy zmiana dotyczy aplikacji (`tools/ci-changes`) i zawsze na `main` |
+| Podpis lokalny (`tools/mobile-apk` `sign`) | **Wyłącznie Konrad, na swoim komputerze.** CI nie ma klucza ani sekretu (RR-21, ADR-0019 — proponowana). Skrypt wyrównuje paczkę (`zipalign -P 16`), podpisuje (`apksigner` przez `java -jar`, schematy v2 i v3), sprawdza podpis i wypisuje **ścieżkę, SHA-256 pliku i SHA-256 certyfikatu** |
 | Wersja | `version` (semver) jest w jednym miejscu: `apps/mobile/plugins/expo-config.ts` (`APP_VERSION`) → ekran „Aktualizacja wymagana” porównuje ją z minimum z `GET /api/health`. `versionCode` = numer przebiegu CI + 100 000 (rośnie zawsze; Android nie zainstaluje niższego) |
-| Adres API | zmienna repozytorium `EVIA_API_BASE_URL` (**https**; build z innym schematem się nie powiedzie). Bez niej paczka dostaje zarezerwowany adres `https://api.example.invalid` i pokaże „Brak połączenia z serwerem”. Ustaw ją na adres API (staging po EVM-007) przed pierwszą instalacją na telefonie |
-| Identyfikator aplikacji | `pl.eviacharge.manager` (**trwały** — zmiana to nowa aplikacja na telefonach). Konrad potwierdza go przed pierwszą instalacją |
+| Adres API | **zmienna** repozytorium (nie sekret) `EVIA_API_BASE_URL`, wyłącznie **https** (build z innym schematem się nie powiedzie, SR-COMM-04). Konrad ustawia ją po EVM-007 na adres API (staging). Bez niej paczka dostaje zarezerwowany adres `https://api.example.invalid` i pokaże „Brak połączenia z serwerem”; takiej paczki nie rozdajemy |
+| Identyfikator aplikacji | `pl.eviacharge.manager` (**trwały** i potwierdzony przez Konrada 2026-10-20 — zmiana to nowa aplikacja na telefonach) |
 
-## Jednorazowe kroki Konrada (po akceptacji)
-1. **Potwierdź identyfikator** `pl.eviacharge.manager` (albo podaj inny — zmiana w `ANDROID_APPLICATION_ID` i `IOS_BUNDLE_IDENTIFIER` w `apps/mobile/plugins/expo-config.ts`, wcześniej niż pierwszy build podpisany).
-2. **Wygeneruj klucz lokalnie, poza repozytorium** (agenci nie generują ani nie czytają keystore'a; nigdy w repozytorium ani w `.scratch/`):
+## Klucz podpisu (jednorazowo, Konrad)
+Agenci **nigdy** nie generują, nie czytają ani nie używają prawdziwego klucza i nie uruchamiają `sign` z nim (TA-7, SR-INFRA-05).
+1. **Wygeneruj klucz lokalnie, poza repozytorium** (nigdy w repozytorium, także w `.scratch/`):
    ```
-   keytool -genkeypair -v -keystore evia-release.keystore -storetype PKCS12 -alias evia-release -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=EVia Manager, O=EVia Charge, C=PL"
+   keytool -genkeypair -v -keystore evia-release.p12 -storetype PKCS12 -alias evia-release -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=EVia Manager, O=EVia Charge, C=PL"
    ```
-   RSA 4096, ważność 10 000 dni (> 25 lat — wymóg przyszłego przeniesienia klucza do Google Play). Silne hasło z menedżera haseł; dla PKCS12 hasło klucza = hasło keystore'a.
-3. **Kopia zapasowa poza GitHubem:** zaszyfrowany keystore i hasła w menedżerze haseł (Bitwarden) **w dwóch miejscach**. Utrata klucza = brak możliwości zaktualizowania aplikacji na telefonach: trzeba ją odinstalować i zainstalować od nowa, a od M2 oznacza to utratę danych offline. Dostęp do klucza ma tylko Konrad.
-4. **Dodaj cztery sekrety repozytorium** (Settings → Secrets and variables → Actions → New repository secret):
-   | Sekret | Wartość |
-   |---|---|
-   | `ANDROID_KEYSTORE_BASE64` | `[Convert]::ToBase64String([IO.File]::ReadAllBytes('evia-release.keystore')) \| Set-Clipboard` (PowerShell) i wklej |
-   | `ANDROID_KEYSTORE_PASSWORD` | hasło keystore'a |
-   | `ANDROID_KEY_ALIAS` | `evia-release` |
-   | `ANDROID_KEY_PASSWORD` | hasło klucza (to samo dla PKCS12) |
-   Dodaj też **zmienną** (nie sekret) `EVIA_API_BASE_URL` (Variables). **Nie dodawaj sekretów, dopóki nie zaakceptujesz ryzyka niżej.**
-5. Scal PR; na `main` job `mobile-sign` podpisze paczkę. Pobierz artefakt `mobile-apk-signed` z przebiegu i **zapisz z podsumowania przebiegu SHA-256 pliku oraz odcisk certyfikatu** — to dane do weryfikacji na telefonie.
-6. Po zdaniu przeglądu: usuń hasło ze schowka; w widoku Activity i na liście sekretów (cotygodniowy przegląd K6/K2) sprawdź, że sekrety są tylko cztery.
+   Parametry: PKCS12, RSA 4096 (albo EC P-256), ważność **co najmniej 25 lat** (10 000 dni; wygaśnięcie też blokuje aktualizacje), silne hasło z menedżera haseł; dla PKCS12 hasło klucza = hasło keystore'a.
+2. **Przechowywanie:** plik keystore i hasła w **Bitwarden Konrada (MFA)** oraz **kopia offline** (zaszyfrowany nośnik) — dwa niezależne miejsca. Na czas podpisu keystore odtwarzasz do katalogu **poza repozytorium** (nie `.scratch`), a po podpisie go usuwasz. Na stacji, na której pracują agenci, nie trzymaj odblokowanego CLI `bw` ani sesji menedżera haseł.
+3. **Zapisz odcisk certyfikatu** (nie jest sekretem): `keytool -list -v -keystore evia-release.p12 -alias evia-release` → `SHA256:`. Wpisz go w zmiennej `EVIA_APK_CERT_SHA256` (profil użytkownika) lub podawaj jako `--expected-cert-sha256`: skrypt odmówi, gdy podpis wyjdzie innym kluczem albo aliasem.
+4. **Utrata lub kompromitacja klucza** = **nowa aplikacja** na telefonach (inny podpis nie zaktualizuje starej): trzeba odinstalować starą i zainstalować nową, co **kasuje lokalną bazę i kolejkę offline**. Przed odinstalowaniem technik musi zsynchronizować kolejkę (wskaźnik synchronizacji „wszystko wysłane”). Dlatego klucz ma dwie kopie, a odinstalowanie planujesz jak wydanie.
+5. **Planowana rotacja** (bez reinstalacji): APK Signature Scheme v3 — `apksigner rotate` tworzy linię rotacji nowego klucza podpisaną starym; kolejne wydania podpisujesz nowym kluczem z tą linią. Przeprowadź na zapas, zanim ważność certyfikatu zbliży się do końca.
+6. **Sprawdź jednorazowo** w GitHub → Settings → Secrets and variables → Actions, że **nie ma** sekretów `ANDROID_*`. Gdyby keystore kiedykolwiek był wgrany do GitHuba, uznaj go za skompromitowany i wygeneruj nowy (bazy instalacji jeszcze nie ma, więc koszt jest zerowy). Ustaw też zmienną (Variables) `EVIA_API_BASE_URL` po EVM-007.
 
-### Ryzyko do akceptacji (security-engineer, B1)
-Na GitHub Free sekret repozytorium może odczytać workflow uruchomiony z **dowolnej gałęzi** (`docs/security/threat-model.md` → RR-21; z tego powodu wstrzymano `RENOVATE_TOKEN`, Q1). Napastnik z kluczem wdrożeniowym agentów albo złośliwy pakiet w jobie z sekretem mógłby wykraść klucz i podpisać złośliwy APK, który zainstaluje się jako aktualizacja na telefonach techników (ten sam certyfikat); unieważnienie klucza nie jest możliwe. Skutek: dostęp do danych offline i tokenów na telefonach (waga 3). Mitygacje wdrożone: osobny job podpisu bez checkoutu, instalacji i cache; sekret tylko w `env` jednego kroku; tylko `main`; keystore tymczasowy; hasła przez `env:`; test `tools/repo-policy` pilnuje każdego z tych punktów. Ryzyko rezydualne po mitygacjach: średnie (P1×W3) — **do akceptacji Konrada**; `docs/ops/github-i-ci.md` K7 („bez wyjątków”) wymaga wtedy wyjątku dla tych czterech sekretów. **Wariant bezpieczniejszy (rekomendacja `security-engineer`, wymaga zmiany AC5):** klucz w ogóle nie trafia do GitHuba — CI publikuje niepodpisany APK z SHA-256, a Konrad podpisuje go lokalnie (`apksigner sign` z keystore'a poza repozytorium; ok. 2 minut na wydanie). Przejście na ten wariant to usunięcie czterech sekretów i joba `mobile-sign`.
+## Wydanie: podpis i przekazanie (Konrad)
+1. Otwórz przebieg CI **na `main`** z zielonym `ci-gate` (nie z gałęzi PR — złośliwy push mógłby dać artefakt o tej samej nazwie). W podsumowaniu sprawdź **gałąź `main`**, SHA commita i **SHA-256 pliku**; pobierz artefakt `mobile-apk-unsigned`.
+2. Odtwórz keystore poza repozytorium i ustaw hasła w zmiennych środowiskowych **tylko dla tej sesji** (PowerShell: `$env:EVIA_APK_KS_PASS = Read-Host` — zmienne `EVIA_APK_KS_PASS`, `EVIA_APK_KEY_PASS`; bez nich `apksigner` zapyta o hasło w terminalu). Haseł **nie wpisuje się w argumentach** (`pass:` i `file:` są odrzucane).
+3. Uruchom (`ANDROID_HOME` wskazuje Android SDK; użyta zostanie najwyższa wersja `build-tools` albo `--build-tools <wersja>`):
+   ```
+   node tools/mobile-apk/cli.mjs sign --apk <pobrany>-release-unsigned.apk --expect-sha256 <SHA-256 z podsumowania przebiegu> --keystore <ścieżka poza repo>\evia-release.p12 --key-alias evia-release --out <katalog poza repo albo ignorowany>\evia-manager-<wersja>.apk --expected-cert-sha256 <odcisk z kroku 3 klucza>
+   ```
+   Skrypt odmawia, gdy: SHA-256 wejścia ≠ `--expect-sha256`; paczka jest już podpisana (także kluczem debug); nie przechodzi kontroli `verify` (debuggable, allowBackup, cleartext, eksportowane komponenty, sekrety); keystore leży w drzewie roboczym git; wyjście nadpisałoby wejście; odcisk certyfikatu ≠ oczekiwany. Wynik: ścieżka, SHA-256 pliku i SHA-256 certyfikatu — nic więcej (komunikaty narzędzi są redagowane).
+4. Usuń keystore z dysku i hasła z sesji (`Remove-Item Env:EVIA_APK_KS_PASS, Env:EVIA_APK_KEY_PASS`).
+5. Przekaż plik **administratorowi** (to Konrad albo osoba przez niego wskazana; technicy nie pobierają APK sami) razem z SHA-256 pliku i certyfikatu — innym kanałem niż plik.
+
+### Dlaczego tak (RR-21)
+Na GitHub Free sekret repozytorium może odczytać workflow z dowolnej gałęzi (`docs/security/threat-model.md` → RR-21), a bez Google Play wyciek klucza jest nieodwracalny (nie da się go unieważnić). Dlatego **klucz nigdy nie trafia do GitHuba**: CI publikuje niepodpisany APK z SHA-256, Konrad podpisuje go lokalnie (ok. 2 minuty na wydanie). Koszt: ręczny krok przy każdym wydaniu i klucz na stacji Konrada (TM-58) oraz ryzyko podpisu zmienionego artefaktu — ogranicza je podpis wyłącznie z przebiegu na `main` ze zgodnym SHA-256 i przypięty odcisk certyfikatu.
 
 ## Instalacja na telefonie (sideload)
-Zasady (security-engineer, B6; phishing — fałszywa „nowa wersja”):
-1. **Jeden kanał:** preferowane USB z komputera Konrada (`adb install -r evia-manager-….apk`) albo bezpośrednie przekazanie pliku. **Nigdy link w SMS, komunikatorze ani e-mailu**; technik nie instaluje APK z linku, nawet od „biura”.
-2. Przed instalacją sprawdź **SHA-256 pliku** i **odcisk certyfikatu** z podsumowania przebiegu CI: `apksigner verify --print-certs evia-manager-….apk` (z `build-tools` Android SDK) i `certutil -hashfile evia-manager-….apk SHA256` (Windows).
-3. Telefon prywatny (BYOD): uprawnienie „Instaluj nieznane aplikacje” daj przeglądarce / menedżerowi plików **tylko na czas instalacji** i cofnij; Play Protect zostaje włączony.
+Zasady (security-engineer; phishing — fałszywa „nowa wersja”, bo bez Google Play to jedyny kanał):
+1. **Jeden kanał: administrator.** USB z komputera (`adb install -r evia-manager-….apk`) albo plik przekazany osobiście. **Nigdy link w SMS, komunikatorze ani e-mailu**; technik nie instaluje APK z linku, nawet od „biura”.
+2. Przed instalacją porównaj **SHA-256 pliku** i **odcisk certyfikatu** z danymi z podpisu (`apksigner verify --print-certs`, `certutil -hashfile <plik> SHA256`).
+3. Telefon prywatny (BYOD): uprawnienie „Instalowanie nieznanych aplikacji” dla menedżera plików lub przeglądarki daj **tylko na czas instalacji** i **cofnij po niej**; Play Protect zostaje włączony.
 4. Aplikacja nie otwiera żadnych adresów pobrania: ekran „Aktualizacja wymagana” mówi tylko „Poproś administratora o nową wersję aplikacji.” (S-02, SR-MOB-07).
+5. **APK debug i e2e nigdy nie trafiają do techników** (klucz debug jest publiczny, wariant e2e ma HTTP do hosta emulatora).
 
-**Otwarte pytanie do Konrada:** skąd technik dostaje nowy APK (USB u Konrada, plik przekazany osobiście, strona wydań)? Do czasu rozstrzygnięcia ekran S-02 nie ma przycisku pobrania.
-
-## Aktualizacje i rotacja klucza
-- Telefon przyjmie aktualizację tylko podpisaną **tym samym kluczem** i z wyższym `versionCode`. Kolejne wydanie = kolejny przebieg CI na `main` (wyższy numer przebiegu).
-- **Kompromitacja klucza:** rotacja przez APK Signature Scheme v3 (`apksigner rotate` — nowy klucz z historią „lineage” podpisaną starym), komunikat do techników przez zaufany kanał, nowy certyfikat w sekretach, usunięcie starych sekretów. Bez Google Play nie ma resetu klucza — procedurę wykonuje Konrad (`docs/ops/rotacja-sekretow.md`).
-- Minimalna wersja: `MIN_SUPPORTED_APP_VERSION_ANDROID` w konfiguracji serwera (bez wdrożenia kodu). Uwaga dla lokalnego API: `compose.dev.yaml` ustawia minimum `1.0.0` (EVM-077), a aplikacja ma `0.1.0` — przeciw `pnpm run dev` pokaże więc ekran „Aktualizacja wymagana”. Zmiana minimum w tym pliku (plik compose: zgoda Konrada) na `0.1.0` jest otwartym pytaniem historyjki; test dymny używa własnego serwera scenariuszy i tego nie potrzebuje.
+## Aktualizacje
+- Telefon przyjmie aktualizację tylko podpisaną **tym samym kluczem** (albo następcą z linii rotacji v3) i z wyższym `versionCode`. Kolejne wydanie = kolejny przebieg CI na `main` + podpis lokalny. Nie ma automatycznych aktualizacji: administrator instaluje je ręcznie.
+- Minimalna wersja: `MIN_SUPPORTED_APP_VERSION_ANDROID` w konfiguracji serwera (bez wdrożenia kodu). Lokalne API (`compose.dev.yaml`) ma minimum `0.1.0` = wersja aplikacji, więc `pnpm run dev` jej nie blokuje (granica równości); wartość produkcyjna przychodzi z konfiguracji VM (EVM-007).
 
 ## Lokalny build i test na Windows
 - Aplikacja i jej testy jednostkowe działają natywnie: `pnpm --filter @evia/mobile run test:coverage`.
@@ -54,4 +57,4 @@ Zasady (security-engineer, B6; phishing — fałszywa „nowa wersja”):
 - Warianty debug i e2e budujemy **tylko lokalnie** i nigdy nie wysyłamy ich jako artefakt (debuggable, klucz debug, HTTP do hosta emulatora).
 
 ## Powrót do Google Play / EAS Submit
-Wymaga decyzji Konrada (konto Google Play, Play App Signing, ewentualnie EAS). Warunki powrotu: większa liczba telefonów lub potrzeba automatycznych aktualizacji, wymóg sklepu dla wydania szerszego niż firmowe telefony, utrata kontroli nad ręczną dystrybucją. Klucz z tego dokumentu można przenieść do Play App Signing (stąd ważność ≥ 25 lat). Do tego czasu `docs/architecture/adr/0007-…` i `0012-…` są uzupełnione notką „do akceptacji Konrada”.
+Odroczone (ADR-0019 — proponowana, do akceptacji Konrada). Wymaga decyzji Konrada (konto Google Play, Play App Signing, ewentualnie EAS). Warunki powrotu: większa liczba telefonów lub potrzeba automatycznych aktualizacji, wymóg sklepu dla wydania szerszego niż firmowe telefony, utrata kontroli nad ręczną dystrybucją. Ścieżka wyjścia: ten sam klucz można zarejestrować w Google Play (jako klucz aplikacji albo przez klucz wysyłania, upload key), dlatego ważność ≥ 25 lat.

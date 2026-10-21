@@ -5,7 +5,8 @@ EVM-009 AC5, AC6 (security-engineer B2, B3, B4). Używane przez job `mobile-apk`
 | Polecenie | Co robi |
 |---|---|
 | `node tools/mobile-apk/cli.mjs verify --apk <plik> [--application-id <id>]` | manifest, trzy zasoby XML i zawartość; kod 1 przy jakimkolwiek ustaleniu, wypisuje też SHA-256 |
-| `node tools/mobile-apk/cli.mjs digest --apk <plik> [--signed]` | SHA-256 pliku; w CI dopisuje podsumowanie do `$GITHUB_STEP_SUMMARY` (z napisem **NIEPODPISANY**, gdy bez `--signed`) |
+| `node tools/mobile-apk/cli.mjs digest --apk <plik> [--signed]` | SHA-256 pliku; w CI dopisuje podsumowanie do `$GITHUB_STEP_SUMMARY` (z napisem **NIEPODPISANY**, gdy bez `--signed`, oraz gałęzią i commitem przebiegu) |
+| `node tools/mobile-apk/cli.mjs sign --apk <niepodpisany> --expect-sha256 <z podsumowania CI> --keystore <poza repo> --key-alias <alias> --out <plik> [--expected-cert-sha256 <odcisk>] [--ks-pass-env NAZWA] [--key-pass-env NAZWA] [--build-tools <wersja>]` | **podpis lokalny Konrada** (`src/sign.mjs`): patrz niżej |
 
 ## Co jest sprawdzane
 - **Manifest** (`src/manifest.mjs`): `package`; uprawnienia dokładnie `INTERNET` + własne `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`; `targetSdkVersion` ≥ 34; `allowBackup=false`, `usesCleartextTraffic=false`, brak `debuggable`, obecne `networkSecurityConfig`, `dataExtractionRules`, `fullBackupContent`; `expo.modules.updates.ENABLED` nie jest `true`; brak komponentów expo-updates / dev-launcher / dev-menu; **jedyny wyeksportowany komponent lub komponent z filtrem intencji to `MainActivity`** z dokładnie jednym filtrem MAIN/LAUNCHER, bez linków głębokich.
@@ -13,3 +14,6 @@ EVM-009 AC5, AC6 (security-engineer B2, B3, B4). Używane przez job `mobile-apk`
 - **Zawartość** (`src/contents.mjs`): zakazane pliki (keystore, certyfikaty, `.env`, mapy źródeł, konta serwisowe) i wzorce poświadczeń w `assets/` (klucze prywatne, AWS, Google, GitHub, Slack, Stripe, JWT, hasło w adresie URL, przypisanie hasła); jedyną publiczną zmienną paczki jest `EXPO_PUBLIC_API_BASE_URL`. Ustalenia podają ścieżkę i regułę, **nigdy dopasowanego tekstu**.
 
 Fixture'y testów (`test/fixtures/`) to zapis wyjścia `apkanalyzer` dla prawdziwej paczki aplikacji (dane syntetyczne). Testy: `pnpm --filter @evia/mobile-apk run test:coverage` (próg 90%).
+
+## Podpis lokalny (`sign`)
+Wyłącznie na komputerze Konrada, z kluczem poza repozytorium; CI nie ma klucza (RR-21, ADR-0019). Kolejność: sprawdzenie wejścia (SHA-256 = `--expect-sha256`, brak podpisu, `verify`) → `zipalign -P 16 -f 4` → `java -jar apksigner.jar sign` (v2 i v3) → `verify --print-certs` → porównanie odcisku z `--expected-cert-sha256` / `EVIA_APK_CERT_SHA256` → ponowne `verify`. Narzędzia z najwyższej wersji `build-tools` w `ANDROID_HOME`, uruchamiane bez powłoki (`apksigner.bat` pomijamy: BatBadBut, CWE-78). Hasła: tylko `env:NAZWA` (domyślnie `EVIA_APK_KS_PASS`, `EVIA_APK_KEY_PASS`) albo prompt `apksigner` w terminalu; `pass:`, `file:` i hasło w argumentach są odrzucane (kod 2). Keystore w drzewie roboczym git (po `realpath`) → odmowa; ścieżka keystore'a nie jest wypisywana; wyjście narzędzi nie jest przekazywane, tylko kod i zredagowany komunikat. Wynik: ścieżka, SHA-256 pliku, SHA-256 certyfikatu. Pełna procedura: `docs/ops/dystrybucja-apk-android.md`.

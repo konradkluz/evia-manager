@@ -115,3 +115,4 @@ _—_
 - 2026-10-20 — plan gotowy (mobile-developer)
 - 2026-10-20 — implementacja (mobile-developer): `apps/mobile` (Expo SDK 58, offline-first, S-01/„Kolejka”/S-02), `tools/mobile-e2e` (Maestro) i `tools/mobile-apk` (weryfikacja APK), joby CI `mobile-apk` i `mobile-sign`, testy `EVM-009 AC#`; dowód Maestro na emulatorze wstrzymany — natywny build na Windows wymaga długich ścieżek (`docs/ops/dystrybucja-apk-android.md`)
 - 2026-10-20 — workflow „blocked” po implementacji (mobile-developer; 7 commitów; Maestro na APK zablokowane limitem ścieżek Windows); decyzje Konrada 2026-10-20 (podpis lokalny, ścieżki bez admina, id aplikacji, dostawa APK, compose.dev.yaml) zapisane w „Decyzjach”; kolejny przebieg: poprawki wg decyzji, Maestro, QA i przeglądy
+- 2026-10-20 — plan gotowy (mobile-developer)
