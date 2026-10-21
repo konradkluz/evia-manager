@@ -4,7 +4,7 @@ title: Staging w UE — IaC, VM i kanał wdrożeń (007a)
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -71,6 +71,7 @@ Jako **właściciel produktu** chcę **środowiska testowego w UE, na które ka�
 - Obrazy minimalne (np. distroless) — wybór w planie technicznym.
 - **Decyzja Konrada (2026-10-13), bramki 7–8 (DAST):** w CI tylko anonimowy ZAP baseline (w `staging-verify`); skany z logowaniem (ZAP po zalogowaniu, ZAP API, Schemathesis na kontach ról) uruchamiane poza GitHubem — z VM albo z sesji Konrada — zgodnie z „zero sekretów w GitHubie” (ADR-0018). Wiersze w `docs/security/*` aktualizuje `security-engineer`. Wpływ także na E8 (bramka 8 przed wydaniem).
 - Zasoby płatne wyłącznie po akceptacji kosztów; Scaleway (konto) jest warunkiem startu. Rozmiar historyjki jest na granicy (weryfikator 4–6 dni): kolejność w planie — IaC/VM/DNS → `publish` → weryfikator → wdrożenie → `staging-verify`.
+- **Decyzja Konrada (2026-10-21), zakres pierwszej sesji realizacji — faza offline:** równolegle z kolejkami A (EVM-026/028) i B (EVM-009/011) startuje część bez tokenów Konrada i bez płatnych zasobów: kod OpenTofu (wyłącznie `tofu fmt -check`, `tofu validate`, Trivy), job `publish` z testami `tools/repo-policy` (AC2), weryfikator V0–V4 z testami negatywnymi na atrapie API GitHub (AC3), agent wdrożeń z migracjami i rollbackiem testowany lokalnie (AC4), kod `staging-verify` (AC6), układ sekretów i testy polityk bez VM (AC7), runbooki (AC8). Poza fazą offline, na sesję IaC z Konradem: tokeny Hetzner/Scaleway i PAT-y, `tofu plan/apply`, rekordy DNS/CAA i weryfikacja domeny TEM w OVH, pierwsze wdrożenie na VM, `staging-verify` na żywym stagingu, kopie sekretów w Bitwarden; AC1 i AC4–AC7 są w pełni weryfikowalne dopiero wtedy. Faza offline kończy się w `in-progress` (nie `in-review`); plan techniczny zawiera tabelę kosztów zasobów do akceptacji w sesji IaC (budżet ADR-0018: 300 zł/mies.) i listę kroków Konrada.
 
 ### Bezpieczeństwo i prywatność
 Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicznych bucketów, brak danych produkcyjnych na staging, brak sekretów w GitHubie, port 22 niedostępny z internetu. Ryzyka: RR-23 (własny weryfikator), RR-19, RR-24 (w 007c). Wymagania: SR-INFRA-01/05/13/14, SR-SUPPLY-04/05.
@@ -84,3 +85,4 @@ Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicz
 - 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada
 - 2026-10-13 — podział wg ADR-0018: treść zawężona do 007a (dawne AC1–AC3, część AC7); dawne AC4 i część AC7 → EVM-084; AC5, AC6, AC8, część AC7 → EVM-085; status ready → draft do akceptacji AC (product-owner)
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
+- 2026-10-21 — ready → in-progress: start fazy offline (decyzja Konrada 2026-10-21, „Faza offline teraz”) w kolejce C, gałąź feature/EVM-007-staging-iac-kanal-wdrozen (osobny klon evia-manager-c), pelna, opus; bez tokenów i bez płatnych zasobów, sesja IaC z Konradem później
