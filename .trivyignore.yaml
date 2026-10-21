@@ -1,7 +1,173 @@
 # Trivy exceptions (bramki 4–6). Every entry needs `statement` ("<reason> · owner: <role> · EVM-###") and
 # `expired_at` (≤ 90 days; licenses only for non-distributed tools). Expired entries fail tools/repo-policy.
+# Vulnerabilities (bramka 6): narrow scope only — one finding ID + the binary path + the package PURL with its exact
+# version, so a rebuilt binary (another version) is scanned again; ≤ 30 days for Critical/High.
 misconfigurations: []
 licenses:
   - id: MIT-0
     statement: 'nodemailer — server-only (api/worker), not distributed; MIT-0 is more permissive than MIT; no runtime dependencies · owner: security-engineer · EVM-024'
     expired_at: 2027-01-10
+vulnerabilities:
+  # (A) gosu 1.19 (Go 1.24.6) in postgres:18.6-trixie — NOT REACHABLE (security-engineer 2026-10-21; RR-36). gosu links
+  # none of the affected packages: no symbols of crypto/tls, crypto/x509, encoding/asn1, encoding/xml, html/template,
+  # mime, net, net/http, net/mail, net/url, os.Root, golang.org/x/net (checked in the image by digest; the only matches
+  # are GODEBUG setting names of the runtime). It takes no external input, is not setuid (0755 root:root) and runs only
+  # from docker-entrypoint.sh as uid 0: every compose service (compose.yaml, compose.dev.yaml, infra/runtime) runs as
+  # 999:999 with no-new-privileges, so it never runs there; Testcontainers in CI (root) runs it once with fixed arguments.
+  # No upstream postgres image with a rebuilt gosu (trixie and alpine alike). Remove with a postgres digest whose gosu
+  # is clean (Renovate) — at the latest on expiry.
+  - id: CVE-2025-68121
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: &gosu-critical 'Critical in Go stdlib 1.24.6 of gosu (postgres:18.6-trixie); not reachable — gosu links none of the affected packages, takes no external input, is not setuid and runs only as uid 0 from the entrypoint (compose services run as 999:999 with no-new-privileges); no upstream image with a rebuilt gosu (RR-36) · owner: security-engineer · EVM-007'
+    expired_at: 2026-11-20
+  - id: CVE-2025-61726
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: &gosu-high 'High in Go stdlib 1.24.6 of gosu (postgres:18.6-trixie); not reachable — gosu links none of the affected packages, takes no external input, is not setuid and runs only as uid 0 from the entrypoint (compose services run as 999:999 with no-new-privileges); no upstream image with a rebuilt gosu (RR-36) · owner: security-engineer · EVM-007'
+    expired_at: 2026-11-20
+  - id: CVE-2025-61729
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-111943
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-25679
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-27145
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-32280
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-32281
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-32283
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-33811
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-33814
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-33818
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-39820
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-39821
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-39822
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-39836
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-42499
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-42504
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-56853
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-56858
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-56859
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-56860
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-56862
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-78667
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-78669
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-97031
+    paths: ['usr/local/bin/gosu']
+    purls: ['pkg:golang/stdlib@v1.24.6']
+    statement: *gosu-high
+    expired_at: 2026-11-20
+  # (B) Caddy 2.11.7 (Go stdlib 1.26.8, golang.org/x/net 0.59.0) — the edge Caddy (infra-images.json) and the runtime of
+  # evia-web. REACHABLE: DoS by HTTP/2 SETTINGS frames on the public :443 (CVE-2026-78669) and by crafted Range headers
+  # in file_server of evia-web (CVE-2026-78667). Not a "not reachable" exception: Konrad consciously accepted the risk
+  # on 2026-10-21 for STAGING ONLY (synthetic data; RR-37) until Caddy 2.11.8 — never for prod. Remove with the Caddy
+  # update (Go ≥ 1.26.10, x/net ≥ 0.60.0) — at the latest on expiry; not prolonged without a new decision by Konrad.
+  - id: CVE-2026-78669
+    paths: ['usr/bin/caddy']
+    purls: ['pkg:golang/stdlib@v1.26.8', 'pkg:golang/golang.org/x/net@v0.59.0']
+    statement: &caddy-high 'High in Caddy 2.11.7 (Go stdlib 1.26.8, x/net 0.59.0) — reachable DoS (HTTP/2 SETTINGS on :443, Range in file_server); risk accepted by Konrad 2026-10-21 for staging only until Caddy 2.11.8, never for prod (RR-37) · owner: security-engineer · EVM-007'
+    expired_at: 2026-11-20
+  - id: CVE-2026-78667
+    paths: ['usr/bin/caddy']
+    purls: ['pkg:golang/stdlib@v1.26.8']
+    statement: *caddy-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-97031
+    paths: ['usr/bin/caddy']
+    purls: ['pkg:golang/stdlib@v1.26.8']
+    statement: *caddy-high
+    expired_at: 2026-11-20
+  - id: CVE-2026-111943
+    paths: ['usr/bin/caddy']
+    purls: ['pkg:golang/stdlib@v1.26.8']
+    statement: *caddy-high
+    expired_at: 2026-11-20
