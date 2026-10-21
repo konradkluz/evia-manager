@@ -27,6 +27,17 @@ describe('services/deploy-agent (EVM-007 AC3)', () => {
     expect(text(k3?.['run'])).toContain('infra services/deploy-agent');
   });
 
+  it('EVM-007 AC6 (security-engineer, Low): tools/staging-verify (bramka 10 on staging) is a sensitive file — CODEOWNERS, the K3 summary of CI and docs/ops', () => {
+    expect(read('.github/CODEOWNERS')).toMatch(/^\/tools\/staging-verify\/ +@konradkluz\r?$/m);
+    const security = record(record(record(yaml('.github/workflows/ci.yml'))['jobs'])['security']);
+    const k3 = list(security['steps'])
+      .map(record)
+      .find((step) => text(step['name']).includes('(K3)'));
+    expect(text(k3?.['run'])).toContain('infra services/deploy-agent tools/staging-verify');
+    expect(read('docs/ops/github-i-ci.md')).toContain('`tools/staging-verify/**`');
+    expect(read('.github/pull_request_template.md')).toContain('`tools/staging-verify/**`');
+  });
+
   it('EVM-007 AC3: the coverage reports of services/* reach changed-code coverage in CI', () => {
     const quality = record(record(record(yaml('.github/workflows/ci.yml'))['jobs'])['quality']);
     const upload = list(quality['steps'])

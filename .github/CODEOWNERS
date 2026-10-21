@@ -6,6 +6,7 @@
 /lefthook.yml          @konradkluz
 /infra/                @konradkluz
 /services/deploy-agent/ @konradkluz
+/tools/staging-verify/ @konradkluz
 /.gitleaks.toml        @konradkluz
 /.gitleaksignore       @konradkluz
 /osv-scanner.toml      @konradkluz

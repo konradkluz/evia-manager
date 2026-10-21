@@ -375,7 +375,7 @@ jobs:
             echo "### Zmienione pliki wrażliwe (K3) — wymagają jawnej uwagi Konrada"
             git diff --name-only "$base" HEAD -- .github .claude 'compose*.yaml' lefthook.yml .gitleaks.toml .gitleaksignore \
               osv-scanner.toml trivy.yaml .trivyignore.yaml zizmor.yml .semgrepignore .semgrep renovate.json pnpm-workspace.yaml \
-              infra services/deploy-agent \
+              infra services/deploy-agent tools/staging-verify \
               | sed 's/^/- /'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
