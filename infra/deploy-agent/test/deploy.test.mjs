@@ -335,6 +335,36 @@ describe('EVM-007 AC4 (security-engineer B): deploy.sh treats the result of the 
     assert.equal(existsSync(join(root, 'etc/evia/deploy-agent/rollback')), false);
   });
 
+  it('EVM-007 AC4 (review round 1): the registry records the kind of every entry; a rollback must repeat a deploy entry exactly', () => {
+    assert.equal(deploy(result('c1', { activityEventId: 101 })).status, 0);
+    assert.equal(deploy(result('c2', { activityEventId: 102 })).status, 0);
+    const foreign = deploy({ ...result('c1', { activityEventId: 102 }), decision: 'rollback' });
+    assert.notEqual(foreign.status, 0);
+    assert.match(foreign.stderr, /outside the registry/);
+    assert.equal(registry().length, 2);
+    const run = deploy({ ...result('c1', { activityEventId: 101 }), decision: 'rollback' });
+    assert.equal(run.status, 0, run.stderr);
+    const entries = registry();
+    assert.deepEqual(
+      entries.map((/** @type {{ kind: string }} */ item) => item.kind),
+      ['deploy', 'deploy', 'rollback'],
+    );
+    const [first, , last] = entries;
+    // The verifier's registry schema (services/deploy-agent/src/registry.ts): the same keys, the rollback repeats its deployment.
+    assert.deepEqual(Object.keys(last).sort(), [
+      'activityEventId',
+      'baseline',
+      'commit',
+      'composeSha256',
+      'deployedAt',
+      'kind',
+      'manifest',
+      'manifestSha256',
+    ]);
+    for (const key of ['commit', 'manifestSha256', 'manifest', 'composeSha256', 'activityEventId', 'baseline'])
+      assert.equal(last[key], first[key], key);
+  });
+
   it('EVM-007 AC4 (security-engineer, rollback i migracje): a rollback never runs migrate — N−1 runs on schema N', () => {
     assert.equal(deploy(result('c1')).status, 0);
     assert.equal(deploy(result('c2')).status, 0);

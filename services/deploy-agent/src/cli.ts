@@ -1,12 +1,14 @@
 /**
  * Entry point of the verifier container (EVM-007 AC3, AC4; ADR-0018; architect 12, 13; security-engineer B).
  * One cycle per systemd tick: read the configuration, the registry (read-only) and the token, verify, write the result
- * atomically for deploy.sh, write the heartbeat state and metrics into its own state directory, log one line without
+ * atomically for deploy.sh, write the heartbeat state, the metrics and the cache of results that cannot change
+ * (cache.ts — V2 passes, V3 skipped publish) into its own state directory, log one line without
  * personal data or secrets. Exit code 0 = a decision to act on (deploy, rollback, none); 3 = reject (systemd marks the
  * unit failed: OnFailure= raises the local alert and deploy.sh does not run); 2 = an unsafe environment.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { VerificationCache } from './cache.ts';
 import { parseConfig, type AgentConfig } from './config.ts';
 import { Rejection, SHA } from './errors.ts';
 import { GitHub, PRODUCTION_API } from './github.ts';
@@ -140,7 +142,11 @@ export function metrics(
 
 async function decide(options: RunOptions, config: AgentConfig, registry: RegistryEntry[], github: GitHub): Promise<Decision> {
   const rollbackTo = readRollback(readOptional(options.paths.rollback));
-  return verify({ github, config, registry, rollbackTo });
+  const cachePath = join(options.paths.state, 'cache.json');
+  const cache = VerificationCache.parse(readOptional(cachePath), config.baseline.commit);
+  const decision = await verify({ github, config, registry, rollbackTo, cache });
+  writeAtomic(cachePath, cache.serialize());
+  return decision;
 }
 
 /** One cycle with the given paths and environment. */

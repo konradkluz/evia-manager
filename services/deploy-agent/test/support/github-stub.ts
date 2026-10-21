@@ -253,9 +253,14 @@ export function manifestText(commit: string, overrides: Record<string, unknown> 
 
 /**
  * A healthy history: the baseline (Activity event 100) followed by `count` squash merges by Konrad, each with a green
- * pull_request run of ci.yml and a push run with a green publish and its release-manifest artifact.
+ * pull_request run of ci.yml and a push run with a green publish and its release-manifest artifact. `unpublished`: no
+ * push run yet; `skippedPublish`: a green push run that skipped publish (documentation only, EVM-083).
  */
-export function buildScenario(count: number, composeText: string, options: { unpublished?: number[] } = {}): Built {
+export function buildScenario(
+  count: number,
+  composeText: string,
+  options: { unpublished?: number[]; skippedPublish?: number[] } = {},
+): Built {
   const baseline = fakeSha('baseline');
   const history = [{ sha: baseline, parents: [fakeSha('root')] }];
   const events: Array<Record<string, unknown>> = [
@@ -332,10 +337,16 @@ export function buildScenario(count: number, composeText: string, options: { unp
         conclusion: 'success',
         run_attempt: 1,
       });
+      const skipped = (options.skippedPublish ?? []).includes(index);
       scenario.jobs.set(`${String(pushRun)}/1`, [
         { name: 'ci-gate', status: 'completed', conclusion: 'success' },
-        { name: 'publish', status: 'completed', conclusion: 'success' },
+        { name: 'publish', status: 'completed', conclusion: skipped ? 'skipped' : 'success' },
       ]);
+      if (skipped) {
+        commits.push(commit);
+        previous = commit;
+        continue;
+      }
       const artifact = 3000 + index;
       const text = manifestText(commit);
       manifests.set(commit, text);

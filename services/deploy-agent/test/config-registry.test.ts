@@ -79,6 +79,7 @@ describe('EVM-007 AC3: configuration of the VM', () => {
 describe('EVM-007 AC4: the registry of deployments', () => {
   const manifest = manifestText(fakeSha('c1'));
   const valid = {
+    kind: 'deploy',
     commit: fakeSha('c1'),
     manifestSha256: sha256(manifest),
     manifest,
@@ -97,6 +98,12 @@ describe('EVM-007 AC4: the registry of deployments', () => {
     expect(code(() => currentChain(entries, 'x'))).toBe('config');
   });
 
+  it('EVM-007 AC4: a rollback entry that repeats an earlier deployment of the same baseline is read', () => {
+    const rollback = { ...valid, kind: 'rollback', deployedAt: '2026-10-21T09:00:00.000Z' };
+    expect(parseRegistry(text([valid, rollback])).map((item) => item.kind)).toEqual(['deploy', 'rollback']);
+    expect(code(() => parseRegistry(text([valid, { ...rollback, baseline: fakeSha('old') }])))).toBe('registry');
+  });
+
   const cases: Array<[string, unknown]> = [
     ['not JSON', '{'],
     ['another schema version', JSON.stringify({ schemaVersion: 2, entries: [] })],
@@ -107,6 +114,12 @@ describe('EVM-007 AC4: the registry of deployments', () => {
     ['a short commit', text([{ ...valid, commit: 'abc' }])],
     ['a date that is not a date', text([{ ...valid, deployedAt: 'yesterday' }])],
     ['a negative event ID', text([{ ...valid, activityEventId: -1 }])],
+    ['an entry without its kind', text([{ ...valid, kind: undefined }])],
+    ['an unknown kind', text([{ ...valid, kind: 'redeploy' }])],
+    ['a rollback as the first entry', text([{ ...valid, kind: 'rollback' }])],
+    ['a rollback to another Activity event than its deployment', text([valid, { ...valid, kind: 'rollback', activityEventId: 102 }])],
+    ['a rollback with another compose than its deployment', text([valid, { ...valid, kind: 'rollback', composeSha256: 'd'.repeat(64) }])],
+    ['a rollback that repeats a later entry', text([{ ...valid, kind: 'rollback' }, valid])],
   ];
   for (const [name, content] of cases)
     it(`EVM-007 AC4: a registry with ${name} rejects the cycle`, () => {

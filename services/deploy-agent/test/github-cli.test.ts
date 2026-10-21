@@ -195,6 +195,7 @@ describe('EVM-007 AC3, AC4: the entry point of the verifier container', () => {
       new Date(0),
       null,
       {
+        kind: 'deploy',
         commit: 'a'.repeat(40),
         manifestSha256: 'b'.repeat(64),
         manifest: '{}',

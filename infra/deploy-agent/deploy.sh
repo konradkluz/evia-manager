@@ -112,9 +112,12 @@ if [ ! -f "$REGISTRY" ]; then
   printf '{"schemaVersion":1,"entries":[]}\n' > "$REGISTRY"
   chmod 0644 "$REGISTRY"
 fi
+# A rollback repeats an earlier deploy entry of this baseline exactly (commit, hashes, Activity event) — the verifier
+# rejects a registry with any other rollback entry (services/deploy-agent/src/registry.ts).
 if [ "$decision" = rollback ]; then
-  jq -e --arg c "$commit" --arg m "$manifest_sha" --arg b "$baseline" \
-    'any(.entries[]; .commit == $c and .manifestSha256 == $m and .baseline == $b)' "$REGISTRY" > /dev/null ||
+  jq -e --arg c "$commit" --arg m "$manifest_sha" --arg s "$compose_sha" --argjson e "$event_id" --arg b "$baseline" \
+    'any(.entries[]; .kind == "deploy" and .commit == $c and .manifestSha256 == $m and .composeSha256 == $s
+      and .activityEventId == $e and .baseline == $b)' "$REGISTRY" > /dev/null ||
     fail "rollback to a commit outside the registry"
 fi
 
@@ -197,10 +200,12 @@ cp -- "$release/compose.json" "$WORK/colors/$colour/compose.json"
 printf '%s\n' "$colour" > "$WORK/active-color.tmp"
 mv -- "$WORK/active-color.tmp" "$WORK/active-color"
 
-# The registry: written only here, after a successful switch, atomically.
-jq --arg c "$commit" --arg m "$manifest_sha" --rawfile text "$manifest_file" --arg s "$compose_sha" \
+# The registry: written only here, after a successful switch, atomically. `kind` = the decision: a rollback entry never
+# moves the frontier of the verifier (its newest deploy entry), so after a rollback the channel holds instead of
+# deploying the commit it rolled back from again (ADR-0018 "Rollback"; services/deploy-agent/src/verify.ts).
+jq --arg k "$decision" --arg c "$commit" --arg m "$manifest_sha" --rawfile text "$manifest_file" --arg s "$compose_sha" \
   --argjson e "$event_id" --arg b "$baseline" --arg t "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  '.entries += [{commit: $c, manifestSha256: $m, manifest: $text, composeSha256: $s, activityEventId: $e, baseline: $b, deployedAt: $t}]' \
+  '.entries += [{kind: $k, commit: $c,manifestSha256: $m, manifest: $text, composeSha256: $s, activityEventId: $e, baseline: $b, deployedAt: $t}]' \
   "$REGISTRY" > "$REGISTRY.tmp"
 chmod 0644 "$REGISTRY.tmp"
 mv -- "$REGISTRY.tmp" "$REGISTRY"

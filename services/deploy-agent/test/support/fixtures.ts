@@ -1,5 +1,6 @@
 /** Shared fixtures of the verifier tests: configuration, the real compose file of the channel, a verify runner. */
 import { readFileSync } from 'node:fs';
+import type { VerificationCache } from '../../src/cache.ts';
 import { parseConfig, type AgentConfig } from '../../src/config.ts';
 import { GitHub } from '../../src/github.ts';
 import { sha256 } from '../../src/manifest.ts';
@@ -47,6 +48,7 @@ export function github(stub: Stub, cfg: AgentConfig, options: { timeoutMs?: numb
 export function entry(commit: string, activityEventId: number, baseline: string, manifest: string): RegistryEntry {
   const images = JSON.parse(manifest) as { images: { api: string; web: string } };
   return {
+    kind: 'deploy',
     commit,
     manifestSha256: sha256(manifest),
     manifest,
@@ -57,15 +59,23 @@ export function entry(commit: string, activityEventId: number, baseline: string,
   };
 }
 
+/** The entry deploy.sh appends after a rollback to an earlier deployment. */
+export const rolledBack = (target: RegistryEntry): RegistryEntry => ({
+  ...target,
+  kind: 'rollback',
+  deployedAt: '2026-10-21T09:00:00.000Z',
+});
+
 export async function run(
   stub: Stub,
   baseline: string,
   registry: RegistryEntry[] = [],
   rollbackTo: string | null = null,
   overrides: Record<string, unknown> = {},
+  cache?: VerificationCache,
 ): Promise<Decision> {
   const cfg = config(baseline, overrides);
-  return verify({ github: github(stub, cfg), config: cfg, registry, rollbackTo });
+  return verify({ github: github(stub, cfg), config: cfg, registry, rollbackTo, ...(cache === undefined ? {} : { cache }) });
 }
 
 export const reasons = (decision: Decision): string => decision.reasons.join(' | ');

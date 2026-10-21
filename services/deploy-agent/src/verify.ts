@@ -6,15 +6,23 @@
  *              commit of the range, also those after X), V3 (X), V4 (compose of X) passed.
  *   rollback — to a commit of the registry: on the administrator's command, or automatically when V0 finds an event
  *              (push, force push …) inside the period already deployed (n5).
- *   none     — nothing to do (up to date, or no release in the range yet).
+ *   none     — nothing to do (up to date, held after a rollback, or no release in the range yet).
  *   reject   — a check failed; nothing changes.
+ * Rollback semantics (ADR-0018 "Rollback"; review round 1): the FRONTIER is the newest `deploy` entry of the registry —
+ * the end of the verified Activity; a rollback entry never moves it. V0 is anchored on the `deploy` entry before the
+ * frontier (or the baseline), so its window covers the period of the frontier (n5); V1 and V2 start at the frontier.
+ * After a rollback the channel HOLDS (`none`): it deploys again only a release newer than the frontier (a fix or a
+ * revert merged through a pull request), never the commit it rolled back from. After the automatic rollback of n5 the
+ * serving version predates the violation and every cycle answers `v0-blocked` until Konrad moves the baseline
+ * (runbook incydent-blokada-v0).
  */
 import { checkChain, readActivity, type Anchor } from './activity.ts';
+import { VerificationCache } from './cache.ts';
 import { validateCompose } from './compose-policy.ts';
 import type { AgentConfig } from './config.ts';
 import { Rejection, ensure, record, string } from './errors.ts';
 import type { GitHub } from './github.ts';
-import { readHead, readRange } from './history.ts';
+import { readHead, readRange, type RangeCommit } from './history.ts';
 import { parseManifest } from './manifest.ts';
 import { checkPullRequest } from './pulls.ts';
 import { currentChain, type RegistryEntry } from './registry.ts';
@@ -50,6 +58,8 @@ export interface VerifyInput {
   readonly registry: readonly RegistryEntry[];
   /** Commit of the administrator's rollback command, or null. */
   readonly rollbackTo: string | null;
+  /** Results that cannot change (cache.ts), updated in place; a fresh cache when absent. */
+  readonly cache?: VerificationCache;
 }
 
 /** V4 input: the compose file of the channel at a commit, through the contents API. */
@@ -96,55 +106,91 @@ async function rollback(input: VerifyInput, target: RegistryEntry, head: string,
   };
 }
 
-async function cycle(input: VerifyInput): Promise<Decision> {
+/** The registry as a cycle sees it: what serves, the frontier and the anchor of V0. */
+interface Position {
+  readonly current: RegistryEntry | undefined;
+  readonly deploys: readonly RegistryEntry[];
+  readonly frontier: RegistryEntry | undefined;
+  readonly anchorEntry: RegistryEntry | undefined;
+}
+
+function position(registry: readonly RegistryEntry[], baseline: string): Position {
+  const chain = currentChain(registry, baseline);
+  const deploys = chain.filter((entry) => entry.kind === 'deploy');
+  return { current: chain.at(-1), deploys, frontier: deploys.at(-1), anchorEntry: deploys.at(-2) };
+}
+
+/** The reason of a `none` while the channel holds after a rollback (empty when the frontier serves). */
+function held({ current, frontier }: Position): string[] {
+  if (current === undefined || frontier === undefined || current.commit === frontier.commit) return [];
+  return [`held after the rollback to ${current.commit}: waits for a release newer than ${frontier.commit}`];
+}
+
+/** V2 for every commit of the range; a pass is remembered (it cannot change), the squash rule runs every cycle. */
+async function checkPulls(github: GitHub, config: AgentConfig, range: readonly RangeCommit[], cache: VerificationCache): Promise<void> {
+  for (const commit of range) {
+    ensure(commit.parents.length === 1, 'v2-not-squash', `${commit.sha} has ${String(commit.parents.length)} parents`);
+    if (cache.pull(commit.sha) !== undefined) continue;
+    cache.rememberPull(await checkPullRequest(github, commit, { accountId: config.ownerAccountId, workflowId: config.workflowId }));
+  }
+}
+
+/** The automatic answer to a V0 violation: a rollback of the frontier (n5) or a block. */
+async function onViolation(input: VerifyInput, where: Position, reason: string, tainted: boolean, head: string): Promise<Deployment> {
+  const { current, frontier, anchorEntry } = where;
+  if (current === undefined || frontier === undefined || !tainted) throw new Rejection('v0-blocked', reason);
+  if (anchorEntry === undefined) throw new Rejection('v0-blocked', `${reason}; no earlier deployment to roll back to`);
+  if (current.commit !== frontier.commit)
+    throw new Rejection('v0-blocked', `${reason}; ${current.commit} (older than the violation) serves until the baseline moves`);
+  return rollback(input, anchorEntry, head, `${reason} inside the deployed period — rollback to ${anchorEntry.commit}`);
+}
+
+async function cycle(input: VerifyInput, cache: VerificationCache): Promise<Decision> {
   const { github, config } = input;
-  const chain = currentChain(input.registry, config.baseline.commit);
-  const current = chain.at(-1);
-  const previous = chain.at(-2);
-  const anchor: Anchor = previous ?? config.baseline;
+  const where = position(input.registry, config.baseline.commit);
+  const { current, deploys, frontier, anchorEntry } = where;
+  const anchor: Anchor = anchorEntry ?? config.baseline;
   const head = await readHead(github);
   const events = await readActivity(github, anchor);
   const v0 = checkChain(events, anchor, config.ownerAccountId);
   let deployed = -1;
-  if (current !== undefined && current.activityEventId !== anchor.activityEventId) {
-    deployed = events.findIndex((event) => event.id === current.activityEventId);
-    ensure(deployed >= 0 && events[deployed]?.after === current.commit, 'v0-registry', 'the deployed commit is not in the Activity chain');
+  if (frontier !== undefined && frontier.activityEventId !== anchor.activityEventId) {
+    deployed = events.findIndex((event) => event.id === frontier.activityEventId);
+    ensure(deployed >= 0 && events[deployed]?.after === frontier.commit, 'v0-registry', 'the deployed commit is not in the Activity chain');
   }
+  const tainted = v0.violation >= 0 && v0.violation <= deployed;
 
   if (input.rollbackTo !== null) {
-    const target = chain.find((entry) => entry.commit === input.rollbackTo);
+    const target = deploys.find((entry) => entry.commit === input.rollbackTo);
     ensure(target !== undefined, 'rollback-not-in-registry', input.rollbackTo);
-    ensure(target !== current, 'rollback-current', 'the commit is deployed now');
-    // Every other entry is the anchor or older: its V0/V2 window was checked when it was deployed (ADR-0018 "Rollback"),
-    // so a violation found now in the window after the anchor never taints it.
+    ensure(target.commit !== current?.commit, 'rollback-current', 'the commit is deployed now');
+    // Every deploy entry but the frontier is the anchor or older: its V0/V2 window was checked when it was deployed
+    // (ADR-0018 "Rollback"); the frontier itself is refused while a violation sits inside its period.
+    ensure(!(tainted && target === frontier), 'v0-blocked', `${target.commit} is inside the violated period`);
     return rollback(input, target, head, `rollback on the administrator's command to ${target.commit}`);
   }
 
-  if (v0.violation >= 0) {
-    const reason = v0.reason ?? 'v0';
-    if (current !== undefined && v0.violation <= deployed) {
-      if (previous === undefined) throw new Rejection('v0-blocked', `${reason}; no earlier deployment to roll back to`);
-      return rollback(input, previous, head, `${reason} inside the deployed period — rollback to ${previous.commit}`);
-    }
-    throw new Rejection('v0-blocked', reason);
-  }
+  if (v0.violation >= 0) return onViolation(input, where, v0.reason ?? 'v0', tainted, head);
   ensure((events.at(-1)?.after ?? anchor.commit) === head, 'v0-activity-lag', 'the Activity does not reach HEAD yet');
 
-  const base = current?.commit ?? config.baseline.commit;
-  const range = await readRange(github, base, head, config.maxRangeCommits);
+  const range = await readRange(github, frontier?.commit ?? config.baseline.commit, head, config.maxRangeCommits);
   const tail = events.slice(deployed + 1);
   ensure(
     JSON.stringify(tail.map((event) => event.after)) === JSON.stringify(range.map((commit) => commit.sha)),
     'v0-v1-mismatch',
     'one pr_merge per commit of the range expected',
   );
-  if (range.length === 0) return { decision: 'none', head, reasons: ['up to date'] };
-  for (const commit of range) await checkPullRequest(github, commit, { accountId: config.ownerAccountId, workflowId: config.workflowId });
+  cache.prune(range.map((commit) => commit.sha));
+  const holding = held(where);
+  if (range.length === 0) return { decision: 'none', head, reasons: holding.length > 0 ? holding : ['up to date'] };
+  await checkPulls(github, config, range, cache);
 
   for (let index = range.length - 1; index >= 0; index -= 1) {
     const commit = range[index]?.sha ?? '';
+    if (cache.isSkipped(commit)) continue;
     const release = await findRelease(github, config, commit);
-    if (release === null) continue;
+    if (release === 'skipped') cache.rememberSkipped(commit);
+    if (typeof release === 'string') continue;
     const compose = validateCompose(await readCompose(github, config.composePath, commit), {
       images: release.manifest.images,
       network: config.runtimeNetwork,
@@ -162,13 +208,13 @@ async function cycle(input: VerifyInput): Promise<Decision> {
       reasons: [`V0–V4 passed for ${commit} (${String(range.length)} commits checked up to HEAD)`],
     };
   }
-  return { decision: 'none', head, reasons: ['no published release in the range yet'] };
+  return { decision: 'none', head, reasons: ['no published release in the range yet', ...holding] };
 }
 
 /** One cycle; every Rejection becomes `reject` with its reason (fail-closed). */
 export async function verify(input: VerifyInput): Promise<Decision> {
   try {
-    return await cycle(input);
+    return await cycle(input, input.cache ?? new VerificationCache(input.config.baseline.commit));
   } catch (error) {
     if (error instanceof Rejection) return { decision: 'reject', head: null, reasons: [error.message] };
     return { decision: 'reject', head: null, reasons: ['internal-error'] };

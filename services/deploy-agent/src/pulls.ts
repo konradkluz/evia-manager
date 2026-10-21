@@ -25,16 +25,27 @@ export interface Owner {
   readonly workflowId: number;
 }
 
-/** A job of a run attempt succeeded (jobs API of the attempt). */
-export async function jobSucceeded(github: GitHub, runId: number, attempt: number, name: string): Promise<boolean> {
+/** The jobs of a run attempt (jobs API of the attempt): name → the `status/conclusion` of every job of that name. */
+export async function jobStates(github: GitHub, runId: number, attempt: number): Promise<Map<string, string[]>> {
   const jobs = await github.all(
     `${github.repoPath}/actions/runs/${String(runId)}/attempts/${String(attempt)}/jobs?per_page=100`,
     'jobs',
     5,
   );
-  return jobs.some(
-    (value) => isRecord(value) && value['name'] === name && value['conclusion'] === 'success' && value['status'] === 'completed',
-  );
+  const states = new Map<string, string[]>();
+  for (const value of jobs) {
+    if (!isRecord(value) || typeof value['name'] !== 'string') continue;
+    states.set(value['name'], [...(states.get(value['name']) ?? []), `${String(value['status'])}/${String(value['conclusion'])}`]);
+  }
+  return states;
+}
+
+/** A job of that name succeeded in the attempt. */
+export const succeeded = (states: Map<string, string[]>, name: string): boolean => (states.get(name) ?? []).includes('completed/success');
+
+/** A job of a run attempt succeeded (jobs API of the attempt). */
+export async function jobSucceeded(github: GitHub, runId: number, attempt: number, name: string): Promise<boolean> {
+  return succeeded(await jobStates(github, runId, attempt), name);
 }
 
 export async function checkPullRequest(github: GitHub, commit: RangeCommit, owner: Owner): Promise<PullRequestEvidence> {

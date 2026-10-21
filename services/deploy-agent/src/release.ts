@@ -5,14 +5,16 @@
  * the OLDEST push run for X and its NEWEST successful attempt, whose jobs `ci-gate` and `publish` succeeded. Its artifact
  * `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
  * downloaded through the redirect check of github.ts and parsed in memory (zip.ts, manifest.ts).
- * `null` = X has no usable release (no run, still running, publish failed) — the verifier looks at an older commit;
- * a missing or forged manifest of a successful publish is a rejection.
+ * `unusable` = X has no usable release now (no run, still running, publish failed — a re-run may change that);
+ * `skipped` = X will never have one: the successful attempt skipped `publish` (no change in apps/, packages/, infra/ or
+ * the lockfile — EVM-083), which a re-run repeats; the verifier may remember it (cache.ts). In both cases the verifier
+ * looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
  */
 import type { AgentConfig } from './config.ts';
 import { Rejection, ensure, integer, isRecord, record } from './errors.ts';
 import { MAX_ARTIFACT_BYTES, type GitHub } from './github.ts';
 import { parseManifest, sha256, type Manifest } from './manifest.ts';
-import { jobSucceeded } from './pulls.ts';
+import { jobStates, succeeded } from './pulls.ts';
 import { readSingleEntry } from './zip.ts';
 
 export const MANIFEST_ARTIFACT = 'release-manifest';
@@ -36,7 +38,9 @@ async function successfulAttempt(github: GitHub, runId: number, latest: number):
   return null;
 }
 
-export async function findRelease(github: GitHub, config: AgentConfig, commit: string): Promise<Release | null> {
+export type ReleaseLookup = Release | 'unusable' | 'skipped';
+
+export async function findRelease(github: GitHub, config: AgentConfig, commit: string): Promise<ReleaseLookup> {
   const runs = await github.all(
     `${github.repoPath}/actions/workflows/${String(config.workflowId)}/runs?head_sha=${commit}&event=push&per_page=100`,
     'workflow_runs',
@@ -50,11 +54,16 @@ export async function findRelease(github: GitHub, config: AgentConfig, commit: s
     )
     .sort((a, b) => Number(a['id']) - Number(b['id']));
   const oldest = push[0];
-  if (oldest === undefined || oldest['status'] !== 'completed') return null;
+  if (oldest === undefined || oldest['status'] !== 'completed') return 'unusable';
   const runId = integer(oldest['id'], 'v3-parse');
   const attempt = await successfulAttempt(github, runId, integer(oldest['run_attempt'], 'v3-parse'));
-  if (attempt === null) return null;
-  if (!(await jobSucceeded(github, runId, attempt, 'ci-gate')) || !(await jobSucceeded(github, runId, attempt, 'publish'))) return null;
+  if (attempt === null) return 'unusable';
+  const jobs = await jobStates(github, runId, attempt);
+  if (!succeeded(jobs, 'ci-gate')) return 'unusable';
+  if (!succeeded(jobs, 'publish')) {
+    const publish = jobs.get('publish') ?? [];
+    return publish.length > 0 && publish.every((state) => state === 'completed/skipped') ? 'skipped' : 'unusable';
+  }
   const artifacts = await github.all(
     `${github.repoPath}/actions/runs/${String(runId)}/artifacts?name=${MANIFEST_ARTIFACT}&per_page=100`,
     'artifacts',
