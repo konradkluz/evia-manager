@@ -6,7 +6,15 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detect, isDocumentation, isNotRelevantToE2e, isNotRelevantToIntegration } from '../lib/classify.mjs';
+import {
+  detect,
+  detectDeployment,
+  isDocumentation,
+  isIacInput,
+  isNotRelevantToE2e,
+  isNotRelevantToIntegration,
+  isPublishInput,
+} from '../lib/classify.mjs';
 
 const BASE = 'a'.repeat(40);
 const FULL = 'heavy=true\ne2e=true\nintegration=true';
@@ -81,7 +89,12 @@ describe('EVM-083 AC3: fail-closed detection', () => {
       writeFileSync(out, '');
       const env = { ...process.env, EVENT_NAME: 'pull_request', BASE_SHA: baseSha, GITHUB_OUTPUT: out };
       execFileSync(process.execPath, [cli], { cwd: repo, env, stdio: 'pipe' });
-      return readFileSync(out, 'utf8').trim();
+      // the outputs of EVM-083/086; iac and publish (EVM-007) are checked by their own CLI test below
+      return readFileSync(out, 'utf8')
+        .trim()
+        .split('\n')
+        .filter((line) => !/^(iac|publish)=/.test(line))
+        .join('\n');
     };
     git('commit', '-q', '--allow-empty', '-m', 'empty');
     assert.equal(run(base), FULL);
@@ -199,5 +212,104 @@ describe('EVM-086 AC2: fail-closed', () => {
       const result = detect({ eventName: 'push', baseSha: BASE, diff: list(file) });
       assert.deepEqual([result.heavy, result.e2e, result.integration], [true, true, true], file);
     }
+  });
+});
+
+/** @param {string} eventName @param {...string} files */
+const deployment = (eventName, ...files) => detectDeployment({ eventName, baseSha: BASE, diff: list(...files) });
+
+describe('EVM-007 AC1: iac-check only for changes of the IaC code, its container, compose files or workflows', () => {
+  it('EVM-007 AC1: a pull request changing infra/tofu, the iac container, compose files or .github runs iac-check', () => {
+    for (const path of [
+      'infra/tofu/staging/main.tf',
+      'infra/docker/iac/check.sh',
+      'compose.yaml',
+      'compose.iac.yaml',
+      '.github/workflows/ci.yml',
+    ])
+      assert.equal(deployment('pull_request', 'docs/a.md', path).iac, true, path);
+    for (const path of ['apps/api/a.ts', 'docs/a.md', 'infra/runtime/compose.staging.yaml', 'tools/x.mjs'])
+      assert.equal(deployment('pull_request', path).iac, false, path);
+  });
+
+  it('EVM-007 AC1: fail closed — a push to main, other events, a bad base, a diff error, an empty diff or a suspicious path run iac-check', () => {
+    const boom = () => {
+      throw new Error('git failed');
+    };
+    assert.equal(deployment('push', 'docs/a.md').iac, true);
+    assert.equal(deployment('workflow_dispatch', 'docs/a.md').iac, true);
+    assert.equal(deployment('', 'docs/a.md').iac, true);
+    assert.equal(detectDeployment({ eventName: 'pull_request', baseSha: '', diff: list('docs/a.md') }).iac, true);
+    assert.equal(detectDeployment({ eventName: 'pull_request', baseSha: '0'.repeat(40), diff: list('docs/a.md') }).iac, true);
+    assert.equal(detectDeployment({ eventName: 'pull_request', baseSha: BASE, diff: boom }).iac, true);
+    assert.equal(detectDeployment({ eventName: 'pull_request', baseSha: BASE, diff: () => '' }).iac, true);
+    assert.equal(deployment('pull_request', 'docs/../infra/tofu/a.tf').iac, true);
+    assert.equal(isIacInput('infra\\tofu\\a.tf'), true);
+  });
+});
+
+describe('EVM-007 AC2: publish only for a push to main changing a build input of the images', () => {
+  it('EVM-007 AC2: apps/, packages/, infra/, the lockfile and the other build inputs publish on a push', () => {
+    for (const path of [
+      'apps/api/src/a.ts',
+      'apps/web/src/a.tsx',
+      'packages/contracts/openapi.yaml',
+      'infra/images/api/Dockerfile',
+      'infra/runtime/compose.staging.yaml',
+      'pnpm-lock.yaml',
+      'pnpm-workspace.yaml',
+      'package.json',
+      'design/tokens/tokens.json',
+      'patches/busboy@1.6.0.patch',
+    ])
+      assert.equal(deployment('push', 'docs/a.md', path).publish, true, path);
+  });
+
+  it('EVM-007 AC2: documentation, tools and workflows alone do not publish; pull requests and other events never publish', () => {
+    for (const path of ['docs/a.md', 'README.md', 'tools/x.mjs', '.github/workflows/ci.yml', '.claude/agents/a.md'])
+      assert.equal(deployment('push', path).publish, false, path);
+    for (const event of ['pull_request', 'workflow_dispatch', 'schedule', ''])
+      assert.equal(deployment(event, 'apps/api/src/a.ts').publish, false, event);
+  });
+
+  it('EVM-007 AC2: fail closed for a push — a bad or zero base, a diff error, an empty diff or a suspicious path publish', () => {
+    const boom = () => {
+      throw new Error('git failed');
+    };
+    assert.equal(detectDeployment({ eventName: 'push', baseSha: '', diff: list('docs/a.md') }).publish, true);
+    assert.equal(detectDeployment({ eventName: 'push', baseSha: '0'.repeat(40), diff: list('docs/a.md') }).publish, true);
+    assert.equal(detectDeployment({ eventName: 'push', baseSha: BASE, diff: boom }).publish, true);
+    assert.equal(detectDeployment({ eventName: 'push', baseSha: BASE, diff: () => '' }).publish, true);
+    assert.equal(deployment('push', 'docs/../apps/api/a.ts').publish, true);
+    assert.equal(isPublishInput('docs/a\u0001.md'), true);
+  });
+
+  it('EVM-007 AC1, AC2: the CLI writes iac and publish next to the other outputs', () => {
+    const cli = fileURLToPath(new URL('../cli.mjs', import.meta.url));
+    const repo = mkdtempSync(join(tmpdir(), 'ci-changes-deploy-'));
+    /** @param {...string} args */
+    const git = (...args) =>
+      execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@example.invalid', '-c', 'commit.gpgsign=false', ...args], {
+        encoding: 'utf8',
+      }).trim();
+    git('init', '-q');
+    writeFileSync(join(repo, 'a.txt'), '1');
+    git('add', '.');
+    git('commit', '-qm', 'base');
+    const base = git('rev-parse', 'HEAD');
+    mkdirSync(join(repo, 'apps'));
+    writeFileSync(join(repo, 'apps', 'a.ts'), 'x');
+    git('add', 'apps');
+    git('commit', '-qm', 'code');
+    /** @param {string} event */
+    const run = (event) => {
+      const out = join(repo, 'out.txt');
+      writeFileSync(out, '');
+      const env = { ...process.env, EVENT_NAME: event, BASE_SHA: base, GITHUB_OUTPUT: out };
+      execFileSync(process.execPath, [cli], { cwd: repo, env, stdio: 'pipe' });
+      return readFileSync(out, 'utf8').trim().split('\n');
+    };
+    assert.deepEqual(run('push').slice(3), ['iac=true', 'publish=true']);
+    assert.deepEqual(run('pull_request').slice(3), ['iac=false', 'publish=false']);
   });
 });

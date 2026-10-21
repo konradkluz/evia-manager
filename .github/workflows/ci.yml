@@ -78,6 +78,9 @@ jobs:
       heavy: ${{ steps.detect.outputs.heavy }}
       e2e: ${{ steps.detect.outputs.e2e }}
       integration: ${{ steps.detect.outputs.integration }}
+      # EVM-007: iac-check (AC1) and the release images (AC2, push to main only)
+      iac: ${{ steps.detect.outputs.iac }}
+      publish: ${{ steps.detect.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -265,6 +268,11 @@ jobs:
           node-version-file: .nvmrc
       - name: Scans and scanner self-test (gitleaks, Semgrep, OSV, Trivy, zizmor, actionlint, Renovate config)
         run: node tools/scan/cli.mjs security
+      # EVM-007 AC1: OpenTofu without credentials (fmt -check, init without a backend from the lock files, validate);
+      # Trivy config of infra/ runs in the scans above. Only when the IaC code, its container, compose files or workflows changed.
+      - name: IaC checks without credentials (iac-check)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm iac-check
       - name: Sensitive files changed in this push (K3)
         if: always()
         run: |

@@ -213,6 +213,23 @@ services:
     volumes:
       - ./.github:/src/.github:ro
 
+  # IaC without credentials (EVM-007 AC1; ADR-0018): tofu fmt -check, init without a backend from the committed lock
+  # files, validate. Network: the OpenTofu registry (providers, verified against the lock file hashes). /tmp allows exec —
+  # validate runs the downloaded providers. No secret is mounted; `plan`/`apply` exist only in compose.iac.yaml (iac).
+  iac-check:
+    <<: *hardening
+    image: evia-iac:local
+    build:
+      context: infra/docker/iac
+    pull_policy: build
+    user: '1000:1000'
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=1g
+    volumes:
+      - ./infra/tofu:/src/infra/tofu:ro
+
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
     <<: *scanner

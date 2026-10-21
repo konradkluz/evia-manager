@@ -63,8 +63,8 @@ const HEAVY_IFS: Record<string, string> = {
   coverage: "needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()",
 };
 const HEAVY_JOBS = Object.keys(HEAVY_IFS);
-/** Outputs of `changes`, each "true" or "false" (tools/ci-changes). */
-const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration'];
+/** Outputs of `changes`, each "true" or "false" (tools/ci-changes); iac and publish — EVM-007 AC1, AC2. */
+const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'iac', 'publish'];
 const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
 const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
 const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";

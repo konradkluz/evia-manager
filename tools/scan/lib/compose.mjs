@@ -18,6 +18,7 @@ export const SERVICES = Object.freeze([
   'scan-zizmor',
   'scan-actionlint',
   'renovate-validate',
+  'iac-check',
 ]);
 
 /**
