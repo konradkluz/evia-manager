@@ -170,6 +170,8 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(publishProblems(withPublish(replaceRun('--platform linux/arm64 ', '--platform linux/amd64 ')))).not.toEqual([]);
     expect(publishProblems(withPublish(replaceRun('docker pull --platform linux/arm64 "$ref"', 'docker pull "$ref"')))).not.toEqual([]);
     expect(publishProblems(withPublish(replaceRun(/\[ "\$platform" != linux\/arm64 \]/, '[ -z "$platform" ]')))).not.toEqual([]);
+    // no platform check at all (both removed)
+    expect(publishProblems(withPublish(replaceRun(/\[ "\$platform" != linux\/arm64 \]/g, '[ -z "$platform" ]')))).not.toEqual([]);
     expect(
       publishProblems(
         withPublish((job) => ({
@@ -278,6 +280,8 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(bad('FROM --platform=$BUILDPLATFORM node:', 'FROM --platform=linux/arm64 node:')).not.toEqual([]);
     expect(bad('USER 65532:65532', 'RUN ["node", "--version"]\nUSER 65532:65532')).not.toEqual([]);
     expect(bad('FROM gcr.io/distroless', 'FROM --platform=$BUILDPLATFORM gcr.io/distroless')).not.toEqual([]);
+    // a FROM with a flag but no image (and no stage name) is a base without tag and digest
+    expect(bad('FROM gcr.io/distroless', 'FROM --platform=$BUILDPLATFORM\nFROM gcr.io/distroless')).not.toEqual([]);
     expect(bad('--os=linux --cpu="$cpu" --libc=glibc ', '')).not.toEqual([]);
     expect(bad('arm64) cpu=arm64', 'arm64) cpu=x64')).not.toEqual([]);
   });
