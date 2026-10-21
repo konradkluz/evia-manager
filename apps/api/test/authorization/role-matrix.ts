@@ -68,11 +68,24 @@ const hasPathParameter = (path: string): boolean => /\{[^}]+\}/.test(path);
 const roleMayUseChannel = (role: Role, channel: 'web' | 'mobile'): boolean => !(role === 'read_only' && channel === 'mobile');
 
 /**
- * Operations that belong to the ENROLMENT alone (EVM-023 B1): the manifest names no state, so a session in `active` passes the guard, and the handler
- * refuses it with 403 `forbidden` — an active session can enrol nothing. (The same refusal of an operation with a body comes after the validation of
- * the body, which the matrix leaves empty; this one has no body, so the matrix would see the refusal itself.)
+ * Operations whose handler asks an `active` session for the FULL RE-AUTHENTICATION (EVM-028; the one-time mark of `reauthenticate`): the manifest cannot say
+ * "needs a mark on the session", so the guard lets the session in and the use case refuses it with 403 `reauthentication_required`. (The same refusal of an
+ * operation with a body comes after the validation of the body, which the matrix leaves empty; these have no body, so the matrix would see the refusal itself.
+ * `removePasskey` is not here: the object comes first — a key of somebody else is 404 before the mark is asked for — so its own-object cell is "not 401/403"
+ * only with a key the caller owns, which the matrix has not made.)
  */
-export const ENROLMENT_ONLY_OPERATIONS: readonly string[] = Object.freeze(['startTotpEnrolment']);
+export const REAUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
+  'startTotpEnrolment',
+  'getPasskeyRegistrationOptions',
+  'removeTotp',
+]);
+
+/**
+ * Operations that ask for the fresh window of a step-up in the USE CASE rather than in the guard (EVM-028): the third step of a setup (`generateRecoveryCodes`)
+ * is allowed by a fresh step-up OR by the mark of the full re-authentication, which the guard cannot express. The account of the matrix has no recovery codes,
+ * so the use case answers a caller without a fresh key with 403 `step_up_required`.
+ */
+export const STEP_UP_IN_USE_CASE_OPERATIONS: readonly string[] = Object.freeze(['generateRecoveryCodes']);
 
 export function expectationFor(operationId: string, manifest: AuthzManifest, lists: MatrixLists, caller: Caller): Expectation {
   const operation = manifest[operationId];
@@ -94,9 +107,12 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
     roleMayUseChannel(caller.role, caller.channel);
   if (!entitled) return { outcome: 'denied', status: 403, code: 'forbidden' };
   // SR-SESS-08: after the role (a role that may not call the operation never learns it is protected), only a fresh passkey passes
-  if (authz.stepUp === true && caller.passkey !== 'fresh') return { outcome: 'denied', status: 403, code: 'step_up_required' };
-  if (caller.state === 'active' && ENROLMENT_ONLY_OPERATIONS.includes(operationId))
-    return { outcome: 'denied', status: 403, code: 'forbidden' };
+  if ((authz.stepUp === true || STEP_UP_IN_USE_CASE_OPERATIONS.includes(operationId)) && caller.passkey !== 'fresh') {
+    return { outcome: 'denied', status: 403, code: 'step_up_required' };
+  }
+  if (caller.state === 'active' && REAUTHENTICATION_OPERATIONS.includes(operationId)) {
+    return { outcome: 'denied', status: 403, code: 'reauthentication_required' };
+  }
   return { outcome: 'allowed' };
 }
 

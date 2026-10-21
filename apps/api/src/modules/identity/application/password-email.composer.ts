@@ -8,7 +8,8 @@
  *   made (`newToken`, 256 bits of the CSPRNG), only its SHA-256 is stored (`issued_by: password_reset`, valid 30 minutes FROM THE SENDING), the
  *   audit event `password_reset_link.issued` is written (actor: the system) and the message is composed from the fixed template. The raw token
  *   exists only in memory, in that message, until the mail is handed over; it is in no row, no payload of a job, no log (K5).
- * - `password_changed`: the account must still be `active`; the text names the time of the change and no token.
+ * - `password_changed` (variant `null`: after a reset with a link; `from_account`: after the change on the page of the account, EVM-028): the account must still be `active`;
+ *   the text names the time of the change, what happened to the sessions and no token.
  *
  * The recipient is ALWAYS the address of the account row read here — never a value from a request (CWE-640, CWE-93).
  */
@@ -25,7 +26,7 @@ import type { EventBus, EventContext } from '../../../platform/events/event-bus.
 import { newTraceId } from '../../../platform/http/request-context.ts';
 import { APP_CONFIG, CLOCK, EVENT_BUS } from '../../../platform/tokens.ts';
 import { PASSWORD_RESET_LINK_TTL_MS } from '../domain/constants.ts';
-import { passwordChangedText, passwordResetLink, passwordResetText } from '../domain/email-templates.ts';
+import { PASSWORD_CHANGE_ACCOUNT_VARIANT, passwordChangedText, passwordResetLink, passwordResetText } from '../domain/email-templates.ts';
 import { hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
 import { findUserById, insertResetLink, supersedeOpenResetLinksOfUser, type UserRow } from '../infrastructure/queries.ts';
@@ -90,7 +91,8 @@ export class PasswordEmailComposer implements EmailComposer {
   #changed(user: UserRow, message: OutboxMessage): ComposedEmail {
     const to = parseEmailAddress(user.email);
     if (to === undefined) throw new EmailPermanentError('recipient_rejected');
-    const { subject, text } = passwordChangedText({ panelOrigin: this.#panelOrigin, changedAt: message.createdAt });
+    const source = message.variant === PASSWORD_CHANGE_ACCOUNT_VARIANT ? 'account' : 'reset';
+    const { subject, text } = passwordChangedText({ panelOrigin: this.#panelOrigin, changedAt: message.createdAt, source });
     return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
   }
 }

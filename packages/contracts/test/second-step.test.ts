@@ -79,7 +79,7 @@ describe('the second step of EVM-023 in the contract (SR-AUTH-07, SR-AUTH-08, SR
     expect(schemas['RecoveryCodes']?.properties?.['codes']?.readOnly).toBe(true);
   });
 
-  it('EVM-023 AC8 the endpoints and their authorization: the sign-in codes are public, the setup belongs to the enrolment, the recovery codes need a step-up, every role may use them', () => {
+  it('EVM-023 AC8 the endpoints and their authorization: the sign-in codes are public, the setup belongs to the enrolment, the recovery codes need the mark of the full re-authentication or the window of the setup (EVM-028), every role may use them', () => {
     expect(AUTHZ_MANIFEST['loginTotp']?.authz).toEqual({ public: true });
     expect(AUTHZ_MANIFEST['loginRecoveryCode']?.authz).toEqual({ public: true });
     // the Administrator has no code of the app in the panel (P1): the manifest itself leaves them out, so the guard answers 403 before any handler
@@ -89,7 +89,9 @@ describe('the second step of EVM-023 in the contract (SR-AUTH-07, SR-AUTH-08, SR
         channels: ['web'],
         allowDuringMfaEnrollment: true,
       });
-    expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz).toMatchObject({ channels: ['web'], stepUp: true, audit: true });
+    // EVM-028: the window of the step-up is no longer the guard's — the use case asks for the mark of the re-authentication or, for the third step of a setup, for the window
+    expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz).toMatchObject({ channels: ['web'], audit: true });
+    expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz.stepUp).toBeUndefined();
     expect(AUTHZ_MANIFEST['generateRecoveryCodes']?.authz.allowDuringMfaEnrollment).toBeUndefined();
     expect(AUTHZ_MANIFEST['stepUp']?.authz.roles).toEqual(['administrator', 'editor', 'read_only']);
   });

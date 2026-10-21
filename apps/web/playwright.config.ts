@@ -46,6 +46,7 @@ const uxReviewDirDeletion = fileURLToPath(new URL('../../docs/ux/reviews/EVM-060
 const uxReviewDirReset = fileURLToPath(new URL('../../docs/ux/reviews/EVM-025/', import.meta.url));
 const uxReviewDirCodes = fileURLToPath(new URL('../../docs/ux/reviews/EVM-023/', import.meta.url));
 const uxReviewDirAccess = fileURLToPath(new URL('../../docs/ux/reviews/EVM-027/', import.meta.url));
+const uxReviewDirAccount = fileURLToPath(new URL('../../docs/ux/reviews/EVM-028/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -99,6 +100,7 @@ export default defineConfig({
         uxReviewDirReset,
         uxReviewDirCodes,
         uxReviewDirAccess,
+        uxReviewDirAccount,
       },
     },
   ],

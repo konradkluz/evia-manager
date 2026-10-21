@@ -16,7 +16,14 @@ import 'reflect-metadata';
 import type { Writable } from 'node:stream';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.ts';
-import { InvitationEmailComposer, MfaEmailComposer, PasswordEmailComposer } from '../modules/identity/index.ts';
+import {
+  InvitationEmailComposer,
+  LoginSecurityEmailComposer,
+  MfaEmailComposer,
+  PasswordEmailComposer,
+  PurgeLoginSecurityJob,
+  PurgeSessionsJob,
+} from '../modules/identity/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import type { Kysely } from 'kysely';
@@ -69,6 +76,8 @@ export async function runWorkerFromProcess(
     const jobs: JobDefinition[] = [
       app.get(VerifyProjectionJob, { strict: false }).definition(),
       app.get(PurgeIdempotencyJob, { strict: false }).definition(),
+      app.get(PurgeLoginSecurityJob, { strict: false }).definition(),
+      app.get(PurgeSessionsJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });
@@ -80,6 +89,7 @@ export async function runWorkerFromProcess(
         app.get(InvitationEmailComposer, { strict: false }),
         app.get(PasswordEmailComposer, { strict: false }),
         app.get(MfaEmailComposer, { strict: false }),
+        app.get(LoginSecurityEmailComposer, { strict: false }),
       ];
       jobs.push(new SendEmailJob({ db, clock, logger, sender, composers }).definition());
       const relay = new EmailRelay(db, queue, clock, logger);

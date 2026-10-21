@@ -224,10 +224,13 @@ describe('the first step succeeds (EVM-067 AC1, AC4; SR-AUTH-06, SR-AUTH-09)', (
       'expires_at',
       'failed_attempts',
       'id',
+      'throttle_key',
       'token_hash',
       'used_at',
       'user_id',
     ]);
+    // EVM-026: the second step counts its failures in the scope the first step was counted in (an HMAC, never the address)
+    expect(attempt?.throttle_key?.length).toBe(32);
     expect(current.logs.text).not.toContain(body.loginToken);
   });
 
@@ -273,8 +276,12 @@ describe('limit of attempts from one address (EVM-067 AC3; SR-AUTH-05, SR-API-02
       ['unknown', 'nobody@evia.invalid'],
     ] as const) {
       current.clock.advance(61_000);
+      // twenty different addresses: the limit of the ADDRESS is under test, not the lock of one account (EVM-026)
       for (let attempt = 1; attempt <= 20; attempt += 1) {
-        expect((await firstStep(current.panel(), email, 'Wrong-pass-0000-x')).status, `${label} ${attempt}`).toBe(401);
+        expect(
+          (await firstStep(current.panel(), `${label}-${attempt}@evia.invalid`, 'Wrong-pass-0000-x')).status,
+          `${label} ${attempt}`,
+        ).toBe(401);
       }
       answers[label] = await firstStep(current.panel(), email, 'Wrong-pass-0000-x');
     }
@@ -313,7 +320,7 @@ describe('limit of attempts from one address (EVM-067 AC3; SR-AUTH-05, SR-API-02
       const response = await request(server())
         .post(LOGIN.login)
         .set({ Origin: PANEL_ORIGIN, 'Sec-Fetch-Site': 'same-origin', 'X-Forwarded-For': `203.0.113.${attempt}` })
-        .send({ email: known.email, password: 'Wrong-pass-0000-x' });
+        .send({ email: `forged-${attempt}@evia.invalid`, password: 'Wrong-pass-0000-x' });
       expect(response.status).toBe(401);
     }
     const spoofed = await request(server())

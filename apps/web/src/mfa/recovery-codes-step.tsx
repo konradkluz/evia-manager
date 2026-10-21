@@ -1,20 +1,17 @@
 import { generateRecoveryCodes } from '@evia/contracts';
-import { Banner, Button, Card, Checkbox, FieldError, InlineAlert, Info, Skeleton, TriangleAlert } from '@evia/ui-web';
+import { Banner, Button, InlineAlert, Info, Skeleton } from '@evia/ui-web';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type Ref } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
 import { useStepUp } from '../session/step-up-context.tsx';
+import { RecoveryCodesView } from './recovery-codes-view.tsx';
 
 type Failure = 'failed' | 'cancelled' | 'unavailable';
-type Copy = 'idle' | 'copied' | 'failed';
 
 /** Thrown when the person cancels the confirmation of identity that the generation asked for. */
 class StepUpCancelled extends Error {}
-
-/** The code in groups of five (easier to write down); spaces and hyphens do not matter at the login. */
-const grouped = (code: string): string => code.replace(/(.{5})(?=.)/g, '$1 ');
 
 /**
  * W-03 step 3, "Kody odzyskiwania" (EVM-023 AC4; SR-AUTH-08): ten codes of 20 characters, shown once (there is no operation that
@@ -42,9 +39,6 @@ export function RecoveryCodesStep({
   const client = useApi();
   const requestStepUp = useStepUp();
   const [codes, setCodes] = useState<readonly string[] | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [unsaved, setUnsaved] = useState(false);
-  const [copy, setCopy] = useState<Copy>('idle');
 
   const generate = useMutation({
     gcTime: 0,
@@ -81,20 +75,7 @@ export function RecoveryCodesStep({
         ? 'unavailable'
         : 'failed';
 
-  const copyCodes = async () => {
-    try {
-      await globalThis.navigator.clipboard.writeText((codes ?? []).join('\n'));
-      setCopy('copied');
-    } catch {
-      setCopy('failed');
-    }
-  };
-
   const finish = () => {
-    if (!saved) {
-      setUnsaved(true);
-      return;
-    }
     // Nothing of the codes stays after the step.
     setCodes(null);
     onFinish();
@@ -141,62 +122,23 @@ export function RecoveryCodesStep({
         </div>
       ) : null}
       {codes === null ? null : (
-        <>
-          <Card>
-            <ul aria-label={t('mfa.codes.list')} className="grid grid-cols-1 gap-stack-sm medium:grid-cols-2">
-              {codes.map((code) => (
-                <li key={code} className="font-mono text-mono text-text-primary">
-                  {grouped(code)}
-                </li>
-              ))}
-            </ul>
-          </Card>
-          <div className="flex flex-wrap items-center gap-inline-md">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                void copyCodes();
-              }}
-            >
-              {t('mfa.codes.copy')}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                globalThis.print();
-              }}
-            >
-              {t('mfa.codes.print')}
-            </Button>
-          </div>
-          {copy === 'copied' ? (
-            <p role="status" className="text-body-sm text-text-secondary">
-              {t('mfa.codes.copied')}
-            </p>
-          ) : null}
-          {copy === 'failed' ? <FieldError>{t('mfa.codes.copyFailed')}</FieldError> : null}
-          <Banner icon={TriangleAlert}>{t('mfa.codes.warning')}</Banner>
-          <p className="text-body">{variant === 'passkey' ? t('mfa.codes.methodsPasskey') : t('mfa.codes.methodsTotp')}</p>
-          {variant === 'passkey' && role !== 'read_only' ? (
-            <Banner icon={Info} tone="info">
-              {t('mfa.codes.phone')}
-            </Banner>
-          ) : null}
-          <Checkbox
-            label={t('mfa.codes.saved')}
-            checked={saved}
-            onChange={(value) => {
-              setSaved(value);
-              if (value) setUnsaved(false);
-            }}
-          />
-          {unsaved ? <FieldError>{t('mfa.codes.savedRequired')}</FieldError> : null}
-          <div>
-            <Button size="lg" disabled={!online} onClick={finish}>
-              {t('mfa.codes.finish')}
-            </Button>
-          </div>
-        </>
+        <RecoveryCodesView
+          codes={codes}
+          finishLabel={t('mfa.codes.finish')}
+          finishSize="lg"
+          online={online}
+          extra={
+            <>
+              <p className="text-body">{variant === 'passkey' ? t('mfa.codes.methodsPasskey') : t('mfa.codes.methodsTotp')}</p>
+              {variant === 'passkey' && role !== 'read_only' ? (
+                <Banner icon={Info} tone="info">
+                  {t('mfa.codes.phone')}
+                </Banner>
+              ) : null}
+            </>
+          }
+          onFinish={finish}
+        />
       )}
     </section>
   );

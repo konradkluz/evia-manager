@@ -92,6 +92,10 @@ describe('the second step creates the session (EVM-067 AC1, AC7; SR-SESS-01, SR-
       expect.stringMatching(
         /^__Host-evia_session=[A-Za-z0-9_-]{43}; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=43200$/,
       ) as unknown,
+      // EVM-026 AC5: a FULL sign-in also gives the cookie of the browser (rotated at every one)
+      expect.stringMatching(
+        /^__Host-evia_device=[A-Za-z0-9_-]{43}; Path=\/; Secure; HttpOnly; SameSite=Strict; Max-Age=2592000$/,
+      ) as unknown,
     ]);
     expect(response.headers['cache-control']).toBe('no-store');
     adopt(account.panel, response);

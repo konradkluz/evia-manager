@@ -55,8 +55,8 @@ const expiredAudit = async () =>
       reason_code: string;
     }>`select session_id, actor_user_id, reason_code from audit.events where action = 'session.expired'`.execute(current.database.admin)
   ).rows;
-/** An activity of the session that is not passive: asking for the options of a key (any role, any state). */
-const activity = (panel: PanelClient) => panel.post(PATHS.options);
+/** An activity of the session that is not passive: the read of the own account (any role; the session is `active`). */
+const activity = (panel: PanelClient) => panel.get('/api/v1/account');
 const at$ = (time: string): void => {
   current.clock.set(at(time));
 };

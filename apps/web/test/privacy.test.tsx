@@ -35,7 +35,7 @@ describe('W-19 in the panel (EVM-063 AC1, AC5)', () => {
     await renderPanel('/work-orders');
     await user.click(screen.getByRole('button', { name: 'Konto: Anna Testowa' }));
     const items = screen.getAllByRole('menuitem').map((item) => item.textContent);
-    expect(items).toEqual(['Prywatność i pomoc', 'Wyloguj']);
+    expect(items).toEqual(['Konto', 'Prywatność i pomoc', 'Wyloguj']);
     await user.click(screen.getByRole('menuitem', { name: 'Prywatność i pomoc' }));
     const heading = await screen.findByRole('heading', { level: 1, name: 'Prywatność i pomoc' });
     expect(document.title).toBe('Prywatność i pomoc · EVia Manager');

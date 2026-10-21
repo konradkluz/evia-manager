@@ -13,6 +13,7 @@ import {
   IconButton,
   Mail,
   Send,
+  TextLink,
   TimerOff,
   type DataTableColumn,
   type DataTableRow,
@@ -20,6 +21,8 @@ import {
 } from '@evia/ui-web';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
+import { ACCOUNT_PATH } from '../paths.ts';
+import { RouterLink } from '../shell/router-link.tsx';
 import { formatClock, formatDate } from '../work-orders/format.ts';
 import { operationsOf, type AccountOperation } from './account-operations.ts';
 import { roleLabel, statusLabel } from './labels.ts';
@@ -140,6 +143,14 @@ export function UsersTable({ users, selfId, online, now, onResend, onOperation, 
             {self ? `${user.displayName} ${t('users.table.you')}` : user.displayName}
           </span>
           <span className="wide:hidden text-text-secondary wrap-anywhere">{user.email}</span>
+          {/* The own row has no menu: what an Administrator may look for in it is in the account (flows/12 → "Własny wiersz"). */}
+          {self ? (
+            <span>
+              <TextLink href={ACCOUNT_PATH} link={RouterLink}>
+                {t('users.table.toAccount')}
+              </TextLink>
+            </span>
+          ) : null}
         </span>,
         <span key="email" className="wrap-anywhere">
           {user.email}

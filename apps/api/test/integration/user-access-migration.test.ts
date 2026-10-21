@@ -54,7 +54,7 @@ beforeAll(async () => {
   );
   await passkey(earliest, '2026-09-05T08:00:00Z');
   await sql`update identity.users set last_login_at = '2026-09-04T08:00:00Z' where id = ${earliest.id}`.execute(db);
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0039_user_access_management']);
+  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0039_user_access_management', '0040_login_throttle', '0041_account']);
 });
 afterAll(async () => {
   await db.destroy();

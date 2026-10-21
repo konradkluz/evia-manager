@@ -94,6 +94,7 @@ export function LoginPage() {
           {t('login.title')}
         </h1>
         {notice === 'expired' ? <InlineAlert tone="info">{t('login.expired')}</InlineAlert> : null}
+        {notice === 'attempts' ? <InlineAlert tone="info">{t('login.attempts')}</InlineAlert> : null}
         {failure === null ? null : <LoginFailureAlert failure={failure} alertRef={alert} />}
         {online ? null : <Banner icon={WifiOff}>{t('login.offline')}</Banner>}
         <form onSubmit={onSubmit} className="flex flex-col gap-stack-md">

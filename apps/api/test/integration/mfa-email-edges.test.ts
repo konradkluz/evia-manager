@@ -49,7 +49,7 @@ describe('the worker and the messages about the second step (EVM-023 AC5, AC6; S
       email: 'ewa.aktywna@example.com',
     });
     const harness = emailHarness(current);
-    const ids = [await queue('mfa_changed', null, account.id), await queue('mfa_changed', 'passkey_removed', account.id)];
+    const ids = [await queue('mfa_changed', null, account.id), await queue('mfa_changed', 'made_up_change', account.id)];
     await harness.job.run({ ids });
     expect((await outboxRows(current, { recipient: account.id })).map((row) => row.state)).toEqual(['failed', 'failed']);
     expect(harness.sender.sent).toEqual([]);
