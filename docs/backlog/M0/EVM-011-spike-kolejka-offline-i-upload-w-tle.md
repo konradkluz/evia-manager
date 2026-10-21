@@ -4,7 +4,7 @@ title: "Spike: kolejka offline i upload w tle"
 type: spike
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 owner: mobile-developer
 contributors: []
@@ -51,15 +51,15 @@ Tylko dane testowe; storage testowy prywatny; żadnych sekretów w kodzie spike'
 Scenariusze Androida na emulatorze na Windows i na fizycznym telefonie (ADR-0015). iOS odłożony — prototyp nie musi działać na iOS; wnioski w AC4 jawnie oznaczają, które dotyczą tylko Androida.
 
 ## Plan techniczny
-Spike poza workspace'em repozytorium: `spikes/offline-upload/` (własny `pnpm-workspace.yaml` i lockfile). Rdzeń protokołu w czystym TypeScript (`core/`, TDD, testy `EVM-011 AC#`), url-issuer i skrypty w Node (`host/`), SeaweedFS 4.48 przypięty po digeście (`infra/`), aplikacja Expo + własny moduł Kotlin z zadaniami UIDT (`app/`). Decyzja 2a/2b: biblioteka `@kesha-antonov/react-native-background-downloader` 4.6.3 nie spełnia strategii ADR-0007 na Androidzie (przegląd kodu) → własny moduł. Scenariusze na emulatorze API 35 (airplane, `force-stop`, `kill -9`, restart z PIN-em, 512 MiB, tło > 10 min). Szczegóły, wyniki i instrukcja dla Konrada (telefon: AC2/AC5): [raport](../../spikes/EVM-011-kolejka-offline-i-upload-w-tle.md); wnioski: [`media-pipeline.md`](../../architecture/media-pipeline.md), [`offline-sync.md`](../../architecture/offline-sync.md); propozycja zmiany ADR: [ADR-0020](../../architecture/adr/0020-android-upload-w-tle-wlasny-modul-expo.md) (Proponowana).
+Spike poza workspace'em repozytorium: `spikes/offline-upload/` (własny `pnpm-workspace.yaml` i lockfile). Rdzeń protokołu w czystym TypeScript (`core/`, TDD, testy `EVM-011 AC#`), url-issuer i skrypty w Node (`host/`), SeaweedFS 4.48 przypięty po digeście (`infra/`), aplikacja Expo + własny moduł Kotlin z zadaniami UIDT (`app/`). Decyzja 2a/2b: biblioteka `@kesha-antonov/react-native-background-downloader` 4.6.3 nie spełnia strategii ADR-0007 na Androidzie (przegląd kodu) → własny moduł. Scenariusze na emulatorze API 35 (airplane, `force-stop`, `kill -9`, restart z PIN-em, 512 MiB, tło > 10 min). Szczegóły, wyniki i instrukcja dla Konrada (telefon: AC2/AC5): [raport](../../spikes/EVM-011-kolejka-offline-i-upload-w-tle.md); wnioski: [`media-pipeline.md`](../../architecture/media-pipeline.md), [`offline-sync.md`](../../architecture/offline-sync.md); zmiana ADR: [ADR-0020](../../architecture/adr/0020-android-upload-w-tle-wlasny-modul-expo.md) (Zaakceptowana 2026-10-21).
 
 ## Decyzje
 - **2026-10-20 (Konrad):** noc: scenariusze na emulatorze Android (`Medium_Phone_API_35`, Maestro 2.11.0) i storage zgodny z S3 uruchamiany lokalnie; scenariusze wymagające fizycznego telefonu (AC2 część „telefon”, AC5) zostają do ręcznej weryfikacji Konrada — historyjka kończy nocą w `in-review`, nie `done`; raport oznacza jawnie, co zmierzono tylko na emulatorze.
 - Ścieżka `pelna` (dwóch recenzentów, upload plików), model `sonnet`.
 
 ## Notatki (uwagi nieblokujące z przeglądów)
-- **Dowody tylko z emulatora (API 35):** tryb oszczędzania (`deviceidle force-idle`) wymuszono 1 s po starcie zadania — nie sprawdzono zadania startującego w trakcie idle/restricted (telefon, krok 6c instrukcji); pliki scenariuszy rozmiarowych i film ≥ 500 MB są syntetyczne, nie z kamery; bateria, Wi-Fi ↔ LTE, restart telefonu i Android ≤ 13 — tylko telefon.
-- **Przed M2 (ADR-0020, Proponowana):** uwierzytelnianie natywnego workera bez JS (statyczny token testowy jest niedopuszczalny produkcyjnie — decyzja przed M2); nowy kod błędu `409 completed_object_mismatch` do kontraktu OpenAPI; `expo-camera` 58 dołącza ML Kit (`MlKitInitProvider`, `firebase-*`) — telemetria niezbadana (ruch sieciowy albo `react-native-vision-camera`).
+- **Dowody: emulator API 35 i jeden telefon z Androidem 13 (scenariusz samolotowy, 2026-10-21):** tryb oszczędzania (`deviceidle force-idle`) wymuszono 1 s po starcie zadania — nie sprawdzono zadania startującego w trakcie idle/restricted; pliki scenariuszy rozmiarowych i film ≥ 500 MB są syntetyczne, nie z kamery; na telefonie niezrobione: Wi-Fi ↔ LTE w trakcie wysyłki, restart, tło > 10 min, bateria, wysyłka wieloczęściowa i UIDT na Androidzie 14+ (Android 13 użył wariantu zastępczego).
+- **Przed M2 (ADR-0020, Zaakceptowana 2026-10-21):** aktualizacja ADR-0014 (bramki Kotlin) i `docs/process/testing-strategy.md` (próg pokrycia modułu Kotlin); uwierzytelnianie natywnego workera bez JS (statyczny token testowy jest niedopuszczalny produkcyjnie — decyzja przed M2); nowy kod błędu `409 completed_object_mismatch` do kontraktu OpenAPI; `expo-camera` 58 dołącza ML Kit (`MlKitInitProvider`, `firebase-*`) — telemetria niezbadana (ruch sieciowy albo `react-native-vision-camera`).
 - **Zależności spike'a:** Renovate nie obejmuje `spikes/**` (jest wyłączony, RR-21 Q1); OSV na lockfile spike'a: `braces`, `node-forge`, `uuid` (narzędzia budowania, poza APK) — do decyzji Konrada: `ignorePaths: ["spikes/**"]` albo usunięcie spike'a po decyzji o ADR-0020.
 - **Proces:** po rundzie 2 (APPROVE) mobile-developer domknął 3 uwagi minor/nit bez ponownego przeglądu (UTF-8 w tytule testu, `complete()` ukończonego uploadu nie kasuje obiektu ani mapowania, wiersz pytania 7(b)) — commit 9eff742; weryfikacja orkiestratora: `core` 33/33, `host` 20/20 względem SeaweedFS.
 
@@ -67,9 +67,9 @@ Spike poza workspace'em repozytorium: `spikes/offline-upload/` (własny `pnpm-wo
 _—_
 
 ## Definition of Done
-- [ ] AC1–AC4 spełnione; AC5 potwierdzone przez Konrada — AC1–AC4 ✔ (QA PASS, emulator API 35); AC5 i część „telefon” AC2 czekają na Konrada
+- [x] AC1–AC4 spełnione; AC5 potwierdzone przez Konrada — AC1–AC4 ✔ (QA PASS, emulator API 35); AC5 potwierdzony na telefonie z Androidem 13 (2026-10-21)
 - [x] Przeglądy: solution-architect, security-engineer — APPROVE (runda 2)
-- [ ] Decyzja Konrada: kontynuujemy z podejściem z ADR / zmieniamy ADR — ADR-0020 (Proponowana) czeka na akceptację
+- [x] Decyzja Konrada: kontynuujemy z podejściem z ADR / zmieniamy ADR — ADR-0020 zaakceptowana 2026-10-21 (zmieniamy ADR-0007 dla Androida)
 
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
@@ -84,3 +84,5 @@ _—_
 - 2026-10-21 — weryfikacja orkiestratora: spike `core` 33/33 i `host` 20/20 względem SeaweedFS (compose up/down); `pnpm run gate` zielony w jednym przebiegu (start na HEAD 841e6c3, zmiany tools/scan fea00b4 i 3f9afaa przetestowane osobno: `npm run test:tools` 634/638 pass, 0 fail, `pnpm --filter @evia/scan run test:coverage` 53/53, `node tools/scan/cli.mjs licenses` ZIELONY, i wliczone do `coverage:diff` tego przebiegu): etap natywny 56 zadań, parytet Linux 17 zadań, testy integracyjne 130 plików / 1835 testów, `coverage:diff` zmienionego kodu — linie 98,9% (2419/2445), gałęzie 95,0% (995/1047); `docs:check` 0 błędów
 - 2026-10-21 — in-progress → in-review: AC1–AC4 zweryfikowane na emulatorze; AC5, część „telefon” AC2 (instrukcja i SHA-256 APK w raporcie) oraz akceptacja ADR-0020 czekają na Konrada; historyjka nie przechodzi w `done` do czasu wyniku z telefonu
 - 2026-10-21 — demo zaakceptowane przez Konrada (kolejka B); ADR-0020 zostaje „Proponowana” do wyniku z telefonu; AC5 i część „telefon” AC2 czekają na Konrada (instrukcja w raporcie)
+- 2026-10-21 — test na fizycznym telefonie (Konrad, z asystą orkiestratora): Samsung SM-G781B, Android 13; dwa podejścia, 14 plików (11 zdjęć, 3 filmy), 14 × `uploaded`, 0 ponowień, `count-duplicates` 0 duplikatów i 0 osieroconych multipart, `verify-integrity` 14/14 zgodne SHA-256; w trybie samolotowym 3 zdjęcia i film czekały 11,6–18,5 s i dotarły po powrocie sieci; wynik i granice w raporcie („Wynik na telefonie”); aplikacja odinstalowana, serwisy testowe i klucze usunięte
+- 2026-10-21 — AC5 potwierdzony przez Konrada; ADR-0020 zaakceptowana (zmiana ADR-0007 dla Androida: własny moduł Kotlin zamiast biblioteki) → in-review → done

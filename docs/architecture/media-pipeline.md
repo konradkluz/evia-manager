@@ -71,7 +71,7 @@ Szczegółowe liczby i pliki wyników: [raport spike'a](../spikes/EVM-011-kolejk
 - **Tylko HTTPS w produkcji.** Wariant spike ma wyjątek `cleartext` wyłącznie dla `10.0.2.2`, `127.0.0.1` i `localhost` (nie dla produkcji i nie dla techników).
 
 ## 8. Rekomendacje dla M2 (Android)
-1. **Własny moduł Expo (Kotlin) zamiast biblioteki społeczności** dla uploadu: biblioteka z ADR-0007 (`@kesha-antonov/react-native-background-downloader` 4.6.3) wysyła na Androidzie cały plik jednym żądaniem z wątku w procesie (bez zakresów bajtów, bez UIDT/WorkManager; „wznowienie” startuje od początku). Szczegóły i propozycja zmiany ADR: [ADR-0020](adr/0020-android-upload-w-tle-wlasny-modul-expo.md) (Proponowana).
+1. **Własny moduł Expo (Kotlin) zamiast biblioteki społeczności** dla uploadu: biblioteka z ADR-0007 (`@kesha-antonov/react-native-background-downloader` 4.6.3) wysyła na Androidzie cały plik jednym żądaniem z wątku w procesie (bez zakresów bajtów, bez UIDT/WorkManager; „wznowienie” startuje od początku). Szczegóły i decyzja: [ADR-0020](adr/0020-android-upload-w-tle-wlasny-modul-expo.md) (Zaakceptowana, 2026-10-21).
 2. Jedno zadanie UIDT na plik, **planowane przy akcji użytkownika** i ponownie przy starcie aplikacji (`ensureScheduled`), `setPersisted(true)`; w UI jawny stan „wstrzymane — otwórz aplikację” po `force-stop`.
 3. `assetId` na urządzeniu, klucz i `uploadId` po stronie serwera, **sesja i `complete` idempotentne**, `ListParts` jako źródło prawdy, obsługa `403` jako odnowy URL-a.
 4. SHA-256 natywnie, jednorazowo przy zapisie pliku; deduplikacja po SHA-256 wyłącznie w obrębie sesji lub assetu (między użytkownikami byłaby wyrocznią istnienia pliku).
