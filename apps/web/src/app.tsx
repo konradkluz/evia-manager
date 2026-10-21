@@ -26,7 +26,14 @@ export interface AppProps {
 }
 
 /** A credential the server did not accept (a key, a code of the app, a recovery code) is not a lost session: it leaves the session as it is. */
-const REJECTED_CREDENTIAL = new Set(['passkey_failed', 'totp_failed', 'recovery_code_failed']);
+const REJECTED_CREDENTIAL = new Set([
+  'passkey_failed',
+  'totp_failed',
+  'recovery_code_failed',
+  // EVM-028: the full re-authentication (`reauthentication_failed`) and the current password of a change of the password (`invalid_credentials`).
+  'reauthentication_failed',
+  'invalid_credentials',
+]);
 
 /** A 401 that ends the session (not a rejected credential of the second step or of the step-up). */
 const isUnauthorized = (error: unknown): boolean =>
