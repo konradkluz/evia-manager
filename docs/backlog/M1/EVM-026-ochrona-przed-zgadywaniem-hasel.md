@@ -4,7 +4,7 @@ title: Ochrona przed zgadywaniem haseł i powiadomienia o bezpieczeństwie konta
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -143,3 +143,4 @@ _Uzupełnia wykonawca przed implementacją._
 - 2026-10-20 — runda 2 (węższa): wszyscy APPROVE; bramka orkiestratora zielona (gate: 1900 testów integracji; coverage:diff 348/348 linii, 185/191 gałęzi; docs:check 0). Status in-review; demo razem z EVM-028 (jedna gałąź)
 - 2026-10-21 — Koszt kolejki A (EVM-026 + EVM-028): brak rozbicia w dolarach (nie odczytane z /usage; do uzupełnienia z /cost); subagenci workflow w zachowanych licznikach ok. 2,65 mln tokenów (EVM-026 przebieg wstępny 0,74 mln; EVM-028 przerwany limitem sesji 0,90 mln i wznowiony 1,01 mln), 18 agentów, 899 wywołań narzędzi, rundy poprawek: EVM-026 2, EVM-028 1; bez liczników przebiegów poprawek EVM-026 i bez bramek orkiestratora; ścieżka pelna; sonnet; pliki historyjek 15,7 KB (EVM-026) i 11,2 KB (EVM-028) przed uzupełnieniem; vs baseline: brak danych
 - 2026-10-21 — demo zaakceptowane przez Konrada (kolejka A, razem z EVM-028): zawężenie AC3 (blokada kończy otwarty `loginToken` tylko zablokowanego zakresu) i ryzyka RR-28…RR-31 zaakceptowane; PR #86; naprawa OSV (`vite`) — wspólny commit w gałęziach obu kolejek (decyzja Konrada)
+- 2026-10-21 — in-review → done: PR #86 scalony przez Konrada (Squash and merge, commit 574541a na main)

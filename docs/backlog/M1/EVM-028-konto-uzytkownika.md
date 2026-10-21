@@ -4,7 +4,7 @@ title: Konto — profil, hasło, drugi krok logowania i moje sesje
 type: story
 milestone: M1
 epic: E1 Dostęp i użytkownicy
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -132,3 +132,4 @@ _—_
 - 2026-10-21 — weryfikacja orkiestratora: `pnpm run gate` etapami na HEAD kodu (1cd5cbd): natywny (format, lint, typy, testy z progami, granice modułów) zielony; parytet Linux (`gate:backend`) zielony; testy integracyjne z PostgreSQL 143 pliki / 1985 testów zielone; `coverage:diff` zielony — zmieniony kod: linie 94,7% (1289/1361), gałęzie 91,6% (855/933); `docs:check` 0 błędów; `web-e2e-linux` (po poprawce UX) 1169 przeszło, 0 błędów. Przebiegi, które padły losowo lub z obciążenia (2 testy `ui-web` z limitem 5 s, `work-orders-create` przez losowy `traceId`, `worker-email` z limitem czasu), nie powtórzyły się — zob. „Notatki”
 - 2026-10-21 — in-progress → in-review: demo razem z EVM-026 (decyzja 3 — drugi klucz dostępu Administratora; jedna gałąź, jeden PR); naprawa vite (OSV) osobno — zob. „Decyzje”
 - 2026-10-21 — demo zaakceptowane przez Konrada (razem z EVM-026): decyzja 3 (drugi klucz dostępu Administratora) potwierdzona; bump `vite` 8.3.2 → 8.3.4 jako osobny commit w tej gałęzi (decyzja Konrada), PR #86
+- 2026-10-21 — in-review → done: PR #86 scalony przez Konrada (Squash and merge, commit 574541a na main)
