@@ -1,6 +1,55 @@
 {
-  "_comment": "Reviewed licenses of optional platform binaries that are in pnpm-lock.yaml but not installed in the Linux container, so Trivy has no license for them (EVM-016, SR-SUPPLY-06). Each entry is one exact name@version, must be a lockfile package with os/cpu; expires <= 90 days after verified; owner: devops-engineer. Source: npm registry metadata (npm view <name>@<version> license).",
+  "_comment": "Reviewed licenses of optional platform binaries that are in pnpm-lock.yaml but not installed in the Linux container, so Trivy has no license for them (EVM-016, SR-SUPPLY-06). Each entry is one exact name@version, must be a lockfile package with os/cpu or one whose every snapshot is optional: true (EVM-009: wasm32 fallback packages); expires <= 90 days after verified; owner: devops-engineer. Source: npm registry metadata (npm view <name>@<version> license).",
   "entries": [
+    {
+      "name": "@emnapi/core",
+      "version": "1.10.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@emnapi/runtime",
+      "version": "1.10.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@emnapi/wasi-threads",
+      "version": "1.2.1",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@expo/modules-macros-linux-arm64",
+      "version": "0.21.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@expo/modules-macros-win32-arm64",
+      "version": "0.21.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@expo/modules-macros-win32-x64",
+      "version": "0.21.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@napi-rs/wasm-runtime",
+      "version": "1.2.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
     {
       "name": "@node-rs/argon2-android-arm-eabi",
       "version": "2.2.1",
@@ -84,6 +133,356 @@
       "license": "MIT",
       "verified": "2026-10-06",
       "expires": "2027-01-04"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-darwin-arm64",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-darwin-x64",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-linux-arm64-gnu",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-linux-arm64-musl",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-linux-x64-musl",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-win32-arm64-msvc",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@noxcturnal/noxcturnal-win32-x64-msvc",
+      "version": "0.1.5",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-android-arm64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-darwin-arm64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-darwin-x64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-freebsd-x64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-linux-arm-glibc",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-linux-arm-musl",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-linux-arm64-glibc",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-linux-arm64-musl",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-linux-x64-musl",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-win32-arm64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@parcel/watcher-win32-x64",
+      "version": "2.6.0",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@tybys/wasm-util",
+      "version": "0.10.4",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-android-arm-eabi",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-android-arm64",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-darwin-arm64",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-darwin-x64",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-freebsd-x64",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-arm-gnueabihf",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-arm-musleabihf",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-arm64-gnu",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-arm64-musl",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-loong64-gnu",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-loong64-musl",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-ppc64-gnu",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-riscv64-gnu",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-riscv64-musl",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-s390x-gnu",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-linux-x64-musl",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-openharmony-arm64",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-wasm32-wasi",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-win32-arm64-msvc",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-win32-ia32-msvc",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "@unrs/resolver-binding-win32-x64-msvc",
+      "version": "1.12.2",
+      "license": "MIT",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-android-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-darwin-arm64",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-darwin-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-freebsd-x64",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-linux-arm-gnueabihf",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-linux-arm64-gnu",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-linux-arm64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-linux-x64-musl",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-win32-arm64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
+    },
+    {
+      "name": "lightningcss-win32-x64-msvc",
+      "version": "1.33.0",
+      "license": "MPL-2.0",
+      "verified": "2026-10-21",
+      "expires": "2027-01-19"
     }
   ]
 }

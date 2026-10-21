@@ -148,8 +148,8 @@ export function trivyConfigVerdict(report) {
  * license finding for such a package, so it is judged from the package list). The scan must have read a pnpm lockfile
  * with packages. Exceptions: only .trivyignore.yaml → licenses (by license name, with expired_at) — Trivy cannot bind a
  * license exception to a package, so an unknown license has no exception; such a dependency needs a story.
- * Single exception to "unknown": optional platform packages (os/cpu in the lockfile) that the Linux container does not
- * install — their license is taken from the reviewed, expiring list tools/scan/platform-licenses.json (EVM-016).
+ * Single exception to "unknown": optional platform packages (os/cpu in the lockfile, or packages whose every snapshot is
+ * `optional: true` — EVM-009) that the Linux container does not install — their license is taken from the reviewed, expiring list tools/scan/platform-licenses.json (EVM-016).
  * @param {unknown} report
  * @param {LicenseOptions} [options]
  * @returns {Verdict}
@@ -196,9 +196,9 @@ export function trivyLicenseVerdict(report, options = {}) {
  */
 
 /**
- * Reviewed licenses (tools/scan/platform-licenses.json) of optional platform packages (lockfile entry with os/cpu):
+ * Reviewed licenses (tools/scan/platform-licenses.json) of optional platform packages (lockfile entry with os/cpu, or only optional snapshots):
  * Trivy has no license for them, because only the host platform is installed. One entry = one exact name@version,
- * valid up to its `expires` date; a package that is not platform-specific in the lockfile never gets an entry applied.
+ * valid up to its `expires` date; a package that is neither platform-specific nor optional-only in the lockfile never gets an entry applied.
  * @param {LicenseOptions} options
  * @returns {Map<string, string>} name@version → reviewed license
  */
@@ -215,25 +215,41 @@ function reviewedPlatformLicenses(options) {
 }
 
 /**
- * Packages of the `packages:` section of pnpm-lock.yaml that declare `os:` or `cpu:` (line-based, no YAML dependency).
+ * Optional packages of a pnpm lockfile (line-based, no YAML dependency): packages of the `packages:` section that
+ * declare `os:` or `cpu:`, and packages (EVM-009) whose every entry of the `snapshots:` section is `optional: true`
+ * (reachable only through optional platform packages, e.g. the wasm32 fallback). Snapshot keys are compared by
+ * name@version, without the peer-dependency suffix `(...)`; one snapshot without `optional: true` disqualifies the package.
  * @param {string} lockfile
  * @returns {Set<string>} name@version
  */
 function platformPackages(lockfile) {
   /** @type {Set<string>} */
   const found = new Set();
-  let inPackages = false;
+  /** @type {Map<string, boolean>} name@version → every snapshot so far is optional */
+  const snapshots = new Map();
+  let section = '';
   let current = '';
+  let currentOptional = false;
+  const closeSnapshot = () => {
+    if (section === 'snapshots' && current !== '') snapshots.set(current, (snapshots.get(current) ?? true) && currentOptional);
+    current = '';
+    currentOptional = false;
+  };
   for (const line of lockfile.split(/\r?\n/)) {
     if (/^\S/.test(line)) {
-      inPackages = line.startsWith('packages:');
-      current = '';
-    } else if (inPackages) {
+      closeSnapshot();
+      section = line.startsWith('packages:') ? 'packages' : line.startsWith('snapshots:') ? 'snapshots' : '';
+    } else if (section !== '') {
       const key = /^ {2}'?([^'\s][^']*?)'?:\s*$/.exec(line);
-      if (key !== null) current = key[1] ?? '';
-      else if (current !== '' && /^ {4}(os|cpu):/.test(line)) found.add(current);
+      if (key !== null) {
+        closeSnapshot();
+        current = section === 'snapshots' ? (key[1] ?? '').replace(/\(.*$/, '') : (key[1] ?? '');
+      } else if (section === 'packages' && current !== '' && /^ {4}(os|cpu):/.test(line)) found.add(current);
+      else if (section === 'snapshots' && /^ {4}optional: true\s*$/.test(line)) currentOptional = true;
     }
   }
+  closeSnapshot();
+  for (const [id, optional] of snapshots) if (optional) found.add(id);
   return found;
 }
 
