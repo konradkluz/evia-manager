@@ -42,6 +42,7 @@ x-backend: &backend
     - ./turbo.json:/src/turbo.json:ro
     - ./.nvmrc:/src/.nvmrc:ro
     - ./apps:/src/apps:ro
+    - ./services:/src/services:ro
     - ./packages:/src/packages:ro
     - ./tools:/src/tools:ro
     - ./design/tokens:/src/design/tokens:ro
@@ -97,6 +98,7 @@ services:
       - ./turbo.json:/src/turbo.json:ro
       - ./.nvmrc:/src/.nvmrc:ro
       - ./apps:/src/apps:ro
+      - ./services:/src/services:ro
       - ./packages:/src/packages:ro
       - ./tools:/src/tools:ro
       - ./design/tokens:/src/design/tokens:ro
