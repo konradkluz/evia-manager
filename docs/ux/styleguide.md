@@ -1093,7 +1093,7 @@ Testy dostępności (narzędzia automatyczne + klawiatura + czytnik ekranu) — 
 ---
 
 ## 8. Changelog
-### Propozycja do 1.3.0 — 2026-10-20 (EVM-009, do akceptacji Konrada)
+### Propozycja do 1.3.0 — 2026-10-20 (EVM-009, zaakceptowana przez Konrada 2026-10-21; do włączenia do treści 1.3.0 przy konsolidacji propozycji)
 Szkielet aplikacji mobilnej przed M2; bez nowych tokenów i komponentów.
 - **§ 3.18 BottomNav — szkielet z 2 pozycjami:** wyjątkowo „Moje zlecenia” i „Kolejka” (zamiast 3–5), bo pozostałe pozycje (Aparat/Dodaj, Więcej) nie mają jeszcze funkcji, a pozycji bez funkcji nie pokazujemy; pełny zestaw od M2.
 - **§ 3.15 / § 3.15.1 — „Aktualizacja wymagana” bez logowania:** wariant M-02 działa także przed logowaniem (wymóg minimalnej wersji, AC3 EVM-009); przy dystrybucji sideload (bez Google Play) akcja „Zaktualizuj aplikację” otwiera adres pobrania z konfiguracji, a do czasu jego ustalenia zastępuje ją tekst „Poproś administratora o nową wersję aplikacji.”.

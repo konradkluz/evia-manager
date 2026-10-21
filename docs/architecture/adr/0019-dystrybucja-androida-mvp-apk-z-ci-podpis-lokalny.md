@@ -1,8 +1,8 @@
 # ADR-0019: Dystrybucja Androida na MVP — APK z CI (niepodpisany) + podpis lokalny, sideload; Google Play i EAS Submit odroczone
 
-- **Status:** Proponowana (do akceptacji Konrada)
+- **Status:** Zaakceptowana (Konrad, 2026-10-21)
 - **Data:** 2026-10-20
-- **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect
+- **Decydent:** Konrad (akceptacja 2026-10-21 — demo kolejki B, PR #87, razem z ryzykiem rezydualnym RR-32) · **Autor:** solution-architect
 - **Powiązane:** EVM-009 (decyzje Konrada 2026-10-20), EVM-011, EVM-007; ADR-0007 (częściowo zmienia — „Buildy i dystrybucja”: EAS Build/Submit, Google Play), ADR-0012 (częściowo zmienia — akapit „Aplikacja mobilna”), ADR-0015 (iOS odłożony), ADR-0016 (K7), ADR-0018; SR-MOB-07, SR-MOB-11, SR-SUPPLY-08, SR-INFRA-05; RR-21, TM-58, TM-59
 
 ## Kontekst i problem
@@ -53,5 +53,5 @@ Zakres zmiany względem poprzednich ADR (bez przepisywania ich treści; obie dec
 ## Plan wyjścia
 Migracja do Google Play: założenie konta, **Play App Signing** — ten sam klucz można zarejestrować jako klucz aplikacji (przeniesienie) albo użyć go jako klucza wysyłania (upload key) i pozwolić Google podpisywać nową linią; potem EAS Submit lub ręczny upload paczki z CI. Warunki powrotu: większa liczba telefonów, potrzeba automatycznych aktualizacji, wymóg sklepu, utrata kontroli nad ręczną dystrybucją. Nie wymaga zmiany kodu aplikacji ani identyfikatora `pl.eviacharge.manager`.
 
-## Do akceptacji
-Konrad: akceptacja ADR-0019 (po akceptacji status „Zaakceptowana” oraz notki „częściowo zmieniona” w ADR-0007 i ADR-0012 i w indeksie); nie zmieniamy statusów ADR-0007 i ADR-0012 do tego czasu.
+## Akceptacja
+Konrad zaakceptował ADR-0019 2026-10-21 (demo kolejki B, PR #87) razem z ryzykiem rezydualnym RR-32: status „Zaakceptowana”, notki „częściowo zmieniona” dodane w ADR-0007 i ADR-0012 oraz w indeksie; statusy ADR-0007 i ADR-0012 pozostają „Zaakceptowana”.
