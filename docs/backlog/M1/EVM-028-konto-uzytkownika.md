@@ -111,3 +111,4 @@ _—_
 - 2026-10-20 — ready → in-progress: start realizacji w kolejce z EVM-026 (gałąź feature/EVM-026-ochrona-przed-zgadywaniem), pelna, sonnet
 - 2026-10-20 — plan gotowy (backend-developer)
 - 2026-10-20 — backend gotowy (backend-developer): API konta (9 operacji + 5 rozszerzonych), migracja 0041, licznik zgadywania w reauth/step-upie, limit 5 sesji, retencja sesji, testy AC1–AC8, dokumentacja; panel W-15 i dialog W-04 czekają na web-developera (kontrakt stabilny)
+- 2026-10-21 — web gotowy (web-developer): strona W-15 (Profil, Hasło, Drugi krok logowania, Moje sesje), dialog W-04 w trybie pełnego ponownego uwierzytelnienia, menu „Konto”, testy komponentów, E2E i axe (360/768/1280/1440 px), zrzuty do przeglądu UX w `docs/ux/reviews/EVM-028/`

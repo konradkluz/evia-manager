@@ -49,6 +49,7 @@ import {
   type AccountOperationName,
   type UsersServer,
 } from './mock-users.ts';
+import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } from './mock-account.ts';
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
@@ -146,6 +147,8 @@ export interface MockApi {
   unpaid: UnpaidServer;
   /** EVM-024: the accounts of W-16 (the list, the invitations and their idempotency keys). */
   users: UsersServer;
+  /** EVM-028: the own account of W-15 (the passkeys with names, the code of the app, the recovery codes, the sessions and the one-time mark of the full re-authentication). */
+  account: AccountServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
@@ -193,10 +196,10 @@ export const LOGIN_TOKEN = 'Lg7-_Qz2'.repeat(5) + 'abc';
 function sessionBody(
   kind: Exclude<SessionKind, 'none'>,
   deadlines = { idle: Date.now() + 60 * MINUTE, absolute: Date.now() + 720 * MINUTE },
-  active: { csrf: string; role: string } = { csrf: 'csrf-active', role: 'administrator' },
+  active: { csrf: string; role: string; displayName?: string } = { csrf: 'csrf-active', role: 'administrator' },
 ) {
   return {
-    user: { id: '11111111-1111-4111-8111-111111111111', displayName: DISPLAY_NAME, role: active.role },
+    user: { id: '11111111-1111-4111-8111-111111111111', displayName: active.displayName ?? DISPLAY_NAME, role: active.role },
     state: kind === 'active' ? 'active' : 'mfa_enrollment',
     channel: 'web',
     csrfToken: kind === 'active' ? active.csrf : 'csrf-enrollment',
@@ -471,6 +474,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     procedureEdits: new Map(),
     unpaid: newUnpaidServer(),
     users: newUsersServer(),
+    account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
     dropResponseNext: new Set(),
   };
@@ -481,7 +485,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
   const partyKeys = new Map<string, string>();
   const customerPatchKeys: PatchKeys = new Map();
   let stepUpChallenge = '';
-  const active = () => ({ csrf: api.csrf, role: api.role });
+  const active = () => ({ csrf: api.csrf, role: api.role, displayName: api.account.displayName });
+  /** A function call, so that the compiler does not narrow `api.session` after the branch (the session changes between requests). */
+  const inActiveSession = () => api.session === 'active';
   let loginChallenge = '';
   let loginTokenUsed = false;
   let resetLinkUsed = false;
@@ -576,6 +582,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       headers['x-csrf-token'] === sessionBody(api.session === 'none' ? 'enrollment' : api.session, undefined, active()).csrfToken;
     const body = (): unknown => JSON.parse(request.postData() ?? '{}');
 
+    // EVM-028: the own account (W-15) — the profile, the password, the removal of a method, the sessions; the mark of the full re-authentication is one-time.
+    if (api.session === 'active' && url.pathname.startsWith('/api/v1/account') && mutation && !csrfOk) {
+      return route.fulfill(problem(403, 'csrf_failed'));
+    }
+    const ownAccount =
+      api.session === 'active'
+        ? answerAccountRoute(api.account, {
+            method: request.method(),
+            pathname: url.pathname,
+            body,
+            role: api.role,
+            email: EMAIL,
+            stepUpFresh: api.stepUp === 'fresh',
+          })
+        : null;
+    if (ownAccount !== null) return route.fulfill(ownAccount);
     // EVM-024: the resend of an invitation (W-16) — the account is anchored in the path; it needs the step-up like the invitation.
     const resend = request.method() === 'POST' ? /^\/api\/v1\/users\/([^/]+)\/invitations$/.exec(url.pathname) : null;
     if (resend !== null) {
@@ -915,7 +937,62 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
         api.deadlines = null;
         return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf, remainingCodes: 9 }));
       }
+      case 'POST /api/v1/account/reauthentication': {
+        if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        const proof = body() as {
+          purpose?: 'second_step_change' | 'password_change';
+          password?: string;
+          method?: string;
+          code?: string;
+          credential?: { id: string; response: { clientDataJSON: string } };
+        };
+        if (proof.purpose !== 'second_step_change' && proof.purpose !== 'password_change')
+          return route.fulfill(problem(400, 'validation_failed'));
+        // The password belongs to `second_step_change` only (the form of the page carries it for the change of the password).
+        if ((proof.purpose === 'second_step_change') === (proof.password === undefined))
+          return route.fulfill(problem(400, 'validation_failed'));
+        const passwordOk = proof.purpose === 'password_change' || proof.password === api.account.password;
+        let secondOk = false;
+        if (proof.method === 'totp') {
+          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
+          secondOk = proof.code === TOTP_CODE && !api.usedCodes.has(`totp:${proof.code}`);
+          if (secondOk) api.usedCodes.add(`totp:${proof.code}`);
+        } else if (proof.credential !== undefined) {
+          const client = JSON.parse(decodeBase64Url(proof.credential.response.clientDataJSON)) as {
+            type: string;
+            challenge: string;
+            origin: string;
+          };
+          secondOk =
+            client.type === 'webauthn.get' &&
+            client.challenge === stepUpChallenge &&
+            client.origin === origin &&
+            proof.credential.id === api.credentialId;
+          stepUpChallenge = '';
+        }
+        // ONE answer for every factor (no oracle).
+        if (!passwordOk || !secondOk) return route.fulfill(problem(401, 'reauthentication_failed'));
+        api.account.mark = proof.purpose;
+        return route.fulfill({ status: 204, headers: {}, body: '' });
+      }
       case 'POST /api/v1/account/totp/enrolment':
+        if (inActiveSession()) {
+          if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
+          if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+          if (api.account.mark !== 'second_step_change') return route.fulfill(problem(403, 'reauthentication_required'));
+          if (api.account.totp !== null) return route.fulfill(problem(409, 'mfa_already_configured'));
+          return route.fulfill(
+            ok(
+              200,
+              {
+                secret: TOTP_SECRET,
+                otpauthUri: `otpauth://totp/EVia%20Manager:${encodeURIComponent(EMAIL)}?secret=${TOTP_SECRET}&issuer=EVia%20Manager`,
+              },
+              { 'Cache-Control': 'no-store' },
+            ),
+          );
+        }
         if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 409, 'mfa_already_configured'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
         if (api.role === 'administrator') return route.fulfill(problem(403, 'forbidden'));
@@ -930,6 +1007,16 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           ),
         );
       case 'POST /api/v1/account/totp/confirm': {
+        if (inActiveSession()) {
+          if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+          const { code } = body() as { code?: string };
+          if (code !== TOTP_CODE || api.usedCodes.has(`totp:${code}`)) return route.fulfill(problem(400, 'totp_verification_failed'));
+          const refused = spendMark(api.account, 'second_step_change');
+          if (refused !== null) return route.fulfill(refused);
+          api.usedCodes.add(`totp:${code}`);
+          api.account.totp = { addedAt: new Date().toISOString() };
+          return route.fulfill(ok(200, { state: 'active', csrfToken: api.csrf }));
+        }
         if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
         const { code } = body() as { code?: string };
@@ -944,6 +1031,12 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'POST /api/v1/account/recovery-codes':
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        // EVM-028 AC5: new codes from the account — the one-time mark of the full re-authentication, no window needed.
+        if (api.account.mark === 'second_step_change') {
+          api.account.mark = null;
+          api.account.recovery = { remaining: 10, generatedAt: new Date().toISOString() };
+          return route.fulfill(ok(200, { codes: RECOVERY_CODES }, { 'Cache-Control': 'no-store' }));
+        }
         if (api.stepUp !== 'fresh') return route.fulfill(problem(403, 'step_up_required'));
         return route.fulfill(ok(200, { codes: RECOVERY_CODES }, { 'Cache-Control': 'no-store' }));
       case 'POST /api/v1/auth/login/passkey/options': {
@@ -1043,6 +1136,9 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       case 'POST /api/v1/account/passkeys/registration-options':
         if (api.session === 'none') return route.fulfill(problem(401, 'unauthenticated'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+        // EVM-028: in an active session the options are given after the full re-authentication (the mark is checked, not spent).
+        if (api.session === 'active' && api.account.mark !== 'second_step_change')
+          return route.fulfill(problem(403, 'reauthentication_required'));
         challenge = Buffer.from(`challenge-${String(api.seen.length)}-0123456789abcdef`).toString('base64url');
         return route.fulfill(
           ok(200, {
@@ -1059,9 +1155,33 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           }),
         );
       case 'POST /api/v1/account/passkeys': {
-        if (api.session !== 'enrollment') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+        if (api.session === 'none') return route.fulfill(problem(401, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        const { credential } = body() as { credential: { id: string; response: { clientDataJSON: string; attestationObject: string } } };
+        const { credential, name } = body() as {
+          credential: { id: string; response: { clientDataJSON: string; attestationObject: string } };
+          name?: string;
+        };
+        if (inActiveSession()) {
+          // EVM-028: one more key from the account — the ceremony is checked, then the mark is spent with the registration.
+          const added = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
+            type: string;
+            challenge: string;
+            origin: string;
+          };
+          if (!(added.type === 'webauthn.create' && added.challenge === challenge && added.origin === origin)) {
+            return route.fulfill(problem(400, 'passkey_verification_failed'));
+          }
+          const refused = spendMark(api.account, 'second_step_change');
+          if (refused !== null) return route.fulfill(refused);
+          const passkey = {
+            id: `22222222-2222-4222-8222-2222222222${String(10 + api.account.passkeys.length)}`,
+            name: name ?? 'Klucz dostępu',
+            createdAt: new Date().toISOString(),
+          };
+          api.account.passkeys.push(passkey);
+          return route.fulfill(ok(201, { ...passkey, deviceType: 'multi_device', backedUp: true }));
+        }
+        if (api.session !== 'enrollment') return route.fulfill(problem(403, 'forbidden'));
         const client = JSON.parse(decodeBase64Url(credential.response.clientDataJSON)) as {
           type: string;
           challenge: string;

@@ -2228,6 +2228,7 @@ export const pl = {
       invitation: 'Zaproszenie',
       actions: 'Akcje',
       you: '(Ty)',
+      toAccount: 'Przejdź do Konta',
       none: '—',
       row: '{{name}}, {{role}}, {{status}}',
       rowYou: '{{name}} (Ty), {{role}}, {{status}}',
