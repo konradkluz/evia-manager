@@ -76,6 +76,8 @@ Jako **właściciel produktu** chcę **środowiska testowego w UE, na które ka�
 ### Bezpieczeństwo i prywatność
 Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicznych bucketów, brak danych produkcyjnych na staging, brak sekretów w GitHubie, port 22 niedostępny z internetu. Ryzyka: RR-23 (własny weryfikator), RR-19, RR-24 (w 007c). Wymagania: SR-INFRA-01/05/13/14, SR-SUPPLY-04/05.
 
+- **Decyzje Konrada (2026-10-21, „akceptuję domyślnie”):** serwer Hetzner CX33 (ok. 9,57 EUR / ok. 42 zł mies., do potwierdzenia dostępności w konsoli); wysyłka maili aplikacji przez TEM HTTP API na porcie 443 (zapora bez zmian; adapter w EVM-089); RR-33, RR-34, RR-35 zaakceptowane (RR-34: porównanie odpowiedzi API z atrapą przed `STAGING_VERIFY_ENABLED=true`); bramki 7a i 8 przeniesione do E8 (EVM-065/070).
+
 ## Notatki
 - Stan kont (2026-10-13): Hetzner — puste projekty `evia-staging`, `evia-prod`; GitHub Free (prywatne repo); brak konta Scaleway (potrzebne przed startem); domena `eviacharge.pl` (OVH, DNSSEC włączony).
 
@@ -131,3 +133,4 @@ Kod: `infra/tofu/` (AC1), `infra/images/`, job `publish`, `tools/ghcr-retention/
 - 2026-10-21 — ready → in-progress: start fazy offline (decyzja Konrada 2026-10-21, „Faza offline teraz”) w kolejce C, gałąź feature/EVM-007-staging-iac-kanal-wdrozen (osobny klon evia-manager-c), pelna, opus; bez tokenów i bez płatnych zasobów, sesja IaC z Konradem później
 - 2026-10-21 — plan gotowy (devops-engineer)
 - 2026-10-21 — implementacja fazy offline (devops-engineer): IaC + `iac-check`, `publish` z bramką 6 i retencją (dry-run), weryfikator V0–V4, `deploy.sh` i pliki VM, `staging-verify`, runbooki; odstępstwa: `iac` w osobnym `compose.iac.yaml` (architekt 22), `staging-verify` z `contents: read` zamiast `{}` (checkout prywatnego repozytorium), `fflate` niepotrzebny (ZIP przez `node:zlib`), zależność `yaml` 2.9.1 w `services/deploy-agent` (parser V4, SR-SUPPLY-06), `jq` i ShellCheck z Debiana w obrazie testów `deploy-sh-tests`
+- 2026-10-21 — faza offline zakończona (bramka, skan, docs:check zielone; QA: AC1–AC4, AC6, AC7 pass offline, AC5 manual); PR #88; decyzje Konrada: CX33, TEM przez 443, RR-33…35, bramki 7a/8 → E8; status pozostaje in-progress do sesji IaC
