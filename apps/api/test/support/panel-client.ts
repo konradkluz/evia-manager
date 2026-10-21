@@ -4,7 +4,7 @@
  * send. Tests that attack (cross-site, no Origin, no token) build their requests by hand with supertest instead.
  */
 import request, { type Test } from 'supertest';
-import { SESSION_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
+import { DEVICE_COOKIE_NAME, SESSION_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
 
 /** What the synthetic browser calls itself (stored with the session, P9). */
 export const USER_AGENT = 'Mozilla/5.0 (synthetic test browser)';
@@ -13,6 +13,8 @@ export class PanelClient {
   readonly #server: Parameters<typeof request>[0];
   readonly #origin: string;
   cookie: string | undefined;
+  /** The cookie of a known browser (`__Host-evia_device`, EVM-026): kept like the session cookie, sent with every request. */
+  deviceCookie: string | undefined;
   csrfToken: string | undefined;
 
   constructor(server: Parameters<typeof request>[0], origin: string) {
@@ -27,7 +29,7 @@ export class PanelClient {
       .set('User-Agent', USER_AGENT)
       .set('Origin', this.#origin)
       .set('Sec-Fetch-Site', 'same-origin');
-    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.cookieHeader() !== undefined) call = call.set('Cookie', this.cookieHeader() as string);
     if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
     for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
     return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
@@ -40,7 +42,7 @@ export class PanelClient {
       .set('User-Agent', USER_AGENT)
       .set('Origin', this.#origin)
       .set('Sec-Fetch-Site', 'same-origin');
-    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.cookieHeader() !== undefined) call = call.set('Cookie', this.cookieHeader() as string);
     if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
     for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
     return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
@@ -53,7 +55,7 @@ export class PanelClient {
       .set('User-Agent', USER_AGENT)
       .set('Origin', this.#origin)
       .set('Sec-Fetch-Site', 'same-origin');
-    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.cookieHeader() !== undefined) call = call.set('Cookie', this.cookieHeader() as string);
     if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
     for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
     return body === undefined ? call : call.set('Content-Type', 'application/json').send(JSON.stringify(body));
@@ -66,7 +68,7 @@ export class PanelClient {
       .set('User-Agent', USER_AGENT)
       .set('Origin', this.#origin)
       .set('Sec-Fetch-Site', 'same-origin');
-    if (this.cookie !== undefined) call = call.set('Cookie', this.cookie);
+    if (this.cookieHeader() !== undefined) call = call.set('Cookie', this.cookieHeader() as string);
     if (this.csrfToken !== undefined) call = call.set('X-CSRF-Token', this.csrfToken);
     for (const [name, value] of Object.entries(headers)) call = call.set(name, value);
     return call;
@@ -74,14 +76,26 @@ export class PanelClient {
 
   get(path: string): Test {
     const call = request(this.#server).get(path).set('User-Agent', USER_AGENT);
-    return this.cookie === undefined ? call : call.set('Cookie', this.cookie);
+    return this.cookieHeader() === undefined ? call : call.set('Cookie', this.cookieHeader() as string);
   }
 
-  /** Keeps the cookie of a response (`Set-Cookie`), as the browser would. */
+  /** The `Cookie` header the browser would send: the session cookie and the cookie of the known browser. */
+  cookieHeader(): string | undefined {
+    const pairs = [this.cookie, this.deviceCookie].filter((pair) => pair !== undefined);
+    return pairs.length === 0 ? undefined : pairs.join('; ');
+  }
+
+  /** Keeps the cookies of a response (`Set-Cookie`), as the browser would. */
   adopt(setCookie: string[] | string | undefined): void {
-    const header = (Array.isArray(setCookie) ? setCookie : [setCookie ?? '']).find((value) => value.startsWith(`${SESSION_COOKIE_NAME}=`));
-    if (header === undefined) return;
-    const pair = header.split(';')[0] ?? '';
-    this.cookie = pair.endsWith('=') ? undefined : pair;
+    const headers = Array.isArray(setCookie) ? setCookie : [setCookie ?? ''];
+    const pairOf = (name: string): string | undefined => {
+      const header = headers.find((value) => value.startsWith(`${name}=`));
+      const pair = header?.split(';')[0];
+      return pair === undefined ? undefined : pair.endsWith('=') ? '' : pair;
+    };
+    const session = pairOf(SESSION_COOKIE_NAME);
+    if (session !== undefined) this.cookie = session === '' ? undefined : session;
+    const device = pairOf(DEVICE_COOKIE_NAME);
+    if (device !== undefined) this.deviceCookie = device === '' ? undefined : device;
   }
 }

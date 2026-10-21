@@ -3,7 +3,12 @@
  * outbox over the database of the app under test with a fake of the port, and reads of the tables the story touches. Synthetic data only.
  */
 import { sql, type Kysely } from 'kysely';
-import { InvitationEmailComposer, MfaEmailComposer, PasswordEmailComposer } from '../../src/modules/identity/index.ts';
+import {
+  InvitationEmailComposer,
+  LoginSecurityEmailComposer,
+  MfaEmailComposer,
+  PasswordEmailComposer,
+} from '../../src/modules/identity/index.ts';
 import type { Database } from '../../src/platform/database/database.ts';
 import { InMemoryEmailSender } from '../../src/platform/email/in-memory-email-sender.ts';
 import { SendEmailJob } from '../../src/platform/email/send-email.job.ts';
@@ -89,6 +94,7 @@ export function emailHarness(app: IdentityApp, sender: InMemoryEmailSender = new
       app.app.get(InvitationEmailComposer, { strict: false }),
       app.app.get(PasswordEmailComposer, { strict: false }),
       app.app.get(MfaEmailComposer, { strict: false }),
+      app.app.get(LoginSecurityEmailComposer, { strict: false }),
     ],
   });
   return { job, sender };

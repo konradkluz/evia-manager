@@ -93,16 +93,29 @@ export const ALERT_VARIANTS = [
   'administrator_deactivated',
   'administrator_reactivated',
   'administrator_second_step_reset',
+  // EVM-026 (alert 9): an Administrator's account signed in from a browser it did not know.
+  'administrator_new_browser',
+  // EVM-028 (alert 9): a method of the second step of an Administrator's account was added or removed, or new recovery codes were made.
+  'administrator_second_step_changed',
 ] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
-const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string }>> = {
+const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readonly sentence: string; readonly lead?: string }>> = {
   administrator_invitation: { kind: 'zaproszenie administratora', sentence: 'wysłano zaproszenie z rolą Administrator.' },
   administrator_granted: { kind: 'nowy administrator', sentence: 'nadano rolę Administrator jednemu z kont.' },
   administrator_revoked: { kind: 'odebrana rola', sentence: 'odebrano rolę Administrator jednemu z kont.' },
   administrator_deactivated: { kind: 'dezaktywacja administratora', sentence: 'dezaktywowano konto z rolą Administrator.' },
   administrator_reactivated: { kind: 'reaktywacja administratora', sentence: 'reaktywowano konto z rolą Administrator.' },
   administrator_second_step_reset: { kind: 'reset drugiego kroku', sentence: 'zresetowano drugi krok logowania konta administratora.' },
+  administrator_new_browser: {
+    kind: 'logowanie z nowej przeglądarki',
+    sentence: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
+    lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
+  administrator_second_step_changed: {
+    kind: 'zmiana drugiego kroku',
+    sentence: 'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
+  },
 };
 
 export const isAlertVariant = (value: string | null): value is AlertVariant => ALERT_VARIANTS.includes(value as AlertVariant);
@@ -115,13 +128,13 @@ export interface AlertTextInput {
 
 /** E-mail 9 (an alert for Administrators): the event and the time, no person, no address, no token — who and when is in the audit log. */
 export function alertText(input: AlertTextInput): EmailText {
-  const { kind, sentence } = ALERT_KINDS[input.variant];
+  const { kind, sentence, lead = 'zdarzenie dotyczące uprawnień administratora' } = ALERT_KINDS[input.variant];
   return {
     subject: `EVia Manager: alert bezpieczeństwa — ${kind}`,
     text: [
       'Dzień dobry,',
       '',
-      'w EVia Manager wystąpiło zdarzenie dotyczące uprawnień administratora',
+      `w EVia Manager wystąpiło ${lead}`,
       `(${formatWarsaw(input.occurredAt)}):`,
       sentence,
       '',
@@ -181,13 +194,28 @@ export function passwordResetText(input: PasswordResetTextInput): EmailText {
   };
 }
 
+/** The panel page "Moje sesje" (W-15 anchor): the mails that mention the sessions of the account point here, without a token. */
+export const SESSIONS_SETTINGS_PATH = '/account#moje-sesje';
+
+/** Where the new password came from: a reset with a link (every session ended), or the page of the account (the other sessions go on until the owner ends them). */
+export type PasswordChangeSource = 'reset' | 'account';
+export const PASSWORD_CHANGE_ACCOUNT_VARIANT = 'from_account';
+
 export interface PasswordChangedTextInput {
   readonly panelOrigin: string;
   readonly changedAt: Date;
+  readonly source?: PasswordChangeSource;
 }
 
-/** E-mail 4, the variant "after a reset with a link": the time, the sessions that ended, a link to the reset form without a token. */
+/**
+ * E-mail 4: the time, what happened to the sessions and a link to the reset form without a token. After a reset with a link every session ended; after a change
+ * on the page of the account the other sessions stay, and the mail says where to end them ("Konto → Moje sesje"). No IP, no browser, no name of the doer.
+ */
 export function passwordChangedText(input: PasswordChangedTextInput): EmailText {
+  const sessions =
+    input.source === 'account'
+      ? ['Pozostałe sesje możesz zakończyć w panelu: Konto → Moje sesje', `${input.panelOrigin}${SESSIONS_SETTINGS_PATH}`]
+      : ['Zakończyliśmy wszystkie sesje konta.'];
   return {
     subject: 'EVia Manager: hasło zostało zmienione',
     text: [
@@ -195,7 +223,7 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
       '',
       `hasło do konta w EVia Manager zostało zmienione ${formatWarsaw(input.changedAt)}.`,
       '',
-      'Zakończyliśmy wszystkie sesje konta.',
+      ...sessions,
       '',
       'Jeśli to nie Ty, od razu ustaw nowe hasło i powiadom administratora:',
       `${input.panelOrigin}${RESET_FORM_PATH}`,
@@ -209,12 +237,15 @@ export function passwordChangedText(input: PasswordChangedTextInput): EmailText 
 /** W-15 "Drugi krok logowania" (the anchor of the account page): the mails of a change of the second step point here, without a token. */
 export const SECOND_STEP_SETTINGS_PATH = '/account#drugi-krok';
 
-export type SecondStepChange = 'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset';
+export type SecondStepChange =
+  'totp_enrolled' | 'recovery_codes_generated' | 'passkey_enrolled' | 'second_step_reset' | 'passkey_removed' | 'totp_removed';
 export const SECOND_STEP_CHANGES: readonly SecondStepChange[] = [
   'totp_enrolled',
   'recovery_codes_generated',
   'passkey_enrolled',
   'second_step_reset',
+  'passkey_removed',
+  'totp_removed',
 ];
 export const isSecondStepChange = (value: string | null): value is SecondStepChange =>
   SECOND_STEP_CHANGES.some((change) => change === value);
@@ -223,6 +254,8 @@ const SECOND_STEP_CHANGE_TEXT: Readonly<Record<Exclude<SecondStepChange, 'second
   totp_enrolled: 'dodano kod z aplikacji uwierzytelniającej.',
   passkey_enrolled: 'dodano klucz dostępu.',
   recovery_codes_generated: 'wygenerowano nowe kody odzyskiwania — poprzednie kody przestały działać.',
+  passkey_removed: 'usunięto klucz dostępu.',
+  totp_removed: 'usunięto kod z aplikacji uwierzytelniającej.',
 };
 
 export interface SecondStepChangedTextInput {
@@ -303,6 +336,146 @@ export function recoveryCodeUsedText(input: RecoveryCodeUsedTextInput): EmailTex
       'Jeśli to nie Ty, ktoś zna hasło i ma kody odzyskiwania — od razu',
       'ustaw nowe hasło i powiadom administratora:',
       `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+/**
+ * The variant of e-mail 3 (EVM-026 AC4): the cause of the lock — the failures of the password, or at least one of the second step — and the scope of it: the
+ * browsers the account does not know (`password`, `second_step`) or ONE browser it knows (`browser_…`). The variant is what the outbox stores.
+ */
+export type LockVariant = 'password' | 'second_step' | 'browser_password' | 'browser_second_step';
+const LOCK_VARIANTS: readonly string[] = ['password', 'second_step', 'browser_password', 'browser_second_step'];
+export const isLockVariant = (value: string | null): value is LockVariant => value !== null && LOCK_VARIANTS.includes(value);
+
+export const lockVariant = (cause: 'password' | 'second_step', scope: 'account' | 'browser'): LockVariant =>
+  scope === 'browser' ? (`browser_${cause}` as LockVariant) : cause;
+
+export interface AccountLockedTextInput {
+  readonly panelOrigin: string;
+  readonly variant: LockVariant;
+  /** When the lock began (the time the lock was asked for) and for how long it holds. */
+  readonly lockedAt: Date;
+  readonly lockedUntil: Date;
+}
+
+/**
+ * E-mail 3 (a lock of the sign-in after ten failed tries): the time, for how long, the one thing to do — a link to the form "Zresetuj hasło" WITHOUT a token
+ * (SR-INPUT-07, SR-AUTH-15). It names no address, no IP and no number of tries. The variants of the browsers the account does not know: with the second step,
+ * someone seems to know the password and a new one does not lift the lock (only the time does); with the password, a new one does. The variants of a browser
+ * the account knows say that THAT browser is locked and nothing else; there a new password lifts the lock in both causes, because it makes the account forget
+ * its browsers with their counters (`forgetBrowsers`).
+ */
+export function accountLockedText(input: AccountLockedTextInput): EmailText {
+  const resetForm = `${input.panelOrigin}${RESET_FORM_PATH}`;
+  const period = `od ${formatWarsaw(input.lockedAt)} do ${formatWarsaw(input.lockedUntil)}.`;
+  const bodies: Record<LockVariant, string[]> = {
+    second_step: [
+      'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
+      `logowanie z nieznanych przeglądarek ${period}`,
+      '',
+      'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
+      'administratora. Zmiana hasła nie zdejmie tej blokady — ustąpi z upływem czasu.',
+      resetForm,
+      '',
+      'Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.',
+    ],
+    password: [
+      'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
+      `z nieznanych przeglądarek ${period}`,
+      '',
+      'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
+      'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
+      resetForm,
+      '',
+      'Logowanie z przeglądarki, której używasz na co dzień, nie jest zablokowane.',
+    ],
+    browser_second_step: [
+      'po kilku nieudanych próbach drugiego kroku logowania zablokowaliśmy',
+      `logowanie z przeglądarki, której Twoje konto używa na co dzień, ${period}`,
+      '',
+      'Wygląda na to, że ktoś zna Twoje hasło. Ustaw nowe hasło i powiadom',
+      'administratora. Zmiana hasła zdejmie tę blokadę — zapomnimy przeglądarki konta,',
+      'więc następne logowanie będzie z „nowej” przeglądarki i wyślemy o nim wiadomość.',
+      resetForm,
+      '',
+      'Ta blokada dotyczy tylko tej przeglądarki.',
+    ],
+    browser_password: [
+      'po 10 nieudanych próbach logowania zablokowaliśmy logowanie',
+      `z przeglądarki, której Twoje konto używa na co dzień, ${period}`,
+      '',
+      'Jeśli to nie Ty, ktoś mógł zgadywać Twoje hasło — ustaw nowe;',
+      'zmiana hasła zdejmie tę blokadę. Jeśli to Ty, poczekaj do końca blokady.',
+      resetForm,
+      '',
+      'Ta blokada dotyczy tylko tej przeglądarki.',
+    ],
+  };
+  return {
+    subject: 'EVia Manager: logowanie zablokowane na 15 minut',
+    text: ['Dzień dobry,', '', ...bodies[input.variant], '', footer(input.panelOrigin), ''].join('\n'),
+  };
+}
+
+export interface NewBrowserTextInput {
+  readonly panelOrigin: string;
+  readonly signedInAt: Date;
+}
+
+/** E-mail 7 (a sign-in from a browser the account did not know): the time and the way back — a link to the form "Zresetuj hasło" without a token; no IP, no place, no device. */
+export function newBrowserText(input: NewBrowserTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: logowanie z nowej przeglądarki',
+    text: [
+      'Dzień dobry,',
+      '',
+      `${formatWarsaw(input.signedInAt)} zalogowano się do Twojego konta w EVia Manager z przeglądarki,`,
+      'której to konto wcześniej nie używało.',
+      '',
+      'Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło',
+      'i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface SessionLimitTextInput {
+  readonly panelOrigin: string;
+  /** The session that ended: browser and system out of the closed dictionary (never the raw user agent) and its last activity. */
+  readonly ended: { readonly browser: string; readonly os: string; readonly lastSeenAt: Date };
+  /** The sign-in that went over the limit: the same dictionary and the moment. */
+  readonly signedIn: { readonly browser: string; readonly os: string; readonly at: Date };
+}
+
+/**
+ * E-mail 8 (the sixth sign-in ended the oldest session; SR-SESS-04): which session ended and which sign-in caused it, by browser and system and time —
+ * no IP address, no raw user agent. The links lead to the reset form (without a token) and to "Moje sesje".
+ */
+export function sessionLimitText(input: SessionLimitTextInput): EmailText {
+  const { ended, signedIn } = input;
+  return {
+    subject: 'EVia Manager: zakończono najstarszą sesję',
+    text: [
+      'Dzień dobry,',
+      '',
+      'nowe logowanie do konta w EVia Manager przekroczyło limit 5 równoczesnych',
+      'sesji, więc zakończyliśmy najstarszą sesję:',
+      '',
+      `Zakończona sesja: ${ended.browser} · ${ended.os}, ostatnia aktywność ${formatWarsaw(ended.lastSeenAt)}`,
+      `Nowe logowanie: ${signedIn.browser} · ${signedIn.os}, ${formatWarsaw(signedIn.at)}`,
+      '',
+      'Jeśli nowe logowanie nie pochodzi od Ciebie, od razu ustaw nowe hasło',
+      'i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      'Sesje konta zobaczysz w panelu: Konto → Moje sesje',
+      `${input.panelOrigin}${SESSIONS_SETTINGS_PATH}`,
       '',
       footer(input.panelOrigin),
       '',

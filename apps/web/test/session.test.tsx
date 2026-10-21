@@ -61,7 +61,7 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     expect(trigger.textContent).toBe('Anna Testowa');
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     await openAccountMenu();
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Prywatność i pomoc', 'Wyloguj']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Konto', 'Prywatność i pomoc', 'Wyloguj']);
     expect(await axeViolations(document.body, { bestPractice: true })).toEqual([]);
   });
 
@@ -74,7 +74,8 @@ describe('account menu and logout (EVM-016 AC6; SR-SESS-05)', () => {
     const user = setupUser();
     screen.getByRole('button', { name: 'Konto: Anna Testowa' }).focus();
     await user.keyboard('{Enter}');
-    await user.keyboard('{ArrowDown}');
+    // "Konto" (EVM-028), "Prywatność i pomoc", then "Wyloguj".
+    await user.keyboard('{ArrowDown}{ArrowDown}');
     await user.keyboard('{Enter}');
     expect(await screen.findByRole('heading', { level: 1, name: 'Zaloguj się' })).toBeTruthy();
     expect(history.location.pathname).toBe('/login');

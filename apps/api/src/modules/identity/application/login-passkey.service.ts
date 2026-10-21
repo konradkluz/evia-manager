@@ -22,7 +22,6 @@ import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
-import { ProblemException } from '../../../platform/http/problem.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { CHALLENGE_TTL_MS } from '../domain/constants.ts';
 import { hashToken } from '../domain/tokens.ts';
@@ -38,14 +37,15 @@ import {
 } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
-import { openLoginAttempt, recordSecondStepFailure, type OpenedAttempt } from './login-attempt.ts';
+import { BrowserRegister } from './browser-register.ts';
+import { LoginAttemptGate, problemOf, type OpenedAttempt } from './login-attempt.ts';
 import { LoginFailures } from './login-failures.ts';
 import { verifyAssertionOfKey } from './passkey-assertion.ts';
-import { startSession, type StartedSession } from './session-start.ts';
+import { startSession, type SignedInSession } from './session-start.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** How a transaction that created no session ended: the refusal is raised after it commits (its audit rows stay). */
-type Refusal = 'unauthenticated' | 'login_expired' | 'passkey_failed';
+type Refusal = Exclude<OpenedAttempt, { attempt: unknown }> | { readonly refusal: 'passkey_failed' };
 type Opened = OpenedAttempt;
 
 @Injectable()
@@ -55,6 +55,8 @@ export class LoginPasskeyService {
   readonly #events: EventBus;
   readonly #verifier: PasskeyVerifier;
   readonly #failures: LoginFailures;
+  readonly #gate: LoginAttemptGate;
+  readonly #browsers: BrowserRegister;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -62,12 +64,16 @@ export class LoginPasskeyService {
     @Inject(EVENT_BUS) events: EventBus,
     @Inject(PASSKEY_VERIFIER) verifier: PasskeyVerifier,
     @Inject(LoginFailures) failures: LoginFailures,
+    @Inject(LoginAttemptGate) gate: LoginAttemptGate,
+    @Inject(BrowserRegister) browsers: BrowserRegister,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
     this.#verifier = verifier;
     this.#failures = failures;
+    this.#gate = gate;
+    this.#browsers = browsers;
   }
 
   async options(loginToken: string, client: ClientInfo): Promise<PasskeyAuthenticationOptions> {
@@ -75,7 +81,9 @@ export class LoginPasskeyService {
     const result = await runInTransaction(this.#db, async (transaction) => {
       const opened = await this.#open(transaction, loginToken, now, client.context);
       if ('refusal' in opened) return opened;
-      const { attempt } = opened;
+      const { attempt, ticket } = opened;
+      // Asking for options is not a guess: it only needs the lock to be open (a locked scope gets the 429), and gives its reservation back.
+      await this.#gate.pass(transaction, ticket, now);
       const tx = identityTables(transaction);
       const keys = await tx
         .selectFrom('identity.passkeys')
@@ -95,16 +103,23 @@ export class LoginPasskeyService {
       });
       return { options };
     });
-    if ('refusal' in result) throw new ProblemException(result.refusal);
+    if ('refusal' in result) throw problemOf(result);
     return result.options as PasskeyAuthenticationOptions;
   }
 
-  async verify(body: VerifyLoginPasskeyRequest, client: ClientInfo, previousSessionToken: string | undefined): Promise<StartedSession> {
+  async verify(
+    body: VerifyLoginPasskeyRequest,
+    client: ClientInfo,
+    previousSessionToken: string | undefined,
+    deviceToken: string | undefined,
+  ): Promise<SignedInSession> {
+    // The wait that the failures so far demand comes first — outside any transaction and before the assertion is looked at (EVM-026 M1).
+    await this.#gate.wait(body.loginToken);
     const now = this.#clock.now();
     const outcome = await runInTransaction(this.#db, (transaction) =>
-      this.#verifyInTransaction(transaction, body, client, previousSessionToken, now),
+      this.#verifyInTransaction(transaction, body, client, previousSessionToken, deviceToken, now),
     );
-    if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
+    if ('refusal' in outcome) throw problemOf(outcome);
     return outcome;
   }
 
@@ -113,11 +128,12 @@ export class LoginPasskeyService {
     body: VerifyLoginPasskeyRequest,
     client: ClientInfo,
     previousSessionToken: string | undefined,
+    deviceToken: string | undefined,
     now: Date,
-  ): Promise<StartedSession | { readonly refusal: Refusal }> {
+  ): Promise<SignedInSession | Refusal> {
     const opened = await this.#open(transaction, body.loginToken, now, client.context);
     if ('refusal' in opened) return opened;
-    const { attempt } = opened;
+    const { attempt, ticket } = opened;
     const tx = identityTables(transaction);
 
     // The account is read under a share lock: a deactivation cannot slip in between this check and the session insert.
@@ -137,9 +153,11 @@ export class LoginPasskeyService {
       open,
     });
     if (assertion === null) {
-      await recordSecondStepFailure(transaction, this.#failures, attempt, 'passkey_failed', now, client.context);
+      await this.#gate.fail(transaction, attempt, ticket, 'passkey_failed', now, client.context);
       return { refusal: 'passkey_failed' };
     }
+
+    await this.#gate.pass(transaction, ticket, now);
 
     if (!(await consumeLoginAttempt(tx, attempt.id, now))) return { refusal: 'unauthenticated' };
     if (account.status !== 'active') {
@@ -156,6 +174,7 @@ export class LoginPasskeyService {
       now,
       authenticatedWith: 'passkey',
     });
+    const browser = await this.#browsers.remember(transaction, attempt.userId, deviceToken, now);
     const succeeded: IdentityEvent = {
       type: 'login.succeeded',
       actor: { type: 'user', userId: attempt.userId },
@@ -164,7 +183,7 @@ export class LoginPasskeyService {
       objectId: session.sessionId,
     };
     await this.#events.publish(transaction, succeeded, { ...client.context, sessionId: session.sessionId });
-    return session;
+    return { ...session, deviceToken: browser.deviceToken };
   }
 
   /**
@@ -172,6 +191,6 @@ export class LoginPasskeyService {
    * and is audited.
    */
   async #open(transaction: Kysely<Database>, loginToken: string, now: Date, context: EventContext): Promise<Opened> {
-    return openLoginAttempt(transaction, this.#failures, loginToken, now, context);
+    return this.#gate.open(transaction, loginToken, now, context);
   }
 }

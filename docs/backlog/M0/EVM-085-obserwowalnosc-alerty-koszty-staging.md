@@ -40,6 +40,7 @@ Jako **właściciel produktu** chcę **widzieć błędy, dostępność i koszty 
 **AC5 — Zbieranie logów i reguła alertu bezpieczeństwa (AC8 z EVM-016)**
 - Gdy Alloy zbiera logi
 - Wtedy tylko z usług z listy dozwolonych, a reguła alertu działa na polach `alert: "security"` / `alertCode` i dostarcza alert do kanału z AC2; limity szybkości w Alloy i niższe próbkowanie Sentry na staging oraz spike protection chronią wspólne limity.
+- Oraz reguła obejmuje alerty logowania z EVM-026 (blokada konta, skok nieudanych logowań, skok porażek drugiego kroku — `alertCode` i progi z EVM-026 AC6); w teście alert wywołany zdarzeniem z aplikacji dociera do kanału z AC2, a próg skoku jest skalibrowany na staging (progi w konfiguracji, nie w kodzie).
 
 **AC6 — Caddy, Sentry, rola bazy (AC8 z EVM-016)**
 - Wtedy Caddy działa bez `log_credentials` i z filtrem nagłówka `X-CSRF-Token`; Sentry nie przechowuje treści żądań `/api/v1/auth/activation/*` i czyści fragment URL; API łączy się rolą `evia_app` (członek roli, nie właściciel), a `TRUSTED_PROXIES` wskazuje adresy proxy.
@@ -65,3 +66,4 @@ Jako **właściciel produktu** chcę **widzieć błędy, dostępność i koszty 
 ## Dziennik
 - 2026-10-13 — utworzono (product-owner, podział EVM-007 wg ADR-0018: dawne AC5, AC6, AC8 i część AC7)
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
+- 2026-10-20 — dopisano do AC5 alerty logowania z EVM-026 (blokada, skoki porażek) — na polecenie Konrada przy refine EVM-026 (orkiestrator)

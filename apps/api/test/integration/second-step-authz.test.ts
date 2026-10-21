@@ -74,9 +74,10 @@ describe('the authorization of the second step: the matrix of roles and states (
     const expected: Record<State, (role: Role) => { status: number; code?: string }> = {
       enrolment_with_link: (role) => (role === 'administrator' ? { status: 403, code: 'forbidden' } : { status: 200 }),
       enrolment_from_login: () => ({ status: 403, code: 'forbidden' }),
-      active_fresh: () => ({ status: 403, code: 'forbidden' }),
-      active_stale: () => ({ status: 403, code: 'forbidden' }),
-      active_from_recovery_code: () => ({ status: 403, code: 'forbidden' }),
+      // EVM-028: an active session may add a code of the app from the account, but only after the full re-authentication (the Administrator never: 403 forbidden)
+      active_fresh: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
+      active_stale: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
+      active_from_recovery_code: (role) => ({ status: 403, code: role === 'administrator' ? 'forbidden' : 'reauthentication_required' }),
     };
     for (const state of Object.keys(expected) as State[])
       for (const role of ROLES) {
@@ -96,10 +97,9 @@ describe('the authorization of the second step: the matrix of roles and states (
       for (const role of ROLES) {
         nextStep(current);
         const { panel } = await caller(role, state);
-        expect(answer(await panel.post(SECOND_STEP.confirm, { code: '123456' })), `${role} ${state}`).toEqual({
-          status: 403,
-          code: 'forbidden',
-        });
+        // EVM-028: an active session of an Editor or a Read-only user is asked for the full re-authentication first
+        const code = state !== 'enrolment_from_login' && role !== 'administrator' ? 'reauthentication_required' : 'forbidden';
+        expect(answer(await panel.post(SECOND_STEP.confirm, { code: '123456' })), `${role} ${state}`).toEqual({ status: 403, code });
       }
     for (const role of ROLES) {
       nextStep(current);

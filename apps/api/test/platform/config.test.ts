@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig, loadMigrationConfig } from '../../src/platform/config/config.ts';
-import { TEST_FIELD_ENCRYPTION_KEY, TEST_FIELD_ENCRYPTION_KEYS, validEnv } from '../support/app.ts';
+import { TEST_FIELD_ENCRYPTION_KEY, TEST_FIELD_ENCRYPTION_KEYS, TEST_LOGIN_THROTTLE_KEY, validEnv } from '../support/app.ts';
 
 /** A key that looks random (production refuses the placeholders of development and tests). Generated per run, never committed. */
 const randomKey = (): string => randomBytes(32).toString('base64url');
@@ -31,6 +31,8 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       trustedProxies: [],
       cursorKey: Buffer.alloc(32, 7),
       fieldEncryptionKeys: [{ id: 'test', key: Buffer.from(TEST_FIELD_ENCRYPTION_KEY, 'base64url') }],
+      loginThrottleKey: Buffer.from(TEST_LOGIN_THROTTLE_KEY, 'base64url'),
+      loginAlerts: { passwordFailures: 30, secondStepFailures: 3 },
     });
     expect(
       loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),
@@ -193,6 +195,66 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
     const config = loadConfig({ ...production, FIELD_ENCRYPTION_KEYS: `k2:${first},k1:${second}` });
     expect(config.fieldEncryptionKeys.map((key) => key.id)).toEqual(['k2', 'k1']);
     expect(loadConfig({ ...production, FIELD_ENCRYPTION_KEYS: TEST_FIELD_ENCRYPTION_KEYS }).fieldEncryptionKeys).toHaveLength(1);
+  });
+});
+
+describe('configuration of the protection against guessing passwords (EVM-026; SR-CRYPTO, ASVS V11)', () => {
+  const production = () => ({ ...validEnv({ CURSOR_KEY: randomKey(), LOGIN_THROTTLE_KEY: randomKey() }), NODE_ENV: 'production' });
+
+  it('EVM-026 AC1 the key of the counters is base64url of at least 32 bytes; the error names the key, never the value', () => {
+    const key = randomBytes(40).toString('base64url');
+    expect(loadConfig(validEnv({ LOGIN_THROTTLE_KEY: key })).loginThrottleKey.equals(Buffer.from(key, 'base64url'))).toBe(true);
+    for (const value of ['short', randomBytes(31).toString('base64url'), `${randomKey()}=`, `${randomKey().slice(0, 42)}+`, '!!!']) {
+      const error = errorOf(validEnv({ LOGIN_THROTTLE_KEY: value }));
+      expect(error.keys, value).toEqual(['LOGIN_THROTTLE_KEY']);
+      expect(JSON.stringify({ message: error.message, keys: error.keys })).not.toContain(value);
+    }
+  });
+
+  it('EVM-026 AC1 outside production an absent key is a random key of the process; production requires it and refuses a placeholder', () => {
+    for (const nodeEnv of ['development', 'test']) {
+      for (const value of [undefined, '']) {
+        const first = loadConfig({ ...validEnv({ LOGIN_THROTTLE_KEY: value }), NODE_ENV: nodeEnv }).loginThrottleKey;
+        expect(first).toHaveLength(32);
+        expect(first.equals(loadConfig({ ...validEnv({ LOGIN_THROTTLE_KEY: value }), NODE_ENV: nodeEnv }).loginThrottleKey)).toBe(false);
+      }
+    }
+    for (const value of [undefined, ''])
+      expect(errorOf({ ...production(), LOGIN_THROTTLE_KEY: value }).keys).toEqual(['LOGIN_THROTTLE_KEY']);
+    for (const placeholder of [Buffer.alloc(32), Buffer.alloc(32, 7), Buffer.from('abcdefgh'.repeat(4))]) {
+      expect(errorOf({ ...production(), LOGIN_THROTTLE_KEY: placeholder.toString('base64url') }).keys).toEqual(['LOGIN_THROTTLE_KEY']);
+      expect(loadConfig({ ...production(), NODE_ENV: 'development', LOGIN_THROTTLE_KEY: placeholder.toString('base64url') }).nodeEnv).toBe(
+        'development',
+      );
+    }
+    expect(loadConfig(production()).nodeEnv).toBe('production');
+  });
+
+  it('EVM-026 AC1 the key differs from the key of the cursors and from every key of the encrypted fields (one key, one purpose)', () => {
+    const shared = randomKey();
+    for (const nodeEnv of ['development', 'production']) {
+      const base = { ...production(), NODE_ENV: nodeEnv };
+      expect(errorOf({ ...base, CURSOR_KEY: shared, LOGIN_THROTTLE_KEY: shared }).keys, nodeEnv).toEqual(['LOGIN_THROTTLE_KEY']);
+      expect(
+        errorOf({ ...base, FIELD_ENCRYPTION_KEYS: `k1:${randomKey()},k2:${shared}`, LOGIN_THROTTLE_KEY: shared }).keys,
+        nodeEnv,
+      ).toEqual(['LOGIN_THROTTLE_KEY']);
+    }
+  });
+
+  it('EVM-026 AC6 the thresholds of the alerts default to more than 30 failed passwords and at least 3 failures of the second step', () => {
+    expect(loadConfig(validEnv()).loginAlerts).toEqual({ passwordFailures: 30, secondStepFailures: 3 });
+    expect(loadConfig(validEnv({ LOGIN_ALERT_PASSWORD_FAILURES: '50', LOGIN_ALERT_SECOND_STEP_FAILURES: '4' })).loginAlerts).toEqual({
+      passwordFailures: 50,
+      secondStepFailures: 4,
+    });
+    for (const [key, value] of [
+      ['LOGIN_ALERT_PASSWORD_FAILURES', '0'],
+      ['LOGIN_ALERT_PASSWORD_FAILURES', 'many'],
+      ['LOGIN_ALERT_SECOND_STEP_FAILURES', '11'],
+    ] as const) {
+      expect(errorOf(validEnv({ [key]: value })).keys, `${key}=${value}`).toEqual([key]);
+    }
   });
 });
 

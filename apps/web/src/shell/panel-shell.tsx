@@ -14,7 +14,7 @@ import {
 } from '@evia/ui-web';
 import { Link, Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { ADMINISTRATION_PATH, CUSTOMERS_PATH, PAYMENTS_PATH, PRIVACY_PATH, USERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
+import { ACCOUNT_PATH, ADMINISTRATION_PATH, CUSTOMERS_PATH, PAYMENTS_PATH, PRIVACY_PATH, USERS_PATH, WORK_ORDERS_PATH } from '../paths.ts';
 import { useLogout } from '../session/use-logout.ts';
 import { TopBarSearch } from './top-bar-search.tsx';
 import { useOnline } from './use-online.ts';
@@ -89,6 +89,14 @@ export function PanelShell({ session }: { readonly session: CurrentSession }) {
           triggerText={session.user.displayName}
           triggerLabel={t('shell.accountMenu', { name: session.user.displayName })}
           items={[
+            // W-15 (EVM-028): the own account of every role; "Konto" is the first item (flows/12 → W-15 "Wejście").
+            {
+              id: 'account',
+              label: t('shell.account'),
+              onSelect: () => {
+                void navigate({ to: ACCOUNT_PATH });
+              },
+            },
             // W-19 in the same place on every screen (WCAG 3.2.6); a page of the panel, so the session stays.
             {
               id: 'privacy',

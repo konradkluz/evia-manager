@@ -20,7 +20,7 @@ export interface LoginFlow {
   readonly passwordChanged?: true;
 }
 
-export type LoginNotice = 'expired';
+export type LoginNotice = 'expired' | 'attempts';
 
 let flow: LoginFlow | null = null;
 let notice: LoginNotice | null = null;

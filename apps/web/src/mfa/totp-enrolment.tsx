@@ -10,7 +10,10 @@ import { normaliseTotpCode } from './code-input.ts';
 
 type StartFailure = 'configured' | 'unavailable' | 'failed';
 type ConfirmFailure =
-  { readonly kind: 'code' } | { readonly kind: 'rate'; readonly minutes: number } | { readonly kind: 'server'; readonly code: string };
+  | { readonly kind: 'code' }
+  | { readonly kind: 'expired' }
+  | { readonly kind: 'rate'; readonly minutes: number }
+  | { readonly kind: 'server'; readonly code: string };
 
 function startFailureOf(error: unknown): StartFailure {
   if (error instanceof ApiError && error.status === 409) return 'configured';
@@ -21,6 +24,8 @@ function startFailureOf(error: unknown): StartFailure {
 function confirmFailureOf(error: unknown): ConfirmFailure {
   if (error instanceof ApiError && error.status === 429) return { kind: 'rate', minutes: retryMinutes(error) };
   if (!(error instanceof ApiError) || error.status === 400) return { kind: 'code' };
+  // From W-15 (EVM-028): the mark of the full re-authentication ran out (5 minutes) before the code was confirmed.
+  if (error.status === 403 && error.code === 'reauthentication_required') return { kind: 'expired' };
   return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
 }
 
@@ -37,11 +42,17 @@ const grouped = (secret: string): string => secret.replace(/(.{4})(?=.)/g, '$1 '
 export function TotpEnrolment({
   online,
   headingRef,
+  initialSetup,
+  heading = true,
   onConfirmed,
   onBack,
 }: {
   readonly online: boolean;
   readonly headingRef: Ref<HTMLHeadingElement>;
+  /** W-15 (EVM-028): the secret was already made (after the full re-authentication); the step does not start another one. */
+  readonly initialSetup?: TotpSetup;
+  /** `false` where a dialog already names the step (W-15 "Dodaj kod z aplikacji"). */
+  readonly heading?: boolean;
   /** The method is active and the session is a new one: the page reads it and moves to the recovery codes. */
   readonly onConfirmed: (csrfToken: string) => Promise<void>;
   /** Back to the choice of the method (only where there is a choice). */
@@ -50,7 +61,7 @@ export function TotpEnrolment({
   const { t } = useTranslation();
   const client = useApi();
   const input = useRef<HTMLInputElement>(null);
-  const [setup, setSetup] = useState<TotpSetup | null>(null);
+  const [setup, setSetup] = useState<TotpSetup | null>(initialSetup ?? null);
   const [code, setCode] = useState('');
   const [failure, setFailure] = useState<ConfirmFailure | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -65,10 +76,10 @@ export function TotpEnrolment({
   const started = useRef(false);
   useEffect(() => {
     // One secret per visit of the step (a second call would replace the first one under the eyes of the user).
-    if (started.current) return;
+    if (started.current || initialSetup !== undefined) return;
     started.current = true;
     start.mutate();
-  }, [start]);
+  }, [start, initialSetup]);
 
   const confirm = useMutation({
     gcTime: 0,
@@ -107,6 +118,8 @@ export function TotpEnrolment({
         return undefined;
       case 'code':
         return t('mfa.totp.invalid');
+      case 'expired':
+        return t('mfa.totp.expired');
       case 'rate':
         return t('mfa.totp.rateLimited', { minutes: failure.minutes });
       case 'server':
@@ -128,9 +141,11 @@ export function TotpEnrolment({
 
   return (
     <section className="flex w-full flex-col gap-stack-md">
-      <h2 ref={headingRef} tabIndex={-1} className="text-heading-3 focus-visible:focus-ring">
-        {t('mfa.totp.title')}
-      </h2>
+      {heading ? (
+        <h2 ref={headingRef} tabIndex={-1} className="text-heading-3 focus-visible:focus-ring">
+          {t('mfa.totp.title')}
+        </h2>
+      ) : null}
       {start.isError ? (
         <InlineAlert
           tone="error"

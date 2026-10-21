@@ -4,7 +4,7 @@ import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
-import { createUser } from './identity-fixtures.ts';
+import { createPasskey, createSession, createUser } from './identity-fixtures.ts';
 import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
@@ -309,6 +309,26 @@ export async function userObjects(app: IdentityApp): Promise<Record<string, Obje
   };
 }
 
+const ACCOUNT = '/api/v1/account';
+
+/**
+ * The IDOR fixture of the own account (EVM-028 AC8; SR-AUTHZ-05, CWE-639): the key and the session of ANOTHER account that EXIST — a random identifier
+ * would not prove that the owner is in the WHERE of the query. "Own" is an identifier the caller never made (a well-formed one that is nobody's): the matrix only
+ * needs it to pass the guard, and the handler then answers 404 as well.
+ */
+export async function accountObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const stranger = await createUser(db, app.clock, { role: 'editor', status: 'active' });
+  await createPasskey(db, app.clock, stranger);
+  const key = await sql<{ id: string }>`select id from identity.passkeys where user_id = ${stranger.id}`.execute(db);
+  const session = await createSession(db, app.clock, stranger);
+  const nobody = '00000000-0000-7000-8000-000000000001';
+  return {
+    removePasskey: { own: () => `${ACCOUNT}/passkeys/${nobody}`, foreign: () => `${ACCOUNT}/passkeys/${key.rows[0]?.id ?? nobody}` },
+    endAccountSession: { own: () => `${ACCOUNT}/sessions/${nobody}`, foreign: () => `${ACCOUNT}/sessions/${session.id}` },
+  };
+}
+
 /** Every operation of the contract that addresses an object, with the paths of an own and of a foreign object. */
 export async function matrixObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
   return {
@@ -321,5 +341,6 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await timelineObjects(app)),
     ...(await paymentObjects(app)),
     ...(await userObjects(app)),
+    ...(await accountObjects(app)),
   };
 }

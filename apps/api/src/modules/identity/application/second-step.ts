@@ -33,8 +33,11 @@ export async function secondStepMethods(tx: Kysely<Database>, userId: string, ch
   return methods;
 }
 
-/** Stores a new attempt for the account and @returns its raw token (it exists only in memory and in the response). */
-export async function openSecondStep(tx: Kysely<Database>, userId: string, now: Date): Promise<string> {
+/**
+ * Stores a new attempt for the account and @returns its raw token (it exists only in memory and in the response). `throttleKey` is the scope the first
+ * step was counted in (EVM-026): the second step counts its failures there, whatever cookie its request carries.
+ */
+export async function openSecondStep(tx: Kysely<Database>, userId: string, now: Date, throttleKey: Buffer): Promise<string> {
   const loginToken = newToken();
   const db = identityTables(tx);
   await deleteStaleLoginAttempts(db, new Date(now.getTime() - LOGIN_ATTEMPT_RETENTION_MS));
@@ -43,6 +46,7 @@ export async function openSecondStep(tx: Kysely<Database>, userId: string, now: 
     tokenHash: hashToken(loginToken),
     now,
     expiresAt: new Date(now.getTime() + LOGIN_ATTEMPT_TTL_MS),
+    throttleKey,
   });
   return loginToken;
 }

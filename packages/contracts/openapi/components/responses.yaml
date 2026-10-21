@@ -184,8 +184,9 @@ TotpVerificationFailed:
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 MfaAlreadyConfigured:
   description: >-
-    Konto ma już aktywny drugi krok (klucz dostępu albo kod z aplikacji — `mfa_already_configured`); zmiana metod to EVM-028.
-    Sekret aktywnego czynnika nigdy nie jest zwracany.
+    Konfiguracja pierwszego drugiego kroku (sesja `mfa_enrollment`): konto ma już aktywny drugi krok (klucz dostępu albo kod z aplikacji —
+    `mfa_already_configured`). Dodanie kolejnej metody z konta (sesja `active`) to EVM-028 po pełnym ponownym uwierzytelnieniu. Sekret
+    aktywnego czynnika nigdy nie jest zwracany.
   content:
     application/problem+json:
       schema:
@@ -199,8 +200,8 @@ MfaAlreadyConfigured:
 RecoveryCodesForbidden:
   description: >-
     Brak dostępu: `step_up_required` (ostatnie uwierzytelnienie kodem z aplikacji lub kluczem dostępu minęło 15 minut temu albo go nie
-    było — także sesja z kodu odzyskiwania), `recovery_codes_regeneration_unavailable` (konto ma już kody z innej sesji: ponowne
-    generowanie z konta to EVM-028; odświeżyć kroku 3 może tylko sesja, która wygenerowała bieżące kody), `forbidden`.
+    było — także sesja z kodu odzyskiwania), `recovery_codes_regeneration_unavailable` (zachowane dla zgodności: konfiguracja
+    po resecie — bieżące kody wygenerowała inna sesja; z konta nowe kody wymagają pełnego ponownego uwierzytelnienia — `reauthentication_required`, EVM-028), `forbidden`.
   content:
     application/problem+json:
       schema:
@@ -830,3 +831,53 @@ ProcedureUnprocessable:
         errors:
           - pointer: ''
             code: too_many_procedures
+ReauthenticationFailed:
+  description: >-
+    Pełne ponowne uwierzytelnienie odrzucone (`reauthentication_failed`) — JEDNA odpowiedź niezależnie od tego, który czynnik zawiódł
+    (hasło, klucz dostępu, kod z aplikacji; bez wyroczni, ASVS V6.3.8); nieudana próba liczy się do limitu logowania (SR-AUTH-05).
+    Piąty zły kod z aplikacji w sesji (wspólnie ze step-upem) unieważnia ją (`session_revoked`). Brak sesji (`unauthenticated`),
+    sesja unieważniona (`session_revoked`) albo wygasła (`session_expired`). Złe bieżące hasło przy zmianie hasła: `invalid_credentials`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/reauthentication_failed
+        title: Re-authentication failed
+        status: 401
+        code: reauthentication_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+ReauthenticationRequired:
+  description: >-
+    Brak dostępu: `reauthentication_required` — operacja wymaga pełnego ponownego uwierzytelnienia (`reauthenticate`) o właściwym
+    celu; znacznik jest jednorazowy, ważny 5 minut i związany z sesją; `forbidden`, `csrf_failed`, `mfa_enrollment_required`
+    (sesja `mfa_enrollment` nie ma dostępu do operacji konta poza konfiguracją własnego drugiego kroku), `step_up_required`.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/reauthentication_required
+        title: Full re-authentication required
+        status: 403
+        code: reauthentication_required
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+SecondStepConflict:
+  description: >-
+    Konflikt reguł drugiego kroku (EVM-028 AC4): `last_second_step_method` — nie wolno usunąć ostatniego klucza Administratora
+    (`errors[0].code: passkey_required`) ani ostatniej metody innego konta (`errors[0].code: method_required`) — najpierw trzeba dodać
+    inną metodę; `mfa_already_configured` — konto ma już kod z aplikacji (sekret nigdy nie jest zwracany); `current_session` — bieżącą
+    sesję kończy „Wyloguj”.
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/last_second_step_method
+        title: The last second step method cannot be removed
+        status: 409
+        code: last_second_step_method
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: /passkeyId
+            code: passkey_required

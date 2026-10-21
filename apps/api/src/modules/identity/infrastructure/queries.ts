@@ -199,7 +199,11 @@ export async function revokeSessions(
   reason: RevokeReason,
   now: Date,
 ): Promise<string[]> {
-  let query = db.updateTable('identity.sessions').set({ revoked_at: now, revoke_reason: reason }).where('revoked_at', 'is', null);
+  // The one-time mark of the re-authentication goes with the session (EVM-028 K5).
+  let query = db
+    .updateTable('identity.sessions')
+    .set({ revoked_at: now, revoke_reason: reason, reauthenticated_at: null, reauth_purpose: null })
+    .where('revoked_at', 'is', null);
   if (filter.sessionId !== undefined) query = query.where('id', '=', filter.sessionId);
   if (filter.userId !== undefined) query = query.where('user_id', '=', filter.userId);
   if (filter.linkIds !== undefined) {
@@ -214,7 +218,7 @@ export async function revokeSessions(
 export async function revokeSessionByTokenHash(db: IdentityDb, tokenHash: Buffer, reason: RevokeReason, now: Date): Promise<string[]> {
   const rows = await db
     .updateTable('identity.sessions')
-    .set({ revoked_at: now, revoke_reason: reason })
+    .set({ revoked_at: now, revoke_reason: reason, reauthenticated_at: null, reauth_purpose: null })
     .where('token_hash', '=', tokenHash)
     .where('revoked_at', 'is', null)
     .returning('id')
@@ -274,11 +278,13 @@ export interface LoginAttemptRecord {
   readonly userId: string;
   readonly expiresAt: Date;
   readonly usedAt: Date | null;
+  /** The scope of the counter against guessing this first step was counted in; null on an attempt made before 0040. */
+  readonly throttleKey: Buffer | null;
 }
 
 export async function insertLoginAttempt(
   db: IdentityDb,
-  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date },
+  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer },
 ): Promise<string> {
   const row = await db
     .insertInto('identity.login_attempts')
@@ -288,6 +294,7 @@ export async function insertLoginAttempt(
       created_at: attempt.now,
       expires_at: attempt.expiresAt,
       used_at: null,
+      throttle_key: attempt.throttleKey,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -303,7 +310,7 @@ export async function deleteStaleLoginAttempts(db: IdentityDb, cutoff: Date): Pr
 export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer): Promise<LoginAttemptRecord | undefined> {
   return db
     .selectFrom('identity.login_attempts')
-    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt'])
+    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'throttle_key as throttleKey'])
     .where('token_hash', '=', tokenHash)
     .executeTakeFirst();
 }
@@ -510,7 +517,7 @@ export interface RotatedSession {
 export async function rotateSession(db: IdentityDb, sessionId: string, userId: string, now: Date): Promise<RotatedSession | undefined> {
   const row = await db
     .updateTable('identity.sessions')
-    .set({ revoked_at: now, revoke_reason: 'rotated' })
+    .set({ revoked_at: now, revoke_reason: 'rotated', reauthenticated_at: null, reauth_purpose: null })
     .where('id', '=', sessionId)
     .where('user_id', '=', userId)
     .where('revoked_at', 'is', null)
@@ -741,6 +748,16 @@ export async function revokeLoginAttemptsOfUser(db: IdentityDb, userId: string, 
     .updateTable('identity.login_attempts')
     .set({ used_at: now })
     .where('user_id', '=', userId)
+    .where('used_at', 'is', null)
+    .execute();
+}
+
+/** Ends the open first steps counted in one scope (a lock of that scope must not leave a `loginToken` that could still guess; other scopes are untouched). */
+export async function revokeLoginAttemptsOfScope(db: IdentityDb, throttleKey: Buffer, now: Date): Promise<void> {
+  await db
+    .updateTable('identity.login_attempts')
+    .set({ used_at: now })
+    .where('throttle_key', '=', throttleKey)
     .where('used_at', 'is', null)
     .execute();
 }

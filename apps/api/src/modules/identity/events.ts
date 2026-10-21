@@ -37,6 +37,17 @@ export const IDENTITY_EVENT_TYPES = [
   'user.reactivated',
   'user.sessions_ended',
   'user.second_step_reset',
+  // EVM-026: sign-in was locked after ten failed tries — for the browsers the account does not know / for one browser it knows (no address, no key of the counter).
+  'account.locked',
+  'account.browser_locked',
+  // EVM-028: the owner changed the profile / the password / removed a key or the code of the app / passed (or failed) the full re-authentication. Codes and
+  // identifiers only — never a name (neither the old nor the new), a key name, a password or an address.
+  'account.profile_updated',
+  'password.changed',
+  'passkey.removed',
+  'mfa.totp_removed',
+  'reauthentication.succeeded',
+  'reauthentication.failed',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -76,6 +87,13 @@ export const REASON_CODES = [
   'identity_verified_video_call',
   // The correct password of an account whose window to set up a second step is over, or never was open (EVM-027 D2).
   'mfa_setup_expired',
+  // EVM-026: what a lock of the sign-in was caused by — failures of the password only, or at least one of the second step in the window.
+  'password',
+  'second_step',
+  // EVM-028: why a session ended — the sixth sign-in pushed the oldest out (SR-SESS-04) / its owner ended it (SR-SESS-07); a re-authentication refused by the lock.
+  'session_limit',
+  'ended_by_user',
+  'rate_limited',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
