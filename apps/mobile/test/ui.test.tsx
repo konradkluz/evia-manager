@@ -3,7 +3,7 @@ import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { ReactElement } from 'react';
 import { AppBar, BottomNav, Button, ClipboardList, EmptyState, InlineAlert, ListChecks, Skeleton, SyncIndicator } from '../src/ui';
-import { color, size } from '../src/ui/theme';
+import { color, radius, size, text } from '../src/ui/theme';
 
 const metrics = { frame: { x: 0, y: 0, width: 360, height: 760 }, insets: { top: 24, left: 0, right: 0, bottom: 16 } };
 const inProvider = (element: ReactElement) => <SafeAreaProvider initialMetrics={metrics}>{element}</SafeAreaProvider>;
@@ -89,6 +89,31 @@ describe('mobile UI library (EVM-009 AC1; styleguide § 3, § 5)', () => {
     expect(screen.getByLabelText('Nawigacja główna')).toBeOnTheScreen();
   });
 
+  it('EVM-009 AC1: the BottomNav capsule of the active item is always a pill clipped to its radius, after every change of the active item', async () => {
+    const nav = (first: boolean) =>
+      inProvider(
+        <BottomNav
+          accessibilityLabel="Nawigacja główna"
+          items={[
+            { key: 'a', label: 'Moje zlecenia', icon: ClipboardList, selected: first, onPress: () => undefined, testID: 'nav-a' },
+            { key: 'b', label: 'Kolejka', icon: ListChecks, selected: !first, onPress: () => undefined, testID: 'nav-b' },
+          ]}
+        />,
+      );
+    const view = await render(nav(true));
+    const capsuleOf = (id: string) => flat(screen.getByTestId(id).children[0] as never);
+    for (const id of ['nav-a', 'nav-b']) {
+      expect(capsuleOf(id).borderRadius).toBe(radius.pill);
+      expect(capsuleOf(id).overflow).toBe('hidden');
+    }
+    expect(capsuleOf('nav-a').backgroundColor).toBe(color.nav.indicator);
+    expect(capsuleOf('nav-b').backgroundColor).toBe('transparent');
+    await view.rerender(nav(false));
+    expect(capsuleOf('nav-b').backgroundColor).toBe(color.nav.indicator);
+    expect(capsuleOf('nav-b').borderRadius).toBe(radius.pill);
+    expect(capsuleOf('nav-b').overflow).toBe('hidden');
+  });
+
   it('EVM-009 AC1: SyncIndicator shows a capsule with the offline outline, a touch area of 48 dp and a full accessible name', async () => {
     const onPress = jest.fn();
     await render(<SyncIndicator state="offline" label="Offline" accessibilityLabel="Offline. Otwórz kolejkę" onPress={onPress} />);
@@ -133,6 +158,10 @@ describe('mobile UI library (EVM-009 AC1; styleguide § 3, § 5)', () => {
     );
     expect(screen.getByTestId('error')).toHaveProp('accessibilityRole', 'alert');
     expect(screen.getByTestId('info')).not.toHaveProp('accessibilityRole', 'alert');
+    expect(flat(screen.getByText('Brak połączenia z serwerem')).fontWeight).toBe(text.heading4.fontWeight);
+    expect(flat(screen.getByText('Brak połączenia z serwerem')).fontSize).toBeGreaterThan(
+      flat(screen.getByText('Treść')).fontSize as number,
+    );
     expect(screen.getByText('Kod: x')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Ponów' })).toBeOnTheScreen();
     expect(screen.getByText('Brak zasięgu')).toBeOnTheScreen();

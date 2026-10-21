@@ -23,3 +23,9 @@ appId: pl.eviacharge.manager
 - tapOn:
     id: 'nav-orders'
 - assertVisible: 'Brak zleceń'
+# the active capsule of the bottom navigation keeps its rounded corners after every change (review screenshots)
+- takeScreenshot: nav-orders-active
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: 'Nic nie czeka na wysłanie.'
+- takeScreenshot: nav-kolejka-active

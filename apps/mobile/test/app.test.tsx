@@ -72,6 +72,7 @@ describe('app shell (EVM-009 AC1)', () => {
         jest.advanceTimersByTime(SLOW_CHECK_MS);
       });
       expect(screen.getByText(pl.shell.loading.slow)).toBeOnTheScreen();
+      expect(screen.getByText(pl.shell.loading.slow)).toHaveProp('accessibilityLiveRegion', 'polite');
     } finally {
       jest.useRealTimers();
     }
@@ -145,6 +146,9 @@ describe('connection with the API (EVM-009 AC2)', () => {
     expect(screen.getByText(pl.shell.serverUnavailable.title)).toBeOnTheScreen();
     expect(screen.getByText(pl.shell.serverUnavailable.body)).toBeOnTheScreen();
     expect(screen.queryByText(/^Kod:/)).toBeNull();
+    // the retry button hugs its label at the start of the alert instead of stretching or centring (touch target stays 48 dp)
+    expect(StyleSheet.flatten(screen.getByTestId('retry-server-wrap').props.style as never)).toMatchObject({ alignSelf: 'flex-start' });
+    expect(StyleSheet.flatten(screen.getByTestId('retry-server').props.style as never)).toMatchObject({ minHeight: size.touchTarget.min });
     expect(screen.getByText(pl.shell.sync.offline)).toBeOnTheScreen();
     expect(screen.getByText(pl.shell.orders.emptyTitle)).toBeOnTheScreen();
   });

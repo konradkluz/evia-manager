@@ -28,7 +28,11 @@ export function ConnectionNotices() {
           title={t('shell.serverUnavailable.title')}
           body={t('shell.serverUnavailable.body')}
           code={state.problem === 'invalid' ? t('shell.errorCode', { code: 'health_invalid' }) : undefined}
-          action={<Button variant="tertiary" label={t('shell.retry')} onPress={retry} disabled={checking} testID="retry-server" />}
+          action={
+            <View testID="retry-server-wrap" style={{ alignSelf: 'flex-start' }}>
+              <Button variant="tertiary" label={t('shell.retry')} onPress={retry} disabled={checking} testID="retry-server" />
+            </View>
+          }
           testID="server-alert"
         />
       </View>

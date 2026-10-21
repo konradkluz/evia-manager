@@ -52,6 +52,8 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
       [
         'kolejka-empty',
         'kolejka-offline',
+        'nav-kolejka-active',
+        'nav-orders-active',
         's01-loading',
         's01-loading-slow',
         's01-offline',

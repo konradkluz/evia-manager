@@ -39,7 +39,7 @@ export function InlineAlert({ tone, title, body, code, action, testID }: InlineA
     >
       <Icon icon={tone === 'error' ? CircleAlert : WifiOff} color={tokens.icon} />
       <View style={{ flex: 1, rowGap: space.stack.xs }}>
-        {title === undefined ? null : <Text style={{ ...text.labelLg, color: tokens.text }}>{title}</Text>}
+        {title === undefined ? null : <Text style={{ ...text.heading4, color: tokens.text }}>{title}</Text>}
         <Text style={{ ...text.body, color: color.text.primary }}>{body}</Text>
         {code === undefined ? null : <Text style={{ ...text.bodySm, color: color.text.secondary }}>{code}</Text>}
         {action}

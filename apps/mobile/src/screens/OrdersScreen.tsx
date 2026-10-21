@@ -23,7 +23,9 @@ export function OrdersScreen({ onOpenQueue }: { onOpenQueue: () => void }) {
             <Skeleton accessibilityLabel={t('shell.loading.label')} testID="orders-skeleton" />
             {slow ? (
               <View style={{ padding: space.inset.md, rowGap: space.stack.sm }}>
-                <Text style={{ ...text.body, color: color.text.secondary }}>{t('shell.loading.slow')}</Text>
+                <Text accessibilityLiveRegion="polite" style={{ ...text.body, color: color.text.secondary }}>
+                  {t('shell.loading.slow')}
+                </Text>
               </View>
             ) : null}
           </View>

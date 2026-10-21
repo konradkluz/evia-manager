@@ -54,6 +54,8 @@ export function BottomNav({ items, accessibilityLabel }: { items: BottomNavItem[
               width: size.bottomNav.indicator.width,
               height: size.bottomNav.indicator.height,
               borderRadius: radius.pill,
+              // without it Android keeps square corners of a background that changes while the view is alive
+              overflow: 'hidden',
               alignItems: 'center',
               justifyContent: 'center',
               backgroundColor: item.selected ? color.nav.indicator : 'transparent',
