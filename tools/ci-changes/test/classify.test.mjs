@@ -223,6 +223,8 @@ describe('EVM-007 AC1: iac-check only for changes of the IaC code, its container
     for (const path of [
       'infra/tofu/staging/main.tf',
       'infra/docker/iac/check.sh',
+      'infra/deploy-agent/deploy.sh',
+      'infra/docker/deploy-tests/Dockerfile',
       'compose.yaml',
       'compose.iac.yaml',
       '.github/workflows/ci.yml',

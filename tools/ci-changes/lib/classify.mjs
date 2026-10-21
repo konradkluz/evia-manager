@@ -74,10 +74,17 @@ export function detect({ eventName, baseSha, diff }) {
 }
 
 /**
- * EVM-007 AC1: changes that run iac-check in a pull request (OpenTofu, its container, the compose files and workflows).
+ * EVM-007 AC1, AC4: changes that run iac-check and the tests of deploy.sh in a pull request (OpenTofu, the IaC container,
+ * the root scripts of the VM and their test image, the compose files and workflows).
  * Fail closed: every other event, a bad base, a diff error or an empty diff mean "true".
  */
-export const IAC_PREFIXES = Object.freeze(['infra/tofu/', 'infra/docker/iac/', '.github/']);
+export const IAC_PREFIXES = Object.freeze([
+  'infra/tofu/',
+  'infra/docker/iac/',
+  'infra/deploy-agent/',
+  'infra/docker/deploy-tests/',
+  '.github/',
+]);
 export const IAC_FILES = Object.freeze(['compose.yaml', 'compose.iac.yaml']);
 
 /**

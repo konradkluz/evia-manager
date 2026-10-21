@@ -1,0 +1,29 @@
+# The verifier container on the VM (EVM-007 AC3; ADR-0018 "Implementacja weryfikatora", m5; security-engineer B
+# "Kontener weryfikatora"). Installed in the IaC session at /etc/evia/deploy-agent/compose.agent.yaml; changed only
+# there, never by the deployment channel. The image is built in the IaC session from a clean main
+# (infra/images/deploy-agent/Dockerfile) and pinned here by its ID — the zeros below are replaced in that session
+# (tools/repo-policy checks the form). No Docker socket, no ports, read-only root file system, all capabilities dropped,
+# a non-root user, egress only (the metadata service is blocked by nftables). Mounts: the configuration directory and
+# the registry read-only, the token copy read-only, its own result and state directories writable.
+services:
+  verifier:
+    image: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    pull_policy: never
+    user: '10010:10010'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    networks: [egress]
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    volumes:
+      - /etc/evia/deploy-agent:/etc/evia-agent:ro
+      - /var/lib/evia/registry:/var/lib/evia/deploy:ro
+      - /run/evia/agent/github-pat:/run/secrets/github-pat:ro
+      - /var/lib/evia/agent/out:/out
+      - /var/lib/evia/agent/state:/state
+
+networks:
+  egress:
+    name: evia-agent-egress

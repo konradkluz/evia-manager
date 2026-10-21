@@ -12,7 +12,7 @@ EVM-007 dodaje dwa wyjścia (funkcja `detectDeployment`):
 
 | Wyjście | Krok / job | `true`, gdy… |
 |---|---|---|
-| `iac` | krok `iac-check` joba `security` | `pull_request` zmienia `infra/tofu/`, `infra/docker/iac/`, `.github/`, `compose.yaml` albo `compose.iac.yaml`; zawsze dla `push` na `main` i innych zdarzeń; fail-closed jak niżej |
+| `iac` | krok `iac-check` joba `security` i testy `deploy.sh` (`deploy-sh-tests`) joba `backend` | `pull_request` zmienia `infra/tofu/`, `infra/docker/iac/`, `infra/deploy-agent/`, `infra/docker/deploy-tests/`, `.github/`, `compose.yaml` albo `compose.iac.yaml`; zawsze dla `push` na `main` i innych zdarzeń; fail-closed jak niżej |
 | `publish` | job `publish` (obrazy wydania, AC2) | `push` na `main` zmienia `apps/`, `packages/`, `infra/`, `pnpm-lock.yaml` albo inne wejście budowy obrazów (`pnpm-workspace.yaml`, `package.json`, `.nvmrc`, `turbo.json`, `patches/`, `design/tokens/`); sama dokumentacja — `false`; inne zdarzenia — zawsze `false`; dla `push` błąd, brak bazy lub pusta lista zmian — `true` |
 
 Dane: `git diff --name-only <baza> HEAD` (bez wykrywania zmian nazw: przeniesienie kodu do `docs/` nie jest dokumentacją).

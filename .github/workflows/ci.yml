@@ -164,6 +164,10 @@ jobs:
         run: docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend
       - name: Licenses of production dependencies (bramka 4)
         run: node tools/scan/cli.mjs licenses
+      # EVM-007 AC4: the root script of the VM (deploy.sh) and ShellCheck, in their Linux container, when they changed.
+      - name: Tests of the deployment script of the VM (deploy-sh-tests)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm deploy-sh-tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov-backend

@@ -1,0 +1,12 @@
+# EVM-007 AC3, AC4 (architect 12): one cycle of the channel — verifier, then deploy.sh — under one lock.
+[Unit]
+Description=EVia deployment channel: verifier (V0-V4) and deployment (V6)
+Requires=docker.service evia-metadata-block.service
+After=docker.service evia-metadata-block.service network-online.target
+Wants=network-online.target
+OnFailure=evia-deploy-agent-alert.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock --nonblock /run/evia-deploy-agent.lock /usr/local/sbin/evia-deploy-cycle
+TimeoutStartSec=14min

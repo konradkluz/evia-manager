@@ -72,6 +72,13 @@ export function writeAtomic(path: string, content: string): void {
 
 const readOptional = (path: string): string | null => (existsSync(path) ? readFileSync(path, 'utf8') : null);
 
+/** A mounted file the cycle cannot run without; its absence is a reason code, never an internal error. */
+function readRequired(path: string, code: string): string {
+  const text = readOptional(path);
+  if (text === null) throw new Rejection(code, 'file not mounted');
+  return text;
+}
+
 /** The administrator's rollback command: a file with one full commit SHA (written by root on the VM). */
 export function readRollback(text: string | null): string | null {
   if (text === null) return null;
@@ -153,9 +160,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
     decision = { decision: 'none', head: null, reasons: ['rate limit backoff — no request this cycle'] };
   } else {
     try {
-      const config = parseConfig(readFileSync(paths.config, 'utf8'));
+      const config = parseConfig(readRequired(paths.config, 'config'));
       registry = parseRegistry(readOptional(paths.registry));
-      const token = readFileSync(paths.token, 'utf8').trim();
+      const token = readRequired(paths.token, 'token').trim();
       if (!/^[A-Za-z0-9_]{20,255}$/.test(token)) throw new Rejection('token', 'unreadable token file');
       const github = new GitHub({
         baseUrl: options.apiBase ?? PRODUCTION_API,

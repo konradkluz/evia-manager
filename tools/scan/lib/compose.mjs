@@ -20,6 +20,7 @@ export const SERVICES = Object.freeze([
   'renovate-validate',
   'iac-check',
   'scan-trivy-image',
+  'deploy-sh-tests',
 ]);
 
 /**

@@ -172,7 +172,9 @@ describe('EVM-007 AC3, AC4: the entry point of the verifier container', () => {
 
   it('EVM-007 AC3: a missing configuration, a malformed token or rollback command rejects the cycle with exit code 3', async () => {
     const files = paths();
-    expect((await run({ paths: files, env: {}, now })).exitCode).toBe(3);
+    const missing = await run({ paths: files, env: {}, now });
+    expect(missing.exitCode).toBe(3);
+    expect(missing.decision.reasons).toEqual(['config: file not mounted']);
     writeFileSync(files.config, configText('a'.repeat(40)));
     writeFileSync(files.token, 'not a token!');
     expect((await run({ paths: files, env: {}, now })).decision.reasons.join()).toContain('token');

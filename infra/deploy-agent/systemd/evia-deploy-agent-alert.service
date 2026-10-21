@@ -1,0 +1,7 @@
+# EVM-007 AC3: the local alert of a rejected cycle (the e-mail alert is EVM-085). Identifiers only, no personal data.
+[Unit]
+Description=EVia deployment channel: local alert
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'date -u +"%%Y-%%m-%%dT%%H:%%M:%%SZ deployment cycle failed (journalctl -u evia-deploy-agent)" >> /var/lib/evia/agent/alerts.log'

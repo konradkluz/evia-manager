@@ -1,0 +1,11 @@
+# EVM-007 AC3: the channel checks main every 90 s (ADR-0018: 1-2 min); a cycle never overlaps the previous one.
+[Unit]
+Description=EVia deployment channel every 90 seconds
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=90s
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

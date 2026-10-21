@@ -247,6 +247,24 @@ services:
     volumes:
       - ./infra/tofu:/src/infra/tofu:ro
 
+  # Tests of the root script of the VM (EVM-007 AC4; architect 16): deploy.sh with stand-ins for docker and curl, no
+  # network, the script and its tests read-only. Local gate and CI (backend job when the deployment channel changed).
+  deploy-sh-tests:
+    <<: *hardening
+    image: evia-deploy-tests:local
+    build:
+      context: infra/docker/deploy-tests
+    pull_policy: build
+    user: '1000:1000'
+    network_mode: none
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=64m
+    volumes:
+      - ./infra/deploy-agent:/src/infra/deploy-agent:ro
+      - ./infra/docker/iac:/src/infra/docker/iac:ro
+
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
     <<: *scanner
