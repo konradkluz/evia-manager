@@ -35,6 +35,22 @@ describe('mobile-apk (EVM-009 AC5, AC6)', () => {
     );
   });
 
+  it('EVM-009 AC6 (B5): without the repository variable the run summary warns that the package has the placeholder address', () => {
+    const warning = steps('mobile-apk').find((step) => text(step['name']).startsWith('Placeholder API address warning'));
+    expect(warning).toBeDefined();
+    expect(warning?.['if']).toBe("${{ vars.EVIA_API_BASE_URL == '' }}");
+    const script = text(warning?.['run']);
+    expect(script).toContain('APK zbudowany z adresem zastępczym API — nie do dystrybucji');
+    expect(script).toContain('>> "$GITHUB_STEP_SUMMARY"');
+    // no expression is interpolated into the script (injection rules of the repository, zizmor)
+    expect(script).not.toContain('${{');
+    expect(warning?.['env']).toBeUndefined();
+    expect(JSON.stringify(warning)).not.toMatch(/secrets./);
+    // the warning is written before the digest, so that it sits next to the SHA-256 of the package
+    const names = steps('mobile-apk').map((step) => text(step['name']));
+    expect(names.indexOf(text(warning?.['name']))).toBeLessThan(names.indexOf('SHA-256 of the package to the summary'));
+  });
+
   it('EVM-009 AC5: a frozen lockfile, a clean prebuild, assembleRelease, the run number in the version code, no EAS and no other public variable', () => {
     const commands = runs('mobile-apk').join('\n');
     expect(commands).toContain('pnpm install --frozen-lockfile');

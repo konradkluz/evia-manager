@@ -314,6 +314,17 @@ jobs:
         env:
           APK: ${{ steps.name.outputs.file }}
         run: node tools/mobile-apk/cli.mjs verify --apk "$APK"
+      # No repository variable: the package carries the placeholder address (api.example.invalid). Said loudly, not only in a comment.
+      - name: Placeholder API address warning (summary and annotation)
+        if: ${{ vars.EVIA_API_BASE_URL == '' }}
+        shell: bash
+        run: |
+          {
+            echo '### Uwaga: adres zastępczy API'
+            echo
+            echo 'APK zbudowany z adresem zastępczym API — nie do dystrybucji. Ustaw zmienną repozytorium EVIA_API_BASE_URL i zbuduj ponownie.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo '::warning title=Adres zastępczy API::APK zbudowany z adresem zastępczym API — nie do dystrybucji (brak zmiennej repozytorium EVIA_API_BASE_URL).'
       - name: SHA-256 of the package to the summary
         env:
           APK: ${{ steps.name.outputs.file }}
