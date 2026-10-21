@@ -28,6 +28,7 @@ mkdirSync(RESULTS_DIR, { recursive: true });
 let issuer!: Issuer;
 const issuerLog: string[] = [];
 const t0 = Date.now();
+const nonce = Date.now().toString(36);
 const steps: { tMs: number; step: string; data?: unknown }[] = [];
 const note = (step: string, data?: unknown) => {
   steps.push({ tMs: Date.now() - t0, step, data });
@@ -52,10 +53,33 @@ async function startIssuer(ttl = 3600) {
   await issuer.listen();
 }
 
+/** Clean slate: app data (jobs, DB, token), S3 objects, open multiparts, issuer mapping. Each scenario then measures on its own. */
+async function resetAll() {
+  await dev.sh(`pm clear ${dev.PKG}`);
+  await dev.sh(`pm grant ${dev.PKG} android.permission.CAMERA`);
+  await dev.sh(`pm grant ${dev.PKG} android.permission.POST_NOTIFICATIONS`);
+  const { DeleteObjectCommand, ListObjectsV2Command, ListMultipartUploadsCommand, AbortMultipartUploadCommand } =
+    await import('@aws-sdk/client-s3');
+  for (const o of (await s3.send(new ListObjectsV2Command({ Bucket: local.bucket }))).Contents ?? [])
+    await s3.send(new DeleteObjectCommand({ Bucket: local.bucket, Key: o.Key! }));
+  for (const u of (await s3.send(new ListMultipartUploadsCommand({ Bucket: local.bucket }))).Uploads ?? [])
+    await s3.send(new AbortMultipartUploadCommand({ Bucket: local.bucket, Key: u.Key!, UploadId: u.UploadId! }));
+  rmSync(resolve(RESULTS_DIR, '../issuer-state.json'), { force: true });
+}
+
 async function configureApp() {
   await dev.startApp({ cmd: 'configure', token: local.token, base: 'http://10.0.2.2:8787', device: 'emulator-device-1' });
   await dev.sleep(4000);
 }
+
+const pingHost = async () => {
+  try {
+    await dev.sh('ping -c 1 -W 2 10.0.2.2');
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const waitFor = async (pred: () => Promise<boolean>, timeoutMs: number, pollMs = 1000): Promise<boolean> => {
   const end = Date.now() + timeoutMs;
@@ -154,10 +178,11 @@ async function throttle(kbps: number | 'full') {
 async function airplane(run: number) {
   await dev.sh('cmd connectivity airplane-mode enable');
   note('airplane on', { setting: (await dev.sh('settings get global airplane_mode_on')).trim() });
-  await dev.sleep(3000);
+  const down = await waitFor(async () => !(await pingHost()), 30_000, 1000);
+  note('network really down (ping to the host fails)', { down });
   const photos = [];
-  for (let i = 0; i < 3; i++) photos.push(await plant(2 * MiB, `air-${run}-photo-${i}`, 'image/jpeg'));
-  const video = await plant(48 * MiB, `air-${run}-video`, 'video/mp4');
+  for (let i = 0; i < 3; i++) photos.push(await plant(2 * MiB, `air-${nonce}-${run}-photo-${i}`, 'image/jpeg'));
+  const video = await plant(48 * MiB, `air-${nonce}-${run}-video`, 'video/mp4');
   const planted = [...photos, video];
   note('enqueued offline', { files: planted.length });
   await dev.sleep(15_000);
@@ -175,9 +200,35 @@ async function airplane(run: number) {
   return { ok, msAfterNetworkBack: msToAll, files: await verifyAll(planted), offlineStates: offline.map((j) => j?.state) };
 }
 
+/** Network lost in the MIDDLE of a transfer (airplane mode while a part is in flight), then restored. */
+async function airplaneMid(mib: number) {
+  await throttle(24_000);
+  const p = await plant(mib * MiB, `airmid-${nonce}`, 'video/mp4');
+  await waitFor(async () => partsDone((await jobsBySha([p]))[0]) >= 3, 300_000, 400);
+  await dev.sh('cmd connectivity airplane-mode enable');
+  note('airplane on mid-upload', { partsDone: partsDone((await jobsBySha([p]))[0]) });
+  await waitFor(async () => !(await pingHost()), 30_000, 500);
+  await dev.sleep(45_000);
+  const during = (await jobsBySha([p]))[0];
+  note('45 s offline', {
+    partsDone: partsDone(during),
+    retries: during?.retries,
+    stops: during?.stops,
+    runs: during?.runs,
+    jobScheduler: await dev.jobState(during!.assetId),
+  });
+  const tOn = Date.now();
+  await dev.sh('cmd connectivity airplane-mode disable');
+  note('airplane off');
+  await throttle('full');
+  const ok = await waitFor(() => allUploaded([p]), 300_000, 1500);
+  note('uploaded?', { ok, msAfterNetworkBack: Date.now() - tOn });
+  return { ok, msAfterNetworkBack: Date.now() - tOn, files: await verifyAll([p]) };
+}
+
 async function interrupt(mode: 'forcestop' | 'kill9', point: 'begin' | 'middle' | 'end', mib: number) {
   await throttle(24_000); // ~3 MB/s so that a part takes a few seconds and the cut can hit a chosen part
-  const p = await plant(mib * MiB, `${mode}-${point}-${Date.now()}`, 'video/mp4');
+  const p = await plant(mib * MiB, `${mode}-${point}-${nonce}`, 'video/mp4');
   const target = point === 'begin' ? 1 : point === 'middle' ? 7 : 12;
   const reached = await waitFor(async () => partsDone((await jobsBySha([p]))[0]) >= target, 300_000, 400);
   const before = (await jobsBySha([p]))[0];
@@ -203,7 +254,7 @@ async function interrupt(mode: 'forcestop' | 'kill9', point: 'begin' | 'middle' 
 
 async function killComplete() {
   await throttle('full');
-  const p = await plant(80 * MiB, `killcomplete-${Date.now()}`, 'video/mp4', true);
+  const p = await plant(80 * MiB, `killcomplete-${nonce}`, 'video/mp4', true);
   const gone = await waitFor(async () => (await dev.pidOfApp()) === '', 120_000, 500);
   const j1 = (await jobsBySha([p]))[0];
   note('process killed by the test hook after complete (before the local state write)', { gone, localState: j1?.state });
@@ -218,7 +269,7 @@ async function killComplete() {
 async function big(mib: number) {
   await throttle('full');
   const free0 = await dev.freeKb();
-  const p = await plant(mib * MiB, `big-${Date.now()}`, 'video/mp4');
+  const p = await plant(mib * MiB, `big-${nonce}`, 'video/mp4');
   const free1 = await dev.freeKb();
   note('planted', { mib, freeKbBefore: free0, freeKbAfter: free1 });
   const started = Date.now();
@@ -233,7 +284,7 @@ async function rebootScenario(withPin: boolean) {
     await dev.sh('locksettings set-pin 4321');
     note('synthetic PIN set (removed at the end)');
   }
-  const p = await plant(300 * MiB, `reboot-${withPin ? 'pin' : 'nopin'}-${Date.now()}`, 'video/mp4');
+  const p = await plant(300 * MiB, `reboot-${withPin ? 'pin' : 'nopin'}-${nonce}`, 'video/mp4');
   await throttle(24_000);
   await waitFor(async () => partsDone((await jobsBySha([p]))[0]) >= 4, 300_000, 400);
   const before = (await jobsBySha([p]))[0];
@@ -274,7 +325,7 @@ async function rebootScenario(withPin: boolean) {
 
 async function background(mib: number, kbps: number, deepIdle: boolean) {
   await throttle(kbps);
-  const p = await plant(mib * MiB, `bg-${deepIdle ? 'idle' : 'base'}-${Date.now()}`, 'video/mp4');
+  const p = await plant(mib * MiB, `bg-${deepIdle ? 'idle' : 'base'}-${nonce}`, 'video/mp4');
   await dev.sleep(5000);
   await dev.sh('input keyevent KEYCODE_HOME');
   note('app sent to background (HOME)');
@@ -305,7 +356,7 @@ async function background(mib: number, kbps: number, deepIdle: boolean) {
 
 async function wifiLte() {
   await throttle(24_000);
-  const p = await plant(160 * MiB, `wifi-${Date.now()}`, 'video/mp4');
+  const p = await plant(160 * MiB, `wifi-${nonce}`, 'video/mp4');
   await waitFor(async () => partsDone((await jobsBySha([p]))[0]) >= 2, 120_000, 400);
   note('mid-upload', { partsDone: partsDone((await jobsBySha([p]))[0]) });
   await dev.sh('svc wifi disable');
@@ -319,36 +370,49 @@ async function wifiLte() {
   return { ok, approximationOnly: true, files: await verifyAll([p]) };
 }
 
+const safe = async (fn: () => Promise<string>) => {
+  try {
+    return (await fn()).trim();
+  } catch (e) {
+    const err = e as { stdout?: string; stderr?: string; message: string };
+    return `(exit != 0) ${(err.stdout || err.stderr || err.message).toString().trim().slice(0, 300)}`;
+  }
+};
+
 async function checks() {
   const out: Record<string, unknown> = {};
+  // Put something into the queue so that the encrypted database and the job files exist.
+  const p = await plant(1 * MiB, `checks-${nonce}`, 'image/jpeg');
+  out.smokeUploaded = await waitFor(() => allUploaded([p]), 60_000, 1000);
   // A1 (b): backup attempt on the emulator.
-  out.bmgrEnabled = (await dev.sh('bmgr enabled')).trim();
-  out.bmgrBackupnow = (await dev.sh(`bmgr backupnow ${dev.PKG} 2>&1 | head -5`)).trim();
+  out.bmgrEnabled = await safe(() => dev.sh('bmgr enabled'));
+  out.bmgrBackupnow = await safe(() => dev.sh(`bmgr backupnow ${dev.PKG} 2>&1 | head -5`));
   // Database must not be readable plaintext: first bytes of the SQLCipher file are not "SQLite format 3".
-  const head = await dev.adb('exec-out', `run-as ${dev.PKG} sh -c 'head -c 16 files/SQLite/evm011-queue.db | od -An -tx1'`);
-  out.dbHeaderHex = head.trim();
+  const head = await safe(() => dev.adb('exec-out', `run-as ${dev.PKG} sh -c 'head -c 16 files/SQLite/evm011-queue.db | od -An -tx1'`));
+  out.dbHeaderHex = head;
   out.dbLooksPlainSqlite = head.replace(/\s+/g, '') === '53514c69746520666f726d6174203300';
-  out.dbFiles = (await dev.runAs('ls -la files/SQLite databases 2>&1')).trim();
-  out.noBackupFiles = (await dev.runAs('ls -R no_backup/evm011 2>&1 | head -20')).trim();
-  out.mediaDir = (await dev.runAs('ls -la files/media 2>&1 | head -20')).trim();
-  out.mediaStoreVideoRows = (
-    await dev.sh('content query --uri content://media/external/video/media --projection _display_name 2>&1 | head -3')
-  ).trim();
-  out.mediaStoreImageRows = (
-    await dev.sh('content query --uri content://media/external/images/media --projection _display_name 2>&1 | head -3')
-  ).trim();
-  out.grantedPermissions = (await dev.sh(`dumpsys package ${dev.PKG} | grep -E "permission.*granted=true" | head -20`)).trim();
-  out.requestedPermissions = (
-    await dev.sh(`dumpsys package ${dev.PKG} | sed -n '/requested permissions:/,/install permissions:/p' | head -30`)
-  ).trim();
+  out.dbFiles = await safe(() => dev.runAs('ls -la files/SQLite databases 2>&1'));
+  out.noBackupFiles = await safe(() => dev.runAs('ls -R no_backup/evm011 2>&1 | head -20'));
+  out.mediaDir = await safe(() => dev.runAs('ls -la files/media 2>&1 | head -20'));
+  out.mediaStoreVideoRows = await safe(() =>
+    dev.sh('content query --uri content://media/external/video/media --projection _display_name 2>&1 | head -3'),
+  );
+  out.mediaStoreImageRows = await safe(() =>
+    dev.sh('content query --uri content://media/external/images/media --projection _display_name 2>&1 | head -3'),
+  );
+  out.grantedPermissions = await safe(() => dev.sh(`dumpsys package ${dev.PKG} | grep -E "permission.*granted=true" | head -20`));
+  out.requestedPermissions = await safe(() =>
+    dev.sh(`dumpsys package ${dev.PKG} | sed -n '/requested permissions:/,/install permissions:/p' | head -30`),
+  );
   out.adbBackupAttempt = 'see backup scenario in the report';
   return out;
 }
 
 // ------------------------------------------------------------------------------------------------ main
 
-await startIssuer();
 if (!(await dev.emulatorRunning())) await dev.startEmulator();
+if (scenario !== 'checks' && !args.includes('--keep')) await resetAll();
+await startIssuer();
 await configureApp();
 const runs = flag('runs', 1);
 try {
@@ -359,6 +423,9 @@ try {
       await finish('airplane', { runs: all });
       break;
     }
+    case 'airplane-mid':
+      await finish('airplane-mid', { run: await airplaneMid(flag('mib', 200)) });
+      break;
     case 'forcestop':
     case 'kill9': {
       const all = [];

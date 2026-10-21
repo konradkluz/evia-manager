@@ -159,13 +159,19 @@ export async function logcatEvm(): Promise<string[]> {
 }
 
 export async function pidOfApp(): Promise<string> {
-  return (await sh(`pidof ${PKG}`)).trim();
+  try {
+    return (await sh(`pidof ${PKG}`)).trim();
+  } catch {
+    return ''; // pidof exits 1 when there is no process
+  }
 }
 
 export async function jobState(assetId: string): Promise<string> {
   try {
     return (await sh(`cmd jobscheduler get-job-state -u 0 ${PKG} ${jobIdFor(assetId)}`)).trim();
   } catch (e) {
-    return `error:${(e as Error).message.slice(0, 40)}`;
+    // a missing job makes the command exit non-zero; its output still says what the scheduler knows
+    const err = e as { stdout?: string; stderr?: string };
+    return `absent (${(err.stdout || err.stderr || '').trim().slice(0, 80)})`;
   }
 }
