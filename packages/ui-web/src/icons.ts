@@ -45,6 +45,7 @@ export {
   ShieldCheck,
   SearchX,
   ShieldX,
+  Smartphone,
   ThumbsUp,
   TimerOff,
   TriangleAlert,
