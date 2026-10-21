@@ -370,7 +370,7 @@ describe('EVM-011 AC2 issuer access control (SR-MOB-04, SR-SYNC-03, SR-SYNC-08, 
     expect(await runUpload({ ...mkJob(job.assetId, 'device-b') }, engine(client('device-b')).deps)).toBe('id_conflict');
   });
 
-  it('EVM-011 AC2 id_conflict has no side effects: device B cannot abort A�s multipart, A finishes, B cannot overwrite the completed object', async () => {
+  it('EVM-011 AC2 id_conflict has no side effects: device B cannot abort A’s multipart, A finishes, B cannot overwrite the completed object', async () => {
     const job = mkJob();
     const store = new MemoryStore();
     await expect(runUpload(job, { ...engine(client()).deps, store, checkpoint: killAt('afterPartSaved', 1) })).rejects.toBeInstanceOf(
@@ -399,6 +399,54 @@ describe('EVM-011 AC2 issuer access control (SR-MOB-04, SR-SYNC-03, SR-SYNC-08, 
     const restart = mkJob(uuidv7(), 'device-b');
     expect(await runUpload(restart, engine(client('device-b')).deps)).toBe('uploaded');
     expect(issuer.sessions().find((s) => s.assetId === restart.assetId)!.key).not.toBe(oldRec.key);
+  });
+
+  it('EVM-011 AC2 a completed session is never deleted or re-keyed: a swapped or removed object gives 409 and a log event, the mapping stays', async () => {
+    const lines: string[] = [];
+    const logged = createIssuer({
+      s3Endpoint: 'http://127.0.0.1:8333',
+      signEndpoint: 'http://127.0.0.1:8333',
+      bucket,
+      accessKey: local.accessKey,
+      secretKey: local.secretKey,
+      token: local.token,
+      ttlSeconds: 60,
+      statePath: join(dir, `completed-state-${uuidv7()}.json`),
+      defaultPartSize: PART,
+      log: (l) => lines.push(l),
+    });
+    const port = await logged.listen();
+    const api = new HttpUploadApi(`http://127.0.0.1:${port}`, local.token, DEVICE);
+    const other = new HttpUploadApi(`http://127.0.0.1:${port}`, local.token, 'device-b');
+    const store = new MemoryStore();
+    const job = mkJob();
+    expect(await runUpload(job, { api, transport: new HttpPartTransport(), store })).toBe('uploaded');
+    const rec = logged.sessions().find((s) => s.assetId === job.assetId)!;
+    const parts = Object.entries((await store.load(job.assetId))!.etags).map(([n, etag]) => ({ number: Number(n), etag }));
+    const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+    // Object swapped outside the protocol (different size): complete() must not delete it nor drop the mapping.
+    await s3.send(new PutObjectCommand({ Bucket: bucket, Key: rec.key, Body: Buffer.from('swapped') }));
+    await expect(api.complete(job.assetId, parts)).rejects.toMatchObject({ status: 409 });
+    expect(logged.sessions().some((s) => s.assetId === job.assetId && s.completed)).toBe(true);
+    expect((await s3.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: rec.key }))).Contents?.length).toBe(1);
+    // Object removed outside the protocol: still 409, mapping stays.
+    await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: rec.key }));
+    await expect(api.complete(job.assetId, parts)).rejects.toMatchObject({ status: 409 });
+    expect(logged.sessions().find((s) => s.assetId === job.assetId)?.key).toBe(rec.key);
+    // The key cannot be recreated: another installation and the owner both keep the same mapping, a new session conflicts.
+    expect(
+      await runUpload(mkJob(job.assetId, 'device-b'), { api: other, transport: new HttpPartTransport(), store: new MemoryStore() }),
+    ).toBe('id_conflict');
+    expect(logged.sessions().find((s) => s.assetId === job.assetId)?.uploadId).toBe(rec.uploadId);
+    // The event for clarification carries no key, token or personal data.
+    const events = lines.filter((l) => l.includes('completed_object_mismatch'));
+    expect(events.length).toBe(2);
+    for (const l of events) {
+      expect(l).not.toContain(rec.key);
+      expect(l).not.toContain(local.token);
+      expect(l).not.toContain('?');
+    }
+    await logged.close();
   });
 
   it('EVM-011 AC2 a part URL for somebody else’s session is refused with 403', async () => {

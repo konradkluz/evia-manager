@@ -280,10 +280,14 @@ export function createIssuer(cfg: IssuerConfig): Issuer {
         return { status: 'already_complete', size: len };
       }
     } else {
+      // A completed session is immutable: never delete the object nor the mapping, so the key cannot be recreated.
       const len = await objectExists(rec.key);
       if (len === rec.size) return { status: 'already_complete', size: len };
+      // Object swapped or removed outside the protocol: report for clarification (no key, no token, no personal data).
+      log(`event completed_object_mismatch asset=${rec.assetId} expected=${rec.size} found=${len ?? 'missing'}`);
+      throw new HttpError(409, 'completed_object_mismatch');
     }
-    // Total size must match the declaration, otherwise the object is removed and the upload rejected.
+    // First assembly only: total size must match the declaration, otherwise the object is removed and the upload rejected.
     const len = await objectExists(rec.key);
     if (len !== rec.size) {
       await s3.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: rec.key })).catch(() => undefined);
