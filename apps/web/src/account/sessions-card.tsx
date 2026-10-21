@@ -35,9 +35,9 @@ export function SessionsCard({
 
   const columns: DataTableColumn[] = [
     { id: 'browser', header: t('account.sessions.browser'), card: 'primary' },
-    { id: 'ip', header: t('account.sessions.ip'), card: 'meta', cardLabel: true },
-    { id: 'seen', header: t('account.sessions.seen'), card: 'meta', cardLabel: true },
-    { id: 'action', header: t('account.sessions.action'), card: 'action' },
+    { id: 'ip', header: t('account.sessions.ip'), card: 'detail', cardLabel: true },
+    { id: 'seen', header: t('account.sessions.seen'), card: 'detail', cardLabel: true },
+    { id: 'action', header: t('account.sessions.action'), card: 'detail' },
   ];
   const lastSeen = (session: AccountSession): string => {
     const at = Date.parse(session.lastSeenAt);
@@ -62,6 +62,7 @@ export function SessionsCard({
           <Button
             key="end"
             variant="secondary"
+            className="max-medium:w-full max-medium:min-h-touch-target-min max-medium:whitespace-nowrap"
             aria-label={t('account.sessions.endLabel', {
               name: browserLabel(session),
               ip: session.ipAddress ?? t('account.sessions.noIp'),
