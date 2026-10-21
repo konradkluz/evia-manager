@@ -19,7 +19,7 @@ export const LONG_PATHS_REMEDY =
   'Windows long paths are off (LongPathsEnabled=0). The React Native native build (CMake/Ninja) fails on the deep pnpm paths with ' +
   '"Filename longer than 260 characters". Enable them once as administrator: ' +
   'reg add HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem /v LongPathsEnabled /t REG_DWORD /d 1 /f — restart Windows, and set ' +
-  'EVIA_ANDROID_CMAKE_VERSION=3.31.6 (a CMake whose Ninja supports long paths; Gradle downloads it). See docs/ops/dystrybucja-apk-android.md.';
+  'EVIA_ANDROID_CMAKE_VERSION=3.31.6 (install it first: sdkmanager "cmake;3.31.6"). See docs/ops/dystrybucja-apk-android.md.';
 
 /**
  * @param {Facts} facts
