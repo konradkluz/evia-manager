@@ -14,6 +14,7 @@ import {
   buildEnv,
   emulatorArgs,
   gradleCommand,
+  PATH_LIMIT_INIT_SCRIPT,
   localProperties,
   maestroCommand,
   prebuildCommand,
@@ -216,7 +217,13 @@ function build(host, { appDirectory, androidHome, tools, env, apk }) {
   }
   host.writeText(join(androidDirectory, 'local.properties'), localProperties(androidHome));
   const wrapperJar = join(androidDirectory, 'gradle', 'wrapper', 'gradle-wrapper.jar');
-  const gradle = gradleCommand({ java: tools.java, wrapperJar, cmakeVersion: host.env['EVIA_ANDROID_CMAKE_VERSION'] });
+  /** @type {string | undefined} */
+  let initScript;
+  if (host.env['EVIA_E2E_SHORT_PATHS'] === '1') {
+    initScript = join(androidDirectory, 'evia-path-limit.init.gradle');
+    host.writeText(initScript, PATH_LIMIT_INIT_SCRIPT);
+  }
+  const gradle = gradleCommand({ java: tools.java, wrapperJar, cmakeVersion: host.env['EVIA_ANDROID_CMAKE_VERSION'], initScript });
   if (host.run(gradle.command, gradle.args, { cwd: androidDirectory, env, stream: true }).status !== 0) {
     host.log('BUILD: Gradle assembleRelease failed');
     return false;

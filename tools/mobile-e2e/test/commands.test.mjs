@@ -12,6 +12,7 @@ import {
   EMULATOR_ABI,
   emulatorArgs,
   gradleCommand,
+  PATH_LIMIT_INIT_SCRIPT,
   localProperties,
   maestroCommand,
   prebuildCommand,
@@ -84,6 +85,18 @@ describe('commands of the smoke test (EVM-009 AC4)', () => {
     assert.ok(
       !gradleCommand({ java: 'java', wrapperJar: 'w.jar', cmakeVersion: '' }).args.some((argument) => argument.includes('cmakeVersion')),
     );
+  });
+
+  it('EVM-009 AC4: an init script is passed to Gradle only when given (builds from a short clone)', () => {
+    const withScript = gradleCommand({ java: 'java', wrapperJar: 'w.jar', initScript: 'C:/e/init.gradle' }).args;
+    assert.equal(withScript[withScript.indexOf('-I') + 1], 'C:/e/init.gradle');
+    assert.ok(!gradleCommand({ java: 'java', wrapperJar: 'w.jar' }).args.includes('-I'));
+  });
+
+  it('EVM-009 AC4: the init script lets CMake shorten object names (CMAKE_OBJECT_PATH_MAX) for applications and libraries', () => {
+    assert.match(PATH_LIMIT_INIT_SCRIPT, /com.android.application/);
+    assert.match(PATH_LIMIT_INIT_SCRIPT, /com.android.library/);
+    assert.match(PATH_LIMIT_INIT_SCRIPT, /-DCMAKE_OBJECT_PATH_MAX=250/);
   });
 
   it('EVM-009 AC4: local.properties has forward slashes (backslashes are escapes in Java properties)', () => {

@@ -206,6 +206,19 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.equal(await runE2e({ skipBuild: false, port: 3199 }, other.host), 1);
   });
 
+  it('EVM-009 AC4: a build from a short clone gives Gradle the init script that shortens CMake object paths, a normal build does not', async () => {
+    const short = fakeMachine({ longPaths: false, env: { EVIA_E2E_SHORT_PATHS: '1' } });
+    await runE2e({ skipBuild: false, port: 3199 }, short.host);
+    const script = join('/repo', 'apps', 'mobile', 'android', 'evia-path-limit.init.gradle');
+    assert.match(short.written[script] ?? '', /CMAKE_OBJECT_PATH_MAX=250/);
+    const gradle = must(short.processes.find((entry) => entry.args.includes('assembleRelease')));
+    assert.equal(gradle.args[gradle.args.indexOf('-I') + 1], script);
+    const normal = fakeMachine();
+    await runE2e({ skipBuild: false, port: 3199 }, normal.host);
+    assert.equal(normal.written[script], undefined);
+    assert.ok(!must(normal.processes.find((entry) => entry.args.includes('assembleRelease'))).args.includes('-I'));
+  });
+
   it('EVM-009 AC4: a Java without JAVA_HOME is looked up on the PATH, not as a file', async () => {
     const machine = fakeMachine({ env: { JAVA_HOME: '' }, exists: (path) => !path.endsWith('app-release.apk') || true });
     machine.host.env['JAVA_HOME'] = undefined;
