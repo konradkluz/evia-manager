@@ -51,7 +51,7 @@ Tylko dane testowe; storage testowy prywatny; żadnych sekretów w kodzie spike'
 Scenariusze Androida na emulatorze na Windows i na fizycznym telefonie (ADR-0015). iOS odłożony — prototyp nie musi działać na iOS; wnioski w AC4 jawnie oznaczają, które dotyczą tylko Androida.
 
 ## Plan techniczny
-_Uzupełnia wykonawca._
+Spike poza workspace'em repozytorium: `spikes/offline-upload/` (własny `pnpm-workspace.yaml` i lockfile). Rdzeń protokołu w czystym TypeScript (`core/`, TDD, testy `EVM-011 AC#`), url-issuer i skrypty w Node (`host/`), SeaweedFS 4.48 przypięty po digeście (`infra/`), aplikacja Expo + własny moduł Kotlin z zadaniami UIDT (`app/`). Decyzja 2a/2b: biblioteka `@kesha-antonov/react-native-background-downloader` 4.6.3 nie spełnia strategii ADR-0007 na Androidzie (przegląd kodu) → własny moduł. Scenariusze na emulatorze API 35 (airplane, `force-stop`, `kill -9`, restart z PIN-em, 512 MiB, tło > 10 min). Szczegóły, wyniki i instrukcja dla Konrada (telefon: AC2/AC5): [raport](../../spikes/EVM-011-kolejka-offline-i-upload-w-tle.md); wnioski: [`media-pipeline.md`](../../architecture/media-pipeline.md), [`offline-sync.md`](../../architecture/offline-sync.md); propozycja zmiany ADR: [ADR-0020](../../architecture/adr/0020-android-upload-w-tle-wlasny-modul-expo.md) (Proponowana).
 
 ## Decyzje
 - **2026-10-20 (Konrad):** noc: scenariusze na emulatorze Android (`Medium_Phone_API_35`, Maestro 2.11.0) i storage zgodny z S3 uruchamiany lokalnie; scenariusze wymagające fizycznego telefonu (AC2 część „telefon”, AC5) zostają do ręcznej weryfikacji Konrada — historyjka kończy nocą w `in-review`, nie `done`; raport oznacza jawnie, co zmierzono tylko na emulatorze.
@@ -72,3 +72,4 @@ _—_
 - 2026-10-03 — zmiana AC (iOS odłożony, ADR-0015) potwierdzona przez Konrada; status bez zmian: ready
 - 2026-10-20 — zmiana zakresu nocnego zaakceptowana przez Konrada: emulator tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano; `path: pelna`, `model: sonnet`
 - 2026-10-21 — ready → in-progress: start realizacji w kolejce B po EVM-009 (gałąź feature/EVM-009-011-aplikacja-mobilna, pelna, sonnet); emulator Android tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano
+- 2026-10-21 — implementacja spike'a na emulatorze (mobile-developer): prototyp, scenariusze AC2 (emulator), pomiary AC3, wnioski AC4 i ADR-0020 (Proponowana); AC5 i część „telefon” AC2 niewykonane — czekają na Konrada (instrukcja w raporcie)

@@ -25,3 +25,4 @@ Statusy: **Proponowana** → **Zaakceptowana** / **Odrzucona** → (ewentualnie)
 | [0017](0017-model-odczytu-listy-i-podsumowania-zlecenia.md) | Model odczytu listy i podsumowania zlecenia — projekcja w module `overview` aktualizowana w transakcji zapisu | Zaakceptowana | 2026-10-04 |
 | [0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) | Wdrożenia staging i prod na GitHub Free — pull z weryfikacją na VM, zero sekretów w GitHubie, IaC i test odtworzenia poza CI | Zaakceptowana | 2026-10-13 |
 | [0019](0019-dystrybucja-androida-mvp-apk-z-ci-podpis-lokalny.md) | Dystrybucja Androida na MVP — APK z CI (niepodpisany) + podpis lokalny, sideload; Google Play i EAS Submit odroczone | Proponowana (do akceptacji Konrada) | 2026-10-20 |
+| [0020](0020-android-upload-w-tle-wlasny-modul-expo.md) | Android — upload w tle własnym modułem Expo (Kotlin, UIDT) zamiast biblioteki społeczności; wyniki spike'a EVM-011 | Proponowana (do akceptacji Konrada) | 2026-10-21 |
