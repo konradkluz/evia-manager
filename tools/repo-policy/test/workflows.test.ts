@@ -177,6 +177,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'coverage',
       'ci-gate',
       'publish',
+      'staging-verify',
     ]);
     expect(list(job('ci-gate')['needs'])).toContain('quality');
   });

@@ -1,0 +1,3 @@
+# Exceptions of the anonymous ZAP baseline of staging-verify (EVM-007 AC6; security-engineer B). One per line:
+# <pluginId><TAB><expires YYYY-MM-DD><TAB><reason, at least 10 characters>. An expired exception turns the job red.
+# Empty: every High or Medium alert is red until reviewed with security-engineer.

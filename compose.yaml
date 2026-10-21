@@ -247,6 +247,26 @@ services:
     volumes:
       - ./infra/tofu:/src/infra/tofu:ro
 
+  # Anonymous ZAP baseline of staging (EVM-007 AC6, bramka 10; Konrad's decision 2026-10-13 on bramki 7–8: in CI only
+  # the anonymous baseline, no login). Network: staging only (the target of the scan, its spider stays in the domain).
+  # The JSON report goes to .scratch/scans/zap-staging.json (/out; /zap/wrk is an empty tmpfs the script requires) and is judged by tools/staging-verify with the exceptions of
+  # infra/zap/rules.tsv; -I: warnings do not fail the run (the evaluation does), a crash still does; --autooff: the
+  # classic engine writes the report to the absolute path in /out (the Automation Framework would put it under /zap/wrk).
+  zap-baseline:
+    <<: *hardening
+    image: ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6
+    user: '1000:1000'
+    working_dir: /zap/wrk
+    command: ['zap-baseline.py', '--autooff', '-t', 'https://staging.eviacharge.pl', '-m', '2', '-I', '-J', '/out/zap-staging.json']
+    environment:
+      HOME: /home/zap
+    tmpfs:
+      - /home/zap:uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /zap/wrk:uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /tmp:nosuid,nodev,mode=1777
+    volumes:
+      - ./.scratch/scans:/out
+
   # Tests of the root script of the VM (EVM-007 AC4; architect 16): deploy.sh with stand-ins for docker and curl, no
   # network, the script and its tests read-only. Local gate and CI (backend job when the deployment channel changed).
   deploy-sh-tests:

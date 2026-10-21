@@ -110,6 +110,48 @@ export function publishProblems(document: unknown): string[] {
   return problems;
 }
 
+/** The exact condition of staging-verify: after a successful publish, when enabled for the repository (P8). */
+export const STAGING_VERIFY_IF = "needs.publish.result == 'success' && vars.STAGING_VERIFY_ENABLED == 'true'";
+
+/**
+ * staging-verify (AC6; bramka 10; security-engineer B): after publish only, no secret, contents: read only (the checkout
+ * of a private repository), at most 15 minutes, the four steps of tools/staging-verify with the ZAP baseline service, the
+ * result even when a check failed, and the staging-verified artifact; publish warns when it is disabled.
+ */
+export function stagingVerifyProblems(document: unknown): string[] {
+  const jobs = record(record(document)['jobs']);
+  const where = 'ci.yml: staging-verify';
+  if (!('staging-verify' in jobs)) return [`${where}: brak joba`];
+  const job = record(jobs['staging-verify']);
+  const problems: string[] = [];
+  if (text(job['if']) !== STAGING_VERIFY_IF) problems.push(`${where}: wymagane if: ${STAGING_VERIFY_IF}`);
+  if (JSON.stringify(job['needs']) !== '["publish"]') problems.push(`${where}: needs wyłącznie [publish]`);
+  if (JSON.stringify(job['permissions']) !== JSON.stringify({ contents: 'read' }))
+    problems.push(`${where}: permissions = { contents: read }`);
+  if (typeof job['timeout-minutes'] !== 'number' || job['timeout-minutes'] > 15) problems.push(`${where}: timeout-minutes ≤ 15`);
+  if (JSON.stringify(job).includes('secrets.')) problems.push(`${where}: bez sekretów`);
+  const env = record(job['env']);
+  if (env['EXPECTED_MANIFEST_SHA256'] !== '${{ needs.publish.outputs.manifestSha256 }}' || env['EXPECTED_COMMIT'] !== '${{ github.sha }}')
+    problems.push(`${where}: oczekiwany commit i manifestSha256 wyłącznie z github.sha i wyjścia publish`);
+  const commands = steps(job)
+    .map((step) => text(step['run']).trim())
+    .filter(Boolean);
+  const expected = [
+    'node tools/staging-verify/cli.mjs wait',
+    'node tools/staging-verify/cli.mjs checks',
+    'mkdir -p .scratch/scans && chmod 0777 .scratch/scans\ndocker compose -f compose.yaml run --rm zap-baseline',
+    'node tools/staging-verify/cli.mjs report',
+  ];
+  if (JSON.stringify(commands) !== JSON.stringify(expected)) problems.push(`${where}: kroki wait → checks → ZAP → report`);
+  const report = steps(job).find((step) => text(step['run']).includes('cli.mjs report'));
+  if (report?.['if'] !== 'always()') problems.push(`${where}: wynik także po czerwonej kontroli (if: always())`);
+  const upload = steps(job).find((step) => text(step['uses']).startsWith('actions/upload-artifact@'));
+  if (record(upload?.['with'])['name'] !== 'staging-verified') problems.push(`${where}: artefakt staging-verified`);
+  const publish = steps(record(jobs['publish'])).find((step) => text(step['if']) === "vars.STAGING_VERIFY_ENABLED != 'true'");
+  if (!text(publish?.['run']).includes('::warning')) problems.push(`${where}: publish ostrzega, gdy staging-verify jest wyłączony`);
+  return problems;
+}
+
 /** `packages: write` only in the publish job of ci.yml, never at the workflow level or in another job (AC2). */
 export function packagesWriteProblems(file: string, document: unknown): string[] {
   const workflow = record(document);

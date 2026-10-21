@@ -32,10 +32,11 @@ const DEPENDENCY_FREE = [
   'tools/git-hooks',
   'tools/main-integrity',
   'tools/scan',
+  'tools/staging-verify',
 ];
 /** Tests that read the whole repository and today's date (exception expiry, document classes) — never cached. */
 // services/deploy-agent (EVM-007): its tests read the committed compose file of the channel (infra/runtime)
-const UNCACHED_TESTS = ['services/deploy-agent', 'tools/docs-lifecycle', 'tools/repo-policy'];
+const UNCACHED_TESTS = ['services/deploy-agent', 'tools/docs-lifecycle', 'tools/repo-policy', 'tools/staging-verify'];
 /** A module that resolves the repository root from its own location (`new URL('../../..', import.meta.url)`). */
 const ROOT_REFERENCE = /new URL\(\s*['"]\.\.\/\.\.\/\.\.(?:\/|['"])/;
 
@@ -95,6 +96,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'tools/main-integrity',
       'tools/repo-policy',
       'tools/scan',
+      'tools/staging-verify',
     ]);
     expect(list(record(yaml('pnpm-workspace.yaml'))['packages'])).toEqual(['apps/*', 'services/*', 'packages/*', 'tools/*']);
   });

@@ -448,6 +448,57 @@ jobs:
             .scratch/scans/trivy-image-*.json
           if-no-files-found: error
           retention-days: 90
+      - name: Notice when staging-verify is disabled (a skipped bramka 10 is not a pass)
+        if: vars.STAGING_VERIFY_ENABLED != 'true'
+        run: echo "::warning title=staging-verify::STAGING_VERIFY_ENABLED is not true - bramka 10 did not run for this release"
       - name: Log out of GHCR
         if: always()
         run: docker logout ghcr.io
+
+  # EVM-007 AC6 (bramka 10; ADR-0018 "Staging"; security-engineer B; plan P8): after publish, wait until /version of
+  # staging reports this commit and the manifestSha256 of publish, then check from the runner — anonymously, without
+  # any secret — ports (only 80/443; plain TCP connects, no new tool), TLS, headers, DNS and the anonymous ZAP baseline.
+  # Red on a mismatch after the waiting time or on any violated check; the result in the summary and the artifact
+  # `staging-verified`. Runs only when the repository variable STAGING_VERIFY_ENABLED is 'true' (set in the IaC session
+  # once staging exists — a skipped run is never a pass: publish writes a warning and the release sign-off requires
+  # true). contents: read is the minimum for the checkout of a private repository; no other permission.
+  staging-verify:
+    name: staging-verify
+    needs: [publish]
+    if: needs.publish.result == 'success' && vars.STAGING_VERIFY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      EXPECTED_COMMIT: ${{ github.sha }}
+      EXPECTED_MANIFEST_SHA256: ${{ needs.publish.outputs.manifestSha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Wait for /version (the commit and manifest of publish)
+        run: node tools/staging-verify/cli.mjs wait
+      - name: Ports, TLS, headers and DNS
+        run: node tools/staging-verify/cli.mjs checks
+      - name: Anonymous ZAP baseline (bramka 10)
+        run: |
+          mkdir -p .scratch/scans && chmod 0777 .scratch/scans
+          docker compose -f compose.yaml run --rm zap-baseline
+      - name: Result (summary and staging-verified)
+        if: always()
+        env:
+          ZAP_REPORT: .scratch/scans/zap-staging.json
+          ZAP_RULES: infra/zap/rules.tsv
+        run: node tools/staging-verify/cli.mjs report
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: staging-verified
+          path: .scratch/staging-verify/
+          if-no-files-found: error
+          retention-days: 90

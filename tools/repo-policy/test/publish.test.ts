@@ -12,6 +12,8 @@ import {
   PUBLISH_IF,
   publishProblems,
   releaseDockerfileProblems,
+  STAGING_VERIFY_IF,
+  stagingVerifyProblems,
 } from '../src/release.ts';
 
 const ci = record(yaml('.github/workflows/ci.yml'));
@@ -212,5 +214,54 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(releaseDockerfileProblems(dir, dockerfile, ignore.replace(/^\*$/m, '!apps'), packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, `${ignore}\n!.env\n!docs/a.md\n!tools/scan`, packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, ignore, 'pnpm@12.8.1')).not.toEqual([]);
+  });
+});
+
+describe('staging-verify (EVM-007 AC6; bramka 10)', () => {
+  const verify = record(jobs['staging-verify']);
+  const withVerify = (patch: (job: Record<string, unknown>) => Record<string, unknown>): unknown => ({
+    ...ci,
+    jobs: { ...jobs, 'staging-verify': patch(structuredClone(verify)) },
+  });
+
+  it('EVM-007 AC6: after publish, without secrets, contents: read only, at most 15 minutes, wait → checks → ZAP → report and the artifact', () => {
+    expect(stagingVerifyProblems(ci)).toEqual([]);
+    expect(verify['if']).toBe(STAGING_VERIFY_IF);
+  });
+
+  it('EVM-007 AC6: a secret, wider permissions, another trigger, a longer timeout, missing steps or no warning in publish are detected', () => {
+    const secret = ['$', '{{ secrets.T }}'].join('');
+    expect(stagingVerifyProblems(withVerify((job) => ({ ...job, env: { ...record(job['env']), T: secret } })))).not.toEqual([]);
+    expect(stagingVerifyProblems(withVerify((job) => ({ ...job, permissions: { contents: 'read', actions: 'read' } })))).not.toEqual([]);
+    expect(stagingVerifyProblems(withVerify((job) => ({ ...job, if: "needs.publish.result == 'success'" })))).not.toEqual([]);
+    expect(stagingVerifyProblems(withVerify((job) => ({ ...job, needs: ['publish', 'quality'] })))).not.toEqual([]);
+    expect(stagingVerifyProblems(withVerify((job) => ({ ...job, 'timeout-minutes': 30 })))).not.toEqual([]);
+    expect(
+      stagingVerifyProblems(
+        withVerify((job) => ({ ...job, steps: steps(job).filter((step) => !text(step['run']).includes('zap-baseline')) })),
+      ),
+    ).not.toEqual([]);
+    expect(
+      stagingVerifyProblems(
+        withVerify((job) => ({
+          ...job,
+          steps: steps(job).map((step) => (text(step['run']).includes('cli.mjs report') ? { ...step, if: 'success()' } : step)),
+        })),
+      ),
+    ).not.toEqual([]);
+    expect(
+      stagingVerifyProblems(
+        withVerify((job) => ({ ...job, steps: steps(job).filter((step) => !text(step['uses']).startsWith('actions/upload-artifact@')) })),
+      ),
+    ).not.toEqual([]);
+    expect(
+      stagingVerifyProblems(withVerify((job) => ({ ...job, env: { ...record(job['env']), EXPECTED_MANIFEST_SHA256: 'x' } }))),
+    ).not.toEqual([]);
+    expect(
+      stagingVerifyProblems(
+        withPublish((job) => ({ ...job, steps: steps(job).filter((step) => !text(step['run']).includes('::warning')) })),
+      ),
+    ).not.toEqual([]);
+    expect(stagingVerifyProblems({ jobs: {} })).not.toEqual([]);
   });
 });
