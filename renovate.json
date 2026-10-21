@@ -50,6 +50,22 @@
     { "description": "Monorepo tooling", "matchPackageNames": ["turbo", "pnpm", "lefthook"], "groupName": "monorepo tooling" },
     { "description": "Design tokens", "matchPackageNames": ["style-dictionary"], "groupName": "Style Dictionary" },
     {
+      "description": "Expo SDK and React Native (apps/mobile, EVM-009): the versions move together with the SDK (expo install --check) — one PR, reviewed with the Jest suite and the Maestro smoke test",
+      "matchFileNames": ["apps/mobile/package.json"],
+      "matchPackageNames": [
+        "expo",
+        "expo-*",
+        "react",
+        "react-native",
+        "react-native-*",
+        "@react-native/**",
+        "jest-expo",
+        "lucide-react-native"
+      ],
+      "groupName": "Expo SDK",
+      "labels": ["dependencies", "needs-mobile-e2e"]
+    },
+    {
       "description": "Job queue (EVM-034): a new version brings a new schema of the pgboss tables — never merged without a migration (the integration test 'the schema version of the package equals the frozen one' stays red until it exists; migration 0024 holds a frozen script of version 43)",
       "matchPackageNames": ["pg-boss"],
       "groupName": "pg-boss",

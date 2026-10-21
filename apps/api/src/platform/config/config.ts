@@ -4,6 +4,7 @@
  * The minimum supported app version uses the Semver schema generated from the contract (one source of the pattern);
  * EVM-009 (meta/client-config, 426) reads the same `minSupportedAppVersion` object.
  */
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { zSemver } from '@evia/contracts/zod';
@@ -38,13 +39,27 @@ export interface AppConfig {
    * of the release manifest written by the deployment channel (`EVIA_RELEASE_MANIFEST_SHA256_FILE`). `null` outside the channel (locally).
    */
   readonly release: { readonly commit: string | null; readonly manifestSha256: string | null };
+  /**
+   * Key of the HMAC under which the counters against guessing passwords are keyed (EVM-026; at least 32 bytes). A secret: never logged, a different one
+   * from the other keys. Required in production; elsewhere an absent key is a random key of this process (the counters of an earlier process are
+   * then never found again — acceptable for development and tests, never for a server).
+   */
+  readonly loginThrottleKey: Buffer;
+  /** Thresholds of the alerts about guessing (SR-LOG-07): failed passwords of all accounts in 5 minutes (more than) / failures of the second step of one scope in its window (at least). */
+  readonly loginAlerts: { readonly passwordFailures: number; readonly secondStepFailures: number };
 }
 
 /**
  * Settings that may come from a file instead of the environment (`<KEY>_FILE`, EVM-007 AC7): the deployment channel mounts the secrets as files
  * (tmpfs, 0400, one directory per service), never as values of the compose file. Only these keys — a `_FILE` of any other key is not read.
  */
-export const FILE_KEYS = ['DATABASE_URL', 'CURSOR_KEY', 'FIELD_ENCRYPTION_KEYS', 'EVIA_RELEASE_MANIFEST_SHA256'] as const;
+export const FILE_KEYS = [
+  'DATABASE_URL',
+  'CURSOR_KEY',
+  'FIELD_ENCRYPTION_KEYS',
+  'LOGIN_THROTTLE_KEY',
+  'EVIA_RELEASE_MANIFEST_SHA256',
+] as const;
 const MAX_FILE_BYTES = 64 * 1024;
 /** Reads the file of a `<KEY>_FILE` setting (tests pass their own). */
 export type ReadConfigFile = (path: string) => string;
@@ -79,6 +94,19 @@ const cursorKey = z.string().refine((value) => {
 /** A key with few distinct bytes is a placeholder (all zeros, a repeated byte), never the output of a random generator. */
 const MIN_DISTINCT_KEY_BYTES = 16;
 const isPlaceholderKey = (value: string): boolean => new Set(Buffer.from(value, 'base64url')).size < MIN_DISTINCT_KEY_BYTES;
+
+/** The key of the counters against guessing: base64url of at least 32 random bytes (EVM-026); the round trip rejects a value with stray trailing bits. */
+const LOGIN_THROTTLE_KEY_MIN_BYTES = 32;
+const loginThrottleKey = z
+  .string()
+  .optional()
+  .refine((value) => {
+    if (value === undefined || value === '') return true;
+    const bytes = Buffer.from(value, 'base64url');
+    return /^[A-Za-z0-9_-]+$/.test(value) && bytes.length >= LOGIN_THROTTLE_KEY_MIN_BYTES && bytes.toString('base64url') === value;
+  });
+const keyOfLoginThrottle = (value: string | undefined): Buffer | undefined =>
+  value === undefined || value === '' ? undefined : Buffer.from(value, 'base64url');
 
 /** `FIELD_ENCRYPTION_KEYS` is absent (or empty) or a well-formed list `id:base64url32,…`; production additionally needs it (see the schema). */
 const fieldEncryptionKeys = z
@@ -122,6 +150,9 @@ const schema = z
     // Empty (an image built without the argument, the example file) is the same as absent.
     EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
     EVIA_RELEASE_MANIFEST_SHA256: releaseValue(/^[0-9a-f]{64}$/),
+    LOGIN_THROTTLE_KEY: loginThrottleKey,
+    LOGIN_ALERT_PASSWORD_FAILURES: z.coerce.number().int().min(1).max(100_000).default(30),
+    LOGIN_ALERT_SECOND_STEP_FAILURES: z.coerce.number().int().min(1).max(10).default(3),
   })
   .refine(verboseOnlyInDevelopment, { path: ['LOG_LEVEL'] })
   // The relying party id must be the host of the panel or a parent domain of it (WebAuthn); never the API's Host header.
@@ -148,6 +179,21 @@ const schema = z
           (env.NODE_ENV !== 'production' || new Set(key).size >= MIN_DISTINCT_KEY_BYTES),
       ),
     { path: ['FIELD_ENCRYPTION_KEYS'] },
+  )
+  // The key of the counters against guessing: required in production, never a placeholder, and one key serves one purpose (EVM-026; SR-CRYPTO).
+  .refine((env) => env.NODE_ENV !== 'production' || (env.LOGIN_THROTTLE_KEY !== undefined && env.LOGIN_THROTTLE_KEY !== ''), {
+    path: ['LOGIN_THROTTLE_KEY'],
+  })
+  .refine((env) => env.NODE_ENV !== 'production' || !isPlaceholderKey(env.LOGIN_THROTTLE_KEY ?? ''), { path: ['LOGIN_THROTTLE_KEY'] })
+  .refine(
+    (env) => {
+      const key = keyOfLoginThrottle(env.LOGIN_THROTTLE_KEY);
+      if (key === undefined) return true;
+      return (
+        !key.equals(Buffer.from(env.CURSOR_KEY, 'base64url')) && keysOf(env.FIELD_ENCRYPTION_KEYS).every((field) => !field.key.equals(key))
+      );
+    },
+    { path: ['LOGIN_THROTTLE_KEY'] },
   );
 
 export class ConfigError extends Error {
@@ -228,6 +274,8 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     cursorKey: Buffer.from(value.CURSOR_KEY, 'base64url'),
     fieldEncryptionKeys: keysOf(value.FIELD_ENCRYPTION_KEYS),
     release: { commit: value.EVIA_RELEASE_COMMIT, manifestSha256: value.EVIA_RELEASE_MANIFEST_SHA256 },
+    loginThrottleKey: keyOfLoginThrottle(value.LOGIN_THROTTLE_KEY) ?? randomBytes(LOGIN_THROTTLE_KEY_MIN_BYTES),
+    loginAlerts: { passwordFailures: value.LOGIN_ALERT_PASSWORD_FAILURES, secondStepFailures: value.LOGIN_ALERT_SECOND_STEP_FAILURES },
   };
 }
 

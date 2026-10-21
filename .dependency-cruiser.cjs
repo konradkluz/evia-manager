@@ -187,6 +187,46 @@ module.exports = {
       to: { path: 'node_modules/(@nestjs|express|kysely|pg)(/|$)' },
     },
     {
+      name: 'mobile-not-to-other-workspaces',
+      comment: 'The mobile app imports no other application, service or tool (EVM-009; only shared packages).',
+      severity: 'error',
+      from: { path: '^apps/mobile/' },
+      to: { path: '^(apps/(?!mobile/)|services/|tools/)' },
+    },
+    {
+      name: 'nothing-depends-on-mobile',
+      comment: 'Nothing imports the mobile app (EVM-009); shared code lives in packages/*.',
+      severity: 'error',
+      from: { path: '^(apps/(?!mobile/)|services/|packages/|tools/)' },
+      to: { path: '^apps/mobile/' },
+    },
+    {
+      name: 'mobile-ui-library-isolated',
+      comment:
+        'The mobile UI library takes texts and callbacks as props: no API, startup logic, secure store, configuration, i18n or screens — the precondition for moving it to packages/ui-mobile later (EVM-009; ADR-0007).',
+      severity: 'error',
+      from: { path: '^apps/mobile/src/ui/' },
+      to: {
+        path: '^apps/mobile/(src/(?!ui/)|plugins/|index\\.ts$)|(node_modules/(expo-secure-store|expo-constants|expo-application|i18next|react-i18next)(/|$))',
+      },
+    },
+    {
+      name: 'mobile-secure-store-only-in-token-store',
+      comment:
+        'Secrets live only in the secure store module (Keystore/Keychain); nothing else imports expo-secure-store (EVM-009; SR-MOB-01).',
+      severity: 'error',
+      from: { path: '^apps/mobile/', pathNot: '^apps/mobile/(src/secure-store|test)/' },
+      to: { path: 'node_modules/expo-secure-store(/|$)' },
+    },
+    {
+      name: 'mobile-no-async-storage',
+      comment:
+        'AsyncStorage keeps plain text on the phone: tokens and data of the app never go there (EVM-009; SR-MOB-01, MASVS-STORAGE-1).',
+      severity: 'error',
+      from: { path: '^apps/mobile/' },
+      to: { path: 'node_modules/@react-native-async-storage(/|$)' },
+    },
+    {
       name: 'web-ui-only-through-ui-web',
       comment: 'The panel takes components and icons only from @evia/ui-web (styleguide § 7.2, ADR-0006).',
       severity: 'error',
@@ -205,7 +245,7 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // Generated output of our workspaces only — never node_modules (that would hide npm dependencies from the rules
     // above) and never a package's own dist/ inside node_modules (EVM-008).
-    exclude: { path: '^(apps|packages|services|tools)/[^/]+/(dist|coverage|generated|\\.turbo|\\.dev-build)/' },
+    exclude: { path: '^(apps|packages|services|tools)/[^/]+/(dist|coverage|generated|\\.turbo|\\.dev-build|android|ios|\\.expo)/' },
     tsPreCompilationDeps: true,
     combinedDependencies: false,
     enhancedResolveOptions: {

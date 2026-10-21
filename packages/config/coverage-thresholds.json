@@ -1,0 +1,7 @@
+{
+  "$comment": "EVM-009: the single source of the global coverage thresholds (line and branch, percent) per layer, read by the Vitest preset (src/vitest.ts) and by the Jest configuration of apps/mobile. Ratchet: values may only go up (docs/process/testing-strategy.md).",
+  "shared": 90,
+  "backend": 85,
+  "web": 80,
+  "mobile": 80
+}

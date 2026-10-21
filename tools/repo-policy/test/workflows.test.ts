@@ -173,6 +173,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'backend',
       'backend-integration',
       'e2e-web',
+      'mobile-apk',
       'security',
       'coverage',
       'ci-gate',
@@ -279,6 +280,9 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
     const allowed = new Set([
       'actions/checkout',
       'actions/setup-node',
+      // EVM-009: Java 17 and the Gradle caches of the build job of the Android package (mobile-apk); both official actions.
+      'actions/setup-java',
+      'actions/cache',
       'actions/upload-artifact',
       'actions/download-artifact',
       'pnpm/action-setup',

@@ -118,7 +118,14 @@ function setup() {
     join(root, 'etc/evia/deploy-agent/secrets.manifest.json'),
     readFileSync(new URL('../secrets.manifest.json', import.meta.url)),
   );
-  for (const file of ['database-url-migrator', 'database-url-app', 'cursor-key', 'field-encryption-keys', 'postgres-password'])
+  for (const file of [
+    'database-url-migrator',
+    'database-url-app',
+    'cursor-key',
+    'field-encryption-keys',
+    'login-throttle-key',
+    'postgres-password',
+  ])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
   // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).
   mkdirSync(join(root, 'usr/local/sbin'), { recursive: true });

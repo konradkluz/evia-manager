@@ -18,6 +18,12 @@
 | PAT `gh` orkiestratora (fine-grained) | Windows keyring stacji (`gh auth`) — nigdy w repozytorium | tylko to repozytorium: Pull requests RW, Actions R, Contents R, Metadata R — **bez Contents write** (nie scali PR) | 30 dni; przypomnienie w kalendarzu Konrada | orkiestrator: zakładanie PR, odczyt wyników CI |
 | Klucz wdrożeniowy agentów (SSH) | `~/.ssh/evia_manager` (alias `github-evia-manager`), poza repozytorium | zapis do tego repozytorium (wypycha gałęzie) | przy incydencie, odejściu osoby z dostępem do stacji albo co 12 miesięcy | orkiestrator (push gałęzi za zgodą Konrada) |
 
+### Klucz podpisu APK Androida (EVM-009 — lokalny, bez GitHuba)
+Klucz **nie jest sekretem GitHuba** (decyzja Konrada 2026-10-20, RR-21, ADR-0019 — zaakceptowana 2026-10-21): CI buduje niepodpisany APK, a Konrad podpisuje go lokalnie (`node tools/mobile-apk/cli.mjs sign`). Keystore (PKCS12, RSA 4096 lub EC P-256, ważność ≥ 25 lat) jest w **Bitwarden Konrada (MFA)** z kopią offline; na czas podpisu odtwarzany poza repozytorium i usuwany po podpisie; agenci nigdy nie używają prawdziwego klucza. Odcisk certyfikatu (nie sekret) jest przypięty w `EVIA_APK_CERT_SHA256`. Procedury: `docs/ops/dystrybucja-apk-android.md`.
+- **Jednorazowo (Konrad):** w Settings → Secrets and variables → Actions sprawdź, że **nie ma** sekretów `ANDROID_*`. Gdyby keystore kiedykolwiek był wgrany do GitHuba — uznaj go za skompromitowany i wygeneruj nowy (bazy instalacji jeszcze nie ma, koszt zerowy).
+- **Rotacja planowana:** `apksigner rotate` (linia rotacji APK Signature Scheme v3), bez reinstalacji; wykonaj z zapasem przed końcem ważności certyfikatu.
+- **Utrata lub kompromitacja:** nowa aplikacja na telefonach (odinstalowanie kasuje bazę i kolejkę offline — wcześniej zsynchronizuj), nowy klucz, nowy odcisk w runbooku, wpis w Dzienniku.
+
 ## Procedury
 **Utworzenie / rotacja `RENOVATE_TOKEN`**
 1. GitHub → Settings → Developer settings → Fine-grained tokens → *Generate new token*: Resource owner `konradkluz`, *Only select repositories* = `evia-manager`, uprawnienia z tabeli, wygaśnięcie 90 dni.
@@ -33,6 +39,14 @@
 - **Co to jest:** sekret serwera, którym API szyfruje i uwierzytelnia kursory list (zlecenia, klienci, dziennik zlecenia, dziennik audytu). Nowy klucz generuje się zgodnie z instrukcją w `.env.example`; wartość nie trafia do repozytorium, logów ani zgłoszeń. Wdrożenie sekretu w środowiskach — EVM-084.
 - **Kto go wymaga:** serwer API, worker i polecenia CLI — tak (bez poprawnego klucza nie wystartują; błąd konfiguracji wymienia tylko nazwę `CURSOR_KEY`); `db:migrate` — nie. Tabela poleceń: `apps/api/README.md` → „Konfiguracja”.
 - **Rotacja:** podmiana klucza i restart procesów API (oraz workera i CLI przy następnym uruchomieniu) **unieważnia wszystkie wydane kursory** — klient dostaje `400 invalid_cursor`, panel pokazuje komunikat o odświeżeniu listy i wraca na pierwszą stronę. Nie ma migracji danych; kursory żyją najwyżej 30 minut, więc skutek znika sam. Rotuj przy podejrzeniu wycieku albo odejściu osoby z dostępem do sekretów środowiska.
+
+## Klucz liczników prób logowania `LOGIN_THROTTLE_KEY` (EVM-026)
+- **Co to jest:** sekret serwera, pod którym API liczy HMAC-SHA-256 znormalizowanego e-maila i identyfikatora przeglądarki — klucze liczników ochrony przed zgadywaniem haseł (`identity.login_throttle`). Dzięki niemu w bazie nie ma e-maila ani zwykłego skrótu e-maila. Wartość nie trafia do repozytorium, logów ani zgłoszeń.
+- **Kto go wymaga:** serwer API i worker w produkcji — tak (brak, zaślepka, mniej niż 32 bajty albo równość z `CURSOR_KEY` / kluczem `FIELD_ENCRYPTION_KEYS` = błąd startu, w komunikacie tylko nazwa zmiennej); `db:migrate` — nie. Poza produkcją pusty = losowy klucz procesu (liczniki z poprzedniego procesu nie są wtedy odnajdywane — wygodne w dev, niedopuszczalne na serwerze). API i worker w produkcji muszą dostać **tę samą** wartość (worker kasuje liczniki przeglądarek).
+- **Generowanie:** `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` (polecenie z `.env.example`).
+- **Rotacja:** zmiana klucza **zeruje liczniki i blokady w toku** (nowe klucze HMAC nie odnajdują starych wierszy; stare znikają po `expires_at`, najwyżej ~45 minut) — brak migracji danych, nikt nie traci dostępu, ale napastnik dostaje świeży budżet na okres jednego okna. Rotuj przy podejrzeniu wycieku albo odejściu osoby z dostępem do sekretów, najlepiej poza godzinami pracy; zmiana klucza nie unieważnia ciasteczek przeglądarek (kluczem jest identyfikator wiersza, nie ciasteczko).
+- **Inwentarz i kopia (SR-CRYPTO-04):** wpis do inwentarza kluczy i kopii w menedżerze haseł; utrata klucza nie niszczy danych (wystarczy wygenerować nowy — jak przy rotacji).
+- **Wdrożenie:** sekret do przekazania zespołowi wdrożeń (`devops-engineer`): CI/staging/produkcja (EVM-007, EVM-084) — bez niego produkcja nie wystartuje; timeouty proxy i Node muszą być większe niż 10 s opóźnienia plus weryfikacja Argon2id.
 
 ## Klucze szyfrowania pól `FIELD_ENCRYPTION_KEYS` (EVM-023)
 - **Co to jest:** lista kluczy głównych (KEK) szyfrowania kopertowego pól bazy — obecnie sekret TOTP (`identity.totp_factors`; AES-256-GCM, SR-CRYPTO-02). Format `id:klucz` (32 bajty w base64url), rozdzielane przecinkami; pierwszy klucz szyfruje, wszystkie odszyfrowują. Wartość nie trafia do repozytorium, logów ani zgłoszeń.

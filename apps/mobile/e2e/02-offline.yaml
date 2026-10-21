@@ -1,0 +1,21 @@
+# EVM-009 AC2: the app starts without a network (airplane mode, set by tools/mobile-e2e) — the offline banner and capsule,
+# the app keeps working (the empty list stays, nothing blocks).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- assertVisible: 'Offline. Otwórz kolejkę'
+- assertVisible: 'Brak zleceń'
+- assertNotVisible: 'Brak połączenia z serwerem'
+- assertNotVisible: 'Zaktualizuj aplikację'
+# review screenshots (EVM-009 UX review): S-01 and the queue in airplane mode
+- takeScreenshot: s01-offline
+# the queue stays reachable offline and still carries the banner
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: 'Nic nie czeka na wysłanie.'
+- assertVisible: 'Brak zasięgu.*'
+- takeScreenshot: kolejka-offline

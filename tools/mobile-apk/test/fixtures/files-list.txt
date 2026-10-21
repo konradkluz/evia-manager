@@ -1,0 +1,8 @@
+/
+/resources.arsc
+/AndroidManifest.xml
+/res/xml/secure_store_data_extraction_rules.xml
+/res/xml/secure_store_backup_rules.xml
+/res/xml/evia_network_security_config.xml
+/res/xml/evia_data_extraction_rules.xml
+/res/xml/evia_backup_rules.xml

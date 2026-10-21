@@ -1,9 +1,11 @@
 // @ts-check
 /**
- * Change detection for ci.yml (EVM-083 AC2, EVM-086 AC1, AC2). Three outputs, each "true" (the job runs) or "false":
+ * Change detection for ci.yml (EVM-083 AC2, EVM-086 AC1, AC2, EVM-009 AC5). Four outputs, each "true" (the job runs) or "false":
  *   heavy       — coverage: false only when every changed file is documentation;
  *   e2e         — e2e-web: false only when every changed file is NOT RELEVANT to the panel E2E;
- *   integration — backend-integration: false only when every changed file is NOT RELEVANT to the API integration tests.
+ *   integration — backend-integration: false only when every changed file is NOT RELEVANT to the API integration tests;
+ *   mobile      — mobile-apk (EVM-009): the Android build is slow, so it is a POSITIVE list — true when a changed file is on the list of
+ *                 paths that can change the package, or is suspicious (fail closed), or the event is not a pull request.
  * Lists are of paths "known as not relevant" (EVM-086 AC1): a new or unknown path runs the tests. Never "not relevant"
  * (they are on no list): packages/**, pnpm-lock.yaml, pnpm-workspace.yaml, .github/**, tools/**, compose*.yaml, root
  * configuration and .claude/**. Fail closed: anything doubtful means "true" for every output.
@@ -20,6 +22,26 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobile/']);
 /** Not relevant to the API integration tests besides documentation (EVM-086 AC1). */
 export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/']);
+
+/** Paths that can change the Android package (EVM-009; architect: the app, the tokens and the contract client, the lockfile, the job itself). */
+export const MOBILE_RELEVANT_PREFIXES = Object.freeze([
+  'apps/mobile/',
+  'packages/tokens/',
+  'packages/contracts/',
+  'design/tokens/',
+  'tools/mobile-apk/',
+  'patches/',
+]);
+/** Files of the root that can change the package (the dependencies and the build environment: Node version of the job, pnpm settings). */
+export const MOBILE_RELEVANT_FILES = Object.freeze([
+  '.nvmrc',
+  '.npmrc',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'package.json',
+  'turbo.json',
+  '.github/workflows/ci.yml',
+]);
 
 /** @param {string} path */
 function wellFormed(path) {
@@ -42,12 +64,20 @@ export function isNotRelevantToIntegration(path) {
   return isDocumentation(path) || (wellFormed(path) && INTEGRATION_NOT_RELEVANT_PREFIXES.some((prefix) => path.startsWith(prefix)));
 }
 
-/** @param {string} reason @returns {{ heavy: true, e2e: true, integration: true, reason: string }} */
-const full = (reason) => ({ heavy: true, e2e: true, integration: true, reason });
+/**
+ * Relevant to the Android build; a malformed path counts as relevant (fail closed).
+ * @param {string} path
+ */
+export function isRelevantToMobile(path) {
+  return !wellFormed(path) || MOBILE_RELEVANT_FILES.includes(path) || MOBILE_RELEVANT_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
+/** @param {string} reason @returns {{ heavy: true, e2e: true, integration: true, mobile: true, reason: string }} */
+const full = (reason) => ({ heavy: true, e2e: true, integration: true, mobile: true, reason });
 
 /**
  * @param {{ eventName: string, baseSha: string, diff: (base: string) => string }} input
- * @returns {{ heavy: boolean, e2e: boolean, integration: boolean, reason: string }}
+ * @returns {{ heavy: boolean, e2e: boolean, integration: boolean, mobile: boolean, reason: string }}
  */
 export function detect({ eventName, baseSha, diff }) {
   // A push reaching ci.yml's `changes` job is a push to main: the full set always runs there (the deployment verifier
@@ -67,10 +97,11 @@ export function detect({ eventName, baseSha, diff }) {
   const heavy = !files.every(isDocumentation);
   const e2e = !files.every(isNotRelevantToE2e);
   const integration = !files.every(isNotRelevantToIntegration);
+  const mobile = files.some(isRelevantToMobile);
   const reason = heavy
-    ? `${String(files.length)} plików; e2e-web ${e2e ? 'uruchomiony' : 'pominięty (nie dotyczy)'}, backend-integration ${integration ? 'uruchomiona' : 'pominięta (nie dotyczy)'}`
+    ? `${String(files.length)} plików; e2e-web ${e2e ? 'uruchomiony' : 'pominięty (nie dotyczy)'}, backend-integration ${integration ? 'uruchomiona' : 'pominięta (nie dotyczy)'}, mobile-apk ${mobile ? 'uruchomiony' : 'pominięty (nie dotyczy)'}`
     : `tylko dokumentacja (${String(files.length)} plików) — ciężkie joby pominięte`;
-  return { heavy, e2e, integration, reason };
+  return { heavy, e2e, integration, mobile, reason };
 }
 
 /**

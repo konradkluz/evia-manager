@@ -44,6 +44,8 @@ export interface PasskeysTable {
   backed_up: boolean;
   created_at: Date;
   last_used_at: Date | null;
+  /** The name the owner gave the key (EVM-028, 0041); null on a key made before — the answer says "Klucz dostępu". */
+  name: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface OneTimeLinksTable {
@@ -70,7 +72,11 @@ export type RevokeReason =
   | 'role_changed'
   | 'account_deactivated'
   | 'sessions_ended'
-  | 'second_step_reset';
+  | 'second_step_reset'
+  | 'session_limit'
+  | 'ended_by_user';
+
+export type ReauthPurpose = 'second_step_change' | 'password_change';
 
 export interface SessionsTable {
   id: Generated<string>;
@@ -94,6 +100,9 @@ export interface SessionsTable {
   revoke_reason: RevokeReason | null;
   ip_address: string | null;
   user_agent: string | null;
+  /** The one-time mark of the full re-authentication and what it is for (EVM-028, 0041); both null or both set. */
+  reauthenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
+  reauth_purpose: ColumnType<ReauthPurpose | null, ReauthPurpose | null | undefined, ReauthPurpose | null>;
 }
 
 /** The first step of a sign-in waiting for the second one (EVM-067). No address and no user agent are stored (RODO). */
@@ -105,6 +114,8 @@ export interface LoginAttemptsTable {
   expires_at: Date;
   used_at: Date | null;
   failed_attempts: Generated<number>;
+  /** The scope of the counter against guessing the first step was counted in (0040); null on a row made before it. */
+  throttle_key: ColumnType<Buffer | null, Buffer | null | undefined, Buffer | null>;
 }
 
 /** Exactly one of `session_id` (enrolment, step-up) and `login_attempt_id` (sign-in) is set, matching the purpose — a CHECK of the database. */
@@ -144,6 +155,27 @@ export interface RecoveryCodesTable {
   superseded_at: Date | null;
 }
 
+/** One counter against guessing per scope, keyed by an HMAC (0040): never an address (EVM-026). */
+export interface LoginThrottleTable {
+  scope_key: Buffer;
+  scope: 'account' | 'browser' | 'spike';
+  window_started_at: Date;
+  failures: number;
+  second_step_failures: number;
+  locked_until: Date | null;
+  lock_cause: 'password' | 'second_step' | null;
+  expires_at: Date;
+}
+
+/** A browser an account signed in from: the SHA-256 of the cookie token and two dates, nothing else (0040). */
+export interface BrowserDevicesTable {
+  id: Generated<string>;
+  user_id: string;
+  token_sha256: Buffer;
+  created_at: Date;
+  last_seen_at: Date;
+}
+
 export type IdentityTables = {
   'identity.users': UsersTable;
   'identity.password_credentials': PasswordCredentialsTable;
@@ -154,6 +186,8 @@ export type IdentityTables = {
   'identity.login_attempts': LoginAttemptsTable;
   'identity.totp_factors': TotpFactorsTable;
   'identity.recovery_codes': RecoveryCodesTable;
+  'identity.login_throttle': LoginThrottleTable;
+  'identity.browser_devices': BrowserDevicesTable;
 };
 
 /** A handle (pool or transaction) narrowed to the identity tables. */

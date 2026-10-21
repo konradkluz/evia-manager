@@ -26,20 +26,17 @@ const SQL_SELECTORS = [
   },
 ];
 
+const PG_PATHS = [
+  { name: 'pg', message: `${SQL_MESSAGE} The pg driver belongs to src/platform/database.` },
+  { name: 'pg-pool', message: `${SQL_MESSAGE} The pg driver belongs to src/platform/database.` },
+];
+
 export function sqlSafety(): Linter.Config[] {
   return [
     {
       rules: {
         'no-restricted-syntax': ['error', ...SQL_SELECTORS],
-        'no-restricted-imports': [
-          'error',
-          {
-            paths: [
-              { name: 'pg', message: `${SQL_MESSAGE} The pg driver belongs to src/platform/database.` },
-              { name: 'pg-pool', message: `${SQL_MESSAGE} The pg driver belongs to src/platform/database.` },
-            ],
-          },
-        ],
+        'no-restricted-imports': ['error', { paths: PG_PATHS }],
       },
     },
     { files: DATABASE_DRIVER_FILES, rules: { 'no-restricted-imports': 'off' } },
@@ -87,6 +84,79 @@ export function webUi({ files = WEB_UI_FILES }: { files?: string[] } = {}): Lint
             selector:
               'JSXAttribute[name.name=/^(aria-label|aria-description|aria-roledescription|title|alt|placeholder|label)$/] > Literal',
             message: I18N_MESSAGE,
+          },
+        ],
+      },
+    },
+  ];
+}
+
+/** Sources of the mobile app (apps/mobile) covered by mobileUi(). */
+export const MOBILE_UI_FILES = ['src/**/*.ts', 'src/**/*.tsx'];
+
+const MOBILE_TOKENS_MESSAGE = 'Styleguide § 7.2: styles only through design tokens (@evia/tokens/mobile), no literal colours or sizes.';
+/** Style properties whose number must come from a token (0 is allowed: no space). */
+const TOKEN_STYLE_KEYS = String.raw`/^(padding|margin|gap|rowGap|columnGap|width|height|minWidth|minHeight|maxWidth|maxHeight|fontSize|lineHeight|letterSpacing|borderRadius|top|left|right|bottom)([A-Z]\w*)?$/`;
+const MOBILE_CONTRACT_MESSAGE = 'ADR-0004: only src/api (the API client) imports the generated contract; other code takes its own types.';
+/** A number literal other than 0 (raw text of the literal). */
+const NONZERO_NUMBER = String.raw`/^-?([1-9]\d*|0\.\d+)/`;
+
+/**
+ * Mobile UI rules (EVM-009 AC1, AC6): UI text only through i18n, colours and sizes only from tokens, no console output (the single
+ * logger takes fixed event names; SR-LOG-08), rules of hooks. One `no-restricted-syntax` list together with the SQL selectors.
+ */
+export function mobileUi({
+  files = MOBILE_UI_FILES,
+  apiClientFiles = ['src/api/**'],
+}: { files?: string[]; apiClientFiles?: string[] } = {}): Linter.Config[] {
+  return [
+    {
+      files,
+      languageOptions: { globals: { ...globals.node, __DEV__: 'readonly' } },
+      plugins: { 'react-hooks': reactHooks as unknown as NonNullable<Linter.Config['plugins']>[string] },
+      rules: {
+        'react-hooks/rules-of-hooks': 'error',
+        'react-hooks/exhaustive-deps': 'error',
+        'no-console': 'error',
+        'no-restricted-syntax': [
+          'error',
+          ...SQL_SELECTORS,
+          { selector: `Literal[value=${LITERAL_COLOUR}]`, message: MOBILE_TOKENS_MESSAGE },
+          { selector: `Literal[value=${LITERAL_LENGTH}]`, message: MOBILE_TOKENS_MESSAGE },
+          {
+            selector: `Property[key.name=${TOKEN_STYLE_KEYS}][value.type='Literal'][value.raw=${NONZERO_NUMBER}]`,
+            message: MOBILE_TOKENS_MESSAGE,
+          },
+          { selector: String.raw`JSXText[value=/\S/]`, message: I18N_MESSAGE },
+          {
+            selector: 'JSXAttribute[name.name=/^(accessibilityLabel|accessibilityHint|label|title|placeholder|alt)$/] > Literal',
+            message: I18N_MESSAGE,
+          },
+        ],
+      },
+    },
+    {
+      // Contract imports (ADR-0004): only the API client uses the generated contract.
+      files,
+      ignores: apiClientFiles,
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [...PG_PATHS, { name: '@evia/contracts', message: MOBILE_CONTRACT_MESSAGE }],
+            patterns: [{ group: ['@evia/contracts/*'], message: MOBILE_CONTRACT_MESSAGE }],
+          },
+        ],
+      },
+    },
+    {
+      files: apiClientFiles,
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: PG_PATHS,
+            patterns: [{ group: ['@evia/contracts/authz'], message: 'The authorization manifest is a server concern (ADR-0004).' }],
           },
         ],
       },

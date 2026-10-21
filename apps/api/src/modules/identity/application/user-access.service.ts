@@ -75,6 +75,7 @@ import {
   type UserRow,
 } from '../infrastructure/queries.ts';
 import { identityTables, type IdentityDb, type RevokeReason } from '../infrastructure/tables.ts';
+import { LoginThrottle } from './login-throttle.ts';
 import { representUser } from './user-view.ts';
 
 const changeRolePath = strictObjects(zChangeUserRolePath);
@@ -106,11 +107,18 @@ export class UserAccessService {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #events: EventBus;
+  readonly #throttle: LoginThrottle;
 
-  constructor(@Inject(DATABASE) db: Kysely<Database>, @Inject(CLOCK) clock: Clock, @Inject(EVENT_BUS) events: EventBus) {
+  constructor(
+    @Inject(DATABASE) db: Kysely<Database>,
+    @Inject(CLOCK) clock: Clock,
+    @Inject(EVENT_BUS) events: EventBus,
+    @Inject(LoginThrottle) throttle: LoginThrottle,
+  ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
+    this.#throttle = throttle;
   }
 
   /** The role of the account changes; its sessions end; Administrators are alerted when someone becomes or stops being one (AC1, AC5, AC7, D3). */
@@ -152,6 +160,8 @@ export class UserAccessService {
       const verdict = refusedOr(decideDeactivation(locked.facts));
       await setUserStatus(db, target.id, 'deactivated', actor.id, now);
       await this.#endTargetSessions(locked, 'account_deactivated');
+      // The browsers the account was known by are forgotten with their counters (EVM-026 AC5).
+      await this.#throttle.forgetBrowsers(locked.tx, target.id);
       // A setup of an authenticator that was never confirmed, every open link (an invitation, a reset, the window of a second step) and every message
       // that waits for the account end with it; the confirmed second steps stay for the reactivation (AC2).
       await deletePendingTotp(db, target.id);
@@ -227,6 +237,7 @@ export class UserAccessService {
       await deleteTotpFactor(db, target.id);
       await supersedeRecoveryCodes(db, target.id, now);
       await this.#endTargetSessions(locked, 'second_step_reset');
+      await this.#throttle.forgetBrowsers(tx, target.id);
       // The links first (a reset link issued before ends too — K6), then the NEW window: a repeated reset replaces the window, it never adds one.
       await supersedeAllOpenLinksOfUser(db, target.id, now);
       await supersedePendingEmails(tx, target.id, 'password_reset');

@@ -85,6 +85,20 @@ paths:
     $ref: paths/identity.yaml#/totpConfirm
   /api/v1/account/recovery-codes:
     $ref: paths/identity.yaml#/recoveryCodes
+  /api/v1/account:
+    $ref: paths/identity.yaml#/account
+  /api/v1/account/reauthentication:
+    $ref: paths/identity.yaml#/accountReauthentication
+  /api/v1/account/password:
+    $ref: paths/identity.yaml#/accountPassword
+  /api/v1/account/passkeys/{passkeyId}:
+    $ref: paths/identity.yaml#/accountPasskey
+  /api/v1/account/totp:
+    $ref: paths/identity.yaml#/accountTotp
+  /api/v1/account/sessions:
+    $ref: paths/identity.yaml#/accountSessions
+  /api/v1/account/sessions/{sessionId}:
+    $ref: paths/identity.yaml#/accountSession
   /api/v1/catalog/work-order-templates:
     $ref: paths/catalog.yaml#/workOrderTemplates
   /api/v1/catalog/work-order-templates/{templateId}:
@@ -215,6 +229,24 @@ components:
       $ref: components/identity.yaml#/SessionExpiry
     StepUpResult:
       $ref: components/identity.yaml#/StepUpResult
+    ReauthenticationPurpose:
+      $ref: components/identity.yaml#/ReauthenticationPurpose
+    ReauthenticationRequest:
+      $ref: components/identity.yaml#/ReauthenticationRequest
+    Account:
+      $ref: components/identity.yaml#/Account
+    UpdateAccountRequest:
+      $ref: components/identity.yaml#/UpdateAccountRequest
+    ChangePasswordRequest:
+      $ref: components/identity.yaml#/ChangePasswordRequest
+    PasswordChanged:
+      $ref: components/identity.yaml#/PasswordChanged
+    AccountSession:
+      $ref: components/identity.yaml#/AccountSession
+    AccountSessionList:
+      $ref: components/identity.yaml#/AccountSessionList
+    EndedSessions:
+      $ref: components/identity.yaml#/EndedSessions
     AuditAction:
       $ref: components/audit.yaml#/AuditAction
     AuditOutcome:

@@ -15,6 +15,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST).toEqual(manifest);
     expect(manifest['getHealth']).toEqual({ method: 'get', path: '/api/health', query: [], authz: { public: true } });
     expect(Object.keys(manifest).sort()).toEqual([
+      'changePassword',
       'changeUserRole',
       'checkActivationLink',
       'checkPasswordResetLink',
@@ -35,9 +36,12 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'deleteWorkOrder',
       'deleteWorkOrderProcedure',
       'deleteWorkOrderScopeItem',
+      'endAccountSession',
+      'endOtherAccountSessions',
       'endUserSessions',
       'extendSession',
       'generateRecoveryCodes',
+      'getAccount',
       'getCurrentSession',
       'getCustomer',
       'getHealth',
@@ -54,6 +58,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getWorkOrderSite',
       'getWorkOrderTemplate',
       'inviteUser',
+      'listAccountSessions',
       'listAssignableUsers',
       'listAuditEvents',
       'listCustomers',
@@ -75,7 +80,10 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'loginTotp',
       'logout',
       'reactivateUser',
+      'reauthenticate',
       'registerPasskey',
+      'removePasskey',
+      'removeTotp',
       'requestPasswordReset',
       'resendUserInvitation',
       'resetUserSecondStep',
@@ -92,6 +100,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'transitionPaymentMilestone',
       'transitionProcedureStage',
       'transitionWorkOrder',
+      'updateAccount',
       'updateCustomer',
       'updateParty',
       'updatePaymentMilestone',
@@ -118,15 +127,17 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 EVM-054 AC5 EVM-023 AC4 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the recovery codes, which every role has (EVM-023); the audit log, the deletion of a payment milestone (EVM-057), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
     expect(stepUp.map(([id]) => id).sort()).toEqual([
       'changeUserRole',
       'deactivateUser',
       'deletePaymentMilestone',
+      'endAccountSession',
+      'endOtherAccountSessions',
       'endUserSessions',
-      'generateRecoveryCodes',
       'inviteUser',
+      'listAccountSessions',
       'listAuditEvents',
       'reactivateUser',
       'resendUserInvitation',
@@ -135,7 +146,9 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     for (const [id, operation] of stepUp) {
       expect(operation.authz.channels, id).toEqual(['web']);
       expect(operation.authz.roles, id).toEqual(
-        id === 'generateRecoveryCodes' ? ['administrator', 'editor', 'read_only'] : ['administrator'],
+        ['endAccountSession', 'endOtherAccountSessions', 'listAccountSessions'].includes(id)
+          ? ['administrator', 'editor', 'read_only']
+          : ['administrator'],
       );
     }
   });

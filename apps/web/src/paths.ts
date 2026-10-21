@@ -32,3 +32,6 @@ export const LOGIN_SECOND_STEP_PATH = '/login/second-step';
 export const LOGIN_RESET_PATH = '/login/reset';
 /** Pages reachable without a session (the gate does not ask for one). */
 export const PUBLIC_PATHS: readonly string[] = [ACTIVATE_PATH, RESET_PASSWORD_PATH, LOGIN_PATH, LOGIN_SECOND_STEP_PATH, LOGIN_RESET_PATH];
+/** W-15 (EVM-028): the own account — the profile, the password, the second step (anchor `#drugi-krok`) and the sessions; never an e-mail or a name in the address. */
+export const ACCOUNT_PATH = '/account';
+export const SECOND_STEP_ANCHOR = 'drugi-krok';

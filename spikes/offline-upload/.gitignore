@@ -1,0 +1,15 @@
+# EVM-011 spike: generated native projects (anchored; native/android/src holds committed Kotlin sources)
+/app/android/
+/app/ios/
+/app/.expo/
+/app/dist/
+node_modules/
+*.apk
+*.aab
+*.keystore
+*.jks
+# results, synthetic files and local secrets never go to git
+/results/
+/.secrets/
+*.bin
+coverage/

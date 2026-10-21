@@ -6,7 +6,7 @@
 |---|---|---|---|
 | Fine-grained PAT (Actions, Contents, Pull requests, Metadata — tylko odczyt, tylko to repozytorium) | VM: `/etc/evia/secrets/github-pat` (`0600` root) → kopia tmpfs `/run/evia/agent/github-pat` dla weryfikatora | ≤ 12 mies.; przypomnienie w kalendarzu Konrada 30 dni przed | Bitwarden |
 | PAT classic `read:packages` | VM: konfiguracja `docker login ghcr.io` roota | ≤ 12 mies.; jak wyżej | Bitwarden |
-| Hasła ról bazy (`evia_migrator`, `evia_api`, `postgres`), `cursor-key`, `field-encryption-keys` | VM: `/etc/evia/secrets/` (`0600` root) → kopie tmpfs `/run/evia/secrets/<usługa>/` (`0400`) | przy podejrzeniu wycieku; `field-encryption-keys` — dodanie klucza (pierwszy szyfruje, wszystkie odszyfrowują) | Bitwarden; `field-encryption-keys` też zestaw awaryjny offline |
+| Hasła ról bazy (`evia_migrator`, `evia_api`, `postgres`), `cursor-key`, `field-encryption-keys`, `login-throttle-key` | VM: `/etc/evia/secrets/` (`0600` root) → kopie tmpfs `/run/evia/secrets/<usługa>/` (`0400`) | przy podejrzeniu wycieku; `field-encryption-keys` — dodanie klucza (pierwszy szyfruje, wszystkie odszyfrowują) | Bitwarden; `field-encryption-keys` też zestaw awaryjny offline |
 | Klucz LUKS wolumenu danych | VM: `/etc/evia/secrets/luks-pgdata.key` (generowany na VM) | bez rotacji okresowej | zestaw awaryjny offline |
 | Tokeny IaC (Hetzner R/W, Scaleway ≤ 24 h), hasło stanu OpenTofu | tylko na czas sesji IaC: `../.evia-iac/staging.env` | po każdej sesji unieważnione / usunięte; hasło stanu bez zmian | hasło stanu — Bitwarden |
 

@@ -57,6 +57,7 @@ describe('migration 0006 — login attempts and expiry (EVM-067 AC1, AC4, AC5; R
       'expires_at',
       'used_at',
       'failed_attempts',
+      'throttle_key', // EVM-026 (0040): the scope of the counter against guessing — an HMAC, never an address
     ]);
   });
 

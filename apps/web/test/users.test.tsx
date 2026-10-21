@@ -139,6 +139,13 @@ describe('W-16 the list (EVM-024 AC5, AC7, AC8)', () => {
     expect(rows).toHaveLength(4);
     expect(rows[1]?.getAttribute('aria-label')).toBe('Anna Testowa (Ty), Administrator, Aktywne');
     expect(within(rows[1] as HTMLElement).getByText('Anna Testowa (Ty)')).toBeTruthy();
+    // EVM-028: the own row leads to W-15 (flows/12 → "Własny wiersz"); the others have no such link.
+    expect(
+      within(rows[1] as HTMLElement)
+        .getByRole('link', { name: 'Przejdź do Konta' })
+        .getAttribute('href'),
+    ).toBe('/account');
+    expect(screen.getAllByRole('link', { name: 'Przejdź do Konta' })).toHaveLength(1);
     expect(within(rows[2] as HTMLElement).getByText('Dezaktywowane')).toBeTruthy();
     expect(within(rows[3] as HTMLElement).getByText('Oczekuje na aktywację')).toBeTruthy();
     expect(within(rows[3] as HTMLElement).getByText('Wysłano 03.10.2026 · ważne do 06.10.2026, 10:00')).toBeTruthy();

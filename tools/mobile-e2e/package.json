@@ -1,0 +1,19 @@
+{
+  "name": "@evia/mobile-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Maestro smoke test of the mobile app on one Android emulator on Windows (EVM-009 AC4; ADR-0015): preflight, e2e build, install, scenario server, flows, report; runs without installed dependencies.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "evia-node-test"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

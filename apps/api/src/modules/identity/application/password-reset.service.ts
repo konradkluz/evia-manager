@@ -44,6 +44,7 @@ import {
 } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
+import { LoginThrottle } from './login-throttle.ts';
 import { PasswordSetting } from './password-setting.ts';
 import { openSecondStep, secondStepMethods } from './second-step.ts';
 
@@ -59,6 +60,7 @@ export class PasswordResetService {
   readonly #events: EventBus;
   readonly #sleeper: Sleeper;
   readonly #password: PasswordSetting;
+  readonly #throttle: LoginThrottle;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -66,12 +68,14 @@ export class PasswordResetService {
     @Inject(EVENT_BUS) events: EventBus,
     @Inject(SLEEPER) sleeper: Sleeper,
     @Inject(PasswordSetting) password: PasswordSetting,
+    @Inject(LoginThrottle) throttle: LoginThrottle,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
     this.#sleeper = sleeper;
     this.#password = password;
+    this.#throttle = throttle;
   }
 
   /** Always returns normally for well-formed input: what happened (a message, a limit, nothing) is not the caller's to know. */
@@ -163,7 +167,11 @@ export class PasswordResetService {
       const revoked = await revokeSessions(tx, { userId: locked.userId }, 'password_reset', now);
       // Every earlier first step ends BEFORE the new one is opened: an old `loginToken` is dead, the new one works only for a method of the account.
       await revokeLoginAttemptsOfUser(tx, locked.userId, now);
-      const loginToken = await openSecondStep(transaction, locked.userId, now);
+      // The new password ends the lock whose cause is the password (a failure of the second step in the window keeps its lock, EVM-026 AC7); the browsers
+      // the account knew are forgotten (AC5) — the sign-in that follows comes from a browser the account does not know yet.
+      await this.#throttle.liftPasswordLock(transaction, locked.email);
+      await this.#throttle.forgetBrowsers(transaction, locked.userId);
+      const loginToken = await openSecondStep(transaction, locked.userId, now, this.#throttle.accountScope(locked.email).key);
       await enqueueEmail(transaction, { kind: 'password_changed', variant: null, recipientUserId: locked.userId, now });
 
       const actor = { type: 'user', userId: locked.userId } as const;

@@ -55,6 +55,7 @@ services:
       DATABASE_URL_FILE: /run/secrets/database-url-app
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
+      LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
     volumes:
       - /run/evia/secrets/api:/run/secrets:ro
     tmpfs:
@@ -85,6 +86,7 @@ services:
       DATABASE_URL_FILE: /run/secrets/database-url-app
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
+      LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
     volumes:
       - /run/evia/secrets/worker:/run/secrets:ro
     tmpfs:

@@ -4,59 +4,44 @@
  * panel — P1). A recovery code is not accepted (decision 16).
  *
  * Passkey. The options store a one-time challenge (SHA-256 only, 5 minutes) of the purpose `passkey_step_up`, tied to the session of the request and to its
- * user; a registration challenge and a sign-in challenge can never serve (the database CHECK and the conditions of the queries). The key must belong to the
- * user of the session; the assertion is checked by the code shared with the sign-in (`verifyAssertionOfKey`). The challenge is spent by every verification,
- * failed ones too.
+ * user; a registration challenge and a sign-in challenge can never serve (the database CHECK and the conditions of the queries). The proof itself — the key,
+ * the code of the app, the budget of wrong codes of the session — is `SecondStepProof`, shared with the full re-authentication of the account (EVM-028).
  *
- * Code of the app. The role is read from the database now (not from the session), the sealed secret is opened, the code is checked in a window of ±1 step and
- * the step is spent by a conditional UPDATE shared with the sign-in (a code that signed in, confirmed the setup or stepped up before is refused). A thief of a
- * session has no `loginToken` that runs out, so the failures are counted on the SESSION: the fifth wrong code ends it (`401 session_revoked`, reason
- * `step_up_failed`) — the limit per address alone would leave about 8 % of a guess per day for a thief behind one address.
+ * Counter against guessing (EVM-028 K2): since EVM-028 every verification goes through the counter of the sign-in (`VerificationGate`), so a thief of a session
+ * has no way around the lock: ten wrong tries lock the scope, a try during the lock verifies nothing and ends the session (`429 rate_limited`).
  *
  * Success is one transaction: a conditional UPDATE ends the current session (`rotated`; a session that is already over gives `401 session_revoked` and no
  * new one), a new session of the same user, channel and state starts with a new token and a new CSRF token, the absolute 12-hour limit of the session is kept
  * (a step-up does not extend its life), the matching `…_authenticated_at` becomes now (the other column is not carried: a step-up with a code opens the window
- * by the code alone), and `session.revoked`, `session.created` and `step_up.succeeded` are audited. A refusal changes nothing but what it counts (the spent
- * challenge, the failed code) and leaves `step_up.failed` — the session stays as it was.
+ * by the code alone), and `session.revoked`, `session.created` and `step_up.succeeded` are audited. The one-time mark of the full re-authentication is NOT
+ * carried to the new session (EVM-028 K5). A refusal changes nothing but what it counts (the spent challenge, the failed code) and leaves `step_up.failed` —
+ * the session stays as it was.
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { PasskeyAuthenticationOptions, StepUpRequestWritable } from '@evia/contracts';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
-import type { FieldEncryption } from '../../../platform/crypto/field-encryption.ts';
 import type { Database } from '../../../platform/database/database.ts';
+import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { CLOCK, DATABASE, EVENT_BUS, FIELD_ENCRYPTION } from '../../../platform/tokens.ts';
-import { totpAllowedForRole } from '../domain/channel-rules.ts';
-import { CHALLENGE_TTL_MS, STEP_UP_MAX_FAILED_CODES } from '../domain/constants.ts';
+import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
+import { CHALLENGE_TTL_MS } from '../domain/constants.ts';
 import { slidIdleDeadline } from '../domain/session-policy.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
-import { claimTotpStep, findTotpFactor, recordFailedStepUp } from '../infrastructure/mfa-queries.ts';
 import { PASSKEY_VERIFIER, type PasskeyVerifier } from '../infrastructure/ports.ts';
-import {
-  consumeStepUpChallenges,
-  findPasskeyOfUser,
-  insertSession,
-  listPasskeysOfUser,
-  recordKeyUse,
-  revokeSessions,
-  rotateSession,
-  storeStepUpChallenge,
-} from '../infrastructure/queries.ts';
+import { insertSession, listPasskeysOfUser, rotateSession, storeStepUpChallenge } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
-import { TOTP_ENGINE, type TotpEngine } from '../infrastructure/totp-engine.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
-import { verifyAssertionOfKey } from './passkey-assertion.ts';
-import { openTotpSecret } from './totp-secret.ts';
-import { runInTransaction } from '../../../platform/database/transactional.ts';
+import { SecondStepProof } from './second-step-proof.ts';
+import { VerificationGate, type VerificationTry } from './verification-gate.ts';
 
-type Outcome = NewSessionResult | { readonly refusal: 'passkey_failed' | 'totp_failed' | 'session_revoked' | 'forbidden' };
-
-type PasskeyBody = Extract<StepUpRequestWritable, { credential: unknown }>;
-type TotpBody = Extract<StepUpRequestWritable, { method: 'totp' }>;
+type Outcome =
+  | NewSessionResult
+  | { readonly refusal: 'passkey_failed' | 'totp_failed' | 'session_revoked' | 'forbidden' }
+  | { readonly refusal: 'rate_limited'; readonly retryAfterSeconds: number };
 
 @Injectable()
 export class StepUpService {
@@ -64,23 +49,23 @@ export class StepUpService {
   readonly #clock: Clock;
   readonly #events: EventBus;
   readonly #verifier: PasskeyVerifier;
-  readonly #encryption: FieldEncryption;
-  readonly #engine: TotpEngine;
+  readonly #proof: SecondStepProof;
+  readonly #gate: VerificationGate;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(CLOCK) clock: Clock,
     @Inject(EVENT_BUS) events: EventBus,
     @Inject(PASSKEY_VERIFIER) verifier: PasskeyVerifier,
-    @Inject(FIELD_ENCRYPTION) encryption: FieldEncryption,
-    @Inject(TOTP_ENGINE) engine: TotpEngine,
+    @Inject(SecondStepProof) proof: SecondStepProof,
+    @Inject(VerificationGate) gate: VerificationGate,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#events = events;
     this.#verifier = verifier;
-    this.#encryption = encryption;
-    this.#engine = engine;
+    this.#proof = proof;
+    this.#gate = gate;
   }
 
   /** Options restricted to the keys of the user of the session; stores the one open challenge of the session. */
@@ -105,93 +90,56 @@ export class StepUpService {
     });
   }
 
-  async verify(principal: Principal, body: StepUpRequestWritable, client: ClientInfo): Promise<NewSessionResult> {
+  async verify(
+    principal: Principal,
+    body: StepUpRequestWritable,
+    client: ClientInfo,
+    deviceToken: string | undefined,
+  ): Promise<NewSessionResult> {
+    // The wait that the failures so far demand comes first, outside any transaction and before the proof is looked at (EVM-026 M1, EVM-028 K2).
+    const attempt = await this.#gate.begin(principal, deviceToken, client, 'step_up.failed');
     const now = this.#clock.now();
     const outcome = await runInTransaction(this.#db, (transaction) =>
-      'credential' in body
-        ? this.#verifyPasskey(transaction, principal, body, client, now)
-        : this.#verifyTotp(transaction, principal, body, client, now),
+      this.#verifyInTransaction(transaction, principal, body, client, attempt, now),
     );
     // The refusal is raised after the transaction committed: what it counted (the spent challenge, the failed code) and the audit event stay.
-    if ('refusal' in outcome) throw new ProblemException(outcome.refusal);
+    if ('refusal' in outcome) {
+      throw new ProblemException(
+        outcome.refusal,
+        outcome.refusal === 'rate_limited' ? { retryAfterSeconds: outcome.retryAfterSeconds } : {},
+      );
+    }
     return outcome;
   }
 
-  async #verifyPasskey(
+  async #verifyInTransaction(
     transaction: Kysely<Database>,
     principal: Principal,
-    body: PasskeyBody,
+    body: StepUpRequestWritable,
     client: ClientInfo,
+    attempt: VerificationTry,
     now: Date,
   ): Promise<Outcome> {
-    const tx = identityTables(transaction);
-
-    const account = await tx
-      .selectFrom('identity.users')
-      .select('webauthn_user_handle')
-      .where('id', '=', principal.userId)
-      .executeTakeFirstOrThrow();
-    // The challenge is spent by every verification, the failed ones too (a replayed assertion finds nothing open).
-    const open = await consumeStepUpChallenges(tx, principal.sessionId, principal.userId, now);
-    const key = await findPasskeyOfUser(tx, principal.userId, body.credential.id);
-    const assertion = await verifyAssertionOfKey(this.#verifier, {
-      credential: body.credential,
-      key,
-      userHandle: account.webauthn_user_handle,
-      open,
-    });
-    if (assertion === null) {
-      await this.#publishFailed(transaction, principal, client, 'passkey_failed');
-      return { refusal: 'passkey_failed' };
+    const proof = await this.#proof.verify(transaction, principal, body, now, client.context);
+    if (!proof.ok) {
+      if (proof.reason === 'forbidden') {
+        // No such method for the account: not a guess, the reservation goes back.
+        await this.#gate.pass(transaction, attempt, now);
+        return { refusal: 'forbidden' };
+      }
+      const reason = proof.reason === 'session_revoked' ? 'totp_failed' : proof.reason;
+      await this.#publishFailed(transaction, principal, client, reason);
+      const failed = await this.#gate.fail(transaction, attempt, reason, client, now);
+      if (failed.lockedForSeconds !== undefined) return { refusal: 'rate_limited', retryAfterSeconds: failed.lockedForSeconds };
+      return { refusal: proof.reason };
     }
-
+    await this.#gate.pass(transaction, attempt, now);
+    const withKey = 'credential' in body;
     const renewed = await this.#renewSession(transaction, principal, client, now, {
-      passkeyAuthenticatedAt: now,
-      totpAuthenticatedAt: null,
-    });
-    if (renewed === undefined) return { refusal: 'session_revoked' };
-    await recordKeyUse(tx, assertion.passkeyId, assertion.newCounter, now);
-    return renewed;
-  }
-
-  async #verifyTotp(transaction: Kysely<Database>, principal: Principal, body: TotpBody, client: ClientInfo, now: Date): Promise<Outcome> {
-    const tx = identityTables(transaction);
-    // The role is read now, from the database — the Administrator has no code of the app in the panel (P1), whatever the session says.
-    const account = await tx.selectFrom('identity.users').select('role').where('id', '=', principal.userId).executeTakeFirstOrThrow();
-    if (!totpAllowedForRole(account.role, principal.channel)) return { refusal: 'forbidden' };
-    const factor = await findTotpFactor(tx, principal.userId);
-    if (factor?.state !== 'active') return { refusal: 'forbidden' };
-
-    const secret = openTotpSecret(this.#encryption, principal.userId, factor.secretCiphertext);
-    const step = this.#engine.match(secret, body.code, now);
-    secret.fill(0);
-    if (step === null || !(await claimTotpStep(tx, principal.userId, step))) return this.#failedCode(transaction, principal, client, now);
-
-    const renewed = await this.#renewSession(transaction, principal, client, now, {
-      passkeyAuthenticatedAt: null,
-      totpAuthenticatedAt: now,
+      passkeyAuthenticatedAt: withKey ? now : null,
+      totpAuthenticatedAt: withKey ? null : now,
     });
     return renewed ?? { refusal: 'session_revoked' };
-  }
-
-  /** A wrong code is counted on the session; the fifth ends it (the thief has to start from the password, which he does not have). */
-  async #failedCode(transaction: Kysely<Database>, principal: Principal, client: ClientInfo, now: Date): Promise<Outcome> {
-    const tx = identityTables(transaction);
-    const failures = await recordFailedStepUp(tx, principal.sessionId);
-    await this.#publishFailed(transaction, principal, client, 'totp_failed');
-    if (failures < STEP_UP_MAX_FAILED_CODES) return { refusal: 'totp_failed' };
-    for (const sessionId of await revokeSessions(tx, { sessionId: principal.sessionId }, 'step_up_failed', now)) {
-      const ended: IdentityEvent = {
-        type: 'session.revoked',
-        actor: { type: 'user', userId: principal.userId },
-        outcome: 'success',
-        reasonCode: 'totp_failed',
-        objectType: 'session',
-        objectId: sessionId,
-      };
-      await this.#events.publish(transaction, ended, { ...client.context, sessionId });
-    }
-    return { refusal: 'session_revoked' };
   }
 
   #publishFailed(

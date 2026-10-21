@@ -29,6 +29,9 @@ export const TEST_CURSOR_KEY = 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc';
 export const TEST_FIELD_ENCRYPTION_KEY = Buffer.from(Array.from({ length: 32 }, (_, index) => index)).toString('base64url');
 export const TEST_FIELD_ENCRYPTION_KEYS = `test:${TEST_FIELD_ENCRYPTION_KEY}`;
 
+/** Synthetic test key of the counters against guessing (EVM-026): 32 distinct bytes, different from the other test keys, public — it protects nothing. */
+export const TEST_LOGIN_THROTTLE_KEY = Buffer.from(Array.from({ length: 32 }, (_, index) => index + 100)).toString('base64url');
+
 export function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     NODE_ENV: 'test',
@@ -39,6 +42,7 @@ export function validEnv(overrides: Record<string, string | undefined> = {}): Re
     WEBAUTHN_RP_ID: 'panel.evia.test',
     CURSOR_KEY: TEST_CURSOR_KEY,
     FIELD_ENCRYPTION_KEYS: TEST_FIELD_ENCRYPTION_KEYS,
+    LOGIN_THROTTLE_KEY: TEST_LOGIN_THROTTLE_KEY,
     ...overrides,
   };
 }

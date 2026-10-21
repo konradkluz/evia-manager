@@ -44,7 +44,13 @@ describe('settings from files — <KEY>_FILE (EVM-007 AC7; ADR-0018 "Gdzie żyj�
   });
 
   it('EVM-007 AC7 only the listed keys are read from files; an empty _FILE is ignored', () => {
-    expect(FILE_KEYS).toEqual(['DATABASE_URL', 'CURSOR_KEY', 'FIELD_ENCRYPTION_KEYS', 'EVIA_RELEASE_MANIFEST_SHA256']);
+    expect(FILE_KEYS).toEqual([
+      'DATABASE_URL',
+      'CURSOR_KEY',
+      'FIELD_ENCRYPTION_KEYS',
+      'LOGIN_THROTTLE_KEY',
+      'EVIA_RELEASE_MANIFEST_SHA256',
+    ]);
     const read = filesOf({});
     expect(resolveFileKeys({ PANEL_ORIGIN_FILE: '/etc/passwd', NODE_ENV_FILE: '/x' }, read)).toEqual({
       PANEL_ORIGIN_FILE: '/etc/passwd',
@@ -109,6 +115,7 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     'database-url-app': 'postgres://evia_api:synthetic@postgres:5432/evia\n',
     'cursor-key': `${randomKey()}\n`,
     'field-encryption-keys': `k1:${randomKey()}\n`,
+    'login-throttle-key': `${randomKey()}\n`,
     // Written by evia-secrets for the API only (the hash of the release manifest, not a secret).
     'release-manifest-sha256': `${'c3'.repeat(32)}\n`,
   };
@@ -126,6 +133,8 @@ describe('EVM-007 AC4: compose.staging.yaml satisfies the configuration of the A
     const config = loadConfig(env, read);
     expect(config).toMatchObject({ nodeEnv: 'production', port: 3000, panelOrigin: 'https://staging.eviacharge.pl' });
     expect(config.fieldEncryptionKeys.length).toBe(1);
+    // EVM-026: production refuses to start without the key of the counters against guessing — on staging it comes from a file.
+    expect(config.loginThrottleKey.length).toBe(32);
     expect(config.trustedProxies.length).toBeGreaterThan(0);
     expect(config.release.manifestSha256).toBe('c3'.repeat(32));
   });

@@ -13,6 +13,11 @@
  * link is spent by a conditional UPDATE, the account is activated, the enrolment session ends and a new `active` one starts with a new identifier and the
  * window of step-up operations open (the code was just proved). A wrong code changes nothing and leaves an audit event. Of two parallel confirmations
  * exactly one wins: the other waits for the lock of the session and finds it ended (401 `session_revoked`).
+ *
+ * A code of the app added from the ACCOUNT (EVM-028 AC3; SR-AUTH-10; ASVS V7.5.1): the session is `active` and needs the one-time mark of the full
+ * re-authentication (`second_step_change`). `setup` only LOOKS at the mark; `confirm` spends it in the same transaction that activates the factor — a wrong
+ * code spends nothing. A passkey does not stand in the way (it is the other method); only an ACTIVE code of the app does (`409`). The session is not rotated;
+ * the e-mail 5 (and for an Administrator the alert 9) go out.
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { TotpSetup } from '@evia/contracts';
@@ -30,11 +35,14 @@ import { totpAllowedForRole } from '../domain/channel-rules.ts';
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_MS } from '../domain/constants.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../domain/tokens.ts';
 import type { IdentityEvent } from '../events.ts';
+import { consumeReauthMark, hasReauthMark } from '../infrastructure/account-queries.ts';
 import { activateTotp, findTotpFactor, upsertPendingTotp } from '../infrastructure/mfa-queries.ts';
 import { findUserById, hasPasskey, insertSession, revokeSessions } from '../infrastructure/queries.ts';
 import { identityTables, type IdentityDb } from '../infrastructure/tables.ts';
 import { TOTP_ENGINE, type TotpEngine } from '../infrastructure/totp-engine.ts';
 import type { ClientInfo, NewSessionResult } from './activation.service.ts';
+import { enforceSessionLimit } from './session-limit.ts';
+import { noticeSecondStepChange } from './second-step-notice.ts';
 import { openTotpSecret, sealTotpSecret } from './totp-secret.ts';
 
 /** The enrolment session or its link is no longer valid — answered with 401 session_revoked, nothing is changed. */
@@ -46,7 +54,12 @@ interface LockedLink {
   readonly activation: boolean;
 }
 
-type ConfirmOutcome = NewSessionResult | { readonly refusal: 'totp_verification_failed' };
+/** A confirmation from the account leaves the session as it is: no new token, the answer carries the CSRF token of the session. */
+export interface AccountConfirmation {
+  readonly csrfToken: string;
+}
+
+type ConfirmOutcome = NewSessionResult | AccountConfirmation | { readonly refusal: 'totp_verification_failed' };
 
 @Injectable()
 export class TotpEnrolmentService {
@@ -75,11 +88,20 @@ export class TotpEnrolmentService {
     try {
       return await runInTransaction(this.#db, async (transaction) => {
         const tx = identityTables(transaction);
-        await this.#lockEnrolment(tx, principal, now);
+        const fromAccount = principal.state === 'active';
+        if (fromAccount) {
+          // Looking at the mark spends nothing; `confirm` spends it.
+          await findUserById(tx, principal.userId, true);
+          if (!(await hasReauthMark(tx, principal.sessionId, 'second_step_change', now)))
+            throw new ProblemException('reauthentication_required');
+        } else {
+          await this.#lockEnrolment(tx, principal, now);
+        }
         const user = await findUserById(tx, principal.userId);
         if (user === undefined || !totpAllowedForRole(user.role, principal.channel)) throw new ProblemException('forbidden');
-        // An account that already has an active second step never gets a second setup — and never sees a secret.
-        if (await hasPasskey(tx, principal.userId)) throw new ProblemException('mfa_already_configured');
+        // An enrolment never gets a second setup for an account that already has an active second step — and never sees a secret. From the account only an
+        // active code of the app is in the way (the passkey is the other method).
+        if (!fromAccount && (await hasPasskey(tx, principal.userId))) throw new ProblemException('mfa_already_configured');
 
         const secret = this.#engine.newSecret();
         const stored = await upsertPendingTotp(tx, {
@@ -96,11 +118,15 @@ export class TotpEnrolmentService {
     }
   }
 
-  async confirm(principal: Principal, code: string, client: ClientInfo): Promise<NewSessionResult> {
+  async confirm(principal: Principal, code: string, client: ClientInfo): Promise<NewSessionResult | AccountConfirmation> {
     const now = this.#clock.now();
     let outcome: ConfirmOutcome;
     try {
-      outcome = await runInTransaction(this.#db, (transaction) => this.#confirmInTransaction(transaction, principal, code, client, now));
+      outcome = await runInTransaction(this.#db, (transaction) =>
+        principal.state === 'active'
+          ? this.#confirmOnAccount(transaction, principal, code, client, now)
+          : this.#confirmInTransaction(transaction, principal, code, client, now),
+      );
     } catch (error) {
       if (error instanceof EnrolmentSessionGone) throw new ProblemException('session_revoked');
       throw error;
@@ -138,6 +164,54 @@ export class TotpEnrolmentService {
       .executeTakeFirst();
     if (link === undefined || (link.purpose !== 'account_activation' && link.purpose !== 'mfa_setup')) throw new EnrolmentSessionGone();
     return { id: link.id, activation: link.purpose === 'account_activation' };
+  }
+
+  /** The confirmation of a code added from the account: the factor, the mark and the audit in ONE transaction; the session is not rotated. */
+  async #confirmOnAccount(
+    transaction: Kysely<Database>,
+    principal: Principal,
+    code: string,
+    client: ClientInfo,
+    now: Date,
+  ): Promise<ConfirmOutcome> {
+    const tx = identityTables(transaction);
+    const actor = { type: 'user', userId: principal.userId } as const;
+    const current = { ...client.context, sessionId: principal.sessionId };
+    const user = await findUserById(tx, principal.userId, true);
+    if (user?.status !== 'active' || !totpAllowedForRole(user.role, principal.channel)) throw new ProblemException('forbidden');
+    if (!(await hasReauthMark(tx, principal.sessionId, 'second_step_change', now))) throw new ProblemException('reauthentication_required');
+    const factor = await findTotpFactor(tx, principal.userId, true);
+    let step: number | null = null;
+    if (factor?.state === 'pending') {
+      const secret = openTotpSecret(this.#encryption, principal.userId, factor.secretCiphertext);
+      step = this.#engine.match(secret, code, now);
+      secret.fill(0);
+    }
+    if (step === null) {
+      const failed: IdentityEvent = {
+        type: 'mfa.totp_enrolled',
+        actor,
+        outcome: 'failed',
+        reasonCode: 'totp_failed',
+        objectType: 'user',
+        objectId: principal.userId,
+      };
+      await this.#events.publish(transaction, failed, current);
+      return { refusal: 'totp_verification_failed' };
+    }
+    if (!(await consumeReauthMark(tx, principal.sessionId, 'second_step_change', now)))
+      throw new ProblemException('reauthentication_required');
+    if (!(await activateTotp(tx, principal.userId, step, now))) throw new ProblemException('mfa_already_configured');
+    await noticeSecondStepChange(transaction, { userId: principal.userId, role: user.role }, 'totp_enrolled', now);
+    const enrolled: IdentityEvent = {
+      type: 'mfa.totp_enrolled',
+      actor,
+      outcome: 'success',
+      objectType: 'user',
+      objectId: principal.userId,
+    };
+    await this.#events.publish(transaction, enrolled, current);
+    return { csrfToken: principal.csrfToken };
   }
 
   async #confirmInTransaction(
@@ -203,6 +277,7 @@ export class TotpEnrolmentService {
 
     // A new identifier after the change of authentication level (SR-SESS-02): the enrolment session ends here.
     await revokeSessions(tx, { sessionId: principal.sessionId }, 'rotated', now);
+    await enforceSessionLimit(transaction, this.#events, { userId: principal.userId, now, context: client.context });
     const sessionToken = newToken();
     const sessionId = await insertSession(tx, {
       userId: principal.userId,
