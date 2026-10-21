@@ -43,15 +43,35 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
   it('EVM-007 AC7: every service of the channel has its own numeric user; the secrets manifest uses the same UIDs; the migrator password goes to migrate only', () => {
     const users = Object.values(channel).map((service) => text(record(service)['user']));
     expect(new Set(users).size).toBe(users.length);
+    const infra = record(record(yaml('infra/runtime/compose.infra.yaml'))['services']);
     for (const [name, value] of Object.entries(secrets)) {
       const uid = String(record(value)['uid']);
-      expect(text(record(channel[name])['user']), name).toBe(`${uid}:${uid}`);
+      expect(text(record(channel[name] ?? infra[name])['user']), name).toBe(`${uid}:${uid}`);
     }
+    // PostgreSQL (compose.infra.yaml) gets only its superuser password; no service of the channel gets it.
+    expect(list(record(secrets['postgres'])['files'])).toEqual(['postgres-password']);
+    expect(Object.keys(secrets).filter((name) => list(record(secrets[name])['files']).includes('postgres-password'))).toEqual(['postgres']);
     const holders = Object.entries(secrets)
       .filter(([, value]) => list(record(value)['files']).includes('database-url-migrator'))
       .map(([name]) => name);
     expect(holders).toEqual(['migrate']);
     for (const name of ['api', 'worker']) expect(list(record(secrets[name])['files'])).toContain('database-url-app');
+  });
+
+  it('EVM-007 AC7 (SR-INFRA-05): after a reboot the secrets are restored before Docker, fail-closed, by the same script as deploy.sh', () => {
+    const unit = read('infra/deploy-agent/systemd/evia-secrets.service');
+    expect(unit).toContain('Before=docker.service');
+    expect(unit).toContain('RequiredBy=docker.service');
+    expect(unit).toContain('Type=oneshot');
+    expect(unit).toContain('ExecStart=/usr/local/sbin/evia-secrets');
+    expect(unit).toContain('OnFailure=evia-deploy-agent-alert.service');
+    expect(read('infra/deploy-agent/deploy.sh')).toContain('"$ROOT/usr/local/sbin/evia-secrets" "$manifest_sha"');
+    const script = read('infra/deploy-agent/secrets.sh');
+    expect(script).toMatch(/^set -euo pipefail$/m);
+    expect(script.replace(/^\s*#.*$/gm, '')).not.toMatch(/\beval\b/);
+    // Every bind-mounted secrets directory of the infrastructure has a service in the manifest.
+    const mounts = [...read('infra/runtime/compose.infra.yaml').matchAll(/\/run\/evia\/secrets\/([a-z]+):/g)].map((match) => match[1]);
+    for (const name of mounts) expect(Object.keys(secrets), String(name)).toContain(name);
   });
 
   it('EVM-007 AC3 (security-engineer B): the verifier container — image by ID, no socket, no ports, read-only, non-root, configuration and registry read-only', () => {

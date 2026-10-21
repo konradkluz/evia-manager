@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const SCRIPT = new URL('../deploy.sh', import.meta.url).pathname;
+const SECRETS_SCRIPT = new URL('../secrets.sh', import.meta.url).pathname;
 const sha256 = (/** @type {string} */ text) => createHash('sha256').update(text).digest('hex');
 const sha = (/** @type {string} */ label) => createHash('sha1').update(label).digest('hex');
 const API_REPO = 'ghcr.io/evia-test/evia-api';
@@ -117,10 +118,22 @@ function setup() {
     join(root, 'etc/evia/deploy-agent/secrets.manifest.json'),
     readFileSync(new URL('../secrets.manifest.json', import.meta.url)),
   );
-  for (const file of ['database-url-migrator', 'database-url-app', 'cursor-key', 'field-encryption-keys'])
+  for (const file of ['database-url-migrator', 'database-url-app', 'cursor-key', 'field-encryption-keys', 'postgres-password'])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
+  // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).
+  mkdirSync(join(root, 'usr/local/sbin'), { recursive: true });
+  writeFileSync(join(root, 'usr/local/sbin/evia-secrets'), readFileSync(SECRETS_SCRIPT), { mode: 0o755 });
   log = join(root, 'calls.log');
   writeFileSync(log, '');
+}
+
+/** The boot unit's call: evia-secrets without arguments (the manifest hash comes from the registry). */
+function restoreSecrets(/** @type {string[]} */ args = []) {
+  const run = spawnSync('bash', [SECRETS_SCRIPT, ...args], {
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin', EVIA_ROOT: root, EVIA_EXPECTED_UID: String(process.getuid?.() ?? 0) },
+  });
+  return { status: run.status, stderr: run.stderr };
 }
 
 function deploy(/** @type {Record<string, unknown>} */ value, /** @type {Record<string, string>} */ env = {}) {
@@ -321,6 +334,19 @@ describe('EVM-007 AC4 (security-engineer B): deploy.sh treats the result of the 
     assert.equal(registry()[2].commit, sha('c1'));
     assert.equal(existsSync(join(root, 'etc/evia/deploy-agent/rollback')), false);
   });
+
+  it('EVM-007 AC4 (security-engineer, rollback i migracje): a rollback never runs migrate — N−1 runs on schema N', () => {
+    assert.equal(deploy(result('c1')).status, 0);
+    assert.equal(deploy(result('c2')).status, 0);
+    writeFileSync(join(root, 'etc/evia/deploy-agent/rollback'), sha('c1'));
+    // The old migrator would refuse a database with migrations it does not know; a rollback must not depend on it.
+    const run = deploy({ ...result('c1'), decision: 'rollback' }, { FAKE_MIGRATE_EXIT: '1' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(index(run.calls, 'run --rm --no-deps migrate'), -1, JSON.stringify(run.calls));
+    assert.ok(index(run.calls, ' up -d --no-build --pull never --no-deps api worker web') >= 0);
+    assert.match(run.stderr, /migrations skipped/);
+    assert.equal(active(), 'blue');
+  });
 });
 
 describe('EVM-007 AC7: secrets of the services', () => {
@@ -356,6 +382,75 @@ describe('EVM-007 AC7: secrets of the services', () => {
     run = deploy(result('c1'));
     assert.match(run.stderr, /must be 0700/);
   });
+
+  it('EVM-007 AC7 (security-engineer, SR-INFRA-05): PostgreSQL gets only its password, the channel services never get it', () => {
+    assert.equal(deploy(result('c1')).status, 0);
+    const run = (/** @type {string} */ path) => join(root, 'run/evia/secrets', path);
+    assert.equal(readFileSync(run('postgres/postgres-password'), 'utf8'), 'synthetic-postgres-password');
+    assert.equal((statSync(run('postgres/postgres-password')).mode & 0o777).toString(8), '400');
+    assert.equal(existsSync(run('postgres/database-url-app')), false);
+    for (const service of ['api', 'worker', 'migrate']) assert.equal(existsSync(run(`${service}/postgres-password`)), false);
+  });
+
+  it('EVM-007 AC7 (security-engineer): after a reboot (empty /run) the boot unit restores every service and the API manifest hash of the registry', () => {
+    const first = result('c1');
+    const second = result('c2');
+    assert.equal(deploy(first).status, 0);
+    assert.equal(deploy(second).status, 0);
+    spawnSync('chmod', ['-R', 'u+w', join(root, 'run')]);
+    spawnSync('rm', ['-rf', join(root, 'run')]);
+    const restored = restoreSecrets();
+    assert.equal(restored.status, 0, restored.stderr);
+    const run = (/** @type {string} */ path) => join(root, 'run/evia/secrets', path);
+    for (const [service, file] of [
+      ['postgres', 'postgres-password'],
+      ['migrate', 'database-url-migrator'],
+      ['api', 'database-url-app'],
+      ['worker', 'cursor-key'],
+    ])
+      assert.equal(readFileSync(run(`${service}/${file}`), 'utf8'), `synthetic-${file}`);
+    assert.equal(readFileSync(run('api/release-manifest-sha256'), 'utf8'), second.manifestSha256);
+    assert.equal((statSync(run('api')).mode & 0o777).toString(8), '500');
+  });
+
+  it('EVM-007 AC7: before the first deployment the boot unit restores the secrets without a manifest hash; a bad registry or manifest refuses', () => {
+    const restored = restoreSecrets();
+    assert.equal(restored.status, 0, restored.stderr);
+    assert.equal(existsSync(join(root, 'run/evia/secrets/postgres/postgres-password')), true);
+    assert.equal(existsSync(join(root, 'run/evia/secrets/api/release-manifest-sha256')), false);
+    mkdirSync(join(root, 'var/lib/evia/registry'), { recursive: true });
+    writeFileSync(
+      join(root, 'var/lib/evia/registry/registry.json'),
+      JSON.stringify({ schemaVersion: 1, entries: [{ manifestSha256: '../../etc/x' }] }),
+    );
+    assert.match(restoreSecrets().stderr, /manifest hash/);
+    assert.match(restoreSecrets(['a', 'b']).stderr, /usage/);
+    const manifest = join(root, 'etc/evia/deploy-agent/secrets.manifest.json');
+    const original = readFileSync(manifest, 'utf8');
+    for (const services of [
+      { postgres: { uid: 0, files: ['postgres-password'] } },
+      { postgres: { uid: 10001, files: ['postgres-password'] } },
+      { api: { uid: 999, files: ['cursor-key'] } },
+      { shell: { uid: 10001, files: ['cursor-key'] } },
+      { api: { uid: 10001, files: ['../secrets'] } },
+    ]) {
+      writeFileSync(manifest, JSON.stringify({ services }));
+      assert.notEqual(restoreSecrets([sha256('m')]).status, 0, JSON.stringify(services));
+    }
+    writeFileSync(manifest, original);
+  });
+
+  it('EVM-007 AC7: a repeated materialisation keeps the directory of a running container and removes files no longer in the manifest', () => {
+    assert.equal(deploy(result('c1')).status, 0);
+    const directory = join(root, 'run/evia/secrets/api');
+    const inode = statSync(directory).ino;
+    chmodSync(directory, 0o700);
+    writeFileSync(join(directory, 'stale-secret'), 'old');
+    assert.equal(deploy(result('c2')).status, 0);
+    assert.equal(statSync(directory).ino, inode, 'the bind mount of the serving colour keeps its files');
+    assert.equal(existsSync(join(directory, 'stale-secret')), false);
+    assert.equal(readFileSync(join(directory, 'release-manifest-sha256'), 'utf8'), result('c2').manifestSha256);
+  });
 });
 
 describe('EVM-007 AC4: images of the last 3 deployments stay', () => {
@@ -381,6 +476,7 @@ describe('EVM-007 AC4 (security-engineer B): ShellCheck on the shell scripts of 
   const scripts = [
     '/src/infra/deploy-agent/deploy.sh',
     '/src/infra/deploy-agent/cycle.sh',
+    '/src/infra/deploy-agent/secrets.sh',
     '/src/infra/docker/iac/check.sh',
     '/src/infra/docker/iac/iac.sh',
   ];

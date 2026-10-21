@@ -4,24 +4,21 @@
 # The result of the verifier is UNTRUSTED: it is copied into a directory of root first and only the copy is read; every
 # field is checked again (commit, digests of the allowed repositories, hashes, the compose document against an
 # allow-list, a rollback only to a commit of the registry). Order: pull by digest -> migrations (one-off `migrate`,
-# role evia_migrator) -> start of the new colour -> /api/health and /api/version (commit + manifest hash) -> switch of
+# role evia_migrator; never for a rollback) -> start of the new colour -> /api/health and /api/version (commit + manifest hash) -> switch of
 # the edge Caddy -> check through the edge -> stop of the old colour -> registry (atomic) -> images of the last 3
 # deployments kept. A failure before the switch leaves the previous version serving. No eval, every variable quoted.
-# Paths are fixed; EVIA_ROOT (tests only) prefixes them, EVIA_EXPECTED_UID (tests only) replaces root as the owner.
+# Paths are fixed; EVIA_ROOT (tests only) prefixes them; EVIA_EXPECTED_UID (tests only) reaches evia-secrets, where it
+# replaces root as the owner of the secrets.
 set -euo pipefail
 umask 077
 
 readonly ROOT="${EVIA_ROOT:-}"
-readonly OWNER_UID="${EVIA_EXPECTED_UID:-0}"
 readonly WAIT="${EVIA_HEALTH_WAIT:-2}"
 readonly CONFIG="$ROOT/etc/evia/deploy-agent/config.json"
-readonly SECRETS_MANIFEST="$ROOT/etc/evia/deploy-agent/secrets.manifest.json"
 readonly ROLLBACK_COMMAND="$ROOT/etc/evia/deploy-agent/rollback"
 readonly RESULT_SOURCE="$ROOT/var/lib/evia/agent/out/result.json"
 readonly WORK="$ROOT/var/lib/evia/deploy"
 readonly REGISTRY="$ROOT/var/lib/evia/registry/registry.json"
-readonly SECRETS_SOURCE="$ROOT/etc/evia/secrets"
-readonly SECRETS_RUN="$ROOT/run/evia/secrets"
 readonly CADDY_SNIPPET="$ROOT/etc/evia/caddy/upstream.caddy"
 readonly INFRA_COMPOSE="$ROOT/etc/evia/runtime/compose.infra.yaml"
 readonly DOMAIN="staging.eviacharge.pl"
@@ -37,8 +34,6 @@ fail() {
 for name in $(compgen -e); do
   case "$name" in COMPOSE_* | DOCKER_DEFAULT_PLATFORM) unset "$name" ;; esac
 done
-
-owner_mode() { stat -c '%u %a' -- "$1"; }
 
 install -d -m 0700 "$WORK" "$WORK/incoming" "$WORK/empty" "$WORK/colors"
 # The registry is readable by the verifier (no secret in it: commits, hashes, manifests) and writable by root only.
@@ -123,31 +118,9 @@ if [ "$decision" = rollback ]; then
     fail "rollback to a commit outside the registry"
 fi
 
-# Secrets (AC7; architect 14): the source is /etc/evia/secrets (0700, files 0600 root); every service gets a tmpfs copy
-# of only its files (0400, owned by its UID) — the start is refused when an owner or a mode is wrong.
-[ "$(owner_mode "$SECRETS_SOURCE")" = "$OWNER_UID 700" ] || fail "$SECRETS_SOURCE must be 0700 root"
-for service in $(jq -r '.services | keys[]' "$SECRETS_MANIFEST"); do
-  [[ "$service" =~ ^(api|worker|migrate|web)$ ]] || fail "secrets manifest: service $service"
-  uid="$(jq -r --arg s "$service" '.services[$s].uid' "$SECRETS_MANIFEST")"
-  [[ "$uid" =~ ^[1-9][0-9]{3,5}$ ]] || fail "secrets manifest: uid of $service"
-  target="$SECRETS_RUN/$service"
-  if [ -d "$target" ]; then chmod -R u+w -- "$target"; fi
-  rm -rf -- "$target"
-  install -d -m 0700 "$target"
-  for file in $(jq -r --arg s "$service" '.services[$s].files[]' "$SECRETS_MANIFEST"); do
-    [[ "$file" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || fail "secrets manifest: file name"
-    source="$SECRETS_SOURCE/$file"
-    { [ -f "$source" ] && [ ! -L "$source" ]; } || fail "secret $file is missing"
-    [ "$(owner_mode "$source")" = "$OWNER_UID 600" ] || fail "secret $file must be 0600 root"
-    install -m 0400 -- "$source" "$target/$file"
-  done
-  if [ "$service" = api ]; then
-    printf '%s' "$manifest_sha" > "$target/release-manifest-sha256"
-    chmod 0400 "$target/release-manifest-sha256"
-  fi
-  chmod 0500 "$target"
-  if [ "$(id -u)" = 0 ]; then chown -R "$uid:$uid" -- "$target"; fi
-done
+# Secrets (AC7; architect 14): one materialisation shared with the boot unit evia-secrets.service (a reboot empties
+# /run) — every service of secrets.manifest.json gets a tmpfs copy of only its files, the API the manifest hash.
+"$ROOT/usr/local/sbin/evia-secrets" "$manifest_sha" || fail "secrets of the services"
 
 active="$(cat -- "$WORK/active-color" 2> /dev/null || echo none)"
 case "$active" in blue | green | none) ;; *) fail "active colour" ;; esac
@@ -158,7 +131,11 @@ compose_of() { docker compose --project-name "$1" --project-directory "$WORK/emp
 log "deploying $commit ($decision) as $project"
 docker pull --quiet -- "$api" > /dev/null
 docker pull --quiet -- "$web" > /dev/null
-if ! compose_of "$project" "$release/compose.json" run --rm --no-deps migrate; then
+# A rollback never migrates: the schema is expand-only (tools/repo-policy migrations.test.ts), so N−1 runs on schema N,
+# and the older migrator would refuse a database with migrations it does not know (ADR-0018 "Rollback i migracje").
+if [ "$decision" = rollback ]; then
+  log "rollback: migrations skipped (expand-only schema)"
+elif ! compose_of "$project" "$release/compose.json" run --rm --no-deps migrate; then
   compose_of "$project" "$release/compose.json" down --remove-orphans || true
   fail "migration failed — the previous version stays"
 fi
