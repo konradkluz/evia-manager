@@ -4,7 +4,7 @@ title: "Spike: kolejka offline i upload w tle"
 type: spike
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 owner: mobile-developer
 contributors: []
@@ -71,3 +71,4 @@ _—_
 - 2026-10-03 — zmiana AC — do potwierdzenia przez Konrada: AC2 i AC5 tylko Android (emulator na Windows + fizyczny telefon; iOS odłożony, decyzja Konrada 2026-10-03, ADR-0015); iOS dopisany do „Poza zakresem”; „Notatki techniczne” wg ADR-0015 (product-owner)
 - 2026-10-03 — zmiana AC (iOS odłożony, ADR-0015) potwierdzona przez Konrada; status bez zmian: ready
 - 2026-10-20 — zmiana zakresu nocnego zaakceptowana przez Konrada: emulator tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano; `path: pelna`, `model: sonnet`
+- 2026-10-21 — ready → in-progress: start realizacji w kolejce B po EVM-009 (gałąź feature/EVM-009-011-aplikacja-mobilna, pelna, sonnet); emulator Android tej nocy, fizyczny telefon (AC2/AC5) ręcznie rano
