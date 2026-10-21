@@ -46,6 +46,9 @@ x-backend: &backend
     - ./packages:/src/packages:ro
     - ./tools:/src/tools:ro
     - ./design/tokens:/src/design/tokens:ro
+    # EVM-007 AC4: the contract test of the API configuration against the compose file of the deployment channel.
+    - ./infra/runtime/compose.staging.yaml:/src/infra/runtime/compose.staging.yaml:ro
+    - ./infra/deploy-agent/secrets.manifest.json:/src/infra/deploy-agent/secrets.manifest.json:ro
 
 services:
   # Linux dependencies from the lockfile into the bt-work volume (network: npm registry). Run after a lockfile change.
