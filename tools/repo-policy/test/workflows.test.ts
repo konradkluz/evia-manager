@@ -46,6 +46,9 @@ describe('every workflow (EVM-006 AC4, A6, SR-SUPPLY-04)', () => {
     }
     for (const file of WORKFLOWS) {
       for (const [name, value] of Object.entries(record(record(yaml(`.github/workflows/${file}`))['jobs']))) {
+        // EVM-007 AC2: the only exception — publish builds, scans and pushes images; its Docker commands are an exact
+        // allow-list checked by publishProblems (test/publish.test.ts)
+        if (file === 'ci.yml' && name === 'publish') continue;
         for (const step of list(record(value)['steps'])) commands.push([`${file} ${name}`, text(record(step)['run'])]);
       }
     }
@@ -173,6 +176,7 @@ describe('ci.yml (EVM-006 AC4; A2, W3c, W6)', () => {
       'security',
       'coverage',
       'ci-gate',
+      'publish',
     ]);
     expect(list(job('ci-gate')['needs'])).toContain('quality');
   });

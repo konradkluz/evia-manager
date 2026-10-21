@@ -19,6 +19,7 @@ export const SERVICES = Object.freeze([
   'scan-actionlint',
   'renovate-validate',
   'iac-check',
+  'scan-trivy-image',
 ]);
 
 /**

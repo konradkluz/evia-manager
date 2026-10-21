@@ -346,3 +346,102 @@ jobs:
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))' > /dev/null
+
+  # EVM-007 AC2 (ADR-0018 "Publikacja hermetyczna"; security-engineer A4, A5; architect 18–20): the release images, only
+  # for a push to main that changed a build input (changes.publish), after a green ci-gate — never for a pull request, a
+  # branch, a manual or a scheduled run. Hermetic: no cache of any kind (no actions/cache, no setup-node, no buildx cache,
+  # --no-cache --pull), bases by digest, nothing from the registry of the project, no download-artifact, no output of
+  # another job as a build input. Bramka 6 before anything leaves the runner: Trivy on the saved images (Critical/High with
+  # a fix = red) and the CycloneDX SBOM; the infrastructure images of the VM (infra/runtime/infra-images.json) in the same
+  # gate. Then the push to GHCR (GITHUB_TOKEN, packages: write — this job only) and the `release-manifest` artifact read by
+  # the deployment verifier on the VM (V3). manifestSha256 = SHA-256 of the exact bytes of release-manifest.json
+  # (services/deploy-agent/README.md). Not a dependency of ci-gate: a red publish blocks the deployment, not the merge.
+  publish:
+    name: publish
+    needs: [changes, ci-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success' && needs.changes.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      manifestSha256: ${{ steps.manifest.outputs.sha256 }}
+    env:
+      EVIA_RELEASE_COMMIT: ${{ github.sha }}
+      REGISTRY: ghcr.io/konradkluz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Output directories (scans, release)
+        run: mkdir -p .scratch/scans release && chmod 0777 .scratch/scans
+      - name: Build the release images (no cache, fresh bases by digest)
+        shell: bash
+        run: |
+          for image in api web; do
+            docker buildx build --no-cache --pull --provenance=false --sbom=false \
+              --build-arg EVIA_RELEASE_COMMIT="$EVIA_RELEASE_COMMIT" \
+              --file "infra/images/$image/Dockerfile" --tag "evia-$image:candidate" --load .
+            docker save "evia-$image:candidate" --output ".scratch/scans/evia-$image.tar"
+          done
+          for ref in $(jq -r '.images[]' infra/runtime/infra-images.json); do
+            name="infra-$(echo "$ref" | sed -E 's#^([^/:@]+/)*([^/:@]+).*#\2#')"
+            docker pull "$ref"
+            docker save "$ref" --output ".scratch/scans/$name.tar"
+          done
+      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
+        shell: bash
+        run: |
+          for archive in .scratch/scans/*.tar; do
+            name="$(basename "$archive" .tar)"
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --input "/out/$name.tar" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --format json --output "/out/trivy-image-$name.json"
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
+          done
+      - name: Push to GHCR and read the digests
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+          for image in api web; do
+            target="$REGISTRY/evia-$image:sha-$EVIA_RELEASE_COMMIT"
+            docker tag "evia-$image:candidate" "$target"
+            docker push "$target" | tee "release/push-$image.log"
+            digest="$(grep -oE 'digest: sha256:[0-9a-f]{64}' "release/push-$image.log" | tail -n 1 | cut -d' ' -f2)"
+            if ! echo "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then echo "no digest for evia-$image" >&2; exit 1; fi
+            echo "$REGISTRY/evia-$image@$digest" > "release/$image.ref"
+          done
+      - name: Release manifest (commit, digests, compose path)
+        id: manifest
+        shell: bash
+        run: |
+          jq -n --arg commit "$EVIA_RELEASE_COMMIT" --arg api "$(cat release/api.ref)" --arg web "$(cat release/web.ref)" \
+            '{schemaVersion: 1, commit: $commit, images: {api: $api, web: $web}, compose: "infra/runtime/compose.staging.yaml"}' \
+            > release/release-manifest.json
+          jq -e --arg commit "$EVIA_RELEASE_COMMIT" '(.commit == $commit) and (.commit | test("^[0-9a-f]{40}$")) and ([.images[]] | all(test("^ghcr\.io/konradkluz/evia-(api|web)@sha256:[0-9a-f]{64}$")))' release/release-manifest.json > /dev/null
+          sha="$(sha256sum release/release-manifest.json | cut -d' ' -f1)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "### release-manifest" >> "$GITHUB_STEP_SUMMARY"
+          echo "commit $EVIA_RELEASE_COMMIT, manifestSha256 $sha" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-manifest
+          path: release/release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: |
+            .scratch/scans/sbom-*.cdx.json
+            .scratch/scans/trivy-image-*.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io

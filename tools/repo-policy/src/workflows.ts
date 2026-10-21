@@ -3,6 +3,7 @@
  * way to start Docker from scripts (A6, RR-03).
  */
 import { list, record, text } from './files.ts';
+import { POST_GATE_JOBS } from './release.ts';
 
 const FORBIDDEN_TRIGGERS = ['pull_request_target', 'workflow_run', 'issue_comment'];
 const USES = /^\s*-?\s*uses:\s*(\S+)(.*)$/;
@@ -87,7 +88,8 @@ export function ciGateProblems(document: unknown): string[] {
   const gate = record(jobs['ci-gate']);
   const needs = list(gate['needs']).map(String).sort();
   const expected = Object.keys(jobs)
-    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name))
+    // EVM-007: publish and staging-verify run after ci-gate and are never its dependencies
+    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name) && !POST_GATE_JOBS.includes(name))
     .sort();
   const problems: string[] = [];
   if (JSON.stringify(needs) !== JSON.stringify(expected)) problems.push(`ci-gate: needs musi obejmować ${expected.join(', ')}`);
