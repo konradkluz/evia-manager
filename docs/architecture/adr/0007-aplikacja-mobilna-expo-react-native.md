@@ -4,7 +4,7 @@
 - **Zakres platform doprecyzowany** 2026-10-03 (decyzja Konrada, [ADR-0015](0015-srodowisko-testow-per-warstwa.md)): iOS odłożony — pilotaż i spike tylko na Androidzie; kod pozostaje zgodny z iOS (Expo); decyzja o iOS przed planowaniem wydania iOS.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: mobile-developer, security-engineer)
-- **Powiązane:** EVM-001, EVM-009, EVM-011 (spike), E9–E14 (M2); ADR-0004, ADR-0005, ADR-0008, ADR-0009, ADR-0012, ADR-0014
+- **Powiązane:** EVM-001, EVM-009, EVM-011 (spike), E9–E14 (M2); ADR-0004, ADR-0005, ADR-0008, ADR-0009, ADR-0012, ADR-0014; częściowo zmienione przez ADR-0019 (proponowana)
 
 ## Kontekst i problem
 Technicy pracują w garażach podziemnych bez zasięgu. Flota telefonów jest **mieszana iOS + Android** (decyzja Konrada 2026-10-02) — obie platformy obowiązkowe. Aplikacja musi: robić zdjęcia i **długie filmy**, trzymać dane zleceń offline w **szyfrowanej** lokalnej bazie, przechowywać tokeny w bezpiecznym magazynie systemu i **wysyłać duże pliki w tle**, także gdy aplikacja jest zawieszona lub zamknięta przez system, wznawiając po utracie sieci. Konrad pracuje na **Windows 11** — buildy iOS muszą powstawać w chmurze. Wymagania MASVS (STORAGE, CRYPTO, AUTH, NETWORK, PLATFORM, PRIVACY) wg security-engineer.

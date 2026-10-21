@@ -5,7 +5,7 @@
 - **Częściowo zastąpiona przez:** [ADR-0018](0018-wdrozenia-pull-z-weryfikacja-na-vm-github-free.md) (2026-10-13) — zakres: akapit „Wdrożenia” (kanał pull z weryfikacją na VM zamiast `workflow_dispatch` ze środowiskiem `production`; zatwierdzenie prod poza GitHubem) oraz „wdrożenia przez OIDC lub sekrety środowisk” w „Łańcuch dostaw i CI” (w GitHubie brak sekretów wdrożeniowych). Pozostała treść obowiązuje.
 - **Data:** 2026-10-02
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (recenzja: devops-engineer, security-engineer)
-- **Powiązane:** EVM-001, EVM-005 (lista skanów i progów), EVM-006, EVM-007; ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0011, ADR-0014
+- **Powiązane:** EVM-001, EVM-005 (lista skanów i progów), EVM-006, EVM-007; ADR-0002, ADR-0004, ADR-0006, ADR-0007, ADR-0011, ADR-0014; częściowo zmienione przez ADR-0019 (proponowana)
 
 ## Kontekst i problem
 Kod piszą agenci AI, akceptuje jedna osoba — bramki jakości muszą być automatyczne i blokujące (lint, typy, testy, pokrycie z `testing-strategy.md`, skany bezpieczeństwa). Monorepo obejmuje backend, panel web, aplikację mobilną i pakiety współdzielone (kontrakt, sync-core, tokeny). Konrad pracuje na **Windows 11**, więc buildy iOS muszą być **chmurowe**. Wymagania security-engineer: SAST, SCA (podatności i licencje), skan sekretów (pre-commit i CI), skan IaC/kontenerów, akcje przypięte do SHA, bot aktualizacji, ochrona `main`, klucze podpisu tylko w sekretach CI/serwisu buildów z planem rotacji, ocena chmurowego serwisu buildów iOS. Konto repozytorium zdalnego ustalane w EVM-006 (za zgodą Konrada).
