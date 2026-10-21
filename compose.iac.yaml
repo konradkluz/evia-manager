@@ -1,0 +1,36 @@
+# IaC session only (EVM-007 AC1; ADR-0018 IaC; plan P11; architect 22): `plan`/`apply` of infra/tofu with the tokens of
+# Konrad. A separate file, so that compose.yaml (gates, CI) never references the secret file and works without it.
+# Run (IaC session, after Konrad has created the file and the deny rules of Q3 exist — never before):
+#   docker compose -f compose.iac.yaml run --rm iac <init|plan|apply|output> <bootstrap|staging>
+# ../.evia-iac/ lies OUTSIDE the repository (created and deleted by Konrad): staging.env (tokens, state passphrase —
+# mounted as a secret, never read or printed by an agent), <root>.tfvars (server type, SSH key and addresses — no
+# secret) and state/ (encrypted local state of bootstrap, plans, provider data). Same hardening as compose.yaml.
+# Rules (tested in tools/repo-policy iac.test.ts): one service, the image of iac-check, the fixed entry point, the
+# repository read-only, no ports, no Docker socket, no interpolation, no environment beyond HOME.
+
+services:
+  iac:
+    image: evia-iac:local
+    build:
+      context: infra/docker/iac
+    pull_policy: build
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    user: '1000:1000'
+    entrypoint: ['/usr/local/bin/evia-iac']
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=1g
+    volumes:
+      - ./infra/tofu:/src/infra/tofu:ro
+      - ../.evia-iac/state:/iac/state
+      - ../.evia-iac/bootstrap.tfvars:/iac/bootstrap.tfvars:ro
+      - ../.evia-iac/staging.tfvars:/iac/staging.tfvars:ro
+    secrets: [iac]
+
+secrets:
+  iac:
+    file: ../.evia-iac/staging.env

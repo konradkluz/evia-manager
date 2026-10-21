@@ -80,6 +80,9 @@ jobs:
       e2e: ${{ steps.detect.outputs.e2e }}
       integration: ${{ steps.detect.outputs.integration }}
       mobile: ${{ steps.detect.outputs.mobile }}
+      # EVM-007: iac-check (AC1) and the release images (AC2, push to main only)
+      iac: ${{ steps.detect.outputs.iac }}
+      publish: ${{ steps.detect.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -137,6 +140,7 @@ jobs:
             apps/*/coverage/lcov.info
             packages/*/coverage/lcov.info
             tools/*/coverage/lcov.info
+            services/*/coverage/lcov.info
           if-no-files-found: error
           retention-days: 7
 
@@ -162,6 +166,10 @@ jobs:
         run: docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend
       - name: Licenses of production dependencies (bramka 4)
         run: node tools/scan/cli.mjs licenses
+      # EVM-007 AC4: the root script of the VM (deploy.sh) and ShellCheck, in their Linux container, when they changed.
+      - name: Tests of the deployment script of the VM (deploy-sh-tests)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm deploy-sh-tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov-backend
@@ -353,6 +361,11 @@ jobs:
           node-version-file: .nvmrc
       - name: Scans and scanner self-test (gitleaks, Semgrep, OSV, Trivy, zizmor, actionlint, Renovate config)
         run: node tools/scan/cli.mjs security
+      # EVM-007 AC1: OpenTofu without credentials (fmt -check, init without a backend from the lock files, validate);
+      # Trivy config of infra/ runs in the scans above. Only when the IaC code, its container, compose files or workflows changed.
+      - name: IaC checks without credentials (iac-check)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm iac-check
       - name: Sensitive files changed in this push (K3)
         if: always()
         run: |
@@ -362,6 +375,7 @@ jobs:
             echo "### Zmienione pliki wrażliwe (K3) — wymagają jawnej uwagi Konrada"
             git diff --name-only "$base" HEAD -- .github .claude 'compose*.yaml' lefthook.yml .gitleaks.toml .gitleaksignore \
               osv-scanner.toml trivy.yaml .trivyignore.yaml zizmor.yml .semgrepignore .semgrep renovate.json pnpm-workspace.yaml \
+              infra services/deploy-agent tools/staging-verify \
               | sed 's/^/- /'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -426,3 +440,161 @@ jobs:
         run: |
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           echo "$NEEDS" | jq -e '(keys == ["backend", "backend-integration", "changes", "coverage", "e2e-web", "mobile-apk", "quality", "security"]) and (.changes.result == "success") and (.changes.outputs as $o | ($o.heavy == "true" or $o.heavy == "false") and ($o.e2e == "true" or $o.e2e == "false") and ($o.integration == "true" or $o.integration == "false") and ($o.mobile == "true" or $o.mobile == "false") and ($o.heavy == "true" or ($o.e2e == "false" and $o.integration == "false" and $o.mobile == "false")) and all(.quality, .backend, .security; .result == "success") and (.["e2e-web"].result == (if $o.e2e == "true" then "success" else "skipped" end)) and (.["backend-integration"].result == (if $o.integration == "true" then "success" else "skipped" end)) and (.["mobile-apk"].result == (if $o.mobile == "true" then "success" else "skipped" end)) and (.coverage.result == (if $o.heavy == "true" then "success" else "skipped" end)))' > /dev/null
+
+  # EVM-007 AC2 (ADR-0018 "Publikacja hermetyczna"; security-engineer A4, A5; architect 18–20): the release images, only
+  # for a push to main that changed a build input (changes.publish), after a green ci-gate — never for a pull request, a
+  # branch, a manual or a scheduled run. Hermetic: no cache of any kind (no actions/cache, no setup-node, no buildx cache,
+  # --no-cache --pull), bases by digest, nothing from the registry of the project, no download-artifact, no output of
+  # another job as a build input. Bramka 6 before anything leaves the runner: Trivy on the saved images (Critical/High with
+  # a fix = red) and the CycloneDX SBOM; the infrastructure images of the VM (infra/runtime/infra-images.json) in the same
+  # gate. Then the push to GHCR (GITHUB_TOKEN, packages: write — this job only) and the `release-manifest` artifact read by
+  # the deployment verifier on the VM (V3). manifestSha256 = SHA-256 of the exact bytes of release-manifest.json
+  # (services/deploy-agent/README.md). Not a dependency of ci-gate: a red publish blocks the deployment, not the merge.
+  publish:
+    name: publish
+    needs: [changes, ci-gate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.ci-gate.result == 'success' && needs.changes.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    outputs:
+      manifestSha256: ${{ steps.manifest.outputs.sha256 }}
+    env:
+      EVIA_RELEASE_COMMIT: ${{ github.sha }}
+      REGISTRY: ghcr.io/konradkluz
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Output directories (scans, release)
+        run: mkdir -p .scratch/scans release && chmod 0777 .scratch/scans
+      - name: Build the release images (no cache, fresh bases by digest)
+        shell: bash
+        run: |
+          for image in api web; do
+            docker buildx build --no-cache --pull --provenance=false --sbom=false \
+              --build-arg EVIA_RELEASE_COMMIT="$EVIA_RELEASE_COMMIT" \
+              --file "infra/images/$image/Dockerfile" --tag "evia-$image:candidate" --load .
+            docker save "evia-$image:candidate" --output ".scratch/scans/evia-$image.tar"
+          done
+          for ref in $(jq -r '.images[]' infra/runtime/infra-images.json); do
+            name="infra-$(echo "$ref" | sed -E 's#^([^/:@]+/)*([^/:@]+).*#\2#')"
+            docker pull "$ref"
+            docker save "$ref" --output ".scratch/scans/$name.tar"
+          done
+      - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
+        shell: bash
+        run: |
+          for archive in .scratch/scans/*.tar; do
+            name="$(basename "$archive" .tar)"
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --input "/out/$name.tar" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 \
+              --format json --output "/out/trivy-image-$name.json"
+            docker compose -f compose.yaml run --rm scan-trivy-image image --config /src/trivy.yaml --skip-version-check \
+              --skip-db-update --input "/out/$name.tar" --format cyclonedx --output "/out/sbom-$name.cdx.json"
+          done
+      - name: Push to GHCR and read the digests
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin
+          for image in api web; do
+            target="$REGISTRY/evia-$image:sha-$EVIA_RELEASE_COMMIT"
+            docker tag "evia-$image:candidate" "$target"
+            docker push "$target" | tee "release/push-$image.log"
+            digest="$(grep -oE 'digest: sha256:[0-9a-f]{64}' "release/push-$image.log" | tail -n 1 | cut -d' ' -f2)"
+            if ! echo "$digest" | grep -qE '^sha256:[0-9a-f]{64}$'; then echo "no digest for evia-$image" >&2; exit 1; fi
+            echo "$REGISTRY/evia-$image@$digest" > "release/$image.ref"
+          done
+      - name: Release manifest (commit, digests, compose path)
+        id: manifest
+        shell: bash
+        run: |
+          jq -n --arg commit "$EVIA_RELEASE_COMMIT" --arg api "$(cat release/api.ref)" --arg web "$(cat release/web.ref)" \
+            '{schemaVersion: 1, commit: $commit, images: {api: $api, web: $web}, compose: "infra/runtime/compose.staging.yaml"}' \
+            > release/release-manifest.json
+          jq -e --arg commit "$EVIA_RELEASE_COMMIT" '(.commit == $commit) and (.commit | test("^[0-9a-f]{40}$")) and ([.images[]] | all(test("^ghcr\.io/konradkluz/evia-(api|web)@sha256:[0-9a-f]{64}$")))' release/release-manifest.json > /dev/null
+          sha="$(sha256sum release/release-manifest.json | cut -d' ' -f1)"
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "### release-manifest" >> "$GITHUB_STEP_SUMMARY"
+          echo "commit $EVIA_RELEASE_COMMIT, manifestSha256 $sha" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-manifest
+          path: release/release-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: |
+            .scratch/scans/sbom-*.cdx.json
+            .scratch/scans/trivy-image-*.json
+          if-no-files-found: error
+          retention-days: 90
+      # GHCR retention (n2; architect 20): dry-run until the IaC session confirms that GITHUB_TOKEN may delete versions;
+      # fail-closed — an unreadable manifest of the last 30 push runs on main means nothing is deleted.
+      - name: GHCR retention (dry-run)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GHCR_RETENTION_MODE: dry-run
+        run: node tools/ghcr-retention/cli.mjs
+      - name: Notice when staging-verify is disabled (a skipped bramka 10 is not a pass)
+        if: vars.STAGING_VERIFY_ENABLED != 'true'
+        run: echo "::warning title=staging-verify::STAGING_VERIFY_ENABLED is not true - bramka 10 did not run for this release"
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io
+
+  # EVM-007 AC6 (bramka 10; ADR-0018 "Staging"; security-engineer B; plan P8): after publish, wait until /version of
+  # staging reports this commit and the manifestSha256 of publish, then check from the runner — anonymously, without
+  # any secret — ports (only 80/443; plain TCP connects, no new tool), TLS, headers, DNS and the anonymous ZAP baseline.
+  # Red on a mismatch after the waiting time or on any violated check; the result in the summary and the artifact
+  # `staging-verified`. Runs only when the repository variable STAGING_VERIFY_ENABLED is 'true' (set in the IaC session
+  # once staging exists — a skipped run is never a pass: publish writes a warning and the release sign-off requires
+  # true). contents: read is the minimum for the checkout of a private repository; no other permission.
+  staging-verify:
+    name: staging-verify
+    needs: [publish]
+    if: needs.publish.result == 'success' && vars.STAGING_VERIFY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      EXPECTED_COMMIT: ${{ github.sha }}
+      EXPECTED_MANIFEST_SHA256: ${{ needs.publish.outputs.manifestSha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Wait for /version (the commit and manifest of publish)
+        run: node tools/staging-verify/cli.mjs wait
+      - name: Ports, TLS, headers and DNS
+        run: node tools/staging-verify/cli.mjs checks
+      - name: Anonymous ZAP baseline (bramka 10)
+        run: |
+          mkdir -p .scratch/scans && chmod 0777 .scratch/scans
+          docker compose -f compose.yaml run --rm zap-baseline
+      - name: Result (summary and staging-verified)
+        if: always()
+        env:
+          ZAP_REPORT: .scratch/scans/zap-staging.json
+          ZAP_RULES: infra/zap/rules.tsv
+        run: node tools/staging-verify/cli.mjs report
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: staging-verified
+          path: .scratch/staging-verify/
+          if-no-files-found: error
+          retention-days: 90

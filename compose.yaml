@@ -42,9 +42,13 @@ x-backend: &backend
     - ./turbo.json:/src/turbo.json:ro
     - ./.nvmrc:/src/.nvmrc:ro
     - ./apps:/src/apps:ro
+    - ./services:/src/services:ro
     - ./packages:/src/packages:ro
     - ./tools:/src/tools:ro
     - ./design/tokens:/src/design/tokens:ro
+    # EVM-007 AC4: the contract test of the API configuration against the compose file of the deployment channel.
+    - ./infra/runtime/compose.staging.yaml:/src/infra/runtime/compose.staging.yaml:ro
+    - ./infra/deploy-agent/secrets.manifest.json:/src/infra/deploy-agent/secrets.manifest.json:ro
 
 services:
   # Linux dependencies from the lockfile into the bt-work volume (network: npm registry). Run after a lockfile change.
@@ -97,6 +101,7 @@ services:
       - ./turbo.json:/src/turbo.json:ro
       - ./.nvmrc:/src/.nvmrc:ro
       - ./apps:/src/apps:ro
+      - ./services:/src/services:ro
       - ./packages:/src/packages:ro
       - ./tools:/src/tools:ro
       - ./design/tokens:/src/design/tokens:ro
@@ -155,6 +160,7 @@ services:
       SEMGREP_ENABLE_VERSION_CHECK: '0'
     volumes:
       - ./apps:/src/apps:ro
+      - ./services:/src/services:ro
       - ./packages:/src/packages:ro
       - ./tools:/src/tools:ro
       - ./infra:/src/infra:ro
@@ -193,6 +199,22 @@ services:
       - bt-work:/work:ro
       - ./.scratch/scans:/out
 
+  # Images before deployment (bramka 6; EVM-007 AC2, security-engineer A4): Trivy on `docker save` archives in
+  # .scratch/scans (no Docker socket) — vulnerabilities (Critical/High with a fix block) and the CycloneDX SBOM. Network:
+  # the vulnerability database only; the database cache stays in .scratch/scans/.trivy-cache. Used by the publish job.
+  scan-trivy-image:
+    <<: *scanner
+    image: ghcr.io/aquasecurity/trivy:0.74.0@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+    environment:
+      HOME: /tmp
+      TRIVY_CACHE_DIR: /out/.trivy-cache
+      TRIVY_NO_PROGRESS: 'true'
+      TRIVY_DISABLE_VEX_NOTICE: 'true'
+    volumes:
+      - ./trivy.yaml:/src/trivy.yaml:ro
+      - ./.trivyignore.yaml:/src/.trivyignore.yaml:ro
+      - ./.scratch/scans:/out
+
   # GitHub Actions workflows (bramka 5a, D3): zizmor offline.
   scan-zizmor:
     <<: *scanner
@@ -212,6 +234,61 @@ services:
     network_mode: none
     volumes:
       - ./.github:/src/.github:ro
+
+  # IaC without credentials (EVM-007 AC1; ADR-0018): tofu fmt -check, init without a backend from the committed lock
+  # files, validate. Network: the OpenTofu registry (providers, verified against the lock file hashes). /tmp allows exec —
+  # validate runs the downloaded providers. No secret is mounted; `plan`/`apply` exist only in compose.iac.yaml (iac).
+  iac-check:
+    <<: *hardening
+    image: evia-iac:local
+    build:
+      context: infra/docker/iac
+    pull_policy: build
+    user: '1000:1000'
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=1g
+    volumes:
+      - ./infra/tofu:/src/infra/tofu:ro
+
+  # Anonymous ZAP baseline of staging (EVM-007 AC6, bramka 10; Konrad's decision 2026-10-13 on bramki 7–8: in CI only
+  # the anonymous baseline, no login). Network: staging only (the target of the scan, its spider stays in the domain).
+  # The JSON report goes to .scratch/scans/zap-staging.json (/out; /zap/wrk is an empty tmpfs the script requires) and is judged by tools/staging-verify with the exceptions of
+  # infra/zap/rules.tsv; -I: warnings do not fail the run (the evaluation does), a crash still does; --autooff: the
+  # classic engine writes the report to the absolute path in /out (the Automation Framework would put it under /zap/wrk).
+  zap-baseline:
+    <<: *hardening
+    image: ghcr.io/zaproxy/zaproxy:stable@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6
+    user: '1000:1000'
+    working_dir: /zap/wrk
+    command: ['zap-baseline.py', '--autooff', '-t', 'https://staging.eviacharge.pl', '-m', '2', '-I', '-J', '/out/zap-staging.json']
+    environment:
+      HOME: /home/zap
+    tmpfs:
+      - /home/zap:uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /zap/wrk:uid=1000,gid=1000,mode=0700,nosuid,nodev
+      - /tmp:nosuid,nodev,mode=1777
+    volumes:
+      - ./.scratch/scans:/out
+
+  # Tests of the root script of the VM (EVM-007 AC4; architect 16): deploy.sh with stand-ins for docker and curl, no
+  # network, the script and its tests read-only. Local gate and CI (backend job when the deployment channel changed).
+  deploy-sh-tests:
+    <<: *hardening
+    image: evia-deploy-tests:local
+    build:
+      context: infra/docker/deploy-tests
+    pull_policy: build
+    user: '1000:1000'
+    network_mode: none
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=64m
+    volumes:
+      - ./infra/deploy-agent:/src/infra/deploy-agent:ro
+      - ./infra/docker/iac:/src/infra/docker/iac:ro
 
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:

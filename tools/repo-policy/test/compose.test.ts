@@ -116,9 +116,9 @@ describe('compose.yaml hardening (EVM-006 AC1, A6, W9)', () => {
     expect(volumes('scan-trivy')).toContain('bt-work:/work:ro');
   });
 
-  it('EVM-006 AC4: scanners run without network, except Semgrep (registry rules) and OSV (package coordinates only)', () => {
+  it('EVM-006 AC4: scanners run without network, except Semgrep (registry rules), OSV (package coordinates only) and the image scan (vulnerability database only, EVM-007)', () => {
     for (const name of Object.keys(services).filter((key) => key.startsWith('scan-') || key === 'renovate-validate')) {
-      const online = name === 'scan-semgrep' || name === 'scan-osv';
+      const online = name === 'scan-semgrep' || name === 'scan-osv' || name === 'scan-trivy-image';
       expect(service(name)['network_mode'], name).toBe(online ? undefined : 'none');
     }
   });

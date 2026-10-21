@@ -3,6 +3,7 @@
  * way to start Docker from scripts (A6, RR-03).
  */
 import { list, record, text } from './files.ts';
+import { POST_GATE_JOBS } from './release.ts';
 
 const FORBIDDEN_TRIGGERS = ['pull_request_target', 'workflow_run', 'issue_comment'];
 const USES = /^\s*-?\s*uses:\s*(\S+)(.*)$/;
@@ -66,8 +67,8 @@ const HEAVY_IFS: Record<string, string> = {
   coverage: "needs.changes.outputs.heavy == 'true' && !failure() && !cancelled()",
 };
 const HEAVY_JOBS = Object.keys(HEAVY_IFS);
-/** Outputs of `changes`, each "true" or "false" (tools/ci-changes). */
-const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'mobile'];
+/** Outputs of `changes`, each "true" or "false" (tools/ci-changes); mobile — EVM-009; iac and publish — EVM-007 AC1, AC2. */
+const CHANGES_OUTPUTS = ['heavy', 'e2e', 'integration', 'mobile', 'iac', 'publish'];
 const GATE_IF = "always() && (github.event_name != 'push' || github.ref == 'refs/heads/main')";
 const FAST_IF = "github.event_name == 'push' && github.ref != 'refs/heads/main'";
 const CHANGES_IF = "github.event_name != 'push' || github.ref == 'refs/heads/main'";
@@ -90,7 +91,8 @@ export function ciGateProblems(document: unknown): string[] {
   const gate = record(jobs['ci-gate']);
   const needs = list(gate['needs']).map(String).sort();
   const expected = Object.keys(jobs)
-    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name))
+    // EVM-007: publish and staging-verify run after ci-gate and are never its dependencies
+    .filter((name) => name !== 'ci-gate' && !FAST_JOBS.includes(name) && !POST_GATE_JOBS.includes(name))
     .sort();
   const problems: string[] = [];
   if (JSON.stringify(needs) !== JSON.stringify(expected)) problems.push(`ci-gate: needs musi obejmować ${expected.join(', ')}`);

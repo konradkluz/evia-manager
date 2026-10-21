@@ -18,6 +18,10 @@ export const SERVICES = Object.freeze([
   'scan-zizmor',
   'scan-actionlint',
   'renovate-validate',
+  'iac-check',
+  'scan-trivy-image',
+  'deploy-sh-tests',
+  'zap-baseline',
 ]);
 
 /**

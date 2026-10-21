@@ -1,0 +1,108 @@
+# Compose file of the deployment channel (EVM-007 AC3, AC4; ADR-0018 V4, V6; architect 3, 9, 10, 14).
+# Read by the verifier from commit X through the API and checked by its ALLOW-LIST (services/deploy-agent/src/
+# compose-policy.ts) — root never runs this file: it runs the canonical JSON built by the verifier, with the logical
+# images evia-api / evia-web replaced by the digests of the release manifest, the external runtime network added and
+# `pull_policy: never`. One project per colour (evia-blue, evia-green); the edge Caddy switches between them.
+# Only the application services live here. PostgreSQL, the edge Caddy (TLS, HSTS, /healthz, /version) and ClamAV are the
+# infrastructure of the VM (compose.infra.yaml, IaC session only) — the channel cannot change them.
+# Secrets: /etc/evia/secrets (0700, files 0600 root) is the source; deploy.sh copies the files a service needs to the
+# tmpfs /run/evia/secrets/<service>/ (0400, owner = the UID of the service) and mounts that directory read-only at
+# /run/secrets; the application reads *_FILE paths. The migrator password reaches `migrate` only (security-engineer B).
+# No dollar sign anywhere, not even in a comment (interpolation is refused), no ports, no networks, no host paths but
+# the secrets directory.
+
+services:
+  # One-off migrations (role evia_migrator) before the new colour starts; a failure leaves the previous version running.
+  migrate:
+    image: evia-api
+    command: ['dist/src/migrate.js']
+    user: '10003:10003'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    restart: 'no'
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      DATABASE_URL_FILE: /run/secrets/database-url-migrator
+    volumes:
+      - /run/evia/secrets/migrate:/run/secrets:ro
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    mem_limit: 512m
+    pids_limit: 128
+
+  api:
+    image: evia-api
+    command: ['dist/src/main.js']
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      API_PORT: '3000'
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      PANEL_ORIGIN: https://staging.eviacharge.pl
+      WEBAUTHN_RP_ID: staging.eviacharge.pl
+      TRUSTED_PROXIES: 172.16.0.0/12
+      EVIA_RELEASE_MANIFEST_SHA256_FILE: /run/secrets/release-manifest-sha256
+      DATABASE_URL_FILE: /run/secrets/database-url-app
+      CURSOR_KEY_FILE: /run/secrets/cursor-key
+      FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
+      LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
+    volumes:
+      - /run/evia/secrets/api:/run/secrets:ro
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 768m
+    pids_limit: 256
+    stop_grace_period: 20s
+
+  worker:
+    image: evia-api
+    command: ['dist/src/worker.js']
+    user: '10002:10002'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      MIN_SUPPORTED_APP_VERSION_ANDROID: 1.0.0
+      MIN_SUPPORTED_APP_VERSION_IOS: 1.0.0
+      PANEL_ORIGIN: https://staging.eviacharge.pl
+      WEBAUTHN_RP_ID: staging.eviacharge.pl
+      TRUSTED_PROXIES: 172.16.0.0/12
+      # No e-mail on staging until the TEM adapter of EVM-089 (the firewall lets only 443/tcp out).
+      EMAIL_TRANSPORT: none
+      DATABASE_URL_FILE: /run/secrets/database-url-app
+      CURSOR_KEY_FILE: /run/secrets/cursor-key
+      FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
+      LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
+    volumes:
+      - /run/evia/secrets/worker:/run/secrets:ro
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 512m
+    pids_limit: 256
+    stop_grace_period: 20s
+
+  web:
+    image: evia-web
+    user: '10004:10004'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    mem_limit: 128m
+    pids_limit: 64

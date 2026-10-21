@@ -1,0 +1,30 @@
+# Allow-list build context of evia-web (EVM-007 AC2; SR-INFRA-05, CWE-538): only the panel, its workspace dependencies
+# and the internal Caddyfile. Never .env*, .scratch/, .git/, coverage/, docs/, tools/, apps/api or tests.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches
+!apps/*/package.json
+!packages/*/package.json
+!tools/*/package.json
+!services/*/package.json
+!packages/config
+!packages/contracts
+!packages/tokens
+!packages/ui-web
+!design/tokens
+!apps/web/index.html
+!apps/web/src
+!apps/web/public
+!apps/web/security-headers.ts
+!apps/web/tsconfig.json
+!apps/web/vite.config.ts
+!infra/images/web/Caddyfile
+# Generated or local output inside the allowed directories
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/*.test.ts
+**/*.test.tsx

@@ -1,0 +1,29 @@
+# Internal Caddy of evia-web (EVM-007 AC2, AC6; SR-WEB-01, SR-WEB-08, SR-INFRA-06): static files of the panel on :8080
+# behind the edge Caddy of the VM. No admin API, no TLS here, no Server header. The headers are those of
+# apps/web/security-headers.ts (strict, https: true) — apps/web/test/caddy-headers.test.ts compares them.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	root * /srv
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@document not path /assets/*
+	header @document Cache-Control "no-cache"
+	try_files {path} /index.html
+	file_server
+}

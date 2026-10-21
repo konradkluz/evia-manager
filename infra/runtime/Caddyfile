@@ -1,0 +1,26 @@
+# Edge Caddy of staging (EVM-007 AC4, AC5, AC6; ADR-0018 "DNS, TLS i poczta"; security-engineer B "Caddy"; SR-INFRA-06).
+# Installed only in an IaC session at /etc/evia/caddy/Caddyfile. TLS only from Let's Encrypt (the CAA record of the node
+# allows that issuer only), HSTS, no Server header, the admin API on localhost inside the container (never published).
+# Routing comes from upstream.caddy written by deploy.sh from a fixed template — only the colour (blue|green) changes:
+# /healthz -> /api/health and /version -> /api/version of the active API, /api/* -> API, the rest -> the panel (evia-web,
+# which serves the CSP and the other headers of the panel itself).
+{
+	admin localhost:2019
+	persist_config off
+	servers {
+		protocols h1 h2
+	}
+}
+
+staging.eviacharge.pl {
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+	import /etc/caddy/upstream.caddy
+}

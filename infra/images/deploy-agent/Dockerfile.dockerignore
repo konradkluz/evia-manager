@@ -1,0 +1,14 @@
+# Allow-list build context of the verifier image (EVM-007 AC3): the lockfile, the workspace manifests and its sources.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches
+!apps/*/package.json
+!packages/*/package.json
+!tools/*/package.json
+!services/*/package.json
+!services/deploy-agent/src
+**/node_modules
+**/coverage
+**/*.test.ts

@@ -1,0 +1,113 @@
+# Infrastructure of the staging VM (EVM-007 AC1, AC5; ADR-0018 V4 "stała lista obrazów infrastruktury"; architect 3;
+# security-engineer A6, B "Caddy"). Installed ONLY in an IaC session at /etc/evia/runtime/compose.infra.yaml and run as
+#   docker compose --project-name evia-infra -f /etc/evia/runtime/compose.infra.yaml up -d
+# — never by the deployment channel, which therefore cannot change the edge Caddy, TLS or the database. Images by
+# tag + digest from infra/runtime/infra-images.json (scanned with the release images in `publish`, bramka 6).
+# - caddy: the only published ports (80 for the HTTP-01 challenge and the redirect, 443); admin API on localhost:2019
+#   inside the container only; certificates in the persistent volume caddy-data; the upstream snippet written by
+#   deploy.sh from a fixed template (blue|green) mounted read-only.
+# - postgres: data on the LUKS volume /srv/evia/pgdata; roles from postgres-init (evia_migrator, the API login).
+# - clamd on an internal network without egress; freshclam (the same image) updates the signatures with egress but is
+#   outside the network of the API (A6). The API joins evia-scan with EVM-044 (a change of the verifier configuration).
+# Secrets: the PostgreSQL superuser password as a file from /etc/evia/secrets (POSTGRES_PASSWORD_FILE).
+
+services:
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ['no-new-privileges:true']
+    ports:
+      - '80:80'
+      - '443:443'
+    networks: [evia-runtime]
+    environment:
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+    tmpfs:
+      - /config:size=8m,noexec,nosuid,nodev
+      - /tmp:size=16m,noexec,nosuid,nodev
+    volumes:
+      - caddy-data:/data
+      - /etc/evia/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /etc/evia/caddy/upstream.caddy:/etc/caddy/upstream.caddy:ro
+
+  postgres:
+    image: postgres:18.6-trixie@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: unless-stopped
+    user: '999:999'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    shm_size: 256mb
+    networks: [evia-runtime]
+    environment:
+      POSTGRES_USER: evia_owner
+      POSTGRES_DB: evia
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres-password
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=pl-PL
+      PGDATA: /var/lib/postgresql/18/data
+    tmpfs:
+      - /var/run/postgresql:uid=999,gid=999,mode=0775,nosuid,nodev
+      - /tmp:size=64m,noexec,nosuid,nodev
+    volumes:
+      - /srv/evia/pgdata:/var/lib/postgresql
+      - /run/evia/secrets/postgres:/run/secrets:ro
+      - /etc/evia/runtime/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD', 'pg_isready', '--host=127.0.0.1', '--username=evia_owner', '--dbname=evia']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  clamd:
+    image: clamav/clamav:1.5@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    networks: [evia-scan]
+    environment:
+      CLAMAV_NO_FRESHCLAMD: 'true'
+      CLAMAV_NO_MILTERD: 'true'
+    tmpfs:
+      - /tmp:size=256m,noexec,nosuid,nodev
+      - /run/clamav:size=8m,nosuid,nodev
+    volumes:
+      - clamav-signatures:/var/lib/clamav:ro
+
+  freshclam:
+    image: clamav/clamav:1.5@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    networks: [evia-updates]
+    environment:
+      CLAMAV_NO_CLAMD: 'true'
+      CLAMAV_NO_MILTERD: 'true'
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /run/clamav:size=8m,nosuid,nodev
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+
+networks:
+  # The shared network of the edge Caddy, PostgreSQL and the application colours (external for the channel).
+  evia-runtime:
+    name: evia-runtime
+  # clamd without egress; the API joins it with EVM-044.
+  evia-scan:
+    name: evia-scan
+    internal: true
+  # freshclam only: egress for the signature mirrors.
+  evia-updates:
+    name: evia-updates
+
+volumes:
+  caddy-data:
+    name: evia-caddy-data
+  clamav-signatures:
+    name: evia-clamav-signatures

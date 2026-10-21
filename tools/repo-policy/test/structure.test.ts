@@ -29,14 +29,17 @@ const DEPENDENCY_FREE = [
   'tools/dev-env',
   'tools/diff-coverage',
   'tools/docs-lifecycle',
+  'tools/ghcr-retention',
   'tools/git-hooks',
   'tools/main-integrity',
   'tools/mobile-apk',
   'tools/mobile-e2e',
   'tools/scan',
+  'tools/staging-verify',
 ];
 /** Tests that read the whole repository and today's date (exception expiry, document classes) — never cached. */
-const UNCACHED_TESTS = ['tools/docs-lifecycle', 'tools/repo-policy'];
+// services/deploy-agent (EVM-007): its tests read the committed compose file of the channel (infra/runtime)
+const UNCACHED_TESTS = ['services/deploy-agent', 'tools/docs-lifecycle', 'tools/repo-policy', 'tools/staging-verify'];
 /** A module that resolves the repository root from its own location (`new URL('../../..', import.meta.url)`). */
 const ROOT_REFERENCE = /new URL\(\s*['"]\.\.\/\.\.\/\.\.(?:\/|['"])/;
 
@@ -83,6 +86,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'apps/api',
       'apps/mobile',
       'apps/web',
+      'services/deploy-agent',
       'packages/config',
       'packages/contracts',
       'packages/tokens',
@@ -92,12 +96,14 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'tools/dev-env',
       'tools/diff-coverage',
       'tools/docs-lifecycle',
+      'tools/ghcr-retention',
       'tools/git-hooks',
       'tools/main-integrity',
       'tools/mobile-apk',
       'tools/mobile-e2e',
       'tools/repo-policy',
       'tools/scan',
+      'tools/staging-verify',
     ]);
     expect(list(record(yaml('pnpm-workspace.yaml'))['packages'])).toEqual(['apps/*', 'services/*', 'packages/*', 'tools/*']);
   });
@@ -195,13 +201,15 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
 
   it('EVM-006 AC3 (W3b, B7): the gate checks hooks, removes stale reports first, then runs native, container and changed-code stages', () => {
     expect(root.scripts?.['gate']).toBe(
-      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run coverage:diff',
+      'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run gate:deploy && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
     expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api');
     expect(root.scripts?.['gate:integration']).toBe(
       'docker compose -f compose.yaml run --rm backend-tests pnpm --filter @evia/api run test:integration',
     );
+    // EVM-007 AC4 (architect 16): the root script of the VM is tested in its Linux container
+    expect(root.scripts?.['gate:deploy']).toBe('docker compose -f compose.yaml run --rm deploy-sh-tests');
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);
   });
@@ -316,12 +324,22 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
     }
   });
 
-  it('EVM-006 AC1 (SR-SUPPLY-06): yaml is a devDependency of tools/repo-policy only', () => {
+  it('EVM-006 AC1 (SR-SUPPLY-06), EVM-007 AC3: yaml is a devDependency of tools/repo-policy and apps/api and the runtime dependency of the deployment verifier only', () => {
+    // services/deploy-agent: the strict parser of V4 (uniqueKeys, no merge, no aliases) — justification in its README.
+    // apps/api (EVM-007 AC4, devDependency, never in the image): the contract test of compose.staging.yaml against the configuration.
+    const allowed = ['tools/repo-policy/package.json', 'services/deploy-agent/package.json', 'apps/api/package.json'];
     for (const path of ['package.json', ...WORKSPACES.map((workspace) => `${workspace}/package.json`)]) {
       const pkg = manifest(path);
       const has = 'yaml' in { ...pkg.dependencies, ...pkg.devDependencies };
-      expect(has, path).toBe(path === 'tools/repo-policy/package.json');
+      expect(has, path).toBe(allowed.includes(path));
     }
+    expect(manifest('services/deploy-agent/package.json').dependencies).toEqual({
+      yaml: manifest('tools/repo-policy/package.json').devDependencies?.['yaml'],
+    });
+    expect(manifest('apps/api/package.json').dependencies?.['yaml']).toBeUndefined();
+    expect(manifest('apps/api/package.json').devDependencies?.['yaml']).toBe(
+      manifest('tools/repo-policy/package.json').devDependencies?.['yaml'],
+    );
   });
 });
 

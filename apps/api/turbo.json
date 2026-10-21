@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/infra/runtime/compose.staging.yaml",
+        "$TURBO_ROOT$/infra/deploy-agent/secrets.manifest.json"
+      ]
+    },
+    "test:coverage": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/infra/runtime/compose.staging.yaml",
+        "$TURBO_ROOT$/infra/deploy-agent/secrets.manifest.json"
+      ],
+      "outputs": ["coverage/**"]
+    }
+  }
+}

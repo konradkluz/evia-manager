@@ -4,7 +4,7 @@ title: Staging w UE — IaC, VM i kanał wdrożeń (007a)
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -71,12 +71,58 @@ Jako **właściciel produktu** chcę **środowiska testowego w UE, na które ka�
 - Obrazy minimalne (np. distroless) — wybór w planie technicznym.
 - **Decyzja Konrada (2026-10-13), bramki 7–8 (DAST):** w CI tylko anonimowy ZAP baseline (w `staging-verify`); skany z logowaniem (ZAP po zalogowaniu, ZAP API, Schemathesis na kontach ról) uruchamiane poza GitHubem — z VM albo z sesji Konrada — zgodnie z „zero sekretów w GitHubie” (ADR-0018). Wiersze w `docs/security/*` aktualizuje `security-engineer`. Wpływ także na E8 (bramka 8 przed wydaniem).
 - Zasoby płatne wyłącznie po akceptacji kosztów; Scaleway (konto) jest warunkiem startu. Rozmiar historyjki jest na granicy (weryfikator 4–6 dni): kolejność w planie — IaC/VM/DNS → `publish` → weryfikator → wdrożenie → `staging-verify`.
+- **Decyzja Konrada (2026-10-21), zakres pierwszej sesji realizacji — faza offline:** równolegle z kolejkami A (EVM-026/028) i B (EVM-009/011) startuje część bez tokenów Konrada i bez płatnych zasobów: kod OpenTofu (wyłącznie `tofu fmt -check`, `tofu validate`, Trivy), job `publish` z testami `tools/repo-policy` (AC2), weryfikator V0–V4 z testami negatywnymi na atrapie API GitHub (AC3), agent wdrożeń z migracjami i rollbackiem testowany lokalnie (AC4), kod `staging-verify` (AC6), układ sekretów i testy polityk bez VM (AC7), runbooki (AC8). Poza fazą offline, na sesję IaC z Konradem: tokeny Hetzner/Scaleway i PAT-y, `tofu plan/apply`, rekordy DNS/CAA i weryfikacja domeny TEM w OVH, pierwsze wdrożenie na VM, `staging-verify` na żywym stagingu, kopie sekretów w Bitwarden; AC1 i AC4–AC7 są w pełni weryfikowalne dopiero wtedy. Faza offline kończy się w `in-progress` (nie `in-review`); plan techniczny zawiera tabelę kosztów zasobów do akceptacji w sesji IaC (budżet ADR-0018: 300 zł/mies.) i listę kroków Konrada.
 
 ### Bezpieczeństwo i prywatność
 Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicznych bucketów, brak danych produkcyjnych na staging, brak sekretów w GitHubie, port 22 niedostępny z internetu. Ryzyka: RR-23 (własny weryfikator), RR-19, RR-24 (w 007c). Wymagania: SR-INFRA-01/05/13/14, SR-SUPPLY-04/05.
 
+- **Decyzje Konrada (2026-10-21, „akceptuję domyślnie”):** serwer Hetzner CX33 (ok. 9,57 EUR / ok. 42 zł mies., do potwierdzenia dostępności w konsoli); wysyłka maili aplikacji przez TEM HTTP API na porcie 443 (zapora bez zmian; adapter w EVM-089); RR-33, RR-34, RR-35 zaakceptowane (RR-34: porównanie odpowiedzi API z atrapą przed `STAGING_VERIFY_ENABLED=true`); bramki 7a i 8 przeniesione do E8 (EVM-065/070).
+
 ## Notatki
 - Stan kont (2026-10-13): Hetzner — puste projekty `evia-staging`, `evia-prod`; GitHub Free (prywatne repo); brak konta Scaleway (potrzebne przed startem); domena `eviacharge.pl` (OVH, DNSSEC włączony).
+
+### Plan techniczny (faza offline, devops-engineer 2026-10-21)
+Kod: `infra/tofu/` (AC1), `infra/images/`, job `publish`, `tools/ghcr-retention/` (AC2), `services/deploy-agent/` (AC3, V0–V4), `infra/deploy-agent/`, `infra/runtime/` (AC4, AC7), job `staging-verify`, `tools/staging-verify/` (AC6), `docs/ops/runbooks/` (AC8). Opis kanału: `services/deploy-agent/README.md`, `infra/deploy-agent/README.md`.
+
+**1. Koszty zasobów stagingu — do akceptacji Konrada w sesji IaC** (ceny netto z publicznych cenników pobranych 2026-10-21; kurs NBP tabela A z 2026-10-20: 1 EUR = 4,3716 zł; budżet ADR-0018/0011: 300 zł/mies. łącznie)
+
+| Zasób | Typ / region | EUR/mies. | zł/mies. | Uwagi |
+|---|---|---|---|---|
+| VM (rekomendacja, Q1) | Hetzner CX33 (4 vCPU, 8 GB RAM, 80 GB NVMe, IPv4 w cenie), NBG1 | 8,99 | 39,30 | ClamAV trzyma sygnatury w RAM (ok. 1,5–3 GB) obok PostgreSQL i API; dostępność planu sprawdzić w konsoli |
+| VM (alternatywa z ADR-0011) | Hetzner CX23 (2 vCPU, 4 GB RAM) | 5,99 | 26,19 | ryzyko braku pamięci przy ClamAV |
+| Wolumen danych PostgreSQL | Hetzner Volume 10 GB (LUKS na VM) | ok. 0,57 | ok. 2,50 | 0,0572 EUR/GB wg ADR-0011 — potwierdzić w konsoli |
+| Zapora, sieć prywatna, IPv6 | Hetzner | 0 | 0 | bez opłat |
+| Scaleway TEM | Essential, `staging.eviacharge.pl` | 0 | 0 | 300 e-maili/mies. w progu bezpłatnym, potem 0,25 EUR / 1000 |
+| Bucket stanu OpenTofu | Scaleway Object Storage `pl-waw`, < 1 MB, wersjonowany | < 0,01 | < 0,05 | potwierdzić w cenniku Object Storage |
+| GHCR (obrazy prywatne) | GitHub Free | 0 | 0 | **ryzyko:** dziś bezpłatne przechowywanie i transfer w Container registry, zmiana z co najmniej miesięcznym uprzedzeniem (docs.github.com, billing GitHub Packages); retencja w trybie próbnym — bez szacunku |
+| **Razem (CX33)** | | **ok. 9,57** | **ok. 41,85** | przy CX23 ok. 28,7 zł; backupy (EVM-084) i obserwowalność (EVM-085) osobno |
+
+**2. Kroki Konrada w sesji IaC (kolejność; szczegóły: `docs/ops/runbooks/wdrozenie-staging.md`)**
+1. Akceptacja tabeli kosztów (CX33 / CX23) i odpowiedzi na Q1–Q3, Q5 (planu); zgoda na reguły `deny` dla `../.evia-iac/**` w `.claude/settings.json` (Q3) — **przed** utworzeniem pliku z tokenami.
+2. Scaleway: projekt `evia-staging` z MFA, klucz API aplikacji IaC tylko dla projektu, wygasanie ≤ 24 h; Hetzner: token R/W projektu `evia-staging` (usuwany po sesji).
+3. Plik `../.evia-iac/staging.env` poza repozytorium (tokeny, klucz S3 backendu stanu, hasło szyfrowania stanu — także do Bitwarden), pliki `*.tfvars` (typ VM, lokalizacja, klucz publiczny SSH, `admin_ssh_cidrs` = własny adres IP), katalog `state/`.
+4. Przegląd planów `tofu plan` (bootstrap, staging) przed `apply`.
+5. OVH, w kolejności ADR-0018: `A`/`AAAA` `staging.eviacharge.pl` → CAA na węźle (`0 issue "letsencrypt.org"`, potem `accounturi`; `0 issuewild ";"`) → (start Caddy, certyfikat) → SPF i DKIM TEM tylko dla subdomeny → `_dmarc.staging.eviacharge.pl` `p=none` z `rua`; weryfikacja domeny w TEM. Domena główna bez zmian.
+6. PAT-y z konta Konrada: fine-grained tylko to repozytorium, tylko odczyt (Actions, Contents, Pull requests, Metadata), ≤ 12 mies. z przypomnieniem; PAT classic tylko `read:packages`; przekazanie na VM przez SSH administratora; kopie w Bitwarden (bez odblokowanego CLI na stacji agentów) i zestaw awaryjny offline.
+7. Potwierdzenie: lista sekretów repozytorium pusta (poza `RENOVATE_TOKEN`); `read:packages` wystarcza do pobrania; Activity działa z PAT tylko do odczytu (inaczej blokada i rewizja ADR-0018).
+8. Zmienna repozytorium `STAGING_VERIFY_ENABLED=true`; scalenie pierwszego PR z kodem i obserwacja wdrożenia ≤ 15 min.
+9. Zamknięcie: `apply` z pustym `admin_ssh_cidrs`, unieważnienie tokenów Hetzner i Scaleway, usunięcie `../.evia-iac/staging.env`.
+
+**3. Co wykona agent (`devops-engineer`) w sesji IaC** — nigdy nie czyta ani nie wypisuje pliku z tokenami: `docker compose -f compose.iac.yaml run --rm iac init|plan|apply|output bootstrap|staging`; na VM: sekrety aplikacji generowane w `/etc/evia/secrets/` (hasła ról `evia_migrator`/`evia_api`, `cursor-key`, `field-encryption-keys`), instalacja `infra/runtime/*` (Caddy, PostgreSQL z rolami, ClamAV), obrazu weryfikatora z czystego `main` (przypięcie po ID w `compose.agent.yaml`), `config.json` (ID Konrada i workflowu, `baseline` z ID zdarzenia Activity), `deploy.sh`, `cycle.sh`, jednostek systemd; testy: blokada `169.254.169.254` z kontenera aplikacji i weryfikatora (po restarcie Dockera i po reboocie), pierwsze wdrożenie, rollback próbny, porażka zdrowia, `staging-verify` na żywo, sprawdzenie usuwania wersji GHCR przez `GITHUB_TOKEN` (warunek włączenia retencji); wyniki w `docs/qa/EVM-007/`. Przed pierwszym wdrożeniem — przegląd kodu weryfikatora i `deploy.sh` przez `security-engineer` (RR-23).
+
+**Zależność AC5 od EVM-089 (wysyłka TEM, przegląd architekta 2026-10-21):** wysyłka z `powiadomienia@staging.eviacharge.pl` przez aplikację wymaga adaptera Scaleway TEM z [EVM-089](../M1/EVM-089-email-na-staging.md) — konfiguracja workera dopuszcza SMTP tylko do Mailpit lub loopback, a zapora VM wypuszcza tylko `443/tcp` (porty SMTP TEM 587/465/2587 zamknięte). Do decyzji Konrada: (a) adapter HTTP API TEM przez 443 w EVM-089 — zapora bez zmian (rekomendacja), albo (b) otwarcie wyjścia 587 wyłącznie do TEM. Do tego czasu worker na stagingu z `EMAIL_TRANSPORT=none`; w sesji IaC weryfikacja SPF/DKIM/DMARC dla AC5 wiadomością testową wysłaną z konsoli TEM (bez kodu aplikacji). Plik sekretu `tem-api-key` trafi do `infra/deploy-agent/secrets.manifest.json` (tylko `worker`) razem z adapterem.
+
+**Poprawki po przeglądzie (runda 1, devops-engineer 2026-10-21):** rollback nie uruchamia `migrate` (schemat tylko „expand”; starszy migrator odrzuciłby bazę z nowszymi migracjami) — test `EVM-007 AC4`; sekrety materializuje jeden skrypt `infra/deploy-agent/secrets.sh` (`/usr/local/sbin/evia-secrets`), wywoływany przez `deploy.sh` i przez jednostkę rozruchową `evia-secrets.service` (`Before=`/`RequiredBy=docker.service`), która po reboocie odtwarza `/run/evia/secrets/<usługa>/` — także `postgres` (UID 999, `postgres-password`) i hash manifestu API z rejestru; katalogi usług nie są usuwane przy ponownej materializacji (działające kontenery nie tracą plików) — testy `EVM-007 AC7`. W sesji IaC: instalacja jednostki, test po reboocie (PostgreSQL i API wstają same) i próbny rollback ponad nowszą migrację.
+
+**Poprawki po przeglądzie (runda 1, backend-developer 2026-10-21):**
+- **Semantyka rejestru po rollbacku — do akceptacji Konrada** (doprecyzowanie ADR-0018 „Rollback”; adnotację w ADR dopisze `solution-architect` po akceptacji): każdy wpis rejestru ma `kind` (`deploy` | `rollback`; wpis `rollback` to dokładna kopia wcześniejszego wpisu `deploy` tego samego `baseline`). Frontier = najnowszy wpis `deploy` (koniec zweryfikowanego Activity) — rollback go nie przesuwa; kotwica V0 = wpis `deploy` przed frontierem (albo `baseline`), V1/V2 od frontiera. Po rollbacku na polecenie kanał się wstrzymuje (`none`, `held after the rollback …`, bez alertu) do nowego wydania po frontierze — nigdy nie wdraża ponownie commita, z którego cofnięto. Po automatycznym rollbacku (n5) każdy cykl to `v0-blocked` do przesunięcia `baseline` w sesji IaC. Testy `EVM-007 AC4` w `services/deploy-agent/test/rollback-cache.test.ts` i `infra/deploy-agent/test/deploy.test.mjs`; runbook rollbacku (kroki 5–7).
+- Koszt API (n3): weryfikator pamięta w `/state/cache.json` wyniki, które nie mogą się zmienić (V2 zaliczone, V3 `publish` pominięty) — drugi cykl przy tym samym HEAD z commitami samej dokumentacji robi ≤ 3 zapytania (HEAD, Activity, compare); V0 i V1 w każdym cyklu. Zastępuje dług „zapytania warunkowe ETag”.
+- API: `GET /api/version` (`getVersion`, publiczna — lista `PUBLIC_OPERATIONS` do przeglądu `security-engineer`; odpowiedź tylko `commit` i `manifestSha256`, `null` poza kanałem; `429` limitu anonimowego), odczyt `<KEY>_FILE` (tylko `DATABASE_URL`, `CURSOR_KEY`, `FIELD_ENCRYPTION_KEYS`, `EVIA_RELEASE_MANIFEST_SHA256`; obie formy naraz, ścieżka względna, brak pliku, > 64 KiB = błąd startu z nazwą klucza). `compose.staging.yaml`: `API_PORT`, `MIN_SUPPORTED_APP_VERSION_*`, `TRUSTED_PROXIES` i `EMAIL_TRANSPORT: none` w workerze, `EVIA_RELEASE_MANIFEST_SHA256_FILE`; test kontraktowy `apps/api/test/platform/config-files.test.ts` przepuszcza środowisko każdej usługi kanału przez `loadConfig` / `loadWorkerConfig` / `loadMigrationConfig` (`yaml` 2.9.1 jako devDependency `apps/api` — ta sama wersja co w `tools/repo-policy`, nie trafia do obrazu). Skutek `EMAIL_TRANSPORT: none`: e-maile czekają w skrzynce nadawczej, healthcheck workera czerwony do EVM-089.
+
+**4. Stan fazy offline**
+- Zrobione (offline, z testami): AC1 kod IaC + `iac-check` (fmt, validate, Trivy) + polityki; AC2 `publish` (bez cache, bramka 6, GHCR, `release-manifest`), retencja w trybie próbnym, polityki; AC3 weryfikator V0–V4 z testami negatywnymi na atrapie API; AC4 `deploy.sh` (kolejność, porażki, rollback z rejestru, retencja obrazów) testowany w kontenerze Linux, test migracji destrukcyjnych, jednostki systemd; AC6 job i narzędzie `staging-verify` z testami offline; AC7 układ `/etc/evia/secrets`, `user-data` bez sekretów, testy polityk; AC8 runbooki.
+- **Niezrobione — wymaga sesji IaC:** tokeny i PAT-y, `tofu plan/apply`, DNS/CAA/TEM w OVH, certyfikat TLS, pierwsze wdrożenie na VM (≤ 15 min), rollback (także ponad nowszą migrację) i blokada metadanych na żywej VM, test po reboocie (`evia-secrets.service`, start PostgreSQL i API), wiadomość testowa TEM z konsoli (SPF/DKIM, AC5), `staging-verify` na żywym stagingu, kopie w Bitwarden, test `read:packages` i uprawnień Activity, potwierdzenie usuwania wersji GHCR.
+- **Niezrobione — poza rolą devops / kolejny krok:** test integracyjny migracji jako `evia_migrator` (Testcontainers); aktualizacje `docs/security/*` (`security-engineer`); komendy `iac-check`, `gate:deploy` w `CLAUDE.md` (orkiestrator).
 
 ## Dziennik
 - 2026-10-02 — utworzono (setup zespołu)
@@ -84,3 +130,7 @@ Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicz
 - 2026-10-06 — dopisano AC z EVM-016 (asercje wymagające infrastruktury), zaakceptowane przez Konrada
 - 2026-10-13 — podział wg ADR-0018: treść zawężona do 007a (dawne AC1–AC3, część AC7); dawne AC4 i część AC7 → EVM-084; AC5, AC6, AC8, część AC7 → EVM-085; status ready → draft do akceptacji AC (product-owner)
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
+- 2026-10-21 — ready → in-progress: start fazy offline (decyzja Konrada 2026-10-21, „Faza offline teraz”) w kolejce C, gałąź feature/EVM-007-staging-iac-kanal-wdrozen (osobny klon evia-manager-c), pelna, opus; bez tokenów i bez płatnych zasobów, sesja IaC z Konradem później
+- 2026-10-21 — plan gotowy (devops-engineer)
+- 2026-10-21 — implementacja fazy offline (devops-engineer): IaC + `iac-check`, `publish` z bramką 6 i retencją (dry-run), weryfikator V0–V4, `deploy.sh` i pliki VM, `staging-verify`, runbooki; odstępstwa: `iac` w osobnym `compose.iac.yaml` (architekt 22), `staging-verify` z `contents: read` zamiast `{}` (checkout prywatnego repozytorium), `fflate` niepotrzebny (ZIP przez `node:zlib`), zależność `yaml` 2.9.1 w `services/deploy-agent` (parser V4, SR-SUPPLY-06), `jq` i ShellCheck z Debiana w obrazie testów `deploy-sh-tests`
+- 2026-10-21 — faza offline zakończona (bramka, skan, docs:check zielone; QA: AC1–AC4, AC6, AC7 pass offline, AC5 manual); PR #88; decyzje Konrada: CX33, TEM przez 443, RR-33…35, bramki 7a/8 → E8; status pozostaje in-progress do sesji IaC

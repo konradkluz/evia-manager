@@ -1,0 +1,161 @@
+#cloud-config
+# EVM-007 AC1 (ADR-0018; SR-INFRA-01/05/14): base configuration of the VM — NO SECRET HERE (test: tools/repo-policy
+# iac.test.ts). Template variables: login and public SSH key of the administrator, ID of the data volume and the exact
+# Docker package versions. The LUKS key and the application secrets are created on the VM in /etc/evia/secrets.
+# Runtime services (PostgreSQL, Caddy, ClamAV) and the deployment agent are installed in the IaC session (infra/runtime,
+# infra/deploy-agent), never by the deployment channel.
+
+apt:
+  # HTTPS mirrors: the firewall lets only 443/tcp out (SR-INFRA-01).
+  primary:
+    - arches: [default]
+      uri: https://deb.debian.org/debian
+  security:
+    - arches: [default]
+      uri: https://deb.debian.org/debian-security
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - nftables
+  - cryptsetup
+  - unattended-upgrades
+  - jq
+
+disable_root: true
+ssh_pwauth: false
+users:
+  - name: ${admin_user}
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: 'ALL=(ALL) NOPASSWD:ALL'
+    ssh_authorized_keys:
+      - ${admin_ssh_public_key}
+
+write_files:
+  - path: /etc/ssh/sshd_config.d/10-evia.conf
+    permissions: '0644'
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PubkeyAuthentication yes
+      AllowUsers ${admin_user}
+      X11Forwarding no
+      AllowTcpForwarding no
+      AllowAgentForwarding no
+
+  # Containers never reach the metadata service (ADR-0018; security-engineer A7, architect 17): an own nftables table with
+  # a forward hook before Docker's filter, independent of Docker's firewall backend (no DOCKER-USER).
+  - path: /etc/evia/nftables-metadata.nft
+    permissions: '0644'
+    content: |
+      table inet evia {
+        chain forward {
+          type filter hook forward priority -10; policy accept;
+          iifname "docker0" ip daddr 169.254.169.254 counter drop
+          iifname "br-*" ip daddr 169.254.169.254 counter drop
+        }
+      }
+  - path: /etc/systemd/system/evia-metadata-block.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=EVia: containers have no access to the metadata service (EVM-007 AC1)
+      Before=docker.service
+      After=nftables.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStartPre=-/usr/sbin/nft delete table inet evia
+      ExecStart=/usr/sbin/nft -f /etc/evia/nftables-metadata.nft
+      [Install]
+      WantedBy=multi-user.target
+      RequiredBy=docker.service
+
+  - path: /etc/docker/daemon.json
+    permissions: '0644'
+    content: |
+      {
+        "live-restore": true,
+        "no-new-privileges": true,
+        "userland-proxy": false,
+        "log-driver": "local",
+        "log-opts": { "max-size": "20m", "max-file": "5" }
+      }
+
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    permissions: '0644'
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/tmpfiles.d/evia.conf
+    permissions: '0644'
+    content: |
+      d /etc/evia 0755 root root -
+      d /etc/evia/secrets 0700 root root -
+      d /var/lib/evia 0755 root root -
+      d /var/lib/evia/deploy 0700 root root -
+      d /run/evia 0755 root root -
+      d /run/evia/secrets 0711 root root -
+
+  # Docker from its apt repository, exact versions, held; the key is checked by fingerprint before it is trusted.
+  - path: /usr/local/sbin/evia-install-docker.sh
+    permissions: '0700'
+    content: |
+      #!/bin/sh
+      set -eu
+      fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+      install -d -m 0755 /etc/apt/keyrings
+      curl -fsSL --proto '=https' https://download.docker.com/linux/debian/gpg -o /tmp/docker.asc
+      actual="$(gpg --show-keys --with-colons /tmp/docker.asc | awk -F: '/^fpr:/ { print $10; exit }')"
+      if [ "$actual" != "$fingerprint" ]; then echo "Docker apt key: unexpected fingerprint" >&2; exit 1; fi
+      install -m 0644 /tmp/docker.asc /etc/apt/keyrings/docker.asc
+      echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable" > /etc/apt/sources.list.d/docker.list
+      apt-get update
+      apt-get install -y --no-install-recommends \
+        docker-ce=${docker_version} docker-ce-cli=${docker_version} \
+        containerd.io=${containerd_version} docker-compose-plugin=${compose_plugin_version}
+      apt-mark hold docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+  # PostgreSQL data volume encrypted with LUKS2; the key is generated here, on the VM (RR-19: protects a detached volume or
+  # a snapshot, not a compromised VM). A volume with a file system but without LUKS is refused, never formatted.
+  - path: /usr/local/sbin/evia-setup-data-volume.sh
+    permissions: '0700'
+    content: |
+      #!/bin/sh
+      set -eu
+      device=/dev/disk/by-id/scsi-0HC_Volume_${data_volume_id}
+      keyfile=/etc/evia/secrets/luks-pgdata.key
+      tries=0
+      while [ ! -e "$device" ]; do
+        tries=$((tries + 1)); if [ "$tries" -gt 60 ]; then echo "data volume not attached" >&2; exit 1; fi; sleep 5
+      done
+      install -d -m 0700 /etc/evia/secrets
+      if [ ! -s "$keyfile" ]; then (umask 077; head -c 64 /dev/urandom > "$keyfile"); fi
+      chmod 0600 "$keyfile"
+      if ! cryptsetup isLuks "$device"; then
+        if blkid "$device" > /dev/null 2>&1; then echo "data volume has a file system without LUKS: refusing" >&2; exit 1; fi
+        cryptsetup luksFormat --type luks2 --batch-mode --key-file "$keyfile" "$device"
+        cryptsetup open --key-file "$keyfile" "$device" pgdata
+        mkfs.ext4 -q -L pgdata /dev/mapper/pgdata
+      elif [ ! -e /dev/mapper/pgdata ]; then
+        cryptsetup open --key-file "$keyfile" "$device" pgdata
+      fi
+      grep -q '^pgdata ' /etc/crypttab || echo "pgdata $device $keyfile luks,discard" >> /etc/crypttab
+      install -d -m 0700 /srv/evia/pgdata
+      grep -q ' /srv/evia/pgdata ' /etc/fstab || echo "/dev/mapper/pgdata /srv/evia/pgdata ext4 defaults,nofail,nodev,nosuid,noexec 0 2" >> /etc/fstab
+      mountpoint -q /srv/evia/pgdata || mount /srv/evia/pgdata
+
+runcmd:
+  - systemd-tmpfiles --create /etc/tmpfiles.d/evia.conf
+  - systemctl daemon-reload
+  - systemctl enable --now nftables.service evia-metadata-block.service
+  - /usr/local/sbin/evia-install-docker.sh
+  - /usr/local/sbin/evia-setup-data-volume.sh
+  - systemctl restart ssh

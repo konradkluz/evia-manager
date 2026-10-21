@@ -1,0 +1,19 @@
+{
+  "name": "@evia/staging-verify",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "staging-verify (EVM-007 AC6, bramka 10): waits for /version of staging to report the published commit and manifest, then checks ports, TLS, headers, DNS and the anonymous ZAP baseline report from the runner — no secrets; runs without installed dependencies.",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "test:coverage": "evia-node-test"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

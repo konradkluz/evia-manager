@@ -103,3 +103,58 @@ export function detect({ eventName, baseSha, diff }) {
     : `tylko dokumentacja (${String(files.length)} plików) — ciężkie joby pominięte`;
   return { heavy, e2e, integration, mobile, reason };
 }
+
+/**
+ * EVM-007 AC1, AC4: changes that run iac-check and the tests of deploy.sh in a pull request (OpenTofu, the IaC container,
+ * the root scripts of the VM and their test image, the compose files and workflows).
+ * Fail closed: every other event, a bad base, a diff error or an empty diff mean "true".
+ */
+export const IAC_PREFIXES = Object.freeze([
+  'infra/tofu/',
+  'infra/docker/iac/',
+  'infra/deploy-agent/',
+  'infra/docker/deploy-tests/',
+  '.github/',
+]);
+export const IAC_FILES = Object.freeze(['compose.yaml', 'compose.iac.yaml']);
+
+/**
+ * EVM-007 AC2 (ADR-0018 "Publikacja hermetyczna"): build inputs of the release images — `publish` runs for a push to main
+ * that changes apps/, packages/, infra/ or the lockfile; the other inputs of the image build (workspace and root
+ * configuration, patches, design tokens) count too, so that no input of an image changes without a new image.
+ * Documentation alone never publishes. Fail closed for a push: a bad base, a diff error or an empty diff mean "true".
+ * Any other event: "false" (`publish` runs for a push to main only).
+ */
+export const PUBLISH_PREFIXES = Object.freeze(['apps/', 'packages/', 'infra/', 'design/tokens/', 'patches/']);
+export const PUBLISH_FILES = Object.freeze(['pnpm-lock.yaml', 'pnpm-workspace.yaml', 'package.json', '.nvmrc', 'turbo.json']);
+
+/** @param {string} path @param {readonly string[]} prefixes @param {readonly string[]} files */
+const matches = (path, prefixes, files) => !wellFormed(path) || files.includes(path) || prefixes.some((prefix) => path.startsWith(prefix));
+
+/** @param {string} path */
+export const isIacInput = (path) => matches(path, IAC_PREFIXES, IAC_FILES);
+/** @param {string} path */
+export const isPublishInput = (path) => matches(path, PUBLISH_PREFIXES, PUBLISH_FILES);
+
+/**
+ * @param {{ eventName: string, baseSha: string, diff: (base: string) => string }} input
+ * @returns {{ iac: boolean, publish: boolean, reason: string }}
+ */
+export function detectDeployment({ eventName, baseSha, diff }) {
+  const push = eventName === 'push';
+  if (!['push', 'pull_request'].includes(eventName)) return { iac: true, publish: false, reason: `zdarzenie ${eventName || '?'}` };
+  if (!SHA.test(baseSha) || ZERO_SHA.test(baseSha))
+    return { iac: true, publish: push, reason: 'brak poprawnego commitu bazowego (fail-closed)' };
+  let files;
+  try {
+    files = diff(baseSha)
+      .split('\0')
+      .filter((file) => file !== '');
+  } catch {
+    return { iac: true, publish: push, reason: 'błąd wykrywania zmian (fail-closed)' };
+  }
+  if (files.length === 0) return { iac: true, publish: push, reason: 'pusta lista zmian (fail-closed)' };
+  const publish = push && files.some(isPublishInput);
+  const iac = push || files.some(isIacInput);
+  return { iac, publish, reason: `iac-check ${iac ? 'uruchomiony' : 'pominięty'}, publish ${publish ? 'tak' : 'nie'}` };
+}

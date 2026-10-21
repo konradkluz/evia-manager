@@ -18,3 +18,22 @@ MinSupportedAppVersion:
       $ref: common.yaml#/Semver
     ios:
       $ref: common.yaml#/Semver
+Version:
+  type: object
+  description: Wydanie, które działa (EVM-007 AC4); `null` poza kanałem wdrożeń.
+  required: [commit, manifestSha256]
+  properties:
+    commit:
+      description: Pełny SHA commita, z którego zbudowano obraz.
+      oneOf:
+        - type: string
+          pattern: '^[0-9a-f]{40}$'
+          maxLength: 40
+        - type: 'null'
+    manifestSha256:
+      description: SHA-256 (hex) dokładnych bajtów release-manifest.json wydania.
+      oneOf:
+        - type: string
+          pattern: '^[0-9a-f]{64}$'
+          maxLength: 64
+        - type: 'null'

@@ -25,6 +25,7 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
     expect(bundle.openapi).toBe('3.1.0');
     expect(Object.keys(bundle.paths)).toEqual([
       '/api/health',
+      '/api/version',
       '/api/v1/auth/activation/check',
       '/api/v1/auth/activation/password',
       '/api/v1/auth/password-reset/request',

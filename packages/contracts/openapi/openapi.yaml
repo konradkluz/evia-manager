@@ -41,6 +41,8 @@ tags:
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
+  /api/version:
+    $ref: paths/platform.yaml#/version
   /api/v1/auth/activation/check:
     $ref: paths/identity.yaml#/activationCheck
   /api/v1/auth/activation/password:
@@ -195,6 +197,8 @@ components:
       $ref: components/platform.yaml#/Health
     MinSupportedAppVersion:
       $ref: components/platform.yaml#/MinSupportedAppVersion
+    Version:
+      $ref: components/platform.yaml#/Version
     Semver:
       $ref: components/common.yaml#/Semver
     Money:

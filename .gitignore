@@ -11,6 +11,15 @@ secrets/
 *.keystore
 *service-account*.json
 
+# OpenTofu (EVM-007): stan, plany i dane dostawców nigdy w repozytorium (stan i plan są też szyfrowane, SR-INFRA-14);
+# zatwierdzane są tylko pliki *.tf i .terraform.lock.hcl. Pliki sesji IaC leżą poza repozytorium (../.evia-iac/).
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+.terraform/
+.evia-iac/
+
 # Claude Code — ustawienia lokalne użytkownika
 .claude/settings.local.json
 
