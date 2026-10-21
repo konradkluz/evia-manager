@@ -11,6 +11,11 @@ export const PUBLISH_IF =
 export const POST_GATE_JOBS = Object.freeze(['publish', 'staging-verify']);
 /** The compose file of the deployment channel — a constant of the VM configuration as well (V3, architect 7). */
 export const RELEASE_COMPOSE = 'infra/runtime/compose.staging.yaml';
+/**
+ * The platform of the VM (Hetzner Arm64 CAX; ADR-0011/ADR-0018 annotation 2026-10-21): the release images are
+ * cross-built for it on the x86 runner without emulation, the infrastructure images are pulled and scanned for it.
+ */
+export const RELEASE_PLATFORM = 'linux/arm64';
 
 /** Actions or settings that bring a cache or a runtime token into the build (TM-112; A5). */
 const CACHE_ACTIONS = [
@@ -24,9 +29,10 @@ const CACHE_ACTIONS = [
 ];
 /** The Docker commands `publish` may run — nothing else (A6 has one exception: this job). */
 const PUBLISH_DOCKER = [
-  /^docker buildx build --no-cache --pull --provenance=false --sbom=false /,
+  /^docker buildx build --no-cache --pull --provenance=false --sbom=false --platform linux\/arm64 /,
+  /^docker image inspect --format '\{\{\.Os\}\}\/\{\{\.Architecture\}\}' "(evia-\$image:candidate|\$ref)"\)"$/,
   /^docker save /,
-  /^docker pull "\$ref"$/,
+  /^docker pull --platform linux\/arm64 "\$ref"$/,
   /^docker compose -f compose\.yaml run --rm scan-trivy-image image /,
   /^docker login ghcr\.io --username "\$GHCR_USER" --password-stdin$/,
   /^docker tag /,
@@ -46,7 +52,7 @@ export function dockerLines(script: string): string[] {
     .replace(/\\\n\s*/g, ' ')
     .split('\n')
     .map((line) => line.trim().replace(/^(?:echo "\$GHCR_TOKEN" \| )/, ''))
-    .flatMap((line) => line.split(/\s*(?:&&|\|\||\|)\s*/))
+    .flatMap((line) => line.split(/\s*(?:&&|\|\||\||\$\()\s*/))
     .map((line) => line.trim())
     .filter((line) => /^docker\s/.test(line));
 }
@@ -85,6 +91,8 @@ export function publishProblems(document: unknown): string[] {
   for (const line of dockerLines(script))
     if (!PUBLISH_DOCKER.some((pattern) => pattern.test(line))) problems.push(`${where}: polecenie Docker spoza listy (${line})`);
   if (!/docker buildx build --no-cache --pull /.test(script)) problems.push(`${where}: budowa wyłącznie z --no-cache --pull`);
+  if ((script.match(/\[ "\$platform" != linux\/arm64 \]/g) ?? []).length !== 2)
+    problems.push(`${where}: platforma ${RELEASE_PLATFORM} obrazów wydania i infrastruktury sprawdzona przed skanem`);
   if (/ghcr\.io\/konradkluz\/[^"\s]*:(?!sha-)/.test(script)) problems.push(`${where}: obraz projektu po tagu innym niż sha-<commit>`);
   const scan = script.indexOf('scan-trivy-image image');
   const push = script.indexOf('docker push');
@@ -181,6 +189,48 @@ export function downloadArtifactProblems(file: string, document: unknown): strin
 
 const SECRET_NAME = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)/i;
 
+/** The image (or stage) of a FROM line, after its flags (e.g. --platform=$BUILDPLATFORM). */
+const fromImage = (from: string): string =>
+  from
+    .trim()
+    .split(/\s+/)
+    .slice(1)
+    .find((token) => !token.startsWith('--')) ?? '';
+
+/**
+ * Cross build for the VM platform without emulation (Arm64 VM; RELEASE_PLATFORM): every stage that runs commands is on
+ * the runner platform (`--platform=$BUILDPLATFORM`, itself or through the stage it starts from), the final stage is of
+ * the target platform and only copies files (no RUN), and production dependencies are installed for the target CPU
+ * (pnpm --os/--cpu/--libc from TARGETARCH) — a native addon of the runner platform would fail on the VM.
+ */
+function crossBuildProblems(name: string, code: string): string[] {
+  const problems: string[] = [];
+  const parts = code.split(/^(?=[ \t]*FROM\s)/im).filter((part) => /^[ \t]*FROM\s/i.test(part));
+  const onRunner = new Set<string>();
+  parts.forEach((part, index) => {
+    const from = part.split('\n')[0] ?? '';
+    const flag = /--platform=(\S+)/.exec(from)?.[1];
+    const stage = /\bAS\s+(\S+)/i.exec(from)?.[1] ?? `#${String(index)}`;
+    const last = index === parts.length - 1;
+    if (flag !== undefined && flag !== '$BUILDPLATFORM') problems.push(`${name}: FROM --platform wyłącznie $BUILDPLATFORM (${flag})`);
+    const runner = flag === '$BUILDPLATFORM' || onRunner.has(fromImage(from));
+    if (runner) onRunner.add(stage);
+    const runs = /^\s*RUN\s/im.test(part);
+    if (last && (runner || runs)) problems.push(`${name}: etap końcowy platformy docelowej bez RUN (budowa bez emulacji)`);
+    else if (runs && !runner) problems.push(`${name}: etap ${stage} z RUN poza --platform=$BUILDPLATFORM (emulacja)`);
+  });
+  const production = [...code.matchAll(/pnpm install([^&\n\\]*)/g)]
+    .map((match) => match[1] ?? '')
+    .filter((flags) => flags.includes('--prod'));
+  if (production.length > 0) {
+    if (production.some((flags) => !flags.includes('--os=linux --cpu="$cpu" --libc=glibc ')))
+      problems.push(`${name}: zależności produkcyjne dla platformy docelowej (--os=linux --cpu="$cpu" --libc=glibc)`);
+    if (!/^\s*ARG TARGETARCH\s*$/m.test(code) || !code.includes('arm64) cpu=arm64') || !code.includes('amd64) cpu=x64'))
+      problems.push(`${name}: cpu pnpm z TARGETARCH (arm64 → arm64, amd64 → x64)`);
+  }
+  return problems;
+}
+
 /**
  * A release Dockerfile (AC2; SR-INFRA-05; architect 18): bases by tag + digest, nothing from the project registry, no
  * cache mounts, no secret-like ARG/ENV, pnpm in the exact version and SHA-512 of "packageManager", frozen lockfile and
@@ -192,11 +242,12 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
   const froms = code.split('\n').filter((line) => /^\s*FROM\s/i.test(line));
   const stages = froms.map((line) => /\bAS\s+(\S+)/i.exec(line)?.[1]).filter(Boolean);
   for (const from of froms) {
-    const image = from.trim().split(/\s+/)[1] ?? '';
+    const image = fromImage(from);
     if (stages.includes(image)) continue;
     if (!/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/.test(image)) problems.push(`${name}: FROM ${image} bez tagu i digestu`);
     if (image.startsWith('ghcr.io/konradkluz/')) problems.push(`${name}: obraz projektu jako warstwa bazowa`);
   }
+  problems.push(...crossBuildProblems(name, code));
   if (/--mount=type=(cache|secret|ssh)/.test(code)) problems.push(`${name}: zabronione montaże cache/secret/ssh`);
   for (const line of code.split('\n').filter((entry) => /^\s*(ENV|ARG)\s/i.test(entry))) {
     const variable = line.trim().split(/[\s=]+/)[1] ?? '';

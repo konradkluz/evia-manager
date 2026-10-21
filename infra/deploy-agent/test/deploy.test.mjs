@@ -29,6 +29,9 @@ case "$*" in
   "pull "*) exit "\${FAKE_PULL_EXIT:-0}" ;;
   *" exec -T caddy caddy reload"*) exit "\${FAKE_RELOAD_EXIT:-0}" ;;
   "inspect "*) echo 10.0.0.5 ;;
+  "image inspect --format {{.Os}}/{{.Architecture}} -- "*web*) echo "\${FAKE_WEB_PLATFORM:-linux/arm64}" ;;
+  "image inspect --format {{.Os}}/{{.Architecture}} -- "*) echo "\${FAKE_API_PLATFORM:-linux/arm64}" ;;
+  "version --format {{.Server.Os}}/{{.Server.Arch}}") echo "\${FAKE_HOST_PLATFORM:-linux/arm64}" ;;
   "image ls "*) cat "$FAKE_IMAGES" 2> /dev/null || true ;;
 esac
 exit 0
@@ -234,6 +237,29 @@ describe('EVM-007 AC4: deploy.sh — order of the deployment', () => {
     assert.ok(down > index(run.calls, 'caddy reload'));
     assert.ok(run.calls[down]?.includes(' down --remove-orphans'));
     assert.equal(registry().length, 2);
+  });
+
+  it('EVM-007 AC1, AC4 (Arm64 VM): the pulled images are checked against the platform of the host before the migration', () => {
+    const run = deploy(result('c1'));
+    assert.equal(run.status, 0, run.stderr);
+    const check = index(run.calls, 'docker version --format {{.Server.Os}}/{{.Server.Arch}}');
+    const api = index(run.calls, 'docker image inspect --format {{.Os}}/{{.Architecture}} -- ghcr.io/evia-test/evia-api@');
+    const web = index(run.calls, 'docker image inspect --format {{.Os}}/{{.Architecture}} -- ghcr.io/evia-test/evia-web@');
+    assert.ok(check >= 0 && api > index(run.calls, 'docker pull --quiet -- ghcr.io/evia-test/evia-web@'), JSON.stringify(run.calls));
+    assert.ok(web > api && web < index(run.calls, 'run --rm --no-deps migrate'), JSON.stringify(run.calls));
+  });
+
+  it('EVM-007 AC1, AC4 (Arm64 VM): an image of another platform than the host migrates nothing, starts nothing and leaves the previous version', () => {
+    assert.equal(deploy(result('c1')).status, 0);
+    for (const env of [{ FAKE_API_PLATFORM: 'linux/amd64' }, { FAKE_WEB_PLATFORM: 'linux/amd64' }, { FAKE_HOST_PLATFORM: 'linux/amd64' }]) {
+      const run = deploy(result('c2'), env);
+      assert.notEqual(run.status, 0);
+      assert.match(run.stderr, /platform/);
+      assert.equal(index(run.calls, 'run --rm --no-deps migrate'), -1);
+      assert.equal(index(run.calls, ' up -d'), -1);
+      assert.equal(active(), 'blue');
+      assert.equal(registry().length, 1);
+    }
   });
 
   it('EVM-007 AC4: a failed migration starts nothing new and leaves the previous version and the registry', () => {

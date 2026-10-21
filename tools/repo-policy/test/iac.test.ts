@@ -6,11 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { exists, filesBelow, gitIgnores, list, read, record, text, yaml } from '../src/files.ts';
 import {
+  ARM64_SERVER_TYPES,
   encryptionProblems,
   firewallProblems,
   iacComposeProblems,
   providerProblems,
   regionProblems,
+  serverTypeProblems,
   tofuForbiddenProblems,
   userDataProblems,
   variableDefaultProblems,
@@ -63,6 +65,13 @@ describe('OpenTofu on the repository (EVM-007 AC1)', () => {
       expect(variableDefaultProblems(`${TOFU}/${root}`, rootText(root))).toEqual([]);
     }
     expect(variableDefaultProblems('modules/vm', read(`${TOFU}/modules/vm/main.tf`))).toEqual([]);
+  });
+
+  it('EVM-007 AC1 (Arm64 VM): the server type of the VM module and of staging is validated to Hetzner Arm64 (CAX) — the release images are linux/arm64 only', () => {
+    expect(ARM64_SERVER_TYPES).toEqual(['cax11', 'cax21', 'cax31', 'cax41']);
+    expect(serverTypeProblems('modules/vm', read(`${TOFU}/modules/vm/main.tf`))).toEqual([]);
+    expect(serverTypeProblems(`${TOFU}/staging`, rootText('staging'))).toEqual([]);
+    expect(rootText('staging')).toMatch(/variable "server_type"[^}]*cax11 recommended/);
   });
 
   it('EVM-007 AC1: state, plans, variable files, provider data and the IaC session directory are ignored by git; lock files are not', () => {
@@ -202,6 +211,18 @@ describe('IaC checkers detect violations (EVM-007 AC1, AC7)', () => {
     expect(encryptionProblems('s', 'terraform {}')).not.toEqual([]);
     expect(encryptionProblems('s', staging.replace(/(variable "state_passphrase" \{[^}]*)sensitive\s*=\s*true/, '$1'))).not.toEqual([]);
     expect(variableDefaultProblems('s', 'variable "server_type" {\n type = string\n default = "cx53"\n}')).not.toEqual([]);
+  });
+
+  it('EVM-007 AC1 (Arm64 VM): a server type without validation, a validation admitting x86 types, an architecture literal in user-data', () => {
+    const vm = read(`${TOFU}/modules/vm/main.tf`);
+    expect(serverTypeProblems('s', vm.replace(/contains\(\[[^\]]*\], var\.server_type\)/, 'true'))).not.toEqual([]);
+    expect(serverTypeProblems('s', vm.replace('"cax11", ', '"cax11", "cx33", '))).not.toEqual([]);
+    expect(serverTypeProblems('s', vm.replace(/contains\(\[[^\]]*\], var\.server_type\)/, 'contains([], var.server_type)'))).not.toEqual(
+      [],
+    );
+    expect(serverTypeProblems('s', 'terraform {}')).not.toEqual([]);
+    expect(userDataProblems(userData.replace('arch=$(dpkg --print-architecture)', 'arch=amd64'))).not.toEqual([]);
+    expect(userDataProblems(`${userData}\n# x86_64 only`)).not.toEqual([]);
   });
 
   it('EVM-007 AC1: compose.iac.yaml with another service, a writable repository, an in-repository secret, ports or interpolation', () => {

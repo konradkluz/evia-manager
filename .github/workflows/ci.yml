@@ -471,18 +471,26 @@ jobs:
           persist-credentials: false
       - name: Output directories (scans, release)
         run: mkdir -p .scratch/scans release && chmod 0777 .scratch/scans
-      - name: Build the release images (no cache, fresh bases by digest)
+      # The VM is Hetzner Arm64 (CAX): the release images are cross-built for linux/arm64 on this x86 runner without
+      # emulation (no QEMU — build stages on $BUILDPLATFORM, runtime stages only copy; tools/repo-policy release.ts),
+      # the infrastructure images are pulled for linux/arm64 from their multi-arch index digests; both are checked to be
+      # linux/arm64 before the scan.
+      - name: Build the release images for linux/arm64 (no cache, fresh bases by digest)
         shell: bash
         run: |
           for image in api web; do
-            docker buildx build --no-cache --pull --provenance=false --sbom=false \
+            docker buildx build --no-cache --pull --provenance=false --sbom=false --platform linux/arm64 \
               --build-arg EVIA_RELEASE_COMMIT="$EVIA_RELEASE_COMMIT" \
               --file "infra/images/$image/Dockerfile" --tag "evia-$image:candidate" --load .
+            platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "evia-$image:candidate")"
+            if [ "$platform" != linux/arm64 ]; then echo "evia-$image is $platform, not linux/arm64" >&2; exit 1; fi
             docker save "evia-$image:candidate" --output ".scratch/scans/evia-$image.tar"
           done
           for ref in $(jq -r '.images[]' infra/runtime/infra-images.json); do
             name="infra-$(echo "$ref" | sed -E 's#^([^/:@]+/)*([^/:@]+).*#\2#')"
-            docker pull "$ref"
+            docker pull --platform linux/arm64 "$ref"
+            platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")"
+            if [ "$platform" != linux/arm64 ]; then echo "$ref is $platform, not linux/arm64" >&2; exit 1; fi
             docker save "$ref" --output ".scratch/scans/$name.tar"
           done
       - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)

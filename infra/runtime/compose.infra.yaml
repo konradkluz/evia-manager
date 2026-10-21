@@ -9,6 +9,7 @@
 # - postgres: data on the LUKS volume /srv/evia/pgdata; roles from postgres-init (evia_migrator, the API login).
 # - clamd on an internal network without egress; freshclam (the same image) updates the signatures with egress but is
 #   outside the network of the API (A6). The API joins evia-scan with EVM-044 (a change of the verifier configuration).
+#   The image is clamav/clamav-debian: the Alpine clamav/clamav is amd64-only and the VM is Arm64 (Hetzner CAX).
 # Secrets: the PostgreSQL superuser password as a file from /etc/evia/secrets (POSTGRES_PASSWORD_FILE).
 
 services:
@@ -63,7 +64,7 @@ services:
       retries: 10
 
   clamd:
-    image: clamav/clamav:1.5@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
+    image: clamav/clamav-debian:1.5.4@sha256:d7ede3cefeaf3b8a72ebcdee849d13f504bbca3f3b3cfade5bc7b6ee06a4f62c
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -79,7 +80,7 @@ services:
       - clamav-signatures:/var/lib/clamav:ro
 
   freshclam:
-    image: clamav/clamav:1.5@sha256:e19130cdebaeacc71fa46eab3ed6f69941f2f22aa5e08d55e9197f8edf43ce5e
+    image: clamav/clamav-debian:1.5.4@sha256:d7ede3cefeaf3b8a72ebcdee849d13f504bbca3f3b3cfade5bc7b6ee06a4f62c
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

@@ -15,6 +15,7 @@ EVM-007 AC1 (ADR-0018 „IaC”, ADR-0011). OpenTofu 1.13 dla środowiska stagin
 - Dostawcy tylko `hetznercloud/hcloud` i `scaleway/scaleway`, wersje dokładne, `.terraform.lock.hcl` z hashami dla `linux_amd64` i `linux_arm64`; regiony tylko w UE.
 - Stan i plan szyfrowane (`encryption`, `enforced = true`); hasło tylko ze zmiennej środowiska kontenera `iac`.
 - Zakazane: provisionery, źródła danych `external`/`http`, `random_password`, `tls_private_key`, poświadczenia w kodzie, wyjścia z sekretami. Typ VM (Q1) i adresy SSH (Q2) — bez wartości domyślnych, podawane w sesji IaC.
+- VM wyłącznie Arm64 (Hetzner CAX): `server_type` z walidacją `cax11|cax21|cax31|cax41` (zalecany `cax11`, `cax21` przy braku pamięci) — obrazy kanału są `linux/arm64`; `user-data` bez literałów architektury x86 (repozytorium Dockera z `dpkg --print-architecture`). Lock file dotyczy platformy, na której działa `tofu` (kontener `iac`), nie VM.
 - `*.tfstate*`, `*.tfplan`, `*.tfvars`, `.terraform/` są ignorowane przez git.
 
 ## Polecenia

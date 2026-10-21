@@ -20,6 +20,11 @@ export const USER_DATA_VARIABLES = Object.freeze([
   'compose_plugin_version',
   'containerd_version',
 ]);
+/**
+ * Hetzner Arm64 (Ampere, CAX) server types: the only ones the VM may use, because every release and infrastructure
+ * image is linux/arm64 (ADR-0011/ADR-0018 annotation 2026-10-21; cax11 recommended for staging, cax21 if 4 GB is short).
+ */
+export const ARM64_SERVER_TYPES = Object.freeze(['cax11', 'cax21', 'cax31', 'cax41']);
 /** Variables that must be given in the IaC session — no default that looks like a production value (architect 23). */
 export const NO_DEFAULT_VARIABLES = Object.freeze(['server_type', 'location', 'admin_ssh_public_key']);
 
@@ -128,6 +133,10 @@ export function userDataProblems(template: string): string[] {
   if (/-----BEGIN|ghp_|github_pat_|glpat-|AKIA[0-9A-Z]{16}|SCW[0-9A-Z]{17}/.test(template))
     problems.push('user-data: literał wyglądający na sekret');
   if (/%\{/.test(template)) problems.push('user-data: bez dyrektyw szablonu %{ } (pętle i warunki ukrywają treść)');
+  // Arm64 VM: no architecture is assumed — the Docker repository takes it from dpkg.
+  if (/\b(amd64|x86_64|x86-64|i386|i686)\b/.test(template)) problems.push('user-data: literał architektury x86 (VM Arm64)');
+  if (!template.includes('deb [arch=$(dpkg --print-architecture) '))
+    problems.push('user-data: architektura repozytorium Dockera z dpkg --print-architecture');
   for (const bridge of ['docker0', 'br-*'])
     if (!template.includes(`iifname "${bridge}" ip daddr 169.254.169.254 counter drop`))
       problems.push(`user-data: brak blokady metadanych z ${bridge}`);
@@ -153,6 +162,17 @@ export function encryptionProblems(file: string, content: string): string[] {
   if (!/passphrase\s*=\s*var\.state_passphrase/.test(block)) problems.push(`${file}: hasło szyfrowania wyłącznie ze zmiennej`);
   if (!/variable "state_passphrase"\s*\{[^}]*sensitive\s*=\s*true/.test(content)) problems.push(`${file}: state_passphrase sensitive`);
   return problems;
+}
+
+/** The server type is validated to Arm64 (CAX) types only — an x86 type cannot run the linux/arm64 images. */
+export function serverTypeProblems(file: string, content: string): string[] {
+  const match = /contains\(\[([^\]]*)\],\s*var\.server_type\)/.exec(content);
+  if (match === null) return [`${file}: walidacja server_type (wyłącznie typy Arm64 CAX)`];
+  const values = [...(match[1] ?? '').matchAll(/"([^"]+)"/g)].map((value) => value[1] ?? '');
+  if (values.length === 0) return [`${file}: walidacja server_type bez typów`];
+  return values
+    .filter((value) => !ARM64_SERVER_TYPES.includes(value))
+    .map((value) => `${file}: server_type ${value} spoza typów Arm64 (${ARM64_SERVER_TYPES.join(', ')})`);
 }
 
 /** Variables given in the IaC session: no default (architect 23). */
