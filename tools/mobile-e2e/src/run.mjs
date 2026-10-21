@@ -137,7 +137,12 @@ export async function runE2e({ skipBuild, port }, host) {
           flow: join(appDirectory, 'e2e', step.flow),
           junitFile: join(reportDirectory, `${step.flow}.xml`),
         });
-        const outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
+        let outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
+        if (outcome.status !== 0 && results.length === 0) {
+          // The very first Maestro connection to a fresh emulator installs the driver and can fail once; later flows are not retried.
+          host.log(`MAESTRO: the first flow ${step.flow} failed, one retry (driver installation on a fresh emulator)`);
+          outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
+        }
         const passed = outcome.status === 0;
         failed = !passed;
         results.push({

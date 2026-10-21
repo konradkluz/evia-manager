@@ -294,6 +294,20 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.deepEqual(machine.maestroFlows(), []);
   });
 
+  it('EVM-009 AC4: the first flow after a fresh start is tried once more (Maestro installs its driver and the first connection may fail)', async () => {
+    let failures = 0;
+    const flaky = fakeMachine({
+      failing: (_c, args) => args.some((argument) => argument.endsWith('01-online.yaml')) && (failures += 1) === 1,
+    });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...flaky.host, exists: () => true }), 0);
+    assert.deepEqual(flaky.maestroFlows().slice(0, 2), ['01-online.yaml', '01-online.yaml']);
+    assert.match(flaky.logs.join('\n'), /MAESTRO: .*01-online.*retry/);
+    const broken = fakeMachine({ failing: (_c, args) => args.some((argument) => argument.endsWith('01-online.yaml')) });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...broken.host, exists: () => true }), 1);
+    assert.equal(broken.maestroFlows().filter((flow) => flow === '01-online.yaml').length, 2);
+    assert.match(Object.values(broken.written).join('\n'), /\| 01-online\.yaml \| failed \|/);
+  });
+
   it('EVM-009 AC4: a failing flow skips the rest of its scenario, the other scenarios still run, and airplane mode is switched off', async () => {
     const machine = fakeMachine({ failing: (_c, args) => args.some((argument) => argument.endsWith('02-offline.yaml')) });
     assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...machine.host, exists: () => true }), 1);
