@@ -370,7 +370,7 @@ describe('EVM-011 AC2 issuer access control (SR-MOB-04, SR-SYNC-03, SR-SYNC-08, 
     expect(await runUpload({ ...mkJob(job.assetId, 'device-b') }, engine(client('device-b')).deps)).toBe('id_conflict');
   });
 
-  it('EVM-011 AC2 id_conflict: the old multipart is aborted, the client restarts with a new assetId and a new key', async () => {
+  it('EVM-011 AC2 id_conflict has no side effects: device B cannot abort A’s multipart, A finishes, B cannot overwrite the completed object', async () => {
     const job = mkJob();
     const store = new MemoryStore();
     await expect(runUpload(job, { ...engine(client()).deps, store, checkpoint: killAt('afterPartSaved', 1) })).rejects.toBeInstanceOf(
@@ -379,12 +379,26 @@ describe('EVM-011 AC2 issuer access control (SR-MOB-04, SR-SYNC-03, SR-SYNC-08, 
     const oldRec = issuer.sessions().find((s) => s.assetId === job.assetId)!;
     const other = mkJob(job.assetId, 'device-b');
     expect(await runUpload(other, engine(client('device-b')).deps)).toBe('id_conflict');
+    // The multipart of A is still open and the mapping is intact.
     const open = await s3.send(new ListMultipartUploadsCommand({ Bucket: bucket }));
-    expect((open.Uploads ?? []).some((u) => u.UploadId === oldRec.uploadId)).toBe(false);
+    expect((open.Uploads ?? []).some((u) => u.UploadId === oldRec.uploadId)).toBe(true);
+    expect(issuer.sessions().find((s) => s.assetId === job.assetId)?.uploadId).toBe(oldRec.uploadId);
+    // A resumes and finishes.
+    expect(await runUpload((await store.load(job.assetId))!, { ...engine(client()).deps, store })).toBe('uploaded');
+    const done = issuer.sessions().find((s) => s.assetId === job.assetId)!;
+    expect(done.completed).toBe(true);
+    // B tries again on the completed asset: refused, mapping and object untouched (no overwrite).
+    expect(await runUpload(mkJob(job.assetId, 'device-b'), engine(client('device-b')).deps)).toBe('id_conflict');
+    const after = issuer.sessions().find((s) => s.assetId === job.assetId)!;
+    expect(after.uploadId).toBe(done.uploadId);
+    expect(after.completed).toBe(true);
+    // The owner's abort of a completed asset keeps the mapping too.
+    await client().abort(job.assetId);
+    expect(issuer.sessions().some((s) => s.assetId === job.assetId)).toBe(true);
+    // B restarts with a new assetId and a new key.
     const restart = mkJob(uuidv7(), 'device-b');
     expect(await runUpload(restart, engine(client('device-b')).deps)).toBe('uploaded');
-    const newRec = issuer.sessions().find((s) => s.assetId === restart.assetId)!;
-    expect(newRec.key).not.toBe(oldRec.key);
+    expect(issuer.sessions().find((s) => s.assetId === restart.assetId)!.key).not.toBe(oldRec.key);
   });
 
   it('EVM-011 AC2 a part URL for somebody elseâ€™s session is refused with 403', async () => {

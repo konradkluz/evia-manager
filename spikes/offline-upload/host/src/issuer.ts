@@ -1,6 +1,6 @@
 // url-issuer: spike stand-in for the API (ADR-0009 upload protocol). Listens on loopback only. Not a production endpoint.
 // - the server (not the client) assigns the object key media/{year}/{month}/{assetId}/original and the uploadId mapping;
-// - createSession is idempotent per assetId (same device) and answers 409 id_conflict for another device;
+// - createSession is idempotent per assetId (same device) and answers 409 id_conflict for another device (no side effects);
 // - part URLs are SigV4-presigned with a short TTL, Content-Length signed (URL bound to key, uploadId, part and size);
 // - complete is idempotent (NoSuchUpload -> HEAD object, size must match the declaration);
 // - logs contain no tokens, no signed URLs (query is never logged) and no keys.
@@ -175,14 +175,8 @@ export function createIssuer(cfg: IssuerConfig): Issuer {
     const existing = map.get(req.assetId);
     if (existing) {
       if (existing.deviceId !== device || existing.userId !== userId) {
-        // Another installation claims the same asset id: the old multipart is aborted, the client must start over with a new id.
-        if (!existing.completed) {
-          await s3
-            .send(new AbortMultipartUploadCommand({ Bucket: cfg.bucket, Key: existing.key, UploadId: existing.uploadId }))
-            .catch(() => undefined);
-        }
-        map.delete(req.assetId);
-        persist();
+        // Another installation claims the same asset id: refuse without any side effect (the existing session and object stay
+        // untouched; abandoned multiparts are swept by the bucket lifecycle, not by client requests).
         throw new HttpError(409, 'id_conflict');
       }
       return { uploadId: existing.uploadId, key: existing.key, partSize: existing.partSize, partCount: existing.partCount };
@@ -303,9 +297,9 @@ export function createIssuer(cfg: IssuerConfig): Issuer {
   }
 
   async function abort(rec: SessionRecord) {
-    if (!rec.completed) {
-      await s3.send(new AbortMultipartUploadCommand({ Bucket: cfg.bucket, Key: rec.key, UploadId: rec.uploadId })).catch(() => undefined);
-    }
+    // A completed object is immutable: its mapping is never removed, so the key cannot be recreated and overwritten.
+    if (rec.completed) return { status: 'completed_kept' };
+    await s3.send(new AbortMultipartUploadCommand({ Bucket: cfg.bucket, Key: rec.key, UploadId: rec.uploadId })).catch(() => undefined);
     map.delete(rec.assetId);
     persist();
     return { status: 'aborted' };
