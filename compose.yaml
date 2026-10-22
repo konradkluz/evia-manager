@@ -289,6 +289,8 @@ services:
     volumes:
       - ./infra/deploy-agent:/src/infra/deploy-agent:ro
       - ./infra/docker/iac:/src/infra/docker/iac:ro
+      # release-manifest.test.mjs evaluates the jq line of the publish job taken from the workflow
+      - ./.github/workflows/ci.yml:/src/.github/workflows/ci.yml:ro
 
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:

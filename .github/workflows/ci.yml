@@ -529,7 +529,7 @@ jobs:
           jq -n --arg commit "$EVIA_RELEASE_COMMIT" --arg api "$(cat release/api.ref)" --arg web "$(cat release/web.ref)" \
             '{schemaVersion: 1, commit: $commit, images: {api: $api, web: $web}, compose: "infra/runtime/compose.staging.yaml"}' \
             > release/release-manifest.json
-          jq -e --arg commit "$EVIA_RELEASE_COMMIT" '(.commit == $commit) and (.commit | test("^[0-9a-f]{40}$")) and ([.images[]] | all(test("^ghcr\.io/konradkluz/evia-(api|web)@sha256:[0-9a-f]{64}$")))' release/release-manifest.json > /dev/null
+          jq -e --arg commit "$EVIA_RELEASE_COMMIT" '(.commit == $commit) and (.commit | test("^[0-9a-f]{40}$")) and ([.images[]] | all(test("^ghcr\\.io/konradkluz/evia-(api|web)@sha256:[0-9a-f]{64}$")))' release/release-manifest.json > /dev/null
           sha="$(sha256sum release/release-manifest.json | cut -d' ' -f1)"
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
           echo "### release-manifest" >> "$GITHUB_STEP_SUMMARY"
