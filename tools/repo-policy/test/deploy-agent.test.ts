@@ -141,6 +141,14 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
     expect(record(record(services['postgres'])['environment'])['POSTGRES_PASSWORD_FILE']).toBe('/run/secrets/postgres-password');
   });
 
+  it('EVM-007 AC4: the edge Caddy mounts the directory /etc/evia/caddy (not single files), because deploy.sh replaces upstream.caddy by rename and a file mount would keep the old inode', () => {
+    const services = record(record(yaml('infra/runtime/compose.infra.yaml'))['services']);
+    const volumes = list(record(services['caddy'])['volumes']).map(text);
+    expect(volumes).toContain('/etc/evia/caddy:/etc/caddy:ro');
+    expect(volumes.filter((volume) => /upstream\.caddy|Caddyfile/.test(volume))).toEqual([]);
+    expect(volumes.filter((volume) => volume.includes('/etc/caddy'))).toEqual(['/etc/evia/caddy:/etc/caddy:ro']);
+  });
+
   it('EVM-007 AC5, AC6 (security-engineer B "Caddy"): the edge Caddy — admin API on localhost, HSTS, no Server header, only the ACME issuer of Let us Encrypt, routing from the snippet', () => {
     const caddyfile = read('infra/runtime/Caddyfile');
     expect(caddyfile).toMatch(/^\tadmin localhost:2019$/m);
