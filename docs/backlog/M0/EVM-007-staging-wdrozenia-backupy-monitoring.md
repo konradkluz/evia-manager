@@ -80,6 +80,7 @@ Najmniejsze uprawnienia kont technicznych, szyfrowanie w spoczynku, brak publicz
 
 ## Notatki
 - Stan kont (2026-10-13): Hetzner — puste projekty `evia-staging`, `evia-prod`; GitHub Free (prywatne repo); brak konta Scaleway (potrzebne przed startem); domena `eviacharge.pl` (OVH, DNSSEC włączony).
+- Świadome pominięcie rekordu CAA (Konrad, 2026-10-22): odstępstwo od ADR-0018 i kroku 4 runbooka wdrożenia staging; zaakceptowane ryzyko tylko dla staging (certyfikat mógłby wystawić inny CA), **dla produkcji rekord CAA jest obowiązkowy**.
 
 ### Plan techniczny (faza offline, devops-engineer 2026-10-21)
 Kod: `infra/tofu/` (AC1), `infra/images/`, job `publish`, `tools/ghcr-retention/` (AC2), `services/deploy-agent/` (AC3, V0–V4), `infra/deploy-agent/`, `infra/runtime/` (AC4, AC7), job `staging-verify`, `tools/staging-verify/` (AC6), `docs/ops/runbooks/` (AC8). Opis kanału: `services/deploy-agent/README.md`, `infra/deploy-agent/README.md`.
@@ -144,3 +145,4 @@ Kod: `infra/tofu/` (AC1), `infra/images/`, job `publish`, `tools/ghcr-retention/
 - 2026-10-21 — faza offline zakończona (bramka, skan, docs:check zielone; QA: AC1–AC4, AC6, AC7 pass offline, AC5 manual); PR #88; decyzje Konrada: CX33, TEM przez 443, RR-33…35, bramki 7a/8 → E8; status pozostaje in-progress do sesji IaC
 - 2026-10-21 — Arm64 (devops-engineer): staging na Hetzner CAX11 (CX niedostępne), kanał `linux/arm64` (budowa krzyżowa w `publish`, ClamAV Debian, walidacja `server_type`, kontrola platformy w `deploy.sh`); adnotacje ADR-0011/ADR-0018 do akceptacji Konrada; status bez zmian (in-progress)
 - 2026-10-22 — poprawka z VM: Caddy montuje katalog `/etc/evia/caddy` zamiast pojedynczych plików (`deploy.sh` podmienia `upstream.caddy` przez `mv`); test `EVM-007 AC4` w `tools/repo-policy`; runbook: fragment zastępczy i próba zapisu PAT przez `POST /git/blobs`; gałąź feature/EVM-007-caddy-dir-mount
+- 2026-10-22 — wnioski z kroku 9 sesji IaC (devops-engineer; polecenia na VM przez orkiestratora, SSH, za zgodą Konrada): `systemd-cryptsetup` w `user-data` (bez niego pgdata nie wstaje po reboocie), `docker-buildx-plugin` (`buildx_version`) do budowy obrazu weryfikatora, runbook krok 9 z wartościami; oba pakiety tylko dla nowych VM (`ignore_changes`); gałąź feature/EVM-007-step9-learnings

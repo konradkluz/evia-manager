@@ -18,6 +18,7 @@ export const USER_DATA_VARIABLES = Object.freeze([
   'data_volume_id',
   'docker_version',
   'compose_plugin_version',
+  'buildx_version',
   'containerd_version',
 ]);
 /**
@@ -143,6 +144,12 @@ export function userDataProblems(template: string): string[] {
   if (/\b(amd64|x86_64|x86-64|i386|i686)\b/.test(template)) problems.push('user-data: literał architektury x86 (VM Arm64)');
   if (!template.includes('deb [arch=$(dpkg --print-architecture) '))
     problems.push('user-data: architektura repozytorium Dockera z dpkg --print-architecture');
+  // Debian 13: systemd-cryptsetup is a separate package; without it /etc/crypttab is ignored and the data volume stays closed after a reboot.
+  if (!/^ {2}- systemd-cryptsetup\s*$/m.test(template))
+    problems.push('user-data: pakiet systemd-cryptsetup (bez niego crypttab jest ignorowany po reboocie)');
+  // The deploy-agent image needs BuildKit (FROM --platform, Dockerfile.dockerignore): pinned buildx plugin, held like the other Docker packages.
+  if (!template.includes('docker-buildx-plugin=${buildx_version}') || !/apt-mark hold [^\n]*docker-buildx-plugin/.test(template))
+    problems.push('user-data: docker-buildx-plugin w przypiętej wersji (buildx_version) i apt-mark hold');
   for (const bridge of ['docker0', 'br-*'])
     if (!template.includes(`iifname "${bridge}" ip daddr 169.254.169.254 counter drop`))
       problems.push(`user-data: brak blokady metadanych z ${bridge}`);

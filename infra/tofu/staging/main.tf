@@ -83,6 +83,7 @@ module "vm" {
   docker_version         = "5:29.9.2-1~debian.13~trixie"
   containerd_version     = "2.4.2-3~debian.13~trixie"
   compose_plugin_version = "5.6.0-1~debian.13~trixie"
+  buildx_version         = "0.38.1-1~debian.13~trixie"
   depends_on             = [module.network]
 }
 

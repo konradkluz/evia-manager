@@ -82,6 +82,11 @@ variable "compose_plugin_version" {
   type        = string
 }
 
+variable "buildx_version" {
+  description = "Exact docker-buildx-plugin package version (BuildKit build of the deploy-agent image on the VM)."
+  type        = string
+}
+
 variable "containerd_version" {
   description = "Exact containerd.io package version."
   type        = string
@@ -127,6 +132,7 @@ resource "hcloud_server" "this" {
     docker_version         = var.docker_version
     compose_plugin_version = var.compose_plugin_version
     containerd_version     = var.containerd_version
+    buildx_version         = var.buildx_version
   })
 
   lifecycle {
