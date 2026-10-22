@@ -182,6 +182,23 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     ).not.toEqual([]);
   });
 
+  it('EVM-007 AC2: the image archives must be readable by the unprivileged scanner and its output directory writable', () => {
+    expect(publishProblems(withPublish(replaceRun(/chmod a\+r \.scratch\/scans\/\*\.tar\n/, '')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('chmod a+r .scratch/scans/*.tar', 'chmod a+r release/*.tar')))).not.toEqual([]);
+    // a chmod before the last docker save does not cover the archive written after it
+    expect(
+      publishProblems(
+        withPublish((job) =>
+          replaceRun(
+            'docker save "$ref"',
+            'chmod a+r .scratch/scans/*.tar\n  docker save "$ref"',
+          )(replaceRun(/chmod a\+r \.scratch\/scans\/\*\.tar\n/, '')(job)),
+        ),
+      ),
+    ).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('&& chmod 0777 .scratch/scans', '')))).not.toEqual([]);
+  });
+
   it('EVM-007 AC2: a Docker command outside the list, a project image by tag, a manifest with another compose path, no logout, a pipe without pipefail', () => {
     expect(
       publishProblems(withPublish(replaceRun('docker save "evia-$image:candidate"', 'docker run --rm "evia-$image:candidate"'))),
