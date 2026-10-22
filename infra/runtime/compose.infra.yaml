@@ -5,7 +5,7 @@
 # tag + digest from infra/runtime/infra-images.json (scanned with the release images in `publish`, bramka 6).
 # - caddy: the only published ports (80 for the HTTP-01 challenge and the redirect, 443); admin API on localhost:2019
 #   inside the container only; certificates in the persistent volume caddy-data; the upstream snippet written by
-#   deploy.sh from a fixed template (blue|green) mounted read-only.
+#   deploy.sh from a fixed template (blue|green); the directory /etc/evia/caddy mounted read-only.
 # - postgres: data on the LUKS volume /srv/evia/pgdata; roles from postgres-init (evia_migrator, the API login).
 # - clamd on an internal network without egress; freshclam (the same image) updates the signatures with egress but is
 #   outside the network of the API (A6). The API joins evia-scan with EVM-044 (a change of the verifier configuration).
@@ -32,8 +32,8 @@ services:
       - /tmp:size=16m,noexec,nosuid,nodev
     volumes:
       - caddy-data:/data
-      - /etc/evia/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - /etc/evia/caddy/upstream.caddy:/etc/caddy/upstream.caddy:ro
+      # The DIRECTORY, not single files: deploy.sh replaces upstream.caddy by rename (new inode), which a file mount misses.
+      - /etc/evia/caddy:/etc/caddy:ro
 
   postgres:
     image: postgres:18.6-trixie@sha256:1267c7e692de235fda2a50dbcdbcbca4672ea6a0298576a6bd9d07cafc319b32
