@@ -5,7 +5,9 @@
 # Runtime: distroless Node.js 26 (no shell, no package manager), non-root. No secret enters the image: the only build
 # argument is the commit (EVIA_RELEASE_COMMIT, public — GET /api/version); secrets are files mounted at run time.
 # The build context is the repository root, restricted by the allow-list Dockerfile.dockerignore.
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
+# Platform (Arm64 VM, Hetzner CAX): `publish` builds --platform linux/arm64 on the x86 runner WITHOUT emulation — every
+# stage that runs commands is on $BUILDPLATFORM, the runtime stage of the target platform only copies files.
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
@@ -32,15 +34,19 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/api..." \
 
 # Production dependencies installed from scratch from the manifests and the lockfile only: nothing of the build install
 # (devDependencies, root tools) can remain in the image — bramka 6 found them after a pruning `--prod` install.
+# Cross build (Arm64 VM): this stage runs on the runner platform, so pnpm installs the platform packages of the TARGET
+# (e.g. @node-rs/argon2-linux-arm64-gnu from the lockfile), never the runner's, for the glibc of the distroless runtime.
 FROM pnpm AS deps
+ARG TARGETARCH
 WORKDIR /app
 RUN --mount=type=bind,source=.,target=/context \
-    cp /context/package.json /context/pnpm-lock.yaml /context/pnpm-workspace.yaml . \
+    case "$TARGETARCH" in arm64) cpu=arm64 ;; amd64) cpu=x64 ;; *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; esac \
+ && cp /context/package.json /context/pnpm-lock.yaml /context/pnpm-workspace.yaml . \
  && cp -R /context/patches . \
  && for manifest in /context/apps/*/package.json /context/packages/*/package.json /context/tools/*/package.json /context/services/*/package.json; do \
       if [ -f "$manifest" ]; then target="${manifest#/context/}"; mkdir -p "$(dirname "$target")"; cp "$manifest" "$target"; fi; \
     done \
- && pnpm install --frozen-lockfile --ignore-scripts --prod --filter "@evia/api..."
+ && pnpm install --frozen-lockfile --ignore-scripts --prod --os=linux --cpu="$cpu" --libc=glibc --filter "@evia/api..."
 
 FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:b093852cde840e6f7ab2c2081adfbdb81810a340e06a2869fdc4ed31354c9d9e AS runtime
 

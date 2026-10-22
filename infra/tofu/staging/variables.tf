@@ -13,8 +13,12 @@ variable "scaleway_project_id" {
 }
 
 variable "server_type" {
-  description = "Hetzner server type of the staging VM (Q1: CX33 recommended, CX23 per ADR-0011)."
+  description = "Hetzner server type of the staging VM, Arm64 only (Q1, 2026-10-21: cax11 recommended — 2 vCPU, 4 GB; cax21 — 4 vCPU, 8 GB, if ClamAV, PostgreSQL and the API do not fit in 4 GB)."
   type        = string
+  validation {
+    condition     = contains(["cax11", "cax21", "cax31", "cax41"], var.server_type)
+    error_message = "Arm64 (CAX) server types only: cax11, cax21, cax31, cax41 — the images are linux/arm64."
+  }
 }
 
 variable "location" {

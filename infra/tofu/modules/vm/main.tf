@@ -16,8 +16,12 @@ variable "name" {
 }
 
 variable "server_type" {
-  description = "Hetzner server type (decided by Konrad in the IaC session, Q1)."
+  description = "Hetzner server type (decided by Konrad in the IaC session, Q1): Arm64 (Ampere, CAX) only — the release and infrastructure images are linux/arm64."
   type        = string
+  validation {
+    condition     = contains(["cax11", "cax21", "cax31", "cax41"], var.server_type)
+    error_message = "Arm64 (CAX) server types only: cax11, cax21, cax31, cax41 — the images are linux/arm64."
+  }
 }
 
 variable "location" {
@@ -30,7 +34,7 @@ variable "location" {
 }
 
 variable "image" {
-  description = "Operating system image."
+  description = "Operating system image by name; Hetzner resolves the name to the image of the architecture of the server type (arm for CAX)."
   type        = string
   default     = "debian-13"
 }

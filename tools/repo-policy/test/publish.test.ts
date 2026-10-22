@@ -11,6 +11,7 @@ import {
   POST_GATE_JOBS,
   PUBLISH_IF,
   publishProblems,
+  RELEASE_PLATFORM,
   releaseDockerfileProblems,
   STAGING_VERIFY_IF,
   stagingVerifyProblems,
@@ -70,6 +71,25 @@ describe('publish on the repository (EVM-007 AC2)', () => {
     const images = Object.values(record(record(json('infra/runtime/infra-images.json'))['images'])).map(text);
     expect(images.length).toBeGreaterThanOrEqual(3);
     for (const image of images) expect(image).toMatch(/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/);
+  });
+
+  it('EVM-007 AC1, AC2 (Arm64 VM, Hetzner CAX): every image is for linux/arm64 — release images cross-built, infrastructure images pulled for it, both checked before the scan', () => {
+    expect(RELEASE_PLATFORM).toBe('linux/arm64');
+    expect(text(record(json('infra/runtime/infra-images.json'))['platform'])).toBe(RELEASE_PLATFORM);
+    const script = steps(publish)
+      .map((step) => text(step['run']))
+      .join('\n');
+    expect(script).toContain('--sbom=false --platform linux/arm64 ');
+    expect(script).toContain('docker pull --platform linux/arm64 "$ref"');
+    expect(script.match(/\[ "\$platform" != linux\/arm64 \]/g)?.length).toBe(2);
+  });
+
+  it('EVM-007 AC1, AC2 (Arm64 VM): every release Dockerfile builds on the runner platform and has a final stage without RUN (no emulation)', () => {
+    for (const image of [...IMAGES, 'deploy-agent']) {
+      const dir = `infra/images/${image}`;
+      expect(read(`${dir}/Dockerfile`)).toMatch(/^FROM --platform=\$BUILDPLATFORM /m);
+      expect(releaseDockerfileProblems(dir, read(`${dir}/Dockerfile`), read(`${dir}/Dockerfile.dockerignore`), packageManager)).toEqual([]);
+    }
   });
 });
 
@@ -143,6 +163,23 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(publishProblems(withPublish(replaceRun('--exit-code 1', '--exit-code 0')))).not.toEqual([]);
     expect(publishProblems(withPublish(replaceRun('--format cyclonedx', '--format table')))).not.toEqual([]);
     expect(publishProblems(withPublish(replaceRun('infra/runtime/infra-images.json', 'x.json')))).not.toEqual([]);
+  });
+
+  it('EVM-007 AC2 (Arm64 VM): a build for the runner platform, an infrastructure image of the host platform, a missing platform check, emulation', () => {
+    expect(publishProblems(withPublish(replaceRun('--platform linux/arm64 ', '')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('--platform linux/arm64 ', '--platform linux/amd64 ')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun('docker pull --platform linux/arm64 "$ref"', 'docker pull "$ref"')))).not.toEqual([]);
+    expect(publishProblems(withPublish(replaceRun(/\[ "\$platform" != linux\/arm64 \]/, '[ -z "$platform" ]')))).not.toEqual([]);
+    // no platform check at all (both removed)
+    expect(publishProblems(withPublish(replaceRun(/\[ "\$platform" != linux\/arm64 \]/g, '[ -z "$platform" ]')))).not.toEqual([]);
+    expect(
+      publishProblems(
+        withPublish((job) => ({
+          ...job,
+          steps: [{ uses: 'docker/setup-qemu-action@0000000000000000000000000000000000000000' }, ...steps(job)],
+        })),
+      ),
+    ).not.toEqual([]);
   });
 
   it('EVM-007 AC2: a Docker command outside the list, a project image by tag, a manifest with another compose path, no logout, a pipe without pipefail', () => {
@@ -227,6 +264,26 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(releaseDockerfileProblems(dir, dockerfile, ignore.replace(/^\*$/m, '!apps'), packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, `${ignore}\n!.env\n!docs/a.md\n!tools/scan`, packageManager)).not.toEqual([]);
     expect(releaseDockerfileProblems(dir, dockerfile, ignore, 'pnpm@12.8.1')).not.toEqual([]);
+  });
+
+  it('EVM-007 AC2 (Arm64 VM): a RUN stage of the target platform (emulation), a RUN in the final stage, production dependencies of the runner platform', () => {
+    const dir = 'infra/images/api';
+    const dockerfile = read(`${dir}/Dockerfile`);
+    const ignore = read(`${dir}/Dockerfile.dockerignore`);
+    const bad = (from: string, to: string): string[] =>
+      releaseDockerfileProblems(dir, dockerfile.replace(from, to), ignore, packageManager);
+    // a base by digest behind --platform is still checked
+    expect(bad('FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:', 'FROM --platform=$BUILDPLATFORM node:26#')).not.toEqual(
+      [],
+    );
+    expect(bad('FROM --platform=$BUILDPLATFORM node:', 'FROM node:')).not.toEqual([]);
+    expect(bad('FROM --platform=$BUILDPLATFORM node:', 'FROM --platform=linux/arm64 node:')).not.toEqual([]);
+    expect(bad('USER 65532:65532', 'RUN ["node", "--version"]\nUSER 65532:65532')).not.toEqual([]);
+    expect(bad('FROM gcr.io/distroless', 'FROM --platform=$BUILDPLATFORM gcr.io/distroless')).not.toEqual([]);
+    // a FROM with a flag but no image (and no stage name) is a base without tag and digest
+    expect(bad('FROM gcr.io/distroless', 'FROM --platform=$BUILDPLATFORM\nFROM gcr.io/distroless')).not.toEqual([]);
+    expect(bad('--os=linux --cpu="$cpu" --libc=glibc ', '')).not.toEqual([]);
+    expect(bad('arm64) cpu=arm64', 'arm64) cpu=x64')).not.toEqual([]);
   });
 });
 

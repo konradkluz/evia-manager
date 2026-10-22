@@ -143,6 +143,13 @@ compose_of() { docker compose --project-name "$1" --project-directory "$WORK/emp
 log "deploying $commit ($decision) as $project"
 docker pull --quiet -- "$api" > /dev/null
 docker pull --quiet -- "$web" > /dev/null
+# The release images are built for the VM platform only (linux/arm64, Hetzner CAX): an image of another platform would
+# fail with "exec format error" after the migration — refuse it before anything runs (the previous version stays).
+host_platform="$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')"
+for image in "$api" "$web"; do
+  image_platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' -- "$image")"
+  [ "$image_platform" = "$host_platform" ] || fail "image platform $image_platform is not the host platform $host_platform"
+done
 # A rollback never migrates: the schema is expand-only (tools/repo-policy migrations.test.ts), so N−1 runs on schema N,
 # and the older migrator would refuse a database with migrations it does not know (ADR-0018 "Rollback i migracje").
 if [ "$decision" = rollback ]; then

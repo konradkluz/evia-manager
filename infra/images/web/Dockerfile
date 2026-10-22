@@ -3,7 +3,9 @@
 # The security headers and the CSP of the panel are served here (apps/web/security-headers.ts, strict + https; a test
 # of apps/web compares them with web/Caddyfile). Same build rules as evia-api: bases by tag + digest, pnpm verified by
 # SHA-512, frozen lockfile, no install scripts, --no-cache --pull in `publish`, nothing from ghcr.io/konradkluz.
-FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
+# Platform (Arm64 VM): the build stage runs on $BUILDPLATFORM (static files do not depend on the CPU; native build tools
+# of the runner), the Caddy runtime stage of the target platform (linux/arm64 in `publish`) only copies files.
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
 
 # renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.8.1
