@@ -14,6 +14,13 @@ apt:
     - arches: [default]
       uri: https://deb.debian.org/debian-security
 
+# Debian 13 keeps its sources in deb822 files (/etc/apt/sources.list.d/*.sources: debian.sources and the Hetzner mirrors)
+# with http:// URIs, which the egress firewall (443 only) blocks, so package_update failed and nothing was installed. The
+# bootcmd runs before package_update and moves every apt source to HTTPS (deb.debian.org and mirror.hetzner.com serve it).
+# The apt: block above stays: it targets the classic sources.list of the cloud-init apt module. Test: iac.test.ts.
+bootcmd:
+  - [sh, -c, 'for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do [ -f "$f" ] && sed -i "s#http://#https://#g" "$f"; done; true']
+
 package_update: true
 package_upgrade: true
 packages:

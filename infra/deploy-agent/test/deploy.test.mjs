@@ -558,6 +558,7 @@ describe('EVM-007 AC4 (security-engineer B): ShellCheck on the shell scripts of 
     '/src/infra/deploy-agent/deploy.sh',
     '/src/infra/deploy-agent/cycle.sh',
     '/src/infra/deploy-agent/secrets.sh',
+    '/src/infra/deploy-agent/init-secrets.sh',
     '/src/infra/docker/iac/check.sh',
     '/src/infra/docker/iac/iac.sh',
   ];

@@ -133,6 +133,12 @@ export function userDataProblems(template: string): string[] {
   if (/-----BEGIN|ghp_|github_pat_|glpat-|AKIA[0-9A-Z]{16}|SCW[0-9A-Z]{17}/.test(template))
     problems.push('user-data: literał wyglądający na sekret');
   if (/%\{/.test(template)) problems.push('user-data: bez dyrektyw szablonu %{ } (pętle i warunki ukrywają treść)');
+  // Egress allows 443 only: the deb822 sources of Debian 13 (http:// by default) are moved to HTTPS by a bootcmd, before package_update.
+  const bootcmd = /^bootcmd:[ \t]*\r?\n((?:[ \t]+.*\r?\n|[ \t]*\r?\n)*)/m.exec(template)?.[1] ?? '';
+  if (!bootcmd.includes('/etc/apt/sources.list.d/*.sources') || !bootcmd.includes('s#http://#https://#g') || !/\bsed -i\b/.test(bootcmd))
+    problems.push('user-data: bootcmd przepisujący źródła apt (/etc/apt/sources.list.d/*.sources) z http:// na https://');
+  if (/^(?!\s*#).*(?:\buri:|\bURIs:|\bdeb(?:-src)?\s+(?:\[[^\]]*\]\s*)?)\s*http:\/\//im.test(template))
+    problems.push('user-data: źródło apt przez http:// (zapora wypuszcza tylko 443)');
   // Arm64 VM: no architecture is assumed — the Docker repository takes it from dpkg.
   if (/\b(amd64|x86_64|x86-64|i386|i686)\b/.test(template)) problems.push('user-data: literał architektury x86 (VM Arm64)');
   if (!template.includes('deb [arch=$(dpkg --print-architecture) '))

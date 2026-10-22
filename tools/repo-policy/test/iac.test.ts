@@ -190,6 +190,21 @@ describe('IaC checkers detect violations (EVM-007 AC1, AC7)', () => {
     expect(firewallProblems('')).not.toEqual([]);
   });
 
+  it('EVM-007 AC1 (egress 443 only): user-data moves the apt sources of Debian 13 to HTTPS in a bootcmd and leaves no http:// source', () => {
+    expect(userData).toMatch(/^bootcmd:/m);
+    expect(userData.indexOf('bootcmd:')).toBeLessThan(userData.indexOf('package_update: true'));
+    expect(userDataProblems(userData.replaceAll('/etc/apt/sources.list.d/*.sources', '/etc/apt/sources.list.d/*.list'))).not.toEqual([]);
+    expect(userDataProblems(userData.replaceAll('s#http://#https://#g', 's#x#y#g'))).not.toEqual([]);
+    expect(userDataProblems(userData.replace(/^bootcmd:/m, 'unused:'))).not.toEqual([]);
+    expect(userDataProblems(userData.replace('uri: https://deb.debian.org/debian\n', 'uri: http://deb.debian.org/debian\n'))).not.toEqual(
+      [],
+    );
+    expect(
+      userDataProblems(`${userData}\nwrite_files:\n  - content: |\n      URIs: http://mirror.hetzner.com/debian/packages`),
+    ).not.toEqual([]);
+    expect(userDataProblems(`${userData}\n# deb http://comment.example is only a comment`)).toEqual([]);
+  });
+
   it('EVM-007 AC1, AC7 (A7): a secret variable or literal in user-data, a missing metadata block, password logins', () => {
     expect(userDataProblems(`${userData}\n\${hetzner_token}`)).not.toEqual([]);
     expect(userDataProblems(`${userData}\n\${db_password}`)).not.toEqual([]);
