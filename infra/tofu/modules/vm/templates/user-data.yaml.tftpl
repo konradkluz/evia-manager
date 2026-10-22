@@ -29,6 +29,8 @@ packages:
   - gnupg
   - nftables
   - cryptsetup
+  # Debian 13: a separate package; without it /etc/crypttab is ignored at boot (pgdata stays closed).
+  - systemd-cryptsetup
   - unattended-upgrades
   - jq
 
@@ -127,8 +129,9 @@ write_files:
       apt-get update
       apt-get install -y --no-install-recommends \
         docker-ce=${docker_version} docker-ce-cli=${docker_version} \
-        containerd.io=${containerd_version} docker-compose-plugin=${compose_plugin_version}
-      apt-mark hold docker-ce docker-ce-cli containerd.io docker-compose-plugin
+        containerd.io=${containerd_version} docker-compose-plugin=${compose_plugin_version} \
+        docker-buildx-plugin=${buildx_version}
+      apt-mark hold docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin
 
   # PostgreSQL data volume encrypted with LUKS2; the key is generated here, on the VM (RR-19: protects a detached volume or
   # a snapshot, not a compromised VM). A volume with a file system but without LUKS is refused, never formatted.

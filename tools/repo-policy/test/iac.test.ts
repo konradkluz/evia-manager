@@ -205,6 +205,19 @@ describe('IaC checkers detect violations (EVM-007 AC1, AC7)', () => {
     expect(userDataProblems(`${userData}\n# deb http://comment.example is only a comment`)).toEqual([]);
   });
 
+  it('EVM-007 AC1, AC7: user-data installs systemd-cryptsetup (Debian 13 ignores crypttab without it) and a pinned docker-buildx-plugin', () => {
+    expect(userDataProblems(userData.replace(/^ {2}- systemd-cryptsetup\r?\n/m, ''))).not.toEqual([]);
+    expect(userDataProblems(userData.replace('docker-buildx-plugin=${buildx_version}', 'docker-buildx-plugin'))).not.toEqual([]);
+    expect(
+      userDataProblems(
+        userData.replace(
+          'apt-mark hold docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin',
+          'apt-mark hold docker-ce',
+        ),
+      ),
+    ).not.toEqual([]);
+  });
+
   it('EVM-007 AC1, AC7 (A7): a secret variable or literal in user-data, a missing metadata block, password logins', () => {
     expect(userDataProblems(`${userData}\n\${hetzner_token}`)).not.toEqual([]);
     expect(userDataProblems(`${userData}\n\${db_password}`)).not.toEqual([]);
