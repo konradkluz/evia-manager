@@ -101,6 +101,14 @@ export function publishProblems(document: unknown): string[] {
     problems.push(`${where}: skan obrazów (bramka 6) przed logowaniem do GHCR i wypchnięciem`);
   if (!script.includes('--severity HIGH,CRITICAL --ignore-unfixed --exit-code 1'))
     problems.push(`${where}: bramka 6 — Critical/High z poprawką = czerwony`);
+  // docker save writes 0600 archives; the unprivileged scanner (65534) must be able to read them before the first scan.
+  const readable = script.indexOf('chmod a+r .scratch/scans/*.tar');
+  if (readable < 0 || readable < script.lastIndexOf('docker save ') || readable > scan)
+    problems.push(
+      `${where}: archiwa docker save czytelne dla skanera (chmod a+r .scratch/scans/*.tar po ostatnim docker save, przed skanem)`,
+    );
+  if (!/mkdir -p \.scratch\/scans release && chmod 0777 \.scratch\/scans/.test(script))
+    problems.push(`${where}: katalog .scratch/scans zapisywalny dla skanera (chmod 0777)`);
   if (!script.includes('--format cyclonedx')) problems.push(`${where}: SBOM CycloneDX`);
   if (!script.includes('infra/runtime/infra-images.json')) problems.push(`${where}: obrazy infrastruktury w tej samej bramce`);
   if (!script.includes(`compose: "${RELEASE_COMPOSE}"`)) problems.push(`${where}: manifest ze stałą ścieżką Compose ${RELEASE_COMPOSE}`);

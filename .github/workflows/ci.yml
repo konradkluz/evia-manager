@@ -493,6 +493,9 @@ jobs:
             if [ "$platform" != linux/arm64 ]; then echo "$ref is $platform, not linux/arm64" >&2; exit 1; fi
             docker save "$ref" --output ".scratch/scans/$name.tar"
           done
+          # docker save writes the archives as 0600 owned by the runner user; the scanner runs as 65534 (compose.yaml)
+          # and only needs to read them (the mount stays as it is, the scanner does not run as root).
+          chmod a+r .scratch/scans/*.tar
       - name: Image scan and SBOM before the push (bramka 6, Critical/High with a fix = red)
         shell: bash
         run: |
