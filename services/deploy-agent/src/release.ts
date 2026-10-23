@@ -2,19 +2,25 @@
  * V3 — the release of commit X (EVM-007 AC3; ADR-0018 V3, m2; architect 4, 7; security-engineer A3, B "V3").
  * A run of the workflow with the configured numeric ID with event `push`, head_branch `main` and head_sha X (X is in the
  * history of main by V1 — a tag named `main` is never enough: its run has no successful `publish`). Deterministic choice:
- * the OLDEST push run for X and its NEWEST successful attempt, whose jobs `ci-gate` and `publish` succeeded. Its artifact
- * `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
+ * the OLDEST push run for X and its NEWEST usable attempt (from run_attempt down to 1): the jobs API of that attempt
+ * shows `ci-gate` and `publish` completed/success. The status and conclusion of the whole run are NOT a condition:
+ * `staging-verify` runs in the same run and waits for this very deployment, so the run is in progress until the release
+ * is deployed (and fails when it is not). Both jobs come from the job list of the SAME attempt; jobs carried over by
+ * GitHub on a partial re-run are consistent because `needs` is re-evaluated. Exactly one job of each name (a duplicate
+ * is a rejection). A `skipped` additionally needs the attempt itself completed/success (a run cancelled after a green
+ * `ci-gate` is not final and is never cached). The
+ * artifact `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
  * downloaded through the redirect check of github.ts and parsed in memory (zip.ts, manifest.ts).
- * `unusable` = X has no usable release now (no run, still running, publish failed — a re-run may change that);
- * `skipped` = X will never have one: the successful attempt skipped `publish` (no change in apps/, packages/, infra/ or
- * the lockfile — EVM-083), which a re-run repeats; the verifier may remember it (cache.ts). In both cases the verifier
- * looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
+ * `unusable` = X has no usable release now (no run, a job running, publish failed — a re-run may change that);
+ * `skipped` = X will never have one: the attempt skipped `publish` after a green `ci-gate` (no change in apps/, packages/,
+ * infra/ or the lockfile — EVM-083), which a re-run repeats; the verifier may remember it (cache.ts). In both cases the
+ * verifier looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
  */
 import type { AgentConfig } from './config.ts';
 import { Rejection, ensure, integer, isRecord, record } from './errors.ts';
 import { MAX_ARTIFACT_BYTES, type GitHub } from './github.ts';
 import { parseManifest, sha256, type Manifest } from './manifest.ts';
-import { jobStates, succeeded } from './pulls.ts';
+import { jobStates } from './pulls.ts';
 import { readSingleEntry } from './zip.ts';
 
 export const MANIFEST_ARTIFACT = 'release-manifest';
@@ -28,12 +34,30 @@ export interface Release {
   readonly runId: number;
 }
 
-/** The newest successful attempt of a run (from run_attempt down to 1), or null. */
-async function successfulAttempt(github: GitHub, runId: number, latest: number): Promise<number | null> {
+/** The attempt itself completed with success (needed only to trust a skipped publish: a cancelled run is not final). */
+async function attemptSucceeded(github: GitHub, runId: number, attempt: number): Promise<boolean> {
+  const { body } = await github.json(`${github.repoPath}/actions/runs/${String(runId)}/attempts/${String(attempt)}`);
+  const run = record(body, 'v3-parse');
+  return run['status'] === 'completed' && run['conclusion'] === 'success';
+}
+
+/**
+ * The newest attempt (from `latest` down to 1) whose jobs make a release or a skip; null when none does. Exactly one job
+ * named `ci-gate` and one named `publish` per attempt: a duplicate is a rejection, never a pick of the green one.
+ */
+async function usableAttempt(
+  github: GitHub,
+  runId: number,
+  latest: number,
+): Promise<{ attempt: number; kind: 'release' | 'skipped' } | null> {
   for (let attempt = latest; attempt >= 1; attempt -= 1) {
-    const { body } = await github.json(`${github.repoPath}/actions/runs/${String(runId)}/attempts/${String(attempt)}`);
-    const run = record(body, 'v3-parse');
-    if (run['status'] === 'completed' && run['conclusion'] === 'success') return attempt;
+    const jobs = await jobStates(github, runId, attempt);
+    const gate = jobs.get('ci-gate') ?? [];
+    const publish = jobs.get('publish') ?? [];
+    ensure(gate.length <= 1 && publish.length <= 1, 'v3-duplicate-job', `run ${String(runId)} attempt ${String(attempt)}`);
+    if (gate[0] !== 'completed/success') continue;
+    if (publish[0] === 'completed/success') return { attempt, kind: 'release' };
+    if (publish[0] === 'completed/skipped' && (await attemptSucceeded(github, runId, attempt))) return { attempt, kind: 'skipped' };
   }
   return null;
 }
@@ -54,16 +78,11 @@ export async function findRelease(github: GitHub, config: AgentConfig, commit: s
     )
     .sort((a, b) => Number(a['id']) - Number(b['id']));
   const oldest = push[0];
-  if (oldest === undefined || oldest['status'] !== 'completed') return 'unusable';
+  if (oldest === undefined) return 'unusable';
   const runId = integer(oldest['id'], 'v3-parse');
-  const attempt = await successfulAttempt(github, runId, integer(oldest['run_attempt'], 'v3-parse'));
-  if (attempt === null) return 'unusable';
-  const jobs = await jobStates(github, runId, attempt);
-  if (!succeeded(jobs, 'ci-gate')) return 'unusable';
-  if (!succeeded(jobs, 'publish')) {
-    const publish = jobs.get('publish') ?? [];
-    return publish.length > 0 && publish.every((state) => state === 'completed/skipped') ? 'skipped' : 'unusable';
-  }
+  const found = await usableAttempt(github, runId, integer(oldest['run_attempt'], 'v3-parse'));
+  if (found === null) return 'unusable';
+  if (found.kind === 'skipped') return 'skipped';
   const artifacts = await github.all(
     `${github.repoPath}/actions/runs/${String(runId)}/artifacts?name=${MANIFEST_ARTIFACT}&per_page=100`,
     'artifacts',

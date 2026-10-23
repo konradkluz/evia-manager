@@ -4,9 +4,13 @@
  * reason and no change. Synthetic data only.
  */
 import { afterEach, describe, expect, it } from 'vitest';
+import { VerificationCache } from '../src/cache.ts';
 import type { Deployment } from '../src/verify.ts';
 import {
+  API_REPO,
   OTHER_ID,
+  WEB_REPO,
+  digest,
   OWNER_ID,
   WORKFLOW_ID,
   buildScenario,
@@ -330,12 +334,22 @@ describe('EVM-007 AC3: V3 — the release run and its manifest', () => {
     expect(decision.decision).toBe('none');
   });
 
-  it('EVM-007 AC3: the oldest push run is chosen and its newest successful attempt', async () => {
+  const ok = { status: 'completed', conclusion: 'success' } as const;
+  const jobsOf = (
+    publish: { status: string; conclusion: string | null } | null,
+    gate: { status: string; conclusion: string | null } = ok,
+  ) => [
+    { name: 'ci-gate', ...gate },
+    ...(publish === null ? [] : [{ name: 'publish', ...publish }]),
+    { name: 'staging-verify', status: 'in_progress', conclusion: null },
+  ];
+
+  it('EVM-007 AC3: the oldest push run is chosen and its newest usable attempt (decided by jobs)', async () => {
     const built = buildScenario(1, COMPOSE);
     const run1 = pushRun(built, 1);
     run1.run_attempt = 2;
-    built.scenario.attempts.set('2001/2', { status: 'completed', conclusion: 'failure' });
-    built.scenario.attempts.set('2001/1', { status: 'completed', conclusion: 'success' });
+    built.scenario.jobs.set('2001/2', jobsOf({ status: 'completed', conclusion: 'failure' }));
+    built.scenario.jobs.set('2001/1', jobsOf(ok));
     built.scenario.runs.push({ ...run1, id: 2500, run_attempt: 1, conclusion: 'failure' });
     const api = await start(built);
     const decision = await run(api, built.baseline);
@@ -344,14 +358,128 @@ describe('EVM-007 AC3: V3 — the release run and its manifest', () => {
     expect(api.requests.some((path) => path.includes('/actions/runs/2500/'))).toBe(false);
   });
 
-  it('EVM-007 AC3: a run still in progress or without a successful attempt is not a release yet', async () => {
+  it('EVM-007 AC3: a run still in progress because of staging-verify (or failed because of it) is a release', async () => {
+    for (const [status, conclusion] of [
+      ['in_progress', null],
+      ['completed', 'failure'],
+      ['completed', 'cancelled'],
+    ] as const) {
+      const built = buildScenario(1, COMPOSE);
+      const target = pushRun(built, 1);
+      target.status = status;
+      target.conclusion = conclusion;
+      built.scenario.jobs.set('2001/1', jobsOf(ok));
+      const decision = await run(await start(built), built.baseline);
+      expect(decision.decision, `${status}/${String(conclusion)} ${reasons(decision)}`).toBe('deploy');
+      await stub?.close();
+      stub = undefined;
+    }
+  });
+
+  it('EVM-007 AC3: ci-gate or publish not completed/success (running, failed, cancelled, missing) is not a release yet', async () => {
+    const bad: Array<[string, Array<{ name: string; status: string; conclusion: string | null }>]> = [
+      ['publish queued', jobsOf({ status: 'queued', conclusion: null })],
+      ['publish in progress', jobsOf({ status: 'in_progress', conclusion: null })],
+      ['publish failed', jobsOf({ status: 'completed', conclusion: 'failure' })],
+      ['publish cancelled', jobsOf({ status: 'completed', conclusion: 'cancelled' })],
+      ['publish missing', jobsOf(null)],
+      ['ci-gate failed', jobsOf(ok, { status: 'completed', conclusion: 'failure' })],
+      ['ci-gate running', jobsOf(ok, { status: 'in_progress', conclusion: null })],
+      ['no jobs', []],
+    ];
+    for (const [label, jobs] of bad) {
+      const built = buildScenario(1, COMPOSE);
+      built.scenario.jobs.set('2001/1', jobs);
+      expect((await run(await start(built), built.baseline)).decision, label).toBe('none');
+      await stub?.close();
+      stub = undefined;
+    }
+  });
+
+  it('EVM-007 AC3: ci-gate and publish must succeed in the same attempt, never mixed across attempts', async () => {
     const built = buildScenario(1, COMPOSE);
-    pushRun(built, 1).status = 'in_progress';
+    pushRun(built, 1).run_attempt = 2;
+    built.scenario.jobs.set(
+      '2001/2',
+      jobsOf({ status: 'completed', conclusion: 'success' }, { status: 'completed', conclusion: 'failure' }),
+    );
+    built.scenario.jobs.set('2001/1', jobsOf({ status: 'completed', conclusion: 'failure' }));
     expect((await run(await start(built), built.baseline)).decision).toBe('none');
+  });
+
+  it('EVM-007 AC3: a skipped publish of a successful attempt is final, of a cancelled or running run it is unusable and never cached', async () => {
+    const cases: Array<[string, string | null, boolean]> = [
+      ['completed', 'success', true],
+      ['completed', 'cancelled', false],
+      ['in_progress', null, false],
+    ];
+    for (const [status, conclusion, final] of cases) {
+      const built = buildScenario(1, COMPOSE);
+      built.scenario.jobs.set('2001/1', jobsOf({ status: 'completed', conclusion: 'skipped' }));
+      built.scenario.attempts.set('2001/1', { status, conclusion });
+      const cache = new VerificationCache(built.baseline);
+      const decision = await run(await start(built), built.baseline, [], null, {}, cache);
+      expect(cache.isSkipped(built.commits[0] ?? ''), `${status}/${String(conclusion)}`).toBe(final);
+      expect(decision.decision, `${status}/${String(conclusion)}`).toBe('none');
+      await stub?.close();
+      stub = undefined;
+    }
+  });
+
+  it('EVM-007 AC3: a duplicated ci-gate (one red) or a duplicated publish is a rejection, not a pick of the green one', async () => {
+    const gate = { name: 'ci-gate', status: 'completed', conclusion: 'success' };
+    const publish = { name: 'publish', status: 'completed', conclusion: 'success' };
+    for (const jobs of [
+      [gate, { ...gate, conclusion: 'failure' }, publish],
+      [gate, publish, { ...publish, conclusion: 'failure' }],
+    ]) {
+      const built = buildScenario(1, COMPOSE);
+      built.scenario.jobs.set('2001/1', jobs);
+      expect(reasons(await run(await start(built), built.baseline))).toContain('v3-duplicate-job');
+      await stub?.close();
+      stub = undefined;
+    }
+  });
+
+  it('EVM-007 AC3: ci-gate and publish are found on a later page of the jobs list; more than five pages is a rejection', async () => {
+    const built = buildScenario(1, COMPOSE);
+    const filler = Array.from({ length: 6 }, (_, index) => ({
+      name: `e2e-web (${String(index)}/6)`,
+      status: 'completed',
+      conclusion: 'success',
+    }));
+    built.scenario.jobs.set('2001/1', [...filler, ...jobsOf(ok)]);
+    built.scenario.jobsPageSize = 2;
+    const decision = await run(await start(built), built.baseline);
+    expect(decision.decision, reasons(decision)).toBe('deploy');
     await stub?.close();
-    const failed = buildScenario(1, COMPOSE);
-    pushRun(failed, 1).conclusion = 'failure';
-    expect((await run(await start(failed), failed.baseline)).decision).toBe('none');
+    stub = undefined;
+    const huge = buildScenario(1, COMPOSE);
+    huge.scenario.jobs.set('2001/1', [
+      ...Array.from({ length: 12 }, (_, index) => ({ name: `job-${String(index)}`, status: 'completed', conclusion: 'success' })),
+      ...jobsOf(ok),
+    ]);
+    huge.scenario.jobsPageSize = 2;
+    expect(reasons(await run(await start(huge), huge.baseline))).toContain('api-pages');
+  });
+
+  it('EVM-007 AC3: the newest release-manifest of the run is used when re-runs made several', async () => {
+    const built = buildScenario(1, COMPOSE);
+    const commit = built.commits[0] ?? '';
+    const newer = manifestText(commit, {
+      images: { api: `${API_REPO}@${digest('api-newer')}`, web: `${WEB_REPO}@${digest('web-newer')}` },
+    });
+    built.scenario.artifacts.get(2001)?.push({
+      id: 3500,
+      name: 'release-manifest',
+      expired: false,
+      archive_download_url: '',
+      workflow_run: { id: 2001, head_sha: commit },
+    });
+    built.scenario.zips.set(3500, makeZip([{ name: 'release-manifest.json', data: Buffer.from(newer, 'utf8') }]));
+    const decision = (await run(await start(built), built.baseline)) as Deployment;
+    expect(decision.decision, reasons(decision)).toBe('deploy');
+    expect(decision.manifest).toBe(newer);
   });
 
   it('EVM-007 AC3: a successful publish without its release-manifest (missing, expired, of another run or another commit, another name) is rejected', async () => {
