@@ -2,16 +2,19 @@
  * V3 — the release of commit X (EVM-007 AC3; ADR-0018 V3, m2; architect 4, 7; security-engineer A3, B "V3").
  * A run of the workflow with the configured numeric ID with event `push`, head_branch `main` and head_sha X (X is in the
  * history of main by V1 — a tag named `main` is never enough: its run has no successful `publish`). Deterministic choice:
- * the OLDEST push run for X and its NEWEST successful attempt, whose jobs `ci-gate` and `publish` succeeded. Its artifact
- * `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
+ * the OLDEST push run for X and its NEWEST usable attempt (from run_attempt down to 1): the jobs API of that attempt
+ * shows `ci-gate` and `publish` completed/success. The status and conclusion of the whole run are NOT a condition:
+ * `staging-verify` runs in the same run and waits for this very deployment, so the run is in progress until the release
+ * is deployed (and fails when it is not). Both jobs must come from ONE attempt — never mixed across attempts. The
+ * artifact `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
  * downloaded through the redirect check of github.ts and parsed in memory (zip.ts, manifest.ts).
- * `unusable` = X has no usable release now (no run, still running, publish failed — a re-run may change that);
- * `skipped` = X will never have one: the successful attempt skipped `publish` (no change in apps/, packages/, infra/ or
- * the lockfile — EVM-083), which a re-run repeats; the verifier may remember it (cache.ts). In both cases the verifier
- * looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
+ * `unusable` = X has no usable release now (no run, a job running, publish failed — a re-run may change that);
+ * `skipped` = X will never have one: the attempt skipped `publish` after a green `ci-gate` (no change in apps/, packages/,
+ * infra/ or the lockfile — EVM-083), which a re-run repeats; the verifier may remember it (cache.ts). In both cases the
+ * verifier looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
  */
 import type { AgentConfig } from './config.ts';
-import { Rejection, ensure, integer, isRecord, record } from './errors.ts';
+import { Rejection, ensure, integer, isRecord } from './errors.ts';
 import { MAX_ARTIFACT_BYTES, type GitHub } from './github.ts';
 import { parseManifest, sha256, type Manifest } from './manifest.ts';
 import { jobStates, succeeded } from './pulls.ts';
@@ -28,12 +31,18 @@ export interface Release {
   readonly runId: number;
 }
 
-/** The newest successful attempt of a run (from run_attempt down to 1), or null. */
-async function successfulAttempt(github: GitHub, runId: number, latest: number): Promise<number | null> {
+/** The newest attempt (from `latest` down to 1) whose jobs make a release or a skip; null when none does. */
+async function usableAttempt(
+  github: GitHub,
+  runId: number,
+  latest: number,
+): Promise<{ attempt: number; kind: 'release' | 'skipped' } | null> {
   for (let attempt = latest; attempt >= 1; attempt -= 1) {
-    const { body } = await github.json(`${github.repoPath}/actions/runs/${String(runId)}/attempts/${String(attempt)}`);
-    const run = record(body, 'v3-parse');
-    if (run['status'] === 'completed' && run['conclusion'] === 'success') return attempt;
+    const jobs = await jobStates(github, runId, attempt);
+    if (!succeeded(jobs, 'ci-gate')) continue;
+    if (succeeded(jobs, 'publish')) return { attempt, kind: 'release' };
+    const publish = jobs.get('publish') ?? [];
+    if (publish.length > 0 && publish.every((state) => state === 'completed/skipped')) return { attempt, kind: 'skipped' };
   }
   return null;
 }
@@ -54,16 +63,11 @@ export async function findRelease(github: GitHub, config: AgentConfig, commit: s
     )
     .sort((a, b) => Number(a['id']) - Number(b['id']));
   const oldest = push[0];
-  if (oldest === undefined || oldest['status'] !== 'completed') return 'unusable';
+  if (oldest === undefined) return 'unusable';
   const runId = integer(oldest['id'], 'v3-parse');
-  const attempt = await successfulAttempt(github, runId, integer(oldest['run_attempt'], 'v3-parse'));
-  if (attempt === null) return 'unusable';
-  const jobs = await jobStates(github, runId, attempt);
-  if (!succeeded(jobs, 'ci-gate')) return 'unusable';
-  if (!succeeded(jobs, 'publish')) {
-    const publish = jobs.get('publish') ?? [];
-    return publish.length > 0 && publish.every((state) => state === 'completed/skipped') ? 'skipped' : 'unusable';
-  }
+  const found = await usableAttempt(github, runId, integer(oldest['run_attempt'], 'v3-parse'));
+  if (found === null) return 'unusable';
+  if (found.kind === 'skipped') return 'skipped';
   const artifacts = await github.all(
     `${github.repoPath}/actions/runs/${String(runId)}/artifacts?name=${MANIFEST_ARTIFACT}&per_page=100`,
     'artifacts',
