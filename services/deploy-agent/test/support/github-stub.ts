@@ -43,6 +43,9 @@ export interface Scenario {
   /** Pull request per merge commit. */
   pulls: Map<string, Record<string, unknown>>;
   runs: Run[];
+  /** `${runId}/${attempt}` → attempt status and conclusion (defaults to the run's). */
+  attempts: Map<string, { status: string; conclusion: string | null }>;
+  jobsPageSize: number;
   /** `${runId}/${attempt}` → jobs. */
   jobs: Map<string, Array<{ name: string; status: string; conclusion: string | null }>>;
   artifacts: Map<number, Array<Record<string, unknown>>>;
@@ -170,7 +173,14 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       return;
     }
     if ((match = /^\/actions\/runs\/(\d+)\/attempts\/(\d+)\/jobs$/.exec(path)) !== null) {
-      send(response, 200, { jobs: scenario.jobs.get(`${match[1] ?? ''}/${match[2] ?? ''}`) ?? [] });
+      const { items, link } = paged(url, base, scenario.jobs.get(`${match[1] ?? ''}/${match[2] ?? ''}`) ?? [], scenario.jobsPageSize);
+      send(response, 200, { jobs: items }, link);
+      return;
+    }
+    if ((match = /^\/actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(path)) !== null) {
+      const run = scenario.runs.find((item) => String(item.id) === match?.[1]);
+      const attempt = scenario.attempts.get(`${match[1] ?? ''}/${match[2] ?? ''}`) ?? { status: run?.status, conclusion: run?.conclusion };
+      send(response, 200, { id: run?.id, run_attempt: Number(match[2]), ...attempt });
       return;
     }
     if ((match = /^\/actions\/runs\/(\d+)\/artifacts$/.exec(path)) !== null) {
@@ -273,6 +283,8 @@ export function buildScenario(
     comparePageSize: 100,
     pulls: new Map(),
     runs: [],
+    attempts: new Map(),
+    jobsPageSize: 100,
     jobs: new Map(),
     artifacts: new Map(),
     zips: new Map(),

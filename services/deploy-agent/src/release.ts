@@ -5,7 +5,10 @@
  * the OLDEST push run for X and its NEWEST usable attempt (from run_attempt down to 1): the jobs API of that attempt
  * shows `ci-gate` and `publish` completed/success. The status and conclusion of the whole run are NOT a condition:
  * `staging-verify` runs in the same run and waits for this very deployment, so the run is in progress until the release
- * is deployed (and fails when it is not). Both jobs must come from ONE attempt — never mixed across attempts. The
+ * is deployed (and fails when it is not). Both jobs come from the job list of the SAME attempt; jobs carried over by
+ * GitHub on a partial re-run are consistent because `needs` is re-evaluated. Exactly one job of each name (a duplicate
+ * is a rejection). A `skipped` additionally needs the attempt itself completed/success (a run cancelled after a green
+ * `ci-gate` is not final and is never cached). The
  * artifact `release-manifest` (exact name, not expired, of this run and commit; the newest when re-runs made several) is
  * downloaded through the redirect check of github.ts and parsed in memory (zip.ts, manifest.ts).
  * `unusable` = X has no usable release now (no run, a job running, publish failed — a re-run may change that);
@@ -14,10 +17,10 @@
  * verifier looks at an older commit. A missing or forged manifest of a successful publish is a rejection.
  */
 import type { AgentConfig } from './config.ts';
-import { Rejection, ensure, integer, isRecord } from './errors.ts';
+import { Rejection, ensure, integer, isRecord, record } from './errors.ts';
 import { MAX_ARTIFACT_BYTES, type GitHub } from './github.ts';
 import { parseManifest, sha256, type Manifest } from './manifest.ts';
-import { jobStates, succeeded } from './pulls.ts';
+import { jobStates } from './pulls.ts';
 import { readSingleEntry } from './zip.ts';
 
 export const MANIFEST_ARTIFACT = 'release-manifest';
@@ -31,7 +34,17 @@ export interface Release {
   readonly runId: number;
 }
 
-/** The newest attempt (from `latest` down to 1) whose jobs make a release or a skip; null when none does. */
+/** The attempt itself completed with success (needed only to trust a skipped publish: a cancelled run is not final). */
+async function attemptSucceeded(github: GitHub, runId: number, attempt: number): Promise<boolean> {
+  const { body } = await github.json(`${github.repoPath}/actions/runs/${String(runId)}/attempts/${String(attempt)}`);
+  const run = record(body, 'v3-parse');
+  return run['status'] === 'completed' && run['conclusion'] === 'success';
+}
+
+/**
+ * The newest attempt (from `latest` down to 1) whose jobs make a release or a skip; null when none does. Exactly one job
+ * named `ci-gate` and one named `publish` per attempt: a duplicate is a rejection, never a pick of the green one.
+ */
 async function usableAttempt(
   github: GitHub,
   runId: number,
@@ -39,10 +52,12 @@ async function usableAttempt(
 ): Promise<{ attempt: number; kind: 'release' | 'skipped' } | null> {
   for (let attempt = latest; attempt >= 1; attempt -= 1) {
     const jobs = await jobStates(github, runId, attempt);
-    if (!succeeded(jobs, 'ci-gate')) continue;
-    if (succeeded(jobs, 'publish')) return { attempt, kind: 'release' };
+    const gate = jobs.get('ci-gate') ?? [];
     const publish = jobs.get('publish') ?? [];
-    if (publish.length > 0 && publish.every((state) => state === 'completed/skipped')) return { attempt, kind: 'skipped' };
+    ensure(gate.length <= 1 && publish.length <= 1, 'v3-duplicate-job', `run ${String(runId)} attempt ${String(attempt)}`);
+    if (gate[0] !== 'completed/success') continue;
+    if (publish[0] === 'completed/success') return { attempt, kind: 'release' };
+    if (publish[0] === 'completed/skipped' && (await attemptSucceeded(github, runId, attempt))) return { attempt, kind: 'skipped' };
   }
   return null;
 }
