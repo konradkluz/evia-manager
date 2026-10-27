@@ -943,6 +943,16 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Rekomendacja:** **akceptuj dla staging** do Caddy 2.11.8; nie dla prod.
 - **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-21; „świadomie akceptuję ryzyko” — tylko staging, do wydania Caddy 2.11.8, `expired_at` ≤ 30 dni, nie dla prod; decyzja przekazana przez orkiestratora)**.
 
+### RR-38 — PROJEKT wyjątku bramki 6: `curl` i `brotli-libs` w obrazach Caddy (Alpine 3.23) — czeka na akceptację Konrada (EVM-007)
+- **Opis:** `publish` z 2026-10-27 (commit 9d502eb) zszedł na bramce 6, bo nowe ogłoszenia z 2026-10-14/22 dotyczą pakietów systemowych Alpine w `caddy:2.11.7-alpine` (etap końcowy `evia-web` i obraz brzegowy z `infra-images.json`, ten sam digest bazowy): **CVE-2026-111497** (High; `brotli-libs` 1.2.0-r0, poprawka 1.2.1-r0; zapis poza zakresem w dekoderze Brotli) oraz **CVE-2026-92392** (High; `curl` i `libcurl` 8.22.0-r0, poprawka 8.23.0-r0; use-after-free przy uploadzie HTTP/2). Poprawki są już w repozytorium Alpine 3.23 (`curl` 8.23.0-r0, `brotli` 1.2.1-r0), ale **nie ma jeszcze obrazu Caddy z poprawką**: tag `2.11.7-alpine` przebudowano 2026-10-22 na Alpine 3.23.7 (digest `sha256:eb4d35b7…`) i nadal zawiera stare wersje; Caddy 2.11.8 nie jest wydany. Ten sam `libbrotli1` w ClamAV rozwiązano podniesieniem digestu (`clamav-debian:1.5.4` z 2026-10-26).
+- **Analiza osiągalności (propozycja, wymaga potwierdzenia `security-engineer`):** `curl` jest instalowany w obrazie Caddy przez `apk add` (Dockerfile upstream), ale żaden proces wdrożenia go tam nie uruchamia — `HEALTHCHECK NONE`, polecenie `caddy run`, kontrola wdrożenia (`infra/deploy-agent/deploy.sh`) używa `curl` hosta, nie kontenera; kontenery działają bez powłoki wystawionej na wejście zewnętrzne. `libcurl` i `brotli-libs` ładuje tylko `curl`; Caddy (Go) dekoduje Brotli własną biblioteką Go, nie `libbrotli`. Podatny kod jest więc obecny w obrazie, lecz nieuruchamiany.
+- **Źródło:** EVM-007, run CI 40491829236; raport `.scratch/scans/trivy-image-evia-web.json` (2026-10-27).
+- **Ryzyko po mitygacjach:** **P1 × W1 = 1 Low** (staging); prod — do ponownej oceny przed E8 (wymóg: bramka 6 bez wpisów dla pakietów OS).
+- **Wyjątek (do wprowadzenia dopiero po akceptacji):** `.trivyignore.yaml` → 3 wpisy (CVE-2026-111497 dla `pkg:apk/alpine/brotli-libs@1.2.0-r0`, CVE-2026-92392 dla `pkg:apk/alpine/curl@8.22.0-r0` i `pkg:apk/alpine/libcurl@8.22.0-r0`), `expired_at` ≤ 30 dni od akceptacji, owner `security-engineer`.
+- **Termin i warunek usunięcia:** usunąć z pierwszym digestem Caddy zbudowanym na Alpine z `curl` ≥ 8.23.0-r0 i `brotli-libs` ≥ 1.2.1-r0 (Renovate); termin ≤ 30 dni.
+- **Rekomendacja:** akceptuj dla staging na ≤ 30 dni; alternatywa bez wyjątku: poczekać na przebudowę upstream (publish zostaje czerwony do tego czasu) albo własny etap budowy usuwający pakiety OS (wymaga QEMU lub własnego obrazu — odradzane).
+- **Decyzja Konrada:** **oczekuje** (projekt; nie zaakceptowano).
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.
