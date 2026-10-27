@@ -9,6 +9,8 @@
  * - an unknown path or method answers 404 problem+json; a status the operation does not define answers 500 with a readable message;
  * - never echoes the request (no body, no query, no header value except the validated status code).
  */
+/// <reference types="node" />
+// tsconfig.build.json has `types: []` (the published API needs no ambient Node types); this file is the one Node-only entry point.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 
 type Json = Record<string, unknown>;
