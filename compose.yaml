@@ -49,6 +49,8 @@ x-backend: &backend
     # EVM-007 AC4: the contract test of the API configuration against the compose file of the deployment channel.
     - ./infra/runtime/compose.staging.yaml:/src/infra/runtime/compose.staging.yaml:ro
     - ./infra/deploy-agent/secrets.manifest.json:/src/infra/deploy-agent/secrets.manifest.json:ro
+    # EVM-007 AC1: the integration test that runs the migrations as evia_migrator on a database created like the staging one.
+    - ./infra/runtime/postgres-init/10-roles.sql:/src/infra/runtime/postgres-init/10-roles.sql:ro
 
 services:
   # Linux dependencies from the lockfile into the bt-work volume (network: npm registry). Run after a lockfile change.
