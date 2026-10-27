@@ -13,4 +13,5 @@
 | [`runbooks/rollback-staging.md`](runbooks/rollback-staging.md) | rollback stagingu poleceniem administratora (tylko commit z rejestru), dostęp awaryjny bez portu 22 | EVM-007 |
 | [`runbooks/rotacja-sekretow-kanalu.md`](runbooks/rotacja-sekretow-kanalu.md) | PAT-y kanału (≤ 12 mies.), sekrety aplikacji na VM, tokeny IaC | EVM-007 |
 | [`runbooks/incydent-blokada-v0.md`](runbooks/incydent-blokada-v0.md) | push lub force push na `main` poza PR: wstrzymanie, analiza, `gh cache delete --all`, nowa kotwica V0 w sesji IaC | EVM-007 |
+| [`runbooks/rejestr-usuniec.md`](runbooks/rejestr-usuniec.md) | rejestr usunięć poza bazą: format obiektu, semantyka „co najmniej raz”, ponowne stosowanie po odtworzeniu bazy, fail-closed | EVM-040 |
 | odtworzenie backupu | staging i produkcja | EVM-084, E8 |
