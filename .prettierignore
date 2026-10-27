@@ -13,3 +13,6 @@ pnpm-lock.yaml
 **/.dev-build/
 **/coverage/
 **/generated/
+
+# Baseline of the accepted contract (EVM-090): canonical JSON written by `baseline:update`, not formatted by hand
+packages/contracts/baseline/
