@@ -27,14 +27,25 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@evia/web..." \
  && pnpm --filter "@evia/web^..." run build \
  && pnpm --filter @evia/web run build
 
-FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS runtime
+FROM caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f AS caddy-src
+
+# The official image sets the file capability cap_net_bind_service=+ep on /usr/bin/caddy. The VM runs this container with
+# cap_drop: ALL + no-new-privileges, so exec of a binary with file capabilities outside the bounding set fails with EPERM
+# (restart loop). The panel listens on 8080 and needs no capability. A plain cp (no -a) on the runner platform
+# drops the xattr without running the target binary (no emulation); the final stage only copies it.
+FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS caddy-nocap
+COPY --from=caddy-src /usr/bin/caddy /tmp/caddy-orig
+RUN cp /tmp/caddy-orig /tmp/caddy && chmod 0555 /tmp/caddy
+
+FROM caddy-src AS runtime
 
 ENV XDG_CONFIG_HOME=/tmp/caddy-config \
     XDG_DATA_HOME=/tmp/caddy-data
 COPY --chmod=0444 infra/images/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/apps/web/dist /srv
+COPY --from=caddy-nocap /tmp/caddy /usr/local/bin/caddy
 
 USER 65532:65532
 EXPOSE 8080
 HEALTHCHECK NONE
-CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+CMD ["/usr/local/bin/caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
