@@ -9,9 +9,11 @@ import { useOnline } from '../shell/use-online.ts';
 import { JournalComposer } from './journal-composer.tsx';
 import { JournalCorrectionDialog } from './journal-correction-dialog.tsx';
 import { JournalEntry } from './journal-entry.tsx';
+import { JournalRedactDialog } from './journal-redact-dialog.tsx';
 import { formatEntryDate, groupByDay, relationOf } from './journal-format.ts';
 import { SectionError, SectionLoading } from './section-states.tsx';
 import { WORK_ORDER_JOURNAL_KEY } from './query-keys.ts';
+import { useJournalErase } from './use-journal-erase.ts';
 import { isBadJournalCursor, useJournal, type JournalFilters } from './use-journal.ts';
 
 type KindFilter = TimelineEntryInputKind | null;
@@ -54,11 +56,14 @@ export function JournalSection({
   const [eventGroup, setEventGroup] = useState<TimelineEventGroup | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<TimelineEntry | null>(null);
+  const [redacting, setRedacting] = useState<TimelineEntry | null>(null);
+  const administrator = role === 'administrator';
+  const erase = useJournalErase(order.id);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [cursorReset, setCursorReset] = useState(false);
   const queryClient = useQueryClient();
   const filters: JournalFilters = { kind, stageId, eventGroup };
-  const journal = useJournal(order.id, filters, true);
+  const journal = useJournal(order.id, filters, true, administrator);
   const groups = useMemo(() => stageGroups(procedures.data), [procedures.data]);
 
   const entries = useMemo(() => journal.data?.pages.flatMap((page) => page.items) ?? [], [journal.data]);
@@ -80,7 +85,7 @@ export function JournalSection({
       if (result.isError && isBadJournalCursor(result.error)) {
         // The cursor expired (30 minutes) or no longer fits: read the journal again from the first page and say so.
         setCursorReset(true);
-        void queryClient.resetQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id, kind, stageId, eventGroup] });
+        void queryClient.resetQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, order.id, kind, stageId, eventGroup, administrator] });
         return;
       }
       setCursorReset(false);
@@ -209,6 +214,14 @@ export function JournalSection({
                       byId={byId}
                       nowMs={nowMs}
                       online={online}
+                      role={role}
+                      onRemove={(item) => {
+                        erase.remove(item.id);
+                      }}
+                      onRestore={(item) => {
+                        erase.restore(item.id);
+                      }}
+                      onRedact={setRedacting}
                       itemRef={undefined}
                       onCorrect={
                         canWrite &&
@@ -245,6 +258,16 @@ export function JournalSection({
             </div>
           ) : null}
         </div>
+      )}
+      {redacting === null ? null : (
+        <JournalRedactDialog
+          key={redacting.id}
+          workOrderId={order.id}
+          entry={redacting}
+          onClose={() => {
+            setRedacting(null);
+          }}
+        />
       )}
       {correcting === null ? null : (
         <JournalCorrectionDialog

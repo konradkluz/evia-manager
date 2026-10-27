@@ -9,7 +9,9 @@ import {
   Info,
   MessageSquareText,
   Pencil,
+  StatusBadge,
   TimelineEntry,
+  type ActionMenuItem,
 } from '@evia/ui-web';
 import type { TFunction } from 'i18next';
 import { useState, type Ref } from 'react';
@@ -35,6 +37,11 @@ export interface JournalEntryProps {
   readonly nowMs: number;
   /** Set for Administrator and Editor and a correctable entry: opens "Popraw wpis". */
   readonly onCorrect: ((entry: Entry) => void) | undefined;
+  /** The role of the person (EVM-040): the Administrator gets "Usuń wpis" / "Przywróć wpis" / "Zredaguj treść…", the Editor the same items disabled with the reason. */
+  readonly role?: string | undefined;
+  readonly onRemove?: ((entry: Entry) => void) | undefined;
+  readonly onRestore?: ((entry: Entry) => void) | undefined;
+  readonly onRedact?: ((entry: Entry) => void) | undefined;
   readonly online: boolean;
   readonly itemRef: Ref<HTMLLIElement> | undefined;
 }
@@ -46,7 +53,7 @@ export interface JournalEntryProps {
  * `javascript:` — stays text. A corrected entry is collapsed with "Zastąpiony poprawką z …" and "Pokaż treść"; a correction
  * says "Poprawka wpisu z …:" first. Values the panel does not know (a kind, a category) are not shown raw (P-12).
  */
-export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }: JournalEntryProps) {
+export function JournalEntry({ entry, byId, nowMs, onCorrect, role, onRemove, onRestore, onRedact, online, itemRef }: JournalEntryProps) {
   const { t } = useTranslation();
   const [shown, setShown] = useState(false);
   const known = entry.kind === 'note' || entry.kind === 'comment';
@@ -87,20 +94,64 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }:
     .join(' · ');
 
   const menuLabel = t('workOrder.journal.entry.menuLabel', { author, time });
+  const deleted = entry.deletedAt !== null;
+  const items: ActionMenuItem[] = [];
+  if (onCorrect !== undefined && !deleted) {
+    items.push({
+      id: 'correct',
+      label: t('workOrder.journal.entry.correct'),
+      onSelect: () => {
+        onCorrect(entry);
+      },
+      ...(online ? {} : { disabledHint: t('workOrder.journal.entry.correctOffline') }),
+    });
+  }
+  // EVM-040 AC1, AC2, AC5, AC6: the Administrator acts, the Editor sees the items disabled with the reason, Tylko odczyt no menu.
+  // An automatic entry has no menu at all (AC5; EVM-038 AC6): it holds no personal data, so it is never deleted or redacted.
+  const eraseHint = (administrator: boolean): string | undefined =>
+    !administrator ? t('workOrder.journal.entry.adminOnly') : online ? undefined : t('workOrder.journal.entry.eraseOffline');
+  const administrator = role === 'administrator';
+  if (event === null && (administrator || role === 'editor')) {
+    const hint = eraseHint(administrator);
+    const withHint = (extra: string | undefined) => {
+      const text = hint ?? extra;
+      return text === undefined ? {} : { disabledHint: text };
+    };
+    if (deleted) {
+      items.push({
+        id: 'restore',
+        label: t('workOrder.journal.entry.restore'),
+        onSelect: () => {
+          onRestore?.(entry);
+        },
+        ...withHint(undefined),
+      });
+    } else {
+      items.push({
+        id: 'remove',
+        label: t('workOrder.journal.entry.remove'),
+        onSelect: () => {
+          onRemove?.(entry);
+        },
+        ...withHint(undefined),
+      });
+    }
+    items.push({
+      id: 'redact',
+      label: t('workOrder.journal.entry.redact'),
+      tone: 'danger',
+      startsGroup: true,
+      onSelect: () => {
+        onRedact?.(entry);
+      },
+      ...withHint(redacted ? t('workOrder.journal.entry.alreadyRedacted') : undefined),
+    });
+  }
   const actions =
-    onCorrect === undefined ? undefined : (
+    items.length === 0 ? undefined : (
       <ActionMenu
         label={menuLabel}
-        items={[
-          {
-            id: 'correct',
-            label: t('workOrder.journal.entry.correct'),
-            onSelect: () => {
-              onCorrect(entry);
-            },
-            ...(online ? {} : { disabledHint: t('workOrder.journal.entry.correctOffline') }),
-          },
-        ]}
+        items={items}
         trigger={(props) => <IconButton {...props} icon={EllipsisVertical} label={menuLabel} />}
       />
     );
@@ -162,6 +213,11 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, online, itemRef }:
       entryId={entry.id}
       {...(itemRef === undefined ? {} : { itemRef })}
     >
+      {deleted ? (
+        <div>
+          <StatusBadge status="cancelled" label={t('workOrder.journal.entry.deleted')} />
+        </div>
+      ) : null}
       {content}
     </TimelineEntry>
   );

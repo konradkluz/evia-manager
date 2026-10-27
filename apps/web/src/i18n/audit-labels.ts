@@ -86,6 +86,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'payment_milestone.restored': 'Korekta: przywrócenie transzy płatności',
   'payment_milestone.amount_corrected': 'Korekta: zmiana kwoty transzy płatności',
   'payment_milestone.deleted': 'Korekta: usunięcie transzy płatności',
+  'timeline_entry.deleted': 'Usunięcie wpisu dziennika',
+  'timeline_entry.restored': 'Przywrócenie wpisu dziennika',
+  'timeline_entry.redacted': 'Redakcja treści wpisu dziennika',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -162,7 +165,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'procedure_stage.restored',
     ],
   },
-  { label: 'Dziennik zlecenia', actions: ['timeline_entry.created'] },
+  {
+    label: 'Dziennik zlecenia',
+    actions: ['timeline_entry.created', 'timeline_entry.deleted', 'timeline_entry.restored', 'timeline_entry.redacted'],
+  },
   {
     label: 'Płatności',
     actions: [
