@@ -262,6 +262,7 @@ describe('EVM-037 AC6 AC8 — the answer and who may read (SR-AUTHZ-05, SR-DATA-
           'body',
           'capturedAt',
           'createdAt',
+          'deletedAt',
           'event',
           'id',
           'kind',
@@ -302,6 +303,12 @@ describe('EVM-037 AC6 AC8 — the answer and who may read (SR-AUTHZ-05, SR-DATA-
       const answers = [];
       for (const path of paths) {
         const response = await reader.panel.get(path);
+        // EVM-040 AC1: the Administrator alone reads an entry that is soft deleted (with `deletedAt`); for everybody else it is the same 404
+        if (role === 'administrator' && path.endsWith(String(deleted))) {
+          expect(response.status, `${role} ${path}`).toBe(200);
+          expect(response.body).toMatchObject({ id: deleted, deletedAt: '2026-10-10T08:00:00.000Z' });
+          continue;
+        }
         expect(response.status, `${role} ${path}`).toBe(404);
         answers.push(JSON.stringify({ ...(response.body as object), traceId: '' }));
       }

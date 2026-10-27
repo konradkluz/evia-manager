@@ -185,10 +185,12 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
   ]);
   const [own, other, deleted] = [...ids.values()];
   if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
-  const [ownEntry] = await insertEntries(db, own, author.id, [{}]);
-  const [otherEntry] = await insertEntries(db, other, author.id, [{}]);
+  const [ownEntry, eraseEntry] = await insertEntries(db, own, author.id, [{}, {}]);
+  const [otherEntry, eraseForeign] = await insertEntries(db, other, author.id, [{}, {}]);
   await insertEntries(db, deleted, author.id, [{}]);
-  if (ownEntry === undefined || otherEntry === undefined) throw new Error('the fixture entries were not inserted');
+  if (ownEntry === undefined || otherEntry === undefined || eraseEntry === undefined || eraseForeign === undefined) {
+    throw new Error('the fixture entries were not inserted');
+  }
   const journal: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}/timeline`, foreign: () => `${WORK_ORDERS}/${deleted}/timeline` };
   return {
     listTimelineEntries: journal,
@@ -196,6 +198,20 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
     getTimelineEntry: {
       own: () => `${WORK_ORDERS}/${own}/timeline/${ownEntry}`,
       foreign: () => `${WORK_ORDERS}/${own}/timeline/${otherEntry}`,
+    },
+    // EVM-040: the deletion, the restoration and the redaction - "foreign" is the entry of ANOTHER live order named in the path of the first (the
+    // one an attacker tries). Entries of their own, so the deletion of the matrix does not change what the reads of the matrix look at.
+    deleteTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}`,
+    },
+    restoreTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/restore`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/restore`,
+    },
+    redactTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/redact`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/redact`,
     },
   };
 }

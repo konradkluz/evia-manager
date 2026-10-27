@@ -56,11 +56,20 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
   });
 
   it('EVM-037 SR-API-04 the cursor is bound to the order and the filters — and not to the limit', () => {
-    const base = { kind: undefined, eventGroup: undefined, procedureStageId: undefined, limit: 25, cursor: undefined } as const;
-    expect(filterPartsOf(ORDER, base)).toEqual([ORDER, '', '', '']);
-    expect(filterPartsOf(ORDER, { ...base, kind: 'note', procedureStageId: STAGE })).toEqual([ORDER, 'note', '', STAGE]);
-    expect(filterPartsOf(ORDER, { ...base, eventGroup: 'status_changes' })).toEqual([ORDER, '', 'status_changes', '']);
+    const base = {
+      kind: undefined,
+      eventGroup: undefined,
+      procedureStageId: undefined,
+      includeDeleted: false,
+      limit: 25,
+      cursor: undefined,
+    } as const;
+    expect(filterPartsOf(ORDER, base)).toEqual([ORDER, '', '', '', '']);
+    expect(filterPartsOf(ORDER, { ...base, kind: 'note', procedureStageId: STAGE })).toEqual([ORDER, 'note', '', STAGE, '']);
+    expect(filterPartsOf(ORDER, { ...base, eventGroup: 'status_changes' })).toEqual([ORDER, '', 'status_changes', '', '']);
     expect(filterPartsOf(ORDER, { ...base, limit: 100 })).toEqual(filterPartsOf(ORDER, base));
+    // EVM-040: the list with the deleted entries has a cursor of its own
+    expect(filterPartsOf(ORDER, { ...base, includeDeleted: true })).toEqual([ORDER, '', '', '', 'deleted']);
   });
 
   it('EVM-037 AC6 the position is the time of the server and the identifier of the last entry — and only that is read back', () => {

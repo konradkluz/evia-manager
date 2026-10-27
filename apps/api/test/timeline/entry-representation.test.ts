@@ -25,6 +25,8 @@ const row = (overrides: Partial<EntryRow> = {}): EntryRow => ({
   created_at: CREATED,
   created_by: AUTHOR,
   redacted_at: null,
+  deleted_at: null,
+  version: 1,
   event_code: null,
   event_payload: null,
   ...overrides,
@@ -99,6 +101,9 @@ describe('the answer of an entry (EVM-037 AC1–AC3; SR-DATA-03, ASVS V15.3.1)',
     );
     expect(event).toMatchObject({ kind: 'event', body: null, author: null, origin: 'system', capturedAt: '2026-10-11T07:59:00.000Z' });
     expect(toTimelineEntry(row({ redacted_at: CREATED }), batch())).toMatchObject({ redactedAt: '2026-10-11T08:00:00.000Z' });
+    // EVM-040: the time of the deletion is shown as `deletedAt`, and `null` for an entry that is not deleted
+    expect(toTimelineEntry(row({ deleted_at: CREATED }), batch())).toMatchObject({ deletedAt: '2026-10-11T08:00:00.000Z' });
+    expect(toTimelineEntry(row(), batch())).toMatchObject({ deletedAt: null });
   });
 
   const stageEvent = (payload: Record<string, unknown>, code = 'stage_status_changed') =>

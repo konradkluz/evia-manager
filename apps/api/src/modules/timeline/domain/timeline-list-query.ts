@@ -34,6 +34,10 @@ export const timelineListQuerySchema = z
     kind: zTimelineEntryInputKind.optional(),
     eventGroup: zTimelineEventGroup.optional(),
     procedureStageId: z.uuid().optional(),
+    includeDeleted: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
     limit: z
       .string()
       .regex(/^[0-9]{1,3}$/)
@@ -55,6 +59,8 @@ export interface TimelineListQuery {
   readonly kind: z.infer<typeof zTimelineEntryInputKind> | undefined;
   readonly eventGroup: z.infer<typeof zTimelineEventGroup> | undefined;
   readonly procedureStageId: string | undefined;
+  /** Also the entries that are soft deleted (EVM-040); the Administrator only - the use case refuses the others. */
+  readonly includeDeleted: boolean;
   readonly limit: number;
   readonly cursor: string | undefined;
 }
@@ -63,6 +69,7 @@ export const resolveTimelineListQuery = timelineListQuerySchema.transform((query
   kind: query.kind,
   eventGroup: query.eventGroup,
   procedureStageId: query.procedureStageId,
+  includeDeleted: query.includeDeleted ?? false,
   limit: query.limit ?? DEFAULT_LIMIT,
   cursor: query.cursor,
 }));
@@ -73,6 +80,8 @@ export const filterPartsOf = (workOrderId: string, query: TimelineListQuery): st
   query.kind ?? '',
   query.eventGroup ?? '',
   query.procedureStageId ?? '',
+  // a cursor of the list with the deleted entries is not valid for the list without them, and the other way round (EVM-040)
+  query.includeDeleted ? 'deleted' : '',
 ];
 
 const position = z.tuple([z.iso.datetime(), z.uuid()]);
