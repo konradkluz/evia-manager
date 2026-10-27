@@ -4,7 +4,7 @@ title: "API: logowanie mobilne i rejestr urządzeń"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: draft
+status: ready
 priority: P0
 path: pelna             # uwierzytelnianie, urządzenia, uprawnienia
 owner: backend-developer
@@ -75,3 +75,4 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
+- 2026-10-27 — status ready warunkowo (Tech Lead, polecenie Konrada: decyzje po uruchomieniu torów): przyjęte rekomendowane domyślne decyzje 8, 9 i 17 z README M2 (refresh token bez powiązania z Keystore + RR, pendingItemsReported minimalnie, właściciel odświeżania tokenów po stronie natywnej za portem SessionOwner); ADR-0020a w osobnym kroku; Konrad potwierdza lub zmienia

@@ -6,6 +6,8 @@ milestone: M1
 epic: E6 Dokumenty i media (web)
 status: ready
 priority: P1
+path: pelna
+model: sonnet
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
 reviewers: [code-reviewer, security-engineer, ux-designer]
@@ -102,3 +104,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-27 — nocna kolejka (tor T1): Konrad wskazał ścieżkę lekka, ale historyjka ma 8 AC i 3 recenzentów (lekka: ≤ 6 AC i 1 recenzent) — przyjęto pelna, model sonnet (Tech Lead); do potwierdzenia przez Konrada
