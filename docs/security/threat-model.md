@@ -965,6 +965,21 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Ryzyko po mitygacjach:** **P1 × W2 = 2 Low** po aktualizacji Node; przed nią ocena High (zdalnie, bez uwierzytelnienia, wpływ do RCE). Trzeba podnosić Node w obrazie przy każdym ogłoszeniu CVE Node (Renovate); etap budowania `node:26.10.0` pozostaje (wejście zaufane, niższy priorytet).
 - **Decyzja Konrada:** do informacji (mitygacja zrealizowana; brak ryzyka rezydualnego wymagającego akceptacji).
 
+### RR-40 — Brak rekordu CAA dla `staging.eviacharge.pl` — tylko staging (EVM-007)
+- **Status:** **zaakceptowane przez Konrada (2026-10-27)** — tylko staging; nigdy dla produkcji.
+- **Opis:** na węźle `staging.eviacharge.pl` nie ma rekordów CAA (ADR-0018, krok 4 runbooka wdrożenia staging: `0 issue "letsencrypt.org"`, `0 issuewild ";"`); każdy publiczny CA mógłby wystawić certyfikat dla tej nazwy (bez CAA ochroną pozostaje DNSSEC, CT i sam proces walidacji domeny). Kontrola `dns` w `staging-verify` (`VERIFY_PROFILE=staging`) pokazuje brak CAA jako ostrzeżenie `OSTRZEŻENIE`, nie jako błąd; profil domyślny (`strict`) i produkcja traktują go jako błąd. Brak `rua` w `_dmarc` — osobno, RR-41.
+- **Ryzyko po mitygacjach:** staging — **P1 × W1 = 1 Low** (dane syntetyczne, brak danych produkcyjnych); produkcja — nieakceptowane.
+- **Warunek prod:** rekordy `0 issue "letsencrypt.org"` (z `accounturi`) i `0 issuewild ";"` muszą istnieć **przed uruchomieniem DNS produkcji**; kontrola `dns` bez `VERIFY_PROFILE=staging` musi być zielona — punkt sign-off wydania E8.
+- **Źródło:** EVM-007, `staging-verify` na żywym stagingu (kontrola `dns`); notatka w historyjce z 2026-10-22.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-27; „na razie nie dodawaj CAA. dodamy je przy stawianiu produkcji” — tylko staging)**.
+
+### RR-41 — `_dmarc.staging.eviacharge.pl` bez `rua` (znany problem) — tylko staging (EVM-007)
+- **Status:** **zaakceptowane przez Konrada (2026-10-27)** — tylko staging, do poprawy przed produkcją.
+- **Opis:** rekord DMARC stagingu nie ma tagu `rua` (runbook krok 6: `p=none` z `rua`), więc nie ma raportów zbiorczych o nadużyciach domeny nadawczej stagingu. Kontrola `dns` w `staging-verify` (`VERIFY_PROFILE=staging`) pokazuje to jako osobne ostrzeżenie; profil `strict` (produkcja, domyślny) traktuje jako błąd. Całkowity brak rekordu DMARC lub nieprawidłowa polityka pozostają błędem w obu profilach.
+- **Ryzyko po mitygacjach:** staging — **P1 × W1 = 1 Low** (`p=none`, dane syntetyczne, tylko brak telemetrii); produkcja — nieakceptowane.
+- **Warunek prod:** `rua` ustawione przed uruchomieniem poczty produkcyjnej; kontrola `dns` bez `VERIFY_PROFILE=staging` zielona — punkt sign-off wydania E8.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-27; „Zapisz w rua w _dmarc jako znany problem na razie. Poprawimy go potem.” — tylko staging)**.
+
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
 - **Kto:** `security-engineer`; przegląd `solution-architect` i `devops-engineer`; akceptacja nowych ryzyk rezydualnych — Konrad.

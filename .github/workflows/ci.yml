@@ -591,6 +591,9 @@ jobs:
       - name: Wait for /version (the commit and manifest of publish)
         run: node tools/staging-verify/cli.mjs wait
       - name: Ports, TLS, headers and DNS
+        env:
+          # staging only: the missing CAA is a warning (RR-40); production verification must use the default (strict)
+          VERIFY_PROFILE: staging
         run: node tools/staging-verify/cli.mjs checks
       - name: Anonymous ZAP baseline (bramka 10)
         run: |

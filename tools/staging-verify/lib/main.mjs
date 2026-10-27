@@ -8,7 +8,7 @@ import { promises as dns } from 'node:dns';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { checkPorts, evaluateDns, evaluateHeaders, evaluateTls, probePort, readDns, readTls } from './checks.mjs';
-import { bucketCheck, summarize } from './summary.mjs';
+import { bucketCheck, label, summarize } from './summary.mjs';
 import { waitForVersion } from './version.mjs';
 import { evaluateZap } from './zap.mjs';
 
@@ -100,10 +100,16 @@ export async function main(command, io) {
     return check.passed ? 0 : 1;
   }
   if (command === 'checks') {
-    const checks = [await checkPorts(io.probe), await tlsCheck(io), await headersCheck(io), evaluateDns(await io.dns()), bucketCheck()];
+    // VERIFY_PROFILE: unset = strict (production-grade); only the staging job sets "staging"; an unknown value is red.
+    const checks = [
+      await checkPorts(io.probe),
+      await tlsCheck(io),
+      await headersCheck(io),
+      evaluateDns(await io.dns(), io.env['VERIFY_PROFILE'] ?? 'strict'),
+      bucketCheck(),
+    ];
     save(io, 'checks.json', checks);
-    for (const check of checks)
-      io.print(`${check.id}: ${check.skipped === true ? 'pominięta' : check.passed ? 'OK' : 'BŁĄD'} — ${check.details.join('; ')}\n`);
+    for (const check of checks) io.print(`${check.id}: ${label(check)} — ${check.details.join('; ')}\n`);
     return 0;
   }
   if (command === 'report') {

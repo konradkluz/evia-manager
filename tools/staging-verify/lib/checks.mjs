@@ -7,7 +7,7 @@
 import { connect as tcpConnect } from 'node:net';
 import { connect as tlsConnect } from 'node:tls';
 
-/** @typedef {{ id: string, passed: boolean, skipped?: boolean, details: string[] }} Check */
+/** @typedef {{ id: string, passed: boolean, skipped?: boolean, warnings?: string[], details: string[] }} Check */
 
 /** Ports that must be closed from the internet (port 22 included: SSH only from the administrator, AC6). */
 export const CLOSED_PORTS = Object.freeze([
@@ -155,20 +155,44 @@ export function evaluateHeaders(headers, redirectStatus, location, host) {
  *   spf: string[], dmarc: string[] }} DnsFacts
  */
 
-/** CAA of the node: exactly `0 issue "letsencrypt.org"` (optionally with accounturi) and `0 issuewild ";"`; SPF and DMARC present. @param {DnsFacts} facts @returns {Check} */
-export function evaluateDns(facts) {
+/**
+ * Verification profiles of the DNS check. `strict` (the default, and the only one for production) makes every finding an
+ * error; `staging` turns only the two CAA findings into warnings (Konrad, 2026-10-27: CAA is added when production is set up;
+ * threat-model RR-40). Anything else fails closed.
+ */
+export const DNS_PROFILES = Object.freeze(['strict', 'staging']);
+
+/**
+ * CAA of the node: exactly `0 issue "letsencrypt.org"` (optionally with accounturi) and `0 issuewild ";"`; SPF and DMARC present.
+ * @param {DnsFacts} facts @param {string} [profile] @returns {Check}
+ */
+export function evaluateDns(facts, profile = 'strict') {
+  if (!DNS_PROFILES.includes(profile))
+    return { id: 'dns', passed: false, details: [`nieznany profil weryfikacji "${profile}" (dozwolone: ${DNS_PROFILES.join(', ')})`] };
   const details = [];
+  const caaFindings = [];
   if (facts.a.length === 0) details.push('brak rekordu A');
   if (facts.aaaa.length === 0) details.push('brak rekordu AAAA');
   const issue = facts.caa.filter((record) => record.issue !== undefined).map((record) => String(record.issue).split(';')[0]?.trim());
   const wild = facts.caa.filter((record) => record.issuewild !== undefined).map((record) => String(record.issuewild).trim());
   if (JSON.stringify(issue) !== JSON.stringify(['letsencrypt.org']))
-    details.push(`CAA issue: ${issue.join(', ') || 'brak'} (oczekiwane letsencrypt.org)`);
-  if (JSON.stringify(wild) !== JSON.stringify([';'])) details.push('CAA issuewild ";" (zakaz certyfikatów wildcard)');
+    caaFindings.push(`CAA issue: ${issue.join(', ') || 'brak'} (oczekiwane letsencrypt.org)`);
+  if (JSON.stringify(wild) !== JSON.stringify([';'])) caaFindings.push('CAA issuewild ";" (zakaz certyfikatów wildcard)');
   if (!facts.spf.some((record) => record.startsWith('v=spf1 ') && / -all$| ~all$/.test(record))) details.push('brak SPF dla staging');
-  if (!facts.dmarc.some((record) => /^v=DMARC1;\s*p=(none|quarantine|reject)\b/.test(record) && record.includes('rua=')))
-    details.push('brak _dmarc z raportami (rua)');
-  return { id: 'dns', passed: details.length === 0, details: details.length === 0 ? ['A, AAAA, CAA, SPF, DMARC'] : details };
+  const dmarcRecords = facts.dmarc.filter((record) => /^v=DMARC1;\s*p=(none|quarantine|reject)\b/.test(record));
+  const ruaFindings = [];
+  if (dmarcRecords.length === 0) details.push('brak _dmarc z raportami (rua)');
+  else if (!dmarcRecords.some((record) => record.includes('rua='))) ruaFindings.push('brak _dmarc z raportami (rua)');
+  const warnings =
+    profile === 'staging'
+      ? [
+          ...caaFindings.map((finding) => `${finding} — staging bez CAA do czasu produkcji (RR-40)`),
+          ...ruaFindings.map((finding) => `${finding} — znany problem stagingu, do poprawy przed produkcją (RR-41)`),
+        ]
+      : [];
+  if (profile !== 'staging') details.push(...caaFindings, ...ruaFindings);
+  if (details.length === 0 && warnings.length === 0) return { id: 'dns', passed: true, details: ['A, AAAA, CAA, SPF, DMARC'] };
+  return { id: 'dns', passed: details.length === 0, details: [...details, ...warnings], ...(warnings.length > 0 ? { warnings } : {}) };
 }
 
 /** @param {import('node:dns').promises.Resolver} resolver @param {string} host @returns {Promise<DnsFacts>} */
