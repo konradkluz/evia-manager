@@ -1,0 +1,905 @@
+# Synchronization of the mobile app (EVM-090; offline-sync.md, ADR-0021). Every request schema is strict and bounded: a mutation is at
+# most 64 KB (enforced by the server, EVM-098), a batch at most 50 mutations, a page of changes at most 1 MB. Response projections list
+# EXACTLY the fields of "Projekcja pól na telefonie" (offline-sync.md) — an excluded field (e-mail, tax id, notes of a customer or party,
+# the metering point, storage keys, hashes, file names, the quarantine reason, the role and logins of a user, payments, audit) is never
+# a property here. No schema has `userId` or `deviceId`: the user and the device come from the session only (SR-SYNC-01).
+# Open vocabularies of responses are `x-extensible-enum` (api-guidelines.md → Enumy w odpowiedziach): the client shows a fallback.
+SyncId:
+  type: string
+  description: Identyfikator obiektu (UUID; UUIDv7 nadany przez klienta tam, gdzie obiekt tworzy telefon).
+  format: uuid
+  pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  maxLength: 36
+SyncClientId:
+  type: string
+  description: Identyfikator UUIDv7 nadany przez telefon (ponowienie wysyłki używa tego samego).
+  format: uuid
+  pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  maxLength: 36
+SyncTimestamp:
+  type: string
+  format: date-time
+  description: Chwila (UTC).
+  maxLength: 40
+SyncCursor:
+  type: string
+  description: >-
+    Kursor nieprzezroczysty (base64url) — klient niczego z niego nie czyta i nie składa. Serwer chroni go integralnie (AES-256-GCM,
+    ADR-0021 D6): niedekodowalny albo przeterminowany kursor daje `200 resync_required` (nie błąd klienta), kursor innego użytkownika
+    lub urządzenia daje `400 invalid_cursor`.
+  pattern: '^[A-Za-z0-9_-]{16,1024}$'
+  minLength: 16
+  maxLength: 1024
+SyncEntityType:
+  type: string
+  description: Typ obiektu w dzienniku zmian (słownik otwarty — nowe typy dochodzą addytywnie).
+  x-extensible-enum:
+    - work_order
+    - customer
+    - site
+    - party
+    - scope_item
+    - procedure_stage
+    - timeline_entry
+    - media_asset
+    - user
+  maxLength: 64
+SyncWorkOrder:
+  type: object
+  description: Zlecenie (projekcja dla telefonu; bez płatności i kolumn technicznych).
+  additionalProperties: false
+  required: [type, id, version, number, title, status, customerId, siteId, coordinatorUserId, description, plannedDate, createdAt, closedAt]
+  properties:
+    type:
+      type: string
+      const: work_order
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    number:
+      type: string
+      description: Numer nadany przez serwer (np. `ZL-2026-0042`); przy szybkim zleceniu do czasu synchronizacji „oczekuje na numer”.
+      maxLength: 32
+    title:
+      type: string
+      maxLength: 200
+    status:
+      type: string
+      x-extensible-enum: [new, quoting, accepted, in_progress, completed, settled, on_hold, cancelled]
+      maxLength: 32
+    customerId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    siteId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    coordinatorUserId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    description:
+      type: [string, 'null']
+      maxLength: 2000
+    plannedDate:
+      type: [string, 'null']
+      format: date
+      maxLength: 10
+    createdAt:
+      $ref: '#/SyncTimestamp'
+    closedAt:
+      type: [string, 'null']
+      format: date-time
+      description: Chwila zamknięcia (`settled`, `cancelled`) — podstawa reguły N dni w zakresie.
+      maxLength: 40
+SyncCustomer:
+  type: object
+  description: Klient — bez e-maila, NIP, adresu korespondencyjnego i notatek.
+  additionalProperties: false
+  required: [type, id, version, kind, displayName, phone]
+  properties:
+    type:
+      type: string
+      const: customer
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    kind:
+      type: string
+      x-extensible-enum: [person, company]
+      maxLength: 32
+    displayName:
+      type: string
+      maxLength: 401
+    phone:
+      type: string
+      description: Telefon w formacie E.164.
+      maxLength: 32
+SyncSite:
+  type: object
+  description: Lokalizacja — bez numeru punktu poboru energii (PPE).
+  additionalProperties: false
+  required:
+    - type
+    - id
+    - version
+    - siteType
+    - street
+    - buildingNumber
+    - apartmentNumber
+    - postalCode
+    - city
+    - parkingSpotNumber
+    - garageLevel
+    - connectionPowerKw
+    - managerPartyId
+    - distributionSystemOperatorPartyId
+    - notes
+  properties:
+    type:
+      type: string
+      const: site
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    siteType:
+      type: string
+      x-extensible-enum: [single_family_house, multi_family_garage, commercial, other]
+      maxLength: 32
+    street:
+      type: string
+      maxLength: 200
+    buildingNumber:
+      type: string
+      maxLength: 20
+    apartmentNumber:
+      type: [string, 'null']
+      maxLength: 20
+    postalCode:
+      type: string
+      maxLength: 6
+    city:
+      type: string
+      maxLength: 100
+    parkingSpotNumber:
+      type: [string, 'null']
+      maxLength: 20
+    garageLevel:
+      type: [string, 'null']
+      maxLength: 20
+    connectionPowerKw:
+      type: [number, 'null']
+      minimum: 0
+      maximum: 1000
+    managerPartyId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    distributionSystemOperatorPartyId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    notes:
+      type: [string, 'null']
+      maxLength: 2000
+SyncParty:
+  type: object
+  description: Strona (kontrahent) — bez e-maila, notatek i formy prawnej.
+  additionalProperties: false
+  required: [type, id, version, kind, displayName, contactPersonName, phone]
+  properties:
+    type:
+      type: string
+      const: party
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    kind:
+      type: string
+      x-extensible-enum:
+        - building_administration
+        - property_manager
+        - housing_community
+        - designer
+        - fire_safety_expert
+        - technical_expert
+        - distribution_system_operator
+        - subcontractor
+        - supplier
+        - other
+      maxLength: 64
+    displayName:
+      type: string
+      maxLength: 200
+    contactPersonName:
+      type: [string, 'null']
+      maxLength: 200
+    phone:
+      type: [string, 'null']
+      maxLength: 32
+SyncScopeItem:
+  type: object
+  description: Pozycja zakresu zlecenia.
+  additionalProperties: false
+  required: [type, id, version, workOrderId, position, code, name, parameterSetCode, parameters, quantity, notes]
+  properties:
+    type:
+      type: string
+      const: scope_item
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    workOrderId:
+      $ref: '#/SyncId'
+    position:
+      type: integer
+      minimum: 1
+      maximum: 50
+    code:
+      type: string
+      maxLength: 64
+    name:
+      type: string
+      maxLength: 200
+    parameterSetCode:
+      type: [string, 'null']
+      maxLength: 64
+    parameters:
+      type: object
+      description: Wartości techniczne parametrów pozycji.
+      maxProperties: 30
+      additionalProperties:
+        type: [string, number, boolean]
+        maxLength: 200
+    quantity:
+      type: integer
+      minimum: 1
+      maximum: 100
+    notes:
+      type: [string, 'null']
+      maxLength: 1000
+SyncProcedureStage:
+  type: object
+  description: Etap procesu zlecenia (z nazwą procesu — telefon nie pobiera osobno procesów).
+  additionalProperties: false
+  required:
+    - type
+    - id
+    - version
+    - workOrderId
+    - procedureId
+    - procedureCode
+    - procedureName
+    - code
+    - name
+    - position
+    - status
+    - dueDate
+    - responsibleUserId
+    - waitingOn
+    - waitingPartyId
+    - waitingSince
+    - blockedReason
+    - startedAt
+    - completedOn
+  properties:
+    type:
+      type: string
+      const: procedure_stage
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    workOrderId:
+      $ref: '#/SyncId'
+    procedureId:
+      $ref: '#/SyncId'
+    procedureCode:
+      type: string
+      maxLength: 64
+    procedureName:
+      type: string
+      maxLength: 200
+    code:
+      type: string
+      maxLength: 64
+    name:
+      type: string
+      maxLength: 200
+    position:
+      type: integer
+      minimum: 1
+      maximum: 30
+    status:
+      type: string
+      x-extensible-enum: [todo, in_progress, waiting, blocked, done, not_applicable]
+      maxLength: 32
+    dueDate:
+      type: [string, 'null']
+      format: date
+      maxLength: 10
+    responsibleUserId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    waitingOn:
+      type: [string, 'null']
+      x-extensible-enum: [customer, party]
+      maxLength: 32
+    waitingPartyId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    waitingSince:
+      type: [string, 'null']
+      format: date
+      maxLength: 10
+    blockedReason:
+      type: [string, 'null']
+      maxLength: 1000
+    startedAt:
+      type: [string, 'null']
+      format: date-time
+      maxLength: 40
+    completedOn:
+      type: [string, 'null']
+      format: date
+      maxLength: 10
+SyncTimelineEntry:
+  type: object
+  description: Wpis dziennika zlecenia (notatka, komentarz, zdarzenie).
+  additionalProperties: false
+  required:
+    - type
+    - id
+    - version
+    - workOrderId
+    - kind
+    - noteCategory
+    - body
+    - procedureStageId
+    - authorUserId
+    - createdAt
+    - origin
+    - capturedAt
+    - supersedesEntryId
+    - supersededByEntryId
+    - redactedAt
+  properties:
+    type:
+      type: string
+      const: timeline_entry
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    workOrderId:
+      $ref: '#/SyncId'
+    kind:
+      type: string
+      x-extensible-enum: [note, comment, event]
+      maxLength: 32
+    noteCategory:
+      type: [string, 'null']
+      x-extensible-enum: [phone_call, meeting, arrangement, site_visit, other]
+      maxLength: 32
+    body:
+      type: [string, 'null']
+      maxLength: 20000
+    procedureStageId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    authorUserId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    createdAt:
+      $ref: '#/SyncTimestamp'
+    origin:
+      type: string
+      x-extensible-enum: [web, mobile, system]
+      maxLength: 32
+    capturedAt:
+      type: [string, 'null']
+      format: date-time
+      maxLength: 40
+    supersedesEntryId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    supersededByEntryId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    redactedAt:
+      type: [string, 'null']
+      format: date-time
+      maxLength: 40
+SyncMediaAsset:
+  type: object
+  description: >-
+    Metadane materiału i podsumowanie pliku — bez klucza obiektu, skrótów SHA-256, nazwy pliku i przyczyny kwarantanny (SR-FILE).
+    Miniatury telefon pobiera osobno, na żądanie.
+  additionalProperties: false
+  required:
+    - type
+    - id
+    - version
+    - workOrderId
+    - mediaType
+    - category
+    - description
+    - procedureStageId
+    - capturedAt
+    - fileState
+    - fileStateReasonCode
+    - sizeBytes
+    - durationSeconds
+    - widthPx
+    - heightPx
+  properties:
+    type:
+      type: string
+      const: media_asset
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    workOrderId:
+      $ref: '#/SyncId'
+    mediaType:
+      type: string
+      x-extensible-enum: [photo, video]
+      maxLength: 32
+    category:
+      type: [string, 'null']
+      maxLength: 64
+    description:
+      type: [string, 'null']
+      maxLength: 1000
+    procedureStageId:
+      type: [string, 'null']
+      format: uuid
+      maxLength: 36
+    capturedAt:
+      type: [string, 'null']
+      format: date-time
+      maxLength: 40
+    fileState:
+      type: string
+      x-extensible-enum: [pending, uploading, processing, ready, failed]
+      maxLength: 32
+    fileStateReasonCode:
+      type: [string, 'null']
+      description: Tylko przy `failed`.
+      x-extensible-enum: [checksum_mismatch, processing_error]
+      maxLength: 64
+    sizeBytes:
+      type: [integer, 'null']
+      minimum: 0
+    durationSeconds:
+      type: [number, 'null']
+      minimum: 0
+    widthPx:
+      type: [integer, 'null']
+      minimum: 0
+    heightPx:
+      type: [integer, 'null']
+      minimum: 0
+SyncUser:
+  type: object
+  description: Użytkownik wskazany w danych — tylko identyfikator i nazwa wyświetlana (bez e-maila, roli i czasów logowania).
+  additionalProperties: false
+  required: [type, id, version, displayName]
+  properties:
+    type:
+      type: string
+      const: user
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
+    displayName:
+      type: string
+      maxLength: 200
+SyncEntity:
+  description: Obiekt w projekcji dla telefonu; rodzaj wskazuje `type`.
+  oneOf:
+    - $ref: '#/SyncWorkOrder'
+    - $ref: '#/SyncCustomer'
+    - $ref: '#/SyncSite'
+    - $ref: '#/SyncParty'
+    - $ref: '#/SyncScopeItem'
+    - $ref: '#/SyncProcedureStage'
+    - $ref: '#/SyncTimelineEntry'
+    - $ref: '#/SyncMediaAsset'
+    - $ref: '#/SyncUser'
+  discriminator:
+    propertyName: type
+    mapping:
+      work_order: '#/SyncWorkOrder'
+      customer: '#/SyncCustomer'
+      site: '#/SyncSite'
+      party: '#/SyncParty'
+      scope_item: '#/SyncScopeItem'
+      procedure_stage: '#/SyncProcedureStage'
+      timeline_entry: '#/SyncTimelineEntry'
+      media_asset: '#/SyncMediaAsset'
+      user: '#/SyncUser'
+SyncUpsert:
+  type: object
+  description: Utworzenie albo zmiana obiektu — bieżący stan z `version`.
+  additionalProperties: false
+  required: [op, entity]
+  properties:
+    op:
+      type: string
+      const: upsert
+    entity:
+      $ref: '#/SyncEntity'
+SyncDelete:
+  type: object
+  description: Znacznik usunięcia albo wyjścia z zakresu — tylko `type` i `id`, bez danych osobowych.
+  additionalProperties: false
+  required: [op, type, id]
+  properties:
+    op:
+      type: string
+      const: delete
+    type:
+      $ref: '#/SyncEntityType'
+    id:
+      $ref: '#/SyncId'
+SyncChange:
+  description: Jedna zmiana na stronie.
+  oneOf:
+    - $ref: '#/SyncUpsert'
+    - $ref: '#/SyncDelete'
+  discriminator:
+    propertyName: op
+    mapping:
+      upsert: '#/SyncUpsert'
+      delete: '#/SyncDelete'
+SyncChangesPage:
+  type: object
+  description: >-
+    Strona zmian (najwyżej 1 MB; `limit` 1–500, domyślnie 200). Klient stosuje ją atomowo, w jednej transakcji lokalnej, razem z
+    zapisem `cursor`. W fazie `snapshot` (pierwsze pobranie i resync) strony są stronicowane po agregatach.
+  additionalProperties: false
+  required: [result, phase, changes, cursor, hasMore, serverTime]
+  properties:
+    result:
+      type: string
+      const: changes
+    phase:
+      type: string
+      description: Faza kursora.
+      x-extensible-enum: [snapshot, changes]
+      maxLength: 32
+    changes:
+      type: array
+      maxItems: 500
+      items:
+        $ref: '#/SyncChange'
+    cursor:
+      $ref: '#/SyncCursor'
+    hasMore:
+      type: boolean
+      description: Czy są kolejne strony (klient pobiera je od razu).
+    serverTime:
+      $ref: '#/SyncTimestamp'
+SyncResyncRequired:
+  type: object
+  description: >-
+    Kursor nie jest już użyteczny albo zakres się zmienił — klient porzuca kursor i pobiera zakres od nowa (resync w cieniu; poza
+    `access_changed`, gdzie stara replika jest usuwana od razu). To odpowiedź `200`, nie błąd klienta.
+  additionalProperties: false
+  required: [result, reason, serverTime]
+  properties:
+    result:
+      type: string
+      const: resync_required
+    reason:
+      type: string
+      x-extensible-enum: [periodic, cursor_invalid, cursor_expired, scope_changed, access_changed]
+      maxLength: 32
+    serverTime:
+      $ref: '#/SyncTimestamp'
+SyncChangesResponse:
+  description: Strona zmian albo żądanie resyncu — rozróżnia `result`.
+  oneOf:
+    - $ref: '#/SyncChangesPage'
+    - $ref: '#/SyncResyncRequired'
+  discriminator:
+    propertyName: result
+    mapping:
+      changes: '#/SyncChangesPage'
+      resync_required: '#/SyncResyncRequired'
+SyncWorkOrderSnapshot:
+  type: object
+  description: >-
+    Migawka agregatu zlecenia w projekcji dla telefonu: zlecenie, pozycje zakresu, procesy i etapy, wpisy dziennika, klient,
+    lokalizacja, strony wskazane w lokalizacji i etapach, nazwy wskazanych użytkowników i metadane mediów — każdy obiekt z `version`.
+    Polityki stosowane przy odczycie.
+  additionalProperties: false
+  required: [serverTime, entities]
+  properties:
+    serverTime:
+      $ref: '#/SyncTimestamp'
+    entities:
+      type: array
+      maxItems: 2000
+      items:
+        $ref: '#/SyncEntity'
+SyncPendingItems:
+  type: integer
+  description: >-
+    Liczba elementów niewysłanych z telefonu (kolejka i pliki) — informacyjnie dla Administratora (W-17); nie wpływa na autoryzację ani
+    wynik.
+  minimum: 0
+  maximum: 1000000
+SyncNoteCategory:
+  type: string
+  description: Kategoria notatki (słownik domeny).
+  enum: [phone_call, meeting, arrangement, site_visit, other]
+CreateNotePayload:
+  type: object
+  description: Notatka do zlecenia (wpis dziennika `note`).
+  additionalProperties: false
+  required: [id, workOrderId, noteCategory, body, capturedAt]
+  properties:
+    id:
+      $ref: '#/SyncClientId'
+    workOrderId:
+      $ref: '#/SyncId'
+    noteCategory:
+      $ref: '#/SyncNoteCategory'
+    body:
+      type: string
+      description: Treść (1–10 000 znaków po normalizacji; limit mutacji 64 KB sprawdza serwer).
+      minLength: 1
+      maxLength: 20000
+    procedureStageId:
+      $ref: '#/SyncId'
+    capturedAt:
+      $ref: '#/SyncTimestamp'
+CreateCommentPayload:
+  type: object
+  description: Komentarz do zlecenia (wpis dziennika `comment`).
+  additionalProperties: false
+  required: [id, workOrderId, body, capturedAt]
+  properties:
+    id:
+      $ref: '#/SyncClientId'
+    workOrderId:
+      $ref: '#/SyncId'
+    body:
+      type: string
+      minLength: 1
+      maxLength: 20000
+    capturedAt:
+      $ref: '#/SyncTimestamp'
+SyncNewCustomer:
+  type: object
+  description: Nowy klient szybkiego zlecenia — wyłącznie rodzaj, nazwa i telefon (plus identyfikator nadany przez telefon).
+  additionalProperties: false
+  required: [id, kind, displayName, phone]
+  properties:
+    id:
+      $ref: '#/SyncClientId'
+    kind:
+      type: string
+      enum: [person, company]
+    displayName:
+      type: string
+      minLength: 1
+      maxLength: 200
+    phone:
+      type: string
+      pattern: '^[0-9+() -]{7,32}$'
+      minLength: 7
+      maxLength: 32
+SyncNewSite:
+  type: object
+  description: Nowa lokalizacja szybkiego zlecenia.
+  additionalProperties: false
+  required: [id, siteType, street, buildingNumber, postalCode, city]
+  properties:
+    id:
+      $ref: '#/SyncClientId'
+    siteType:
+      type: string
+      enum: [single_family_house, multi_family_garage, commercial, other]
+    street:
+      type: string
+      minLength: 1
+      maxLength: 200
+    buildingNumber:
+      type: string
+      minLength: 1
+      maxLength: 20
+    apartmentNumber:
+      type: string
+      maxLength: 20
+    postalCode:
+      type: string
+      pattern: '^\d{2}-\d{3}$'
+      maxLength: 6
+    city:
+      type: string
+      minLength: 1
+      maxLength: 100
+    parkingSpotNumber:
+      type: string
+      maxLength: 20
+CreateQuickWorkOrderPayload:
+  type: object
+  description: >-
+    Szybkie zlecenie z szablonu. Istniejący klient (`customerId`) ALBO nowy (`newCustomer`); istniejąca lokalizacja (`siteId`) ALBO
+    nowa (`newSite`) — dokładnie jedno z pary (inaczej `rejected validation_failed`). Numer nadaje serwer.
+  additionalProperties: false
+  required: [workOrderId, templateId, title]
+  properties:
+    workOrderId:
+      $ref: '#/SyncClientId'
+    templateId:
+      $ref: '#/SyncId'
+    title:
+      type: string
+      minLength: 1
+      maxLength: 200
+    customerId:
+      $ref: '#/SyncId'
+    newCustomer:
+      $ref: '#/SyncNewCustomer'
+    siteId:
+      $ref: '#/SyncId'
+    newSite:
+      $ref: '#/SyncNewSite'
+    note:
+      type: string
+      maxLength: 2000
+CommandVersion:
+  type: integer
+  description: Wersja komendy (kompatybilność wersji aplikacji i serwera; nieznana → `rejected validation_failed`).
+  minimum: 1
+  maximum: 1000
+CreateNoteMutation:
+  type: object
+  additionalProperties: false
+  required: [mutationId, type, commandVersion, payload]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    type:
+      type: string
+      const: CreateNote
+    commandVersion:
+      $ref: '#/CommandVersion'
+    payload:
+      $ref: '#/CreateNotePayload'
+CreateCommentMutation:
+  type: object
+  additionalProperties: false
+  required: [mutationId, type, commandVersion, payload]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    type:
+      type: string
+      const: CreateComment
+    commandVersion:
+      $ref: '#/CommandVersion'
+    payload:
+      $ref: '#/CreateCommentPayload'
+CreateQuickWorkOrderMutation:
+  type: object
+  additionalProperties: false
+  required: [mutationId, type, commandVersion, payload]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    type:
+      type: string
+      const: CreateQuickWorkOrder
+    commandVersion:
+      $ref: '#/CommandVersion'
+    payload:
+      $ref: '#/CreateQuickWorkOrderPayload'
+SyncMutation:
+  description: >-
+    Mutacja z kolejki telefonu: koperta `{mutationId, type, commandVersion, payload}`. Mutacja ma najwyżej 64 KB (egzekwuje serwer,
+    EVM-098). Serwer sprawdza kopertę osobno od ładunku: zły ładunek albo nieznany `type` to wynik tej jednej mutacji
+    (`rejected` `validation_failed`), nie `400` całej partii — jedna zła mutacja nie blokuje kolejki.
+  oneOf:
+    - $ref: '#/CreateNoteMutation'
+    - $ref: '#/CreateCommentMutation'
+    - $ref: '#/CreateQuickWorkOrderMutation'
+  discriminator:
+    propertyName: type
+    mapping:
+      CreateNote: '#/CreateNoteMutation'
+      CreateComment: '#/CreateCommentMutation'
+      CreateQuickWorkOrder: '#/CreateQuickWorkOrderMutation'
+SyncMutationsRequest:
+  type: object
+  description: Partia mutacji w kolejności kolejki (1–50). Treść najwyżej 1 MB; `400 validation_failed` tylko dla złej koperty lub partii.
+  additionalProperties: false
+  required: [mutations]
+  properties:
+    pendingItems:
+      $ref: '#/SyncPendingItems'
+    mutations:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        $ref: '#/SyncMutation'
+SyncMutationResult:
+  type: object
+  description: >-
+    Wynik jednej mutacji. `applied` — zastosowana; `duplicate` — ta sama mutacja już zastosowana (zapisany wynik minimalny);
+    `conflict` — kolizja identyfikatora (`id_conflict`); `rejected` — odrzucona z kodem (mutacja zostaje na liście „Wymaga uwagi”,
+    nie jest usuwana).
+  additionalProperties: false
+  required: [mutationId, outcome]
+  properties:
+    mutationId:
+      $ref: '#/SyncClientId'
+    outcome:
+      type: string
+      x-extensible-enum: [applied, duplicate, conflict, rejected]
+      maxLength: 32
+    code:
+      type: string
+      description: Kod przyczyny — tylko przy `conflict` i `rejected`.
+      x-extensible-enum:
+        - id_conflict
+        - forbidden
+        - target_unavailable
+        - validation_failed
+        - idempotency_mismatch
+        - idempotency_in_progress
+        - template_unavailable
+      maxLength: 64
+    warnings:
+      type: array
+      description: Ostrzeżenia (zamknięta lista kodów, słownik otwarty).
+      maxItems: 10
+      items:
+        type: string
+        x-extensible-enum: [captured_at_out_of_range, idempotency_expired]
+        maxLength: 64
+    workOrderNumber:
+      type: string
+      description: Numer nadany przez serwer — tylko przy zastosowanym `CreateQuickWorkOrder`.
+      maxLength: 32
+SyncMutationsResponse:
+  type: object
+  description: Wyniki per mutacja, w kolejności żądania. Sesja lub urządzenie unieważnione dotyczy całej partii (`401`).
+  additionalProperties: false
+  required: [serverTime, results]
+  properties:
+    serverTime:
+      $ref: '#/SyncTimestamp'
+    results:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/SyncMutationResult'

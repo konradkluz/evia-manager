@@ -34,6 +34,10 @@ Problem:
         Tylko `409 email_conflict` (EVM-024): identyfikator istniejącego konta widocznego na liście użytkowników, aby W-16 mogło je
         wskazać. Nigdy adres ani nazwa; dla konta usuniętego pole nie występuje.
       maxLength: 36
+    minSupportedVersion:
+      description: >-
+        Tylko `426 client_version_unsupported` (EVM-090) - minimalna wspierana wersja aplikacji per platforma.
+      $ref: platform.yaml#/MinSupportedAppVersion
     errors:
       type: array
       description: Błędy pól — tylko wskaźnik JSON Pointer i kod, nigdy wartość (SR-ERR-02).

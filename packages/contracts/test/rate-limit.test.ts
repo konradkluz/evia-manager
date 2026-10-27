@@ -34,7 +34,7 @@ describe('per-user limit in the contract (EVM-082 AC4; SR-API-02)', () => {
         const headers = resolved?.['headers'] as Json | undefined;
         const content = resolved?.['content'] as Json | undefined;
         return (
-          response?.['$ref'] !== '#/components/responses/RateLimited' ||
+          !['#/components/responses/RateLimited', '#/components/responses/MobileRateLimited'].includes(String(response?.['$ref'])) ||
           headers?.['Retry-After'] === undefined ||
           content?.['application/problem+json'] === undefined
         );

@@ -881,3 +881,302 @@ SecondStepConflict:
         errors:
           - pointer: /passkeyId
             code: passkey_required
+# Mobile channel (EVM-090 AC5): every response of the auth, device and sync operations — errors included — is `no-store`
+# problem+json. Codes are the catalogue of api-guidelines.md; no code is invented here.
+MobileValidationFailed:
+  description: Treść, parametry albo nagłówki niezgodne ze schematem (`validation_failed`, szczegóły w `errors[]` — wskaźnik i kod, bez wartości).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/validation_failed
+        title: Request validation failed
+        status: 400
+        code: validation_failed
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: /device/securityPatch
+            code: invalid_format
+MobileSyncBadRequest:
+  description: >-
+    Parametry niezgodne ze schematem (`validation_failed`) albo kursor innego użytkownika lub urządzenia (`invalid_cursor` — legalnie
+    nie występuje; niedekodowalny lub przeterminowany kursor daje `200 resync_required`, nie ten błąd).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        invalid_cursor:
+          value:
+            type: /problems/invalid_cursor
+            title: Invalid cursor
+            status: 400
+            code: invalid_cursor
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        validation_failed:
+          value:
+            type: /problems/validation_failed
+            title: Request validation failed
+            status: 400
+            code: validation_failed
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+            errors:
+              - pointer: /limit
+                code: too_large
+MobileInvalidCredentials:
+  description: >-
+    `invalid_credentials` — JEDYNA odpowiedź na każdą porażkę pierwszego kroku (zły e-mail, złe hasło, konto zaproszone lub
+    dezaktywowane, zła para `deviceId` + sekret instalacji) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/invalid_credentials
+        title: Invalid email or password
+        status: 401
+        code: invalid_credentials
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileLoginTotpUnauthorized:
+  description: >-
+    `invalid_credentials` — zły kod, a także zły, wygasły i zużyty `challengeToken` (jedna odpowiedź); `device_wipe_required` —
+    dopiero po poprawnym kodzie, gdy urządzenie z podanym sekretem ma zlecone wyczyszczenie (aplikacja usuwa dane i potwierdza).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        invalid_credentials:
+          value:
+            type: /problems/invalid_credentials
+            title: Invalid email or password
+            status: 401
+            code: invalid_credentials
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        device_wipe_required:
+          value:
+            type: /problems/device_wipe_required
+            title: The device must wipe its data
+            status: 401
+            code: device_wipe_required
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileLoginForbidden:
+  description: >-
+    Dopiero po POPRAWNYM haśle (SR-AUTH-05): konto musi dokończyć konfigurację drugiego kroku w panelu (`mfa_enrollment_required`)
+    albo nie ma skonfigurowanej aplikacji TOTP (`totp_not_configured`).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        mfa_enrollment_required:
+          value:
+            type: /problems/mfa_enrollment_required
+            title: Second step enrolment required
+            status: 403
+            code: mfa_enrollment_required
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        totp_not_configured:
+          value:
+            type: /problems/totp_not_configured
+            title: Authenticator app is not configured
+            status: 403
+            code: totp_not_configured
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileLoginTotpForbidden:
+  description: >-
+    Dopiero po POPRAWNYM kodzie TOTP: rola bez kanału mobilnego (Tylko odczyt — `channel_not_allowed`; dotyczy tylko logowania
+    mobilnego, w pozostałych miejscach zły kanał to `403 forbidden`) albo osiągnięty limit urządzeń konta (`device_limit_reached`).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        channel_not_allowed:
+          value:
+            type: /problems/channel_not_allowed
+            title: The role has no access through the mobile channel
+            status: 403
+            code: channel_not_allowed
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        device_limit_reached:
+          value:
+            type: /problems/device_limit_reached
+            title: The device limit of the account is reached
+            status: 403
+            code: device_limit_reached
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileSessionUnauthorized:
+  description: >-
+    Brak ważnego tokenu dostępu (`unauthenticated`), sesja unieważniona (`session_revoked` — kolejka telefonu zostaje, aplikacja
+    prosi o ponowne logowanie) albo urządzenie ma zlecone wyczyszczenie (`device_wipe_required` — także dla pobierania, wysyłania
+    i odświeżania tokenu; aplikacja usuwa dane i potwierdza).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        unauthenticated:
+          value:
+            type: /problems/unauthenticated
+            title: Authentication required
+            status: 401
+            code: unauthenticated
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        session_revoked:
+          value:
+            type: /problems/session_revoked
+            title: Session revoked
+            status: 401
+            code: session_revoked
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        device_wipe_required:
+          value:
+            type: /problems/device_wipe_required
+            title: The device must wipe its data
+            status: 401
+            code: device_wipe_required
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileForbidden:
+  description: Brak uprawnienia do operacji (`forbidden`) — rola bez dostępu albo token użyty na niewłaściwym kanale.
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/forbidden
+        title: Forbidden
+        status: 403
+        code: forbidden
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileNotFound:
+  description: >-
+    Zlecenie nie istnieje, jest usunięte, poza zakresem albo bez dostępu — jednakowe `404 not_found` (istnienie jest informacją, IDOR);
+    klient usuwa wtedy lokalną kopię (poza obiektami oczekującymi).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/not_found
+        title: Not found
+        status: 404
+        code: not_found
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobilePayloadTooLarge:
+  description: Treść większa niż limit (`payload_too_large`; operacje publiczne — 8 KB, partia mutacji — 1 MB).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/payload_too_large
+        title: Payload too large
+        status: 413
+        code: payload_too_large
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileUnsupportedMediaType:
+  description: Treść inna niż `application/json` (`unsupported_media_type`).
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/unsupported_media_type
+        title: Unsupported media type
+        status: 415
+        code: unsupported_media_type
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileClientVersionUnsupported:
+  description: >-
+    Wersja aplikacji poniżej minimalnej albo brak lub niepoprawny nagłówek `X-Client-Version` / `X-Client-Platform`
+    (`client_version_unsupported`) z `minSupportedVersion`. Aplikacja blokuje pracę online, ZACHOWUJE kolejkę offline i prosi o
+    aktualizację. Nie dotyczy `GET /api/v1/meta/client-config` i potwierdzenia wyczyszczenia.
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/client_version_unsupported
+        title: Client version is no longer supported
+        status: 426
+        code: client_version_unsupported
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        minSupportedVersion:
+          android: 1.1.0
+          ios: 1.1.0
+MobileRateLimited:
+  description: Przekroczony limit żądań (`rate_limited`) z `Retry-After`.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/rate_limited
+        title: Too many requests
+        status: 429
+        code: rate_limited
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+CompletedObjectMismatch:
+  description: >-
+    Zakończona sesja uploadu ma obiekt o innym rozmiarze albo go brak (`completed_object_mismatch`; EVM-011, media-pipeline.md):
+    operacja niczego nie usuwa. Zwraca ją `complete` sesji uploadu (EVM-044) — w EVM-090 kod jest tylko wpisany do katalogu.
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/completed_object_mismatch
+        title: The completed object does not match the session
+        status: 409
+        code: completed_object_mismatch
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

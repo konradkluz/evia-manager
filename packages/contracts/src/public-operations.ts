@@ -21,6 +21,11 @@ export const PUBLIC_OPERATIONS: readonly string[] = Object.freeze([
   'verifyLoginPasskey',
   'loginTotp',
   'loginRecoveryCode',
+  // Mobile channel (EVM-090): the sign-in of the phone, the renewal of its tokens and the confirmation of the wipe have no session.
+  'mobileLogin',
+  'mobileLoginTotp',
+  'refreshMobileSession',
+  'confirmDeviceWipe',
 ]);
 
 /**
@@ -39,7 +44,18 @@ export const MFA_ENROLLMENT_OPERATIONS: readonly string[] = Object.freeze([
 ]);
 
 /**
- * Operations that may list the `mobile` channel in `x-evia-authz.channels` (SR-AUTHZ-12). Empty in M1: the mobile
- * channel starts with E9 — a `mobile` entry anywhere else fails the contract lint. Never with `stepUp: true`.
+ * Operations that may list the `mobile` channel in `x-evia-authz.channels` (SR-AUTHZ-12). The mobile channel starts with E9
+ * (EVM-090): a `mobile` entry anywhere else fails the contract lint. Never with `stepUp: true`. A public operation on this
+ * list is on PUBLIC_OPERATIONS too and has exactly one channel.
  */
-export const MOBILE_OPERATIONS: readonly string[] = Object.freeze([]);
+export const MOBILE_OPERATIONS: readonly string[] = Object.freeze([
+  'mobileLogin',
+  'mobileLoginTotp',
+  'refreshMobileSession',
+  'confirmDeviceWipe',
+  'mobileLogout',
+  'getClientConfig',
+  'getSyncChanges',
+  'getSyncWorkOrder',
+  'pushSyncMutations',
+]);

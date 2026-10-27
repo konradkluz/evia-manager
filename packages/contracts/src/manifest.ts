@@ -45,8 +45,12 @@ const policySchema = z
   })
   .superRefine((policy, context) => {
     if (policy.public === true) {
-      const extras = Object.keys(policy).filter((key) => key !== 'public');
+      const extras = Object.keys(policy).filter((key) => key !== 'public' && key !== 'channels');
       if (extras.length > 0) context.addIssue({ code: 'custom', message: `public operation must not declare: ${extras.join(', ')}` });
+      // A public operation belongs to exactly one channel: the guard picks the CSRF/Origin checks from it (EVM-090; SR-AUTHZ-12).
+      if (policy.channels !== undefined && policy.channels.length !== 1) {
+        context.addIssue({ code: 'custom', path: ['channels'], message: 'a public operation lists exactly one channel' });
+      }
       return;
     }
     if (policy.roles === undefined)
@@ -64,6 +68,17 @@ export interface OperationAuthz {
   /** Names of the declared query parameters (anything else is `unknown_parameter`). */
   readonly query: readonly string[];
   readonly authz: AuthzPolicy;
+  /**
+   * `x-evia-planned: true` — the operation is in the contract but its route does not exist yet (EVM-090). The marker is the only source of truth:
+   * the API test requires planned ⇒ no route and not planned ⇒ route; tests that iterate the manifest skip planned operations through
+   * `implementedOperations()` of `@evia/contracts/authz`.
+   */
+  readonly planned?: true;
+}
+
+/** The channels of a policy: the declared ones, `[web]` for a public operation that declares none (the default of the panel). */
+export function operationChannels(authz: AuthzPolicy): readonly (typeof CHANNELS)[number][] {
+  return authz.channels ?? ['web'];
 }
 
 export type AuthzManifest = Readonly<Record<string, OperationAuthz>>;
@@ -167,7 +182,15 @@ export function buildAuthzManifest(spec: unknown): AuthzManifest {
         throw new Error(`${id}: nieprawidłowe x-evia-authz — ${problems}`);
       }
       checkRestrictedParams(spec, id, pathItem, operation, parsed.data);
-      manifest[id] = { method, path, query: queryNames(spec, pathItem, operation), authz: parsed.data };
+      const planned = operation['x-evia-planned'];
+      if (planned !== undefined && planned !== true) throw new Error(`${id}: x-evia-planned może mieć wyłącznie wartość true`);
+      manifest[id] = {
+        method,
+        path,
+        query: queryNames(spec, pathItem, operation),
+        authz: parsed.data,
+        ...(planned === true ? { planned: true as const } : {}),
+      };
     }
   }
   return manifest;

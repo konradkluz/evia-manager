@@ -1,0 +1,50 @@
+# Module `identity` — registered mobile devices (EVM-090; ADR-0005, ADR-0021). The server implements the operation in EVM-094.
+wipeConfirmation:
+  post:
+    operationId: confirmDeviceWipe
+    tags: [devices]
+    summary: Potwierdzenie wyczyszczenia danych na urządzeniu
+    description: >-
+      Telefon potwierdza, że usunął dane (stan „Wyczyszczone” w W-17). Publiczna operacja kanału `mobile`: urządzenie w stanie
+      wyczyszczenia nie ma ważnej sesji, więc para `deviceId` + `installationSecret` jedzie w TREŚCI (nie w adresie ani nagłówku;
+      `deviceId` nie występuje w ścieżce) — tak jak przy ponownym logowaniu. Sekret jest tu dowodem przejścia stanu, nie czynnikiem
+      uwierzytelniania (SR-AUTH-14). Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`.
+      Odpowiedzi: `204` dla poprawnej pary — idempotentnie, także gdy urządzenie nie jest w stanie wyczyszczenia albo już potwierdziło;
+      `401 invalid_credentials` jednym komunikatem dla nieznanego urządzenia i złego sekretu (brak enumeracji urządzeń);
+      `400` (zły kształt), `413` (treść > 8 KB), `429` z `Retry-After` (limit na adres IP). Unieważnienie tokenów urządzenia nie zależy od
+      potwierdzenia. Kolejność po stronie aplikacji: usuń dane, wyślij potwierdzenie, na końcu usuń sekret instalacji. Bez kontroli
+      wersji aplikacji (`426` nie dotyczy tej operacji). `Cache-Control: no-store`.
+      Audyt (EVM-094): potwierdzenie wyczyszczenia urządzenia — bez sekretu.
+    x-evia-authz:
+      public: true
+      channels: [mobile]
+    x-evia-planned: true
+    security: []
+    parameters:
+      - $ref: ../components/devices.yaml#/ClientPlatformHeader
+      - $ref: ../components/devices.yaml#/ClientVersionHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/devices.yaml#/WipeConfirmationRequest
+          example:
+            deviceId: 0193a000-0000-7000-8000-0000000000d1
+            installationSecret: EXAMPLE_installation_secret_not_real_000000
+    responses:
+      '204':
+        description: Potwierdzenie przyjęte (idempotentnie).
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+      '400':
+        $ref: ../components/responses.yaml#/MobileValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/MobileInvalidCredentials
+      '413':
+        $ref: ../components/responses.yaml#/MobilePayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/MobileUnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/MobileRateLimited

@@ -4,3 +4,11 @@
 openapi/paths/platform.yaml:
   operation-4xx-response:
     - '#/health/get/responses'
+# webSession (EVM-090 AC1) is declared so that the pair of schemes exists and the lint can forbid it on mobile operations; the web operations
+# of M1 stay unchanged and do not declare `security` (the guard of the API decides from x-evia-authz), so the scheme is deliberately unused.
+openapi/openapi.yaml:
+  no-unused-components:
+    - '#/components/securitySchemes/webSession'
+    # completed_object_mismatch (EVM-011) joins the catalogue of the contract now; the operation that answers it (`complete` of an upload
+    # session, EVM-044) references the response when it is added.
+    - '#/components/responses/CompletedObjectMismatch'

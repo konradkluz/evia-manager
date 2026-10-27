@@ -23,6 +23,8 @@
     "build": "node src/build.ts",
     "lint": "eslint . && node src/redocly.ts",
     "typecheck": "tsc -p tsconfig.json",
+    "baseline:check": "node src/breaking-changes.ts check",
+    "baseline:update": "node src/breaking-changes.ts update",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },

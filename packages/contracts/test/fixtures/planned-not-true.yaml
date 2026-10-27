@@ -1,0 +1,49 @@
+# EVM-090 AC1 negative fixture: x-evia-planned with a value other than true.
+openapi: 3.1.0
+info:
+  title: Fixture
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security: []
+components:
+  securitySchemes:
+    mobileBearer:
+      type: http
+      scheme: bearer
+    webSession:
+      type: apiKey
+      in: cookie
+      name: __Host-evia_session
+tags:
+  - name: platform
+    description: Fixture.
+paths:
+  /api/v1/auth/mobile/logout:
+    post:
+      operationId: mobileLogout
+      tags: [platform]
+      summary: Operacja
+      description: Operacja.
+      security:
+        - mobileBearer: []
+      x-evia-authz:
+        roles: [administrator, editor]
+        channels: [mobile]
+      x-evia-planned: yes-please
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Brak sesji.
+          content:
+            application/problem+json:
+              schema:
+                type: object

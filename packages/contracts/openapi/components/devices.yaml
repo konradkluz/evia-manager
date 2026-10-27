@@ -1,0 +1,100 @@
+# Mobile devices and the configuration of the app (EVM-090; ADR-0005, ADR-0021 D7). Requests are strict (`additionalProperties: false`,
+# `maxLength` on every string); secrets are `writeOnly` and travel only in a body or in `Authorization`, never in a URL (SR-API-04).
+ClientPlatformHeader:
+  name: X-Client-Platform
+  in: header
+  required: false
+  description: >-
+    Platforma aplikacji (`android`; `ios` odłożony). Służy WYŁĄCZNIE kompatybilności (`426 client_version_unsupported`): klient może ją
+    podrobić, więc nigdy nie wpływa na autoryzację, kanał operacji ani pominięcie kontroli Origin i CSRF — o tym decyduje kanał
+    operacji z manifestu i schemat uwierzytelnienia (SR-API-08). Brak albo niepoprawna wartość w kanale mobilnym → `426`.
+  schema:
+    type: string
+    enum: [android, ios]
+ClientVersionHeader:
+  name: X-Client-Version
+  in: header
+  required: false
+  description: Wersja aplikacji (semver). Służy wyłącznie kompatybilności, tak jak `X-Client-Platform`. Niższa od minimalnej → `426`.
+  schema:
+    $ref: common.yaml#/Semver
+CacheControlNoStore:
+  description: Zawsze `no-store` — odpowiedzi uwierzytelniania, urządzeń i synchronizacji nie są buforowane (SR-API-01).
+  schema:
+    type: string
+    enum: [no-store]
+DeviceId:
+  type: string
+  description: Identyfikator urządzenia nadany przez serwer przy pierwszym logowaniu telefonu (UUID). Klient nigdy go nie wybiera.
+  format: uuid
+  pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  maxLength: 36
+InstallationSecret:
+  type: string
+  description: >-
+    Sekret instalacji (256 bitów, base64url) nadany przez serwer; telefon trzyma go w Android Keystore i przedstawia razem z
+    `deviceId` przy ponownym logowaniu oraz przy potwierdzeniu wyczyszczenia. Serwer zna tylko jego skrót.
+  pattern: '^[A-Za-z0-9_-]{43}$'
+  minLength: 43
+  maxLength: 43
+  writeOnly: true
+WipeConfirmationRequest:
+  type: object
+  description: >-
+    Para `deviceId` + sekret instalacji w TREŚCI (nigdy w adresie ani w nagłówku). Sekret jest tu wyłącznie dowodem przejścia stanu
+    urządzenia, a nie czynnikiem uwierzytelniania sesji (SR-AUTH-14).
+  additionalProperties: false
+  required: [deviceId, installationSecret]
+  properties:
+    deviceId:
+      $ref: '#/DeviceId'
+    installationSecret:
+      $ref: '#/InstallationSecret'
+ClientVersions:
+  type: object
+  description: Wersja aplikacji per platforma (ten sam kształt co `minSupportedAppVersion` w `GET /api/health`).
+  additionalProperties: false
+  required: [android, ios]
+  properties:
+    android:
+      $ref: common.yaml#/Semver
+    ios:
+      $ref: common.yaml#/Semver
+ClientConfig:
+  type: object
+  description: >-
+    Parametry pracy aplikacji zależne od serwera (ADR-0021 D7). Bez danych osobowych. Zmiana `closedWorkOrdersInScopeDays` podnosi
+    `scopeRuleVersion` (→ `resync_required` z powodem `scope_changed`). Przed zalogowaniem minimalną wersję podaje publiczne
+    `GET /api/health`; ta operacja wymaga sesji mobilnej.
+  additionalProperties: false
+  required:
+    - offlineContactWindowDays
+    - closedWorkOrdersInScopeDays
+    - periodicResyncDays
+    - scopeRuleVersion
+    - minSupportedVersion
+    - recommendedVersion
+  properties:
+    offlineContactWindowDays:
+      type: integer
+      description: Okno braku kontaktu z serwerem (dni), po którym aplikacja ukrywa dane (domyślnie 7).
+      minimum: 1
+      maximum: 90
+    closedWorkOrdersInScopeDays:
+      type: integer
+      description: N — zamknięte zlecenia (`settled`, `cancelled`) pozostają w zakresie przez tyle dni od `closedAt` (domyślnie 30).
+      minimum: 1
+      maximum: 365
+    periodicResyncDays:
+      type: integer
+      description: Co ile dni serwer wymaga kontrolnego resyncu (`resync_required` z powodem `periodic`; domyślnie 7).
+      minimum: 1
+      maximum: 90
+    scopeRuleVersion:
+      type: integer
+      description: Wersja reguły zakresu; zmiana oznacza, że klient musi pobrać zakres od nowa (resync w cieniu).
+      minimum: 1
+    minSupportedVersion:
+      $ref: '#/ClientVersions'
+    recommendedVersion:
+      $ref: '#/ClientVersions'
