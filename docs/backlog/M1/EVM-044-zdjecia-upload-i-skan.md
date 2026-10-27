@@ -6,6 +6,8 @@ milestone: M1
 epic: E6 Dokumenty i media (web)
 status: ready
 priority: P1
+path: pelna
+model: sonnet
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
 reviewers: [code-reviewer, security-engineer, ux-designer, solution-architect]
@@ -114,3 +116,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 2 (f); liczba AC bez zmian): AC4 — akcja główna „Dodaj zdjęcia lub filmy” zamiast „Dodaj zdjęcia” (etykieta z makiety W-09 compact; obejmuje filmy z EVM-046)
 - 2026-10-13 — podział EVM-007 wg ADR-0018: runtime skanera antywirusowego (EVM-007 = 007a) i bucket mediów z wersjonowaniem (EVM-084 = 007b); `depends_on` + EVM-084 (product-owner)
+- 2026-10-27 — nocna kolejka (tor T1): path pelna, model sonnet; wyjątek od DoR (zależność od EVM-084 = bucket przy wdrożeniu, nie kod; brak konfiguracji = funkcja wyłączona przy zdrowej usłudze; demo po sesji IaC) — warunkowo, do potwierdzenia przez Konrada

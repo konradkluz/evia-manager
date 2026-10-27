@@ -4,7 +4,7 @@ title: Staging w UE — IaC, VM i kanał wdrożeń (007a)
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-progress
+status: done
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -156,3 +156,4 @@ Kod: `infra/tofu/` (AC1), `infra/images/`, job `publish`, `tools/ghcr-retention/
 - 2026-10-27 — defekt z żywego stagingu (devops-engineer; część RR-34): od ok. 16:57 UTC weryfikator odrzucał każdy cykl (`api-path: foreign next link`, 2 żądania), bo `Link rel="next"` odpowiedzi `compare` wskazuje `https://api.github.com/repositories/<id>/compare/…?per_page=…&page=2`, a kod wymagał prefiksu `/repos/<owner>/<repo>/`; atrapa tego nie odzwierciedlała, więc testy offline przechodziły. Poprawka: reguła kolejnej strony w `services/deploy-agent/src/github.ts` (ten sam origin i operacja, spójne numeryczne ID w cyklu, zapytanie tylko `per_page`/`page` plus niezmienione parametry, żądanie budowane samodzielnie), atrapa z `linkStyle: 'repositories'`, testy `EVM-007 AC3 (RR-34)`. Obraz weryfikatora trzeba przebudować na VM z `main` po scaleniu (runbook).
 - 2026-10-27 — drugie wydanie do próby rollbacku, krok 11 (devops-engineer): etykieta OCI `org.opencontainers.image.source` (URL repozytorium) jako `LABEL` w ostatnim etapie `infra/images/api` i `web` — jedyna zmiana obrazów (digesty baz i pakiety bez zmian, Trivy bez zmian), więc `publish` wyda nowe obrazy i nowy manifest; łączy też pakiety GHCR z repozytorium. Reguła `releaseLabelProblems` + testy w `tools/repo-policy`.
 - 2026-10-27 — krok 11 (Tech Lead): próba rollbacku fa3597b↔aad42ae i dowody odrzuceń migracji/zdrowia w docs/qa/EVM-007/proba-rollbacku-i-odrzucen.md; rollback ponad nowszą migrację przeniesiony do pierwszego wydania z migracją (EVM-094)
+- 2026-10-27 — demo zaakceptowane przez Konrada (staging działa na aad42ae: wdrożenie, rollback i powrót, odrzucenia migracji/zdrowia, zielony staging-verify z ostrzeżeniami DNS RR-40/41; krok 12: SSH zamknięte). Status done. Przeniesione: rollback ponad nowszą migrację → pierwsze wydanie z migracją (EVM-094); artifactHosts, utwardzenie weryfikatora, próbny staging, Renovate, RR-37/38 → EVM-114…122
