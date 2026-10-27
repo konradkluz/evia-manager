@@ -4,7 +4,7 @@
  * The code is inactive until the IaC session: these tests keep it from drifting and from activating half-way.
  */
 import { describe, expect, it } from 'vitest';
-import { exists, json, list, read, record, text } from '../src/files.ts';
+import { exists, json, list, read, record, text, yaml } from '../src/files.ts';
 import { backupConfigProblems, pgbackrestPinProblems } from '../src/iac.ts';
 
 const conf = read('infra/runtime/pgbackrest/pgbackrest.conf');
@@ -186,8 +186,11 @@ describe('the scripts of the restore test and the backups (EVM-084 AC3, AC4; sec
     const run = code('run.sh');
     expect(run).toContain('RESULT_MAX_BYTES=16384');
     expect(run).toContain('--max-filesize "$RESULT_MAX_BYTES"');
-    expect(run).toContain('(keys - [');
-    expect(run).toContain('.runId == $run');
+    // one schema file for the orchestrator and the contract test of the VM
+    const schema = read('infra/deploy-agent/restore/result.schema.jq').replace(/^\s*#.*$/gm, '');
+    expect(run).toContain('-f "$SELF_DIR/result.schema.jq"');
+    expect(schema).toContain('(keys - [');
+    expect(schema).toContain('.runId == $run');
     expect(run).toContain('mv -f -- "$WORK/last.json" "$STATE_DIR/last.json"');
     expect(run).toContain('PRESIGN_TTL=7200');
     expect(code('s3-presign.sh')).toContain('S3_PRESIGN_MAX_EXPIRES:-7200');
@@ -201,6 +204,14 @@ describe('the scripts of the restore test and the backups (EVM-084 AC3, AC4; sec
     expect(sweep).toContain('"type=backup"');
     expect(sweep).not.toMatch(/type=system|type=app/);
     expect(sweep).toContain('label_selector=$(label_selector)');
+    expect(sweep).toContain('sweep servers /servers servers "label_selector=$(label_selector)"');
+    // the guard before any deletion: the sentinel and no foreign server or volume (CWE-284)
+    expect(sweep).toContain("SENTINEL_SELECTOR='evia-project%3Devia-restore-staging'");
+    expect(sweep.indexOf('\nguard\n')).toBeGreaterThan(0);
+    expect(sweep.indexOf('\nguard\n')).toBeLessThan(sweep.indexOf('sweep servers /servers'));
+    expect(sweep).toContain('restore-sweep-refused');
+    expect(sweep).toContain('reason=foreign-resource');
+    expect(sweep).toContain('reason=no-sentinel');
     expect(sweep).toContain('MAX_AGE="${EVIA_SWEEP_MAX_AGE_SECONDS:-86400}"');
     const run = code('run.sh');
     for (const created of ['/firewalls', '/servers']) expect(run).toContain(`hc_request POST ${created}`);
@@ -221,12 +232,42 @@ describe('the scripts of the restore test and the backups (EVM-084 AC3, AC4; sec
 
   it('EVM-084 AC2: the media copy never deletes on the target and uses the read key, not the key of the application', () => {
     const copy = code('media-copy.sh');
-    expect(copy).toContain('copy --checksum');
-    expect(copy).not.toMatch(/\b(sync|move|purge|deletefile)\b/);
+    // ADR-0009/ADR-0011: sync (deletions reach the copy; the history is the snapshots of the Storage Box outside the VM), no quarantine
+    expect(copy).toContain("sync --checksum --exclude 'quarantine/**'");
+    expect(copy).not.toMatch(/\b(copy|move|purge|deletefile)\s+--/);
+    expect(copy).not.toContain('--delete-excluded');
     expect(copy).toContain('media-backup-reader-s3-secret-access-key');
     expect(copy).not.toMatch(/media-s3-secret-access-key|backup-s3-secret/);
     expect(copy).toContain('RCLONE_CONFIG_MEDIA_FILENAME_ENCRYPTION=standard');
     expect(copy).toContain('RCLONE_CONFIG_BOX_KNOWN_HOSTS_FILE');
+  });
+
+  it('EVM-084 AC3, AC5: the named restore point is written and archived before the scenario and before any resource is created; the VM restores to it with the secrets in a file', () => {
+    const run = code('run.sh');
+    const point = run.indexOf('pg_create_restore_point');
+    expect(point).toBeGreaterThan(0);
+    expect(point).toBeLessThan(run.indexOf('"$SELF_DIR/scenario.sh" delete'));
+    expect(point).toBeLessThan(run.indexOf('hc_request POST /firewalls'));
+    expect(run.indexOf('"$PGBACKREST_BIN" check')).toBeGreaterThan(point);
+    expect(run).toContain('select(.timestamp.stop < $at)');
+    const vm = code('vm-restore.sh');
+    expect(vm).toContain('--type=name');
+    expect(vm).toContain('--repo=1 --repo-target-time=');
+    expect(vm).not.toContain('--type=time');
+    expect(vm).toContain('-U "$superuser"');
+    expect(vm).toContain('conf.d/secrets.conf');
+    const psql = read('infra/runtime/pgbackrest/evia-psql.sh');
+    expect(psql).toContain('--username=evia_owner');
+  });
+
+  it('EVM-084 AC3, AC5: the database stage is executed for real in a container without network, with the scripts read-only', () => {
+    const service = record(record(record(yaml('compose.yaml'))['services'])['restore-db-test']);
+    expect(service['network_mode']).toBe('none');
+    expect(service['read_only']).toBe(true);
+    expect(service['cap_drop']).toEqual(['ALL']);
+    expect(String(service['user'])).toBe('999:999');
+    expect(list(service['volumes']).map(String)).toEqual(['./infra/deploy-agent:/src/infra/deploy-agent:ro']);
+    expect(read('infra/deploy-agent/test/restore-db.test.sh')).toContain('db_restore');
   });
 
   it('EVM-084: the manifest of the runtime files lists no secret of the restore units for a container', () => {

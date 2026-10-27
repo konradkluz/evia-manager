@@ -103,14 +103,27 @@ export function firewallProblems(content: string): string[] {
       problems.push(`${file}: port 22 wyłącznie z var.admin_ssh_cidrs`);
     if (direction === 'in' && !['80', '443', '22'].includes(port))
       problems.push(`${file}: port wejściowy ${port || '(każdy)'} spoza 80/443`);
-    if (direction === 'out' && (port !== 'rule.value.port' || protocol !== 'rule.value.protocol'))
+    // the SFTP port of the Storage Box (EVM-084): tcp/23 only to var.storagebox_cidrs, never a literal address list
+    const storagebox = direction === 'out' && port === '23';
+    if (direction === 'out' && !storagebox && (port !== 'rule.value.port' || protocol !== 'rule.value.protocol'))
       problems.push(`${file}: reguła wychodząca wyłącznie z listy local.outbound`);
+    if (storagebox && (protocol !== 'tcp' || !/destination_ips\s*=\s*rule\.value\s*$/m.test(block)))
+      problems.push(`${file}: port 23 wyłącznie tcp do var.storagebox_cidrs`);
     if (direction === 'in' && !['tcp'].includes(protocol)) problems.push(`${file}: protokół wejściowy ${protocol} spoza tcp`);
   }
   if (!content.includes('for_each = length(var.admin_ssh_cidrs) > 0 ? [var.admin_ssh_cidrs] : []'))
     problems.push(`${file}: reguła SSH tylko, gdy var.admin_ssh_cidrs nie jest pusta`);
-  if (!/variable "admin_ssh_cidrs"[\s\S]*?default\s*=\s*\[\]/.test(content)) problems.push(`${file}: admin_ssh_cidrs domyślnie pusta`);
-  if (!content.includes('contains(["0.0.0.0/0", "::/0"], cidr)')) problems.push(`${file}: walidacja zakazująca SSH z całego internetu`);
+  const adminVariable = hclBlock(content, /variable "admin_ssh_cidrs"\s*\{/) ?? '';
+  if (!/default\s*=\s*\[\]/.test(adminVariable)) problems.push(`${file}: admin_ssh_cidrs domyślnie pusta`);
+  if (!adminVariable.includes('contains(["0.0.0.0/0", "::/0"], cidr)'))
+    problems.push(`${file}: walidacja zakazująca SSH z całego internetu`);
+  if (!content.includes('for_each = length(var.storagebox_cidrs) > 0 ? [var.storagebox_cidrs] : []'))
+    problems.push(`${file}: reguła SFTP tylko, gdy var.storagebox_cidrs nie jest pusta`);
+  const storageboxVariable = hclBlock(content, /variable "storagebox_cidrs"\s*\{/) ?? '';
+  if (!/default\s*=\s*\[\]/.test(storageboxVariable)) problems.push(`${file}: storagebox_cidrs domyślnie pusta`);
+  if (!storageboxVariable.includes('contains(["0.0.0.0/0", "::/0"], cidr)'))
+    problems.push(`${file}: walidacja zakazująca portu 23 dla całego internetu`);
+  if (!storageboxVariable.includes('can(cidrhost(cidr, 0))')) problems.push(`${file}: walidacja CIDR dla storagebox_cidrs`);
   const outbound = /outbound\s*=\s*\[([\s\S]*?)\n {2}\]/.exec(content)?.[1] ?? '';
   const entries = [...outbound.matchAll(/protocol\s*=\s*"(\w+)",\s*port\s*=\s*"(\d+)"/g)].map(
     (match) => `${match[1] ?? ''}/${match[2] ?? ''}`,
@@ -478,4 +491,77 @@ export function pgbackrestPinProblems(dockerfile: string, postgresDigest: string
   if (/^USER\s+root\b/m.test(dockerfile)) problems.push('postgres-pgbackrest: bez USER root');
   if (/latest/.test(dockerfile)) problems.push('postgres-pgbackrest: bez tagu latest');
   return problems;
+}
+
+/**
+ * The matrix key × bucket × area × operation (EVM-084 AC2, P5; security-engineer: the proof of the isolation of the keys). One source
+ * of truth, BUCKET_POLICIES (plus the restore-test result prefix of the orchestrator): `bucketMatrixFile()` is rendered to
+ * infra/deploy-agent/restore/bucket-matrix.tsv, which bucket-verify.sh executes with the REAL keys in the IaC session (and the test of
+ * the script executes against a stand-in). `allow` = anything but 403, `deny` = exactly 403.
+ */
+export const APPLICATION_KEYS: Readonly<Record<string, { readonly idVariable: string; readonly secretFile: string }>> = Object.freeze({
+  media_app: { idVariable: 'MEDIA_S3_ACCESS_KEY_ID', secretFile: 'media-s3-secret-access-key' },
+  media_backup_reader: { idVariable: 'MEDIA_BACKUP_READER_ACCESS_KEY_ID', secretFile: 'media-backup-reader-s3-secret-access-key' },
+  register_writer: { idVariable: 'DELETION_REGISTER_S3_ACCESS_KEY_ID', secretFile: 'deletion-register-s3-secret-access-key' },
+  backup_writer: { idVariable: 'BACKUP_WRITER_ACCESS_KEY_ID', secretFile: 'backup-s3-secret-access-key' },
+  restore_reader: { idVariable: 'RESTORE_READER_ACCESS_KEY_ID', secretFile: 'restore-reader-s3-secret-access-key' },
+  restore_orchestrator: { idVariable: 'RESTORE_ORCH_ACCESS_KEY_ID', secretFile: 'restore-orchestrator-s3-secret-access-key' },
+});
+/** The buckets (`<name>_allow` of BUCKET_POLICIES) and the variables with their names. */
+export const MATRIX_BUCKETS: Readonly<Record<string, string>> = Object.freeze({
+  media: 'MEDIA_BUCKET',
+  register: 'DELETION_REGISTER_BUCKET',
+  db_backup: 'DB_BACKUP_BUCKET',
+});
+/** The prefix of the probe object per area. */
+export const MATRIX_AREAS: Readonly<Record<string, string>> = Object.freeze({
+  any: 'verify-probes/',
+  repo: 'pgbackrest/verify-probes/',
+  results: 'restore-results/verify-probes/',
+});
+/** The S3 action behind each probed operation. */
+export const MATRIX_OPERATIONS: Readonly<Record<string, string>> = Object.freeze({
+  list: 's3:ListBucket',
+  get: 's3:GetObject',
+  put: 's3:PutObject',
+  delete: 's3:DeleteObject',
+});
+const ORCHESTRATOR_RESULTS_ACTIONS = Object.freeze(['s3:PutObject', 's3:GetObject']);
+
+/** Does `key` get through on `operation` in `bucket` at `area` (the policies: Allow list, Deny outside it, Deny for the others)? */
+export function matrixAllows(key: string, bucket: string, area: string, operation: string): boolean {
+  const action = MATRIX_OPERATIONS[operation] ?? '';
+  if (key === 'restore_orchestrator') return bucket === 'db_backup' && area === 'results' && ORCHESTRATOR_RESULTS_ACTIONS.includes(action);
+  return (BUCKET_POLICIES[`${bucket}_allow`]?.[key] ?? []).includes(action);
+}
+
+/** The areas probed in a bucket: the database bucket has the repository and the results prefix, the others one. */
+const areasOf = (bucket: string): string[] => (bucket === 'db_backup' ? ['repo', 'results'] : ['any']);
+
+/** Every pair key × bucket × operation (and area for the object operations), in a stable order. */
+export function bucketMatrixRows(): string[][] {
+  const rows: string[][] = [];
+  for (const key of Object.keys(APPLICATION_KEYS))
+    for (const bucket of Object.keys(MATRIX_BUCKETS)) {
+      const anyArea = areasOf(bucket)[0] ?? 'any';
+      rows.push([key, bucket, '-', 'list', matrixAllows(key, bucket, anyArea, 'list') ? 'allow' : 'deny']);
+      for (const area of areasOf(bucket))
+        for (const operation of ['put', 'get', 'delete'])
+          rows.push([key, bucket, area, operation, matrixAllows(key, bucket, area, operation) ? 'allow' : 'deny']);
+    }
+  return rows;
+}
+
+/** The text of infra/deploy-agent/restore/bucket-matrix.tsv: `key`, `bucket`, `area` declarations and `row` lines. */
+export function bucketMatrixFile(): string {
+  const lines = [
+    '# Generated from BUCKET_POLICIES (tools/repo-policy/src/iac.ts, bucketMatrixFile): do not edit; the test of repo-policy compares it.',
+    '# key <name> <variable with the access key id> <secret file>; bucket <name> <variable with the bucket>; area <name> <prefix>;',
+    '# row <key> <bucket> <area> <operation> <allow|deny>',
+    ...Object.entries(APPLICATION_KEYS).map(([name, key]) => `key\t${name}\t${key.idVariable}\t${key.secretFile}`),
+    ...Object.entries(MATRIX_BUCKETS).map(([name, variable]) => `bucket\t${name}\t${variable}`),
+    ...Object.entries(MATRIX_AREAS).map(([name, prefix]) => `area\t${name}\t${prefix}`),
+    ...bucketMatrixRows().map((row) => `row\t${row.join('\t')}`),
+  ];
+  return `${lines.join('\n')}\n`;
 }

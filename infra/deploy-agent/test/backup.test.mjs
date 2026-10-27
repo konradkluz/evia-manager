@@ -19,6 +19,8 @@ const SECRET_VALUES = {
   'deletion-register-s3-secret-access-key': 'SYNTHETIC-REGISTER-SECRET-MARKER',
   'backup-s3-secret-access-key': 'SYNTHETIC-BACKUP-SECRET-MARKER',
   'media-backup-reader-s3-secret-access-key': 'SYNTHETIC-READER-SECRET-MARKER',
+  'restore-reader-s3-secret-access-key': 'SYNTHETIC-RESTORE-READER-MARKER',
+  'restore-orchestrator-s3-secret-access-key': 'SYNTHETIC-RESTORE-ORCH-MARKER',
   'media-copy-storagebox-password': 'SYNTHETIC-BOX-PASSWORD-MARKER',
   'rclone-crypt-password': 'SYNTHETIC-CRYPT-ONE-MARKER',
   'rclone-crypt-password2': 'SYNTHETIC-CRYPT-TWO-MARKER',
@@ -123,13 +125,14 @@ describe('EVM-084 AC2: the copy of the media to the Storage Box', () => {
       { mode: 0o755 },
     );
 
-  it('EVM-084 AC2: `rclone copy` (never sync) from the bucket with the READ key to the crypt remote; secrets only in the environment of rclone', async () => {
+  it('EVM-084 AC2 (ADR-0009, ADR-0011): `rclone sync` without the quarantine from the bucket with the READ key to the crypt remote; secrets only in the environment of rclone', async () => {
     rclone(false);
     const run = await exec('media-copy.sh', [], env());
     assert.equal(run.status, 0, run.stderr);
     const args = read(join(root, 'rclone-args.log'));
-    assert.match(args, /^--config \/dev\/null copy --checksum src:evia-staging-media media:$/m);
-    assert.doesNotMatch(args, /\b(sync|move|purge|delete)\b/);
+    assert.match(args, /^--config \/dev\/null sync --checksum --exclude quarantine\/\*\* src:evia-staging-media media:$/m);
+    assert.doesNotMatch(args, /\b(copy|move|purge|delete|--delete-excluded)\b/);
+    assert.equal(args.trim().split('\n').length, 1, 'one rclone run');
     const names = read(join(root, 'rclone-env-names.log'));
     assert.match(names, /RCLONE_CONFIG_MEDIA_FILENAME_ENCRYPTION/);
     assert.match(read(join(root, 'rclone-env.log')), /RCLONE_CONFIG_MEDIA_FILENAME_ENCRYPTION=standard/);
@@ -151,13 +154,43 @@ describe('EVM-084 AC2: the copy of the media to the Storage Box', () => {
   });
 });
 
-/** Stand-in for the buckets: answers like the policies of the module, or wrongly when `broken` names a defect. */
+const MATRIX = readFileSync(new URL('../restore/bucket-matrix.tsv', import.meta.url).pathname, 'utf8');
+const MATRIX_ROWS = MATRIX.split('\n')
+  .filter((line) => line.startsWith('row\t'))
+  .map((line) => line.split('\t').slice(1));
+const MATRIX_KEYS = MATRIX.split('\n')
+  .filter((line) => line.startsWith('key\t'))
+  .map((line) => line.split('\t')[1] ?? '');
+const BUCKET_LOGICAL = {
+  'evia-staging-media': 'media',
+  'evia-staging-deletion-register': 'register',
+  'evia-staging-db-backup': 'db_backup',
+};
+const AREA_BY_PREFIX = [
+  ['pgbackrest/', 'repo'],
+  ['restore-results/', 'results'],
+];
+
+/**
+ * Stand-in for the buckets: answers like the policies of the module (the decision comes from the same matrix file the script runs),
+ * or wrongly when `broken` names a defect. `tuples` holds every probed tuple key|bucket|area|operation.
+ */
 async function startS3(/** @type {string} */ broken = '') {
   /** @type {Set<string>} */
   const existing = new Set();
   /** @type {string[]} */
   const seen = [];
-  const keyIds = { SCWMEDIA0001: 'media', SCWREGISTER01: 'register', SCWBACKUP0001: 'backup' };
+  /** @type {Set<string>} */
+  const tuples = new Set();
+  const keyIds = {
+    SCWMEDIA0001: 'media_app',
+    SCWMBREADER01: 'media_backup_reader',
+    SCWREGISTER01: 'register_writer',
+    SCWBACKUP0001: 'backup_writer',
+    SCWRREADER001: 'restore_reader',
+    SCWORCH000001: 'restore_orchestrator',
+  };
+  const decisions = new Map(MATRIX_ROWS.map((row) => [row.slice(0, 4).join('|'), row[4]]));
   const server = createServer((request, response) => {
     request.resume();
     request.on('end', () => {
@@ -173,27 +206,34 @@ async function startS3(/** @type {string} */ broken = '') {
         response.end();
       };
       if (who === 'anonymous') return reply(broken === 'anonymous-open' ? 200 : 403);
-      if (admin) return reply(broken === 'admin-allowed' && who === 'media' ? 200 : 403);
-      const object = url.pathname;
-      if (who === 'register') {
-        if (method === 'GET') return reply(broken === 'register-get' ? 200 : 403);
-        if (method === 'DELETE') return reply(403);
-        if (method === 'PUT') {
-          const conditional = request.headers['if-none-match'] === '*';
-          if (!conditional) return reply(broken === 'overwrite' ? 200 : 403);
-          if (existing.has(object)) return reply(412);
-          existing.add(object);
-          return reply(200);
-        }
+      if (admin) return reply(broken === 'admin-allowed' && who === 'media_app' ? 200 : 403);
+      const [, bucketName = '', ...rest] = url.pathname.split('/');
+      const bucket = /** @type {Record<string, string>} */ (BUCKET_LOGICAL)[bucketName] ?? 'unknown';
+      const objectKey = rest.join('/');
+      const isList = objectKey === '';
+      const operation = isList ? 'list' : method === 'PUT' ? 'put' : method === 'DELETE' ? 'delete' : 'get';
+      const area = isList ? '-' : (AREA_BY_PREFIX.find(([prefix]) => objectKey.startsWith(prefix ?? ''))?.[1] ?? 'any');
+      tuples.add([who, bucket, area, operation].join('|'));
+      let allowed = decisions.get([who, bucket, area, operation].join('|')) === 'allow';
+      if (broken === 'cross-bucket' && who === 'media_app' && bucket === 'db_backup') allowed = true;
+      if (broken === 'orchestrator-wide' && who === 'restore_orchestrator' && area === 'repo') allowed = true;
+      if (broken === 'reader-writes' && who === 'restore_reader' && operation === 'put') allowed = true;
+      if (broken === 'register-get' && who === 'register_writer' && operation === 'get') allowed = true;
+      if (!allowed) return reply(403);
+      if (who === 'register_writer' && operation === 'put') {
+        const conditional = request.headers['if-none-match'] === '*';
+        if (!conditional) return reply(broken === 'overwrite' ? 200 : 403);
+        if (existing.has(url.pathname)) return reply(412);
       }
-      if (who === 'media' && method === 'PUT') return reply(200);
-      if (who === 'media' && method === 'HEAD') return reply(200, broken === 'no-sse' ? {} : { 'x-amz-server-side-encryption': 'AES256' });
-      return reply(403);
+      if (operation === 'put') existing.add(url.pathname);
+      if (method === 'HEAD') return reply(200, broken === 'no-sse' ? {} : { 'x-amz-server-side-encryption': 'AES256' });
+      if (operation === 'get') return reply(existing.has(url.pathname) ? 200 : 404);
+      return reply(operation === 'delete' ? 204 : 200);
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(undefined)));
   const port = /** @type {import('node:net').AddressInfo} */ (server.address()).port;
-  return { port, seen, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
+  return { port, seen, tuples, close: () => new Promise((resolve) => server.close(() => resolve(undefined))) };
 }
 
 describe('EVM-084 AC2: bucket-verify.sh', () => {
@@ -204,11 +244,48 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     DELETION_REGISTER_BUCKET: 'evia-staging-deletion-register',
     DB_BACKUP_BUCKET: 'evia-staging-db-backup',
     MEDIA_S3_ACCESS_KEY_ID: 'SCWMEDIA0001',
+    MEDIA_BACKUP_READER_ACCESS_KEY_ID: 'SCWMBREADER01',
     DELETION_REGISTER_S3_ACCESS_KEY_ID: 'SCWREGISTER01',
     BACKUP_WRITER_ACCESS_KEY_ID: 'SCWBACKUP0001',
+    RESTORE_READER_ACCESS_KEY_ID: 'SCWRREADER001',
+    RESTORE_ORCH_ACCESS_KEY_ID: 'SCWORCH000001',
   });
 
-  it('EVM-084 AC2: a correctly configured storage passes: anonymous 403, the register adds once and nothing else, no administrative action', async () => {
+  it('EVM-084 AC2: the matrix file is complete — every key × bucket × operation (and area) is a row, the orchestrator included', () => {
+    assert.deepEqual([...MATRIX_KEYS].sort(), [
+      'backup_writer',
+      'media_app',
+      'media_backup_reader',
+      'register_writer',
+      'restore_orchestrator',
+      'restore_reader',
+    ]);
+    for (const key of MATRIX_KEYS)
+      for (const bucket of ['media', 'register', 'db_backup']) {
+        const rows = MATRIX_ROWS.filter((row) => row[0] === key && row[1] === bucket);
+        assert.equal(rows.filter((row) => row[3] === 'list').length, 1, `${key} ${bucket} list`);
+        const areas = bucket === 'db_backup' ? ['repo', 'results'] : ['any'];
+        for (const operation of ['put', 'get', 'delete'])
+          assert.deepEqual(
+            rows.filter((row) => row[3] === operation).map((row) => row[2]),
+            areas,
+            `${key} ${bucket} ${operation}`,
+          );
+      }
+    assert.equal(MATRIX_ROWS.length, 6 * (3 * 4 + 3));
+    const decision = (/** @type {string[]} */ ...tuple) => MATRIX_ROWS.find((row) => row.slice(0, 4).join('|') === tuple.join('|'))?.[4];
+    assert.equal(decision('restore_orchestrator', 'db_backup', 'results', 'put'), 'allow');
+    assert.equal(decision('restore_orchestrator', 'db_backup', 'repo', 'get'), 'deny');
+    assert.equal(decision('restore_orchestrator', 'media', 'any', 'get'), 'deny');
+    assert.equal(decision('restore_reader', 'db_backup', 'repo', 'put'), 'deny');
+    assert.equal(decision('media_backup_reader', 'media', 'any', 'delete'), 'deny');
+    assert.equal(decision('media_app', 'db_backup', 'repo', 'get'), 'deny');
+    assert.equal(decision('register_writer', 'media', 'any', 'put'), 'deny');
+    assert.equal(decision('register_writer', 'register', 'any', 'put'), 'allow');
+    assert.equal(decision('register_writer', 'register', 'any', 'get'), 'deny');
+  });
+
+  it('EVM-084 AC2: a correctly configured storage passes: anonymous 403, the register adds once and nothing else, no administrative action, the whole matrix', async () => {
     s3 = await startS3();
     const run = await exec('bucket-verify.sh', [], env());
     assert.equal(run.status, 0, run.stdout + run.stderr);
@@ -218,21 +295,31 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       'register: the second PUT with If-None-Match is refused',
       'register: an overwrite (PUT without If-None-Match) is AccessDenied',
       'register: DELETE is AccessDenied',
-      'backup key: DeleteObjectVersion is AccessDenied',
+      'backup_writer key: DeleteObjectVersion in db_backup is AccessDenied',
+      'restore_orchestrator key: PutBucketPolicy in media is AccessDenied',
       'the media object is encrypted (SSE-ONE)',
     ])
       assert.ok(run.stdout.includes(line), line);
+    // every row of the matrix was asked, with the key and the expectation of the file
+    for (const row of MATRIX_ROWS) {
+      const [key = '', bucket = '', area = '', operation = ''] = row;
+      assert.ok(s3.tuples.has([key, bucket, area, operation].join('|')), row.join(' '));
+      assert.ok(run.stdout.includes(`matrix: ${key} × ${bucket} (area ${area}) × ${operation} expects ${row[4]}`), row.join(' '));
+    }
     noSecret(run.stdout + run.stderr);
     assert.ok(s3.seen.every((entry) => !/SYNTHETIC/.test(entry)));
   });
 
-  it('EVM-084 AC2: every defect is a FAIL line and exit code 1 (public bucket, overwrite or read by the register key, administrative action, no SSE)', async () => {
+  it('EVM-084 AC2: every defect is a FAIL line and exit code 1 (public bucket, overwrite or read by the register key, administrative action, no SSE, a key that reaches another bucket, the orchestrator in the repository, a reader that writes)', async () => {
     for (const [defect, expected] of [
       ['anonymous-open', 'anonymous'],
       ['overwrite', 'overwrite'],
       ['register-get', 'GET is AccessDenied'],
       ['admin-allowed', 'PutBucketPolicy'],
       ['no-sse', 'x-amz-server-side-encryption'],
+      ['cross-bucket', 'matrix: media_app × db_backup'],
+      ['orchestrator-wide', 'matrix: restore_orchestrator × db_backup \\(area repo\\)'],
+      ['reader-writes', 'matrix: restore_reader × '],
     ]) {
       await s3?.close();
       s3 = await startS3(defect);
@@ -240,6 +327,17 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       assert.equal(run.status, 1, defect);
       assert.match(run.stdout, new RegExp(`FAIL: .*${expected}`), defect);
     }
+  });
+
+  it('EVM-084 AC2: a missing key id, a bad bucket name or a missing matrix file stops the verification before a request', async () => {
+    s3 = await startS3();
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), RESTORE_ORCH_ACCESS_KEY_ID: '' })).status, 1);
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), MEDIA_BUCKET: 'Bad Bucket' })).status, 1);
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), RESTORE_READER_ACCESS_KEY_ID: 'bad id;' })).status, 1);
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), EVIA_BUCKET_MATRIX: join(root, 'missing.tsv') })).status, 1);
+    writeFileSync(join(root, 'odd.tsv'), 'weird\tline\n');
+    assert.equal((await exec('bucket-verify.sh', [], { ...env(), EVIA_BUCKET_MATRIX: join(root, 'odd.tsv') })).status, 1);
+    assert.equal(s3.seen.length, 0);
   });
 
   it('EVM-084 AC2: only https (http on the loopback in test mode) is accepted as the endpoint', async () => {

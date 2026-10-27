@@ -73,9 +73,10 @@ module "network" {
 }
 
 module "firewall" {
-  source          = "../modules/firewall"
-  name            = local.name
-  admin_ssh_cidrs = var.admin_ssh_cidrs
+  source           = "../modules/firewall"
+  name             = local.name
+  admin_ssh_cidrs  = var.admin_ssh_cidrs
+  storagebox_cidrs = var.storagebox_cidrs
 }
 
 module "vm" {

@@ -2,9 +2,11 @@
 # Copy of the media to the Storage Box (EVM-084 AC2; ADR-0009, ADR-0011; security-engineer P8). Installed ONLY in an IaC session at
 # /usr/local/sbin/evia-media-copy and run daily by evia-media-copy.timer. Source: the bucket of the media with the separate READ key
 # media-backup-reader (not the key of the application). Target: rclone crypt (filename_encryption=standard, two passwords from
-# secret files) over SFTP to the Storage Box subaccount, host key pinned (known_hosts), limited to its directory. `rclone copy`
-# never deletes on the target: a deletion in the bucket does not propagate; the history is the snapshots of the Storage Box,
-# managed outside the VM. Secrets reach only the environment of the rclone processes, never argv or the log.
+# secret files) over SFTP to the Storage Box subaccount, host key pinned (known_hosts), limited to its directory. `rclone sync`
+# as ADR-0009/ADR-0011 decide: a deletion in the bucket (purge, anonymisation, a request under art. 17 GDPR) reaches the copy, and
+# the data removed that way survives only in the snapshots of the Storage Box (14 days), which are managed OUTSIDE the VM (the
+# write-only subaccount of the copy has no access to them) and so also protect the copy against a deletion from a taken-over VM.
+# `quarantine/` (files with a virus) is never copied. Secrets reach only the environment of the rclone processes, never argv or the log.
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +34,7 @@ copy_media() {
     RCLONE_CONFIG_BOX_KNOWN_HOSTS_FILE="${STORAGEBOX_KNOWN_HOSTS:-/etc/evia/media-copy/storagebox_known_hosts}" \
     RCLONE_CONFIG_MEDIA_TYPE=crypt RCLONE_CONFIG_MEDIA_REMOTE="box:${STORAGEBOX_MEDIA_PATH:-media}" RCLONE_CONFIG_MEDIA_FILENAME_ENCRYPTION=standard \
     RCLONE_CONFIG_MEDIA_PASSWORD="$crypt_one" RCLONE_CONFIG_MEDIA_PASSWORD2="$crypt_two" \
-    "$RCLONE_BIN" --config /dev/null copy --checksum "src:$MEDIA_BUCKET" media:
+    "$RCLONE_BIN" --config /dev/null sync --checksum --exclude 'quarantine/**' "src:$MEDIA_BUCKET" media:
 }
 
 if copy_media; then

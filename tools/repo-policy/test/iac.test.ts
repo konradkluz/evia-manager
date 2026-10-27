@@ -6,16 +6,22 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { exists, filesBelow, gitIgnores, list, read, record, text, yaml } from '../src/files.ts';
 import {
+  APPLICATION_KEYS,
   ARM64_SERVER_TYPES,
   BUCKET_POLICIES,
   FORBIDDEN_PERMISSION_SETS,
+  MATRIX_BUCKETS,
+  MATRIX_OPERATIONS,
   PRIVILEGED_ACTIONS,
+  bucketMatrixFile,
+  bucketMatrixRows,
   bucketProblems,
   encryptionProblems,
   firewallProblems,
   hclBlock,
   hclListMap,
   iacComposeProblems,
+  matrixAllows,
   providerProblems,
   regionProblems,
   serverTypeProblems,
@@ -450,5 +456,105 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(hclListMap('a = 1', 'media_allow')).toBeNull();
     expect(hclListMap('media_allow = {\n  k = ["a", "b"]\n}', 'media_allow')).toEqual({ k: ['a', 'b'] });
     expect(bucketProblems('')).not.toEqual([]);
+  });
+});
+
+describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-verify.sh)', () => {
+  const file = read('infra/deploy-agent/restore/bucket-matrix.tsv');
+
+  it('EVM-084 AC2: infra/deploy-agent/restore/bucket-matrix.tsv is exactly what BUCKET_POLICIES renders (regenerate it when the policies change)', () => {
+    expect(file).toBe(bucketMatrixFile());
+  });
+
+  it('EVM-084 AC2: every key of every bucket is covered for list, get, put and delete; the cells follow BUCKET_POLICIES', () => {
+    const rows = bucketMatrixRows();
+    expect(Object.keys(APPLICATION_KEYS).sort()).toEqual([
+      'backup_writer',
+      'media_app',
+      'media_backup_reader',
+      'register_writer',
+      'restore_orchestrator',
+      'restore_reader',
+    ]);
+    expect(rows).toHaveLength(6 * (3 * 4 + 3));
+    for (const key of Object.keys(APPLICATION_KEYS))
+      for (const bucket of Object.keys(MATRIX_BUCKETS))
+        for (const operation of Object.keys(MATRIX_OPERATIONS))
+          expect(
+            rows.some((row) => row[0] === key && row[1] === bucket && row[3] === operation),
+            `${key} ${bucket} ${operation}`,
+          ).toBe(true);
+    // every pair of BUCKET_POLICIES is allowed for exactly its actions ...
+    for (const [policy, map] of Object.entries(BUCKET_POLICIES))
+      for (const [key, actions] of Object.entries(map))
+        for (const [operation, action] of Object.entries(MATRIX_OPERATIONS))
+          expect(matrixAllows(key, policy.replace('_allow', ''), 'any', operation), `${policy} ${key} ${operation}`).toBe(
+            actions.includes(action),
+          );
+    // ... and every pair outside of it is denied
+    for (const key of Object.keys(APPLICATION_KEYS).filter((name) => name !== 'restore_orchestrator'))
+      for (const [policy, map] of Object.entries(BUCKET_POLICIES))
+        if (!(key in map))
+          for (const operation of Object.keys(MATRIX_OPERATIONS))
+            expect(matrixAllows(key, policy.replace('_allow', ''), 'any', operation), `${policy} ${key} ${operation}`).toBe(false);
+    // the orchestrator: put and get under restore-results/, nothing else anywhere
+    expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'put')).toBe(true);
+    expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'get')).toBe(true);
+    for (const [bucket, area, operation] of [
+      ['db_backup', 'results', 'delete'],
+      ['db_backup', 'results', 'list'],
+      ['db_backup', 'repo', 'get'],
+      ['db_backup', 'repo', 'put'],
+      ['media', 'any', 'get'],
+      ['register', 'any', 'put'],
+    ] as const)
+      expect(matrixAllows('restore_orchestrator', bucket, area, operation), `${bucket} ${area} ${operation}`).toBe(false);
+  });
+
+  it('EVM-084 AC2: no key may delete in the register or write in the repository without being listed; a changed policy changes the matrix', () => {
+    expect(matrixAllows('register_writer', 'register', 'any', 'delete')).toBe(false);
+    expect(matrixAllows('register_writer', 'register', 'any', 'get')).toBe(false);
+    expect(matrixAllows('restore_reader', 'db_backup', 'repo', 'put')).toBe(false);
+    expect(matrixAllows('media_backup_reader', 'media', 'any', 'put')).toBe(false);
+    expect(matrixAllows('media_app', 'db_backup', 'repo', 'get')).toBe(false);
+    expect(matrixAllows('backup_writer', 'media', 'any', 'get')).toBe(false);
+    expect(matrixAllows('unknown_key', 'media', 'any', 'get')).toBe(false);
+    expect(matrixAllows('media_app', 'media', 'any', 'unknown_operation')).toBe(false);
+  });
+});
+
+describe('EVM-084 AC2: the SFTP port of the Storage Box in the firewall of the VM', () => {
+  const mutate = (from: string | RegExp, to: string): string => {
+    const changed = firewall.replace(from, to);
+    expect(changed, `mutation ${String(from)}`).not.toBe(firewall);
+    return changed;
+  };
+
+  it('EVM-084 AC2: port 23 leaves the VM only to var.storagebox_cidrs, which is empty by default and never the whole internet', () => {
+    expect(firewallProblems(firewall)).toEqual([]);
+    expect(firewall).toContain('port            = "23"');
+  });
+
+  it('EVM-084 AC2: a literal or open destination, another protocol, a rule without the variable or a variable with a default is a problem', () => {
+    expect(firewallProblems(mutate('destination_ips = rule.value', 'destination_ips = ["0.0.0.0/0", "::/0"]'))).not.toEqual([]);
+    expect(firewallProblems(mutate('destination_ips = rule.value', 'destination_ips = local.anywhere'))).not.toEqual([]);
+    expect(firewallProblems(mutate(/protocol\s*=\s*"tcp"\n(\s*)port\s*=\s*"23"/, 'protocol = "udp"\n$1port = "23"'))).not.toEqual([]);
+    expect(
+      firewallProblems(mutate('length(var.storagebox_cidrs) > 0 ? [var.storagebox_cidrs] : []', '[var.storagebox_cidrs]')),
+    ).not.toEqual([]);
+    expect(firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?default\s*=\s*)\[\]/, '$1["10.0.0.0/8"]'))).not.toEqual([]);
+    expect(
+      firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?)contains\(\["0.0.0.0\/0", "::\/0"\], cidr\)/, '$1false')),
+    ).not.toEqual([]);
+    expect(firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?)can\(cidrhost\(cidr, 0\)\)/, '$1true'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: the staging root passes the variable through and it has an empty default', () => {
+    const root = tfFiles
+      .filter((path) => path.startsWith(`${TOFU}/staging/`))
+      .map(read)
+      .join('\n');
+    expect(root).toContain('storagebox_cidrs = var.storagebox_cidrs');
+    expect(root).toMatch(/variable "storagebox_cidrs" \{[^}]*default\s*=\s*\[\]/);
   });
 });
