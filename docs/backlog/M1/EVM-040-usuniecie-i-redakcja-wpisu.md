@@ -4,7 +4,7 @@ title: Usunięcie i redakcja wpisu w dzienniku (Administrator)
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 model: sonnet
@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-13 — podział EVM-007 wg ADR-0018: bucket rejestru usunięć powstaje w EVM-084 (007b, zależy od 007a); `depends_on`: EVM-007 → EVM-084 (product-owner)
 - 2026-10-27 — nocna kolejka (tor T2): path pelna, model sonnet dopisane przez Tech Leada; wyjątek od DoR (zależność od EVM-084 to bucket przy wdrożeniu, nie kod; demo po sesji IaC) — warunkowo, do potwierdzenia przez Konrada
+- 2026-10-27 — start realizacji (nocna kolejka, tor T2), gałąź feature/EVM-040-041-usuniecie-rejestr-usuniec
