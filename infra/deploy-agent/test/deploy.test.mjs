@@ -570,6 +570,9 @@ describe('EVM-007 AC4 (security-engineer B): ShellCheck on the shell scripts of 
     '/src/infra/deploy-agent/restore/scenario.sh',
     '/src/infra/deploy-agent/restore/s3-presign.sh',
     '/src/infra/deploy-agent/restore/vm-restore.sh',
+    '/src/infra/deploy-agent/restore/backup.sh',
+    '/src/infra/deploy-agent/restore/media-copy.sh',
+    '/src/infra/deploy-agent/restore/bucket-verify.sh',
     '/src/infra/docker/iac/check.sh',
     '/src/infra/docker/iac/iac.sh',
   ];
