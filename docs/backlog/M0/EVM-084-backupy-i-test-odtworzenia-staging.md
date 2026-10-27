@@ -4,7 +4,7 @@ title: Backupy, wersjonowanie mediów, rejestr usunięć i test odtworzenia na s
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -61,3 +61,4 @@ Jako **właściciel produktu** chcę **automatycznych kopii bazy i mediów oraz 
 ## Dziennik
 - 2026-10-13 — utworzono (product-owner, podział EVM-007 wg ADR-0018: dawne AC4 i część AC7)
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
+- 2026-10-27 — start realizacji (nocna kolejka, tor T3), gałąź feature/EVM-084-085-backupy-obserwowalnosc
