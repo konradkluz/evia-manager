@@ -1,6 +1,6 @@
 ---
 id: EVM-119
-title: API odrzuca skompresowane ciała żądań (inflate: false, RR-39)
+title: "API odrzuca skompresowane ciała żądań (inflate: false, RR-39)"
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
