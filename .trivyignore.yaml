@@ -171,3 +171,16 @@ vulnerabilities:
     purls: ['pkg:golang/stdlib@v1.26.8']
     statement: *caddy-high
     expired_at: 2026-11-20
+  # (C) Alpine packages of caddy:2.11.7-alpine (edge Caddy and the runtime of evia-web) - NOT REACHABLE, STAGING ONLY (RR-38).
+  - id: CVE-2026-111497
+    purls: ['pkg:apk/alpine/brotli-libs@1.2.0-r0']
+    statement: &caddy-apk 'High in Alpine packages of caddy:2.11.7-alpine (brotli-libs 1.2.0-r0, curl/libcurl 8.22.0-r0); not reachable — only /usr/bin/curl loads libcurl and libbrotlidec and nothing runs it (CMD caddy run, HEALTHCHECK NONE, deploy.sh uses the host curl); caddy is a static Go binary without Brotli decoding; staging only, never for prod (RR-38) · owner: security-engineer · EVM-007'
+    expired_at: 2026-11-20
+  - id: CVE-2026-92392
+    purls: ['pkg:apk/alpine/curl@8.22.0-r0']
+    statement: *caddy-apk
+    expired_at: 2026-11-20
+  - id: CVE-2026-92392
+    purls: ['pkg:apk/alpine/libcurl@8.22.0-r0']
+    statement: *caddy-apk
+    expired_at: 2026-11-20

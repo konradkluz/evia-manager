@@ -64,7 +64,7 @@ services:
       retries: 10
 
   clamd:
-    image: clamav/clamav-debian:1.5.4@sha256:d7ede3cefeaf3b8a72ebcdee849d13f504bbca3f3b3cfade5bc7b6ee06a4f62c
+    image: clamav/clamav-debian:1.5.4@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -80,7 +80,7 @@ services:
       - clamav-signatures:/var/lib/clamav:ro
 
   freshclam:
-    image: clamav/clamav-debian:1.5.4@sha256:d7ede3cefeaf3b8a72ebcdee849d13f504bbca3f3b3cfade5bc7b6ee06a4f62c
+    image: clamav/clamav-debian:1.5.4@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
