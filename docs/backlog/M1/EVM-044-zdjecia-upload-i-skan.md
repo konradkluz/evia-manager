@@ -118,3 +118,5 @@ _—_
 - 2026-10-13 — podział EVM-007 wg ADR-0018: runtime skanera antywirusowego (EVM-007 = 007a) i bucket mediów z wersjonowaniem (EVM-084 = 007b); `depends_on` + EVM-084 (product-owner)
 - 2026-10-27 — nocna kolejka (tor T1): path pelna, model sonnet; wyjątek od DoR (zależność od EVM-084 = bucket przy wdrożeniu, nie kod; brak konfiguracji = funkcja wyłączona przy zdrowej usłudze; demo po sesji IaC) — warunkowo, do potwierdzenia przez Konrada
 - 2026-10-27 — start realizacji (nocna kolejka, tor T1), gałąź feature/EVM-044-049-media-upload-kwarantanna
+- 2026-10-27 — plan gotowy (backend-developer)
+- 2026-10-27 — T1 commit 1 (backend-developer): zależności `@aws-sdk/client-s3` i `@aws-sdk/s3-request-presigner` 3.1157.0 (najnowsza stabilna starsza niż 24 h na 2026-10-27; 3.1158.0 z 2026-10-27 18:46 UTC jest zbyt świeża), `file-type` 22.2.0 (MIT, 2026-10-14); T2 używa tej samej wersji SDK według tej reguły; reguła depcruise `api-aws-sdk-only-in-storage-adapters` (`@aws-sdk/*` tylko z `apps/api/src/platform/(object-storage|deletion-register)/`); konfiguracja mediów „wszystko albo nic”

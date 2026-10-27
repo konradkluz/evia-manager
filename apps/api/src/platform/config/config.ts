@@ -11,6 +11,7 @@ import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
 import { parseEmailAddress } from '../email/email-address.ts';
+import { loadMediaConfig, MediaConfigError, type MediaConfig } from './media-config.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -47,6 +48,8 @@ export interface AppConfig {
   readonly loginThrottleKey: Buffer;
   /** Thresholds of the alerts about guessing (SR-LOG-07): failed passwords of all accounts in 5 minutes (more than) / failures of the second step of one scope in its window (at least). */
   readonly loginAlerts: { readonly passwordFailures: number; readonly secondStepFailures: number };
+  /** The media pipeline (EVM-044): absent when no media variable is set — the upload then answers 503 and the service stays healthy. */
+  readonly media?: MediaConfig;
 }
 
 /**
@@ -59,6 +62,7 @@ export const FILE_KEYS = [
   'FIELD_ENCRYPTION_KEYS',
   'LOGIN_THROTTLE_KEY',
   'EVIA_RELEASE_MANIFEST_SHA256',
+  'MEDIA_S3_SECRET_ACCESS_KEY',
 ] as const;
 const MAX_FILE_BYTES = 64 * 1024;
 /** Reads the file of a `<KEY>_FILE` setting (tests pass their own). */
@@ -261,7 +265,9 @@ export function loadMigrationConfig(env: Env, read: ReadConfigFile = readConfigF
 
 /** The full configuration of the server, the worker and the CLI. */
 export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): AppConfig {
-  const value = parseEnv(schema, resolveFileKeys(env, read));
+  const resolved = resolveFileKeys(env, read);
+  const value = parseEnv(schema, resolved);
+  const media = mediaOf(resolved);
   return {
     nodeEnv: value.NODE_ENV,
     port: value.API_PORT,
@@ -276,7 +282,18 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     release: { commit: value.EVIA_RELEASE_COMMIT, manifestSha256: value.EVIA_RELEASE_MANIFEST_SHA256 },
     loginThrottleKey: keyOfLoginThrottle(value.LOGIN_THROTTLE_KEY) ?? randomBytes(LOGIN_THROTTLE_KEY_MIN_BYTES),
     loginAlerts: { passwordFailures: value.LOGIN_ALERT_PASSWORD_FAILURES, secondStepFailures: value.LOGIN_ALERT_SECOND_STEP_FAILURES },
+    ...(media === undefined ? {} : { media }),
   };
+}
+
+/** The media settings, all or nothing (EVM-044); an error names the keys only. */
+function mediaOf(env: Env): MediaConfig | undefined {
+  try {
+    return loadMediaConfig(env);
+  } catch (error) {
+    if (error instanceof MediaConfigError) throw new ConfigError(error.keys);
+    throw error;
+  }
 }
 
 /** Where the transactional e-mail goes (EVM-024 AC6): the transport is an explicit, required setting — there is no default. */
