@@ -129,6 +129,11 @@ function setup() {
     'field-encryption-keys',
     'login-throttle-key',
     'postgres-password',
+    // EVM-084: provided by hand on the VM, listed in the manifest
+    'media-s3-secret-access-key',
+    'deletion-register-s3-secret-access-key',
+    'pgbackrest-cipher-pass',
+    'backup-s3-secret-access-key',
   ])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
   // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).

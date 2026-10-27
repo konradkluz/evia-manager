@@ -60,7 +60,11 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
       expect(text(record(channel[name] ?? infra[name])['user']), name).toBe(`${uid}:${uid}`);
     }
     // PostgreSQL (compose.infra.yaml) gets only its superuser password; no service of the channel gets it.
-    expect(list(record(secrets['postgres'])['files'])).toEqual(['postgres-password']);
+    expect(list(record(secrets['postgres'])['files'])).toEqual([
+      'postgres-password',
+      'pgbackrest-cipher-pass',
+      'backup-s3-secret-access-key',
+    ]);
     expect(Object.keys(secrets).filter((name) => list(record(secrets[name])['files']).includes('postgres-password'))).toEqual(['postgres']);
     const holders = Object.entries(secrets)
       .filter(([, value]) => list(record(value)['files']).includes('database-url-migrator'))
