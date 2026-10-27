@@ -316,12 +316,13 @@ export const RELEASE_SOURCE = 'https://github.com/konradkluz/evia-manager';
  */
 export function releaseLabelProblems(name: string, dockerfile: string): string[] {
   const code = dockerfile.replace(/^\s*#.*$/gm, '');
-  const lastStage = code.split(/^\s*FROM\s/im).at(-1) ?? '';
+  const lastStage = code.slice(code.toUpperCase().lastIndexOf('\nFROM '));
   const key = 'org.opencontainers.image.source';
-  const all = [...code.matchAll(/org\.opencontainers\.image\.source=("[^"]*"|\S+)/g)].map((match) => match[1] ?? '');
+  const all = code.match(/org\.opencontainers\.image\.source=("[^"]*"|\S+)/g) ?? [];
   const inLast = [...lastStage.matchAll(/org\.opencontainers\.image\.source=/g)].length;
   const problems: string[] = [];
-  if (all.length !== 1 || all[0] !== `"${RELEASE_SOURCE}"`) problems.push(`${name}: dokładnie jedna etykieta ${key}="${RELEASE_SOURCE}"`);
+  if (all.length !== 1 || all[0] !== `${key}="${RELEASE_SOURCE}"`)
+    problems.push(`${name}: dokładnie jedna etykieta ${key}="${RELEASE_SOURCE}"`);
   if (inLast !== 1) problems.push(`${name}: etykieta ${key} w ostatnim etapie`);
   return problems;
 }
