@@ -32,13 +32,13 @@ export type DeletionRegisterSettings =
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 
-/** https always; http only for the loopback of a machine, and never in production (tests and a local server of the developer). */
-function validEndpoint(value: string, nodeEnv: string): boolean {
+/** https always; http only for the loopback of a machine, and only when the caller allows it - never in production (tests and a local server of the developer). */
+function validEndpoint(value: string, allowLoopbackHttp: boolean): boolean {
   if (!URL.canParse(value)) return false;
   const url = new URL(value);
   if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '') return false;
   if (url.protocol === 'https:') return true;
-  return url.protocol === 'http:' && nodeEnv !== 'production' && LOOPBACK_HOSTS.has(url.hostname);
+  return url.protocol === 'http:' && allowLoopbackHttp && LOOPBACK_HOSTS.has(url.hostname);
 }
 
 const SHAPES: Record<Exclude<DeletionRegisterKey, 'S3_ENDPOINT'>, RegExp> = {
@@ -50,7 +50,7 @@ const SHAPES: Record<Exclude<DeletionRegisterKey, 'S3_ENDPOINT'>, RegExp> = {
 
 export function resolveDeletionRegisterSettings(
   env: Readonly<Partial<Record<DeletionRegisterKey, string | undefined>>>,
-  nodeEnv: string,
+  allowLoopbackHttp: boolean,
 ): DeletionRegisterSettings {
   const present = (key: DeletionRegisterKey): string | undefined => {
     const value = env[key];
@@ -61,7 +61,7 @@ export function resolveDeletionRegisterSettings(
   const invalid = DELETION_REGISTER_KEYS.filter((key) => {
     const value = present(key);
     if (value === undefined) return false;
-    return key === 'S3_ENDPOINT' ? !validEndpoint(value, nodeEnv) : !SHAPES[key].test(value);
+    return key === 'S3_ENDPOINT' ? !validEndpoint(value, allowLoopbackHttp) : !SHAPES[key].test(value);
   });
   if (missing.length > 0 || invalid.length > 0) return { status: 'incomplete', missing, invalid };
   return {

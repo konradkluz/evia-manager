@@ -270,22 +270,22 @@ describe('the settings of the register (EVM-040 AC3; SR-CRYPTO-04): all or nothi
   };
 
   it('EVM-040 AC3 all five well formed settings are a configured register', () => {
-    expect(resolveDeletionRegisterSettings(all, 'production')).toMatchObject({
+    expect(resolveDeletionRegisterSettings(all, false)).toMatchObject({
       status: 'configured',
       bucket: 'evia-staging-deletion-register',
     });
   });
 
   it('EVM-040 AC3 none is "unconfigured"; empty strings count as absent', () => {
-    expect(resolveDeletionRegisterSettings({}, 'production')).toEqual({ status: 'unconfigured' });
-    expect(resolveDeletionRegisterSettings({ S3_ENDPOINT: '', DELETION_REGISTER_BUCKET: '' }, 'production')).toEqual({
+    expect(resolveDeletionRegisterSettings({}, false)).toEqual({ status: 'unconfigured' });
+    expect(resolveDeletionRegisterSettings({ S3_ENDPOINT: '', DELETION_REGISTER_BUCKET: '' }, false)).toEqual({
       status: 'unconfigured',
     });
   });
 
   it('EVM-040 AC3 a partial set is "incomplete" and names the missing keys only', () => {
     const partial = { S3_ENDPOINT: all.S3_ENDPOINT, S3_REGION: all.S3_REGION };
-    expect(resolveDeletionRegisterSettings(partial, 'production')).toEqual({
+    expect(resolveDeletionRegisterSettings(partial, false)).toEqual({
       status: 'incomplete',
       missing: ['DELETION_REGISTER_BUCKET', 'DELETION_REGISTER_S3_ACCESS_KEY_ID', 'DELETION_REGISTER_S3_SECRET_ACCESS_KEY'],
       invalid: [],
@@ -293,8 +293,8 @@ describe('the settings of the register (EVM-040 AC3; SR-CRYPTO-04): all or nothi
   });
 
   it('EVM-040 AC3 a malformed value is "invalid": http outside loopback, credentials in the URL, a bad bucket or region, a short secret', () => {
-    const invalidKeys = (override: Record<string, string>, env = 'production') => {
-      const result = resolveDeletionRegisterSettings({ ...all, ...override }, env) as Extract<
+    const invalidKeys = (override: Record<string, string>, allowLoopbackHttp = false) => {
+      const result = resolveDeletionRegisterSettings({ ...all, ...override }, allowLoopbackHttp) as Extract<
         DeletionRegisterSettings,
         { status: 'incomplete' }
       >;
@@ -313,10 +313,10 @@ describe('the settings of the register (EVM-040 AC3; SR-CRYPTO-04): all or nothi
 
   it('EVM-040 AC3 http is accepted for the loopback of a machine outside production only', () => {
     const local = { ...all, S3_ENDPOINT: 'http://127.0.0.1:9000' };
-    expect(resolveDeletionRegisterSettings(local, 'test').status).toBe('configured');
-    expect(resolveDeletionRegisterSettings({ ...local, S3_ENDPOINT: 'http://localhost:9000' }, 'development').status).toBe('configured');
-    expect(resolveDeletionRegisterSettings({ ...local, S3_ENDPOINT: 'http://[::1]:9000' }, 'test').status).toBe('configured');
-    expect(resolveDeletionRegisterSettings(local, 'production').status).toBe('incomplete');
+    expect(resolveDeletionRegisterSettings(local, true).status).toBe('configured');
+    expect(resolveDeletionRegisterSettings({ ...local, S3_ENDPOINT: 'http://localhost:9000' }, true).status).toBe('configured');
+    expect(resolveDeletionRegisterSettings({ ...local, S3_ENDPOINT: 'http://[::1]:9000' }, true).status).toBe('configured');
+    expect(resolveDeletionRegisterSettings(local, false).status).toBe('incomplete');
   });
 });
 

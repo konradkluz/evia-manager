@@ -289,7 +289,7 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     release: { commit: value.EVIA_RELEASE_COMMIT, manifestSha256: value.EVIA_RELEASE_MANIFEST_SHA256 },
     loginThrottleKey: keyOfLoginThrottle(value.LOGIN_THROTTLE_KEY) ?? randomBytes(LOGIN_THROTTLE_KEY_MIN_BYTES),
     loginAlerts: { passwordFailures: value.LOGIN_ALERT_PASSWORD_FAILURES, secondStepFailures: value.LOGIN_ALERT_SECOND_STEP_FAILURES },
-    deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV),
+    deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV !== 'production'),
   };
 }
 
