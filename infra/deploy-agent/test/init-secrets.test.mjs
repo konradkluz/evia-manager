@@ -36,6 +36,7 @@ const EXTERNAL = [
   'restore-hcloud-token',
   'rclone-crypt-password',
   'rclone-crypt-password2',
+  'restore-storagebox-password',
 ];
 const RANDOM_KEYS = ['cursor-key', 'login-throttle-key', 'postgres-password', 'evia-migrator-password', 'evia-api-password'];
 const B64URL_32 = /^[A-Za-z0-9_-]{43}$/;

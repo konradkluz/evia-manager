@@ -19,7 +19,7 @@
 #   media-s3-secret-access-key, deletion-register-s3-secret-access-key   S3 keys of the applications (api / worker)
 #   backup-s3-secret-access-key, pgbackrest-cipher-pass                  pgBackRest on PostgreSQL (key of backup-writer)
 #   restore-reader-s3-secret-access-key, restore-orchestrator-s3-secret-access-key, media-backup-reader-s3-secret-access-key,
-#   restore-hcloud-token, rclone-crypt-password, rclone-crypt-password2  root-only units of the restore test and the media copy
+#   restore-hcloud-token, rclone-crypt-password, rclone-crypt-password2, restore-storagebox-password  root-only units of the restore test and the media copy
 # Their copy lives in Bitwarden and the offline emergency set; none of them is a file of an application container except
 # as the manifest says (secrets.manifest.json).
 # Passwords are 32 random bytes in base64url (URL-safe, no escaping in the URLs). `postgres` is the service name on the
@@ -40,7 +40,7 @@ readonly DB_NAME="evia"
 readonly ROLE_MIGRATOR="evia_migrator"
 readonly ROLE_API="evia_api"
 readonly FILES=(postgres-password evia-migrator-password evia-api-password database-url-migrator database-url-app cursor-key field-encryption-keys login-throttle-key)
-readonly EXTERNAL=(media-s3-secret-access-key deletion-register-s3-secret-access-key backup-s3-secret-access-key pgbackrest-cipher-pass restore-reader-s3-secret-access-key restore-orchestrator-s3-secret-access-key media-backup-reader-s3-secret-access-key restore-hcloud-token rclone-crypt-password rclone-crypt-password2)
+readonly EXTERNAL=(media-s3-secret-access-key deletion-register-s3-secret-access-key backup-s3-secret-access-key pgbackrest-cipher-pass restore-reader-s3-secret-access-key restore-orchestrator-s3-secret-access-key media-backup-reader-s3-secret-access-key restore-hcloud-token rclone-crypt-password rclone-crypt-password2 restore-storagebox-password)
 
 log() { printf 'init-secrets: %s\n' "$1" >&2; }
 fail() {
