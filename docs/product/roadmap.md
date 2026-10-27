@@ -108,6 +108,8 @@ flowchart LR
 
 **Kryteria wyjścia:** **test terenowy** — w garażu podziemnym bez zasięgu technik wykonuje min. 30 zdjęć i 3 filmy oraz dodaje 2 wpisy; po wyjściu na zasięg wszystko trafia do właściwego zlecenia automatycznie, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu; weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach firmowych z Androidem (pilotaż; iOS po osobnej decyzji).
 
+**Plan i historyjki M2:** [`docs/backlog/M2/README.md`](../backlog/M2/README.md) — szkic z 2026-10-27 (EVM-090…112, `draft`); fundament: kontrakt synchronizacji + `sync-core` + lokalna baza, potem E9/E10/E12/E13, na końcu E11 (zależne od E6 / EVM-084).
+
 ## Next
 - **M3 Procesy:** szablony procesów z checklistami wymaganych dokumentów (OSD, administracja, ekspertyza, ppoż, projekt), terminy i przypomnienia (np. brak odpowiedzi administracji > 14 dni), widok „Moje zadania”, książka kontaktów (administracje, projektanci, rzeczoznawcy, OSD), wersjonowanie dokumentów, generowanie pism z szablonów (np. pełnomocnictwo, wnioski), powiadomienia e-mail/push, pulpit (lejek zleceń, czas w etapach, nieopłacone).
 - **M4 Konfiguracja i raporty:** panel administracyjny katalogu usług, szablonów, procesów, statusów i pól dodatkowych; rola „Monter” (tylko przypisane zlecenia) i dostęp partnerów; raporty i eksport (CSV/XLSX), KPI; wyszukiwanie pełnotekstowe; polityki retencji i archiwizacji.

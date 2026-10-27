@@ -119,7 +119,7 @@ flowchart LR
     subgraph admin["Administracja — tylko Administrator, zakładki"]
       W16["W-16 Użytkownicy"]
       W18["W-18 Dziennik audytu"]
-      W17["W-17 Urządzenia użytkowników · bez makiety — E9"]
+      W17["W-17 Urządzenia użytkowników · E9"]
       W16 -->|"zakładka"| W18
       W18 -->|"Osoba, Obiekt"| W16
     end
@@ -167,7 +167,7 @@ flowchart LR
   M10 --> M03
   M06 -->|"Gotowe"| M03
   M06 -.-> M07
-  M09 --> M11["M-11 Prywatność i pomoc · bez makiety"]
+  M09 --> M11["M-11 Prywatność i pomoc"]
   M09 -.->|"Wyloguj, Wyczyść dane firmowe"| M01
 ```
 
@@ -190,7 +190,7 @@ flowchart LR
 | W-14 | Klienci — lista i szczegóły (edycja, usunięcie i przywrócenie, anonimizacja) | web | 13 | [tak](13-klienci.md#w-14-klienci) | E2 |
 | W-15 | Konto — profil, hasło, drugi krok logowania (m.in. dodanie kodu z aplikacji uwierzytelniającej do aplikacji na telefonie — cel stanu M-02 „Dodaj kod z aplikacji uwierzytelniającej”), moje sesje; urządzenia — od E9 | web | 12 | [tak](12-konto-i-administracja.md#w-15-konto) (sekcja urządzeń — od E9) | E1, E9 |
 | W-16 | Administracja — użytkownicy (zaproszenia, role, dezaktywacja i reaktywacja, sesje, reset drugiego kroku) | web | 12 | [tak](12-konto-i-administracja.md#w-16-użytkownicy) | E1 |
-| W-17 | Administracja — urządzenia użytkowników („Wyloguj urządzenie”, „Zablokuj i wyczyść”, niewysłane elementy, poziom poprawek) | web | — | bez makiety — E9 (M2) | E9 |
+| W-17 | Administracja — urządzenia użytkowników („Wyloguj urządzenie”, „Zablokuj i wyczyść”, niewysłane elementy, poziom poprawek) | web | 16 | [tak](16-m2-uzupelnienia-teren-i-urzadzenia.md#w-17-administracja--urządzenia-użytkowników-evm-095-ac2ac6) (także sekcja „Urządzenia” w W-15) | E9 |
 | W-18 | Administracja — dziennik audytu | web | 12 | [tak](12-konto-i-administracja.md#w-18-dziennik-audytu) | E1 |
 | W-19 | Prywatność i pomoc (klauzule informacyjne, kontakt, instrukcja) — także przed zalogowaniem; ten sam układ ma strona „Instrukcja dla biura” (od EVM-066) | web | 15 | [tak](15-prywatnosc-i-pomoc.md#w-19-prywatność-i-pomoc) | E8 |
 | W-20 | Edycja lokalizacji i strony — dialogi z karty „Lokalizacja” W-06 (od E13 — także z banera zlecenia z telefonu) | web | 14 (używany w 3, 10) | [tak](14-edycja-lokalizacji-i-strony.md#w-20-edycja-lokalizacji-i-strony) | E3, E4 |
@@ -204,7 +204,8 @@ flowchart LR
 | M-08 | Media zlecenia | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-08-media-zlecenia) | E11 |
 | M-09 | Więcej (ustawienia, wylogowanie, czyszczenie danych) | mobile | 9 | [tak](09-mobile-zdjecia-filmy-offline.md#m-09-więcej) | E9, E11 |
 | M-10 | Szybkie nowe zlecenie | mobile | 10 | [tak](10-mobile-szybkie-zlecenie.md#m-10-szybkie-zlecenie) | E13 |
-| M-11 | Prywatność i pomoc (klauzula informacyjna) | mobile | — | bez makiety — przy refinemencie E14 | E14 |
+| M-11 | Prywatność i pomoc (klauzula informacyjna) | mobile | 16 | [tak](16-m2-uzupelnienia-teren-i-urzadzenia.md#m-11-prywatność-i-pomoc) | E14 |
+| M-12 | Pierwsze pobranie danych po logowaniu („Przygotowujemy dane…”), uzupełnienia M-05, M-07 („Wymaga uwagi” dla wpisów i szybkich zleceń), M-01, M-02, M-09 | mobile | 16 | [tak](16-m2-uzupelnienia-teren-i-urzadzenia.md#m-12-pierwsze-pobranie-danych-przygotowujemy-dane) | E10, E12 |
 
 Każdy ekran z tabeli jest na mapie nawigacji i odwrotnie (węzeł „Dodaj — arkusz akcji” to element BottomNav, opisany w [Szkielecie aplikacji](#aplikacja-mobilna-m2)).
 
@@ -325,7 +326,7 @@ Makiety ekranów i dialogów M1, które w EVM-004 zostały „bez makiety” ([h
 | AC7 — uzupełnienia list | [07-lista-zlecen-i-filtry.md](07-lista-zlecen-i-filtry.md), [08-nieoplacone.md](08-nieoplacone.md) | [W-10](07-lista-zlecen-i-filtry.md#w-10-lokalizacja-na-liście-i-więcej-filtrów-evm-071) — lokalizacja pod klientem, kolumna „Lokalizacja” na `breakpoint.wide`, „Więcej filtrów”; [W-11 „Do wystawienia”](08-nieoplacone.md#w-11-widok-do-wystawienia) z „Wystaw fakturę…” |
 | AC8 — spójność i jakość | ten plik i wszystkie wyżej | mapa nawigacji, „Ekrany”, macierz ekran × rola, zasady wspólne 16–20, [Zgodność z politykami](#zgodność-z-politykami); tylko komponenty i tokeny styleguide'u 1.2.0; dane syntetyczne ([Dane w makietach](#dane-w-makietach)); diagramy Mermaid renderowane lokalnie; `npm run docs:check` |
 
-„Bez makiety” zostaje tylko przy W-17 (E9) i M-11 (E14).
+Makiety W-17 i M-11 oraz M-12 dodano w [16 — M2: uzupełnienia](16-m2-uzupelnienia-teren-i-urzadzenia.md) (konsultacja UX przed `ready` planu M2, 2026-10-27); nie ma już ekranów „bez makiety”.
 
 ## Zgodność z politykami
 | Polityka | Co w makietach | Gdzie |
