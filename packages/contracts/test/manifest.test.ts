@@ -324,4 +324,25 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(source).toContain('"getHealth"');
     expect(source).toContain('Object.freeze');
   });
+
+  it('EVM-090 AC1 a public operation lists exactly one channel and x-evia-planned is true or absent (generation fails otherwise)', () => {
+    const document = (authz: unknown, planned?: unknown) => ({
+      paths: {
+        '/a': { post: { operationId: 'postA', 'x-evia-authz': authz, ...(planned === undefined ? {} : { 'x-evia-planned': planned }) } },
+      },
+    });
+    expect(buildAuthzManifest(document({ public: true, channels: ['mobile'] }, true)).postA).toEqual({
+      method: 'post',
+      path: '/a',
+      query: [],
+      authz: { public: true, channels: ['mobile'] },
+      planned: true,
+    });
+    expect(buildAuthzManifest(document({ public: true })).postA?.planned).toBeUndefined();
+    expect(() => buildAuthzManifest(document({ public: true, channels: ['web', 'mobile'] }))).toThrow(/exactly one channel/);
+    expect(() => buildAuthzManifest(document({ public: true, channels: [] }))).toThrow(/postA/);
+    expect(() => buildAuthzManifest(document({ public: true, roles: ['editor'] }))).toThrow(/must not declare: roles/);
+    for (const planned of [false, 'true', 1, null])
+      expect(() => buildAuthzManifest(document({ public: true }, planned)), String(planned)).toThrow(/x-evia-planned/);
+  });
 });

@@ -5,6 +5,7 @@ import {
   AUTHZ_MANIFEST,
   implementedManifest,
   implementedOperations,
+  onlyImplemented,
   MOBILE_OPERATIONS,
   operationChannels,
   plannedOperations,
@@ -195,6 +196,17 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
     expect(implementedOperations().filter((id) => plannedOperations().includes(id))).toEqual([]);
     expect(Object.keys(implementedManifest()).sort()).toEqual(implementedOperations().sort());
     expect(Object.keys(implementedManifest()).length).toBe(Object.keys(AUTHZ_MANIFEST).length - NEW_OPERATIONS.length);
+  });
+
+  it('EVM-090 AC1 onlyImplemented drops the planned ids of a list such as PUBLIC_OPERATIONS and keeps the others in order', () => {
+    expect(onlyImplemented(['login', 'mobileLogin', 'getHealth', 'confirmDeviceWipe', 'unknownId'])).toEqual([
+      'login',
+      'getHealth',
+      'unknownId',
+    ]);
+    expect(onlyImplemented(PUBLIC_OPERATIONS).sort()).toEqual(
+      PUBLIC_OPERATIONS.filter((id) => !PUBLIC_MOBILE.includes(id as never)).sort(),
+    );
   });
 
   it('EVM-090 AC1 a planned operation already carries its full policy, so removing the marker switches the role matrix on (roles, channels, mobile list)', () => {
