@@ -226,3 +226,198 @@ export function iacComposeProblems(document: unknown, raw: string): string[] {
   if (raw.replace(/(^|\s)#.*$/gm, '').includes('${')) problems.push('compose.iac.yaml: interpolacja ${…} jest zabroniona');
   return problems;
 }
+
+/**
+ * Object Storage (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-02/03/07, SR-PRIV-04; security-engineer P1-P4, architect 1-5).
+ * The policies as data: which application key may do what in which bucket. `bucketProblems` compares the HCL text of
+ * modules/object-storage with them; the Deny statements (privileged actions, other applications, overwrite of the register)
+ * are required by name.
+ */
+export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = Object.freeze({
+  media_allow: {
+    media_app: [
+      's3:PutObject',
+      's3:GetObject',
+      's3:DeleteObject',
+      's3:AbortMultipartUpload',
+      's3:ListMultipartUploadParts',
+      's3:ListBucket',
+    ],
+    media_backup_reader: ['s3:ListBucket', 's3:GetObject'],
+  },
+  register_allow: {
+    register_writer: ['s3:PutObject'],
+    restore_reader: ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket', 's3:ListBucketVersions'],
+  },
+  db_backup_allow: {
+    backup_writer: [
+      's3:PutObject',
+      's3:GetObject',
+      's3:GetObjectVersion',
+      's3:DeleteObject',
+      's3:AbortMultipartUpload',
+      's3:ListMultipartUploadParts',
+      's3:ListBucket',
+      's3:ListBucketVersions',
+    ],
+    restore_reader: ['s3:GetObject', 's3:GetObjectVersion', 's3:ListBucket', 's3:ListBucketVersions'],
+  },
+});
+/** Never allowed to a key that runs on the VM; the policies Deny exactly these for every application. */
+export const PRIVILEGED_ACTIONS = Object.freeze([
+  's3:PutBucket*',
+  's3:DeleteBucket*',
+  's3:PutLifecycleConfiguration',
+  's3:PutObjectLockConfiguration',
+  's3:PutObjectRetention',
+  's3:PutObjectLegalHold',
+  's3:PutObjectAcl',
+  's3:BypassGovernanceRetention',
+  's3:DeleteObjectVersion',
+]);
+/** IAM permission sets no application may hold (project-wide reach). */
+export const FORBIDDEN_PERMISSION_SETS = Object.freeze(['ObjectStorageFullAccess', 'ObjectStorageBucketsWrite', 'AllProducts']);
+
+/** The text between the braces that open at the end of the match of `header` (comments removed by the caller). */
+export function hclBlock(content: string, header: RegExp): string | null {
+  const start = header.exec(content);
+  if (start === null) return null;
+  const open = start.index + start[0].length - 1;
+  let depth = 0;
+  for (let index = open; index < content.length; index += 1) {
+    if (content[index] === '{') depth += 1;
+    if (content[index] === '}') depth -= 1;
+    if (depth === 0) return content.slice(open + 1, index);
+  }
+  return null;
+}
+
+const quoted = (list: string): string[] => [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? '');
+
+/** `name = { key = ["a", "b"] … }` of a locals block as a map of lists. */
+export function hclListMap(content: string, name: string): Record<string, string[]> | null {
+  const body = hclBlock(content, new RegExp(`^\\s*${name}\\s*=\\s*\\{`, 'm'));
+  if (body === null) return null;
+  const entries = [...body.matchAll(/^\s*(\w+)\s*=\s*\[([^\]]*)\]/gm)];
+  return Object.fromEntries(entries.map((entry) => [entry[1] ?? '', quoted(entry[2] ?? '')]));
+}
+
+function hclList(content: string, name: string): string[] {
+  const match = new RegExp(`^\\s*${name}\\s*=\\s*\\[([^\\]]*)\\]`, 'm').exec(content);
+  return quoted(match?.[1] ?? '');
+}
+
+const isPrivileged = (action: string): boolean =>
+  PRIVILEGED_ACTIONS.some((item) => (item.endsWith('*') ? action.startsWith(item.slice(0, -1)) : item === action));
+
+/** The buckets, lifecycle, lock, encryption, CORS and policies in modules/object-storage/main.tf. */
+export function bucketProblems(raw: string): string[] {
+  const file = 'modules/object-storage';
+  const content = raw.replace(/^\s*#.*$/gm, '');
+  const problems: string[] = [];
+  const need = (ok: boolean, message: string): void => {
+    if (!ok) problems.push(`${file}: ${message}`);
+  };
+  const block = (header: string): string => hclBlock(content, new RegExp(`${header}\\s*\\{`)) ?? '';
+  const bucket = (name: string): string => block(`resource "scaleway_object_bucket" "${name}"`);
+  const lock = (name: string): string => block(`resource "scaleway_object_bucket_lock_configuration" "${name}"`);
+  const policyOf = (name: string): string => block(`resource "scaleway_object_bucket_policy" "${name}"`);
+
+  // region: pl-waw only (SR-PRIV-04)
+  const region = block('variable "region"');
+  need(
+    /default\s*=\s*"pl-waw"/.test(region) && /contains\(\["pl-waw"\], var\.region\)/.test(region),
+    'region wyłącznie pl-waw (dane osobowe)',
+  );
+  need(!/\bregion\s*=\s*"(?!pl-waw")/.test(content), 'region bucketu inny niż pl-waw');
+
+  // the permission matrix as data
+  for (const [name, expected] of Object.entries(BUCKET_POLICIES))
+    need(JSON.stringify(hclListMap(content, name)) === JSON.stringify(expected), `${name} różni się od BUCKET_POLICIES`);
+  const privileged = hclList(content, 'privileged_actions');
+  for (const action of PRIVILEGED_ACTIONS) need(privileged.includes(action), `Deny dla aplikacji bez ${action}`);
+  for (const [name, map] of Object.entries(BUCKET_POLICIES))
+    for (const [app, actions] of Object.entries(map))
+      for (const action of actions.filter(isPrivileged)) problems.push(`${file}: ${name}.${app} ma uprawnienie administracyjne ${action}`);
+
+  // IAM: no key in the state, no broad permission set, the staging project only
+  need(!/resource\s+"scaleway_iam_api_key"/.test(content), 'klucze API tworzone ręcznie w sesji IaC, nie w stanie (TM-64)');
+  const apps = hclBlock(content, /^\s*apps\s*=\s*\{/m) ?? '';
+  for (const set of FORBIDDEN_PERMISSION_SETS) need(!apps.includes(`"${set}"`), `zestaw uprawnień ${set} zabroniony`);
+  need(
+    /project_ids\s*=\s*\[var\.project_id\]/.test(block('resource "scaleway_iam_policy" "app"')),
+    'polityka IAM ograniczona do projektu staging',
+  );
+
+  for (const name of ['media', 'register', 'db_backup']) {
+    const body = bucket(name);
+    need(body !== '', `bucket ${name}`);
+    need(/versioning\s*\{\s*enabled\s*=\s*true/.test(body), `${name}: wersjonowanie`);
+    need(/force_destroy\s*=\s*false/.test(body), `${name}: force_destroy = false`);
+    const sse = block(`resource "scaleway_object_bucket_server_side_encryption_configuration" "${name}"`);
+    need(/sse_algorithm\s*=\s*"AES256"/.test(sse), `${name}: szyfrowanie SSE-ONE (AES256)`);
+    need(/acl\s*=\s*"private"/.test(block(`resource "scaleway_object_bucket_acl" "${name}"`)), `${name}: acl = "private"`);
+    const policy = policyOf(name);
+    need(policy !== '', `${name}: polityka bucketu`);
+    need(
+      /Sid\s*=\s*"AllowIac"[\s\S]*?Principal\s*=\s*\{\s*SCW\s*=\s*local\.iac_principal/.test(policy),
+      `${name}: jawne zezwolenie dla aplikacji IaC`,
+    );
+    need(
+      /Sid\s*=\s*"DenyPrivilegedForApplications"[\s\S]*?Action\s*=\s*local\.privileged_actions/.test(policy),
+      `${name}: Deny uprawnień administracyjnych`,
+    );
+    need(/Sid\s*=\s*"DenyOtherApplications"/.test(policy), `${name}: Deny dla pozostałych aplikacji`);
+    need(!/SCW\s*=\s*"\*"|Principal\s*=\s*"\*"|AWS\s*=\s*"\*"/.test(policy), `${name}: Principal "*"`);
+  }
+
+  // object lock at creation (it cannot be added later) and its default retention
+  for (const name of ['media', 'db_backup'])
+    need(/object_lock_enabled\s*=\s*true/.test(bucket(name)), `${name}: object lock przy tworzeniu`);
+  need(/mode\s*=\s*"GOVERNANCE"\s*days\s*=\s*30\b/.test(lock('media')), 'media: lock GOVERNANCE 30 dni (ADR-0009)');
+  need(/mode\s*=\s*"COMPLIANCE"\s*days\s*=\s*37\b/.test(lock('db_backup')), 'db_backup: lock COMPLIANCE 37 dni (ADR-0011)');
+
+  const media = bucket('media');
+  need(/abort_incomplete_multipart_upload_days\s*=\s*7\b/.test(media), 'media: niedokończone multipart 7 dni');
+  need(/noncurrent_days\s*=\s*30\b/.test(media), 'media: stare wersje 30 dni');
+  need(/prefix\s*=\s*"quarantine\/"[\s\S]*?days\s*=\s*30\b/.test(media), 'media: kwarantanna 30 dni');
+  const cors = hclBlock(media, /cors_rule\s*\{/) ?? '';
+  need(/allowed_origins\s*=\s*\[var\.panel_origin\]/.test(cors), 'CORS: jeden origin ze zmiennej');
+  need(/allowed_methods\s*=\s*\["PUT"\]/.test(cors), 'CORS: wyłącznie PUT');
+  need(/expose_headers\s*=\s*\["ETag"\]/.test(cors), 'CORS: ExposeHeaders ETag');
+  need(/allowed_headers\s*=\s*\["[^*\]]*\]/.test(cors), 'CORS: jawna lista AllowedHeaders bez *');
+  need(/max_age_seconds\s*=\s*(?:[1-9]\d{0,2}|[12]\d{3}|3[0-5]\d{2}|3600)\s*$/m.test(cors), 'CORS: MaxAge ≤ 3600');
+  const panel = block('variable "panel_origin"');
+  need(
+    /startswith\(var\.panel_origin, "https:\/\/"\)/.test(panel) && /!strcontains\(var\.panel_origin, "\*"\)/.test(panel),
+    'panel_origin: https bez *',
+  );
+
+  need(/noncurrent_days\s*=\s*37\b/.test(bucket('db_backup')), 'db_backup: NoncurrentVersionExpiration 37 dni (jak lock)');
+  const register = bucket('register');
+  need(
+    /expiration\s*\{\s*days\s*=\s*40\b/.test(register) && /noncurrent_days\s*=\s*40\b/.test(register),
+    'register: wygasanie 40 dni (SR-PRIV-04)',
+  );
+
+  // the register accepts only a conditional PutObject (no overwrite)
+  need(
+    /Sid\s*=\s*"DenyOverwriteByRegisterWriter"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(
+      policyOf('register'),
+    ),
+    'register: PutObject tylko z If-None-Match',
+  );
+
+  // the restore-test result: its own application, its own prefix, no reach into the repository
+  const dbPolicy = policyOf('db_backup');
+  need(/restore_results_prefix\s*=\s*"restore-results\/"/.test(content), 'prefiks wyników testu odtworzenia');
+  need(
+    /Sid\s*=\s*"AllowRestoreResults"[\s\S]*?Resource\s*=\s*\["\$\{[^}]*\}\/\$\{local\.restore_results_prefix\}\*"\]/.test(dbPolicy),
+    'orkiestrator: Put/Get tylko na prefiksie wyników',
+  );
+  need(
+    /Sid\s*=\s*"DenyOrchestratorOutsideResults"[\s\S]*?\/pgbackrest\/\*/.test(dbPolicy),
+    'orkiestrator: Deny na repozytorium pgbackrest/',
+  );
+  return problems;
+}

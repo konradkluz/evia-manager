@@ -36,3 +36,13 @@ variable "admin_ssh_cidrs" {
   type        = list(string)
   default     = []
 }
+
+variable "panel_origin" {
+  description = "Exact https origin of the web panel allowed to PUT media with a presigned URL (CORS); recommended https://staging.eviacharge.pl (EVM-084 D6)."
+  type        = string
+}
+
+variable "iac_application_id" {
+  description = "Scaleway IAM application of the IaC session; kept in every bucket policy so the session is never locked out."
+  type        = string
+}
