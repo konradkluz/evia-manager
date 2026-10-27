@@ -7,6 +7,8 @@
  * - `purpose = media_original` exactly when the file has a media asset (EVM-047 adds `document_version_id` as a plain expand); `object_key`
  *   is unique and assigned by the server (`media/{year}/{month}/{storedFileId}/original`, no personal data); a file in `failed` or
  *   `quarantined` has a reason code and no other state has one;
+ * - `state_changed_at` is when the file entered its state (the age of an unscanned file), `scan_claimed_at` when a worker last took it (the backoff
+ *   of a scan that could not be decided);
  * - the key, the declared checksum, the creator and the anchor never change (trigger); the application role has SELECT, INSERT and UPDATE
  *   (no DELETE — removal is EVM-051, and the retention of the sessions a job of EVM-049);
  * - at most ONE active session per file (a partial unique index); the indexes serve the list of the media of an order (keyset by
@@ -46,6 +48,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
       state text not null check (state in ('pending_upload', 'uploaded', 'scanning', 'clean', 'processing', 'ready', 'quarantined', 'failed')),
       state_reason_code text check (state_reason_code in ('checksum_mismatch', 'processing_error', 'type_mismatch', 'malware_detected')),
       state_changed_at timestamptz not null,
+      scan_claimed_at timestamptz,
       declared_size_bytes bigint not null check (declared_size_bytes between 1 and 52428800),
       size_bytes bigint check (size_bytes between 1 and 52428800),
       declared_content_type text not null check (length(declared_content_type) between 1 and 100),

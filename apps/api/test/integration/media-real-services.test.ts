@@ -120,7 +120,7 @@ describe.skipIf(!DOCKER)('EVM-044 AC6 — the real S3 server (SeaweedFS): signed
   const put = (url: string, body: Buffer, init: { length?: number } = {}) =>
     fetch(url, {
       method: 'PUT',
-      body,
+      body: new Uint8Array(body),
       credentials: 'omit',
       headers: { 'Content-Length': String(init.length ?? body.length) },
     });
@@ -130,7 +130,7 @@ describe.skipIf(!DOCKER)('EVM-044 AC6 — the real S3 server (SeaweedFS): signed
     const { uploadId } = await storage.createMultipartUpload(key, 'image/jpeg');
     const body = Buffer.alloc(5 * MiB, 9);
     const signed = await storage.presignUploadPart({ key, uploadId, partNumber: 1, contentLength: body.length, expiresInSeconds: 3600 });
-    const wrongLength = await fetch(signed.url, { method: 'PUT', body: Buffer.alloc(body.length + 5, 1), credentials: 'omit' });
+    const wrongLength = await fetch(signed.url, { method: 'PUT', body: new Uint8Array(body.length + 5).fill(1), credentials: 'omit' });
     expect(wrongLength.status).toBe(403);
     const url = new URL(signed.url);
     url.searchParams.set('partNumber', '2');

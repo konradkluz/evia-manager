@@ -29,6 +29,8 @@ export interface StoredFilesTable {
   state: FileState;
   state_reason_code: ReasonCode | null;
   state_changed_at: Date;
+  /** When a worker last took the file for a scan (`null` until then): a scan that cannot be decided is retried only after the stale period. */
+  scan_claimed_at: Date | null;
   declared_size_bytes: string;
   size_bytes: string | null;
   declared_content_type: string;

@@ -71,6 +71,7 @@ export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Da
       state: 'pending_upload',
       state_reason_code: null,
       state_changed_at: now,
+      scan_claimed_at: null,
       declared_size_bytes: String(file.declaredSize),
       size_bytes: null,
       declared_content_type: file.declaredContentType,
@@ -384,7 +385,12 @@ export async function listAssets(
 export async function findUnscanned(db: MediaDb, staleBefore: Date, limit: number): Promise<Array<{ id: string }>> {
   return db
     .selectFrom('media.stored_files')
-    .where((eb) => eb.or([eb('state', '=', 'uploaded'), eb.and([eb('state', '=', 'scanning'), eb('state_changed_at', '<', staleBefore)])]))
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'uploaded'),
+        eb.and([eb('state', '=', 'scanning'), sql<boolean>`coalesce(scan_claimed_at, state_changed_at) < ${staleBefore}`]),
+      ]),
+    )
     .orderBy('state_changed_at', 'asc')
     .limit(limit)
     .select('id')
@@ -449,9 +455,18 @@ export async function newFileIds(db: MediaDb, count: number): Promise<string[]> 
 export async function claimForScan(db: MediaDb, storedFileId: string, staleBefore: Date, now: Date): Promise<StoredFileRow | undefined> {
   return db
     .updateTable('media.stored_files')
-    .set({ state: 'scanning', state_changed_at: now })
+    .set({
+      state: 'scanning',
+      scan_claimed_at: now,
+      state_changed_at: sql<Date>`case when state = 'uploaded' then ${now}::timestamptz else state_changed_at end`,
+    })
     .where('id', '=', storedFileId)
-    .where((eb) => eb.or([eb('state', '=', 'uploaded'), eb.and([eb('state', '=', 'scanning'), eb('state_changed_at', '<', staleBefore)])]))
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'uploaded'),
+        eb.and([eb('state', '=', 'scanning'), sql<boolean>`coalesce(scan_claimed_at, state_changed_at) < ${staleBefore}`]),
+      ]),
+    )
     .returningAll()
     .executeTakeFirst();
 }

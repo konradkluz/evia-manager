@@ -74,6 +74,7 @@ export async function insertMedia(db: Kysely<Database>, spec: MediaSpec): Promis
       state: spec.state ?? 'pending_upload',
       state_reason_code: spec.reason ?? null,
       state_changed_at: at,
+      scan_claimed_at: null,
       declared_size_bytes: String(spec.size ?? 1000),
       size_bytes: null,
       declared_content_type: spec.contentType ?? 'image/jpeg',
