@@ -4,7 +4,7 @@ title: Chodzący szkielet — aplikacja mobilna
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: in-review
+status: done
 priority: P1
 owner: mobile-developer
 contributors: [devops-engineer]
@@ -150,3 +150,4 @@ Przebieg końcowy (2026-10-21, pełny build — prebuild z sumą `distributionSh
 - 2026-10-21 — CI PR #87 (b646803): czerwone `quality` (pierwszy test `app.test.tsx` > 5 s na zimnym cache Babel), `backend` (bramka 4: 57 opcjonalnych pakietów Expo bez licencji w Trivy) i `security` (OSV `vite@8.3.2` z `main` — znane); job `mobile-apk` zielony po raz pierwszy na Linuksie (artefakt `mobile-apk-unsigned` 15,6 MB, ok. 9 min). Poprawki: `testTimeout` 30 s w `apps/mobile/jest.config.mjs` (841e6c3); bramka licencji — 57 wpisów w `tools/scan/platform-licenses.json` (licencje MIT i MPL-2.0 sprawdzone w rejestrze npm, ważne do 2027-01-19) i rozszerzenie wyjątku tylko na pakiety osiągalne wyłącznie z pakietów platformowych (37305c0, fea00b4, 3f9afaa; security-engineer: APPROVE po 2 rundach, wcześniej CHANGES_REQUIRED za zbyt szeroki wyjątek); `@noxcturnal/*` (zależność `@expo/metro-config`) to młody pakiet z jednym opiekunem i bez provenance — do obserwacji przy aktualizacjach. Lekcja: przy historyjce z nowymi zależnościami uruchom lokalnie `pnpm run scan` (min. `licenses`) przed pushem
 - 2026-10-21 — Koszt kolejki B (EVM-009 + EVM-011): brak rozbicia w dolarach (nie odczytane z /usage; do uzupełnienia z /cost); subagenci workflow w zachowanych licznikach ok. 3,3 mln tokenów (EVM-009: przebieg 1 — 1,07 mln, przebieg 2 — 0,77 mln, przebieg przerwany limitem sesji ok. 0,26 mln; EVM-011: 1,20 mln, 11 agentów, 435 wywołań narzędzi), plus agenci z narzędzia Agent poza workflow (zrzuty i przeglądy UX, przeglądy i utwardzenie security, poprawki, bramka licencji — devops 3 przebiegi, security 2 przeglądy, mobile-developer poprawki) bez zbiorczych liczników; rundy poprawek: EVM-009 2 w workflow plus poprawki po przeglądach UX i security, EVM-011 1 (runda 1: 5 blokujących, runda 2: 0); ścieżka pelna; sonnet; pliki historyjek 24,5 KB (EVM-009) i 5,6 KB (EVM-011) przed uzupełnieniem; vs baseline: brak danych
 - 2026-10-21 — demo zaakceptowane przez Konrada (kolejka B): ADR-0019, RR-32 i propozycje styleguide'u 1.3.0 z EVM-009 zaakceptowane; bump vite 8.3.2 → 8.3.4 (2e31e66) jako wspólny commit z kolejką A (decyzja Konrada); PR #87; AC5 (APK z CI po scaleniu do `main`, podpis lokalny, telefon) czeka na Konrada
+- 2026-10-27 — status done: demo zaakceptowane 2026-10-21, PR scalony; Konrad potwierdził akceptację przy planie M2 (Tech Lead)

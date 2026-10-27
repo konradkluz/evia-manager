@@ -4,7 +4,7 @@ title: "sync-core: trwała kolejka mutacji i wysyłka"
 type: enabler
 milestone: M2
 epic: E12 Wpisy offline
-status: draft
+status: ready
 priority: P0
 path: pelna             # synchronizacja offline
 owner: mobile-developer
@@ -73,3 +73,4 @@ Pobieranie zmian i resync (EVM-092); szyfrowana baza (EVM-093); kolejka plików 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
+- 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)

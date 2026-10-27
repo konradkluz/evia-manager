@@ -1,6 +1,6 @@
 # ADR-0021: Synchronizacja offline — zakres urządzenia (reguła klienta, kontrolny resync w cieniu, migawka zlecenia), dziennik zmian z generycznego triggera i kursor z rotacją kluczy
 
-- **Status:** Proponowana
+- **Status:** Zaakceptowana (2026-10-27, Konrad)
 - **Data:** 2026-10-27
 - **Decydent:** Konrad (akceptacja) · **Autor:** solution-architect (do recenzji: security-engineer, mobile-developer, backend-developer)
 - **Powiązane:** EVM-090, EVM-092, EVM-094, EVM-096, EVM-097, EVM-107 (M2, E9–E10); ADR-0008 (doprecyzowuje: zakres, resync, dziennik zmian, kursor — decyzja „własny protokół” bez zmian), ADR-0001 (granice modułów), ADR-0003 (migracje), ADR-0004 (kontrakt, kompatybilność), ADR-0005 (sekcja „Ścieżka mobilnego logowania” — addendum), ADR-0010 (retencja w workerze), ADR-0013 (metryki), ADR-0017 (wzorzec modułu-liścia z portami systemowymi); [`offline-sync.md`](../offline-sync.md) — punkty otwarte 4, 5, 11, 12 i zasada „serwer dostarcza w tej samej stronie”
