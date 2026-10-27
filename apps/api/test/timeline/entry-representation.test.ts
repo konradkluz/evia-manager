@@ -57,6 +57,7 @@ describe('the answer of an entry (EVM-037 AC1–AC3; SR-DATA-03, ASVS V15.3.1)',
       supersedesEntryId: null,
       supersededByEntryId: null,
       redactedAt: null,
+      deletedAt: null,
       event: null,
     });
   });

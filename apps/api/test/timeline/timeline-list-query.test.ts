@@ -16,6 +16,7 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
       kind: undefined,
       eventGroup: undefined,
       procedureStageId: undefined,
+      includeDeleted: false,
       limit: DEFAULT_LIMIT,
       cursor: undefined,
     });
@@ -36,9 +37,16 @@ describe('the query of the journal (EVM-037 AC6; SR-INPUT-01, SR-API-02, SR-API-
     expect(resolveTimelineListQuery.parse({ kind: 'comment', procedureStageId: STAGE, limit: '100', cursor: 'abc_-' })).toEqual({
       kind: 'comment',
       procedureStageId: STAGE,
+      includeDeleted: false,
       limit: 100,
       cursor: 'abc_-',
     });
+    // EVM-040: the Administrator's filter is read as a word, anything else is refused
+    expect(resolveTimelineListQuery.parse({ includeDeleted: 'true' }).includeDeleted).toBe(true);
+    expect(resolveTimelineListQuery.parse({ includeDeleted: 'false' }).includeDeleted).toBe(false);
+    for (const value of ['1', 'TRUE', '', 'yes']) {
+      expect(resolveTimelineListQuery.safeParse({ includeDeleted: value }).success, value).toBe(false);
+    }
   });
 
   it.each([

@@ -65,6 +65,9 @@ AuditAction:
     - procedure_stage.deleted
     - procedure_stage.restored
     - timeline_entry.created
+    - timeline_entry.deleted
+    - timeline_entry.restored
+    - timeline_entry.redacted
     - payment_milestone.created
     - payment_milestone.amount_changed
     - payment_milestone.cancelled
