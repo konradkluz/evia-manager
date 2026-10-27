@@ -24,6 +24,8 @@ import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
 import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
 import { fieldEncryptionFor } from './crypto/field-encryption.ts';
+import { DELETION_REGISTER } from './deletion-register/deletion-register.ts';
+import { deletionRegisterFor } from './deletion-register/deletion-register-factory.ts';
 import { CursorCodec } from './crypto/opaque-cursor.ts';
 import {
   APP_CONFIG,
@@ -91,6 +93,12 @@ export class PlatformModule {
               runInTransaction(db, (transaction) => events.publish(transaction, event, context)),
             ),
         },
+        {
+          provide: DELETION_REGISTER,
+          inject: [CLOCK, LOGGER, METRICS],
+          useFactory: (clock: Clock, logger: Logger, metrics: MetricsRegistry) =>
+            deletionRegisterFor(config.deletionRegister, clock, logger, metrics),
+        },
         { provide: RATE_LIMITER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryRateLimiter(clock) },
         {
           provide: IDEMPOTENCY,
@@ -119,6 +127,7 @@ export class PlatformModule {
         CURSOR_CODEC,
         FIELD_ENCRYPTION,
         BULK_READ_CONTROL,
+        DELETION_REGISTER,
       ],
     };
   }
