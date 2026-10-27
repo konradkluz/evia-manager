@@ -222,6 +222,47 @@ describe('EVM-007 AC5, AC6: DNS of the staging node', () => {
       assert.equal(evaluateDns({ ...GOOD_DNS, ...change }).passed, false);
     });
 
+  describe('EVM-007 AC6: the staging profile (RR-40)', () => {
+    const noCaa = { ...GOOD_DNS, caa: [] };
+    it('EVM-007 AC6: without a profile a missing CAA stays an error (strict default)', () => {
+      assert.equal(evaluateDns(noCaa).passed, false);
+      assert.equal(evaluateDns(noCaa, 'strict').passed, false);
+    });
+    it('EVM-007 AC6: in the staging profile a missing CAA is a warning, the check stays green', () => {
+      const check = evaluateDns(noCaa, 'staging');
+      assert.equal(check.passed, true);
+      assert.equal(check.warnings?.length, 2);
+      assert.match(check.details.join(';'), /CAA issue: brak.*RR-40/);
+      assert.match(check.details.join(';'), /issuewild/);
+    });
+    it('EVM-007 AC6: the staging profile does not soften other findings, nor a wrong CAA issuer set only partially', () => {
+      assert.equal(evaluateDns({ ...noCaa, dmarc: ['junk'] }, 'staging').passed, false);
+      assert.equal(evaluateDns({ ...noCaa, spf: [] }, 'staging').passed, false);
+      assert.equal(evaluateDns({ ...noCaa, a: [] }, 'staging').passed, false);
+      const mixed = evaluateDns({ ...noCaa, dmarc: [] }, 'staging');
+      assert.equal(mixed.details.length, 3);
+    });
+    it('EVM-007 AC6: a DMARC without rua is a separate warning in staging (RR-41) and an error in strict', () => {
+      const noRua = { ...GOOD_DNS, dmarc: ['v=DMARC1; p=none'] };
+      const staging = evaluateDns(noRua, 'staging');
+      assert.equal(staging.passed, true);
+      assert.deepEqual(staging.warnings?.length, 1);
+      assert.match(staging.details.join(), /rua.*RR-41/);
+      assert.equal(evaluateDns(noRua).passed, false);
+      assert.equal(evaluateDns(noRua, 'strict').passed, false);
+      const both = evaluateDns({ ...noRua, caa: [] }, 'staging');
+      assert.equal(both.passed, true);
+      assert.equal(both.warnings?.length, 3);
+    });
+    it('EVM-007 AC6: a complete CAA gives no warnings in either profile', () => {
+      assert.equal(evaluateDns(GOOD_DNS, 'staging').warnings, undefined);
+    });
+    it('EVM-007 AC6: an unknown profile fails closed', () => {
+      for (const profile of ['production', '', 'Staging']) assert.equal(evaluateDns(noCaa, profile).passed, false, profile);
+      assert.match(evaluateDns(GOOD_DNS, 'x').details.join(), /nieznany profil/);
+    });
+  });
+
   it('EVM-007 AC6: the resolver answers are read, failing queries count as missing records', async () => {
     const resolver = /** @type {import('node:dns').promises.Resolver} */ (
       /** @type {unknown} */ ({
@@ -423,6 +464,36 @@ describe('EVM-007 AC6: the summary and the steps of the job', () => {
       ['version', 'ports', 'tls', 'headers', 'dns', 'bucket-403', 'zap'],
     );
     assert.match(readFileSync(summary, 'utf8'), /zielony/);
+  });
+
+  it('EVM-007 AC6: the staging profile gives a green summary with the warning visible; strict and unknown profiles are red', async () => {
+    /** @param {string | undefined} profile */
+    const run = async (profile) => {
+      const steps = io({ dns: async () => ({ ...GOOD_DNS, caa: [] }) });
+      const summary = join(steps.outDir, 'summary.md');
+      const rules = join(steps.outDir, 'rules.tsv');
+      const zap = join(steps.outDir, 'zap.json');
+      writeFileSync(rules, '');
+      writeFileSync(zap, JSON.stringify({ site: [{ alerts: [] }] }));
+      steps.env = {
+        ...steps.env,
+        ZAP_REPORT: zap,
+        ZAP_RULES: rules,
+        GITHUB_STEP_SUMMARY: summary,
+        ...(profile === undefined ? {} : { VERIFY_PROFILE: profile }),
+      };
+      await main('wait', steps);
+      await main('checks', steps);
+      const code = await main('report', steps);
+      return { code, text: readFileSync(summary, 'utf8') };
+    };
+    const staging = await run('staging');
+    assert.equal(staging.code, 0);
+    assert.match(staging.text, /zielony \(z ostrzeżeniami\)/);
+    assert.match(staging.text, /\| dns \| OSTRZEŻENIE \| .*RR-40/);
+    assert.equal((await run(undefined)).code, 1);
+    assert.equal((await run('prod')).code, 1);
+    assert.match((await run(undefined)).text, /\| dns \| BŁĄD \|/);
   });
 
   it('EVM-007 AC6: no version step, a missing ZAP report, failed connections or a wrong version give red', async () => {

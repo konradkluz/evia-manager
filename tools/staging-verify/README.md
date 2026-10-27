@@ -11,5 +11,6 @@ EVM-007 AC6 (ADR-0018 „Staging”; decyzja Konrada 2026-10-13 o bramkach 7–8
 
 Skany z logowaniem (ZAP po zalogowaniu, ZAP API, Schemathesis na kontach ról) — poza GitHubem, z VM albo z sesji Konrada (zero sekretów w GitHubie).
 
+- **Profil `VERIFY_PROFILE`** (krok `checks`): brak zmiennej = `strict` (każde ustalenie DNS to błąd — profil dla produkcji); `staging` zamienia wyłącznie trzy ustalenia w ostrzeżenia: brak `issue "letsencrypt.org"` i brak `issuewild ";"` (RR-40) oraz `_dmarc` bez `rua` (RR-41) — wynik `OSTRZEŻENIE` w podsumowaniu, przebieg zielony (decyzje Konrada 2026-10-27); inna wartość = czerwony (fail closed). Brak SPF, brak rekordu `_dmarc` lub zła polityka, brak A/AAAA pozostają błędami w obu profilach. Ustawia go tylko job `staging-verify` w `ci.yml`.
 - Testy offline (atrapy serwerów i resolvera, dane syntetyczne): `pnpm --filter @evia/staging-verify run test:coverage` (próg 90%, znakowane `EVM-007 AC6`).
 - Przebieg na żywym stagingu — w sesji IaC (runbook `docs/ops/runbooks/wdrozenie-staging.md`).
