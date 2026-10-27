@@ -5,8 +5,13 @@
  * contract (dist/openapi.json) is compared with the last accepted one (baseline/openapi.json). The comparison works on schemas with `$ref`
  * resolved and is deliberately conservative: a construct it does not understand (`oneOf`/`anyOf`/`allOf`/`not`/`discriminator`, except the
  * `nullable` pair `oneOf: [X, {type: null}]`) that changed in ANY way is reported as breaking (fail-closed).
+ * Operations marked `x-evia-planned: true` IN THE BASELINE are skipped: they have no route and no client in the field.
  *
- *   node src/breaking-changes.ts check                            → exit 1 when the bundle breaks the baseline or the baseline is stale
+ * The baseline is the contract of the LAST RELEASE (what the apps in the field use), not the state of HEAD: additive changes do not make
+ * it stale, so parallel stories never fight over the generated file. It is rewritten by hand at a release or when a breaking change is
+ * accepted in an ADR.
+ *
+ *   node src/breaking-changes.ts check                            → exit 1 when the bundle breaks the baseline
  *   node src/breaking-changes.ts update [--allow-breaking ADR-n]  → rewrites the baseline; refused when the diff has a breaking change,
  *                                                                    unless an ADR that accepts it is named. Manual only, never in CI.
  */
@@ -104,6 +109,8 @@ class Differ {
     for (const [path, pathItem] of Object.entries(before)) {
       for (const method of METHODS.filter((name) => isRecord(asRecord(pathItem)[name]))) {
         const label = `${method.toUpperCase()} ${path}`;
+        // A planned operation has no route and no client in the field: refining or dropping it breaks nobody.
+        if (asRecord(asRecord(pathItem)[method])['x-evia-planned'] === true) continue;
         const operation = asRecord(asRecord(after[path])[method]);
         if (Object.keys(operation).length === 0) {
           this.report('operation-removed', label, 'the operation (path or method) was removed');
@@ -407,7 +414,7 @@ export interface BaselineIo {
 
 const ALLOW_BREAKING = /^ADR-\d{4}$/;
 
-/** @returns process exit code: 0 ok, 1 breaking change or stale baseline, 2 wrong usage */
+/** @returns process exit code: 0 ok, 1 breaking change, 2 wrong usage */
 export function runBaselineCommand(args: readonly string[], io: BaselineIo): number {
   const [command, ...rest] = args;
   const bundle = io.readBundle();
@@ -415,10 +422,7 @@ export function runBaselineCommand(args: readonly string[], io: BaselineIo): num
   const changes = findBreakingChanges(baseline, bundle);
   for (const change of changes) io.print(`BREAKING ${change.rule}: ${change.at} — ${change.message}`);
   if (command === 'check') {
-    const stale = canonicalJson(baseline) !== canonicalJson(bundle);
-    if (stale && changes.length === 0)
-      io.print('The baseline is stale: run `pnpm --filter @evia/contracts run baseline:update` (manual step).');
-    return changes.length > 0 || stale ? 1 : 0;
+    return changes.length > 0 ? 1 : 0;
   }
   if (command === 'update') {
     const flag = rest.indexOf('--allow-breaking');

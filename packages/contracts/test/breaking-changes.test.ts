@@ -243,6 +243,23 @@ describe('breaking-change detection (EVM-090 AC7)', () => {
   });
 });
 
+describe('planned operations (EVM-090 AC7)', () => {
+  const planned = (response: unknown, marker: boolean) => spec({ response, operation: marker ? { 'x-evia-planned': true } : {} });
+  const strict = { type: 'object', required: ['a'], properties: { a: { type: 'string' } } };
+  const loose = { type: 'object', required: [], properties: { a: { type: 'string' } } };
+
+  it('EVM-090 AC7 a change to an operation marked x-evia-planned in the baseline is not breaking; the same change without the marker is', () => {
+    expect(rules(planned(strict, true), planned(loose, true))).toEqual([]);
+    expect(rules(planned(strict, true), planned(loose, false))).toEqual([]);
+    expect(rules(planned(strict, false), planned(loose, false))).toEqual(['response-property-became-optional']);
+    expect(rules(planned(strict, false), planned(loose, true))).toEqual(['response-property-became-optional']);
+  });
+
+  it('EVM-090 AC7 removing a planned operation is not breaking either (no route, no client in the field)', () => {
+    expect(rules(planned(strict, true), { ...planned(strict, true), paths: {} })).toEqual([]);
+  });
+});
+
 describe('baseline commands (EVM-090 AC7)', () => {
   const baseline = spec({ response: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } });
   const additive = spec({
@@ -270,12 +287,12 @@ describe('baseline commands (EVM-090 AC7)', () => {
     );
   });
 
-  it('EVM-090 AC7 check passes only when the bundle equals the baseline; additive changes make the baseline stale, breaking ones fail', () => {
+  it('EVM-090 AC7 check passes while nothing breaks, also against an older baseline (additive changes do not make it stale); breaking ones fail', () => {
     const same = io(baseline, baseline);
     expect(runBaselineCommand(['check'], same.adapter)).toBe(0);
-    const stale = io(additive, baseline);
-    expect(runBaselineCommand(['check'], stale.adapter)).toBe(1);
-    expect(stale.lines.join('\n')).toContain('stale');
+    const grown = io(additive, baseline);
+    expect(runBaselineCommand(['check'], grown.adapter)).toBe(0);
+    expect(grown.lines).toEqual([]);
     const broken = io(breaking, baseline);
     expect(runBaselineCommand(['check'], broken.adapter)).toBe(1);
     expect(broken.lines[0]).toContain('BREAKING response-property-became-optional');
@@ -309,10 +326,9 @@ describe('baseline commands (EVM-090 AC7)', () => {
     expect(unknown.lines.at(-1)).toContain('Usage');
   });
 
-  it('EVM-090 AC7 the committed baseline is the accepted contract: no breaking change against it, and it is up to date with the bundle', () => {
+  it('EVM-090 AC7 the committed baseline is the contract of the last release: no breaking change against it (it may be older than the bundle)', () => {
     const stored: unknown = JSON.parse(readFileSync(BASELINE, 'utf8'));
     const bundle: unknown = JSON.parse(readFileSync(BUNDLE, 'utf8'));
     expect(findBreakingChanges(stored, bundle)).toEqual([]);
-    expect(readFileSync(BASELINE, 'utf8')).toBe(canonicalJson(bundle));
   });
 });
