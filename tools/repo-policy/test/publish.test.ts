@@ -283,6 +283,21 @@ describe('publish checkers detect violations (EVM-007 AC2)', () => {
     expect(releaseDockerfileProblems(dir, dockerfile, ignore, 'pnpm@12.8.1')).not.toEqual([]);
   });
 
+  it('EVM-007 AC2 (staging incident): the web image must not leave file capabilities on the caddy binary it executes (cap_drop: ALL + no-new-privileges → EPERM)', () => {
+    const dir = 'infra/images/web';
+    const dockerfile = read(`${dir}/Dockerfile`);
+    const ignore = read(`${dir}/Dockerfile.dockerignore`);
+    const bad = (from: string, to: string): string[] =>
+      releaseDockerfileProblems(dir, dockerfile.replace(from, to), ignore, packageManager);
+    expect(bad('x', 'x')).toEqual([]);
+    expect(bad('cp /tmp/caddy-orig', 'cp -a /tmp/caddy-orig')).not.toEqual([]);
+    expect(bad('RUN cp ', 'RUN mv ')).not.toEqual([]);
+    expect(bad('/usr/local/bin/caddy\n', '/usr/bin/caddy\n')).not.toEqual([]);
+    expect(bad('CMD ["/usr/local/bin/caddy"', 'CMD ["caddy"')).not.toEqual([]);
+    expect(bad('CMD ["/usr/local/bin/caddy"', 'CMD ["/usr/bin/caddy"')).not.toEqual([]);
+    expect(bad('chmod 0555', 'setcap cap_net_bind_service=+ep /tmp/caddy && chmod 0555')).not.toEqual([]);
+  });
+
   it('EVM-007 AC2 (Arm64 VM): a RUN stage of the target platform (emulation), a RUN in the final stage, production dependencies of the runner platform', () => {
     const dir = 'infra/images/api';
     const dockerfile = read(`${dir}/Dockerfile`);

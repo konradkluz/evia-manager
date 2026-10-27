@@ -152,22 +152,22 @@ vulnerabilities:
   # on 2026-10-21 for STAGING ONLY (synthetic data; RR-37) until Caddy 2.11.8 — never for prod. Remove with the Caddy
   # update (Go ≥ 1.26.10, x/net ≥ 0.60.0) — at the latest on expiry; not prolonged without a new decision by Konrad.
   - id: CVE-2026-78669
-    paths: ['usr/bin/caddy']
+    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/stdlib@v1.26.8', 'pkg:golang/golang.org/x/net@v0.59.0']
     statement: &caddy-high 'High in Caddy 2.11.7 (Go stdlib 1.26.8, x/net 0.59.0) — reachable DoS (HTTP/2 SETTINGS on :443, Range in file_server); risk accepted by Konrad 2026-10-21 for staging only until Caddy 2.11.8, never for prod (RR-37) · owner: security-engineer · EVM-007'
     expired_at: 2026-11-20
   - id: CVE-2026-78667
-    paths: ['usr/bin/caddy']
+    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/stdlib@v1.26.8']
     statement: *caddy-high
     expired_at: 2026-11-20
   - id: CVE-2026-97031
-    paths: ['usr/bin/caddy']
+    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/stdlib@v1.26.8']
     statement: *caddy-high
     expired_at: 2026-11-20
   - id: CVE-2026-111943
-    paths: ['usr/bin/caddy']
+    paths: ['usr/bin/caddy', 'usr/local/bin/caddy']
     purls: ['pkg:golang/stdlib@v1.26.8']
     statement: *caddy-high
     expired_at: 2026-11-20

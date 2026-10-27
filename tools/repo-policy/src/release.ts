@@ -195,6 +195,26 @@ export function downloadArtifactProblems(file: string, document: unknown): strin
   });
 }
 
+/**
+ * File capabilities on the executed binary (EVM-007; staging VM incident): the official caddy image sets
+ * cap_net_bind_service=+ep on /usr/bin/caddy, and exec of it under cap_drop: ALL + no-new-privileges fails with EPERM
+ * (restart loop). A Dockerfile based on caddy must run a plain copy (cp without -a drops the xattr) from
+ * /usr/local/bin/caddy, never /usr/bin/caddy; an image using setcap is refused as well.
+ */
+function fileCapabilityProblems(name: string, code: string): string[] {
+  const problems: string[] = [];
+  if (/^\s*FROM\s+(--\S+\s+)*caddy[:@]/im.test(code)) {
+    if (!/^\s*RUN\s.*\bcp\s+(?!-\S*a)\S+\s+\S+/im.test(code))
+      problems.push(`${name}: caddy bez kopii pliku (cp bez -a) zrzucającej file capabilities`);
+    if (!/^\s*COPY\s.*--from=\S+\s+\S+\s+\/usr\/local\/bin\/caddy\s*$/im.test(code))
+      problems.push(`${name}: etap końcowy musi kopiować caddy do /usr/local/bin/caddy`);
+    if (!/^\s*(CMD|ENTRYPOINT)\s.*\[\s*"\/usr\/local\/bin\/caddy"/im.test(code))
+      problems.push(`${name}: CMD/ENTRYPOINT musi uruchamiać /usr/local/bin/caddy (bez file capabilities)`);
+  }
+  if (/\bsetcap\s+(?!-r)/.test(code)) problems.push(`${name}: setcap nadaje file capabilities (cap_drop: ALL → EPERM przy exec)`);
+  return problems;
+}
+
 const SECRET_NAME = /(KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)/i;
 
 /** The image (or stage) of a FROM line, after its flags (e.g. --platform=$BUILDPLATFORM). */
@@ -268,6 +288,7 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
   for (const flags of [...code.matchAll(/pnpm install([^&\n\\]*)/g)].map((match) => match[1] ?? ''))
     if (!flags.includes('--frozen-lockfile') || !flags.includes('--ignore-scripts'))
       problems.push(`${name}: każde pnpm install z --frozen-lockfile i --ignore-scripts`);
+  problems.push(...fileCapabilityProblems(name, code));
   const user =
     code
       .match(/^\s*USER\s+(\S+)/gm)
