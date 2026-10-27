@@ -21,6 +21,8 @@ readonly SECRETS_DIR="${EVIA_SECRETS_DIR:-/etc/evia/secrets}"
 readonly POLL_SECONDS="${EVIA_RESTORE_POLL_SECONDS:-30}"
 readonly MAX_WAIT_SECONDS="${EVIA_RESTORE_MAX_WAIT_SECONDS:-14400}"
 readonly DEADMAN_MINUTES="${EVIA_RESTORE_DEADMAN_MINUTES:-300}"
+readonly PSQL_BIN="${EVIA_PSQL_BIN:-/usr/local/sbin/evia-psql}"
+readonly PGBACKREST_BIN="${EVIA_PGBACKREST_BIN:-/usr/local/sbin/evia-pgbackrest}"
 readonly PRESIGN_TTL=7200
 readonly RESULT_MAX_BYTES=16384
 
@@ -32,6 +34,8 @@ set +a
 : "${RESTORE_IMAGE:?}" "${RESTORE_SERVER_TYPE:?}" "${RESTORE_LOCATION:?}" "${S3_ENDPOINT:?}" "${S3_REGION:?}" "${DB_BACKUP_BUCKET:?}"
 : "${DELETION_REGISTER_BUCKET:?}" "${RESTORE_READER_ACCESS_KEY_ID:?}" "${RESTORE_ORCH_ACCESS_KEY_ID:?}" "${STORAGEBOX_HOST:?}" "${STORAGEBOX_RESTORE_USER:?}"
 STANZA="${PGBACKREST_STANZA:-evia}"
+PG_SUPERUSER="${PG_SUPERUSER:-evia_owner}"
+[[ "$PG_SUPERUSER" =~ ^[a-z_][a-z0-9_]*$ ]] || die "PG_SUPERUSER"
 [[ "$RESTORE_IMAGE" =~ ^[0-9]+$ ]] || die "RESTORE_IMAGE must be an image id"
 [[ "$RESTORE_SERVER_TYPE" =~ ^[a-z0-9]+$ ]] || die "RESTORE_SERVER_TYPE"
 location_allowed "$RESTORE_LOCATION" || die "RESTORE_LOCATION is not an allowed EU location"
@@ -120,6 +124,22 @@ presign() { # METHOD [if-none-match]
 PUT_URL="$(presign PUT if-none-match)"
 GET_URL="$(presign GET)"
 
+# --- the named restore point on staging (before the scenario, so that T of the scenario lies after it) --------------------
+# A target "now" is unreachable (the archive holds no commit later than the last one) and --repo-target-time=T hides the WAL after T.
+# So a named point is written to the WAL of staging and archived: `pg_create_restore_point`, then `pgbackrest check` switches the
+# segment and waits until it is in the archive. The VM restores with --type=name. RPO = the delay of the archive (time of the creation
+# to the confirmation); the definition is in docs/ops/runbooks/restore.md and in the contract of the metrics for EVM-085.
+RESTORE_POINT="$RUN_ID"
+TARGET_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+"$PSQL_BIN" -Atq -c "select pg_create_restore_point('$RESTORE_POINT')" > /dev/null || die "cannot create the restore point on staging"
+"$PGBACKREST_BIN" check > /dev/null || die "the archive check after the restore point failed"
+ARCHIVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# The backup to restore from: the latest one that STOPPED before the point (a backup finished after the point, e.g. a timer of the
+# backup or the fresh backup of the scenario, cannot be used for a recovery to the point).
+BACKUP_SET="$("$PGBACKREST_BIN" info --output=json | jq -r --argjson at "$(date -u -d "$TARGET_TIME" +%s)"   '[.[0].backup[]? | select(.timestamp.stop < $at)] | sort_by(.timestamp.stop) | last | .label // empty')" || die "cannot read the backups of the stanza"
+[[ "$BACKUP_SET" =~ ^[0-9]{8}-[0-9]{6}F(_[0-9]{8}-[0-9]{6}[DI])?$ ]] || die "no backup older than the restore point"
+event restore-test-point-created "run_id=$RUN_ID"
+
 # --- scenario "backup deleted from a taken-over VM" (monthly) -------------------------------------------------------------
 REPO_TARGET_TIME=""
 if [ "${EVIA_RESTORE_SCENARIO:-}" = delete ]; then
@@ -127,8 +147,6 @@ if [ "${EVIA_RESTORE_SCENARIO:-}" = delete ]; then
   "$SELF_DIR/scenario.sh" delete "$SCENARIO_STATE"
   REPO_TARGET_TIME="$(< "$SCENARIO_STATE")"
 fi
-TARGET_TIME="${EVIA_RESTORE_TARGET_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-[[ "$TARGET_TIME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+Z$ ]] || die "target time"
 
 # --- firewall without inbound rules (created for this run) ----------------------------------------------------------------
 jq -n --arg name "evia-restore-$RUN_ID" --arg run "$RUN_ID" '
@@ -150,6 +168,7 @@ secret_entry() { # NAME -> write_files entry with the secret
   printf '  - path: /etc/evia-restore/env\n    permissions: "0600"\n    encoding: b64\n    content: %s\n' "$(
     {
       printf "RUN_ID='%s'\nTARGET_TIME='%s'\nREPO_TARGET_TIME='%s'\nSTANZA='%s'\n" "$RUN_ID" "$TARGET_TIME" "$REPO_TARGET_TIME" "$STANZA"
+      printf "RESTORE_POINT='%s'\nARCHIVED_AT='%s'\nBACKUP_SET='%s'\nPG_SUPERUSER='%s'\n" "$RESTORE_POINT" "$ARCHIVED_AT" "$BACKUP_SET" "$PG_SUPERUSER"
       printf "S3_ENDPOINT='%s'\nS3_REGION='%s'\nDB_BACKUP_BUCKET='%s'\nDELETION_REGISTER_BUCKET='%s'\n" "$S3_ENDPOINT" "$S3_REGION" "$DB_BACKUP_BUCKET" "$DELETION_REGISTER_BUCKET"
       printf "RESTORE_READER_ACCESS_KEY_ID='%s'\nSTORAGEBOX_HOST='%s'\nSTORAGEBOX_RESTORE_USER='%s'\n" "$RESTORE_READER_ACCESS_KEY_ID" "$STORAGEBOX_HOST" "$STORAGEBOX_RESTORE_USER"
       printf "STORAGEBOX_SFTP_PORT='%s'\nSTORAGEBOX_MEDIA_PATH='%s'\nPG_MAJOR='%s'\nPGBACKREST_VERSION='%s'\n" "${STORAGEBOX_SFTP_PORT:-23}" "${STORAGEBOX_MEDIA_PATH:-media}" "${PG_MAJOR:-18}" "${PGBACKREST_VERSION:-2.60.0-1.pgdg13+1}"
@@ -196,15 +215,7 @@ code="$(curl -sS --proto "=$proto" --max-time 60 --max-filesize "$RESULT_MAX_BYT
 [ "$code" = 200 ] || die "no result object (status $code)"
 [ "$(wc -c < "$WORK/result.json")" -le "$RESULT_MAX_BYTES" ] || die "result above ${RESULT_MAX_BYTES} bytes"
 iso='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$'
-if ! jq -e --arg run "$RUN_ID" --arg iso "$iso" '
-  def count: type == "number" and . >= 0 and . == floor;
-  type == "object"
-  and ((keys - ["runId","status","stage","startedAt","finishedAt","targetTime","restoredTo","rpoSeconds","dbTables","dbRows","mediaFiles","mediaSampleVerified","deletionRegisterEntries"]) | length == 0)
-  and .runId == $run and (.status | IN("ok","failed")) and (.stage | type == "string" and test("^[a-z]{1,16}$"))
-  and (.startedAt | type == "string" and test($iso)) and (.finishedAt | type == "string" and test($iso))
-  and (.targetTime | type == "string" and test($iso)) and (.restoredTo | type == "string" and test($iso))
-  and (.rpoSeconds | count) and (.dbTables | count) and (.dbRows | count) and (.mediaFiles | count)
-  and (.mediaSampleVerified | count) and (.deletionRegisterEntries | count)' "$WORK/result.json" > /dev/null; then
+if ! jq -e --arg run "$RUN_ID" --arg iso "$iso" -f "$SELF_DIR/result.schema.jq" "$WORK/result.json" > /dev/null; then
   die "the result does not match the schema (rejected)"
 fi
 jq -c --arg accepted "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg scenario "${EVIA_RESTORE_SCENARIO:-none}" '. + {acceptedAt: $accepted, scenario: $scenario}' "$WORK/result.json" > "$WORK/last.json"

@@ -21,6 +21,7 @@ export const SERVICES = Object.freeze([
   'iac-check',
   'scan-trivy-image',
   'deploy-sh-tests',
+  'restore-db-test',
   'zap-baseline',
 ]);
 

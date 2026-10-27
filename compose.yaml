@@ -294,6 +294,26 @@ services:
       # release-manifest.test.mjs evaluates the jq line of the publish job taken from the workflow
       - ./.github/workflows/ci.yml:/src/.github/workflows/ci.yml:ro
 
+  # The database stage of the restore test on the VM (EVM-084 AC3, AC5): a real pgBackRest backup and point-in-time restore into a
+  # posix repository, run through the same function as on the temporary VM (vm-restore.sh, test mode). Image: the PostgreSQL
+  # image of staging with pgBackRest; no network, the scripts and tests read-only. Local gate and CI.
+  restore-db-test:
+    <<: *hardening
+    image: evia-restore-db-test:local
+    build:
+      context: .
+      dockerfile: infra/images/postgres-pgbackrest/Dockerfile
+    pull_policy: build
+    user: '999:999'
+    network_mode: none
+    entrypoint: ['bash', '/src/infra/deploy-agent/test/restore-db.test.sh']
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=512m
+    volumes:
+      - ./infra/deploy-agent:/src/infra/deploy-agent:ro
+
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
     <<: *scanner

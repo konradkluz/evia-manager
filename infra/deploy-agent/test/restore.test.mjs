@@ -163,9 +163,35 @@ let root;
 /** @type {Awaited<ReturnType<typeof startMock>> | undefined} */
 let mock;
 
+/** The stand-in for evia-pgbackrest: logs the call; `info --output=json` lists two backups that stopped long ago. */
+function pgbackrestFake(/** @type {boolean} */ backupFails = false) {
+  mkdirSync(join(root, 'bin'), { recursive: true });
+  writeFileSync(
+    join(root, 'bin/fake-pgbackrest'),
+    `#!/bin/bash
+echo "pgbackrest $*" >> "${join(root, 'pgbackrest.log')}"
+[ "$1" = backup ] && ${backupFails ? 'exit 1' : 'exit 0'}
+if [ "$1" = info ] && [[ "$*" == *--output=json* ]]; then
+  echo '[{"name":"evia","backup":[{"label":"20261027-010000F","timestamp":{"start":1,"stop":2}},{"label":"20261027-010000F_20261028-010000D","timestamp":{"start":3,"stop":4}},{"label":"20261027-010000F_99991231-010000I","timestamp":{"start":4102444800,"stop":4102444900}}]}]'
+fi
+exit 0
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(root, 'bin/fake-psql'),
+    `#!/bin/bash
+echo "psql $*" >> "${join(root, 'psql.log')}"
+exit 0
+`,
+    { mode: 0o755 },
+  );
+}
+
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'restore-'));
   mkdirSync(join(root, 'secrets'), { mode: 0o700 });
+  pgbackrestFake();
   for (const [name, value] of Object.entries(SECRETS)) writeFileSync(join(root, 'secrets', name), value, { mode: 0o600 });
   writeFileSync(join(root, 'known_hosts'), '[storagebox.example]:23 ssh-ed25519 AAAA-SYNTHETIC\n');
 });
@@ -197,6 +223,8 @@ function env(/** @type {Record<string, string>} */ extra = {}) {
     STORAGEBOX_HOST: 'storagebox.example',
     STORAGEBOX_RESTORE_USER: 'sub-restore',
     STORAGEBOX_KNOWN_HOSTS: join(root, 'known_hosts'),
+    EVIA_PSQL_BIN: join(root, 'bin/fake-psql'),
+    EVIA_PGBACKREST_BIN: join(root, 'bin/fake-pgbackrest'),
     ...extra,
   };
 }
@@ -226,7 +254,17 @@ const metrics = () => {
   const path = join(root, 'metrics/evia_restore.prom');
   return existsSync(path) ? readFileSync(path, 'utf8') : '';
 };
-const server = (/** @type {Record<string, unknown>} */ fields) => ({ id: 1, created: ago(HOUR), status: 'running', labels: {}, ...fields });
+const RESTORE_LABELS = { 'evia-restore': 'staging' };
+const server = (/** @type {Record<string, unknown>} */ fields) => ({
+  id: 1,
+  created: ago(HOUR),
+  status: 'running',
+  labels: RESTORE_LABELS,
+  ...fields,
+});
+/** The sentinel of the project of the restore test: a firewall created in the IaC session, older than 24 hours and never swept. */
+const addSentinel = (/** @type {Awaited<ReturnType<typeof startMock>>} */ stand) =>
+  stand.store['firewalls'].push({ id: 99, created: ago(900 * HOUR), labels: { 'evia-project': 'evia-restore-staging' } });
 const SECRET_MARKERS = [...Object.values(SECRETS), ROOT_PASSWORD];
 function assertNoSecret(/** @type {string} */ output, /** @type {string[]} */ extra = []) {
   for (const marker of [...SECRET_MARKERS, ...extra]) assert.ok(!output.includes(marker), `${marker.slice(0, 22)} leaked`);
@@ -242,7 +280,8 @@ describe('EVM-084 AC4: the sweeper deletes what is older than 24 hours', () => {
       server({ id: 3, created: ago(24 * HOUR) }),
     );
     mock.store['servers'].push(server({ id: 4, created: ago(24 * HOUR + 1) }), server({ id: 5, created: ago(24 * HOUR - 1) }));
-    mock.store['volumes'].push({ id: 11, created: ago(30 * HOUR) });
+    addSentinel(mock);
+    mock.store['volumes'].push({ id: 11, created: ago(30 * HOUR), labels: RESTORE_LABELS });
     mock.store['images'].push({ id: 21, type: 'snapshot', created: ago(30 * HOUR) }, { id: 22, type: 'backup', created: ago(30 * HOUR) });
     mock.store['images'].push({ id: 23, type: 'system', created: ago(300 * HOUR) }, { id: 24, type: 'app', created: ago(300 * HOUR) });
     mock.store['primary_ips'].push({ id: 31, created: ago(48 * HOUR) });
@@ -264,8 +303,8 @@ describe('EVM-084 AC4: the sweeper deletes what is older than 24 hours', () => {
     assert.deepEqual(mock.store['primary_ips'], []);
     assert.deepEqual(
       mock.store['firewalls'].map((item) => item.id),
-      [42],
-      'a firewall without the label of the test is not ours',
+      [99, 42],
+      'a firewall without the label of the test is not ours; the sentinel stays',
     );
     const deleted = events().filter((item) => item.event === 'restore-sweep-deleted');
     assert.deepEqual(deleted.map((item) => `${item.kind}:${item.id}`).sort(), [
@@ -284,6 +323,7 @@ describe('EVM-084 AC4: the sweeper deletes what is older than 24 hours', () => {
 
   it('EVM-084 AC4 (P10): the second page of the listing is swept too (next_page), the age comes from `created` in UTC', async () => {
     mock = await startMock();
+    addSentinel(mock);
     for (let id = 1; id <= 120; id += 1) mock.store['servers'].push(server({ id, created: id === 120 ? ago(40 * HOUR) : ago(HOUR) }));
     mock.store['servers'].push(server({ id: 121, created: '2026-10-25T09:00:00+02:00' }));
     const run = await exec('sweep.sh');
@@ -294,9 +334,10 @@ describe('EVM-084 AC4: the sweeper deletes what is older than 24 hours', () => {
   });
 
   it('EVM-084 AC4 (P10): an unreadable date or an API error is an event and exit code 1 (fail-closed), the other kinds are still swept', async () => {
-    mock = await startMock({ failList: 'volumes' });
+    mock = await startMock({ failList: 'images' });
+    addSentinel(mock);
     mock.store['servers'].push(server({ id: 1, created: 'yesterday' }), server({ id: 2, created: ago(30 * HOUR) }));
-    mock.store['volumes'].push({ id: 11, created: ago(30 * HOUR) });
+    mock.store['volumes'].push({ id: 11, created: ago(30 * HOUR), labels: RESTORE_LABELS });
     mock.store['primary_ips'].push({ id: 31, created: ago(48 * HOUR) });
     const run = await exec('sweep.sh');
     assert.equal(run.status, 1);
@@ -307,12 +348,97 @@ describe('EVM-084 AC4: the sweeper deletes what is older than 24 hours', () => {
     );
     assert.deepEqual(mock.store['primary_ips'], []);
     const failed = events().filter((item) => item.event === 'restore-sweep-failed');
-    assert.deepEqual(failed.map((item) => `${item.kind}:${item.reason}`).sort(), ['servers:unreadable-resource', 'volumes:list']);
+    assert.deepEqual(failed.map((item) => `${item.kind}:${item.reason}`).sort(), [
+      'images:list',
+      'images:list',
+      'servers:unreadable-resource',
+    ]);
     assert.match(metrics(), /^evia_restore_sweeper_last_run_failed 1$/m);
+  });
+
+  it('EVM-084 AC4 (P10): a token of another project deletes nothing — no sentinel, or a server or a volume without the label of the test, is a refusal (exit 1, nothing deleted)', async () => {
+    const old = ago(48 * HOUR);
+    const cases = /** @type {Array<[string, (stand: Awaited<ReturnType<typeof startMock>>) => void, string, string]>} */ ([
+      [
+        'no sentinel: the staging project',
+        (stand) => {
+          stand.store['servers'].push({ id: 5, created: old, labels: { 'evia-restore': 'staging' } });
+        },
+        'no-sentinel',
+        '',
+      ],
+      [
+        'a foreign server',
+        (stand) => {
+          addSentinel(stand);
+          stand.store['servers'].push({ id: 5, created: old, labels: {} }, { id: 6, created: old, labels: RESTORE_LABELS });
+        },
+        'foreign-resource',
+        'servers',
+      ],
+      [
+        'a foreign volume with the LUKS data',
+        (stand) => {
+          addSentinel(stand);
+          stand.store['volumes'].push({ id: 7, created: old });
+          stand.store['servers'].push({ id: 6, created: old, labels: RESTORE_LABELS });
+        },
+        'foreign-resource',
+        'volumes',
+      ],
+      [
+        'a server with the label of another value',
+        (stand) => {
+          addSentinel(stand);
+          stand.store['servers'].push({ id: 5, created: old, labels: { 'evia-restore': 'production' } });
+        },
+        'foreign-resource',
+        'servers',
+      ],
+    ]);
+    for (const [name, arrange, reason, kind] of cases) {
+      mock = await startMock();
+      arrange(mock);
+      mock.store['images'].push({ id: 21, type: 'snapshot', created: old });
+      mock.store['primary_ips'].push({ id: 31, created: old });
+      const before = JSON.stringify(mock.store);
+      const run = await exec('sweep.sh');
+      assert.equal(run.status, 1, name);
+      assert.equal(JSON.stringify(mock.store), before, `${name}: nothing deleted`);
+      assert.ok(!mock.requests.some((item) => item.method === 'DELETE'), `${name}: no DELETE request`);
+      const refused = events().filter((item) => item.event === 'restore-sweep-refused');
+      assert.equal(refused.length, 1, name);
+      assert.equal(refused[0].reason, reason, name);
+      if (kind) assert.equal(refused[0].kind, kind, name);
+      assert.match(metrics(), /^evia_restore_sweeper_last_run_failed 1$/m, name);
+      assert.match(metrics(), /^evia_restore_sweeper_last_deleted 0$/m, name);
+      await mock.close();
+      mock = undefined;
+      rmSync(join(root, 'state/events.jsonl'), { force: true });
+    }
+  });
+
+  it('EVM-084 AC4 (P10): the guard fails closed — a failed listing of the sentinel, the servers or the volumes is a refusal, nothing is deleted', async () => {
+    for (const failList of ['firewalls', 'servers', 'volumes']) {
+      mock = await startMock({ failList });
+      addSentinel(mock);
+      mock.store['servers'].push(server({ id: 5, created: ago(48 * HOUR) }));
+      const run = await exec('sweep.sh');
+      assert.equal(run.status, 1, failList);
+      assert.equal(mock.store['servers'].length, 1, `${failList}: nothing deleted`);
+      assert.ok(
+        events().some((item) => item.event === 'restore-sweep-refused' && item.reason === 'list'),
+        failList,
+      );
+      await mock.close();
+      mock = undefined;
+      rmSync(join(root, 'state/events.jsonl'), { force: true });
+    }
   });
 
   it('EVM-084 AC4: a failed deletion is an event and exit code 1', async () => {
     mock = await startMock({ firewallBusy: 1 });
+    addSentinel(mock);
     mock.store['firewalls'].push({ id: 41, created: ago(48 * HOUR), labels: { 'evia-restore': 'staging' } });
     const run = await exec('sweep.sh');
     assert.equal(run.status, 1);
@@ -428,6 +554,63 @@ describe('EVM-084 AC3: the orchestrator of the restore test', () => {
       /^RESULT_PUT_URL='http:\/\/127\.0\.0\.1:\d+\/evia-test-db-backup\/restore-results\/[0-9a-z-]+\.json\?X-Amz-Algorithm=AWS4-HMAC-SHA256&.*X-Amz-Expires=7200&X-Amz-SignedHeaders=host%3Bif-none-match&X-Amz-Signature=[0-9a-f]{64}'$/m,
     );
     assert.ok(!env.includes('SECRET'), 'the env file carries no secret');
+  });
+
+  it('EVM-084 AC3, AC5: a named restore point is written to the WAL of staging and archived BEFORE the VM exists; the VM gets the point, the backup that stopped before it and the archive delay', async () => {
+    mock = await startMock();
+    run = await exec('run.sh');
+    assert.equal(run.status, 0, run.stderr);
+    const env = decodedEnv();
+    const runId = /^RUN_ID='([0-9a-z-]+)'$/m.exec(env)?.[1] ?? 'none';
+    assert.match(env, new RegExp(`^RESTORE_POINT='${runId}'$`, 'm'));
+    assert.match(env, /^BACKUP_SET='20261027-010000F_20261028-010000D'$/m);
+    assert.match(env, /^ARCHIVED_AT='\d{4}-\d{2}-\d{2}T[0-9:]{8}Z'$/m);
+    assert.match(env, /^PG_SUPERUSER='evia_owner'$/m);
+    const target = /^TARGET_TIME='(.*)'$/m.exec(env)?.[1] ?? '';
+    const archived = /^ARCHIVED_AT='(.*)'$/m.exec(env)?.[1] ?? '';
+    assert.ok(Date.parse(archived) >= Date.parse(target), 'the archive confirmation is not older than the point');
+    assert.equal(readFileSync(join(root, 'psql.log'), 'utf8').trim(), `psql -Atq -c select pg_create_restore_point('${runId}')`);
+    const calls = readFileSync(join(root, 'pgbackrest.log'), 'utf8').trim().split('\n');
+    assert.deepEqual(
+      calls,
+      ['pgbackrest check', 'pgbackrest info --output=json'],
+      'the segment is archived (check), then the backups are read',
+    );
+    assert.ok(events().some((item) => item.event === 'restore-test-point-created'));
+    assert.ok(
+      events().findIndex((item) => item.event === 'restore-test-point-created') <
+        events().findIndex((item) => item.event === 'restore-test-vm-created'),
+    );
+  });
+
+  it('EVM-084 AC3 (P10): when the point cannot be written, archived or restored from, no firewall and no VM are created', async () => {
+    mock = await startMock();
+    writeFileSync(join(root, 'bin/fake-psql'), '#!/bin/bash\nexit 1\n', { mode: 0o755 });
+    run = await exec('run.sh');
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr, /cannot create the restore point/);
+    pgbackrestFake();
+    writeFileSync(join(root, 'bin/fake-pgbackrest'), '#!/bin/bash\n[ "$1" = check ] && exit 1\nexit 0\n', { mode: 0o755 });
+    run = await exec('run.sh');
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr, /archive check after the restore point failed/);
+    // no backup older than the point: the only backup stopped in the future
+    writeFileSync(
+      join(root, 'bin/fake-pgbackrest'),
+      `#!/bin/bash\nif [ "$1" = info ]; then echo '[{"backup":[{"label":"20261027-010000F","timestamp":{"start":4102444800,"stop":4102444900}}]}]'; fi\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    run = await exec('run.sh');
+    assert.notEqual(run.status, 0);
+    assert.match(run.stderr, /no backup older than the restore point/);
+    assert.ok(!mock.requests.some((item) => item.method === 'POST'), 'nothing was created');
+  });
+
+  it('EVM-084 AC3: an odd database superuser name is refused before any request', async () => {
+    mock = await startMock();
+    run = await exec('run.sh', [], { PG_SUPERUSER: "evia'; drop" });
+    assert.notEqual(run.status, 0);
+    assert.equal(mock.requests.length, 0);
   });
 
   it('EVM-084 AC3: the result is stored locally after validation, the VM and the firewall are deleted, nothing secret reaches the log', async () => {
@@ -648,15 +831,7 @@ exit 0
 `,
       { mode: 0o755 },
     );
-    writeFileSync(
-      join(root, 'bin/fake-pgbackrest'),
-      `#!/bin/bash
-echo "pgbackrest $*" >> "${join(root, 'pgbackrest.log')}"
-[ "$1" = backup ] && ${backupFails ? 'exit 1' : 'exit 0'}
-exit 0
-`,
-      { mode: 0o755 },
-    );
+    pgbackrestFake(backupFails);
     return { store, secretsSeen };
   }
   const scenarioEnv = () => ({
@@ -728,16 +903,88 @@ exit 0
   });
 });
 
-describe('EVM-084: the scripts are installed as they are tested', () => {
-  it('EVM-084 AC3: vm-restore.sh restores with the read key, uses repo-target-time, publishes one conditional PUT and powers off, also after a failure', () => {
-    const script = readFileSync(join(DIR, 'vm-restore.sh'), 'utf8');
-    assert.match(script, /^restore_steps$\n^publish$\n^shutdown -h now$/m);
+describe('EVM-084 AC3, AC5, AC6: vm-restore.sh and the contract of its result', () => {
+  const script = readFileSync(join(DIR, 'vm-restore.sh'), 'utf8');
+  const SCHEMA = join(DIR, 'result.schema.jq');
+
+  /** Runs `publish` of the real script (sourced) with a stand-in curl and returns the object it wrote. */
+  function publishResult(/** @type {string} */ assignments) {
+    mkdirSync(join(root, 'bin'), { recursive: true });
+    writeFileSync(join(root, 'bin/curl'), `#!/bin/bash\necho "$*" >> "${join(root, 'curl.log')}"\nexit 0\n`, { mode: 0o755 });
+    const resultPath = join(root, 'vm-result.json');
+    const run = spawnSync(
+      'bash',
+      [
+        '-c',
+        `. "${join(DIR, 'vm-restore.sh')}"; RUN_ID=run-1; TARGET_TIME=2026-10-27T12:00:00Z; RESULT_PUT_URL=https://example.invalid/put; ${assignments}; publish`,
+      ],
+      { env: { PATH: `${join(root, 'bin')}:/usr/bin:/bin`, EVIA_RESTORE_TEST_MODE: '1', EVIA_VM_RESULT: resultPath }, encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    return JSON.parse(readFileSync(resultPath, 'utf8'));
+  }
+  const valid = (/** @type {object} */ result) =>
+    spawnSync('jq', ['-e', '--arg', 'run', 'run-1', '--arg', 'iso', '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$', '-f', SCHEMA], {
+      input: JSON.stringify(result),
+      encoding: 'utf8',
+    }).status === 0;
+
+  it('EVM-084 AC3: the result the VM writes — a failure at the very start as well as a success — passes the schema of the orchestrator (no negative rpoSeconds)', () => {
+    const early = publishResult('true');
+    assert.equal(early.status, 'failed');
+    assert.equal(early.stage, 'start');
+    assert.equal(early.rpoSeconds, 0);
+    assert.ok(valid(early), JSON.stringify(early));
+    const ok = publishResult(
+      'status=ok; stage=done; restored_to=2026-10-27T12:00:00Z; rpo=3; tables=12; rows=340; media_files=5; media_sample=3; register_entries=2',
+    );
+    assert.ok(valid(ok), JSON.stringify(ok));
+    assert.equal(ok.dbRows, 340);
+    // the schema itself still refuses what the VM must not send
+    assert.ok(!valid({ ...ok, rpoSeconds: -1 }));
+    assert.ok(!valid({ ...ok, extra: 1 }));
+    assert.ok(!valid({ ...ok, stage: 'Not Allowed' }));
+    assert.match(readFileSync(join(root, 'curl.log'), 'utf8'), /-X PUT -H If-None-Match: \* .*--data-binary @.*vm-result\.json/);
+  });
+
+  it('EVM-084 AC3: the schema file is the one the orchestrator uses, and nothing else validates the result', () => {
+    const orchestrator = readFileSync(join(DIR, 'run.sh'), 'utf8');
+    assert.match(orchestrator, /-f "\$SELF_DIR\/result\.schema\.jq"/);
+    assert.doesNotMatch(orchestrator, /def count/);
+  });
+
+  it('EVM-084 AC3, AC5: the script restores to the named point from a chosen backup with the secrets in a file the recovering server can read; it publishes one conditional PUT and powers off, also after a failure', () => {
+    assert.match(script, /^if \[\[ "\$\{BASH_SOURCE\[0\]\}" == "\$0" \]\]; then main; fi$/m);
+    assert.match(script, /^ {2}restore_steps\n {2}publish\n {2}shutdown -h now$/m);
+    assert.match(script, /--type=name --target="\$\{RESTORE_POINT:\?\}" --target-action=promote --set="\$\{BACKUP_SET:\?\}"/);
     assert.match(script, /--repo-target-time=/);
-    assert.match(script, /--type=time/);
+    assert.doesNotMatch(script, /--type=time/);
+    assert.match(script, /conf\.d\/secrets\.conf/);
+    assert.match(script, /repo1-cipher-pass=/);
+    assert.match(script, /repo1-s3-key-secret=/);
+    assert.doesNotMatch(
+      script,
+      /PGBACKREST_REPO1_(CIPHER_PASS|S3_KEY_SECRET)=/,
+      'the secrets are not only in the environment of one process',
+    );
+    assert.match(script, /-U "\$superuser"/);
+    assert.match(script, /recovery stopping at restore point/);
+    assert.match(script, /greatest\(reltuples, 0\)/);
     assert.match(script, /-H 'If-None-Match: \*'/);
-    assert.match(script, /shutdown -h now/);
     assert.match(script, /repo1-cipher-type=aes-256-cbc/);
     assert.doesNotMatch(script, /verify-tls|backup-s3-secret|restore-hcloud-token|restore-orchestrator/);
     assert.doesNotMatch(script, /--password|--secret/);
+  });
+
+  it('EVM-084 AC3: test mode is not reachable without EVIA_RESTORE_TEST_MODE=1 (the paths of the VM are kept)', () => {
+    const run = spawnSync(
+      'bash',
+      [
+        '-c',
+        `EVIA_VM_PGDATA=/tmp/evil EVIA_VM_REPO_PATH=/tmp/evil . "${join(DIR, 'vm-restore.sh')}"; printf '%s|%s|%s' "$PGDATA_DIR" "\${AS_POSTGRES[*]}" "$TEST_MODE"`,
+      ],
+      { env: { PATH: '/usr/bin:/bin' }, encoding: 'utf8' },
+    );
+    assert.equal(run.stdout, '/var/lib/evia-restore/pgdata|runuser -u postgres --|0');
   });
 });
