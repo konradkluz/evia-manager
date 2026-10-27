@@ -10,6 +10,7 @@
 | [`runbooks/aktywacja-i-tryb-awaryjny.md`](runbooks/aktywacja-i-tryb-awaryjny.md) | pierwszy Administrator (polecenie na serwerze, link 72 h), tryb awaryjny po utracie dostępu, alert bezpieczeństwa | EVM-016 |
 | [`runbooks/projekcja-listy-zlecen.md`](runbooks/projekcja-listy-zlecen.md) | `rebuild` i `verify` projekcji listy zleceń (po wdrożeniu, po odtworzeniu bazy, przy alercie rozjazdu) | EVM-034 |
 | [`runbooks/wdrozenie-staging.md`](runbooks/wdrozenie-staging.md) | kanał wdrożeń staging (pull z weryfikacją V0–V4), budżet API, pierwsza sesja IaC krok po kroku | EVM-007 |
+| [`runbooks/restore.md`](runbooks/restore.md) | kopie bazy (pgBackRest) i mediów, rejestr usunięć, test odtworzenia na tymczasowej VM, sprzątacz, scenariusz „backup usunięty z przejętej VM”, metryki dla alertów | EVM-084 |
 | [`runbooks/rollback-staging.md`](runbooks/rollback-staging.md) | rollback stagingu poleceniem administratora (tylko commit z rejestru), dostęp awaryjny bez portu 22 | EVM-007 |
 | [`runbooks/rotacja-sekretow-kanalu.md`](runbooks/rotacja-sekretow-kanalu.md) | PAT-y kanału (≤ 12 mies.), sekrety aplikacji na VM, tokeny IaC | EVM-007 |
 | [`runbooks/incydent-blokada-v0.md`](runbooks/incydent-blokada-v0.md) | push lub force push na `main` poza PR: wstrzymanie, analiza, `gh cache delete --all`, nowa kotwica V0 w sesji IaC | EVM-007 |

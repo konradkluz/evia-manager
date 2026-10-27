@@ -14,6 +14,8 @@ EVM-007 AC3, AC4, AC7 (ADR-0018 V6, „Gdzie żyją sekrety”). Pliki instalowa
 | `../runtime/compose.infra.yaml`, `../runtime/Caddyfile`, `../runtime/postgres-init/` | `/etc/evia/runtime/`, `/etc/evia/caddy/` | infrastruktura VM: Caddy krawędziowy (80/443, TLS Let's Encrypt, HSTS), PostgreSQL (role), `clamd` bez wyjścia do sieci i `freshclam` osobno |
 | `../runtime/infra-images.json` | konfiguracja VM | stała lista obrazów infrastruktury po digeście (skanowana w `publish`, bramka 6) |
 
+| `restore/` | `/usr/local/sbin/` + `/usr/local/lib/evia/restore/` | EVM-084: `run.sh` (orkiestrator testu odtworzenia), `sweep.sh` (sprzątacz co godzinę), `scenario.sh` (AC5), `vm-restore.sh` (na tymczasowej VM, w `user-data`), `s3-presign.sh` (podpisany URL SigV4), `backup.sh`, `media-copy.sh`, `bucket-verify.sh`, `lib.sh`; jednostki `systemd/evia-{backup-full,backup-diff,media-copy,restore-sweep,restore-test}.{service,timer}` i `evia-restore-alert.service`; opis: [restore.md](../../docs/ops/runbooks/restore.md). Nieaktywne do sesji IaC |
+
 Katalogi na VM: `/var/lib/evia/registry/registry.json` (rejestr wdrożeń — pisze tylko `deploy.sh`, weryfikator czyta), `/var/lib/evia/deploy/` (0700 root: wydania, aktywny kolor), `/var/lib/evia/agent/{out,state}` (wynik i stan weryfikatora), `/etc/evia/deploy-agent/rollback` (polecenie administratora: pełny SHA commita z rejestru).
 
 ## Testy
