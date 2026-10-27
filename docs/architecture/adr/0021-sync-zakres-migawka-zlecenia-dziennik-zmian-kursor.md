@@ -167,7 +167,7 @@ Wybieramy **W1-A, W2-A, W3-C, W4-A, W5-A**, ponieważ dają jeden mechanizm doci
   - Zły tag nie daje `400`, bo nie odróżnia manipulacji od klucza usuniętego przy rotacji, a odpowiedź `resync_required` nie daje napastnikowi niczego ponad jego własny zakres.
 
 ### D7. Parametry dla klienta w `GET /api/v1/meta/client-config`
-Rozszerzenie istniejącej operacji (zmiana addytywna, publiczna, bez danych osobowych — rozstrzyga EVM-090 AC6): `offlineContactWindowDays` (7), `closedWorkOrdersInScopeDays` (N = 30), `periodicResyncDays` (7), `scopeRuleVersion`. Zmiana N → nowa `scopeRuleVersion` → `scope_changed`.
+Rozszerzenie istniejącej operacji (zmiana addytywna, publiczna, bez danych osobowych — rozstrzyga EVM-090 AC6) — *doprecyzowane w EVM-090: operacja `meta/client-config` nie istniała, więc powstała jako NOWA operacja `getClientConfig` — uwierzytelniona (kanał `mobile`, Administrator i Edytor), bez `426`; przed zalogowaniem minimalną wersję podaje publiczne `GET /api/health`*: `offlineContactWindowDays` (7), `closedWorkOrdersInScopeDays` (N = 30), `periodicResyncDays` (7), `scopeRuleVersion`. Zmiana N → nowa `scopeRuleVersion` → `scope_changed`.
 
 ### D8. Moduł `sync` i reguły `deps:check`
 - `apps/api/src/modules/sync/` (warstwy jak w innych modułach, `index.ts`), schemat `sync` (`change_log`, `device_sync_state`). Zależy od `identity`, `authorization`, `work-orders`, `customers`, `sites`, `parties`, `procedures`, `timeline`, `catalog` przez `index.ts` i porty systemowe; mutacje mobilne (EVM-098/099) wołają komendy domenowe przez fasady modułów. **Nic nie zależy od `sync`.**

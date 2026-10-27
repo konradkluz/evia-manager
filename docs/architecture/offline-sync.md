@@ -189,7 +189,7 @@ sequenceDiagram
 | strona zmian (`limit`) | domyślnie 200, maks. 500 (odpowiedź ≤ 1 MB) — do pomiaru w EVM-011 | ten dokument |
 | retencja kluczy idempotencji | 30 dni | ADR-0004, ADR-0008 |
 | retencja dziennika zmian i znaczników usunięcia | 90 dni | ADR-0008 |
-| zamknięte zlecenia w zakresie | N = 30 dni (propozycja) | ten dokument, EVM-011 |
+| zamknięte zlecenia w zakresie | N = 30 dni (propozycja; wartość w `GET /api/v1/meta/client-config` → `closedWorkOrdersInScopeDays`, EVM-090) | ten dokument, EVM-011 |
 | praca offline bez ponownego uwierzytelnienia | 7 dni przeglądania; rejestracja mediów zawsze | ADR-0005, EVM-005 |
 | limity żądań | jak API (300 żądań/min/użytkownik + limit per IP) | ADR-0004 |
 
