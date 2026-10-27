@@ -3,8 +3,8 @@
  * commits after the deployed one that never get a release (documentation only — `publish` skipped, EVM-083) stay in the
  * range until the next release, and checking them again every 90 s would exhaust the hourly limit of the API.
  * Remembered: V2 passed for a commit (a merged pull request, its merged_by, a completed green pull_request run — facts
- * of the past) and V3 `skipped` (the successful attempt of the push run skipped publish, which a re-run repeats). Never
- * remembered: a rejection, `unusable` (still running, failed — may change), V0 and V1 (both run every cycle), V3 of the
+ * of the past) and V3 `skipped` (an attempt of the push run with a green ci-gate skipped publish, which a re-run repeats). Never
+ * remembered: a rejection, `unusable` (a job still running, failed — may change), V0 and V1 (both run every cycle), V3 of the
  * commit to deploy and V4. Kept in the verifier's own state directory (writable by the verifier only), keyed by the
  * baseline; a missing, unreadable, oversized or foreign file is an empty cache — the price is requests, never a
  * weaker check. Pruned to the commits of the current range.
