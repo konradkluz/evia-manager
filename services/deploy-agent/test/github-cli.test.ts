@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CONTAINER_PATHS, logLine, metrics, readRollback, run, writeAtomic, type Paths } from '../src/cli.ts';
 import { Rejection } from '../src/errors.ts';
 import { GitHub, nextLink, readCapped } from '../src/github.ts';
+import { readActivity } from '../src/activity.ts';
 import { readRange } from '../src/history.ts';
 import { buildScenario, OWNER, REPO, startStub, TOKEN, wireArtifacts, type Stub } from './support/github-stub.ts';
 import { COMPOSE, configText } from './support/fixtures.ts';
@@ -56,7 +57,7 @@ describe('EVM-007 AC3: the GitHub client', () => {
       expect(await rejection(client(base, { timeoutMs: 50 }).json(`/repos/${OWNER}/${REPO}/slow`))).toBe('api-timeout');
       expect(await rejection(client(base).json('/repos/other/repo/x'))).toBe('api-path');
       expect(await rejection(client(base).json('https://evil.example/repos/evia-test/manager/x'))).toBe('api-path');
-      expect(await rejection(client(base).json(`/repos/${OWNER}/${REPO}/foreign-link`))).toBe('api-path');
+      expect(await rejection(client(base).all(`/repos/${OWNER}/${REPO}/foreign-link`))).toBe('api-path');
       expect(await rejection(client(base, { maxJsonBytes: 100 }).json(`/repos/${OWNER}/${REPO}/big`))).toBe('api-size');
       expect(await rejection(client(base).all(`/repos/${OWNER}/${REPO}/big`))).toBe('api-parse');
       const budget = client(base, { budget: 1 });
@@ -90,10 +91,11 @@ describe('EVM-007 AC3: the GitHub client', () => {
   describe('EVM-007 AC3 (RR-34): the next link is accepted only for the same operation of this repository', () => {
     const SUFFIX = `compare/${'a'.repeat(40)}...${'b'.repeat(40)}`;
     const PATH = `/repos/${OWNER}/${REPO}/${SUFFIX}?per_page=100`;
+    const ACTIVITY = `/repos/${OWNER}/${REPO}/activity?ref=refs%2Fheads%2Fmain&direction=desc&per_page=100`;
     let link = '';
     let server: ReturnType<typeof createServer> | undefined;
     let base = '';
-    const start = async (): Promise<void> => {
+    const start = async (host = '127.0.0.1'): Promise<void> => {
       const created = createServer((_request, response) => {
         response.writeHead(200, link === '' ? {} : { link: `<${link}>; rel="next", <${link}>; rel="last"` });
         response.end('[]');
@@ -104,7 +106,7 @@ describe('EVM-007 AC3: the GitHub client', () => {
           resolve();
         }),
       );
-      base = `http://127.0.0.1:${String((created.address() as AddressInfo).port)}`;
+      base = `http://${host}:${String((created.address() as AddressInfo).port)}`;
     };
     afterEach(async () => {
       const closing = server;
@@ -116,10 +118,14 @@ describe('EVM-007 AC3: the GitHub client', () => {
           }),
         );
     });
-    const code = async (target: string, github?: GitHub): Promise<string> => {
+    /** Reads a page and then asks for its next one: the rejection of an unacceptable link comes with that second call. */
+    const follow = async (target: string, path = PATH, github?: GitHub): Promise<string> => {
       if (server === undefined) await start();
-      link = target.replace('{base}', base);
-      return rejection((github ?? client(base)).json(PATH));
+      link = target.replaceAll('{base}', base);
+      const client_ = github ?? client(base);
+      const page = await client_.json(path);
+      if (page.next === null) return 'no-next';
+      return rejection(client_.json(page.next));
     };
 
     it('accepts /repos/<owner>/<name>/ and /repositories/<id>/ with the same suffix and returns a normalized path', async () => {
@@ -127,28 +133,52 @@ describe('EVM-007 AC3: the GitHub client', () => {
       const github = client(base);
       link = `${base}/repositories/1403122150/${SUFFIX}?per_page=100&page=2`;
       expect((await github.json(PATH)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?per_page=100&page=2`);
-      link = `${base}/repos/${OWNER}/${REPO}/${SUFFIX}?page=3&per_page=100`;
-      expect((await github.json(PATH)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?per_page=100&page=3`);
+      link = `${base}/repos/${OWNER}/${REPO}/${SUFFIX}?page=2&per_page=100`;
+      expect((await github.json(PATH)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?per_page=100&page=2`);
+      // the page advances from the current one; an encoded key is decoded and normalized (current behaviour, kept)
+      link = `${base}/repositories/1403122150/${SUFFIX}?per_page=100&pag%65=3`;
+      expect((await github.json(`${PATH}&page=2`)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?per_page=100&page=3`);
     });
 
-    it('keeps the other parameters of the request and rejects a changed, missing or new one', async () => {
+    it('accepts an upper-case host (normalized) and a request without per_page', async () => {
+      await start('localhost');
+      link = `http://LOCALHOST:${base.split(':')[2] ?? ''}/repositories/5/${SUFFIX}?page=2`;
+      expect((await client(base).json(`/repos/${OWNER}/${REPO}/${SUFFIX}`)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?page=2`);
+    });
+
+    it('keeps the other parameters of the request and rejects a changed, missing, differently cased or new one', async () => {
       await start();
       const github = client(base);
       const path = `/repos/${OWNER}/${REPO}/${SUFFIX}?head_sha=abc&per_page=100`;
       link = `${base}/repositories/7/${SUFFIX}?head_sha=abc&per_page=100&page=2`;
       expect((await github.json(path)).next).toBe(`/repos/${OWNER}/${REPO}/${SUFFIX}?head_sha=abc&per_page=100&page=2`);
-      for (const bad of ['head_sha=zzz&per_page=100&page=2', 'per_page=100&page=2', 'head_sha=abc&per_page=100&page=2&after=x']) {
-        link = `${base}/repositories/7/${SUFFIX}?${bad}`;
-        expect(await rejection(github.json(path))).toBe('api-path');
+      for (const bad of [
+        'head_sha=zzz&per_page=100&page=2',
+        'per_page=100&page=2',
+        'head_sha=abc&per_page=100&page=2&after=x',
+        'HEAD_SHA=abc&per_page=100&page=2',
+      ]) {
+        expect(await follow(`{base}/repositories/7/${SUFFIX}?${bad}`, path, github)).toBe('api-path');
       }
     });
 
     it.each([
       ['another host', 'https://evil.example/repositories/1/{s}?per_page=100&page=2'],
       ['another host (repos)', 'https://evil.example/repos/evia-test/manager/{s}?per_page=100&page=2'],
+      ['a scheme-relative address', '//evil.example/repositories/1/{s}?per_page=100&page=2'],
+      ['a relative link', '/repositories/1/{s}?per_page=100&page=2'],
+      ['a scheme without slashes', 'https:evil.example/repositories/1/{s}?per_page=100&page=2'],
       ['another scheme', 'https://127.0.0.1/repositories/1/{s}?per_page=100&page=2'],
       ['another port', 'http://127.0.0.1:1/repositories/1/{s}?per_page=100&page=2'],
+      ['a trailing dot after the host', 'http://127.0.0.1.:{port}/repositories/1/{s}?per_page=100&page=2'],
       ['credentials', 'http://u:p@127.0.0.1/repositories/1/{s}?per_page=100&page=2'],
+      ['a space', '{base}/repositories/1/{s}?per_page=100&page=2 x'],
+      ['an IDN host', 'http://exämple.test/repositories/1/{s}?per_page=100&page=2'],
+      ['a backslash', '{base}/repositories/1/{s}\\x?per_page=100&page=2'],
+      ['percent in the repos variant', '{base}/repos/evia-test/manager/{s}%41?per_page=100&page=2'],
+      ['a single dot segment', '{base}/repositories/1/./{s}?per_page=100&page=2'],
+      ['a doubled slash', '{base}/repositories/1//{s}?per_page=100&page=2'],
+      ['a semicolon in the path', '{base}/repositories/1/{s};x?per_page=100&page=2'],
       ['another operation', '{base}/repositories/1/compare/x...y?per_page=100&page=2'],
       ['another suffix', '{base}/repositories/1/git/ref/heads/main?per_page=100&page=2'],
       ['another repository path', '{base}/repos/other/repo/{s}?per_page=100&page=2'],
@@ -162,17 +192,33 @@ describe('EVM-007 AC3: the GitHub client', () => {
       ['a fragment', '{base}/repositories/1/{s}?per_page=100&page=2#x'],
       ['no page', '{base}/repositories/1/{s}?per_page=100'],
       ['an unknown parameter', '{base}/repositories/1/{s}?per_page=100&page=2&access_token=x'],
-      ['a repeated parameter', '{base}/repositories/1/{s}?per_page=100&page=2&page=3'],
+      ['a cursor outside /activity', '{base}/repositories/1/{s}?per_page=100&page=2&after=abc'],
+      ['a repeated page', '{base}/repositories/1/{s}?per_page=100&page=2&page=2'],
+      ['a repeated per_page', '{base}/repositories/1/{s}?per_page=100&per_page=100&page=2'],
+      ['another per_page', '{base}/repositories/1/{s}?per_page=50&page=2'],
+      ['a missing per_page', '{base}/repositories/1/{s}?page=2'],
+      ['per_page zero', '{base}/repositories/1/{s}?per_page=0&page=2'],
+      ['a page that does not advance', '{base}/repositories/1/{s}?per_page=100&page=1'],
+      ['a page that skips', '{base}/repositories/1/{s}?per_page=100&page=3'],
       ['a negative page', '{base}/repositories/1/{s}?per_page=100&page=-1'],
       ['page zero', '{base}/repositories/1/{s}?per_page=100&page=0'],
       ['a huge page', '{base}/repositories/1/{s}?per_page=100&page=99999999999'],
-      ['a page over the limit', '{base}/repositories/1/{s}?per_page=100&page=51'],
       ['a fractional page', '{base}/repositories/1/{s}?per_page=100&page=2.5'],
-      ['a huge per_page', '{base}/repositories/1/{s}?per_page=100000&page=2'],
-      ['per_page zero', '{base}/repositories/1/{s}?per_page=0&page=2'],
+      ['an empty page', '{base}/repositories/1/{s}?per_page=100&page='],
+      ['a signed page', '{base}/repositories/1/{s}?per_page=100&page=+2'],
+      ['a zero-led page', '{base}/repositories/1/{s}?per_page=100&page=02'],
+      ['a hexadecimal page', '{base}/repositories/1/{s}?per_page=100&page=0x2'],
       ['a non-numeric page', '{base}/repositories/1/{s}?per_page=100&page=x'],
-    ])('rejects %s', async (_name, target) => {
-      expect(await code(target.replace('{s}', SUFFIX))).toBe('api-path');
+    ])('rejects %s (when the next page is asked for, not when the current one is read)', async (_name, target) => {
+      await start();
+      expect(
+        await follow(
+          target
+            .replace('{s}', SUFFIX)
+            .replace('{port}', base.split(':')[2] ?? '')
+            .replace('{base}', base),
+        ),
+      ).toBe('api-path');
     });
 
     it('rejects a repository id that changes between pages of one client', async () => {
@@ -180,15 +226,106 @@ describe('EVM-007 AC3: the GitHub client', () => {
       const github = client(base);
       link = `${base}/repositories/111/${SUFFIX}?per_page=100&page=2`;
       await github.json(PATH);
-      link = `${base}/repositories/222/${SUFFIX}?per_page=100&page=3`;
-      expect(await rejection(github.json(PATH))).toBe('api-path');
-      link = `${base}/repositories/111/${SUFFIX}?per_page=100&page=3`;
+      link = `${base}/repositories/222/${SUFFIX}?per_page=100&page=2`;
+      expect(await follow(link, PATH, github)).toBe('api-path');
+      link = `${base}/repositories/111/${SUFFIX}?per_page=100&page=2`;
+      expect((await github.json(PATH)).next).not.toBeNull();
+    });
+
+    it('does not pin the id of a link that is rejected for another reason', async () => {
+      await start();
+      const github = client(base);
+      expect(await follow(`{base}/repositories/111/${SUFFIX}?per_page=100&page=9`, PATH, github)).toBe('api-path');
+      link = `${base}/repositories/222/${SUFFIX}?per_page=100&page=2`;
       expect((await github.json(PATH)).next).not.toBeNull();
     });
 
     it('rejects a full URL passed to json()', async () => {
       await start();
       expect(await rejection(client(base).json(`${base}/repos/${OWNER}/${REPO}/x`))).toBe('api-path');
+    });
+
+    describe('Activity paginates by cursor (after | before), not by page', () => {
+      it('accepts one cursor, keeps ref, direction and per_page, and builds the request itself', async () => {
+        await start();
+        const github = client(base);
+        const expected = (cursor: string): string =>
+          `/repos/${OWNER}/${REPO}/activity?ref=refs%2Fheads%2Fmain&direction=desc&per_page=100&${cursor}`;
+        link = `${base}/repositories/9/activity?ref=refs%2Fheads%2Fmain&direction=desc&per_page=100&after=Y3Vyc29y_-%3D`.replace(
+          '%3D',
+          '=',
+        );
+        expect((await github.json(ACTIVITY)).next).toBe(expected('after=Y3Vyc29y_-%3D'));
+        link = `${base}/repos/${OWNER}/${REPO}/activity?ref=refs%2Fheads%2Fmain&direction=desc&per_page=100&before=abc`;
+        expect((await github.json(`${ACTIVITY}&after=old`)).next).toBe(expected('before=abc'));
+      });
+
+      it.each([
+        ['both cursors', 'per_page=100&after=a&before=b'],
+        ['a repeated cursor', 'per_page=100&after=a&after=b'],
+        ['no cursor', 'per_page=100'],
+        ['an empty cursor', 'per_page=100&after='],
+        ['a cursor with a forbidden character', 'per_page=100&after=a!b'],
+        ['a cursor with a slash', 'per_page=100&after=a%2Fb'],
+        ['a cursor of 257 characters', `per_page=100&after=${'a'.repeat(257)}`],
+        ['a page next to the cursor', 'per_page=100&after=a&page=2'],
+        ['another per_page', 'per_page=30&after=a'],
+        ['an unknown parameter', 'per_page=100&after=a&x=1'],
+      ])('rejects %s', async (_name, query) => {
+        await start();
+        expect(await follow(`{base}/repositories/9/activity?ref=refs%2Fheads%2Fmain&direction=desc&${query}`, ACTIVITY)).toBe('api-path');
+      });
+
+      it('rejects other parameters changed from the request and a cursor of 256 characters is accepted', async () => {
+        await start();
+        expect(await follow(`{base}/repositories/9/activity?ref=refs%2Fheads%2Fdev&direction=desc&per_page=100&after=a`, ACTIVITY)).toBe(
+          'api-path',
+        );
+        expect(
+          await follow(
+            `{base}/repositories/9/activity?ref=refs%2Fheads%2Fmain&direction=desc&per_page=100&after=${'a'.repeat(256)}`,
+            ACTIVITY,
+          ),
+        ).toBe('accepted');
+      });
+    });
+  });
+
+  describe('EVM-007 AC3 (RR-34): Activity and jobs behind /repositories/<id>/ links', () => {
+    it('reads Activity across cursor pages (anchor on the second page) and jobs across pages', async () => {
+      const built = buildScenario(5, COMPOSE);
+      built.scenario.activityPageSize = 2;
+      built.scenario.linkStyle = 'repositories';
+      stub = await startStub(built.scenario);
+      const github = client(stub.base);
+      const anchor = { activityEventId: 102, commit: built.commits[1] ?? '' };
+      const events = await readActivity(github, anchor);
+      expect(events.map((event) => event.id)).toEqual([103, 104, 105]);
+      const activity = stub.requests.filter((request) => request.includes('/activity'));
+      expect(activity).toHaveLength(2);
+      expect(activity[1]).toMatch(/&after=c2$/);
+      expect(activity.some((request) => request.includes('&page='))).toBe(false);
+      built.scenario.jobsPageSize = 1;
+      const jobs = await github.all(`${github.repoPath}/actions/runs/2001/attempts/1/jobs?per_page=100`, 'jobs');
+      expect(jobs).toHaveLength(2);
+      expect(stub.requests.filter((request) => request.includes('/jobs'))).toHaveLength(2);
+    });
+
+    it('finds an anchor on the first page even when the next link is unacceptable; a deeper anchor then rejects', async () => {
+      const built = buildScenario(5, COMPOSE);
+      stub = await startStub(built.scenario);
+      const first = built.scenario.events.slice(0, 2);
+      built.scenario.overrides.push({
+        prefix: `/repos/${OWNER}/${REPO}/activity`,
+        status: 200,
+        headers: { link: '<https://evil.example/repositories/1/activity?per_page=100&after=x>; rel="next"' },
+        body: JSON.stringify(first),
+        times: 3,
+      });
+      const github = client(stub.base);
+      const events = await readActivity(github, { activityEventId: 104, commit: built.commits[3] ?? '' });
+      expect(events.map((event) => event.id)).toEqual([105]);
+      expect(await rejection(readActivity(github, { activityEventId: 100, commit: built.baseline }))).toBe('api-path');
     });
   });
 

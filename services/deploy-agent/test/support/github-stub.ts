@@ -98,6 +98,24 @@ function paged<T>(
   return { items: slice, link: { link: `<${next.href}>; rel="next"` } };
 }
 
+/** Cursor pagination of the Activity endpoint: `after` (or `before`) holds an opaque cursor, there is no `page`. */
+function cursorPaged<T>(
+  url: URL,
+  base: string,
+  items: T[],
+  size: number,
+  linkPath: (pathname: string) => string,
+): { items: T[]; link: Record<string, string> } {
+  const cursor = url.searchParams.get('after') ?? url.searchParams.get('before');
+  const start = cursor === null ? 0 : Number(/^c(\d+)$/.exec(cursor)?.[1]);
+  const slice = items.slice(start, start + size);
+  if (start + size >= items.length) return { items: slice, link: {} };
+  const next = new URL(linkPath(url.pathname) + url.search, base);
+  next.searchParams.delete('before');
+  next.searchParams.set('after', `c${String(start + size)}`);
+  return { items: slice, link: { link: `<${next.href}>; rel="next"` } };
+}
+
 export async function startStub(scenario: Scenario): Promise<Stub> {
   const requests: string[] = [];
   const blobHeaders: IncomingHttpHeaders[] = [];
@@ -144,7 +162,7 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       return;
     }
     if (path === '/activity') {
-      const { items, link } = paged(url, base, scenario.events, scenario.activityPageSize, linkPath);
+      const { items, link } = cursorPaged(url, base, scenario.events, scenario.activityPageSize, linkPath);
       send(response, 200, items, link);
       return;
     }
