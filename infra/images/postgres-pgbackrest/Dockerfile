@@ -12,3 +12,5 @@ RUN apt-get update \
 
 COPY --chmod=0644 infra/runtime/pgbackrest/pgbackrest.conf /etc/pgbackrest/pgbackrest.conf
 COPY --chmod=0555 infra/images/postgres-pgbackrest/pgbackrest-wrapper.sh /usr/local/bin/pgbackrest-wrapper
+
+USER postgres
