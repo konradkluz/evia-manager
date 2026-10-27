@@ -62,7 +62,7 @@ changes:
       `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie”
       (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie.
       Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone
-      wyczyszczenie. Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10).
+      wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10).
       `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor]
@@ -220,7 +220,7 @@ mutations:
       `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami
       (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik
       JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej
-      partii (`session_revoked`, `device_wipe_required`). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka
+      partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka
       obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z
       `Retry-After`.
     x-evia-authz:

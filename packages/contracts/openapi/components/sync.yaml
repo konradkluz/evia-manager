@@ -519,32 +519,30 @@ SyncUser:
       type: string
       maxLength: 200
 SyncEntity:
-  description: Obiekt w projekcji dla telefonu; rodzaj wskazuje `type`.
-  oneOf:
-    - $ref: '#/SyncWorkOrder'
-    - $ref: '#/SyncCustomer'
-    - $ref: '#/SyncSite'
-    - $ref: '#/SyncParty'
-    - $ref: '#/SyncScopeItem'
-    - $ref: '#/SyncProcedureStage'
-    - $ref: '#/SyncTimelineEntry'
-    - $ref: '#/SyncMediaAsset'
-    - $ref: '#/SyncUser'
-  discriminator:
-    propertyName: type
-    mapping:
-      work_order: '#/SyncWorkOrder'
-      customer: '#/SyncCustomer'
-      site: '#/SyncSite'
-      party: '#/SyncParty'
-      scope_item: '#/SyncScopeItem'
-      procedure_stage: '#/SyncProcedureStage'
-      timeline_entry: '#/SyncTimelineEntry'
-      media_asset: '#/SyncMediaAsset'
-      user: '#/SyncUser'
+  type: object
+  description: >-
+    Koperta obiektu w projekcji dla telefonu: wspólne `type`, `id`, `version`; pozostałe pola zależą od `type` i opisują je schematy
+    projekcji `SyncWorkOrder`, `SyncCustomer`, `SyncSite`, `SyncParty`, `SyncScopeItem`, `SyncProcedureStage`, `SyncTimelineEntry`,
+    `SyncMediaAsset` i `SyncUser`. Zgodność w przód (ADR-0004, tolerancyjny klient): `type` jest słownikiem otwarty, więc koperta
+    NIE jest zamkniętą unią. Klient parsuje każdą zmianę osobno; upsert albo delete z nieznanym `type` (lub projekcję, której nie
+    potrafi odczytać) POMIJA, zlicza w telemetrii i nie odrzuca strony — kursor przesuwa się normalnie. Dodanie typu projekcji
+    podbija `scopeRuleVersion`, więc zaktualizowana aplikacja dostaje `resync_required` z powodem `scope_changed` i pobiera brakujące
+    obiekty od nowa. Dodanie typu nie jest zmianą łamiącą.
+  additionalProperties: true
+  required: [type, id, version]
+  properties:
+    type:
+      $ref: '#/SyncEntityType'
+    id:
+      $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
 SyncUpsert:
   type: object
-  description: Utworzenie albo zmiana obiektu — bieżący stan z `version`.
+  description: >-
+    Utworzenie albo zmiana obiektu — bieżący stan z `version`. Upsert z nieznanym `entity.type` klient pomija (zob. `SyncEntity`),
+    strony nie odrzuca.
   additionalProperties: false
   required: [op, entity]
   properties:

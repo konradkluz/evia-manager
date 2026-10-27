@@ -31,6 +31,7 @@ import {
   zMobileLoginRequestWritable,
   zMobileLoginTotpRequest,
   zMobileSession,
+  zSyncChange,
   zSyncChangesResponse,
   zSyncMutationsRequest,
   zSyncMutationsResponse,
@@ -306,7 +307,8 @@ describe('EVM-090 AC2 registration of the device and the wipe confirmation', () 
     ]);
     expect(session.required).not.toContain('installationSecret');
     expect(session.properties.installationSecret).toMatchObject({ readOnly: true });
-    expect(session.properties.installationSecret.description).toMatch(/TYLKO przy rejestracji nowego urządzenia, jednorazowo/);
+    expect(session.properties.installationSecret.description).toMatch(/KAŻDYM udanym logowaniu.*rotacja/s);
+    expect(String(operation('mobileLoginTotp')['description'])).toMatch(/KAŻDE udane logowanie.*NOWY `installationSecret`/s);
     expect(Object.keys(schemas['MobileUser'].properties).sort()).toEqual(['displayName', 'id', 'role']);
   });
 
@@ -366,13 +368,32 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
     expect(schemas['SyncDelete']).toMatchObject({ additionalProperties: false, required: ['op', 'type', 'id'] });
     expect(Object.keys(schemas['SyncDelete'].properties).sort()).toEqual(['id', 'op', 'type']);
     expect(schemas['SyncUpsert'].required.sort()).toEqual(['entity', 'op']);
-    const entities = schemas['SyncEntity'].oneOf.map((branch: Json) => resolve(branch));
-    expect(entities).toHaveLength(9);
-    for (const entity of entities) {
-      expect(entity.required, entity.properties.type.const).toContain('version');
-      expect(entity.properties.version).toMatchObject({ type: 'integer', minimum: 1 });
+    const projections = ['WorkOrder', 'Customer', 'Site', 'Party', 'ScopeItem', 'ProcedureStage', 'TimelineEntry', 'MediaAsset', 'User'];
+    for (const name of projections) {
+      const entity = schemas[`Sync${name}`];
+      expect(entity.required, name).toContain('version');
+      expect(entity.properties.version, name).toMatchObject({ type: 'integer', minimum: 1 });
     }
-    expect(Object.keys(schemas['SyncEntity'].discriminator.mapping)).toHaveLength(9);
+    expect(schemas['SyncEntity'].required).toEqual(['type', 'id', 'version']);
+  });
+
+  it('EVM-090 AC3 the entity is an open envelope, not a closed union: an unknown type does not fail the page (forward compatibility, ADR-0004)', () => {
+    const entity = schemas['SyncEntity'];
+    expect(entity.oneOf).toBeUndefined();
+    expect(entity.discriminator).toBeUndefined();
+    expect(entity.additionalProperties).not.toBe(false);
+    expect(entity.properties.type.$ref).toBe('#/components/schemas/SyncEntityType');
+    expect(resolve(entity.properties.type)['x-extensible-enum']).toContain('work_order');
+    expect(entity.description).toMatch(/POMIJA, zlicza w telemetrii i nie odrzuca strony/);
+    expect(entity.description).toMatch(/podbija `scopeRuleVersion`/);
+    const future = {
+      op: 'upsert',
+      entity: { type: 'assignment_from_the_future', id: '0193a000-0000-7000-8000-0000000000f1', version: 1, extra: true },
+    };
+    expect(zSyncChange.safeParse(future).success).toBe(true);
+    expect(
+      zSyncChange.safeParse({ op: 'delete', type: 'assignment_from_the_future', id: '0193a000-0000-7000-8000-0000000000f1' }).success,
+    ).toBe(true);
   });
 
   it('EVM-090 AC3 every projection lists exactly the fields of the table "Projekcja pól na telefonie" and none of the excluded ones', () => {
@@ -450,12 +471,23 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
         ...requestSchemas(id),
         ...Object.values(operation(id)['responses'] as Json).map((response) => resolve(response)['content']?.['application/json']?.schema),
       ]),
+      // The projections are no longer reachable from SyncEntity (an open envelope), so they are checked as roots.
+      ...['WorkOrder', 'Customer', 'Site', 'Party', 'ScopeItem', 'ProcedureStage', 'TimelineEntry', 'MediaAsset', 'User'].map(
+        (name) => schemas[`Sync${name}`],
+      ),
     ].filter((root) => root !== undefined);
     const problems: string[] = [];
     for (const root of roots) {
       walk(root, (schema, pointer) => {
         const types = ([] as string[]).concat(schema['type'] ?? []);
-        if (types.includes('object') && schema['properties'] !== undefined && schema['additionalProperties'] !== false)
+        // The only deliberately open object: the envelope tolerates entity types an older app does not know (ADR-0004).
+        const forwardCompatibleEnvelope = schema === schemas['SyncEntity'];
+        if (
+          types.includes('object') &&
+          schema['properties'] !== undefined &&
+          schema['additionalProperties'] !== false &&
+          !forwardCompatibleEnvelope
+        )
           problems.push(`${pointer}: object is open`);
         if (
           types.includes('string') &&
@@ -587,14 +619,16 @@ describe('EVM-090 AC5 the catalogue of errors and the headers (SR-API-01, SR-API
     return examples.map((example) => example['code'] as string).sort();
   };
 
-  it('EVM-090 AC5 the sign-in answers invalid_credentials, device_wipe_required (only after the code), mfa_enrollment_required and totp_not_configured (only after the password), channel_not_allowed and device_limit_reached (only after the code)', () => {
-    expect(codesOf('mobileLogin', '401')).toEqual(['invalid_credentials']);
+  it('EVM-090 AC5 the sign-in answers device_wipe_required for a matching pair before the password, mfa_enrollment_required and totp_not_configured (only after the password), channel_not_allowed and device_limit_reached (only after the code)', () => {
+    expect(codesOf('mobileLogin', '401')).toEqual(['device_wipe_required', 'invalid_credentials']);
     expect(codesOf('mobileLogin', '403')).toEqual(['mfa_enrollment_required', 'totp_not_configured']);
     expect(codesOf('mobileLoginTotp', '401')).toEqual(['device_wipe_required', 'invalid_credentials']);
     expect(codesOf('mobileLoginTotp', '403')).toEqual(['channel_not_allowed', 'device_limit_reached']);
     expect(codesOf('confirmDeviceWipe', '401')).toEqual(['invalid_credentials']);
     const login = String(operation('mobileLogin')['description']);
     expect(login).toMatch(/JEDYNA odpowiedź na każdą porażkę/);
+    expect(login).toMatch(/401 device_wipe_required`\s+PRZED sprawdzeniem hasła/);
+    expect(login).toMatch(/IGNOROWANA/);
     expect(login).toMatch(/dopiero po\s+poprawnym haśle/);
     expect(String(operation('mobileLoginTotp')['description'])).toMatch(/channel_not_allowed.*gdzie indziej zły kanał to `403 forbidden`/s);
   });
@@ -610,6 +644,19 @@ describe('EVM-090 AC5 the catalogue of errors and the headers (SR-API-01, SR-API
     ]) {
       expect(codesOf(id, '401'), id).toEqual(['device_wipe_required', 'session_revoked', 'unauthenticated']);
     }
+  });
+
+  it('EVM-090 AC5 device_wipe_required takes precedence over session_revoked and unauthenticated on refresh and sync (unknown tokens keep session_revoked)', () => {
+    const precedence = /ZAWSZE daje\s+`401 device_wipe_required`, które ma pierwszeństwo przed `session_revoked`/;
+    expect(String(operation('refreshMobileSession')['description'])).toMatch(precedence);
+    expect(String(operation('refreshMobileSession')['description'])).toMatch(
+      /nieznany zostaje przy\s+jedynej odpowiedzi `session_revoked`/,
+    );
+    expect(String(resolve(operation('getSyncChanges')['responses']['401'])['description'])).toMatch(
+      /ZAWSZE daje `device_wipe_required`, przed `session_revoked`/,
+    );
+    expect(String(operation('getSyncChanges')['description'])).toMatch(/pierwszeństwo przed `session_revoked`/);
+    expect(String(operation('pushSyncMutations')['description'])).toMatch(/wyczyszczenie ma pierwszeństwo/);
   });
 
   it('EVM-090 AC5 426 client_version_unsupported carries minSupportedVersion on every mobile operation but the client config and the wipe confirmation', () => {

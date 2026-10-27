@@ -1626,11 +1626,16 @@ mobileLogin:
       Poprawne hasło aktywnego konta z aplikacją TOTP → `200 { challengeToken, challengeExpiresAt }`: token jest nieprzezroczysty
       (≥ 256 bitów), jednorazowy, ważny najwyżej 5 minut i związany z kontem oraz próbą rejestracji urządzenia (`device`, a przy
       ponownym logowaniu — parą `deviceId` + `installationSecret`; `deviceId` nadaje serwer, klient nigdy go nie wybiera).
-      Kolejność kodów (brak enumeracji kont i stanów urządzeń, SR-AUTH-05): `401 invalid_credentials` to JEDYNA odpowiedź na każdą
-      porażkę tego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane, zła para `deviceId` + sekret) — w tym samym
+      Kolejność (brak enumeracji kont i stanów urządzeń, SR-AUTH-05): `426`, limit prób, potem — gdy treść niesie parę `deviceId` +
+      `installationSecret` zgodną (porównanie w stałym czasie) z urządzeniem w stanie `wipe_required` — `401 device_wipe_required`
+      PRZED sprawdzeniem hasła (256-bitowy sekret dowodzi, że wołający trzyma tę instalację; odpowiedź nic nie mówi o koncie, a
+      skradziony telefon z wygasłym tokenem dostaje sygnał wyczyszczenia mimo nieznajomości hasła). Dalej `401 invalid_credentials`
+      to JEDYNA odpowiedź na każdą porażkę tego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane) — w tym samym
       czasie i z tymi samymi nagłówkami; `403 mfa_enrollment_required` i `403 totp_not_configured` pojawiają się dopiero po
-      poprawnym haśle; `channel_not_allowed`, `device_limit_reached` i `device_wipe_required` — dopiero po poprawnym kodzie TOTP
-      (drugi krok).
+      poprawnym haśle; `channel_not_allowed` i `device_limit_reached` — dopiero po poprawnym kodzie TOTP (drugi krok). Para
+      niezgodna z żadnym urządzeniem konta (zły sekret, nieznane `deviceId`) jest IGNOROWANA: logowanie traktuje telefon jak nowe
+      urządzenie (obowiązuje limit urządzeń, wpis audytu), bez ujawnienia stanu urządzeń przed TOTP i bez blokady użytkownika po
+      utraconej odpowiedzi z rotacją sekretu.
       Limity: licznik prób i blokada konta są WSPÓLNE z logowaniem w panelu (20 prób na minutę z jednego adresu IP, blokada po 10
       nieudanych próbach na koncie) — ścieżka mobilna nie jest obejściem; przekroczenie → `429 rate_limited` z `Retry-After`. Treść
       najwyżej 8 KB (`413 payload_too_large`). Odpowiedź ma `Cache-Control: no-store`.
@@ -1672,7 +1677,7 @@ mobileLogin:
       '400':
         $ref: ../components/responses.yaml#/MobileValidationFailed
       '401':
-        $ref: ../components/responses.yaml#/MobileInvalidCredentials
+        $ref: ../components/responses.yaml#/MobileLoginUnauthorized
       '403':
         $ref: ../components/responses.yaml#/MobileLoginForbidden
       '413':
@@ -1691,13 +1696,15 @@ mobileLoginTotp:
     description: >-
       Publiczna operacja kanału `mobile`. Treść ściśle `{ challengeToken, code }` (`code` — 6 cyfr ASCII); pole z kodem odzyskiwania
       → `400` (kod odzyskiwania nie działa w kanale mobilnym). Sukces w jednej transakcji: zużycie tokenu wyzwania i kroku kodu,
-      rejestracja urządzenia (nowe — z `installationSecret` zwracanym JEDNORAZOWO, do zapisania w Android Keystore) albo
-      rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina tokenów. Odpowiedź niesie `deviceId`,
+      rejestracja urządzenia (nowe) albo rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina
+      tokenów. KAŻDE udane logowanie, także ponowne, zwraca NOWY `installationSecret` (rotacja) i atomowo unieważnia poprzedni;
+      aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary porzuca po zapisie. Odpowiedź niesie `deviceId`,
       tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek.
       Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`;
       dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego —
-      gdzie indziej zły kanał to `403 forbidden`), `403 device_limit_reached` i `401 device_wipe_required` (urządzenie ze zleconym
-      wyczyszczeniem: aplikacja usuwa dane i potwierdza przez `confirmDeviceWipe`).
+      gdzie indziej zły kanał to `403 forbidden`), `403 device_limit_reached` i — rzadki wyścig — `401 device_wipe_required`
+      (wyczyszczenie zlecono między krokami; zwykle sygnał dostaje już pierwszy krok, zob. `mobileLogin`). Aplikacja usuwa dane
+      i potwierdza przez `confirmDeviceWipe`.
       Limity i blokada wspólne z logowaniem w panelu (20/min/IP, blokada po 10 próbach na koncie) → `429` z `Retry-After`; treść
       najwyżej 8 KB. `Cache-Control: no-store`.
       Audyt (EVM-094): rejestracja urządzenia, logowanie udane i nieudane — bez kodu, tokenów i sekretów.
@@ -1763,8 +1770,11 @@ mobileToken:
       Publiczna operacja kanału `mobile` (token odświeżania w treści, nigdy w adresie ani nagłówku). Każde użycie wydaje NOWĄ parę
       tokenów, a stary token odświeżania przestaje działać (rotacja, ADR-0005). Ponowne użycie zużytego tokenu unieważnia rodzinę
       tokenów („Wyloguj urządzenie”: urządzenie zostaje zarejestrowane, kolejka wstrzymana) i wywołuje alert bezpieczeństwa.
-      Token nieznany, wygasły, zużyty i unieważniony dają tę samą odpowiedź `401 session_revoked`; `401 device_wipe_required`, gdy
-      urządzenie ma zlecone wyczyszczenie. Odpowiedź nie zawiera `installationSecret`. Limit 20/min/IP wspólny z logowaniem →
+      Token nieznany, wygasły, zużyty i unieważniony dają tę samą odpowiedź `401 session_revoked` — z jednym wyjątkiem: token
+      (także unieważniony, zużyty lub wygasły, o ile rekord jeszcze istnieje) urządzenia w stanie `wipe_required` ZAWSZE daje
+      `401 device_wipe_required`, które ma pierwszeństwo przed `session_revoked` (blokada i wyczyszczenie unieważniają rodzinę
+      tokenów, a telefon musi dostać sygnał wyczyszczenia, nie tylko prośbę o ponowne logowanie). Token nieznany zostaje przy
+      jedynej odpowiedzi `session_revoked`. Odpowiedź nie zawiera `installationSecret`. Limit 20/min/IP wspólny z logowaniem →
       `429` z `Retry-After`; treść najwyżej 8 KB; `Cache-Control: no-store`.
       Audyt (EVM-094): ponowne użycie tokenu odświeżania (alert) — bez wartości tokenu.
     x-evia-authz:

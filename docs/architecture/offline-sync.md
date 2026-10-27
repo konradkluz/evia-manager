@@ -52,6 +52,8 @@
 - **Autoryzacja w momencie synchronizacji**, nie utworzenia na telefonie: bieżąca rola i polityki obiektowe (ten sam silnik co API, przez [kotwicę](domain-model.md#kotwica-autoryzacji)). Utrata dostępu do obiektu → `rejected: forbidden` (dane na liście „Wymaga uwagi”) i flaga `resync_required` urządzenia.
 - **Te same schematy i limity co API:** walidacja kontraktem (`additionalProperties: false`, limity długości), partia ≤ 50 mutacji, mutacja ≤ 64 KB, treść ≤ 1 MB, limity żądań ([`api-guidelines.md`](api-guidelines.md#limity)).
 - Pobieranie zwraca wyłącznie obiekty w zakresie urządzenia, przefiltrowane politykami — przy każdym odczycie.
+- **Pierwszeństwo wyczyszczenia (SR-SESS-06):** token urządzenia w stanie `wipe_required` (także unieważniony, zużyty lub wygasły, o ile rekord istnieje) zawsze daje `401 device_wipe_required` — przed `session_revoked` i `unauthenticated`; token nieznany daje tylko `session_revoked`. Tak samo pierwszy krok logowania: para `deviceId` + sekret instalacji zgodna z takim urządzeniem daje `device_wipe_required` jeszcze przed sprawdzeniem hasła.
+- **Zgodność w przód typów encji (EVM-090):** `SyncEntityType` jest słownikiem otwartym, a `SyncEntity` otwartą kopertą `{type, id, version}`. Klient parsuje każdą zmianę osobno; upsert lub delete z nieznanym `type` pomija (licznik w telemetrii) i nie odrzuca strony ani nie wstrzymuje kursora. Dodanie typu projekcji podbija `scopeRuleVersion`, więc zaktualizowana aplikacja dostaje `resync_required` (`scope_changed`) i pobiera nowe obiekty. Dodanie typu nie jest zmianą łamiącą.
 
 ## Komendy mobilne MVP
 Telefon w MVP **tylko tworzy** (zgodnie z M2: E11–E13). Kolejka `outbox` w szyfrowanej bazie: FIFO w obrębie obiektu, przetrwa zabicie aplikacji i restart telefonu.

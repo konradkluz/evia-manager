@@ -932,8 +932,9 @@ MobileSyncBadRequest:
                 code: too_large
 MobileInvalidCredentials:
   description: >-
-    `invalid_credentials` — JEDYNA odpowiedź na każdą porażkę pierwszego kroku (zły e-mail, złe hasło, konto zaproszone lub
-    dezaktywowane, zła para `deviceId` + sekret instalacji) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05).
+    `invalid_credentials` — jedna odpowiedź na każdą porażkę uwierzytelnienia (zły e-mail, złe hasło, konto zaproszone lub
+    dezaktywowane, zła para `deviceId` + sekret instalacji przy potwierdzeniu wyczyszczenia) w tym samym czasie i z tymi samymi
+    nagłówkami (SR-AUTH-05).
   headers:
     Cache-Control:
       $ref: devices.yaml#/CacheControlNoStore
@@ -947,10 +948,39 @@ MobileInvalidCredentials:
         status: 401
         code: invalid_credentials
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MobileLoginUnauthorized:
+  description: >-
+    `device_wipe_required` — treść niesie parę `deviceId` + sekret instalacji zgodną z urządzeniem w stanie `wipe_required`; odpowiedź
+    PRZED sprawdzeniem hasła, bo sekret dowodzi, że wołający trzyma tę instalację (nic nie mówi o koncie). W pozostałych przypadkach
+    `invalid_credentials` — JEDYNA odpowiedź na każdą porażkę pierwszego kroku (zły e-mail, złe hasło, konto zaproszone lub
+    dezaktywowane) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05). Niezgodna para jest ignorowana.
+  headers:
+    Cache-Control:
+      $ref: devices.yaml#/CacheControlNoStore
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      examples:
+        invalid_credentials:
+          value:
+            type: /problems/invalid_credentials
+            title: Invalid email or password
+            status: 401
+            code: invalid_credentials
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        device_wipe_required:
+          value:
+            type: /problems/device_wipe_required
+            title: The device must wipe its data
+            status: 401
+            code: device_wipe_required
+            traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 MobileLoginTotpUnauthorized:
   description: >-
     `invalid_credentials` — zły kod, a także zły, wygasły i zużyty `challengeToken` (jedna odpowiedź); `device_wipe_required` —
-    dopiero po poprawnym kodzie, gdy urządzenie z podanym sekretem ma zlecone wyczyszczenie (aplikacja usuwa dane i potwierdza).
+    rzadki wyścig: po poprawnym kodzie, gdy wyczyszczenie urządzenia zlecono między krokami (zwykle sygnał dostaje już pierwszy
+    krok); aplikacja usuwa dane i potwierdza.
   headers:
     Cache-Control:
       $ref: devices.yaml#/CacheControlNoStore
@@ -1029,7 +1059,9 @@ MobileSessionUnauthorized:
   description: >-
     Brak ważnego tokenu dostępu (`unauthenticated`), sesja unieważniona (`session_revoked` — kolejka telefonu zostaje, aplikacja
     prosi o ponowne logowanie) albo urządzenie ma zlecone wyczyszczenie (`device_wipe_required` — także dla pobierania, wysyłania
-    i odświeżania tokenu; aplikacja usuwa dane i potwierdza).
+    i odświeżania tokenu; aplikacja usuwa dane i potwierdza). Pierwszeństwo: token urządzenia w stanie `wipe_required` (także
+    unieważniony, zużyty lub wygasły, o ile rekord istnieje) ZAWSZE daje `device_wipe_required`, przed `session_revoked`
+    i `unauthenticated`; token nieznany daje jedynie `session_revoked`.
   headers:
     Cache-Control:
       $ref: devices.yaml#/CacheControlNoStore
