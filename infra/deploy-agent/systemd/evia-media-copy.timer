@@ -1,0 +1,11 @@
+# EVM-084 AC2: daily at 03:30.
+[Unit]
+Description=EVia backup: daily copy of the media
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 Europe/Warsaw
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

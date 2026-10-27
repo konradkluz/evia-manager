@@ -1,0 +1,17 @@
+# EVM-084 AC1 (ADR-0011): the daily differential backup (RPO is kept by the WAL archive, archive_timeout 300 s).
+[Unit]
+Description=EVia backup: differential backup of the database
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=evia-restore-alert.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/evia/restore/restore.conf
+ExecStart=/usr/local/sbin/evia-backup diff
+TimeoutStartSec=2h
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

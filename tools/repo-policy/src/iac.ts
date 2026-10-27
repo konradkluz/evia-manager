@@ -421,3 +421,61 @@ export function bucketProblems(raw: string): string[] {
   );
   return problems;
 }
+
+/** `key=value` lines of a pgBackRest or PostgreSQL settings file (comments and sections skipped). */
+function settings(content: string): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const line of content.split('\n')) {
+    const match = /^\s*([a-z0-9_-]+)\s*=\s*(.*?)\s*$/.exec(line);
+    if (match !== null && !line.trimStart().startsWith('#')) map.set(match[1] ?? '', (match[2] ?? '').replace(/^'(.*)'$/, '$1'));
+  }
+  return map;
+}
+
+/**
+ * pgBackRest (EVM-084 AC1; ADR-0011; SR-DATA-04, SR-INFRA-07; security-engineer P8, architect 7): the repository in pl-waw encrypted with
+ * aes-256-cbc, no secret in the file, TLS verification on, 30 days of point-in-time recovery, and the WAL archive switched at least
+ * every 5 minutes (RPO <= 15 min also on an idle staging).
+ */
+export function backupConfigProblems(pgbackrest: string, postgres: string): string[] {
+  const conf = settings(pgbackrest);
+  const pg = settings(postgres);
+  const problems: string[] = [];
+  const need = (ok: boolean, message: string): void => {
+    if (!ok) problems.push(`pgbackrest: ${message}`);
+  };
+  need(conf.get('repo1-type') === 's3', 'repozytorium typu s3 (poza VM)');
+  need(conf.get('repo1-path') === '/pgbackrest', 'repo1-path=/pgbackrest');
+  need(conf.get('repo1-s3-region') === 'pl-waw' && conf.get('repo1-s3-endpoint') === 's3.pl-waw.scw.cloud', 'endpoint i region pl-waw');
+  need(conf.get('repo1-s3-bucket') === 'evia-staging-db-backup', 'bucket evia-staging-db-backup');
+  need(conf.get('repo1-cipher-type') === 'aes-256-cbc', 'repo1-cipher-type=aes-256-cbc');
+  for (const key of conf.keys())
+    need(!/cipher-pass|key-secret|s3-key$|token/.test(key) || key === 'repo1-s3-key-type', `sekret w pliku konfiguracji (${key})`);
+  need(!/verify|tls/i.test(pgbackrest.replace(/^\s*#.*$/gm, '')), 'weryfikacja TLS wyłącznie domyślna (brak verify-tls=n)');
+  need(conf.get('repo1-retention-full-type') === 'time', 'retencja czasowa pełnych kopii');
+  need(Number(conf.get('repo1-retention-full')) >= 30, 'retencja pełnych kopii pokrywa 30 dni PITR');
+  const timeout = Number(pg.get('archive_timeout'));
+  need(Number.isFinite(timeout) && timeout > 0 && timeout <= 300, 'archive_timeout <= 300 s (RPO <= 15 min na bezczynnym stagingu)');
+  need(pg.get('archive_mode') === 'on' && pg.get('wal_level') === 'replica', 'archive_mode=on, wal_level=replica');
+  need(
+    /^pgbackrest-wrapper --stanza=evia archive-push %p$/.test(pg.get('archive_command') ?? ''),
+    'archive_command przez pgbackrest-wrapper',
+  );
+  need(!/pass|secret|key/i.test(postgres.replace(/^\s*#.*$/gm, '')), 'bez sekretów w ustawieniach PostgreSQL');
+  return problems;
+}
+
+/** The semantic version of an exact pgBackRest pin such as 2.60.0-1.pgdg13+1 against a minimum (--repo-target-time: 2.54). */
+export function pgbackrestPinProblems(dockerfile: string, postgresDigest: string): string[] {
+  const problems: string[] = [];
+  const from = /^FROM (\S+)$/m.exec(dockerfile)?.[1] ?? '';
+  if (!from.endsWith(`@${postgresDigest.split('@')[1] ?? 'missing'}`) || !/^postgres:\d+\.\d+-trixie@sha256:[0-9a-f]{64}$/.test(from))
+    problems.push('postgres-pgbackrest: FROM z tym samym digestem co postgres w infra-images.json');
+  const pin = /pgbackrest=(\d+)\.(\d+)(?:\.\d+)?-[\w.+~]+/.exec(dockerfile);
+  if (pin === null) problems.push('postgres-pgbackrest: pgbackrest w dokładnie przypiętej wersji');
+  else if (Number(pin[1]) < 2 || (Number(pin[1]) === 2 && Number(pin[2]) < 54))
+    problems.push('postgres-pgbackrest: pgBackRest >= 2.54 (--repo-target-time)');
+  if (/^USER\s+root\b/m.test(dockerfile)) problems.push('postgres-pgbackrest: bez USER root');
+  if (/latest/.test(dockerfile)) problems.push('postgres-pgbackrest: bez tagu latest');
+  return problems;
+}
