@@ -1,0 +1,77 @@
+---
+id: EVM-094
+title: "API: logowanie mobilne i rejestr urządzeń"
+type: story
+milestone: M2
+epic: E9 Dostęp mobilny
+status: draft
+priority: P0
+path: pelna             # uwierzytelnianie, urządzenia, uprawnienia
+owner: backend-developer
+contributors: []
+reviewers: [code-reviewer, security-engineer]
+model: sonnet
+depends_on: [EVM-090]
+---
+
+# EVM-094: API — logowanie mobilne i rejestr urządzeń
+
+## Cel
+Jako **Edytor lub Administrator** chcę **zalogować się w aplikacji tym samym kontem i drugim krokiem co w panelu**, aby **telefon firmowy miał własną, odwoływalną sesję**. Dziś API zna tylko sesje cookie panelu; ADR-0005 wymaga dla telefonu tokenu dostępu (15 min) i rotowanego tokenu odświeżania oraz rejestru urządzeń (`Device`). Makiety: M-01, M-02. Operacje i ścieżki: EVM-090.
+
+## Kryteria akceptacji
+
+**AC1 — Logowanie dwuetapowe i rejestracja urządzenia**
+- Zakładając aktywne konto Edytora lub Administratora z kodem z aplikacji uwierzytelniającej
+- Gdy loguję się z telefonu (hasło, potem kod; opis urządzenia: model, system, poprawki, platforma, wersja aplikacji)
+- Wtedy krok pośredni zwraca token wyzwania (256 bit, jednorazowy, TTL ≤ 5 min, związany z urządzeniem z kroku 1; 5 złych kodów go unieważnia), po kodzie dostaję token dostępu (15 min, nieprzezroczysty) i token odświeżania, a serwer zapisuje `Device` z własnym `deviceId` (ostatni kontakt, wersja, poprawki, ostatnio zgłoszona liczba niewysłanych elementów); `user_id` i `device_id` w dalszych żądaniach pochodzą wyłącznie z sesji.
+
+**AC2 — Ta sama instalacja, limit urządzeń**
+- Zakładając użytkownika z 2 aktywnymi urządzeniami
+- Gdy loguje się ponownie na tej samej instalacji (para `deviceId` + sekret, porównanie stałoczasowe) → wraca do tego samego urządzenia bez zajmowania miejsca, a sekret jest rotowany; brak lub niezgodność sekretu → nowe urządzenie i audyt; gdy loguje się trzeci telefon → `403 device_limit_reached` z pouczeniem, jak zwolnić miejsce (SR-SESS-04), zwracany dopiero po poprawnym drugim kroku
+- Wtedy znane urządzenie ma własny licznik blokady (blokada z obcych klientów nie wyłącza telefonu technika), analogicznie do `__Host-evia_device` z EVM-026.
+
+**AC3 — Rola, kanał i kolejność sprawdzeń**
+- Zakładając konto z rolą Tylko odczyt, konto bez kodu z aplikacji (tylko klucz dostępu) i konto bez drugiego kroku
+- Gdy podają poprawne hasło
+- Wtedy kolejność jest: wersja klienta → limit IP i konta → hasło (jedna odpowiedź `401 invalid_credentials` jak dla nieistniejącego konta) → rola × kanał (`403 channel_not_allowed`) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`); token mobilny nie działa na operacjach panelu, sesja panelu nie działa na operacjach mobilnych (poświadczenie „nie tego” kanału jest ignorowane i niczego nie ustawia w `Set-Cookie`).
+
+**AC4 — Rotacja tokenu odświeżania**
+- Zakładając ważny token odświeżania (256 bit z CSPRNG, w bazie tylko skrót)
+- Gdy go używam
+- Wtedy zużycie jest jedną transakcją z blokadą wiersza i porównaniem stałoczasowym, dostaję nowy, a stary przestaje działać (okno tolerancji 30 s tylko dla bezpośredniego poprzednika — SR-SESS-09); użycie już unieważnionego tokenu kończy sesję („Wyloguj urządzenie”, urządzenie zostaje zarejestrowane), zapisuje audyt (IP/ASN, bez tokenów) i alert do Administratorów; stan sesji i urządzenia jest sprawdzany przy każdym żądaniu, więc unieważnienie działa natychmiast; bezczynność > 14 dni lub wiek > 30 dni wymaga pełnego logowania, a 30 dni bez kontaktu kończy sesje urządzenia (P2).
+
+**AC5 — Ochrona przed zgadywaniem i powiadomienie**
+- Zakładając limity z EVM-026
+- Gdy ktoś zgaduje hasło lub kod z telefonu
+- Wtedy obowiązują te same blokady i `429` z `Retry-After`; udane logowanie z nowego urządzenia wysyła powiadomienie e-mail do użytkownika (SR-AUTH-15).
+
+**AC6 — Wersja aplikacji**
+- Zakładając minimalną wspieraną wersję wyższą niż wersja klienta
+- Gdy telefon loguje się lub odświeża sesję
+- Wtedy dostaje `426 client_version_unsupported` (przy logowaniu przed kosztownym haszowaniem hasła) bez unieważniania sesji.
+
+**AC7 — Stan urządzenia: czyszczenie i potwierdzenie**
+- Zakładając urządzenie oznaczone do wyczyszczenia (EVM-095) i operację potwierdzenia z EVM-090
+- Gdy telefon próbuje się zalogować z sekretem takiego urządzenia, odświeżyć sesję albo potwierdza wyczyszczenie
+- Wtedy dostaje `401 device_wipe_required` już przed sprawdzeniem hasła, a po potwierdzeniu stan urządzenia zmienia się na „Wyczyszczone”; wszystkie odpowiedzi auth mają `Cache-Control: no-store`.
+
+**AC8 — Macierz ról, audyt i logi**
+- Zakładając wszystkie role oraz niezalogowanego
+- Gdy wywołują każdą nową operację
+- Wtedy deny-by-default; test macierzy ról; zdarzenia logowania, odmowy i odświeżenia w dzienniku audytu bez haseł i tokenów; logger redaguje `password`, `totp`, `challengeToken`, `refreshToken`, `accessToken`, `installationSecret` (test redakcji, SR-LOG-02).
+
+## Poza zakresem
+Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); biometria; reset hasła z telefonu (otwiera panel); powiązanie tokenu odświeżania z kluczem urządzenia (PoP — backlog po EVM-109); kod odzyskiwania i klucz dostępu w aplikacji (SR-AUTH-14).
+
+## Decyzje i ograniczenia
+- Ścieżki i kody według EVM-090. **Przed `ready`:** decyzja o właścicielu odświeżania tokenów po stronie telefonu (rekomendacja: jeden właściciel natywny — adnotacja ADR-0020a, aktualizacja SR-SESS-09) oraz o refresh tokenie bez powiązania z urządzeniem (rekomendacja: nowe RR na M2 + kompensacje z AC4; README planu, decyzje 17 i 8).
+- Regresja: EVM-026, EVM-027, EVM-028 (punkty „od E9”: SR-SESS-04, SR-AUTH-11/13/15, SR-SESS-06). Nowe tabele `devices`, `access_tokens`, `refresh_tokens` i rozszerzenie sesji o `device_id` w schemacie `identity`, migracje w stylu expand.
+- Bezpieczeństwo i prywatność: sekret instalacji nie jest czynnikiem uwierzytelnienia, tylko przypina `deviceId` po haśle i kodzie.
+
+## Notatki
+- Prefiks tokenu odświeżania (np. `evia_rt_`) pod skanery sekretów; rejestr IP/ASN odświeżeń w audycie.
+
+## Dziennik
+- 2026-10-27 — utworzono (product-owner)
+- 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
