@@ -1,5 +1,5 @@
 {
-  "$comment": "Emits the published API of the package (generated code + entry points) to dist/ as JavaScript with declarations.",
+  "$comment": "Emits the published API of the package (generated code + entry points) to dist/ as JavaScript with declarations. Node types are for the one Node-only entry point, src/mock-server.ts; the rest of the package does not use them.",
   "extends": "@evia/config/tsconfig.base.json",
   "compilerOptions": {
     "noEmit": false,
@@ -8,7 +8,7 @@
     "rootDir": ".",
     "outDir": "dist",
     "lib": ["es2024", "dom"],
-    "types": []
+    "types": ["node"]
   },
   "include": ["src/index.ts", "src/zod.ts", "src/authz.ts", "src/public-operations.ts", "src/mock-server.ts", "generated/**/*.ts"]
 }
