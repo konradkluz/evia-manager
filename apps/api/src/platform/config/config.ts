@@ -11,7 +11,7 @@ import { zSemver } from '@evia/contracts/zod';
 import { z } from 'zod';
 import { parseFieldEncryptionKeys, type FieldKey } from '../crypto/field-encryption.ts';
 import { parseEmailAddress } from '../email/email-address.ts';
-import { loadMediaConfig, MediaConfigError, type MediaConfig } from './media-config.ts';
+import { loadMediaConfig, type MediaConfig } from './media-config.ts';
 
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
@@ -288,12 +288,9 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
 
 /** The media settings, all or nothing (EVM-044); an error names the keys only. */
 function mediaOf(env: Env): MediaConfig | undefined {
-  try {
-    return loadMediaConfig(env);
-  } catch (error) {
-    if (error instanceof MediaConfigError) throw new ConfigError(error.keys);
-    throw error;
-  }
+  const result = loadMediaConfig(env);
+  if (!result.ok) throw new ConfigError(result.keys);
+  return result.media;
 }
 
 /** Where the transactional e-mail goes (EVM-024 AC6): the transport is an explicit, required setting — there is no default. */

@@ -71,24 +71,17 @@ export function parseClamdAddress(value: string): ClamdAddress | undefined {
   return port >= 1 && port <= 65_535 ? { kind: 'tcp', host: match[1] as string, port } : undefined;
 }
 
-export class MediaConfigError extends Error {
-  readonly keys: readonly string[];
-
-  constructor(keys: readonly string[]) {
-    super(`Invalid media configuration: ${keys.join(', ')}`);
-    this.name = 'MediaConfigError';
-    this.keys = keys;
-  }
-}
-
 const blank = (value: string | undefined): boolean => value === undefined || value === '';
 
-/** @returns `undefined` when no media variable is set at all (the feature is off); throws {@link MediaConfigError} on a partial or invalid setting */
-export function loadMediaConfig(env: Env): MediaConfig | undefined {
+/** The media settings: absent (the feature is off), valid, or the names of the settings that are missing or invalid (never a value). */
+export type MediaConfigResult =
+  { readonly ok: true; readonly media: MediaConfig | undefined } | { readonly ok: false; readonly keys: readonly string[] };
+
+export function loadMediaConfig(env: Env): MediaConfigResult {
   const required = MEDIA_REQUIRED_KEYS.filter((key) => !blank(env[key]));
-  if (required.length === 0 && MEDIA_OPTIONAL_KEYS.every((key) => blank(env[key]))) return undefined;
+  if (required.length === 0 && MEDIA_OPTIONAL_KEYS.every((key) => blank(env[key]))) return { ok: true, media: undefined };
   const missing = MEDIA_REQUIRED_KEYS.filter((key) => blank(env[key]));
-  if (missing.length > 0) throw new MediaConfigError(missing);
+  if (missing.length > 0) return { ok: false, keys: missing };
 
   const invalid: string[] = [];
   const check = (key: string, ok: boolean): void => {
@@ -106,9 +99,9 @@ export function loadMediaConfig(env: Env): MediaConfig | undefined {
   check('S3_FORCE_PATH_STYLE', blank(forcePathStyle) || forcePathStyle === 'true' || forcePathStyle === 'false');
   const origin = env['MEDIA_BUCKET_ORIGIN'];
   check('MEDIA_BUCKET_ORIGIN', blank(origin) || bucketOrigin.safeParse(origin).success);
-  if (invalid.length > 0) throw new MediaConfigError(invalid.sort());
+  if (invalid.length > 0) return { ok: false, keys: invalid.sort() };
 
-  return {
+  const media: MediaConfig = {
     s3: {
       endpoint: value('S3_ENDPOINT'),
       region: value('S3_REGION'),
@@ -120,4 +113,5 @@ export function loadMediaConfig(env: Env): MediaConfig | undefined {
     clamd,
     bucketOrigin: blank(origin) ? undefined : value('MEDIA_BUCKET_ORIGIN'),
   };
+  return { ok: true, media };
 }
