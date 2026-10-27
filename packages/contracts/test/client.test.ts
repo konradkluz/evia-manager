@@ -83,6 +83,8 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/work-orders/{workOrderId}/payment-milestones/{milestoneId}/transitions',
       '/api/v1/work-orders/{workOrderId}/timeline',
       '/api/v1/work-orders/{workOrderId}/timeline/{entryId}',
+      '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore',
+      '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact',
       '/api/v1/users',
       '/api/v1/users/assignable',
       '/api/v1/users/{userId}/invitations',

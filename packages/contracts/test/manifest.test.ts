@@ -33,6 +33,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'deactivateUser',
       'deletePaymentMilestone',
       'deleteProcedureStage',
+      'deleteTimelineEntry',
       'deleteWorkOrder',
       'deleteWorkOrderProcedure',
       'deleteWorkOrderScopeItem',
@@ -81,6 +82,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'logout',
       'reactivateUser',
       'reauthenticate',
+      'redactTimelineEntry',
       'registerPasskey',
       'removePasskey',
       'removeTotp',
@@ -88,6 +90,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'resendUserInvitation',
       'resetUserSecondStep',
       'restoreProcedureStage',
+      'restoreTimelineEntry',
       'restoreWorkOrder',
       'restoreWorkOrderProcedure',
       'searchCustomers',
@@ -127,7 +130,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the redaction of an entry of the journal (EVM-040), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
     expect(stepUp.map(([id]) => id).sort()).toEqual([
       'changeUserRole',
@@ -140,6 +143,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listAccountSessions',
       'listAuditEvents',
       'reactivateUser',
+      'redactTimelineEntry',
       'resendUserInvitation',
       'resetUserSecondStep',
     ]);

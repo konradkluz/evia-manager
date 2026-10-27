@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { AUTHZ_MANIFEST } from '../src/authz.ts';
 import {
+  zDeleteTimelineEntryHeaders,
+  zDeleteTimelineEntryPath,
+  zRedactTimelineEntryPath,
+  zRestoreTimelineEntryHeaders,
   zCreateTimelineEntryHeaders,
   zCreateTimelineEntryRequest,
   zGetTimelineEntryPath,
@@ -26,6 +30,7 @@ const entry = {
   supersedesEntryId: null,
   supersededByEntryId: null,
   redactedAt: null,
+  deletedAt: null,
   event: null,
 };
 
@@ -41,15 +46,18 @@ describe('timeline contract (EVM-037; SR-AUTHZ-01, SR-AUTHZ-04, SR-INPUT-01, SR-
     });
   });
 
-  it('EVM-037 AC3 an entry has no operation that changes or removes it: only list, get and create exist under the timeline', () => {
+  it('EVM-037 AC3 EVM-040 an entry has no operation that EDITS it: under the timeline only list, get, create, and the deletion, restoration and redaction of the Administrator exist', () => {
     const operations = Object.values(AUTHZ_MANIFEST)
       .filter((operation) => operation.path.includes('/timeline'))
       .map((operation) => `${operation.method} ${operation.path}`)
       .sort();
     expect(operations).toEqual([
+      'delete /api/v1/work-orders/{workOrderId}/timeline/{entryId}',
       'get /api/v1/work-orders/{workOrderId}/timeline',
       'get /api/v1/work-orders/{workOrderId}/timeline/{entryId}',
       'post /api/v1/work-orders/{workOrderId}/timeline',
+      'post /api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact',
+      'post /api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore',
     ]);
   });
 
@@ -140,5 +148,43 @@ describe('timeline contract (EVM-037; SR-AUTHZ-01, SR-AUTHZ-04, SR-INPUT-01, SR-
       channels: ['web'],
     });
     expect(zCreateTimelineEntryRequest.safeParse({ id: V7, kind: 'event', body: 'x' }).success).toBe(false);
+  });
+});
+
+describe('EVM-040 the deletion, the restoration and the redaction of an entry (SR-AUTHZ-05, SR-SESS-08)', () => {
+  it('EVM-040 AC6 only the Administrator on the web channel; the redaction alone needs a step-up; all three are audited', () => {
+    for (const operationId of ['deleteTimelineEntry', 'restoreTimelineEntry', 'redactTimelineEntry']) {
+      expect(AUTHZ_MANIFEST[operationId]?.authz, operationId).toMatchObject({ roles: ['administrator'], channels: ['web'], audit: true });
+    }
+    expect(AUTHZ_MANIFEST['redactTimelineEntry']?.authz.stepUp).toBe(true);
+    expect(AUTHZ_MANIFEST['deleteTimelineEntry']?.authz.stepUp).toBeUndefined();
+    expect(AUTHZ_MANIFEST['restoreTimelineEntry']?.authz.stepUp).toBeUndefined();
+    expect(AUTHZ_MANIFEST['deleteTimelineEntry']).toMatchObject({
+      method: 'delete',
+      path: '/api/v1/work-orders/{workOrderId}/timeline/{entryId}',
+    });
+    expect(AUTHZ_MANIFEST['restoreTimelineEntry']).toMatchObject({
+      method: 'post',
+      path: '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore',
+    });
+    expect(AUTHZ_MANIFEST['redactTimelineEntry']).toMatchObject({
+      method: 'post',
+      path: '/api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact',
+    });
+  });
+
+  it('EVM-040 AC1 the entry carries deletedAt (required, nullable); the paths take UUIDs and the Idempotency-Key is a UUIDv7', () => {
+    expect(zTimelineEntry.safeParse(entry).success).toBe(true);
+    expect(zTimelineEntry.safeParse({ ...entry, deletedAt: '2026-10-12T08:00:00.000Z' }).success).toBe(true);
+    expect(zTimelineEntry.safeParse({ ...entry, deletedAt: undefined }).success).toBe(false);
+    expect(zDeleteTimelineEntryPath.safeParse({ workOrderId: V7, entryId: V7 }).success).toBe(true);
+    expect(zRedactTimelineEntryPath.safeParse({ workOrderId: V7, entryId: 'x' }).success).toBe(false);
+    expect(zDeleteTimelineEntryHeaders.safeParse({ 'If-Match': '"1"', 'Idempotency-Key': V7 }).success).toBe(true);
+    expect(zRestoreTimelineEntryHeaders.safeParse({ 'If-Match': 'W/"1"' }).success).toBe(false);
+  });
+
+  it('EVM-040 AC1 the list takes includeDeleted as a boolean that defaults to false', () => {
+    expect(zListTimelineEntriesQuery.parse({}).includeDeleted).toBe(false);
+    expect(zListTimelineEntriesQuery.safeParse({ includeDeleted: true }).success).toBe(true);
   });
 });

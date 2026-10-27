@@ -42,7 +42,7 @@ TimelineEntry:
     Wpis dziennika zlecenia. `createdAt` nadaje serwer i według niego (nie według UUIDv7 od klienta) wpisy są uporządkowane.
     `body` jest `null` dla zdarzeń (`event`). Wpis poprawiony zostaje w dzienniku: `supersededByEntryId` wskazuje poprawkę
     (panel zwija taki wpis i pokazuje „Pokaż treść”), a poprawka wskazuje poprzednika w `supersedesEntryId`. `redactedAt` jest
-    ustawione, gdy treść zastąpiono znacznikiem (EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.
+    ustawione, gdy treść zastąpiono znacznikiem (EVM-040), a `deletedAt` — gdy wpis usunięto (soft delete, EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.
   required:
     - id
     - kind
@@ -57,6 +57,7 @@ TimelineEntry:
     - supersedesEntryId
     - supersededByEntryId
     - redactedAt
+    - deletedAt
     - event
   additionalProperties: false
   properties:
@@ -127,6 +128,15 @@ TimelineEntry:
         - type: 'null'
     redactedAt:
       description: Chwila redakcji treści (EVM-040) albo `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    deletedAt:
+      description: >-
+        Chwila usunięcia wpisu (EVM-040) albo `null`. Usunięty wpis widzi tylko Administrator (`includeDeleted=true` albo odczyt po `id`);
+        dla pozostałych ról wpis usunięty nie istnieje. Zdarzenia automatyczne nie są usuwane — dla nich zawsze `null`.
       oneOf:
         - type: string
           format: date-time

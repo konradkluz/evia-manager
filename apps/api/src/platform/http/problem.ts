@@ -46,6 +46,8 @@ export const PROBLEMS = Object.freeze({
   work_order_closed: { status: 409, title: 'The work order is closed' },
   has_active_dependents: { status: 409, title: 'The work order has active dependents' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
+  entry_is_event: { status: 409, title: 'The entry is an automatic event' },
+  already_redacted: { status: 409, title: 'The entry text is already redacted' },
   procedure_already_active: { status: 409, title: 'A process with this code is already active in the work order' },
   parent_deleted: { status: 409, title: 'The process of the stage is deleted' },
   version_conflict: { status: 412, title: 'The resource was changed by someone else' },
@@ -59,6 +61,7 @@ export const PROBLEMS = Object.freeze({
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
+  deletion_register_unavailable: { status: 503, title: 'The deletion register is unavailable' },
 });
 
 export type ProblemCode = keyof typeof PROBLEMS;

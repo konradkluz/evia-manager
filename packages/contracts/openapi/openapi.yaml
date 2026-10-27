@@ -157,6 +157,10 @@ paths:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
     $ref: paths/timeline.yaml#/timelineEntry
+  /api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore:
+    $ref: paths/timeline.yaml#/timelineEntryRestore
+  /api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact:
+    $ref: paths/timeline.yaml#/timelineEntryRedact
   /api/v1/users:
     $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
