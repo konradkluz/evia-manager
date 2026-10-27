@@ -4,7 +4,7 @@ title: "Kontrakt OpenAPI: logowanie mobilne, urządzenia i synchronizacja"
 type: enabler
 milestone: M2
 epic: E9 Dostęp mobilny
-status: ready
+status: in-progress
 priority: P0
 path: pelna             # kontrakt uwierzytelniania i synchronizacji offline
 owner: backend-developer
@@ -72,3 +72,4 @@ Implementacja serwera (EVM-094, 096, 098, 099); operacje uploadu plików (`uploa
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security, UX (product-owner)
 - 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)
+- 2026-10-27 — start realizacji (nocna kolejka, tor T4), gałąź feature/EVM-090-094-kontrakt-logowanie-mobilne
