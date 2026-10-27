@@ -38,6 +38,8 @@ tags:
     description: Płatności etapowe zlecenia — transze z planu szablonu, kwoty i sumy (moduł payments; tylko panel web).
   - name: timeline
     description: Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).
+  - name: media
+    description: Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -157,6 +159,18 @@ paths:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
     $ref: paths/timeline.yaml#/timelineEntry
+  /api/v1/work-orders/{workOrderId}/media-assets:
+    $ref: paths/media.yaml#/workOrderMediaAssets
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions:
+    $ref: paths/media.yaml#/mediaAssetUploadSessions
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts:
+    $ref: paths/media.yaml#/uploadSessionParts
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts/{partNumber}/url:
+    $ref: paths/media.yaml#/uploadSessionPartUrl
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/complete:
+    $ref: paths/media.yaml#/uploadSessionComplete
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/abort:
+    $ref: paths/media.yaml#/uploadSessionAbort
   /api/v1/users:
     $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
@@ -419,6 +433,32 @@ components:
       $ref: components/timeline.yaml#/TimelineEntryList
     CreateTimelineEntryRequest:
       $ref: components/timeline.yaml#/CreateTimelineEntryRequest
+    MediaCategory:
+      $ref: components/media.yaml#/MediaCategory
+    MediaFileState:
+      $ref: components/media.yaml#/MediaFileState
+    MediaAsset:
+      $ref: components/media.yaml#/MediaAsset
+    UploadSessionRef:
+      $ref: components/media.yaml#/UploadSessionRef
+    MediaAssetCreateItem:
+      $ref: components/media.yaml#/MediaAssetCreateItem
+    CreateMediaAssetsRequest:
+      $ref: components/media.yaml#/CreateMediaAssetsRequest
+    MediaAssetBatch:
+      $ref: components/media.yaml#/MediaAssetBatch
+    MediaAssetList:
+      $ref: components/media.yaml#/MediaAssetList
+    CreateUploadSessionRequest:
+      $ref: components/media.yaml#/CreateUploadSessionRequest
+    UploadSession:
+      $ref: components/media.yaml#/UploadSession
+    UploadPart:
+      $ref: components/media.yaml#/UploadPart
+    UploadPartList:
+      $ref: components/media.yaml#/UploadPartList
+    UploadPartUrl:
+      $ref: components/media.yaml#/UploadPartUrl
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:

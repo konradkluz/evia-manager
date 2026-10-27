@@ -54,11 +54,13 @@ export const PROBLEMS = Object.freeze({
   idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
   limit_exceeded: { status: 422, title: 'A limit of the number of objects was exceeded' },
   template_unavailable: { status: 422, title: 'Work order template is not available' },
+  upload_incomplete: { status: 422, title: 'The uploaded parts do not make up the declared file' },
   transition_condition_not_met: { status: 422, title: 'A condition of the transition is not met' },
   precondition_required: { status: 428, title: 'Precondition required' },
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
+  media_storage_unavailable: { status: 503, title: 'Media storage is unavailable' },
 });
 
 export type ProblemCode = keyof typeof PROBLEMS;

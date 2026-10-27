@@ -1,0 +1,62 @@
+# Answers specific to the module `media` (EVM-044). The common ones (400, 401, 403, 404, 429) are in responses.yaml.
+MediaConflict:
+  description: >-
+    Identyfikator zajęty (`id_conflict` — także medium lub sesja innego zlecenia i innego użytkownika, bez żadnych danych istniejącego
+    zasobu), plik w stanie niedopuszczającym operacji (`invalid_state_transition` — np. nowa sesja dla pliku, który nie jest `failed` z
+    przyczyną `checksum_mismatch`; wygasła lub zakończona sesja) albo żądanie z tym samym kluczem idempotencji w toku
+    (`idempotency_in_progress`, z `Retry-After`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/id_conflict
+        title: Identifier already in use
+        status: 409
+        code: id_conflict
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MediaUnprocessable:
+  description: >-
+    Wysłane części nie składają się w zadeklarowany plik (`upload_incomplete`; `errors[]` ma wskaźnik i kod `size_mismatch` albo
+    `parts_missing`, bez wartości) albo ten sam klucz idempotencji z inną treścią (`idempotency_mismatch`).
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/upload_incomplete
+        title: The uploaded parts do not make up the declared file
+        status: 422
+        code: upload_incomplete
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+        errors:
+          - pointer: ''
+            code: size_mismatch
+MediaStorageUnavailable:
+  description: >-
+    Magazyn plików albo skaner nie jest skonfigurowany lub nie odpowiada (`media_storage_unavailable`; fail-closed, P5). Usługa
+    pozostaje zdrowa; odpowiedź nie zawiera nazwy bucketu, adresu ani szczegółów magazynu.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/media_storage_unavailable
+        title: Media storage is unavailable
+        status: 503
+        code: media_storage_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
