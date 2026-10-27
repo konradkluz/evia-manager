@@ -1,6 +1,16 @@
-import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, PUBLIC_OPERATIONS, type AuthzManifest } from '@evia/contracts/authz';
+import {
+  implementedManifest,
+  MFA_ENROLLMENT_OPERATIONS,
+  onlyImplemented,
+  PUBLIC_OPERATIONS,
+  type AuthzManifest,
+} from '@evia/contracts/authz';
 import { describe, expect, it } from 'vitest';
 import { buildMatrix, expectationFor, type Caller, type MatrixLists } from './role-matrix.ts';
+
+/** The operations that have a route: planned ones (`x-evia-planned`) join the matrix when their story removes the marker. */
+const AUTHZ_MANIFEST = implementedManifest();
+const IMPLEMENTED_PUBLIC = onlyImplemented(PUBLIC_OPERATIONS);
 
 const lists: MatrixLists = { publicOperations: PUBLIC_OPERATIONS, mfaEnrollmentOperations: MFA_ENROLLMENT_OPERATIONS };
 
@@ -68,7 +78,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
   it('EVM-016 AC8 an anonymous caller gets 401 for every operation except the public ones (health, activation check and password)', () => {
     const anonymous = cells.filter((cell) => cell.caller.kind === 'anonymous');
     const allowed = anonymous.filter((cell) => cell.expectation.outcome === 'allowed').map((cell) => cell.operationId);
-    expect(allowed.sort()).toEqual([...PUBLIC_OPERATIONS].sort());
+    expect(allowed.sort()).toEqual([...IMPLEMENTED_PUBLIC].sort());
     for (const cell of anonymous.filter((item) => item.expectation.outcome !== 'allowed')) {
       expect(cell.expectation, cell.operationId).toEqual({ outcome: 'denied', status: 401, code: 'unauthenticated' });
     }
@@ -92,7 +102,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       )
       .map((cell) => cell.operationId);
     const unique = [...new Set(allowedWhileEnrolling)].sort();
-    expect(unique).toEqual([...MFA_ENROLLMENT_OPERATIONS, ...PUBLIC_OPERATIONS].sort());
+    expect(unique).toEqual([...MFA_ENROLLMENT_OPERATIONS, ...IMPLEMENTED_PUBLIC].sort());
     for (const cell of cells.filter((item) => item.caller.kind === 'session' && item.caller.state === 'mfa_enrollment')) {
       if (
         cell.expectation.outcome === 'denied' &&

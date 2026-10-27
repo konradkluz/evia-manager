@@ -28,3 +28,8 @@ export function plannedOperations(manifest: AuthzManifest = AUTHZ_MANIFEST): str
 export function implementedManifest(manifest: AuthzManifest = AUTHZ_MANIFEST): AuthzManifest {
   return Object.fromEntries(Object.entries(manifest).filter(([, operation]) => operation.planned !== true));
 }
+
+/** The ids of `ids` that have a route (a list such as PUBLIC_OPERATIONS also names planned operations). */
+export function onlyImplemented(ids: readonly string[], manifest: AuthzManifest = AUTHZ_MANIFEST): string[] {
+  return ids.filter((id) => manifest[id]?.planned !== true);
+}

@@ -1,4 +1,4 @@
-import { AUTHZ_MANIFEST } from '@evia/contracts/authz';
+import { AUTHZ_MANIFEST, implementedManifest, plannedOperations } from '@evia/contracts/authz';
 import { afterEach, describe, expect, it } from 'vitest';
 import { RoutePolicyCheck } from '../../src/modules/authorization/index.ts';
 import { joinPath, routeProblems, toRouteTemplate } from '../../src/modules/authorization/route-policies.ts';
@@ -22,11 +22,27 @@ describe('route policies (EVM-008 AC2, AC4; ADR-0004)', () => {
     const byOperation = (a: { operationId?: string }, b: { operationId?: string }) =>
       (a.operationId ?? '').localeCompare(b.operationId ?? '');
     expect(routes.map(({ operationId, method, path }) => ({ operationId, method, path })).sort(byOperation)).toEqual(
-      Object.entries(AUTHZ_MANIFEST)
+      Object.entries(implementedManifest())
         .map(([operationId, operation]) => ({ operationId, method: operation.method, path: toRouteTemplate(operation.path) }))
         .sort(byOperation),
     );
     expect(routeProblems(routes, AUTHZ_MANIFEST)).toEqual([]);
+  });
+
+  it('EVM-090 AC1 a planned operation (x-evia-planned) has NO route and every other operation has one: the marker is the only source of truth, no 501 stubs', async () => {
+    current = await createTestApp();
+    const routed = new Set(
+      current.app
+        .get(RoutePolicyCheck)
+        .routes()
+        .map((route) => route.operationId),
+    );
+    const planned = plannedOperations();
+    expect(planned.length).toBeGreaterThan(0);
+    for (const operationId of planned) expect(routed.has(operationId), `${operationId} is planned and has a route`).toBe(false);
+    for (const operationId of Object.keys(AUTHZ_MANIFEST).filter((id) => !planned.includes(id))) {
+      expect(routed.has(operationId), `${operationId} is not planned and has no route`).toBe(true);
+    }
   });
 
   it('EVM-008 AC4 the startup check sees every route handler and skips methods that are not routes', async () => {

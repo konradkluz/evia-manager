@@ -17,6 +17,10 @@
       "types": "./dist/src/authz.d.ts",
       "default": "./dist/src/authz.js"
     },
+    "./mock-server": {
+      "types": "./dist/src/mock-server.d.ts",
+      "default": "./dist/src/mock-server.js"
+    },
     "./openapi.json": "./dist/openapi.json"
   },
   "scripts": {

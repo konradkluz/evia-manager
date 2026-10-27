@@ -10,5 +10,5 @@
     "lib": ["es2024", "dom"],
     "types": []
   },
-  "include": ["src/index.ts", "src/zod.ts", "src/authz.ts", "src/public-operations.ts", "generated/**/*.ts"]
+  "include": ["src/index.ts", "src/zod.ts", "src/authz.ts", "src/public-operations.ts", "src/mock-server.ts", "generated/**/*.ts"]
 }

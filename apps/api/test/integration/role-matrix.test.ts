@@ -1,4 +1,10 @@
-import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, PUBLIC_OPERATIONS, type AuthzManifest } from '@evia/contracts/authz';
+import {
+  implementedManifest,
+  MFA_ENROLLMENT_OPERATIONS,
+  onlyImplemented,
+  PUBLIC_OPERATIONS,
+  type AuthzManifest,
+} from '@evia/contracts/authz';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CONTRACT_POLICIES, POLICY_SOURCE, RoutePolicyCheck, type PolicySource } from '../../src/modules/authorization/index.ts';
 import { toRouteTemplate } from '../../src/modules/authorization/route-policies.ts';
@@ -12,6 +18,9 @@ afterEach(async () => {
   await current?.close();
   current = undefined;
 });
+
+/** The operations that have a route: planned ones (`x-evia-planned`) join the matrix when their story removes the marker. */
+const AUTHZ_MANIFEST = implementedManifest();
 
 const lists: MatrixLists = { publicOperations: PUBLIC_OPERATIONS, mfaEnrollmentOperations: MFA_ENROLLMENT_OPERATIONS };
 
@@ -57,7 +66,7 @@ describe('role and channel matrix against the real application (EVM-016 AC8; SR-
     current = await createIdentityApp();
     const anonymous = buildMatrix(AUTHZ_MANIFEST, lists).filter((cell) => cell.caller.kind === 'anonymous');
     const open = anonymous.filter((cell) => cell.expectation.outcome === 'allowed').map((cell) => cell.operationId);
-    expect(open.sort()).toEqual([...PUBLIC_OPERATIONS].sort());
+    expect(open.sort()).toEqual(onlyImplemented(PUBLIC_OPERATIONS).sort());
     expect(await runMatrix(current, anonymous, await matrixObjects(current))).toEqual([]);
   });
 
