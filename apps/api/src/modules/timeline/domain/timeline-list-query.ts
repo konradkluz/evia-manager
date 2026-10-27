@@ -20,12 +20,17 @@ const PAYMENT_EVENT_CODES = [
   'payment_milestone_deleted',
 ] as const satisfies readonly JournalEventCode[];
 
+/** The codes of the media (EVM-044) - the group "Media i dokumenty" has its own story (E6); until then the entry is in no named group. */
+const MEDIA_EVENT_CODES = ['media_assets_added'] as const satisfies readonly JournalEventCode[];
+
 /**
  * The codes of every group of events (a closed list of disjoint groups; the group of E6 comes with its story): "Zmiany statusów" is
  * every code of the order, its stages, data and scope - every code that is not in another group.
  */
 export const EVENT_GROUP_CODES = {
-  status_changes: JOURNAL_EVENT_CODES.filter((code) => !(PAYMENT_EVENT_CODES as readonly string[]).includes(code)),
+  status_changes: JOURNAL_EVENT_CODES.filter(
+    (code) => !(PAYMENT_EVENT_CODES as readonly string[]).includes(code) && !(MEDIA_EVENT_CODES as readonly string[]).includes(code),
+  ),
   payments: PAYMENT_EVENT_CODES,
 } as const satisfies Record<z.infer<typeof zTimelineEventGroup>, readonly JournalEventCode[]>;
 

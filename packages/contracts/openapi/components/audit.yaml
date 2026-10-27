@@ -77,6 +77,8 @@ AuditAction:
     - payment_milestone.restored
     - payment_milestone.amount_corrected
     - payment_milestone.deleted
+    - media_asset.created
+    - media_file.quarantined
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -99,6 +101,7 @@ AuditObjectType:
       procedure_stage,
       timeline_entry,
       payment_milestone,
+      media_asset,
     ]
 AuditReasonCode:
   type: string

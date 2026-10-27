@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../identity/index.ts';
+import { MEDIA_EVENT_TYPES, type MediaAuditEvent } from '../../media/index.ts';
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../../parties/index.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent } from '../../procedures/index.ts';
@@ -40,6 +41,7 @@ export const AUDIT_ACTIONS = [
   ...PROCEDURE_EVENT_TYPES,
   ...TIMELINE_EVENT_TYPES,
   ...PAYMENT_MILESTONE_EVENT_TYPES,
+  ...MEDIA_EVENT_TYPES,
 ] as const;
 export const AUDIT_OBJECT_TYPES = [
   'user',
@@ -55,6 +57,7 @@ export const AUDIT_OBJECT_TYPES = [
   'procedure_stage',
   'timeline_entry',
   'payment_milestone',
+  'media_asset',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
@@ -118,7 +121,8 @@ export function toAuditRecord(
     | WorkOrderEvent
     | ProcedureAuditEvent
     | TimelineEntryEvent
-    | PaymentMilestoneEvent,
+    | PaymentMilestoneEvent
+    | MediaAuditEvent,
   context: EventContext,
   occurredAt: Date,
 ): AuditRecord {

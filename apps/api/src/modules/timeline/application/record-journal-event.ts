@@ -13,6 +13,7 @@ import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { CLOCK, EVENT_BUS } from '../../../platform/tokens.ts';
+import { MEDIA_JOURNAL_EVENT_TYPES, type MediaAssetsAddedEvent } from '../../media/index.ts';
 import { PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES, type PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import { PROCEDURE_JOURNAL_EVENT_TYPES, type StageJournalChangeEvent } from '../../procedures/index.ts';
 import { WORK_ORDER_JOURNAL_EVENT_TYPES, type WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
@@ -36,6 +37,7 @@ export class JournalEventRecorder implements OnModuleInit {
     for (const type of WORK_ORDER_JOURNAL_EVENT_TYPES) this.#events.subscribe<WorkOrderJournalChangeEvent>(type, handle);
     for (const type of PROCEDURE_JOURNAL_EVENT_TYPES) this.#events.subscribe<StageJournalChangeEvent>(type, handle);
     for (const type of PAYMENT_MILESTONE_JOURNAL_EVENT_TYPES) this.#events.subscribe<PaymentMilestoneJournalEvent>(type, handle);
+    for (const type of MEDIA_JOURNAL_EVENT_TYPES) this.#events.subscribe<MediaAssetsAddedEvent>(type, handle);
   }
 
   /** Writes the entry in the transaction of the change. */

@@ -26,7 +26,7 @@ async function startClamd(reply: string | undefined, options: { replyEarly?: boo
   const server = createServer((socket: Socket) => {
     let buffer = Buffer.alloc(0);
     socket.on('error', () => undefined);
-    socket.on('data', (data) => {
+    socket.on('data', (data: Buffer) => {
       received.push(data);
       buffer = Buffer.concat([buffer, data]);
       if (options.replyEarly === true && reply !== undefined) {

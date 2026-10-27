@@ -45,6 +45,8 @@ export function createHttpAdapter(trustedProxies: readonly string[] = []): Expre
  */
 const ROUTE_BODY_LIMITS: ReadonlyArray<{ readonly method: string; readonly path: RegExp; readonly limit: string }> = [
   { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/timeline$/, limit: '64kb' },
+  // a batch of at most 50 media (EVM-044): a file name of up to 1000 characters and a checksum each
+  { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/media-assets$/, limit: '128kb' },
   { method: 'POST', path: /^\/api\/v1\/work-orders\/[^/]+\/scope-items$/, limit: '64kb' },
   { method: 'PATCH', path: /^\/api\/v1\/work-orders\/[^/]+\/scope-items\/[^/]+$/, limit: '64kb' },
   { method: 'PATCH', path: /^\/api\/v1\/work-orders\/[^/]+$/, limit: '32kb' },

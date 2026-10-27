@@ -5,6 +5,7 @@ import { AuthorizationModule } from './modules/authorization/index.ts';
 import { CatalogModule } from './modules/catalog/index.ts';
 import { CustomersModule } from './modules/customers/index.ts';
 import { IdentityModule } from './modules/identity/index.ts';
+import { MediaModule } from './modules/media/index.ts';
 import { OverviewModule } from './modules/overview/index.ts';
 import { PartiesModule } from './modules/parties/index.ts';
 import { PaymentsModule } from './modules/payments/index.ts';
@@ -28,6 +29,7 @@ export class AppModule {
         SitesModule,
         WorkOrdersModule,
         ProceduresModule,
+        MediaModule,
         PaymentsModule,
         TimelineModule,
         OverviewModule,
