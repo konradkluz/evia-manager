@@ -86,6 +86,8 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'payment_milestone.restored': 'Korekta: przywrócenie transzy płatności',
   'payment_milestone.amount_corrected': 'Korekta: zmiana kwoty transzy płatności',
   'payment_milestone.deleted': 'Korekta: usunięcie transzy płatności',
+  'media_asset.created': 'Dodanie zdjęcia do zlecenia',
+  'media_file.quarantined': 'Plik z kwarantanny skanu (zdjęcie)',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -180,6 +182,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'payment_milestone.deleted',
     ],
   },
+  { label: 'Media', actions: ['media_asset.created', 'media_file.quarantined'] },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {
@@ -202,6 +205,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   procedure_stage: 'Etap procesu',
   timeline_entry: 'Wpis dziennika',
   payment_milestone: 'Transza płatności',
+  media_asset: 'Zdjęcie',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
