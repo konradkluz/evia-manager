@@ -56,6 +56,9 @@ export interface Scenario {
   overrides: Array<{ prefix: string; status: number; headers?: Record<string, string>; body?: string; times?: number }>;
   /** Redirect target of artifact downloads; `{blob}` is replaced by the blob server origin. */
   redirect: string;
+  /** `repositories`: Link headers point to /repositories/<repositoryId>/… like the live GitHub API (RR-34). */
+  linkStyle?: 'repos' | 'repositories';
+  repositoryId?: number;
 }
 
 export interface Stub {
@@ -80,11 +83,17 @@ const listen = (server: Server): Promise<string> =>
   });
 
 /** Pagination with a `page` parameter and a Link header to the next page. */
-function paged<T>(url: URL, base: string, items: T[], size: number): { items: T[]; link: Record<string, string> } {
+function paged<T>(
+  url: URL,
+  base: string,
+  items: T[],
+  size: number,
+  linkPath: (pathname: string) => string = (pathname) => pathname,
+): { items: T[]; link: Record<string, string> } {
   const page = Number(url.searchParams.get('page') ?? '1');
   const slice = items.slice((page - 1) * size, page * size);
   if (page * size >= items.length) return { items: slice, link: {} };
-  const next = new URL(url.pathname + url.search, base);
+  const next = new URL(linkPath(url.pathname) + url.search, base);
   next.searchParams.set('page', String(page + 1));
   return { items: slice, link: { link: `<${next.href}>; rel="next"` } };
 }
@@ -120,6 +129,10 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       return;
     }
     const prefix = `/repos/${OWNER}/${REPO}`;
+    const linkPath = (pathname: string): string =>
+      scenario.linkStyle === 'repositories'
+        ? pathname.replace(prefix, `/repositories/${String(scenario.repositoryId ?? 1403122150)}`)
+        : pathname;
     if (!url.pathname.startsWith(`${prefix}/`)) {
       send(response, 404, {});
       return;
@@ -131,7 +144,7 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       return;
     }
     if (path === '/activity') {
-      const { items, link } = paged(url, base, scenario.events, scenario.activityPageSize);
+      const { items, link } = paged(url, base, scenario.events, scenario.activityPageSize, linkPath);
       send(response, 200, items, link);
       return;
     }
@@ -146,7 +159,7 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       const commits = scenario.history
         .slice(from + 1, to + 1)
         .map((commit) => ({ sha: commit.sha, parents: commit.parents.map((sha) => ({ sha })) }));
-      const { items, link } = paged(url, base, commits, scenario.comparePageSize);
+      const { items, link } = paged(url, base, commits, scenario.comparePageSize, linkPath);
       const status = to > from ? 'ahead' : to === from ? 'identical' : 'behind';
       send(response, 200, { status, ahead_by: ahead, behind_by: to < from ? from - to : 0, total_commits: ahead, commits: items }, link);
       return;
@@ -173,7 +186,13 @@ export async function startStub(scenario: Scenario): Promise<Stub> {
       return;
     }
     if ((match = /^\/actions\/runs\/(\d+)\/attempts\/(\d+)\/jobs$/.exec(path)) !== null) {
-      const { items, link } = paged(url, base, scenario.jobs.get(`${match[1] ?? ''}/${match[2] ?? ''}`) ?? [], scenario.jobsPageSize);
+      const { items, link } = paged(
+        url,
+        base,
+        scenario.jobs.get(`${match[1] ?? ''}/${match[2] ?? ''}`) ?? [],
+        scenario.jobsPageSize,
+        linkPath,
+      );
       send(response, 200, { jobs: items }, link);
       return;
     }

@@ -6,7 +6,7 @@ EVM-007 AC3, AC4 (ADR-0018 V0–V4, V6). Program w TypeScript uruchamiany na VM 
 | Kontrola | Moduł | Reguła |
 |---|---|---|
 | V0 Activity | `activity.ts` | od zdarzenia kotwicy (poprzednie wdrożenie albo `BASELINE`, po **ID zdarzenia**, nie po czasie) wszystkie zdarzenia `refs/heads/main` to `pr_merge` z numerycznym ID Konrada i tworzą nieprzerwany łańcuch `before → after` do HEAD; każdy inny typ (`push`, `force_push`, `branch_deletion`, `branch_creation`, `merge_queue_merge`, nieznany) blokuje; kotwica poza zasięgiem API = `reject`; zdarzenie w okresie już wdrożonym = rollback do poprzedniego wpisu rejestru (n5) |
-| V1 historia | `history.ts` | HEAD z `git/ref/heads/main`; `compare` od wdrożonego commita: `ahead`, `behind_by = 0`, wszystkie strony, łańcuch rodziców do HEAD; zestaw commitów = `after` zdarzeń `pr_merge` |
+| V1 historia | `history.ts` | HEAD z `git/ref/heads/main`; `compare` od wdrożonego commita: `ahead`, `behind_by = 0`, wszystkie strony (link `next` — reguła „Kolejne strony” niżej), łańcuch rodziców do HEAD; zestaw commitów = `after` zdarzeń `pr_merge` |
 | V2 PR | `pulls.ts` | każdy commit zakresu: 1 rodzic (squash), dokładnie jeden PR z `merge_commit_sha`, `merged`, baza `main`, `merged_by.id` = Konrad; przebieg `pull_request` workflowu o numerycznym ID dla końcowego HEAD PR z jobem `ci-gate` = `success` z API jobów (nie check run, nie przebieg szybki gałęzi) |
 | V3 wydanie | `release.ts`, `zip.ts`, `manifest.ts`, `github.ts` | najstarszy przebieg `push` (`head_branch = main`, `head_sha = X`) i jego najnowsza próba, w której `ci-gate` i `publish` = `completed/success` (obie w tej samej próbie; status całego przebiegu nie jest warunkiem, bo `staging-verify` jest w tym samym przebiegu i czeka na wdrożenie); artefakt `release-manifest` tego przebiegu i commita, niewygasły; pobranie: przekierowanie tylko na hosty z listy, drugie żądanie **bez** nagłówka `Authorization`; ZIP w pamięci, jeden wpis `release-manifest.json`, limit 1 MiB liczony przy rozpakowaniu, CRC; manifest ze ścisłym schematem |
 | V4 Compose | `compose-policy.ts` | **lista dozwolonych**: usługi `api`, `worker`, `web`, `migrate`, zamknięty zbiór kluczy i wartości, zakaz `$`, kotwic, aliasów, `<<`, tagów, duplikatów, kilku dokumentów; wynik to kanoniczny JSON z digestami z manifestu i siecią `runtimeNetwork` — tylko ten plik uruchamia root |
@@ -31,3 +31,14 @@ Wynik (`/out/result.json`): `deploy` | `rollback` | `none` | `reject` z powodami
 - Testy z progiem pokrycia warstwy `shared` (90%): `pnpm --filter @evia/deploy-agent run test:coverage` (atrapa API GitHub na `node:http`, dane syntetyczne; testy oznaczone `EVM-007 AC#`); lint i typy: `pnpm --filter @evia/deploy-agent run lint`, `… run typecheck`.
 - Uruchamianie bez budowania (Node.js 26 usuwa typy): `node src/cli.ts` w kontenerze `infra/deploy-agent/compose.agent.yaml`; obraz budowany i przypinany po digeście wyłącznie w sesji IaC (m5).
 - Pliki wrażliwe (K3): `services/deploy-agent/**`, `infra/**` — `docs/ops/github-i-ci.md`.
+
+## Kolejne strony list (RR-34)
+
+Żywe API GitHub zwraca w nagłówku `Link` (`rel="next"`) adres po numerycznym ID repozytorium: `/repositories/<id>/<operacja>?per_page=…&page=2`, choć żądanie szło na `/repos/<owner>/<repo>/<operacja>`. `GitHub.json` (`src/github.ts`, `#nextPath`) nie podąża za adresem z nagłówka, tylko buduje własne żądanie `/repos/<owner>/<repo>/<operacja>?<zapytanie>`, i to wyłącznie gdy:
+
+1. origin jest identyczny jak API bazowe (schemat, host, port), bez danych logowania i fragmentu;
+2. ścieżka to `/repos/<owner>/<repo>/<sufiks>` albo `/repositories/<id>/<sufiks>` (ID: cyfry bez zera wiodącego, do 15 znaków), a `<sufiks>` jest dokładnie taki jak w bieżącym żądaniu; bez `..`, `.`, `%` w ścieżce i ukośniku wstecznym;
+3. pierwsze napotkane ID jest zapamiętane w instancji (jeden cykl = jedna instancja) i każde następne musi być identyczne; ID nie jest dodatkowo weryfikowane żądaniem `GET /repos/…` (koszt jednego żądania z budżetu i brak zysku: ID nigdy nie trafia do żądania, służy tylko do wykrycia niespójności);
+4. zapytanie ma `page` (1–50) i opcjonalnie `per_page` (1–100), liczbowe, bez powtórzeń; pozostałe parametry muszą być identyczne jak w bieżącym żądaniu (np. `ref`, `head_sha`), nowe parametry (np. kursor) = odrzucenie `api-path`.
+
+Każde naruszenie to `Rejection` `api-path` (cykl kończy się `reject`). Limity (liczba stron, rozmiar JSON, `redirect: manual`, budżet żądań) bez zmian.

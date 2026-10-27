@@ -26,7 +26,7 @@ export interface GitHubOptions {
 
 export interface JsonPage {
   readonly body: unknown;
-  /** The `rel="next"` URL of the Link header (already checked to be a path of this repository), or null. */
+  /** The `rel="next"` URL of the Link header (a normalized path of this repository, rebuilt from the header), or null. */
   readonly next: string | null;
 }
 
@@ -34,6 +34,8 @@ export const PRODUCTION_API = 'https://api.github.com';
 const DEFAULT_TIMEOUT = 15_000;
 export const MAX_JSON_BYTES = 4 * 1024 * 1024;
 export const MAX_ARTIFACT_BYTES = 1024 * 1024;
+/** Highest `page` a next link may name (the callers' own limits are lower). */
+export const MAX_PAGE = 50;
 
 /** Reads a body up to `limit` bytes — counted on the bytes actually received, never on Content-Length. */
 export async function readCapped(response: Response, limit: number): Promise<Uint8Array> {
@@ -69,6 +71,8 @@ export class GitHub {
   readonly #options: GitHubOptions;
   readonly #base: URL;
   #requests = 0;
+  /** First numeric repository id seen in a Link header; later ones must be the same (RR-34). */
+  #repositoryId: string | null = null;
 
   constructor(options: GitHubOptions) {
     this.#options = options;
@@ -89,6 +93,53 @@ export class GitHub {
   url(path: string): URL {
     ensure(path.startsWith(`${this.repoPath}/`), 'api-path', path);
     return new URL(path, this.#base);
+  }
+
+  /**
+   * The next page from a `Link: rel="next"` header (RR-34). The live API answers with /repositories/<id>/<operation>
+   * where the request went to /repos/<owner>/<name>/<operation>. Fail-closed: the origin is the base origin, the
+   * operation (suffix after the repository prefix) is exactly that of the current request, the numeric repository id
+   * stays the same within the cycle, and the query holds only per_page and page (numeric, bounded) plus the unchanged
+   * parameters of the current request. The URL of the header is not followed: the next request is built here.
+   */
+  #nextPath(link: string, current: URL): string {
+    const deny = (detail: string): never => {
+      throw new Rejection('api-path', `foreign next link: ${detail}`);
+    };
+    if (!/^[!-~]+$/.test(link) || link.split('?')[0]?.includes('%') === true || link.includes('\\') || link.includes('#'))
+      return deny('characters');
+    if (!URL.canParse(link)) return deny('unparsable');
+    const target = new URL(link);
+    if (target.origin !== this.#base.origin || target.username !== '' || target.password !== '' || target.hash !== '')
+      return deny('origin');
+    const suffix = current.pathname.slice(this.repoPath.length);
+    if ((link.split('?')[0] ?? '').split('/').some((segment) => segment === '.' || segment === '..')) return deny('dot segment');
+    if (target.pathname !== `${this.repoPath}${suffix}`) {
+      const match = /^\/repositories\/([1-9]\d{0,14})(\/.*)$/.exec(target.pathname);
+      if (match?.[2] !== suffix) return deny('path');
+      const id = match[1] ?? '';
+      this.#repositoryId ??= id;
+      if (this.#repositoryId !== id) return deny('repository id changed');
+    }
+    const preserved = new Map<string, string>();
+    for (const [key, value] of current.searchParams) if (key !== 'page' && key !== 'per_page') preserved.set(key, value);
+    const seen = new Set<string>();
+    const numbers: Record<string, number> = {};
+    for (const [key, value] of target.searchParams) {
+      if (seen.has(key)) return deny('repeated parameter');
+      seen.add(key);
+      if (key === 'page' || key === 'per_page') {
+        const limit = key === 'page' ? MAX_PAGE : 100;
+        if (!/^[1-9]\d{0,4}$/.test(value) || Number(value) > limit) return deny(key);
+        numbers[key] = Number(value);
+      } else if (preserved.get(key) !== value) return deny('parameter');
+    }
+    if (numbers['page'] === undefined || seen.size !== preserved.size + 1 + (numbers['per_page'] === undefined ? 0 : 1))
+      return deny('parameters');
+    const query = new URLSearchParams([...preserved]);
+    if (numbers['per_page'] !== undefined) query.set('per_page', String(numbers['per_page']));
+    query.set('page', String(numbers['page']));
+    return `${this.repoPath}${suffix}?${query.toString()}`;
   }
 
   #count(): void {
@@ -125,8 +176,9 @@ export class GitHub {
 
   /** GET of a JSON resource of this repository (a path or a `next` URL returned by an earlier page). */
   async json(pathOrUrl: string): Promise<JsonPage> {
-    const url = pathOrUrl.startsWith('/') ? this.url(pathOrUrl) : new URL(pathOrUrl);
-    ensure(url.origin === this.#base.origin && url.pathname.startsWith(`${this.repoPath}/`), 'api-path', 'foreign URL');
+    // only a path built by the verifier: a next link is turned into one by #nextPath, never followed as it is
+    ensure(pathOrUrl.startsWith('/'), 'api-path', 'foreign URL');
+    const url = this.url(pathOrUrl);
     const response = await this.#fetch(url, this.#headers(), 'manual');
     if (response.status !== 200) GitHub.#status(response, url.pathname);
     const bytes = await readCapped(response, this.#options.maxJsonBytes ?? MAX_JSON_BYTES);
@@ -136,11 +188,8 @@ export class GitHub {
     } catch {
       throw new Rejection('api-parse', url.pathname);
     }
-    const next = nextLink(response.headers.get('link'));
-    if (next !== null) {
-      const target = new URL(next);
-      ensure(target.origin === this.#base.origin && target.pathname.startsWith(`${this.repoPath}/`), 'api-path', 'foreign next link');
-    }
+    const link = nextLink(response.headers.get('link'));
+    const next = link === null ? null : this.#nextPath(link, url);
     return { body, next };
   }
 
