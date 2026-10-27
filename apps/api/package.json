@@ -27,14 +27,14 @@
     "@simplewebauthn/server": "14.0.3",
     "express": "5.2.1",
     "kysely": "0.29.6",
-    "nodemailer": "10.1.1",
+    "nodemailer": "10.1.7",
     "otpauth": "9.5.2",
     "pg": "8.23.1",
     "pg-boss": "12.35.1",
     "pino": "10.4.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@evia/config": "workspace:*",
