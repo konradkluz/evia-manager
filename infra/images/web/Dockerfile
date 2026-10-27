@@ -39,6 +39,9 @@ RUN cp /tmp/caddy-orig /tmp/caddy && chmod 0555 /tmp/caddy
 
 FROM caddy-src AS runtime
 
+# Metadata only (no RUN): links the GHCR package to the repository.
+LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
+
 ENV XDG_CONFIG_HOME=/tmp/caddy-config \
     XDG_DATA_HOME=/tmp/caddy-data
 COPY --chmod=0444 infra/images/web/Caddyfile /etc/caddy/Caddyfile

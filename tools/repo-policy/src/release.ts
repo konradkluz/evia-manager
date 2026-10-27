@@ -306,3 +306,23 @@ export function releaseDockerfileProblems(name: string, dockerfile: string, igno
       problems.push(`${name}.dockerignore: niedozwolony wpis ${entry}`);
   return problems;
 }
+
+/** The repository the published images are linked to (org.opencontainers.image.source; GHCR connects the package to it). */
+export const RELEASE_SOURCE = 'https://github.com/konradkluz/evia-manager';
+
+/**
+ * A published Dockerfile (api, web) carries exactly one source label equal to the repository URL, in the last stage
+ * (metadata only — no RUN, so the arm64 cross-build stays emulation-free).
+ */
+export function releaseLabelProblems(name: string, dockerfile: string): string[] {
+  const code = dockerfile.replace(/^\s*#.*$/gm, '');
+  const lastStage = code.slice(code.toUpperCase().lastIndexOf('\nFROM '));
+  const key = 'org.opencontainers.image.source';
+  const all = code.match(/org\.opencontainers\.image\.source=("[^"]*"|\S+)/g) ?? [];
+  const inLast = [...lastStage.matchAll(/org\.opencontainers\.image\.source=/g)].length;
+  const problems: string[] = [];
+  if (all.length !== 1 || all[0] !== `${key}="${RELEASE_SOURCE}"`)
+    problems.push(`${name}: dokładnie jedna etykieta ${key}="${RELEASE_SOURCE}"`);
+  if (inLast !== 1) problems.push(`${name}: etykieta ${key} w ostatnim etapie`);
+  return problems;
+}

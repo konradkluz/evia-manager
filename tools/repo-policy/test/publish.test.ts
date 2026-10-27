@@ -12,7 +12,9 @@ import {
   PUBLISH_IF,
   publishProblems,
   RELEASE_PLATFORM,
+  RELEASE_SOURCE,
   releaseDockerfileProblems,
+  releaseLabelProblems,
   STAGING_VERIFY_IF,
   stagingVerifyProblems,
 } from '../src/release.ts';
@@ -90,6 +92,37 @@ describe('publish on the repository (EVM-007 AC2)', () => {
       expect(read(`${dir}/Dockerfile`)).toMatch(/^FROM --platform=\$BUILDPLATFORM /m);
       expect(releaseDockerfileProblems(dir, read(`${dir}/Dockerfile`), read(`${dir}/Dockerfile.dockerignore`), packageManager)).toEqual([]);
     }
+  });
+});
+
+describe('release image source label (EVM-007 AC2; GHCR links the package to the repository)', () => {
+  it('EVM-007 AC2: every published Dockerfile (api, web; the worker runs the api image) labels the source with the repository URL, in the last stage', () => {
+    expect(RELEASE_SOURCE).toBe('https://github.com/konradkluz/evia-manager');
+    for (const image of IMAGES) expect(releaseLabelProblems(`infra/images/${image}`, read(`infra/images/${image}/Dockerfile`))).toEqual([]);
+  });
+
+  it('EVM-007 AC2: a missing, foreign, duplicated or non-final source label is detected', () => {
+    const dockerfile = read('infra/images/api/Dockerfile');
+    const label = `LABEL org.opencontainers.image.source="${RELEASE_SOURCE}"`;
+    expect(dockerfile).toContain(label);
+    const bad = (from: string, to: string): string[] => releaseLabelProblems('x', dockerfile.replace(from, to));
+    expect(bad(label, '')).not.toEqual([]);
+    expect(bad(label, 'LABEL org.opencontainers.image.source="https://github.com/other/repo"')).not.toEqual([]);
+    expect(
+      bad(
+        label,
+        `${label}
+${label.replace(RELEASE_SOURCE, 'https://example.com/x')}`,
+      ),
+    ).not.toEqual([]);
+    expect(bad(label, `${label} org.opencontainers.image.source="https://example.com/x"`)).not.toEqual([]);
+    expect(
+      releaseLabelProblems(
+        'x',
+        `${label}
+${dockerfile.replace(label, '')}`,
+      ),
+    ).not.toEqual([]);
   });
 });
 
