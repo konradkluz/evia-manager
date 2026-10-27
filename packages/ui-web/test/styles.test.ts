@@ -83,6 +83,11 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
       'text-text-link',
       'bg-action-danger-bg',
       'text-action-danger-text-subtle',
+      // EVM-044: the upload queue (§ 3.12, § 5.4)
+      'bg-sync-error-bg',
+      'text-sync-in-progress-text',
+      'fill-sync-progress-fill',
+      'min-h-touch-target-min',
       // Not tokens — must generate nothing:
       'p-4',
       'text-red-500',
@@ -137,6 +142,10 @@ describe('Tailwind theme from design tokens (EVM-008 AC3; styleguide § 7.2, ADR
     expect(css).toContain('border-radius: var(--evm-radius-dialog)');
     expect(css).toContain('--tw-shadow: var(--evm-elevation-dialog)');
     expect(css).toContain('background-color: var(--evm-color-bg-selected)');
+    // EVM-044: the colours of the upload queue come from `color.sync.*`
+    expect(css).toContain('background-color: var(--evm-color-sync-error-bg)');
+    expect(css).toContain('fill: var(--evm-color-sync-progress-fill)');
+    expect(css).toContain('min-height: var(--evm-size-touch-target-min)');
     // EVM-054: the danger button and the destructive item of a menu (§ 3.1, § 3.20)
     expect(css).toContain('background-color: var(--evm-color-action-danger-bg)');
     expect(css).toContain('color: var(--evm-color-action-danger-text-subtle)');
