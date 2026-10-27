@@ -53,6 +53,18 @@ overrides:
   # GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw. 8.3.4 is a compatible patch release.
   # Remove when apps/web and the vitest peer resolve to the same vite >= 8.3.3 without this override.
   'vite@8.3.2': 8.3.4
+  # Maintenance 2026-10-27: transitive advisories with a fixed patch/minor release of the same line (SR-SUPPLY-02).
+  # body-parser 2.3.0 (express 5.2.1, range ^2.2.1): GHSA-27r3-jxmh-p828. Remove when express ships body-parser >= 2.4.0.
+  'body-parser@2.3.0': 2.4.0
+  # multer 2.4.0 (pinned exactly by @nestjs/platform-express 12.1.2 and 12.2.0): GHSA-q7qp-rjg7-q26m, fixed in 2.5.0.
+  # Remove when @nestjs/platform-express ships multer >= 2.5.0.
+  'multer@2.4.0': 2.5.0
+  # undici 8.11.2 (jsdom 30.1.1 and testcontainers 12.2.0, test-only, range ^8.10.2): GHSA-xjj6-f33q-929c,
+  # GHSA-4qv8-2p9j-2685, GHSA-f72v-6w45-q472, fixed in 8.12.2. Remove when both resolve undici >= 8.12.2 without this override.
+  'undici@8.11.2': 8.12.3
+  # zod 3.25.76 (@expo/cli 58.1.13, range ^3.25.76; Expo dev tooling only, schemas of dev-tools plugins and MCP, which use only
+  # basic z.object/enum/string/union/array calls): GHSA-mrhx-c7xc-m3w5 is fixed only in 4.6.6. Remove when @expo/cli uses zod >= 4.6.6.
+  'zod@3.25.76': 4.6.6
 patchedDependencies:
   busboy@1.6.0: patches/busboy@1.6.0.patch
   streamsearch@1.1.0: patches/streamsearch@1.1.0.patch
