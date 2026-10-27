@@ -95,13 +95,35 @@ Jako **pracownik biura albo technik z przeglądarką w telefonie** chcę **wysł
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Przyrost „API + skan” (tor T1, backend-developer); panel (zakładka „Media i dokumenty”, Uploader, makiety W-09) — osobny przyrost web-developera. Moduł `media` (nowy, ADR-0009), porty `ObjectStorage` i `MalwareScanner` w `platform`, migracja `0045_media`, kontrakt `paths/media.yaml` + `components/media*.yaml`, skan w workerze. Szczegóły i runbook: [wysylanie-zdjec-i-skan.md](../../ops/runbooks/wysylanie-zdjec-i-skan.md).
 
 ## Decyzje
-_—_
+Decyzje wykonawcze (orkiestrator — nocna kolejka 2026-10-27; do potwierdzenia przez Konrada przy demo):
+1. **Fail-closed konfiguracji:** brak wszystkich zmiennych mediów → `503 media_storage_unavailable`, `/api/health` zdrowy, worker bez skanu; konfiguracja częściowa → błąd startu z nazwami zmiennych. `compose.staging.yaml` nie jest zmieniany (polityka deploy-agenta odrzuca klucz `networks`, a zmienne `*_FILE` wymagają wpisu w `secrets.manifest.json` — zadanie T3/sesji IaC).
+2. **Klucz obiektu:** `media/{rok}/{miesiąc}/{id pliku}/original` (id rekordu pliku, domain-model ma pierwszeństwo przed `{assetId}`); prefiks zgłaszany w PR: `media/`. Brak przenoszenia do prefiksu kwarantanny w 044.
+3. **Kolejka skanu to tabela, nie komunikat:** API nie ma producenta kolejki, a wysłanie zadania nie jest w transakcji `complete`, więc komunikat mógłby zginąć po cichu (AC3). Pętla workera (co 5 s) bierze pliki `uploaded` i `scanning` nietknięte od 2 minut przez compare-and-set; ponowienie po 2 minutach jest backoffem; po 30 minutach ostrzeżenie z liczbą. Współbieżność: 1 (kolejno, 5 plików na przebieg). Odchylenie od „kolejki pg-boss `media.scan-file`” z konsultacji architekta; indeks częściowy `stored_files_unscanned_idx` jak zalecono.
+4. **Jeden przebieg po przypiętej wersji obiektu:** `GetObject` z `VersionId` i `If-Match` zasila jednocześnie SHA-256, liczbę bajtów, typ (pierwsze 4100 B, `file-type`) i `INSTREAM`; odczyt przerwany po przekroczeniu `declaredSize` (→ `checksum_mismatch`). **Pierwszeństwo wyników:** `malware_detected` (kwarantanna) > `checksum_mismatch` (`failed`) > `type_mismatch` (kwarantanna) > `clean`.
+5. **Skaner po TCP lub gnieździe:** `CLAMD_SOCKET` = `tcp://host:port` (staging: kontener w sieci `evia-scan`) albo `unix:///ścieżka`; odchylenie od „gniazda Unix” z ADR-0009 (kontenery nie dzielą gniazda). Odpowiedź `clamd` parsowana ściśle: tylko `stream: OK` to `clean`, `… FOUND` to zakażony, wszystko inne (w tym `INSTREAM size limit exceeded`) to wyjątek i ponowienie.
+6. **„Ponów” po `checksum_mismatch`:** nowa sesja wyłącznie dla pliku `failed` z przyczyną `checksum_mismatch` (CAS do `pending_upload`, ten sam klucz — nadpisanie zostawia poprzednią wersję w buckecie z wersjonowaniem); każdy inny stan po `complete` → `409 invalid_state_transition`.
+7. **Wznowienie po ponownym wyborze pliku (AC4):** `createUploadSession` dla medium z aktywną, niewygasłą sesją wołającego zwraca ją (`200`), zamiast tworzyć drugą; panel dopasuje plik do niedokończonej sesji po `(declaredSize, sha256)` (do potwierdzenia z `ux-designer` przy panelu). Cudza aktywna sesja → `409 id_conflict` bez szczegółów.
+8. **Kontrakt (addytywny):** `fileState` z pełnym enum ADR-0009 (klienci tolerują nieznane); odpowiedzi nigdy nie niosą klucza obiektu, identyfikatora uploadu S3, skrótu ani przyczyny kwarantanny (tylko `needsAttention`; `stateReasonCode` wyłącznie `checksum_mismatch`); nazwa pliku i sesja tylko w liście `uploadState=unfinished`; lista z kursorem i jednym zapytaniem; cudza sesja → `404` (media-pipeline §2 poprawione z `403`).
+9. **Zdarzenia:** `media` nie importuje `timeline` ani `audit` — `timeline` zapisuje jeden wpis `media_assets_added` na partię (liczba i identyfikatory, ≤ 50; poza grupą „Zmiany statusów”), `audit` — `media_asset.created` per medium i `media_file.quarantined` (aktor systemowy) w transakcji.
+10. **S3:** Scaleway — adresowanie virtual-hosted (`forcePathStyle=false`), żeby CSP przypinał host bucketu; path-style tylko dla SeaweedFS w testach; `requestChecksumCalculation: 'WHEN_REQUIRED'`; TTL URL-a ≤ 3600 s (wyższy odrzucany w kodzie); logger SDK wyłączony.
+11. **Zależności (SR-SUPPLY-06):** `@aws-sdk/client-s3` i `@aws-sdk/s3-request-presigner` **3.1157.0** (Apache-2.0; 3.1158.0 z 2026-10-27 18:46 UTC młodsza niż 24 h), `file-type` **22.2.0** (MIT, 2026-10-14), devDependency `testcontainers` 12.2.0 (już w drzewie przez `@testcontainers/postgresql`). Reguła depcruise `api-aws-sdk-only-in-storage-adapters`.
+
+Ryzyka rezydualne (do akceptacji Konrada; numery RR nadaje security-engineer — nie wpisano do `threat-model.md`):
+- **RR-NOC-T1-1 (Średnie):** jeden zestaw zmiennych S3 dla API i workera; SR-INFRA-03 wymaga osobnych kluczy (API — podpisy, worker — odczyt). Kod nie wymaga zmian; T3 wydaje dwa klucze o tych samych nazwach zmiennych.
+- **RR-NOC-T1-2 (Niskie):** `file-type` w procesie workera poza piaskownicą SR-FILE-06 do EVM-068 (wywołanie tylko na pierwszych 4100 bajtach).
+- **RR-NOC-T1-3 (Średnie, P5):** `clamd` w `compose.infra.yaml` na konfiguracji domyślnej (limity 25M, bez `AlertExceedsMax`); dla zdjęć ≤ 50 MB bezpieczne dzięki ścisłemu parserowi odpowiedzi (nigdy `clean`), ale pliki zostają w `scanning` — wymagane `StreamMaxLength`/`MaxFileSize`/`MaxScanSize` ≥ 64M i `AlertExceedsMax yes` (T3); test z prawdziwym ClamAV używa tych ustawień. Dla filmów (EVM-046) — blokada.
+- **RR-NOC-T1-4 (Niskie):** kwarantanna bez 30-dniowego lifecycle do EVM-049.
+- **RR-NOC-T1-5 (Niskie):** wymuszanie podpisanego `Content-Length` (403) niezweryfikowane na Scaleway — sprawdzić na demo po IaC.
+- **RR-NOC-T1-6 (Niskie):** `clamd` po TCP przyjmuje komendy administracyjne bez uwierzytelnienia; sieć `evia-scan` jest `internal` i ma tylko API oraz worker.
+
+Dla T3 (poza zakresem T1): dołączenie API i workera do `evia-scan` (zmiana polityki V4 deploy-agenta), sekrety S3 w manifeście, bucket `evia-staging-media` (wersjonowanie, SSE, CORS `PUT` z originu panelu z `ExposeHeaders: ETag`, lifecycle: multipart 7 dni, stare wersje 30 dni), limity `clamd`.
 
 ## Uwagi do rozważenia
-_—_
+- Panel (W-09, W-09 compact), CSP `connect-src` z `MEDIA_BUCKET_ORIGIN` w `apps/web/security-headers.ts`, SHA-256 w Web Workerze i testy Playwright (atrapa PUT przez `page.route`) — nie wykonane w tym przyrost (patrz dziennik); AC1 (część panelowa), AC4 i AC8 wymagają go do zamknięcia historyjki.
+- Brak zapisu `X-Amz-*` i nazw plików w logach potwierdzony testem; test sieci i `Cache-Control: no-store` odpowiedzi z URL-em — w teście integracyjnym.
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-044 AC#`)
@@ -120,3 +142,4 @@ _—_
 - 2026-10-27 — start realizacji (nocna kolejka, tor T1), gałąź feature/EVM-044-049-media-upload-kwarantanna
 - 2026-10-27 — plan gotowy (backend-developer)
 - 2026-10-27 — T1 commit 1 (backend-developer): zależności `@aws-sdk/client-s3` i `@aws-sdk/s3-request-presigner` 3.1157.0 (najnowsza stabilna starsza niż 24 h na 2026-10-27; 3.1158.0 z 2026-10-27 18:46 UTC jest zbyt świeża), `file-type` 22.2.0 (MIT, 2026-10-14); T2 używa tej samej wersji SDK według tej reguły; reguła depcruise `api-aws-sdk-only-in-storage-adapters` (`@aws-sdk/*` tylko z `apps/api/src/platform/(object-storage|deletion-register)/`); konfiguracja mediów „wszystko albo nic”
+- 2026-10-27 — implementacja API i skanu (backend-developer, tor T1): migracja `0045_media`, moduł `media`, porty `ObjectStorage` i `MalwareScanner`, kontrakt (7 operacji), skan workera, zdarzenia dziennika i audytu, testy jednostkowe i integracyjne (atrapy; ClamAV i SeaweedFS przez Testcontainers — CI i host z Dockerem); panel web i CSP — poza tym przyrostem (patrz „Uwagi do rozważenia”); decyzje i RR-NOC-T1-1…6 w „Decyzjach”
