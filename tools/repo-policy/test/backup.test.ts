@@ -40,7 +40,7 @@ describe('pgBackRest configuration (EVM-084 AC1; security-engineer P8, architect
       expect(compose).toMatch(/postgres-pgbackrest[^\n]*@sha256:[0-9a-f]{64}/);
       expect(compose).toContain('archive_command');
     }
-    for (const value of Object.values(images)) expect(text(value)).not.toMatch(/sha256:0{64}|sha256:(?:[0-9a-f])\1{63}/);
+    for (const value of Object.values(images)) expect(text(value)).not.toMatch(/sha256:0{64}|sha256:([0-9a-f])\1{63}/);
   });
 
   it('EVM-084 AC1: violations — a plain repository, a short retention, a long archive_timeout, a secret in the file, TLS off, another region', () => {
