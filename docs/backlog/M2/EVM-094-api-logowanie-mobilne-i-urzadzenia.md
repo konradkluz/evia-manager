@@ -4,7 +4,7 @@ title: "API: logowanie mobilne i rejestr urządzeń"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-progress
+status: in-review
 priority: P0
 path: pelna             # uwierzytelnianie, urządzenia, uprawnienia
 owner: backend-developer
@@ -92,3 +92,4 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - 2026-10-28 — plan gotowy (backend-developer)
 - 2026-10-28 — implementacja gotowa lokalnie: sześć operacji kanału mobile z trasami, migracje 0050–0052, testy AC1–AC8; bramka lokalna zielona; do potwierdzenia: korekta AC3 (kolejność), rotacja dwufazowa, baseline kontraktu przesunięty pod ADR-0021 (backend-developer)
 - 2026-10-28 — poprawki, runda 1: audyt odświeżeń `session.refreshed`, aneks ADR-0021 o słowniku audytu i baseline, AC3 bez zmian do decyzji Konrada (backend-developer)
+- 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,9% linii / 95,6% gałęzi, przeglądy zatwierdzone po 3 rundach. Warunek merge: Konrad potwierdza odstępstwo AC3/AC2 (kolejność: kod TOTP przed rola×kanał i limitem urządzeń), dwufazową rotację sekretu i aneks ADR-0021; po potwierdzeniu Tech Lead poprawia tekst AC3/AC2. web-e2e-linux przerwany limitem czasu (664 scenariusze zielone, 0 błędów) — do powtórzenia przy CI.
