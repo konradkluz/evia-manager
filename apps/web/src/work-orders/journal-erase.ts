@@ -17,7 +17,7 @@ import { WORK_ORDER_JOURNAL_KEY } from './query-keys.ts';
 /** Why a delete, a restore or a redaction of an entry did not go through (EVM-040 AC3, AC5, AC6, AC7); the answers carry no values. */
 export type EraseFailure =
   | {
-      readonly kind: 'conflict' | 'gone' | 'event' | 'alreadyRedacted' | 'registerDown' | 'notConfirmed' | 'forbidden' | 'network';
+      readonly kind: 'conflict' | 'gone' | 'event' | 'alreadyRedacted' | 'registerDown' | 'busy' | 'notConfirmed' | 'forbidden' | 'network';
     }
   | { readonly kind: 'server'; readonly code: string };
 
@@ -30,6 +30,7 @@ export function describeEraseFailure(error: unknown): EraseFailure {
   if (error.status === 409 && error.code === 'entry_is_event') return { kind: 'event' };
   if (error.status === 409 && error.code === 'already_redacted') return { kind: 'alreadyRedacted' };
   if (error.status === 503 && error.code === 'deletion_register_unavailable') return { kind: 'registerDown' };
+  if (error.status === 503 && error.code === 'service_unavailable') return { kind: 'busy' };
   return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
 }
 
@@ -48,6 +49,8 @@ export function eraseFailureText(t: TFunction, failure: EraseFailure): string {
       return t('workOrder.journal.erase.failure.alreadyRedacted');
     case 'registerDown':
       return t('workOrder.journal.erase.failure.registerDown');
+    case 'busy':
+      return t('workOrder.journal.erase.failure.busy');
     case 'notConfirmed':
       return t('workOrder.journal.erase.failure.notConfirmed');
     case 'forbidden':

@@ -46,7 +46,7 @@ export function JournalRedactDialog({
     },
     onError: (error) => {
       const failed = describeEraseFailure(error);
-      if (failed.kind === 'conflict' || failed.kind === 'gone' || failed.kind === 'alreadyRedacted') {
+      if (failed.kind === 'conflict' || failed.kind === 'gone' || failed.kind === 'alreadyRedacted' || failed.kind === 'busy') {
         void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
       }
       setFailure(failed);

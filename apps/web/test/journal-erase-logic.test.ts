@@ -25,6 +25,11 @@ describe('mapping of the failures of delete, restore and redact (EVM-040 AC3, AC
     ],
     ['EVM-040 AC7 a 502 is a server failure too', new ApiError(502, undefined), 'server'],
     ['EVM-040 AC3 a 503 with another code is a server failure', new ApiError(503, { code: 'unavailable' }), 'server'],
+    [
+      'EVM-040 AC3 503 service_unavailable (the lock of the entry ran out) is busy: retry later',
+      new ApiError(503, { code: 'service_unavailable' }),
+      'busy',
+    ],
   ];
   for (const [name, error, kind] of cases) {
     it(name, () => {
@@ -36,7 +41,17 @@ describe('mapping of the failures of delete, restore and redact (EVM-040 AC3, AC
     expect(describeEraseFailure(new ApiError(409, { code: 'other', traceId: 'abcdefghij' }))).toEqual({ kind: 'server', code: 'abcdefgh' });
     expect(describeEraseFailure(new ApiError(409, { code: 'other' }))).toEqual({ kind: 'server', code: 'other' });
     const t = ((key: string) => key) as never;
-    for (const kind of ['conflict', 'gone', 'event', 'alreadyRedacted', 'registerDown', 'notConfirmed', 'forbidden', 'network'] as const) {
+    for (const kind of [
+      'conflict',
+      'gone',
+      'event',
+      'alreadyRedacted',
+      'registerDown',
+      'busy',
+      'notConfirmed',
+      'forbidden',
+      'network',
+    ] as const) {
       expect(eraseFailureText(t, { kind })).toBe(`workOrder.journal.erase.failure.${kind}`);
     }
     expect(eraseFailureText(t, { kind: 'server', code: 'c' })).toBe('workOrder.journal.erase.failure.server');

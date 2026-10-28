@@ -1519,6 +1519,7 @@ export const pl = {
           event: 'Zmian wprowadzonych automatycznie nie można usunąć ani zredagować.',
           alreadyRedacted: 'Treść wpisu jest już zredagowana.',
           registerDown: 'Nie udało się zredagować treści. Spróbuj ponownie później.',
+          busy: 'Wpis jest właśnie przetwarzany. Odśwież dziennik i spróbuj ponownie za chwilę.',
           notConfirmed: 'Nie wykonano operacji.',
           forbidden: 'Tę operację może wykonać tylko administrator.',
           network: 'Nie udało się wykonać operacji. Sprawdź połączenie i spróbuj ponownie.',

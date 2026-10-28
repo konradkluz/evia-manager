@@ -28,7 +28,7 @@ export function useJournalErase(workOrderId: string) {
   );
   const fail = (error: unknown) => {
     const failed = describeEraseFailure(error);
-    if (failed.kind === 'conflict' || failed.kind === 'gone') void refresh();
+    if (failed.kind === 'conflict' || failed.kind === 'gone' || failed.kind === 'busy') void refresh();
     setFailure(failed);
   };
 
