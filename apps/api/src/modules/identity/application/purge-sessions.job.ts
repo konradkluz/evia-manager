@@ -14,8 +14,13 @@ import type { Database } from '../../../platform/database/database.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import { JobFailure, type JobCounts, type JobDefinition, type JobSchedule } from '../../../platform/jobs/index.ts';
 import type { Logger } from '../../../platform/logging/logger.ts';
-import { CLOCK, DATABASE, LOGGER } from '../../../platform/tokens.ts';
-import { SESSION_RETENTION_MS } from '../domain/constants.ts';
+import type { EventBus } from '../../../platform/events/event-bus.ts';
+import { newTraceId } from '../../../platform/http/request-context.ts';
+import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
+import { ACCESS_TOKEN_RETENTION_MS, DEVICE_INACTIVE_MS, SESSION_RETENTION_MS } from '../domain/constants.ts';
+import type { IdentityEvent } from '../events.ts';
+import { revokeSessionsOfInactiveDevices } from '../infrastructure/device-queries.ts';
+import { deleteAccessTokensExpiredBefore } from '../infrastructure/mobile-token-queries.ts';
 import { deleteSessionsEndedBefore } from '../infrastructure/account-queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 
@@ -29,11 +34,18 @@ export class PurgeSessionsJob {
   readonly #db: Kysely<Database>;
   readonly #clock: Clock;
   readonly #logger: Logger;
+  readonly #events: EventBus;
 
-  constructor(@Inject(DATABASE) db: Kysely<Database>, @Inject(CLOCK) clock: Clock, @Inject(LOGGER) logger: Logger) {
+  constructor(
+    @Inject(DATABASE) db: Kysely<Database>,
+    @Inject(CLOCK) clock: Clock,
+    @Inject(LOGGER) logger: Logger,
+    @Inject(EVENT_BUS) events: EventBus,
+  ) {
     this.#db = db;
     this.#clock = clock;
     this.#logger = logger;
+    this.#events = events;
   }
 
   definition(): JobDefinition {
@@ -42,8 +54,26 @@ export class PurgeSessionsJob {
 
   async run(): Promise<JobCounts> {
     try {
-      const cutoff = new Date(this.#clock.now().getTime() - SESSION_RETENTION_MS);
-      const sessions = await runInTransaction(this.#db, (transaction) => deleteSessionsEndedBefore(identityTables(transaction), cutoff));
+      const now = this.#clock.now();
+      const cutoff = new Date(now.getTime() - SESSION_RETENTION_MS);
+      const sessions = await runInTransaction(this.#db, async (transaction) => {
+        const db = identityTables(transaction);
+        // A phone with no contact for 30 days loses its sessions (P2); the expired access tokens go a day after they ran out.
+        const inactive = await revokeSessionsOfInactiveDevices(db, new Date(now.getTime() - DEVICE_INACTIVE_MS), now);
+        for (const { id, userId } of inactive) {
+          const event: IdentityEvent = {
+            type: 'session.revoked',
+            actor: { type: 'user', userId },
+            outcome: 'success',
+            reasonCode: 'device_inactive',
+            objectType: 'session',
+            objectId: id,
+          };
+          await this.#events.publish(transaction, event, { origin: 'cli', traceId: newTraceId(), sessionId: id });
+        }
+        await deleteAccessTokensExpiredBefore(db, new Date(now.getTime() - ACCESS_TOKEN_RETENTION_MS));
+        return deleteSessionsEndedBefore(db, cutoff);
+      });
       this.#logger.info({ job: PURGE_SESSIONS_JOB, sessions }, 'sessions purge: done');
       return { sessions };
     } catch (error) {

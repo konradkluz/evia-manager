@@ -45,6 +45,7 @@ export const AUDIT_OBJECT_TYPES = [
   'user',
   'session',
   'passkey',
+  'device',
   'audit',
   'work_order',
   'scope_item',

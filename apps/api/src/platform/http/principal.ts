@@ -29,6 +29,8 @@ export interface Principal {
   readonly lastSeenAt: Date;
   readonly idleExpiresAt: Date;
   readonly absoluteExpiresAt: Date;
+  /** The device of a mobile session (EVM-094) — always from the session, never from the request; absent for the panel. */
+  readonly deviceId?: string;
 }
 
 /**
@@ -39,10 +41,13 @@ export interface Principal {
  */
 export type Authentication =
   | { readonly principal: Principal; readonly touch?: () => Promise<void> }
-  | { readonly principal: null; readonly reason: 'anonymous' | 'revoked' | 'expired' };
+  | { readonly principal: null; readonly reason: 'anonymous' | 'revoked' | 'expired' | 'wipe_required' };
 
 export interface SessionResolver {
+  /** The session of the cookie of the panel (the web channel). */
   resolve(request: Request): Promise<Authentication>;
+  /** The session of the `Authorization: Bearer` token (the mobile channel, EVM-094); a separate credential: an operation of one channel never sees the other's. */
+  resolveBearer?(request: Request): Promise<Authentication>;
 }
 
 export const SESSION_RESOLVER = Symbol('SESSION_RESOLVER');
@@ -50,24 +55,35 @@ export const SESSION_RESOLVER = Symbol('SESSION_RESOLVER');
 export const ANONYMOUS: Authentication = { principal: null, reason: 'anonymous' };
 
 const resolved = new WeakMap<Request, Authentication>();
+const resolvedBearer = new WeakMap<Request, Authentication>();
 
 /** @returns the authentication of the request; a request that never went through the middleware is anonymous */
 export const authenticationOf = (request: Request): Authentication => resolved.get(request) ?? ANONYMOUS;
 
 export const principalOf = (request: Request): Principal | null => authenticationOf(request).principal;
 
+/** The session of the Bearer token of the request (the mobile channel); handlers of mobile operations read it, handlers of the panel never do. */
+export const bearerAuthenticationOf = (request: Request): Authentication => resolvedBearer.get(request) ?? ANONYMOUS;
+export const bearerPrincipalOf = (request: Request): Principal | null => bearerAuthenticationOf(request).principal;
+
 export function resolveAuthentication(resolver: SessionResolver, logger: Logger): RequestHandler {
   return (request: Request, _response: Response, next: NextFunction): void => {
-    resolver.resolve(request).then(
-      (authentication) => {
-        resolved.set(request, authentication);
-        next();
-      },
-      (error: unknown) => {
-        logger.warn({ err: error }, 'session lookup failed; the request continues without a principal');
-        resolved.set(request, ANONYMOUS);
-        next();
-      },
-    );
+    // Both credentials are resolved on their own and fail closed on their own; which one counts is decided by the channel of the operation (the guard).
+    const settle = (lookup: Promise<Authentication>, store: WeakMap<Request, Authentication>): Promise<void> =>
+      lookup.then(
+        (authentication) => {
+          store.set(request, authentication);
+        },
+        (error: unknown) => {
+          logger.warn({ err: error }, 'session lookup failed; the request continues without a principal');
+          store.set(request, ANONYMOUS);
+        },
+      );
+    void Promise.all([
+      settle(resolver.resolve(request), resolved),
+      settle(resolver.resolveBearer?.(request) ?? Promise.resolve(ANONYMOUS), resolvedBearer),
+    ]).then(() => {
+      next();
+    });
   };
 }

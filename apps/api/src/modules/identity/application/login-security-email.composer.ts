@@ -4,6 +4,7 @@
  *
  * - `account_locked` (variant `password` | `second_step` | `browser_password` | `browser_second_step`): e-mail 3 — the sign-in was locked for 15 minutes; the
  *   variant says which browsers (the unknown ones, or one the account knows) and whether a new password lifts the lock. The link leads to the form "Zresetuj hasło" and carries NO token;
+ * - `new_device`: e-mail 7 for the phone (EVM-094) — the model and the system of the device registered at that moment (read from its row here; nothing of it is in the outbox), and the time;
  * - `new_browser`: e-mail 7 — a full sign-in from a browser the account did not know (the time only: no IP, no place, no device is stored);
  * - `session_limit`: e-mail 8 (EVM-028 AC6) — the sixth sign-in ended the oldest session. The outbox row holds nothing but the moment; the two sessions are read
  *   from their rows here (the one revoked at that moment with the reason `session_limit`, the one that began at it), and described by the closed dictionary of
@@ -21,14 +22,15 @@ import type { ComposedEmail, EmailComposer } from '../../../platform/email/email
 import { EmailPermanentError } from '../../../platform/email/email-errors.ts';
 import type { EmailKind, OutboxMessage } from '../../../platform/email/email-outbox.ts';
 import { APP_CONFIG } from '../../../platform/tokens.ts';
-import { accountLockedText, isLockVariant, newBrowserText, sessionLimitText } from '../domain/email-templates.ts';
+import { accountLockedText, isLockVariant, newBrowserText, newDeviceText, sessionLimitText } from '../domain/email-templates.ts';
 import { describeUserAgent } from '../domain/user-agent.ts';
+import { findDeviceCreatedAt } from '../infrastructure/device-queries.ts';
 import { findSessionEndedByLimit, findSessionStartedAt } from '../infrastructure/account-queries.ts';
 import { THROTTLE_LOCK_MS } from '../domain/throttle-policy.ts';
 import { findUserById } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 
-const KINDS: readonly EmailKind[] = ['account_locked', 'new_browser', 'session_limit'];
+const KINDS: readonly EmailKind[] = ['account_locked', 'new_browser', 'session_limit', 'new_device'];
 
 @Injectable()
 export class LoginSecurityEmailComposer implements EmailComposer {
@@ -58,6 +60,17 @@ export class LoginSecurityEmailComposer implements EmailComposer {
         panelOrigin: this.#panelOrigin,
         ended: { ...describeUserAgent(ended.userAgent), lastSeenAt: ended.lastSeenAt },
         signedIn: { ...describeUserAgent(started?.userAgent), at: message.createdAt },
+      });
+      return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
+    }
+    if (message.kind === 'new_device') {
+      const device = await findDeviceCreatedAt(identityTables(tx), user.id, message.createdAt);
+      if (device === undefined) return { status: 'obsolete' };
+      const { subject, text } = newDeviceText({
+        panelOrigin: this.#panelOrigin,
+        signedInAt: message.createdAt,
+        model: device.model,
+        osVersion: device.osVersion,
       });
       return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
     }

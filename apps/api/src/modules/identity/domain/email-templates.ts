@@ -97,6 +97,9 @@ export const ALERT_VARIANTS = [
   'administrator_new_browser',
   // EVM-028 (alert 9): a method of the second step of an Administrator's account was added or removed, or new recovery codes were made.
   'administrator_second_step_changed',
+  // EVM-094: an Administrator signed in from a phone the account did not know / a used refresh credential came back (a session of a phone was ended).
+  'administrator_new_device',
+  'administrator_refresh_reuse',
 ] as const;
 export type AlertVariant = (typeof ALERT_VARIANTS)[number];
 
@@ -111,6 +114,17 @@ const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readon
     kind: 'logowanie z nowej przeglądarki',
     sentence: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
     lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
+  administrator_new_device: {
+    kind: 'logowanie z nowego urządzenia mobilnego',
+    sentence: 'zalogowano się do konta Administratora z telefonu, którego to konto wcześniej nie używało.',
+    lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
+  administrator_refresh_reuse: {
+    kind: 'ponowne użycie poświadczenia odświeżania',
+    sentence:
+      'ponownie użyto zużytego poświadczenia odświeżania sesji telefonu — sesja tego urządzenia została zakończona, a urządzenie wymaga ponownego logowania.',
+    lead: 'zdarzenie dotyczące bezpieczeństwa sesji mobilnej',
   },
   administrator_second_step_changed: {
     kind: 'zmiana drugiego kroku',
@@ -435,6 +449,35 @@ export function newBrowserText(input: NewBrowserTextInput): EmailText {
       '',
       `${formatWarsaw(input.signedInAt)} zalogowano się do Twojego konta w EVia Manager z przeglądarki,`,
       'której to konto wcześniej nie używało.',
+      '',
+      'Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło',
+      'i powiadom administratora:',
+      `${input.panelOrigin}${RESET_FORM_PATH}`,
+      '',
+      footer(input.panelOrigin),
+      '',
+    ].join('\n'),
+  };
+}
+
+export interface NewDeviceTextInput {
+  readonly panelOrigin: string;
+  readonly signedInAt: Date;
+  /** The model and the version of Android as the contract admits them (letters, digits and a few signs — no control characters); never an IMEI, an address or a place. */
+  readonly model: string;
+  readonly osVersion: string;
+}
+
+/** E-mail 7 for the phone (a sign-in from a device the account did not know; SR-AUTH-15): the model, the system and the time — no IP, no token, no identifier of the device. */
+export function newDeviceText(input: NewDeviceTextInput): EmailText {
+  return {
+    subject: 'EVia Manager: logowanie z nowego urządzenia',
+    text: [
+      'Dzień dobry,',
+      '',
+      `${formatWarsaw(input.signedInAt)} zalogowano się do Twojego konta w aplikacji EVia Manager na urządzeniu,`,
+      'którego to konto wcześniej nie używało:',
+      `${input.model}, Android ${input.osVersion}.`,
       '',
       'Jeśli to Ty, nic nie musisz robić. Jeśli to nie Ty, od razu ustaw nowe hasło',
       'i powiadom administratora:',

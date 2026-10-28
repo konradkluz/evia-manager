@@ -150,6 +150,9 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       'mfa.totp_removed',
       'reauthentication.succeeded',
       'reauthentication.failed',
+      'device.registered', // EVM-094
+      'device.recognized',
+      'device.wipe_confirmed',
     ]);
     for (const code of REASON_CODES) expect(code).toMatch(/^[a-z_]+$/);
   });

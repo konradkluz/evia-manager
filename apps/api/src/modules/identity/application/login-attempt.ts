@@ -15,6 +15,7 @@
  * 3. the method verifies exactly once and settles the try: `fail` or `pass`.
  */
 import { Inject, Injectable } from '@nestjs/common';
+import type { Channel } from '@evia/contracts';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
@@ -75,9 +76,16 @@ export class LoginAttemptGate {
     if (delay > 0) await this.#sleeper.sleep(delay);
   }
 
-  async open(transaction: Kysely<Database>, loginToken: string, now: Date, context: EventContext): Promise<OpenedAttempt> {
+  async open(
+    transaction: Kysely<Database>,
+    loginToken: string,
+    now: Date,
+    context: EventContext,
+    channel: Channel = 'web',
+  ): Promise<OpenedAttempt> {
     const attempt = await findLoginAttempt(identityTables(transaction), hashToken(loginToken));
-    if (attempt === undefined) return { refusal: 'unauthenticated' };
+    // A first step of the other channel is no first step here (EVM-094): the token of the phone does not open a session of the panel, nor the reverse.
+    if (attempt === undefined || attempt.channel !== channel) return { refusal: 'unauthenticated' };
     const scope = await this.#scopeOf(transaction, attempt);
     // The lock is decided BEFORE the state of the token: the token that the lock itself ended gets the same 429 as any other try during the lock.
     const reservation = await this.#throttle.reserve(transaction, scope, now);

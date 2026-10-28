@@ -48,6 +48,10 @@ export const IDENTITY_EVENT_TYPES = [
   'mfa.totp_removed',
   'reauthentication.succeeded',
   'reauthentication.failed',
+  // EVM-094: a phone was registered / recognised by the previous installation secret / confirmed the wipe. The object is the device; never a secret, a token or a model.
+  'device.registered',
+  'device.recognized',
+  'device.wipe_confirmed',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -94,6 +98,16 @@ export const REASON_CODES = [
   'session_limit',
   'ended_by_user',
   'rate_limited',
+  // EVM-094: why a mobile session ended (a used refresh token came back, 30 days without contact) and why a mobile sign-in was refused or a device registered as new.
+  'refresh_reuse',
+  'device_inactive',
+  'secret_mismatch',
+  'previous_secret',
+  'channel_not_allowed',
+  'device_limit_reached',
+  'device_wipe_required',
+  'totp_not_configured',
+  'mfa_enrollment_required',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];
@@ -117,7 +131,7 @@ export interface IdentityEvent extends DomainEvent {
   /** The role before and after a change (`user.role_changed` only; both together, EVM-027) — codes of the closed list of roles. */
   readonly fromCode?: string;
   readonly toCode?: string;
-  readonly objectType: 'user' | 'session' | 'passkey';
+  readonly objectType: 'user' | 'session' | 'passkey' | 'device';
   /** Absent when the event has no object to point at (a sign-in with an unknown e-mail address). */
   readonly objectId?: string;
 }

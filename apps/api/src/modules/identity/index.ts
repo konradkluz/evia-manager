@@ -1,6 +1,8 @@
 /** Public API of the `identity` module (other modules reach it only through this file — ADR-0001). */
 export { IdentityModule } from './identity.module.ts';
 export { SessionService } from './application/session.service.ts';
+export { MobileSessionService } from './application/mobile-session.service.ts';
+export { atLeast, readClientVersion } from './domain/client-version.ts';
 export { InvitationEmailComposer } from './application/invitation-email.composer.ts';
 export { LoginSecurityEmailComposer } from './application/login-security-email.composer.ts';
 export { MfaEmailComposer } from './application/mfa-email.composer.ts';

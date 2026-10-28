@@ -174,6 +174,10 @@ describe('the texts of EVM-027 (docs/ux/flows/e-maile.md nr 5 and 9; SR-INPUT-07
       // EVM-028 (alert 9): a method of the second step added or removed, new recovery codes
       administrator_second_step_changed:
         'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
+      // EVM-094: a phone the account did not know / a used refresh credential came back
+      administrator_new_device: 'zalogowano się do konta Administratora z telefonu, którego to konto wcześniej nie używało.',
+      administrator_refresh_reuse:
+        'ponownie użyto zużytego poświadczenia odświeżania sesji telefonu — sesja tego urządzenia została zakończona, a urządzenie wymaga ponownego logowania.',
     } as const;
     expect(Object.keys(sentences).sort()).toEqual([...ALERT_VARIANTS].sort());
     for (const variant of ALERT_VARIANTS) {
