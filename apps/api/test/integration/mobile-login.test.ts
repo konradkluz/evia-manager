@@ -620,6 +620,19 @@ describe('guessing and the notice of a new device (EVM-094 AC5; SR-AUTH-05, SR-A
   });
 });
 
+describe('the description of the device is a closed alphabet (EVM-094 AC1, QA round 2; MASVS-PRIVACY-1)', () => {
+  it('EVM-094 AC1 a model with Polish letters, control characters or markup is 400 on the pointer only — the value is not repeated and no device is written', async () => {
+    const account = await totpAccount(current);
+    for (const model of ['Zażółć gęślą jaźń', 'Pixel\n8', '<b>Pixel</b>', 'Ł'.repeat(1000)]) {
+      const refused = await newPhone(current).firstStep(account, { device: { ...DEVICE, model } });
+      expect(refused.status).toBe(400);
+      expect(JSON.stringify(refused.body)).not.toContain('Zażółć');
+      expect(JSON.stringify(refused.body)).not.toContain('<b>');
+    }
+    expect(await devicesOf(current, account.user.id)).toHaveLength(0);
+  });
+});
+
 describe('the version of the app (EVM-094 AC6; SR-API-08)', () => {
   it('EVM-094 AC6 an old app gets 426 with the minimum version BEFORE the limits and the hashing of the password; a missing or forged header is 426 too', async () => {
     const account = await totpAccount(current);
