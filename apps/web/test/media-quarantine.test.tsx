@@ -5,6 +5,7 @@ import { resetStepUp } from '../src/session/step-up.ts';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, problem, type Handler } from './api-fake.ts';
 import { MEDIA_BASE, asset, mediaApi, type MediaServerOptions } from './media-api.ts';
+import { MEDIA_POLL_MS } from '../src/work-orders/use-media.ts';
 import { renderPanel } from './render.tsx';
 import { userEvent } from './user.ts';
 import { ORDER_ID } from './work-order-api.ts';
@@ -156,6 +157,44 @@ describe('EVM-049 AC3 AC8 "Skanuj ponownie"', () => {
       expect(api.calls(LIST).length).toBeGreaterThan(before);
     });
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('EVM-049 AC3 a file held and scanned again shows "Sprawdzanie pliku" and "Trwa ponowne skanowanie" with no button for the Administrator', async () => {
+    await openMedia({ assets: [held({ fileState: 'scanning', needsAttention: false })] });
+    expect(await screen.findByText('Sprawdzanie pliku')).toBeTruthy();
+    expect(screen.getByText('Trwa ponowne skanowanie')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Skanuj ponownie/ })).toBeNull();
+    expect(screen.queryByText('Wymaga uwagi')).toBeNull();
+  });
+
+  it('EVM-049 AC3 a file held and uploaded (not yet scanned) offers no rescan either', async () => {
+    await openMedia({ assets: [held({ fileState: 'uploaded' })] });
+    expect(await screen.findByText('Sprawdzanie pliku')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Skanuj ponownie/ })).toBeNull();
+  });
+
+  it('EVM-049 AC3 an accepted rescan confirms with a status and the list shows the file being scanned again', async () => {
+    const api = await openMedia({ assets: [held()], rescan: accepted });
+    api.set(LIST, () =>
+      json(200, { items: [held({ fileState: 'scanning', needsAttention: false })], nextCursor: null, needsAttentionCount: 0 }),
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /^Skanuj ponownie/ }));
+    const text = await screen.findByText('Plik jest skanowany ponownie');
+    expect(text.closest('[role="status"]')).not.toBeNull();
+    expect(await screen.findByText('Sprawdzanie pliku')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Skanuj ponownie/ })).toBeNull();
+  });
+
+  it('EVM-049 AC3 the list is read again while a file held is scanned', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const api = await openMedia({ assets: [held({ fileState: 'scanning', needsAttention: false })] });
+      const before = api.calls(LIST).length;
+      await vi.advanceTimersByTimeAsync(MEDIA_POLL_MS + 100);
+      expect(api.calls(LIST).length).toBeGreaterThan(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('EVM-049 AC3 409 invalid_state_transition says the state changed and reads the list again', async () => {

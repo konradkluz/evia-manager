@@ -211,7 +211,9 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
     if (entry.quarantine !== 'held') return problem(409, 'invalid_state_transition');
     // The scan is quick in the synthetic server and the file stays held (a positive verdict); W-04 is covered by the component tests.
     server.rescans += 1;
-    return json(202, { ...shown(entry, false, input.role), fileState: 'scanning', needsAttention: false, quarantine: null }, {});
+    // The file stays held while it is scanned again; the next reads of the list say `scanning` (EVM-049 AC3).
+    entry.state = 'scanning';
+    return json(202, { ...shown(entry, false, input.role), needsAttention: false }, {});
   }
   if (!writes) return problem(403, 'forbidden');
   if (sessionId === undefined) {

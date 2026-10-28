@@ -41,6 +41,10 @@ test.describe('quarantine of files (EVM-049)', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]?.headers['x-csrf-token']).toBe('csrf-active');
     expect(sent[0]?.headers['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/);
+    // the list after 202 says `scanning`: "Sprawdzanie pliku", the confirmation and no second click
+    await expect(page.getByRole('status').filter({ hasText: 'Plik jest skanowany ponownie' })).toBeVisible();
+    await expect(page.getByText('Sprawdzanie pliku')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Skanuj ponownie/ })).toHaveCount(0);
   });
 
   test('EVM-049 AC1 AC8 Edytor sees the plain text with no reason and no action', async ({ page, api }) => {

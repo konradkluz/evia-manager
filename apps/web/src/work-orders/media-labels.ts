@@ -153,6 +153,8 @@ export const mediaText = {
   purged: 'Plik usunięty po 30 dniach kwarantanny',
   purgedDetail: 'Plik został usunięty z magazynu. Nie można go odzyskać.',
   rescan: 'Skanuj ponownie',
+  rescanStarted: 'Plik jest skanowany ponownie',
+  rescanning: 'Trwa ponowne skanowanie',
   rescanFile: (label: string) => `Skanuj ponownie: ${label}`,
   rescanStepUp: 'Potwierdź tożsamość, aby ponownie przeskanować plik',
   rescanStateChanged: 'Stan pliku się zmienił — odświeżyliśmy listę. Ponowny skan nie jest teraz możliwy.',

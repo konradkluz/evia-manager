@@ -23,6 +23,10 @@ import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQueueItemState; label: string; detail?: string } {
   // The quarantine of EVM-049: a file held ("Wymaga uwagi") or removed after 30 days; the reason only when the server sent it (Administrator).
   if (asset.quarantine?.state === 'purged') return { state: 'queued', label: mediaText.purged, detail: mediaText.purgedDetail };
+  // A file held and scanned again is being checked, not "Wymaga uwagi" (the reason of the earlier verdict is no longer current).
+  if (asset.quarantine?.state === 'held' && (asset.fileState === 'scanning' || asset.fileState === 'uploaded')) {
+    return { state: 'checking', label: mediaText.checking, detail: administrator ? mediaText.rescanning : mediaText.checkingDetail };
+  }
   if (asset.quarantine?.state === 'held' && administrator) {
     const reason = quarantineReasonLabel(asset.quarantineReasonCode);
     return {
@@ -136,6 +140,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
         </div>
       ) : null}
       {rescan.failure === null ? null : <InlineAlert tone="error">{rescan.failure}</InlineAlert>}
+      {rescan.started && rescan.failure === null ? <InlineAlert tone="success">{mediaText.rescanStarted}</InlineAlert> : null}
       {list.isPending ? <SectionLoading /> : null}
       {list.isError ? (
         <EmptyState
@@ -184,7 +189,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               const look = serverLook(asset, role === 'administrator');
               const name = `${asset.mediaType === 'video' ? mediaText.video : mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.createdAt)} ${formatClock(Date.parse(asset.createdAt))}`;
               // Only an Administrator gets the action; the server decides all the same (`403`, `409`).
-              const canRescan = role === 'administrator' && asset.quarantine?.state === 'held';
+              const canRescan = role === 'administrator' && asset.quarantine?.state === 'held' && asset.fileState === 'quarantined';
               return (
                 <UploadQueueItem
                   key={asset.id}

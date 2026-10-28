@@ -72,6 +72,7 @@ export function useRescan(workOrderId: string) {
   const queryClient = useQueryClient();
   const guarded = useGuardedCall(mediaText.rescanStepUp);
   const [failure, setFailure] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
   const mutation = useMutation({
     mutationFn: (mediaAssetId: string) => {
       const key = uuidv7();
@@ -81,6 +82,7 @@ export function useRescan(workOrderId: string) {
     },
     onSuccess: () => {
       setFailure(null);
+      setStarted(true);
     },
     onError: (error) => {
       if (error instanceof StepUpCancelled) return;
@@ -91,8 +93,10 @@ export function useRescan(workOrderId: string) {
   return {
     pendingId: mutation.isPending ? mutation.variables : undefined,
     failure,
+    started,
     run: (mediaAssetId: string) => {
       setFailure(null);
+      setStarted(false);
       mutation.mutate(mediaAssetId);
     },
   };
