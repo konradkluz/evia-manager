@@ -1,5 +1,5 @@
 import type { CustomerSearchItem } from '@evia/contracts';
-import { DataTable, type DataTableColumn, type DataTableRow } from '@evia/ui-web';
+import { DataTable, Trash2, type DataTableColumn, type DataTableRow } from '@evia/ui-web';
 import { useTranslation } from 'react-i18next';
 import { customerPath } from '../paths.ts';
 import { RouterLink } from '../shell/router-link.tsx';
@@ -10,7 +10,14 @@ import { formatPhone } from './format.ts';
  * is one link to the details; its name starts with the visible name of the customer and goes on in the order of the columns
  * (WCAG 2.5.3). Everything is shown as React text, the address of the row carries only the identifier.
  */
-export function CustomerTable({ items }: { readonly items: readonly CustomerSearchItem[] }) {
+export function CustomerTable({
+  items,
+  deleted = false,
+}: {
+  readonly items: readonly CustomerSearchItem[];
+  /** The view "Usunięci" (Administrator, EVM-041): every row carries the mark "Usunięty" (icon and label, not colour alone). */
+  readonly deleted?: boolean;
+}) {
   const { t } = useTranslation();
   const columns: DataTableColumn[] = [
     { id: 'customer', card: 'primary', header: t('customerList.table.customer'), sort: 'ascending' },
@@ -22,16 +29,23 @@ export function CustomerTable({ items }: { readonly items: readonly CustomerSear
   const rows: DataTableRow[] = items.map((item) => {
     const kind = item.kind === 'company' ? t('customerList.table.company') : t('customerList.table.person');
     const phone = formatPhone(item.phone);
+    const base =
+      item.email === null
+        ? t('customerList.table.row', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone })
+        : t('customerList.table.rowEmail', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone, email: item.email });
     return {
       id: item.id,
       href: customerPath(item.id),
-      label:
-        item.email === null
-          ? t('customerList.table.row', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone })
-          : t('customerList.table.rowEmail', { name: item.sortName, kind: kind.toLocaleLowerCase('pl'), phone, email: item.email }),
+      label: `${base}${deleted ? `, ${t('customerErase.list.deletedMark').toLocaleLowerCase('pl')}` : ''}`,
       cells: [
         <span key="customer" className="flex flex-col">
           <span className="break-words font-semibold">{item.sortName}</span>
+          {deleted ? (
+            <span className="inline-flex items-center gap-inline-xs text-body-sm text-text-secondary">
+              <Trash2 aria-hidden="true" className="size-icon-sm shrink-0" />
+              {t('customerErase.list.deletedMark')}
+            </span>
+          ) : null}
           {item.email === null ? null : <span className="break-all text-body-sm text-text-secondary wide:hidden">{item.email}</span>}
         </span>,
         <span key="kind">{kind}</span>,

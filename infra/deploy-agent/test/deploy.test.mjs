@@ -129,6 +129,13 @@ function setup() {
     'field-encryption-keys',
     'login-throttle-key',
     'postgres-password',
+    // EVM-084: provided by hand on the VM, listed in the manifest
+    'media-s3-secret-access-key',
+    'deletion-register-s3-secret-access-key',
+    'pgbackrest-cipher-pass',
+    'backup-s3-secret-access-key',
+    // EVM-085: the write token of the collector (alloy)
+    'grafana-write-token',
   ])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
   // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).
@@ -559,12 +566,21 @@ describe('EVM-007 AC4 (security-engineer B): ShellCheck on the shell scripts of 
     '/src/infra/deploy-agent/cycle.sh',
     '/src/infra/deploy-agent/secrets.sh',
     '/src/infra/deploy-agent/init-secrets.sh',
+    '/src/infra/deploy-agent/restore/lib.sh',
+    '/src/infra/deploy-agent/restore/run.sh',
+    '/src/infra/deploy-agent/restore/sweep.sh',
+    '/src/infra/deploy-agent/restore/scenario.sh',
+    '/src/infra/deploy-agent/restore/s3-presign.sh',
+    '/src/infra/deploy-agent/restore/vm-restore.sh',
+    '/src/infra/deploy-agent/restore/backup.sh',
+    '/src/infra/deploy-agent/restore/media-copy.sh',
+    '/src/infra/deploy-agent/restore/bucket-verify.sh',
     '/src/infra/docker/iac/check.sh',
     '/src/infra/docker/iac/iac.sh',
   ];
 
   it('EVM-007 AC4: every script passes ShellCheck without exceptions', () => {
-    const run = spawnSync('shellcheck', ['--severity=style', ...scripts], { encoding: 'utf8' });
+    const run = spawnSync('shellcheck', ['-x', '--source-path=SCRIPTDIR', '--severity=style', ...scripts], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stdout + run.stderr);
     for (const script of scripts) assert.doesNotMatch(readFileSync(script, 'utf8'), /shellcheck disable/);
   });

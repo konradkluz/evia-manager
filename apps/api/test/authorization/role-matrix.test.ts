@@ -157,6 +157,12 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listDeletedWorkOrderProcedures',
       'deleteWorkOrder',
       'restoreWorkOrder',
+      // EVM-040: the deletion and the restoration of an entry of the journal (the redaction is below: it has a step-up)
+      'deleteTimelineEntry',
+      'restoreTimelineEntry',
+      // EVM-041: the deletion and the restoration of a customer (the anonymization is below: it has a step-up)
+      'deleteCustomer',
+      'restoreCustomer',
     ];
     const rolesOf = (operationId: string): string[] => {
       if (administratorOnly.includes(operationId)) return ['administrator'];
@@ -175,6 +181,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'resetUserSecondStep',
       'endAccountSession', // EVM-028: the session of somebody else
       'rescanMediaAsset', // EVM-049: the new scan of a file in quarantine
+      'redactTimelineEntry', // EVM-040: the redaction of the text of an entry
+      'anonymizeCustomer', // EVM-041: the anonymization of a customer
     ];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
     for (const operationId of stepUp) {

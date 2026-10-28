@@ -1,5 +1,6 @@
-# Module `timeline` — the journal of a work order: notes and comments (EVM-037; W-08 "Dziennik"). Append-only: there is no PATCH, PUT or
-# DELETE of an entry; a correction is a new entry that points at the old one (`supersedesEntryId`).
+# Module `timeline` — the journal of a work order: notes and comments (EVM-037; W-08 "Dziennik"). Append-only: there is no PATCH or PUT of an
+# entry; a correction is a new entry that points at the old one (`supersedesEntryId`). The Administrator alone hides an entry (`DELETE`, soft
+# delete, reversible with `restore`) and redacts its text (`redact`, irreversible; EVM-040).
 TimelineEntryIdParameter:
   name: entryId
   in: path
@@ -20,7 +21,7 @@ workOrderTimeline:
       synchronizacją, M2), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu:
       nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Wpisy zlecenia w kolejności
       `createdAt` serwera malejąco, potem `id` malejąco; wpisy usunięte nie występują (warunek w zapytaniu, nie w odsiewaniu
-      strony). Filtry łączą się przez AND: `kind` (`note` albo `comment`) i `procedureStageId` (UUID etapu; etap innego zlecenia
+      strony) — poza `includeDeleted=true` Administratora (EVM-040), który widzi je z `deletedAt`. Filtry łączą się przez AND: `kind` (`note` albo `comment`) i `procedureStageId` (UUID etapu; etap innego zlecenia
       albo nieistniejący daje pustą listę — filtr nie jest sprawdzeniem istnienia). `limit` 1–100 (domyślnie 25), zły `limit`
       albo `kind` spoza listy — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400
       duplicate_parameter`. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30
@@ -47,6 +48,15 @@ workOrderTimeline:
           razem z `kind` — `400 validation_failed`; wartość spoza listy — `400`. Grupa „Media i dokumenty” dojdzie z E6.
         schema:
           $ref: ../components/timeline.yaml#/TimelineEventGroup
+      - name: includeDeleted
+        in: query
+        required: false
+        description: >-
+          Pokaż także wpisy usunięte (EVM-040 AC1) — wyłącznie Administrator; Edytor i Tylko odczyt z `includeDeleted=true` dostają `403
+          forbidden` (parametr nie jest po cichu ignorowany). Kursor jest związany z tym filtrem.
+        schema:
+          type: boolean
+          default: false
       - name: procedureStageId
         in: query
         required: false
@@ -184,8 +194,10 @@ timelineEntry:
     description: >-
       Pojedynczy wpis dziennika (EVM-037 AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator, Edytor i Tylko odczyt, kanał
       `web`, bez audytu odczytu. Wpis jest wyszukiwany warunkiem `id = {entryId} AND work_order_id = {workOrderId}` w jednym
-      zapytaniu: wpis innego zlecenia, nieistniejący, usunięty oraz wpis zlecenia nieistniejącego albo usuniętego (także dla
-      Administratora) to jedna odpowiedź `404 not_found`. `Cache-Control: no-store`.
+      zapytaniu: wpis innego zlecenia, nieistniejący, usunięty (dla Edytora i Tylko odczyt) oraz wpis zlecenia nieistniejącego albo
+      usuniętego (także dla Administratora) to jedna odpowiedź `404 not_found`. Administrator czyta także wpis usunięty (EVM-040 AC1) —
+      z `deletedAt`. Odpowiedź `200` ma `ETag` wpisu (`"<version>"`) — wersję do `If-Match` usunięcia, przywrócenia i redakcji.
+      `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
@@ -195,6 +207,12 @@ timelineEntry:
     responses:
       '200':
         description: Wpis dziennika.
+        headers:
+          ETag:
+            description: Wersja wpisu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
         content:
           application/json:
             schema:
@@ -209,3 +227,172 @@ timelineEntry:
         $ref: ../components/responses.yaml#/NotFound
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteTimelineEntry
+    tags: [timeline]
+    summary: Usunięcie wpisu z dziennika (tylko Administrator)
+    description: >-
+      Ukrycie wpisu — soft delete, odwracalne przez `restoreTimelineEntry` (EVM-040 AC1, AC4, AC5, AC6; SR-PRIV-03, SR-AUTHZ-02,
+      SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Tylko Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i
+      sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — odmowa kanału), kanał `web`, z audytem (`timeline_entry.deleted` —
+      aktor, identyfikator wpisu, wynik i `traceId`; bez treści). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `"<version>"` wpisu z
+      `getTimelineEntry`): brak — `428 precondition_required`, zniekształcony — `400`, nieaktualna wersja — `412 version_conflict`.
+      Kolejność: zlecenie (polityka odczytu, `404`), powtórka idempotentna, wpis tego zlecenia (`id AND work_order_id AND deleted_at is
+      null` — wpis innego zlecenia, nieistniejący i już usunięty to jedna odpowiedź `404`, przed `If-Match`), zdarzenie
+      automatyczne (`409 entry_is_event`), `If-Match` (`428` / `400`), wersja (`412`). Po usunięciu wpis znika z dziennika Edytora i Tylko odczyt (lista, odczyt po `id`
+      — `404`), Administrator widzi go z `deletedAt`. Wersja wpisu rośnie o jeden. Powtórka z tym samym `Idempotency-Key` — `204` z
+      `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/TimelineEntryIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '204':
+        description: >-
+          Wpis usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, wpisem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/TimelineEraseConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/TimelineBusy
+timelineEntryRestore:
+  post:
+    operationId: restoreTimelineEntry
+    tags: [timeline]
+    summary: Przywrócenie usuniętego wpisu (tylko Administrator)
+    description: >-
+      Przywrócenie wpisu usuniętego przez `deleteTimelineEntry` (EVM-040 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07,
+      SR-LOG-03). Tylko Administrator, kanał `web`, bez uwierzytelnienia kluczem dostępu (cofnięcie ukrycia jest tak samo odwracalne jak
+      ukrycie), z audytem (`timeline_entry.restored` — osobna akcja, bez treści). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag
+      usuniętego wpisu z `getTimelineEntry`): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412`. Wpis jest wyszukiwany
+      warunkiem `id AND work_order_id AND deleted_at is not null`: wpis innego zlecenia, nieistniejący i nieusunięty to jedna odpowiedź
+      `404`, przed `If-Match`. Przywrócony wpis wraca na swoje miejsce na osi czasu (kolejność wg `createdAt`). Odpowiedź `200` ma `ETag`
+      wpisu. Powtórka z tym samym `Idempotency-Key` — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/TimelineEntryIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '200':
+        description: >-
+          Wpis przywrócony (albo powtórka wcześniejszego przywrócenia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja wpisu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key`, wpisem i zleceniem.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/timeline.yaml#/TimelineEntry
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/TimelineEraseConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/TimelineBusy
+timelineEntryRedact:
+  post:
+    operationId: redactTimelineEntry
+    tags: [timeline]
+    summary: Redakcja treści wpisu (tylko Administrator, ze step-upem)
+    description: >-
+      Trwałe zastąpienie treści wpisu znacznikiem „Treść usunięta przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw) — wyjątek
+      od zasady tylko do dopisywania, niecofalny (EVM-040 AC2, AC3, AC4, AC5, AC6; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-AUTHZ-02,
+      SR-AUTHZ-05, SR-API-07, SR-LOG-03, SR-DATA-08). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem
+      dostępu w ciągu ostatnich 15 minut (`403 step_up_required`; rola przed step-upem — Edytor i Tylko odczyt dostają `403 forbidden`),
+      z audytem (`timeline_entry.redacted` — aktor, identyfikator wpisu, wynik `success` albo `failed`, `traceId`; bez treści). Wymaga
+      `If-Match` (silny ETag wpisu): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412 version_conflict`. Kolejność: zlecenie
+      (`404`), wpis tego zlecenia (`id AND work_order_id`, także usunięty — dane osobowe usuniętego wpisu nadal są w bazie; wpis innego
+      zlecenia i nieistniejący to jedna odpowiedź `404`) zablokowany `FOR NO KEY UPDATE`, zdarzenie automatyczne (`409 entry_is_event`),
+      `If-Match` (`428` / `400`), wersja (`412`), treść już zredagowana (`409 already_redacted`), POTEM zapis obiektu do rejestru usunięć (identyfikator wpisu,
+      kod operacji, czas, aktor — bez treści), dopiero potem zmiana w bazie. Rejestr niedostępny — `503 deletion_register_unavailable`,
+      treść i wersja bez zmian. Wersja wpisu rośnie o jeden; metadane (autor, czas, rodzaj, kategoria, etap, powiązanie z poprawką) i
+      miejsce wpisu na osi czasu zostają. Odpowiedź `200` ma `ETag` wpisu i `redactedAt`; zredagowany wpis można usunąć i przywrócić.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/TimelineEntryIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+    responses:
+      '200':
+        description: Wpis ze zredagowaną treścią.
+        headers:
+          ETag:
+            description: Nowa wersja wpisu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/timeline.yaml#/TimelineEntry
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/TimelineEraseConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/DeletionRegisterUnavailable

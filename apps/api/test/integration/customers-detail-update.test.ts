@@ -98,25 +98,39 @@ describe('the detail of a customer (EVM-039 AC2, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ
         version: 1,
         createdAt: '2026-10-07T08:00:00.000Z',
         updatedAt: '2026-10-07T08:00:00.000Z',
+        deletedAt: null,
+        anonymizedAt: null,
       });
     }
   });
 
-  it('EVM-039 AC2 a company: name, NIP, contact person; and never the search text, the sort key, the authors or the deletion mark', async () => {
+  it('EVM-039 AC2 a company: name, NIP, contact person; and never the search text, the sort key or the authors (the marks deletedAt and anonymizedAt are there since EVM-041)', async () => {
     const id = await insertCustomer(admin(), { kind: 'company', companyName: 'Firma Testowa sp. z o.o.', taxId: '5260250274' });
     const response = await get(await signIn('read_only'), id);
     expect(response.status).toBe(200);
     expect(response.body).toMatchObject({ kind: 'company', companyName: 'Firma Testowa sp. z o.o.', taxId: '5260250274' });
     expect(Object.keys(response.body as object).sort()).toEqual(
-      ['companyName', 'createdAt', 'displayName', 'id', 'kind', 'phone', 'taxId', 'updatedAt', 'version'].sort(),
+      [
+        'anonymizedAt',
+        'companyName',
+        'createdAt',
+        'deletedAt',
+        'displayName',
+        'id',
+        'kind',
+        'phone',
+        'taxId',
+        'updatedAt',
+        'version',
+      ].sort(),
     );
-    expect(JSON.stringify(response.body)).not.toMatch(/searchText|sortName|createdBy|updatedBy|deletedAt|deletedBy/);
+    expect(JSON.stringify(response.body)).not.toMatch(/searchText|sortName|createdBy|updatedBy|deletedBy|anonymizedBy/);
   });
 
-  it('EVM-039 AC6 a customer who is soft deleted and one that never existed are the SAME 404 not_found for the Administrator, the Editor and Read-only', async () => {
+  it('EVM-039 AC6 a customer who is soft deleted and one that never existed are the SAME 404 not_found for the Editor and Read-only (the Administrator reads a deleted customer since EVM-041 AC3)', async () => {
     const deleted = await insertCustomer(admin(), { deletedAt: '2026-10-02T08:00:00Z' });
     const answers: string[] = [];
-    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+    for (const role of ['editor', 'read_only'] as const) {
       const browser = await signIn(role);
       for (const id of [deleted, uuidv7()]) {
         const response = await get(browser, id);

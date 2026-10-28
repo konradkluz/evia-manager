@@ -1,0 +1,17 @@
+# EVM-084 AC3, AC5: the monthly restore test with the scenario 'backup deleted from a taken-over VM'; by hand: systemctl start evia-restore-test (without the scenario: EVIA_RESTORE_SCENARIO= in an override). run.sh holds its own flock.
+[Unit]
+Description=EVia restore test: temporary VM, restore, result
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=evia-restore-alert.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/evia/restore/restore.conf
+ExecStart=/usr/local/sbin/evia-restore-test
+TimeoutStartSec=6h
+Environment=EVIA_RESTORE_SCENARIO=delete
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

@@ -253,7 +253,7 @@ describe('EVM-037 AC3 — a correction instead of an edit (D3; SR-AUTHZ-04)', ()
     expect(await countOf(orderId)).toBe(2);
   });
 
-  it('EVM-037 AC3 the text of an entry cannot be changed by any operation of the API: PATCH, PUT and DELETE of an entry are not routes', async () => {
+  it('EVM-037 AC3 the text of an entry cannot be changed by any operation of the API: PATCH and PUT of an entry are not routes (the DELETE is the soft delete of the Administrator, EVM-040)', async () => {
     const editor = await signIn('editor');
     const administrator = await signIn('administrator');
     const { id: orderId } = await order();
@@ -261,7 +261,7 @@ describe('EVM-037 AC3 — a correction instead of an edit (D3; SR-AUTHZ-04)', ()
     const path = `${BASE}/${orderId}/timeline/${entry.id}`;
     const server = current.app.getHttpServer();
     for (const browser of [editor, administrator]) {
-      for (const method of ['patch', 'put', 'delete'] as const) {
+      for (const method of ['patch', 'put'] as const) {
         const call = request(server)[method](path);
         const response = await call
           .set('Cookie', browser.panel.cookie ?? '')
@@ -280,6 +280,15 @@ describe('EVM-037 AC3 — a correction instead of an edit (D3; SR-AUTHZ-04)', ()
         .set('Sec-Fetch-Site', 'same-origin');
       expect([404, 405]).toContain(collection.status);
     }
+    // EVM-040: the DELETE is the soft delete of the Administrator - the Editor gets 403, and the text stays in the database either way
+    const refused = await request(server)
+      .delete(path)
+      .set('Cookie', editor.panel.cookie ?? '')
+      .set('X-CSRF-Token', editor.panel.csrfToken ?? '')
+      .set('Origin', PANEL_ORIGIN)
+      .set('Sec-Fetch-Site', 'same-origin')
+      .set('If-Match', '"1"');
+    expect(refused.status).toBe(403);
     expect(await bodyOf(entry.id)).toBe('Treść nieedytowalna.');
     expect(await countOf(orderId)).toBe(1);
   });

@@ -226,6 +226,75 @@ SecondStepUnavailable:
         status: 503
         code: service_unavailable
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+TimelineEraseConflict:
+  description: >-
+    Usunięcie, przywrócenie albo redakcja nie jest możliwa (EVM-040): wpis jest zdarzeniem automatycznym (`entry_is_event` — zdarzenia nie
+    zawierają danych osobowych i nie są usuwane ani redagowane), treść wpisu została już zredagowana (`already_redacted` — drugi obiekt w
+    rejestrze usunięć nie powstaje) albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
+    Odpowiedź nie zawiera treści ani danych wpisu.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/already_redacted
+        title: The entry text is already redacted
+        status: 409
+        code: already_redacted
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+TimelineBusy:
+  description: >-
+    Operacja na wpisie nie doczekała się blokady wiersza (`service_unavailable`; EVM-040, RR-NOC-T2-4): inna operacja na tym samym wpisie
+    (np. redakcja czekająca na rejestr usunięć) trzyma go dłużej niż limit oczekiwania. Nic nie zostało zmienione; bezpiecznie ponowić po
+    `Retry-After` (po odświeżeniu dziennika). Odpowiedź nie zawiera treści ani danych wpisu.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/service_unavailable
+        title: Service unavailable
+        status: 503
+        code: service_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+DeletionRegisterUnavailable:
+  description: >-
+    Rejestr usunięć jest niedostępny (`deletion_register_unavailable`; EVM-040 AC3, SR-PRIV-04): obiekt rejestru nie został zapisany (brak
+    konfiguracji, odmowa magazynu, brak odpowiedzi w terminie, zbyt wiele równoległych zapisów), więc redakcja nie startuje, a treść wpisu
+    pozostaje nienaruszona. Widzi ją wyłącznie Administrator po ponownym uwierzytelnieniu; odpowiedź nie zawiera szczegółów magazynu.
+    Bezpiecznie ponowić później. Przy oczekiwaniu na blokadę wpisu dłuższym niż limit odpowiedź to `503 service_unavailable` z `Retry-After`
+    (jak w `TimelineBusy`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `service_unavailable`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/deletion_register_unavailable
+        title: The deletion register is unavailable
+        status: 503
+        code: deletion_register_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 NotFound:
   description: Zasób nie istnieje albo nie jest dostępny dla wywołującego (`not_found`) — jedna odpowiedź, bez szczegółów.
   content:
@@ -453,9 +522,76 @@ WorkOrderDeleteConflict:
         $ref: problem.yaml#/Problem
       example:
         type: /problems/has_active_dependents
-        title: The work order has active dependents
+        title: The resource has active dependents
         status: 409
         code: has_active_dependents
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+CustomerHasActiveDependents:
+  description: >-
+    Klient ma niezamknięte zlecenia (`has_active_dependents`, EVM-041 AC2): status inny niż „Rozliczone” i „Anulowane”, bez zleceń
+    usuniętych. Odpowiedź ma `openWorkOrders` — samą liczbę, bez numerów, tytułów i identyfikatorów zleceń (widzi ją wyłącznie
+    Administrator). Albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`) albo klient
+    jest już zanonimizowany (`already_anonymized` — drugi obiekt w rejestrze usunięć nie powstaje).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/has_active_dependents
+        title: The resource has active dependents
+        status: 409
+        code: has_active_dependents
+        openWorkOrders: 2
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+CustomerAnonymizedConflict:
+  description: >-
+    Klient jest zanonimizowany (`customer_anonymized`, EVM-041 AC4): jego danych nie można zmienić — anonimizacja jest nieodwracalna.
+    Albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `idempotency_in_progress`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/customer_anonymized
+        title: The customer is anonymized
+        status: 409
+        code: customer_anonymized
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+CustomerBusy:
+  description: >-
+    Operacja na kliencie nie doczekała się blokady wiersza (`service_unavailable`; EVM-041): inna operacja na tym samym kliencie (np.
+    anonimizacja czekająca na rejestr usunięć) trzyma go dłużej niż limit oczekiwania. Nic nie zostało zmienione; bezpiecznie ponowić po
+    `Retry-After` (po odświeżeniu klienta). Odpowiedź nie zawiera danych klienta.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/service_unavailable
+        title: Service unavailable
+        status: 503
+        code: service_unavailable
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
 IdempotencyInProgress:
   description: Żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).

@@ -10,6 +10,7 @@ import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
 import { insertEntries } from './timeline-fixtures.ts';
+import { uuidv7 } from './uuid.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 const WORK_ORDERS = '/api/v1/work-orders';
@@ -72,7 +73,24 @@ export async function customerObjects(app: IdentityApp): Promise<Record<string, 
   const own = await insertCustomer(db, { email: 'jan@example.invalid' });
   const foreign = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
   const paths: ObjectPaths = { own: () => `${CUSTOMERS}/${own}`, foreign: () => `${CUSTOMERS}/${foreign}` };
-  return { getCustomer: paths, updateCustomer: paths };
+  // EVM-041: the Administrator READS a deleted customer (`getCustomer`, the view "Usunięci"), so the foreign object of the read is one that does
+  // not exist; the deleted customer stays the foreign object of the edit (404 for every role) - the reads of the roles are in customers-erasure.test.ts
+  const missing = uuidv7();
+  // EVM-041: the deletion, the restoration and the anonymization - customers of their own, so the reads and the edit of the matrix keep their
+  // objects (the first allowed cell of the deletion really deletes `erase`). The Administrator's cell on a "foreign" object must be 404:
+  // - the deletion: "foreign" is a customer that is deleted already (the deletion of one is the 404 of a missing one);
+  // - the restoration: "own" is the deleted customer (a POST has no `If-Match` in the matrix: 428, nothing happens), "foreign" a live one;
+  // - the anonymization: it works on a deleted customer too, so "foreign" is a customer that does not exist.
+  const erase = await insertCustomer(db, { email: 'anna@example.invalid' });
+  const erased = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
+  const spare = await insertCustomer(db, { lastName: 'Zapasowy' });
+  return {
+    getCustomer: { own: paths.own, foreign: () => `${CUSTOMERS}/${missing}` },
+    updateCustomer: paths,
+    deleteCustomer: { own: () => `${CUSTOMERS}/${erase}`, foreign: () => `${CUSTOMERS}/${erased}` },
+    restoreCustomer: { own: () => `${CUSTOMERS}/${erased}/restore`, foreign: () => `${CUSTOMERS}/${spare}/restore` },
+    anonymizeCustomer: { own: () => `${CUSTOMERS}/${spare}/anonymize`, foreign: () => `${CUSTOMERS}/${missing}/anonymize` },
+  };
 }
 
 const SITES = '/api/v1/sites';
@@ -186,10 +204,12 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
   ]);
   const [own, other, deleted] = [...ids.values()];
   if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
-  const [ownEntry] = await insertEntries(db, own, author.id, [{}]);
-  const [otherEntry] = await insertEntries(db, other, author.id, [{}]);
+  const [ownEntry, eraseEntry] = await insertEntries(db, own, author.id, [{}, {}]);
+  const [otherEntry, eraseForeign] = await insertEntries(db, other, author.id, [{}, {}]);
   await insertEntries(db, deleted, author.id, [{}]);
-  if (ownEntry === undefined || otherEntry === undefined) throw new Error('the fixture entries were not inserted');
+  if (ownEntry === undefined || otherEntry === undefined || eraseEntry === undefined || eraseForeign === undefined) {
+    throw new Error('the fixture entries were not inserted');
+  }
   const journal: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}/timeline`, foreign: () => `${WORK_ORDERS}/${deleted}/timeline` };
   return {
     listTimelineEntries: journal,
@@ -197,6 +217,20 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
     getTimelineEntry: {
       own: () => `${WORK_ORDERS}/${own}/timeline/${ownEntry}`,
       foreign: () => `${WORK_ORDERS}/${own}/timeline/${otherEntry}`,
+    },
+    // EVM-040: the deletion, the restoration and the redaction - "foreign" is the entry of ANOTHER live order named in the path of the first (the
+    // one an attacker tries). Entries of their own, so the deletion of the matrix does not change what the reads of the matrix look at.
+    deleteTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}`,
+    },
+    restoreTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/restore`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/restore`,
+    },
+    redactTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/redact`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/redact`,
     },
   };
 }

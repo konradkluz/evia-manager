@@ -1,19 +1,22 @@
 /**
- * HTTP surface of the customers module (EVM-020: the search and the creation; EVM-039: the list, the detail and the edit). The handlers contain no authorization — the global
+ * HTTP surface of the customers module (EVM-020: the search and the creation; EVM-039: the list, the detail and the edit; EVM-041: the deletion, the restoration and the anonymization). The handlers contain no authorization — the global
  * guard decides before they run (operation in the manifest, CSRF, channel, role); here only the call and the headers of the answer.
  * The answers are never cached (the global `Cache-Control: no-store`).
  */
 import type { Customer, CustomerList, CustomerSearchResult } from '@evia/contracts';
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
 import { principalOf, type Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { requestEventContext, webEventContext } from '../../../platform/http/request-context.ts';
+import { AnonymizeCustomerService } from '../application/anonymize-customer.service.ts';
 import { CreateCustomerService } from '../application/create-customer.service.ts';
+import { DeleteCustomerService } from '../application/delete-customer.service.ts';
 import { ListCustomersService } from '../application/list-customers.service.ts';
 import { ReadCustomerService } from '../application/read-customer.service.ts';
+import { RestoreCustomerService } from '../application/restore-customer.service.ts';
 import { SearchCustomersService } from '../application/search-customers.service.ts';
 import { UpdateCustomerService } from '../application/update-customer.service.ts';
 
@@ -30,6 +33,9 @@ export class CustomersController {
   readonly #lists: ListCustomersService;
   readonly #reads: ReadCustomerService;
   readonly #updates: UpdateCustomerService;
+  readonly #deletions: DeleteCustomerService;
+  readonly #restorations: RestoreCustomerService;
+  readonly #anonymizations: AnonymizeCustomerService;
 
   constructor(
     @Inject(SearchCustomersService) searches: SearchCustomersService,
@@ -37,12 +43,18 @@ export class CustomersController {
     @Inject(ListCustomersService) lists: ListCustomersService,
     @Inject(ReadCustomerService) reads: ReadCustomerService,
     @Inject(UpdateCustomerService) updates: UpdateCustomerService,
+    @Inject(DeleteCustomerService) deletions: DeleteCustomerService,
+    @Inject(RestoreCustomerService) restorations: RestoreCustomerService,
+    @Inject(AnonymizeCustomerService) anonymizations: AnonymizeCustomerService,
   ) {
     this.#searches = searches;
     this.#creations = creations;
     this.#lists = lists;
     this.#reads = reads;
     this.#updates = updates;
+    this.#deletions = deletions;
+    this.#restorations = restorations;
+    this.#anonymizations = anonymizations;
   }
 
   @Get('/api/v1/customers')
@@ -80,6 +92,62 @@ export class CustomersController {
     );
     response.set('ETag', entityTag(customer.version));
     if (replayed) response.set('Idempotent-Replayed', 'true');
+    return customer;
+  }
+
+  @Delete('/api/v1/customers/:customerId')
+  @OperationId('deleteCustomer')
+  @HttpCode(204)
+  async deleteCustomer(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    const replayed = await this.#deletions.delete(
+      requirePrincipal(request),
+      params,
+      ifMatch,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+  }
+
+  @Post('/api/v1/customers/:customerId/restore')
+  @OperationId('restoreCustomer')
+  @HttpCode(200)
+  async restoreCustomer(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<Customer> {
+    const { customer, replayed } = await this.#restorations.restore(
+      requirePrincipal(request),
+      params,
+      ifMatch,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    response.set('ETag', entityTag(customer.version));
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return customer;
+  }
+
+  @Post('/api/v1/customers/:customerId/anonymize')
+  @OperationId('anonymizeCustomer')
+  @HttpCode(200)
+  async anonymizeCustomer(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<Customer> {
+    const customer = await this.#anonymizations.anonymize(requirePrincipal(request), params, ifMatch, webEventContext(request, response));
+    response.set('ETag', entityTag(customer.version));
     return customer;
   }
 

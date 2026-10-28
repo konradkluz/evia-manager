@@ -159,6 +159,10 @@ paths:
     $ref: paths/timeline.yaml#/workOrderTimeline
   /api/v1/work-orders/{workOrderId}/timeline/{entryId}:
     $ref: paths/timeline.yaml#/timelineEntry
+  /api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore:
+    $ref: paths/timeline.yaml#/timelineEntryRestore
+  /api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact:
+    $ref: paths/timeline.yaml#/timelineEntryRedact
   /api/v1/work-orders/{workOrderId}/media-assets:
     $ref: paths/media.yaml#/workOrderMediaAssets
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions:
@@ -195,6 +199,10 @@ paths:
     $ref: paths/customers.yaml#/customersSearch
   /api/v1/customers/{customerId}:
     $ref: paths/customers.yaml#/customer
+  /api/v1/customers/{customerId}/restore:
+    $ref: paths/customers.yaml#/customerRestore
+  /api/v1/customers/{customerId}/anonymize:
+    $ref: paths/customers.yaml#/customerAnonymize
   /api/v1/sites:
     $ref: paths/sites.yaml#/sites
   /api/v1/sites/search:

@@ -12,6 +12,11 @@ export const DEFAULT_LIMIT = 25;
 export const MAX_LIMIT = 100;
 
 export const customerListQuerySchema = z.strictObject({
+  /** The view "Usunięci" (EVM-041): the Administrator's alone - the service answers `403` to the other roles. */
+  deleted: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   limit: z
     .string()
     .regex(/^[0-9]{1,3}$/)
@@ -27,11 +32,13 @@ export const customerListQuerySchema = z.strictObject({
 
 /** The query as the reader needs it: defaults applied. */
 export interface CustomerListQuery {
+  readonly deleted: boolean;
   readonly limit: number;
   readonly cursor: string | undefined;
 }
 
 export const resolveCustomerListQuery = customerListQuerySchema.transform((query): CustomerListQuery => ({
+  deleted: query.deleted ?? false,
   limit: query.limit ?? DEFAULT_LIMIT,
   cursor: query.cursor,
 }));

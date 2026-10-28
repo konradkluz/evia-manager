@@ -15,6 +15,14 @@
 #   cursor-key                 32 random bytes, base64url, 43 characters
 #   field-encryption-keys      k1:<32 random bytes, base64url>   (list `id:key,…`; a rotation adds an entry by hand)
 #   login-throttle-key         32 random bytes, base64url (separate secret, EVM-026)
+# Files provided by hand in the IaC session (EVM-084; never generated, never read; --check reports MISSING until they exist):
+#   media-s3-secret-access-key, deletion-register-s3-secret-access-key   S3 keys of the applications (api / worker)
+#   backup-s3-secret-access-key, pgbackrest-cipher-pass                  pgBackRest on PostgreSQL (key of backup-writer)
+#   grafana-write-token  Grafana Cloud access policy token, write scopes only, with an expiry (EVM-085; reaches alloy only)
+#   restore-reader-s3-secret-access-key, restore-orchestrator-s3-secret-access-key, media-backup-reader-s3-secret-access-key,
+#   restore-hcloud-token, rclone-crypt-password, rclone-crypt-password2, restore-storagebox-password, media-copy-storagebox-password  root-only units of the restore test and the media copy
+# Their copy lives in Bitwarden and the offline emergency set; none of them is a file of an application container except
+# as the manifest says (secrets.manifest.json).
 # Passwords are 32 random bytes in base64url (URL-safe, no escaping in the URLs). `postgres` is the service name on the
 # Docker network evia-runtime (compose.infra.yaml); the traffic never leaves that bridge, hence sslmode=disable.
 # A password file is the source of its URL: a missing URL is derived from the existing password; a missing password with an
@@ -33,6 +41,7 @@ readonly DB_NAME="evia"
 readonly ROLE_MIGRATOR="evia_migrator"
 readonly ROLE_API="evia_api"
 readonly FILES=(postgres-password evia-migrator-password evia-api-password database-url-migrator database-url-app cursor-key field-encryption-keys login-throttle-key)
+readonly EXTERNAL=(media-s3-secret-access-key deletion-register-s3-secret-access-key backup-s3-secret-access-key pgbackrest-cipher-pass restore-reader-s3-secret-access-key restore-orchestrator-s3-secret-access-key media-backup-reader-s3-secret-access-key restore-hcloud-token rclone-crypt-password rclone-crypt-password2 restore-storagebox-password media-copy-storagebox-password grafana-write-token)
 
 log() { printf 'init-secrets: %s\n' "$1" >&2; }
 fail() {
@@ -56,7 +65,7 @@ if [ ! -e "$DIR" ] && [ "$mode" = create ]; then install -d -m 0700 -- "$DIR"; f
 [ "$(owner_mode "$DIR")" = "$OWNER_UID 700" ] || fail "$DIR must be 0700 root"
 
 # Every existing file we are about to rely on must be a regular file, 0600 root; otherwise nothing is written.
-for name in "${FILES[@]}"; do
+for name in "${FILES[@]}" "${EXTERNAL[@]}"; do
   path="$DIR/$name"
   if [ -e "$path" ] || [ -L "$path" ]; then
     { [ -f "$path" ] && [ ! -L "$path" ]; } || fail "$name is not a regular file"
@@ -66,7 +75,7 @@ done
 
 if [ "$mode" = check ]; then
   missing=0
-  for name in "${FILES[@]}"; do
+  for name in "${FILES[@]}" "${EXTERNAL[@]}"; do
     path="$DIR/$name"
     if [ -f "$path" ]; then
       printf '%s size=%s mode=%s owner=%s\n' "$name" "$(stat -c '%s' -- "$path")" "$(stat -c '%a' -- "$path")" "$(stat -c '%u' -- "$path")"
@@ -126,6 +135,10 @@ if [ -f "$MANIFEST" ]; then
   command -v jq > /dev/null || fail "jq is needed to read the manifest"
   for name in $(jq -r '.services[].files[]' "$MANIFEST" | sort -u); do
     [[ "$name" =~ ^[a-z0-9][a-z0-9-]{0,63}$ ]] || fail "manifest: file name"
+    if [[ " ${EXTERNAL[*]} " == *" $name "* ]]; then
+      [ -f "$DIR/$name" ] || log "provide $name by hand (IaC session); evia-init-secrets --check lists it as MISSING"
+      continue
+    fi
     { [ -f "$DIR/$name" ] && [ ! -L "$DIR/$name" ]; } || fail "the manifest needs $name, which this script does not create"
   done
 else

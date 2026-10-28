@@ -35,7 +35,7 @@ Customer:
     `lastName`; firma: `companyName`, opcjonalnie `taxId` (NIP) i `contactPersonName`; wspólne: `phone` (wymagany), `email`,
     `postalAddress`, `notes`. Reguły zależne od `kind` sprawdza serwer (`required`, `not_allowed_for_kind` w `errors[]`).
     Pola `readOnly` ustawia wyłącznie serwer.
-  required: [id, kind, phone, displayName, version, createdAt, updatedAt]
+  required: [id, kind, phone, displayName, version, createdAt, updatedAt, deletedAt, anonymizedAt]
   properties:
     id:
       type: string
@@ -120,11 +120,25 @@ Customer:
       readOnly: true
       maxLength: 36
     deletedAt:
-      type: string
-      description: Znacznik usunięcia (soft delete). Ustawia serwer; nie jest zwracany.
-      format: date-time
+      description: >-
+        Znacznik usunięcia (soft delete, EVM-041) albo `null` dla klienta, który nie jest usunięty. Niepusty tylko w odpowiedzi dla
+        Administratora (Edytor i Tylko odczyt nie widzą usuniętego klienta). Ustawia serwer.
       readOnly: true
-      maxLength: 40
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    anonymizedAt:
+      description: >-
+        Znacznik anonimizacji (EVM-041) albo `null`. Klient zanonimizowany ma wartości neutralne („Klient zanonimizowany”), jego
+        dane nie wracają (edycja — `409 customer_anonymized`). Ustawia serwer.
+      readOnly: true
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
     deletedBy:
       type: string
       description: Ustawia serwer; nie jest zwracany.
@@ -154,6 +168,11 @@ CustomerSearchRequest:
       description: Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta, bez danych.
       maxLength: 512
       pattern: '^[A-Za-z0-9_-]+$'
+    deleted:
+      type: boolean
+      description: >-
+        Widok „Usunięci” (EVM-041): `true` — wyłącznie klienci usunięci (tylko Administrator; Edytor i Tylko odczyt — `403 forbidden`
+        przed walidacją kursora); brak albo `false` — wyłącznie nieusunięci, także dla Administratora. Filtr jest związany z kursorem.
 CustomerSearchItem:
   type: object
   description: >-

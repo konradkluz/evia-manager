@@ -6,7 +6,8 @@ import { sql } from 'kysely';
 import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { NewCustomer } from '../domain/customer.ts';
-import { visibleCustomers } from './read-policy.ts';
+import { neutralValuesOf } from '../domain/anonymized-customer.ts';
+import { readableCustomers, visibleCustomers } from './read-policy.ts';
 import type { CustomersDb } from './tables.ts';
 
 const COLUMNS = [
@@ -29,6 +30,8 @@ const COLUMNS = [
   'version',
   'created_at',
   'updated_at',
+  'deleted_at',
+  'anonymized_at',
 ] as const;
 
 /**
@@ -72,6 +75,14 @@ export function findVisibleCustomer(db: CustomersDb, principal: Principal, id: s
 
 export type CustomerRow = NonNullable<Awaited<ReturnType<typeof findVisibleCustomer>>>;
 
+/**
+ * The customer as the MODULE may read it (`readableCustomers`): the Administrator also gets a deleted one (the detail and the view
+ * "Usunięci" of W-14); the other roles get a missing and a deleted customer alike - `undefined`.
+ */
+export function findReadableCustomer(db: CustomersDb, principal: Principal, id: string) {
+  return db.selectFrom('customers.customers').select(COLUMNS).where('id', '=', id).where(readableCustomers(principal)).executeTakeFirst();
+}
+
 /** The identifier and the display name only (the facade `CustomerDirectory`): no contact data is selected (SR-DATA-03). */
 export function findVisibleCustomerSummary(db: CustomersDb, principal: Principal, id: string) {
   return db
@@ -82,11 +93,28 @@ export function findVisibleCustomerSummary(db: CustomersDb, principal: Principal
     .executeTakeFirst();
 }
 
-/** The columns of the card "Klient" only (the facade `CustomerDirectory`): the name, the telephone and the e-mail (SR-DATA-03). */
+/**
+ * The customer of a new work order LOCKED `FOR KEY SHARE` with the read policy in the query (the facade `CustomerDirectory.lockVisible`,
+ * EVM-041 D7): the foreign key of the order takes the same lock, but ONLY at the insert and it does not look at `deleted_at`; this lock is
+ * taken first, so a deletion or an anonymization (`FOR UPDATE`) of the customer and the creation of an order are serialised. A deletion
+ * that commits first makes this query find nothing (`deleted_at` is checked again on the committed row), the order is refused as for a
+ * customer that never existed; an order created first makes the deletion count it. Not for a read-only transaction.
+ */
+export function lockVisibleCustomerForOrder(db: CustomersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('customers.customers')
+    .select(['id', 'display_name'])
+    .where('id', '=', id)
+    .where(visibleCustomers(principal))
+    .forKeyShare()
+    .executeTakeFirst();
+}
+
+/** The columns of the card "Klient" only (the facade `CustomerDirectory`): the name, the telephone, the e-mail and the mark (SR-DATA-03). */
 export function findVisibleCustomerCard(db: CustomersDb, principal: Principal, id: string) {
   return db
     .selectFrom('customers.customers')
-    .select(['display_name', 'phone', 'email'])
+    .select(['display_name', 'phone', 'email', 'anonymized_at'])
     .where('id', '=', id)
     .where(visibleCustomers(principal))
     .executeTakeFirst();
@@ -104,6 +132,102 @@ export function lockVisibleCustomer(db: CustomersDb, principal: Principal, id: s
     .where('id', '=', id)
     .where(visibleCustomers(principal))
     .forUpdate()
+    .executeTakeFirst();
+}
+
+/**
+ * The customer LOCKED `FOR UPDATE` for the deletion, the restoration and the anonymization, under the policy `readableCustomers`: the
+ * Administrator gets the row in ANY state (a deleted one too), another role gets `undefined` for a deleted one. `FOR UPDATE` (not
+ * `FOR NO KEY UPDATE`) conflicts with the `FOR KEY SHARE` of the creation of an order. The dependents are counted AFTER this lock, by a
+ * statement of their own.
+ */
+export function lockReadableCustomer(db: CustomersDb, principal: Principal, id: string) {
+  return db
+    .selectFrom('customers.customers')
+    .select(COLUMNS)
+    .where('id', '=', id)
+    .where(readableCustomers(principal))
+    .forUpdate()
+    .executeTakeFirst();
+}
+
+/** Soft delete: `deleted_at`, `deleted_by`, `version + 1`. Only for the version decided on and a live row; `undefined` - nothing was updated. */
+export function softDeleteCustomer(db: CustomersDb, id: string, expectedVersion: number, actorUserId: string, now: Date) {
+  return db
+    .updateTable('customers.customers')
+    .set({
+      deleted_at: now,
+      deleted_by: actorUserId,
+      version: sql<number>`version + 1`,
+      updated_at: now,
+      updated_by: actorUserId,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is', null)
+    .returning('version')
+    .executeTakeFirst();
+}
+
+/** The restoration: the deletion marks are cleared, `version + 1`. Only for the version decided on and a deleted row. */
+export function restoreCustomerRow(db: CustomersDb, id: string, expectedVersion: number, actorUserId: string, now: Date) {
+  return db
+    .updateTable('customers.customers')
+    .set({
+      deleted_at: null,
+      deleted_by: null,
+      version: sql<number>`version + 1`,
+      updated_at: now,
+      updated_by: actorUserId,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is not', null)
+    .returning('version')
+    .executeTakeFirst();
+}
+
+/**
+ * The anonymization: the neutral values of the kind over EVERY personal column, the mark (`anonymized_at`, `anonymized_by`) and
+ * `version + 1`. The display name, the sort name and the search text are generated by the database from these columns, so the old data
+ * are not found any more. Only for the version decided on and a row that is not anonymized yet (the CHECK and the trigger of
+ * migration 0043 are the other lines of defence). The deletion marks are left as they are.
+ */
+export function anonymizeCustomerRow(
+  db: CustomersDb,
+  id: string,
+  kind: CustomerRow['kind'],
+  expectedVersion: number,
+  actorUserId: string,
+  now: Date,
+) {
+  const neutral = neutralValuesOf(kind);
+  return db
+    .updateTable('customers.customers')
+    .set({
+      first_name: neutral.firstName,
+      last_name: neutral.lastName,
+      company_name: neutral.companyName,
+      tax_id: null,
+      contact_person_name: null,
+      phone: neutral.phone,
+      email: null,
+      street: null,
+      building_number: null,
+      apartment_number: null,
+      postal_code: null,
+      city: null,
+      notes: null,
+      anonymized_at: now,
+      anonymized_by: actorUserId,
+      version: sql<number>`version + 1`,
+      updated_at: now,
+      updated_by: actorUserId,
+    })
+    .where('id', '=', id)
+    .where('version', '=', expectedVersion)
+    .where('anonymized_at', 'is', null)
+    .returning(COLUMNS)
     .executeTakeFirst();
 }
 

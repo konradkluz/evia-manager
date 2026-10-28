@@ -1,0 +1,175 @@
+// The log pipeline of staging (EVM-085 AC1, AC5, AC7; architect 4; security-engineer A8, A9). ONE file, loaded both on the VM
+// (sources.alloy and sinks.alloy) and in the tests (alloy-tests: a test source and loki.echo), so what is tested is what runs.
+//
+// Entries arrive with the labels `compose_service` (the label com.docker.compose.service of the container) and/or `unit` (the
+// systemd unit), set by sources.alloy from journald fields. The allow-list is on the compose SERVICE, not on the container
+// name. Everything else is dropped (default deny); postgres (DETAIL of errors carries row values), clamd, freshclam, alloy,
+// migrate, sshd, sudo and unknown units never reach Grafana.
+//
+// Labels in Loki: only `service`, `level` (closed list) and `alertCode` (closed list, security alerts only); never fields of the JSON
+// promoted wholesale (TM-86). `env` is an external label of loki.write; a value of `env` in a line is never a label.
+// Second line of redaction (RE2, linear): the first line is that no token travels in a URL and that the logger redacts.
+
+declare "evia_pipeline" {
+	argument "forward_to" {
+		comment = "Receivers of the cleaned entries (loki.write on the VM, loki.echo in the tests)."
+	}
+
+	export "receiver" {
+		value = loki.relabel.allowlist.receiver
+	}
+
+	loki.relabel "allowlist" {
+		forward_to = [loki.process.clean.receiver]
+
+		// service := the systemd unit without the suffix, then (overriding) the compose service.
+		rule {
+			source_labels = ["unit"]
+			regex         = "(.+)\\.service"
+			target_label  = "service"
+			replacement   = "$1"
+		}
+
+		rule {
+			source_labels = ["compose_service"]
+			regex         = "(.+)"
+			target_label  = "service"
+			replacement   = "$1"
+		}
+		// Default deny: only these services pass (anchored).
+		rule {
+			action        = "keep"
+			source_labels = ["service"]
+			regex         = "(api|worker|web|caddy|evia-deploy-agent|evia-deploy-agent-alert|evia-metrics|evia-backup-diff|evia-backup-full|evia-media-copy|evia-restore-test|evia-restore-sweep|evia-restore-alert)"
+		}
+
+		rule {
+			action = "labeldrop"
+			regex  = "unit|compose_service|env"
+		}
+	}
+
+	loki.process "clean" {
+		forward_to = [loki.process.redact.receiver]
+
+		stage.json {
+			expressions = {
+				level     = "level",
+				alert     = "alert",
+				alert_raw = "alertCode",
+			}
+		}
+
+		// level: a label only from the closed list.
+		stage.template {
+			source   = "level_safe"
+			template = "{{ if or (eq .level \"trace\") (eq .level \"debug\") (eq .level \"info\") (eq .level \"warn\") (eq .level \"error\") (eq .level \"fatal\") }}{{ .level }}{{ end }}"
+		}
+
+		stage.labels {
+			values = {
+				level = "level_safe",
+			}
+		}
+
+		// Security alerts (AC5): only the services that emit them, only `alert: "security"`, the code only from the closed list
+		// (anything else is counted as `other`; no user, no address). The counter is incremented BEFORE the rate limit, so a flood
+		// cannot hide an alert.
+		stage.match {
+			selector = "{service=~\"api|worker\"} |= \"security\""
+
+			stage.template {
+				source   = "alertCode_safe"
+				template = "{{ if ne .alert \"security\" }}{{ else if or (eq .alert_raw \"account_locked\") (eq .alert_raw \"login_failure_spike\") (eq .alert_raw \"second_step_failure_spike\") (eq .alert_raw \"emergency_reset\") (eq .alert_raw \"projection_authz_drift\") (eq .alert_raw \"bulk_read_customers\") }}{{ .alert_raw }}{{ else }}other{{ end }}"
+			}
+
+			stage.labels {
+				values = {
+					alertCode = "alertCode_safe",
+				}
+			}
+
+			stage.match {
+				selector = "{alertCode=~\".+\"}"
+
+				stage.metrics {
+					metric.counter {
+						name              = "security_alerts_total"
+						description       = "Security alerts of the application by closed-list alertCode."
+						action            = "inc"
+						match_all         = true
+						max_idle_duration = "720h"
+					}
+				}
+			}
+		}
+
+		// Rate limit per service (shared free limits of Grafana): excess lines are dropped.
+		stage.limit {
+			rate          = 50
+			burst         = 200
+			drop          = true
+			by_label_name = "service"
+		}
+
+		stage.label_keep {
+			values = ["service", "level", "alertCode"]
+		}
+	}
+
+	loki.process "redact" {
+		forward_to = argument.forward_to.value
+
+		// stage.replace replaces the CAPTURED GROUP only: each expression captures exactly the secret and nothing around it.
+		// Activation path: the segment after /activation/ (its token is never in a URL by the contract, but never in a log).
+		stage.replace {
+			expression = "/api/v1/auth/activation/([^\\s\"'?#]+)"
+			replace    = "REDACTED"
+		}
+		// Presigned S3 URLs (restore scripts, curl errors): signature, credential, session token.
+		stage.replace {
+			expression = "(?i)X-Amz-(?:Signature|Credential|Security-Token)=([^&\\s\"'<>]*)"
+			replace    = "REDACTED"
+		}
+		// Tokens in 32-byte base64url form (43 characters), with a delimiter (or the line edge) on both sides.
+		stage.replace {
+			expression = "(?:^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{43})(?:$|[^A-Za-z0-9_-])"
+			replace    = "REDACTED"
+		}
+
+		stage.replace {
+			expression = "#([A-Za-z0-9_-]{16,})"
+			replace    = "REDACTED"
+		}
+		// JWT, Bearer, GitHub tokens.
+		stage.replace {
+			expression = "(eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*)"
+			replace    = "REDACTED"
+		}
+
+		stage.replace {
+			expression = "(?i)Bearer\\s+([A-Za-z0-9._~+/=-]+)"
+			replace    = "REDACTED"
+		}
+
+		stage.replace {
+			expression = "(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"
+			replace    = "REDACTED"
+		}
+		// E-mail addresses.
+		stage.replace {
+			expression = "([A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+)"
+			replace    = "REDACTED"
+		}
+		// Addresses masked like in the Caddy log (policy P9): IPv4 to /24 (the last octet), IPv6 to /48 (everything after three groups).
+		stage.replace {
+			expression = "\\b[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.([0-9]{1,3})\\b"
+			replace    = "0"
+		}
+
+		stage.replace {
+			expression = "\\b[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:[0-9a-fA-F]{1,4}:([0-9a-fA-F:]*[0-9a-fA-F]:[0-9a-fA-F:]*[0-9a-fA-F])\\b"
+			replace    = ":"
+		}
+	}
+}

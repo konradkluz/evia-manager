@@ -35,7 +35,12 @@ export const HEADER: WorkOrderDetails = {
   createdAt: '2026-09-01T10:00:00.000Z',
 };
 
-export const CUSTOMER: CustomerCard = { displayName: 'Jan Przykładowy', phone: '+48600000001', email: 'jan.przykladowy@example.com' };
+export const CUSTOMER: CustomerCard = {
+  displayName: 'Jan Przykładowy',
+  phone: '+48600000001',
+  email: 'jan.przykladowy@example.com',
+  anonymized: false,
+};
 
 export const SITE: SiteCard = {
   siteId: '0198b0a0-0000-7000-8000-0000000000b1',

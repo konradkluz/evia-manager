@@ -83,6 +83,8 @@ test.describe('accessibility of W-14 "Klienci" in the browser, with colour contr
       expect(await violations(page)).toEqual([]);
       await page.getByRole('button', { name: 'Odrzuć zmiany' }).click();
       jan.deleted = true;
+      // from EVM-041 the Administrator reads a deleted customer (with the banner); "Nie znaleziono" is what the others get
+      api.role = 'editor';
       await page.goto(JAN_PATH);
       await expect(page.getByRole('heading', { level: 1, name: 'Nie znaleziono klienta.' })).toBeVisible();
       expect(await violations(page)).toEqual([]);

@@ -86,8 +86,10 @@ test.describe('journal of a work order (EVM-037)', () => {
     await expect(old).toContainText('Trasa kabla przez szacht A.');
     // the body of the correction points at the old entry; nothing else of the old one was sent
     expect(JSON.parse(posts(api)[0]?.postData ?? '{}')).toMatchObject({ supersedesEntryId: '01968f3e-0000-7000-8000-000000000001' });
-    // the newest version can be corrected again, the replaced one cannot
-    await expect(old.getByRole('button', { name: /^Akcje wpisu/ })).toHaveCount(0);
+    // the newest version can be corrected again, the replaced one cannot (EVM-040: its menu holds no "Popraw wpis")
+    await old.getByRole('button', { name: /^Akcje wpisu/ }).click();
+    await expect(page.getByRole('menuitem', { name: 'Popraw wpis' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(
       entries(page)
         .first()

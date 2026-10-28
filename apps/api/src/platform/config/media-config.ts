@@ -17,6 +17,7 @@ export const MEDIA_REQUIRED_KEYS = [
   'MEDIA_S3_ACCESS_KEY_ID',
   'MEDIA_S3_SECRET_ACCESS_KEY',
 ] as const;
+const SHARED_KEYS: readonly string[] = ['S3_ENDPOINT', 'S3_REGION'];
 const LIMIT_KEYS = ['MEDIA_MAX_PENDING_PER_USER', 'MEDIA_MAX_PENDING_PER_ORDER', 'MEDIA_ABANDON_AFTER_DAYS'] as const;
 const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...LIMIT_KEYS] as const;
 
@@ -99,7 +100,8 @@ export type MediaConfigResult =
   { readonly ok: true; readonly media: MediaConfig | undefined } | { readonly ok: false; readonly keys: readonly string[] };
 
 export function loadMediaConfig(env: Env): MediaConfigResult {
-  const required = MEDIA_REQUIRED_KEYS.filter((key) => !blank(env[key]));
+  // S3_ENDPOINT and S3_REGION are shared with the register of deletions (EVM-040): on their own they do not switch the media on.
+  const required = MEDIA_REQUIRED_KEYS.filter((key) => !SHARED_KEYS.includes(key) && !blank(env[key]));
   if (required.length === 0 && MEDIA_OPTIONAL_KEYS.every((key) => blank(env[key]))) return { ok: true, media: undefined };
   const missing = MEDIA_REQUIRED_KEYS.filter((key) => blank(env[key]));
   if (missing.length > 0) return { ok: false, keys: missing };

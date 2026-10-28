@@ -34,6 +34,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       release: { commit: null, manifestSha256: null },
       loginThrottleKey: Buffer.from(TEST_LOGIN_THROTTLE_KEY, 'base64url'),
       loginAlerts: { passwordFailures: 30, secondStepFailures: 3 },
+      deletionRegister: { status: 'unconfigured' },
     });
     expect(
       loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),
@@ -322,5 +323,38 @@ describe('the key of the cursors is for the server, not for the migrations (EVM-
       .map((path) => relative(root, path).split(sep).join('/'))
       .sort();
     expect(users).toEqual(['migrate.ts', 'platform/config/config.ts']);
+  });
+});
+
+describe('the register of deletions in the configuration (EVM-040 AC3; SR-CRYPTO-04)', () => {
+  const settings = {
+    S3_ENDPOINT: 'https://s3.example.invalid',
+    S3_REGION: 'pl-waw',
+    DELETION_REGISTER_BUCKET: 'evia-test-deletion-register',
+    DELETION_REGISTER_S3_ACCESS_KEY_ID: 'synthetic-access-key',
+    DELETION_REGISTER_S3_SECRET_ACCESS_KEY: ['synthetic', 'secret', 'value'].join('-'),
+  };
+
+  it('EVM-040 AC3 the five settings make a configured register; the secret may come from its _FILE', () => {
+    const { DELETION_REGISTER_S3_SECRET_ACCESS_KEY: secret, ...withoutSecret } = settings;
+    expect(loadConfig({ ...validEnv(), ...settings }).deletionRegister).toMatchObject({
+      status: 'configured',
+      bucket: settings.DELETION_REGISTER_BUCKET,
+    });
+    const fromFile = loadConfig(
+      { ...validEnv(), ...withoutSecret, DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE: '/run/secrets/register-key' },
+      () => `${secret}
+`,
+    );
+    expect(fromFile.deletionRegister).toMatchObject({ status: 'configured', secretAccessKey: secret });
+  });
+
+  it('EVM-040 AC3 a partial or malformed set never stops the start: the register is "incomplete" and the service configures', () => {
+    const partial = { ...settings, S3_REGION: undefined };
+    expect(loadConfig({ ...validEnv(), ...partial }).deletionRegister).toMatchObject({ status: 'incomplete', missing: ['S3_REGION'] });
+    expect(loadConfig({ ...validEnv(), ...settings, S3_ENDPOINT: 'http://s3.example.invalid' }).deletionRegister).toMatchObject({
+      status: 'incomplete',
+      invalid: ['S3_ENDPOINT'],
+    });
   });
 });

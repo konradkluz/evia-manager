@@ -21,6 +21,10 @@ export const SERVICES = Object.freeze([
   'iac-check',
   'scan-trivy-image',
   'deploy-sh-tests',
+  'restore-db-test',
+  'promtool-tests',
+  'caddy-log-test',
+  'alloy-tests',
   'zap-baseline',
 ]);
 

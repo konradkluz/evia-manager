@@ -1,0 +1,35 @@
+// The wiring of the tests (alloy-tests): the REAL pipeline.alloy, a source that accepts synthetic entries over HTTP and loki.echo
+// as the sink (it prints the entries that passed to Alloy's log). Instead of sources.alloy and sinks.alloy of the VM.
+
+import.file "evia" {
+	filename = "pipeline.alloy"
+}
+
+loki.echo "out" { }
+
+evia.evia_pipeline "main" {
+	forward_to = [loki.echo.out.receiver]
+}
+
+loki.source.api "test" {
+	http {
+		listen_address = "127.0.0.1"
+		listen_port    = 3100
+	}
+
+	forward_to = [evia.evia_pipeline.main.receiver]
+}
+
+prometheus.exporter.self "alloy" { }
+
+// The positive control: the same kind of source straight into a sink, without the pipeline.
+loki.echo "raw" {}
+
+loki.source.api "raw" {
+	http {
+		listen_address = "127.0.0.1"
+		listen_port    = 3101
+	}
+
+	forward_to = [loki.echo.raw.receiver]
+}

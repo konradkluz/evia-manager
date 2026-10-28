@@ -52,6 +52,7 @@ export {
   Smartphone,
   ThumbsUp,
   TimerOff,
+  Trash2,
   TriangleAlert,
   RotateCcw,
   ScanSearch,

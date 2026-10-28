@@ -12,7 +12,8 @@
  *   2. the idempotency port (when there is a key): a repeat of the same key, customer and body returns the stored result BEFORE the
  *      version is compared. The key is bound to the CUSTOMER (the scope holds its id): the same key and body on another customer is
  *      `422 idempotency_mismatch`, not a replay that would silently skip the second change;
- *   3. the version (`412 version_conflict`, no current value in the answer);
+ *   3. an anonymized customer is `409 customer_anonymized` (EVM-041: final, whatever the version); then the version (`412 version_conflict`,
+ *      no current value in the answer);
  *   4. the merged customer through the rules of the creation (`400`, pointers and codes, never a value);
  *   5. the update (`version + 1`), the event `customer.updated` for the audit trail (the actor and the customer, no field, no value),
  *      the idempotency record. An error anywhere rolls the whole command back.
@@ -133,6 +134,8 @@ export class UpdateCustomerService {
     patch: CustomerPatchInput,
     request: EventContext,
   ): Promise<void> {
+    // an anonymized customer cannot be edited, whatever the version: the anonymization is final (EVM-041 AC4; migration 0043)
+    if (locked.anonymized_at !== null) throw new ProblemException('customer_anonymized');
     if (locked.version !== expectedVersion) throw new ProblemException('version_conflict');
     const normalized = normalizeNewCustomer(mergeCustomerPatch(inputOf(locked), patch));
     if (!normalized.ok) throw new ProblemException('validation_failed', { errors: normalized.errors });

@@ -199,14 +199,19 @@ describe('cards (EVM-018 AC1, AC4, AC5)', () => {
     await sql`update customers.customers set notes = 'notatka-klienta', tax_id = null where id = ${s.customerId}`.execute(admin());
     const response = await get(await signIn('editor'), `${PATH}/${s.orderId}/customer`);
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ displayName: 'Jan Przykładowy', phone: '+48600000001', email: 'jan@example.invalid' });
+    expect(response.body).toEqual({
+      displayName: 'Jan Przykładowy',
+      phone: '+48600000001',
+      email: 'jan@example.invalid',
+      anonymized: false,
+    });
   });
 
   it('EVM-018 AC1 the customer card has a null e-mail when the customer has none', async () => {
     const customerId = await insertCustomer(admin(), {});
     const ids = await insertWorkOrders(admin(), [{ number: numberOf(2026, 2), customerId }]);
     const response = await get(await signIn('editor'), `${PATH}/${[...ids.values()][0]}/customer`);
-    expect(response.body).toEqual({ displayName: 'Jan Przykładowy', phone: '+48600000001', email: null });
+    expect(response.body).toEqual({ displayName: 'Jan Przykładowy', phone: '+48600000001', email: null, anonymized: false });
   });
 
   it('EVM-018 AC1 AC4 AC5 the site card has the type, the address, the spot, the power, the PPE, the notes as text and the parties as {id, displayName}', async () => {

@@ -29,3 +29,18 @@ describe('a constraint of the database is a mapped 409, never a 500 (EVM-037 K9;
     expect(() => rethrowMapped(problem)).toThrow(problem);
   });
 });
+
+describe('a wait for a lock that ran out is a 503 to retry, never a 500 (EVM-040 AC3; RR-NOC-T2-4; ASVS V16.5.1)', () => {
+  it('EVM-040 AC3 the statement timeout (57014) and the lock not available (55P03) are service_unavailable with Retry-After', () => {
+    for (const code of ['57014', '55P03']) {
+      expect(() => rethrowMapped({ code, message: 'canceling statement due to statement timeout' })).toThrow(
+        expect.objectContaining({ code: 'service_unavailable', extras: { retryAfterSeconds: 2 } }),
+      );
+    }
+  });
+
+  it('EVM-040 AC3 other classes (a deadlock, 40P01) are not hidden', () => {
+    const deadlock = { code: '40P01' };
+    expect(() => rethrowMapped(deadlock)).toThrow(expect.objectContaining({ code: '40P01' }));
+  });
+});

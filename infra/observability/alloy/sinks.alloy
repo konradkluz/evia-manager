@@ -1,0 +1,39 @@
+// Sinks of the VM (EVM-085 AC1): Grafana Cloud (the shared stack in the EU, ADR-0018). The write token is read from a FILE
+// (local.file, is_secret): it is never in the environment, the command line or this repository. The URLs and the user (instance
+// identifier) are not secrets and come from the environment (/etc/evia/runtime/telemetry.env, written in the IaC session).
+// `env` is an EXTERNAL label of both sinks: nothing a log line says can change it.
+
+local.file "grafana_token" {
+	filename  = sys.env("GRAFANA_WRITE_TOKEN_FILE")
+	is_secret = true
+}
+
+loki.write "grafana" {
+	endpoint {
+		url = sys.env("GRAFANA_LOKI_URL")
+
+		basic_auth {
+			username = sys.env("GRAFANA_LOKI_USER")
+			password = local.file.grafana_token.content
+		}
+	}
+
+	external_labels = {
+		env = "staging",
+	}
+}
+
+prometheus.remote_write "grafana" {
+	endpoint {
+		url = sys.env("GRAFANA_PROM_URL")
+
+		basic_auth {
+			username = sys.env("GRAFANA_PROM_USER")
+			password = local.file.grafana_token.content
+		}
+	}
+
+	external_labels = {
+		env = "staging",
+	}
+}

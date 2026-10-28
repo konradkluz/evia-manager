@@ -49,7 +49,8 @@ for service in $(jq -r '.services | keys[]' "$SECRETS_MANIFEST"); do
   case "$service" in
     # The PostgreSQL image runs as its own user 999 (compose.infra.yaml); nothing else may claim that UID.
     postgres) [ "$uid" = 999 ] || fail "secrets manifest: uid of postgres" ;;
-    api | worker | migrate | web) [[ "$uid" =~ ^[1-9][0-9]{3,5}$ ]] || fail "secrets manifest: uid of $service" ;;
+    # EVM-085: alloy (the log and metrics collector) gets the Grafana write token only.
+    api | worker | migrate | web | alloy) [[ "$uid" =~ ^[1-9][0-9]{3,5}$ ]] || fail "secrets manifest: uid of $service" ;;
     *) fail "secrets manifest: service $service" ;;
   esac
   target="$SECRETS_RUN/$service"

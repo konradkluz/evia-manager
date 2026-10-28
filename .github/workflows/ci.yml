@@ -170,6 +170,22 @@ jobs:
       - name: Tests of the deployment script of the VM (deploy-sh-tests)
         if: needs.changes.outputs.iac == 'true'
         run: docker compose -f compose.yaml run --rm deploy-sh-tests
+      # EVM-084 AC3, AC5: the database stage of the restore test (real pgBackRest backup and point-in-time restore, no network).
+      - name: Database stage of the restore test (restore-db-test)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm restore-db-test
+      # EVM-085 AC2, AC5: promtool test rules for the alert rules of staging (no network).
+      - name: Alert rules of staging (promtool-tests)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm promtool-tests
+      # EVM-085 AC6, AC7: the access log of the edge Caddy (real snippet, synthetic token, positive control).
+      - name: Access log of the edge Caddy (caddy-log-test)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm caddy-log-test
+      # EVM-085 AC1, AC5, AC7: the log pipeline in a real Alloy (allow-list, redaction with a positive control, alert counters, rate limit).
+      - name: Log pipeline of staging (alloy-tests)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm alloy-tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov-backend
