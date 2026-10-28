@@ -121,3 +121,4 @@ Decyzje robocze (rekomendowane wartości domyślne; do potwierdzenia przez Konra
 - 2026-10-28 — start realizacji (nocna kolejka, tor T2), gałąź feature/EVM-040-041-usuniecie-rejestr-usuniec
 - 2026-10-28 — plan gotowy (backend-developer)
 - 2026-10-28 — implementacja backendu gotowa (backend-developer): kontrakt, migracje 0043–0044, usunięcie / przywrócenie / anonimizacja, port blokady, rejestr usunięć, testy `EVM-041 AC1–AC8`; panel W-14 — kolejny krok
+- 2026-10-28 — panel W-14 gotowy (web-developer): menu „Akcje klienta” (Usuń z „Cofnij”, Anonimizuj… z AlertDialog, polem „Rozumiem” i W-04), banery usunięty / zanonimizowany z „Przywróć klienta”, filtr „Usunięci” (tylko A), karta „Klient” bez numeru zastępczego; testy `EVM-041 AC1–AC8` (komponentowe, Playwright, axe)
