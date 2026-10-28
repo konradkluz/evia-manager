@@ -20,7 +20,7 @@ import { sql } from 'kysely';
 import request from 'supertest';
 import { PANEL_ORIGIN } from '../support/app.ts';
 import type { IdentityApp } from '../support/identity-app.ts';
-import { createLink, createPasskey, createSession, createUser, type Role } from '../support/identity-fixtures.ts';
+import { createLink, createMobileSession, createPasskey, createSession, createUser, type Role } from '../support/identity-fixtures.ts';
 
 export type Caller =
   | { readonly kind: 'anonymous' }
@@ -52,6 +52,8 @@ export interface MatrixCell {
   readonly expectation: Expectation;
   /** An IDOR case: the caller is entitled to the operation but addresses somebody else's object. */
   readonly idor: boolean;
+  /** The credential the operation reads: the cookie of the panel, or the Bearer token of the phone (an operation of the mobile channel alone, EVM-094). */
+  readonly credential: 'cookie' | 'bearer';
 }
 
 export const ROLES: readonly Role[] = ['administrator', 'editor', 'read_only'];
@@ -93,6 +95,13 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   const { authz } = operation;
   if (authz.public === true) return { outcome: 'allowed' };
   if (caller.kind === 'anonymous') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
+  // An operation of the mobile channel alone takes the Bearer token of a phone (EVM-094; SR-AUTHZ-12): a cookie of the panel — a session, a revoked or an expired
+  // one — is ignored and the caller is anonymous. The phone has no step-up and no enrolment state.
+  if (authz.channels?.includes('web') !== true) {
+    if (caller.kind !== 'session' || caller.channel !== 'mobile') return { outcome: 'denied', status: 401, code: 'unauthenticated' };
+    const entitledPhone = authz.roles?.includes(caller.role) === true && roleMayUseChannel(caller.role, caller.channel);
+    return entitledPhone ? { outcome: 'allowed' } : { outcome: 'denied', status: 403, code: 'forbidden' };
+  }
   if (caller.kind === 'revoked') return { outcome: 'denied', status: 401, code: 'session_revoked' };
   if (caller.kind === 'expired') return { outcome: 'denied', status: 401, code: 'session_expired' };
   if (
@@ -103,7 +112,7 @@ export function expectationFor(operationId: string, manifest: AuthzManifest, lis
   }
   const entitled =
     authz.roles?.includes(caller.role) === true &&
-    authz.channels?.includes(caller.channel) === true &&
+    authz.channels.includes(caller.channel) &&
     roleMayUseChannel(caller.role, caller.channel);
   if (!entitled) return { outcome: 'denied', status: 403, code: 'forbidden' };
   // SR-SESS-08: after the role (a role that may not call the operation never learns it is protected), only a fresh passkey passes
@@ -146,6 +155,7 @@ export function buildMatrix(manifest: AuthzManifest, lists: MatrixLists): Matrix
       caller,
       expectation: expectationFor(operationId, manifest, lists, caller),
       idor: false,
+      credential: authz.channels?.includes('web') === true || authz.public === true ? 'cookie' : 'bearer',
     }));
     if (!addressesObject || authz.public === true) return cells;
     // IDOR: every caller entitled to the operation, asking for an object of somebody else, gets 404 (never 403: the object is not disclosed)
@@ -205,7 +215,8 @@ export async function runMatrix(
     const headers: Record<string, string> = {};
     let userId: string = randomUUID();
     if (caller.kind !== 'anonymous') {
-      const waiting = caller.kind === 'session' && caller.state === 'mfa_enrollment';
+      const waiting =
+        caller.kind === 'session' && caller.state === 'mfa_enrollment' && (caller.channel === 'web' || cell.credential === 'cookie');
       const key = `${caller.role}:${waiting ? 'invited' : 'active'}`;
       let account = accounts.get(key);
       if (account === undefined) {
@@ -241,13 +252,22 @@ export async function runMatrix(
           db,
         );
       }
-      headers['Cookie'] = session.cookie;
-      headers['X-CSRF-Token'] = session.csrfToken;
+      if (caller.kind === 'session' && caller.channel === 'mobile' && cell.credential === 'bearer') {
+        // the phone: a Bearer token, no cookie, no Origin, no CSRF token (the session of the cookie above is the web fixture and stays unused)
+        const phone = await createMobileSession(db, app.clock, account);
+        headers['Authorization'] = `Bearer ${phone.bearer}`;
+      } else {
+        headers['Cookie'] = session.cookie;
+        headers['X-CSRF-Token'] = session.csrfToken;
+      }
       userId = account.id;
     }
 
     const mutating = cell.method !== 'get';
-    if (mutating) {
+    // every call carries the headers of an app of the right version: the version is not what the matrix measures
+    headers['X-Client-Platform'] = 'android';
+    headers['X-Client-Version'] = '1.2.0';
+    if (mutating && headers['Authorization'] === undefined) {
       headers['Origin'] = PANEL_ORIGIN;
       headers['Sec-Fetch-Site'] = 'same-origin';
     }

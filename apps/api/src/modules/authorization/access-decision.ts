@@ -29,6 +29,7 @@ export type DenyCode =
   | 'unauthenticated'
   | 'session_revoked'
   | 'session_expired'
+  | 'device_wipe_required'
   | 'forbidden'
   | 'csrf_failed'
   | 'mfa_enrollment_required'
@@ -51,6 +52,11 @@ export interface AccessRequest {
   readonly panelOrigin: string;
   /** Called only for non-public operations. */
   readonly authentication: () => Authentication;
+  /**
+   * The principal (when there is one) was resolved from the `Authorization: Bearer` header — a credential the browser never adds by itself. Decided by the guard from
+   * the channel of the operation in the manifest, never from a header of the client (EVM-094; SR-SESS-10). Absent: a cookie.
+   */
+  readonly viaBearer?: boolean;
   /** True when the X-CSRF-Token of the request equals the token the session expects. */
   readonly csrfMatches: (principal: Principal) => boolean;
   readonly rateLimit: (bucket: 'anonymous' | 'authentication') => RateDecision;
@@ -66,12 +72,16 @@ const UNAUTHENTICATED_CODES = {
   anonymous: 'unauthenticated',
   revoked: 'session_revoked',
   expired: 'session_expired',
+  wipe_required: 'device_wipe_required',
 } as const satisfies Record<string, DenyCode>;
 
 const ALLOW: AccessDecision = Object.freeze({ allowed: true });
 const deny = (code: DenyCode): AccessDecision => ({ allowed: false, code });
 const limited = ({ allowed, retryAfterSeconds }: RateDecision): AccessDecision | undefined =>
   allowed ? undefined : { allowed: false, code: 'rate_limited', retryAfterSeconds };
+
+const mobileOnly = (policy: { readonly channels?: readonly string[] | undefined }): boolean =>
+  policy.channels?.length === 1 && policy.channels[0] === 'mobile';
 
 /** Origin of the panel and a same-origin fetch: the two signals browsers add and scripts of other sites cannot forge. */
 const sameOrigin = (request: AccessRequest): boolean => request.origin === request.panelOrigin && request.secFetchSite === 'same-origin';
@@ -84,7 +94,9 @@ export function decideAccess(request: AccessRequest): AccessDecision {
 
   if (policy.public === true) {
     if (!request.publicOperations.includes(operationId)) return deny('forbidden');
-    if (request.mutating && !sameOrigin(request)) return deny('csrf_failed');
+    // An operation of the mobile channel alone (decided by the manifest, never by a header) has no cookie to protect: the phone sends no Origin, and a page
+    // of a browser cannot reach it (JSON only, so a preflight is needed, and the API sends no CORS headers).
+    if (request.mutating && !mobileOnly(policy) && !sameOrigin(request)) return deny('csrf_failed');
     return limited(request.rateLimit(request.authenticationOperations.includes(operationId) ? 'authentication' : 'anonymous')) ?? ALLOW;
   }
 
@@ -95,7 +107,9 @@ export function decideAccess(request: AccessRequest): AccessDecision {
   const userLimit = limited(request.rateLimitUser(principal));
   if (userLimit !== undefined) return userLimit;
 
-  if (request.mutating && !(sameOrigin(request) && request.csrfMatches(principal))) return deny('csrf_failed');
+  // A Bearer token is no ambient credential (a browser never adds it by itself): no CSRF token and no Origin are asked for it (SR-SESS-10). A cookie always is.
+  const bearer = request.viaBearer === true && principal.channel === 'mobile';
+  if (request.mutating && !bearer && !(sameOrigin(request) && request.csrfMatches(principal))) return deny('csrf_failed');
   if (request.authenticationOperations.includes(operationId)) {
     const decision = limited(request.rateLimit('authentication'));
     if (decision !== undefined) return decision;

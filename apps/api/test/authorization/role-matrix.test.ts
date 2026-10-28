@@ -84,10 +84,31 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     }
   });
 
-  it('EVM-016 AC8 the contract has no operation on the mobile channel in M1, so every mobile session is denied everywhere that is not public', () => {
+  it('EVM-094 AC8 a mobile session is allowed on the public operations and on the operations of the mobile channel for the Administrator and the Editor — never for the Read-only role (SR-AUTHZ-06), never on an operation of the panel', () => {
     for (const cell of cells.filter((item) => item.caller.kind === 'session' && item.caller.channel === 'mobile')) {
-      const isPublic = PUBLIC_OPERATIONS.includes(cell.operationId);
-      expect(cell.expectation.outcome === 'allowed', `${cell.operationId} ${JSON.stringify(cell.caller)}`).toBe(isPublic);
+      const policy = AUTHZ_MANIFEST[cell.operationId]?.authz;
+      const mobileOperation = policy?.public !== true && policy?.channels?.includes('mobile') === true;
+      const role = cell.caller.kind === 'session' ? cell.caller.role : undefined;
+      const expected = PUBLIC_OPERATIONS.includes(cell.operationId) || (mobileOperation && role !== 'read_only');
+      expect(cell.expectation.outcome === 'allowed', `${cell.operationId} ${JSON.stringify(cell.caller)}`).toBe(expected);
+    }
+  });
+
+  it('EVM-094 AC8 the cookie of the panel is ignored by an operation of the mobile channel (401 unauthenticated, whatever the session), and the operations of the mobile channel read a Bearer token', () => {
+    const mobileOperations = Object.entries(AUTHZ_MANIFEST).filter(
+      ([, item]) => item.authz.public !== true && item.authz.channels?.includes('web') !== true,
+    );
+    expect(mobileOperations.map(([id]) => id).sort()).toEqual(['getClientConfig', 'mobileLogout']);
+    for (const [id] of mobileOperations) {
+      for (const cell of cells.filter((item) => item.operationId === id && item.credential === 'bearer')) {
+        const viaCookie = cell.caller.kind !== 'session' || cell.caller.channel !== 'mobile';
+        if (viaCookie)
+          expect(cell.expectation, `${id} ${JSON.stringify(cell.caller)}`).toEqual({
+            outcome: 'denied',
+            status: 401,
+            code: 'unauthenticated',
+          });
+      }
     }
   });
 
@@ -103,7 +124,10 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       .map((cell) => cell.operationId);
     const unique = [...new Set(allowedWhileEnrolling)].sort();
     expect(unique).toEqual([...MFA_ENROLLMENT_OPERATIONS, ...IMPLEMENTED_PUBLIC].sort());
-    for (const cell of cells.filter((item) => item.caller.kind === 'session' && item.caller.state === 'mfa_enrollment')) {
+    // (an operation of the mobile channel alone reads a Bearer token: the cookie of an enrolling session is ignored there, 401 — see the test of the mobile channel)
+    for (const cell of cells.filter(
+      (item) => item.caller.kind === 'session' && item.caller.state === 'mfa_enrollment' && item.credential === 'cookie',
+    )) {
       if (
         cell.expectation.outcome === 'denied' &&
         !PUBLIC_OPERATIONS.includes(cell.operationId) &&
