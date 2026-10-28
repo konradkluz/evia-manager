@@ -88,6 +88,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'payment_milestone.deleted': 'Korekta: usunięcie transzy płatności',
   'media_asset.created': 'Dodanie zdjęcia do zlecenia',
   'media_file.quarantined': 'Plik z kwarantanny skanu (zdjęcie)',
+  'media_file.rescan_requested': 'Zlecenie ponownego skanu pliku (zdjęcie)',
+  'media_file.rescanned': 'Ponowny skan pliku z kwarantanny (zdjęcie)',
+  'media_file.quarantine_purged': 'Usunięcie pliku po 30 dniach kwarantanny (zdjęcie)',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -182,7 +185,16 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'payment_milestone.deleted',
     ],
   },
-  { label: 'Media', actions: ['media_asset.created', 'media_file.quarantined'] },
+  {
+    label: 'Media',
+    actions: [
+      'media_asset.created',
+      'media_file.quarantined',
+      'media_file.rescan_requested',
+      'media_file.rescanned',
+      'media_file.quarantine_purged',
+    ],
+  },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {

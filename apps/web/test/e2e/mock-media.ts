@@ -126,7 +126,7 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
         )
         .map((entry) => shown(entry, unfinished))
         .reverse();
-      return json(200, { items, nextCursor: null }, { 'Cache-Control': 'no-store' });
+      return json(200, { items, nextCursor: null, needsAttentionCount: 0 }, { 'Cache-Control': 'no-store' });
     }
     if (method !== 'POST') return problem(405, 'method_not_allowed');
     if (!writes) return problem(403, 'forbidden');

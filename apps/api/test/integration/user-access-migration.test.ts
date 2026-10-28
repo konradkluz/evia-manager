@@ -59,6 +59,9 @@ beforeAll(async () => {
     '0040_login_throttle',
     '0041_account',
     '0045_media',
+    '0046_media_quarantine',
+    '0047_email_outbox_subject',
+    '0048_media_alerts',
   ]);
 });
 afterAll(async () => {

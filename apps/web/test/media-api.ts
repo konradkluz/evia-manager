@@ -20,6 +20,7 @@ export function asset(n: number, extra: Partial<MediaAsset> = {}): MediaAsset {
     fileState: 'clean',
     stateReasonCode: null,
     needsAttention: false,
+    quarantine: null,
     declaredSize: 1000,
     originalFilename: null,
     uploadSession: null,
@@ -65,14 +66,15 @@ export function mediaApi(options: MediaServerOptions = {}) {
   const completed = new Set<string>();
   const finalState = options.stateAfterComplete ?? 'clean';
   const list: Handler = (request) => {
-    if (request.query.get('uploadState') === 'unfinished') return json(200, { items: options.unfinished ?? [], nextCursor: null });
+    if (request.query.get('uploadState') === 'unfinished')
+      return json(200, { items: options.unfinished ?? [], nextCursor: null, needsAttentionCount: 0 });
     const all = [
       ...created.map((entry) =>
         completed.has(entry.id) ? { ...entry, fileState: finalState, stateReasonCode: options.stateReasonCode ?? null } : entry,
       ),
       ...(options.assets ?? []),
     ];
-    return json(200, { items: all, nextCursor: null });
+    return json(200, { items: all, nextCursor: null, needsAttentionCount: 0 });
   };
   const create: Handler =
     options.create ??

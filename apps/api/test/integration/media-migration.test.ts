@@ -45,15 +45,17 @@ interface FileSpec {
   readonly reason?: string | null;
   readonly size?: number;
   readonly sha?: string;
+  readonly quarantinedAt?: string | null;
 }
 const insertFile = (spec: FileSpec = {}) => {
   const id = spec.id ?? uuidv7();
+  const defaultQuarantinedAt = spec.state === 'quarantined' ? T : null;
+  const quarantinedAt = spec.quarantinedAt === undefined ? defaultQuarantinedAt : spec.quarantinedAt;
   return sql`insert into media.stored_files (id, purpose, media_asset_id, object_key, state, state_reason_code, state_changed_at,
-        declared_size_bytes, declared_content_type, declared_sha256, created_at, created_by)
+        declared_size_bytes, declared_content_type, declared_sha256, created_at, created_by, quarantined_at)
       values (${id}, ${spec.purpose ?? 'media_original'}, ${spec.assetId ?? null}, ${spec.key ?? `media/2026/10/${id}/original`},
-        ${spec.state ?? 'pending_upload'}, ${spec.reason ?? null}, ${T}, ${spec.size ?? 1024}, 'image/jpeg', ${spec.sha ?? 'a'.repeat(64)}, ${T}, ${userId})`.execute(
-    admin(),
-  );
+        ${spec.state ?? 'pending_upload'}, ${spec.reason ?? null}, ${T}, ${spec.size ?? 1024}, 'image/jpeg', ${spec.sha ?? 'a'.repeat(64)}, ${T}, ${userId},
+        ${quarantinedAt})`.execute(admin());
 };
 
 const insertSession = (fileId: string, state = 'active', id: string = uuidv7()) =>
@@ -151,5 +153,56 @@ describe('migration 0045 — media (EVM-044 AC1, AC6; ADR-0009; expand only)', (
     const { rows } = await sql<{ indexdef: string }>`
       select indexdef from pg_indexes where schemaname = 'media' and indexname = 'stored_files_unscanned_idx'`.execute(admin());
     expect(rows[0]?.indexdef).toMatch(/where \(state = ANY \(ARRAY\['uploaded'::text, 'scanning'::text\]\)\)/i);
+  });
+});
+
+describe('migration 0046 — the quarantine of a file (EVM-049 AC5; expand only; SR-DATA-07)', () => {
+  it('EVM-049 AC5 a quarantined file has the time of its first entry, a purge needs the quarantine, and the reason `abandoned` belongs to a failed file', async () => {
+    const { assetId } = await newFile();
+    const other = uuidv7();
+    await insertAsset(other);
+    await fails(insertFile({ assetId: other, state: 'quarantined', reason: 'malware_detected', quarantinedAt: null }), '23514');
+    await newFile({ state: 'failed', reason: 'abandoned' });
+    await fails(sql`update media.stored_files set purged_at = ${T} where media_asset_id = ${assetId}`.execute(admin()), '23514');
+  });
+
+  it('EVM-049 AC5 quarantined_at and purged_at are write-once: set once, never moved or cleared (the clock of the retention cannot be reset)', async () => {
+    const { fileId } = await newFile({ state: 'quarantined', reason: 'malware_detected' });
+    await fails(sql`update media.stored_files set quarantined_at = '2026-10-28T08:00:00Z' where id = ${fileId}`.execute(admin()), 'EV002');
+    await fails(
+      sql`update media.stored_files set quarantined_at = null, state = 'scanning', state_reason_code = null where id = ${fileId}`.execute(
+        admin(),
+      ),
+      'EV002',
+    );
+    await sql`update media.stored_files set purged_at = ${T} where id = ${fileId}`.execute(admin());
+    await fails(sql`update media.stored_files set purged_at = '2026-10-28T08:00:00Z' where id = ${fileId}`.execute(admin()), 'EV002');
+    await fails(sql`update media.stored_files set purged_at = null where id = ${fileId}`.execute(admin()), 'EV002');
+    // a file never quarantined can get the time once (null to a value)
+    const fresh = await newFile({ state: 'scanning' });
+    await sql`update media.stored_files set state = 'quarantined', state_reason_code = 'type_mismatch', quarantined_at = ${T} where id = ${fresh.fileId}`.execute(
+      admin(),
+    );
+  });
+
+  it('EVM-049 AC5 the rows quarantined before the migration are backfilled with the time they entered the state; the partial indexes cover only what the sweepers read', async () => {
+    const { rows } = await sql<{ indexname: string; indexdef: string }>`
+      select indexname, indexdef from pg_indexes where schemaname = 'media' and tablename = 'stored_files' and indexname in ('stored_files_quarantine_idx', 'stored_files_pending_idx')
+      order by indexname`.execute(admin());
+    expect(rows.map((row) => row.indexname)).toEqual(['stored_files_pending_idx', 'stored_files_quarantine_idx']);
+    expect(rows[1]?.indexdef).toContain('WHERE ((quarantined_at IS NOT NULL) AND (purged_at IS NULL))');
+    expect(rows[0]?.indexdef).toContain("WHERE (state = 'pending_upload'::text)");
+  });
+
+  it('EVM-049 AC5 the deadline function counts calendar days in the business zone and the application role may call it', async () => {
+    const app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 1 } });
+    try {
+      const { rows } = await sql<{ at: Date }>`select media.quarantine_expires_at('2026-09-01T10:00:00Z'::timestamptz, 30) as at`.execute(
+        app,
+      );
+      expect(rows[0]?.at.toISOString()).toBe('2026-09-30T22:00:00.000Z');
+    } finally {
+      await app.destroy();
+    }
   });
 });
