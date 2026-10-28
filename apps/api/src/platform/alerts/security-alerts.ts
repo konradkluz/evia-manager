@@ -17,7 +17,11 @@ export type SecurityAlertCode =
   // EVM-026: a flood of failed passwords across accounts (warning), failed second steps of one scope (critical), an account or a browser locked
   | 'login_failure_spike'
   | 'second_step_failure_spike'
-  | 'account_locked';
+  | 'account_locked'
+  // EVM-049: a file was put in quarantine by the scan; the signatures of the scanner are older than 24 h (a stale alert once per episode) or 72 h (daily)
+  | 'media_quarantined'
+  | 'signature_stale'
+  | 'signature_stale_72h';
 
 export interface SecurityAlertsTable {
   id: string;
@@ -45,6 +49,16 @@ export async function enqueueSecurityAlert(tx: Kysely<Database>, alert: Security
     .insertInto('platform.security_alert_outbox')
     .values({ alert_code: alert.code, occurred_at: alert.occurredAt, trace_id: alert.traceId, emitted_at: null })
     .execute();
+}
+
+/** When the newest alert of the code was written (`null` when there is none) - the deduplication of periodic alerts lives in the database (EVM-049 AC7). */
+export async function latestAlertAt(tx: Kysely<Database>, code: SecurityAlertCode): Promise<Date | null> {
+  const row = await tables(tx)
+    .selectFrom('platform.security_alert_outbox')
+    .select((eb) => eb.fn.max('occurred_at').as('latest'))
+    .where('alert_code', '=', code)
+    .executeTakeFirst();
+  return row?.latest ?? null;
 }
 
 const BATCH_SIZE = 50;

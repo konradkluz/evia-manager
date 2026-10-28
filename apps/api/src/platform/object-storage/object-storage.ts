@@ -62,6 +62,12 @@ export interface ObjectStorage {
   completeMultipartUpload(key: string, uploadId: string, parts: readonly StoredPart[]): Promise<CompletedObject>;
   /** Idempotent: an unknown upload is not an error. */
   abortMultipartUpload(key: string, uploadId: string): Promise<void>;
+  /**
+   * Removes the object the way a versioned bucket does: a DeleteObject WITHOUT a version (a delete marker; ADR-0009: object lock in governance mode
+   * and no bypass for the application). The older versions go with the lifecycle of the bucket (noncurrent expiration). Idempotent: a missing
+   * object is not an error.
+   */
+  deleteObject(key: string): Promise<void>;
   /** @returns `undefined` when there is no such object */
   head(key: string): Promise<ObjectHead | undefined>;
   /** One read of a pinned version (`versionId`) and, when given, of the exact ETag (`ifMatch`): the three verdicts concern the same bytes. */

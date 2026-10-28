@@ -13,6 +13,7 @@ import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ListPartsCommand,
@@ -183,6 +184,15 @@ export class S3ObjectStorage implements ObjectStorage {
     } catch (error) {
       const translated = translateS3Error(error);
       if (translated.code !== 'no_such_upload') throw translated;
+    }
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    try {
+      await this.#client.send(new DeleteObjectCommand({ Bucket: this.#bucket, Key: key }));
+    } catch (error) {
+      const translated = translateS3Error(error);
+      if (translated.code !== 'no_such_object') throw translated;
     }
   }
 

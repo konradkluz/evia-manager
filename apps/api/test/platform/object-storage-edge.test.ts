@@ -1,5 +1,6 @@
 import type { S3Client } from '@aws-sdk/client-s3';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_MEDIA_LIMITS } from '../../src/platform/config/media-config.ts';
 import { createMalwareScanner } from '../../src/platform/malware-scan/create-malware-scanner.ts';
 import { createObjectStorage } from '../../src/platform/object-storage/create-object-storage.ts';
 import { InMemoryObjectStorage } from '../../src/platform/object-storage/in-memory-object-storage.ts';
@@ -87,7 +88,12 @@ describe('EVM-044 AC6 the double and the adapter cover the awkward answers of a 
   it('EVM-044 AC3 the factories return nothing without the media configuration and the real adapters with it', () => {
     expect(createObjectStorage(undefined)).toBeNull();
     expect(createMalwareScanner(undefined)).toBeNull();
-    const media = { s3: SETTINGS, clamd: { kind: 'tcp', host: 'clamd', port: 3310 }, bucketOrigin: undefined } as const;
+    const media = {
+      s3: SETTINGS,
+      clamd: { kind: 'tcp', host: 'clamd', port: 3310 },
+      bucketOrigin: undefined,
+      limits: DEFAULT_MEDIA_LIMITS,
+    } as const;
     expect(createObjectStorage(media)).toBeInstanceOf(S3ObjectStorage);
     expect(createMalwareScanner(media)).not.toBeNull();
     expect(createMalwareScanner({ ...media, clamd: undefined })).toBeNull();

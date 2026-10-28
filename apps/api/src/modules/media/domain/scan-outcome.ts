@@ -4,7 +4,7 @@
  * a damaged transfer (failed, can be retried), which beats a wrong type (quarantine); only when all three agree is the file `clean`.
  */
 export type FileState = 'pending_upload' | 'uploaded' | 'scanning' | 'clean' | 'processing' | 'ready' | 'quarantined' | 'failed';
-export type ReasonCode = 'checksum_mismatch' | 'processing_error' | 'type_mismatch' | 'malware_detected';
+export type ReasonCode = 'checksum_mismatch' | 'processing_error' | 'type_mismatch' | 'malware_detected' | 'abandoned';
 
 export type ScanOutcome =
   | { readonly state: 'clean'; readonly reason: null }
