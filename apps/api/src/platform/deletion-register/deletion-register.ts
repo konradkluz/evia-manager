@@ -43,7 +43,7 @@ export interface DeletionRegister {
 }
 
 /** The register did not take the record. No text of the storage's answer: only a fixed reason (SR-LOG-02, CWE-209). */
-export type UnavailableReason = 'not_configured' | 'write_failed';
+export type UnavailableReason = 'not_configured' | 'write_failed' | 'busy';
 
 export class DeletionRegisterUnavailable extends Error {
   readonly reason: UnavailableReason;

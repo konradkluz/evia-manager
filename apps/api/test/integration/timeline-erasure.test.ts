@@ -548,6 +548,54 @@ describe('EVM-040 AC7 - 412 asks for a refresh', () => {
   });
 });
 
+describe('EVM-040 AC3 - concurrent operations on one entry (RR-NOC-T2-4)', () => {
+  const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  const until = async (condition: () => boolean) => {
+    for (let waited = 0; !condition() && waited < 5000; waited += 10) await sleep(10);
+    expect(condition()).toBe(true);
+  };
+
+  it('EVM-040 AC3 two redactions of one entry at once: one is 200 and ONE object is in the register, the other is 412 (the lock made it wait)', async () => {
+    const { administrator, orderId, noteId } = await seed();
+    const answers = await Promise.all(
+      [1, 2].map(() => administrator.panel.post(`${entryUrl(orderId, noteId)}/redact`, undefined, { 'If-Match': tag(1) })),
+    );
+    expect(answers.map((answer) => answer.status).sort()).toEqual([200, 412]);
+    expect(register.objects).toHaveLength(1);
+    expect((await rowOf(noteId))?.version).toBe(2);
+  });
+
+  it('EVM-040 AC3 a deletion that waits for the lock of a slow redaction longer than the statement timeout is 503 service_unavailable with Retry-After, not 500 - and the redaction still ends 200', async () => {
+    const { administrator, orderId, noteId } = await seed();
+    register.onRecord = () => sleep(2600);
+    const redaction = administrator.panel
+      .post(`${entryUrl(orderId, noteId)}/redact`, undefined, { 'If-Match': tag(1) })
+      .then((answer) => answer);
+    await until(() => register.calls.length === 1);
+    const deletion = await administrator.panel.delete(entryUrl(orderId, noteId), { 'If-Match': tag(1) });
+    expect(deletion.status).toBe(503);
+    expect(codeOf(deletion.body)).toBe('service_unavailable');
+    expect(deletion.headers['retry-after']).toBe('2');
+    expect(JSON.stringify(deletion.body)).not.toContain(CANARY);
+    expect((await redaction).status).toBe(200);
+    expect((await rowOf(noteId))?.deleted_at).toBeNull();
+  });
+
+  it('EVM-040 AC3 a second redaction that waits for the lock of a slow one is 503 service_unavailable too, and leaves no second object', async () => {
+    const { administrator, orderId, noteId } = await seed();
+    register.onRecord = () => sleep(2600);
+    const first = administrator.panel
+      .post(`${entryUrl(orderId, noteId)}/redact`, undefined, { 'If-Match': tag(1) })
+      .then((answer) => answer);
+    await until(() => register.calls.length === 1);
+    const second = await administrator.panel.post(`${entryUrl(orderId, noteId)}/redact`, undefined, { 'If-Match': tag(1) });
+    expect(second.status).toBe(503);
+    expect(codeOf(second.body)).toBe('service_unavailable');
+    expect((await first).status).toBe(200);
+    expect(register.objects).toHaveLength(1);
+  });
+});
+
 afterEach(() => {
   register.recover();
 });

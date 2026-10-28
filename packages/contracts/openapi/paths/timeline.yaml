@@ -277,6 +277,8 @@ timelineEntry:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/TimelineBusy
 timelineEntryRestore:
   post:
     operationId: restoreTimelineEntry
@@ -334,6 +336,8 @@ timelineEntryRestore:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/TimelineBusy
 timelineEntryRedact:
   post:
     operationId: redactTimelineEntry
