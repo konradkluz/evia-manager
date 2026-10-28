@@ -1,6 +1,6 @@
 import type { MediaCategory } from '@evia/contracts';
 import { Button, Dialog, Images, InlineAlert, Select, TextArea, Uploader } from '@evia/ui-web';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { checkFile, MAX_BATCH } from './media-files.ts';
 import { categoryLabel, formatBytes, mediaCategoryLabels, mediaText } from './media-labels.ts';
 import type { MediaUpload } from './use-media.ts';
@@ -11,6 +11,8 @@ const DEFAULT_CATEGORY: MediaCategory = 'in_progress';
 const DESCRIPTION_MAX = 1000;
 
 interface Chosen {
+  /** Stable for the life of the choice: the key of the row does not move when another row is removed. */
+  readonly id: number;
   readonly file: File;
   readonly contentType: string;
 }
@@ -29,14 +31,17 @@ export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
   const [overflow, setOverflow] = useState(false);
   const [category, setCategory] = useState<MediaCategory>(DEFAULT_CATEGORY);
   const [description, setDescription] = useState('');
+  const lastId = useRef(0);
 
   const take = (picked: readonly File[], base: readonly Chosen[] = chosen, before: readonly string[] = skipped) => {
     const accepted: Chosen[] = [];
     const left: string[] = [];
     for (const file of picked) {
       const verdict = checkFile(file);
-      if (verdict.ok) accepted.push({ file, contentType: verdict.contentType });
-      else
+      if (verdict.ok) {
+        lastId.current += 1;
+        accepted.push({ id: lastId.current, file, contentType: verdict.contentType });
+      } else
         left.push(
           verdict.reason === 'size'
             ? mediaText.tooLarge(file.name)
@@ -107,14 +112,15 @@ export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
         <div className="flex flex-col gap-stack-sm">
           <p className="text-label text-text-primary">{mediaText.chosen(chosen.length, total)}</p>
           <ul className="flex flex-col gap-stack-xs">
-            {chosen.map((entry, index) => (
-              <li key={`${entry.file.name}-${String(index)}`} className="flex flex-wrap items-center justify-between gap-inline-md">
+            {chosen.map((entry) => (
+              <li key={entry.id} className="flex flex-wrap items-center justify-between gap-inline-md">
                 <span className="min-w-0 break-words text-body">{`${entry.file.name} · ${formatBytes(entry.file.size)}`}</span>
                 <Button
                   variant="tertiary"
+                  size="lg"
                   aria-label={mediaText.removeFromChoice(entry.file.name)}
                   onClick={() => {
-                    setChosen((current) => current.filter((_, position) => position !== index));
+                    setChosen((current) => current.filter((other) => other.id !== entry.id));
                     setOverflow(false);
                   }}
                 >

@@ -1,5 +1,6 @@
-import { Button, InlineAlert, UploadQueueItem, type UploadQueueItemState } from '@evia/ui-web';
+import { Banner, Button, InlineAlert, UploadQueueItem, WifiOff, type UploadQueueItemState } from '@evia/ui-web';
 import type { ReactNode } from 'react';
+import { useOnline } from '../shell/use-online.ts';
 import { mediaText } from './media-labels.ts';
 import type { QueueItem } from './media-upload-engine.ts';
 import type { MediaUpload } from './use-media.ts';
@@ -12,6 +13,7 @@ interface Look {
 
 const FAILURE_TEXT = {
   checksum: mediaText.failedChecksum,
+  different: mediaText.failedDifferent,
   network: mediaText.failedNetwork,
   server: mediaText.failedServer,
   storage: mediaText.failedStorage,
@@ -54,20 +56,30 @@ const SENT = new Set(['checking', 'done', 'attention']);
  */
 export function MediaQueue({ media }: { readonly media: MediaUpload }) {
   const { items, engine } = media;
+  const online = useOnline();
   if (items.length === 0) return null;
   const sent = items.filter((item) => SENT.has(item.status)).length;
   const allDone = items.every((item) => item.status === 'done');
+  const failed = items.filter((item) => item.status === 'failed').length;
   const working = items.some((item) => ['hashing', 'queued', 'uploading', 'paused', 'failed'].includes(item.status));
   return (
     <section aria-label={mediaText.progressRegion} className="flex flex-col gap-stack-sm">
+      {online || !working ? null : <Banner icon={WifiOff}>{mediaText.offline}</Banner>}
       {allDone ? (
         <InlineAlert tone="success">{mediaText.sentAll(items.length)}</InlineAlert>
       ) : (
         <>
-          <h3 className="text-heading-4">{mediaText.progressHeading(sent, items.length)}</h3>
+          {/* Announced as a whole when the count changes ("Wysyłanie · 3 z 5"), never every percent (styleguide § 5.4). */}
+          <h3 aria-live="polite" aria-atomic="true" className="text-heading-4">
+            {mediaText.progressHeading(sent, items.length)}
+          </h3>
           {working ? <p className="text-body-sm text-text-secondary">{mediaText.progressHint}</p> : null}
         </>
       )}
+      {/* The live region exists before the failure, so the text added later is read out politely. */}
+      <p role="status" className="sr-only">
+        {failed > 0 ? mediaText.failedAnnounce(failed) : ''}
+      </p>
       <ul className="flex flex-col">
         {items.map((item) => {
           const look = lookOf(item);
@@ -94,6 +106,7 @@ function actionsOf(item: QueueItem, engine: MediaUpload['engine']): { actions?: 
       actions: (
         <Button
           variant="tertiary"
+          size="lg"
           aria-label={mediaText.pauseFile(item.name)}
           onClick={() => {
             engine.pause(item.key);
@@ -108,6 +121,7 @@ function actionsOf(item: QueueItem, engine: MediaUpload['engine']): { actions?: 
       actions: (
         <Button
           variant="tertiary"
+          size="lg"
           aria-label={mediaText.resumeFile(item.name)}
           onClick={() => {
             engine.resume(item.key);
@@ -122,6 +136,7 @@ function actionsOf(item: QueueItem, engine: MediaUpload['engine']): { actions?: 
       actions: (
         <Button
           variant="secondary"
+          size="lg"
           aria-label={mediaText.retryFile(item.name)}
           onClick={() => {
             engine.retry(item.key);

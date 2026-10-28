@@ -252,7 +252,9 @@ describe('EVM-044 AC4 the browser of a phone: files chosen again and the unfinis
     const banner = await screen.findByRole('region', { name: 'Niedokończone wysyłanie zdjęć' });
     expect(within(banner).getByText('Nie wysłano 3 zdjęć — wybierz je ponownie z galerii.')).toBeTruthy();
     expect(within(banner).getByText('IMG_0412.jpg · IMG_0413.jpg · IMG_0414.jpg')).toBeTruthy();
-    expect(within(banner).getByText('Nie masz już tych plików? Poproś administratora o usunięcie pustych pozycji.')).toBeTruthy();
+    expect(within(banner).getByText('Wybierz te same pliki — dopasujemy je po nazwie i rozmiarze.')).toBeTruthy();
+    // no promise of a removal of empty items by the administrator: no such function exists
+    expect(banner.textContent).not.toContain('pustych pozycji');
     expect(api.requests.some((entry) => entry.path === MEDIA_BASE && entry.query.get('uploadState') === 'unfinished')).toBe(true);
     expect(await axeViolations(banner)).toEqual([]);
   });
@@ -273,6 +275,42 @@ describe('EVM-044 AC4 the browser of a phone: files chosen again and the unfinis
     await waitFor(() => {
       expect(screen.queryByRole('region', { name: 'Niedokończone wysyłanie zdjęć' })).toBeNull();
     });
+  });
+
+  it('EVM-044 AC4 the interrupted batch with NO session is counted too and a re-chosen file opens a new session of the SAME medium (no duplicate)', async () => {
+    const lost = [unfinished(7, 'IMG_0412.jpg', 1000), unfinished(8, 'IMG_0413.jpg', 1000, { uploadSession: null })];
+    const api = mediaApi({ unfinished: lost });
+    await renderPanel(PATH, api);
+    const banner = await screen.findByRole('region', { name: 'Niedokończone wysyłanie zdjęć' });
+    expect(within(banner).getByText('Nie wysłano 2 zdjęć — wybierz je ponownie z galerii.')).toBeTruthy();
+    expect(within(banner).getByText('IMG_0412.jpg · IMG_0413.jpg')).toBeTruthy();
+    await userEvent.click(within(banner).getByRole('button', { name: 'Wybierz ponownie z galerii' }));
+    choose([jpeg('IMG_0412.jpg'), jpeg('IMG_0413.jpg')]);
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 2 pliki' }));
+    await waitFor(() => {
+      expect(FakeBucket.puts).toHaveLength(2);
+    });
+    expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
+    const sessions = api.requests.filter((entry) => entry.method === 'POST' && entry.path.endsWith('/upload-sessions'));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.path).toContain(lost[1]?.id ?? 'missing');
+  });
+
+  it('EVM-044 AC4 a different file with the same name and size is "różni się od wysłanego wcześniej", not "uszkodzony w transmisji"', async () => {
+    const waitingMedium = unfinished(7, 'IMG_0412.jpg', 1000);
+    const api = mediaApi({
+      unfinished: [waitingMedium],
+      assets: [
+        { ...waitingMedium, originalFilename: null, uploadSession: null, fileState: 'failed', stateReasonCode: 'checksum_mismatch' },
+      ],
+    });
+    await renderPanel(PATH, api);
+    await userEvent.click(await screen.findByRole('button', { name: 'Wybierz ponownie z galerii' }));
+    choose([jpeg('IMG_0412.jpg')]);
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 1 plik' }));
+    expect(await screen.findByText('Nie wysłano — plik różni się od wysłanego wcześniej')).toBeTruthy();
+    expect(screen.queryByText(/uszkodzony/)).toBeNull();
+    expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
   });
 
   it('EVM-044 AC4 one unfinished photo is told in the singular', async () => {
@@ -445,6 +483,75 @@ describe('EVM-044 AC8 states', () => {
     await waitFor(() => {
       expect(FakeBucket.puts).toHaveLength(1);
     });
+  });
+});
+
+describe('EVM-044 AC8 the panel of the upload announces and keeps the touch targets', () => {
+  it('EVM-044 AC8 the heading "Wysyłanie · N z M" is a polite live region without percents; a failure is announced politely too', async () => {
+    await openMedia({ stateAfterComplete: 'failed', stateReasonCode: 'checksum_mismatch' });
+    await screen.findByText('To zlecenie nie ma jeszcze zdjęć.');
+    await sendFiles([jpeg('IMG_0412.jpg')]);
+    const region = await screen.findByRole('region', { name: 'Wysyłanie plików' });
+    const heading = within(region).getByRole('heading', { level: 3 });
+    expect(heading.getAttribute('aria-live')).toBe('polite');
+    expect(heading.textContent).toMatch(/^Wysyłanie · \d z 1$/);
+    await within(region).findByText('Nie wysłano — plik uszkodzony w transmisji');
+    const announcement = within(region).getByRole('status');
+    expect(announcement.textContent).toBe('Nie wysłano 1 pliku. Użyj przycisku „Ponów”.');
+    expect(await axeViolations(region)).toEqual([]);
+  });
+
+  it('EVM-044 AC8 offline the queue says "Brak połączenia — wysyłanie wstrzymane" above the files', async () => {
+    const api = mediaApi();
+    class DeadBucket extends FakeBucket {
+      override send() {
+        Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+        fireEvent(window, new Event('offline'));
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', DeadBucket);
+    await renderPanel(PATH, api);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Media i dokumenty' }));
+    await screen.findByText('To zlecenie nie ma jeszcze zdjęć.');
+    await sendFiles([jpeg('IMG_0412.jpg')]);
+    const region = await screen.findByRole('region', { name: 'Wysyłanie plików' });
+    expect(await within(region).findByText('Brak połączenia — wysyłanie wstrzymane.')).toBeTruthy();
+    expect(await axeViolations(region)).toEqual([]);
+  });
+
+  it('EVM-044 AC4 the buttons "Wstrzymaj", "Ponów", "Usuń z wyboru" and "Wybierz ponownie z galerii" have the height of size.touch-target.min (48)', async () => {
+    await renderPanel(
+      PATH,
+      mediaApi({ unfinished: [unfinished(7, 'IMG_0412.jpg', 1000)], stateAfterComplete: 'failed', stateReasonCode: 'checksum_mismatch' }),
+    );
+    const again = await screen.findByRole('button', { name: 'Wybierz ponownie z galerii' });
+    expect(again.className).toContain('h-control-height-web-lg');
+    await userEvent.click(again);
+    choose([jpeg('IMG_0412.jpg'), jpeg('IMG_0500.jpg')]);
+    expect(within(dialog()).getByRole('button', { name: 'Usuń z wyboru: IMG_0412.jpg' }).className).toContain('h-control-height-web-lg');
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 2 pliki' }));
+    const retry = await screen.findAllByRole('button', { name: /^Ponów wysyłanie: / });
+    expect(retry[0]?.className).toContain('h-control-height-web-lg');
+  });
+
+  it('EVM-044 AC8 the tab loads as a skeleton with a text status, not a spinner', async () => {
+    let answer: (response: Response) => void = () => undefined;
+    const api = mediaApi({
+      routes: {
+        [`GET ${MEDIA_BASE}`]: () =>
+          new Promise<Response>((resolve) => {
+            answer = resolve;
+          }),
+      },
+    });
+    await renderPanel(PATH, api);
+    await userEvent.click(await screen.findByRole('tab', { name: 'Media i dokumenty' }));
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Media i dokumenty' })).closest('section') as HTMLElement;
+    expect(section.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(within(section).getAllByRole('status')[0]?.className).toContain('sr-only');
+    expect(section.querySelector('.animate-spin')).toBeNull();
+    answer(json(200, { items: [], nextCursor: null }));
   });
 });
 

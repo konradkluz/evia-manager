@@ -18,7 +18,7 @@ export function MediaUnfinishedBanner({ media, onChoose }: { readonly media: Med
       <p className="break-words">{unfinished.map((asset) => asset.originalFilename ?? mediaText.photo).join(' · ')}</p>
       <p className="text-body-sm text-text-secondary">{mediaText.unfinishedHelp}</p>
       <div>
-        <Button variant="secondary" onClick={onChoose}>
+        <Button variant="secondary" size="lg" onClick={onChoose}>
           {mediaText.chooseAgain}
         </Button>
       </div>
