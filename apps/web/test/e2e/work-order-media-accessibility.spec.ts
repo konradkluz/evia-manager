@@ -71,7 +71,7 @@ test.describe('accessibility of the tab "Media i dokumenty" in the browser, with
         .setInputFiles([photo('IMG_0412.jpg')]);
       api.media.verdict = 'quarantined';
       await page.getByRole('dialog').getByRole('button', { name: 'Wyślij 1 plik' }).click();
-      await expect(page.getByText('Wymaga uwagi')).toBeVisible();
+      await expect(page.getByText('Wymaga uwagi', { exact: true })).toBeVisible();
       expect(await violations(page)).toEqual([]);
 
       api.media.verdict = 'checksum_mismatch';

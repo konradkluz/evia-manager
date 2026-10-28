@@ -89,7 +89,7 @@ test.describe('upload of photos (EVM-044)', () => {
       .getByLabel('Wybrane pliki')
       .setInputFiles([photo('eicar.jpg')]);
     await page.getByRole('dialog').getByRole('button', { name: 'Wyślij 1 plik' }).click();
-    await expect(page.getByText('Wymaga uwagi')).toBeVisible();
+    await expect(page.getByText('Wymaga uwagi', { exact: true })).toBeVisible();
     await expect(page.getByText('Nie usuwaj tego pliku z telefonu. Administrator został powiadomiony.')).toBeVisible();
     await expect(page.getByText(/malware|type_mismatch/i)).toHaveCount(0);
   });

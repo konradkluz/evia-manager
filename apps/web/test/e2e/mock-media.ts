@@ -21,6 +21,9 @@ interface Media {
   reason: 'checksum_mismatch' | null;
   readonly createdAt: string;
   sessionId: string | null;
+  /** EVM-049: the quarantine of the file; `null` when it is not held. */
+  quarantine: 'held' | 'purged' | null;
+  quarantineReason: 'malware_detected' | 'type_mismatch' | null;
 }
 
 export interface MediaServer {
@@ -34,6 +37,8 @@ export interface MediaServer {
   /** The number of `complete` calls and of sessions created (assertions of the specs). */
   completes: number;
   sessionsCreated: number;
+  /** The number of accepted `rescan` calls (EVM-049). */
+  rescans: number;
 }
 
 export const newMediaServer = (): MediaServer => ({
@@ -43,6 +48,7 @@ export const newMediaServer = (): MediaServer => ({
   keys: new Map(),
   completes: 0,
   sessionsCreated: 0,
+  rescans: 0,
 });
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): Answer => ({
@@ -54,7 +60,7 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
 const problem = (status: number, code: string): Answer =>
   json(status, { type: `/problems/${code}`, title: code, status, code, traceId: 'abcdef0123456789abcdef0123456789' });
 
-const shown = (entry: Media, withName: boolean) => ({
+const shown = (entry: Media, withName: boolean, role: Input['role'] = 'administrator') => ({
   id: entry.id,
   workOrderId: entry.orderId,
   mediaType: 'photo',
@@ -65,7 +71,19 @@ const shown = (entry: Media, withName: boolean) => ({
   createdAt: entry.createdAt,
   fileState: entry.state,
   stateReasonCode: entry.reason,
-  needsAttention: entry.state === 'quarantined',
+  needsAttention: entry.quarantine === 'held' || (entry.state === 'quarantined' && entry.quarantine === null),
+  quarantine:
+    entry.quarantine === null
+      ? null
+      : {
+          state: entry.quarantine,
+          expiresAt: '2026-10-30T23:00:00.000Z',
+          purgedAt: entry.quarantine === 'purged' ? '2026-10-31T00:05:00.000Z' : null,
+        },
+  // The reason only for the Administrator and only for a file held (the field is absent for the others, like the API).
+  ...(role === 'administrator' && entry.quarantine === 'held' && entry.quarantineReason !== null
+    ? { quarantineReasonCode: entry.quarantineReason }
+    : {}),
   declaredSize: entry.size,
   originalFilename: withName ? entry.fileName : null,
   uploadSession:
@@ -93,9 +111,37 @@ export function seedUnfinished(server: MediaServer, orderId: string, userId: str
     reason: null,
     createdAt: '2026-10-03T11:55:00.000Z',
     sessionId: `01968f3e-0000-7000-8000-00000d${String(n).padStart(6, '0')}`,
+    quarantine: null,
+    quarantineReason: null,
   };
   server.media.push(entry);
   server.parts.set(entry.sessionId ?? '', new Set());
+  return entry.id;
+}
+
+/** A synthetic file in the quarantine (EVM-049): held with a reason, or removed after 30 days. */
+export function seedQuarantined(
+  server: MediaServer,
+  orderId: string,
+  kind: 'held' | 'purged',
+  reason: 'malware_detected' | 'type_mismatch' = 'malware_detected',
+): string {
+  const n = server.media.length + 1;
+  const entry: Media = {
+    id: `01968f3e-0000-7000-8000-00000c${String(n).padStart(6, '0')}`,
+    orderId,
+    category: 'in_progress',
+    fileName: 'synthetic.jpg',
+    size: 1000,
+    userId: '11111111-1111-4111-8111-111111111111',
+    state: 'quarantined',
+    reason: null,
+    createdAt: '2026-10-03T11:55:00.000Z',
+    sessionId: null,
+    quarantine: kind,
+    quarantineReason: reason,
+  };
+  server.media.push(entry);
   return entry.id;
 }
 
@@ -109,11 +155,11 @@ interface Input {
 /** The answer to a request under `/api/v1/work-orders/{id}/media-assets…`, or `null` when the path is not one of the media. */
 export function answerMedia(server: MediaServer, method: string, path: string, query: URLSearchParams, input: Input): Answer | null {
   const match =
-    /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/media-assets(?:\/([^/]+)(?:\/upload-sessions(?:\/([^/]+)(?:\/(parts|complete|abort)(?:\/(\d+)\/url)?)?)?)?)?$/.exec(
+    /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/media-assets(?:\/([^/]+)(?:\/(rescan)|\/upload-sessions(?:\/([^/]+)(?:\/(parts|complete|abort)(?:\/(\d+)\/url)?)?)?)?)?$/.exec(
       path,
     );
   if (match === null) return null;
-  const [, orderId = '', mediaId, sessionId, action, partText] = match;
+  const [, orderId = '', mediaId, rescan, sessionId, action, partText] = match;
   const writes = input.role !== 'read_only';
   if (mediaId === undefined) {
     if (method === 'GET') {
@@ -124,9 +170,11 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
             entry.orderId === orderId &&
             (!unfinished || (entry.state === 'pending_upload' && entry.sessionId !== null && entry.userId === input.userId)),
         )
-        .map((entry) => shown(entry, unfinished))
+        .filter((entry) => query.get('needsAttention') !== 'true' || entry.quarantine === 'held')
+        .map((entry) => shown(entry, unfinished, input.role))
         .reverse();
-      return json(200, { items, nextCursor: null, needsAttentionCount: 0 }, { 'Cache-Control': 'no-store' });
+      const needsAttentionCount = server.media.filter((entry) => entry.orderId === orderId && entry.quarantine === 'held').length;
+      return json(200, { items, nextCursor: null, needsAttentionCount }, { 'Cache-Control': 'no-store' });
     }
     if (method !== 'POST') return problem(405, 'method_not_allowed');
     if (!writes) return problem(403, 'forbidden');
@@ -145,6 +193,8 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
         reason: null,
         createdAt: new Date().toISOString(),
         sessionId: null,
+        quarantine: null,
+        quarantineReason: null,
       });
     }
     const created = JSON.stringify({
@@ -155,6 +205,14 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
   }
   const entry = server.media.find((value) => value.id === mediaId && value.orderId === orderId);
   if (entry === undefined) return problem(404, 'not_found');
+  if (rescan !== undefined) {
+    if (method !== 'POST') return problem(405, 'method_not_allowed');
+    if (input.role !== 'administrator') return problem(403, 'forbidden');
+    if (entry.quarantine !== 'held') return problem(409, 'invalid_state_transition');
+    // The scan is quick in the synthetic server and the file stays held (a positive verdict); W-04 is covered by the component tests.
+    server.rescans += 1;
+    return json(202, { ...shown(entry, false, input.role), fileState: 'scanning', needsAttention: false, quarantine: null }, {});
+  }
   if (!writes) return problem(403, 'forbidden');
   if (sessionId === undefined) {
     if (method !== 'POST') return problem(405, 'method_not_allowed');
@@ -198,6 +256,7 @@ export function answerMedia(server: MediaServer, method: string, path: string, q
     // The scan is quick in the synthetic server: the next read shows its verdict.
     entry.state = server.verdict === 'clean' ? 'clean' : server.verdict === 'quarantined' ? 'quarantined' : 'failed';
     entry.reason = server.verdict === 'checksum_mismatch' ? 'checksum_mismatch' : null;
+    entry.quarantine = server.verdict === 'quarantined' ? 'held' : null;
     const shownState = { ...shown(entry, false), fileState: 'uploaded', stateReasonCode: null, needsAttention: false };
     return json(200, shownState);
   }
