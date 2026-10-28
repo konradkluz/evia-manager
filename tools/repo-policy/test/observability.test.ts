@@ -138,3 +138,35 @@ describe('the local journal of the VM (EVM-085 AC1; security-engineer A13; archi
     expect(runbook).toMatch(/journald\.conf/);
   });
 });
+
+describe('the proxy address and the database role of the API (EVM-085 AC6; security-engineer A12; CWE-348)', () => {
+  const staging = record(record(yaml('infra/runtime/compose.staging.yaml'))['services']);
+  const compose = record(yaml('infra/runtime/compose.infra.yaml'));
+  const caddyNetworks = record(record(record(compose['services'])['caddy'])['networks']);
+  const subnet = text(record(list(record(record(record(compose['networks'])['evia-runtime'])['ipam'])['config'])[0])['subnet']);
+  const address = text(record(caddyNetworks['evia-runtime'])['ipv4_address']);
+
+  it('EVM-085 AC6: TRUSTED_PROXIES of the API and the worker is exactly the fixed address of Caddy, inside the fixed subnet of evia-runtime', () => {
+    expect(address).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+    expect(subnet).toMatch(/\/24$/);
+    expect(address.split('.').slice(0, 3).join('.')).toBe(subnet.split('.').slice(0, 3).join('.'));
+    for (const name of ['api', 'worker']) {
+      const environment = record(record(staging[name] ?? {})['environment']);
+      expect(text(environment['TRUSTED_PROXIES']), name).toBe(address);
+    }
+  });
+
+  it('EVM-085 AC6: no TRUSTED_PROXIES value is a range wider than one address', () => {
+    for (const match of read('infra/runtime/compose.staging.yaml').matchAll(/TRUSTED_PROXIES:\s*(\S+)/g)) {
+      expect(match[1]).toMatch(/^\d+\.\d+\.\d+\.\d+(\/32)?$/);
+    }
+  });
+
+  it('EVM-085 AC6: the API logs in as evia_api, a member of the NOLOGIN group evia_app, and owns nothing', () => {
+    const roles = read('infra/runtime/postgres-init/10-roles.sql').replace(/^--.*$/gm, '');
+    expect(roles).toMatch(/CREATE ROLE evia_app NOLOGIN;/);
+    expect(roles).toMatch(/CREATE ROLE evia_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS IN ROLE evia_app;/);
+    expect(roles).not.toMatch(/OWNER TO evia_(api|app)/);
+    expect(read('infra/deploy-agent/init-secrets.sh')).toContain('postgresql://evia_api:');
+  });
+});

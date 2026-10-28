@@ -294,6 +294,7 @@ services:
       # EVM-085: the consistency tests of the alert layer (infra/observability/test) and the runbook they check
       - ./infra/observability:/src/infra/observability:ro
       - ./docs/ops/runbooks/alerty.md:/src/docs/ops/runbooks/alerty.md:ro
+      - ./docs/ops/koszty-staging.md:/src/docs/ops/koszty-staging.md:ro
       # release-manifest.test.mjs evaluates the jq line of the publish job taken from the workflow
       - ./.github/workflows/ci.yml:/src/.github/workflows/ci.yml:ro
 
