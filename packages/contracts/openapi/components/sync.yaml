@@ -532,9 +532,14 @@ SyncEntity:
 
     Powiązanie typu z projekcją (jedno źródło prawdy) opisuje rozszerzenie `x-evia-sync-projections` (typ → nazwa schematu).
     Wygenerowany parser tej koperty (`zSyncEntity`, a więc i `zSyncChangesResponse`) NIE zachowuje pól projekcji (Zod usuwa
-    nieznane klucze) — encji nie wolno czytać przez `zSyncChangesResponse`, tylko przez `parseSyncChange` z `@evia/contracts`:
-    znany `type` jest walidowany ściśle schematem projekcji (dodatkowe pole, np. `email` klienta, odrzuca zmianę), nieznany
-    daje `{ kind: 'unknown' }` i jest pomijany.
+    nieznane klucze) — encji nie wolno czytać przez `zSyncChangesResponse`, tylko przez `parseSyncChange` z `@evia/contracts`.
+    Czytnik klienta jest TOLERANCYJNY (ADR-0004: dodanie pola jest zmianą niełamiącą): znany `type` zachowuje pola projekcji, które
+    aplikacja zna, a nieznane pola odrzuca, bez odrzucania zmiany; nieznany `type` daje `{ kind: unknown }` i jest pomijany.
+    Zmiana poprawnej koperty znanego typu, ale niezgodna z projekcją (błędna wartość, brak pola), albo uszkodzona koperta daje
+    `{ kind: invalid, resync: true }`: klient jej NIE zapisuje i NIE pomija po cichu, tylko planuje pełny resync; do telemetrii
+    trafiają wyłącznie `reason` i `type` (słownikowy) — nigdy treść zmiany. Ścisła walidacja bez żadnych dodatkowych pól
+    (`assertSyncProjectionStrict`, `SYNC_PROJECTIONS_STRICT`) służy testom serwera i pilnuje, by serwer nie wysłał danych spoza
+    projekcji (minimalizacja danych na prywatnych telefonach).
   additionalProperties: true
   x-evia-sync-projections:
     work_order: SyncWorkOrder
