@@ -500,7 +500,7 @@
             }
           }
         },
-        "description": "`invalid_credentials` — JEDYNA odpowiedź na każdą porażkę pierwszego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane, zła para `deviceId` + sekret instalacji) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05).",
+        "description": "`invalid_credentials` — jedna odpowiedź na każdą porażkę uwierzytelnienia (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane, zła para `deviceId` + sekret instalacji przy potwierdzeniu wyczyszczenia) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05).",
         "headers": {
           "Cache-Control": {
             "$ref": "#/components/headers/CacheControlNoStore"
@@ -605,7 +605,42 @@
             }
           }
         },
-        "description": "`invalid_credentials` — zły kod, a także zły, wygasły i zużyty `challengeToken` (jedna odpowiedź); `device_wipe_required` — dopiero po poprawnym kodzie, gdy urządzenie z podanym sekretem ma zlecone wyczyszczenie (aplikacja usuwa dane i potwierdza).",
+        "description": "`invalid_credentials` — zły kod, a także zły, wygasły i zużyty `challengeToken` (jedna odpowiedź); `device_wipe_required` — rzadki wyścig: po poprawnym kodzie, gdy wyczyszczenie urządzenia zlecono między krokami (zwykle sygnał dostaje już pierwszy krok); aplikacja usuwa dane i potwierdza.",
+        "headers": {
+          "Cache-Control": {
+            "$ref": "#/components/headers/CacheControlNoStore"
+          }
+        }
+      },
+      "MobileLoginUnauthorized": {
+        "content": {
+          "application/problem+json": {
+            "examples": {
+              "device_wipe_required": {
+                "value": {
+                  "code": "device_wipe_required",
+                  "status": 401,
+                  "title": "The device must wipe its data",
+                  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+                  "type": "/problems/device_wipe_required"
+                }
+              },
+              "invalid_credentials": {
+                "value": {
+                  "code": "invalid_credentials",
+                  "status": 401,
+                  "title": "Invalid email or password",
+                  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+                  "type": "/problems/invalid_credentials"
+                }
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "`device_wipe_required` — treść niesie parę `deviceId` + sekret instalacji zgodną z urządzeniem w stanie `wipe_required`; odpowiedź PRZED sprawdzeniem hasła, bo sekret dowodzi, że wołający trzyma tę instalację (nic nie mówi o koncie). W pozostałych przypadkach `invalid_credentials` — JEDYNA odpowiedź na każdą porażkę pierwszego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane) w tym samym czasie i z tymi samymi nagłówkami (SR-AUTH-05). Niezgodna para jest ignorowana.",
         "headers": {
           "Cache-Control": {
             "$ref": "#/components/headers/CacheControlNoStore"
@@ -723,7 +758,7 @@
             }
           }
         },
-        "description": "Brak ważnego tokenu dostępu (`unauthenticated`), sesja unieważniona (`session_revoked` — kolejka telefonu zostaje, aplikacja prosi o ponowne logowanie) albo urządzenie ma zlecone wyczyszczenie (`device_wipe_required` — także dla pobierania, wysyłania i odświeżania tokenu; aplikacja usuwa dane i potwierdza).",
+        "description": "Brak ważnego tokenu dostępu (`unauthenticated`), sesja unieważniona (`session_revoked` — kolejka telefonu zostaje, aplikacja prosi o ponowne logowanie) albo urządzenie ma zlecone wyczyszczenie (`device_wipe_required` — także dla pobierania, wysyłania i odświeżania tokenu; aplikacja usuwa dane i potwierdza). Pierwszeństwo: token urządzenia w stanie `wipe_required` (także unieważniony, zużyty lub wygasły, o ile rekord istnieje) ZAWSZE daje `device_wipe_required`, przed `session_revoked` i `unauthenticated`; token nieznany daje jedynie `session_revoked`.",
         "headers": {
           "Cache-Control": {
             "$ref": "#/components/headers/CacheControlNoStore"
@@ -1966,6 +2001,9 @@
           "mfa.totp_removed",
           "reauthentication.succeeded",
           "reauthentication.failed",
+          "device.registered",
+          "device.recognized",
+          "device.wipe_confirmed",
           "audit.read",
           "bulk_read.alerted",
           "bulk_read.rejected",
@@ -2198,6 +2236,7 @@
           "user",
           "session",
           "passkey",
+          "device",
           "audit",
           "work_order",
           "scope_item",
@@ -2253,7 +2292,16 @@
           "second_step",
           "session_limit",
           "ended_by_user",
-          "rate_limited"
+          "rate_limited",
+          "refresh_reuse",
+          "device_inactive",
+          "secret_mismatch",
+          "previous_secret",
+          "channel_not_allowed",
+          "device_limit_reached",
+          "device_wipe_required",
+          "totp_not_configured",
+          "mfa_enrollment_required"
         ],
         "type": "string"
       },
@@ -3672,7 +3720,7 @@
         "type": "string"
       },
       "InstallationSecret": {
-        "description": "Sekret instalacji (256 bitów, base64url) nadany przez serwer; telefon trzyma go w Android Keystore i przedstawia razem z `deviceId` przy ponownym logowaniu oraz przy potwierdzeniu wyczyszczenia. Serwer zna tylko jego skrót.",
+        "description": "Sekret instalacji (256 bitów, base64url) nadany przez serwer; telefon trzyma go w Android Keystore i przedstawia razem z `deviceId` przy ponownym logowaniu oraz przy potwierdzeniu wyczyszczenia (dopuszczalny jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret — rotacja dwufazowa, zob. `mobileLoginTotp`). Serwer zna tylko jego skrót.",
         "maxLength": 43,
         "minLength": 43,
         "pattern": "^[A-Za-z0-9_-]{43}$",
@@ -3910,7 +3958,7 @@
       },
       "MobileLoginRequest": {
         "additionalProperties": false,
-        "description": "Pierwszy krok logowania telefonu. Pierwsze logowanie: `email`, `password`, `device` — `deviceId` nadaje serwer. Ponowne logowanie tej samej instalacji: dodatkowo para `deviceId` + `installationSecret` (obie albo żadna, inaczej `400 validation_failed`). Pola spoza schematu → `400 unknown_field`; pola `userId` i `deviceId` w znaczeniu „kto” nie istnieją — użytkownik wynika z hasła.",
+        "description": "Pierwszy krok logowania telefonu. Pierwsze logowanie: `email`, `password`, `device` — `deviceId` nadaje serwer. Ponowne logowanie tej samej instalacji: dodatkowo para `deviceId` + `installationSecret` (obie albo żadna, inaczej `400 validation_failed`); para niezgodna z urządzeniem konta jest ignorowana (telefon liczy się jak nowy; zgodna jest para z bieżącym albo z poprzednim, jeszcze nieprzekreślonym sekretem — rotacja dwufazowa), a zgodna z urządzeniem w stanie `wipe_required` daje `401 device_wipe_required` jeszcze przed sprawdzeniem hasła. Pola spoza schematu → `400 unknown_field`; pola `userId` i `deviceId` w znaczeniu „kto” nie istnieją — użytkownik wynika z hasła.",
         "properties": {
           "device": {
             "$ref": "#/components/schemas/MobileDeviceInfo"
@@ -3995,7 +4043,7 @@
             "$ref": "#/components/schemas/DeviceId"
           },
           "installationSecret": {
-            "description": "Sekret instalacji — TYLKO przy rejestracji nowego urządzenia, jednorazowo; aplikacja zapisuje go w Android Keystore i nie pokazuje ani nie loguje. Przy ponownym logowaniu i odświeżaniu pola nie ma.",
+            "description": "Sekret instalacji — przy KAŻDYM udanym logowaniu (`mobileLoginTotp`): przy rejestracji nowego urządzenia i przy ponownym logowaniu tej samej instalacji (rotacja dwufazowa: poprzedni sekret działa dla tego samego `deviceId`, dopóki urządzenie nie udowodni nowego — pierwszym odświeżeniem tokenu, pierwszym żądaniem z nowym tokenem dostępu albo logowaniem nowym sekretem). Poprzedni sekret traci ważność najpóźniej po czasie życia tokenu odświeżania (nie dłużej niż 7 dni) od wydania nowego; w danej chwili są NAJWYŻEJ dwa ważne sekrety (ostatni udowodniony i najnowszy wydany) — wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego (w wyniku kolejnego logowania poprzednim sekretem). Oba sekrety są unieważniane przy potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Aplikacja zapisuje nowy sekret w Android Keystore przed porzuceniem starego i nie pokazuje go ani nie loguje. Przy odświeżaniu tokenu pola nie ma.",
             "maxLength": 43,
             "minLength": 43,
             "pattern": "^[A-Za-z0-9_-]{43}$",
@@ -6915,50 +6963,37 @@
         "type": "object"
       },
       "SyncEntity": {
-        "description": "Obiekt w projekcji dla telefonu; rodzaj wskazuje `type`.",
-        "discriminator": {
-          "mapping": {
-            "customer": "#/components/schemas/SyncCustomer",
-            "media_asset": "#/components/schemas/SyncMediaAsset",
-            "party": "#/components/schemas/SyncParty",
-            "procedure_stage": "#/components/schemas/SyncProcedureStage",
-            "scope_item": "#/components/schemas/SyncScopeItem",
-            "site": "#/components/schemas/SyncSite",
-            "timeline_entry": "#/components/schemas/SyncTimelineEntry",
-            "user": "#/components/schemas/SyncUser",
-            "work_order": "#/components/schemas/SyncWorkOrder"
+        "additionalProperties": true,
+        "description": "Koperta obiektu w projekcji dla telefonu: wspólne `type`, `id`, `version`; pozostałe pola zależą od `type` i opisują je schematy projekcji `SyncWorkOrder`, `SyncCustomer`, `SyncSite`, `SyncParty`, `SyncScopeItem`, `SyncProcedureStage`, `SyncTimelineEntry`, `SyncMediaAsset` i `SyncUser`. Zgodność w przód (ADR-0004, tolerancyjny klient): `type` jest słownikiem otwarty, więc koperta NIE jest zamkniętą unią. Klient parsuje każdą zmianę osobno; upsert albo delete z nieznanym `type` (lub projekcję, której nie potrafi odczytać) POMIJA, zlicza w telemetrii i nie odrzuca strony — kursor przesuwa się normalnie. Dodanie typu projekcji podbija `scopeRuleVersion`, więc zaktualizowana aplikacja dostaje `resync_required` z powodem `scope_changed` i pobiera brakujące obiekty od nowa. Dodanie typu nie jest zmianą łamiącą.\n\nPowiązanie typu z projekcją (jedno źródło prawdy) opisuje rozszerzenie `x-evia-sync-projections` (typ → nazwa schematu). Wygenerowany parser tej koperty (`zSyncEntity`, a więc i `zSyncChangesResponse`) NIE zachowuje pól projekcji (Zod usuwa nieznane klucze) — encji nie wolno czytać przez `zSyncChangesResponse`, tylko przez `parseSyncChange` z `@evia/contracts`. Czytnik klienta jest TOLERANCYJNY (ADR-0004: dodanie pola jest zmianą niełamiącą): znany `type` zachowuje pola projekcji, które aplikacja zna, a nieznane pola odrzuca, bez odrzucania zmiany; nieznany `type` daje `{ kind: unknown }` i jest pomijany. Zmiana poprawnej koperty znanego typu, ale niezgodna z projekcją (błędna wartość, brak pola), albo uszkodzona koperta daje `{ kind: invalid, resync: true }`: klient jej NIE zapisuje i NIE pomija po cichu, tylko planuje pełny resync; do telemetrii trafiają wyłącznie `reason` i `type` (słownikowy) — nigdy treść zmiany. Ścisła walidacja bez żadnych dodatkowych pól (`assertSyncProjectionStrict`, `SYNC_PROJECTIONS_STRICT`) służy testom serwera i pilnuje, by serwer nie wysłał danych spoza projekcji (minimalizacja danych na prywatnych telefonach).",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SyncId"
           },
-          "propertyName": "type"
-        },
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/SyncWorkOrder"
+          "type": {
+            "$ref": "#/components/schemas/SyncEntityType"
           },
-          {
-            "$ref": "#/components/schemas/SyncCustomer"
-          },
-          {
-            "$ref": "#/components/schemas/SyncSite"
-          },
-          {
-            "$ref": "#/components/schemas/SyncParty"
-          },
-          {
-            "$ref": "#/components/schemas/SyncScopeItem"
-          },
-          {
-            "$ref": "#/components/schemas/SyncProcedureStage"
-          },
-          {
-            "$ref": "#/components/schemas/SyncTimelineEntry"
-          },
-          {
-            "$ref": "#/components/schemas/SyncMediaAsset"
-          },
-          {
-            "$ref": "#/components/schemas/SyncUser"
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
-        ]
+        },
+        "required": [
+          "type",
+          "id",
+          "version"
+        ],
+        "type": "object",
+        "x-evia-sync-projections": {
+          "customer": "SyncCustomer",
+          "media_asset": "SyncMediaAsset",
+          "party": "SyncParty",
+          "procedure_stage": "SyncProcedureStage",
+          "scope_item": "SyncScopeItem",
+          "site": "SyncSite",
+          "timeline_entry": "SyncTimelineEntry",
+          "user": "SyncUser",
+          "work_order": "SyncWorkOrder"
+        }
       },
       "SyncEntityType": {
         "description": "Typ obiektu w dzienniku zmian (słownik otwarty — nowe typy dochodzą addytywnie).",
@@ -7899,7 +7934,7 @@
       },
       "SyncUpsert": {
         "additionalProperties": false,
-        "description": "Utworzenie albo zmiana obiektu — bieżący stan z `version`.",
+        "description": "Utworzenie albo zmiana obiektu — bieżący stan z `version`. Upsert z nieznanym `entity.type` klient pomija (zob. `SyncEntity`), strony nie odrzuca.",
         "properties": {
           "entity": {
             "$ref": "#/components/schemas/SyncEntity"
@@ -9108,7 +9143,7 @@
       },
       "WipeConfirmationRequest": {
         "additionalProperties": false,
-        "description": "Para `deviceId` + sekret instalacji w TREŚCI (nigdy w adresie ani w nagłówku). Sekret jest tu wyłącznie dowodem przejścia stanu urządzenia, a nie czynnikiem uwierzytelniania sesji (SR-AUTH-14).",
+        "description": "Para `deviceId` + sekret instalacji w TREŚCI (nigdy w adresie ani w nagłówku). Sekret jest tu wyłącznie dowodem przejścia stanu urządzenia, a nie czynnikiem uwierzytelniania sesji (SR-AUTH-14). Przyjmowany jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret instalacji (rotacja dwufazowa): telefon, który nie udowodnił nowego sekretu, wciąż może potwierdzić wyczyszczenie.",
         "properties": {
           "deviceId": {
             "$ref": "#/components/schemas/DeviceId"
@@ -11429,7 +11464,7 @@
     },
     "/api/v1/auth/mobile/login": {
       "post": {
-        "description": "Publiczna operacja kanału `mobile`; bez ciasteczek (odpowiedź nigdy nie ma `Set-Cookie`, ciasteczka z żądania są ignorowane). Poprawne hasło aktywnego konta z aplikacją TOTP → `200 { challengeToken, challengeExpiresAt }`: token jest nieprzezroczysty (≥ 256 bitów), jednorazowy, ważny najwyżej 5 minut i związany z kontem oraz próbą rejestracji urządzenia (`device`, a przy ponownym logowaniu — parą `deviceId` + `installationSecret`; `deviceId` nadaje serwer, klient nigdy go nie wybiera). Kolejność kodów (brak enumeracji kont i stanów urządzeń, SR-AUTH-05): `401 invalid_credentials` to JEDYNA odpowiedź na każdą porażkę tego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane, zła para `deviceId` + sekret) — w tym samym czasie i z tymi samymi nagłówkami; `403 mfa_enrollment_required` i `403 totp_not_configured` pojawiają się dopiero po poprawnym haśle; `channel_not_allowed`, `device_limit_reached` i `device_wipe_required` — dopiero po poprawnym kodzie TOTP (drugi krok). Limity: licznik prób i blokada konta są WSPÓLNE z logowaniem w panelu (20 prób na minutę z jednego adresu IP, blokada po 10 nieudanych próbach na koncie) — ścieżka mobilna nie jest obejściem; przekroczenie → `429 rate_limited` z `Retry-After`. Treść najwyżej 8 KB (`413 payload_too_large`). Odpowiedź ma `Cache-Control: no-store`. Audyt (EVM-094; bez danych osobowych i sekretów): rejestracja urządzenia, logowanie udane i nieudane.",
+        "description": "Publiczna operacja kanału `mobile`; bez ciasteczek (odpowiedź nigdy nie ma `Set-Cookie`, ciasteczka z żądania są ignorowane). Poprawne hasło aktywnego konta z aplikacją TOTP → `200 { challengeToken, challengeExpiresAt }`: token jest nieprzezroczysty (≥ 256 bitów), jednorazowy, ważny najwyżej 5 minut i związany z kontem oraz próbą rejestracji urządzenia (`device`, a przy ponownym logowaniu — parą `deviceId` + `installationSecret`; `deviceId` nadaje serwer, klient nigdy go nie wybiera). Kolejność (brak enumeracji kont i stanów urządzeń, SR-AUTH-05): `426`, limit prób, potem — gdy treść niesie parę `deviceId` + `installationSecret` zgodną (porównanie w stałym czasie) z urządzeniem w stanie `wipe_required` — `401 device_wipe_required` PRZED sprawdzeniem hasła (256-bitowy sekret dowodzi, że wołający trzyma tę instalację; odpowiedź nic nie mówi o koncie, a skradziony telefon z wygasłym tokenem dostaje sygnał wyczyszczenia mimo nieznajomości hasła). Dalej `401 invalid_credentials` to JEDYNA odpowiedź na każdą porażkę tego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane) — w tym samym czasie i z tymi samymi nagłówkami; `403 mfa_enrollment_required` i `403 totp_not_configured` pojawiają się dopiero po poprawnym haśle; `channel_not_allowed` i `device_limit_reached` — dopiero po poprawnym kodzie TOTP (drugi krok). Para niezgodna z żadnym urządzeniem konta (zły sekret, nieznane `deviceId`) jest IGNOROWANA: logowanie traktuje telefon jak nowe urządzenie (obowiązuje limit urządzeń, wpis audytu), bez ujawnienia stanu urządzeń przed TOTP. Zgodna jest para z bieżącym sekretem ALBO z poprzednim, jeszcze nieprzekreślonym (rotacja dwufazowa, zob. `mobileLoginTotp`): zgubiona odpowiedź drugiego kroku nie zmienia więc tożsamości urządzenia. Limity: licznik prób i blokada konta są WSPÓLNE z logowaniem w panelu (20 prób na minutę z jednego adresu IP, blokada po 10 nieudanych próbach na koncie) — ścieżka mobilna nie jest obejściem; przekroczenie → `429 rate_limited` z `Retry-After`. Treść najwyżej 8 KB (`413 payload_too_large`). Odpowiedź ma `Cache-Control: no-store`. Audyt (EVM-094; bez danych osobowych i sekretów): rejestracja urządzenia, logowanie udane i nieudane.",
         "operationId": "mobileLogin",
         "parameters": [
           {
@@ -11482,7 +11517,7 @@
             "$ref": "#/components/responses/MobileValidationFailed"
           },
           "401": {
-            "$ref": "#/components/responses/MobileInvalidCredentials"
+            "$ref": "#/components/responses/MobileLoginUnauthorized"
           },
           "403": {
             "$ref": "#/components/responses/MobileLoginForbidden"
@@ -11510,13 +11545,12 @@
             "mobile"
           ],
           "public": true
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/auth/mobile/login/totp": {
       "post": {
-        "description": "Publiczna operacja kanału `mobile`. Treść ściśle `{ challengeToken, code }` (`code` — 6 cyfr ASCII); pole z kodem odzyskiwania → `400` (kod odzyskiwania nie działa w kanale mobilnym). Sukces w jednej transakcji: zużycie tokenu wyzwania i kroku kodu, rejestracja urządzenia (nowe — z `installationSecret` zwracanym JEDNORAZOWO, do zapisania w Android Keystore) albo rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina tokenów. Odpowiedź niesie `deviceId`, tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek. Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`; dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego — gdzie indziej zły kanał to `403 forbidden`), `403 device_limit_reached` i `401 device_wipe_required` (urządzenie ze zleconym wyczyszczeniem: aplikacja usuwa dane i potwierdza przez `confirmDeviceWipe`). Limity i blokada wspólne z logowaniem w panelu (20/min/IP, blokada po 10 próbach na koncie) → `429` z `Retry-After`; treść najwyżej 8 KB. `Cache-Control: no-store`. Audyt (EVM-094): rejestracja urządzenia, logowanie udane i nieudane — bez kodu, tokenów i sekretów.",
+        "description": "Publiczna operacja kanału `mobile`. Treść ściśle `{ challengeToken, code }` (`code` — 6 cyfr ASCII); pole z kodem odzyskiwania → `400` (kod odzyskiwania nie działa w kanale mobilnym). Sukces w jednej transakcji: zużycie tokenu wyzwania i kroku kodu, rejestracja urządzenia (nowe) albo rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina tokenów. KAŻDE udane logowanie, także ponowne, zwraca NOWY `installationSecret` (rotacja DWUFAZOWA): poprzedni sekret (ostatni udowodniony przez urządzenie) pozostaje ważny dla tego samego `deviceId`, dopóki urządzenie nie udowodni nowego. Dowodem jest pierwsze odświeżenie tokenu albo pierwsze żądanie z `mobileBearer` nowej rodziny tokenów, albo kolejne logowanie nowym sekretem; dopiero wtedy poprzedni sekret traci ważność. Logowanie poprzednim sekretem rozpoznaje to samo urządzenie (to samo `deviceId`, ten sam zapis idempotencji, kursor i limit urządzeń) i rotuje ponownie — zgubiona w garażu odpowiedź nie tworzy nowego urządzenia. Aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary porzuca po zapisie. Poprzedni sekret traci ważność najpóźniej po czasie życia tokenu odświeżania (nie dłużej niż 7 dni) od wydania nowego; w danej chwili są NAJWYŻEJ dwa ważne sekrety (ostatni udowodniony i najnowszy wydany) — wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego (w wyniku kolejnego logowania poprzednim sekretem). Oba sekrety są unieważniane przy potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Odpowiedź niesie `deviceId`, tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek. Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`; dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego — gdzie indziej zły kanał to `403 forbidden`), `403 device_limit_reached` i — rzadki wyścig — `401 device_wipe_required` (wyczyszczenie zlecono między krokami; zwykle sygnał dostaje już pierwszy krok, zob. `mobileLogin`). Aplikacja usuwa dane i potwierdza przez `confirmDeviceWipe`. Limity i blokada wspólne z logowaniem w panelu (20/min/IP, blokada po 10 próbach na koncie) → `429` z `Retry-After`; treść najwyżej 8 KB. `Cache-Control: no-store`. Audyt (EVM-094): rejestracja urządzenia, logowanie udane i nieudane — bez kodu, tokenów i sekretów.",
         "operationId": "mobileLoginTotp",
         "parameters": [
           {
@@ -11602,8 +11636,7 @@
             "mobile"
           ],
           "public": true
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/auth/mobile/logout": {
@@ -11658,13 +11691,12 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/auth/mobile/token": {
       "post": {
-        "description": "Publiczna operacja kanału `mobile` (token odświeżania w treści, nigdy w adresie ani nagłówku). Każde użycie wydaje NOWĄ parę tokenów, a stary token odświeżania przestaje działać (rotacja, ADR-0005). Ponowne użycie zużytego tokenu unieważnia rodzinę tokenów („Wyloguj urządzenie”: urządzenie zostaje zarejestrowane, kolejka wstrzymana) i wywołuje alert bezpieczeństwa. Token nieznany, wygasły, zużyty i unieważniony dają tę samą odpowiedź `401 session_revoked`; `401 device_wipe_required`, gdy urządzenie ma zlecone wyczyszczenie. Odpowiedź nie zawiera `installationSecret`. Limit 20/min/IP wspólny z logowaniem → `429` z `Retry-After`; treść najwyżej 8 KB; `Cache-Control: no-store`. Audyt (EVM-094): ponowne użycie tokenu odświeżania (alert) — bez wartości tokenu.",
+        "description": "Publiczna operacja kanału `mobile` (token odświeżania w treści, nigdy w adresie ani nagłówku). Każde użycie wydaje NOWĄ parę tokenów, a stary token odświeżania przestaje działać (rotacja, ADR-0005). Ponowne użycie zużytego tokenu unieważnia rodzinę tokenów („Wyloguj urządzenie”: urządzenie zostaje zarejestrowane, kolejka wstrzymana) i wywołuje alert bezpieczeństwa. Token nieznany, wygasły, zużyty i unieważniony dają tę samą odpowiedź `401 session_revoked` — z jednym wyjątkiem: token (także unieważniony, zużyty lub wygasły, o ile rekord jeszcze istnieje) urządzenia w stanie `wipe_required` ZAWSZE daje `401 device_wipe_required`, które ma pierwszeństwo przed `session_revoked` (blokada i wyczyszczenie unieważniają rodzinę tokenów, a telefon musi dostać sygnał wyczyszczenia, nie tylko prośbę o ponowne logowanie). Token nieznany zostaje przy jedynej odpowiedzi `session_revoked`. Odpowiedź nie zawiera `installationSecret`. Limit 20/min/IP wspólny z logowaniem → `429` z `Retry-After`; treść najwyżej 8 KB; `Cache-Control: no-store`. Audyt (EVM-094): ponowne użycie tokenu odświeżania (alert) — bez wartości tokenu.",
         "operationId": "refreshMobileSession",
         "parameters": [
           {
@@ -11745,8 +11777,7 @@
             "mobile"
           ],
           "public": true
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/auth/password-reset/check": {
@@ -12750,7 +12781,7 @@
     },
     "/api/v1/devices/current/wipe-confirmation": {
       "post": {
-        "description": "Telefon potwierdza, że usunął dane (stan „Wyczyszczone” w W-17). Publiczna operacja kanału `mobile`: urządzenie w stanie wyczyszczenia nie ma ważnej sesji, więc para `deviceId` + `installationSecret` jedzie w TREŚCI (nie w adresie ani nagłówku; `deviceId` nie występuje w ścieżce) — tak jak przy ponownym logowaniu. Sekret jest tu dowodem przejścia stanu, nie czynnikiem uwierzytelniania (SR-AUTH-14). Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`. Odpowiedzi: `204` dla poprawnej pary — idempotentnie, także gdy urządzenie nie jest w stanie wyczyszczenia albo już potwierdziło; `401 invalid_credentials` jednym komunikatem dla nieznanego urządzenia i złego sekretu (brak enumeracji urządzeń); `400` (zły kształt), `413` (treść > 8 KB), `429` z `Retry-After` (limit na adres IP). Unieważnienie tokenów urządzenia nie zależy od potwierdzenia. Kolejność po stronie aplikacji: usuń dane, wyślij potwierdzenie, na końcu usuń sekret instalacji. Bez kontroli wersji aplikacji (`426` nie dotyczy tej operacji). `Cache-Control: no-store`. Audyt (EVM-094): potwierdzenie wyczyszczenia urządzenia — bez sekretu.",
+        "description": "Telefon potwierdza, że usunął dane (stan „Wyczyszczone” w W-17). Publiczna operacja kanału `mobile`: urządzenie w stanie wyczyszczenia nie ma ważnej sesji, więc para `deviceId` + `installationSecret` jedzie w TREŚCI (nie w adresie ani nagłówku; `deviceId` nie występuje w ścieżce) — tak jak przy ponownym logowaniu. Sekret jest tu dowodem przejścia stanu, nie czynnikiem uwierzytelniania (SR-AUTH-14); przyjmowany jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret instalacji (rotacja dwufazowa, zob. `mobileLoginTotp`). Po potwierdzeniu oba sekrety są unieważniane. Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`. Odpowiedzi: `204` dla poprawnej pary — idempotentnie, także gdy urządzenie nie jest w stanie wyczyszczenia albo już potwierdziło; `401 invalid_credentials` jednym komunikatem dla nieznanego urządzenia i złego sekretu (brak enumeracji urządzeń); `400` (zły kształt), `413` (treść > 8 KB), `429` z `Retry-After` (limit na adres IP). Unieważnienie tokenów urządzenia nie zależy od potwierdzenia. Kolejność po stronie aplikacji: usuń dane, wyślij potwierdzenie, na końcu usuń sekret instalacji. Bez kontroli wersji aplikacji (`426` nie dotyczy tej operacji). `Cache-Control: no-store`. Audyt (EVM-094): potwierdzenie wyczyszczenia urządzenia — bez sekretu.",
         "operationId": "confirmDeviceWipe",
         "parameters": [
           {
@@ -12809,8 +12840,7 @@
             "mobile"
           ],
           "public": true
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/meta/client-config": {
@@ -12882,8 +12912,7 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/parties": {
@@ -13675,7 +13704,7 @@
     },
     "/api/v1/sync/changes": {
       "get": {
-        "description": "Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`, `access_changed`), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie” (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie. Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone wyczyszczenie. Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10). `Cache-Control: no-store`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`, `access_changed`), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie” (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie. Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10). `Cache-Control: no-store`.",
         "operationId": "getSyncChanges",
         "parameters": [
           {
@@ -13806,7 +13835,7 @@
     },
     "/api/v1/sync/mutations": {
       "post": {
-        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z `Retry-After`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z `Retry-After`.",
         "operationId": "pushSyncMutations",
         "parameters": [
           {

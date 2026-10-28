@@ -1615,7 +1615,7 @@ accountSession:
         $ref: ../components/responses.yaml#/RateLimited
 # Mobile sign-in (EVM-090; ADR-0005, ADR-0021 → „Ścieżka mobilnego logowania”). A separate family next to the cookie session of the panel:
 # the channel is decided by the operation (its path and `x-evia-authz`), NEVER by `X-Client-Platform` or any other header of the client.
-# The server implements it in EVM-094; until then the operations carry `x-evia-planned: true` (no route, no stub).
+# The server implements it (EVM-094); the planned markers are gone from these operations, only the sync ones of EVM-096 and EVM-098 keep theirs.
 mobileLogin:
   post:
     operationId: mobileLogin
@@ -1644,7 +1644,6 @@ mobileLogin:
     x-evia-authz:
       public: true
       channels: [mobile]
-    x-evia-planned: true
     security: []
     parameters:
       - $ref: ../components/devices.yaml#/ClientPlatformHeader
@@ -1717,7 +1716,6 @@ mobileLoginTotp:
     x-evia-authz:
       public: true
       channels: [mobile]
-    x-evia-planned: true
     security: []
     parameters:
       - $ref: ../components/devices.yaml#/ClientPlatformHeader
@@ -1786,7 +1784,6 @@ mobileToken:
     x-evia-authz:
       public: true
       channels: [mobile]
-    x-evia-planned: true
     security: []
     parameters:
       - $ref: ../components/devices.yaml#/ClientPlatformHeader
@@ -1846,7 +1843,6 @@ mobileLogout:
       roles: [administrator, editor]
       channels: [mobile]
       audit: true
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:

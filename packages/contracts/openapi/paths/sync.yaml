@@ -1,6 +1,6 @@
 # Module `sync` (EVM-090; offline-sync.md, ADR-0021) and the configuration of the mobile client. Every operation is on the `mobile`
 # channel for the Administrator and the Editor, authenticated by `Authorization: Bearer`, `Cache-Control: no-store`, and carries
-# `x-evia-planned: true` until its story implements the route (client-config: EVM-094; changes: EVM-096; snapshot: EVM-096;
+# `x-evia-planned: true` until its story implements the route (client-config: done in EVM-094; changes: EVM-096; snapshot: EVM-096;
 # mutations: EVM-098). Identity of the user and of the device always comes from the session — never from the request.
 clientConfig:
   get:
@@ -16,7 +16,6 @@ clientConfig:
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:

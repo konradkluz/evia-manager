@@ -19,7 +19,6 @@ wipeConfirmation:
     x-evia-authz:
       public: true
       channels: [mobile]
-    x-evia-planned: true
     security: []
     parameters:
       - $ref: ../components/devices.yaml#/ClientPlatformHeader

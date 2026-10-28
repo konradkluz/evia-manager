@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any -- this test walks the untyped bundle (dist/openapi.json) by JSON pointers */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   AUTHZ_MANIFEST,
@@ -191,27 +191,37 @@ describe('EVM-090 AC1 the mobile family in the contract (SR-AUTHZ-12, SR-AUTHZ-0
   });
 });
 
+// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the sync operations keep the marker.
+const STILL_PLANNED = ['getSyncChanges', 'getSyncWorkOrder', 'pushSyncMutations'] as const;
+
+/**
+ * The two tests that compare the contract with the prose of docs/ run wherever docs/ is present (the native gate, CI). The Linux container of the backend
+ * mounts only the code paths (ADR-0015), so there they are skipped — not weakened: the native gate on Windows and the CI job run them in full (EVM-094).
+ */
+const docsPresent = existsSync('../../docs/architecture/api-guidelines.md');
+const itWithDocs = it.skipIf(!docsPresent);
+
 describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)', () => {
   const marked = operations.filter(({ operation: item }) => item['x-evia-planned'] === true).map(({ id }) => id);
 
   it('EVM-090 AC1 planned = the operations marked in the contract (the marker is the only source), and implemented ∪ planned = every operation', () => {
     expect(plannedOperations().sort()).toEqual(marked.sort());
-    expect(marked.sort()).toEqual([...NEW_OPERATIONS].sort());
+    expect(marked.sort()).toEqual([...STILL_PLANNED].sort());
     expect([...implementedOperations(), ...plannedOperations()].sort()).toEqual(Object.keys(AUTHZ_MANIFEST).sort());
     expect(implementedOperations().filter((id) => plannedOperations().includes(id))).toEqual([]);
     expect(Object.keys(implementedManifest()).sort()).toEqual(implementedOperations().sort());
-    expect(Object.keys(implementedManifest()).length).toBe(Object.keys(AUTHZ_MANIFEST).length - NEW_OPERATIONS.length);
+    expect(Object.keys(implementedManifest()).length).toBe(Object.keys(AUTHZ_MANIFEST).length - STILL_PLANNED.length);
   });
 
   it('EVM-090 AC1 onlyImplemented drops the planned ids of a list such as PUBLIC_OPERATIONS and keeps the others in order', () => {
-    expect(onlyImplemented(['login', 'mobileLogin', 'getHealth', 'confirmDeviceWipe', 'unknownId'])).toEqual([
+    expect(onlyImplemented(['login', 'getSyncChanges', 'getHealth', 'pushSyncMutations', 'unknownId'])).toEqual([
       'login',
       'getHealth',
       'unknownId',
     ]);
-    expect(onlyImplemented(PUBLIC_OPERATIONS).sort()).toEqual(
-      PUBLIC_OPERATIONS.filter((id) => !PUBLIC_MOBILE.includes(id as never)).sort(),
-    );
+    // EVM-094: the four public operations of the phone have routes, so none of PUBLIC_OPERATIONS is planned any more
+    expect(onlyImplemented(PUBLIC_OPERATIONS).sort()).toEqual([...PUBLIC_OPERATIONS].sort());
+    expect(PUBLIC_MOBILE.every((id) => onlyImplemented(PUBLIC_OPERATIONS).includes(id))).toBe(true);
   });
 
   it('EVM-090 AC1 a planned operation already carries its full policy, so removing the marker switches the role matrix on (roles, channels, mobile list)', () => {
@@ -337,17 +347,20 @@ describe('EVM-090 AC2 registration of the device and the wipe confirmation', () 
     expect(schemas['InstallationSecret'].description).toMatch(/bieżący albo poprzedni, jeszcze nieprzekreślony sekret/);
   });
 
-  it('EVM-090 AC2 the two-phase rotation has a deadline and a revocation rule: previous secret lives at most the refresh token lifetime (7 days), at most two secrets are valid, all are revoked on wipe confirmation, device removal and account deactivation', () => {
-    const login = operation('mobileLoginTotp')['description'] as string;
-    const secret = schemas['MobileSession'].properties.installationSecret.description as string;
-    const sync = readFileSync('../../docs/architecture/offline-sync.md', 'utf8');
-    for (const [name, text] of Object.entries({ login, secret, sync })) {
-      expect(text, name).toMatch(/najpóźniej po czasie życia tokenu odświeżania \(nie dłużej niż 7 dni\)/);
-      expect(text, name).toMatch(/NAJWYŻEJ dwa ważne sekrety/);
-      expect(text, name).toMatch(/nieudowodniony.*przestaje działać.*kolejnego logowania/s);
-      expect(text, name).toMatch(/potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta/);
-    }
-  });
+  itWithDocs(
+    'EVM-090 AC2 the two-phase rotation has a deadline and a revocation rule: previous secret lives at most the refresh token lifetime (7 days), at most two secrets are valid, all are revoked on wipe confirmation, device removal and account deactivation',
+    () => {
+      const login = operation('mobileLoginTotp')['description'] as string;
+      const secret = schemas['MobileSession'].properties.installationSecret.description as string;
+      const sync = readFileSync('../../docs/architecture/offline-sync.md', 'utf8');
+      for (const [name, text] of Object.entries({ login, secret, sync })) {
+        expect(text, name).toMatch(/najpóźniej po czasie życia tokenu odświeżania \(nie dłużej niż 7 dni\)/);
+        expect(text, name).toMatch(/NAJWYŻEJ dwa ważne sekrety/);
+        expect(text, name).toMatch(/nieudowodniony.*przestaje działać.*kolejnego logowania/s);
+        expect(text, name).toMatch(/potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta/);
+      }
+    },
+  );
 
   it('EVM-090 AC2 pendingItems is an optional integer 0..1000000 in the query of the pull and in the body of the push', () => {
     const query = (operation('getSyncChanges')['parameters'] as unknown[])
@@ -781,15 +794,18 @@ describe('EVM-090 AC5 the catalogue of errors and the headers (SR-API-01, SR-API
     expect(String(operation('pushSyncMutations')['description'])).toMatch(/wyczyszczenie ma pierwszeństwo/);
   });
 
-  it('EVM-090 AC5 the error catalogue in api-guidelines.md matches the contract on device_wipe_required (before the password, precedence rule)', () => {
-    const guidelines = readFileSync('../../docs/architecture/api-guidelines.md', 'utf8');
-    const row = guidelines.split('\n').find((line) => line.startsWith('| 401 | `device_wipe_required`')) ?? '';
-    expect(row).toMatch(/PIERWSZYM kroku logowania mobilnego/);
-    expect(row).toMatch(/PRZED sprawdzeniem hasła/);
-    expect(row).not.toMatch(/dopiero po poprawnym kodzie TOTP/);
-    expect(row).toMatch(/ZAWSZE daje `device_wipe_required`/);
-    expect(row).toMatch(/token nieznany daje `session_revoked`/);
-  });
+  itWithDocs(
+    'EVM-090 AC5 the error catalogue in api-guidelines.md matches the contract on device_wipe_required (before the password, precedence rule)',
+    () => {
+      const guidelines = readFileSync('../../docs/architecture/api-guidelines.md', 'utf8');
+      const row = guidelines.split('\n').find((line) => line.startsWith('| 401 | `device_wipe_required`')) ?? '';
+      expect(row).toMatch(/PIERWSZYM kroku logowania mobilnego/);
+      expect(row).toMatch(/PRZED sprawdzeniem hasła/);
+      expect(row).not.toMatch(/dopiero po poprawnym kodzie TOTP/);
+      expect(row).toMatch(/ZAWSZE daje `device_wipe_required`/);
+      expect(row).toMatch(/token nieznany daje `session_revoked`/);
+    },
+  );
 
   it('EVM-090 AC5 426 client_version_unsupported carries minSupportedVersion on every mobile operation but the client config and the wipe confirmation', () => {
     const exempt = ['getClientConfig', 'confirmDeviceWipe'];
@@ -839,7 +855,8 @@ describe('EVM-090 AC5 the catalogue of errors and the headers (SR-API-01, SR-API
 
 describe('EVM-090 AC6 the configuration of the client', () => {
   it('EVM-090 AC6 GET /api/v1/meta/client-config is an authenticated mobile operation with the window, N days, the periodic resync, the scope rule and the versions', () => {
-    expect(AUTHZ_MANIFEST['getClientConfig']).toMatchObject({ method: 'get', path: '/api/v1/meta/client-config', planned: true });
+    expect(AUTHZ_MANIFEST['getClientConfig']).toMatchObject({ method: 'get', path: '/api/v1/meta/client-config' });
+    expect(AUTHZ_MANIFEST['getClientConfig']?.planned).toBeUndefined(); // EVM-094 implemented it
     const config = schemas['ClientConfig'];
     expect(config.required.sort()).toEqual([
       'closedWorkOrdersInScopeDays',

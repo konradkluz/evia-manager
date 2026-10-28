@@ -46,6 +46,10 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'mfa.totp_removed': 'Usunięcie kodu z aplikacji uwierzytelniającej',
   'reauthentication.succeeded': 'Pełne ponowne uwierzytelnienie',
   'reauthentication.failed': 'Nieudane pełne ponowne uwierzytelnienie',
+  // EVM-094: the register of mobile devices (the screen of the devices is the story EVM-095)
+  'device.registered': 'Rejestracja urządzenia mobilnego',
+  'device.recognized': 'Rozpoznanie urządzenia mobilnego po poprzednim sekrecie',
+  'device.wipe_confirmed': 'Potwierdzenie wyczyszczenia urządzenia',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -104,6 +108,9 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'account.browser_locked',
       'reauthentication.succeeded',
       'reauthentication.failed',
+      'device.registered',
+      'device.recognized',
+      'device.wipe_confirmed',
     ],
   },
   {
@@ -192,6 +199,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   user: 'Konto',
   session: 'Sesja',
   passkey: 'Klucz dostępu',
+  device: 'Urządzenie mobilne',
   audit: 'Dziennik audytu',
   work_order: 'Zlecenie',
   scope_item: 'Pozycja zakresu',
