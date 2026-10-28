@@ -118,3 +118,4 @@ _—_
 - 2026-10-27 — plan gotowy (backend-developer)
 - 2026-10-27 — implementacja API (backend-developer, tor T2): migracja 0042, rejestr usunięć (`@aws-sdk/client-s3` 3.1157.0), usunięcie / przywrócenie / redakcja wpisu, kontrakt i testy; panel (menu W-08, dialog, W-04) — web-developer
 - 2026-10-28 — panel (web-developer, tor T2): menu wpisu W-08 (Usuń wpis z toastem „Cofnij”, Przywróć wpis, Zredaguj treść… z AlertDialog i W-04), oznaczenie „Usunięty” i `includeDeleted` dla Administratora, Edytor z pozycjami wyłączonymi, wpis zdarzenia bez menu; testy komponentów, E2E (Chromium, Edge, Firefox), axe i zrzuty w `docs/ux/reviews/EVM-040/`
+- 2026-10-28 — bramka lokalna (devops-engineer): format, lint, typy, testy z progami, deps:check, kontener Linux, integracja API, gate:deploy, coverage:diff (linie 99,4%, gałęzie 91,8%; dodano test logiki błędów panelu) zielone; czerwony tylko `@evia/repo-policy` przez niepoprawny YAML w `EVM-119` (z `main`)
