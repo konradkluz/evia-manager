@@ -111,8 +111,8 @@ export function CustomerPage() {
 
   // A change of the state of the customer moves the focus to what replaces the view: the banner after a delete, the heading after a
   // restore or an anonymization (flow 13). The first view of the page is handled by the effect above.
-  const deletedNow = customer?.deletedAt != null;
-  const anonymizedNow = customer?.anonymizedAt != null;
+  const deletedNow = typeof customer?.deletedAt === 'string';
+  const anonymizedNow = typeof customer?.anonymizedAt === 'string';
   const seenState = useRef<{ readonly deleted: boolean; readonly anonymized: boolean } | null>(null);
   useEffect(() => {
     if (customer === undefined) return;
@@ -148,12 +148,17 @@ export function CustomerPage() {
     toast(t('customerPage.saved'));
   };
 
-  const deleted = customer.deletedAt !== null;
-  const anonymized = customer.anonymizedAt !== null;
+  // A value the API did not send (an older answer) is "not set": only a timestamp marks the state.
+  const deleted = typeof customer.deletedAt === 'string';
+  const anonymized = typeof customer.anonymizedAt === 'string';
   // Hints, in the order of the table of flow 13: the state of the page, the role, then what the server has said about the orders.
   const offlineHint = online ? undefined : t('customerPage.menu.offline');
-  const dependentsHint = (kind: 'Delete' | 'Anonymize') =>
-    openOrders === null ? undefined : t(`customerErase.menu.dependents${kind}Hint`, { count: openOrders });
+  const dependentsHint = (kind: 'delete' | 'anonymize') => {
+    if (openOrders === null) return undefined;
+    return kind === 'delete'
+      ? t('customerErase.menu.dependentsDeleteHint', { count: openOrders })
+      : t('customerErase.menu.dependentsAnonymizeHint', { count: openOrders });
+  };
   const hint = (value: string | undefined) => (value === undefined ? {} : { disabledHint: value });
   const frozen = deleted && anonymized ? t('customerErase.menu.readOnlyHint') : undefined;
   const idle = () => !erase.busy;
@@ -181,7 +186,7 @@ export function CustomerPage() {
             onSelect: () => {
               if (idle()) erase.remove(customer);
             },
-            ...hint(offlineHint ?? (isAdministrator ? dependentsHint('Delete') : t('customerErase.menu.deleteEditorHint'))),
+            ...hint(offlineHint ?? (isAdministrator ? dependentsHint('delete') : t('customerErase.menu.deleteEditorHint'))),
           },
         ]),
     {
@@ -195,7 +200,7 @@ export function CustomerPage() {
       ...hint(
         offlineHint ??
           (isAdministrator
-            ? (frozen ?? (anonymized ? t('customerErase.menu.anonymizeAnonymizedHint') : dependentsHint('Anonymize')))
+            ? (frozen ?? (anonymized ? t('customerErase.menu.anonymizeAnonymizedHint') : dependentsHint('anonymize')))
             : t('customerErase.menu.anonymizeEditorHint')),
       ),
     },

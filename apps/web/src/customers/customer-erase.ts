@@ -39,7 +39,9 @@ export function describeEraseFailure(error: unknown): CustomerEraseFailure {
 export function eraseFailureText(t: TFunction, operation: EraseOperation, failure: CustomerEraseFailure): string {
   switch (failure.kind) {
     case 'dependents':
-      return t(`customerErase.failure.dependents.${operation === 'anonymize' ? 'anonymize' : 'delete'}`, { count: failure.count ?? 0 });
+      return operation === 'anonymize'
+        ? t('customerErase.failure.dependents.anonymize', { count: failure.count ?? 0 })
+        : t('customerErase.failure.dependents.delete', { count: failure.count ?? 0 });
     case 'rateLimited':
       return t('customerErase.failure.rateLimited', { minutes: failure.minutes });
     case 'registerDown':
@@ -47,13 +49,19 @@ export function eraseFailureText(t: TFunction, operation: EraseOperation, failur
     case 'server':
       return t('customerErase.failure.server', { code: failure.code });
     case 'conflict':
+      return t('customerErase.failure.conflict');
     case 'gone':
+      return t('customerErase.failure.gone');
     case 'alreadyAnonymized':
+      return t('customerErase.failure.alreadyAnonymized');
     case 'busy':
+      return t('customerErase.failure.busy');
     case 'notConfirmed':
+      return t('customerErase.failure.notConfirmed');
     case 'forbidden':
+      return t('customerErase.failure.forbidden');
     case 'network':
-      return t(`customerErase.failure.${failure.kind}`);
+      return t('customerErase.failure.network');
   }
 }
 

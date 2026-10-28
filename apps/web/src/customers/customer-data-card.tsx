@@ -20,7 +20,7 @@ export function CustomerDataCard({ customer }: { readonly customer: Customer }) 
   const none = t('customerPage.data.none');
   const company = customer.kind === 'company';
   // The telephone of an anonymized customer is a neutral placeholder, not a number (EVM-041): never shown, never a `tel:` link.
-  const anonymized = customer.anonymizedAt !== null;
+  const anonymized = typeof customer.anonymizedAt === 'string';
   return (
     <Card labelledBy={headingId}>
       <h2 id={headingId} className="text-heading-3 text-text-primary">
