@@ -6,6 +6,7 @@ import {
   ChevronRight,
   CircleAlert,
   EmptyState,
+  FilterChip,
   InlineAlert,
   SearchField,
   SearchX,
@@ -58,6 +59,9 @@ export function CustomersPage() {
   const session = useQueryClient().getQueryData<CurrentSession>(SESSION_KEY);
   const sessionState = session?.state;
   const readOnly = session?.user.role === 'read_only';
+  // The filter "Usunięci" is the Administrator's (EVM-041 AC3); the server refuses it for the other roles, hiding it is a convenience.
+  const isAdministrator = session?.user.role === 'administrator';
+  const [deletedView, setDeletedView] = useState(false);
   const [phrase, setPhrase] = useState('');
   // Cursors of the pages passed through (empty = the first page, the last = the current one) with the phrase they belong to.
   const [paging, setPaging] = useState<{ readonly key: string; readonly cursors: readonly string[] }>({ key: '', cursors: [] });
@@ -74,16 +78,33 @@ export function CustomersPage() {
   // The phrase the query is made for: a phrase that is too short or too long is never sent (the full list stays).
   const active = searching ? settled : '';
   const waiting = searching && settled !== typed;
-  const cursors = paging.key === active ? paging.cursors : [];
+  // The cursors belong to the phrase AND the view (a cursor of the deleted list is never sent for the other one).
+  const scope = `${deletedView ? 'deleted' : 'active'}:${active}`;
+  const cursors = paging.key === scope ? paging.cursors : [];
   const cursor = cursors.at(-1);
 
   const query = useQuery({
-    queryKey: [CUSTOMER_LIST_KEY, active, cursor ?? null],
+    queryKey: [CUSTOMER_LIST_KEY, active, cursor ?? null, deletedView],
     queryFn: ({ signal }) =>
       active === ''
-        ? unwrap(listCustomers({ client, signal, query: { limit: PAGE_SIZE, ...(cursor === undefined ? {} : { cursor }) } }))
+        ? unwrap(
+            listCustomers({
+              client,
+              signal,
+              query: { limit: PAGE_SIZE, ...(cursor === undefined ? {} : { cursor }), ...(deletedView ? { deleted: true } : {}) },
+            }),
+          )
         : unwrap(
-            searchCustomers({ client, signal, body: { query: active, limit: PAGE_SIZE, ...(cursor === undefined ? {} : { cursor }) } }),
+            searchCustomers({
+              client,
+              signal,
+              body: {
+                query: active,
+                limit: PAGE_SIZE,
+                ...(cursor === undefined ? {} : { cursor }),
+                ...(deletedView ? { deleted: true } : {}),
+              },
+            }),
           ),
     enabled: sessionState === 'active' && !waiting,
     retry: false,
@@ -113,9 +134,9 @@ export function CustomersPage() {
   const badCursor = cursors.length > 0 && isBadCursor(error);
   useEffect(() => {
     if (!badCursor) return;
-    setPaging({ key: active, cursors: [] });
+    setPaging({ key: scope, cursors: [] });
     setNotice(true);
-  }, [badCursor, active]);
+  }, [badCursor, scope]);
 
   // The connection is back: a list that failed meanwhile is read again.
   useEffect(() => {
@@ -128,13 +149,20 @@ export function CustomersPage() {
     moved.current = direction;
     setNotice(false);
     if (direction === 'next') {
-      if (data?.nextCursor) setPaging({ key: active, cursors: [...cursors, data.nextCursor] });
-    } else setPaging({ key: active, cursors: cursors.slice(0, -1) });
+      if (data?.nextCursor) setPaging({ key: scope, cursors: [...cursors, data.nextCursor] });
+    } else setPaging({ key: scope, cursors: cursors.slice(0, -1) });
   };
   const change = (next: string) => {
     moved.current = phraseState(next) === 'ok' ? 'search' : null;
     setNotice(false);
     setPhrase(next);
+  };
+  const toggleDeleted = () => {
+    moved.current = null;
+    setNotice(false);
+    // The copy kept for the offline view belongs to the other view: it is dropped, so a deleted customer never shows in the full list.
+    setLastPage(null);
+    setDeletedView((current) => !current);
   };
   const retry = () => {
     void query.refetch();
@@ -161,6 +189,18 @@ export function CustomersPage() {
         disabled={!online}
         onChange={change}
       />
+      {isAdministrator ? (
+        <div className="flex flex-wrap items-center gap-inline-sm">
+          <FilterChip
+            variant="choice"
+            label={t('customerErase.list.filter')}
+            selected={deletedView}
+            disabled={!online}
+            description={online ? t('customerErase.list.filterDescription') : t('customerErase.list.filterOffline')}
+            onClick={toggleDeleted}
+          />
+        </div>
+      ) : null}
       <p role="status" className="sr-only">
         {announcement}
       </p>
@@ -189,7 +229,18 @@ export function CustomersPage() {
       ) : items === undefined ? (
         <Loading />
       ) : items.length === 0 ? (
-        active === '' ? (
+        active === '' && deletedView ? (
+          <EmptyState
+            icon={Users}
+            title={t('customerErase.list.emptyTitle')}
+            description={t('customerErase.list.emptyDescription')}
+            action={
+              <Button variant="secondary" onClick={toggleDeleted}>
+                {t('customerErase.list.emptyAction')}
+              </Button>
+            }
+          />
+        ) : active === '' ? (
           <EmptyState
             icon={Users}
             title={readOnly ? t('customerList.empty.readOnlyTitle') : t('customerList.empty.title')}
@@ -199,7 +250,7 @@ export function CustomersPage() {
           <EmptyState
             icon={SearchX}
             title={t('customerList.noResults.title')}
-            description={t('customerList.noResults.description')}
+            description={deletedView ? t('customerErase.list.noResultsDescription') : t('customerList.noResults.description')}
             action={
               <Button
                 variant="secondary"
@@ -217,7 +268,7 @@ export function CustomersPage() {
           <h2 ref={heading} tabIndex={-1} className="text-heading-3 text-text-primary focus-visible:focus-ring">
             {t('customerList.table.heading')}
           </h2>
-          <CustomerTable items={items} />
+          <CustomerTable items={items} deleted={deletedView && offlineCopy === null} />
           <nav aria-label={t('customerList.pages.label')} className="flex flex-wrap items-center justify-center gap-inline-md">
             <Button
               variant="secondary"

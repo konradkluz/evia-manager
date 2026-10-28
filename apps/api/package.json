@@ -19,6 +19,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts --coverage"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1157.0",
     "@evia/contracts": "workspace:*",
     "@nestjs/common": "12.1.2",
     "@nestjs/core": "12.1.2",

@@ -21,11 +21,19 @@ export interface CustomerCard {
   readonly displayName: string;
   readonly phone: string;
   readonly email: string | null;
+  /** The customer was anonymized (EVM-041): the telephone is a constant, not a number, and the panel does not show it as one. */
+  readonly anonymized: boolean;
 }
 
 export interface CustomerDirectory {
   /** @returns the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   findVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined>;
+  /**
+   * The customer of a NEW work order, LOCKED `FOR KEY SHARE` in the transaction of the caller (EVM-041 D7): the creation of the order and
+   * the deletion or the anonymization of the customer are serialised, so no open order of a deleted customer can appear. Same read policy
+   * as `findVisible` (a deleted customer is `undefined`); only `create-work-order` uses it - a read-only transaction cannot lock rows.
+   */
+  lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined>;
   /** @returns the card of the customer when it exists and is visible to the caller; `undefined` otherwise (the same for both) */
   getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined>;
   /**

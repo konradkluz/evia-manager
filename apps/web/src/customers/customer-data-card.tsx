@@ -19,6 +19,8 @@ export function CustomerDataCard({ customer }: { readonly customer: Customer }) 
   const headingId = useId();
   const none = t('customerPage.data.none');
   const company = customer.kind === 'company';
+  // The telephone of an anonymized customer is a neutral placeholder, not a number (EVM-041): never shown, never a `tel:` link.
+  const anonymized = typeof customer.anonymizedAt === 'string';
   return (
     <Card labelledBy={headingId}>
       <h2 id={headingId} className="text-heading-3 text-text-primary">
@@ -32,7 +34,9 @@ export function CustomerDataCard({ customer }: { readonly customer: Customer }) 
             <DetailRow label={t('customerPage.data.contactPerson')}>{customer.contactPersonName ?? none}</DetailRow>
           </>
         ) : null}
-        <DetailRow label={t('customerPage.data.phone')}>{link(telHref(customer.phone), formatPhone(customer.phone))}</DetailRow>
+        <DetailRow label={t('customerPage.data.phone')}>
+          {anonymized ? none : link(telHref(customer.phone), formatPhone(customer.phone))}
+        </DetailRow>
         <DetailRow label={t('customerPage.data.email')}>
           {customer.email === undefined ? none : link(mailtoHref(customer.email), customer.email)}
         </DetailRow>

@@ -22,6 +22,8 @@ const JAN: Customer = {
   version: 3,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-02T10:00:00.000Z',
+  deletedAt: null,
+  anonymizedAt: null,
 };
 
 /** A fake server that keeps one customer: a PATCH with the right `If-Match` changes it, a wrong one is `412`. */

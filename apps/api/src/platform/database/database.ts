@@ -17,6 +17,7 @@ export interface PoolSettings {
   readonly idleTimeoutMillis: number;
   readonly statement_timeout?: number | undefined;
   readonly query_timeout?: number | undefined;
+  readonly idle_in_transaction_session_timeout?: number | undefined;
   readonly application_name: string;
 }
 
@@ -26,6 +27,8 @@ export const POOL_SETTINGS: PoolSettings = Object.freeze({
   idleTimeoutMillis: 30_000,
   statement_timeout: 2000,
   query_timeout: 3000,
+  // a transaction that waits for something outside the database (the register of deletions, up to ~5 s) must not hold its locks for ever
+  idle_in_transaction_session_timeout: 10_000,
   application_name: 'evia-api',
 });
 

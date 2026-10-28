@@ -77,6 +77,7 @@ export {
   Smartphone,
   ThumbsUp,
   TimerOff,
+  Trash2,
   TriangleAlert,
   Undo2,
   Users,

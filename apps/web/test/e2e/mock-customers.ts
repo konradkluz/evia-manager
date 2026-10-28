@@ -21,8 +21,12 @@ export interface MockCustomerRecord {
   notes?: string | undefined;
   postalAddress?: { street: string; buildingNumber: string; apartmentNumber?: string; postalCode: string; city: string } | undefined;
   version?: number;
-  /** Soft-deleted: every read of it is `404`, like a customer that never existed. */
+  /** Soft-deleted: every read of it is `404`, like a customer that never existed (the Administrator reads it, EVM-041). */
   deleted?: boolean;
+  /** Anonymized (EVM-041): the data are the neutral ones and the edit is `409 customer_anonymized`. */
+  anonymized?: boolean;
+  /** EVM-041: the number of open work orders — the delete and the anonymization are `409 has_active_dependents` while it is above 0. */
+  openWorkOrders?: number;
 }
 
 export interface Answer {
@@ -66,8 +70,10 @@ export const sortNameOf = (customer: MockCustomerRecord): string =>
 
 const collator = new Intl.Collator('pl');
 const visible = (customers: readonly MockCustomerRecord[]) => customers.filter((entry) => entry.deleted !== true);
-const ordered = (customers: readonly MockCustomerRecord[]) =>
-  visible(customers).toSorted((a, b) => collator.compare(sortNameOf(a), sortNameOf(b)) || a.id.localeCompare(b.id));
+const ordered = (customers: readonly MockCustomerRecord[], deleted = false) =>
+  (deleted ? customers.filter((entry) => entry.deleted === true) : visible(customers)).toSorted(
+    (a, b) => collator.compare(sortNameOf(a), sortNameOf(b)) || a.id.localeCompare(b.id),
+  );
 
 export const listItem = (customer: MockCustomerRecord) => ({
   id: customer.id,
@@ -95,6 +101,8 @@ export const customerBody = (customer: MockCustomerRecord) => ({
   version: customer.version ?? 1,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-02T10:00:00.000Z',
+  deletedAt: customer.deleted === true ? '2026-10-28T09:00:00.000Z' : null,
+  anonymizedAt: customer.anonymized === true ? '2026-10-28T09:00:00.000Z' : null,
 });
 
 /** A page of the ordered customers; the cursor is the position (opaque to the panel). */
@@ -105,28 +113,36 @@ function pageOf(items: readonly MockCustomerRecord[], cursor: string | null, lim
   return { items: items.slice(start, start + limit).map(listItem), nextCursor };
 }
 
-export function answerList(customers: readonly MockCustomerRecord[], query: URLSearchParams): Answer {
+type Role = 'administrator' | 'editor' | 'read_only';
+
+export function answerList(customers: readonly MockCustomerRecord[], query: URLSearchParams, role: Role = 'administrator'): Answer {
   const limit = Number(query.get('limit') ?? String(PAGE));
-  const page = pageOf(ordered(customers), query.get('cursor'), limit);
+  // EVM-041: the filter "Usunięci" is the Administrator's — the others are refused, not served the full list
+  if (query.get('deleted') === 'true' && role !== 'administrator') return problem(403, 'forbidden');
+  const page = pageOf(ordered(customers, query.get('deleted') === 'true'), query.get('cursor'), limit);
   return page === null ? problem(400, 'invalid_cursor') : json(200, page, { 'Cache-Control': 'no-store' });
 }
 
-export function answerSearch(customers: readonly MockCustomerRecord[], raw: string): Answer {
-  const { query, cursor, limit } = JSON.parse(raw) as { query?: string; cursor?: string; limit?: number };
+export function answerSearch(customers: readonly MockCustomerRecord[], raw: string, role: Role = 'administrator'): Answer {
+  const { query, cursor, limit, deleted } = JSON.parse(raw) as { query?: string; cursor?: string; limit?: number; deleted?: boolean };
+  if (deleted === true && role !== 'administrator') return problem(403, 'forbidden');
   const phrase = (query ?? '').normalize('NFC').trim();
   if (Array.from(phrase).length < 3) {
     return problem(400, 'validation_failed', { errors: [{ pointer: '/query', code: 'too_short' }] });
   }
   const phoneLike = /^[+\d\s()-]+$/.test(phrase);
   const digits = phrase.replaceAll(/\D/g, '').replace(/^00/, '');
-  const matching = ordered(customers).filter((entry) => (phoneLike ? entry.phone.includes(digits) : entry.text.includes(fold(phrase))));
+  const matching = ordered(customers, deleted === true).filter((entry) =>
+    phoneLike ? entry.phone.includes(digits) : entry.text.includes(fold(phrase)),
+  );
   const page = pageOf(matching, cursor ?? null, limit ?? PAGE);
   return page === null ? problem(400, 'invalid_cursor') : json(200, page, { 'Cache-Control': 'no-store' });
 }
 
-export function answerRead(customers: readonly MockCustomerRecord[], id: string): Answer {
+export function answerRead(customers: readonly MockCustomerRecord[], id: string, role: Role = 'editor'): Answer {
   if (!UUID.test(id)) return problem(400, 'validation_failed', { errors: [{ pointer: '/customerId', code: 'invalid_format' }] });
-  const customer = visible(customers).find((entry) => entry.id === id);
+  // the Administrator reads a deleted customer too (EVM-041); everybody else gets the same 404 as for one that never existed
+  const customer = (role === 'administrator' ? customers : visible(customers)).find((entry) => entry.id === id);
   return customer === undefined
     ? problem(404, 'not_found')
     : json(200, customerBody(customer), { ETag: `"${String(customer.version ?? 1)}"`, 'Cache-Control': 'no-store' });
@@ -187,6 +203,7 @@ export function answerPatch(customers: MockCustomerRecord[], id: string, request
   if (unknown.length > 0) return problem(400, 'validation_failed', { errors: unknown });
   const customer = UUID.test(id) ? visible(customers).find((entry) => entry.id === id) : undefined;
   if (customer === undefined) return problem(404, 'not_found');
+  if (customer.anonymized === true) return problem(409, 'customer_anonymized');
   const scope = `${id}|${request.raw}`;
   if (request.key !== undefined) {
     const seen = keys.get(request.key);
@@ -242,4 +259,60 @@ export function answerPatch(customers: MockCustomerRecord[], id: string, request
   const answer = json(200, customerBody(customer), { ETag: `"${String(customer.version)}"`, 'Cache-Control': 'no-store' });
   if (request.key !== undefined) keys.set(request.key, { scope, answer });
   return answer;
+}
+
+export type EraseOperationName = 'delete' | 'restore' | 'anonymize';
+
+export interface EraseRequest {
+  readonly role: Role;
+  readonly ifMatch: string | undefined;
+  readonly key: string | undefined;
+  /** `false`: the anonymization answers `403 step_up_required` (the window of the passkey is closed). */
+  readonly stepUpFresh: boolean;
+}
+
+/**
+ * EVM-041: delete, restore and anonymize in the order of the real API — the role first (Administrator only), then the step-up of
+ * the anonymization, the header `If-Match`, the customer (a deleted one is visible to the Administrator), the state, the version,
+ * the open work orders. An anonymized customer is neutral (no personal data left in the answer). Synthetic data only.
+ */
+export function answerErase(customers: MockCustomerRecord[], operation: EraseOperationName, id: string, request: EraseRequest): Answer {
+  if (request.role !== 'administrator') return problem(403, 'forbidden');
+  if (operation === 'anonymize' && !request.stepUpFresh) return problem(403, 'step_up_required');
+  if (request.ifMatch === undefined) return problem(428, 'precondition_required');
+  const match = /^"(\d+)"$/.exec(request.ifMatch);
+  if (match === null) return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/If-Match', code: 'invalid_format' }] });
+  if (operation !== 'anonymize' && (request.key === undefined || !UUID.test(request.key))) {
+    return problem(400, 'validation_failed', { errors: [{ pointer: '/headers/Idempotency-Key', code: 'invalid_format' }] });
+  }
+  const customer = UUID.test(id) ? customers.find((entry) => entry.id === id) : undefined;
+  if (customer === undefined) return problem(404, 'not_found');
+  if (operation === 'restore' && customer.deleted !== true) return problem(404, 'not_found');
+  if (operation === 'delete' && customer.deleted === true) return problem(404, 'not_found');
+  if (operation === 'anonymize' && customer.anonymized === true) return problem(409, 'already_anonymized');
+  if (Number(match[1]) !== (customer.version ?? 1)) return problem(412, 'version_conflict');
+  if (operation !== 'restore' && (customer.openWorkOrders ?? 0) > 0) {
+    return problem(409, 'has_active_dependents', { openWorkOrders: customer.openWorkOrders });
+  }
+  customer.version = (customer.version ?? 1) + 1;
+  if (operation === 'delete') {
+    customer.deleted = true;
+    return { status: 204, headers: { 'Cache-Control': 'no-store' }, body: '' };
+  }
+  if (operation === 'restore') customer.deleted = false;
+  else {
+    customer.anonymized = true;
+    customer.kind = 'person';
+    customer.firstName = 'Klient';
+    customer.lastName = 'zanonimizowany';
+    customer.displayName = 'Klient zanonimizowany';
+    customer.phone = '+48000000000';
+    customer.text = 'klient zanonimizowany';
+    customer.email = undefined;
+    customer.taxId = undefined;
+    customer.contactPersonName = undefined;
+    customer.notes = undefined;
+    customer.postalAddress = undefined;
+  }
+  return json(200, customerBody(customer), { ETag: `"${String(customer.version)}"`, 'Cache-Control': 'no-store' });
 }

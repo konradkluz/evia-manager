@@ -33,6 +33,9 @@ export interface CustomersTable {
   version: Generated<number>;
   deleted_at: Date | null;
   deleted_by: string | null;
+  /** The mark "anonymized" (EVM-041, migration 0043): set once, never cleared; the personal columns hold the neutral values. */
+  anonymized_at: Generated<Date | null>;
+  anonymized_by: Generated<string | null>;
 }
 
 export type CustomerTables = { 'customers.customers': CustomersTable };

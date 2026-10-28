@@ -57,6 +57,10 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/application/create-entry.service.ts',
   'src/modules/timeline/application/list-entries.service.ts',
   'src/modules/timeline/application/read-entry.service.ts',
+  // EVM-040: the deletion, the restoration and the redaction - locks, conditional UPDATEs on the version, the trigger of the database
+  'src/modules/timeline/application/delete-entry.service.ts',
+  'src/modules/timeline/application/restore-entry.service.ts',
+  'src/modules/timeline/application/redact-entry.service.ts',
   'src/modules/timeline/application/entry-page.ts',
   'src/modules/timeline/infrastructure/**/*.ts',
   // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure

@@ -50,9 +50,18 @@ export class SearchCustomersService {
       this.#rateLimited.increment({});
       throw new ProblemException('rate_limited', { retryAfterSeconds: decision.retryAfterSeconds });
     }
-    const { query, limit, cursor } = parseInput(searchBody, rawBody) as { query: string; limit: number; cursor?: string };
+    const { query, limit, cursor, deleted } = parseInput(searchBody, rawBody) as {
+      query: string;
+      limit: number;
+      cursor?: string;
+      deleted?: boolean;
+    };
     const phrase = resolveSearchQuery(query);
     if (!phrase.ok) throw new ProblemException('validation_failed', { errors: phrase.errors });
-    return this.#pages.page(principal, { operation: 'searchCustomers', term: phrase.term, limit, cursor }, context);
+    return this.#pages.page(
+      principal,
+      { operation: 'searchCustomers', term: phrase.term, deleted: deleted === true, limit, cursor },
+      context,
+    );
   }
 }

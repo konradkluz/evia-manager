@@ -6,7 +6,8 @@
  * THAT order are read with the filters as conditions of the query (not a filter of the page afterwards). The names of the authors
  * and of the stages and the corrections come in batches — the number of queries is constant. The cursor is opaque, bound to the
  * operation, the order, the user and the filters; the answer is parsed with the schema of the contract. A read is not an audited
- * event; nothing here logs a text or a name.
+ * event; nothing here logs a text or a name. `includeDeleted=true` (EVM-040) is the Administrator's alone (403 for the other roles) and is bound
+ * into the cursor with the other filters.
  */
 import { zListTimelineEntriesPath } from '@evia/contracts/zod';
 import type { TimelineEntryList } from '@evia/contracts';
@@ -53,6 +54,8 @@ export class ListEntriesService {
   async list(principal: Principal, rawParams: unknown, rawQuery: unknown): Promise<TimelineEntryList> {
     const { workOrderId } = parseInput(pathSchema, rawParams) as { workOrderId: string };
     const query = parseInput(resolveTimelineListQuery, rawQuery);
+    // the deleted entries are the Administrator's: a role that asks for them gets 403, the parameter is not silently ignored (EVM-040 AC1, AC6)
+    if (query.includeDeleted && principal.role !== 'administrator') throw new ProblemException('forbidden');
     const scope = scopeOf(filterPartsOf(workOrderId, query));
     const position = this.#positionOf(query.cursor, principal, scope);
 
@@ -65,6 +68,7 @@ export class ListEntriesService {
           timelineTables(tx),
           order.id,
           {
+            includeDeleted: query.includeDeleted,
             kind: query.kind,
             eventCodes: query.eventGroup === undefined ? undefined : EVENT_GROUP_CODES[query.eventGroup],
             procedureStageId: query.procedureStageId,

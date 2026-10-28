@@ -134,6 +134,14 @@ module.exports = {
       to: { path: 'node_modules/pg-boss(/|$)' },
     },
     {
+      name: 'api-aws-sdk-only-in-storage-adapters',
+      comment:
+        'EVM-044: the S3 SDK (@aws-sdk/*) is imported only by the object-storage and deletion-register adapters in platform; modules use the port.',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/platform/(object-storage|deletion-register)/' },
+      to: { path: 'node_modules/@aws-sdk(/|$)' },
+    },
+    {
       name: 'api-smtp-only-in-email-adapter',
       comment:
         'The SMTP library is imported only by its adapter (platform/email/smtp-email-sender.ts; ADR-0010; EVM-024 (b)): there is one way to send an e-mail — the outbox, the queue `email.send`, the port `EmailSender` — and a module never opens its own connection.',

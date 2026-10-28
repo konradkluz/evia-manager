@@ -12,6 +12,7 @@
  * the catalogue with the processes it brings, change the parameters and the notes, remove an item); the port `WorkOrderScopeParticipant` lets
  * `procedures` add the processes in the same transaction (EVM-060: the deletion and the restoration of an order, Administrator only; the port
  * `WorkOrderDeletionParticipant` lets `payments` block the deletion of an order with an issued invoice and ask for a step-up for a paid one), and the item of the catalogue and its processes come through the facade `CatalogItemDirectory`.
+ * In EVM-041 it fills the port of `customers` (`OpenOrdersDependentsGuard`): the open orders of a customer block its deletion and anonymization, and a new order locks its customer `FOR KEY SHARE`.
  */
 import { Module } from '@nestjs/common';
 import { CatalogModule } from '../catalog/index.ts';
@@ -23,6 +24,7 @@ import { CreateScopeItemService } from './application/create-scope-item.service.
 import { CreateWorkOrderService } from './application/create-work-order.service.ts';
 import { DeleteWorkOrderService } from './application/delete-work-order.service.ts';
 import { DeleteScopeItemService } from './application/delete-scope-item.service.ts';
+import { OpenOrdersDependentsGuard } from './application/open-orders-dependents-guard.ts';
 import { ListSiteOrdersService } from './application/list-site-orders.service.ts';
 import { ReadWorkOrderService } from './application/read-work-order.service.ts';
 import { RestoreWorkOrderService } from './application/restore-work-order.service.ts';
@@ -57,6 +59,7 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     WorkOrderScopeRegistry,
     WorkOrderTransitionRegistry,
     WorkOrderDeletionRegistry,
+    OpenOrdersDependentsGuard,
     { provide: WORK_ORDER_DIRECTORY, useClass: WorkOrderDirectoryService },
     { provide: WORK_ORDER_PROJECTION_SOURCE, useClass: WorkOrderProjectionSourceService },
   ],

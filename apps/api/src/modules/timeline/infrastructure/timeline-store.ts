@@ -22,6 +22,8 @@ const entryColumns = [
   'created_at',
   'created_by',
   'redacted_at',
+  'deleted_at',
+  'version',
   'event_code',
   'event_payload',
 ] as const;
@@ -160,6 +162,8 @@ export async function correctionsOf(db: TimelineDb, workOrderId: string, entryId
 }
 
 export interface PageFilter {
+  /** Also the entries that are soft deleted (EVM-040): only for the Administrator - the caller decides, the query just obeys. */
+  readonly includeDeleted: boolean;
   readonly kind: Exclude<EntryKind, 'event'> | undefined;
   /** The group of the events (EVM-038 AC4): implies `kind = event`; the codes of the group are conditions of the query. */
   readonly eventCodes: readonly string[] | undefined;
@@ -177,11 +181,8 @@ export interface PagePosition {
  * the order of the identifiers the clients made). One row more than `limit` tells the caller there is a next page.
  */
 export function listEntries(db: TimelineDb, workOrderId: string, filter: PageFilter, position: PagePosition | undefined, limit: number) {
-  let query = db
-    .selectFrom('timeline.timeline_entries')
-    .select(entryColumns)
-    .where('work_order_id', '=', workOrderId)
-    .where('deleted_at', 'is', null);
+  let query = db.selectFrom('timeline.timeline_entries').select(entryColumns).where('work_order_id', '=', workOrderId);
+  if (!filter.includeDeleted) query = query.where('deleted_at', 'is', null);
   if (filter.kind !== undefined) query = query.where('kind', '=', filter.kind);
   if (filter.eventCodes !== undefined) query = query.where('kind', '=', 'event').where('event_code', 'in', filter.eventCodes);
   if (filter.procedureStageId !== undefined) query = query.where('procedure_stage_id', '=', filter.procedureStageId);
@@ -192,6 +193,85 @@ export function listEntries(db: TimelineDb, workOrderId: string, filter: PageFil
     .orderBy('id', 'desc')
     .limit(limit + 1)
     .execute();
+}
+
+/** Which entries a lookup may return: the live ones (everybody), the soft deleted ones (a restoration) or both (the Administrator, a redaction). */
+export type EntryState = 'live' | 'deleted' | 'any';
+
+/** An entry of THIS order (`id` AND `work_order_id`) in any state: for the Administrator, who reads a deleted entry too (EVM-040 AC1). */
+export function findEntryAnyState(db: TimelineDb, workOrderId: string, entryId: string) {
+  return db
+    .selectFrom('timeline.timeline_entries')
+    .select(entryColumns)
+    .where('id', '=', entryId)
+    .where('work_order_id', '=', workOrderId)
+    .executeTakeFirst();
+}
+
+/**
+ * The entry LOCKED for a change (`SELECT … FOR NO KEY UPDATE`; EVM-040): `id` AND `work_order_id` in one condition, so an entry of another order
+ * and one that does not exist are both `undefined`. NO KEY UPDATE serialises two commands on the entry but does not block the foreign-key check
+ * of a correction that points at it. The state is a condition of the query, never a check after it.
+ */
+export function lockEntry(db: TimelineDb, workOrderId: string, entryId: string, state: EntryState) {
+  let query = db
+    .selectFrom('timeline.timeline_entries')
+    .select(entryColumns)
+    .where('id', '=', entryId)
+    .where('work_order_id', '=', workOrderId);
+  if (state === 'live') query = query.where('deleted_at', 'is', null);
+  if (state === 'deleted') query = query.where('deleted_at', 'is not', null);
+  return query.forNoKeyUpdate().executeTakeFirst();
+}
+
+/** The soft delete: the version is the one the caller decided on (`version = expected` is in the condition) and grows by one. */
+export function softDeleteEntry(db: TimelineDb, workOrderId: string, entryId: string, expectedVersion: number, by: string, at: Date) {
+  return db
+    .updateTable('timeline.timeline_entries')
+    .set({ deleted_at: at, deleted_by: by, version: sql<number>`version + 1` })
+    .where('id', '=', entryId)
+    .where('work_order_id', '=', workOrderId)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is', null)
+    .returning(entryColumns)
+    .executeTakeFirst();
+}
+
+/** The restoration of a soft deleted entry (the same condition on the version); the text, redacted or not, is as it was. */
+export function restoreEntry(db: TimelineDb, workOrderId: string, entryId: string, expectedVersion: number) {
+  return db
+    .updateTable('timeline.timeline_entries')
+    .set({ deleted_at: null, deleted_by: null, version: sql<number>`version + 1` })
+    .where('id', '=', entryId)
+    .where('work_order_id', '=', workOrderId)
+    .where('version', '=', expectedVersion)
+    .where('deleted_at', 'is not', null)
+    .returning(entryColumns)
+    .executeTakeFirst();
+}
+
+/**
+ * The redaction (EVM-040 AC2): the text becomes the marker, with the time and the author of the redaction. The trigger of the database
+ * accepts nothing else (the marker only, once, never an event); `redacted_at is null` is in the condition too.
+ */
+export function redactEntry(
+  db: TimelineDb,
+  workOrderId: string,
+  entryId: string,
+  expectedVersion: number,
+  marker: string,
+  by: string,
+  at: Date,
+) {
+  return db
+    .updateTable('timeline.timeline_entries')
+    .set({ body: marker, redacted_at: at, redacted_by: by, version: sql<number>`version + 1` })
+    .where('id', '=', entryId)
+    .where('work_order_id', '=', workOrderId)
+    .where('version', '=', expectedVersion)
+    .where('redacted_at', 'is', null)
+    .returning(entryColumns)
+    .executeTakeFirst();
 }
 
 export type EntryRow = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
