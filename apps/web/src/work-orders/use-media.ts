@@ -1,8 +1,18 @@
-import { listMediaAssets, type MediaAsset, type MediaAssetList } from '@evia/contracts';
-import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData, type UseInfiniteQueryResult } from '@tanstack/react-query';
+import { listMediaAssets, rescanMediaAsset, type MediaAsset, type MediaAssetList } from '@evia/contracts';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type UseInfiniteQueryResult,
+} from '@tanstack/react-query';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useApi } from '../api/api-context.tsx';
-import { unwrap } from '../api/client.ts';
+import { ApiError, unwrap } from '../api/client.ts';
+import { StepUpCancelled, useGuardedCall } from '../administration/use-guarded-call.ts';
+import { uuidv7 } from '../customers/uuid.ts';
+import { mediaText } from './media-labels.ts';
 import { hashFile } from './sha256.ts';
 import { putPart } from './media-put.ts';
 import { WORK_ORDER_MEDIA_KEY } from './query-keys.ts';
@@ -22,10 +32,11 @@ export function useMediaList(
   workOrderId: string,
   enabled: boolean,
   watching: boolean,
+  needsAttention = false,
 ): UseInfiniteQueryResult<InfiniteData<MediaAssetList, string | null>> {
   const client = useApi();
   return useInfiniteQuery({
-    queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId, 'all'],
+    queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId, needsAttention ? 'attention' : 'all'],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       unwrap(
@@ -33,7 +44,11 @@ export function useMediaList(
           client,
           signal,
           path: { workOrderId },
-          query: { limit: MEDIA_PAGE_SIZE, ...(pageParam === null ? {} : { cursor: pageParam }) },
+          query: {
+            limit: MEDIA_PAGE_SIZE,
+            ...(needsAttention ? { needsAttention: true } : {}),
+            ...(pageParam === null ? {} : { cursor: pageParam }),
+          },
         }),
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -45,6 +60,60 @@ export function useMediaList(
     gcTime: 0,
     retry: false,
   });
+}
+
+/**
+ * "Skanuj ponownie" (EVM-049 AC3, AC8): the request goes through W-04 when the server asks for it (`403 step_up_required`, the same
+ * call once more with the same `Idempotency-Key`). A failure is kept for the alert of the tab; the list is read again after the answer
+ * of the server (the file goes to "Sprawdzanie pliku", or the state it has now is shown).
+ */
+export function useRescan(workOrderId: string) {
+  const client = useApi();
+  const queryClient = useQueryClient();
+  const guarded = useGuardedCall(mediaText.rescanStepUp);
+  const [failure, setFailure] = useState<string | null>(null);
+  const mutation = useMutation({
+    mutationFn: (mediaAssetId: string) => {
+      const key = uuidv7();
+      return guarded.run(() =>
+        unwrap(rescanMediaAsset({ client, path: { workOrderId, mediaAssetId }, headers: { 'Idempotency-Key': key } })),
+      );
+    },
+    onSuccess: () => {
+      setFailure(null);
+    },
+    onError: (error) => {
+      if (error instanceof StepUpCancelled) return;
+      setFailure(rescanFailure(error));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId] }),
+  });
+  return {
+    pendingId: mutation.isPending ? mutation.variables : undefined,
+    failure,
+    run: (mediaAssetId: string) => {
+      setFailure(null);
+      mutation.mutate(mediaAssetId);
+    },
+  };
+}
+
+function rescanFailure(error: unknown): string {
+  if (!(error instanceof ApiError)) return mediaText.rescanServer;
+  switch (error.status) {
+    case 0:
+      return mediaText.rescanNetwork;
+    case 403:
+      return mediaText.rescanForbidden;
+    case 404:
+      return mediaText.rescanNotFound;
+    case 409:
+      return mediaText.rescanStateChanged;
+    case 429:
+      return mediaText.rateLimited(error.retryAfterSeconds ?? null);
+    default:
+      return mediaText.rescanServer;
+  }
 }
 
 /** The person's unfinished uploads (AC4): the media with an active session of the caller, with the names of the files. */

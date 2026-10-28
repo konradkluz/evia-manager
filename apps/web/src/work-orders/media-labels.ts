@@ -146,5 +146,39 @@ export const mediaText = {
   video: 'Film',
   waitingForFile: 'Czeka na plik',
   waitingSince: (time: string) => `od ${time}`,
+  reasonMalware: 'Skan wykrył zagrożenie',
+  reasonTypeMismatch: 'Typ pliku niezgodny z rozszerzeniem',
+  reasonGeneral: 'Plik zatrzymany przez skan bezpieczeństwa',
+  removalDay: (date: string) => `Plik zostanie usunięty ${date}, jeśli do tego czasu nie przejdzie ponownego skanu.`,
+  purged: 'Plik usunięty po 30 dniach kwarantanny',
+  purgedDetail: 'Plik został usunięty z magazynu. Nie można go odzyskać.',
+  rescan: 'Skanuj ponownie',
+  rescanFile: (label: string) => `Skanuj ponownie: ${label}`,
+  rescanStepUp: 'Potwierdź tożsamość, aby ponownie przeskanować plik',
+  rescanStateChanged: 'Stan pliku się zmienił — odświeżyliśmy listę. Ponowny skan nie jest teraz możliwy.',
+  rescanNotFound: 'Nie znaleziono pliku. Mógł zostać usunięty.',
+  rescanForbidden: 'Ponowny skan może zlecić tylko administrator.',
+  rescanNetwork: 'Nie zlecono ponownego skanu. Sprawdź połączenie i spróbuj ponownie.',
+  rescanServer: 'Nie zlecono ponownego skanu. Spróbuj ponownie za chwilę.',
+  filterLabel: 'Pokaż',
+  filterPrefix: 'Pokaż:',
+  attentionEmptyHint: 'Pliki zatrzymane przez skan bezpieczeństwa pojawią się tutaj.',
+  filterAll: 'Wszystkie',
+  filterAttention: (count: number) => `Wymaga uwagi (${String(count)})`,
+  attentionEmpty: 'Brak plików wymagających uwagi.',
+  showAll: 'Pokaż wszystkie',
+  attentionHeading: (count: number, more: boolean) => `Wymaga uwagi · ${more ? 'co najmniej ' : ''}${filesCount(count)}`,
   storageUnavailable: 'Wysyłanie zdjęć jest chwilowo niedostępne. Spróbuj ponownie później.',
 } as const;
+
+/** The reason of a quarantine told in words; a code this panel does not know gets the general label, never the raw code (SR-AUTHZ-04). */
+export function quarantineReasonLabel(code: string | undefined): string {
+  switch (code) {
+    case 'malware_detected':
+      return mediaText.reasonMalware;
+    case 'type_mismatch':
+      return mediaText.reasonTypeMismatch;
+    default:
+      return mediaText.reasonGeneral;
+  }
+}

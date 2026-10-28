@@ -1,16 +1,36 @@
 import type { MediaAsset, WorkOrderDetails } from '@evia/contracts';
-import { Button, CircleAlert, EmptyState, Images, UploadQueueItem, Uploader, type UploadQueueItemState } from '@evia/ui-web';
-import { useEffect, useId } from 'react';
+import {
+  Button,
+  CircleAlert,
+  EmptyState,
+  FilterChip,
+  Images,
+  InlineAlert,
+  UploadQueueItem,
+  Uploader,
+  type UploadQueueItemState,
+} from '@evia/ui-web';
+import { useEffect, useId, useState } from 'react';
 import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { formatDate, formatClock } from './format.ts';
-import { categoryLabel, mediaText } from './media-labels.ts';
+import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.ts';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
-import { useMediaList, type MediaUpload } from './use-media.ts';
+import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 
 /** The state of a medium that is on the server, as the list shows it (flows/06 → § 4.14 "Stany pliku na serwerze"). */
-function serverLook(asset: MediaAsset): { state: UploadQueueItemState; label: string; detail?: string } {
+function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQueueItemState; label: string; detail?: string } {
+  // The quarantine of EVM-049: a file held ("Wymaga uwagi") or removed after 30 days; the reason only when the server sent it (Administrator).
+  if (asset.quarantine?.state === 'purged') return { state: 'queued', label: mediaText.purged, detail: mediaText.purgedDetail };
+  if (asset.quarantine?.state === 'held' && administrator) {
+    const reason = quarantineReasonLabel(asset.quarantineReasonCode);
+    return {
+      state: 'attention',
+      label: mediaText.attention,
+      detail: `${reason}. ${mediaText.removalDay(formatDate(asset.quarantine.expiresAt))}`,
+    };
+  }
   switch (asset.fileState) {
     case 'pending_upload':
       return {
@@ -45,15 +65,18 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const role = useSession().data?.user.role;
   const canUpload = role === 'administrator' || role === 'editor';
   const checking = media.items.some((item) => item.status === 'checking');
-  const list = useMediaList(order.id, true, checking);
+  const [onlyAttention, setOnlyAttention] = useState(false);
+  const list = useMediaList(order.id, true, checking, onlyAttention);
+  const rescan = useRescan(order.id);
+  const attentionCount = list.data?.pages[0]?.needsAttentionCount ?? 0;
   const assets = list.data?.pages.flatMap((page) => page.items) ?? [];
 
   // The verdicts of the server reach the files of this tab (the panel "Wysyłanie" shows them).
   const { engine, items } = media;
   const data = list.data;
   useEffect(() => {
-    if (data !== undefined) engine.applyServerStates(data.pages.flatMap((page) => page.items));
-  }, [data, engine, items]);
+    if (data !== undefined && !onlyAttention) engine.applyServerStates(data.pages.flatMap((page) => page.items));
+  }, [data, engine, items, onlyAttention]);
 
   const own = new Set(media.items.map((item) => item.key));
   const rest = assets.filter((asset) => !own.has(asset.id));
@@ -91,6 +114,28 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
         </>
       ) : null}
       <MediaQueue media={media} />
+      {attentionCount > 0 || onlyAttention ? (
+        <div role="group" aria-label={mediaText.filterLabel} className="flex flex-wrap items-center gap-inline-sm">
+          <span className="text-label text-text-secondary">{mediaText.filterPrefix}</span>
+          <FilterChip
+            label={mediaText.filterAll}
+            variant="choice"
+            selected={!onlyAttention}
+            onClick={() => {
+              setOnlyAttention(false);
+            }}
+          />
+          <FilterChip
+            label={mediaText.filterAttention(attentionCount)}
+            variant="choice"
+            selected={onlyAttention}
+            onClick={() => {
+              setOnlyAttention(true);
+            }}
+          />
+        </div>
+      ) : null}
+      {rescan.failure === null ? null : <InlineAlert tone="error">{rescan.failure}</InlineAlert>}
       {list.isPending ? <SectionLoading /> : null}
       {list.isError ? (
         <EmptyState
@@ -109,19 +154,56 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
           }
         />
       ) : null}
-      {list.isSuccess && assets.length === 0 && media.items.length === 0 ? (
+      {list.isSuccess && onlyAttention && assets.length === 0 ? (
+        <EmptyState
+          icon={Images}
+          title={mediaText.attentionEmpty}
+          description={mediaText.attentionEmptyHint}
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setOnlyAttention(false);
+              }}
+            >
+              {mediaText.showAll}
+            </Button>
+          }
+        />
+      ) : null}
+      {list.isSuccess && !onlyAttention && assets.length === 0 && media.items.length === 0 ? (
         <EmptyState icon={Images} title={mediaText.empty} description={canUpload ? mediaText.emptyHint : mediaText.emptyReadOnly} />
       ) : null}
       {list.isSuccess && rest.length > 0 ? (
         <>
-          <h3 className="text-heading-4">{mediaText.photosHeading(photos, list.hasNextPage)}</h3>
+          <h3 className="text-heading-4">
+            {onlyAttention ? mediaText.attentionHeading(photos, list.hasNextPage) : mediaText.photosHeading(photos, list.hasNextPage)}
+          </h3>
           <ul aria-label={mediaText.heading} className="flex flex-col">
             {rest.map((asset) => {
-              const look = serverLook(asset);
+              const look = serverLook(asset, role === 'administrator');
+              const name = `${asset.mediaType === 'video' ? mediaText.video : mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.createdAt)} ${formatClock(Date.parse(asset.createdAt))}`;
+              // Only an Administrator gets the action; the server decides all the same (`403`, `409`).
+              const canRescan = role === 'administrator' && asset.quarantine?.state === 'held';
               return (
                 <UploadQueueItem
                   key={asset.id}
-                  name={`${asset.mediaType === 'video' ? mediaText.video : mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.createdAt)} ${formatClock(Date.parse(asset.createdAt))}`}
+                  name={name}
+                  actions={
+                    canRescan ? (
+                      <Button
+                        variant="secondary"
+                        aria-label={mediaText.rescanFile(name)}
+                        disabled={!online}
+                        loading={rescan.pendingId === asset.id}
+                        onClick={() => {
+                          rescan.run(asset.id);
+                        }}
+                      >
+                        {mediaText.rescan}
+                      </Button>
+                    ) : undefined
+                  }
                   state={look.state}
                   statusLabel={look.label}
                   {...(look.detail === undefined ? {} : { detail: look.detail })}

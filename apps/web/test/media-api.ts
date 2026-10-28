@@ -57,6 +57,8 @@ export interface MediaServerOptions {
   readonly create?: Handler;
   readonly sessionHandler?: Handler;
   readonly complete?: Handler;
+  /** `POST …/media-assets/{id}/rescan` (EVM-049). */
+  readonly rescan?: Handler;
   readonly routes?: Record<string, Handler>;
 }
 
@@ -68,13 +70,16 @@ export function mediaApi(options: MediaServerOptions = {}) {
   const list: Handler = (request) => {
     if (request.query.get('uploadState') === 'unfinished')
       return json(200, { items: options.unfinished ?? [], nextCursor: null, needsAttentionCount: 0 });
+    const held = (options.assets ?? []).filter((entry) => entry.needsAttention);
+    if (request.query.get('needsAttention') === 'true')
+      return json(200, { items: held, nextCursor: null, needsAttentionCount: held.length });
     const all = [
       ...created.map((entry) =>
         completed.has(entry.id) ? { ...entry, fileState: finalState, stateReasonCode: options.stateReasonCode ?? null } : entry,
       ),
       ...(options.assets ?? []),
     ];
-    return json(200, { items: all, nextCursor: null, needsAttentionCount: 0 });
+    return json(200, { items: all, nextCursor: null, needsAttentionCount: held.length });
   };
   const create: Handler =
     options.create ??
@@ -138,6 +143,7 @@ export function mediaApi(options: MediaServerOptions = {}) {
         ),
     ],
     [/\/upload-sessions\/[^/]+\/complete$/, complete],
+    [/\/[^/]+\/rescan$/, options.rescan ?? (() => problem(500, 'internal_error'))],
   ]);
   const base = api.fetch;
   const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {
