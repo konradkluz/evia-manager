@@ -34,7 +34,7 @@ Jako **Edytor lub Administrator** chcę **zalogować się w aplikacji tym samym 
 **AC3 — Rola, kanał i kolejność sprawdzeń**
 - Zakładając konto z rolą Tylko odczyt, konto bez kodu z aplikacji (tylko klucz dostępu) i konto bez drugiego kroku
 - Gdy podają poprawne hasło
-- Wtedy kolejność jest: wersja klienta → limit IP i konta → hasło (jedna odpowiedź `401 invalid_credentials` jak dla nieistniejącego konta) → rola × kanał (`403 channel_not_allowed`) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`); token mobilny nie działa na operacjach panelu, sesja panelu nie działa na operacjach mobilnych (poświadczenie „nie tego” kanału jest ignorowane i niczego nie ustawia w `Set-Cookie`).
+- Wtedy kolejność jest: wersja klienta → limit IP i konta → hasło (jedna odpowiedź `401 invalid_credentials` jak dla nieistniejącego konta) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`) → poprawny kod z aplikacji → rola × kanał (`403 channel_not_allowed`) → limit urządzeń (`403 device_limit_reached`); token mobilny nie działa na operacjach panelu, sesja panelu nie działa na operacjach mobilnych (poświadczenie „nie tego” kanału jest ignorowane i niczego nie ustawia w `Set-Cookie`).
 
 **AC4 — Rotacja tokenu odświeżania**
 - Zakładając ważny token odświeżania (256 bit z CSPRNG, w bazie tylko skrót)
@@ -93,3 +93,4 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - 2026-10-28 — implementacja gotowa lokalnie: sześć operacji kanału mobile z trasami, migracje 0050–0052, testy AC1–AC8; bramka lokalna zielona; do potwierdzenia: korekta AC3 (kolejność), rotacja dwufazowa, baseline kontraktu przesunięty pod ADR-0021 (backend-developer)
 - 2026-10-28 — poprawki, runda 1: audyt odświeżeń `session.refreshed`, aneks ADR-0021 o słowniku audytu i baseline, AC3 bez zmian do decyzji Konrada (backend-developer)
 - 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,9% linii / 95,6% gałęzi, przeglądy zatwierdzone po 3 rundach. Warunek merge: Konrad potwierdza odstępstwo AC3/AC2 (kolejność: kod TOTP przed rola×kanał i limitem urządzeń), dwufazową rotację sekretu i aneks ADR-0021; po potwierdzeniu Tech Lead poprawia tekst AC3/AC2. web-e2e-linux przerwany limitem czasu (664 scenariusze zielone, 0 błędów) — do powtórzenia przy CI.
+- 2026-10-28 — Decyzja Konrada (delegacja: „podejmij najlepsze decyzje”): przyjęte wszystkie decyzje wykonawcze z sekcji Decyzje — kolejność AC3/AC2 (tekst AC3 zmieniony), rotacja dwufazowa sekretu instalacji, aneks ADR-0021 (baseline słownika audytu), decyzje 8, 9, 17. Warunek merge zdjęty.
