@@ -212,6 +212,10 @@ Nie jest decyzją tego ADR-u (dotyczy uwierzytelniania, nie synchronizacji); zap
 - Addendum ADR-0005 (sekcja „Ścieżka mobilnego logowania”); notka w ADR-0008 „doprecyzowana przez ADR-0021”.
 - `requirements.md`: SR-SYNC-07 — doprecyzowanie podziału `400 invalid_cursor` / `resync_required` (security-engineer).
 
+## Aneks (EVM-094): słownik audytu a baseline kontraktu
+- Słowniki `AuditAction`, `AuditObjectType` i `AuditReasonCode` to zamknięte enumy odpowiedzi; narzędzie baseline (EVM-090) uznaje dodanie wartości za zmianę łamiącą. Przyjmujemy ją świadomie: jedynym odbiorcą tych odpowiedzi jest panel (kompilowany razem z kontraktem, etykiety w `audit-labels.ts` z wyczerpującym typem `Record`), więc nowa wartość bez aktualizacji panelu nie przejdzie bramki typów; aplikacja mobilna nie czyta dziennika audytu.
+- EVM-094 dodaje akcje `device.registered`, `device.recognized`, `device.wipe_confirmed`, `session.refreshed`, typ obiektu `device` i kody powodów (`refresh_reuse`, `device_inactive`, `secret_mismatch`, `previous_secret`, `channel_not_allowed`, `device_limit_reached`, `device_wipe_required`, `totp_not_configured`, `mfa_enrollment_required`, `session_revoked`); baseline przesunięty poleceniem `baseline:update -- --allow-breaking ADR-0021`. Kolejne historyjki rozszerzające słownik audytu powołują się na ten aneks. Alternatywa (`x-extensible-enum` + `string` w typach) odrzucona: traci wyczerpującą kontrolę etykiet w panelu. Do potwierdzenia przez Konrada razem z akceptacją EVM-094.
+
 ## Źródła (zweryfikowane 2026-10-27)
 - PostgreSQL 18 — `transaction_timeout`, `idle_in_transaction_session_timeout`, `statement_timeout`: https://www.postgresql.org/docs/18/runtime-config-client.html
 - PostgreSQL 18 — `pg_current_snapshot`, `pg_snapshot_xmin`, `pg_current_xact_id`: https://www.postgresql.org/docs/18/functions-info.html
