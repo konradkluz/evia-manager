@@ -80,3 +80,4 @@ Jako **właściciel produktu** chcę **widzieć błędy, dostępność i koszty 
 - 2026-10-28 — start realizacji (nocna kolejka, tor T3), gałąź feature/EVM-084-085-backupy-obserwowalnosc
 - 2026-10-28 — plan gotowy (devops-engineer)
 - 2026-10-28 — implementacja (devops-engineer, tor T3): pakiet `@evia/observability-scrub`, reguły i testy `promtool`, runbook alertów i koszty, log dostępowy Caddy, potok Alloy, metryki agenta, stały adres proxy, checki dostępności; moduły OpenTofu i SDK Sentry odłożone do kolejnej sesji; decyzje D1–D8 do akceptacji
+- 2026-10-28 — krok web (web-developer): bez zmian w kodzie; SDK Sentry w panelu, `/runtime-config.json` i `connect-src` odłożone do sesji IaC (potrzebny origin ingestu organizacji `o<id>.ingest.de.sentry.io`, nowa zależność `@sentry/react` i zmiana lockfile przy 3 GB wolnego dysku); AC1 i AC7c otwarte
