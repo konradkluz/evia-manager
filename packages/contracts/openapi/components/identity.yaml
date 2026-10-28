@@ -1018,7 +1018,8 @@ MobileLoginRequest:
   description: >-
     Pierwszy krok logowania telefonu. Pierwsze logowanie: `email`, `password`, `device` — `deviceId` nadaje serwer. Ponowne logowanie
     tej samej instalacji: dodatkowo para `deviceId` + `installationSecret` (obie albo żadna, inaczej `400 validation_failed`); para
-    niezgodna z urządzeniem konta jest ignorowana (telefon liczy się jak nowy), a zgodna z urządzeniem w stanie `wipe_required` daje
+    niezgodna z urządzeniem konta jest ignorowana (telefon liczy się jak nowy; zgodna jest para z bieżącym albo z poprzednim,
+    jeszcze nieprzekreślonym sekretem — rotacja dwufazowa), a zgodna z urządzeniem w stanie `wipe_required` daje
     `401 device_wipe_required` jeszcze przed sprawdzeniem hasła. Pola
     spoza schematu → `400 unknown_field`; pola `userId` i `deviceId` w znaczeniu „kto” nie istnieją — użytkownik wynika z hasła.
   additionalProperties: false
@@ -1118,7 +1119,9 @@ MobileSession:
       type: string
       description: >-
         Sekret instalacji — przy KAŻDYM udanym logowaniu (`mobileLoginTotp`): przy rejestracji nowego urządzenia i przy ponownym
-        logowaniu tej samej instalacji (rotacja; poprzedni sekret przestaje działać atomowo). Aplikacja zapisuje nowy sekret
+        logowaniu tej samej instalacji (rotacja dwufazowa: poprzedni sekret działa dla tego samego `deviceId`, dopóki urządzenie nie
+        udowodni nowego — pierwszym odświeżeniem tokenu, pierwszym żądaniem z nowym tokenem dostępu albo logowaniem nowym sekretem).
+        Aplikacja zapisuje nowy sekret
         w Android Keystore przed porzuceniem starego i nie pokazuje go ani nie loguje. Przy odświeżaniu tokenu pola nie ma.
       pattern: '^[A-Za-z0-9_-]{43}$'
       minLength: 43

@@ -23,6 +23,8 @@ import {
   refreshMobileSession,
   type MobileSession,
   type SyncChangesResponse,
+  SYNC_PROJECTIONS,
+  parseSyncChange,
 } from '../src/index.ts';
 import { NoPersonalDataParameters, type RuleContext } from '../src/redocly-plugin.ts';
 import {
@@ -396,6 +398,75 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
     ).toBe(true);
   });
 
+  const customerChange = {
+    op: 'upsert',
+    entity: {
+      type: 'customer',
+      id: '0193a000-0000-7000-8000-0000000000c1',
+      version: 3,
+      kind: 'person',
+      displayName: 'Test Customer',
+      phone: '+48500000000',
+    },
+  };
+
+  it('EVM-090 AC3 parseSyncChange keeps every projection field of a known type (the generated page parser strips them)', () => {
+    const parsed = parseSyncChange(customerChange);
+    expect(parsed).toEqual({ kind: 'upsert', entity: customerChange.entity });
+    // The reason the generated parser must not be used for entities: it accepts the page but drops the fields.
+    const page = zSyncChangesResponse.parse({
+      result: 'changes',
+      phase: 'changes',
+      changes: [customerChange],
+      cursor: 'EXAMPLE_cursor_not_real_0000',
+      hasMore: false,
+      serverTime: '2026-10-27T10:00:00Z',
+    });
+    expect(JSON.stringify(page)).not.toContain('Test Customer');
+    expect(schemas['SyncEntity'].description).toMatch(/parseSyncChange/);
+  });
+
+  it('EVM-090 AC3 parseSyncChange rejects a known type with an extra field and skips an unknown type without failing the page', () => {
+    expect(parseSyncChange({ op: 'upsert', entity: { ...customerChange.entity, email: 'x@example.invalid' } })).toEqual({
+      kind: 'invalid',
+    });
+    const unknownId = '0193a000-0000-7000-8000-0000000000f1';
+    expect(
+      parseSyncChange({ op: 'upsert', entity: { type: 'assignment_from_the_future', id: unknownId, version: 1, extra: true } }),
+    ).toEqual({
+      kind: 'unknown',
+      type: 'assignment_from_the_future',
+      id: unknownId,
+    });
+    expect(parseSyncChange({ op: 'delete', type: 'assignment_from_the_future', id: unknownId })).toEqual({
+      kind: 'unknown',
+      type: 'assignment_from_the_future',
+      id: unknownId,
+    });
+    expect(parseSyncChange({ op: 'delete', type: 'customer', id: unknownId })).toEqual({ kind: 'delete', type: 'customer', id: unknownId });
+    for (const malformed of [
+      null,
+      'x',
+      { op: 'noop' },
+      { op: 'upsert' },
+      { op: 'upsert', entity: { type: 'customer' } },
+      { op: 'delete' },
+    ]) {
+      expect(parseSyncChange(malformed)).toEqual({ kind: 'invalid' });
+    }
+  });
+
+  it('EVM-090 AC3 every SyncEntityType has a projection in the map, and the map equals x-evia-sync-projections of the contract', () => {
+    const types = [...resolve(schemas['SyncEntity'].properties.type)['x-extensible-enum']].sort();
+    expect(Object.keys(SYNC_PROJECTIONS).sort()).toEqual(types);
+    const declared = schemas['SyncEntity']['x-evia-sync-projections'] as Record<string, string>;
+    expect(Object.keys(declared).sort()).toEqual(types);
+    for (const [type, name] of Object.entries(declared)) {
+      expect(schemas[name], name).toBeDefined();
+      expect(schemas[name].properties.type.const, name).toBe(type);
+    }
+  });
+
   it('EVM-090 AC3 every projection lists exactly the fields of the table "Projekcja pól na telefonie" and none of the excluded ones', () => {
     const fields = (name: string): string[] => Object.keys(schemas[name].properties).sort();
     expect(fields('SyncCustomer')).toEqual(['displayName', 'id', 'kind', 'phone', 'type', 'version']);
@@ -657,6 +728,16 @@ describe('EVM-090 AC5 the catalogue of errors and the headers (SR-API-01, SR-API
     );
     expect(String(operation('getSyncChanges')['description'])).toMatch(/pierwszeństwo przed `session_revoked`/);
     expect(String(operation('pushSyncMutations')['description'])).toMatch(/wyczyszczenie ma pierwszeństwo/);
+  });
+
+  it('EVM-090 AC5 the error catalogue in api-guidelines.md matches the contract on device_wipe_required (before the password, precedence rule)', () => {
+    const guidelines = readFileSync('../../docs/architecture/api-guidelines.md', 'utf8');
+    const row = guidelines.split('\n').find((line) => line.startsWith('| 401 | `device_wipe_required`')) ?? '';
+    expect(row).toMatch(/PIERWSZYM kroku logowania mobilnego/);
+    expect(row).toMatch(/PRZED sprawdzeniem hasła/);
+    expect(row).not.toMatch(/dopiero po poprawnym kodzie TOTP/);
+    expect(row).toMatch(/ZAWSZE daje `device_wipe_required`/);
+    expect(row).toMatch(/token nieznany daje `session_revoked`/);
   });
 
   it('EVM-090 AC5 426 client_version_unsupported carries minSupportedVersion on every mobile operation but the client config and the wipe confirmation', () => {

@@ -528,7 +528,24 @@ SyncEntity:
     potrafi odczytać) POMIJA, zlicza w telemetrii i nie odrzuca strony — kursor przesuwa się normalnie. Dodanie typu projekcji
     podbija `scopeRuleVersion`, więc zaktualizowana aplikacja dostaje `resync_required` z powodem `scope_changed` i pobiera brakujące
     obiekty od nowa. Dodanie typu nie jest zmianą łamiącą.
+
+
+    Powiązanie typu z projekcją (jedno źródło prawdy) opisuje rozszerzenie `x-evia-sync-projections` (typ → nazwa schematu).
+    Wygenerowany parser tej koperty (`zSyncEntity`, a więc i `zSyncChangesResponse`) NIE zachowuje pól projekcji (Zod usuwa
+    nieznane klucze) — encji nie wolno czytać przez `zSyncChangesResponse`, tylko przez `parseSyncChange` z `@evia/contracts`:
+    znany `type` jest walidowany ściśle schematem projekcji (dodatkowe pole, np. `email` klienta, odrzuca zmianę), nieznany
+    daje `{ kind: 'unknown' }` i jest pomijany.
   additionalProperties: true
+  x-evia-sync-projections:
+    work_order: SyncWorkOrder
+    customer: SyncCustomer
+    site: SyncSite
+    party: SyncParty
+    scope_item: SyncScopeItem
+    procedure_stage: SyncProcedureStage
+    timeline_entry: SyncTimelineEntry
+    media_asset: SyncMediaAsset
+    user: SyncUser
   required: [type, id, version]
   properties:
     type:

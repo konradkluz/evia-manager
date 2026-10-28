@@ -260,6 +260,49 @@ describe('planned operations (EVM-090 AC7)', () => {
   });
 });
 
+describe('sync projections (EVM-090 AC7)', () => {
+  const projection = (required: string[], extra: Dict = {}) => ({
+    type: 'object',
+    required,
+    properties: { type: { const: 'customer' }, id: { type: 'string' }, ...extra },
+  });
+  const sync = (parts: { projections: Record<string, string>; schemas: Dict; planned: boolean }): Dict => ({
+    openapi: '3.1.0',
+    paths: {
+      '/sync': {
+        get: {
+          operationId: 'getSyncChanges',
+          ...(parts.planned ? { 'x-evia-planned': true } : {}),
+          responses: { '200': { description: 'OK' } },
+        },
+      },
+    },
+    components: { schemas: { SyncEntity: { type: 'object', 'x-evia-sync-projections': parts.projections, ...{} }, ...parts.schemas } },
+  });
+  const base = { projections: { customer: 'SyncCustomer' }, schemas: { SyncCustomer: projection(['type', 'id']) }, planned: false };
+
+  it('EVM-090 AC7 removing a required field of a projection is breaking while getSyncChanges is not planned, and not while it is', () => {
+    const removed = { ...base, schemas: { SyncCustomer: { ...projection(['type']) } } };
+    expect(rules(sync(base), sync(removed))).toEqual(['response-property-became-optional']);
+    const dropped = {
+      ...base,
+      schemas: { SyncCustomer: { type: 'object', required: ['type'], properties: { type: { const: 'customer' } } } },
+    };
+    expect(rules(sync(base), sync(dropped))).toContain('response-property-removed');
+    expect(rules(sync({ ...base, planned: true }), sync({ ...removed, planned: true }))).toEqual([]);
+  });
+
+  it('EVM-090 AC7 adding a projection type is not breaking, removing one is', () => {
+    const added = {
+      ...base,
+      projections: { customer: 'SyncCustomer', site: 'SyncSite' },
+      schemas: { ...base.schemas, SyncSite: projection(['type']) },
+    };
+    expect(rules(sync(base), sync(added))).toEqual([]);
+    expect(rules(sync(added), sync(base))).toEqual(['sync-projection-removed']);
+  });
+});
+
 describe('baseline commands (EVM-090 AC7)', () => {
   const baseline = spec({ response: { type: 'object', required: ['a'], properties: { a: { type: 'string' } } } });
   const additive = spec({

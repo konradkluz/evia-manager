@@ -1634,8 +1634,9 @@ mobileLogin:
       czasie i z tymi samymi nagłówkami; `403 mfa_enrollment_required` i `403 totp_not_configured` pojawiają się dopiero po
       poprawnym haśle; `channel_not_allowed` i `device_limit_reached` — dopiero po poprawnym kodzie TOTP (drugi krok). Para
       niezgodna z żadnym urządzeniem konta (zły sekret, nieznane `deviceId`) jest IGNOROWANA: logowanie traktuje telefon jak nowe
-      urządzenie (obowiązuje limit urządzeń, wpis audytu), bez ujawnienia stanu urządzeń przed TOTP i bez blokady użytkownika po
-      utraconej odpowiedzi z rotacją sekretu.
+      urządzenie (obowiązuje limit urządzeń, wpis audytu), bez ujawnienia stanu urządzeń przed TOTP. Zgodna jest para z bieżącym
+      sekretem ALBO z poprzednim, jeszcze nieprzekreślonym (rotacja dwufazowa, zob. `mobileLoginTotp`): zgubiona odpowiedź drugiego
+      kroku nie zmienia więc tożsamości urządzenia.
       Limity: licznik prób i blokada konta są WSPÓLNE z logowaniem w panelu (20 prób na minutę z jednego adresu IP, blokada po 10
       nieudanych próbach na koncie) — ścieżka mobilna nie jest obejściem; przekroczenie → `429 rate_limited` z `Retry-After`. Treść
       najwyżej 8 KB (`413 payload_too_large`). Odpowiedź ma `Cache-Control: no-store`.
@@ -1697,8 +1698,13 @@ mobileLoginTotp:
       Publiczna operacja kanału `mobile`. Treść ściśle `{ challengeToken, code }` (`code` — 6 cyfr ASCII); pole z kodem odzyskiwania
       → `400` (kod odzyskiwania nie działa w kanale mobilnym). Sukces w jednej transakcji: zużycie tokenu wyzwania i kroku kodu,
       rejestracja urządzenia (nowe) albo rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina
-      tokenów. KAŻDE udane logowanie, także ponowne, zwraca NOWY `installationSecret` (rotacja) i atomowo unieważnia poprzedni;
-      aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary porzuca po zapisie. Odpowiedź niesie `deviceId`,
+      tokenów. KAŻDE udane logowanie, także ponowne, zwraca NOWY `installationSecret` (rotacja DWUFAZOWA): poprzedni sekret
+      (ostatni udowodniony przez urządzenie) pozostaje ważny dla tego samego `deviceId`, dopóki urządzenie nie udowodni nowego.
+      Dowodem jest pierwsze odświeżenie tokenu albo pierwsze żądanie z `mobileBearer` nowej rodziny tokenów, albo kolejne logowanie
+      nowym sekretem; dopiero wtedy poprzedni sekret traci ważność. Logowanie poprzednim sekretem rozpoznaje to samo urządzenie
+      (to samo `deviceId`, ten sam zapis idempotencji, kursor i limit urządzeń) i rotuje ponownie — zgubiona w garażu odpowiedź
+      nie tworzy nowego urządzenia. Aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary
+      porzuca po zapisie. Odpowiedź niesie `deviceId`,
       tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek.
       Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`;
       dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego —

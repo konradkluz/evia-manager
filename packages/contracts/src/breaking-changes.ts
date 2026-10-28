@@ -35,6 +35,10 @@ const COMPOSITION = ['oneOf', 'anyOf', 'allOf', 'not', 'discriminator', 'if', 't
 const UPPER_LIMITS = ['maxLength', 'maxItems', 'maximum', 'exclusiveMaximum', 'maxProperties'] as const;
 const LOWER_LIMITS = ['minLength', 'minItems', 'minimum', 'exclusiveMinimum', 'minProperties'] as const;
 
+const SYNC_ENTITY = 'SyncEntity';
+const SYNC_PROJECTIONS = 'x-evia-sync-projections';
+const SYNC_OPERATIONS = ['getSyncChanges', 'getSyncWorkOrder'];
+
 const isRecord = (value: unknown): value is Dict => typeof value === 'object' && value !== null && !Array.isArray(value);
 const asRecord = (value: unknown): Dict => (isRecord(value) ? value : {});
 
@@ -118,6 +122,44 @@ class Differ {
         }
         this.operation(label, asRecord(pathItem), asRecord(asRecord(pathItem)[method]), asRecord(after[path]), operation);
       }
+    }
+    this.syncProjections();
+  }
+
+  /** The type → projection map of the sync envelope (`x-evia-sync-projections`) of a document. */
+  private projections(document: Dict): Dict {
+    const entity = asRecord(asRecord(asRecord(document['components'])['schemas'])[SYNC_ENTITY]);
+    return asRecord(entity[SYNC_PROJECTIONS]);
+  }
+
+  /** Whether every operation in the baseline that returns sync entities exists and is planned (then nothing is in the field). */
+  private syncOperationsPlanned(): boolean {
+    const found: Dict[] = [];
+    for (const pathItem of Object.values(asRecord(this.baseline['paths']))) {
+      for (const method of METHODS) {
+        const operation = asRecord(asRecord(pathItem)[method]);
+        if (SYNC_OPERATIONS.includes(String(operation['operationId']))) found.push(operation);
+      }
+    }
+    return found.length > 0 && found.every((operation) => operation['x-evia-planned'] === true);
+  }
+
+  /**
+   * Projections are not reachable by `$ref` from any operation (the envelope is open), so they are compared through the map:
+   * a removed type or a changed projection is breaking once a sync operation is out of the planned state; a new type is not.
+   */
+  private syncProjections(): void {
+    const before = this.projections(this.baseline);
+    if (Object.keys(before).length === 0 || this.syncOperationsPlanned()) return;
+    const after = this.projections(this.current);
+    for (const [type, name] of Object.entries(before)) {
+      const at = `sync projection ${type}`;
+      if (typeof after[type] !== 'string') {
+        this.report('sync-projection-removed', at, 'a sync entity type was removed from x-evia-sync-projections');
+        continue;
+      }
+      const ref = (target: unknown) => ({ $ref: `#/components/schemas/${String(target)}` });
+      this.schema('response', ref(name), ref(after[type]), at);
     }
   }
 
