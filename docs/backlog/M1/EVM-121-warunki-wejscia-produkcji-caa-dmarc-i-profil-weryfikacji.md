@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę, **aby produkcja nie wystartowała bez reko
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
+- 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): bez zależności od EVM-061; rekord CAA Let's Encrypt (RR-40) dopiero przed produkcją.

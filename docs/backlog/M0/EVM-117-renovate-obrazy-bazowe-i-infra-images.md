@@ -51,3 +51,4 @@ Jako **właściciel produktu** chcę, **aby Renovate faktycznie działał i obej
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z zamknięcia EVM-007
+- 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): odłożone do wejścia na produkcję (aplikacja GitHub; do tego czasu obecne tokeny z krótkim TTL).
