@@ -50,6 +50,7 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'device.registered': 'Rejestracja urządzenia mobilnego',
   'device.recognized': 'Rozpoznanie urządzenia mobilnego po poprzednim sekrecie',
   'device.wipe_confirmed': 'Potwierdzenie wyczyszczenia urządzenia',
+  'session.refreshed': 'Odświeżenie sesji urządzenia mobilnego',
   'account.emergency_reset': 'Tryb awaryjny',
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
@@ -111,6 +112,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'device.registered',
       'device.recognized',
       'device.wipe_confirmed',
+      'session.refreshed',
     ],
   },
   {

@@ -52,6 +52,8 @@ export const IDENTITY_EVENT_TYPES = [
   'device.registered',
   'device.recognized',
   'device.wipe_confirmed',
+  // EVM-094 AC8: a refresh of the tokens of a phone, granted or refused for a session the server knows (never the token or its hash).
+  'session.refreshed',
 ] as const;
 
 export type IdentityEventType = (typeof IDENTITY_EVENT_TYPES)[number];
@@ -108,6 +110,8 @@ export const REASON_CODES = [
   'device_wipe_required',
   'totp_not_configured',
   'mfa_enrollment_required',
+  // EVM-094 AC8: a refresh refused because the session is over (ended, expired, account or device no longer allowed, token expired).
+  'session_revoked',
 ] as const;
 
 export type ReasonCode = (typeof REASON_CODES)[number];

@@ -2004,6 +2004,7 @@
           "device.registered",
           "device.recognized",
           "device.wipe_confirmed",
+          "session.refreshed",
           "audit.read",
           "bulk_read.alerted",
           "bulk_read.rejected",
@@ -2301,7 +2302,8 @@
           "device_limit_reached",
           "device_wipe_required",
           "totp_not_configured",
-          "mfa_enrollment_required"
+          "mfa_enrollment_required",
+          "session_revoked"
         ],
         "type": "string"
       },

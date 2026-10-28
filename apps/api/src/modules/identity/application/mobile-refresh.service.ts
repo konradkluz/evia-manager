@@ -94,9 +94,10 @@ export class MobileRefreshService {
     const session = await lockRefreshSession(db, token.sessionId);
     if (session === undefined) return REVOKED;
     // The wipe has precedence over everything, a spent or revoked token included.
-    if (session.deviceState === 'wipe_required') return { refusal: 'device_wipe_required' };
-    if (!this.#sessionUsable(session, now) || session.deviceId === null) return REVOKED;
-    if (token.expiresAt <= now) return REVOKED;
+    if (session.deviceState === 'wipe_required') return this.#refuse(transaction, session, client, 'device_wipe_required');
+    if (!this.#sessionUsable(session, now) || session.deviceId === null || token.expiresAt <= now) {
+      return this.#refuse(transaction, session, client, 'session_revoked');
+    }
 
     const standing = this.#standing(token);
     if (standing === 'reuse' || (standing === 'window' && !(await this.#windowOpen(db, token, now)))) {
@@ -116,7 +117,8 @@ export class MobileRefreshService {
     await proveDeviceSecret(db, session.deviceId);
     await touchDevice(db, session.deviceId, now, version.version);
     const user = await findUserById(db, session.userId);
-    if (user === undefined) return REVOKED;
+    if (user === undefined) return this.#refuse(transaction, session, client, 'session_revoked');
+    await this.#audit(transaction, session, client, 'success');
     return {
       accessToken: issued.accessToken,
       accessTokenExpiresAt: issued.accessTokenExpiresAt,
@@ -126,6 +128,38 @@ export class MobileRefreshService {
       user: { id: user.id, displayName: user.displayName, role: user.role },
       serverTime: now,
     };
+  }
+
+  /**
+   * A refusal for a session the server knows leaves a trace (who, when, from where; AC8) — never the token or its hash. An unknown or malformed token has no
+   * session to point at and leaves none. The answer is still the one `session_revoked` (or the wipe order).
+   */
+  async #refuse(
+    transaction: Kysely<Database>,
+    session: RefreshSession,
+    client: ClientInfo,
+    reasonCode: 'session_revoked' | 'device_wipe_required',
+  ): Promise<Refusal> {
+    await this.#audit(transaction, session, client, 'denied', reasonCode);
+    return reasonCode === 'session_revoked' ? REVOKED : { refusal: reasonCode };
+  }
+
+  async #audit(
+    transaction: Kysely<Database>,
+    session: RefreshSession,
+    client: ClientInfo,
+    outcome: 'success' | 'denied',
+    reasonCode?: 'session_revoked' | 'device_wipe_required',
+  ): Promise<void> {
+    const event: IdentityEvent = {
+      type: 'session.refreshed',
+      actor: { type: 'user', userId: session.userId },
+      outcome,
+      ...(reasonCode === undefined ? {} : { reasonCode }),
+      objectType: 'session',
+      objectId: session.sessionId,
+    };
+    await this.#events.publish(transaction, event, { ...client.context, sessionId: session.sessionId });
   }
 
   /** The session, the account and the device still allow it (rechecked on every call, SR-SESS-09, SR-AUTHZ-12). */

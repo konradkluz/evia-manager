@@ -208,6 +208,31 @@ describe('rotation of the refresh token (EVM-094 AC4; SR-SESS-09, ASVS V7.2.x)',
     );
     expect(problemOf(await config(phone))).toBe('session_revoked');
   });
+
+  it('EVM-094 AC8 a refresh is audited: the granted one and the refused ones for a known session (session_revoked, device_wipe_required); never the token', async () => {
+    const account = await totpAccount(current);
+    const phone = await signedInPhone(current, account);
+    const old = phone.refreshToken;
+    phone.adopt(await phone.refresh());
+    const refreshed = (await auditActions(current)).filter((event) => event.action === 'session.refreshed');
+    expect(refreshed).toMatchObject([{ outcome: 'success', actor_user_id: account.user.id, reason_code: null }]);
+    // an unknown token has no session to point at: no row
+    await phone.refresh(`evia_rt_${'A'.repeat(43)}`);
+    expect((await auditActions(current)).filter((event) => event.action === 'session.refreshed')).toHaveLength(1);
+    // the session ends (account deactivated) → the refusal is recorded against the session
+    await sql`update identity.users set status = 'deactivated' where id = ${account.user.id}`.execute(current.database.admin);
+    expect(problemOf(await phone.refresh())).toBe('session_revoked');
+    // a device ordered to wipe
+    const other = await signedInPhone(current, await totpAccount(current));
+    await setDeviceState(current, other.deviceId ?? '', 'wipe_required');
+    expect(problemOf(await other.refresh())).toBe('device_wipe_required');
+    const denied = (await auditActions(current)).filter((event) => event.action === 'session.refreshed' && event.outcome === 'denied');
+    expect(denied.map((event) => event.reason_code).sort()).toEqual(['device_wipe_required', 'session_revoked']);
+    const { rows } = await sql<{
+      text: string;
+    }>`select to_jsonb(t)::text as text from audit.events t where action = 'session.refreshed'`.execute(current.database.admin);
+    for (const row of rows) expect(row.text).not.toContain(old);
+  });
 });
 
 describe('every way of ending a session ends the phone at once (EVM-094 AC4; SR-AUTH-11, SR-AUTH-13, SR-SESS-06, SR-SESS-09)', () => {

@@ -41,6 +41,7 @@ AuditAction:
     - device.registered
     - device.recognized
     - device.wipe_confirmed
+    - session.refreshed
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
@@ -148,6 +149,7 @@ AuditReasonCode:
     - device_wipe_required
     - totp_not_configured
     - mfa_enrollment_required
+    - session_revoked
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).
