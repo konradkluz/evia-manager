@@ -211,7 +211,7 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     );
     // EVM-007 AC4 (architect 16): the root script of the VM is tested in its Linux container
     expect(root.scripts?.['gate:deploy']).toBe(
-      'docker compose -f compose.yaml run --rm deploy-sh-tests && docker compose -f compose.yaml run --rm restore-db-test && docker compose -f compose.yaml run --rm promtool-tests && docker compose -f compose.yaml run --rm caddy-log-test',
+      'docker compose -f compose.yaml run --rm deploy-sh-tests && docker compose -f compose.yaml run --rm restore-db-test && docker compose -f compose.yaml run --rm promtool-tests && docker compose -f compose.yaml run --rm caddy-log-test && docker compose -f compose.yaml run --rm alloy-tests',
     );
     const tasks = record(record(json('turbo.json'))['tasks']);
     expect(record(tasks['test:coverage'])['outputs']).toEqual(['coverage/**']);

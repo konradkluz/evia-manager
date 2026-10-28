@@ -1,0 +1,54 @@
+// Sources of the VM (EVM-085 AC1, AC5; architect 4): journald (Docker's log driver journald plus the systemd units of the channel)
+// and the textfile metrics of the agent and the backups. Loaded with pipeline.alloy and sinks.alloy: `alloy run /etc/alloy`.
+// The journald fields are mapped to the two labels the pipeline needs; the pipeline decides what passes.
+
+// The path is relative to the working directory of Alloy (/etc/alloy on the VM).
+import.file "evia" {
+	filename = "pipeline.alloy"
+}
+
+evia.evia_pipeline "main" {
+	forward_to = [loki.write.grafana.receiver]
+}
+
+loki.relabel "journal" {
+	forward_to = []
+
+	rule {
+		source_labels = ["__journal_com_docker_compose_service"]
+		target_label  = "compose_service"
+	}
+
+	rule {
+		source_labels = ["__journal__systemd_unit"]
+		target_label  = "unit"
+	}
+}
+
+loki.source.journal "vm" {
+	path           = "/var/log/journal"
+	format_as_json = false
+	max_age        = "12h"
+	labels         = {}
+	relabel_rules  = loki.relabel.journal.rules
+	forward_to     = [evia.evia_pipeline.main.receiver]
+}
+
+// Metrics: ONLY the textfile collector (metrics.sh of the agent, EVM-084 backups); no host /proc or /sys (the series limit of the
+// free plan is 10 000 and the container has no access to them).
+prometheus.exporter.unix "textfile" {
+	set_collectors = ["textfile"]
+
+	textfile {
+		directory = "/var/lib/evia/metrics"
+	}
+}
+
+// Alloy's own metrics, including the counter of security alerts and loki_write_sent_bytes_total (usage alert).
+prometheus.exporter.self "alloy" { }
+
+prometheus.scrape "vm" {
+	targets         = array.concat(prometheus.exporter.unix.textfile.targets, prometheus.exporter.self.alloy.targets)
+	forward_to      = [prometheus.remote_write.grafana.receiver]
+	scrape_interval = "60s"
+}

@@ -105,14 +105,14 @@ groups:
   - name: security
     rules:
       - alert: EviaSecurityAlert
-        expr: sum by (alertCode, env) (increase(evia_security_alerts_total{env="staging"}[${security_window}])) >= ${security_min_events}
+        expr: sum by (alertCode, env) (increase(loki_process_custom_security_alerts_total{env="staging"}[${security_window}])) >= ${security_min_events}
         for: 0m
         labels: { severity: critical, ac5: security }
         annotations:
           summary: 'Security alert {{ $labels.alertCode }} from the application (env {{ $labels.env }})'
           runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
       - alert: EviaSecurityAccountLockedBurst
-        expr: sum by (env) (increase(evia_security_alerts_total{env="staging", alertCode="account_locked"}[${security_window}])) >= ${account_locked_burst_min}
+        expr: sum by (env) (increase(loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}[${security_window}])) >= ${account_locked_burst_min}
         for: 0m
         labels: { severity: critical, ac5: security }
         annotations:

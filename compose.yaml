@@ -347,6 +347,22 @@ services:
       - ./infra/runtime/Caddyfile:/src/infra/runtime/Caddyfile:ro
       - ./infra/observability/test/caddy-log.test.sh:/src/infra/observability/test/caddy-log.test.sh:ro
 
+  # The log pipeline of staging (EVM-085 AC1, AC5, AC7): the real pipeline.alloy and sources/sinks of the VM, fed with synthetic
+  # entries through loki.source.api and read from loki.echo and /metrics. Image: Alloy of infra-images.json (tag + digest, multi-arch
+  # index); no network but loopback, the configuration read-only, the data on tmpfs. No Loki server mock (protobuf+snappy).
+  alloy-tests:
+    <<: *hardening
+    image: grafana/alloy:v1.21.2@sha256:89a5a320168387336b9ac3c850609c3ba7757eadd4ae5f1d819deb35e9854b18
+    user: '65534:65534'
+    network_mode: none
+    entrypoint: ['bash', '/src/infra/observability/test/alloy-pipeline.test.sh']
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=128m
+    volumes:
+      - ./infra/observability:/src/infra/observability:ro
+
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
     <<: *scanner

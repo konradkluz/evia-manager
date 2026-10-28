@@ -24,6 +24,7 @@ export const SERVICES = Object.freeze([
   'restore-db-test',
   'promtool-tests',
   'caddy-log-test',
+  'alloy-tests',
   'zap-baseline',
 ]);
 

@@ -182,6 +182,10 @@ jobs:
       - name: Access log of the edge Caddy (caddy-log-test)
         if: needs.changes.outputs.iac == 'true'
         run: docker compose -f compose.yaml run --rm caddy-log-test
+      # EVM-085 AC1, AC5, AC7: the log pipeline in a real Alloy (allow-list, redaction with a positive control, alert counters, rate limit).
+      - name: Log pipeline of staging (alloy-tests)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm alloy-tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov-backend

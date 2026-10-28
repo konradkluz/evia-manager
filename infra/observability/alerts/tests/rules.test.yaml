@@ -269,9 +269,9 @@ tests:
   - name: EVM-085 AC5 security alert from the application reaches the channel
     interval: 1m
     input_series:
-      - series: 'evia_security_alerts_total{env="staging", alertCode="login_failure_spike"}'
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="login_failure_spike"}'
         values: '0 0 0 1 1 1 1 1'
-      - series: 'evia_security_alerts_total{env="staging", alertCode="second_step_failure_spike"}'
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="second_step_failure_spike"}'
         values: '3x8'
     alert_rule_test:
       - eval_time: 5m
@@ -287,7 +287,7 @@ tests:
   - name: EVM-085 AC5 single account lock alerts, burst of locks escalates
     interval: 1m
     input_series:
-      - series: 'evia_security_alerts_total{env="staging", alertCode="account_locked"}'
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}'
         values: '0 1 1 1 1 1 7 7 7'
     alert_rule_test:
       - eval_time: 2m

@@ -134,6 +134,8 @@ function setup() {
     'deletion-register-s3-secret-access-key',
     'pgbackrest-cipher-pass',
     'backup-s3-secret-access-key',
+    // EVM-085: the write token of the collector (alloy)
+    'grafana-write-token',
   ])
     writeFileSync(join(root, 'etc/evia/secrets', file), `synthetic-${file}`, { mode: 0o600 });
   // deploy.sh and the boot unit share one materialisation of the secrets (/usr/local/sbin/evia-secrets on the VM).

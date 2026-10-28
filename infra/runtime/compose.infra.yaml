@@ -95,6 +95,41 @@ services:
     volumes:
       - clamav-signatures:/var/lib/clamav
 
+  # EVM-085 AC1, AC5 (security-engineer A7): the collector of logs and metrics. Its own network with egress only to the internet (Grafana
+  # Cloud): NOT on evia-runtime, so it reaches neither PostgreSQL nor the API. No ports; its HTTP server listens on 127.0.0.1 inside the
+  # container. A non-root user in the group systemd-journal (numeric GID of the VM) reads the journal read-only; no Docker socket, no host
+  # /proc or /sys. The write token is a file from /etc/evia/secrets (manifest: service alloy), read by local.file (is_secret). Values of
+  # the interpolations (not secrets: GID, URLs, instance identifiers) come from /etc/evia/runtime/.env, written in the IaC session.
+  # The metadata service 169.254.169.254 is blocked on the host (evia-metadata-block). Config: infra/observability/alloy -> /etc/evia/alloy.
+  alloy:
+    image: grafana/alloy:v1.21.2@sha256:89a5a320168387336b9ac3c850609c3ba7757eadd4ae5f1d819deb35e9854b18
+    restart: unless-stopped
+    user: '10020:10020'
+    group_add: ['${EVIA_JOURNAL_GID:?numeric GID of systemd-journal, set in /etc/evia/runtime/.env}']
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    networks: [evia-telemetry]
+    working_dir: /etc/alloy
+    command: ['run', '/etc/alloy', '--server.http.listen-addr=127.0.0.1:12345', '--storage.path=/var/lib/alloy/data', '--disable-reporting']
+    environment:
+      GRAFANA_WRITE_TOKEN_FILE: /run/secrets/grafana-write-token
+      GRAFANA_LOKI_URL: ${GRAFANA_LOKI_URL:?Loki push URL of the stack, set in /etc/evia/runtime/.env}
+      GRAFANA_LOKI_USER: ${GRAFANA_LOKI_USER:?Loki user (instance id), set in /etc/evia/runtime/.env}
+      GRAFANA_PROM_URL: ${GRAFANA_PROM_URL:?Prometheus remote write URL, set in /etc/evia/runtime/.env}
+      GRAFANA_PROM_USER: ${GRAFANA_PROM_USER:?Prometheus user (instance id), set in /etc/evia/runtime/.env}
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    volumes:
+      - /etc/evia/alloy:/etc/alloy:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - /var/lib/evia/metrics:/var/lib/evia/metrics:ro
+      - /run/evia/secrets/alloy:/run/secrets:ro
+      # journal positions: a directory owned by 10020 (created in the IaC session)
+      - /var/lib/evia/alloy:/var/lib/alloy/data
+
 networks:
   # The shared network of the edge Caddy, PostgreSQL and the application colours (external for the channel).
   evia-runtime:
@@ -103,6 +138,9 @@ networks:
   evia-scan:
     name: evia-scan
     internal: true
+  # alloy only (EVM-085): egress to the internet, no route to evia-runtime.
+  evia-telemetry:
+    name: evia-telemetry
   # freshclam only: egress for the signature mirrors.
   evia-updates:
     name: evia-updates
