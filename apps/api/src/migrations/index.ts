@@ -41,6 +41,8 @@ import * as userAccessManagement from './0039_user_access_management.ts';
 import * as loginThrottle from './0040_login_throttle.ts';
 import * as account from './0041_account.ts';
 import * as timelineRedaction from './0042_timeline_redaction.ts';
+import * as customerAnonymization from './0043_customer_anonymization.ts';
+import * as customerDeletedIndex from './0044_customer_deleted_index.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -84,4 +86,6 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0040_login_throttle': loginThrottle,
   '0041_account': account,
   '0042_timeline_redaction': timelineRedaction,
+  '0043_customer_anonymization': customerAnonymization,
+  '0044_customer_deleted_index': customerDeletedIndex,
 });
