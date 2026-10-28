@@ -87,13 +87,24 @@ Jako **Administrator** chcę **ukryć klienta dodanego przez pomyłkę i zanonim
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Kontrakt (addytywnie): `deleteCustomer`, `restoreCustomer`, `anonymizeCustomer`; filtr `deleted` (lista, wyszukiwanie); `Customer.deletedAt`/`anonymizedAt`, `CustomerCard.anonymized`, `Problem.openWorkOrders`; kody `customer_anonymized`, `already_anonymized`. Migracje 0043 (kolumny `anonymized_*`, CHECK wartości neutralnych, trigger nieodwracalności znacznika) i 0044 (indeks `(sort_name, id)` usuniętych) — tylko expand. `customers`: port `CustomerDependentsRegistry` (fail-closed, liczby per implementacja), trzy serwisy poleceń, polityki odczytu `visibleCustomers` / `readableCustomers` / `deletedCustomers`, `CustomerDirectory.lockVisible` (`FOR KEY SHARE`, tylko tworzenie zlecenia). `work-orders`: `OpenOrdersDependentsGuard`. `platform/deletion-register`: kod `customer_anonymized`, typ `customer` (ta sama ścieżka co redakcja EVM-040, bez nowego klienta S3). Szczegóły i kolejność kroków: dokumentacja kodu serwisów (`delete-customer.service.ts`, `anonymize-customer.service.ts`) i `docs/architecture/api-guidelines.md`. Panel (W-14, web-developer) — osobny krok.
 
 ## Decyzje
-_—_
+Decyzje robocze (rekomendowane wartości domyślne; do potwierdzenia przez Konrada na demo — nie zmieniają AC):
+1. **Wartości neutralne (AC4).** Osoba: imię „Klient”, nazwisko „zanonimizowany” (nazwa „Klient zanonimizowany”); firma: nazwa „Klient zanonimizowany”. NIP, osoba kontaktowa, e-mail, adres i notatki — puste. Telefon (kolumna NOT NULL z formatem) — stała domenowa `+48000000000` (nie numer); panel pokazuje „—” (`CustomerCard.anonymized`). Tekst wyszukiwania przelicza baza (kolumna generowana).
+2. **Nieodwracalność.** Znacznik `anonymized_at`/`anonymized_by` + CHECK wartości neutralnych + trigger (znacznika nie da się zmienić ani wyzerować). Edycja zanonimizowanego — `409 customer_anonymized`; ponowna anonimizacja — `409 already_anonymized` (sprawdzane przed wersją, więc powtórka po utracie odpowiedzi to „już wykonano”, a nie `412`). Usunięcie i przywrócenie zanonimizowanego jest dozwolone; anonimizacja klienta usuniętego też (bez przywracania — ustalenie A2).
+3. **Zlecenia zamknięte** = `settled` i `cancelled`; zlecenia usunięte (soft delete) nie blokują. Licznik niezamkniętych w `409 has_active_dependents` to `openWorkOrders` (sama liczba, tylko dla Administratora; bierze się wyłącznie z implementacji `work-orders`).
+4. **Filtr „Usunięci”**: `deleted=true` (lista) / `deleted: true` (wyszukiwanie), tylko Administrator; inne role — `403 forbidden` przed walidacją kursora; kursor wiąże filtr. `GET /customers/{id}` usuniętego: Administrator `200` (z `deletedAt`), E/R `404`; `PATCH` usuniętego — `404` dla każdej roli. Fasada `CustomerDirectory` zostaje na polityce „nieusunięci” także dla Administratora (W-06/W-10/W-11 pokazują „Klient usunięty”).
+5. **Idempotencja**: `Idempotency-Key` dla usunięcia i przywrócenia (jak EVM-060); anonimizacja bez klucza (jak redakcja EVM-040). `If-Match` dla wszystkich trzech. „Cofnij” w panelu odczytuje bieżącą wersję (`GET` — Administrator czyta klienta usuniętego); `204` usunięcia nie ma `ETag`.
+6. **Fail-closed rejestru** jak redakcja: rejestr zapisywany po wszystkich walidacjach i przed `UPDATE` w jednej transakcji; porażka — rollback, `503 deletion_register_unavailable`, audyt `customer.anonymized` z wynikiem `failed` w osobnej transakcji; brak konfiguracji — to samo, usługa zdrowa. Delete i restore nie piszą do rejestru (soft delete jest odwracalny).
+7. **Wyścig z tworzeniem zlecenia (D7).** Usunięcie i anonimizacja blokują klienta `FOR UPDATE`, a zlecenia liczy osobne zapytanie po blokadzie; tworzenie zlecenia blokuje klienta `FOR KEY SHARE` (`CustomerDirectory.lockVisible`). Wynik: albo `409` przy usuwaniu, albo `404` przy tworzeniu. Wyścig z ponownym otwarciem zamkniętego zlecenia nie jest blokowany — patrz „Uwagi do rozważenia”.
+8. **Synchronizacja mobilna** — bez zmian (aplikacja nie przechowuje klientów); każda z trzech operacji podbija `version` i `updated_at`.
 
 ## Uwagi do rozważenia
-_—_
+1. **Ponowne otwarcie zlecenia klienta usuniętego (RR-NOC-T2-5, kandydat do `/refine`).** Przejścia `restore('cancelled','on_hold')` i `restore('settled','completed')` w `work-order-transitions.ts` pozwalają Administratorowi otworzyć zlecenie klienta już usuniętego zwykłą sekwencją kroków. Skutek: zlecenie pokazuje „Klient usunięty”, danych klienta nie widać (brak wycieku), a anonimizacja takiego klienta daje `409`. Nie blokujemy tego w EVM-041 (poza AC; zmiana `work-orders` byłaby „przy okazji”).
+2. **Zakres anonimizacji (RR-NOC-T2-6).** Tylko tabela klientów; lokalizacje (często adres domowy), strony, wpisy dziennika, tytuły zleceń i dokumenty zostają — ręczna procedura z runbooka EVM-064. Do tego czasu adres lokalizacji klienta usuniętego jest widoczny dla E/R w W-06.
+3. **Alert na masową anonimizację (RR-NOC-T2-7).** Metryka i alert na liczbę anonimizacji (np. > 5 na godzinę na użytkownika) oraz krok w runbooku EVM-062 „wyklucz wpisy rejestru z okna incydentu przed ponownym zastosowaniem” — do backlogu, nie nowe AC.
+4. Kod N-1 przy edycji zanonimizowanego klienta dostanie `500` (naruszenie CHECK) — akceptowalne okno wdrożenia, fail-closed (opis w migracji 0043).
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-041 AC#`)
@@ -108,3 +119,5 @@ _—_
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 4 (a), 4 (f) i 17 (b); liczba AC bez zmian): AC1 — klient usunięty niewidoczny dla Edytora i Tylko odczyt także w danych osadzonych w zleceniach (W-06, W-10 z wyszukiwaniem zleceń, W-11 — stan „Klient usunięty” bez danych; ustalenie A1, zasada wspólna 18); AC2 — komunikat o niezamkniętych zleceniach wg makiety W-14; AC3 — etykieta „Przywróć klienta”
 - 2026-10-27 — nocna kolejka (tor T2): Konrad wskazał ścieżkę lekka, ale historyjka ma 8 AC i 3 recenzentów (lekka: ≤ 6 AC i 1 recenzent, workflow.md) — przyjęto pelna, model sonnet (Tech Lead); do potwierdzenia przez Konrada
 - 2026-10-28 — start realizacji (nocna kolejka, tor T2), gałąź feature/EVM-040-041-usuniecie-rejestr-usuniec
+- 2026-10-28 — plan gotowy (backend-developer)
+- 2026-10-28 — implementacja backendu gotowa (backend-developer): kontrakt, migracje 0043–0044, usunięcie / przywrócenie / anonimizacja, port blokady, rejestr usunięć, testy `EVM-041 AC1–AC8`; panel W-14 — kolejny krok
