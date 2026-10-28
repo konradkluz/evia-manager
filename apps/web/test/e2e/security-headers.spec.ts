@@ -2,7 +2,10 @@ import { expect, test } from './fixtures.ts';
 import { panelSecurityHeaders } from '../../security-headers.ts';
 
 const expected = Object.fromEntries(
-  Object.entries(panelSecurityHeaders({ variant: 'strict' })).map(([name, value]) => [name.toLowerCase(), value]),
+  Object.entries(panelSecurityHeaders({ variant: 'strict', mediaOrigin: 'https://bucket.e2e.test' })).map(([name, value]) => [
+    name.toLowerCase(),
+    value,
+  ]),
 );
 
 test.describe('panel security headers (EVM-008 AC4)', () => {
