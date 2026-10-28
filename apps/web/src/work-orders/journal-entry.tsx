@@ -144,7 +144,9 @@ export function JournalEntry({ entry, byId, nowMs, onCorrect, role, onRemove, on
       onSelect: () => {
         onRedact?.(entry);
       },
-      ...withHint(redacted ? t('workOrder.journal.entry.alreadyRedacted') : undefined),
+      ...(administrator
+        ? withHint(redacted ? t('workOrder.journal.entry.alreadyRedacted') : undefined)
+        : { disabledHint: t('workOrder.journal.entry.redactAdminOnly') }),
     });
   }
   const actions =

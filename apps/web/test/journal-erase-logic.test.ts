@@ -18,7 +18,13 @@ describe('mapping of the failures of delete, restore and redact (EVM-040 AC3, AC
     ['EVM-040 AC5 409 entry_is_event', new ApiError(409, { code: 'entry_is_event' }), 'event'],
     ['EVM-040 AC3 409 already_redacted', new ApiError(409, { code: 'already_redacted' }), 'alreadyRedacted'],
     ['EVM-040 AC3 503 deletion_register_unavailable', new ApiError(503, { code: 'deletion_register_unavailable' }), 'registerDown'],
-    ['EVM-040 AC7 another 5xx is a network failure', new ApiError(500, { code: 'internal' }), 'network'],
+    [
+      'EVM-040 AC7 another 5xx is a server failure with the code to report, not a network one',
+      new ApiError(500, { code: 'internal' }),
+      'server',
+    ],
+    ['EVM-040 AC7 a 502 is a server failure too', new ApiError(502, undefined), 'server'],
+    ['EVM-040 AC3 a 503 with another code is a server failure', new ApiError(503, { code: 'unavailable' }), 'server'],
   ];
   for (const [name, error, kind] of cases) {
     it(name, () => {

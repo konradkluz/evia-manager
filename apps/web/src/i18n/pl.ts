@@ -1439,6 +1439,7 @@ export const pl = {
         restore: 'Przywróć wpis',
         redact: 'Zredaguj treść…',
         adminOnly: 'Usunąć wpis może tylko administrator.',
+        redactAdminOnly: 'Redagować treść może tylko administrator.',
         alreadyRedacted: 'Treść wpisu jest już zredagowana.',
         eraseOffline: 'Wykonasz to po powrocie połączenia.',
       },
@@ -1509,6 +1510,7 @@ export const pl = {
         redactBody: 'Treść zostanie zastąpiona znacznikiem — tej operacji nie można cofnąć.',
         redactConfirm: 'Zredaguj treść',
         cancel: 'Anuluj',
+        dismiss: 'Zamknij',
         offline: 'Wykonasz to po powrocie połączenia.',
         stepUpTitle: 'Potwierdź tożsamość, aby zredagować treść wpisu',
         failure: {

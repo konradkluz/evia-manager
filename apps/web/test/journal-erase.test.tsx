@@ -180,6 +180,42 @@ describe('W-08 usunięcie wpisu (EVM-040 AC1, AC7)', () => {
     });
   });
 
+  it('EVM-040 AC7 a failed delete is an alert (role=alert), not a success toast; another 5xx gives the code to report, not "Sprawdź połączenie"', async () => {
+    const api = eraseApi([NOTE], { [`DELETE ${itemRoute(NOTE.id)}`]: () => problem(500, 'internal_error') });
+    await openJournal(api);
+    await screen.findByText(CANARY);
+    await choose('Usuń wpis');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Nie udało się wykonać operacji. Kod do zgłoszenia:');
+    expect(alert.textContent).not.toContain('Sprawdź połączenie');
+    expect(screen.queryByRole('status')?.textContent ?? '').not.toContain('Nie udało się');
+    await userEvent.click(within(alert).getByRole('button', { name: 'Zamknij' }));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('EVM-040 AC1 "Cofnij" is not dropped while the journal is read again after the delete', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const api = eraseApi([NOTE]);
+    await openJournal(api);
+    await screen.findByText(CANARY);
+    await choose('Usuń wpis');
+    const undo = await screen.findByRole('button', { name: 'Cofnij' });
+    // the journal is read again slowly; the undo must still be sent
+    api.set(`GET ${TIMELINE}`, async () => {
+      await gate;
+      return json(200, { items: [{ ...NOTE, deletedAt: REDACTED_AT }], nextCursor: null });
+    });
+    await userEvent.click(undo);
+    await waitFor(() => {
+      expect(api.calls(`POST ${itemRoute(NOTE.id)}/restore`)).toHaveLength(1);
+    });
+    release();
+    expect(await screen.findByText('Przywrócono wpis.')).toBeTruthy();
+  });
+
   it('EVM-040 AC7 offline: the items are disabled with the reason and nothing is sent', async () => {
     const api = eraseApi([NOTE]);
     await openJournal(api);
@@ -286,6 +322,41 @@ describe('W-08 redakcja treści (EVM-040 AC2, AC3, AC7)', () => {
     expect(api.calls(`POST ${itemRoute(NOTE.id)}/redact`)).toHaveLength(0);
   });
 
+  it('EVM-040 AC2 Esc and "Anuluj" do nothing while the request runs, so the success is not lost (cache replaced, toast shown)', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const api = eraseApi([NOTE], (put) => ({
+      [`POST ${itemRoute(NOTE.id)}/redact`]: async () => {
+        await gate;
+        const redacted = { ...NOTE, body: MARKER, redactedAt: REDACTED_AT };
+        put(redacted);
+        return json(200, redacted, { ETag: '"4"' });
+      },
+    }));
+    await openJournal(api);
+    await screen.findByText(CANARY);
+    await choose('Zredaguj treść…');
+    const dialog = await screen.findByRole('alertdialog', { name: 'Zredagować treść wpisu?' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zredaguj treść' }));
+    await waitFor(() => {
+      expect(api.calls(`POST ${itemRoute(NOTE.id)}/redact`)).toHaveLength(1);
+    });
+
+    expect(within(dialog).getByRole('button', { name: 'Anuluj' }).getAttribute('aria-disabled')).toBe('true');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anuluj' }));
+    expect(screen.getByRole('alertdialog', { name: 'Zredagować treść wpisu?' })).toBeTruthy();
+
+    release();
+    expect(await screen.findByText('Zredagowano treść wpisu.')).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByText(CANARY)).toBeNull();
+    });
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+  });
+
   it('EVM-040 AC2 an entry that is redacted already has the item disabled with the reason', async () => {
     const api = eraseApi([{ ...NOTE, body: MARKER, redactedAt: '2026-10-11T10:00:00.000Z' }]);
     await openJournal(api);
@@ -305,7 +376,8 @@ describe('W-08 uprawnienia i zdarzenia (EVM-040 AC5, AC6)', () => {
     for (const name of ['Usuń wpis', 'Zredaguj treść…']) {
       expect(screen.getByRole('menuitem', { name: new RegExp(`^${name}`) }).getAttribute('aria-disabled')).toBe('true');
     }
-    expect(screen.getAllByText('Usunąć wpis może tylko administrator.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Usunąć wpis może tylko administrator.')).toHaveLength(1);
+    expect(screen.getAllByText('Redagować treść może tylko administrator.')).toHaveLength(1);
     await userEvent.click(screen.getByRole('menuitem', { name: /^Usuń wpis/ }));
     expect(api.calls(`DELETE ${itemRoute(NOTE.id)}`)).toHaveLength(0);
     expect(api.calls(`GET ${TIMELINE}`).every((read) => read.query.get('includeDeleted') === null)).toBe(true);

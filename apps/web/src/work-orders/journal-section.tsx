@@ -10,6 +10,7 @@ import { JournalComposer } from './journal-composer.tsx';
 import { JournalCorrectionDialog } from './journal-correction-dialog.tsx';
 import { JournalEntry } from './journal-entry.tsx';
 import { JournalRedactDialog } from './journal-redact-dialog.tsx';
+import { eraseFailureText } from './journal-erase.ts';
 import { formatEntryDate, groupByDay, relationOf } from './journal-format.ts';
 import { SectionError, SectionLoading } from './section-states.tsx';
 import { WORK_ORDER_JOURNAL_KEY } from './query-keys.ts';
@@ -173,6 +174,19 @@ export function JournalSection({
         />
       </div>
       {cursorReset ? <InlineAlert tone="info">{t('workOrder.journal.cursorReset')}</InlineAlert> : null}
+      {/* EVM-040: a failed delete or restore is an alert (role=alert), never a success toast */}
+      {erase.failure === null ? null : (
+        <InlineAlert
+          tone="error"
+          action={
+            <Button variant="tertiary" onClick={erase.dismissFailure}>
+              {t('workOrder.journal.erase.dismiss')}
+            </Button>
+          }
+        >
+          {eraseFailureText(t, erase.failure)}
+        </InlineAlert>
+      )}
       {journal.isPending ? (
         <SectionLoading lines={3} />
       ) : journal.isError && entries.length === 0 ? (

@@ -34,37 +34,42 @@ export function JournalRedactDialog({
   const guarded = useGuardedCall(t('workOrder.journal.erase.stepUpTitle'));
   const [failure, setFailure] = useState<EraseFailure | null>(null);
 
+  // The effects of the call live in the options of the mutation (not in the callbacks of `mutate`), and while it runs the dialog
+  // cannot be dismissed: a dialog that unmounts mid-flight would lose the replacement of the cache and the toast.
   const mutation = useMutation({
     mutationFn: () => guarded.run(() => redactEntry(client, workOrderId, entry.id)),
+    onSuccess: (redacted) => {
+      replaceEntryInCache(queryClient, workOrderId, redacted);
+      void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
+      showToast(t('workOrder.journal.erase.redacted'));
+      onClose();
+    },
+    onError: (error) => {
+      const failed = describeEraseFailure(error);
+      if (failed.kind === 'conflict' || failed.kind === 'gone' || failed.kind === 'alreadyRedacted') {
+        void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
+      }
+      setFailure(failed);
+    },
   });
+  const running = mutation.isPending;
+  const dismiss = () => {
+    if (!running) onClose();
+  };
 
   const confirm = () => {
     setFailure(null);
-    mutation.mutate(undefined, {
-      onSuccess: (redacted) => {
-        replaceEntryInCache(queryClient, workOrderId, redacted);
-        void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
-        showToast(t('workOrder.journal.erase.redacted'));
-        onClose();
-      },
-      onError: (error) => {
-        const failed = describeEraseFailure(error);
-        if (failed.kind === 'conflict' || failed.kind === 'gone' || failed.kind === 'alreadyRedacted') {
-          void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId] });
-        }
-        setFailure(failed);
-      },
-    });
+    mutation.mutate();
   };
 
   return (
     <AlertDialog
       open={!guarded.stepping}
       title={t('workOrder.journal.erase.redactTitle')}
-      onDismiss={onClose}
+      onDismiss={dismiss}
       actions={
         <>
-          <Button variant="tertiary" data-initial-focus onClick={onClose}>
+          <Button variant="tertiary" data-initial-focus disabled={running} onClick={dismiss}>
             {t('workOrder.journal.erase.cancel')}
           </Button>
           <Button

@@ -30,7 +30,6 @@ export function describeEraseFailure(error: unknown): EraseFailure {
   if (error.status === 409 && error.code === 'entry_is_event') return { kind: 'event' };
   if (error.status === 409 && error.code === 'already_redacted') return { kind: 'alreadyRedacted' };
   if (error.status === 503 && error.code === 'deletion_register_unavailable') return { kind: 'registerDown' };
-  if (error.status >= 500) return { kind: 'network' };
   return { kind: 'server', code: error.traceId?.slice(0, 8) ?? error.code };
 }
 
