@@ -76,3 +76,4 @@ Jako **właściciel produktu** chcę **automatycznych kopii bazy i mediów oraz 
 - 2026-10-27 — plan gotowy (devops-engineer)
 - 2026-10-27 — implementacja (devops-engineer, tor T3): moduł `object-storage` + reguły `bucketProblems`, mapowanie sekretów, orkiestrator/sprzątacz/scenariusz AC5/podpisany URL (testy na atrapach), pgBackRest (konfiguracja, obraz, kopie, kopia mediów), jednostki systemd, `bucket-verify`, runbook `restore.md`; nieaktywne do sesji IaC, status zostaje in-progress
 - 2026-10-27 — poprawki po przeglądzie, runda 1 (devops-engineer, tor T3): sprzątacz z wartownikiem, `rclone sync`, macierz kluczy, SFTP w zaporze, punkt nazwany, sekrety recovery, rola, kontrakt wyniku, test etapu bazy w kontenerze
+- 2026-10-28 — workflow passed (2 rundy), gate zielony (nocna kolejka, tor T3); kod nieaktywny do sesji IaC — status zostaje in-progress do dowodów (apply, test odtworzenia)
