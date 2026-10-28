@@ -109,6 +109,90 @@ describe('EVM-044 AC1 the upload engine: the media of a batch, the session, the 
     expect(engine.getSnapshot()[0]?.key).toBe(waiting.id);
   });
 
+  const resumable = (session: boolean) => {
+    const waiting = unfinished(7, 'IMG_0412.jpg', 1000, session ? {} : { uploadSession: null });
+    return {
+      waiting,
+      options: {
+        category: 'in_progress' as const,
+        description: '',
+        contentTypes: new Map<File, string>(),
+        unfinished: [
+          {
+            mediaAssetId: waiting.id,
+            name: 'IMG_0412.jpg',
+            size: 1000,
+            session: waiting.uploadSession === null ? null : { id: waiting.uploadSession.id, partSize: 16_777_216, partCount: 1 },
+          },
+        ],
+      },
+    };
+  };
+
+  it('EVM-044 AC4 an interrupted file with NO session (expired, aborted) resumes the same medium with a new session; no duplicate medium', async () => {
+    const { waiting, options } = resumable(false);
+    const api = mediaApi({ unfinished: [waiting] });
+    const { engine, puts } = setup(api);
+    await engine.add([jpeg('IMG_0412.jpg')], options);
+    await settle(engine, (all) => all.every((status) => status === 'checking'));
+    expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
+    const sessions = api.requests.filter((entry) => entry.method === 'POST' && entry.path.endsWith('/upload-sessions'));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.path).toContain(`/media-assets/${waiting.id}/`);
+    expect(puts).toHaveLength(1);
+    expect(engine.getSnapshot()[0]?.key).toBe(waiting.id);
+  });
+
+  it('EVM-044 AC4 "Ponów" of a resumed file never creates the medium again (no 409 id_conflict) and continues from its session', async () => {
+    const { waiting, options } = resumable(true);
+    let attempts = 0;
+    const api = mediaApi({
+      unfinished: [waiting],
+      complete: () => {
+        attempts += 1;
+        return attempts === 1 ? problem(500, 'internal_error') : json(200, { ...waiting, fileState: 'uploaded' });
+      },
+    });
+    const { engine } = setup(api);
+    await engine.add([jpeg('IMG_0412.jpg')], options);
+    await settle(engine, (all) => all[0] === 'failed');
+    expect(engine.getSnapshot()[0]).toMatchObject({ failure: 'network' });
+    engine.retry(waiting.id);
+    await settle(engine, (all) => all[0] === 'checking');
+    expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
+    expect(api.requests.filter((entry) => entry.method === 'POST' && entry.path.endsWith('/upload-sessions'))).toHaveLength(0);
+  });
+
+  it('EVM-044 AC5 a resumed file the server calls different ("checksum_mismatch") says so; "Ponów" hashes it here and opens a NEW session of the same medium, no new medium', async () => {
+    const { waiting, options } = resumable(true);
+    const api = mediaApi({ unfinished: [waiting] });
+    const hash = vi.fn(() => Promise.resolve(HASH));
+    const { engine } = setup(api, { hash });
+    await engine.add([jpeg('IMG_0412.jpg')], options);
+    await settle(engine, (all) => all[0] === 'checking');
+    expect(hash).not.toHaveBeenCalled();
+    engine.applyServerStates([asset(7, { id: waiting.id, fileState: 'failed', stateReasonCode: 'checksum_mismatch' })]);
+    expect(engine.getSnapshot()[0]).toMatchObject({ status: 'failed', failure: 'different' });
+    engine.retry(waiting.id);
+    await settle(engine, (all) => all[0] === 'checking');
+    expect(hash).toHaveBeenCalledTimes(1);
+    expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
+    const sessions = api.requests.filter((entry) => entry.method === 'POST' && entry.path.endsWith('/upload-sessions'));
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.path).toContain(`/media-assets/${waiting.id}/`);
+  });
+
+  it('EVM-044 AC5 when the file of a resumed medium cannot be hashed on "Ponów" it fails and does not hang', async () => {
+    const { waiting, options } = resumable(true);
+    const { engine } = setup(mediaApi({ unfinished: [waiting] }), { hash: () => Promise.reject(new Error('hash_failed')) });
+    await engine.add([jpeg('IMG_0412.jpg')], options);
+    await settle(engine, (all) => all[0] === 'checking');
+    engine.applyServerStates([asset(7, { id: waiting.id, fileState: 'failed', stateReasonCode: 'checksum_mismatch' })]);
+    engine.retry(waiting.id);
+    await settle(engine, (all) => all[0] === 'failed');
+    expect(engine.getSnapshot()[0]).toMatchObject({ failure: 'server' });
+  });
+
   it('EVM-044 AC4 findUnfinished matches by name and size and takes each session once', () => {
     const entry = { mediaAssetId: 'm1', name: 'a.jpg', size: 5, session: { id: 's', partSize: 1, partCount: 1 } };
     expect(findUnfinished({ name: 'a.jpg', size: 5 }, [entry], new Set())).toBe(entry);

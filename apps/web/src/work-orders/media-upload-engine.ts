@@ -23,7 +23,7 @@ import { MAX_BATCH } from './media-files.ts';
  * and the verdict of the scan that the screen reads from the list.
  */
 export type ItemStatus = 'hashing' | 'queued' | 'uploading' | 'paused' | 'checking' | 'done' | 'failed' | 'attention';
-export type FailureKind = 'checksum' | 'network' | 'rate' | 'storage' | 'incomplete' | 'server';
+export type FailureKind = 'checksum' | 'different' | 'network' | 'rate' | 'storage' | 'incomplete' | 'server';
 
 export interface QueueItem {
   /** The id of the media (UUIDv7 made here). */
@@ -43,7 +43,8 @@ export interface UnfinishedSession {
   readonly mediaAssetId: string;
   readonly name: string;
   readonly size: number;
-  readonly session: { readonly id: string; readonly partSize: number; readonly partCount: number };
+  /** `null` when the session is gone (expired, aborted, never made): the chosen file then opens a new one for the SAME medium. */
+  readonly session: { readonly id: string; readonly partSize: number; readonly partCount: number } | null;
 }
 
 export interface PutResult {
@@ -80,6 +81,8 @@ interface Internal {
   session: { id: string; partSize: number; partCount: number } | null;
   sessionKey: string | null;
   created: boolean;
+  /** The file resumes a medium that was made earlier (a closed tab): the server has its checksum, this tab does not. */
+  resumed: boolean;
   batch: string | null;
   controller: AbortController | null;
 }
@@ -179,9 +182,10 @@ export class UploadEngine {
         contentType: options.contentTypes.get(file) ?? file.type,
         category: options.category,
         description: options.description,
-        session: match === undefined ? null : { ...match.session },
+        session: match?.session == null ? null : { ...match.session },
         sessionKey: null,
         created: match !== undefined,
+        resumed: match !== undefined,
         batch: null,
         controller: null,
       };
@@ -275,7 +279,8 @@ export class UploadEngine {
   retry(key: string): void {
     const entry = this.items.get(key);
     if (entry?.item.status !== 'failed') return;
-    if (entry.sha256 === '') {
+    if (entry.sha256 === '' && !entry.created) {
+      // The hash never succeeded, so the medium does not exist yet: hash, then create the batch.
       void this.prepare([entry]).then(() => this.drain());
       return;
     }
@@ -286,9 +291,24 @@ export class UploadEngine {
         return;
       }
     }
-    if (entry.item.failure === 'checksum') {
+    if (entry.item.failure === 'checksum' || entry.item.failure === 'different') {
       entry.session = null;
       entry.sessionKey = null;
+      if (entry.sha256 === '') {
+        // A resumed file: the medium exists (never created again — 409), the checksum is computed here from the bytes in hand.
+        this.patch(key, { status: 'hashing', failure: null, retryAfterSeconds: null, percent: 0 });
+        void this.deps
+          .hash(entry.file)
+          .then((hex) => {
+            entry.sha256 = hex;
+            this.patch(key, { status: 'queued' });
+          })
+          .catch(() => {
+            this.patch(key, { status: 'failed', failure: 'server' });
+          })
+          .then(() => this.drain());
+        return;
+      }
     }
     this.patch(key, { status: 'queued', failure: null, retryAfterSeconds: null, percent: 0 });
     void this.drain();
@@ -305,7 +325,12 @@ export class UploadEngine {
 
   private applyAsset(asset: MediaAsset): void {
     if (asset.fileState === 'failed' && asset.stateReasonCode === 'checksum_mismatch') {
-      this.patch(asset.id, { status: 'failed', failure: 'checksum', percent: 0 });
+      // A file chosen again for an earlier medium that differs from the one sent before is not a "damaged transmission".
+      this.patch(asset.id, {
+        status: 'failed',
+        failure: this.items.get(asset.id)?.resumed === true ? 'different' : 'checksum',
+        percent: 0,
+      });
       return;
     }
     // `failed` without a reason (a derivative could not be made after `clean`): the file arrived.

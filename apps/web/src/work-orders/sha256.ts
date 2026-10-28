@@ -15,8 +15,9 @@ export async function hashFile(file: Blob): Promise<string> {
   const worker = new Worker(new URL('./sha256.worker.ts', import.meta.url), { type: 'module' });
   try {
     return await new Promise<string>((resolve, reject) => {
-      worker.onmessage = (event: MessageEvent<{ readonly hex: string }>) => {
-        resolve(event.data.hex);
+      worker.onmessage = (event: MessageEvent<{ readonly hex?: string; readonly failed?: true }>) => {
+        if (event.data.hex === undefined) reject(new Error('hash_failed'));
+        else resolve(event.data.hex);
       };
       worker.onerror = () => {
         reject(new Error('hash_failed'));

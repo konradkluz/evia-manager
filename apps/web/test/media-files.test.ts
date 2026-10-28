@@ -86,6 +86,14 @@ describe('EVM-044 AC5 SHA-256 of a file', () => {
     }
     vi.stubGlobal('Worker', BrokenWorker);
     await expect(hashFile(new Blob(['abc']))).rejects.toThrow('hash_failed');
+    class FailingWorker extends FakeWorker {
+      override postMessage() {
+        queueMicrotask(() => this.onmessage?.({ data: { failed: true } } as unknown as MessageEvent<{ hex: string }>));
+      }
+    }
+    vi.stubGlobal('Worker', FailingWorker);
+    await expect(hashFile(new Blob(['abc']))).rejects.toThrow('hash_failed');
+    expect(terminate).toHaveBeenCalledTimes(3);
     vi.unstubAllGlobals();
   });
 
@@ -95,6 +103,13 @@ describe('EVM-044 AC5 SHA-256 of a file', () => {
     globalThis.dispatchEvent(new MessageEvent('message', { data: { file: new Blob(['abc']) } }));
     await vi.waitFor(() => {
       expect(post).toHaveBeenCalledWith({ hex: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad' });
+    });
+    post.mockClear();
+    const unreadable = new Blob(['abc']);
+    vi.spyOn(unreadable, 'arrayBuffer').mockRejectedValue(new Error('NotReadableError'));
+    globalThis.dispatchEvent(new MessageEvent('message', { data: { file: unreadable } }));
+    await vi.waitFor(() => {
+      expect(post).toHaveBeenCalledWith({ failed: true });
     });
     post.mockRestore();
   });
@@ -112,6 +127,10 @@ describe('EVM-044 AC6 the PUT of a part goes to the bucket without credentials',
     onload: (() => void) | null = null;
     onerror: (() => void) | null = null;
     onabort: (() => void) | null = null;
+    ontimeout: (() => void) | null = null;
+    timeout = 0;
+    /** Like the real one: 1 = OPENED, 4 = DONE; `abort()` fires `onabort` only when the request was SENT. */
+    readyState = 0;
     status = 200;
     url = '';
     method = '';
@@ -122,12 +141,15 @@ describe('EVM-044 AC6 the PUT of a part goes to the bucket without credentials',
     open(method: string, url: string) {
       this.method = method;
       this.url = url;
+      this.readyState = 1;
     }
     send(body: Blob) {
       this.sent = body;
     }
     abort() {
-      this.onabort?.();
+      // An abort() of a request that is OPENED but was never sent fires nothing (XHR spec): the promise would hang.
+      if (this.sent !== null) this.onabort?.();
+      this.readyState = 0;
     }
   }
 
@@ -165,8 +187,20 @@ describe('EVM-044 AC6 the PUT of a part goes to the bucket without credentials',
 
     const already = new AbortController();
     already.abort();
+    const before = Xhr.last;
     await expect(putPart('https://bucket.example.test/k', new Blob(['a']), already.signal, () => undefined)).rejects.toMatchObject({
       name: 'AbortError',
     });
+    // a signal aborted between the address and the PUT: nothing is opened, nothing is sent, nothing hangs
+    expect(Xhr.last).toBe(before);
+  });
+
+  it('EVM-044 AC8 a PUT that gets no answer for too long times out as a network failure', async () => {
+    vi.stubGlobal('XMLHttpRequest', Xhr);
+    const pending = putPart('https://bucket.example.test/k', new Blob(['a']), new AbortController().signal, () => undefined);
+    const xhr = Xhr.last as Xhr;
+    expect(xhr.timeout).toBeGreaterThan(0);
+    xhr.ontimeout?.();
+    await expect(pending).rejects.toThrow('put_failed');
   });
 });

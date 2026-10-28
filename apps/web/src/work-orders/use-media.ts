@@ -125,7 +125,8 @@ export function useMediaUpload(workOrderId: string, enabled: boolean): MediaUplo
   const sessions = useMemo<UnfinishedSession[]>(
     () =>
       unfinished.flatMap((asset) =>
-        asset.uploadSession === null || asset.originalFilename === null
+        // An interrupted medium without a session (expired, aborted) is matched too: a re-chosen file opens a new session for it.
+        asset.originalFilename === null
           ? []
           : [{ mediaAssetId: asset.id, name: asset.originalFilename, size: asset.declaredSize, session: asset.uploadSession }],
       ),
