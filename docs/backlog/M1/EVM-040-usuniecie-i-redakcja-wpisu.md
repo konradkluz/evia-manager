@@ -4,7 +4,7 @@ title: Usunięcie i redakcja wpisu w dzienniku (Administrator)
 type: story
 milestone: M1
 epic: E5 Dziennik i komentarze
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 model: sonnet
@@ -128,3 +128,4 @@ _—_
 - 2026-10-28 — panel (web-developer, tor T2): menu wpisu W-08 (Usuń wpis z toastem „Cofnij”, Przywróć wpis, Zredaguj treść… z AlertDialog i W-04), oznaczenie „Usunięty” i `includeDeleted` dla Administratora, Edytor z pozycjami wyłączonymi, wpis zdarzenia bez menu; testy komponentów, E2E (Chromium, Edge, Firefox), axe i zrzuty w `docs/ux/reviews/EVM-040/`
 - 2026-10-28 — bramka lokalna (devops-engineer): format, lint, typy, testy z progami, deps:check, kontener Linux, integracja API, gate:deploy, coverage:diff (linie 99,4%, gałęzie 91,8%; dodano test logiki błędów panelu) zielone; czerwony tylko `@evia/repo-policy` przez niepoprawny YAML w `EVM-119` (z `main`)
 - 2026-10-28 — poprawki po przeglądach (backend-developer, tor T2): dialog redakcji nie ginie w trakcie żądania, błędy usuń / przywróć jako alert, „Cofnij” w kolejce; współbieżność rejestru (503 `service_unavailable` dla `57014`/`55P03`, semafor 3, `idle_in_transaction_session_timeout` 10 s), RR-NOC-T2-4; runbook (walidacja obiektów, współbieżność); zadanie przy scaleniu: `docs/security`
+- 2026-10-28 — workflow + 2 rundy przeglądów, pnpm run gate zielony (integracja po ponowieniu flaky security-alerts), coverage:diff 99,7% linii / 91,9% gałęzi; status in-review (nocna kolejka, tor T2); demo po sesji IaC (bucket rejestru)
