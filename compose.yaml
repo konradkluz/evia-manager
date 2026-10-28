@@ -331,6 +331,22 @@ services:
     volumes:
       - ./infra/observability/alerts:/src/infra/observability/alerts:ro
 
+  # The access log of the edge Caddy with the real snippet of infra/runtime/Caddyfile (EVM-085 AC6, AC7): the Caddy image of staging
+  # (infra-images.json, tag + digest), loopback only, files read-only; a synthetic token must not reach the log, a plain log leaks it.
+  caddy-log-test:
+    <<: *hardening
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    user: '65534:65534'
+    network_mode: none
+    entrypoint: ['sh', '/src/infra/observability/test/caddy-log.test.sh']
+    environment:
+      HOME: /tmp
+    tmpfs:
+      - /tmp:exec,nosuid,nodev,mode=1777,size=64m
+    volumes:
+      - ./infra/runtime/Caddyfile:/src/infra/runtime/Caddyfile:ro
+      - ./infra/observability/test/caddy-log.test.sh:/src/infra/observability/test/caddy-log.test.sh:ro
+
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
     <<: *scanner

@@ -117,7 +117,7 @@ export const IAC_PREFIXES = Object.freeze([
   'infra/docker/deploy-tests/',
   '.github/',
 ]);
-export const IAC_FILES = Object.freeze(['compose.yaml', 'compose.iac.yaml']);
+export const IAC_FILES = Object.freeze(['compose.yaml', 'compose.iac.yaml', 'infra/runtime/Caddyfile']);
 
 /**
  * EVM-007 AC2 (ADR-0018 "Publikacja hermetyczna"): build inputs of the release images — `publish` runs for a push to main

@@ -178,6 +178,10 @@ jobs:
       - name: Alert rules of staging (promtool-tests)
         if: needs.changes.outputs.iac == 'true'
         run: docker compose -f compose.yaml run --rm promtool-tests
+      # EVM-085 AC6, AC7: the access log of the edge Caddy (real snippet, synthetic token, positive control).
+      - name: Access log of the edge Caddy (caddy-log-test)
+        if: needs.changes.outputs.iac == 'true'
+        run: docker compose -f compose.yaml run --rm caddy-log-test
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov-backend

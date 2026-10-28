@@ -23,6 +23,7 @@ export const SERVICES = Object.freeze([
   'deploy-sh-tests',
   'restore-db-test',
   'promtool-tests',
+  'caddy-log-test',
   'zap-baseline',
 ]);
 

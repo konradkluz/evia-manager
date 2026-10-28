@@ -12,6 +12,32 @@
 	}
 }
 
+# Access log (EVM-085 AC6, AC7; security-engineer A11; SR-LOG-02, ADR-0013): deny-by-default. Request headers, response headers
+# and TLS details are deleted WHOLE (so X-CSRF-Token, Cookie, Authorization and any unknown header never reach the log), the query is
+# cut from every URI (not only the activation one), the port is dropped and the addresses are masked to /24 and /48 (policy P9).
+# Requests of /api/v1/auth/activation/* are not logged at all (stricter than a redacted path; the API logs the attempt without the
+# token). No log_credentials. The log goes to stdout, the journald driver of Docker, Alloy (allow-list of services) and Loki.
+# Tested with the REAL snippet text: infra/observability/test/caddy-log.test.sh (service caddy-log-test).
+(access_log) {
+	@activation path /api/v1/auth/activation/*
+	log_skip @activation
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				request>tls delete
+				request>remote_port delete
+				resp_headers delete
+				request>uri regexp "\?.*" ""
+				request>remote_ip ip_mask 24 48
+				request>client_ip ip_mask 24 48
+			}
+		}
+	}
+}
+
 staging.eviacharge.pl {
 	tls {
 		issuer acme {
@@ -22,5 +48,6 @@ staging.eviacharge.pl {
 		-Server
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
+	import access_log
 	import /etc/caddy/upstream.caddy
 }
