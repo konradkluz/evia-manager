@@ -4,7 +4,7 @@ title: Kwarantanna plików — „Wymaga uwagi”, alert i ponowny skan
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 model: sonnet
@@ -118,3 +118,4 @@ _—_
 - 2026-10-28 — implementacja backendu (backend-developer): migracje 0046–0048, kontrakt, ponowny skan, alert, retencja, porzucone uploady, monitor sygnatur, limity; testy EVM-049 AC1–AC8 zielone w kontenerze; do wykonania: panel (web-developer), zmienne i sieć `evia-scan` w `compose.staging.yaml` (devops), AC7 na stagingu (T3)
 - 2026-10-28 — implementacja panelu (web-developer): kafle held/purged, filtr „Wymaga uwagi (n)", „Skanuj ponownie" z W-04, etykiety w media-labels.ts; testy komponentów i E2E (axe, zrzuty w docs/ux/reviews/EVM-049, PNG poza gitem); do wykonania: zmienne w compose.staging.yaml (devops)
 - 2026-10-28 — krok devops: compose.staging.yaml bez zmian (kanał wdrożeń nie dopuszcza dodatkowych sieci, zmienne mediów all-or-nothing wymagają bucketu — T3/chmura; fail-closed 503), TZ=UTC dla clamd już w compose.infra.yaml; lokalna bramka zielona (natywnie, parytet Linux, integracja 2070 testów, coverage:diff, docs:check)
+- 2026-10-28 — Tech Lead (nocna kolejka, bez pytania do Konrada), decyzje warunkowe do potwierdzenia na demo: (a) AC7 dzielimy na część kodową (monitor sygnatur i alert w outboxie — zrobione) i stagingową (reguły Grafana i test alertu — do sesji IaC / historyjki T3 z nowym ID); AC7 nie jest zamknięte do tego czasu; (b) AC5 „usunięty ze storage'u” = DeleteObject bez wersji (delete marker, ADR-0009) + lifecycle noncurrent (~60 dni, T3), do tego czasu kontrola przez sweeper (RR-NOC-T1-9). Web: poprawki po przeglądzie (stan „Sprawdzanie pliku” dla held+scanning, potwierdzenie ponownego skanu) w aa077b2. Status in-review jako kandydat; DoD/done dopiero po decyzji Konrada.
