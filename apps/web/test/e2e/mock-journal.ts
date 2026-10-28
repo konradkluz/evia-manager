@@ -30,6 +30,10 @@ export interface JournalRecord {
   readonly authorId: string;
   readonly createdAt: string;
   readonly supersedesEntryId: string | null;
+  /** EVM-040: set by a delete (soft) and a redaction; the version rises with each of them. */
+  readonly deletedAt?: string | null;
+  readonly redactedAt?: string | null;
+  readonly version?: number;
 }
 
 export interface JournalServer {
@@ -69,7 +73,7 @@ function stagesOf(orders: OrderServer, orderId: string): Map<string, string> {
 const exists = (orders: OrderServer, orderId: string): boolean =>
   orders.created.some((entry) => entry.id === orderId) && !orders.gone.has(orderId);
 
-function represent(server: JournalServer, orders: OrderServer, orderId: string, record: JournalRecord) {
+export function represent(server: JournalServer, orders: OrderServer, orderId: string, record: JournalRecord) {
   const author = orders.assignable.find((entry) => entry.id === record.authorId);
   const stages = stagesOf(orders, orderId);
   const replacement = (server.entries.get(orderId) ?? []).find((entry) => entry.supersedesEntryId === record.id);
@@ -86,8 +90,8 @@ function represent(server: JournalServer, orders: OrderServer, orderId: string, 
     capturedAt: null,
     supersedesEntryId: record.supersedesEntryId,
     supersededByEntryId: replacement?.id ?? null,
-    redactedAt: null,
-    deletedAt: null,
+    redactedAt: record.redactedAt ?? null,
+    deletedAt: record.deletedAt ?? null,
     event: record.event ?? null,
   };
 }
@@ -104,8 +108,12 @@ export function answerJournalList(server: JournalServer, orders: OrderServer, or
   const cursor = query.get('cursor');
   const start = cursor === null ? 0 : Number(cursor);
   if (!Number.isInteger(start) || start < 0) return problem(400, 'invalid_cursor');
+  const withDeleted = query.get('includeDeleted') === 'true';
   const all = (server.entries.get(orderId) ?? []).filter(
-    (entry) => (kind === null || entry.kind === kind) && (stage === null || entry.procedureStageId === stage),
+    (entry) =>
+      (kind === null || entry.kind === kind) &&
+      (stage === null || entry.procedureStageId === stage) &&
+      (withDeleted || (entry.deletedAt ?? null) === null),
   );
   const next = start + limit;
   return json(200, {

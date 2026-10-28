@@ -27,6 +27,7 @@ const uxReviewDirSites = fileURLToPath(new URL('../../docs/ux/reviews/EVM-036/',
 const uxReviewDirProcedures = fileURLToPath(new URL('../../docs/ux/reviews/EVM-031/', import.meta.url));
 const uxReviewDirStages = fileURLToPath(new URL('../../docs/ux/reviews/EVM-032/', import.meta.url));
 const uxReviewDirJournal = fileURLToPath(new URL('../../docs/ux/reviews/EVM-037/', import.meta.url));
+const uxReviewDirErase = fileURLToPath(new URL('../../docs/ux/reviews/EVM-040/', import.meta.url));
 const uxReviewDirHistory = fileURLToPath(new URL('../../docs/ux/reviews/EVM-038/', import.meta.url));
 const uxReviewDirEditing = fileURLToPath(new URL('../../docs/ux/reviews/EVM-035/', import.meta.url));
 const uxReviewDirWaiting = fileURLToPath(new URL('../../docs/ux/reviews/EVM-033/', import.meta.url));
@@ -81,6 +82,7 @@ export default defineConfig({
         uxReviewDirProcedures,
         uxReviewDirStages,
         uxReviewDirJournal,
+        uxReviewDirErase,
         uxReviewDirHistory,
         uxReviewDirEditing,
         uxReviewDirWaiting,

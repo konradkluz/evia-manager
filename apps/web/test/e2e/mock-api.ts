@@ -12,6 +12,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerEntryErase } from './mock-journal-erase.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import {
   answerCreateProcedure,
@@ -672,6 +673,22 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           ifMatch: headers['if-match'],
           key: headers['idempotency-key'],
           raw: request.postData() ?? '{}',
+        }),
+      );
+    }
+    // EVM-040: one entry of the journal — the read with its ETag, the delete, the restore and the redaction (Administrator).
+    const erasing = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/timeline\/([0-9a-f-]{36})(\/restore|\/redact)?$/.exec(url.pathname);
+    if (erasing !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const verb = erasing[3];
+      const operation =
+        request.method() === 'GET' ? 'read' : request.method() === 'DELETE' ? 'delete' : verb === '/redact' ? 'redact' : 'restore';
+      if (operation !== 'read' && !csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerEntryErase(api.journal, api.orders, erasing[1] ?? '', erasing[2] ?? '', operation, {
+          role: api.role,
+          ifMatch: headers['if-match'],
+          stepUpFresh: api.stepUp === 'fresh',
         }),
       );
     }
