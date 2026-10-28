@@ -9,7 +9,7 @@
  *   `quarantined` has a reason code and no other state has one;
  * - `state_changed_at` is when the file entered its state (the age of an unscanned file), `scan_claimed_at` when a worker last took it (the backoff
  *   of a scan that could not be decided);
- * - the key, the declared checksum, the creator and the anchor never change (trigger); the application role has SELECT, INSERT and UPDATE
+ * - the key, the declared checksum, size and content type (what the session and the scan hold the object to), the creator and the anchor never change (trigger); the application role has SELECT, INSERT and UPDATE
  *   (no DELETE — removal is EVM-051, and the retention of the sessions a job of EVM-049);
  * - at most ONE active session per file (a partial unique index); the indexes serve the list of the media of an order (keyset by
  *   `created_at, id`), the unfinished sessions of a user (AC4) and the sweeper of files waiting for a scan.
@@ -110,6 +110,8 @@ export async function up(db: Kysely<Database>): Promise<void> {
       begin
         if new.object_key is distinct from old.object_key
           or new.declared_sha256 is distinct from old.declared_sha256
+          or new.declared_size_bytes is distinct from old.declared_size_bytes
+          or new.declared_content_type is distinct from old.declared_content_type
           or new.created_by is distinct from old.created_by
           or new.media_asset_id is distinct from old.media_asset_id then
           raise exception 'media.stored_files identity is immutable' using errcode = 'EV002';

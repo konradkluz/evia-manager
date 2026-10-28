@@ -122,6 +122,11 @@ describe('migration 0045 — media (EVM-044 AC1, AC6; ADR-0009; expand only)', (
       'EV002',
     );
     await fails(sql`update media.stored_files set declared_sha256 = ${'b'.repeat(64)} where id = ${fileId}`.execute(admin()), 'EV002');
+    await fails(
+      sql`update media.stored_files set declared_size_bytes = declared_size_bytes + 1 where id = ${fileId}`.execute(admin()),
+      'EV002',
+    );
+    await fails(sql`update media.stored_files set declared_content_type = 'image/png' where id = ${fileId}`.execute(admin()), 'EV002');
     await fails(sql`update media.stored_files set created_by = ${uuidv7()} where id = ${fileId}`.execute(admin()), 'EV002');
     await fails(sql`update media.media_assets set work_order_id = ${uuidv7()} where id = ${assetId}`.execute(admin()), 'EV002');
     await sql`update media.stored_files set state = 'uploaded', state_changed_at = ${T} where id = ${fileId}`.execute(admin());
