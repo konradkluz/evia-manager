@@ -40,6 +40,9 @@ import * as totpAndRecoveryCodes from './0038_totp_and_recovery_codes.ts';
 import * as userAccessManagement from './0039_user_access_management.ts';
 import * as loginThrottle from './0040_login_throttle.ts';
 import * as account from './0041_account.ts';
+import * as mobileDevices from './0050_mobile_devices.ts';
+import * as mobileTokens from './0051_mobile_tokens.ts';
+import * as mobileVocabularies from './0052_mobile_vocabularies.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -82,4 +85,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0039_user_access_management': userAccessManagement,
   '0040_login_throttle': loginThrottle,
   '0041_account': account,
+  '0050_mobile_devices': mobileDevices,
+  '0051_mobile_tokens': mobileTokens,
+  '0052_mobile_vocabularies': mobileVocabularies,
 });

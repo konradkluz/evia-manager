@@ -29,7 +29,12 @@ beforeAll(async () => {
     db,
   );
   oldSession = (await session()).id;
-  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual(['0041_account']);
+  expect((await migrateToLatest(db, MIGRATIONS)).applied).toEqual([
+    '0041_account',
+    '0050_mobile_devices',
+    '0051_mobile_tokens',
+    '0052_mobile_vocabularies',
+  ]);
 });
 afterAll(async () => {
   await db.destroy();

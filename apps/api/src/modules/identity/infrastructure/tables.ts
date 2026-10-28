@@ -74,7 +74,11 @@ export type RevokeReason =
   | 'sessions_ended'
   | 'second_step_reset'
   | 'session_limit'
-  | 'ended_by_user';
+  | 'ended_by_user'
+  | 'refresh_reuse'
+  | 'device_inactive'
+  | 'device_wipe'
+  | 'device_removed';
 
 export type ReauthPurpose = 'second_step_change' | 'password_change';
 
@@ -103,6 +107,8 @@ export interface SessionsTable {
   /** The one-time mark of the full re-authentication and what it is for (EVM-028, 0041); both null or both set. */
   reauthenticated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
   reauth_purpose: ColumnType<ReauthPurpose | null, ReauthPurpose | null | undefined, ReauthPurpose | null>;
+  /** The device of a mobile session (EVM-094, 0050); null for the sessions of the panel. */
+  device_id: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 /** The first step of a sign-in waiting for the second one (EVM-067). No address and no user agent are stored (RODO). */
@@ -116,6 +122,8 @@ export interface LoginAttemptsTable {
   failed_attempts: Generated<number>;
   /** The scope of the counter against guessing the first step was counted in (0040); null on a row made before it. */
   throttle_key: ColumnType<Buffer | null, Buffer | null | undefined, Buffer | null>;
+  /** The channel the first step belongs to (0050): the second step of another channel does not find it. */
+  channel: Generated<'web' | 'mobile'>;
 }
 
 /** Exactly one of `session_id` (enrolment, step-up) and `login_attempt_id` (sign-in) is set, matching the purpose — a CHECK of the database. */
@@ -176,6 +184,64 @@ export interface BrowserDevicesTable {
   last_seen_at: Date;
 }
 
+export type DeviceState = 'active' | 'wipe_required' | 'wiped';
+
+/** A mobile device (EVM-094, 0050): only hashes of the installation secrets, never the secrets. */
+export interface DevicesTable {
+  id: Generated<string>;
+  user_id: string;
+  state: ColumnType<DeviceState, DeviceState | undefined, DeviceState>;
+  secret_hash: Buffer;
+  secret_proven: Generated<boolean>;
+  previous_secret_hash: Buffer | null;
+  previous_valid_until: Date | null;
+  model: string;
+  os_version: string;
+  /** A date: the driver returns a Date at midnight UTC. */
+  security_patch: ColumnType<Date, string, string>;
+  platform: 'android' | 'ios';
+  app_version: string;
+  public_key: string | null;
+  pending_items_reported: Generated<number>;
+  last_contact_at: Date;
+  created_at: Date;
+  removed_at: Date | null;
+}
+
+/** What the first step of the phone knows, for the second one (EVM-094, 0050). */
+export interface MobileChallengesTable {
+  attempt_id: string;
+  model: string;
+  os_version: string;
+  security_patch: ColumnType<Date, string, string>;
+  platform: 'android' | 'ios';
+  app_version: string;
+  public_key: string | null;
+  matched_device_id: string | null;
+  matched_by: 'current' | 'previous' | null;
+  secret_mismatch: boolean;
+  password_stamp: Date;
+  totp_factor_id: string;
+}
+
+export interface AccessTokensTable {
+  token_hash: Buffer;
+  session_id: string;
+  created_at: Date;
+  expires_at: Date;
+}
+
+export interface RefreshTokensTable {
+  id: Generated<string>;
+  session_id: string;
+  token_hash: Buffer;
+  parent_id: string | null;
+  created_at: Date;
+  expires_at: Date;
+  used_at: Date | null;
+  superseded_at: Date | null;
+}
+
 export type IdentityTables = {
   'identity.users': UsersTable;
   'identity.password_credentials': PasswordCredentialsTable;
@@ -188,6 +254,10 @@ export type IdentityTables = {
   'identity.recovery_codes': RecoveryCodesTable;
   'identity.login_throttle': LoginThrottleTable;
   'identity.browser_devices': BrowserDevicesTable;
+  'identity.devices': DevicesTable;
+  'identity.mobile_challenges': MobileChallengesTable;
+  'identity.access_tokens': AccessTokensTable;
+  'identity.refresh_tokens': RefreshTokensTable;
 };
 
 /** A handle (pool or transaction) narrowed to the identity tables. */
