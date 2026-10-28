@@ -4,7 +4,7 @@ title: Obserwowalność, alerty, monitoring dostępności i koszty stagingu (007
 type: enabler
 milestone: M0
 epic: E00 Fundamenty
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 owner: devops-engineer
@@ -67,3 +67,4 @@ Jako **właściciel produktu** chcę **widzieć błędy, dostępność i koszty 
 - 2026-10-13 — utworzono (product-owner, podział EVM-007 wg ADR-0018: dawne AC5, AC6, AC8 i część AC7)
 - 2026-10-13 — draft → ready: podział EVM-007 wg ADR-0018 zaakceptowany przez Konrada; AC przeniesione z EVM-007 zaakceptowane zbiorczo
 - 2026-10-20 — dopisano do AC5 alerty logowania z EVM-026 (blokada, skoki porażek) — na polecenie Konrada przy refine EVM-026 (orkiestrator)
+- 2026-10-28 — start realizacji (nocna kolejka, tor T3), gałąź feature/EVM-084-085-backupy-obserwowalnosc
