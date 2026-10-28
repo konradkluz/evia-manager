@@ -37,6 +37,7 @@ describe('customers contract (EVM-020 AC1, AC2, AC5, AC7; SR-API-04, SR-AUTHZ-04
     const readOnly = Object.keys(zCustomer.shape).filter((key) => !(key in zCustomerWritable.shape));
     expect(readOnly.sort()).toEqual(
       [
+        'anonymizedAt',
         'createdAt',
         'createdBy',
         'deletedAt',

@@ -15,6 +15,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST).toEqual(manifest);
     expect(manifest['getHealth']).toEqual({ method: 'get', path: '/api/health', query: [], authz: { public: true } });
     expect(Object.keys(manifest).sort()).toEqual([
+      'anonymizeCustomer',
       'changePassword',
       'changeUserRole',
       'checkActivationLink',
@@ -31,6 +32,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createWorkOrderProcedure',
       'createWorkOrderScopeItem',
       'deactivateUser',
+      'deleteCustomer',
       'deletePaymentMilestone',
       'deleteProcedureStage',
       'deleteTimelineEntry',
@@ -89,6 +91,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'requestPasswordReset',
       'resendUserInvitation',
       'resetUserSecondStep',
+      'restoreCustomer',
       'restoreProcedureStage',
       'restoreTimelineEntry',
       'restoreWorkOrder',
@@ -133,6 +136,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
   it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the redaction of an entry of the journal (EVM-040), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
     expect(stepUp.map(([id]) => id).sort()).toEqual([
+      'anonymizeCustomer',
       'changeUserRole',
       'deactivateUser',
       'deletePaymentMilestone',

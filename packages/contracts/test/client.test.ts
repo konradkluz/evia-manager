@@ -96,6 +96,8 @@ describe('generated client and schemas (EVM-008 AC2)', () => {
       '/api/v1/customers',
       '/api/v1/customers/search',
       '/api/v1/customers/{customerId}',
+      '/api/v1/customers/{customerId}/restore',
+      '/api/v1/customers/{customerId}/anonymize',
       '/api/v1/sites',
       '/api/v1/sites/search',
       '/api/v1/sites/{siteId}',

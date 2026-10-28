@@ -183,6 +183,10 @@ paths:
     $ref: paths/customers.yaml#/customersSearch
   /api/v1/customers/{customerId}:
     $ref: paths/customers.yaml#/customer
+  /api/v1/customers/{customerId}/restore:
+    $ref: paths/customers.yaml#/customerRestore
+  /api/v1/customers/{customerId}/anonymize:
+    $ref: paths/customers.yaml#/customerAnonymize
   /api/v1/sites:
     $ref: paths/sites.yaml#/sites
   /api/v1/sites/search:

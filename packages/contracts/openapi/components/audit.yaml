@@ -43,6 +43,9 @@ AuditAction:
     - bulk_read.rejected
     - customer.created
     - customer.updated
+    - customer.deleted
+    - customer.restored
+    - customer.anonymized
     - site.created
     - site.updated
     - party.created
