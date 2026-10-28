@@ -1,6 +1,7 @@
 import { getCustomer, type CurrentSession, type Customer } from '@evia/contracts';
 import {
   ActionMenu,
+  type ActionMenuItem,
   Banner,
   Breadcrumbs,
   Button,
@@ -8,6 +9,8 @@ import {
   EllipsisVertical,
   EmptyState,
   IconButton,
+  InlineAlert,
+  Info,
   SearchX,
   Skeleton,
   WifiOff,
@@ -18,10 +21,13 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
+import { AnonymizeCustomerDialog } from '../customers/anonymize-customer-dialog.tsx';
+import { eraseFailureText } from '../customers/customer-erase.ts';
 import { CustomerDataCard } from '../customers/customer-data-card.tsx';
 import { CustomerHistory } from '../customers/customer-history.tsx';
 import { EditCustomerDialog } from '../customers/edit-customer-dialog.tsx';
 import { CUSTOMER_KEY, CUSTOMER_LIST_KEY, CUSTOMER_ORDERS_KEY } from '../customers/query-keys.ts';
+import { useCustomerErase } from '../customers/use-customer-erase.ts';
 import { CUSTOMERS_PATH } from '../paths.ts';
 import { SESSION_KEY } from '../session/session.ts';
 import { RouterLink } from '../shell/router-link.tsx';
@@ -50,11 +56,16 @@ export function CustomerPage() {
   const toast = useToast();
   // The state and the role of the session are only read (no observer): logout clears the cache and an observer would read it again.
   const session = queryClient.getQueryData<CurrentSession>(SESSION_KEY);
-  const canEdit = session?.user.role === 'administrator' || session?.user.role === 'editor';
+  const isAdministrator = session?.user.role === 'administrator';
+  const canEdit = isAdministrator || session?.user.role === 'editor';
   const [gone, setGone] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [anonymizing, setAnonymizing] = useState(false);
+  // The number of open work orders the server named in `409 has_active_dependents` (the menu then explains why it is off).
+  const [openOrders, setOpenOrders] = useState<number | null>(null);
   const active = !gone && id !== '' && session?.state === 'active';
   const heading = useRef<HTMLHeadingElement>(null);
+  const stateBanner = useRef<HTMLDivElement>(null);
 
   const query = useQuery({
     queryKey: [CUSTOMER_KEY, id],
@@ -65,6 +76,14 @@ export function CustomerPage() {
     gcTime: 0,
   });
   const customer = query.data;
+  const erase = useCustomerErase(id, {
+    onGone: () => {
+      setGone(true);
+    },
+    onDependents: (count) => {
+      setOpenOrders(count ?? 0);
+    },
+  });
   const notFound = gone || isNotFound(query.error);
   useEffect(() => {
     if (!notFound) return;
@@ -90,6 +109,22 @@ export function CustomerPage() {
     if (focusTarget) heading.current?.focus();
   }, [focusTarget, notFound]);
 
+  // A change of the state of the customer moves the focus to what replaces the view: the banner after a delete, the heading after a
+  // restore or an anonymization (flow 13). The first view of the page is handled by the effect above.
+  const deletedNow = customer?.deletedAt != null;
+  const anonymizedNow = customer?.anonymizedAt != null;
+  const seenState = useRef<{ readonly deleted: boolean; readonly anonymized: boolean } | null>(null);
+  useEffect(() => {
+    if (customer === undefined) return;
+    const before = seenState.current;
+    seenState.current = { deleted: deletedNow, anonymized: anonymizedNow };
+    if (before === null) return;
+    if (deletedNow && !before.deleted) stateBanner.current?.focus();
+    else if (before.deleted !== deletedNow || before.anonymized !== anonymizedNow) heading.current?.focus();
+    // Only the state flags matter here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deletedNow, anonymizedNow, customer === undefined]);
+
   if (notFound) return <NotFound titleRef={heading} />;
   if (customer === undefined) {
     return failed ? (
@@ -113,6 +148,68 @@ export function CustomerPage() {
     toast(t('customerPage.saved'));
   };
 
+  const deleted = customer.deletedAt !== null;
+  const anonymized = customer.anonymizedAt !== null;
+  // Hints, in the order of the table of flow 13: the state of the page, the role, then what the server has said about the orders.
+  const offlineHint = online ? undefined : t('customerPage.menu.offline');
+  const dependentsHint = (kind: 'Delete' | 'Anonymize') =>
+    openOrders === null ? undefined : t(`customerErase.menu.dependents${kind}Hint`, { count: openOrders });
+  const hint = (value: string | undefined) => (value === undefined ? {} : { disabledHint: value });
+  const frozen = deleted && anonymized ? t('customerErase.menu.readOnlyHint') : undefined;
+  const idle = () => !erase.busy;
+  const menuItems: ActionMenuItem[] = [
+    {
+      id: 'edit',
+      label: t('customerPage.menu.edit'),
+      onSelect: () => {
+        setEditing(true);
+      },
+      ...hint(
+        offlineHint ??
+          frozen ??
+          (anonymized ? t('customerErase.menu.editAnonymizedHint') : deleted ? t('customerErase.menu.editDeletedHint') : undefined),
+      ),
+    },
+    ...(deleted
+      ? []
+      : [
+          {
+            id: 'delete',
+            label: t('customerErase.menu.delete'),
+            startsGroup: true,
+            tone: 'danger' as const,
+            onSelect: () => {
+              if (idle()) erase.remove(customer);
+            },
+            ...hint(offlineHint ?? (isAdministrator ? dependentsHint('Delete') : t('customerErase.menu.deleteEditorHint'))),
+          },
+        ]),
+    {
+      id: 'anonymize',
+      label: t('customerErase.menu.anonymize'),
+      tone: 'danger',
+      ...(deleted ? { startsGroup: true } : {}),
+      onSelect: () => {
+        setAnonymizing(true);
+      },
+      ...hint(
+        offlineHint ??
+          (isAdministrator
+            ? (frozen ?? (anonymized ? t('customerErase.menu.anonymizeAnonymizedHint') : dependentsHint('Anonymize')))
+            : t('customerErase.menu.anonymizeEditorHint')),
+      ),
+    },
+  ];
+
+  const anonymizedDone = (updated: Customer) => {
+    queryClient.setQueryData([CUSTOMER_KEY, id], updated);
+    queryClient.removeQueries({ queryKey: [CUSTOMER_LIST_KEY] });
+    queryClient.removeQueries({ queryKey: [CUSTOMER_ORDERS_KEY, id] });
+    setAnonymizing(false);
+    setOpenOrders(null);
+    toast(t('customerErase.toast.anonymized'));
+  };
+
   return (
     <div className="flex flex-col gap-stack-lg">
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(query.dataUpdatedAt) })}</Banner>}
@@ -134,16 +231,7 @@ export function CustomerPage() {
           {canEdit ? (
             <ActionMenu
               label={t('customerPage.menu.label', { name: customer.displayName })}
-              items={[
-                {
-                  id: 'edit',
-                  label: t('customerPage.menu.edit'),
-                  onSelect: () => {
-                    setEditing(true);
-                  },
-                  ...(online ? {} : { disabledHint: t('customerPage.menu.offline') }),
-                },
-              ]}
+              items={menuItems}
               trigger={(props) => (
                 <IconButton {...props} icon={EllipsisVertical} label={t('customerPage.menu.label', { name: customer.displayName })} />
               )}
@@ -151,6 +239,46 @@ export function CustomerPage() {
           ) : null}
         </div>
       </header>
+      {erase.problem === null ? null : (
+        <InlineAlert
+          tone="error"
+          {...(erase.problem.failure.kind === 'conflict'
+            ? {
+                action: (
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      erase.dismissProblem();
+                      void query.refetch();
+                    }}
+                  >
+                    {t('customerErase.failure.refresh')}
+                  </Button>
+                ),
+              }
+            : {})}
+        >
+          {eraseFailureText(t, erase.problem.operation, erase.problem.failure)}
+        </InlineAlert>
+      )}
+      {deleted ? (
+        <div ref={stateBanner} tabIndex={-1} className="focus-visible:focus-ring">
+          <Banner icon={Info} tone="info">
+            <p>{anonymized ? t('customerErase.banner.deletedAnonymized') : t('customerErase.banner.deleted')}</p>
+            <div>
+              <Button
+                variant="secondary"
+                disabled={!online || erase.busy}
+                {...(online ? {} : { title: t('customerPage.menu.offline') })}
+                onClick={erase.restore}
+              >
+                {t('customerErase.banner.restore')}
+              </Button>
+            </div>
+          </Banner>
+        </div>
+      ) : null}
+      {anonymized && !deleted ? <InlineAlert tone="info">{t('customerErase.banner.anonymized')}</InlineAlert> : null}
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <aside className="flex flex-col gap-stack-md expanded:order-2" aria-label={t('customerPage.data.heading')}>
           <CustomerDataCard customer={customer} />
@@ -159,6 +287,31 @@ export function CustomerPage() {
           <CustomerHistory customerId={id} enabled={active} />
         </div>
       </div>
+      {anonymizing ? (
+        <AnonymizeCustomerDialog
+          customer={customer}
+          onDone={anonymizedDone}
+          onClose={() => {
+            setAnonymizing(false);
+          }}
+          onStale={(failure) => {
+            if (failure.kind === 'gone') {
+              setGone(true);
+              return;
+            }
+            // A repeat after a lost answer (`already_anonymized`) is "already done": read the state and show it, not an error.
+            if (failure.kind === 'alreadyAnonymized') {
+              queryClient.removeQueries({ queryKey: [CUSTOMER_LIST_KEY] });
+              queryClient.removeQueries({ queryKey: [CUSTOMER_ORDERS_KEY, id] });
+              setAnonymizing(false);
+            }
+            void query.refetch();
+          }}
+          onDependents={(count) => {
+            setOpenOrders(count ?? 0);
+          }}
+        />
+      ) : null}
       {editing ? (
         <EditCustomerDialog
           customer={customer}

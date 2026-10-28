@@ -35,6 +35,8 @@ export class ApiError extends Error {
   readonly retryAfterSeconds: number | undefined;
   /** Only `409 email_conflict` (EVM-024): the account that holds the address, when it is visible on the list; never an address or a name. */
   readonly existingUserId: string | undefined;
+  /** Only `409 has_active_dependents` (EVM-041): the number of the open work orders of the customer; never a number, a title or an id of an order. */
+  readonly openWorkOrders: number | undefined;
 
   constructor(status: number, problem: Partial<Problem> | undefined, retryAfterSeconds?: number) {
     super(`API ${String(status)} ${problem?.code ?? 'no_response'}`);
@@ -45,6 +47,7 @@ export class ApiError extends Error {
     this.errors = problem?.errors ?? [];
     this.retryAfterSeconds = retryAfterSeconds;
     this.existingUserId = problem?.existingUserId;
+    this.openWorkOrders = problem?.openWorkOrders;
   }
 }
 

@@ -13,7 +13,7 @@ import { isNotFound } from './use-work-order.ts';
 /**
  * The card "Klient" of W-06 (EVM-018 AC1): the name, the telephone and the e-mail — the three fields of the contract and
  * nothing else (SR-DATA-03). The telephone and the e-mail are links built from the encoded value (`tel:`, `mailto:`), the
- * name is React text. "Przejdź do klienta" (W-14; EVM-039 AC2) leads to the details of the customer, built from the identifier. A card that failed says so inside itself.
+ * name is React text. A customer that was anonymized (EVM-041) shows "—" instead of the neutral placeholder number and a state line, no `tel:` link. "Przejdź do klienta" (W-14; EVM-039 AC2) leads to the details of the customer, built from the identifier. A card that failed says so inside itself.
  */
 export function CustomerCard({
   query,
@@ -26,6 +26,7 @@ export function CustomerCard({
   const { t } = useTranslation();
   const headingId = useId();
   const card = query.data;
+  const none = t('customerPage.data.none');
   return (
     <Card labelledBy={headingId}>
       <h2 id={headingId} className="text-heading-3 text-text-primary">
@@ -34,10 +35,13 @@ export function CustomerCard({
       {card !== undefined ? (
         <>
           <p className="break-words text-body text-text-primary">{card.displayName}</p>
+          {card.anonymized ? <InlineAlert tone="info">{t('workOrder.customer.anonymized')}</InlineAlert> : null}
           <dl className="flex flex-col gap-stack-sm">
-            <DetailRow label={t('workOrder.customer.phone')}>{link(telHref(card.phone), formatPhone(card.phone))}</DetailRow>
+            <DetailRow label={t('workOrder.customer.phone')}>
+              {card.anonymized ? none : link(telHref(card.phone), formatPhone(card.phone))}
+            </DetailRow>
             <DetailRow label={t('workOrder.customer.email')}>
-              {card.email === null ? t('workOrder.customer.noEmail') : link(mailtoHref(card.email), card.email)}
+              {card.anonymized ? none : card.email === null ? t('workOrder.customer.noEmail') : link(mailtoHref(card.email), card.email)}
             </DetailRow>
           </dl>
           {customerId === undefined ? null : (
