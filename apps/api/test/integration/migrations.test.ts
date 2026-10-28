@@ -121,13 +121,17 @@ describe('roles and privileges (EVM-016 AC7; ADR-0003, W7)', () => {
       select n.nspname as schema, c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname in ('identity', 'platform') and c.relkind in ('r', 'p') order by 1, 2`.execute(database.admin);
     expect(tables.map((table) => `${table.schema}.${table.name}`)).toEqual([
+      'identity.access_tokens', // EVM-094
       'identity.browser_devices',
+      'identity.devices',
       'identity.login_attempts',
       'identity.login_throttle',
+      'identity.mobile_challenges',
       'identity.one_time_links',
       'identity.passkeys',
       'identity.password_credentials',
       'identity.recovery_codes',
+      'identity.refresh_tokens',
       'identity.sessions',
       'identity.totp_factors',
       'identity.users',

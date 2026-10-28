@@ -220,6 +220,7 @@ describe('the first step succeeds (EVM-067 AC1, AC4; SR-AUTH-06, SR-AUTH-09)', (
     expect(attempt?.token_hash.toString('base64url')).not.toBe(body.loginToken);
     expect((attempt?.expires_at.getTime() ?? 0) - (attempt?.created_at.getTime() ?? 0)).toBe(5 * 60_000);
     expect(Object.keys(attempt ?? {}).sort()).toEqual([
+      'channel', // EVM-094
       'created_at',
       'expires_at',
       'failed_attempts',
