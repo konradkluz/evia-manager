@@ -92,6 +92,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'removePasskey',
       'removeTotp',
       'requestPasswordReset',
+      'rescanMediaAsset',
       'resendUserInvitation',
       'resetUserSecondStep',
       'restoreProcedureStage',
@@ -147,6 +148,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listAccountSessions',
       'listAuditEvents',
       'reactivateUser',
+      'rescanMediaAsset',
       'resendUserInvitation',
       'resetUserSecondStep',
     ]);
@@ -246,7 +248,11 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST['listWorkOrders']?.authz.restrictedParams).toEqual(rule);
     expect(AUTHZ_MANIFEST['searchWorkOrders']?.authz.restrictedParams).toEqual(rule);
     const declaring = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.restrictedParams !== undefined);
-    expect(declaring.map(([id]) => id).sort()).toEqual(['listWorkOrders', 'searchWorkOrders']);
+    // EVM-049: the reason of a quarantine is the second rule (`mediaQuarantine.manage`), declared by the list of the media
+    expect(declaring.map(([id]) => id).sort()).toEqual(['listMediaAssets', 'listWorkOrders', 'searchWorkOrders']);
+    expect(AUTHZ_MANIFEST['listMediaAssets']?.authz.restrictedParams).toEqual({
+      'mediaQuarantine.manage': { params: {}, fields: ['quarantineReasonCode'] },
+    });
   });
 
   describe('EVM-056 AC7 `restrictedParams` is validated against the operation (a typo never becomes a silent gap)', () => {

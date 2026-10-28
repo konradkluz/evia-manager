@@ -62,6 +62,14 @@ describe.skipIf(!DOCKER)('EVM-044 AC3 — the real ClamAV (the image of the infr
     });
   }, 120_000);
 
+  it('EVM-049 AC7 the real clamd answers VERSION with a build date of the signatures that the strict parser reads as a past UTC instant', async () => {
+    const built = await scanner.signatureDate();
+    expect(Number.isNaN(built.getTime())).toBe(false);
+    expect(built.getTime()).toBeLessThan(Date.now() + 5 * 60_000);
+    // the image carries signatures; they are not older than a few years (a date misread by a time zone would not change that, the unit tests pin the zone)
+    expect(built.getUTCFullYear()).toBeGreaterThanOrEqual(2024);
+  }, 60_000);
+
   it('EVM-044 AC3 a stream above the limit of the scanner is an error and never clean', async () => {
     await expect(scanner.scan(bytes(...Array.from({ length: 70 }, () => Buffer.alloc(MiB, 2))))).rejects.toBeInstanceOf(MalwareScanError);
   }, 120_000);
@@ -162,6 +170,21 @@ describe.skipIf(!DOCKER)('EVM-044 AC6 — the real S3 server (SeaweedFS): signed
     expect(await storage.head('media/2026/10/no-such-object/original')).toBeUndefined();
     const anonymous = await fetch(`${endpoint}/${BUCKET}/${key}`);
     expect(anonymous.status).toBe(403);
+  });
+
+  it('EVM-049 AC5 the removal of the application is a delete marker: a plain read finds nothing (404), the older version is kept for the lifecycle, a second removal is not an error', async () => {
+    const key = 'media/2026/10/01928f3e-0000-7000-8000-000000000003/original';
+    const first = await assemble(key, Buffer.alloc(5 * MiB + 1, 6));
+    await storage.deleteObject(key);
+    await expect(storage.head(key)).resolves.toBeUndefined();
+    await expect(storage.getObjectStream(key, {})).rejects.toMatchObject({ code: 'no_such_object' });
+    // ADR-0009: no bypass of the lock for the application - the version stays and goes with the lifecycle of the bucket
+    const stream = await storage.getObjectStream(key, { versionId: first.versionId });
+    let total = 0;
+    for await (const chunk of stream) total += (chunk as Buffer).length;
+    expect(total).toBe(5 * MiB + 1);
+    await expect(storage.deleteObject(key)).resolves.toBeUndefined();
+    await expect(storage.deleteObject('media/2026/10/never-existed/original')).resolves.toBeUndefined();
   });
 
   async function listOrEmpty(key: string, uploadId: string) {

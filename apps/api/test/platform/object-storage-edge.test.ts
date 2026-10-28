@@ -82,6 +82,9 @@ describe('EVM-044 AC6 the double and the adapter cover the awkward answers of a 
       code: 'precondition_failed',
     });
     await expect(storageThat(() => ({})).getObjectStream('k', {})).rejects.toMatchObject({ code: 'unavailable' });
+    await expect(storageThat(() => ({})).deleteObject('k')).resolves.toBeUndefined();
+    await expect(failing('NoSuchKey', 404).deleteObject('k')).resolves.toBeUndefined();
+    await expect(failing('InternalError', 500).deleteObject('k')).rejects.toMatchObject({ code: 'unavailable' });
     await expect(storageThat(() => ({ Parts: [] })).listParts('k', 'u')).resolves.toEqual([]);
   });
 
