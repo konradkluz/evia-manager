@@ -2,7 +2,8 @@
  * Configuration of the media pipeline (EVM-044; ADR-0009; P5 fail closed). ALL OR NOTHING: no media variable at all means the feature is off
  * (the upload answers `503 media_storage_unavailable`, the service stays healthy and the worker registers no scan); some of them without the
  * others is a start error that names the missing keys (never a value). The clamd address is optional on its own: without it files are stored
- * but never leave `uploaded`/`scanning`, so none becomes `clean` (SR-FILE-05). The secret comes from `MEDIA_S3_SECRET_ACCESS_KEY_FILE` (see
+ * but never leave `uploaded`/`scanning`, so none becomes `clean` (SR-FILE-05). A plain `http` endpoint is accepted only for a loopback host or
+ * with `S3_FORCE_PATH_STYLE=true` (the S3 server of the tests): signed requests and the credentials never travel in clear text otherwise. The secret comes from `MEDIA_S3_SECRET_ACCESS_KEY_FILE` (see
  * FILE_KEYS) or, in development, from the plain variable.
  */
 import { z } from 'zod';
@@ -37,17 +38,16 @@ export interface MediaConfig {
   readonly bucketOrigin: string | undefined;
 }
 
-const endpoint = z.string().refine((value) => {
-  if (!URL.canParse(value)) return false;
-  const url = new URL(value);
-  return (
-    (url.protocol === 'https:' || url.protocol === 'http:') &&
-    url.username === '' &&
-    url.password === '' &&
-    url.search === '' &&
-    url.hash === ''
-  );
-});
+const LOOPBACK_HOST = /^(localhost|127(\.\d{1,3}){3}|\[::1\])$/;
+
+/** @param allowPlainHttp the S3 server of the tests (`S3_FORCE_PATH_STYLE=true`): `http` is then fine for any host */
+const endpointOf = (allowPlainHttp: boolean) =>
+  z.string().refine((value) => {
+    if (!URL.canParse(value)) return false;
+    const url = new URL(value);
+    const protocolOk = url.protocol === 'https:' || (url.protocol === 'http:' && (allowPlainHttp || LOOPBACK_HOST.test(url.hostname)));
+    return protocolOk && url.username === '' && url.password === '' && url.search === '' && url.hash === '';
+  });
 const region = z.string().regex(/^[a-z0-9-]{2,32}$/);
 const bucket = z.string().regex(/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/);
 const accessKeyId = z.string().regex(/^[A-Za-z0-9_-]{3,128}$/);
@@ -88,7 +88,7 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
     if (!ok) invalid.push(key);
   };
   const value = (key: string): string => env[key] ?? '';
-  check('S3_ENDPOINT', endpoint.safeParse(value('S3_ENDPOINT')).success);
+  check('S3_ENDPOINT', endpointOf(env['S3_FORCE_PATH_STYLE'] === 'true').safeParse(value('S3_ENDPOINT')).success);
   check('S3_REGION', region.safeParse(value('S3_REGION')).success);
   check('MEDIA_BUCKET', bucket.safeParse(value('MEDIA_BUCKET')).success);
   check('MEDIA_S3_ACCESS_KEY_ID', accessKeyId.safeParse(value('MEDIA_S3_ACCESS_KEY_ID')).success);

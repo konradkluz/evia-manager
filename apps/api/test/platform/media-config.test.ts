@@ -74,6 +74,15 @@ describe('EVM-044 AC3 media configuration is all or nothing (P5, fail closed)', 
     ).toEqual(['MEDIA_BUCKET', 'MEDIA_S3_ACCESS_KEY_ID', 'MEDIA_S3_SECRET_ACCESS_KEY', 'S3_ENDPOINT', 'S3_REGION']);
   });
 
+  it('EVM-044 AC3 a plain http endpoint needs a loopback host or the path-style flag of the test server', () => {
+    expect(keysOf(validEnv({ ...MEDIA, S3_ENDPOINT: 'http://s3.example.test' }))).toEqual(['S3_ENDPOINT']);
+    expect(keysOf(validEnv({ ...MEDIA, S3_ENDPOINT: 'http://s3.example.test', S3_FORCE_PATH_STYLE: 'false' }))).toEqual(['S3_ENDPOINT']);
+    expect(keysOf(validEnv({ ...MEDIA, S3_ENDPOINT: 'http://s3.example.test', S3_FORCE_PATH_STYLE: 'true' }))).toEqual([]);
+    for (const host of ['localhost:9000', '127.0.0.1:9000', '[::1]:9000']) {
+      expect(keysOf(validEnv({ ...MEDIA, S3_ENDPOINT: `http://${host}` }))).toEqual([]);
+    }
+  });
+
   it('EVM-044 AC3 the secret key is read from its file', () => {
     const rest = without(MEDIA, 'MEDIA_S3_SECRET_ACCESS_KEY');
     const env = { ...validEnv(rest), MEDIA_S3_SECRET_ACCESS_KEY_FILE: '/run/secrets/media-s3-secret' };

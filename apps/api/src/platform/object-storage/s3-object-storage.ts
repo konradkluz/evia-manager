@@ -3,6 +3,9 @@
  * `api-aws-sdk-only-in-storage-adapters`). Settings that matter for security (media-pipeline.md section 5):
  * - `requestChecksumCalculation: 'WHEN_REQUIRED'` — the SDK adds no flexible checksum that would be signed into the URL and break a plain browser `PUT`;
  * - the part URL signs `Content-Length`, `partNumber`, `uploadId` and the key; its life is at most {@link MAX_PRESIGN_SECONDS};
+ * - the connection, the wait for the response (`throwOnRequestTimeout`: without it the SDK only warns) and the idle time of the socket have
+ *   a timeout, so a hung storage ends as `unavailable` (the caller answers `503`) and never holds a database transaction open; the idle
+ *   time also bounds a stalled stream of the scan;
  * - the SDK logger is switched off: a signed URL or a response of the SDK is never written to a log (SR-LOG-02, SR-LOG-03).
  * It is exercised against a real S3 server (SeaweedFS, Testcontainers) by the integration test.
  */
@@ -36,7 +39,14 @@ export interface S3ObjectStorageSettings {
   readonly accessKeyId: string;
   readonly secretAccessKey: string;
   readonly forcePathStyle: boolean;
+  /** Overrides of {@link DEFAULT_TIMEOUTS} (tests only). */
+  readonly timeouts?: { readonly connectionMs: number; readonly requestMs: number };
 }
+
+/** Control operations answer in well under a second; a few seconds means the storage hangs. */
+export const DEFAULT_TIMEOUTS = { connectionMs: 3000, requestMs: 8000 } as const;
+/** One try and one retry: a request of a user waits at most about twice the timeout. */
+export const MAX_ATTEMPTS = 2;
 
 const NOOP_LOGGER = { debug: () => undefined, info: () => undefined, warn: () => undefined, error: () => undefined };
 
@@ -49,6 +59,13 @@ export function createS3Client(settings: S3ObjectStorageSettings): S3Client {
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
     logger: NOOP_LOGGER,
+    maxAttempts: MAX_ATTEMPTS,
+    requestHandler: {
+      connectionTimeout: (settings.timeouts ?? DEFAULT_TIMEOUTS).connectionMs,
+      requestTimeout: (settings.timeouts ?? DEFAULT_TIMEOUTS).requestMs,
+      socketTimeout: (settings.timeouts ?? DEFAULT_TIMEOUTS).requestMs,
+      throwOnRequestTimeout: true,
+    },
   });
 }
 

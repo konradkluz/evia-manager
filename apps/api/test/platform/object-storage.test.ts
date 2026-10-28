@@ -1,8 +1,17 @@
 import type { S3Client } from '@aws-sdk/client-s3';
-import { describe, expect, it } from 'vitest';
+import { createServer, type Server } from 'node:net';
+import { afterEach, describe, expect, it } from 'vitest';
+import { viaStorage } from '../../src/modules/media/application/media-support.ts';
+import { ProblemException } from '../../src/platform/http/problem.ts';
 import { InMemoryObjectStorage } from '../../src/platform/object-storage/in-memory-object-storage.ts';
 import { ObjectStorageError, type ObjectStorage } from '../../src/platform/object-storage/object-storage.ts';
-import { createS3Client, S3ObjectStorage, translateS3Error } from '../../src/platform/object-storage/s3-object-storage.ts';
+import {
+  createS3Client,
+  DEFAULT_TIMEOUTS,
+  MAX_ATTEMPTS,
+  S3ObjectStorage,
+  translateS3Error,
+} from '../../src/platform/object-storage/s3-object-storage.ts';
 
 const SETTINGS = {
   endpoint: 'https://s3.fr-par.scw.cloud',
@@ -169,5 +178,46 @@ describe('EVM-044 AC6 the in-memory storage keeps the semantics the services rel
     storage.unavailable = true;
     await expect(storage.createMultipartUpload('k', 'x')).rejects.toMatchObject({ code: 'unavailable' });
     await expect(storage.head('k')).rejects.toMatchObject({ code: 'unavailable' });
+  });
+});
+
+describe('EVM-044 AC6 a hung storage ends as unavailable, not as a request that never returns (review: code major 4)', () => {
+  let server: Server | undefined;
+  afterEach(() => {
+    server?.close();
+    server = undefined;
+  });
+
+  it('EVM-044 AC6 a storage that accepts the connection and never answers times out and becomes 503 media_storage_unavailable', async () => {
+    const sockets: Array<{ destroy: () => void }> = [];
+    server = createServer((socket) => {
+      sockets.push(socket);
+    });
+    const listening = server;
+    await new Promise<void>((resolve) => listening.listen(0, '127.0.0.1', resolve));
+    const address = listening.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+    const client = createS3Client({
+      ...SETTINGS,
+      endpoint: `http://127.0.0.1:${port}`,
+      forcePathStyle: true,
+      timeouts: { connectionMs: 200, requestMs: 200 },
+    });
+    const storage = new S3ObjectStorage(client, SETTINGS.bucket);
+    try {
+      await expect(storage.head('media/k')).rejects.toMatchObject({ code: 'unavailable' });
+      const problem = await viaStorage(() => storage.createMultipartUpload('media/k', 'image/jpeg')).catch((error: unknown) => error);
+      expect(problem).toBeInstanceOf(ProblemException);
+      expect((problem as ProblemException).code).toBe('media_storage_unavailable');
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      client.destroy();
+    }
+  }, 15_000);
+
+  it('EVM-044 AC6 the client carries a bounded number of attempts and finite default timeouts', () => {
+    expect(DEFAULT_TIMEOUTS.connectionMs).toBeLessThanOrEqual(5000);
+    expect(DEFAULT_TIMEOUTS.requestMs).toBeLessThanOrEqual(10_000);
+    expect(MAX_ATTEMPTS).toBeLessThanOrEqual(3);
   });
 });
