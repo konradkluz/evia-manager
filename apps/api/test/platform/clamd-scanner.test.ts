@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ClamdScanner, parseClamdReply } from '../../src/platform/malware-scan/clamd-scanner.ts';
 import { EICAR, FakeMalwareScanner } from '../../src/platform/malware-scan/fake-malware-scanner.ts';
@@ -148,7 +148,8 @@ describe('EVM-044 AC3 the INSTREAM client', () => {
 
   it('EVM-044 AC3 a unix socket is reachable too', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'clamd-'));
-    const path = join(dir, 'clamd.sock');
+    // net treats `path` as a named pipe on Windows, so a socket file in the temp directory is not reachable there
+    const path = process.platform === 'win32' ? `\\\\.\\pipe\\evia-clamd-${basename(dir)}` : join(dir, 'clamd.sock');
     const server = createServer((socket: Socket) => {
       socket.on('error', () => undefined);
       socket.on('data', (data: Buffer) => {
