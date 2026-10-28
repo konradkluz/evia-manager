@@ -44,7 +44,7 @@ import type { Logger } from '../../../platform/logging/logger.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../../platform/tokens.ts';
 import { CustomerDependentsRegistry } from '../dependents-guard.ts';
 import { rethrowLockWait } from '../domain/lock-wait.ts';
-import { anonymizeCustomerRow, findReadableCustomer, lockReadableCustomer } from '../infrastructure/customer-store.ts';
+import { anonymizeCustomerRow, lockReadableCustomer } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 import { assertNoOpenDependents, customerEvent } from './customer-command-support.ts';
 import { toCustomer } from './customer-representation.ts';
@@ -120,12 +120,10 @@ export class AnonymizeCustomerService {
       actorUserId: principal.userId,
     });
 
-    const version = await anonymizeCustomerRow(tables, locked.id, locked.kind, expectedVersion, principal.userId, this.#clock.now());
-    if (version === undefined) throw new ProblemException('internal_error');
+    const anonymized = await anonymizeCustomerRow(tables, locked.id, locked.kind, expectedVersion, principal.userId, this.#clock.now());
+    if (anonymized === undefined) throw new ProblemException('internal_error');
     await this.#events.publish(tx, customerEvent('customer.anonymized', principal, locked.id, 'success'), request);
-    const current = await findReadableCustomer(tables, principal, locked.id);
-    if (current === undefined) throw new ProblemException('internal_error');
-    return toCustomer(current);
+    return toCustomer(anonymized);
   }
 
   /** The audit record of an anonymization that did not start (outcome `failed`): a transaction of its own, after the rollback; a failure here is logged. */

@@ -227,7 +227,7 @@ export function anonymizeCustomerRow(
     .where('id', '=', id)
     .where('version', '=', expectedVersion)
     .where('anonymized_at', 'is', null)
-    .returning('version')
+    .returning(COLUMNS)
     .executeTakeFirst();
 }
 
