@@ -49,6 +49,8 @@ const uxReviewDirReset = fileURLToPath(new URL('../../docs/ux/reviews/EVM-025/',
 const uxReviewDirCodes = fileURLToPath(new URL('../../docs/ux/reviews/EVM-023/', import.meta.url));
 const uxReviewDirAccess = fileURLToPath(new URL('../../docs/ux/reviews/EVM-027/', import.meta.url));
 const uxReviewDirAccount = fileURLToPath(new URL('../../docs/ux/reviews/EVM-028/', import.meta.url));
+const uxReviewDirMedia = fileURLToPath(new URL('../../docs/ux/reviews/EVM-044/', import.meta.url));
+const uxReviewDirQuarantine = fileURLToPath(new URL('../../docs/ux/reviews/EVM-049/', import.meta.url));
 
 export default defineConfig({
   testDir: 'test/e2e',
@@ -58,7 +60,14 @@ export default defineConfig({
   retries: CI ? 1 : 0,
   reporter: CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: { baseURL, trace: 'retain-on-failure' },
-  webServer: { command: 'pnpm run build && pnpm run preview', url: baseURL, reuseExistingServer: !CI, timeout: 120_000 },
+  // EVM-044: the CSP of the preview allows the one origin of the media bucket (`connect-src`); the specs answer its `PUT` with `page.route`.
+  webServer: {
+    command: 'pnpm run build && pnpm run preview',
+    url: baseURL,
+    reuseExistingServer: !CI,
+    timeout: 120_000,
+    env: { MEDIA_BUCKET_ORIGIN: 'https://bucket.e2e.test' },
+  },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] }, ...regular },
     { name: 'firefox', use: { ...devices['Desktop Firefox'] }, ...regular },
@@ -105,6 +114,8 @@ export default defineConfig({
         uxReviewDirCodes,
         uxReviewDirAccess,
         uxReviewDirAccount,
+        uxReviewDirMedia,
+        uxReviewDirQuarantine,
       },
     },
   ],

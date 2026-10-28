@@ -83,6 +83,11 @@ AuditAction:
     - payment_milestone.restored
     - payment_milestone.amount_corrected
     - payment_milestone.deleted
+    - media_asset.created
+    - media_file.quarantined
+    - media_file.rescan_requested
+    - media_file.rescanned
+    - media_file.quarantine_purged
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -105,6 +110,7 @@ AuditObjectType:
       procedure_stage,
       timeline_entry,
       payment_milestone,
+      media_asset,
     ]
 AuditReasonCode:
   type: string
@@ -216,7 +222,7 @@ AuditEvent:
     fromCode:
       description: >-
         Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057:
-        korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-027: `user.role_changed` — kod
+        korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-049: `media_file.rescanned` — `quarantined`; EVM-027: `user.role_changed` — kod
         roli przed zmianą); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze
         razem z `toCode`.
       oneOf:
@@ -225,7 +231,7 @@ AuditEvent:
           pattern: '^[a-z][a-z_]{0,39}$'
         - type: 'null'
     toCode:
-      description: Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027); `null` (albo brak pola) razem z `fromCode`.
+      description: Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049); `null` (albo brak pola) razem z `fromCode`.
       oneOf:
         - type: string
           maxLength: 40

@@ -61,6 +61,10 @@ beforeAll(async () => {
     '0042_timeline_redaction',
     '0043_customer_anonymization',
     '0044_customer_deleted_index',
+    '0045_media',
+    '0046_media_quarantine',
+    '0047_email_outbox_subject',
+    '0048_media_alerts',
   ]);
 });
 afterAll(async () => {

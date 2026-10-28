@@ -15,6 +15,7 @@
  */
 import { zPaymentMilestoneStatus, zStageStatus, zStageWaitingOn, zWorkOrderStatus } from '@evia/contracts/zod';
 import { z } from 'zod';
+import type { MediaAssetsAddedEvent } from '../../media/index.ts';
 import type { PaymentMilestoneJournalEvent } from '../../payments/index.ts';
 import type { StageJournalChangeEvent } from '../../procedures/index.ts';
 import type { ScopeItemField, WorkOrderEvent, WorkOrderField, WorkOrderJournalChangeEvent } from '../../work-orders/index.ts';
@@ -37,6 +38,7 @@ export const JOURNAL_EVENT_CODES = [
   'stage_restored',
   'payment_milestone_status_changed',
   'payment_milestone_deleted',
+  'media_assets_added',
 ] as const;
 export type JournalEventCode = (typeof JOURNAL_EVENT_CODES)[number];
 
@@ -61,6 +63,8 @@ const paymentMilestoneObject = { objectType: z.literal('payment_milestone'), obj
 const catalogCode = z.string().regex(/^[a-z][a-z0-9_]{1,63}$/);
 /** The most processes an order may have, so the most an item may bring at once. */
 const MAX_PROCEDURE_CODES = 30;
+/** The most media one request adds (the contract: `maxItems` 50). */
+const MAX_MEDIA_PER_BATCH = 50;
 
 /** The closed list of keys of every code. */
 const SHAPES = {
@@ -97,6 +101,12 @@ const SHAPES = {
   payment_milestone_status_changed: { ...paymentMilestoneObject, fromStatus: zPaymentMilestoneStatus, toStatus: zPaymentMilestoneStatus },
   // EVM-057 AC4: the soft delete of a milestone - the milestone alone (its name is gone with it), no amount, no number
   payment_milestone_deleted: paymentMilestoneObject,
+  // EVM-044 AC1: ONE entry per batch of media - the order, the count and the identifiers (at most 50); never a file name or a description
+  media_assets_added: {
+    ...workOrderObject,
+    count: z.int().min(1).max(MAX_MEDIA_PER_BATCH),
+    mediaAssetIds: z.array(z.uuid()).min(1).max(MAX_MEDIA_PER_BATCH),
+  },
 } as const satisfies Record<JournalEventCode, z.ZodRawShape>;
 
 const STRICT = {
@@ -117,11 +127,13 @@ const STRICT = {
   stage_restored: z.strictObject(SHAPES.stage_restored),
   payment_milestone_status_changed: z.strictObject(SHAPES.payment_milestone_status_changed),
   payment_milestone_deleted: z.strictObject(SHAPES.payment_milestone_deleted),
+  media_assets_added: z.strictObject(SHAPES.media_assets_added),
 } as const;
 
 /** The source events `timeline` turns into entries (`work_order.created` is the creation event of the order, already audited). */
 export type CreatedEvent = WorkOrderEvent & { readonly type: 'work_order.created' };
-export type JournalSourceEvent = CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneJournalEvent;
+export type JournalSourceEvent =
+  CreatedEvent | WorkOrderJournalChangeEvent | StageJournalChangeEvent | PaymentMilestoneJournalEvent | MediaAssetsAddedEvent;
 
 /** What the store writes: the columns of the entry that an event decides. */
 export interface JournalEventRecord {
@@ -249,6 +261,18 @@ function candidateOf(event: JournalSourceEvent): Candidate {
       return {
         code: 'payment_milestone_status_changed',
         payload: { objectType: 'payment_milestone', objectId: event.objectId, fromStatus: event.fromStatus, toStatus: event.toStatus },
+        workOrderId: event.workOrderId,
+        procedureStageId: null,
+      };
+    case 'media.assets_added':
+      return {
+        code: 'media_assets_added',
+        payload: {
+          objectType: 'work_order',
+          objectId: event.workOrderId,
+          count: event.mediaAssetIds.length,
+          mediaAssetIds: [...event.mediaAssetIds],
+        },
         workOrderId: event.workOrderId,
         procedureStageId: null,
       };

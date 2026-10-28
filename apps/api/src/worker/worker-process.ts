@@ -24,6 +24,7 @@ import {
   PurgeLoginSecurityJob,
   PurgeSessionsJob,
 } from '../modules/identity/index.ts';
+import { AbandonedUploadsJob, MediaScanService, QuarantineRetentionJob, SignatureMonitorJob } from '../modules/media/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import type { Kysely } from 'kysely';
@@ -59,6 +60,8 @@ export interface WorkerWiring {
   readonly healthFile?: string;
   /** The interval of the relay of the outbox; shortened by the tests only (the default is 5 seconds). */
   readonly relayIntervalMs?: number;
+  /** The interval of the scan of uploaded files (EVM-044); shortened by the tests only (the default is 5 seconds). */
+  readonly mediaScanIntervalMs?: number;
 }
 
 /** @returns the exit code of the process */
@@ -78,10 +81,23 @@ export async function runWorkerFromProcess(
       app.get(PurgeIdempotencyJob, { strict: false }).definition(),
       app.get(PurgeLoginSecurityJob, { strict: false }).definition(),
       app.get(PurgeSessionsJob, { strict: false }).definition(),
+      // EVM-049: the retention of the quarantine, the sweeper of abandoned uploads and the monitor of the signatures of the scanner
+      app.get(QuarantineRetentionJob, { strict: false }).definition(),
+      app.get(AbandonedUploadsJob, { strict: false }).definition(),
+      app.get(SignatureMonitorJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });
     const tasks: BackgroundTask[] = [healthTask(wiring.healthFile ?? DEFAULT_HEALTH_FILE, config.email.transport, () => clock.now())];
+
+    // EVM-044: the scan of uploaded files runs only with BOTH the storage and the scanner configured; otherwise no file ever becomes clean (fail closed)
+    const mediaScan = app.get(MediaScanService, { strict: false });
+    if (mediaScan.enabled) tasks.push({ start: () => mediaScan.start(wiring.mediaScanIntervalMs) });
+    else
+      logger.warn(
+        { job: 'media.scan' },
+        'worker: the media scan is off (storage or scanner not configured); uploaded files wait in the state uploaded',
+      );
 
     if (config.email.transport === 'smtp') {
       const sender = wiring.createEmailSender?.(config.email) ?? new SmtpEmailSender(config.email);

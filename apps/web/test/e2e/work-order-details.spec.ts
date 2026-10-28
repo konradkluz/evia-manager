@@ -73,13 +73,21 @@ test.describe('details of a work order W-06 (EVM-018)', () => {
         '/api/v1/work-orders/{id}/procedures',
         // EVM-042: the Administrator also reads the deleted processes and stages
         '/api/v1/work-orders/{id}/deleted-procedures',
+        // EVM-044: the section of media and the banner of the unfinished uploads
+        '/api/v1/work-orders/{id}/media-assets',
+        // EVM-044: the section of media and the banner of the unfinished uploads
+        '/api/v1/work-orders/{id}/media-assets',
         '/api/v1/work-orders/{id}/payment-milestones',
         '/api/v1/work-orders/{id}/customer',
         '/api/v1/work-orders/{id}/site',
         '/api/v1/work-orders/{id}/site-orders',
       ]),
     );
-    for (const entry of mine) expect(new URL(entry.url).search).toBe('');
+    // the list of the unfinished uploads has a fixed query of enumerated values, no data of the order
+    for (const entry of mine) {
+      const url = new URL(entry.url);
+      expect(url.search).toBe(url.pathname.endsWith('/media-assets') ? '?uploadState=unfinished&limit=100' : '');
+    }
   });
 
   test('EVM-018 AC3 a deleted order and one that never existed are the same screen "Nie znaleziono zlecenia." with no data and the title "Nie znaleziono · EVia Manager"', async ({

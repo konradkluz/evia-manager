@@ -50,6 +50,7 @@ describe('settings from files — <KEY>_FILE (EVM-007 AC7; ADR-0018 "Gdzie żyj�
       'FIELD_ENCRYPTION_KEYS',
       'LOGIN_THROTTLE_KEY',
       'EVIA_RELEASE_MANIFEST_SHA256',
+      'MEDIA_S3_SECRET_ACCESS_KEY',
       'DELETION_REGISTER_S3_SECRET_ACCESS_KEY',
     ]);
     const read = filesOf({});

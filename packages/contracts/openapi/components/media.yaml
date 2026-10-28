@@ -1,0 +1,339 @@
+# Module `media` — the photos of a work order (EVM-044; W-09 "Media i dokumenty"; ADR-0009). The client creates the media (UUIDv7) and an
+# upload session; the bytes go straight to the private bucket in signed `PUT`s of parts; the server verifies the object, scans it and only a
+# `clean` file is ever served (EVM-045). The object key, the upload id and the checksum are NEVER in a response; the reason of a quarantine only
+# for the Administrator (EVM-049: `quarantineReasonCode`, the policy `mediaQuarantine.manage`), and for nobody else - not even as `null`.
+MediaCategory:
+  type: string
+  description: >-
+    Kategoria medium (zamknięta lista; klient obsługuje też wartość nieznaną): `site_survey` (Oględziny), `before_work` (Przed pracami),
+    `in_progress` (W trakcie prac), `completed_work` (Po pracach), `defect` (Usterka), `measurement` (Pomiary), `other` (Inne).
+  enum: [site_survey, before_work, in_progress, completed_work, defect, measurement, other]
+MediaFileState:
+  type: string
+  description: >-
+    Stan pliku (ADR-0009; zamknięta lista, klient MUSI tolerować wartość nieznaną): `pending_upload` (czeka na wysłanie), `uploaded`
+    i `scanning` (W panelu „Sprawdzanie pliku”), `clean`, `processing`, `ready`, `quarantined` („Wymaga uwagi”) i `failed`. Plik w
+    stanie innym niż `clean` i `ready` nie jest dostępny dla nikogo.
+  enum: [pending_upload, uploaded, scanning, clean, processing, ready, quarantined, failed]
+MediaAsset:
+  type: object
+  description: >-
+    Medium zlecenia ze stanem jego pliku. `stateReasonCode` jest ustawiony WYŁĄCZNIE dla `failed` z przyczyną `checksum_mismatch`
+    („Nie wysłano — plik uszkodzony w transmisji”, „Ponów”). Kwarantanna (EVM-049): `quarantine` jest `null`, gdy plik nie jest w
+    kwarantannie; w przeciwnym razie ma stan `held` (plik zatrzymany — `needsAttention: true`, znacznik „Wymaga uwagi”) albo `purged`
+    (obiekt usunięty po 30 dniach — kafel „Plik usunięty po 30 dniach kwarantanny”, bez akcji). Przyczyna kwarantanny
+    (`quarantineReasonCode`: `malware_detected`, `type_mismatch`) jest zwracana WYŁĄCZNIE Administratorowi i tylko dla `held`
+    (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pole w ogóle nie występuje (nie `null`), w żadnej odpowiedzi.
+    `originalFilename` (dane osobowe możliwe — panel wyświetla jako tekst) i `uploadSession` występują tylko na liście z
+    `uploadState=unfinished`; poza nią są `null`. Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.
+  required:
+    - id
+    - workOrderId
+    - mediaType
+    - category
+    - description
+    - origin
+    - capturedAt
+    - createdAt
+    - fileState
+    - stateReasonCode
+    - needsAttention
+    - quarantine
+    - declaredSize
+    - originalFilename
+    - uploadSession
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    workOrderId:
+      type: string
+      format: uuid
+      maxLength: 36
+    mediaType:
+      type: string
+      enum: [photo, video]
+    category:
+      $ref: '#/MediaCategory'
+    description:
+      description: Opis medium (do 1000 znaków, zwykły tekst) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 1000
+        - type: 'null'
+    origin:
+      type: string
+      enum: [web, mobile]
+    capturedAt:
+      description: Czas wykonania zdjęcia (UTC) albo `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    fileState:
+      $ref: '#/MediaFileState'
+    stateReasonCode:
+      description: Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.
+      oneOf:
+        - type: string
+          enum: [checksum_mismatch]
+        - type: 'null'
+    needsAttention:
+      type: boolean
+      description: '`true` dla pliku zatrzymanego w kwarantannie (`quarantine.state` = `held`) — znacznik „Wymaga uwagi”; bez przyczyny.'
+    quarantine:
+      description: Stan kwarantanny pliku albo `null`, gdy plik nie jest w kwarantannie.
+      oneOf:
+        - $ref: '#/MediaQuarantine'
+        - type: 'null'
+    quarantineReasonCode:
+      type: string
+      description: >-
+        Przyczyna kwarantanny — TYLKO Administrator (polityka `mediaQuarantine.manage`) i tylko dla `quarantine.state` = `held`. Dla
+        Edytora i Tylko odczyt pola nie ma w odpowiedzi. Klient toleruje wartość nieznaną i pokazuje wtedy etykietę ogólną.
+      enum: [malware_detected, type_mismatch]
+    declaredSize:
+      type: integer
+      description: Rozmiar zadeklarowany przy dodaniu (bajty).
+      minimum: 1
+      maximum: 52428800
+    originalFilename:
+      description: Oczyszczona nazwa pliku (tylko `uploadState=unfinished`) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 255
+        - type: 'null'
+    uploadSession:
+      description: Aktywna sesja uploadu wołającego (tylko `uploadState=unfinished`) albo `null`.
+      oneOf:
+        - $ref: '#/UploadSessionRef'
+        - type: 'null'
+MediaQuarantine:
+  type: object
+  description: >-
+    Kwarantanna pliku (EVM-049; P4, P5). `held` — plik zatrzymany przez skan, niedostępny dla nikogo; Administrator może zlecić ponowny skan do
+    `expiresAt`. `purged` — obiekt usunięty ze storage'u po 30 dniach od PIERWSZEGO wejścia w kwarantannę (`purgedAt`); wiersz metadanych zostaje.
+    `expiresAt` to początek dnia (strefa `Europe/Warsaw`) po 30 dniach kalendarzowych od pierwszego wejścia; ponowny skan z wynikiem
+    pozytywnym tego terminu nie przesuwa.
+  required: [state, expiresAt, purgedAt]
+  additionalProperties: false
+  properties:
+    state:
+      type: string
+      description: Stan kwarantanny (klient toleruje wartość nieznaną).
+      enum: [held, purged]
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    purgedAt:
+      description: Kiedy usunięto obiekt albo `null` dla `held`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
+UploadSessionRef:
+  type: object
+  description: Aktywna, niewygasła sesja uploadu wołającego — pozwala wznowić wysyłanie po ponownym wyborze pliku.
+  required: [id, expiresAt, partSize, partCount]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    partSize:
+      type: integer
+      minimum: 1
+    partCount:
+      type: integer
+      minimum: 1
+      maximum: 1000
+MediaAssetCreateItem:
+  type: object
+  description: >-
+    Jedno medium w żądaniu. Pola serwera (`workOrderId`, `mediaType`, `origin`, `fileState`, `createdAt`, klucz obiektu, `sha256` obliczony)
+    są odrzucane (`400 read_only_field`), nieznane — `400 unknown_field`. Typ i rozmiar sprawdza serwer: format spoza JPEG, PNG, WebP
+    i HEIC (SVG, HTML, archiwa) albo rozmiar spoza 1 bajt … 50 MB to `400 validation_failed` (`/items/N/contentType` albo
+    `/items/N/declaredSize`).
+  required: [id, category, fileName, declaredSize, contentType, sha256]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    category:
+      $ref: '#/MediaCategory'
+    description:
+      type: string
+      description: Opis (do 1000 znaków, zwykły tekst); pominięty = brak.
+      maxLength: 1000
+    fileName:
+      type: string
+      description: Nazwa pliku z urządzenia — serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).
+      minLength: 1
+      maxLength: 1000
+    declaredSize:
+      type: integer
+      description: Rozmiar pliku w bajtach (1 … 52 428 800).
+      minimum: 1
+      maximum: 52428800
+    contentType:
+      type: string
+      description: Zadeklarowany typ (informacja; serwer ustawia typ obiektu z listy dozwolonych i wykrywa go z zawartości).
+      maxLength: 100
+    sha256:
+      type: string
+      description: SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.
+      pattern: '^[a-f0-9]{64}$'
+      maxLength: 64
+CreateMediaAssetsRequest:
+  type: object
+  description: Partia mediów jednego zlecenia (najwyżej 50). Serwer tworzy po jednym medium i pliku w stanie `pending_upload` w jednej transakcji.
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        $ref: '#/MediaAssetCreateItem'
+MediaAssetBatch:
+  type: object
+  description: Utworzone media w kolejności żądania.
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 50
+      items:
+        $ref: '#/MediaAsset'
+MediaAssetList:
+  type: object
+  description: >-
+    Strona mediów zlecenia (`createdAt` malejąco, potem `id`). Bez `uploadState` — wszystkie media; z `uploadState=unfinished` — tylko
+    media z aktywną, niewygasłą sesją uploadu WOŁAJĄCEGO; z `needsAttention=true` — tylko pliki zatrzymane w kwarantannie (`held`).
+    `nextCursor` jest `null` na ostatniej stronie. `needsAttentionCount` to liczba plików `held` w zleceniu (te same reguły widoczności co
+    lista, niezależnie od filtra i strony) — liczba z filtra „Wymaga uwagi (n)”.
+  required: [items, nextCursor, needsAttentionCount]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/MediaAsset'
+    nextCursor:
+      description: Kursor następnej strony (wartość nieprzezroczysta) albo `null`.
+      oneOf:
+        - type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+        - type: 'null'
+    needsAttentionCount:
+      type: integer
+      minimum: 0
+      description: Liczba plików zlecenia w kwarantannie `held` (znacznik „Wymaga uwagi (n)”).
+CreateUploadSessionRequest:
+  type: object
+  description: Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję.
+  required: [id]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+UploadSession:
+  type: object
+  description: >-
+    Sesja uploadu. Plik jest dzielony na części o stałym rozmiarze `partSize` (ostatnia mniejsza); `partCount` części, każda wysyłana
+    osobnym `PUT` na adres z `getUploadPartUrl`. Sesję może kontynuować wyłącznie jej twórca (użytkownik i urządzenie) — inny
+    użytkownik dostaje `404`.
+  required: [id, mediaAssetId, state, partSize, partCount, expiresAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    mediaAssetId:
+      type: string
+      format: uuid
+      maxLength: 36
+    state:
+      type: string
+      description: Stan sesji (klient toleruje wartość nieznaną).
+      enum: [active, completed, aborted, expired]
+    partSize:
+      type: integer
+      minimum: 1
+    partCount:
+      type: integer
+      minimum: 1
+      maximum: 1000
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+UploadPart:
+  type: object
+  description: Część potwierdzona w storage'u (odczyt `ListParts` po stronie serwera).
+  required: [partNumber, size]
+  additionalProperties: false
+  properties:
+    partNumber:
+      type: integer
+      minimum: 1
+      maximum: 1000
+    size:
+      type: integer
+      minimum: 0
+UploadPartList:
+  type: object
+  description: Części już wysłane — wysyłanie wznawia się od pierwszej brakującej.
+  required: [items]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 1000
+      items:
+        $ref: '#/UploadPart'
+UploadPartUrl:
+  type: object
+  description: >-
+    Podpisany adres jednego `PUT` części: związany z kluczem obiektu, numerem i dokładnym rozmiarem części (`contentLength`),
+    ważny 60 minut. Adres jest sekretem krótkotrwałym — panel trzyma go tylko w pamięci i nie zapisuje w logach. `Cache-Control: no-store`.
+  required: [url, expiresAt, contentLength]
+  additionalProperties: false
+  properties:
+    url:
+      type: string
+      format: uri
+      maxLength: 4096
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    contentLength:
+      type: integer
+      description: Dokładny rozmiar części w bajtach — nagłówek `Content-Length` `PUT`.
+      minimum: 1

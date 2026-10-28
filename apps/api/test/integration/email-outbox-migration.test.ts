@@ -38,6 +38,7 @@ describe('the migration of the e-mail outbox (EVM-024; ADR-0003, SR-DATA-01)', (
       'enqueued_at',
       'sent_at',
       'created_at',
+      'subject_id', // EVM-049 (0047): the thing an alert is about, a plain column
     ]);
   });
 
@@ -69,6 +70,7 @@ describe('the migration of the e-mail outbox (EVM-024; ADR-0003, SR-DATA-01)', (
     );
     expect(indexes.map((index) => index.indexname)).toEqual([
       'email_outbox_latest_of_recipient_idx',
+      'email_outbox_pending_subject_idx', // EVM-049
       'email_outbox_pkey',
       'email_outbox_to_relay_idx',
     ]);

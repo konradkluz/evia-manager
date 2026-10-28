@@ -116,6 +116,8 @@ export interface ReadHandlers {
   readonly deleted: Handler;
   /** EVM-053: the instalments with their totals (default: an order without instalments). */
   readonly payments: Handler;
+  /** EVM-044: the media of the order (default: none). */
+  readonly media: Handler;
 }
 
 /** The four reads of W-06 for one order (the routes of the fake API); `overrides` replaces any of them. */
@@ -130,5 +132,7 @@ export function workOrderRoutes(id = ORDER_ID, overrides: Partial<ReadHandlers> 
     [`GET ${base}/deleted-procedures`]: overrides.deleted ?? (() => json(200, NO_DELETED)),
     [`GET ${base}/payment-milestones`]: overrides.payments ?? (() => json(200, NO_PAYMENTS)),
     [`GET ${base}/site-orders`]: overrides.siteOrders ?? (() => json(200, { total: 0, items: [] })),
+    // EVM-044: the page asks for the unfinished uploads of the person (Administrator and Editor)
+    [`GET ${base}/media-assets`]: overrides.media ?? (() => json(200, { items: [], nextCursor: null })),
   };
 }

@@ -32,6 +32,7 @@ import { findUserById, insertLink, revokeSessions, supersedeOpenLinksOfUser, typ
 import { identityTables } from '../infrastructure/tables.ts';
 
 const KINDS: readonly EmailKind[] = ['user_invitation', 'administrator_alert'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 @Injectable()
 export class InvitationEmailComposer implements EmailComposer {
@@ -95,9 +96,17 @@ export class InvitationEmailComposer implements EmailComposer {
   #alert(user: UserRow, message: OutboxMessage): ComposedEmail {
     if (user.status !== 'active' || user.role !== 'administrator') return { status: 'obsolete' };
     if (!isAlertVariant(message.variant)) throw new EmailPermanentError('invalid_message');
+    // the link of a quarantine alert is made of the subject of the row, which must be an identifier (never text from outside)
+    if (message.variant === 'administrator_media_quarantined' && !UUID.test(message.subjectId ?? ''))
+      throw new EmailPermanentError('invalid_message');
     const to = parseEmailAddress(user.email);
     if (to === undefined) throw new EmailPermanentError('recipient_rejected');
-    const { subject, text } = alertText({ panelOrigin: this.#panelOrigin, variant: message.variant, occurredAt: message.createdAt });
+    const { subject, text } = alertText({
+      panelOrigin: this.#panelOrigin,
+      variant: message.variant,
+      occurredAt: message.createdAt,
+      subjectId: message.subjectId,
+    });
     return { status: 'ready', email: createOutgoingEmail({ to, subject, text }) };
   }
 }

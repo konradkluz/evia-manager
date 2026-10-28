@@ -21,7 +21,7 @@ Zapis zdjęcia lub filmu: plik trafia z cache aparatu do katalogu prywatnego apl
 5. `complete` jest **idempotentny**: powtórka po sukcesie (także gdy serwer zgubił własny znacznik) zwraca sukces; przy `NoSuchUpload` serwer sprawdza obiekt (`HEAD`, rozmiar zgodny z deklaracją). Rozmiar po złożeniu musi zgadzać się z deklaracją, inaczej obiekt jest usuwany (`422 size_mismatch`).
 6. Część wysyłana ponownie mimo znanego ETag liczona jest jako zmarnowane bajty i ponowienie — **nie** jako duplikat. Duplikaty (obiekty o tym samym `assetId`) i osierocone multipart to osobne metryki; w każdym przebiegu spike'u: **0 i 0**.
 
-Sesję kontynuuje wyłącznie jej twórca (użytkownik + urządzenie); wniosek o URL części lub `ListParts` dla cudzej sesji daje `403`.
+Sesję kontynuuje wyłącznie jej twórca (użytkownik + urządzenie); wniosek o URL części lub `ListParts` dla cudzej sesji daje `404` (jak medium innego zlecenia — obiekt nie jest ujawniany; EVM-044 AC6, AC7).
 
 ## 3. Podział odpowiedzialności: Kotlin, JS, Node
 | Warstwa | Odpowiada za | Dlaczego |

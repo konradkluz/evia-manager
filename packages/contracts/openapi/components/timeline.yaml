@@ -190,7 +190,8 @@ TimelineEvent:
     `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu),
     `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania
     zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora;
-    bez kwoty, numeru faktury i nazwy) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie
+    niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis,
     którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola.
     `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
     `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu

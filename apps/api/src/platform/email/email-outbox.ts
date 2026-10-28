@@ -34,6 +34,7 @@ interface EmailOutboxTable {
   kind: EmailKind;
   variant: string | null;
   recipient_user_id: string;
+  subject_id: string | null;
   state: Generated<EmailState>;
   attempts: Generated<number>;
   enqueued_at: Date | null;
@@ -53,6 +54,8 @@ export interface OutboxMessage {
   readonly kind: EmailKind;
   readonly variant: string | null;
   readonly recipientUserId: string;
+  /** The identifier of the thing an alert is about (EVM-049: the work order), or `null`. */
+  readonly subjectId: string | null;
   readonly state: EmailState;
   readonly attempts: number;
   /** When the message was asked for (the time of the event an alert tells about). */
@@ -64,6 +67,8 @@ export interface NewEmail {
   /** Selects the text of an alert; `null` for a kind that has one text. */
   readonly variant: string | null;
   readonly recipientUserId: string;
+  /** What the message is about (EVM-049: the work order of a quarantined file); `undefined` for a message about nothing in particular. */
+  readonly subjectId?: string;
   readonly now: Date;
 }
 
@@ -75,6 +80,7 @@ export async function enqueueEmail(tx: Kysely<Database>, email: NewEmail): Promi
       kind: email.kind,
       variant: email.variant,
       recipient_user_id: email.recipientUserId,
+      subject_id: email.subjectId ?? null,
       state: 'pending',
       attempts: 0,
       enqueued_at: null,
@@ -84,6 +90,26 @@ export async function enqueueEmail(tx: Kysely<Database>, email: NewEmail): Promi
     .returning('id')
     .executeTakeFirstOrThrow();
   return row.id;
+}
+
+/**
+ * Writes a pending message unless one with the same recipient, kind, variant and subject is already pending (EVM-049: a batch of infected
+ * files of one order must not flood the mailboxes — the pending message says it all). @returns whether a row was written
+ */
+export async function enqueueEmailOnce(tx: Kysely<Database>, email: NewEmail & { readonly subjectId: string }): Promise<boolean> {
+  const pending = await outbox(tx)
+    .selectFrom('platform.email_outbox')
+    .select('id')
+    .where('recipient_user_id', '=', email.recipientUserId)
+    .where('kind', '=', email.kind)
+    .where('variant', '=', email.variant)
+    .where('subject_id', '=', email.subjectId)
+    .where('state', '=', 'pending')
+    .limit(1)
+    .executeTakeFirst();
+  if (pending !== undefined) return false;
+  await enqueueEmail(tx, email);
+  return true;
 }
 
 /** A pending message of the recipient and kind is replaced by a newer one: it is never sent after the fact. @returns the ids replaced */
@@ -150,6 +176,7 @@ function toMessage(row: {
   kind: EmailKind;
   variant: string | null;
   recipient_user_id: string;
+  subject_id: string | null;
   state: EmailState;
   attempts: number;
   created_at: Date;
@@ -159,6 +186,7 @@ function toMessage(row: {
     kind: row.kind,
     variant: row.variant,
     recipientUserId: row.recipient_user_id,
+    subjectId: row.subject_id,
     state: row.state,
     attempts: row.attempts,
     createdAt: row.created_at,
@@ -169,7 +197,7 @@ function toMessage(row: {
 export async function findOutboxMessage(tx: Kysely<Database>, id: string, lock: boolean): Promise<OutboxMessage | undefined> {
   let query = outbox(tx)
     .selectFrom('platform.email_outbox')
-    .select(['id', 'kind', 'variant', 'recipient_user_id', 'state', 'attempts', 'created_at'])
+    .select(['id', 'kind', 'variant', 'recipient_user_id', 'subject_id', 'state', 'attempts', 'created_at'])
     .where('id', '=', id);
   if (lock) query = query.forUpdate();
   const row = await query.executeTakeFirst();

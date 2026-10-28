@@ -70,6 +70,11 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/payments/application/**/*.ts',
   'src/modules/payments/infrastructure/**/*.ts',
   'src/modules/payments/http/payments.controller.ts',
+  // EVM-044: the media - the use cases (locks, the chain order -> medium -> file -> session in one statement, compare-and-set of the state), the queries
+  // and the controller are SQL against PostgreSQL; the rules of the domain (file rules, plan of the upload, verdicts) are measured by the unit run
+  'src/modules/media/application/**/*.ts',
+  'src/modules/media/infrastructure/**/*.ts',
+  'src/modules/media/http/media.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',

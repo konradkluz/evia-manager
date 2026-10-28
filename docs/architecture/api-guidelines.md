@@ -135,11 +135,13 @@ Jednolity **`application/problem+json`** (RFC 9457) dla każdego błędu:
 | 422 | `idempotency_mismatch` | ten sam klucz idempotencji z inną treścią (ADR-0004, ADR-0008) |
 | 422 | `transition_condition_not_met` | przejście dozwolone, ale warunek niespełniony (powód w `errors[]`, np. `unpaid_milestones`, `invoiced_milestones`; przy transzy `/paidOn` `in_future`) |
 | 422 | `limit_exceeded`, `template_unavailable` | przekroczony limit obiektów podrzędnych; szablon wycofany |
+| 422 | `upload_incomplete` | wysłane części nie składają się w zadeklarowany plik (`errors[]`: `size_mismatch`, `parts_missing`; EVM-044) |
 | 426 | `client_version_unsupported` | wersja aplikacji poniżej minimalnej |
 | 428 | `precondition_required` | brak `If-Match` przy zmianie obiektu współdzielonego |
 | 429 | `rate_limited` | przekroczony limit żądań (z `Retry-After`) |
 | 500 | `internal_error` | błąd serwera (tylko `traceId`) |
 | 503 | `service_unavailable` | prace serwisowe (z `Retry-After`) |
+| 503 | `media_storage_unavailable` | magazyn plików lub skaner nieskonfigurowany albo niedostępny (fail-closed, usługa zdrowa; EVM-044) |
 | 503 | `deletion_register_unavailable` | rejestr usunięć poza bazą niedostępny (brak konfiguracji, odmowa magazynu, brak odpowiedzi w terminie) — redakcja nie startuje, treść nienaruszona; widzi ją tylko Administrator po step-upie (EVM-040, SR-PRIV-04) |
 
 Wyniki mutacji synchronizacji (`applied`, `duplicate`, `conflict`, `rejected` z kodem) — [`offline-sync.md`](offline-sync.md#komendy-mobilne-mvp).

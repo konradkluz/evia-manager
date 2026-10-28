@@ -1490,6 +1490,7 @@ export const pl = {
         waitingOn: 'Czekamy na: {{party}}',
         partyWithKind: '{{name}} ({{kind}})',
         partyHidden: 'strona niedostępna',
+        mediaAssetsAdded: 'Dodano zdjęcia',
         unknown: 'Zdarzenie w zleceniu.',
       },
       correction: {

@@ -76,6 +76,9 @@ services:
     environment:
       CLAMAV_NO_FRESHCLAMD: 'true'
       CLAMAV_NO_MILTERD: 'true'
+      # EVM-049 AC7: the date in the reply to VERSION is in the local time of the container; the monitor of the signatures reads it as UTC.
+      TZ: UTC
+      # P5: no statistics and no samples leave the system - no option that reports detections is set (clamd has no egress to report to).
     tmpfs:
       - /tmp:size=256m,noexec,nosuid,nodev
       - /run/clamav:size=8m,nosuid,nodev

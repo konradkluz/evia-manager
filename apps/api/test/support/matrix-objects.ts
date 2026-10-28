@@ -5,6 +5,7 @@ import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
 import { createPasskey, createSession, createUser } from './identity-fixtures.ts';
+import { insertMedia } from './media-fixtures.ts';
 import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
@@ -316,6 +317,55 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
   };
 }
 
+/**
+ * The IDOR fixture of the media (EVM-044 AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): the list and the batch — "own" is a live order, "foreign"
+ * an EXISTING soft deleted one; the operations of a session — "own" is the session of a medium of the live order in ITS path, "foreign" the
+ * session of a medium of ANOTHER live order named in the path of the first (/work-orders/{A}/media-assets/{medium of B}/...). The session
+ * of the "own" path belongs to a user the matrix does not use, so the cells of "own" answer 404 — "not 401/403" is what they ask for; the
+ * creator-only rule has its own tests (media-upload tests).
+ */
+export async function mediaObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const creator = await createUser(db, app.clock, { role: 'editor', status: 'active' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const mine = await insertMedia(db, { workOrderId: own, createdBy: creator.id, session: { userId: creator.id } });
+  const theirs = await insertMedia(db, { workOrderId: other, createdBy: creator.id, session: { userId: creator.id } });
+  const orderLevel: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/media-assets`,
+    foreign: () => `${WORK_ORDERS}/${deleted}/media-assets`,
+  };
+  const session = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/upload-sessions/${mine.sessionId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/upload-sessions/${theirs.sessionId}${suffix}`,
+  });
+  return {
+    listMediaAssets: orderLevel,
+    createMediaAssets: orderLevel,
+    createUploadSession: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/upload-sessions`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/upload-sessions`,
+    },
+    listUploadParts: session('/parts'),
+    getUploadPartUrl: session('/parts/1/url'),
+    completeUploadSession: session('/complete'),
+    abortUploadSession: session('/abort'),
+    // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
+    rescanMediaAsset: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
+    },
+  };
+}
+
 const USERS = '/api/v1/users';
 
 /**
@@ -374,6 +424,7 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await scopeObjects(app)),
     ...(await timelineObjects(app)),
     ...(await paymentObjects(app)),
+    ...(await mediaObjects(app)),
     ...(await userObjects(app)),
     ...(await accountObjects(app)),
   };

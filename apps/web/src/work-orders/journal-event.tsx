@@ -213,6 +213,8 @@ function compose(t: TFunction, event: TimelineEvent, stageName: string | null, n
       return {
         text: named ? t('workOrder.journal.event.stageRestored', { stage: stageName }) : t('workOrder.journal.event.stageRestoredNoName'),
       };
+    case 'media_assets_added':
+      return { text: t('workOrder.journal.event.mediaAssetsAdded') };
     default:
       return { text: t('workOrder.journal.event.unknown') };
   }
