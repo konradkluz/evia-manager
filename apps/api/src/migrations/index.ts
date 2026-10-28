@@ -41,6 +41,9 @@ import * as userAccessManagement from './0039_user_access_management.ts';
 import * as loginThrottle from './0040_login_throttle.ts';
 import * as account from './0041_account.ts';
 import * as media from './0045_media.ts';
+import * as mediaQuarantine from './0046_media_quarantine.ts';
+import * as emailOutboxSubject from './0047_email_outbox_subject.ts';
+import * as mediaAlerts from './0048_media_alerts.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -84,4 +87,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0040_login_throttle': loginThrottle,
   '0041_account': account,
   '0045_media': media,
+  '0046_media_quarantine': mediaQuarantine,
+  '0047_email_outbox_subject': emailOutboxSubject,
+  '0048_media_alerts': mediaAlerts,
 });
