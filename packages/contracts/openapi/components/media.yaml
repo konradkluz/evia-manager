@@ -1,6 +1,7 @@
 # Module `media` — the photos of a work order (EVM-044; W-09 "Media i dokumenty"; ADR-0009). The client creates the media (UUIDv7) and an
 # upload session; the bytes go straight to the private bucket in signed `PUT`s of parts; the server verifies the object, scans it and only a
-# `clean` file is ever served (EVM-045). The reasons of a quarantine, the object key, the upload id and the checksum are NEVER in a response.
+# `clean` file is ever served (EVM-045). The object key, the upload id and the checksum are NEVER in a response; the reason of a quarantine only
+# for the Administrator (EVM-049: `quarantineReasonCode`, the policy `mediaQuarantine.manage`), and for nobody else - not even as `null`.
 MediaCategory:
   type: string
   description: >-
@@ -18,10 +19,13 @@ MediaAsset:
   type: object
   description: >-
     Medium zlecenia ze stanem jego pliku. `stateReasonCode` jest ustawiony WYŁĄCZNIE dla `failed` z przyczyną `checksum_mismatch`
-    („Nie wysłano — plik uszkodzony w transmisji”, „Ponów”); przyczyna kwarantanny nie jest zwracana nikomu w tej wersji
-    (`needsAttention: true` — znacznik „Wymaga uwagi”; przyczyna dla Administratora — EVM-049). `originalFilename` (dane osobowe
-    możliwe — panel wyświetla jako tekst) i `uploadSession` występują tylko na liście z `uploadState=unfinished`; poza nią są `null`.
-    Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.
+    („Nie wysłano — plik uszkodzony w transmisji”, „Ponów”). Kwarantanna (EVM-049): `quarantine` jest `null`, gdy plik nie jest w
+    kwarantannie; w przeciwnym razie ma stan `held` (plik zatrzymany — `needsAttention: true`, znacznik „Wymaga uwagi”) albo `purged`
+    (obiekt usunięty po 30 dniach — kafel „Plik usunięty po 30 dniach kwarantanny”, bez akcji). Przyczyna kwarantanny
+    (`quarantineReasonCode`: `malware_detected`, `type_mismatch`) jest zwracana WYŁĄCZNIE Administratorowi i tylko dla `held`
+    (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pole w ogóle nie występuje (nie `null`), w żadnej odpowiedzi.
+    `originalFilename` (dane osobowe możliwe — panel wyświetla jako tekst) i `uploadSession` występują tylko na liście z
+    `uploadState=unfinished`; poza nią są `null`. Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.
   required:
     - id
     - workOrderId
@@ -34,6 +38,7 @@ MediaAsset:
     - fileState
     - stateReasonCode
     - needsAttention
+    - quarantine
     - declaredSize
     - originalFilename
     - uploadSession
@@ -82,7 +87,18 @@ MediaAsset:
         - type: 'null'
     needsAttention:
       type: boolean
-      description: '`true` dla pliku w kwarantannie — znacznik „Wymaga uwagi” (bez przyczyny).'
+      description: '`true` dla pliku zatrzymanego w kwarantannie (`quarantine.state` = `held`) — znacznik „Wymaga uwagi”; bez przyczyny.'
+    quarantine:
+      description: Stan kwarantanny pliku albo `null`, gdy plik nie jest w kwarantannie.
+      oneOf:
+        - $ref: '#/MediaQuarantine'
+        - type: 'null'
+    quarantineReasonCode:
+      type: string
+      description: >-
+        Przyczyna kwarantanny — TYLKO Administrator (polityka `mediaQuarantine.manage`) i tylko dla `quarantine.state` = `held`. Dla
+        Edytora i Tylko odczyt pola nie ma w odpowiedzi. Klient toleruje wartość nieznaną i pokazuje wtedy etykietę ogólną.
+      enum: [malware_detected, type_mismatch]
     declaredSize:
       type: integer
       description: Rozmiar zadeklarowany przy dodaniu (bajty).
@@ -98,6 +114,31 @@ MediaAsset:
       description: Aktywna sesja uploadu wołającego (tylko `uploadState=unfinished`) albo `null`.
       oneOf:
         - $ref: '#/UploadSessionRef'
+        - type: 'null'
+MediaQuarantine:
+  type: object
+  description: >-
+    Kwarantanna pliku (EVM-049; P4, P5). `held` — plik zatrzymany przez skan, niedostępny dla nikogo; Administrator może zlecić ponowny skan do
+    `expiresAt`. `purged` — obiekt usunięty ze storage'u po 30 dniach od PIERWSZEGO wejścia w kwarantannę (`purgedAt`); wiersz metadanych zostaje.
+    `expiresAt` to początek dnia (strefa `Europe/Warsaw`) po 30 dniach kalendarzowych od pierwszego wejścia; ponowny skan z wynikiem
+    pozytywnym tego terminu nie przesuwa.
+  required: [state, expiresAt, purgedAt]
+  additionalProperties: false
+  properties:
+    state:
+      type: string
+      description: Stan kwarantanny (klient toleruje wartość nieznaną).
+      enum: [held, purged]
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    purgedAt:
+      description: Kiedy usunięto obiekt albo `null` dla `held`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
         - type: 'null'
 UploadSessionRef:
   type: object
@@ -187,8 +228,10 @@ MediaAssetList:
   type: object
   description: >-
     Strona mediów zlecenia (`createdAt` malejąco, potem `id`). Bez `uploadState` — wszystkie media; z `uploadState=unfinished` — tylko
-    media z aktywną, niewygasłą sesją uploadu WOŁAJĄCEGO. `nextCursor` jest `null` na ostatniej stronie.
-  required: [items, nextCursor]
+    media z aktywną, niewygasłą sesją uploadu WOŁAJĄCEGO; z `needsAttention=true` — tylko pliki zatrzymane w kwarantannie (`held`).
+    `nextCursor` jest `null` na ostatniej stronie. `needsAttentionCount` to liczba plików `held` w zleceniu (te same reguły widoczności co
+    lista, niezależnie od filtra i strony) — liczba z filtra „Wymaga uwagi (n)”.
+  required: [items, nextCursor, needsAttentionCount]
   additionalProperties: false
   properties:
     items:
@@ -203,6 +246,10 @@ MediaAssetList:
           maxLength: 512
           pattern: '^[A-Za-z0-9_-]+$'
         - type: 'null'
+    needsAttentionCount:
+      type: integer
+      minimum: 0
+      description: Liczba plików zlecenia w kwarantannie `held` (znacznik „Wymaga uwagi (n)”).
 CreateUploadSessionRequest:
   type: object
   description: Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję.

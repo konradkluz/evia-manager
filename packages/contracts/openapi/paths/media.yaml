@@ -51,13 +51,26 @@ workOrderMediaAssets:
       (`expiresAt` w przyszłości) sesją uploadu wołającego (twórca: użytkownik i urządzenie) ORAZ media wołającego, których plik wciąż
       jest w `pending_upload`, a aktywnej sesji brak (przerwana partia: sesja wygasła, została przerwana albo nigdy nie powstała — baner
       liczy całą partię i nie powstają duplikaty). Tylko te media niosą `originalFilename`, a `uploadSession` jest w nich `null`, gdy
-      sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Odpowiedź nie zawiera klucza obiektu, skrótu, identyfikatora
-      uploadu S3 ani przyczyny kwarantanny. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.
+      sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Filtr `needsAttention=true` (EVM-049 AC6) zwraca tylko pliki w kwarantannie `held`; `false` — wszystkie; inna wartość — `400
+      validation_failed`. `needsAttentionCount` liczy pliki `held` zlecenia tymi samymi regułami widoczności. Przyczyna kwarantanny
+      (`quarantineReasonCode`) wraca WYŁĄCZNIE Administratorowi (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pola nie ma.
+      Kursor jest związany z filtrem i wariantem polityki — z innym filtrem `400 invalid_cursor`. Odpowiedź nie zawiera klucza obiektu,
+      skrótu ani identyfikatora uploadu S3. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]
+      restrictedParams:
+        mediaQuarantine.manage:
+          params: {}
+          fields: [quarantineReasonCode]
     parameters:
       - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - name: needsAttention
+        in: query
+        required: false
+        description: '`true` — tylko pliki w kwarantannie (`held`), „Wymaga uwagi”.'
+        schema:
+          type: boolean
       - name: uploadState
         in: query
         required: false
@@ -384,3 +397,53 @@ uploadSessionAbort:
         $ref: ../components/responses.yaml#/RateLimited
       '503':
         $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+mediaAssetRescan:
+  post:
+    operationId: rescanMediaAsset
+    tags: [media]
+    summary: Ponowny skan pliku w kwarantannie (Administrator, step-up)
+    description: >-
+      Zlecenie ponownego skanu pliku `held` (EVM-049 AC3, AC4, AC8; P5; SR-SESS-08, SR-AUTHZ-05, SR-ERR-01) — JEDYNA operacja zmieniająca
+      stan pliku w kwarantannie (nie ma zwolnienia ani ominięcia skanu). Rola Administrator, kanał `web`, `stepUp: true`. Kolejność odpowiedzi:
+      `401` → `403 forbidden` dla Edytora i Tylko odczyt (bez odczytu stanu; nigdy `step_up_required`) → `403 step_up_required` dla
+      Administratora ze starym uwierzytelnieniem → `404` (zlecenie nieistniejące lub usunięte, medium innego zlecenia niż w ścieżce) → `409
+      invalid_state_transition` (stan inny niż `quarantined` — w tym `scanning`, `purged` i po terminie 30 dni). Wymaga
+      `X-CSRF-Token` i `Idempotency-Key`; bez `If-Match` (zmiana warunkowa po stanie pliku). Plik przechodzi do `scanning` (przyczyna jest
+      czyszczona); worker wykonuje PEŁNY skan jak za pierwszym razem (suma kontrolna, typ po zawartości, ClamAV). Wynik czysty wraca do
+      przepływu, pozytywny zostawia w kwarantannie bez nowego e-maila i alertu; termin 30 dni liczy się od pierwszego wejścia. Audyt:
+      `media_file.rescan_requested` (Administrator) w tej samej transakcji, potem `media_file.rescanned` (system, wynik). Odpowiedź `202` —
+      medium w stanie `scanning`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+      - $ref: '#/IdempotencyKeyHeader'
+    responses:
+      '202':
+        description: Ponowny skan zlecony (albo powtórka wcześniejszego zlecenia, z nagłówkiem `Idempotent-Replayed`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true`, gdy odpowiedź powtarza wcześniejsze zlecenie (ten sam klucz i medium).'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/media.yaml#/MediaAsset
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited

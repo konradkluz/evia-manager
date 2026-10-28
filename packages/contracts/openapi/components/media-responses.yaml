@@ -25,7 +25,8 @@ MediaConflict:
 MediaUnprocessable:
   description: >-
     Wysłane części nie składają się w zadeklarowany plik (`upload_incomplete`; `errors[]` ma wskaźnik i kod `size_mismatch` albo
-    `parts_missing`, bez wartości) albo ten sam klucz idempotencji z inną treścią (`idempotency_mismatch`).
+    `parts_missing`, bez wartości) ten sam klucz idempotencji z inną treścią (`idempotency_mismatch`) albo przekroczony limit niedokończonych mediów (`limit_exceeded`,
+    EVM-049: 200 na użytkownika i 500 na zlecenie; `errors[]` bez wartości).
   content:
     application/problem+json:
       schema:

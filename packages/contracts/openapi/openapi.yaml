@@ -171,6 +171,8 @@ paths:
     $ref: paths/media.yaml#/uploadSessionComplete
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/abort:
     $ref: paths/media.yaml#/uploadSessionAbort
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan:
+    $ref: paths/media.yaml#/mediaAssetRescan
   /api/v1/users:
     $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
