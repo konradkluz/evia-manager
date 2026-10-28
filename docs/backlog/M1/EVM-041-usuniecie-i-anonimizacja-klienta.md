@@ -4,7 +4,7 @@ title: Usunięcie i anonimizacja klienta (Administrator)
 type: story
 milestone: M1
 epic: E2 Klienci
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 model: sonnet
@@ -122,3 +122,4 @@ Decyzje robocze (rekomendowane wartości domyślne; do potwierdzenia przez Konra
 - 2026-10-28 — plan gotowy (backend-developer)
 - 2026-10-28 — implementacja backendu gotowa (backend-developer): kontrakt, migracje 0043–0044, usunięcie / przywrócenie / anonimizacja, port blokady, rejestr usunięć, testy `EVM-041 AC1–AC8`; panel W-14 — kolejny krok
 - 2026-10-28 — panel W-14 gotowy (web-developer): menu „Akcje klienta” (Usuń z „Cofnij”, Anonimizuj… z AlertDialog, polem „Rozumiem” i W-04), banery usunięty / zanonimizowany z „Przywróć klienta”, filtr „Usunięci” (tylko A), karta „Klient” bez numeru zastępczego; testy `EVM-041 AC1–AC8` (komponentowe, Playwright, axe)
+- 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,4% linii / 93,1% gałęzi, przeglądy zatwierdzone w 1 rundzie; decyzje D1–D7 i ryzyka RR-NOC-T2-5/6 w sekcji Decyzje.
