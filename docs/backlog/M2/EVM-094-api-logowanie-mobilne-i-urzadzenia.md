@@ -4,7 +4,7 @@ title: "API: logowanie mobilne i rejestr urządzeń"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P0
 path: pelna             # uwierzytelnianie, urządzenia, uprawnienia
 owner: backend-developer
@@ -74,11 +74,11 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
   - AC3 — kolejność: `403 channel_not_allowed` (Tylko odczyt) wraca dopiero po POPRAWNYM kodzie TOTP (kontrakt EVM-090, runda 3), nie po samym haśle — poprawne hasło nie ujawnia roli ani stanu urządzeń; `totp_not_configured` / `mfa_enrollment_required` po poprawnym haśle, przed wyzwaniem. Tekst AC3 („hasło → rola × kanał → drugi krok”) i część AC2 o zwrocie `device_limit_reached` pozostają BEZ ZMIAN do decyzji Konrada (AC są kontraktem); **AC3 i ta część AC2 nie są uznane za spełnione, dopóki Konrad nie potwierdzi odstępstwa**. Proponowana treść po potwierdzeniu — AC3: „… hasło (jedna odpowiedź `401 invalid_credentials`) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`) → poprawny kod TOTP → rola × kanał (`403 channel_not_allowed`)”; AC2: `403 device_limit_reached` po poprawnym kodzie (tak jest już w AC2).
   - AC8 — audyt odświeżeń (runda 1 przeglądu): zdarzenie `session.refreshed` — `success` przy każdym udanym odświeżeniu oraz `denied` z kodem `session_revoked` / `device_wipe_required`, gdy sesja jest rozpoznana (token nieznany lub w złym formacie nie ma obiektu, więc nie zostawia śladu; ponowne użycie nadal zapisuje `session.revoked`/`refresh_reuse`). IP wg kontekstu zdarzenia (prefiks), nigdy token ani jego skrót. Wolumen: jeden wiersz na odświeżenie (co ok. 15 min na urządzenie) — świadomie przyjęty, do oceny po teście terenowym M2.
   - Baseline kontraktu: dodanie wartości do enumów audytu (`AuditAction`, `AuditObjectType`, `AuditReasonCode`) uznane za zmianę łamiącą i przyjęte w aneksie ADR-0021 (`baseline:update -- --allow-breaking ADR-0021`); do potwierdzenia przez Konrada.
-  - AC2 — rotacja DWUFAZOWA sekretu instalacji przyjęta warunkowo (alternatywa: brak rotacji + RR-NOC-T4-3); „aktywne” urządzenie = stan `active` z ważną sesją mobilną (wyczyszczone, do wyczyszczenia i bez ważnej sesji nie zajmują miejsca); limit liczony pod blokadą wiersza konta; urządzenie rozpoznane, które nie ma ważnej sesji, też podlega limitowi (inaczej logowanie "na znane" omijałoby 2).
+  - AC2 — rotacja DWUFAZOWA sekretu instalacji przyjęta warunkowo (alternatywa: brak rotacji + RR-69, dawniej RR-NOC-T4-3); „aktywne” urządzenie = stan `active` z ważną sesją mobilną (wyczyszczone, do wyczyszczenia i bez ważnej sesji nie zajmują miejsca); limit liczony pod blokadą wiersza konta; urządzenie rozpoznane, które nie ma ważnej sesji, też podlega limitowi (inaczej logowanie "na znane" omijałoby 2).
   - AC1 — `pendingItemsReported` (decyzja 9): kolumna istnieje (0–10000, domyślnie 0), ale kontrakt logowania nie niesie tego pola — zapisem zajmie się synchronizacja (EVM-098); nie jest używane do żadnej decyzji.
-  - AC4 — audyt odświeżeń: IP wg istniejącego kontekstu zdarzenia (prefiks /24, /48); ASN poza M2 (brak lokalnej bazy ASN, zewnętrzny lookup wysyłałby IP poza UE) — do backlogu. Token odświeżania bez powiązania z Keystore: RR-NOC-T4-2 (numery końcowe nada security).
+  - AC4 — audyt odświeżeń: IP wg istniejącego kontekstu zdarzenia (prefiks /24, /48); ASN poza M2 (brak lokalnej bazy ASN, zewnętrzny lookup wysyłałby IP poza UE) — do backlogu. Token odświeżania bez powiązania z Keystore: RR-68, dawniej RR-NOC-T4-2.
   - AC4 — wyczyszczenie ma pierwszeństwo przed `session_revoked` także dla tokenu dostępu, dopóki jego wiersz istnieje (wygasłe tokeny dostępu są czyszczone po dobie).
-  - AC5 — znane urządzenie ma licznik `browser` (para `deviceId` + sekret zgodna z urządzeniem TEGO konta w stanie `active`); inne pary liczą się na koncie; skradziony telefon z sekretem ma więc drugą pulę prób hasła (ten sam kompromis co RR-28 — RR-NOC-T4-4, numer nada security). Wspólny limit 20/min/IP obejmuje oba kroki, odświeżenie i potwierdzenie wyczyszczenia.
+  - AC5 — znane urządzenie ma licznik `browser` (para `deviceId` + sekret zgodna z urządzeniem TEGO konta w stanie `active`); inne pary liczą się na koncie; skradziony telefon z sekretem ma więc drugą pulę prób hasła (ten sam kompromis co RR-28 — RR-70, dawniej RR-NOC-T4-4). Wspólny limit 20/min/IP obejmuje oba kroki, odświeżenie i potwierdzenie wyczyszczenia.
   - Konfiguracja i zależności — brak nowych zmiennych środowiskowych (progi i czasy jako stałe domeny) i zależności.
 
 ## Notatki
@@ -94,3 +94,5 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - 2026-10-28 — poprawki, runda 1: audyt odświeżeń `session.refreshed`, aneks ADR-0021 o słowniku audytu i baseline, AC3 bez zmian do decyzji Konrada (backend-developer)
 - 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,9% linii / 95,6% gałęzi, przeglądy zatwierdzone po 3 rundach. Warunek merge: Konrad potwierdza odstępstwo AC3/AC2 (kolejność: kod TOTP przed rola×kanał i limitem urządzeń), dwufazową rotację sekretu i aneks ADR-0021; po potwierdzeniu Tech Lead poprawia tekst AC3/AC2. web-e2e-linux przerwany limitem czasu (664 scenariusze zielone, 0 błędów) — do powtórzenia przy CI.
 - 2026-10-28 — Decyzja Konrada (delegacja: „podejmij najlepsze decyzje”): przyjęte wszystkie decyzje wykonawcze z sekcji Decyzje — kolejność AC3/AC2 (tekst AC3 zmieniony), rotacja dwufazowa sekretu instalacji, aneks ADR-0021 (baseline słownika audytu), decyzje 8, 9, 17. Warunek merge zdjęty.
+- 2026-10-28 — numery ryzyk rezydualnych nadane w `docs/security/threat-model.md`: RR-68…RR-70 (zastępują tymczasowe RR-NOC-…; security-engineer)
+- 2026-10-28 — done po scaleniu #110 (Tech Lead)
