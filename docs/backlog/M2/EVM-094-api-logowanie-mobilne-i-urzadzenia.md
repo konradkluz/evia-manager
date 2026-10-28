@@ -70,6 +70,15 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - Bezpieczeństwo i prywatność: sekret instalacji nie jest czynnikiem uwierzytelnienia, tylko przypina `deviceId` po haśle i kodzie.
 - Sekret instalacji (kontrakt EVM-090, runda 3): porównanie w STAŁYM CZASIE także dla nieznanego `deviceId` (porównanie z wartością zastępczą o tej samej długości, bez gałęzi czasowej zdradzającej istnienie urządzenia) — dotyczy `mobileLogin`, `mobileLoginTotp` i `confirmDeviceWipe`. Rotacja dwufazowa (AC2): poprzedni sekret ważny najpóźniej po czasie życia tokenu odświeżania (≤ 7 dni), najwyżej dwa ważne sekrety (wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego), oba unieważniane po potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta; `confirmDeviceWipe` przyjmuje bieżący albo poprzedni sekret. Do potwierdzenia przez Konrada razem z AC2.
 
+- **Decyzje wykonawcze (backend-developer, 2026-10-28; zmieniają lub doprecyzowują AC — do potwierdzenia przez Konrada razem z decyzjami 8, 9, 17):**
+  - AC3 — kolejność: `403 channel_not_allowed` (Tylko odczyt) wraca dopiero po POPRAWNYM kodzie TOTP (kontrakt EVM-090, runda 3), nie po samym haśle — poprawne hasło nie ujawnia roli ani stanu urządzeń; `totp_not_configured` / `mfa_enrollment_required` po poprawnym haśle, przed wyzwaniem. Tekst AC3 („hasło → rola × kanał → drugi krok”) do korekty zgodnie z kontraktem.
+  - AC2 — rotacja DWUFAZOWA sekretu instalacji przyjęta warunkowo (alternatywa: brak rotacji + RR-NOC-T4-3); „aktywne” urządzenie = stan `active` z ważną sesją mobilną (wyczyszczone, do wyczyszczenia i bez ważnej sesji nie zajmują miejsca); limit liczony pod blokadą wiersza konta; urządzenie rozpoznane, które nie ma ważnej sesji, też podlega limitowi (inaczej logowanie "na znane" omijałoby 2).
+  - AC1 — `pendingItemsReported` (decyzja 9): kolumna istnieje (0–10000, domyślnie 0), ale kontrakt logowania nie niesie tego pola — zapisem zajmie się synchronizacja (EVM-098); nie jest używane do żadnej decyzji.
+  - AC4 — audyt odświeżeń: IP wg istniejącego kontekstu zdarzenia (prefiks /24, /48); ASN poza M2 (brak lokalnej bazy ASN, zewnętrzny lookup wysyłałby IP poza UE) — do backlogu. Token odświeżania bez powiązania z Keystore: RR-NOC-T4-2 (numery końcowe nada security).
+  - AC4 — wyczyszczenie ma pierwszeństwo przed `session_revoked` także dla tokenu dostępu, dopóki jego wiersz istnieje (wygasłe tokeny dostępu są czyszczone po dobie).
+  - AC5 — znane urządzenie ma licznik `browser` (para `deviceId` + sekret zgodna z urządzeniem TEGO konta w stanie `active`); inne pary liczą się na koncie; skradziony telefon z sekretem ma więc drugą pulę prób hasła (ten sam kompromis co RR-28 — RR-NOC-T4-4, numer nada security). Wspólny limit 20/min/IP obejmuje oba kroki, odświeżenie i potwierdzenie wyczyszczenia.
+  - Konfiguracja i zależności — brak nowych zmiennych środowiskowych (progi i czasy jako stałe domeny) i zależności.
+
 ## Notatki
 - Prefiks tokenu odświeżania (np. `evia_rt_`) pod skanery sekretów; rejestr IP/ASN odświeżeń w audycie.
 
@@ -78,3 +87,5 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-27 — status ready warunkowo (Tech Lead, polecenie Konrada: decyzje po uruchomieniu torów): przyjęte rekomendowane domyślne decyzje 8, 9 i 17 z README M2 (refresh token bez powiązania z Keystore + RR, pendingItemsReported minimalnie, właściciel odświeżania tokenów po stronie natywnej za portem SessionOwner); ADR-0020a w osobnym kroku; Konrad potwierdza lub zmienia
 - 2026-10-28 — EVM-090 gotowa na gałęzi (3 rundy poprawek); start realizacji (nocna kolejka, tor T4), gałąź feature/EVM-090-094-kontrakt-logowanie-mobilne
+- 2026-10-28 — plan gotowy (backend-developer)
+- 2026-10-28 — implementacja gotowa lokalnie: sześć operacji kanału mobile z trasami, migracje 0050–0052, testy AC1–AC8; bramka lokalna zielona; do potwierdzenia: korekta AC3 (kolejność), rotacja dwufazowa, baseline kontraktu przesunięty pod ADR-0021 (backend-developer)
