@@ -817,3 +817,72 @@ describe('EVM-049 the e-mail composer turns the alert into one link and refuses 
     expect((await composer.compose(db, message(uuidv7(), editor.id))).status).toBe('obsolete');
   });
 });
+
+describe('EVM-049 the jobs of the worker fail closed: no storage, no scanner and a database that is down end in a fixed code, never in a silent success', () => {
+  const brokenDb = {
+    transaction: () => {
+      throw new Error('db down');
+    },
+  } as unknown as Kysely<Database>;
+  const tools = () => ({
+    db: current.app.get<Kysely<Database>>(DATABASE, { strict: false }),
+    clock: current.clock,
+    events: current.app.get<EventBus>(EVENT_BUS, { strict: false }),
+    logger: current.app.get<Logger>(LOGGER, { strict: false }),
+  });
+
+  it('EVM-049 AC5 the retention without a configured storage removes nothing, and with a database that is down fails with a fixed code', async () => {
+    const { db, clock, events, logger } = tools();
+    expect(await new QuarantineRetentionJob(db, clock, events, logger, null).run()).toEqual({ purged: 0, failed: 0 });
+    await expect(new QuarantineRetentionJob(brokenDb, clock, events, logger, current.storage).run()).rejects.toMatchObject({
+      code: 'quarantine_retention_failed',
+    });
+    expect(new QuarantineRetentionJob(db, clock, events, logger, null).definition()).toMatchObject({ name: 'media.quarantine-retention' });
+  });
+
+  it('EVM-049 D9 an abort the storage refuses (or no storage at all) is counted, not hidden; the file is still abandoned; a database that is down fails with a fixed code', async () => {
+    const { db, clock, logger } = tools();
+    const orderId = await order();
+    const owner = await signIn('editor');
+    const old = new Date(current.clock.now().getTime() - 9 * DAY);
+    const config = { media: undefined } as unknown as ConstructorParameters<typeof AbandonedUploadsJob>[4];
+    const mk = async () => {
+      const media = await insertMedia(admin(), {
+        workOrderId: orderId,
+        createdBy: owner.userId,
+        createdAt: old,
+        session: { userId: owner.userId, state: 'active', expiresAt: new Date(old.getTime() + DAY) },
+      });
+      await sql`update media.stored_files set state_changed_at = ${old} where id = ${media.storedFileId}`.execute(admin());
+      return media;
+    };
+    const first = await mk();
+    current.storage.unavailable = true;
+    expect(await new AbandonedUploadsJob(db, clock, logger, current.storage, config).run()).toMatchObject({
+      abandoned: 1,
+      aborted: 0,
+      abortFailed: 1,
+    });
+    expect((await file(first.mediaAssetId))?.state_reason_code).toBe('abandoned');
+    current.storage.unavailable = false;
+    await mk();
+    expect(await new AbandonedUploadsJob(db, clock, logger, null, config).run()).toMatchObject({
+      abandoned: 1,
+      aborted: 0,
+      abortFailed: 1,
+    });
+    await expect(new AbandonedUploadsJob(brokenDb, clock, logger, current.storage, config).run()).rejects.toMatchObject({
+      code: 'abandoned_uploads_failed',
+    });
+    expect(new AbandonedUploadsJob(db, clock, logger, null, config).definition()).toMatchObject({ name: 'media.abandoned-uploads' });
+  });
+
+  it('EVM-049 AC7 the monitor without a scanner has nothing to watch, and with a database that is down fails with a fixed code', async () => {
+    const { db, clock, logger } = tools();
+    expect(await new SignatureMonitorJob(db, clock, logger, null).run()).toEqual({ alerts: 0 });
+    await expect(new SignatureMonitorJob(brokenDb, clock, logger, current.scanner).run()).rejects.toMatchObject({
+      code: 'signature_monitor_failed',
+    });
+    expect(new SignatureMonitorJob(db, clock, logger, null).definition()).toMatchObject({ name: 'media.signature-monitor' });
+  });
+});
