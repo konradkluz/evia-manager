@@ -452,8 +452,8 @@ customerAnonymize:
       odczyt dostają `403 forbidden`), z audytem (`customer.anonymized` — aktor, identyfikator klienta, wynik `success` albo `failed`,
       `traceId`; bez wartości). Wymaga `If-Match` (`428` / `400` / `412`). Bez `Idempotency-Key`: powtórka to `409 already_anonymized`
       (bez drugiego obiektu w rejestrze). Dostępne także dla klienta usuniętego. Kolejność (jedna transakcja, wiersz klienta
-      `SELECT … FOR UPDATE`): klient (`404` — także usunięty, dla Administratora jest widoczny), `If-Match` (`412`), już zanonimizowany
-      (`409 already_anonymized`), niezamknięte zlecenia (`409 has_active_dependents` z `openWorkOrders`), POTEM zapis obiektu do rejestru
+      `SELECT … FOR UPDATE`): klient (`404` — także usunięty, dla Administratora jest widoczny), już zanonimizowany (`409 already_anonymized`
+      — przed `If-Match`, więc powtórka po utracie odpowiedzi nie jest `412`), `If-Match` (`428` / `400` / `412`), niezamknięte zlecenia (`409 has_active_dependents` z `openWorkOrders`), POTEM zapis obiektu do rejestru
       usunięć (identyfikator klienta, kod operacji `customer_anonymized`, czas, aktor — bez żadnej wartości), dopiero potem zmiana w bazie.
       Rejestr niedostępny (brak konfiguracji, odmowa, brak odpowiedzi w terminie) — `503 deletion_register_unavailable`, dane i wersja bez
       zmian, audyt z wynikiem `failed`, usługa pozostaje zdrowa. Odpowiedź `200` ma nowy `ETag`.
