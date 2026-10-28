@@ -4,7 +4,7 @@ title: Zdjęcia w zleceniu — wysyłanie z panelu i skan bezpieczeństwa
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-progress
+status: in-review
 priority: P1
 path: pelna
 model: sonnet
@@ -155,3 +155,4 @@ Dla T3 (poza zakresem T1): dołączenie API i workera do `evia-scan` (zmiana pol
 - 2026-10-28 — poprawki backendu po przeglądach (backend-developer, tor T1): decyzja 16 (lista niedokończonych z przerwaną partią, limity czasu klienta S3, twórca sesji, `http` tylko loopback/path-style, trigger migracji 0045, powtórka zamkniętej sesji = 409, zatrzymanie pętli skanu), RR-NOC-T1-8 i warunek wydania M1 dla EVM-049; zadanie przy scaleniu — decyzja 17
 - 2026-10-28 — panel (web-developer, tor T1): zakładka „Media i dokumenty”, Uploader i UploadQueueItem w `@evia/ui-web`, silnik wysyłania (SHA-256 w Web Workerze, części `PUT` bez ciasteczek, wznowienie od `ListParts`, offline, 429, „Wstrzymaj”/„Ponów”), banner niedokończonych sesji, CSP `connect-src` z `MEDIA_BUCKET_ORIGIN`; testy komponentów i Playwright (chromium) zielone; decyzje 12–15 i RR-NOC-T1-7 powyżej; pełna bramka lokalna wstrzymana — dysk C: pełny (brak miejsca)
 - 2026-10-28 — poprawki panelu po przeglądach (web-developer, tor T1): „Ponów” pliku wznowionego bez ponownego tworzenia medium; `PUT` przerwany przed wysłaniem kończy się `AbortError` (limit czasu 10 min); baner i dopasowanie obejmują przerwaną partię bez sesji; błąd odczytu pliku w Workerze nie blokuje partii; zdarzenie dziennika „Dodano zdjęcia”; `aria-live` nagłówka „Wysyłanie · N z M”, ogłoszenie błędów, stan „Brak połączenia — wysyłanie wstrzymane.”, cele dotyku 48 px (`size="lg"`), mikrocopy (decyzja 18), stabilny klucz wyboru w dialogu
+- 2026-10-28 — workflow + przeglądy (kod, security, UX), 2 rundy poprawek, pnpm run gate zielony (integracja po ponowieniu flaky security-alerts), coverage:diff 99,0% linii / 93,2% gałęzi; status in-review (nocna kolejka, tor T1); demo po sesji IaC (bucket mediów, CSP w obrazie web)
