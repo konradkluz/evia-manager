@@ -29,7 +29,7 @@ Jako **technik** chcę, aby **szczegóły zlecenia na telefonie były kompletne 
 **AC2 — Wejście do zakresu (scenariusz 5): migawka zlecenia**
 - Zakładając nowe zlecenie dla istniejącego klienta spoza telefonu, przywrócenie po soft delete, ponowne otwarcie zamkniętego > N dni i wskazanie nowej strony w etapie
 - Gdy telefon nie zna zlecenia lub brakuje mu referencji i pobiera `GET /api/v1/sync/work-orders/{id}` (kanał `mobile`)
-- Wtedy dostaje migawkę agregatu (zlecenie z bieżącym stanem klienta, lokalizacji i encji powiązanych, w tej samej projekcji i z tym samym czytnikiem co pierwsze pobranie), a zlecenie spoza zakresu lub bez dostępu daje `404`/`403` bez ujawniania istnienia; agregat > 1 MB jest zgłaszany metryką (pomiar w EVM-107).
+- Wtedy dostaje migawkę agregatu (zlecenie z bieżącym stanem klienta, lokalizacji i encji powiązanych, w tej samej projekcji i z tym samym czytnikiem co pierwsze pobranie; test negatywny waliduje migawkę ścisłą walidacją projekcji `assertSyncProjectionStrict`, nie przez schemat odpowiedzi), a zlecenie spoza zakresu lub bez dostępu daje `404`/`403` bez ujawniania istnienia; agregat > 1 MB jest zgłaszany metryką (pomiar w EVM-107).
 
 **AC3 — Wyjście z zakresu**
 - Zakładając zlecenie zamknięte ponad N dni temu, usunięcie zlecenia lub utratę dostępu
