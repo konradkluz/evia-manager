@@ -44,7 +44,9 @@ export const PROBLEMS = Object.freeze({
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
-  has_active_dependents: { status: 409, title: 'The work order has active dependents' },
+  has_active_dependents: { status: 409, title: 'The resource has active dependents' },
+  customer_anonymized: { status: 409, title: 'The customer is anonymized' },
+  already_anonymized: { status: 409, title: 'The customer is already anonymized' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
   entry_is_event: { status: 409, title: 'The entry is an automatic event' },
   already_redacted: { status: 409, title: 'The entry text is already redacted' },
@@ -81,6 +83,8 @@ export interface ProblemExtras {
   readonly retryAfterSeconds?: number;
   /** Only `email_conflict` (EVM-024): the id of the existing account that is visible in the list of users — never an address or a name. */
   readonly existingUserId?: string;
+  /** Only `has_active_dependents` of a customer (EVM-041): the NUMBER of its open work orders - never a number, a title or an id of an order. */
+  readonly openWorkOrders?: number;
 }
 
 /** Thrown by handlers and guards to answer with a problem of the given code. */
@@ -104,9 +108,16 @@ export interface ProblemBody {
   readonly traceId: string;
   readonly errors?: readonly FieldError[];
   readonly existingUserId?: string;
+  readonly openWorkOrders?: number;
 }
 
-export function problemBody(code: ProblemCode, traceId: string, errors?: readonly FieldError[], existingUserId?: string): ProblemBody {
+export function problemBody(
+  code: ProblemCode,
+  traceId: string,
+  errors?: readonly FieldError[],
+  existingUserId?: string,
+  openWorkOrders?: number,
+): ProblemBody {
   const { status, title } = PROBLEMS[code];
   return {
     type: `/problems/${code}`,
@@ -116,11 +127,12 @@ export function problemBody(code: ProblemCode, traceId: string, errors?: readonl
     traceId,
     ...(errors === undefined ? {} : { errors }),
     ...(existingUserId === undefined ? {} : { existingUserId }),
+    ...(openWorkOrders === undefined ? {} : { openWorkOrders }),
   };
 }
 
 export function sendProblem(response: Response, code: ProblemCode, traceId: string, extras: ProblemExtras = {}): void {
-  const body = problemBody(code, traceId, extras.errors, extras.existingUserId);
+  const body = problemBody(code, traceId, extras.errors, extras.existingUserId, extras.openWorkOrders);
   if (extras.retryAfterSeconds !== undefined) response.set('Retry-After', String(extras.retryAfterSeconds));
   response.status(body.status).set('Content-Type', PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
 }

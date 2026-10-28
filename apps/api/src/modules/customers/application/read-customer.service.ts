@@ -1,7 +1,8 @@
 /**
  * The detail of one customer (EVM-039 AC2, AC5, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-02, SR-DATA-03, SR-LOG-02). The guard has
  * decided before this runs (the three roles, web channel). The customer is resolved with the read policy IN THE QUERY: one that does
- * not exist and one that is soft deleted are the same `404 not_found`, for every role (the view of deleted customers is EVM-041).
+ * not exist and one that is soft deleted are the same `404 not_found` for the Editor and Read-only; the Administrator reads a deleted
+ * customer too (`deletedAt` set; EVM-041 AC3, W-14) - the policy `readableCustomers`.
  *
  * The mass-read meter is asked BEFORE the query (429) and the customer is counted AFTER the answer is built — as a record for the
  * mass-read limit and as an identifier for the alert of policy P10 — so a missing customer, an invalid request and a refused one count
@@ -19,7 +20,7 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { BULK_READ_CONTROL, DATABASE } from '../../../platform/tokens.ts';
-import { findVisibleCustomer } from '../infrastructure/customer-store.ts';
+import { findReadableCustomer } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 import { toCustomer } from './customer-representation.ts';
 
@@ -41,7 +42,7 @@ export class ReadCustomerService {
     const eventContext = { ...context, sessionId: principal.sessionId };
     await this.#bulkRead.before(principal.userId, eventContext, 'customer');
 
-    const row = await findVisibleCustomer(customerTables(this.#db), principal, customerId);
+    const row = await findReadableCustomer(customerTables(this.#db), principal, customerId);
     if (row === undefined) throw new ProblemException('not_found');
     const customer = toCustomer(row);
     this.#bulkRead.after(principal.userId, 1);

@@ -12,11 +12,11 @@
 /** The token of the port. */
 export const DELETION_REGISTER = Symbol('DELETION_REGISTER');
 
-/** What was done to the subject; the closed list grows with the stories that erase (EVM-041 adds the anonymisation of a customer). */
-export const DELETION_OPERATION_CODES = ['timeline_entry_redacted'] as const;
+/** What was done to the subject; the closed list grows with the stories that erase (EVM-040: a redaction, EVM-041: the anonymisation of a customer). */
+export const DELETION_OPERATION_CODES = ['timeline_entry_redacted', 'customer_anonymized'] as const;
 export type DeletionOperationCode = (typeof DELETION_OPERATION_CODES)[number];
 
-export const DELETION_SUBJECT_TYPES = ['timeline_entry'] as const;
+export const DELETION_SUBJECT_TYPES = ['timeline_entry', 'customer'] as const;
 export type DeletionSubjectType = (typeof DELETION_SUBJECT_TYPES)[number];
 
 /** What a caller says; the identifier of the operation and the time are made by the register itself (never a value of a request). */

@@ -522,7 +522,7 @@ WorkOrderDeleteConflict:
         $ref: problem.yaml#/Problem
       example:
         type: /problems/has_active_dependents
-        title: The work order has active dependents
+        title: The resource has active dependents
         status: 409
         code: has_active_dependents
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
@@ -545,7 +545,7 @@ CustomerHasActiveDependents:
         $ref: problem.yaml#/Problem
       example:
         type: /problems/has_active_dependents
-        title: The customer has open work orders
+        title: The resource has active dependents
         status: 409
         code: has_active_dependents
         openWorkOrders: 2

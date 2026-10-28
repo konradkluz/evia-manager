@@ -132,7 +132,8 @@ export class CreateWorkOrderService {
   }
 
   async #compose(tx: Kysely<Database>, principal: Principal, order: NewWorkOrder, context: EventContext): Promise<void> {
-    const customer = await this.#customers.findVisible(tx, principal, order.customerId);
+    // the customer is LOCKED `FOR KEY SHARE`: the deletion and the anonymization of the customer (`FOR UPDATE`) and this creation are serialised (EVM-041 D7)
+    const customer = await this.#customers.lockVisible(tx, principal, order.customerId);
     const site = await this.#sites.findVisible(tx, principal, order.siteId);
     if (customer === undefined || site === undefined) throw new ProblemException('not_found');
     const template = await this.#template(tx, order.templateId);

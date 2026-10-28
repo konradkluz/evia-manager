@@ -173,7 +173,9 @@ export class ReadWorkOrderService {
     const customerId = order.customer_id;
     const card = customerId === null ? undefined : await this.#customers.getCard(this.#db, principal, customerId);
     if (card === undefined || customerId === null) throw new ProblemException('not_found');
-    const answer = checked(zCustomerCard.safeParse({ displayName: card.displayName, phone: card.phone, email: card.email }));
+    const answer = checked(
+      zCustomerCard.safeParse({ displayName: card.displayName, phone: card.phone, email: card.email, anonymized: card.anonymized }),
+    );
     await this.#bulkRead.afterDistinct(principal.userId, 'customer', [customerId], { ...context, sessionId: principal.sessionId });
     return answer;
   }

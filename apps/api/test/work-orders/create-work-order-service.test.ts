@@ -39,6 +39,7 @@ interface Answers {
 function setup(overrides: Answers = {}) {
   const answer = (key: keyof Answers, fallback: unknown) => (key in overrides ? overrides[key] : fallback);
   const findCustomer = vi.fn(() => Promise.resolve(answer('customer', CUSTOMER)));
+  const readCustomer = vi.fn(() => Promise.resolve(answer('customer', CUSTOMER)));
   const findSite = vi.fn(() => Promise.resolve(answer('site', SITE)));
   const findTemplate = vi.fn(() => Promise.resolve(answer('template', undefined)));
   const findActive = vi.fn<UserDirectory['findActive']>(() => Promise.resolve(answer('assignee', undefined) as never));
@@ -55,7 +56,8 @@ function setup(overrides: Answers = {}) {
     { now: () => new Date('2026-10-07T08:00:00Z') },
     { publish } as unknown as EventBus,
     { run } as unknown as Idempotency,
-    { findVisible: findCustomer } as unknown as CustomerDirectory,
+    // the customer of a NEW order is locked (`lockVisible`, EVM-041 D7); `findVisible` is the read of the answer
+    { findVisible: readCustomer, lockVisible: findCustomer } as unknown as CustomerDirectory,
     { findVisible: findSite } as unknown as SiteDirectory,
     { findActiveForCopy: findTemplate } as unknown as TemplateDirectory,
     { findActive } as unknown as UserDirectory,
@@ -93,6 +95,14 @@ describe('creation of a work order checks its references before any write (EVM-0
       expect(findActive).not.toHaveBeenCalled();
       expect(publish).not.toHaveBeenCalled();
     }
+  });
+
+  it('EVM-041 AC1 the customer of a new order is LOCKED in the transaction of the insert (the deletion of the customer is serialised with it), the site is read', async () => {
+    const { service, findCustomer } = setup({ template: undefined });
+    const caller = principal({ role: 'editor' });
+    await problemOf(service.create(caller, body({ templateId: uuidv7() }), undefined, context));
+    // `lockVisible` (the mock behind `findCustomer`) is the call of the creation; `findVisible` is only the read of the answer
+    expect(findCustomer).toHaveBeenCalledTimes(1);
   });
 
   it('EVM-022 AC3 both references are read in the SAME transaction as the insert, with the principal of the caller', async () => {

@@ -9,6 +9,7 @@ import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
 import { insertEntries } from './timeline-fixtures.ts';
+import { uuidv7 } from './uuid.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 const WORK_ORDERS = '/api/v1/work-orders';
@@ -71,7 +72,22 @@ export async function customerObjects(app: IdentityApp): Promise<Record<string, 
   const own = await insertCustomer(db, { email: 'jan@example.invalid' });
   const foreign = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
   const paths: ObjectPaths = { own: () => `${CUSTOMERS}/${own}`, foreign: () => `${CUSTOMERS}/${foreign}` };
-  return { getCustomer: paths, updateCustomer: paths };
+  // EVM-041: the deletion, the restoration and the anonymization - customers of their own, so the reads and the edit of the matrix keep their
+  // objects (the first allowed cell of the deletion really deletes `erase`). The Administrator's cell on a "foreign" object must be 404:
+  // - the deletion: "foreign" is a customer that is deleted already (the deletion of one is the 404 of a missing one);
+  // - the restoration: "own" is the deleted customer (a POST has no `If-Match` in the matrix: 428, nothing happens), "foreign" a live one;
+  // - the anonymization: it works on a deleted customer too, so "foreign" is a customer that does not exist.
+  const erase = await insertCustomer(db, { email: 'anna@example.invalid' });
+  const erased = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
+  const spare = await insertCustomer(db, { lastName: 'Zapasowy' });
+  const missing = uuidv7();
+  return {
+    getCustomer: paths,
+    updateCustomer: paths,
+    deleteCustomer: { own: () => `${CUSTOMERS}/${erase}`, foreign: () => `${CUSTOMERS}/${erased}` },
+    restoreCustomer: { own: () => `${CUSTOMERS}/${erased}/restore`, foreign: () => `${CUSTOMERS}/${spare}/restore` },
+    anonymizeCustomer: { own: () => `${CUSTOMERS}/${spare}/anonymize`, foreign: () => `${CUSTOMERS}/${missing}/anonymize` },
+  };
 }
 
 const SITES = '/api/v1/sites';

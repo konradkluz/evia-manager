@@ -1,6 +1,6 @@
 /**
  * The representation of a customer as the contract has it (SR-DATA-03): the fields of the contract only — never the search text,
- * the sort name or the people who created and changed it — parsed with the schema of the contract before it leaves.
+ * the sort name or the people who created, changed, deleted and anonymized it — parsed with the schema of the contract before it leaves.
  */
 import type { Customer } from '@evia/contracts';
 import { zCustomer } from '@evia/contracts/zod';
@@ -37,6 +37,8 @@ export function toCustomer(row: CustomerRow): Customer {
     version: row.version,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    deletedAt: row.deleted_at === null ? null : row.deleted_at.toISOString(),
+    anonymizedAt: row.anonymized_at === null ? null : row.anonymized_at.toISOString(),
   };
   const checked = zCustomer.safeParse(customer);
   if (!checked.success) throw new ProblemException('internal_error');

@@ -33,6 +33,13 @@ const record: DeletionRecord = {
   workOrderId: '0199aaaa-0000-7000-8000-000000000002',
   actorUserId: '0199aaaa-0000-7000-8000-000000000003',
 };
+const customerRecord: DeletionRecord = {
+  operationCode: 'customer_anonymized',
+  subjectType: 'customer',
+  subjectId: '0199aaaa-0000-7000-8000-000000000011',
+  workOrderId: null,
+  actorUserId: '0199aaaa-0000-7000-8000-000000000003',
+};
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 interface Seen {
@@ -112,6 +119,21 @@ describe('EVM-040 AC3 the object of a record (SR-PRIV-04): identifiers and codes
     const object = registerObjectOf({ ...record, workOrderId: null }, new Date('2026-12-31T23:30:00.000Z'));
     expect(object.key.startsWith('2026/')).toBe(true);
     expect(JSON.parse(object.body)).not.toHaveProperty('workOrderId');
+  });
+
+  it('EVM-041 AC5 the object of the anonymization of a customer holds the customer id, the code, the actor and the time - and no name, no order', () => {
+    const object = registerObjectOf(customerRecord, new Date(NOW));
+    expect(JSON.parse(object.body)).toEqual({
+      schemaVersion: 1,
+      operationId: object.operationId,
+      operationCode: 'customer_anonymized',
+      subjectType: 'customer',
+      subjectId: customerRecord.subjectId,
+      actorUserId: customerRecord.actorUserId,
+      occurredAt: NOW,
+    });
+    expect(object.key).toBe(`2026/${object.operationId}.json`);
+    expect(object.key).not.toContain(customerRecord.subjectId);
   });
 
   it('EVM-040 AC3 every record gets a new key (the identifier is made by the server, never repeated)', () => {
@@ -209,6 +231,25 @@ describe('the S3 adapter against a local server (EVM-040 AC3; SR-PRIV-04, SR-CRY
     expect(seen?.headers['if-none-match']).toBeUndefined();
     expect(seen?.headers['x-amz-checksum-crc32']).toBeUndefined();
     expect(JSON.parse(seen?.body ?? '{}')).toMatchObject({ operationId: receipt.operationId, subjectId: record.subjectId });
+  });
+
+  it('EVM-041 AC5 the anonymization of a customer is ONE PUT to the local server whose body has the identifier and the code only (canary-free)', async () => {
+    const receipt = await adapter().record(customerRecord);
+    expect(storage.seen).toHaveLength(1);
+    const [seen] = storage.seen;
+    expect(seen?.method).toBe('PUT');
+    expect(seen?.url).toBe(`/evia-test-deletion-register/${receipt.key}`);
+    const body = JSON.parse(seen?.body ?? '{}') as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(
+      ['actorUserId', 'occurredAt', 'operationCode', 'operationId', 'schemaVersion', 'subjectId', 'subjectType'].sort(),
+    );
+    expect(body).toMatchObject({ operationCode: 'customer_anonymized', subjectType: 'customer', subjectId: customerRecord.subjectId });
+    expect(seen?.body).not.toContain(CANARY);
+  });
+
+  it('EVM-041 AC5 a refusal of the storage for a customer is DeletionRegisterUnavailable (the anonymization does not start)', async () => {
+    storage.mode = 'error';
+    await expect(adapter().record(customerRecord)).rejects.toBeInstanceOf(DeletionRegisterUnavailable);
   });
 
   it('EVM-040 AC3 the credentials are the explicit ones: AWS_ACCESS_KEY_ID of the environment is ignored', async () => {
