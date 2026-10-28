@@ -52,6 +52,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'bulk_read.rejected': 'Odrzucony masowy odczyt',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
+  'customer.deleted': 'Usunięcie klienta',
+  'customer.restored': 'Przywrócenie klienta',
+  'customer.anonymized': 'Anonimizacja klienta',
   'site.created': 'Dodanie lokalizacji',
   'site.updated': 'Zmiana danych lokalizacji',
   'party.created': 'Dodanie strony',
@@ -138,7 +141,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
-  { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
+  { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
   {
     label: 'Zlecenia',

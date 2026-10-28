@@ -24,6 +24,8 @@ const JAN: Customer = {
   version: 3,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-02T10:00:00.000Z',
+  deletedAt: null,
+  anonymizedAt: null,
 };
 const FIRMA: Customer = {
   id: ID,
@@ -37,6 +39,8 @@ const FIRMA: Customer = {
   version: 1,
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-01T10:00:00.000Z',
+  deletedAt: null,
+  anonymizedAt: null,
 };
 
 function order(index: number, overrides: Partial<WorkOrderListItem> = {}): WorkOrderListItem {
