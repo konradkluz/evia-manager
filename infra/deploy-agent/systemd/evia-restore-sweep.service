@@ -1,0 +1,17 @@
+# EVM-084 AC4: the hourly sweeper of the project evia-restore-staging (resources older than 24 h).
+[Unit]
+Description=EVia restore test: sweeper of leftover resources
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=evia-restore-alert.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/evia/restore/restore.conf
+ExecStart=/usr/local/sbin/evia-restore-sweep
+TimeoutStartSec=15min
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

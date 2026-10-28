@@ -56,6 +56,13 @@ provider "scaleway" {
   project_id = var.scaleway_project_id
 }
 
+# Object Storage in pl-waw (ADR-0009, ADR-0011); the default provider (fr-par) stays for TEM.
+provider "scaleway" {
+  alias      = "waw"
+  region     = "pl-waw"
+  project_id = var.scaleway_project_id
+}
+
 locals {
   name = "evia-staging"
 }
@@ -66,9 +73,10 @@ module "network" {
 }
 
 module "firewall" {
-  source          = "../modules/firewall"
-  name            = local.name
-  admin_ssh_cidrs = var.admin_ssh_cidrs
+  source           = "../modules/firewall"
+  name             = local.name
+  admin_ssh_cidrs  = var.admin_ssh_cidrs
+  storagebox_cidrs = var.storagebox_cidrs
 }
 
 module "vm" {
@@ -94,6 +102,16 @@ module "tem" {
   region     = "fr-par"
 }
 
+# EVM-084: buckets, IAM applications and bucket policies. Inactive until the IaC session (new paid resources, apply with Konrad).
+module "object_storage" {
+  source             = "../modules/object-storage"
+  providers          = { scaleway = scaleway.waw }
+  project_id         = var.scaleway_project_id
+  region             = "pl-waw"
+  panel_origin       = var.panel_origin
+  iac_application_id = var.iac_application_id
+}
+
 output "ipv4" {
   description = "Public IPv4 for the A record (set by Konrad in OVH)."
   value       = module.vm.ipv4
@@ -102,4 +120,14 @@ output "ipv4" {
 output "ipv6" {
   description = "Public IPv6 for the AAAA record (set by Konrad in OVH)."
   value       = module.vm.ipv6
+}
+
+output "object_storage_buckets" {
+  description = "Bucket names for the runtime configuration."
+  value       = module.object_storage.buckets
+}
+
+output "object_storage_application_ids" {
+  description = "Scaleway IAM applications of the buckets (not secrets); API keys are created by hand in the IaC session."
+  value       = module.object_storage.application_ids
 }

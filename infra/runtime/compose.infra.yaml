@@ -23,7 +23,10 @@ services:
     ports:
       - '80:80'
       - '443:443'
-    networks: [evia-runtime]
+    # EVM-085 AC6 (security-engineer A12): a fixed address, the only value of TRUSTED_PROXIES of the API and the worker.
+    networks:
+      evia-runtime:
+        ipv4_address: 172.30.10.2
     environment:
       XDG_CONFIG_HOME: /config
       XDG_DATA_HOME: /data
@@ -99,6 +102,14 @@ networks:
   # The shared network of the edge Caddy, PostgreSQL and the application colours (external for the channel).
   evia-runtime:
     name: evia-runtime
+    # A fixed subnet (EVM-085 AC6): the address of the edge Caddy is known, so TRUSTED_PROXIES is that one address and not the whole
+    # range of Docker. Changing the subnet of an existing network needs it recreated (docs/ops/runbooks/alerty.md "Aktywacja").
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
+          # Dynamic addresses only from the upper half, so that no container can take the fixed address of Caddy (.2) after a restart of
+          # the VM (CWE-348: a container at .2 would become the trusted proxy of TRUSTED_PROXIES).
+          ip_range: 172.30.10.128/25
   # clamd without egress; the API joins it with EVM-044.
   evia-scan:
     name: evia-scan

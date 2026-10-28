@@ -1,0 +1,15 @@
+{
+  "description": "EVM-085 AC3 (architect 7): Grafana Synthetic Monitoring (Free) checks of staging (/healthz is the API through the edge Caddy, / is the panel). Read by the OpenTofu module grafana-alerts (jsondecode) and by the test that keeps the monthly executions at or below 80% of the free limit (cost: docs/ops/koszty-staging.md). Alert: email of Konrad, once at recovery.",
+  "env": "staging",
+  "freeExecutionsPerMonth": 100000,
+  "limitCheckedOn": "2026-10-28",
+  "maxShareOfLimit": 0.8,
+  "intervalSeconds": 180,
+  "timeoutSeconds": 10,
+  "probes": ["Frankfurt", "Amsterdam"],
+  "failuresBeforeAlert": 3,
+  "checks": [
+    { "name": "staging-api-healthz", "url": "https://staging.eviacharge.pl/healthz", "expectStatus": 200 },
+    { "name": "staging-panel", "url": "https://staging.eviacharge.pl/", "expectStatus": 200 }
+  ]
+}

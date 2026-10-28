@@ -8,6 +8,7 @@ EVM-007 AC1 (ADR-0018 „IaC”, ADR-0011). OpenTofu 1.13 dla środowiska stagin
 | `modules/firewall` | zapora Hetzner: wejście 80/443, 22 tylko z `admin_ssh_cidrs` (domyślnie pusta), wyjście tylko 443/tcp, 53/udp+tcp, 123/udp (SR-INFRA-01) |
 | `modules/vm` | VM, wolumen danych (LUKS2, klucz generowany na VM), `user-data` bez sekretów (`templates/user-data.yaml.tftpl`: Docker po dokładnej wersji, blokada `169.254.169.254` dla kontenerów we własnej tabeli nftables, SSH tylko kluczem) |
 | `modules/tem` | domena TEM `staging.eviacharge.pl` (rekordy SPF/DKIM/DMARC ustawia Konrad ręcznie w OVH) |
+| `modules/object-storage` | EVM-084: trzy prywatne buckety w `pl-waw` (media z object lock GOVERNANCE 30 d, rejestr usunięć — klucz aplikacji tylko `PutObject` bez nadpisania, `evia-staging-db-backup` z COMPLIANCE 37 d), SSE-ONE, wersjonowanie, CORS `PUT` z jednego originu, aplikacje IAM i polityki bucketów (jawny Deny uprawnień administracyjnych); klucze API tworzone ręcznie, nie w stanie. Nieaktywny do sesji IaC (nowe płatne zasoby); reguły: `bucketProblems` w `tools/repo-policy` |
 | `bootstrap` | bucket stanu OpenTofu (Scaleway, wersjonowany, prywatny); stan lokalny poza repozytorium |
 | `staging` | środowisko staging (stan w buckecie z `bootstrap`) |
 

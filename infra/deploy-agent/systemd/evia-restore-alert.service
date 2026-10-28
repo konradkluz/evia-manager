@@ -1,0 +1,7 @@
+# EVM-084 AC1, AC4: the local alert of a failed backup, copy, sweeper or restore test (the e-mail alert is EVM-085). Identifiers only.
+[Unit]
+Description=EVia backup and restore test: local alert
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'date -u +"%%Y-%%m-%%dT%%H:%%M:%%SZ a backup, media copy, sweeper or restore test unit failed (journalctl -u evia-backup-full -u evia-backup-diff -u evia-media-copy -u evia-restore-sweep -u evia-restore-test)" >> /var/lib/evia/restore/alerts.log'
