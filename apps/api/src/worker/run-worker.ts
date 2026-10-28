@@ -19,8 +19,8 @@ export interface SignalSource {
 
 /** Work that runs next to the jobs while the worker is up (the relay of an outbox, the health file): started when the jobs are taken, stopped before the queue. */
 export interface BackgroundTask {
-  /** @returns a function that stops it */
-  start(): () => void;
+  /** @returns a function that stops it; it may return a promise, which the worker awaits (a pass in progress finishes) */
+  start(): () => void | Promise<void>;
 }
 
 export interface RunWorkerOptions {
@@ -33,7 +33,7 @@ export interface RunWorkerOptions {
 
 /** @returns the exit code once the worker has been stopped by a signal (or failed to start) */
 export async function runWorker({ queue, jobs, tasks = [], signals, logger }: RunWorkerOptions): Promise<number> {
-  const stops: Array<() => void> = [];
+  const stops: Array<() => void | Promise<void>> = [];
   const stopped = new Promise<void>((resolve) => {
     signals.once('SIGTERM', resolve);
     signals.once('SIGINT', resolve);
@@ -48,13 +48,13 @@ export async function runWorker({ queue, jobs, tasks = [], signals, logger }: Ru
     logger.info({ jobs: jobs.length, tasks: tasks.length }, 'worker: ready');
   } catch (error) {
     logger.error({ errorType: error instanceof Error ? error.name : 'unknown' }, 'worker: start failed');
-    for (const stop of stops) stop();
+    for (const stop of stops) await Promise.resolve(stop()).catch(() => undefined);
     await queue.stop().catch(() => undefined);
     return EXIT_FAILED;
   }
   await stopped;
   logger.info({}, 'worker: stopping');
-  for (const stop of stops) stop();
+  for (const stop of stops) await Promise.resolve(stop()).catch(() => undefined);
   try {
     await queue.stop();
   } catch (error) {

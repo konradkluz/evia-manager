@@ -53,6 +53,7 @@ export interface ScanDependencies {
 export class MediaScanService {
   readonly #deps: ScanDependencies;
   #running = false;
+  #pass: Promise<number> | undefined;
 
   constructor(deps: ScanDependencies) {
     this.#deps = deps;
@@ -63,38 +64,43 @@ export class MediaScanService {
     return this.#deps.storage !== null && this.#deps.scanner !== null;
   }
 
-  /** Starts the loop; @returns the function that stops it. */
-  start(intervalMs = 5000): () => void {
+  /** Starts the loop; @returns the function that stops it - its promise settles once the pass in progress has finished (no half-scanned file on exit). */
+  start(intervalMs = 5000): () => Promise<void> {
     const timer = setInterval(() => {
       this.runOnce().catch(() => {
         this.#deps.logger.error({ job: 'media.scan' }, 'media: scan pass failed');
       });
     }, intervalMs);
     timer.unref();
-    return () => {
+    return async () => {
       clearInterval(timer);
+      await this.#pass?.catch(() => undefined);
     };
   }
 
   /** One pass: at most {@link BATCH} files, one after another. @returns how many reached a verdict */
-  async runOnce(): Promise<number> {
-    if (!this.enabled || this.#running) return 0;
+  runOnce(): Promise<number> {
+    if (!this.enabled || this.#running) return Promise.resolve(0);
     this.#running = true;
-    try {
-      const { db, clock, logger } = this.#deps;
-      const now = clock.now();
-      const staleBefore = new Date(now.getTime() - STALE_SCANNING_MS);
-      const waiting = await findUnscanned(mediaTables(db), staleBefore, BATCH);
-      let decided = 0;
-      for (const { id } of waiting) {
-        if (await this.scanFile(id)) decided += 1;
-      }
-      const stuck = await countStuck(mediaTables(db), new Date(now.getTime() - STUCK_WARNING_MS));
-      if (stuck > 0) logger.warn({ job: 'media.scan', stuck }, 'media: files wait for a scan for over 30 minutes');
-      return decided;
-    } finally {
+    const pass = this.#scanWaiting();
+    this.#pass = pass;
+    return pass.finally(() => {
       this.#running = false;
+    });
+  }
+
+  async #scanWaiting(): Promise<number> {
+    const { db, clock, logger } = this.#deps;
+    const now = clock.now();
+    const staleBefore = new Date(now.getTime() - STALE_SCANNING_MS);
+    const waiting = await findUnscanned(mediaTables(db), staleBefore, BATCH);
+    let decided = 0;
+    for (const { id } of waiting) {
+      if (await this.scanFile(id)) decided += 1;
     }
+    const stuck = await countStuck(mediaTables(db), new Date(now.getTime() - STUCK_WARNING_MS));
+    if (stuck > 0) logger.warn({ job: 'media.scan', stuck }, 'media: files wait for a scan for over 30 minutes');
+    return decided;
   }
 
   /** @returns whether the file reached a verdict (`false`: taken by someone else, or the scanner could not decide — it is retried) */

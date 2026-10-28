@@ -183,7 +183,7 @@ describe('EVM-044 AC3 the loop of the scan (SR-ERR-02: nothing stays silent)', (
       if (row.rows[0]?.state === 'clean') break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    stop();
+    await stop();
     expect(
       (await sql<{ state: string }>`select state from media.stored_files where media_asset_id = ${item.id}`.execute(current.database.admin))
         .rows[0]?.state,
@@ -206,7 +206,7 @@ describe('EVM-044 AC3 the loop of the scan (SR-ERR-02: nothing stays silent)', (
     await sql`alter table media.stored_files rename to stored_files_gone`.execute(current.database.admin);
     await new Promise((resolve) => setTimeout(resolve, 150));
     await sql`alter table media.stored_files_gone rename to stored_files`.execute(current.database.admin);
-    stop();
+    await stop();
     expect(current.logs.entries.some((entry) => entry['msg'] === 'media: scan pass failed')).toBe(true);
   });
 });
