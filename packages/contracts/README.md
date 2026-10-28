@@ -36,6 +36,7 @@ Fixtures negatywne w `test/fixtures/` dowodzą, że każda reguła zatrzymuje b�
 |---|---|
 | `@evia/contracts` | typy, funkcje SDK (`getHealth`), `client`, `createClient`, `createConfig` |
 | `@evia/contracts/zod` | schematy Zod (`zHealth`, `zProblem`, `zSemver`, …) |
+| `@evia/contracts/sync` | czytnik zmian synchronizacji (`parseSyncChange`, `SYNC_PROJECTIONS`, sprawdzenie ścisłe po stronie serwera; EVM-090) — osobny punkt wejścia, bo zależy od Zod w czasie działania i nie może trafiać do pakietu panelu (CSP `script-src 'self'`) |
 | `@evia/contracts/authz` | `AUTHZ_MANIFEST` (`operationId` → metoda, ścieżka, `x-evia-authz`), `PUBLIC_OPERATIONS` |
 | `@evia/contracts/mock-server` | atrapa serwera na przykładach kontraktu (`startMockServer`; tylko `127.0.0.1`, port efemeryczny; `Prefer: code=<status>`) — narzędzie developerskie i testowe, poza głównym eksportem |
 | `@evia/contracts/openapi.json` | zbundlowana specyfikacja |

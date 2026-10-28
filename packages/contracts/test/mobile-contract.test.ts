@@ -23,11 +23,9 @@ import {
   refreshMobileSession,
   type MobileSession,
   type SyncChangesResponse,
-  SYNC_PROJECTIONS,
-  SYNC_PROJECTIONS_STRICT,
-  assertSyncProjectionStrict,
-  parseSyncChange,
 } from '../src/index.ts';
+// the reader of the phone is its own entry point (@evia/contracts/sync): it depends on Zod at run time and must not reach the bundle of the panel (CSP)
+import { SYNC_PROJECTIONS, SYNC_PROJECTIONS_STRICT, assertSyncProjectionStrict, parseSyncChange } from '../src/sync.ts';
 import { NoPersonalDataParameters, type RuleContext } from '../src/redocly-plugin.ts';
 import {
   zClientConfig,

@@ -13,6 +13,10 @@
       "types": "./dist/src/zod.d.ts",
       "default": "./dist/src/zod.js"
     },
+    "./sync": {
+      "types": "./dist/src/sync.d.ts",
+      "default": "./dist/src/sync.js"
+    },
     "./authz": {
       "types": "./dist/src/authz.d.ts",
       "default": "./dist/src/authz.js"
