@@ -1,0 +1,46 @@
+# EVM-090 AC1 negative fixture: a public operation on both channels would let the guard skip the CSRF checks of the web login (SR-AUTHZ-12).
+openapi: 3.1.0
+info:
+  title: Fixture
+  version: 1.0.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /
+security: []
+components:
+  securitySchemes:
+    mobileBearer:
+      type: http
+      scheme: bearer
+    webSession:
+      type: apiKey
+      in: cookie
+      name: __Host-evia_session
+tags:
+  - name: platform
+    description: Fixture.
+paths:
+  /api/v1/auth/mobile/login:
+    post:
+      operationId: mobileLogin
+      tags: [platform]
+      summary: Operacja
+      description: Operacja.
+      x-evia-authz:
+        public: true
+        channels: [web, mobile]
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          description: Brak sesji.
+          content:
+            application/problem+json:
+              schema:
+                type: object

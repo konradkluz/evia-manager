@@ -14,6 +14,8 @@ export interface PolicySource {
   readonly authenticationOperations: readonly string[];
   /** Operations that do not count as activity of the session (EVM-067; SR-WEB-05): reading must not keep it alive. */
   readonly passiveOperations: readonly string[];
+  /** Operations of the mobile channel that need the version of the app (426; EVM-094): the headers X-Client-Platform and X-Client-Version serve compatibility only. */
+  readonly clientVersionOperations: readonly string[];
 }
 
 export const POLICY_SOURCE = Symbol('POLICY_SOURCE');
@@ -30,6 +32,11 @@ export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
   'verifyLoginPasskey',
   'loginTotp',
   'loginRecoveryCode',
+  // The mobile channel shares the bucket of the panel (EVM-094 AC5): the second path is no way around the limit.
+  'mobileLogin',
+  'mobileLoginTotp',
+  'refreshMobileSession',
+  'confirmDeviceWipe',
   'setActivationPassword',
   'getPasskeyRegistrationOptions',
   'registerPasskey',
@@ -47,10 +54,19 @@ export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
  */
 export const PASSIVE_OPERATIONS: readonly string[] = Object.freeze(['getCurrentSession', 'extendSession']);
 
+/** The version of the app is checked on the sign-in, the renewal of tokens and the logout; not on getClientConfig (the app must read the minimum) nor on the confirmation of the wipe. */
+export const CLIENT_VERSION_OPERATIONS: readonly string[] = Object.freeze([
+  'mobileLogin',
+  'mobileLoginTotp',
+  'refreshMobileSession',
+  'mobileLogout',
+]);
+
 export const CONTRACT_POLICIES: PolicySource = Object.freeze({
   manifest: AUTHZ_MANIFEST,
   publicOperations: PUBLIC_OPERATIONS,
   mfaEnrollmentOperations: MFA_ENROLLMENT_OPERATIONS,
   authenticationOperations: AUTHENTICATION_OPERATIONS,
   passiveOperations: PASSIVE_OPERATIONS,
+  clientVersionOperations: CLIENT_VERSION_OPERATIONS,
 });

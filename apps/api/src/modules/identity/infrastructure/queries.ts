@@ -161,6 +161,8 @@ export interface NewSession {
   readonly absoluteExpiresAt: Date;
   readonly ip: string | undefined;
   readonly userAgent: string | undefined;
+  /** The device of a mobile session (EVM-094); absent for the sessions of the panel. */
+  readonly deviceId?: string;
 }
 
 /** Sizes of the stored client data (P9): the address is stored in full for 30 days, the agent is cut to 512 characters. */
@@ -186,6 +188,7 @@ export async function insertSession(db: IdentityDb, session: NewSession): Promis
       revoke_reason: null,
       ip_address: session.ip ?? null,
       user_agent: session.userAgent?.slice(0, USER_AGENT_LIMIT) ?? null,
+      device_id: session.deviceId ?? null,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -280,11 +283,13 @@ export interface LoginAttemptRecord {
   readonly usedAt: Date | null;
   /** The scope of the counter against guessing this first step was counted in; null on an attempt made before 0040. */
   readonly throttleKey: Buffer | null;
+  /** The channel of the first step (EVM-094): the second step of another channel finds no attempt. */
+  readonly channel: 'web' | 'mobile';
 }
 
 export async function insertLoginAttempt(
   db: IdentityDb,
-  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer },
+  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer; channel: 'web' | 'mobile' },
 ): Promise<string> {
   const row = await db
     .insertInto('identity.login_attempts')
@@ -295,6 +300,7 @@ export async function insertLoginAttempt(
       expires_at: attempt.expiresAt,
       used_at: null,
       throttle_key: attempt.throttleKey,
+      channel: attempt.channel,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -310,7 +316,7 @@ export async function deleteStaleLoginAttempts(db: IdentityDb, cutoff: Date): Pr
 export async function findLoginAttempt(db: IdentityDb, tokenHash: Buffer): Promise<LoginAttemptRecord | undefined> {
   return db
     .selectFrom('identity.login_attempts')
-    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'throttle_key as throttleKey'])
+    .select(['id', 'user_id as userId', 'expires_at as expiresAt', 'used_at as usedAt', 'throttle_key as throttleKey', 'channel'])
     .where('token_hash', '=', tokenHash)
     .executeTakeFirst();
 }

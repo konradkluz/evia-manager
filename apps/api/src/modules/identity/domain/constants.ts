@@ -65,3 +65,18 @@ export const SESSION_RETENTION_MS = 30 * 24 * HOUR;
 /** The name a key gets when its owner gives none, and the limit of a name (EVM-028). */
 export const DEFAULT_PASSKEY_NAME = 'Klucz dostępu';
 export const MAX_PASSKEY_NAME_LENGTH = 60;
+
+/** The mobile channel (EVM-094; ADR-0005, P2): a token of access lives 15 minutes; a session of the phone ends after 14 days without a refresh or 30 days from the sign-in. */
+export const MOBILE_ACCESS_TOKEN_TTL_MS = 15 * MINUTE;
+export const MOBILE_IDLE_MS = 14 * 24 * HOUR;
+export const MOBILE_ABSOLUTE_MS = 30 * 24 * HOUR;
+/** A refresh token already used is still accepted this long when it is the direct predecessor and no successor was used yet (a response lost in a garage; SR-SESS-09). */
+export const REFRESH_REUSE_WINDOW_MS = 30_000;
+/** The previous installation secret stays valid at most this long after the next one is issued (the two-phase rotation; at most two secrets are valid). */
+export const PREVIOUS_SECRET_VALID_MS = 7 * 24 * HOUR;
+/** A device with no contact for 30 days loses its sessions (P2). */
+export const DEVICE_INACTIVE_MS = 30 * 24 * HOUR;
+/** The devices an account keeps at once (SR-SESS-04). */
+export const MAX_MOBILE_DEVICES = 2;
+/** An expired access token is kept this long, so that the token of a device ordered to wipe is still recognised. */
+export const ACCESS_TOKEN_RETENTION_MS = 24 * HOUR;

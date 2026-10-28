@@ -13,9 +13,17 @@
       "types": "./dist/src/zod.d.ts",
       "default": "./dist/src/zod.js"
     },
+    "./sync": {
+      "types": "./dist/src/sync.d.ts",
+      "default": "./dist/src/sync.js"
+    },
     "./authz": {
       "types": "./dist/src/authz.d.ts",
       "default": "./dist/src/authz.js"
+    },
+    "./mock-server": {
+      "types": "./dist/src/mock-server.d.ts",
+      "default": "./dist/src/mock-server.js"
     },
     "./openapi.json": "./dist/openapi.json"
   },
@@ -23,6 +31,8 @@
     "build": "node src/build.ts",
     "lint": "eslint . && node src/redocly.ts",
     "typecheck": "tsc -p tsconfig.json",
+    "baseline:check": "node src/breaking-changes.ts check",
+    "baseline:update": "node src/breaking-changes.ts update",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },

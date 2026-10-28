@@ -47,6 +47,9 @@ import * as media from './0045_media.ts';
 import * as mediaQuarantine from './0046_media_quarantine.ts';
 import * as emailOutboxSubject from './0047_email_outbox_subject.ts';
 import * as mediaAlerts from './0048_media_alerts.ts';
+import * as mobileDevices from './0050_mobile_devices.ts';
+import * as mobileTokens from './0051_mobile_tokens.ts';
+import * as mobileVocabularies from './0052_mobile_vocabularies.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -96,4 +99,7 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0046_media_quarantine': mediaQuarantine,
   '0047_email_outbox_subject': emailOutboxSubject,
   '0048_media_alerts': mediaAlerts,
+  '0050_mobile_devices': mobileDevices,
+  '0051_mobile_tokens': mobileTokens,
+  '0052_mobile_vocabularies': mobileVocabularies,
 });

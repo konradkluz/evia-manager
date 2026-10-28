@@ -5,9 +5,13 @@ import eviaPlugin, {
   ChannelsRequired,
   MfaEnrollmentAllowList,
   MobileChannelAllowList,
+  MobileNoSetCookie,
   NoPersonalDataParameters,
   normalizeName,
+  PlannedMarker,
   PublicAllowList,
+  PublicChannels,
+  SecuritySchemeChannel,
   StepUpWebOnly,
   type RuleContext,
 } from '../src/redocly-plugin.ts';
@@ -39,6 +43,13 @@ describe('contract lint (EVM-008 AC2)', () => {
     ['step-up-not-web-only', 'evia/step-up-web-only'],
     ['missing-channels', 'evia/channels-required'],
     ['mfa-enrollment-outside-allow-list', 'evia/mfa-enrollment-allow-list'],
+    ['public-two-channels', 'evia/public-channels'],
+    ['mobile-bearer-on-web', 'evia/security-scheme-channel'],
+    ['web-session-on-mobile', 'evia/security-scheme-channel'],
+    ['mobile-without-bearer', 'evia/security-scheme-channel'],
+    ['mobile-set-cookie', 'evia/mobile-no-set-cookie'],
+    ['planned-not-true', 'evia/planned-marker'],
+    ['token-in-header', 'evia/no-personal-data-parameters'],
   ])('EVM-008 AC2 negative fixture %s fails lint with %s (EVM-016 AC8 for the channel rules)', (name, rule) => {
     const result = lintContract(fixture(name));
     expect(result.status).not.toBe(0);
@@ -62,6 +73,10 @@ describe('Redocly plugin rules (EVM-008 AC2, SR-AUTHZ-01, SR-API-04)', () => {
       'mobile-channel-allow-list',
       'step-up-web-only',
       'mfa-enrollment-allow-list',
+      'public-channels',
+      'security-scheme-channel',
+      'mobile-no-set-cookie',
+      'planned-marker',
     ]);
   });
 
@@ -155,5 +170,126 @@ describe('Redocly plugin channel and enrollment rules (EVM-016 AC4, AC8; SR-AUTH
     expect(run(rule, {})).toEqual([]);
     expect(run(rule, { operationId: 'listWorkOrders', 'x-evia-authz': { allowDuringMfaEnrollment: true } })).toHaveLength(1);
     expect(run(rule, { 'x-evia-authz': { allowDuringMfaEnrollment: true } })[0]).toContain('(bez operationId)');
+  });
+});
+
+describe('Redocly plugin rules of the mobile channel (EVM-090 AC1; SR-AUTHZ-12, SR-API-04)', () => {
+  const run = (visitor: { Operation(operation: Record<string, unknown>, ctx: RuleContext): void }, operation: Record<string, unknown>) => {
+    const { ctx, messages } = context();
+    visitor.Operation(operation, ctx);
+    return messages;
+  };
+
+  it('EVM-090 AC1 secrets and tokens are forbidden in query, path, cookie and header parameters (SR-API-04, CWE-598); the idempotency key and the CSRF token are not credentials', () => {
+    const check = (parameter: Record<string, unknown>) => {
+      const { ctx, messages } = context();
+      NoPersonalDataParameters().Parameter(parameter, ctx);
+      return messages;
+    };
+    for (const name of [
+      'token',
+      'refreshToken',
+      'code',
+      'challengeToken',
+      'installationSecret',
+      'deviceSecret',
+      'password',
+      'apiKey',
+      'key',
+    ]) {
+      for (const place of ['query', 'path', 'cookie', 'header']) expect(check({ name, in: place }), `${place} ${name}`).toHaveLength(1);
+    }
+    expect(check({ name: 'Idempotency-Key', in: 'header' })).toEqual([]);
+    expect(check({ name: 'X-CSRF-Token', in: 'header' })).toEqual([]);
+    expect(check({ name: 'Idempotency-Key', in: 'query' })).toHaveLength(1);
+    for (const name of ['X-Client-Platform', 'X-Client-Version', 'If-Match', 'Authorization'])
+      expect(check({ name, in: 'header' }), name).toEqual([]);
+    expect(check({ name: 'pendingItems', in: 'query' })).toEqual([]);
+    for (const place of ['query', 'path']) expect(check({ name: 'passkeyId', in: place })).toEqual([]);
+    expect(check({ name: 'Recovery-Code', in: 'header' })).toHaveLength(1);
+    expect(check({ name: 'customerEmail', in: 'cookie' })).toEqual([]);
+  });
+
+  it('EVM-090 AC1 public-channels: a public operation has exactly one channel; with mobile it is on the public and mobile lists', () => {
+    const rule = PublicChannels();
+    expect(run(rule, { operationId: 'getHealth', 'x-evia-authz': { public: true } })).toEqual([]);
+    expect(run(rule, { operationId: 'login', 'x-evia-authz': { public: true, channels: ['web'] } })).toEqual([]);
+    expect(run(rule, { operationId: 'mobileLogin', 'x-evia-authz': { public: true, channels: ['mobile'] } })).toEqual([]);
+    expect(run(rule, { operationId: 'listWorkOrders', 'x-evia-authz': { roles: ['editor'], channels: ['web', 'mobile'] } })).toEqual([]);
+    expect(run(rule, {})).toEqual([]);
+    for (const channels of [['web', 'mobile'], [], ['desktop'], 'mobile']) {
+      expect(run(rule, { operationId: 'mobileLogin', 'x-evia-authz': { public: true, channels } }), JSON.stringify(channels)).toHaveLength(
+        1,
+      );
+    }
+    expect(run(rule, { operationId: 'login', 'x-evia-authz': { public: true, channels: ['mobile'] } })).toHaveLength(1);
+    expect(run(rule, { operationId: 'getSyncChanges', 'x-evia-authz': { public: true, channels: ['mobile'] } })).toHaveLength(1);
+    expect(run(rule, { 'x-evia-authz': { public: true, channels: ['mobile'] } })[0]).toContain('(bez operationId)');
+  });
+
+  it('EVM-090 AC1 security-scheme-channel: mobileBearer only on [mobile], webSession only on [web], a public operation has none, an authenticated mobile one has mobileBearer', () => {
+    const rule = SecuritySchemeChannel();
+    const bearer = [{ mobileBearer: [] }];
+    expect(run(rule, { operationId: 'a', security: bearer, 'x-evia-authz': { roles: ['editor'], channels: ['mobile'] } })).toEqual([]);
+    expect(
+      run(rule, { operationId: 'a', security: [{ webSession: [] }], 'x-evia-authz': { roles: ['editor'], channels: ['web'] } }),
+    ).toEqual([]);
+    expect(run(rule, { operationId: 'a', security: [], 'x-evia-authz': { public: true, channels: ['mobile'] } })).toEqual([]);
+    expect(run(rule, { operationId: 'a', 'x-evia-authz': { public: true } })).toEqual([]);
+    expect(run(rule, { operationId: 'a', 'x-evia-authz': { roles: ['editor'], channels: ['web'] } })).toEqual([]);
+    expect(run(rule, {})).toEqual([]);
+    expect(run(rule, { operationId: 'a', security: bearer, 'x-evia-authz': { roles: ['editor'], channels: ['web'] } })).toHaveLength(1);
+    expect(
+      run(rule, { operationId: 'a', security: bearer, 'x-evia-authz': { roles: ['editor'], channels: ['web', 'mobile'] } }),
+    ).toHaveLength(1);
+    expect(
+      run(rule, { operationId: 'a', security: [{ webSession: [] }], 'x-evia-authz': { roles: ['editor'], channels: ['mobile'] } }),
+    ).toHaveLength(2);
+    expect(run(rule, { operationId: 'a', security: [{ webSession: [] }], 'x-evia-authz': { public: true } })).toHaveLength(1);
+    expect(
+      run(rule, { operationId: 'a', security: ['x', { mobileBearer: [] }], 'x-evia-authz': { public: true, channels: ['mobile'] } }),
+    ).toHaveLength(1);
+    expect(run(rule, { operationId: 'a', 'x-evia-authz': { roles: ['editor'], channels: ['mobile'] } })).toHaveLength(1);
+  });
+
+  it('EVM-090 AC1 mobile-no-set-cookie: a response of a mobile operation sets no cookie, inline or by reference', () => {
+    const rule = MobileNoSetCookie();
+    const mobile = { roles: ['editor'], channels: ['mobile'] };
+    expect(run(rule, { operationId: 'a', 'x-evia-authz': mobile })).toEqual([]);
+    expect(
+      run(rule, { operationId: 'a', 'x-evia-authz': mobile, responses: { '200': { headers: { 'Cache-Control': {} } }, '204': null } }),
+    ).toEqual([]);
+    expect(
+      run(rule, {
+        operationId: 'a',
+        'x-evia-authz': { roles: ['editor'], channels: ['web'] },
+        responses: { '200': { headers: { 'Set-Cookie': {} } } },
+      }),
+    ).toEqual([]);
+    expect(run(rule, { operationId: 'a', 'x-evia-authz': mobile, responses: { '200': { headers: { 'set-cookie': {} } } } })).toHaveLength(
+      1,
+    );
+    expect(
+      run(rule, {
+        operationId: 'a',
+        'x-evia-authz': { public: true, channels: ['mobile'] },
+        responses: { '200': { headers: { 'Set-Cookie': {} } } },
+      }),
+    ).toHaveLength(1);
+    const { ctx, messages } = context();
+    ctx.resolve = () => ({ node: { headers: { 'Set-Cookie': {} } } });
+    rule.Operation({ operationId: 'a', 'x-evia-authz': mobile, responses: { '200': { $ref: '#/components/responses/X' } } }, ctx);
+    expect(messages).toHaveLength(1);
+    const { ctx: bare, messages: none } = context();
+    rule.Operation({ operationId: 'a', 'x-evia-authz': mobile, responses: { '200': { $ref: '#/components/responses/X' } } }, bare);
+    expect(none).toEqual([]);
+  });
+
+  it('EVM-090 AC1 planned-marker: x-evia-planned is true or absent', () => {
+    const rule = PlannedMarker();
+    expect(run(rule, { operationId: 'a', 'x-evia-planned': true })).toEqual([]);
+    expect(run(rule, { operationId: 'a' })).toEqual([]);
+    for (const value of [false, 'true', 1, null])
+      expect(run(rule, { operationId: 'a', 'x-evia-planned': value }), String(value)).toHaveLength(1);
   });
 });

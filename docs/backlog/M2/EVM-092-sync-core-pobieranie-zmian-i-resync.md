@@ -49,7 +49,7 @@ Jako **technik** chcę, aby **telefon utrzymywał aktualną kopię moich zleceń
 **AC6 — Walidacja danych z serwera**
 - Zakładając stronę z nieznaną wartością słownika albo niezgodną ze schematem
 - Gdy silnik ją stosuje
-- Wtedy nieznana wartość jest zapisana jako „nieznana” (SR-MOB-10), a strona niezgodna ze schematem jest odrzucona w całości bez zapisu i zgłoszona jako błąd techniczny bez danych osobowych.
+- Wtedy nieznana wartość jest zapisana jako „nieznana” (SR-MOB-10), a zmiana niezgodna z projekcją (`parseSyncChange` → `invalid`) nie jest zapisywana ani po cichu pomijana: silnik planuje pełny resync (nieznany `type` jest pomijany bez resyncu); zgodnie z kontraktem EVM-090 ocena jest per zmiana, a nie odrzucenie całej strony; błąd techniczny w telemetrii zawiera wyłącznie powód i słownikowy `type`, bez treści i danych osobowych.
 
 **AC7 — Ostatni kontakt z serwerem odporny na zegar**
 - Zakładając porty zegara: czas ścienny, czas monotoniczny i identyfikator rozruchu

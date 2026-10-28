@@ -167,7 +167,7 @@ Wybieramy **W1-A, W2-A, W3-C, W4-A, W5-A**, ponieważ dają jeden mechanizm doci
   - Zły tag nie daje `400`, bo nie odróżnia manipulacji od klucza usuniętego przy rotacji, a odpowiedź `resync_required` nie daje napastnikowi niczego ponad jego własny zakres.
 
 ### D7. Parametry dla klienta w `GET /api/v1/meta/client-config`
-Rozszerzenie istniejącej operacji (zmiana addytywna, publiczna, bez danych osobowych — rozstrzyga EVM-090 AC6): `offlineContactWindowDays` (7), `closedWorkOrdersInScopeDays` (N = 30), `periodicResyncDays` (7), `scopeRuleVersion`. Zmiana N → nowa `scopeRuleVersion` → `scope_changed`.
+Rozszerzenie istniejącej operacji (zmiana addytywna, publiczna, bez danych osobowych — rozstrzyga EVM-090 AC6) — *doprecyzowane w EVM-090: operacja `meta/client-config` nie istniała, więc powstała jako NOWA operacja `getClientConfig` — uwierzytelniona (kanał `mobile`, Administrator i Edytor), bez `426`; przed zalogowaniem minimalną wersję podaje publiczne `GET /api/health`*: `offlineContactWindowDays` (7), `closedWorkOrdersInScopeDays` (N = 30), `periodicResyncDays` (7), `scopeRuleVersion`. Zmiana N → nowa `scopeRuleVersion` → `scope_changed`.
 
 ### D8. Moduł `sync` i reguły `deps:check`
 - `apps/api/src/modules/sync/` (warstwy jak w innych modułach, `index.ts`), schemat `sync` (`change_log`, `device_sync_state`). Zależy od `identity`, `authorization`, `work-orders`, `customers`, `sites`, `parties`, `procedures`, `timeline`, `catalog` przez `index.ts` i porty systemowe; mutacje mobilne (EVM-098/099) wołają komendy domenowe przez fasady modułów. **Nic nie zależy od `sync`.**
@@ -211,6 +211,10 @@ Nie jest decyzją tego ADR-u (dotyczy uwierzytelniania, nie synchronizacji); zap
 - `api-guidelines.md`: nowa ścieżka techniczna, rozszerzenie `meta/client-config`; `domain-model.md`: `SyncChange.entity_version`, `DeviceSyncState`; `docs/architecture/README.md`: zależności `sync` na mapie modułów.
 - Addendum ADR-0005 (sekcja „Ścieżka mobilnego logowania”); notka w ADR-0008 „doprecyzowana przez ADR-0021”.
 - `requirements.md`: SR-SYNC-07 — doprecyzowanie podziału `400 invalid_cursor` / `resync_required` (security-engineer).
+
+## Aneks (EVM-094): słownik audytu a baseline kontraktu
+- Słowniki `AuditAction`, `AuditObjectType` i `AuditReasonCode` to zamknięte enumy odpowiedzi; narzędzie baseline (EVM-090) uznaje dodanie wartości za zmianę łamiącą. Przyjmujemy ją świadomie: jedynym odbiorcą tych odpowiedzi jest panel (kompilowany razem z kontraktem, etykiety w `audit-labels.ts` z wyczerpującym typem `Record`), więc nowa wartość bez aktualizacji panelu nie przejdzie bramki typów; aplikacja mobilna nie czyta dziennika audytu.
+- EVM-094 dodaje akcje `device.registered`, `device.recognized`, `device.wipe_confirmed`, `session.refreshed`, typ obiektu `device` i kody powodów (`refresh_reuse`, `device_inactive`, `secret_mismatch`, `previous_secret`, `channel_not_allowed`, `device_limit_reached`, `device_wipe_required`, `totp_not_configured`, `mfa_enrollment_required`, `session_revoked`); baseline przesunięty poleceniem `baseline:update -- --allow-breaking ADR-0021`. Kolejne historyjki rozszerzające słownik audytu powołują się na ten aneks. Alternatywa (`x-extensible-enum` + `string` w typach) odrzucona: traci wyczerpującą kontrolę etykiet w panelu. Do potwierdzenia przez Konrada razem z akceptacją EVM-094.
 
 ## Źródła (zweryfikowane 2026-10-27)
 - PostgreSQL 18 — `transaction_timeout`, `idle_in_transaction_session_timeout`, `statement_timeout`: https://www.postgresql.org/docs/18/runtime-config-client.html

@@ -259,3 +259,27 @@ describe('logger with redaction (EVM-008 AC4; ADR-0013, SR-LOG-02, SR-LOG-05)', 
     expect(scrubValues('mail jan.przykladowy@example.invalid sent')).toBe(`mail ${REDACTED} sent`);
   });
 });
+
+describe('the credentials of the mobile channel never reach the log (EVM-094 AC8; SR-LOG-02, ASVS V16.2.5)', () => {
+  it('EVM-094 AC8 password, totp, challengeToken, refreshToken, accessToken, installationSecret and the Authorization header are redacted, nested too', () => {
+    const body = {
+      password: 'p',
+      totp: '123456',
+      challengeToken: 'c',
+      refreshToken: 'r',
+      accessToken: 'a',
+      installationSecret: 's',
+      authorization: 'Bearer evia_at_x',
+      headers: { Authorization: 'Bearer evia_at_y', cookie: 'x' },
+      nested: { deep: { refresh_token: 'r2', installation_secret: 's2' } },
+    };
+    const redacted = JSON.stringify(redactSensitive(body));
+    for (const secret of ['"p"', '123456', '"c"', '"r"', '"a"', '"s"', 'evia_at_', '"r2"', '"s2"']) expect(redacted).not.toContain(secret);
+    expect(isSensitiveKey('installationSecret')).toBe(true);
+    expect(isSensitiveKey('challengeToken')).toBe(true);
+  });
+
+  it('EVM-094 AC8 the code of the second step is not a key the log redacts (it is an error field of RFC 9457), so the body of a request is never logged at all', () => {
+    expect(isSensitiveKey('code')).toBe(false);
+  });
+});

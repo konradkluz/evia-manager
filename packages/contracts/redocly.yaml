@@ -12,6 +12,10 @@ rules:
   evia/mobile-channel-allow-list: error
   evia/step-up-web-only: error
   evia/mfa-enrollment-allow-list: error
+  evia/public-channels: error
+  evia/security-scheme-channel: error
+  evia/mobile-no-set-cookie: error
+  evia/planned-marker: error
   operation-operationId: error
   operation-summary: error
   operation-description: error

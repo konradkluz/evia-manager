@@ -7,7 +7,7 @@
  */
 import express, { type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { ProblemException } from './problem.ts';
-import { principalOf } from './principal.ts';
+import { bearerPrincipalOf, principalOf } from './principal.ts';
 
 export const ANONYMOUS_BODY_LIMIT = '8kb';
 export const SESSION_BODY_LIMIT = '1mb';
@@ -48,12 +48,13 @@ export function jsonBody(policy: BodyPolicy): RequestHandler {
       next();
       return;
     }
-    const limit =
-      principalOf(request) !== null
+    // A public operation takes a small body whoever sends it — a stray cookie of the panel does not widen the limit of the sign-in of the phone (EVM-094, 8 KB).
+    const authenticated = principalOf(request) !== null || bearerPrincipalOf(request) !== null;
+    const limit = policy.isPublicBodyOperation(request.method, request.path)
+      ? ANONYMOUS_BODY_LIMIT
+      : authenticated
         ? (policy.sessionBodyLimit?.(request.method, request.path) ?? SESSION_BODY_LIMIT)
-        : policy.isPublicBodyOperation(request.method, request.path)
-          ? ANONYMOUS_BODY_LIMIT
-          : undefined;
+        : undefined;
     if (limit === undefined) {
       next();
       return;

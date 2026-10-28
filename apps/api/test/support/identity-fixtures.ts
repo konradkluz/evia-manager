@@ -6,6 +6,7 @@
 import { randomBytes } from 'node:crypto';
 import type { Kysely } from 'kysely';
 import { SESSION_COOKIE_NAME } from '../../src/modules/identity/domain/constants.ts';
+import { newAccessToken } from '../../src/modules/identity/domain/mobile-tokens.ts';
 import { deriveCsrfToken, hashToken, newToken } from '../../src/modules/identity/domain/tokens.ts';
 import { identityTables } from '../../src/modules/identity/infrastructure/tables.ts';
 import type { Database } from '../../src/platform/database/database.ts';
@@ -173,4 +174,66 @@ export async function createPasskey(db: Kysely<Database>, clock: Clock, user: Us
       last_used_at: null,
     })
     .execute();
+}
+
+export interface MobileSessionFixture {
+  readonly sessionId: string;
+  readonly deviceId: string;
+  /** The value of `Authorization: Bearer` (EVM-094) — the access token of the session, valid 15 minutes from the clock. */
+  readonly bearer: string;
+}
+
+/** A device and a session of the mobile channel with an access token, written straight into the database (the phone's way in is the API itself; this skips the two steps). */
+export async function createMobileSession(db: Kysely<Database>, clock: Clock, user: UserFixture): Promise<MobileSessionFixture> {
+  const tables = identityTables(db);
+  const now = clock.now();
+  const device = await tables
+    .insertInto('identity.devices')
+    .values({
+      user_id: user.id,
+      secret_hash: hashToken(newToken()),
+      secret_proven: true,
+      previous_secret_hash: null,
+      previous_valid_until: null,
+      model: 'Pixel 8',
+      os_version: '14',
+      security_patch: '2026-09-05',
+      platform: 'android',
+      app_version: '1.2.0',
+      public_key: null,
+      last_contact_at: now,
+      created_at: now,
+      removed_at: null,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  const session = await tables
+    .insertInto('identity.sessions')
+    .values({
+      user_id: user.id,
+      channel: 'mobile',
+      state: 'active',
+      token_hash: hashToken(newToken()),
+      one_time_link_id: null,
+      created_at: now,
+      last_seen_at: now,
+      last_authenticated_at: now,
+      passkey_authenticated_at: null,
+      totp_authenticated_at: now,
+      idle_expires_at: new Date(now.getTime() + 14 * 24 * 3_600_000),
+      absolute_expires_at: new Date(now.getTime() + 30 * 24 * 3_600_000),
+      revoked_at: null,
+      revoke_reason: null,
+      ip_address: null,
+      user_agent: null,
+      device_id: device.id,
+    })
+    .returning('id')
+    .executeTakeFirstOrThrow();
+  const bearer = newAccessToken();
+  await tables
+    .insertInto('identity.access_tokens')
+    .values({ token_hash: hashToken(bearer), session_id: session.id, created_at: now, expires_at: new Date(now.getTime() + 15 * 60_000) })
+    .execute();
+  return { sessionId: session.id, deviceId: device.id, bearer };
 }

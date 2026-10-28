@@ -38,6 +38,10 @@ AuditAction:
     - mfa.totp_removed
     - reauthentication.succeeded
     - reauthentication.failed
+    - device.registered
+    - device.recognized
+    - device.wipe_confirmed
+    - session.refreshed
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
@@ -100,6 +104,7 @@ AuditObjectType:
       user,
       session,
       passkey,
+      device,
       audit,
       work_order,
       scope_item,
@@ -147,6 +152,16 @@ AuditReasonCode:
     - session_limit
     - ended_by_user
     - rate_limited
+    - refresh_reuse
+    - device_inactive
+    - secret_mismatch
+    - previous_secret
+    - channel_not_allowed
+    - device_limit_reached
+    - device_wipe_required
+    - totp_not_configured
+    - mfa_enrollment_required
+    - session_revoked
 AuditActor:
   type: object
   description: Osoba wykonująca akcję — identyfikator i nazwa wyświetlana (bez e-maila).

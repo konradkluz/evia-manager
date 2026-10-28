@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, MOBILE_OPERATIONS, PUBLIC_OPERATIONS } from '../src/authz.ts';
+import { AUTHZ_MANIFEST, MFA_ENROLLMENT_OPERATIONS, MOBILE_OPERATIONS, operationChannels, PUBLIC_OPERATIONS } from '../src/authz.ts';
 import { buildAuthzManifest, renderAuthzModule } from '../src/manifest.ts';
 
 const bundled: unknown = JSON.parse(readFileSync('dist/openapi.json', 'utf8'));
@@ -23,6 +23,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'checkPasswordResetLink',
       'completePasswordReset',
       'completeUploadSession',
+      'confirmDeviceWipe',
       'confirmTotp',
       'createCustomer',
       'createMediaAssets',
@@ -49,6 +50,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'extendSession',
       'generateRecoveryCodes',
       'getAccount',
+      'getClientConfig',
       'getCurrentSession',
       'getCustomer',
       'getHealth',
@@ -57,6 +59,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getPasskeyRegistrationOptions',
       'getSite',
       'getStepUpPasskeyOptions',
+      'getSyncChanges',
+      'getSyncWorkOrder',
       'getTimelineEntry',
       'getUploadPartUrl',
       'getVersion',
@@ -89,9 +93,14 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'loginRecoveryCode',
       'loginTotp',
       'logout',
+      'mobileLogin',
+      'mobileLoginTotp',
+      'mobileLogout',
+      'pushSyncMutations',
       'reactivateUser',
       'reauthenticate',
       'redactTimelineEntry',
+      'refreshMobileSession',
       'registerPasskey',
       'removePasskey',
       'removeTotp',
@@ -126,12 +135,12 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     ]);
   });
 
-  it('EVM-016 AC8 public operations of the contract are exactly the allow-list and none declares channels', () => {
-    const publicOperations = Object.entries(AUTHZ_MANIFEST)
-      .filter(([, operation]) => operation.authz.public === true)
-      .map(([id]) => id);
-    expect(publicOperations.sort()).toEqual([...PUBLIC_OPERATIONS].sort());
-    expect(MOBILE_OPERATIONS).toEqual([]);
+  it('EVM-016 AC8 EVM-090 AC1 public operations of the contract are exactly the allow-list; each declares at most one channel and only the four mobile ones declare mobile', () => {
+    const publicOperations = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.public === true);
+    expect(publicOperations.map(([id]) => id).sort()).toEqual([...PUBLIC_OPERATIONS].sort());
+    const withChannels = publicOperations.filter(([, operation]) => operation.authz.channels !== undefined);
+    expect(withChannels.map(([id]) => id).sort()).toEqual(['confirmDeviceWipe', 'mobileLogin', 'mobileLoginTotp', 'refreshMobileSession']);
+    for (const [id, operation] of withChannels) expect(operation.authz.channels, id).toEqual(['mobile']);
   });
 
   it('EVM-016 AC4 only the listed operations may be used while the passkey is being enrolled', () => {
@@ -170,9 +179,12 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     }
   });
 
-  it('EVM-016 AC8 no operation of the contract lists the mobile channel in M1', () => {
-    for (const [id, operation] of Object.entries(AUTHZ_MANIFEST)) {
-      expect(operation.authz.channels ?? [], id).not.toContain('mobile');
+  it('EVM-016 AC8 EVM-090 AC1 the operations that list the mobile channel are exactly MOBILE_OPERATIONS, and none of them is a step-up one', () => {
+    const mobile = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operationChannels(operation.authz).includes('mobile'));
+    expect(mobile.map(([id]) => id).sort()).toEqual([...MOBILE_OPERATIONS].sort());
+    for (const [id, operation] of mobile) {
+      expect(operation.authz.stepUp, id).toBeUndefined();
+      expect(operationChannels(operation.authz), id).toEqual(['mobile']);
     }
   });
 
@@ -332,5 +344,26 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(source).toContain('export const AUTHZ_MANIFEST');
     expect(source).toContain('"getHealth"');
     expect(source).toContain('Object.freeze');
+  });
+
+  it('EVM-090 AC1 a public operation lists exactly one channel and x-evia-planned is true or absent (generation fails otherwise)', () => {
+    const document = (authz: unknown, planned?: unknown) => ({
+      paths: {
+        '/a': { post: { operationId: 'postA', 'x-evia-authz': authz, ...(planned === undefined ? {} : { 'x-evia-planned': planned }) } },
+      },
+    });
+    expect(buildAuthzManifest(document({ public: true, channels: ['mobile'] }, true)).postA).toEqual({
+      method: 'post',
+      path: '/a',
+      query: [],
+      authz: { public: true, channels: ['mobile'] },
+      planned: true,
+    });
+    expect(buildAuthzManifest(document({ public: true })).postA?.planned).toBeUndefined();
+    expect(() => buildAuthzManifest(document({ public: true, channels: ['web', 'mobile'] }))).toThrow(/exactly one channel/);
+    expect(() => buildAuthzManifest(document({ public: true, channels: [] }))).toThrow(/postA/);
+    expect(() => buildAuthzManifest(document({ public: true, roles: ['editor'] }))).toThrow(/must not declare: roles/);
+    for (const planned of [false, 'true', 1, null])
+      expect(() => buildAuthzManifest(document({ public: true }, planned)), String(planned)).toThrow(/x-evia-planned/);
   });
 });

@@ -1613,3 +1613,252 @@ accountSession:
         $ref: ../components/responses.yaml#/SecondStepConflict
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+# Mobile sign-in (EVM-090; ADR-0005, ADR-0021 → „Ścieżka mobilnego logowania”). A separate family next to the cookie session of the panel:
+# the channel is decided by the operation (its path and `x-evia-authz`), NEVER by `X-Client-Platform` or any other header of the client.
+# The server implements it (EVM-094); the planned markers are gone from these operations, only the sync ones of EVM-096 and EVM-098 keep theirs.
+mobileLogin:
+  post:
+    operationId: mobileLogin
+    tags: [identity]
+    summary: Logowanie mobilne — pierwszy krok (e-mail, hasło, opis urządzenia)
+    description: >-
+      Publiczna operacja kanału `mobile`; bez ciasteczek (odpowiedź nigdy nie ma `Set-Cookie`, ciasteczka z żądania są ignorowane).
+      Poprawne hasło aktywnego konta z aplikacją TOTP → `200 { challengeToken, challengeExpiresAt }`: token jest nieprzezroczysty
+      (≥ 256 bitów), jednorazowy, ważny najwyżej 5 minut i związany z kontem oraz próbą rejestracji urządzenia (`device`, a przy
+      ponownym logowaniu — parą `deviceId` + `installationSecret`; `deviceId` nadaje serwer, klient nigdy go nie wybiera).
+      Kolejność (brak enumeracji kont i stanów urządzeń, SR-AUTH-05): `426`, limit prób, potem — gdy treść niesie parę `deviceId` +
+      `installationSecret` zgodną (porównanie w stałym czasie) z urządzeniem w stanie `wipe_required` — `401 device_wipe_required`
+      PRZED sprawdzeniem hasła (256-bitowy sekret dowodzi, że wołający trzyma tę instalację; odpowiedź nic nie mówi o koncie, a
+      skradziony telefon z wygasłym tokenem dostaje sygnał wyczyszczenia mimo nieznajomości hasła). Dalej `401 invalid_credentials`
+      to JEDYNA odpowiedź na każdą porażkę tego kroku (zły e-mail, złe hasło, konto zaproszone lub dezaktywowane) — w tym samym
+      czasie i z tymi samymi nagłówkami; `403 mfa_enrollment_required` i `403 totp_not_configured` pojawiają się dopiero po
+      poprawnym haśle; `channel_not_allowed` i `device_limit_reached` — dopiero po poprawnym kodzie TOTP (drugi krok). Para
+      niezgodna z żadnym urządzeniem konta (zły sekret, nieznane `deviceId`) jest IGNOROWANA: logowanie traktuje telefon jak nowe
+      urządzenie (obowiązuje limit urządzeń, wpis audytu), bez ujawnienia stanu urządzeń przed TOTP. Zgodna jest para z bieżącym
+      sekretem ALBO z poprzednim, jeszcze nieprzekreślonym (rotacja dwufazowa, zob. `mobileLoginTotp`): zgubiona odpowiedź drugiego
+      kroku nie zmienia więc tożsamości urządzenia.
+      Limity: licznik prób i blokada konta są WSPÓLNE z logowaniem w panelu (20 prób na minutę z jednego adresu IP, blokada po 10
+      nieudanych próbach na koncie) — ścieżka mobilna nie jest obejściem; przekroczenie → `429 rate_limited` z `Retry-After`. Treść
+      najwyżej 8 KB (`413 payload_too_large`). Odpowiedź ma `Cache-Control: no-store`.
+      Audyt (EVM-094; bez danych osobowych i sekretów): rejestracja urządzenia, logowanie udane i nieudane.
+    x-evia-authz:
+      public: true
+      channels: [mobile]
+    security: []
+    parameters:
+      - $ref: ../components/devices.yaml#/ClientPlatformHeader
+      - $ref: ../components/devices.yaml#/ClientVersionHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/MobileLoginRequest
+          example:
+            email: technik@example.test
+            password: EXAMPLE-password-not-real
+            device:
+              model: Pixel 8
+              osVersion: '14'
+              securityPatch: '2026-09-05'
+    responses:
+      '200':
+        description: Pierwszy krok zaliczony — czas na kod TOTP.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/MobileLoginChallenge
+            example:
+              challengeToken: EXAMPLE_challenge_token_not_a_real_value_01
+              challengeExpiresAt: '2026-10-27T08:05:00Z'
+      '400':
+        $ref: ../components/responses.yaml#/MobileValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/MobileLoginUnauthorized
+      '403':
+        $ref: ../components/responses.yaml#/MobileLoginForbidden
+      '413':
+        $ref: ../components/responses.yaml#/MobilePayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/MobileUnsupportedMediaType
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
+      '429':
+        $ref: ../components/responses.yaml#/MobileRateLimited
+mobileLoginTotp:
+  post:
+    operationId: mobileLoginTotp
+    tags: [identity]
+    summary: Logowanie mobilne — drugi krok (kod TOTP)
+    description: >-
+      Publiczna operacja kanału `mobile`. Treść ściśle `{ challengeToken, code }` (`code` — 6 cyfr ASCII); pole z kodem odzyskiwania
+      → `400` (kod odzyskiwania nie działa w kanale mobilnym). Sukces w jednej transakcji: zużycie tokenu wyzwania i kroku kodu,
+      rejestracja urządzenia (nowe) albo rozpoznanie istniejącego (para `deviceId` + sekret z pierwszego kroku), nowa rodzina
+      tokenów. KAŻDE udane logowanie, także ponowne, zwraca NOWY `installationSecret` (rotacja DWUFAZOWA): poprzedni sekret
+      (ostatni udowodniony przez urządzenie) pozostaje ważny dla tego samego `deviceId`, dopóki urządzenie nie udowodni nowego.
+      Dowodem jest pierwsze odświeżenie tokenu albo pierwsze żądanie z `mobileBearer` nowej rodziny tokenów, albo kolejne logowanie
+      nowym sekretem; dopiero wtedy poprzedni sekret traci ważność. Logowanie poprzednim sekretem rozpoznaje to samo urządzenie
+      (to samo `deviceId`, ten sam zapis idempotencji, kursor i limit urządzeń) i rotuje ponownie — zgubiona w garażu odpowiedź
+      nie tworzy nowego urządzenia. Aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary
+      porzuca po zapisie. Poprzedni sekret traci ważność najpóźniej po czasie życia tokenu odświeżania (nie dłużej niż 7 dni) od wydania nowego; w danej chwili są NAJWYŻEJ dwa ważne sekrety (ostatni udowodniony i najnowszy wydany) — wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego (w wyniku kolejnego logowania poprzednim sekretem). Oba sekrety są unieważniane przy potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Odpowiedź niesie `deviceId`,
+      tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek.
+      Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`;
+      dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego —
+      gdzie indziej zły kanał to `403 forbidden`), `403 device_limit_reached` i — rzadki wyścig — `401 device_wipe_required`
+      (wyczyszczenie zlecono między krokami; zwykle sygnał dostaje już pierwszy krok, zob. `mobileLogin`). Aplikacja usuwa dane
+      i potwierdza przez `confirmDeviceWipe`.
+      Limity i blokada wspólne z logowaniem w panelu (20/min/IP, blokada po 10 próbach na koncie) → `429` z `Retry-After`; treść
+      najwyżej 8 KB. `Cache-Control: no-store`.
+      Audyt (EVM-094): rejestracja urządzenia, logowanie udane i nieudane — bez kodu, tokenów i sekretów.
+    x-evia-authz:
+      public: true
+      channels: [mobile]
+    security: []
+    parameters:
+      - $ref: ../components/devices.yaml#/ClientPlatformHeader
+      - $ref: ../components/devices.yaml#/ClientVersionHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/MobileLoginTotpRequest
+          example:
+            challengeToken: EXAMPLE_challenge_token_not_a_real_value_01
+            code: '000000'
+    responses:
+      '200':
+        description: Zalogowano — sesja mobilna.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/MobileSession
+            example:
+              deviceId: 0193a000-0000-7000-8000-0000000000d1
+              installationSecret: EXAMPLE_installation_secret_not_real_000000
+              accessToken: EXAMPLE-access-token-not-a-credential-0000
+              accessTokenExpiresAt: '2026-10-27T08:15:00Z'
+              refreshToken: EXAMPLE-refresh-token-not-a-credential-000
+              refreshTokenExpiresAt: '2026-11-10T08:00:00Z'
+              serverTime: '2026-10-27T08:00:00Z'
+              user:
+                id: 0193a000-0000-7000-8000-0000000000a1
+                displayName: Jan Przykładowy
+                role: editor
+      '400':
+        $ref: ../components/responses.yaml#/MobileValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/MobileLoginTotpUnauthorized
+      '403':
+        $ref: ../components/responses.yaml#/MobileLoginTotpForbidden
+      '413':
+        $ref: ../components/responses.yaml#/MobilePayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/MobileUnsupportedMediaType
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
+      '429':
+        $ref: ../components/responses.yaml#/MobileRateLimited
+mobileToken:
+  post:
+    operationId: refreshMobileSession
+    tags: [identity]
+    summary: Odświeżenie sesji mobilnej (rotacja tokenu odświeżania)
+    description: >-
+      Publiczna operacja kanału `mobile` (token odświeżania w treści, nigdy w adresie ani nagłówku). Każde użycie wydaje NOWĄ parę
+      tokenów, a stary token odświeżania przestaje działać (rotacja, ADR-0005). Ponowne użycie zużytego tokenu unieważnia rodzinę
+      tokenów („Wyloguj urządzenie”: urządzenie zostaje zarejestrowane, kolejka wstrzymana) i wywołuje alert bezpieczeństwa.
+      Token nieznany, wygasły, zużyty i unieważniony dają tę samą odpowiedź `401 session_revoked` — z jednym wyjątkiem: token
+      (także unieważniony, zużyty lub wygasły, o ile rekord jeszcze istnieje) urządzenia w stanie `wipe_required` ZAWSZE daje
+      `401 device_wipe_required`, które ma pierwszeństwo przed `session_revoked` (blokada i wyczyszczenie unieważniają rodzinę
+      tokenów, a telefon musi dostać sygnał wyczyszczenia, nie tylko prośbę o ponowne logowanie). Token nieznany zostaje przy
+      jedynej odpowiedzi `session_revoked`. Odpowiedź nie zawiera `installationSecret`. Limit 20/min/IP wspólny z logowaniem →
+      `429` z `Retry-After`; treść najwyżej 8 KB; `Cache-Control: no-store`.
+      Audyt (EVM-094): ponowne użycie tokenu odświeżania (alert) — bez wartości tokenu.
+    x-evia-authz:
+      public: true
+      channels: [mobile]
+    security: []
+    parameters:
+      - $ref: ../components/devices.yaml#/ClientPlatformHeader
+      - $ref: ../components/devices.yaml#/ClientVersionHeader
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/identity.yaml#/RefreshMobileSessionRequest
+          example:
+            refreshToken: EXAMPLE-refresh-token-not-a-credential-000
+    responses:
+      '200':
+        description: Nowa para tokenów.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+        content:
+          application/json:
+            schema:
+              $ref: ../components/identity.yaml#/MobileSession
+            example:
+              deviceId: 0193a000-0000-7000-8000-0000000000d1
+              accessToken: EXAMPLE-access-token-not-a-credential-0001
+              accessTokenExpiresAt: '2026-10-27T08:30:00Z'
+              refreshToken: EXAMPLE-refresh-token-not-a-credential-001
+              refreshTokenExpiresAt: '2026-11-10T08:15:00Z'
+              serverTime: '2026-10-27T08:15:00Z'
+              user:
+                id: 0193a000-0000-7000-8000-0000000000a1
+                displayName: Jan Przykładowy
+                role: editor
+      '400':
+        $ref: ../components/responses.yaml#/MobileValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/MobileSessionUnauthorized
+      '413':
+        $ref: ../components/responses.yaml#/MobilePayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/MobileUnsupportedMediaType
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
+      '429':
+        $ref: ../components/responses.yaml#/MobileRateLimited
+mobileLogout:
+  post:
+    operationId: mobileLogout
+    tags: [identity]
+    summary: Wylogowanie urządzenia (kanał mobile)
+    description: >-
+      Administrator i Edytor, kanał `mobile`, uwierzytelnienie `Authorization: Bearer` (schemat `mobileBearer`). Unieważnia rodzinę
+      tokenów urządzenia; urządzenie zostaje zarejestrowane, a kolejka telefonu zostaje (wymaga ponownego logowania). Bez treści,
+      bez ciasteczek. `Cache-Control: no-store`.
+      Audyt (EVM-094): wylogowanie urządzenia.
+    x-evia-authz:
+      roles: [administrator, editor]
+      channels: [mobile]
+      audit: true
+    security:
+      - mobileBearer: []
+    parameters:
+      - $ref: ../components/devices.yaml#/ClientPlatformHeader
+      - $ref: ../components/devices.yaml#/ClientVersionHeader
+    responses:
+      '204':
+        description: Sesja urządzenia zakończona.
+        headers:
+          Cache-Control:
+            $ref: ../components/devices.yaml#/CacheControlNoStore
+      '401':
+        $ref: ../components/responses.yaml#/MobileSessionUnauthorized
+      '403':
+        $ref: ../components/responses.yaml#/MobileForbidden
+      '426':
+        $ref: ../components/responses.yaml#/MobileClientVersionUnsupported
+      '429':
+        $ref: ../components/responses.yaml#/MobileRateLimited

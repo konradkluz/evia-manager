@@ -40,6 +40,10 @@ tags:
     description: Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).
   - name: media
     description: Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).
+  - name: devices
+    description: Urządzenia mobilne — potwierdzenie wyczyszczenia danych (moduł identity; kanał mobile).
+  - name: sync
+    description: Synchronizacja aplikacji mobilnej — konfiguracja klienta, pobieranie zmian, migawka zlecenia i wysyłanie mutacji (moduł sync; kanał mobile).
 paths:
   /api/health:
     $ref: paths/platform.yaml#/health
@@ -75,6 +79,24 @@ paths:
     $ref: paths/identity.yaml#/stepUpOptions
   /api/v1/auth/step-up:
     $ref: paths/identity.yaml#/stepUp
+  /api/v1/auth/mobile/login:
+    $ref: paths/identity.yaml#/mobileLogin
+  /api/v1/auth/mobile/login/totp:
+    $ref: paths/identity.yaml#/mobileLoginTotp
+  /api/v1/auth/mobile/token:
+    $ref: paths/identity.yaml#/mobileToken
+  /api/v1/auth/mobile/logout:
+    $ref: paths/identity.yaml#/mobileLogout
+  /api/v1/devices/current/wipe-confirmation:
+    $ref: paths/devices.yaml#/wipeConfirmation
+  /api/v1/meta/client-config:
+    $ref: paths/sync.yaml#/clientConfig
+  /api/v1/sync/changes:
+    $ref: paths/sync.yaml#/changes
+  /api/v1/sync/work-orders/{workOrderId}:
+    $ref: paths/sync.yaml#/workOrder
+  /api/v1/sync/mutations:
+    $ref: paths/sync.yaml#/mutations
   /api/v1/audit/events:
     $ref: paths/audit.yaml#/events
   /api/v1/account/passkeys/registration-options:
@@ -216,6 +238,20 @@ paths:
   /api/v1/parties/{partyId}:
     $ref: paths/parties.yaml#/party
 components:
+  securitySchemes:
+    mobileBearer:
+      type: http
+      scheme: bearer
+      description: >-
+        Nieprzezroczysty token dostępu aplikacji mobilnej (15 min, `Authorization: Bearer`). Tylko operacje z kanałem dokładnie
+        `[mobile]`; token nigdy nie trafia do adresu. Źródłem prawdy autoryzacji pozostaje `x-evia-authz` (role, kanały, polityki).
+    webSession:
+      type: apiKey
+      in: cookie
+      name: __Host-evia_session
+      description: >-
+        Ciasteczko sesji panelu (`HttpOnly`, `Secure`, `SameSite=Strict`). Tylko operacje z kanałem dokładnie `[web]`; istniejące
+        operacje panelu go nie deklarują (bez zmiany), a operacje mobilne go nie przyjmują.
   schemas:
     Health:
       $ref: components/platform.yaml#/Health
@@ -511,3 +547,104 @@ components:
       $ref: components/parties.yaml#/PartySearchItem
     PartySearchResult:
       $ref: components/parties.yaml#/PartySearchResult
+    MobileDeviceInfo:
+      $ref: components/identity.yaml#/MobileDeviceInfo
+    MobileLoginRequest:
+      $ref: components/identity.yaml#/MobileLoginRequest
+    MobileLoginChallenge:
+      $ref: components/identity.yaml#/MobileLoginChallenge
+    MobileLoginTotpRequest:
+      $ref: components/identity.yaml#/MobileLoginTotpRequest
+    MobileUser:
+      $ref: components/identity.yaml#/MobileUser
+    MobileSession:
+      $ref: components/identity.yaml#/MobileSession
+    RefreshMobileSessionRequest:
+      $ref: components/identity.yaml#/RefreshMobileSessionRequest
+    DeviceId:
+      $ref: components/devices.yaml#/DeviceId
+    InstallationSecret:
+      $ref: components/devices.yaml#/InstallationSecret
+    WipeConfirmationRequest:
+      $ref: components/devices.yaml#/WipeConfirmationRequest
+    ClientVersions:
+      $ref: components/devices.yaml#/ClientVersions
+    ClientConfig:
+      $ref: components/devices.yaml#/ClientConfig
+    SyncId:
+      $ref: components/sync.yaml#/SyncId
+    SyncClientId:
+      $ref: components/sync.yaml#/SyncClientId
+    SyncTimestamp:
+      $ref: components/sync.yaml#/SyncTimestamp
+    SyncCursor:
+      $ref: components/sync.yaml#/SyncCursor
+    SyncEntityType:
+      $ref: components/sync.yaml#/SyncEntityType
+    SyncWorkOrder:
+      $ref: components/sync.yaml#/SyncWorkOrder
+    SyncCustomer:
+      $ref: components/sync.yaml#/SyncCustomer
+    SyncSite:
+      $ref: components/sync.yaml#/SyncSite
+    SyncParty:
+      $ref: components/sync.yaml#/SyncParty
+    SyncScopeItem:
+      $ref: components/sync.yaml#/SyncScopeItem
+    SyncProcedureStage:
+      $ref: components/sync.yaml#/SyncProcedureStage
+    SyncTimelineEntry:
+      $ref: components/sync.yaml#/SyncTimelineEntry
+    SyncMediaAsset:
+      $ref: components/sync.yaml#/SyncMediaAsset
+    SyncUser:
+      $ref: components/sync.yaml#/SyncUser
+    SyncEntity:
+      $ref: components/sync.yaml#/SyncEntity
+    SyncUpsert:
+      $ref: components/sync.yaml#/SyncUpsert
+    SyncDelete:
+      $ref: components/sync.yaml#/SyncDelete
+    SyncChange:
+      $ref: components/sync.yaml#/SyncChange
+    SyncChangesPage:
+      $ref: components/sync.yaml#/SyncChangesPage
+    SyncResyncRequired:
+      $ref: components/sync.yaml#/SyncResyncRequired
+    SyncChangesResponse:
+      $ref: components/sync.yaml#/SyncChangesResponse
+    SyncWorkOrderSnapshot:
+      $ref: components/sync.yaml#/SyncWorkOrderSnapshot
+    SyncPendingItems:
+      $ref: components/sync.yaml#/SyncPendingItems
+    SyncNoteCategory:
+      $ref: components/sync.yaml#/SyncNoteCategory
+    CreateNotePayload:
+      $ref: components/sync.yaml#/CreateNotePayload
+    CreateCommentPayload:
+      $ref: components/sync.yaml#/CreateCommentPayload
+    SyncNewCustomer:
+      $ref: components/sync.yaml#/SyncNewCustomer
+    SyncNewSite:
+      $ref: components/sync.yaml#/SyncNewSite
+    CreateQuickWorkOrderPayload:
+      $ref: components/sync.yaml#/CreateQuickWorkOrderPayload
+    CommandVersion:
+      $ref: components/sync.yaml#/CommandVersion
+    CreateNoteMutation:
+      $ref: components/sync.yaml#/CreateNoteMutation
+    CreateCommentMutation:
+      $ref: components/sync.yaml#/CreateCommentMutation
+    CreateQuickWorkOrderMutation:
+      $ref: components/sync.yaml#/CreateQuickWorkOrderMutation
+    SyncMutation:
+      $ref: components/sync.yaml#/SyncMutation
+    SyncMutationsRequest:
+      $ref: components/sync.yaml#/SyncMutationsRequest
+    SyncMutationResult:
+      $ref: components/sync.yaml#/SyncMutationResult
+    SyncMutationsResponse:
+      $ref: components/sync.yaml#/SyncMutationsResponse
+  responses:
+    CompletedObjectMismatch:
+      $ref: components/responses.yaml#/CompletedObjectMismatch

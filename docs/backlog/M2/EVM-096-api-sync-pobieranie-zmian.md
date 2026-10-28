@@ -29,7 +29,7 @@ Jako **technik** chcę **pobrać swoje zlecenia z klientami i lokalizacjami na t
 **AC2 — Pierwsze pobranie i projekcja**
 - Zakładając Edytora z zarejestrowanym urządzeniem
 - Gdy pobiera zmiany bez kursora
-- Wtedy dostaje migawkę stronicowaną po agregatach: zlecenia niezamknięte i zamknięte ≤ N dni (N z konfiguracji, domyślnie 30, filtr także po stronie serwera) wraz z bieżącym stanem klienta i lokalizacji, w projekcji z jawnej listy dozwolonych pól (serializer odrzuca pola spoza listy; odpowiedź walidowana schematem kontraktu), a pozycja dziennika jest zapamiętana przed migawką; test negatywny: e-mail, NIP, adres korespondencyjny, notatki klienta, PPE, płatności i audyt nie występują w żadnej stronie; projekcje czytane partiami (stała liczba zapytań na stronę).
+- Wtedy dostaje migawkę stronicowaną po agregatach: zlecenia niezamknięte i zamknięte ≤ N dni (N z konfiguracji, domyślnie 30, filtr także po stronie serwera) wraz z bieżącym stanem klienta i lokalizacji, w projekcji z jawnej listy dozwolonych pól (serializer odrzuca pola spoza listy; odpowiedź walidowana schematem kontraktu), a pozycja dziennika jest zapamiętana przed migawką; test negatywny waliduje KAŻDĄ stronę ścisłą walidacją projekcji (`assertSyncProjectionStrict` z `@evia/contracts`, zero pól spoza projekcji), a nie przez `SyncChangesResponse` (Zod usuwa dodatkowe pola i test nic by nie wykrył): e-mail, NIP, adres korespondencyjny, notatki klienta, PPE, płatności i audyt nie występują w żadnej stronie; projekcje czytane partiami (stała liczba zapytań na stronę).
 
 **AC3 — Kursor**
 - Zakładając kursor z poprzedniej odpowiedzi

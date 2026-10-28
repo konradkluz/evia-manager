@@ -42,6 +42,10 @@ Problem:
         tytuł ani identyfikator zlecenia.
       minimum: 1
       maximum: 100000
+    minSupportedVersion:
+      description: >-
+        Tylko `426 client_version_unsupported` (EVM-090) - minimalna wspierana wersja aplikacji per platforma.
+      $ref: platform.yaml#/MinSupportedAppVersion
     errors:
       type: array
       description: Błędy pól — tylko wskaźnik JSON Pointer i kod, nigdy wartość (SR-ERR-02).

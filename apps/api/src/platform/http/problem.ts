@@ -24,9 +24,14 @@ export const PROBLEMS = Object.freeze({
   login_expired: { status: 401, title: 'Sign-in took too long' },
   session_expired: { status: 401, title: 'Session expired' },
   session_revoked: { status: 401, title: 'Session revoked' },
+  // EVM-094: the mobile channel.
+  device_wipe_required: { status: 401, title: 'The device must wipe its data' },
   forbidden: { status: 403, title: 'Forbidden' },
   mfa_enrollment_required: { status: 403, title: 'Multi-factor enrollment required' },
   mfa_setup_expired: { status: 403, title: 'The window to set up a second step has expired' },
+  channel_not_allowed: { status: 403, title: 'The role cannot sign in on this channel' },
+  device_limit_reached: { status: 403, title: 'The limit of devices is reached' },
+  totp_not_configured: { status: 403, title: 'A code from an authenticator app is not configured' },
   step_up_required: { status: 403, title: 'Re-authentication required' },
   reauthentication_required: { status: 403, title: 'Full re-authentication required' },
   csrf_failed: { status: 403, title: 'Cross-site request check failed' },
@@ -60,6 +65,7 @@ export const PROBLEMS = Object.freeze({
   template_unavailable: { status: 422, title: 'Work order template is not available' },
   upload_incomplete: { status: 422, title: 'The uploaded parts do not make up the declared file' },
   transition_condition_not_met: { status: 422, title: 'A condition of the transition is not met' },
+  client_version_unsupported: { status: 426, title: 'Client version is no longer supported' },
   precondition_required: { status: 428, title: 'Precondition required' },
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
@@ -87,6 +93,8 @@ export interface ProblemExtras {
   readonly existingUserId?: string;
   /** Only `has_active_dependents` of a customer (EVM-041): the NUMBER of its open work orders - never a number, a title or an id of an order. */
   readonly openWorkOrders?: number;
+  /** Only `client_version_unsupported` (EVM-090): the oldest version of each platform the API serves. */
+  readonly minSupportedVersion?: { readonly android: string; readonly ios: string };
 }
 
 /** Thrown by handlers and guards to answer with a problem of the given code. */
@@ -111,6 +119,7 @@ export interface ProblemBody {
   readonly errors?: readonly FieldError[];
   readonly existingUserId?: string;
   readonly openWorkOrders?: number;
+  readonly minSupportedVersion?: { readonly android: string; readonly ios: string };
 }
 
 export function problemBody(
@@ -119,6 +128,7 @@ export function problemBody(
   errors?: readonly FieldError[],
   existingUserId?: string,
   openWorkOrders?: number,
+  minSupportedVersion?: ProblemExtras['minSupportedVersion'],
 ): ProblemBody {
   const { status, title } = PROBLEMS[code];
   return {
@@ -130,11 +140,12 @@ export function problemBody(
     ...(errors === undefined ? {} : { errors }),
     ...(existingUserId === undefined ? {} : { existingUserId }),
     ...(openWorkOrders === undefined ? {} : { openWorkOrders }),
+    ...(minSupportedVersion === undefined ? {} : { minSupportedVersion }),
   };
 }
 
 export function sendProblem(response: Response, code: ProblemCode, traceId: string, extras: ProblemExtras = {}): void {
-  const body = problemBody(code, traceId, extras.errors, extras.existingUserId, extras.openWorkOrders);
+  const body = problemBody(code, traceId, extras.errors, extras.existingUserId, extras.openWorkOrders, extras.minSupportedVersion);
   if (extras.retryAfterSeconds !== undefined) response.set('Retry-After', String(extras.retryAfterSeconds));
   response.status(body.status).set('Content-Type', PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
 }

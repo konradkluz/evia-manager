@@ -38,6 +38,9 @@ beforeAll(async () => {
     '0046_media_quarantine',
     '0047_email_outbox_subject',
     '0048_media_alerts',
+    '0050_mobile_devices',
+    '0051_mobile_tokens',
+    '0052_mobile_vocabularies',
   ]);
 });
 afterAll(async () => {

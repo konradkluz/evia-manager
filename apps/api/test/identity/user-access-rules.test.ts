@@ -176,6 +176,10 @@ describe('the texts of EVM-027 (docs/ux/flows/e-maile.md nr 5 and 9; SR-INPUT-07
         'zmieniono drugi krok logowania konta administratora (dodano albo usunięto metodę albo wygenerowano nowe kody).',
       // EVM-049 (alert 9): a file stopped by the scan
       administrator_media_quarantined: 'plik dodany do zlecenia został zatrzymany przez skan bezpieczeństwa.',
+      // EVM-094: a phone the account did not know / a used refresh credential came back
+      administrator_new_device: 'zalogowano się do konta Administratora z telefonu, którego to konto wcześniej nie używało.',
+      administrator_refresh_reuse:
+        'ponownie użyto zużytego poświadczenia odświeżania sesji telefonu — sesja tego urządzenia została zakończona, a urządzenie wymaga ponownego logowania.',
     } as const;
     expect(Object.keys(sentences).sort()).toEqual([...ALERT_VARIANTS].sort());
     for (const variant of ALERT_VARIANTS) {

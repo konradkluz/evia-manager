@@ -987,3 +987,180 @@ EndedSessions:
       type: integer
       minimum: 0
       maximum: 1000
+MobileDeviceInfo:
+  type: object
+  description: >-
+    Opis telefonu przy logowaniu (minimalizacja, MASVS-PRIVACY-1): model, wersja systemu i poziom poprawek bezpieczeństwa.
+    Bez IMEI, numeru seryjnego, ANDROID_ID i identyfikatora reklamowego (`rodo.md`, inwentarz „Device”).
+  additionalProperties: false
+  required: [model, osVersion, securityPatch]
+  properties:
+    model:
+      type: string
+      description: Model telefonu (np. `Pixel 8`).
+      pattern: '^[A-Za-z0-9 ._()/+-]{1,100}$'
+      minLength: 1
+      maxLength: 100
+    osVersion:
+      type: string
+      description: Wersja Androida (np. `14` albo `14.0.1`).
+      pattern: '^[0-9]{1,2}(\.[0-9]{1,3}){0,2}$'
+      minLength: 1
+      maxLength: 16
+    securityPatch:
+      type: string
+      description: Poziom poprawek bezpieczeństwa systemu (dzień, `RRRR-MM-DD`).
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      minLength: 10
+      maxLength: 10
+MobileLoginRequest:
+  type: object
+  description: >-
+    Pierwszy krok logowania telefonu. Pierwsze logowanie: `email`, `password`, `device` — `deviceId` nadaje serwer. Ponowne logowanie
+    tej samej instalacji: dodatkowo para `deviceId` + `installationSecret` (obie albo żadna, inaczej `400 validation_failed`); para
+    niezgodna z urządzeniem konta jest ignorowana (telefon liczy się jak nowy; zgodna jest para z bieżącym albo z poprzednim,
+    jeszcze nieprzekreślonym sekretem — rotacja dwufazowa), a zgodna z urządzeniem w stanie `wipe_required` daje
+    `401 device_wipe_required` jeszcze przed sprawdzeniem hasła. Pola
+    spoza schematu → `400 unknown_field`; pola `userId` i `deviceId` w znaczeniu „kto” nie istnieją — użytkownik wynika z hasła.
+  additionalProperties: false
+  required: [email, password, device]
+  properties:
+    email:
+      type: string
+      description: Adres e-mail konta (sprawdzany jest kształt; zły adres i złe hasło dają tę samą odpowiedź).
+      minLength: 1
+      maxLength: 254
+    password:
+      type: string
+      description: Hasło (maksimum 256 znaków chroni Argon2id); nie jest przycinane.
+      minLength: 1
+      maxLength: 256
+      writeOnly: true
+    device:
+      $ref: '#/MobileDeviceInfo'
+    devicePublicKey:
+      type: string
+      description: >-
+        Opcjonalny klucz publiczny urządzenia (base64url) — rezerwa pod powiązanie tokenu z urządzeniem (ADR-0005, decyzja 8); w M2
+        serwer go tylko zapisuje i nie wymaga.
+      pattern: '^[A-Za-z0-9_-]{16,512}$'
+      minLength: 16
+      maxLength: 512
+    deviceId:
+      $ref: devices.yaml#/DeviceId
+    installationSecret:
+      $ref: devices.yaml#/InstallationSecret
+MobileLoginChallenge:
+  type: object
+  description: Pierwszy krok zaliczony — czas na kod z aplikacji TOTP.
+  additionalProperties: false
+  required: [challengeToken, challengeExpiresAt]
+  properties:
+    challengeToken:
+      type: string
+      description: >-
+        Nieprzezroczysty, jednorazowy token wyzwania (≥ 256 bitów, base64url), ważny najwyżej 5 minut, związany z kontem i próbą
+        rejestracji urządzenia; trzymany w pamięci aplikacji, nigdy w adresie.
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      minLength: 43
+      maxLength: 43
+    challengeExpiresAt:
+      type: string
+      format: date-time
+      description: Koniec ważności tokenu wyzwania (UTC; najwyżej 5 minut od wydania).
+      maxLength: 40
+MobileLoginTotpRequest:
+  type: object
+  description: >-
+    Drugi krok: ściśle `{challengeToken, code}`. Kod odzyskiwania nie działa w kanale mobilnym (pole z kodem odzyskiwania → `400`).
+  additionalProperties: false
+  required: [challengeToken, code]
+  properties:
+    challengeToken:
+      type: string
+      description: Token wyzwania z pierwszego kroku.
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      minLength: 43
+      maxLength: 43
+      writeOnly: true
+    code:
+      type: string
+      description: Kod z aplikacji TOTP — dokładnie 6 cyfr ASCII.
+      pattern: '^[0-9]{6}$'
+      minLength: 6
+      maxLength: 6
+      writeOnly: true
+MobileUser:
+  type: object
+  description: Zalogowany użytkownik — tylko to, co aplikacja pokazuje i do czego używa roli (bez e-maila i czasów logowania).
+  additionalProperties: false
+  required: [id, displayName, role]
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    displayName:
+      type: string
+      maxLength: 200
+    role:
+      $ref: '#/UserRole'
+MobileSession:
+  type: object
+  description: >-
+    Sesja mobilna: krótkotrwały token dostępu (15 min) i rotowany token odświeżania (ADR-0005). Wszystkie tokeny wyłącznie w treści
+    odpowiedzi. Odpowiedź nigdy nie ustawia ciasteczek.
+  additionalProperties: false
+  required: [deviceId, accessToken, accessTokenExpiresAt, refreshToken, refreshTokenExpiresAt, serverTime, user]
+  properties:
+    deviceId:
+      $ref: devices.yaml#/DeviceId
+    installationSecret:
+      type: string
+      description: >-
+        Sekret instalacji — przy KAŻDYM udanym logowaniu (`mobileLoginTotp`): przy rejestracji nowego urządzenia i przy ponownym
+        logowaniu tej samej instalacji (rotacja dwufazowa: poprzedni sekret działa dla tego samego `deviceId`, dopóki urządzenie nie
+        udowodni nowego — pierwszym odświeżeniem tokenu, pierwszym żądaniem z nowym tokenem dostępu albo logowaniem nowym sekretem).
+        Poprzedni sekret traci ważność najpóźniej po czasie życia tokenu odświeżania (nie dłużej niż 7 dni) od wydania nowego; w danej chwili są NAJWYŻEJ dwa ważne sekrety (ostatni udowodniony i najnowszy wydany) — wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego (w wyniku kolejnego logowania poprzednim sekretem). Oba sekrety są unieważniane przy potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Aplikacja zapisuje nowy sekret
+        w Android Keystore przed porzuceniem starego i nie pokazuje go ani nie loguje. Przy odświeżaniu tokenu pola nie ma.
+      pattern: '^[A-Za-z0-9_-]{43}$'
+      minLength: 43
+      maxLength: 43
+      readOnly: true
+    accessToken:
+      type: string
+      description: >-
+        Nieprzezroczysty token dostępu (nagłówek `Authorization` ze schematem Bearer), ważny 15 minut.
+      minLength: 32
+      maxLength: 512
+    accessTokenExpiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    refreshToken:
+      type: string
+      description: Nieprzezroczysty token odświeżania, używany raz (rotacja); ponowne użycie unieważnia rodzinę tokenów i wywołuje alert.
+      minLength: 32
+      maxLength: 512
+    refreshTokenExpiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    serverTime:
+      type: string
+      format: date-time
+      description: Czas serwera (UTC) — punkt odniesienia reguł czasowych aplikacji (nie zegar telefonu).
+      maxLength: 40
+    user:
+      $ref: '#/MobileUser'
+RefreshMobileSessionRequest:
+  type: object
+  description: Odświeżenie sesji — wyłącznie token odświeżania w treści.
+  additionalProperties: false
+  required: [refreshToken]
+  properties:
+    refreshToken:
+      type: string
+      minLength: 32
+      maxLength: 512
+      writeOnly: true

@@ -23,6 +23,8 @@ export const EMAIL_KINDS = [
   'new_browser',
   // EVM-028: e-mail 8 (the sixth sign-in ended the oldest session)
   'session_limit',
+  // EVM-094: e-mail 7 for the phone (a sign-in from a device the account did not know; SR-AUTH-15)
+  'new_device',
 ] as const;
 export type EmailKind = (typeof EMAIL_KINDS)[number];
 

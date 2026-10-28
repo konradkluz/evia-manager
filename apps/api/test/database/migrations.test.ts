@@ -78,6 +78,9 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0046_media_quarantine',
       '0047_email_outbox_subject',
       '0048_media_alerts',
+      '0050_mobile_devices',
+      '0051_mobile_tokens',
+      '0052_mobile_vocabularies',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });

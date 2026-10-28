@@ -4,7 +4,7 @@ title: "API: logowanie mobilne i rejestr urządzeń"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: ready
+status: in-review
 priority: P0
 path: pelna             # uwierzytelnianie, urządzenia, uprawnienia
 owner: backend-developer
@@ -34,7 +34,7 @@ Jako **Edytor lub Administrator** chcę **zalogować się w aplikacji tym samym 
 **AC3 — Rola, kanał i kolejność sprawdzeń**
 - Zakładając konto z rolą Tylko odczyt, konto bez kodu z aplikacji (tylko klucz dostępu) i konto bez drugiego kroku
 - Gdy podają poprawne hasło
-- Wtedy kolejność jest: wersja klienta → limit IP i konta → hasło (jedna odpowiedź `401 invalid_credentials` jak dla nieistniejącego konta) → rola × kanał (`403 channel_not_allowed`) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`); token mobilny nie działa na operacjach panelu, sesja panelu nie działa na operacjach mobilnych (poświadczenie „nie tego” kanału jest ignorowane i niczego nie ustawia w `Set-Cookie`).
+- Wtedy kolejność jest: wersja klienta → limit IP i konta → hasło (jedna odpowiedź `401 invalid_credentials` jak dla nieistniejącego konta) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`) → poprawny kod z aplikacji → rola × kanał (`403 channel_not_allowed`) → limit urządzeń (`403 device_limit_reached`); token mobilny nie działa na operacjach panelu, sesja panelu nie działa na operacjach mobilnych (poświadczenie „nie tego” kanału jest ignorowane i niczego nie ustawia w `Set-Cookie`).
 
 **AC4 — Rotacja tokenu odświeżania**
 - Zakładając ważny token odświeżania (256 bit z CSPRNG, w bazie tylko skrót)
@@ -68,6 +68,18 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - Ścieżki i kody według EVM-090. **Przed `ready`:** decyzja o właścicielu odświeżania tokenów po stronie telefonu (rekomendacja: jeden właściciel natywny — adnotacja ADR-0020a, aktualizacja SR-SESS-09) oraz o refresh tokenie bez powiązania z urządzeniem (rekomendacja: nowe RR na M2 + kompensacje z AC4; README planu, decyzje 17 i 8).
 - Regresja: EVM-026, EVM-027, EVM-028 (punkty „od E9”: SR-SESS-04, SR-AUTH-11/13/15, SR-SESS-06). Nowe tabele `devices`, `access_tokens`, `refresh_tokens` i rozszerzenie sesji o `device_id` w schemacie `identity`, migracje w stylu expand.
 - Bezpieczeństwo i prywatność: sekret instalacji nie jest czynnikiem uwierzytelnienia, tylko przypina `deviceId` po haśle i kodzie.
+- Sekret instalacji (kontrakt EVM-090, runda 3): porównanie w STAŁYM CZASIE także dla nieznanego `deviceId` (porównanie z wartością zastępczą o tej samej długości, bez gałęzi czasowej zdradzającej istnienie urządzenia) — dotyczy `mobileLogin`, `mobileLoginTotp` i `confirmDeviceWipe`. Rotacja dwufazowa (AC2): poprzedni sekret ważny najpóźniej po czasie życia tokenu odświeżania (≤ 7 dni), najwyżej dwa ważne sekrety (wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego), oba unieważniane po potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta; `confirmDeviceWipe` przyjmuje bieżący albo poprzedni sekret. Do potwierdzenia przez Konrada razem z AC2.
+
+- **Decyzje wykonawcze (backend-developer, 2026-10-28; zmieniają lub doprecyzowują AC — do potwierdzenia przez Konrada razem z decyzjami 8, 9, 17):**
+  - AC3 — kolejność: `403 channel_not_allowed` (Tylko odczyt) wraca dopiero po POPRAWNYM kodzie TOTP (kontrakt EVM-090, runda 3), nie po samym haśle — poprawne hasło nie ujawnia roli ani stanu urządzeń; `totp_not_configured` / `mfa_enrollment_required` po poprawnym haśle, przed wyzwaniem. Tekst AC3 („hasło → rola × kanał → drugi krok”) i część AC2 o zwrocie `device_limit_reached` pozostają BEZ ZMIAN do decyzji Konrada (AC są kontraktem); **AC3 i ta część AC2 nie są uznane za spełnione, dopóki Konrad nie potwierdzi odstępstwa**. Proponowana treść po potwierdzeniu — AC3: „… hasło (jedna odpowiedź `401 invalid_credentials`) → drugi krok skonfigurowany (`403 totp_not_configured` / `403 mfa_enrollment_required`) → poprawny kod TOTP → rola × kanał (`403 channel_not_allowed`)”; AC2: `403 device_limit_reached` po poprawnym kodzie (tak jest już w AC2).
+  - AC8 — audyt odświeżeń (runda 1 przeglądu): zdarzenie `session.refreshed` — `success` przy każdym udanym odświeżeniu oraz `denied` z kodem `session_revoked` / `device_wipe_required`, gdy sesja jest rozpoznana (token nieznany lub w złym formacie nie ma obiektu, więc nie zostawia śladu; ponowne użycie nadal zapisuje `session.revoked`/`refresh_reuse`). IP wg kontekstu zdarzenia (prefiks), nigdy token ani jego skrót. Wolumen: jeden wiersz na odświeżenie (co ok. 15 min na urządzenie) — świadomie przyjęty, do oceny po teście terenowym M2.
+  - Baseline kontraktu: dodanie wartości do enumów audytu (`AuditAction`, `AuditObjectType`, `AuditReasonCode`) uznane za zmianę łamiącą i przyjęte w aneksie ADR-0021 (`baseline:update -- --allow-breaking ADR-0021`); do potwierdzenia przez Konrada.
+  - AC2 — rotacja DWUFAZOWA sekretu instalacji przyjęta warunkowo (alternatywa: brak rotacji + RR-NOC-T4-3); „aktywne” urządzenie = stan `active` z ważną sesją mobilną (wyczyszczone, do wyczyszczenia i bez ważnej sesji nie zajmują miejsca); limit liczony pod blokadą wiersza konta; urządzenie rozpoznane, które nie ma ważnej sesji, też podlega limitowi (inaczej logowanie "na znane" omijałoby 2).
+  - AC1 — `pendingItemsReported` (decyzja 9): kolumna istnieje (0–10000, domyślnie 0), ale kontrakt logowania nie niesie tego pola — zapisem zajmie się synchronizacja (EVM-098); nie jest używane do żadnej decyzji.
+  - AC4 — audyt odświeżeń: IP wg istniejącego kontekstu zdarzenia (prefiks /24, /48); ASN poza M2 (brak lokalnej bazy ASN, zewnętrzny lookup wysyłałby IP poza UE) — do backlogu. Token odświeżania bez powiązania z Keystore: RR-NOC-T4-2 (numery końcowe nada security).
+  - AC4 — wyczyszczenie ma pierwszeństwo przed `session_revoked` także dla tokenu dostępu, dopóki jego wiersz istnieje (wygasłe tokeny dostępu są czyszczone po dobie).
+  - AC5 — znane urządzenie ma licznik `browser` (para `deviceId` + sekret zgodna z urządzeniem TEGO konta w stanie `active`); inne pary liczą się na koncie; skradziony telefon z sekretem ma więc drugą pulę prób hasła (ten sam kompromis co RR-28 — RR-NOC-T4-4, numer nada security). Wspólny limit 20/min/IP obejmuje oba kroki, odświeżenie i potwierdzenie wyczyszczenia.
+  - Konfiguracja i zależności — brak nowych zmiennych środowiskowych (progi i czasy jako stałe domeny) i zależności.
 
 ## Notatki
 - Prefiks tokenu odświeżania (np. `evia_rt_`) pod skanery sekretów; rejestr IP/ASN odświeżeń w audycie.
@@ -76,3 +88,9 @@ Lista i zdalne wylogowanie urządzeń (EVM-095); ekrany aplikacji (EVM-100); bio
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-27 — status ready warunkowo (Tech Lead, polecenie Konrada: decyzje po uruchomieniu torów): przyjęte rekomendowane domyślne decyzje 8, 9 i 17 z README M2 (refresh token bez powiązania z Keystore + RR, pendingItemsReported minimalnie, właściciel odświeżania tokenów po stronie natywnej za portem SessionOwner); ADR-0020a w osobnym kroku; Konrad potwierdza lub zmienia
+- 2026-10-28 — EVM-090 gotowa na gałęzi (3 rundy poprawek); start realizacji (nocna kolejka, tor T4), gałąź feature/EVM-090-094-kontrakt-logowanie-mobilne
+- 2026-10-28 — plan gotowy (backend-developer)
+- 2026-10-28 — implementacja gotowa lokalnie: sześć operacji kanału mobile z trasami, migracje 0050–0052, testy AC1–AC8; bramka lokalna zielona; do potwierdzenia: korekta AC3 (kolejność), rotacja dwufazowa, baseline kontraktu przesunięty pod ADR-0021 (backend-developer)
+- 2026-10-28 — poprawki, runda 1: audyt odświeżeń `session.refreshed`, aneks ADR-0021 o słowniku audytu i baseline, AC3 bez zmian do decyzji Konrada (backend-developer)
+- 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,9% linii / 95,6% gałęzi, przeglądy zatwierdzone po 3 rundach. Warunek merge: Konrad potwierdza odstępstwo AC3/AC2 (kolejność: kod TOTP przed rola×kanał i limitem urządzeń), dwufazową rotację sekretu i aneks ADR-0021; po potwierdzeniu Tech Lead poprawia tekst AC3/AC2. web-e2e-linux przerwany limitem czasu (664 scenariusze zielone, 0 błędów) — do powtórzenia przy CI.
+- 2026-10-28 — Decyzja Konrada (delegacja: „podejmij najlepsze decyzje”): przyjęte wszystkie decyzje wykonawcze z sekcji Decyzje — kolejność AC3/AC2 (tekst AC3 zmieniony), rotacja dwufazowa sekretu instalacji, aneks ADR-0021 (baseline słownika audytu), decyzje 8, 9, 17. Warunek merge zdjęty.

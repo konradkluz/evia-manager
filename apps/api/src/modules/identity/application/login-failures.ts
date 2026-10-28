@@ -29,7 +29,13 @@ export type LoginFailure =
   | 'totp_failed'
   | 'recovery_code_failed'
   | 'login_expired'
-  | 'mfa_setup_expired';
+  | 'mfa_setup_expired'
+  // EVM-094: the mobile sign-in (the reasons of a refusal after a correct password or a correct code, and the signal of the wipe).
+  | 'device_wipe_required'
+  | 'totp_not_configured'
+  | 'mfa_enrollment_required'
+  | 'channel_not_allowed'
+  | 'device_limit_reached';
 
 export const LOGIN_FAILURES_METRIC = 'evia_login_failures_total';
 
