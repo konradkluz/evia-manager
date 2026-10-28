@@ -10,7 +10,9 @@
  * session of the caller that has not expired is RETURNED (the resumption after a new choice of the file, AC4; `200`), an expired one is
  * closed, the session of another user is `409 id_conflict` without a detail; the limit of active sessions of the user (`429`,
  * `Retry-After`); `CreateMultipartUpload` with a content type FROM THE ALLOW-LIST, never the client's; the INSERT. The part size is the
- * server's: the URL of every part signs its exact length.
+ * server's: the URL of every part signs its exact length. Only the creator of the medium or an Administrator opens its session (`404` for
+ * everybody else, RR-NOC-T1-8). A REPEAT (same key) whose session is aborted or expired is `409 invalid_state_transition`: the client sends a new
+ * key and a new session id.
  */
 import type { UploadSession } from '@evia/contracts';
 import { zCreateUploadSessionBody, zCreateUploadSessionPath } from '@evia/contracts/zod';
@@ -47,6 +49,8 @@ const scopeOf = (workOrderId: string, mediaAssetId: string): string =>
 const pathSchema = strictObjects(zCreateUploadSessionPath);
 const bodySchema = strictObjects(zCreateUploadSessionBody);
 const RETRY_AFTER_SECONDS = 60;
+const sessionIsGone = (session: { state: string; expires_at: Date }, now: Date): boolean =>
+  session.state === 'aborted' || session.state === 'expired' || (session.state === 'active' && session.expires_at <= now);
 
 export interface CreatedSession {
   readonly session: UploadSession;
@@ -86,7 +90,10 @@ export class CreateUploadSessionService {
       if (order === undefined) throw new ProblemException('not_found');
       const tables = mediaTables(tx);
       const found = await findAssetWithFile(tables, order.id, mediaAssetId, true);
-      if (found === undefined) throw new ProblemException('not_found');
+      // the creator of the medium or an Administrator (RR-NOC-T1-8): a colleague cannot open a session on a medium he did not add
+      if (found === undefined || (found.asset.created_by !== principal.userId && principal.role !== 'administrator')) {
+        throw new ProblemException('not_found');
+      }
       const storage = requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
       const { id: sessionId } = parseInput(bodySchema, rawBody) as { id: string };
@@ -155,6 +162,8 @@ export class CreateUploadSessionService {
           ? undefined
           : await findSessionChain(tables, { workOrderId: order.id, mediaAssetId, sessionId: resourceId }, creator);
       if (chain === undefined) throw new ProblemException('not_found');
+      // a repeat of a creation whose session is gone must not answer 201 with a session nobody can use: the client opens a new one
+      if (outcome.replayed && sessionIsGone(chain.session, now)) throw new ProblemException('invalid_state_transition');
       return { session: toUploadSession(chain.session, mediaAssetId), status, replayed: outcome.replayed };
     });
   }

@@ -2,9 +2,10 @@
  * The list of the media of an order (EVM-044 AC1, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05, SR-API-02, SR-API-04). Three roles, web
  * channel, no audit of reads. The path and the query are validated and the cursor opened (`400`) BEFORE the database; the order is then
  * resolved through the read policy (`404`). ONE statement reads the page with the state of every file (no N+1). The cursor is opaque,
- * bound to the filter, the order and the user, and expires. With `uploadState=unfinished` only the media with an active, unexpired
- * session of the CALLER are returned — the condition is in the join, not a filter of the page — and only those carry the file name and
- * the session (AC4: "Nie wysłano N zdjęć — wybierz je ponownie z galerii"). Nothing returned names the object key, the checksum or the
+ * bound to the filter, the order and the user, and expires. With `uploadState=unfinished` only the unfinished uploads of the CALLER are
+ * returned - those with an active, unexpired session (the condition is in the join, not a filter of the page) and the files of the caller
+ * still in `pending_upload` without one (an interrupted batch: the session expired, was aborted or never opened) - and only those carry
+ * the file name and, when there is one, the session (AC4: "Nie wysłano N zdjęć — wybierz je ponownie z galerii"). Nothing returned names the object key, the checksum or the
  * reason of a quarantine.
  */
 import type { MediaAssetList } from '@evia/contracts';

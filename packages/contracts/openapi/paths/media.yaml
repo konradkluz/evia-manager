@@ -47,9 +47,11 @@ workOrderMediaAssets:
       Lista „Media i dokumenty” W-09 (EVM-044 AC1, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05, SR-API-02). Role Administrator,
       Edytor i Tylko odczyt (bez audytu odczytu), kanał `web`. Zlecenie jest rozwiązywane najpierw polityką odczytu w zapytaniu:
       nieistniejące i usunięte — `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1–100 (domyślnie 25); jedno zapytanie
-      ze stanami plików. Filtr `uploadState=unfinished` zwraca WYŁĄCZNIE media z aktywną, niewygasłą (`expiresAt` w przyszłości)
-      sesją uploadu wołającego (twórca: użytkownik i urządzenie) i tylko one niosą `originalFilename` i `uploadSession` — to z nich
-      panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Odpowiedź nie zawiera klucza obiektu, skrótu, identyfikatora
+      ze stanami plików. Filtr `uploadState=unfinished` zwraca WYŁĄCZNIE niedokończone wysyłania wołającego: media z aktywną, niewygasłą
+      (`expiresAt` w przyszłości) sesją uploadu wołającego (twórca: użytkownik i urządzenie) ORAZ media wołającego, których plik wciąż
+      jest w `pending_upload`, a aktywnej sesji brak (przerwana partia: sesja wygasła, została przerwana albo nigdy nie powstała — baner
+      liczy całą partię i nie powstają duplikaty). Tylko te media niosą `originalFilename`, a `uploadSession` jest w nich `null`, gdy
+      sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Odpowiedź nie zawiera klucza obiektu, skrótu, identyfikatora
       uploadu S3 ani przyczyny kwarantanny. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
@@ -167,11 +169,13 @@ mediaAssetUploadSessions:
     description: >-
       Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator
       i Edytor (Tylko odczyt — `403`), kanał `web`. Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla
-      medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną
+      medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium
+      innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną
       `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w
       bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest
-      zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika — `409 id_conflict` bez
-      szczegółów. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload`
+      zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez
+      szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła —
+      `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload`
       z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak
       konfiguracji magazynu — `503 media_storage_unavailable`.
     x-evia-authz:

@@ -317,9 +317,11 @@ export interface PagePosition {
 }
 
 /**
- * One page of the media of an order, ONE statement with the state of the file (no N+1). With `unfinishedFor` only the media with an
- * active, unexpired session of THAT creator (the condition is in the join, AC4). `limit + 1` rows come back so the caller knows whether
- * there is a next page.
+ * One page of the media of an order, ONE statement with the state of the file (no N+1). With `unfinishedOnly` only the unfinished uploads of
+ * THAT creator (the condition is in the join and the where, AC4): the media with an active, unexpired session of the creator AND the files
+ * of the creator still in `pending_upload` without such a session (an interrupted batch: the session expired, was aborted or never
+ * opened) - the whole batch is counted and chosen again, so no duplicate medium is made. `limit + 1` rows come back so the caller knows
+ * whether there is a next page.
  */
 export async function listAssets(
   db: MediaDb,
@@ -345,7 +347,11 @@ export async function listAssets(
         .on(sql<boolean>`s.device_id is not distinct from ${creator.deviceId}`),
     )
     .where('a.work_order_id', '=', workOrderId);
-  if (options.unfinishedOnly) query = query.where('s.id', 'is not', null);
+  if (options.unfinishedOnly) {
+    query = query.where((eb) =>
+      eb.or([eb('s.id', 'is not', null), eb.and([eb('f.state', '=', 'pending_upload'), eb('f.created_by', '=', creator.userId)])]),
+    );
+  }
   if (position !== undefined) query = query.where(sql<boolean>`(a.created_at, a.id) < (${position.createdAt}, ${position.id})`);
   const rows = await query
     .selectAll('f')
@@ -395,11 +401,6 @@ export async function findUnscanned(db: MediaDb, staleBefore: Date, limit: numbe
     .limit(limit)
     .select('id')
     .execute();
-}
-
-/** The file of a scan with its medium (for the audit of a quarantine) — nothing the caller does not need to scan. */
-export async function findFileForScan(db: MediaDb, storedFileId: string): Promise<StoredFileRow | undefined> {
-  return db.selectFrom('media.stored_files').where('id', '=', storedFileId).selectAll().executeTakeFirst();
 }
 
 /** Files still unscanned after `olderThan` — the count for the warning of the worker (SR-ERR-02: nothing stays silent). */

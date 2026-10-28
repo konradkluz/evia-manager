@@ -396,6 +396,42 @@ describe('EVM-044 AC3 — the scan fails closed (SR-FILE-05, SR-ERR-01, SR-ERR-0
     expect((await fileRow(item.id))?.state).toBe('clean');
   });
 
+  it('EVM-044 AC3 stopping the scan loop waits for the pass in progress: the file in the scanner gets its verdict before the stop settles', async () => {
+    const editor = await signIn('editor');
+    const orderId = await order();
+    const { item } = await upload(editor, orderId, jpeg());
+    const original = current.scanner.scan.bind(current.scanner);
+    let release = (): void => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = (): void => undefined;
+    const inScanner = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    current.scanner.scan = async (source) => {
+      entered();
+      await gate;
+      return original(source);
+    };
+    try {
+      const stop = scan().start(5);
+      await inScanner;
+      let settled = false;
+      const stopped = stop().then(() => {
+        settled = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(settled).toBe(false);
+      release();
+      await stopped;
+      expect((await fileRow(item.id))?.state).toBe('clean');
+    } finally {
+      release();
+      Reflect.deleteProperty(current.scanner, 'scan');
+    }
+  });
+
   it('EVM-044 AC3 the EICAR test file is quarantined as malware_detected, audited without a name, and shows "Wymaga uwagi" without the reason', async () => {
     const editor = await signIn('editor');
     const orderId = await order();
@@ -483,7 +519,7 @@ describe('EVM-044 AC5 — the integrity of the transfer (SR-CRYPTO-05)', () => {
 });
 
 describe('EVM-044 AC4 — the unfinished uploads of the user ("Nie wysłano N zdjęć")', () => {
-  it('EVM-044 AC4 unfinished returns only the active, unexpired sessions of the CALLER, with the file name; the plain list never returns the name', async () => {
+  it('EVM-044 AC4 unfinished returns the active sessions AND the pending files without one (an interrupted batch) of the CALLER only, with the file name; the plain list never returns the name', async () => {
     const editor = await signIn('editor');
     const colleague = await signIn('editor');
     const orderId = await order();
@@ -514,13 +550,41 @@ describe('EVM-044 AC4 — the unfinished uploads of the user ("Nie wysłano N zd
     const unfinished = await listFor(editor, orderId, '?uploadState=unfinished');
     expect(unfinished.status).toBe(200);
     const items = (unfinished.body as { items: MediaBody[] }).items;
-    expect(items.map((entry) => entry.id)).toEqual([mine.mediaAssetId]);
-    expect(items[0]).toMatchObject({ originalFilename: 'IMG_0100.JPG', uploadSession: { id: mine.sessionId } });
+    expect(items.map((entry) => entry.originalFilename).sort()).toEqual(['IMG_0100.JPG', 'aborted.jpg', 'expired.jpg']);
+    expect(items.find((entry) => entry.id === mine.mediaAssetId)).toMatchObject({ uploadSession: { id: mine.sessionId } });
+    expect(
+      items
+        .filter((entry) => entry.uploadSession === null)
+        .map((entry) => entry.originalFilename)
+        .sort(),
+    ).toEqual(['aborted.jpg', 'expired.jpg']);
     const other = ((await listFor(colleague, orderId, '?uploadState=unfinished')).body as { items: MediaBody[] }).items;
     expect(other.map((entry) => entry.originalFilename)).toEqual(['colleague.jpg']);
     const plain = (await listFor(editor, orderId)).body as { items: MediaBody[] };
     expect(plain.items.every((entry) => entry.originalFilename === null && entry.uploadSession === null)).toBe(true);
     expect((await listFor(editor, orderId, '?uploadState=bogus')).status).toBe(400);
+  });
+
+  it('EVM-044 AC4 a batch interrupted half way is counted whole: pending files without a session count, uploaded ones and the ones of others do not', async () => {
+    const editor = await signIn('editor');
+    const colleague = await signIn('editor');
+    const orderId = await order();
+    const base = { workOrderId: orderId, createdBy: editor.userId };
+    const withSession = await insertMedia(admin(), { ...base, fileName: 'a.jpg', session: { userId: editor.userId } });
+    const noSession = await insertMedia(admin(), { ...base, fileName: 'b.jpg' });
+    const never = await insertMedia(admin(), { ...base, fileName: 'c.jpg' });
+    const done = await insertMedia(admin(), { ...base, fileName: 'done.jpg' });
+    await sql`update media.stored_files set state = 'uploaded', state_changed_at = ${NOW} where media_asset_id = ${done.mediaAssetId}`.execute(
+      admin(),
+    );
+    await insertMedia(admin(), { workOrderId: orderId, createdBy: colleague.userId, fileName: 'theirs.jpg' });
+    const first = await listFor(editor, orderId, '?uploadState=unfinished&limit=2');
+    const cursor = (first.body as { nextCursor: string }).nextCursor;
+    const second = await listFor(editor, orderId, `?uploadState=unfinished&limit=2&cursor=${cursor}`);
+    const all = [...(first.body as { items: MediaBody[] }).items, ...(second.body as { items: MediaBody[] }).items];
+    expect(all.map((entry) => entry.id).sort()).toEqual([withSession.mediaAssetId, noSession.mediaAssetId, never.mediaAssetId].sort());
+    expect(all.every((entry) => entry.originalFilename !== null && entry.declaredSize > 0)).toBe(true);
+    expect((second.body as { nextCursor: string | null }).nextCursor).toBeNull();
   });
 
   it('EVM-044 AC4 choosing the file again resumes the active session of the caller (200, the same id) instead of creating a second one; another user gets 409 id_conflict', async () => {
@@ -534,10 +598,56 @@ describe('EVM-044 AC4 — the unfinished uploads of the user ("Nie wysłano N zd
     const again = await createSessionFor(editor, orderId, item.id);
     expect(again.status).toBe(200);
     expect((again.body as { id: string }).id).toBe((first.body as { id: string }).id);
-    const stranger = await createSessionFor(colleague, orderId, item.id);
+    const boss = await signIn('administrator');
+    const stranger = await createSessionFor(boss, orderId, item.id);
     expect(stranger.status).toBe(409);
     expect(codeOf(stranger.body)).toBe('id_conflict');
     expect(JSON.stringify(stranger.body)).not.toContain((first.body as { id: string }).id);
+    expect((await createSessionFor(colleague, orderId, item.id)).status).toBe(404);
+  });
+
+  it('EVM-044 AC6 only the creator of the medium or an Administrator opens its session: a colleague gets 404 and nothing is created (CWE-639, RR-NOC-T1-8)', async () => {
+    const editor = await signIn('editor');
+    const colleague = await signIn('editor');
+    const boss = await signIn('administrator');
+    const orderId = await order();
+    const [first, second] = [itemFor(jpeg()), itemFor(jpeg())];
+    await createMedia(editor, orderId, [first, second]);
+    const refused = await createSessionFor(colleague, orderId, first.id);
+    expect(refused.status).toBe(404);
+    expect(codeOf(refused.body)).toBe('not_found');
+    const count = async (): Promise<string | undefined> =>
+      (await sql<{ n: string }>`select count(*)::text as n from media.upload_sessions`.execute(admin())).rows[0]?.n;
+    expect(await count()).toBe('0');
+    expect((await createSessionFor(editor, orderId, first.id)).status).toBe(201);
+    expect((await createSessionFor(boss, orderId, second.id)).status).toBe(201);
+    expect(await count()).toBe('2');
+  });
+
+  it('EVM-044 AC4 repeating a creation whose session is gone (aborted, or expired and not yet swept) is 409 invalid_state_transition, not a 201 with an unusable session', async () => {
+    const editor = await signIn('editor');
+    const orderId = await order();
+    const item = itemFor(jpeg());
+    await createMedia(editor, orderId, [item]);
+    const key = uuidv7();
+    const created = await createSessionFor(editor, orderId, item.id, uuidv7(), key);
+    expect(created.status).toBe(201);
+    const sessionId = (created.body as { id: string }).id;
+    const bodyId = sessionId;
+    expect((await createSessionFor(editor, orderId, item.id, bodyId, key)).status).toBe(201);
+    await sql`update media.upload_sessions set expires_at = ${new Date('2026-10-26T08:00:00Z')} where id = ${sessionId}`.execute(admin());
+    const expired = await createSessionFor(editor, orderId, item.id, bodyId, key);
+    expect(expired.status).toBe(409);
+    expect(codeOf(expired.body)).toBe('invalid_state_transition');
+    const fresh = await createSessionFor(editor, orderId, item.id);
+    expect(fresh.status).toBe(201);
+    const freshId = (fresh.body as { id: string }).id;
+    const freshKey = uuidv7();
+    expect((await createSessionFor(editor, orderId, item.id, freshId, freshKey)).status).toBe(200);
+    expect((await editor.panel.post(`${sessionPath(orderId, item.id, freshId)}/abort`)).status).toBeLessThan(300);
+    const again = await createSessionFor(editor, orderId, item.id, freshId, freshKey);
+    expect(again.status).toBe(409);
+    expect(codeOf(again.body)).toBe('invalid_state_transition');
   });
 
   it('EVM-044 AC4 an expired session is closed and a new one is created; the number of active sessions of a user is limited (429 with Retry-After)', async () => {
