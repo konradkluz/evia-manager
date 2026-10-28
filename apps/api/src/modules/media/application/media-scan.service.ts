@@ -106,7 +106,7 @@ export class MediaScanService {
   /** @returns whether the file reached a verdict (`false`: taken by someone else, or the scanner could not decide — it is retried) */
   async scanFile(storedFileId: string): Promise<boolean> {
     const { db, clock, logger, storage, scanner } = this.#deps;
-    /* v8 ignore next -- runOnce checks `enabled` first; the guard keeps a direct call from scanning without a scanner */
+    // runOnce checks `enabled` first; the guard keeps a direct call from scanning without a scanner
     if (storage === null || scanner === null) return false;
     const now = clock.now();
     const file = await claimForScan(mediaTables(db), storedFileId, new Date(now.getTime() - STALE_SCANNING_MS), now);

@@ -29,7 +29,7 @@ import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/ide
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { checkDeclaration } from '../domain/file-rules.ts';
+import { checkDeclaration, type CheckedDeclaration } from '../domain/file-rules.ts';
 import { objectKeyFor } from '../domain/upload-plan.ts';
 import type { MediaAssetsAddedEvent, MediaAuditEvent } from '../events.ts';
 import { findAssetsWithFiles, insertMediaAsset, insertStoredFile, newFileIds } from '../infrastructure/media-store.ts';
@@ -99,10 +99,10 @@ export class CreateMediaAssetsService {
       if (order === undefined) throw new ProblemException('not_found');
       requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
-      const items = parseItems(rawBody);
+      const { items, checked } = parseItems(rawBody);
 
       const perform = async () => {
-        await this.#add(tx, principal, order.id, items, request);
+        await this.#add(tx, principal, order.id, items, checked, request);
         return { value: undefined, result: { status: 201, code: 'created', resourceId: items[0]?.id ?? null } };
       };
       const { replayed } = await this.#idempotency.run(
@@ -125,15 +125,14 @@ export class CreateMediaAssetsService {
     principal: Principal,
     workOrderId: string,
     items: readonly Item[],
+    checked: readonly CheckedDeclaration[],
     request: EventContext,
   ): Promise<void> {
     const now = this.#clock.now();
     const tables = mediaTables(tx);
     const fileIds = await newFileIds(tables, items.length);
     for (const [index, item] of items.entries()) {
-      const declaration = checkDeclaration(item);
-      /* v8 ignore next -- parseItems already refused every item that does not pass */
-      if (!declaration.ok) throw new ProblemException('validation_failed');
+      const declaration = checked[index] as CheckedDeclaration;
       const inserted = await insertMediaAsset(
         tables,
         { id: item.id, workOrderId, category: item.category, description: item.description ?? null, createdBy: principal.userId },
@@ -148,9 +147,9 @@ export class CreateMediaAssetsService {
           mediaAssetId: item.id,
           objectKey: objectKeyFor(fileId, now),
           declaredSize: item.declaredSize,
-          declaredContentType: declaration.value.contentType,
+          declaredContentType: declaration.contentType,
           declaredSha256: item.sha256,
-          originalFilename: declaration.value.originalFilename,
+          originalFilename: declaration.originalFilename,
           createdBy: principal.userId,
         },
         now,
@@ -178,17 +177,18 @@ export class CreateMediaAssetsService {
 }
 
 /** The body against the strict schema of the contract, then the type, the extension and the size of every file (`400`, pointers, codes). */
-function parseItems(rawBody: unknown): Item[] {
+function parseItems(rawBody: unknown): { items: Item[]; checked: CheckedDeclaration[] } {
   const body = parseInput(bodySchema, rawBody, SERVER_FIELDS) as { items: Item[] };
   const errors: Array<{ pointer: string; code: string }> = [];
   const seen = new Set<string>();
+  const checked: CheckedDeclaration[] = [];
   for (const [index, item] of body.items.entries()) {
     if (seen.has(item.id)) errors.push({ pointer: `/items/${index}/id`, code: 'duplicate' });
     seen.add(item.id);
     const declaration = checkDeclaration(item);
-    if (!declaration.ok)
-      for (const issue of declaration.issues) errors.push({ pointer: `/items/${index}/${issue.field}`, code: issue.code });
+    if (declaration.ok) checked.push(declaration.value);
+    else for (const issue of declaration.issues) errors.push({ pointer: `/items/${index}/${issue.field}`, code: issue.code });
   }
   if (errors.length > 0) throw new ProblemException('validation_failed', { errors });
-  return body.items;
+  return { items: body.items, checked };
 }

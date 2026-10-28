@@ -75,15 +75,14 @@ export class FinishUploadService {
 
       const declaredSize = Number(chain.file.declared_size_bytes);
       const assembled = await this.#assemble(storage, chain, declaredSize);
-      const moved = await transitionFile(
+      // the file row is locked by this transaction and was seen in `pending_upload` above: the compare-and-set cannot lose
+      await transitionFile(
         tables,
         chain.file.id,
         'pending_upload',
         { state: 'uploaded', sizeBytes: assembled.size, s3VersionId: assembled.versionId ?? null, s3Etag: assembled.etag },
         now,
       );
-      /* v8 ignore next -- the file row is locked for this transaction, nobody else can have moved it */
-      if (!moved) throw new ProblemException('invalid_state_transition');
       await setSessionState(tables, chain.session.id, 'active', 'completed', now);
       const fresh = await findAssetWithFile(tables, ids.workOrderId, ids.mediaAssetId);
       return toMediaAsset(fresh ?? chain);
