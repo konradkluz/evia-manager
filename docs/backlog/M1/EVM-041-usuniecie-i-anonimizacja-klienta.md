@@ -4,7 +4,7 @@ title: Usunięcie i anonimizacja klienta (Administrator)
 type: story
 milestone: M1
 epic: E2 Klienci
-status: ready
+status: in-progress
 priority: P1
 path: pelna
 model: sonnet
@@ -107,3 +107,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-05 — zmiana AC zaakceptowana przez Konrada na demo EVM-071 (EVM-071 → „Decyzje” 2; „Uwagi do rozważenia” 4 (a), 4 (f) i 17 (b); liczba AC bez zmian): AC1 — klient usunięty niewidoczny dla Edytora i Tylko odczyt także w danych osadzonych w zleceniach (W-06, W-10 z wyszukiwaniem zleceń, W-11 — stan „Klient usunięty” bez danych; ustalenie A1, zasada wspólna 18); AC2 — komunikat o niezamkniętych zleceniach wg makiety W-14; AC3 — etykieta „Przywróć klienta”
 - 2026-10-27 — nocna kolejka (tor T2): Konrad wskazał ścieżkę lekka, ale historyjka ma 8 AC i 3 recenzentów (lekka: ≤ 6 AC i 1 recenzent, workflow.md) — przyjęto pelna, model sonnet (Tech Lead); do potwierdzenia przez Konrada
+- 2026-10-28 — start realizacji (nocna kolejka, tor T2), gałąź feature/EVM-040-041-usuniecie-rejestr-usuniec
