@@ -22,6 +22,8 @@ export const SENSITIVE_KEY_FRAGMENTS = Object.freeze([
   'secret',
   'token',
   'apikey',
+  // EVM-040: the access key of the register of deletions (`accessKeyId`); the secret half is caught by `secret`
+  'accesskey',
   'mfa',
   'otp',
   'email',

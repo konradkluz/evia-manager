@@ -49,8 +49,12 @@ export const PROBLEMS = Object.freeze({
   idempotency_in_progress: { status: 409, title: 'A request with this idempotency key is in progress' },
   invalid_state_transition: { status: 409, title: 'Transition is not allowed from the current state' },
   work_order_closed: { status: 409, title: 'The work order is closed' },
-  has_active_dependents: { status: 409, title: 'The work order has active dependents' },
+  has_active_dependents: { status: 409, title: 'The resource has active dependents' },
+  customer_anonymized: { status: 409, title: 'The customer is anonymized' },
+  already_anonymized: { status: 409, title: 'The customer is already anonymized' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
+  entry_is_event: { status: 409, title: 'The entry is an automatic event' },
+  already_redacted: { status: 409, title: 'The entry text is already redacted' },
   procedure_already_active: { status: 409, title: 'A process with this code is already active in the work order' },
   parent_deleted: { status: 409, title: 'The process of the stage is deleted' },
   version_conflict: { status: 412, title: 'The resource was changed by someone else' },
@@ -59,12 +63,15 @@ export const PROBLEMS = Object.freeze({
   idempotency_mismatch: { status: 422, title: 'Idempotency key reused with a different request' },
   limit_exceeded: { status: 422, title: 'A limit of the number of objects was exceeded' },
   template_unavailable: { status: 422, title: 'Work order template is not available' },
+  upload_incomplete: { status: 422, title: 'The uploaded parts do not make up the declared file' },
   transition_condition_not_met: { status: 422, title: 'A condition of the transition is not met' },
   client_version_unsupported: { status: 426, title: 'Client version is no longer supported' },
   precondition_required: { status: 428, title: 'Precondition required' },
   rate_limited: { status: 429, title: 'Too many requests' },
   internal_error: { status: 500, title: 'Internal server error' },
   service_unavailable: { status: 503, title: 'Service unavailable' },
+  media_storage_unavailable: { status: 503, title: 'Media storage is unavailable' },
+  deletion_register_unavailable: { status: 503, title: 'The deletion register is unavailable' },
 });
 
 export type ProblemCode = keyof typeof PROBLEMS;
@@ -84,6 +91,8 @@ export interface ProblemExtras {
   readonly retryAfterSeconds?: number;
   /** Only `email_conflict` (EVM-024): the id of the existing account that is visible in the list of users — never an address or a name. */
   readonly existingUserId?: string;
+  /** Only `has_active_dependents` of a customer (EVM-041): the NUMBER of its open work orders - never a number, a title or an id of an order. */
+  readonly openWorkOrders?: number;
   /** Only `client_version_unsupported` (EVM-090): the oldest version of each platform the API serves. */
   readonly minSupportedVersion?: { readonly android: string; readonly ios: string };
 }
@@ -109,6 +118,7 @@ export interface ProblemBody {
   readonly traceId: string;
   readonly errors?: readonly FieldError[];
   readonly existingUserId?: string;
+  readonly openWorkOrders?: number;
   readonly minSupportedVersion?: { readonly android: string; readonly ios: string };
 }
 
@@ -117,6 +127,7 @@ export function problemBody(
   traceId: string,
   errors?: readonly FieldError[],
   existingUserId?: string,
+  openWorkOrders?: number,
   minSupportedVersion?: ProblemExtras['minSupportedVersion'],
 ): ProblemBody {
   const { status, title } = PROBLEMS[code];
@@ -128,12 +139,13 @@ export function problemBody(
     traceId,
     ...(errors === undefined ? {} : { errors }),
     ...(existingUserId === undefined ? {} : { existingUserId }),
+    ...(openWorkOrders === undefined ? {} : { openWorkOrders }),
     ...(minSupportedVersion === undefined ? {} : { minSupportedVersion }),
   };
 }
 
 export function sendProblem(response: Response, code: ProblemCode, traceId: string, extras: ProblemExtras = {}): void {
-  const body = problemBody(code, traceId, extras.errors, extras.existingUserId, extras.minSupportedVersion);
+  const body = problemBody(code, traceId, extras.errors, extras.existingUserId, extras.openWorkOrders, extras.minSupportedVersion);
   if (extras.retryAfterSeconds !== undefined) response.set('Retry-After', String(extras.retryAfterSeconds));
   response.status(body.status).set('Content-Type', PROBLEM_CONTENT_TYPE).send(JSON.stringify(body));
 }

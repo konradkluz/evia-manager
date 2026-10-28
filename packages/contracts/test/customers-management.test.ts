@@ -38,7 +38,7 @@ describe('customers list, detail and edit contract (EVM-039; SR-API-04, SR-AUTHZ
   });
 
   it('EVM-039 AC1 the list takes limit and cursor only (no phrase, no sort in the URL); the search takes them in the body', () => {
-    expect([...(AUTHZ_MANIFEST['listCustomers']?.query ?? [])].sort()).toEqual(['cursor', 'limit']);
+    expect([...(AUTHZ_MANIFEST['listCustomers']?.query ?? [])].sort()).toEqual(['cursor', 'deleted', 'limit']);
     expect(zListCustomersQuery.safeParse({ limit: 100 }).success).toBe(true);
     expect(zListCustomersQuery.safeParse({ limit: 101 }).success).toBe(false);
     expect(zCustomerSearchRequest.safeParse({ query: 'lodz' }).data?.limit).toBe(25);
@@ -96,6 +96,7 @@ describe('customers list, detail and edit contract (EVM-039; SR-API-04, SR-AUTHZ
     const readOnly = Object.keys(zCustomer.shape).filter((key) => !(key in zCustomerPatch.shape));
     expect(readOnly.sort()).toEqual(
       [
+        'anonymizedAt',
         'createdAt',
         'createdBy',
         'deletedAt',

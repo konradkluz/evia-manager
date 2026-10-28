@@ -69,7 +69,7 @@ describe('the health file of the worker (EVM-024 AC6; SR-API-12)', () => {
     await vi.waitFor(async () => {
       expect((JSON.parse(await readFile(path, 'utf8')) as { at: string }).at).toBe(now.toISOString());
     });
-    stop();
+    await stop();
     now = new Date(NOW.getTime() + 2 * HEALTH_INTERVAL_MS);
     await vi.advanceTimersByTimeAsync(HEALTH_INTERVAL_MS);
     expect((JSON.parse(await readFile(path, 'utf8')) as { at: string }).at).not.toBe(now.toISOString());
@@ -97,6 +97,23 @@ describe('the background tasks of the worker (EVM-024; ADR-0010)', () => {
     signals.emit('SIGTERM');
     expect(await running).toBe(0);
     expect(order).toEqual(['start', 'stop']);
+  });
+
+  it('EVM-044 AC3 the worker waits for an asynchronous stop of a task before it stops the queue', async () => {
+    const queue = new InMemoryJobQueue();
+    const signals = new EventEmitter();
+    const order: string[] = [];
+    const task: BackgroundTask = {
+      start: () => async () => {
+        await settle();
+        order.push(queue.stopped ? 'finished after the queue' : 'finished');
+      },
+    };
+    const running = runWorker({ queue, jobs: [], tasks: [task], signals, logger: createLogger({ level: 'fatal' }) });
+    await settle();
+    signals.emit('SIGTERM');
+    expect(await running).toBe(0);
+    expect(order).toEqual(['finished']);
   });
 
   it('EVM-024 a worker that fails to start stops the tasks it had started and exits 1', async () => {

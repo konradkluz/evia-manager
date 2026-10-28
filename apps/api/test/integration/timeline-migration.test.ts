@@ -1,6 +1,7 @@
 import { sql, type Kysely } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDatabase, type Database } from '../../src/platform/database/database.ts';
+import { REDACTION_MARKER_PATTERN } from '../../src/modules/timeline/domain/redaction-marker.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
 import { insertCustomer } from '../support/customer-fixtures.ts';
 import { insertProcedure } from '../support/procedure-fixtures.ts';
@@ -261,5 +262,125 @@ describe('migration 0021 — the events of the journal (EVM-038 AC1, AC2, AC6; S
       admin(),
     );
     expect(old[0]?.n).toBe('0');
+  });
+});
+
+describe('migration 0042 - the redaction of an entry (EVM-040 AC2, AC5; ADR-0003; D3; expand only)', () => {
+  const MARKER = 'Treść usunięta przez administratora 03.10.2026.';
+  const redact = (id: string, body: string = MARKER, by: string | null = AUTHOR, at: string | null = T) =>
+    sql`update timeline.timeline_entries set body = ${body}, redacted_at = ${at}, redacted_by = ${by}, version = version + 1
+      where id = ${id}`.execute(app);
+  const row = async (id: string) =>
+    (
+      await sql<{ body: string | null; redacted_at: Date | null; redacted_by: string | null; version: number; kind: string }>`
+      select body, redacted_at, redacted_by, version, kind from timeline.timeline_entries where id = ${id}`.execute(admin())
+    ).rows[0];
+
+  it('EVM-040 AC2 the redaction replaces the text by the marker once, with its time and author; the metadata, the place and the other columns stay', async () => {
+    const { orderId } = await insertOrder();
+    const id = await insertEntry(orderId, { body: 'Numer dowodu: ABC 123456' });
+    await redact(id);
+    const redacted = await row(id);
+    expect(redacted).toMatchObject({ body: MARKER, redacted_by: AUTHOR, version: 2 });
+    expect(redacted?.redacted_at?.toISOString()).toBe('2026-10-11T08:00:00.000Z');
+    // a repeated or changed redaction, an un-redaction and a later change of the text are refused - there is no way back
+    await fails(redact(id, 'Treść usunięta przez administratora 04.10.2026.'), 'EV001');
+    await fails(sql`update timeline.timeline_entries set body = 'Przywrócona treść' where id = ${id}`.execute(app), 'EV001');
+    await fails(
+      sql`update timeline.timeline_entries set redacted_at = null, redacted_by = null where id = ${id}`.execute(admin()),
+      'EV001',
+    );
+    await fails(sql`update timeline.timeline_entries set redacted_by = ${uuidv7()} where id = ${id}`.execute(admin()), 'EV001');
+    expect((await row(id))?.body).toBe(MARKER);
+  });
+
+  it('EVM-040 AC2 a text other than the marker, a marker without the time or the author, and a redaction that changes another column are refused (EV001)', async () => {
+    const { orderId } = await insertOrder();
+    const id = await insertEntry(orderId, { body: 'Treść do ochrony' });
+    await fails(redact(id, 'Zupełnie inny tekst'), 'EV001');
+    await fails(redact(id, MARKER, null), 'EV001');
+    await fails(redact(id, MARKER, AUTHOR, null), 'EV001');
+    await fails(
+      sql`update timeline.timeline_entries set body = ${MARKER}, redacted_at = ${T}, redacted_by = ${AUTHOR}, origin = 'mobile' where id = ${id}`.execute(
+        admin(),
+      ),
+      'EV001',
+    );
+    await fails(
+      sql`update timeline.timeline_entries set body = ${MARKER}, redacted_at = ${T}, redacted_by = ${AUTHOR}, created_by = ${uuidv7()} where id = ${id}`.execute(
+        admin(),
+      ),
+      'EV001',
+    );
+    await fails(
+      sql`update timeline.timeline_entries set body = ${MARKER}, redacted_at = ${T}, redacted_by = ${AUTHOR}, note_category = 'meeting' where id = ${id}`.execute(
+        admin(),
+      ),
+      'EV001',
+    );
+    expect(await row(id)).toMatchObject({ body: 'Treść do ochrony', redacted_at: null, version: 1 });
+  });
+
+  it('EVM-040 AC2 the pattern of the trigger equals the pattern of the application: the same strings pass, the same are refused', async () => {
+    const { orderId } = await insertOrder();
+    const candidates = [
+      MARKER,
+      'Treść usunięta przez administratora 31.12.2026.',
+      'Treść usunięta przez administratora 3.10.2026.',
+      'Treść usunięta przez administratora 03-10-2026.',
+      'Treść usunięta przez administratora 03.10.2026',
+      'Treść usunięta przez administratora 03.10.2026.\n',
+      'Treść usunięta przez administratora 03.10.2026. Dodatek',
+      ' Treść usunięta przez administratora 03.10.2026.',
+      'Zawartość: Treść usunięta przez administratora 03.10.2026.',
+      'Treść usunięta przez administratora 03a10b2026.',
+      'treść usunięta przez administratora 03.10.2026.',
+      'Treść usunięta przez administratora 03.10.20266.',
+    ];
+    for (const candidate of candidates) {
+      const id = await insertEntry(orderId);
+      const accepted = await redact(id, candidate).then(
+        () => true,
+        () => false,
+      );
+      expect(accepted, JSON.stringify(candidate)).toBe(REDACTION_MARKER_PATTERN.test(candidate));
+    }
+  });
+
+  it('EVM-040 AC5 an event is never redacted nor soft deleted: the trigger and the CHECK refuse it; a note is soft deleted as before', async () => {
+    const { orderId } = await insertOrder();
+    const event = await insertEntry(orderId, { kind: 'event' });
+    await fails(redact(event), 'EV001');
+    await fails(
+      sql`update timeline.timeline_entries set redacted_at = ${T}, redacted_by = ${AUTHOR} where id = ${event}`.execute(admin()),
+      'EV001',
+    );
+    await fails(
+      sql`update timeline.timeline_entries set deleted_at = ${T}, deleted_by = ${AUTHOR}, version = version + 1 where id = ${event}`.execute(
+        app,
+      ),
+      '23514',
+    );
+    await fails(
+      sql`insert into timeline.timeline_entries (id, work_order_id, kind, origin, created_at, created_by, event_code, event_payload, deleted_at, deleted_by)
+        values (${uuidv7()}, ${orderId}, 'event', 'system', ${T}, ${AUTHOR}, 'work_order_created', '{"objectType":"work_order"}'::jsonb, ${T}, ${AUTHOR})`.execute(
+        admin(),
+      ),
+      '23514',
+    );
+    const note = await insertEntry(orderId);
+    await sql`update timeline.timeline_entries set deleted_at = ${T}, deleted_by = ${AUTHOR}, version = version + 1 where id = ${note}`.execute(
+      app,
+    );
+    // the soft delete of a redacted entry and its restoration stay possible (the marker stays)
+    const redacted = await insertEntry(orderId);
+    await redact(redacted);
+    await sql`update timeline.timeline_entries set deleted_at = ${T}, deleted_by = ${AUTHOR}, version = version + 1 where id = ${redacted}`.execute(
+      app,
+    );
+    await sql`update timeline.timeline_entries set deleted_at = null, deleted_by = null, version = version + 1 where id = ${redacted}`.execute(
+      app,
+    );
+    expect(await row(redacted)).toMatchObject({ body: MARKER, version: 4 });
   });
 });

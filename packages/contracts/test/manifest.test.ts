@@ -15,25 +15,32 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST).toEqual(manifest);
     expect(manifest['getHealth']).toEqual({ method: 'get', path: '/api/health', query: [], authz: { public: true } });
     expect(Object.keys(manifest).sort()).toEqual([
+      'abortUploadSession',
+      'anonymizeCustomer',
       'changePassword',
       'changeUserRole',
       'checkActivationLink',
       'checkPasswordResetLink',
       'completePasswordReset',
+      'completeUploadSession',
       'confirmDeviceWipe',
       'confirmTotp',
       'createCustomer',
+      'createMediaAssets',
       'createParty',
       'createPaymentMilestone',
       'createProcedureStage',
       'createSite',
       'createTimelineEntry',
+      'createUploadSession',
       'createWorkOrder',
       'createWorkOrderProcedure',
       'createWorkOrderScopeItem',
       'deactivateUser',
+      'deleteCustomer',
       'deletePaymentMilestone',
       'deleteProcedureStage',
+      'deleteTimelineEntry',
       'deleteWorkOrder',
       'deleteWorkOrderProcedure',
       'deleteWorkOrderScopeItem',
@@ -55,6 +62,7 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'getSyncChanges',
       'getSyncWorkOrder',
       'getTimelineEntry',
+      'getUploadPartUrl',
       'getVersion',
       'getWorkOrder',
       'getWorkOrderCustomer',
@@ -68,11 +76,13 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listCustomers',
       'listDeletedWorkOrderProcedures',
       'listDocumentKinds',
+      'listMediaAssets',
       'listPaymentMilestones',
       'listProcedureTemplates',
       'listServiceItems',
       'listTimelineEntries',
       'listUnpaidPaymentMilestones',
+      'listUploadParts',
       'listUsers',
       'listWorkOrderProcedures',
       'listWorkOrderScopeItems',
@@ -89,14 +99,18 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'pushSyncMutations',
       'reactivateUser',
       'reauthenticate',
+      'redactTimelineEntry',
       'refreshMobileSession',
       'registerPasskey',
       'removePasskey',
       'removeTotp',
       'requestPasswordReset',
+      'rescanMediaAsset',
       'resendUserInvitation',
       'resetUserSecondStep',
+      'restoreCustomer',
       'restoreProcedureStage',
+      'restoreTimelineEntry',
       'restoreWorkOrder',
       'restoreWorkOrderProcedure',
       'searchCustomers',
@@ -136,9 +150,10 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(allowed.sort()).toEqual([...MFA_ENROLLMENT_OPERATIONS].sort());
   });
 
-  it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
+  it('EVM-029 AC7 EVM-054 AC5 EVM-028 AC6 EVM-027 AC8 every operation with stepUp: true lists exactly the web channel and the Administrator — except the three operations on the own sessions, which every role has (EVM-028); the audit log, the deletion of a payment milestone (EVM-057), the redaction of an entry of the journal (EVM-040), the invitation of a user and its resend (EVM-024) and the five operations on the accounts of users (EVM-027) are the others in M1', () => {
     const stepUp = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.stepUp === true);
     expect(stepUp.map(([id]) => id).sort()).toEqual([
+      'anonymizeCustomer',
       'changeUserRole',
       'deactivateUser',
       'deletePaymentMilestone',
@@ -149,6 +164,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'listAccountSessions',
       'listAuditEvents',
       'reactivateUser',
+      'redactTimelineEntry',
+      'rescanMediaAsset',
       'resendUserInvitation',
       'resetUserSecondStep',
     ]);
@@ -251,7 +268,11 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(AUTHZ_MANIFEST['listWorkOrders']?.authz.restrictedParams).toEqual(rule);
     expect(AUTHZ_MANIFEST['searchWorkOrders']?.authz.restrictedParams).toEqual(rule);
     const declaring = Object.entries(AUTHZ_MANIFEST).filter(([, operation]) => operation.authz.restrictedParams !== undefined);
-    expect(declaring.map(([id]) => id).sort()).toEqual(['listWorkOrders', 'searchWorkOrders']);
+    // EVM-049: the reason of a quarantine is the second rule (`mediaQuarantine.manage`), declared by the list of the media
+    expect(declaring.map(([id]) => id).sort()).toEqual(['listMediaAssets', 'listWorkOrders', 'searchWorkOrders']);
+    expect(AUTHZ_MANIFEST['listMediaAssets']?.authz.restrictedParams).toEqual({
+      'mediaQuarantine.manage': { params: {}, fields: ['quarantineReasonCode'] },
+    });
   });
 
   describe('EVM-056 AC7 `restrictedParams` is validated against the operation (a typo never becomes a silent gap)', () => {

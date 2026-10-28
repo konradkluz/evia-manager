@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../identity/index.ts';
+import { MEDIA_EVENT_TYPES, type MediaAuditEvent } from '../../media/index.ts';
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../../parties/index.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent } from '../../procedures/index.ts';
@@ -40,6 +41,7 @@ export const AUDIT_ACTIONS = [
   ...PROCEDURE_EVENT_TYPES,
   ...TIMELINE_EVENT_TYPES,
   ...PAYMENT_MILESTONE_EVENT_TYPES,
+  ...MEDIA_EVENT_TYPES,
 ] as const;
 export const AUDIT_OBJECT_TYPES = [
   'user',
@@ -56,12 +58,15 @@ export const AUDIT_OBJECT_TYPES = [
   'procedure_stage',
   'timeline_entry',
   'payment_milestone',
+  'media_asset',
 ] as const;
 export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 
 const PAYMENT_ACTION_PREFIX = 'payment_milestone.';
 /** The one identity event that carries codes: the role before and after (EVM-027). */
 const ROLE_CHANGE_ACTION = 'user.role_changed';
+/** The new scan of a quarantined file carries the state before and after (EVM-049): the result, never the reason. */
+const RESCAN_ACTION = 'media_file.rescanned';
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
 const statusCode = z
   .string()
@@ -101,8 +106,11 @@ export const auditRecordSchema = z
         ? true
         : record.fromCode !== null &&
           record.toCode !== null &&
-          (record.action.startsWith(PAYMENT_ACTION_PREFIX) || record.action === ROLE_CHANGE_ACTION),
-    { message: 'the codes of a status belong to a transition of a payment milestone or to a change of a role only, both together' },
+          (record.action.startsWith(PAYMENT_ACTION_PREFIX) || record.action === ROLE_CHANGE_ACTION || record.action === RESCAN_ACTION),
+    {
+      message:
+        'the codes of a status belong to a transition of a payment milestone, a change of a role or a new scan of a file only, both together',
+    },
   );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
@@ -119,7 +127,8 @@ export function toAuditRecord(
     | WorkOrderEvent
     | ProcedureAuditEvent
     | TimelineEntryEvent
-    | PaymentMilestoneEvent,
+    | PaymentMilestoneEvent
+    | MediaAuditEvent,
   context: EventContext,
   occurredAt: Date,
 ): AuditRecord {

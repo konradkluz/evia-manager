@@ -90,7 +90,7 @@ describe('the query of the list of customers (EVM-039 AC1; SR-INPUT-01, SR-INPUT
   const parse = (query: unknown) => customerListQuerySchema.safeParse(query);
 
   it('EVM-039 AC1 an empty query takes the default page of 25 and no cursor', () => {
-    expect(parseInput(resolveCustomerListQuery, {})).toEqual({ limit: DEFAULT_LIMIT, cursor: undefined });
+    expect(parseInput(resolveCustomerListQuery, {})).toEqual({ deleted: false, limit: DEFAULT_LIMIT, cursor: undefined });
     expect(DEFAULT_LIMIT).toBe(25);
   });
 

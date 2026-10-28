@@ -1,0 +1,174 @@
+/**
+ * An in-memory object storage for the tests of the units (EVM-044): the same port, no network. It models what the services rely on —
+ * multipart uploads with parts stored by number, a versioned bucket (an overwrite keeps the older version), `NoSuchUpload` after the
+ * assembly — and offers `putPart` as the stand-in of the browser `PUT` to the signed URL. The real server is covered by the integration test.
+ */
+import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
+import {
+  MAX_PRESIGN_SECONDS,
+  ObjectStorageError,
+  type CompletedObject,
+  type ObjectHead,
+  type ObjectStorage,
+  type PartUrl,
+  type StoredPart,
+} from './object-storage.ts';
+
+interface Upload {
+  readonly key: string;
+  readonly contentType: string;
+  readonly parts: Map<number, Buffer>;
+}
+
+interface Version {
+  readonly versionId: string;
+  readonly etag: string;
+  readonly body: Buffer;
+  readonly contentType: string;
+}
+
+export class InMemoryObjectStorage implements ObjectStorage {
+  readonly #uploads = new Map<string, Upload>();
+  readonly #objects = new Map<string, Version[]>();
+  /** Keys with a delete marker on top (a versioned bucket: the older versions stay readable by their version id). */
+  readonly #markers = new Set<string>();
+  readonly #now: () => Date;
+  #counter = 0;
+  /** When set, every call fails like an unreachable storage (`unavailable`). */
+  unavailable = false;
+  /** The lengths and part numbers of the URLs handed out, for assertions. */
+  readonly presigned: Array<{ key: string; partNumber: number; contentLength: number; expiresInSeconds: number }> = [];
+  /** Content types the uploads were created with. */
+  readonly contentTypes: string[] = [];
+
+  constructor(now: () => Date = () => new Date()) {
+    this.#now = now;
+  }
+
+  createMultipartUpload(key: string, contentType: string): Promise<{ uploadId: string }> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    this.#counter += 1;
+    const uploadId = `upload-${this.#counter}`;
+    this.#uploads.set(uploadId, { key, contentType, parts: new Map() });
+    this.contentTypes.push(contentType);
+    return Promise.resolve({ uploadId });
+  }
+
+  presignUploadPart(input: {
+    key: string;
+    uploadId: string;
+    partNumber: number;
+    contentLength: number;
+    expiresInSeconds: number;
+  }): Promise<PartUrl> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    if (input.expiresInSeconds < 1 || input.expiresInSeconds > MAX_PRESIGN_SECONDS) throw new RangeError('presign lifetime out of range');
+    this.presigned.push({
+      key: input.key,
+      partNumber: input.partNumber,
+      contentLength: input.contentLength,
+      expiresInSeconds: input.expiresInSeconds,
+    });
+    const url = `https://bucket.invalid/${input.key}?uploadId=${input.uploadId}&partNumber=${input.partNumber}&X-Amz-Signature=synthetic`;
+    return Promise.resolve({ url, expiresAt: new Date(this.#now().getTime() + input.expiresInSeconds * 1000) });
+  }
+
+  /** The browser `PUT` of a part (a test helper, not part of the port). */
+  putPart(uploadId: string, partNumber: number, body: Buffer): void {
+    const upload = this.#uploads.get(uploadId);
+    if (upload === undefined) throw new ObjectStorageError('no_such_upload');
+    upload.parts.set(partNumber, body);
+  }
+
+  listParts(_key: string, uploadId: string): Promise<readonly StoredPart[]> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const upload = this.#uploads.get(uploadId);
+    if (upload === undefined) return Promise.reject(new ObjectStorageError('no_such_upload'));
+    const parts = [...upload.parts.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([partNumber, body]) => ({ partNumber, size: body.length, etag: `"${md5(body)}"` }));
+    return Promise.resolve(parts);
+  }
+
+  completeMultipartUpload(key: string, uploadId: string, parts: readonly StoredPart[]): Promise<CompletedObject> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const upload = this.#uploads.get(uploadId);
+    if (upload === undefined) return Promise.reject(new ObjectStorageError('no_such_upload'));
+    const bodies: Buffer[] = [];
+    for (const part of parts) {
+      const stored = upload.parts.get(part.partNumber);
+      if (stored === undefined) return Promise.reject(new ObjectStorageError('unavailable'));
+      bodies.push(stored);
+    }
+    const body = Buffer.concat(bodies);
+    this.#counter += 1;
+    const version: Version = {
+      versionId: `version-${this.#counter}`,
+      etag: `"${md5(body)}-${parts.length}"`,
+      body,
+      contentType: upload.contentType,
+    };
+    this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
+    this.#markers.delete(key);
+    this.#uploads.delete(uploadId);
+    return Promise.resolve({ etag: version.etag, versionId: version.versionId });
+  }
+
+  abortMultipartUpload(_key: string, uploadId: string): Promise<void> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    this.#uploads.delete(uploadId);
+    return Promise.resolve();
+  }
+
+  deleteObject(key: string): Promise<void> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    if (this.#objects.has(key)) this.#markers.add(key);
+    return Promise.resolve();
+  }
+
+  head(key: string): Promise<ObjectHead | undefined> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const latest = this.#markers.has(key) ? undefined : this.#objects.get(key)?.at(-1);
+    return Promise.resolve(latest === undefined ? undefined : { size: latest.body.length, etag: latest.etag, versionId: latest.versionId });
+  }
+
+  getObjectStream(key: string, pin: { versionId?: string; ifMatch?: string }): Promise<Readable> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const versions = this.#objects.get(key) ?? [];
+    const latest = this.#markers.has(key) ? undefined : versions.at(-1);
+    const version = pin.versionId === undefined ? latest : versions.find((candidate) => candidate.versionId === pin.versionId);
+    if (version === undefined) return Promise.reject(new ObjectStorageError('no_such_object'));
+    if (pin.ifMatch !== undefined && pin.ifMatch !== version.etag) return Promise.reject(new ObjectStorageError('precondition_failed'));
+    const chunks: Buffer[] = [];
+    for (let offset = 0; offset < version.body.length; offset += 65_536) chunks.push(version.body.subarray(offset, offset + 65_536));
+    return Promise.resolve(Readable.from(chunks, { objectMode: false }));
+  }
+
+  /** Test helper: puts a whole object as one version (as if assembled by a complete). */
+  putObject(key: string, body: Buffer): CompletedObject {
+    this.#counter += 1;
+    const version: Version = {
+      versionId: `version-${this.#counter}`,
+      etag: `"${md5(body)}-1"`,
+      body,
+      contentType: 'application/octet-stream',
+    };
+    this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
+    this.#markers.delete(key);
+    return { etag: version.etag, versionId: version.versionId };
+  }
+
+  /** Test helper: whether the key has a delete marker on top (the object is gone for a plain read). */
+  isDeleted(key: string): boolean {
+    return this.#markers.has(key);
+  }
+
+  versionsOf(key: string): number {
+    return this.#objects.get(key)?.length ?? 0;
+  }
+}
+
+function md5(body: Buffer): string {
+  return createHash('sha256').update(body).digest('hex').slice(0, 32);
+}

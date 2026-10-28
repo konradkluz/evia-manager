@@ -5,10 +5,12 @@ import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
 import { createPasskey, createSession, createUser } from './identity-fixtures.ts';
+import { insertMedia } from './media-fixtures.ts';
 import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
 import { insertParty, insertSite } from './site-fixtures.ts';
 import { insertEntries } from './timeline-fixtures.ts';
+import { uuidv7 } from './uuid.ts';
 import { insertScopeItems, insertWorkOrders } from './work-order-fixtures.ts';
 
 const WORK_ORDERS = '/api/v1/work-orders';
@@ -71,7 +73,24 @@ export async function customerObjects(app: IdentityApp): Promise<Record<string, 
   const own = await insertCustomer(db, { email: 'jan@example.invalid' });
   const foreign = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
   const paths: ObjectPaths = { own: () => `${CUSTOMERS}/${own}`, foreign: () => `${CUSTOMERS}/${foreign}` };
-  return { getCustomer: paths, updateCustomer: paths };
+  // EVM-041: the Administrator READS a deleted customer (`getCustomer`, the view "Usunięci"), so the foreign object of the read is one that does
+  // not exist; the deleted customer stays the foreign object of the edit (404 for every role) - the reads of the roles are in customers-erasure.test.ts
+  const missing = uuidv7();
+  // EVM-041: the deletion, the restoration and the anonymization - customers of their own, so the reads and the edit of the matrix keep their
+  // objects (the first allowed cell of the deletion really deletes `erase`). The Administrator's cell on a "foreign" object must be 404:
+  // - the deletion: "foreign" is a customer that is deleted already (the deletion of one is the 404 of a missing one);
+  // - the restoration: "own" is the deleted customer (a POST has no `If-Match` in the matrix: 428, nothing happens), "foreign" a live one;
+  // - the anonymization: it works on a deleted customer too, so "foreign" is a customer that does not exist.
+  const erase = await insertCustomer(db, { email: 'anna@example.invalid' });
+  const erased = await insertCustomer(db, { lastName: 'Usuniety', deletedAt: '2026-10-02T08:00:00Z' });
+  const spare = await insertCustomer(db, { lastName: 'Zapasowy' });
+  return {
+    getCustomer: { own: paths.own, foreign: () => `${CUSTOMERS}/${missing}` },
+    updateCustomer: paths,
+    deleteCustomer: { own: () => `${CUSTOMERS}/${erase}`, foreign: () => `${CUSTOMERS}/${erased}` },
+    restoreCustomer: { own: () => `${CUSTOMERS}/${erased}/restore`, foreign: () => `${CUSTOMERS}/${spare}/restore` },
+    anonymizeCustomer: { own: () => `${CUSTOMERS}/${spare}/anonymize`, foreign: () => `${CUSTOMERS}/${missing}/anonymize` },
+  };
 }
 
 const SITES = '/api/v1/sites';
@@ -185,10 +204,12 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
   ]);
   const [own, other, deleted] = [...ids.values()];
   if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
-  const [ownEntry] = await insertEntries(db, own, author.id, [{}]);
-  const [otherEntry] = await insertEntries(db, other, author.id, [{}]);
+  const [ownEntry, eraseEntry] = await insertEntries(db, own, author.id, [{}, {}]);
+  const [otherEntry, eraseForeign] = await insertEntries(db, other, author.id, [{}, {}]);
   await insertEntries(db, deleted, author.id, [{}]);
-  if (ownEntry === undefined || otherEntry === undefined) throw new Error('the fixture entries were not inserted');
+  if (ownEntry === undefined || otherEntry === undefined || eraseEntry === undefined || eraseForeign === undefined) {
+    throw new Error('the fixture entries were not inserted');
+  }
   const journal: ObjectPaths = { own: () => `${WORK_ORDERS}/${own}/timeline`, foreign: () => `${WORK_ORDERS}/${deleted}/timeline` };
   return {
     listTimelineEntries: journal,
@@ -196,6 +217,20 @@ export async function timelineObjects(app: IdentityApp): Promise<Record<string, 
     getTimelineEntry: {
       own: () => `${WORK_ORDERS}/${own}/timeline/${ownEntry}`,
       foreign: () => `${WORK_ORDERS}/${own}/timeline/${otherEntry}`,
+    },
+    // EVM-040: the deletion, the restoration and the redaction - "foreign" is the entry of ANOTHER live order named in the path of the first (the
+    // one an attacker tries). Entries of their own, so the deletion of the matrix does not change what the reads of the matrix look at.
+    deleteTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}`,
+    },
+    restoreTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/restore`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/restore`,
+    },
+    redactTimelineEntry: {
+      own: () => `${WORK_ORDERS}/${own}/timeline/${eraseEntry}/redact`,
+      foreign: () => `${WORK_ORDERS}/${own}/timeline/${eraseForeign}/redact`,
     },
   };
 }
@@ -282,6 +317,55 @@ export async function paymentObjects(app: IdentityApp): Promise<Record<string, O
   };
 }
 
+/**
+ * The IDOR fixture of the media (EVM-044 AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): the list and the batch — "own" is a live order, "foreign"
+ * an EXISTING soft deleted one; the operations of a session — "own" is the session of a medium of the live order in ITS path, "foreign" the
+ * session of a medium of ANOTHER live order named in the path of the first (/work-orders/{A}/media-assets/{medium of B}/...). The session
+ * of the "own" path belongs to a user the matrix does not use, so the cells of "own" answer 404 — "not 401/403" is what they ask for; the
+ * creator-only rule has its own tests (media-upload tests).
+ */
+export async function mediaObjects(app: IdentityApp): Promise<Record<string, ObjectPaths>> {
+  const db = app.database.admin;
+  const customerId = await insertCustomer(db, { email: 'jan@example.invalid' });
+  const siteId = await insertSite(db, { notes: 'notatka' });
+  const creator = await createUser(db, app.clock, { role: 'editor', status: 'active' });
+  const year = 3000 + randomInt(900);
+  const ids = await insertWorkOrders(db, [
+    { number: `ZL-${year}-${String(randomInt(1000, 3000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(3000, 6000))}`, customerId, siteId },
+    { number: `ZL-${year}-${String(randomInt(6000, 9999))}`, customerId, siteId, deletedAt: new Date('2026-10-02T08:00:00Z') },
+  ]);
+  const [own, other, deleted] = [...ids.values()];
+  if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
+  const mine = await insertMedia(db, { workOrderId: own, createdBy: creator.id, session: { userId: creator.id } });
+  const theirs = await insertMedia(db, { workOrderId: other, createdBy: creator.id, session: { userId: creator.id } });
+  const orderLevel: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/media-assets`,
+    foreign: () => `${WORK_ORDERS}/${deleted}/media-assets`,
+  };
+  const session = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/upload-sessions/${mine.sessionId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/upload-sessions/${theirs.sessionId}${suffix}`,
+  });
+  return {
+    listMediaAssets: orderLevel,
+    createMediaAssets: orderLevel,
+    createUploadSession: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/upload-sessions`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/upload-sessions`,
+    },
+    listUploadParts: session('/parts'),
+    getUploadPartUrl: session('/parts/1/url'),
+    completeUploadSession: session('/complete'),
+    abortUploadSession: session('/abort'),
+    // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
+    rescanMediaAsset: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
+    },
+  };
+}
+
 const USERS = '/api/v1/users';
 
 /**
@@ -340,6 +424,7 @@ export async function matrixObjects(app: IdentityApp): Promise<Record<string, Ob
     ...(await scopeObjects(app)),
     ...(await timelineObjects(app)),
     ...(await paymentObjects(app)),
+    ...(await mediaObjects(app)),
     ...(await userObjects(app)),
     ...(await accountObjects(app)),
   };

@@ -61,6 +61,10 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/application/create-entry.service.ts',
   'src/modules/timeline/application/list-entries.service.ts',
   'src/modules/timeline/application/read-entry.service.ts',
+  // EVM-040: the deletion, the restoration and the redaction - locks, conditional UPDATEs on the version, the trigger of the database
+  'src/modules/timeline/application/delete-entry.service.ts',
+  'src/modules/timeline/application/restore-entry.service.ts',
+  'src/modules/timeline/application/redact-entry.service.ts',
   'src/modules/timeline/application/entry-page.ts',
   'src/modules/timeline/infrastructure/**/*.ts',
   // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure
@@ -70,6 +74,11 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/payments/application/**/*.ts',
   'src/modules/payments/infrastructure/**/*.ts',
   'src/modules/payments/http/payments.controller.ts',
+  // EVM-044: the media - the use cases (locks, the chain order -> medium -> file -> session in one statement, compare-and-set of the state), the queries
+  // and the controller are SQL against PostgreSQL; the rules of the domain (file rules, plan of the upload, verdicts) are measured by the unit run
+  'src/modules/media/application/**/*.ts',
+  'src/modules/media/infrastructure/**/*.ts',
+  'src/modules/media/http/media.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',

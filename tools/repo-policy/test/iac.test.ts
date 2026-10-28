@@ -6,10 +6,22 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { exists, filesBelow, gitIgnores, list, read, record, text, yaml } from '../src/files.ts';
 import {
+  APPLICATION_KEYS,
   ARM64_SERVER_TYPES,
+  BUCKET_POLICIES,
+  FORBIDDEN_PERMISSION_SETS,
+  MATRIX_BUCKETS,
+  MATRIX_OPERATIONS,
+  PRIVILEGED_ACTIONS,
+  bucketMatrixFile,
+  bucketMatrixRows,
+  bucketProblems,
   encryptionProblems,
   firewallProblems,
+  hclBlock,
+  hclListMap,
   iacComposeProblems,
+  matrixAllows,
   providerProblems,
   regionProblems,
   serverTypeProblems,
@@ -272,5 +284,277 @@ describe('IaC checkers detect violations (EVM-007 AC1, AC7)', () => {
     expect(iacComposeProblems(variant({}, { secrets: { iac: { file: './staging.env' } } }), raw)).not.toEqual([]);
     expect(iacComposeProblems(variant({}), `${raw}\nx: \${HCLOUD_TOKEN}`)).not.toEqual([]);
     expect(text(record(record(base['secrets'])['iac'])['file'])).toBe('../.evia-iac/staging.env');
+  });
+});
+
+describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-02/03/07, SR-PRIV-04)', () => {
+  const storage = read(`${TOFU}/modules/object-storage/main.tf`);
+  const staging = rootText('staging');
+  const swap = (from: string | RegExp, to: string): string => {
+    const changed = storage.replace(from, to);
+    expect(changed, `mutation ${String(from)} changes the module`).not.toBe(storage);
+    return changed;
+  };
+
+  it('EVM-084 AC2: the module is wired into staging with the pl-waw provider alias and the exact panel origin from a variable', () => {
+    expect(bucketProblems(storage)).toEqual([]);
+    expect(staging).toMatch(/provider "scaleway" \{\s*alias\s*=\s*"waw"\s*region\s*=\s*"pl-waw"/);
+    expect(staging).toContain('providers          = { scaleway = scaleway.waw }');
+    expect(staging).toMatch(/variable "panel_origin"\s*\{[^}]*type\s*=\s*string\s*\}/);
+    expect(staging).not.toMatch(/variable "(panel_origin|iac_application_id)"[^}]*default/);
+  });
+
+  it('EVM-084 AC2: the matrix of permissions as data — the register key adds entries only, nobody has an administrative action', () => {
+    expect(BUCKET_POLICIES['register_allow']?.['register_writer']).toEqual(['s3:PutObject']);
+    for (const map of Object.values(BUCKET_POLICIES))
+      for (const [app, actions] of Object.entries(map))
+        for (const action of actions) {
+          expect(action, `${app} ${action}`).not.toMatch(
+            /Bucket(Policy|Versioning)|Lifecycle|ObjectLock|BypassGovernance|DeleteObjectVersion|^s3:\*$/,
+          );
+        }
+    expect(BUCKET_POLICIES['db_backup_allow']?.['backup_writer']).toContain('s3:GetObjectVersion');
+    expect(BUCKET_POLICIES['db_backup_allow']?.['backup_writer']).not.toContain('s3:DeleteObjectVersion');
+    expect(Object.keys(BUCKET_POLICIES['media_allow'] ?? {})).not.toContain('backup_writer');
+  });
+
+  it('EVM-084 AC2 (P1): a bucket or provider outside pl-waw is refused', () => {
+    expect(bucketProblems(swap('default     = "pl-waw"', 'default     = "fr-par"'))).not.toEqual([]);
+    expect(bucketProblems(swap('contains(["pl-waw"], var.region)', 'contains(["pl-waw", "fr-par"], var.region)'))).not.toEqual([]);
+    expect(bucketProblems(`${storage}\nresource "x" "y" {\n region = "fr-par"\n}`)).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2 (P2): object lock at creation — media GOVERNANCE 30 d, db-backup COMPLIANCE 37 d, lifecycle zgodny z lockiem', () => {
+    expect(
+      bucketProblems(
+        swap(/(resource "scaleway_object_bucket" "media" \{[^}]*?)object_lock_enabled = true/, '$1object_lock_enabled = false'),
+      ),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('mode = "GOVERNANCE"\n      days = 30', 'mode = "GOVERNANCE"\n      days = 7'))).not.toEqual([]);
+    expect(bucketProblems(swap('mode = "COMPLIANCE"\n      days = 37', 'mode = "COMPLIANCE"\n      days = 36'))).not.toEqual([]);
+    expect(bucketProblems(swap('mode = "COMPLIANCE"', 'mode = "GOVERNANCE"'))).not.toEqual([]);
+    expect(bucketProblems(swap('noncurrent_days = 37', 'noncurrent_days = 10'))).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap(
+          'noncurrent_days = 30\n    }\n  }\n\n  lifecycle_rule {\n    id      = "quarantine"',
+          'noncurrent_days = 90\n    }\n  }\n\n  lifecycle_rule {\n    id      = "quarantine"',
+        ),
+      ),
+    ).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: versioning, SSE-ONE, private ACL and force_destroy = false in every bucket', () => {
+    expect(
+      bucketProblems(swap(/(resource "scaleway_object_bucket" "register" \{[\s\S]*?versioning \{\s*enabled\s*=\s*)true/, '$1false')),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(swap(/(server_side_encryption_configuration" "media" \{[\s\S]*?sse_algorithm = )"AES256"/, '$1"none"')),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(swap(/(resource "scaleway_object_bucket_acl" "db_backup" \{[\s\S]*?acl\s*=\s*)"private"/, '$1"public-read"')),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap(
+          'force_destroy       = false\n  object_lock_enabled = true\n\n  versioning {\n    enabled = true\n  }\n\n  cors_rule',
+          'force_destroy       = true\n  object_lock_enabled = true\n\n  versioning {\n    enabled = true\n  }\n\n  cors_rule',
+        ),
+      ),
+    ).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2 (P3): the register expires after 40 days; the media quarantine after 30 days', () => {
+    expect(bucketProblems(swap(/(id\s*=\s*"register-retention"[\s\S]*?days\s*=\s*)40/, '$1400'))).not.toEqual([]);
+    expect(bucketProblems(swap('prefix  = "quarantine/"', 'prefix  = "other/"'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2 (P4): every policy names the IaC application, denies the privileged actions and the other applications, no Allow for "*"', () => {
+    expect(
+      bucketProblems(swap(/(resource "scaleway_object_bucket_policy" "media" \{[\s\S]*?Sid\s*=\s*)"AllowIac"/, '$1"AllowSomebody"')),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap(/(resource "scaleway_object_bucket_policy" "register" \{[\s\S]*?Sid\s*=\s*)"DenyOtherApplications"/, '$1"Nothing"'),
+      ),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap(
+          /(resource "scaleway_object_bucket_policy" "db_backup" \{[\s\S]*?Sid\s*=\s*"DenyPrivilegedForApplications"[\s\S]*?Action\s*=\s*)local\.privileged_actions/,
+          '$1["s3:GetObject"]',
+        ),
+      ),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('Principal = { SCW = local.iac_principal }', 'Principal = { SCW = "*" }'))).not.toEqual([]);
+    for (const action of PRIVILEGED_ACTIONS) expect(bucketProblems(swap(`    "${action}",\n`, '')), action).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2 (P4): a key in the state, FullAccess / BucketsWrite / AllProducts or a project-wide scope is refused', () => {
+    expect(bucketProblems(`${storage}\nresource "scaleway_iam_api_key" "k" {\n application_id = "x"\n}`)).not.toEqual([]);
+    for (const set of FORBIDDEN_PERMISSION_SETS)
+      expect(
+        bucketProblems(swap('register_writer      = ["ObjectStorageObjectsWrite"]', `register_writer      = ["${set}"]`)),
+        set,
+      ).not.toEqual([]);
+    expect(bucketProblems(swap('project_ids          = [var.project_id]', 'project_ids          = []'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: a wider list for an application key (register Get/Delete, backup DeleteObjectVersion, media bucket policy) differs from the data', () => {
+    expect(bucketProblems(swap('register_writer = ["s3:PutObject"]', 'register_writer = ["s3:PutObject", "s3:GetObject"]'))).not.toEqual(
+      [],
+    );
+    expect(
+      bucketProblems(
+        swap('"s3:ListBucketVersions"]\n  }\n  # The signing', '"s3:ListBucketVersions", "s3:DeleteObjectVersion"]\n  }\n  # The signing'),
+      ),
+    ).not.toEqual([]);
+    expect(
+      bucketProblems(
+        swap(
+          'media_backup_reader = ["s3:ListBucket", "s3:GetObject"]',
+          'media_backup_reader = ["s3:ListBucket", "s3:GetObject", "s3:PutBucketPolicy"]',
+        ),
+      ),
+    ).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: the register rejects a PutObject without If-None-Match (no overwrite)', () => {
+    expect(bucketProblems(swap('Null = { "s3:if-none-match" = "true" }', 'Null = { "s3:if-none-match" = "false" }'))).not.toEqual([]);
+    expect(bucketProblems(swap('Sid       = "DenyOverwriteByRegisterWriter"', 'Sid       = "Skipped"'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: CORS — one https origin from a validated variable, PUT, ExposeHeaders ETag, explicit headers, MaxAge ≤ 3600', () => {
+    expect(bucketProblems(swap('allowed_origins = [var.panel_origin]', 'allowed_origins = ["*"]'))).not.toEqual([]);
+    expect(bucketProblems(swap('allowed_methods = ["PUT"]', 'allowed_methods = ["PUT", "GET"]'))).not.toEqual([]);
+    expect(bucketProblems(swap('expose_headers  = ["ETag"]', 'expose_headers  = []'))).not.toEqual([]);
+    expect(
+      bucketProblems(swap('allowed_headers = ["Content-Type", "Content-MD5", "x-amz-checksum-sha256"]', 'allowed_headers = ["*"]')),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('max_age_seconds = 3600', 'max_age_seconds = 86400'))).not.toEqual([]);
+    expect(bucketProblems(swap('!strcontains(var.panel_origin, "*") && ', ''))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC3 (P5): the result key is a separate application limited to restore-results/ and denied on pgbackrest/', () => {
+    expect(
+      bucketProblems(
+        swap('"${scaleway_object_bucket.db_backup.name}/${local.restore_results_prefix}*"', '"${scaleway_object_bucket.db_backup.name}/*"'),
+      ),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('/pgbackrest/*', '/other/*'))).not.toEqual([]);
+    expect(bucketProblems(swap('restore_results_prefix  = "restore-results/"', 'restore_results_prefix  = "x/"'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: no secret leaves tofu — the outputs list names and ids only', () => {
+    expect(tofuForbiddenProblems('main.tf', storage)).toEqual([]);
+    expect(tofuForbiddenProblems('main.tf', `${storage}\noutput "media_secret_key" {\n value = "x"\n}`)).not.toEqual([]);
+  });
+
+  it('EVM-084: hclBlock and hclListMap — missing and unbalanced input', () => {
+    expect(hclBlock('a = 1', /x\s*\{/)).toBeNull();
+    expect(hclBlock('x {\n a = {', /x\s*\{/)).toBeNull();
+    expect(hclListMap('a = 1', 'media_allow')).toBeNull();
+    expect(hclListMap('media_allow = {\n  k = ["a", "b"]\n}', 'media_allow')).toEqual({ k: ['a', 'b'] });
+    expect(bucketProblems('')).not.toEqual([]);
+  });
+});
+
+describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-verify.sh)', () => {
+  const file = read('infra/deploy-agent/restore/bucket-matrix.tsv');
+
+  it('EVM-084 AC2: infra/deploy-agent/restore/bucket-matrix.tsv is exactly what BUCKET_POLICIES renders (regenerate it when the policies change)', () => {
+    expect(file).toBe(bucketMatrixFile());
+  });
+
+  it('EVM-084 AC2: every key of every bucket is covered for list, get, put and delete; the cells follow BUCKET_POLICIES', () => {
+    const rows = bucketMatrixRows();
+    expect(Object.keys(APPLICATION_KEYS).sort()).toEqual([
+      'backup_writer',
+      'media_app',
+      'media_backup_reader',
+      'register_writer',
+      'restore_orchestrator',
+      'restore_reader',
+    ]);
+    expect(rows).toHaveLength(6 * (3 * 4 + 3));
+    for (const key of Object.keys(APPLICATION_KEYS))
+      for (const bucket of Object.keys(MATRIX_BUCKETS))
+        for (const operation of Object.keys(MATRIX_OPERATIONS))
+          expect(
+            rows.some((row) => row[0] === key && row[1] === bucket && row[3] === operation),
+            `${key} ${bucket} ${operation}`,
+          ).toBe(true);
+    // every pair of BUCKET_POLICIES is allowed for exactly its actions ...
+    for (const [policy, map] of Object.entries(BUCKET_POLICIES))
+      for (const [key, actions] of Object.entries(map))
+        for (const [operation, action] of Object.entries(MATRIX_OPERATIONS))
+          expect(matrixAllows(key, policy.replace('_allow', ''), 'any', operation), `${policy} ${key} ${operation}`).toBe(
+            actions.includes(action),
+          );
+    // ... and every pair outside of it is denied
+    for (const key of Object.keys(APPLICATION_KEYS).filter((name) => name !== 'restore_orchestrator'))
+      for (const [policy, map] of Object.entries(BUCKET_POLICIES))
+        if (!(key in map))
+          for (const operation of Object.keys(MATRIX_OPERATIONS))
+            expect(matrixAllows(key, policy.replace('_allow', ''), 'any', operation), `${policy} ${key} ${operation}`).toBe(false);
+    // the orchestrator: put and get under restore-results/, nothing else anywhere
+    expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'put')).toBe(true);
+    expect(matrixAllows('restore_orchestrator', 'db_backup', 'results', 'get')).toBe(true);
+    for (const [bucket, area, operation] of [
+      ['db_backup', 'results', 'delete'],
+      ['db_backup', 'results', 'list'],
+      ['db_backup', 'repo', 'get'],
+      ['db_backup', 'repo', 'put'],
+      ['media', 'any', 'get'],
+      ['register', 'any', 'put'],
+    ] as const)
+      expect(matrixAllows('restore_orchestrator', bucket, area, operation), `${bucket} ${area} ${operation}`).toBe(false);
+  });
+
+  it('EVM-084 AC2: no key may delete in the register or write in the repository without being listed; a changed policy changes the matrix', () => {
+    expect(matrixAllows('register_writer', 'register', 'any', 'delete')).toBe(false);
+    expect(matrixAllows('register_writer', 'register', 'any', 'get')).toBe(false);
+    expect(matrixAllows('restore_reader', 'db_backup', 'repo', 'put')).toBe(false);
+    expect(matrixAllows('media_backup_reader', 'media', 'any', 'put')).toBe(false);
+    expect(matrixAllows('media_app', 'db_backup', 'repo', 'get')).toBe(false);
+    expect(matrixAllows('backup_writer', 'media', 'any', 'get')).toBe(false);
+    expect(matrixAllows('unknown_key', 'media', 'any', 'get')).toBe(false);
+    expect(matrixAllows('media_app', 'media', 'any', 'unknown_operation')).toBe(false);
+  });
+});
+
+describe('EVM-084 AC2: the SFTP port of the Storage Box in the firewall of the VM', () => {
+  const mutate = (from: string | RegExp, to: string): string => {
+    const changed = firewall.replace(from, to);
+    expect(changed, `mutation ${String(from)}`).not.toBe(firewall);
+    return changed;
+  };
+
+  it('EVM-084 AC2: port 23 leaves the VM only to var.storagebox_cidrs, which is empty by default and never the whole internet', () => {
+    expect(firewallProblems(firewall)).toEqual([]);
+    expect(firewall).toContain('port            = "23"');
+  });
+
+  it('EVM-084 AC2: a literal or open destination, another protocol, a rule without the variable or a variable with a default is a problem', () => {
+    expect(firewallProblems(mutate('destination_ips = rule.value', 'destination_ips = ["0.0.0.0/0", "::/0"]'))).not.toEqual([]);
+    expect(firewallProblems(mutate('destination_ips = rule.value', 'destination_ips = local.anywhere'))).not.toEqual([]);
+    expect(firewallProblems(mutate(/protocol\s*=\s*"tcp"\n(\s*)port\s*=\s*"23"/, 'protocol = "udp"\n$1port = "23"'))).not.toEqual([]);
+    expect(
+      firewallProblems(mutate('length(var.storagebox_cidrs) > 0 ? [var.storagebox_cidrs] : []', '[var.storagebox_cidrs]')),
+    ).not.toEqual([]);
+    expect(firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?default\s*=\s*)\[\]/, '$1["10.0.0.0/8"]'))).not.toEqual([]);
+    expect(
+      firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?)contains\(\["0.0.0.0\/0", "::\/0"\], cidr\)/, '$1false')),
+    ).not.toEqual([]);
+    expect(firewallProblems(mutate(/(variable "storagebox_cidrs"[\s\S]*?)can\(cidrhost\(cidr, 0\)\)/, '$1true'))).not.toEqual([]);
+  });
+
+  it('EVM-084 AC2: the staging root passes the variable through and it has an empty default', () => {
+    const root = tfFiles
+      .filter((path) => path.startsWith(`${TOFU}/staging/`))
+      .map(read)
+      .join('\n');
+    expect(root).toContain('storagebox_cidrs = var.storagebox_cidrs');
+    expect(root).toMatch(/variable "storagebox_cidrs" \{[^}]*default\s*=\s*\[\]/);
   });
 });

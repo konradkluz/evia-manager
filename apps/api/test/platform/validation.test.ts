@@ -150,6 +150,7 @@ describe('the fields of the server (EVM-020 AC5; SR-AUTHZ-04, CWE-915)', () => {
   it('EVM-020 AC5 the readOnly keys are what the resource has and its writable variant lacks — derived from the contract, not listed by hand', () => {
     expect([...serverFields].sort()).toEqual(
       [
+        'anonymizedAt',
         'createdAt',
         'createdBy',
         'deletedAt',

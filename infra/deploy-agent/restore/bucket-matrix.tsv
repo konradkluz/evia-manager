@@ -1,0 +1,105 @@
+# Generated from BUCKET_POLICIES (tools/repo-policy/src/iac.ts, bucketMatrixFile): do not edit; the test of repo-policy compares it.
+# key <name> <variable with the access key id> <secret file>; bucket <name> <variable with the bucket>; area <name> <prefix>;
+# row <key> <bucket> <area> <operation> <allow|deny>
+key	media_app	MEDIA_S3_ACCESS_KEY_ID	media-s3-secret-access-key
+key	media_backup_reader	MEDIA_BACKUP_READER_ACCESS_KEY_ID	media-backup-reader-s3-secret-access-key
+key	register_writer	DELETION_REGISTER_S3_ACCESS_KEY_ID	deletion-register-s3-secret-access-key
+key	backup_writer	BACKUP_WRITER_ACCESS_KEY_ID	backup-s3-secret-access-key
+key	restore_reader	RESTORE_READER_ACCESS_KEY_ID	restore-reader-s3-secret-access-key
+key	restore_orchestrator	RESTORE_ORCH_ACCESS_KEY_ID	restore-orchestrator-s3-secret-access-key
+bucket	media	MEDIA_BUCKET
+bucket	register	DELETION_REGISTER_BUCKET
+bucket	db_backup	DB_BACKUP_BUCKET
+area	any	verify-probes/
+area	repo	pgbackrest/verify-probes/
+area	results	restore-results/verify-probes/
+row	media_app	media	-	list	allow
+row	media_app	media	any	put	allow
+row	media_app	media	any	get	allow
+row	media_app	media	any	delete	allow
+row	media_app	register	-	list	deny
+row	media_app	register	any	put	deny
+row	media_app	register	any	get	deny
+row	media_app	register	any	delete	deny
+row	media_app	db_backup	-	list	deny
+row	media_app	db_backup	repo	put	deny
+row	media_app	db_backup	repo	get	deny
+row	media_app	db_backup	repo	delete	deny
+row	media_app	db_backup	results	put	deny
+row	media_app	db_backup	results	get	deny
+row	media_app	db_backup	results	delete	deny
+row	media_backup_reader	media	-	list	allow
+row	media_backup_reader	media	any	put	deny
+row	media_backup_reader	media	any	get	allow
+row	media_backup_reader	media	any	delete	deny
+row	media_backup_reader	register	-	list	deny
+row	media_backup_reader	register	any	put	deny
+row	media_backup_reader	register	any	get	deny
+row	media_backup_reader	register	any	delete	deny
+row	media_backup_reader	db_backup	-	list	deny
+row	media_backup_reader	db_backup	repo	put	deny
+row	media_backup_reader	db_backup	repo	get	deny
+row	media_backup_reader	db_backup	repo	delete	deny
+row	media_backup_reader	db_backup	results	put	deny
+row	media_backup_reader	db_backup	results	get	deny
+row	media_backup_reader	db_backup	results	delete	deny
+row	register_writer	media	-	list	deny
+row	register_writer	media	any	put	deny
+row	register_writer	media	any	get	deny
+row	register_writer	media	any	delete	deny
+row	register_writer	register	-	list	deny
+row	register_writer	register	any	put	allow
+row	register_writer	register	any	get	deny
+row	register_writer	register	any	delete	deny
+row	register_writer	db_backup	-	list	deny
+row	register_writer	db_backup	repo	put	deny
+row	register_writer	db_backup	repo	get	deny
+row	register_writer	db_backup	repo	delete	deny
+row	register_writer	db_backup	results	put	deny
+row	register_writer	db_backup	results	get	deny
+row	register_writer	db_backup	results	delete	deny
+row	backup_writer	media	-	list	deny
+row	backup_writer	media	any	put	deny
+row	backup_writer	media	any	get	deny
+row	backup_writer	media	any	delete	deny
+row	backup_writer	register	-	list	deny
+row	backup_writer	register	any	put	deny
+row	backup_writer	register	any	get	deny
+row	backup_writer	register	any	delete	deny
+row	backup_writer	db_backup	-	list	allow
+row	backup_writer	db_backup	repo	put	allow
+row	backup_writer	db_backup	repo	get	allow
+row	backup_writer	db_backup	repo	delete	allow
+row	backup_writer	db_backup	results	put	allow
+row	backup_writer	db_backup	results	get	allow
+row	backup_writer	db_backup	results	delete	allow
+row	restore_reader	media	-	list	deny
+row	restore_reader	media	any	put	deny
+row	restore_reader	media	any	get	deny
+row	restore_reader	media	any	delete	deny
+row	restore_reader	register	-	list	allow
+row	restore_reader	register	any	put	deny
+row	restore_reader	register	any	get	allow
+row	restore_reader	register	any	delete	deny
+row	restore_reader	db_backup	-	list	allow
+row	restore_reader	db_backup	repo	put	deny
+row	restore_reader	db_backup	repo	get	allow
+row	restore_reader	db_backup	repo	delete	deny
+row	restore_reader	db_backup	results	put	deny
+row	restore_reader	db_backup	results	get	allow
+row	restore_reader	db_backup	results	delete	deny
+row	restore_orchestrator	media	-	list	deny
+row	restore_orchestrator	media	any	put	deny
+row	restore_orchestrator	media	any	get	deny
+row	restore_orchestrator	media	any	delete	deny
+row	restore_orchestrator	register	-	list	deny
+row	restore_orchestrator	register	any	put	deny
+row	restore_orchestrator	register	any	get	deny
+row	restore_orchestrator	register	any	delete	deny
+row	restore_orchestrator	db_backup	-	list	deny
+row	restore_orchestrator	db_backup	repo	put	deny
+row	restore_orchestrator	db_backup	repo	get	deny
+row	restore_orchestrator	db_backup	repo	delete	deny
+row	restore_orchestrator	db_backup	results	put	allow
+row	restore_orchestrator	db_backup	results	get	allow
+row	restore_orchestrator	db_backup	results	delete	deny

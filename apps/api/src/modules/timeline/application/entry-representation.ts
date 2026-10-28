@@ -80,6 +80,7 @@ function entryView(row: EntryRow, batch: RepresentationBatch) {
     supersedesEntryId: row.supersedes_entry_id,
     supersededByEntryId: batch.corrections.get(row.id) ?? null,
     redactedAt: row.redacted_at === null ? null : row.redacted_at.toISOString(),
+    deletedAt: row.deleted_at === null ? null : row.deleted_at.toISOString(),
     event: eventOf(row, batch),
   };
 }

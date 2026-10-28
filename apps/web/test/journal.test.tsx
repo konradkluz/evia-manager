@@ -154,15 +154,16 @@ describe('W-08 Dziennik: poprawka zamiast edycji (EVM-037 AC3)', () => {
     await userEvent.click(show);
     expect(view.getByText('Trasa kabla przez szacht A.')).toBeTruthy();
     expect(view.getByRole('button', { name: 'Ukryj treść' }).getAttribute('aria-expanded')).toBe('true');
-    // only the newest version of an entry can be corrected
-    expect(view.queryByRole('button', { name: /^Akcje wpisu/ })).toBeNull();
+    // only the newest version of an entry can be corrected (EVM-040: the Administrator's menu of the replaced entry holds no correction)
+    await userEvent.click(view.getByRole('button', { name: /^Akcje wpisu/ }));
+    expect(screen.queryByRole('menuitem', { name: 'Popraw wpis' })).toBeNull();
   });
 
   it('EVM-037 AC3 "Popraw wpis" opens the text, sends a NEW entry that points at the old one and offers nothing else', async () => {
     const api = await openJournal(journalApi({ entries: [correction, original] }));
     await userEvent.click(await screen.findByRole('button', { name: 'Akcje wpisu: Anna Testowa, dziś, 13:59' }));
-    // the menu has the correction only: the text of an entry cannot be edited or deleted
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Popraw wpis']);
+    // the text of an entry cannot be edited; the Administrator may also delete it or redact it (EVM-040)
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Popraw wpis', 'Usuń wpis', 'Zredaguj treść…']);
     await userEvent.click(screen.getByRole('menuitem', { name: 'Popraw wpis' }));
     const dialog = await screen.findByRole('dialog', { name: 'Popraw wpis' });
     const field = within(dialog).getByRole('textbox', { name: 'Treść poprawki' });

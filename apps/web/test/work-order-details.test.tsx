@@ -48,7 +48,7 @@ describe('W-06 "Przegląd" (EVM-018 AC1)', () => {
     const tab = page.getByRole('tab', { name: 'Przegląd' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
     // EVM-037 adds the tab "Dziennik" next to it.
-    expect(page.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Przegląd', 'Dziennik']);
+    expect(page.getAllByRole('tab').map((entry) => entry.textContent)).toEqual(['Przegląd', 'Dziennik', 'Media i dokumenty']);
   });
 
   it('EVM-018 AC1 the card "Klient" has the name, the telephone and the e-mail as links; the card "Lokalizacja" has the type, the address, the spot, the OSD, the manager, the power, the PPE and the notes', async () => {
@@ -186,7 +186,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     });
   });
 
-  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the eight entries leave the memory of the tab (EVM-053: the instalments too; EVM-042: the deleted ones, Administrator only)', async () => {
+  it('EVM-018 AC3 an order that was shown and is then gone (deleted meanwhile) shows nothing of it, and the nine entries leave the memory of the tab (EVM-053: the instalments too; EVM-042: the deleted ones, Administrator only; EVM-044: the unfinished uploads of the person)', async () => {
     let gone = false;
     const queryClient = createQueryClient();
     const api = detailsApi({
@@ -197,7 +197,7 @@ describe('not found (EVM-018 AC3; SR-AUTHZ-02, TM-10)', () => {
     await screen.findByText('Instalacja zasilająca');
     await screen.findByText('Operator Testowy');
     const keys = queryClient.getQueryCache().findAll({ predicate: (query) => query.queryKey[1] === ORDER_ID });
-    expect(keys).toHaveLength(8);
+    expect(keys).toHaveLength(9);
 
     gone = true;
     await act(async () => {
@@ -277,6 +277,8 @@ describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
         `GET ${BASE}`,
         `GET ${BASE}/customer`,
         `GET ${BASE}/deleted-procedures`,
+        // EVM-044: the unfinished uploads of the person (Administrator and Editor) — the only read with a query, and it holds no data
+        `GET ${BASE}/media-assets`,
         `GET ${BASE}/payment-milestones`,
         `GET ${BASE}/procedures`,
         `GET ${BASE}/scope-items`,
@@ -284,7 +286,8 @@ describe('minimisation (EVM-018 AC5; SR-DATA-03, SR-WEB-05)', () => {
         `GET ${BASE}/site-orders`,
       ].sort(),
     );
-    for (const request of reads) expect(request.query.size).toBe(0);
+    for (const request of reads.filter((entry) => !entry.path.endsWith('/media-assets'))) expect(request.query.size).toBe(0);
+    expect(reads.find((entry) => entry.path.endsWith('/media-assets'))?.query.toString()).toBe('uploadState=unfinished&limit=100');
     expect(document.title).toBe('ZL-2026-0042 · EVia Manager');
     expect(document.title).not.toMatch(/Jan|Przykładowy|Testowa|Warszawa/);
   });

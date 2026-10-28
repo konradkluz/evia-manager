@@ -1,0 +1,4 @@
+# Allow-list build context (EVM-084): the configuration and the wrapper only; the context is the repository root.
+*
+!infra/runtime/pgbackrest/pgbackrest.conf
+!infra/images/postgres-pgbackrest/pgbackrest-wrapper.sh

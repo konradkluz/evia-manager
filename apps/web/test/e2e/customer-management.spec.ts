@@ -326,6 +326,8 @@ test.describe('W-14 deleted customers, roles and the session (EVM-039 AC6, AC7)'
     const jan = api.customers[0];
     if (jan === undefined) throw new Error('the seed customer is missing');
     jan.deleted = true;
+    // from EVM-041 the Administrator reads a deleted customer (with the banner); "Nie znaleziono" is what the others get
+    api.role = 'editor';
     await page.goto(JAN_PATH);
     await expect(page.getByRole('heading', { level: 1, name: 'Nie znaleziono klienta.' })).toBeVisible();
     await expect(page).toHaveTitle('Nie znaleziono · EVia Manager');

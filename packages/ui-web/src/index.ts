@@ -53,9 +53,13 @@ export {
   CirclePlay,
   ClipboardList,
   Clock,
+  CloudAlert,
+  CloudCheck,
+  CloudUpload,
   EllipsisVertical,
   EyeOff,
   Hourglass,
+  Images,
   Inbox,
   Info,
   KeyRound,
@@ -68,6 +72,8 @@ export {
   OctagonAlert,
   Pencil,
   Plus,
+  RotateCcw,
+  ScanSearch,
   Search,
   Send,
   SearchX,
@@ -77,6 +83,7 @@ export {
   Smartphone,
   ThumbsUp,
   TimerOff,
+  Trash2,
   TriangleAlert,
   Undo2,
   Users,
@@ -90,6 +97,8 @@ export { ErrorSummary, type ErrorSummaryItem, type ErrorSummaryProps } from './e
 export { FieldError, SelectableCardGroup, type SelectableCardGroupProps, type SelectableCardOption } from './selectable-card.tsx';
 export { List, ListItem } from './list.tsx';
 export { QrCode, type QrCodeProps } from './qr-code.tsx';
+export { Uploader, type UploaderProps } from './uploader.tsx';
+export { UploadQueueItem, type UploadQueueItemProps, type UploadQueueItemState } from './upload-queue-item.tsx';
 export { Skeleton } from './skeleton.tsx';
 export { Tabs, type TabItem, type TabsProps } from './tabs.tsx';
 export { TextLink } from './text-link.tsx';

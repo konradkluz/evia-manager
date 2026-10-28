@@ -10,6 +10,51 @@
 	servers {
 		protocols h1 h2
 	}
+	# The DEFAULT logger carries the error log (http.log.error: a 5xx of the proxy during the blue/green switch, a restart of the API),
+	# which the filter of the access log does not touch. The same deny-by-default filter (EVM-085 AC6, AC7; security-engineer A11):
+	# the error entry holds the whole request (X-Csrf-Token, Cookie, query, full address). Tested with the real text of this block:
+	# infra/observability/test/caddy-log.test.sh (a dead upstream).
+	log default {
+		output stderr
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				request>tls delete
+				request>remote_port delete
+				resp_headers delete
+				request>uri regexp "^(?i:[^?]*activation[^?]*(?:\?.*)?)$|^([^?]*)(?:\?.*)?$" "$1"
+				request>remote_ip ip_mask 24 48
+				request>client_ip ip_mask 24 48
+			}
+		}
+	}
+}
+
+# Access log (EVM-085 AC6, AC7; security-engineer A11; SR-LOG-02, ADR-0013): deny-by-default. Request headers, response headers
+# and TLS details are deleted WHOLE (so X-CSRF-Token, Cookie, Authorization and any unknown header never reach the log), the query is
+# cut from every URI (not only the activation one; an URI whose path mentions activation is emptied whole), the port is dropped and the addresses are masked to /24 and /48 (policy P9).
+# Requests of /api/v1/auth/activation/* are not logged at all (stricter than a redacted path; the API logs the attempt without the
+# token). No log_credentials. The log goes to stdout, the journald driver of Docker, Alloy (allow-list of services) and Loki.
+# Tested with the REAL snippet text: infra/observability/test/caddy-log.test.sh (service caddy-log-test).
+(access_log) {
+	@activation path /api/v1/auth/activation/*
+	log_skip @activation
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>headers delete
+				request>tls delete
+				request>remote_port delete
+				resp_headers delete
+				request>uri regexp "^(?i:[^?]*activation[^?]*(?:\?.*)?)$|^([^?]*)(?:\?.*)?$" "$1"
+				request>remote_ip ip_mask 24 48
+				request>client_ip ip_mask 24 48
+			}
+		}
+	}
 }
 
 staging.eviacharge.pl {
@@ -22,5 +67,6 @@ staging.eviacharge.pl {
 		-Server
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
+	import access_log
 	import /etc/caddy/upstream.caddy
 }

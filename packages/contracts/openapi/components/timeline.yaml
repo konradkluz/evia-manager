@@ -42,7 +42,7 @@ TimelineEntry:
     Wpis dziennika zlecenia. `createdAt` nadaje serwer i według niego (nie według UUIDv7 od klienta) wpisy są uporządkowane.
     `body` jest `null` dla zdarzeń (`event`). Wpis poprawiony zostaje w dzienniku: `supersededByEntryId` wskazuje poprawkę
     (panel zwija taki wpis i pokazuje „Pokaż treść”), a poprawka wskazuje poprzednika w `supersedesEntryId`. `redactedAt` jest
-    ustawione, gdy treść zastąpiono znacznikiem (EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.
+    ustawione, gdy treść zastąpiono znacznikiem (EVM-040), a `deletedAt` — gdy wpis usunięto (soft delete, EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.
   required:
     - id
     - kind
@@ -57,6 +57,7 @@ TimelineEntry:
     - supersedesEntryId
     - supersededByEntryId
     - redactedAt
+    - deletedAt
     - event
   additionalProperties: false
   properties:
@@ -132,6 +133,15 @@ TimelineEntry:
           format: date-time
           maxLength: 40
         - type: 'null'
+    deletedAt:
+      description: >-
+        Chwila usunięcia wpisu (EVM-040) albo `null`. Usunięty wpis widzi tylko Administrator (`includeDeleted=true` albo odczyt po `id`);
+        dla pozostałych ról wpis usunięty nie istnieje. Zdarzenia automatyczne nie są usuwane — dla nich zawsze `null`.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
     event:
       description: Dane zdarzenia (`kind = event`; EVM-038) albo `null` dla wpisu i komentarza.
       oneOf:
@@ -180,7 +190,8 @@ TimelineEvent:
     `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu),
     `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania
     zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora;
-    bez kwoty, numeru faktury i nazwy) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis,
+    bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie
+    niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis,
     którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola.
     `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i
     `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu

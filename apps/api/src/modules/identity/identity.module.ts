@@ -34,6 +34,7 @@ import { PasswordResetService } from './application/password-reset.service.ts';
 import { PasswordSetting } from './application/password-setting.ts';
 import { PasswordChangeService } from './application/password-change.service.ts';
 import { PurgeLoginSecurityJob } from './application/purge-login-security.job.ts';
+import { AdministratorDirectory } from './application/administrator-directory.ts';
 import { PurgeSessionsJob } from './application/purge-sessions.job.ts';
 import { ReauthenticationService } from './application/reauthentication.service.ts';
 import { RecoveryCodeService } from './application/recovery-code.service.ts';
@@ -73,6 +74,7 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
     LoginThrottle,
     PurgeLoginSecurityJob,
     PurgeSessionsJob,
+    AdministratorDirectory,
     LoginPasskeyService,
     LoginRecoveryCodeService,
     LoginService,
@@ -118,6 +120,7 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
     LoginSecurityEmailComposer,
     PurgeLoginSecurityJob,
     PurgeSessionsJob,
+    AdministratorDirectory,
   ],
 })
 export class IdentityModule {}

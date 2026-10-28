@@ -1,0 +1,11 @@
+# EVM-084 AC3, AC5: monthly on the 3rd at 04:00 (a backup of the night before exists), and by hand.
+[Unit]
+Description=EVia restore test: monthly
+
+[Timer]
+OnCalendar=*-*-03 04:00:00 Europe/Warsaw
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

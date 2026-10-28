@@ -24,6 +24,22 @@ const GENERATED = [
   'field-encryption-keys',
   'login-throttle-key',
 ];
+// EVM-084: provided by hand in the IaC session; the script neither generates nor reads them
+const EXTERNAL = [
+  'media-s3-secret-access-key',
+  'deletion-register-s3-secret-access-key',
+  'backup-s3-secret-access-key',
+  'pgbackrest-cipher-pass',
+  'restore-reader-s3-secret-access-key',
+  'restore-orchestrator-s3-secret-access-key',
+  'media-backup-reader-s3-secret-access-key',
+  'restore-hcloud-token',
+  'rclone-crypt-password',
+  'rclone-crypt-password2',
+  'restore-storagebox-password',
+  'media-copy-storagebox-password',
+  'grafana-write-token',
+];
 const RANDOM_KEYS = ['cursor-key', 'login-throttle-key', 'postgres-password', 'evia-migrator-password', 'evia-api-password'];
 const B64URL_32 = /^[A-Za-z0-9_-]{43}$/;
 
@@ -51,6 +67,43 @@ function run(/** @type {string[]} */ args = [], /** @type {Record<string, string
 
 const snapshot = () => JSON.stringify(names().map((name) => [name, read(name), statSync(join(dir(), name)).mtimeMs]));
 
+describe('EVM-084 AC2: the S3 keys, the pgBackRest password and the restore secrets are provided by hand', () => {
+  it('EVM-084 AC2: init-secrets creates none of them, succeeds with a note and --check reports each as MISSING (exit 1)', () => {
+    const result = run();
+    assert.equal(result.status, 0, result.stderr);
+    for (const name of EXTERNAL) assert.ok(!names().includes(name), name);
+    assert.match(result.stderr, /provide media-s3-secret-access-key by hand/);
+    const checked = run(['--check']);
+    assert.equal(checked.status, 1);
+    for (const name of EXTERNAL) assert.match(checked.stdout, new RegExp(`^${name} MISSING$`, 'm'));
+  });
+
+  it('EVM-084 AC2: a value provided by hand is never printed, changed or read; a file with another mode is refused', () => {
+    run();
+    writeFileSync(join(dir(), 'media-s3-secret-access-key'), 'SYNTHETIC-MEDIA-SECRET-VALUE-0123456789', { mode: 0o600 });
+    const before = read('media-s3-secret-access-key');
+    const again = run();
+    const checked = run(['--check']);
+    assert.equal(read('media-s3-secret-access-key'), before);
+    assert.doesNotMatch(`${again.stdout}${again.stderr}${checked.stdout}${checked.stderr}`, /SYNTHETIC-MEDIA-SECRET/);
+    assert.match(checked.stdout, /^media-s3-secret-access-key size=\d+ mode=600 owner=\d+$/m);
+    chmodSync(join(dir(), 'media-s3-secret-access-key'), 0o644);
+    assert.equal(run().status, 1);
+  });
+
+  it('EVM-084 AC2 (SR-INFRA-03, security-engineer P7): every key reaches only the services listed, and the restore secrets no container', () => {
+    const services = JSON.parse(readFileSync(MANIFEST, 'utf8')).services;
+    const holders = (/** @type {string} */ file) => Object.keys(services).filter((name) => services[name].files.includes(file));
+    assert.deepEqual(holders('media-s3-secret-access-key'), ['api']);
+    assert.deepEqual(holders('deletion-register-s3-secret-access-key'), ['worker']);
+    assert.deepEqual(holders('pgbackrest-cipher-pass'), ['postgres']);
+    assert.deepEqual(holders('backup-s3-secret-access-key'), ['postgres']);
+    assert.deepEqual(holders('grafana-write-token'), ['alloy']);
+    for (const file of EXTERNAL.filter((name) => /^(restore|rclone|media-backup|media-copy)/.test(name)))
+      assert.deepEqual(holders(file), [], file);
+  });
+});
+
 describe('EVM-007 AC7: init-secrets.sh creates the secrets of the services', () => {
   it('EVM-007 AC7: an empty directory gets every file, 0600, and every file of the manifest exists', () => {
     const result = run();
@@ -59,7 +112,8 @@ describe('EVM-007 AC7: init-secrets.sh creates the secrets of the services', () 
     for (const name of GENERATED) assert.equal(statSync(join(dir(), name)).mode & 0o777, 0o600, name);
     const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
     for (const service of Object.values(manifest.services))
-      for (const file of /** @type {{ files: string[] }} */ (service).files) assert.ok(existsSync(join(dir(), file)), file);
+      for (const file of /** @type {{ files: string[] }} */ (service).files)
+        assert.ok(existsSync(join(dir(), file)) !== EXTERNAL.includes(file), file);
   });
 
   it('EVM-007 AC7: formats — keys base64url 32 bytes, URLs with the roles, host, port and database of the runtime, field keys id:key', () => {
@@ -146,9 +200,12 @@ describe('EVM-007 AC7: init-secrets.sh creates the secrets of the services', () 
     assert.match(incomplete.stdout, /^postgres-password MISSING$/m);
     assert.deepEqual(names(), ['cursor-key'], '--check writes nothing');
     run();
+    const generatedOnly = run(['--check']);
+    assert.equal(generatedOnly.status, 1, 'the keys provided by hand are still missing');
+    for (const name of EXTERNAL) writeFileSync(join(dir(), name), 'synthetic', { mode: 0o600 });
     const complete = run(['--check']);
     assert.equal(complete.status, 0);
-    assert.equal(complete.stdout.trim().split('\n').length, GENERATED.length);
+    assert.equal(complete.stdout.trim().split('\n').length, GENERATED.length + EXTERNAL.length);
   });
 
   it('EVM-007 AC7: a directory of another owner or mode is refused, nothing is written', () => {

@@ -35,10 +35,12 @@ export function useJournal(
   workOrderId: string,
   filters: JournalFilters,
   enabled: boolean,
+  /** Administrator only (EVM-040): the deleted entries come too, with `deletedAt`; the server refuses it to the others. */
+  includeDeleted = false,
 ): UseInfiniteQueryResult<InfiniteData<TimelineEntryList, string | null>> {
   const client = useApi();
   return useInfiniteQuery({
-    queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId, filters.kind, filters.stageId, filters.eventGroup],
+    queryKey: [WORK_ORDER_JOURNAL_KEY, workOrderId, filters.kind, filters.stageId, filters.eventGroup, includeDeleted],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) =>
       unwrap(
@@ -51,6 +53,7 @@ export function useJournal(
             ...(filters.kind === null ? {} : { kind: filters.kind }),
             ...(filters.eventGroup === null ? {} : { eventGroup: filters.eventGroup }),
             ...(filters.stageId === null ? {} : { procedureStageId: filters.stageId }),
+            ...(includeDeleted ? { includeDeleted: true } : {}),
             ...(pageParam === null ? {} : { cursor: pageParam }),
           },
         }),

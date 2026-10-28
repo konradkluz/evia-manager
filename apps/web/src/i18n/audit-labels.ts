@@ -57,6 +57,9 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'bulk_read.rejected': 'Odrzucony masowy odczyt',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
+  'customer.deleted': 'Usunięcie klienta',
+  'customer.restored': 'Przywrócenie klienta',
+  'customer.anonymized': 'Anonimizacja klienta',
   'site.created': 'Dodanie lokalizacji',
   'site.updated': 'Zmiana danych lokalizacji',
   'party.created': 'Dodanie strony',
@@ -91,6 +94,14 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'payment_milestone.restored': 'Korekta: przywrócenie transzy płatności',
   'payment_milestone.amount_corrected': 'Korekta: zmiana kwoty transzy płatności',
   'payment_milestone.deleted': 'Korekta: usunięcie transzy płatności',
+  'media_asset.created': 'Dodanie zdjęcia do zlecenia',
+  'media_file.quarantined': 'Plik z kwarantanny skanu (zdjęcie)',
+  'media_file.rescan_requested': 'Zlecenie ponownego skanu pliku (zdjęcie)',
+  'media_file.rescanned': 'Ponowny skan pliku z kwarantanny (zdjęcie)',
+  'media_file.quarantine_purged': 'Usunięcie pliku po 30 dniach kwarantanny (zdjęcie)',
+  'timeline_entry.deleted': 'Usunięcie wpisu dziennika',
+  'timeline_entry.restored': 'Przywrócenie wpisu dziennika',
+  'timeline_entry.redacted': 'Redakcja treści wpisu dziennika',
 };
 
 /** Groups of the "Akcja" filter, in the order of the table of labels (the story EVM-015 → W-18). */
@@ -144,7 +155,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
   { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
-  { label: 'Klienci', actions: ['customer.created', 'customer.updated'] },
+  { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
   {
     label: 'Zlecenia',
@@ -171,7 +182,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'procedure_stage.restored',
     ],
   },
-  { label: 'Dziennik zlecenia', actions: ['timeline_entry.created'] },
+  {
+    label: 'Dziennik zlecenia',
+    actions: ['timeline_entry.created', 'timeline_entry.deleted', 'timeline_entry.restored', 'timeline_entry.redacted'],
+  },
   {
     label: 'Płatności',
     actions: [
@@ -187,6 +201,16 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'payment_milestone.restored',
       'payment_milestone.amount_corrected',
       'payment_milestone.deleted',
+    ],
+  },
+  {
+    label: 'Media',
+    actions: [
+      'media_asset.created',
+      'media_file.quarantined',
+      'media_file.rescan_requested',
+      'media_file.rescanned',
+      'media_file.quarantine_purged',
     ],
   },
 ];
@@ -212,6 +236,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   procedure_stage: 'Etap procesu',
   timeline_entry: 'Wpis dziennika',
   payment_milestone: 'Transza płatności',
+  media_asset: 'Zdjęcie',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */

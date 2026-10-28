@@ -152,6 +152,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'getTimelineEntry',
       'getWorkOrderScopeItem',
       'listPaymentMilestones',
+      // EVM-044: the media of an order (the list is read by every role; the rest are the writers below)
+      'listMediaAssets',
     ];
     const writers = [
       'transitionWorkOrder',
@@ -173,6 +175,13 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'deleteWorkOrderProcedure',
       'deleteProcedureStage',
       'transitionPaymentMilestone',
+      // EVM-044: the batch of media and the six operations of an upload session
+      'createMediaAssets',
+      'createUploadSession',
+      'listUploadParts',
+      'getUploadPartUrl',
+      'completeUploadSession',
+      'abortUploadSession',
     ];
     // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone; EVM-060: so are the deletion and the
     // restoration of an order (no step-up at the level of the operation: it depends on the milestones, so the cells are those of any role)
@@ -182,6 +191,12 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listDeletedWorkOrderProcedures',
       'deleteWorkOrder',
       'restoreWorkOrder',
+      // EVM-040: the deletion and the restoration of an entry of the journal (the redaction is below: it has a step-up)
+      'deleteTimelineEntry',
+      'restoreTimelineEntry',
+      // EVM-041: the deletion and the restoration of a customer (the anonymization is below: it has a step-up)
+      'deleteCustomer',
+      'restoreCustomer',
     ];
     const rolesOf = (operationId: string): string[] => {
       if (administratorOnly.includes(operationId)) return ['administrator'];
@@ -199,6 +214,9 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'endUserSessions',
       'resetUserSecondStep',
       'endAccountSession', // EVM-028: the session of somebody else
+      'rescanMediaAsset', // EVM-049: the new scan of a file in quarantine
+      'redactTimelineEntry', // EVM-040: the redaction of the text of an entry
+      'anonymizeCustomer', // EVM-041: the anonymization of a customer
     ];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
     for (const operationId of stepUp) {

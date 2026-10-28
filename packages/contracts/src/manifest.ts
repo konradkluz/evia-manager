@@ -12,9 +12,9 @@ export const CHANNELS = ['web', 'mobile'] as const;
 
 /**
  * The policies a value of a parameter or a field of the answer may depend on (EVM-056; ADR-0017 W4). A CLOSED vocabulary: the code
- * of the API evaluates each one (`paymentMilestone.read` — `canReadPayments` of `authorization`), so a name outside it is an error.
+ * of the API evaluates each one (`paymentMilestone.read` — `canReadPayments`, `mediaQuarantine.manage` — `canManageQuarantine`, both of `authorization`), so a name outside it is an error.
  */
-export const RESTRICTING_POLICIES = ['paymentMilestone.read'] as const;
+export const RESTRICTING_POLICIES = ['paymentMilestone.read', 'mediaQuarantine.manage'] as const;
 
 const nonEmpty = <T extends z.ZodType>(item: T) => z.array(item).min(1).max(16);
 const name = z.string().min(1).max(100);

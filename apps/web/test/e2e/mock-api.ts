@@ -12,6 +12,8 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerMedia, newMediaServer, type MediaServer } from './mock-media.ts';
+import { answerEntryErase } from './mock-journal-erase.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import {
   answerCreateProcedure,
@@ -53,12 +55,14 @@ import { answerAccountRoute, newAccountServer, spendMark, type AccountServer } f
 import { answerCatalogItems, answerCatalogProcedures, answerOrderPatch, answerScopeChange, answerScopeCreate } from './mock-scope.ts';
 import { answerPatch as answerLocationPatch, answerRead as answerLocationRead, partyOf, siteOf } from './mock-locations.ts';
 import {
+  answerErase,
   answerList,
   answerPatch,
   answerRead,
   answerSearch,
   e164,
   fold,
+  type EraseOperationName,
   type MockCustomerRecord,
   type PatchKeys,
 } from './mock-customers.ts';
@@ -151,6 +155,8 @@ export interface MockApi {
   account: AccountServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
+  /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
+  media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
   dropResponseNext: Set<string>;
 }
@@ -476,6 +482,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     users: newUsersServer(),
     account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
+    media: newMediaServer(),
     dropResponseNext: new Set(),
   };
   // The server of orders reads the same customers and sites that the searches use.
@@ -645,7 +652,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     if (customerRead !== null && (request.method() === 'GET' || request.method() === 'PATCH')) {
       if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
       const id = customerRead[1] ?? '';
-      if (request.method() === 'GET') return route.fulfill(answerRead(api.customers, id));
+      if (request.method() === 'GET') return route.fulfill(answerRead(api.customers, id, api.role));
       if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
       const answer = answerPatch(
         api.customers,
@@ -655,6 +662,30 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       );
       if (answer.status === 200 && api.dropResponseNext.delete('PATCH /api/v1/customers/:id')) return route.abort('connectionreset');
       return route.fulfill(answer);
+    }
+    // EVM-041: delete, restore and anonymize of one customer (Administrator; the anonymization needs the step-up).
+    const customerErase = /^\/api\/v1\/customers\/([^/]+)(\/restore|\/anonymize)?$/.exec(url.pathname);
+    const eraseOperation: EraseOperationName | null =
+      customerErase === null
+        ? null
+        : request.method() === 'DELETE' && customerErase[2] === undefined
+          ? 'delete'
+          : request.method() === 'POST' && customerErase[2] === '/restore'
+            ? 'restore'
+            : request.method() === 'POST' && customerErase[2] === '/anonymize'
+              ? 'anonymize'
+              : null;
+    if (customerErase !== null && eraseOperation !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerErase(api.customers, eraseOperation, customerErase[1] ?? '', {
+          role: api.role,
+          ifMatch: headers['if-match'],
+          key: headers['idempotency-key'],
+          stepUpFresh: api.stepUp === 'fresh',
+        }),
+      );
     }
     // EVM-036: the site and the party of the dialogs "Edytuj lokalizację" and "Edytuj stronę" — each is anchored in the path.
     const location = /^\/api\/v1\/(sites|parties)\/([^/]+)$/.exec(url.pathname);
@@ -672,6 +703,34 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           ifMatch: headers['if-match'],
           key: headers['idempotency-key'],
           raw: request.postData() ?? '{}',
+        }),
+      );
+    }
+    // EVM-044: the media of one order and their upload sessions (the tab "Media i dokumenty" of W-06).
+    if (url.pathname.includes('/media-assets')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (request.method() !== 'GET' && !csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const answered = answerMedia(api.media, request.method(), url.pathname, url.searchParams, {
+        role: api.role,
+        userId: '11111111-1111-4111-8111-111111111111',
+        key: headers['idempotency-key'],
+        raw: request.postData() ?? '{}',
+      });
+      if (answered !== null) return route.fulfill(answered);
+    }
+    // EVM-040: one entry of the journal — the read with its ETag, the delete, the restore and the redaction (Administrator).
+    const erasing = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/timeline\/([0-9a-f-]{36})(\/restore|\/redact)?$/.exec(url.pathname);
+    if (erasing !== null) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      const verb = erasing[3];
+      const operation =
+        request.method() === 'GET' ? 'read' : request.method() === 'DELETE' ? 'delete' : verb === '/redact' ? 'redact' : 'restore';
+      if (operation !== 'read' && !csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      return route.fulfill(
+        answerEntryErase(api.journal, api.orders, erasing[1] ?? '', erasing[2] ?? '', operation, {
+          role: api.role,
+          ifMatch: headers['if-match'],
+          stepUpFresh: api.stepUp === 'fresh',
         }),
       );
     }
@@ -1314,12 +1373,12 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
       }
       case 'GET /api/v1/customers': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
-        return route.fulfill(answerList(api.customers, url.searchParams));
+        return route.fulfill(answerList(api.customers, url.searchParams, api.role));
       }
       case 'POST /api/v1/customers/search': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
         if (!csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
-        return route.fulfill(answerSearch(api.customers, request.postData() ?? '{}'));
+        return route.fulfill(answerSearch(api.customers, request.postData() ?? '{}', api.role));
       }
       case 'POST /api/v1/customers': {
         if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));

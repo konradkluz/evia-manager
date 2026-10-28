@@ -77,12 +77,14 @@ describe('adding a customer (EVM-020 AC2; SR-INPUT-01, SR-DATA-02)', () => {
       version: 1,
       createdAt: expect.stringMatching(/^2026-10-01T08:00:00\.000Z$/) as unknown,
       updatedAt: expect.stringMatching(/^2026-10-01T08:00:00\.000Z$/) as unknown,
+      deletedAt: null,
+      anonymizedAt: null,
     });
     expect(response.headers['etag']).toBe('"1"');
     expect(response.headers['cache-control']).toBe('no-store');
     expect(response.headers['idempotent-replayed']).toBeUndefined();
     expect(response.headers['location']).toBeUndefined();
-    expect(JSON.stringify(response.body)).not.toMatch(/searchText|sortName|createdBy|updatedBy|deleted/);
+    expect(JSON.stringify(response.body)).not.toMatch(/searchText|sortName|createdBy|updatedBy|deletedBy|anonymizedBy/);
     const { rows } = await sql<Record<string, unknown>>`select * from customers.customers where id = ${body.id}`.execute(admin());
     expect(rows[0]).toMatchObject({
       phone: '+48600000001',

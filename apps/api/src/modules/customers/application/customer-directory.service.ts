@@ -9,6 +9,7 @@ import {
   findVisibleCustomerCard,
   findVisibleCustomerNames,
   findVisibleCustomerSummary,
+  lockVisibleCustomerForOrder,
   searchVisibleCustomerIds,
 } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
@@ -20,9 +21,16 @@ export class CustomerDirectoryService implements CustomerDirectory {
     return row === undefined ? undefined : { id: row.id, displayName: row.display_name };
   }
 
+  async lockVisible(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerSummary | undefined> {
+    const row = await lockVisibleCustomerForOrder(customerTables(tx), principal, id);
+    return row === undefined ? undefined : { id: row.id, displayName: row.display_name };
+  }
+
   async getCard(tx: Kysely<Database>, principal: Principal, id: string): Promise<CustomerCard | undefined> {
     const row = await findVisibleCustomerCard(customerTables(tx), principal, id);
-    return row === undefined ? undefined : { displayName: row.display_name, phone: row.phone, email: row.email };
+    return row === undefined
+      ? undefined
+      : { displayName: row.display_name, phone: row.phone, email: row.email, anonymized: row.anonymized_at !== null };
   }
 
   async searchIds(tx: Kysely<Database>, principal: Principal, phrase: string, limit: number): Promise<string[]> {

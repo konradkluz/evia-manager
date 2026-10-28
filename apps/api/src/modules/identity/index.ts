@@ -9,6 +9,7 @@ export { MfaEmailComposer } from './application/mfa-email.composer.ts';
 export { PurgeLoginSecurityJob } from './application/purge-login-security.job.ts';
 export { PurgeSessionsJob } from './application/purge-sessions.job.ts';
 export { PasswordEmailComposer } from './application/password-email.composer.ts';
+export { AdministratorDirectory } from './application/administrator-directory.ts';
 export { UserDirectory, DISPLAY_NAMES_BATCH_LIMIT, type UserSummary } from './application/user-directory.ts';
 export { AdministratorBootstrap, type BootstrapRequest, type BootstrapResult } from './application/administrator-bootstrap.service.ts';
 export { channelAllowedForRole } from './domain/channel-rules.ts';

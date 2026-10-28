@@ -104,6 +104,8 @@ test.describe('UX review screenshots (EVM-039) @screenshots', () => {
       await shot(`w14-discard-${px}`);
       await page.getByRole('button', { name: 'Odrzuć zmiany' }).click();
       jan.deleted = true;
+      // from EVM-041 the Administrator reads a deleted customer (with the banner); "Nie znaleziono" is what the others get
+      api.role = 'editor';
       await page.goto(JAN_PATH);
       await expect(page.getByRole('heading', { level: 1, name: 'Nie znaleziono klienta.' })).toBeVisible();
       await shot(`w14-not-found-${px}`);

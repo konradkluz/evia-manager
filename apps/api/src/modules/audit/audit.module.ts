@@ -12,6 +12,7 @@ import { CLOCK, EVENT_BUS } from '../../platform/tokens.ts';
 import { CUSTOMER_EVENT_TYPES, type CustomerEvent } from '../customers/index.ts';
 import { IDENTITY_EVENT_TYPES, IdentityModule, type IdentityEvent } from '../identity/index.ts';
 import { PARTY_EVENT_TYPES, type PartyEvent } from '../parties/index.ts';
+import { MEDIA_EVENT_TYPES, type MediaAuditEvent } from '../media/index.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent } from '../procedures/index.ts';
 import { SITE_EVENT_TYPES, type SiteEvent } from '../sites/index.ts';
@@ -70,6 +71,11 @@ export class AuditSubscriber implements OnModuleInit {
     }
     for (const type of PAYMENT_MILESTONE_EVENT_TYPES) {
       this.#events.subscribe<PaymentMilestoneEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of MEDIA_EVENT_TYPES) {
+      this.#events.subscribe<MediaAuditEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

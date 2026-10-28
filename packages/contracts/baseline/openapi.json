@@ -57,6 +57,18 @@
           "type": "string"
         }
       },
+      "IdempotencyKeyHeader-2": {
+        "description": "Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.",
+        "in": "header",
+        "name": "Idempotency-Key",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
       "IfMatchHeader": {
         "description": "Silny ETag wersji zasobu, na której użytkownik podjął decyzję (`\"<version>\"`, z `ETag` odczytu albo pola `version`).",
         "in": "header",
@@ -66,6 +78,28 @@
           "maxLength": 12,
           "pattern": "^\"[1-9][0-9]{0,9}\"$",
           "type": "string"
+        }
+      },
+      "MediaAssetIdParameter": {
+        "description": "Identyfikator medium (UUIDv7).",
+        "in": "path",
+        "name": "mediaAssetId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
+      "PartNumberParameter": {
+        "description": "Numer części (1 … liczba części sesji).",
+        "in": "path",
+        "name": "partNumber",
+        "required": true,
+        "schema": {
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
         }
       },
       "PartyIdParameter": {
@@ -167,6 +201,17 @@
           "type": "string"
         }
       },
+      "UploadSessionIdParameter": {
+        "description": "Identyfikator sesji uploadu (UUIDv7).",
+        "in": "path",
+        "name": "sessionId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
       "UserIdParameter": {
         "description": "Identyfikator konta użytkownika (UUID).",
         "in": "path",
@@ -258,6 +303,60 @@
         },
         "description": "Szablon wycofany albo nieistniejący (`template_unavailable` — jednakowa odpowiedź w obu przypadkach) albo ten sam klucz idempotencji z inną treścią lub na innej operacji (`idempotency_mismatch`)."
       },
+      "CustomerAnonymizedConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "customer_anonymized",
+              "status": 409,
+              "title": "The customer is anonymized",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/customer_anonymized"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Klient jest zanonimizowany (`customer_anonymized`, EVM-041 AC4): jego danych nie można zmienić — anonimizacja jest nieodwracalna. Albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "CustomerBusy": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "service_unavailable",
+              "status": 503,
+              "title": "Service unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/service_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Operacja na kliencie nie doczekała się blokady wiersza (`service_unavailable`; EVM-041): inna operacja na tym samym kliencie (np. anonimizacja czekająca na rejestr usunięć) trzyma go dłużej niż limit oczekiwania. Nic nie zostało zmienione; bezpiecznie ponowić po `Retry-After` (po odświeżeniu klienta). Odpowiedź nie zawiera danych klienta.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia.",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "CustomerConflict": {
         "content": {
           "application/problem+json": {
@@ -277,6 +376,61 @@
         "headers": {
           "Retry-After": {
             "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "CustomerHasActiveDependents": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "has_active_dependents",
+              "openWorkOrders": 2,
+              "status": 409,
+              "title": "The resource has active dependents",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/has_active_dependents"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Klient ma niezamknięte zlecenia (`has_active_dependents`, EVM-041 AC2): status inny niż „Rozliczone” i „Anulowane”, bez zleceń usuniętych. Odpowiedź ma `openWorkOrders` — samą liczbę, bez numerów, tytułów i identyfikatorów zleceń (widzi ją wyłącznie Administrator). Albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`) albo klient jest już zanonimizowany (`already_anonymized` — drugi obiekt w rejestrze usunięć nie powstaje).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "DeletionRegisterUnavailable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "deletion_register_unavailable",
+              "status": 503,
+              "title": "The deletion register is unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/deletion_register_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Rejestr usunięć jest niedostępny (`deletion_register_unavailable`; EVM-040 AC3, SR-PRIV-04): obiekt rejestru nie został zapisany (brak konfiguracji, odmowa magazynu, brak odpowiedzi w terminie, zbyt wiele równoległych zapisów), więc redakcja nie startuje, a treść wpisu pozostaje nienaruszona. Widzi ją wyłącznie Administrator po ponownym uwierzytelnieniu; odpowiedź nie zawiera szczegółów magazynu. Bezpiecznie ponowić później. Przy oczekiwaniu na blokadę wpisu dłuższym niż limit odpowiedź to `503 service_unavailable` z `Retry-After` (jak w `TimelineBusy`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `service_unavailable`).",
             "schema": {
               "maximum": 3600,
               "minimum": 1,
@@ -419,6 +573,83 @@
           }
         },
         "description": "Drugi krok nie powiódł się: klucz dostępu odrzucony (`passkey_failed`), kod z aplikacji odrzucony (`totp_failed`) albo kod odzyskiwania odrzucony (`recovery_code_failed`) — można ponowić z tym samym `loginToken`, ale piąta nieudana próba kończy próbę logowania (trzeba wpisać hasło od nowa); czas na drugi krok minął (`login_expired`) albo brak ważnego pierwszego kroku (`unauthenticated` — także dla cudzego, zużytego i nieznanego `loginToken`: jedna odpowiedź)."
+      },
+      "MediaConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "id_conflict",
+              "status": 409,
+              "title": "Identifier already in use",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/id_conflict"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Identyfikator zajęty (`id_conflict` — także medium lub sesja innego zlecenia i innego użytkownika, bez żadnych danych istniejącego zasobu), plik w stanie niedopuszczającym operacji (`invalid_state_transition` — np. nowa sesja dla pliku, który nie jest `failed` z przyczyną `checksum_mismatch`; wygasła lub zakończona sesja) albo żądanie z tym samym kluczem idempotencji w toku (`idempotency_in_progress`, z `Retry-After`).",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "MediaStorageUnavailable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "media_storage_unavailable",
+              "status": 503,
+              "title": "Media storage is unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/media_storage_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Magazyn plików albo skaner nie jest skonfigurowany lub nie odpowiada (`media_storage_unavailable`; fail-closed, P5). Usługa pozostaje zdrowa; odpowiedź nie zawiera nazwy bucketu, adresu ani szczegółów magazynu.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia.",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "MediaUnprocessable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "upload_incomplete",
+              "errors": [
+                {
+                  "code": "size_mismatch",
+                  "pointer": ""
+                }
+              ],
+              "status": 422,
+              "title": "The uploaded parts do not make up the declared file",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/upload_incomplete"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Wysłane części nie składają się w zadeklarowany plik (`upload_incomplete`; `errors[]` ma wskaźnik i kod `size_mismatch` albo `parts_missing`, bez wartości) ten sam klucz idempotencji z inną treścią (`idempotency_mismatch`) albo przekroczony limit niedokończonych mediów (`limit_exceeded`, EVM-049: 200 na użytkownika i 500 na zlecenie; `errors[]` bez wartości)."
       },
       "MfaAlreadyConfigured": {
         "content": {
@@ -1423,6 +1654,33 @@
         },
         "description": "Operacja wymaga ponownego uwierzytelnienia (`step_up_required`): ostatnie uwierzytelnienie kluczem dostępu w tej sesji było 15 minut temu lub wcześniej albo go nie było (sesja z hasła, aktywacji lub kodu odzyskiwania). Zwracane dopiero po kontroli kanału i roli — rola bez prawa do operacji dostaje `forbidden`."
       },
+      "TimelineBusy": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "service_unavailable",
+              "status": 503,
+              "title": "Service unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/service_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Operacja na wpisie nie doczekała się blokady wiersza (`service_unavailable`; EVM-040, RR-NOC-T2-4): inna operacja na tym samym wpisie (np. redakcja czekająca na rejestr usunięć) trzyma go dłużej niż limit oczekiwania. Nic nie zostało zmienione; bezpiecznie ponowić po `Retry-After` (po odświeżeniu dziennika). Odpowiedź nie zawiera treści ani danych wpisu.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia.",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "TimelineConflict": {
         "content": {
           "application/problem+json": {
@@ -1439,6 +1697,33 @@
           }
         },
         "description": "Identyfikator zajęty (`id_conflict` — bez danych istniejącego wpisu), poprawiany wpis ma już poprawkę (`entry_superseded` — także przy wyścigu dwóch poprawek) albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie zawiera treści ani danych wpisu.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "TimelineEraseConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "already_redacted",
+              "status": 409,
+              "title": "The entry text is already redacted",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/already_redacted"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Usunięcie, przywrócenie albo redakcja nie jest możliwa (EVM-040): wpis jest zdarzeniem automatycznym (`entry_is_event` — zdarzenia nie zawierają danych osobowych i nie są usuwane ani redagowane), treść wpisu została już zredagowana (`already_redacted` — drugi obiekt w rejestrze usunięć nie powstaje) albo żądanie z tym samym kluczem idempotencji jest w toku (`idempotency_in_progress`, z `Retry-After`). Odpowiedź nie zawiera treści ani danych wpisu.",
         "headers": {
           "Retry-After": {
             "description": "Liczba sekund do ponowienia (tylko `idempotency_in_progress`).",
@@ -1686,7 +1971,7 @@
             "example": {
               "code": "has_active_dependents",
               "status": 409,
-              "title": "The work order has active dependents",
+              "title": "The resource has active dependents",
               "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
               "type": "/problems/has_active_dependents"
             },
@@ -2010,6 +2295,9 @@
           "bulk_read.rejected",
           "customer.created",
           "customer.updated",
+          "customer.deleted",
+          "customer.restored",
+          "customer.anonymized",
           "site.created",
           "site.updated",
           "party.created",
@@ -2032,6 +2320,9 @@
           "procedure_stage.deleted",
           "procedure_stage.restored",
           "timeline_entry.created",
+          "timeline_entry.deleted",
+          "timeline_entry.restored",
+          "timeline_entry.redacted",
           "payment_milestone.created",
           "payment_milestone.amount_changed",
           "payment_milestone.cancelled",
@@ -2043,7 +2334,12 @@
           "payment_milestone.payment_undone",
           "payment_milestone.restored",
           "payment_milestone.amount_corrected",
-          "payment_milestone.deleted"
+          "payment_milestone.deleted",
+          "media_asset.created",
+          "media_file.quarantined",
+          "media_file.rescan_requested",
+          "media_file.rescanned",
+          "media_file.quarantine_purged"
         ],
         "type": "string"
       },
@@ -2113,7 +2409,7 @@
             ]
           },
           "fromCode": {
-            "description": "Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057: korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-027: `user.role_changed` — kod roli przed zmianą); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze razem z `toCode`.",
+            "description": "Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057: korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-049: `media_file.rescanned` — `quarantined`; EVM-027: `user.role_changed` — kod roli przed zmianą); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze razem z `toCode`.",
             "oneOf": [
               {
                 "maxLength": 40,
@@ -2177,7 +2473,7 @@
             ]
           },
           "toCode": {
-            "description": "Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027); `null` (albo brak pola) razem z `fromCode`.",
+            "description": "Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049); `null` (albo brak pola) razem z `fromCode`.",
             "oneOf": [
               {
                 "maxLength": 40,
@@ -2247,7 +2543,8 @@
           "procedure",
           "procedure_stage",
           "timeline_entry",
-          "payment_milestone"
+          "payment_milestone",
+          "media_asset"
         ],
         "type": "string"
       },
@@ -2617,6 +2914,24 @@
         ],
         "type": "object"
       },
+      "CreateMediaAssetsRequest": {
+        "additionalProperties": false,
+        "description": "Partia mediów jednego zlecenia (najwyżej 50). Serwer tworzy po jednym medium i pliku w stanie `pending_upload` w jednej transakcji.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaAssetCreateItem"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "CreateNoteMutation": {
         "additionalProperties": false,
         "properties": {
@@ -2899,6 +3214,22 @@
         ],
         "type": "object"
       },
+      "CreateUploadSessionRequest": {
+        "additionalProperties": false,
+        "description": "Sesja uploadu medium. `id` (UUIDv7) nadaje klient; ponowienie z tym samym `id` i kluczem zwraca tę samą sesję.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
       "CreateWorkOrderRequest": {
         "description": "Nowe zlecenie. `id` (UUIDv7) nadaje klient; `customerId`, `siteId` i `templateId` są wymagane — `templateId: null` oznacza puste zlecenie bez pozycji zakresu (brak pola to `400 required`). `title` jest opcjonalny (domyślnie nazwa szablonu albo „Nowe zlecenie”), `assigneeUserId` (opiekun) — domyślnie zalogowany użytkownik; musi to być aktywny użytkownik, w innym wypadku `400` z kodem `assignee_unavailable` (jeden kod dla konta nieistniejącego, dezaktywowanego i usuniętego). `plannedDate` to data z zakresu 2000-01-01 … 2100-12-31 (`out_of_range`). Pola swobodne to zwykły tekst (NFC, przycięty).",
         "properties": {
@@ -3034,6 +3365,20 @@
       "Customer": {
         "description": "Klient (osoba albo firma). Wejście: `id` (UUIDv7 nadany przez klienta), `kind` i pola właściwe dla rodzaju — osoba: `firstName`, `lastName`; firma: `companyName`, opcjonalnie `taxId` (NIP) i `contactPersonName`; wspólne: `phone` (wymagany), `email`, `postalAddress`, `notes`. Reguły zależne od `kind` sprawdza serwer (`required`, `not_allowed_for_kind` w `errors[]`). Pola `readOnly` ustawia wyłącznie serwer.",
         "properties": {
+          "anonymizedAt": {
+            "description": "Znacznik anonimizacji (EVM-041) albo `null`. Klient zanonimizowany ma wartości neutralne („Klient zanonimizowany”), jego dane nie wracają (edycja — `409 customer_anonymized`). Ustawia serwer.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
           "companyName": {
             "maxLength": 200,
             "type": "string"
@@ -3056,11 +3401,18 @@
             "type": "string"
           },
           "deletedAt": {
-            "description": "Znacznik usunięcia (soft delete). Ustawia serwer; nie jest zwracany.",
-            "format": "date-time",
-            "maxLength": 40,
-            "readOnly": true,
-            "type": "string"
+            "description": "Znacznik usunięcia (soft delete, EVM-041) albo `null` dla klienta, który nie jest usunięty. Niepusty tylko w odpowiedzi dla Administratora (Edytor i Tylko odczyt nie widzą usuniętego klienta). Ustawia serwer.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
           },
           "deletedBy": {
             "description": "Ustawia serwer; nie jest zwracany.",
@@ -3155,14 +3507,20 @@
           "displayName",
           "version",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "deletedAt",
+          "anonymizedAt"
         ],
         "type": "object"
       },
       "CustomerCard": {
         "additionalProperties": false,
-        "description": "Karta „Klient” (DO-K) — nazwa wyświetlana, telefon (E.164) i e-mail (`null`, gdy brak). Bez NIP, adresu i notatek.",
+        "description": "Karta „Klient” (DO-K) — nazwa wyświetlana, telefon (E.164) i e-mail (`null`, gdy brak). Bez NIP, adresu i notatek. Dla klienta zanonimizowanego (EVM-041) `anonymized` jest `true`, a `phone` to stała neutralna (nie numer) — panel pokazuje „—” i stan „Klient zanonimizowany”, bez linku `tel:`.",
         "properties": {
+          "anonymized": {
+            "description": "Klient został zanonimizowany (EVM-041); telefon i e-mail nie są danymi kontaktowymi.",
+            "type": "boolean"
+          },
           "displayName": {
             "maxLength": 401,
             "type": "string"
@@ -3187,7 +3545,8 @@
         "required": [
           "displayName",
           "phone",
-          "email"
+          "email",
+          "anonymized"
         ],
         "type": "object"
       },
@@ -3404,6 +3763,10 @@
             "maxLength": 512,
             "pattern": "^[A-Za-z0-9_-]+$",
             "type": "string"
+          },
+          "deleted": {
+            "description": "Widok „Usunięci” (EVM-041): `true` — wyłącznie klienci usunięci (tylko Administrator; Edytor i Tylko odczyt — `403 forbidden` przed walidacją kursora); brak albo `false` — wyłącznie nieusunięci, także dla Administratora. Filtr jest związany z kursorem.",
+            "type": "boolean"
           },
           "limit": {
             "default": 25,
@@ -3882,6 +4245,327 @@
         "required": [
           "loginToken",
           "code"
+        ],
+        "type": "object"
+      },
+      "MediaAsset": {
+        "additionalProperties": false,
+        "description": "Medium zlecenia ze stanem jego pliku. `stateReasonCode` jest ustawiony WYŁĄCZNIE dla `failed` z przyczyną `checksum_mismatch` („Nie wysłano — plik uszkodzony w transmisji”, „Ponów”). Kwarantanna (EVM-049): `quarantine` jest `null`, gdy plik nie jest w kwarantannie; w przeciwnym razie ma stan `held` (plik zatrzymany — `needsAttention: true`, znacznik „Wymaga uwagi”) albo `purged` (obiekt usunięty po 30 dniach — kafel „Plik usunięty po 30 dniach kwarantanny”, bez akcji). Przyczyna kwarantanny (`quarantineReasonCode`: `malware_detected`, `type_mismatch`) jest zwracana WYŁĄCZNIE Administratorowi i tylko dla `held` (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pole w ogóle nie występuje (nie `null`), w żadnej odpowiedzi. `originalFilename` (dane osobowe możliwe — panel wyświetla jako tekst) i `uploadSession` występują tylko na liście z `uploadState=unfinished`; poza nią są `null`. Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
+        "properties": {
+          "capturedAt": {
+            "description": "Czas wykonania zdjęcia (UTC) albo `null`.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "category": {
+            "$ref": "#/components/schemas/MediaCategory"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "declaredSize": {
+            "description": "Rozmiar zadeklarowany przy dodaniu (bajty).",
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "description": "Opis medium (do 1000 znaków, zwykły tekst) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileState": {
+            "$ref": "#/components/schemas/MediaFileState"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "mediaType": {
+            "enum": [
+              "photo",
+              "video"
+            ],
+            "type": "string"
+          },
+          "needsAttention": {
+            "description": "`true` dla pliku zatrzymanego w kwarantannie (`quarantine.state` = `held`) — znacznik „Wymaga uwagi”; bez przyczyny.",
+            "type": "boolean"
+          },
+          "origin": {
+            "enum": [
+              "web",
+              "mobile"
+            ],
+            "type": "string"
+          },
+          "originalFilename": {
+            "description": "Oczyszczona nazwa pliku (tylko `uploadState=unfinished`) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quarantine": {
+            "description": "Stan kwarantanny pliku albo `null`, gdy plik nie jest w kwarantannie.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MediaQuarantine"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quarantineReasonCode": {
+            "description": "Przyczyna kwarantanny — TYLKO Administrator (polityka `mediaQuarantine.manage`) i tylko dla `quarantine.state` = `held`. Dla Edytora i Tylko odczyt pola nie ma w odpowiedzi. Klient toleruje wartość nieznaną i pokazuje wtedy etykietę ogólną.",
+            "enum": [
+              "malware_detected",
+              "type_mismatch"
+            ],
+            "type": "string"
+          },
+          "stateReasonCode": {
+            "description": "Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.",
+            "oneOf": [
+              {
+                "enum": [
+                  "checksum_mismatch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "uploadSession": {
+            "description": "Aktywna sesja uploadu wołającego (tylko `uploadState=unfinished`) albo `null`.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UploadSessionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workOrderId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workOrderId",
+          "mediaType",
+          "category",
+          "description",
+          "origin",
+          "capturedAt",
+          "createdAt",
+          "fileState",
+          "stateReasonCode",
+          "needsAttention",
+          "quarantine",
+          "declaredSize",
+          "originalFilename",
+          "uploadSession"
+        ],
+        "type": "object"
+      },
+      "MediaAssetBatch": {
+        "additionalProperties": false,
+        "description": "Utworzone media w kolejności żądania.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaAsset"
+            },
+            "maxItems": 50,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "MediaAssetCreateItem": {
+        "additionalProperties": false,
+        "description": "Jedno medium w żądaniu. Pola serwera (`workOrderId`, `mediaType`, `origin`, `fileState`, `createdAt`, klucz obiektu, `sha256` obliczony) są odrzucane (`400 read_only_field`), nieznane — `400 unknown_field`. Typ i rozmiar sprawdza serwer: format spoza JPEG, PNG, WebP i HEIC (SVG, HTML, archiwa) albo rozmiar spoza 1 bajt … 50 MB to `400 validation_failed` (`/items/N/contentType` albo `/items/N/declaredSize`).",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/MediaCategory"
+          },
+          "contentType": {
+            "description": "Zadeklarowany typ (informacja; serwer ustawia typ obiektu z listy dozwolonych i wykrywa go z zawartości).",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "declaredSize": {
+            "description": "Rozmiar pliku w bajtach (1 … 52 428 800).",
+            "maximum": 52428800,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "description": "Opis (do 1000 znaków, zwykły tekst); pominięty = brak.",
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "fileName": {
+            "description": "Nazwa pliku z urządzenia — serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.",
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "fileName",
+          "declaredSize",
+          "contentType",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "MediaAssetList": {
+        "additionalProperties": false,
+        "description": "Strona mediów zlecenia (`createdAt` malejąco, potem `id`). Bez `uploadState` — wszystkie media; z `uploadState=unfinished` — tylko media z aktywną, niewygasłą sesją uploadu WOŁAJĄCEGO; z `needsAttention=true` — tylko pliki zatrzymane w kwarantannie (`held`). `nextCursor` jest `null` na ostatniej stronie. `needsAttentionCount` to liczba plików `held` w zleceniu (te same reguły widoczności co lista, niezależnie od filtra i strony) — liczba z filtra „Wymaga uwagi (n)”.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MediaAsset"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "needsAttentionCount": {
+            "description": "Liczba plików zlecenia w kwarantannie `held` (znacznik „Wymaga uwagi (n)”).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "nextCursor": {
+            "description": "Kursor następnej strony (wartość nieprzezroczysta) albo `null`.",
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "needsAttentionCount"
+        ],
+        "type": "object"
+      },
+      "MediaCategory": {
+        "description": "Kategoria medium (zamknięta lista; klient obsługuje też wartość nieznaną): `site_survey` (Oględziny), `before_work` (Przed pracami), `in_progress` (W trakcie prac), `completed_work` (Po pracach), `defect` (Usterka), `measurement` (Pomiary), `other` (Inne).",
+        "enum": [
+          "site_survey",
+          "before_work",
+          "in_progress",
+          "completed_work",
+          "defect",
+          "measurement",
+          "other"
+        ],
+        "type": "string"
+      },
+      "MediaFileState": {
+        "description": "Stan pliku (ADR-0009; zamknięta lista, klient MUSI tolerować wartość nieznaną): `pending_upload` (czeka na wysłanie), `uploaded` i `scanning` (W panelu „Sprawdzanie pliku”), `clean`, `processing`, `ready`, `quarantined` („Wymaga uwagi”) i `failed`. Plik w stanie innym niż `clean` i `ready` nie jest dostępny dla nikogo.",
+        "enum": [
+          "pending_upload",
+          "uploaded",
+          "scanning",
+          "clean",
+          "processing",
+          "ready",
+          "quarantined",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "MediaQuarantine": {
+        "additionalProperties": false,
+        "description": "Kwarantanna pliku (EVM-049; P4, P5). `held` — plik zatrzymany przez skan, niedostępny dla nikogo; Administrator może zlecić ponowny skan do `expiresAt`. `purged` — obiekt usunięty ze storage'u po 30 dniach od PIERWSZEGO wejścia w kwarantannę (`purgedAt`); wiersz metadanych zostaje. `expiresAt` to początek dnia (strefa `Europe/Warsaw`) po 30 dniach kalendarzowych od pierwszego wejścia; ponowny skan z wynikiem pozytywnym tego terminu nie przesuwa.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "purgedAt": {
+            "description": "Kiedy usunięto obiekt albo `null` dla `held`.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "description": "Stan kwarantanny (klient toleruje wartość nieznaną).",
+            "enum": [
+              "held",
+              "purged"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "expiresAt",
+          "purgedAt"
         ],
         "type": "object"
       },
@@ -5198,6 +5882,12 @@
           "minSupportedVersion": {
             "$ref": "#/components/schemas/MinSupportedAppVersion",
             "description": "Tylko `426 client_version_unsupported` (EVM-090) - minimalna wspierana wersja aplikacji per platforma."
+          },
+          "openWorkOrders": {
+            "description": "Tylko `409 has_active_dependents` przy usunięciu albo anonimizacji klienta (EVM-041, odpowiedź dla Administratora): liczba niezamkniętych zleceń klienta (status inny niż „Rozliczone” i „Anulowane”, bez zleceń usuniętych). Sama liczba — nigdy numer, tytuł ani identyfikator zlecenia.",
+            "maximum": 100000,
+            "minimum": 1,
+            "type": "integer"
           },
           "status": {
             "maximum": 599,
@@ -8110,7 +8800,7 @@
       },
       "TimelineEntry": {
         "additionalProperties": false,
-        "description": "Wpis dziennika zlecenia. `createdAt` nadaje serwer i według niego (nie według UUIDv7 od klienta) wpisy są uporządkowane. `body` jest `null` dla zdarzeń (`event`). Wpis poprawiony zostaje w dzienniku: `supersededByEntryId` wskazuje poprawkę (panel zwija taki wpis i pokazuje „Pokaż treść”), a poprawka wskazuje poprzednika w `supersedesEntryId`. `redactedAt` jest ustawione, gdy treść zastąpiono znacznikiem (EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.",
+        "description": "Wpis dziennika zlecenia. `createdAt` nadaje serwer i według niego (nie według UUIDv7 od klienta) wpisy są uporządkowane. `body` jest `null` dla zdarzeń (`event`). Wpis poprawiony zostaje w dzienniku: `supersededByEntryId` wskazuje poprawkę (panel zwija taki wpis i pokazuje „Pokaż treść”), a poprawka wskazuje poprzednika w `supersedesEntryId`. `redactedAt` jest ustawione, gdy treść zastąpiono znacznikiem (EVM-040), a `deletedAt` — gdy wpis usunięto (soft delete, EVM-040). Treść jest tekstem — panel nie interpretuje w niej znaczników.",
         "properties": {
           "author": {
             "description": "Autor wpisu albo `null` (zdarzenie zapisane przez serwer).",
@@ -8153,6 +8843,19 @@
             "format": "date-time",
             "maxLength": 40,
             "type": "string"
+          },
+          "deletedAt": {
+            "description": "Chwila usunięcia wpisu (EVM-040) albo `null`. Usunięty wpis widzi tylko Administrator (`includeDeleted=true` albo odczyt po `id`); dla pozostałych ról wpis usunięty nie istnieje. Zdarzenia automatyczne nie są usuwane — dla nich zawsze `null`.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "event": {
             "description": "Dane zdarzenia (`kind = event`; EVM-038) albo `null` dla wpisu i komentarza.",
@@ -8266,6 +8969,7 @@
           "supersedesEntryId",
           "supersededByEntryId",
           "redactedAt",
+          "deletedAt",
           "event"
         ],
         "type": "object"
@@ -8349,7 +9053,7 @@
       },
       "TimelineEvent": {
         "additionalProperties": false,
-        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
+        "description": "Zdarzenie automatyczne (`kind = event`; EVM-038) — kod i dane strukturalne, bez treści: tekst panel składa sam, w formie bezosobowej. `code` to jeden z `work_order_created`, `work_order_status_changed`, `stage_status_changed`, `stage_waiting_on_changed`, `stage_updated`, `work_order_fields_changed`, `scope_item_added`, `scope_item_updated`, `scope_item_removed` (EVM-035), `procedure_added`, `procedure_removed`, `procedure_restored`, `stage_added`, `stage_removed`, `stage_restored` (EVM-042: kod procesu w `procedureCodes`, bez nazw; nazwę usuniętego etapu daje `procedureStageName` wpisu), `payment_milestone_status_changed` (EVM-054 — zmiana statusu transzy, także skutek anulowania zlecenia; bez kwoty, numeru faktury i powodu), `payment_milestone_deleted` (EVM-057 — usunięcie transzy korektą Administratora; bez kwoty, numeru faktury i nazwy), `media_assets_added` (EVM-044 — do zlecenia dodano partię zdjęć w jednym wpisie; odczyt nie niesie liczby, identyfikatorów ani nazw plików, a zdarzenie nie ma statusu ani etapu; etykieta panelu: „Dodano zdjęcia”) — lista rośnie z E6 i E7, klient pokazuje nieznany kod neutralnym tekstem; zapis, którego serwer nie potrafi odczytać, ma kod `unknown_event` i puste pola. `fromStatus` / `toStatus` to kody statusów zlecenia, etapu albo transzy (`null`, gdy zdarzenie nie dotyczy statusu); `waitingOn` i `waitingOnParty` — na kogo czekamy (`null` poza zdarzeniami „Czekamy na…”); `changedFields` — nazwy zmienionych pól etapu (etapu: `responsibleUserId`, `dueDate`; zlecenia: `title`, `description`, `plannedDate`, `coordinator`; pozycji: `parameters`, `notes`; wartości NIE są zapisane). Etap zdarzenia to `procedureStageId` / `procedureStageName` wpisu.",
         "properties": {
           "changedFields": {
             "items": {
@@ -8909,6 +9613,151 @@
         },
         "required": [
           "displayName"
+        ],
+        "type": "object"
+      },
+      "UploadPart": {
+        "additionalProperties": false,
+        "description": "Część potwierdzona w storage'u (odczyt `ListParts` po stronie serwera).",
+        "properties": {
+          "partNumber": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "size": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partNumber",
+          "size"
+        ],
+        "type": "object"
+      },
+      "UploadPartList": {
+        "additionalProperties": false,
+        "description": "Części już wysłane — wysyłanie wznawia się od pierwszej brakującej.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UploadPart"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "UploadPartUrl": {
+        "additionalProperties": false,
+        "description": "Podpisany adres jednego `PUT` części: związany z kluczem obiektu, numerem i dokładnym rozmiarem części (`contentLength`), ważny 60 minut. Adres jest sekretem krótkotrwałym — panel trzyma go tylko w pamięci i nie zapisuje w logach. `Cache-Control: no-store`.",
+        "properties": {
+          "contentLength": {
+            "description": "Dokładny rozmiar części w bajtach — nagłówek `Content-Length` `PUT`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt",
+          "contentLength"
+        ],
+        "type": "object"
+      },
+      "UploadSession": {
+        "additionalProperties": false,
+        "description": "Sesja uploadu. Plik jest dzielony na części o stałym rozmiarze `partSize` (ostatnia mniejsza); `partCount` części, każda wysyłana osobnym `PUT` na adres z `getUploadPartUrl`. Sesję może kontynuować wyłącznie jej twórca (użytkownik i urządzenie) — inny użytkownik dostaje `404`.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "mediaAssetId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "partCount": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "partSize": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "description": "Stan sesji (klient toleruje wartość nieznaną).",
+            "enum": [
+              "active",
+              "completed",
+              "aborted",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mediaAssetId",
+          "state",
+          "partSize",
+          "partCount",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "UploadSessionRef": {
+        "additionalProperties": false,
+        "description": "Aktywna, niewygasła sesja uploadu wołającego — pozwala wznowić wysyłanie po ponownym wyborze pliku.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "partCount": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "partSize": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "expiresAt",
+          "partSize",
+          "partCount"
         ],
         "type": "object"
       },
@@ -12375,7 +13224,7 @@
     },
     "/api/v1/customers": {
       "get": {
-        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Porządek stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id` — bez parametru sortowania. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu, nie w odsiewaniu strony. `limit` 1–100 (domyślnie 25); zły `limit`, nieznany parametr (`400 unknown_parameter`) albo powtórzony (`400 duplicate_parameter`) — `400`. Paginacja kursorem nieprzezroczystym bez danych (sama pozycja identyfikatora, bez licznika wyników): zmieniony, wygasły albo wydany komu innemu — `400 invalid_cursor`. Frazy wyszukiwania nie ma w adresie (SR-API-04): do tego służy `searchCustomers`. Masowy odczyt (P10): rekordy wliczają się do progu 2000 w 10 minut (alert) i 10 000 (`429 rate_limited` z `Retry-After`), a 301. różny klient odczytany w ciągu godziny (lista, wyszukiwanie, szczegóły, karta klienta zlecenia) wywołuje alert bezpieczeństwa.",
+        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Porządek stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id` — bez parametru sortowania. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu, nie w odsiewaniu strony; widok „Usunięci” (EVM-041) to `deleted=true` — wyłącznie klienci usunięci, tylko dla Administratora (Edytor i Tylko odczyt — `403 forbidden`, przed walidacją kursora; filtr jest związany z kursorem, więc kursor widoku „Usunięci” nie otwiera się bez `deleted=true` ani dla innej roli); brak parametru albo `deleted=false` — wyłącznie nieusunięci, także dla Administratora. `limit` 1–100 (domyślnie 25); zły `limit`, nieznany parametr (`400 unknown_parameter`) albo powtórzony (`400 duplicate_parameter`) — `400`. Paginacja kursorem nieprzezroczystym bez danych (sama pozycja identyfikatora, bez licznika wyników): zmieniony, wygasły albo wydany komu innemu — `400 invalid_cursor`. Frazy wyszukiwania nie ma w adresie (SR-API-04): do tego służy `searchCustomers`. Masowy odczyt (P10): rekordy wliczają się do progu 2000 w 10 minut (alert) i 10 000 (`429 rate_limited` z `Retry-After`), a 301. różny klient odczytany w ciągu godziny (lista, wyszukiwanie, szczegóły, karta klienta zlecenia) wywołuje alert bezpieczeństwa.",
         "operationId": "listCustomers",
         "parameters": [
           {
@@ -12399,6 +13248,15 @@
               "maxLength": 512,
               "pattern": "^[A-Za-z0-9_-]+$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Widok „Usunięci” (tylko Administrator) - `true` to wyłącznie klienci usunięci, brak albo `false` to wyłącznie nieusunięci.",
+            "in": "query",
+            "name": "deleted",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -12544,7 +13402,7 @@
     },
     "/api/v1/customers/search": {
       "post": {
-        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza zawiera dane osobowe i nie może trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga `Idempotency-Key`. Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje klienta z Łodzi). Wyszukiwanie obejmuje imię, nazwisko, nazwę firmy, NIP, telefon (same cyfry), e-mail i miasto; w wyniku są `id`, `kind`, `displayName`, `sortName`, `phone` i `email` (nigdy NIP, adres, notatki ani tekst wyszukiwania). Paginacja (EVM-039): opcjonalne `limit` (1–100, domyślnie 25) i `cursor` w treści — kursor jest związany z frazą i użytkownikiem i nie zawiera żadnych danych (sama pozycja identyfikatora); zmieniony, wygasły, cudzy albo użyty z inną frazą — `400 invalid_cursor`. Porządek stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id`. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do progu masowego odczytu (P10) i do licznika różnych klientów (alert przy 301. różnym kliencie w ciągu godziny). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.",
+        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. To `POST`, bo fraza zawiera dane osobowe i nie może trafić do adresu URL, logów dostępu ani historii przeglądarki (SR-API-04); wymaga `X-CSRF-Token`, nie wymaga `Idempotency-Key`. Wielkość liter i polskie znaki nie mają znaczenia („Lodz” znajduje klienta z Łodzi). Wyszukiwanie obejmuje imię, nazwisko, nazwę firmy, NIP, telefon (same cyfry), e-mail i miasto; w wyniku są `id`, `kind`, `displayName`, `sortName`, `phone` i `email` (nigdy NIP, adres, notatki ani tekst wyszukiwania). Paginacja (EVM-039): opcjonalne `limit` (1–100, domyślnie 25) i `cursor` w treści — kursor jest związany z frazą i użytkownikiem i nie zawiera żadnych danych (sama pozycja identyfikatora); zmieniony, wygasły, cudzy albo użyty z inną frazą — `400 invalid_cursor`. Porządek stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id`. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu; pole `deleted: true` (EVM-041) to widok „Usunięci” — tylko Administrator (inne role — `403 forbidden` przed walidacją kursora), filtr jest związany z kursorem, a wyszukiwanie w tym widoku wlicza się do progu masowego odczytu tak jak zwykłe. Limit 60 wyszukiwań na minutę na użytkownika (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do progu masowego odczytu (P10) i do licznika różnych klientów (alert przy 301. różnym kliencie w ciągu godziny). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.",
         "operationId": "searchCustomers",
         "requestBody": {
           "content": {
@@ -12604,8 +13462,83 @@
       }
     },
     "/api/v1/customers/{customerId}": {
+      "delete": {
+        "description": "Ukrycie klienta dodanego przez pomyłkę (EVM-041 AC1, AC2, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03, SR-DATA-08). Soft delete: klient znika dla Edytora i Tylko odczyt (`404`, lista, wyszukiwanie, dane osadzone w zleceniach — „Klient usunięty”); wiersz zostaje i można go przywrócić (`restoreCustomer`). Dozwolone tylko bez niezamkniętych zleceń (status inny niż „Rozliczone” i „Anulowane”; zlecenia usunięte nie blokują): inaczej `409 has_active_dependents` z `openWorkOrders` (liczba). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404`, `If-Match` i sprawdzeniem stanu; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem (`customer.deleted` — aktor, identyfikator klienta, wynik, `traceId`, prefiks IP; bez żadnej wartości danych). Wymaga `X-CSRF-Token`, `If-Match` (silny ETag `\"<version>\"`: brak — `428`, zniekształcony lub `*` — `400`, nieaktualna wersja — `412 version_conflict`) i `Idempotency-Key` (UUIDv7, opcjonalny; panel wysyła go zawsze). Kolejność (jedna transakcja, decyzje na wierszu klienta zablokowanym `SELECT … FOR UPDATE`): guard, ścieżka i klucz (`400`), klient (`404` — nieistniejący i usunięty to jedna odpowiedź), powtórka idempotentna (zapisany `204`, przed regułą zależności), zależności (`409`; zlecenia liczy osobne zapytanie po zdobyciu blokady, więc zlecenie zatwierdzone przed blokadą jest widoczne), `If-Match` (`412`), zapis `version + 1`, `deleted_at`, `deleted_by`, audyt i rekord idempotencji. Równoległe utworzenie zlecenia klienta jest szeregowane z usunięciem (blokada `FOR KEY SHARE` przy tworzeniu zlecenia): zlecenie utworzone pierwsze blokuje usunięcie (`409`), usunięcie pierwsze — tworzenie dostaje `404`/`422` jak dla nieistniejącego klienta. Klucz idempotencji jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta. Brak rozstrzygnięcia reguły zależności (błąd modułu zleceń) — `500` bez zapisu (fail closed). Oczekiwanie na blokadę dłuższe niż limit — `503 service_unavailable`.",
+        "operationId": "deleteCustomer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Klient usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key` i klientem.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/CustomerHasActiveDependents"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/CustomerBusy"
+          }
+        },
+        "summary": "Usunięcie klienta (soft delete, tylko Administrator)",
+        "tags": [
+          "customers"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": false
+        }
+      },
       "get": {
-        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web` (sesja mobilna — `403 forbidden`: kanał poza polityką), bez audytu odczytu. Odpowiedź ma `ETag` (`\"<version>\"`) i komplet danych klienta (telefon, e-mail, adres korespondencyjny, notatki; bez tekstu wyszukiwania, klucza sortowania i znaczników usunięcia). Klient jest rozwiązywany przez politykę odczytu w zapytaniu: nieistniejący i usunięty (soft delete — także dla Administratora; podgląd usuniętych to EVM-041) dają tę samą odpowiedź `404 not_found`. Zły format `customerId` — `400 validation_failed`. Odczyt wlicza się do progu masowego odczytu (rekordy: 10 000 w 10 minut → `429 rate_limited` z `Retry-After`) i do licznika różnych klientów (P10). Każda odpowiedź ma `Cache-Control: no-store`.",
+        "description": "Role Administrator, Edytor i Tylko odczyt, kanał `web` (sesja mobilna — `403 forbidden`: kanał poza polityką), bez audytu odczytu. Odpowiedź ma `ETag` (`\"<version>\"`) i komplet danych klienta (telefon, e-mail, adres korespondencyjny, notatki; bez tekstu wyszukiwania i klucza sortowania; `deletedAt` i `anonymizedAt` — `null` albo znacznik). Klient jest rozwiązywany przez politykę odczytu w zapytaniu: nieistniejący i usunięty (soft delete) dają tę samą odpowiedź `404 not_found` dla Edytora i Tylko odczyt; Administrator widzi klienta usuniętego (`deletedAt` niepuste — EVM-041, W-14). Zły format `customerId` — `400 validation_failed`. Odczyt wlicza się do progu masowego odczytu (rekordy: 10 000 w 10 minut → `429 rate_limited` z `Retry-After`) i do licznika różnych klientów (P10). Każda odpowiedź ma `Cache-Control: no-store`.",
         "operationId": "getCustomer",
         "parameters": [
           {
@@ -12665,7 +13598,7 @@
         }
       },
       "patch": {
-        "description": "Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`), kanał `web`, z audytem (`customer.updated` — aktor, identyfikator klienta, wynik i `traceId`; bez wartości pól). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`) — niezależnie od istnienia klienta; nieaktualna wersja — `412 version_conflict` (odpowiedź nie zawiera bieżących wartości; klient pobiera klienta ponownie). Treść to `CustomerPatch`: pole spoza schematu — `400 unknown_field`, pole kontrolowane przez serwer — `400 read_only_field`, błąd reguły (jak przy dodaniu: telefon E.164, e-mail, NIP, pola zależne od rodzaju) — `400` z `errors[]` (wskaźnik i kod, nigdy wartość). Kolejność: guard (rola, CSRF, kanał), `If-Match` i treść (kształt), blokada wiersza `SELECT … FOR UPDATE` z polityką odczytu w zapytaniu (nieistniejący i usunięty klient — `404 not_found`, także z nieaktualnym `If-Match`), powtórka idempotentna, wersja (`412`), reguły domeny (`400`), zapis `version + 1`, audyt i rekord idempotencji w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta: ten sam klucz z tą samą treścią dla innego klienta — `422 idempotency_mismatch`. Powtórka (ten sam klucz, klient i treść) — `200` z bieżącą reprezentacją odczytaną z polityką odczytu (usunięty w międzyczasie — `404`) i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`.",
+        "description": "Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed walidacją, `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`), kanał `web`, z audytem (`customer.updated` — aktor, identyfikator klienta, wynik i `traceId`; bez wartości pól). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak — `428 precondition_required`; słaby (`W/`), lista, `*` albo zniekształcony — `400 validation_failed` (`/headers/If-Match`) — niezależnie od istnienia klienta; nieaktualna wersja — `412 version_conflict` (odpowiedź nie zawiera bieżących wartości; klient pobiera klienta ponownie). Treść to `CustomerPatch`: pole spoza schematu — `400 unknown_field`, pole kontrolowane przez serwer — `400 read_only_field`, błąd reguły (jak przy dodaniu: telefon E.164, e-mail, NIP, pola zależne od rodzaju) — `400` z `errors[]` (wskaźnik i kod, nigdy wartość). Kolejność: guard (rola, CSRF, kanał), `If-Match` i treść (kształt), blokada wiersza `SELECT … FOR UPDATE` z polityką odczytu w zapytaniu (nieistniejący i usunięty klient — `404 not_found`, także z nieaktualnym `If-Match`), powtórka idempotentna, wersja (`412`), reguły domeny (`400`), zapis `version + 1`, audyt i rekord idempotencji w jednej transakcji; błąd cofa całość. Idempotencja (api-guidelines.md → Idempotencja): `Idempotency-Key` (UUIDv7) jest opcjonalny, panel wysyła go zawsze. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta: ten sam klucz z tą samą treścią dla innego klienta — `422 idempotency_mismatch`. Powtórka (ten sam klucz, klient i treść) — `200` z bieżącą reprezentacją odczytaną z polityką odczytu (usunięty w międzyczasie — `404`) i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu, także gdy `If-Match` jest już nieaktualny. Klient zanonimizowany (EVM-041) — `409 customer_anonymized` (po blokadzie wiersza i powtórce idempotentnej, przed wersją). Odpowiedź `200` ma nowy `ETag`.",
         "operationId": "updateCustomer",
         "parameters": [
           {
@@ -12746,6 +13679,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/CustomerAnonymizedConflict"
+          },
           "412": {
             "$ref": "#/components/responses/PreconditionFailed"
           },
@@ -12778,6 +13714,173 @@
             "administrator",
             "editor"
           ]
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}/anonymize": {
+      "post": {
+        "description": "Nieodwracalne zastąpienie danych klienta wartościami neutralnymi „Klient zanonimizowany” z zachowaniem powiązań ze zleceniami (EVM-041 AC2, AC4, AC5, AC6, AC7; SR-DATA-08, SR-SESS-08, SR-PRIV-04, SR-LOG-03, SR-AUTHZ-05). Imię i nazwisko (osoba) albo nazwa firmy mają wartość „Klient zanonimizowany”; NIP, osoba kontaktowa, e-mail, adres i notatki są puste; telefon to stała neutralna `+48000000000` (nie numer) — panel pokazuje wtedy „—”. Tekst wyszukiwania jest przeliczany: stare dane nie są znajdowane (także w wyszukiwaniu zleceń). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem dostępu w ciągu ostatnich 15 minut (`403 step_up_required` przed jakimkolwiek odczytem, zapisem i liczeniem zleceń; rola przed step-upem — Edytor i Tylko odczyt dostają `403 forbidden`), z audytem (`customer.anonymized` — aktor, identyfikator klienta, wynik `success` albo `failed`, `traceId`; bez wartości). Wymaga `If-Match` (`428` / `400` / `412`). Bez `Idempotency-Key`: powtórka to `409 already_anonymized` (bez drugiego obiektu w rejestrze). Dostępne także dla klienta usuniętego. Kolejność (jedna transakcja, wiersz klienta `SELECT … FOR UPDATE`): klient (`404` — także usunięty, dla Administratora jest widoczny), już zanonimizowany (`409 already_anonymized` — przed `If-Match`, więc powtórka po utracie odpowiedzi nie jest `412`), `If-Match` (`428` / `400` / `412`), niezamknięte zlecenia (`409 has_active_dependents` z `openWorkOrders`), POTEM zapis obiektu do rejestru usunięć (identyfikator klienta, kod operacji `customer_anonymized`, czas, aktor — bez żadnej wartości), dopiero potem zmiana w bazie. Rejestr niedostępny (brak konfiguracji, odmowa, brak odpowiedzi w terminie) — `503 deletion_register_unavailable`, dane i wersja bez zmian, audyt z wynikiem `failed`, usługa pozostaje zdrowa. Odpowiedź `200` ma nowy `ETag`.",
+        "operationId": "anonymizeCustomer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            },
+            "description": "Klient zanonimizowany.",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/CustomerHasActiveDependents"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/DeletionRegisterUnavailable"
+          }
+        },
+        "summary": "Anonimizacja klienta (tylko Administrator, ze step-upem)",
+        "tags": [
+          "customers"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}/restore": {
+      "post": {
+        "description": "Przywrócenie klienta usuniętego przez `deleteCustomer` (EVM-041 AC3, AC6, AC7; SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03): klient znów jest widoczny dla wszystkich ról. Klient zanonimizowany też da się przywrócić (zostaje zanonimizowany). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404` i `If-Match`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem (`customer.restored` — aktor, identyfikator, wynik, `traceId`; bez wartości). Wymaga `X-CSRF-Token`, `If-Match` (`428` / `400` / `412 version_conflict`) i `Idempotency-Key` (opcjonalny). Klient nieusunięty albo nieistniejący — `404` (tak samo; `If-Match` nie jest wtedy czytany), chyba że to powtórka z kluczem. Powtórka (ten sam klucz i klient) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, także gdy `If-Match` jest nieaktualny. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki i klientem. Odpowiedź `200` ma nowy `ETag`.",
+        "operationId": "restoreCustomer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Customer"
+                }
+              }
+            },
+            "description": "Klient po przywróceniu (albo powtórka — wtedy nagłówek `Idempotent-Replayed: true`).",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key` i klientem.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyInProgress"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "422": {
+            "$ref": "#/components/responses/IdempotencyMismatch"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/CustomerBusy"
+          }
+        },
+        "summary": "Przywrócenie usuniętego klienta (tylko Administrator)",
+        "tags": [
+          "customers"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": false
         }
       }
     },
@@ -15394,6 +16497,625 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/media-assets": {
+      "get": {
+        "description": "Lista „Media i dokumenty” W-09 (EVM-044 AC1, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05, SR-API-02). Role Administrator, Edytor i Tylko odczyt (bez audytu odczytu), kanał `web`. Zlecenie jest rozwiązywane najpierw polityką odczytu w zapytaniu: nieistniejące i usunięte — `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1–100 (domyślnie 25); jedno zapytanie ze stanami plików. Filtr `uploadState=unfinished` zwraca WYŁĄCZNIE niedokończone wysyłania wołającego: media z aktywną, niewygasłą (`expiresAt` w przyszłości) sesją uploadu wołającego (twórca: użytkownik i urządzenie) ORAZ media wołającego, których plik wciąż jest w `pending_upload`, a aktywnej sesji brak (przerwana partia: sesja wygasła, została przerwana albo nigdy nie powstała — baner liczy całą partię i nie powstają duplikaty). Tylko te media niosą `originalFilename`, a `uploadSession` jest w nich `null`, gdy sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Filtr `needsAttention=true` (EVM-049 AC6) zwraca tylko pliki w kwarantannie `held`; `false` — wszystkie; inna wartość — `400 validation_failed`. `needsAttentionCount` liczy pliki `held` zlecenia tymi samymi regułami widoczności. Przyczyna kwarantanny (`quarantineReasonCode`) wraca WYŁĄCZNIE Administratorowi (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pola nie ma. Kursor jest związany z filtrem i wariantem polityki — z innym filtrem `400 invalid_cursor`. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.",
+        "operationId": "listMediaAssets",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "description": "`true` — tylko pliki w kwarantannie (`held`), „Wymaga uwagi”.",
+            "in": "query",
+            "name": "needsAttention",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "`unfinished` — tylko niedokończone wysyłania wołającego.",
+            "in": "query",
+            "name": "uploadState",
+            "required": false,
+            "schema": {
+              "enum": [
+                "unfinished"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) — wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetList"
+                }
+              }
+            },
+            "description": "Strona mediów (pusta lista to pusta tablica `items` i `nextCursor` równy `null`)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zlecenie — media ze stanem pliku (kursor); niedokończone wysyłania wołającego",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "restrictedParams": {
+            "mediaQuarantine.manage": {
+              "fields": [
+                "quarantineReasonCode"
+              ],
+              "params": {}
+            }
+          },
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      },
+      "post": {
+        "description": "Utworzenie medium i rekordu pliku w stanie `pending_upload` dla każdej pozycji (EVM-044 AC1, AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed treścią; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`media_asset.created` per medium — aktor, identyfikator, wynik, `traceId`; bez nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera — `read_only_field`; format spoza JPEG/PNG/WebP/HEIC lub rozmiar spoza 1 B … 50 MB — `400` ze wskaźnikiem `/items/N/…`), powtórka idempotentna, zlecenie zamknięte PRZYJMUJE media („nic nie ginie”), zapis wszystkich pozycji (istniejące `id` — także medium innego zlecenia lub użytkownika — `409 id_conflict` bez danych istniejącego), jedno zdarzenie dziennika zlecenia (`media_assets_added`: liczba i identyfikatory, najwyżej 50), audyt, rekord idempotencji. Brak konfiguracji magazynu — `503 media_storage_unavailable` (usługa zdrowa). Klucz obiektu nadaje serwer (`media/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Klucz idempotencji jest związany z użytkownikiem, metodą, szablonem ścieżki i zleceniem.",
+        "operationId": "createMediaAssets",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMediaAssetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetBatch"
+                }
+              }
+            },
+            "description": "Media utworzone (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejszy zapis (ten sam klucz, zlecenie i treść).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Dodanie partii medium do zlecenia („Wyślij N plików”)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan": {
+      "post": {
+        "description": "Zlecenie ponownego skanu pliku `held` (EVM-049 AC3, AC4, AC8; P5; SR-SESS-08, SR-AUTHZ-05, SR-ERR-01) — JEDYNA operacja zmieniająca stan pliku w kwarantannie (nie ma zwolnienia ani ominięcia skanu). Rola Administrator, kanał `web`, `stepUp: true`. Kolejność odpowiedzi: `401` → `403 forbidden` dla Edytora i Tylko odczyt (bez odczytu stanu; nigdy `step_up_required`) → `403 step_up_required` dla Administratora ze starym uwierzytelnieniem → `404` (zlecenie nieistniejące lub usunięte, medium innego zlecenia niż w ścieżce) → `409 invalid_state_transition` (stan inny niż `quarantined` — w tym `scanning`, `purged` i po terminie 30 dni). Wymaga `X-CSRF-Token` i `Idempotency-Key`; bez `If-Match` (zmiana warunkowa po stanie pliku). Plik przechodzi do `scanning` (przyczyna jest czyszczona); worker wykonuje PEŁNY skan jak za pierwszym razem (suma kontrolna, typ po zawartości, ClamAV). Wynik czysty wraca do przepływu, pozytywny zostawia w kwarantannie bez nowego e-maila i alertu; termin 30 dni liczy się od pierwszego wejścia. Audyt: `media_file.rescan_requested` (Administrator) w tej samej transakcji, potem `media_file.rescanned` (system, wynik). Odpowiedź `202` — medium w stanie `scanning`.",
+        "operationId": "rescanMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAsset"
+                }
+              }
+            },
+            "description": "Ponowny skan zlecony (albo powtórka wcześniejszego zlecenia, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejsze zlecenie (ten sam klucz i medium).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Ponowny skan pliku w kwarantannie (Administrator, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions": {
+      "post": {
+        "description": "Sesja uploadu medium (EVM-044 AC1, AC4, AC5, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`. Łańcuch zlecenie → medium → plik sprawdzany jednym zapytaniem (`404` dla medium innego zlecenia). Sesję otwiera wyłącznie twórca medium albo Administrator (inny Edytor — `404`, jak dla medium innego zlecenia). Dozwolone tylko dla pliku w `pending_upload` (nowa sesja) albo `failed` z przyczyną `checksum_mismatch` („Ponów” — plik wraca do `pending_upload`, klucz obiektu ten sam, poprzednia wersja obiektu zostaje w bucketcie z wersjonowaniem); każdy inny stan — `409 invalid_state_transition`. Istniejąca aktywna sesja WOŁAJĄCEGO jest zwracana ponownie (wznowienie po ponownym wyborze pliku, `200`); aktywna sesja innego użytkownika (Administrator na medium z cudzą sesją) — `409 id_conflict` bez szczegółów. Powtórka tego samego żądania (ten sam `Idempotency-Key`), gdy utworzona wtedy sesja została przerwana albo wygasła — `409 invalid_state_transition` (klient otwiera nową sesję z nowym kluczem i identyfikatorem), nigdy `201` z sesją nieużyteczną. Serwer dzieli plik na części (stały rozmiar 16 MiB, ostatnia mniejsza, najwyżej 1000), wystawia `CreateMultipartUpload` z typem z listy dozwolonych i zapisuje sesję ważną 7 dni. Limit aktywnych sesji użytkownika — `429` z `Retry-After`. Brak konfiguracji magazynu — `503 media_storage_unavailable`.",
+        "operationId": "createUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSession"
+                }
+              }
+            },
+            "description": "Istniejąca aktywna sesja wołającego (wznowienie)."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadSession"
+                }
+              }
+            },
+            "description": "Sesja utworzona (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Sesja uploadu medium (wieloczęściowy upload do prywatnego storage'u)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/abort": {
+      "post": {
+        "description": "Przerwanie aktywnej sesji (EVM-044 AC6, AC7). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). „Wstrzymaj” w panelu NIE wywołuje tej operacji (wstrzymanie zachowuje potwierdzone części). Idempotentne: przerwana sesja daje `204`; zakończona (`completed`) — `409 invalid_state_transition`. Niezłożony upload w storage'u jest przerywany; plik pozostaje w `pending_upload` i może dostać nową sesję.",
+        "operationId": "abortUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sesja przerwana."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Przerwanie sesji uploadu (porzucenie niewysłanego pliku)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/complete": {
+      "post": {
+        "description": "Zakończenie sesji (EVM-044 AC1, AC5, AC6, AC7; SR-FILE-02, SR-CRYPTO-05). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). Serwer czyta części ze storage'u (nie ufa ETagom klienta): liczba = `partCount`, każda poza ostatnią = `partSize`, suma = `declaredSize` (inaczej `422 upload_incomplete`, `size_mismatch` albo `parts_missing`), składa obiekt i sprawdza `HEAD` (rozmiar = `declaredSize`). Plik przechodzi do `uploaded` (panel: „Sprawdzanie pliku”) i czeka na skan; skan, SHA-256 i typ z zawartości wykonuje worker. Powtórka po złożeniu obiektu jest idempotentna (`200` z bieżącym stanem). Odpowiedź — medium z aktualnym stanem pliku.",
+        "operationId": "completeUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAsset"
+                }
+              }
+            },
+            "description": "Medium ze stanem pliku po zakończeniu wysyłania."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Zakończenie wysyłania — złożenie obiektu i weryfikacja rozmiaru",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts": {
+      "get": {
+        "description": "Części już wysłane (`ListParts` po stronie serwera) — wysyłanie wznawia się od pierwszej brakującej (EVM-044 AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego medium lub zlecenia, nieistniejąca — jedna odpowiedź `404`). Sesja zakończona lub wygasła — `409 invalid_state_transition`. `Cache-Control: no-store`.",
+        "operationId": "listUploadParts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartList"
+                }
+              }
+            },
+            "description": "Części potwierdzone w storage'u."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Części sesji uploadu potwierdzone w storage'u",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts/{partNumber}/url": {
+      "get": {
+        "description": "Podpisany `PUT` jednej części (EVM-044 AC6, AC7; SR-FILE-02, SR-WEB-04). Role Administrator i Edytor (Tylko odczyt — `403`), kanał `web`; tylko twórca sesji (`404` dla pozostałych). Adres jest związany z kluczem obiektu, identyfikatorem uploadu, numerem części i dokładnym `Content-Length` części obliczonym przez serwer z planu sesji, ważny 60 minut. Numer spoza `1 … partCount` — `400`. Odpowiedź ma `Cache-Control: no-store`; adres nie jest logowany. Panel wysyła `PUT` z `credentials: 'omit'` i zapamiętuje `ETag` tylko informacyjnie (`complete` czyta części ze storage'u).",
+        "operationId": "getUploadPartUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/PartNumberParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres części.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres wysłania jednej części",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/payment-milestones": {
       "get": {
         "description": "Sekcja „Płatności” W-06 (EVM-053 AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, P6). Transze zlecenia w kolejności `position` (najwyżej 20 — `LIMIT 20` w zapytaniu) i sumy `totals` z tego samego odczytu: `unpaid` — kwoty transz `invoiced`, `paid` — kwoty transz `paid` (`planned` i `cancelled` nie wchodzą do sum). Zlecenie jest rozwiązywane najpierw, polityką odczytu w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`; zły format `workOrderId` — `400`. Zlecenie bez transz (bez planu płatności w szablonie albo założone przed EVM-053) to pusta tablica `items` i sumy zero. Role Administrator, Edytor i Tylko odczyt (P6), kanał `web` (token mobilny — `403 channel_not_allowed`; płatności nie trafiają na telefon — P3), bez audytu odczytu. Nazwa transzy to tekst — panel wyświetla ją bez interpretacji znaczników. `Cache-Control: no-store`.",
@@ -17308,7 +19030,7 @@
     },
     "/api/v1/work-orders/{workOrderId}/timeline": {
       "get": {
-        "description": "Oś czasu „Dziennik” W-06 / W-08 (EVM-037 AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, SR-API-02, SR-API-04). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`; telefon dostanie dziennik z synchronizacją, M2), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Wpisy zlecenia w kolejności `createdAt` serwera malejąco, potem `id` malejąco; wpisy usunięte nie występują (warunek w zapytaniu, nie w odsiewaniu strony). Filtry łączą się przez AND: `kind` (`note` albo `comment`) i `procedureStageId` (UUID etapu; etap innego zlecenia albo nieistniejący daje pustą listę — filtr nie jest sprawdzeniem istnienia). `limit` 1–100 (domyślnie 25), zły `limit` albo `kind` spoza listy — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami lub dla innego zlecenia — `400 invalid_cursor`. Pozycja ma autora jako `{id, displayName}` i nazwę etapu (nazwy ze wsadowych zapytań, stała liczba zapytań na stronę), `supersededByEntryId` i `redactedAt`. Treść wpisu może zawierać dane osobowe — panel wyświetla ją jako tekst. `Cache-Control: no-store`.",
+        "description": "Oś czasu „Dziennik” W-06 / W-08 (EVM-037 AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-DATA-03, SR-API-02, SR-API-04). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`; telefon dostanie dziennik z synchronizacją, M2), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw, przez politykę odczytu w zapytaniu: nieistniejące i usunięte (także dla Administratora) — jedna odpowiedź `404 not_found`. Wpisy zlecenia w kolejności `createdAt` serwera malejąco, potem `id` malejąco; wpisy usunięte nie występują (warunek w zapytaniu, nie w odsiewaniu strony) — poza `includeDeleted=true` Administratora (EVM-040), który widzi je z `deletedAt`. Filtry łączą się przez AND: `kind` (`note` albo `comment`) i `procedureStageId` (UUID etapu; etap innego zlecenia albo nieistniejący daje pustą listę — filtr nie jest sprawdzeniem istnienia). `limit` 1–100 (domyślnie 25), zły `limit` albo `kind` spoza listy — `400 validation_failed`; nieznany parametr — `400 unknown_parameter`, powtórzony — `400 duplicate_parameter`. Paginacja kursorem nieprzezroczystym (`nextCursor`; bez licznika wyników): zmieniony, wygasły (30 minut), wydany komu innemu albo użyty z innymi filtrami lub dla innego zlecenia — `400 invalid_cursor`. Pozycja ma autora jako `{id, displayName}` i nazwę etapu (nazwy ze wsadowych zapytań, stała liczba zapytań na stronę), `supersededByEntryId` i `redactedAt`. Treść wpisu może zawierać dane osobowe — panel wyświetla ją jako tekst. `Cache-Control: no-store`.",
         "operationId": "listTimelineEntries",
         "parameters": [
           {
@@ -17330,6 +19052,16 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/TimelineEventGroup"
+            }
+          },
+          {
+            "description": "Pokaż także wpisy usunięte (EVM-040 AC1) — wyłącznie Administrator; Edytor i Tylko odczyt z `includeDeleted=true` dostają `403 forbidden` (parametr nie jest po cichu ignorowany). Kursor jest związany z tym filtrem.",
+            "in": "query",
+            "name": "includeDeleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
             }
           },
           {
@@ -17513,8 +19245,82 @@
       }
     },
     "/api/v1/work-orders/{workOrderId}/timeline/{entryId}": {
+      "delete": {
+        "description": "Ukrycie wpisu — soft delete, odwracalne przez `restoreTimelineEntry` (EVM-040 AC1, AC4, AC5, AC6; SR-PRIV-03, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Tylko Administrator (Edytor i Tylko odczyt — `403 forbidden` przed `If-Match` i sprawdzeniem istnienia; niezalogowany — `401`; token mobilny — odmowa kanału), kanał `web`, z audytem (`timeline_entry.deleted` — aktor, identyfikator wpisu, wynik i `traceId`; bez treści). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"` wpisu z `getTimelineEntry`): brak — `428 precondition_required`, zniekształcony — `400`, nieaktualna wersja — `412 version_conflict`. Kolejność: zlecenie (polityka odczytu, `404`), powtórka idempotentna, wpis tego zlecenia (`id AND work_order_id AND deleted_at is null` — wpis innego zlecenia, nieistniejący i już usunięty to jedna odpowiedź `404`, przed `If-Match`), zdarzenie automatyczne (`409 entry_is_event`), `If-Match` (`428` / `400`), wersja (`412`). Po usunięciu wpis znika z dziennika Edytora i Tylko odczyt (lista, odczyt po `id` — `404`), Administrator widzi go z `deletedAt`. Wersja wpisu rośnie o jeden. Powtórka z tym samym `Idempotency-Key` — `204` z `Idempotent-Replayed: true`.",
+        "operationId": "deleteTimelineEntry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/TimelineEntryIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wpis usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).",
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key`, wpisem i zleceniem.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/TimelineEraseConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/TimelineBusy"
+          }
+        },
+        "summary": "Usunięcie wpisu z dziennika (tylko Administrator)",
+        "tags": [
+          "timeline"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      },
       "get": {
-        "description": "Pojedynczy wpis dziennika (EVM-037 AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. Wpis jest wyszukiwany warunkiem `id = {entryId} AND work_order_id = {workOrderId}` w jednym zapytaniu: wpis innego zlecenia, nieistniejący, usunięty oraz wpis zlecenia nieistniejącego albo usuniętego (także dla Administratora) to jedna odpowiedź `404 not_found`. `Cache-Control: no-store`.",
+        "description": "Pojedynczy wpis dziennika (EVM-037 AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-05). Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu. Wpis jest wyszukiwany warunkiem `id = {entryId} AND work_order_id = {workOrderId}` w jednym zapytaniu: wpis innego zlecenia, nieistniejący, usunięty (dla Edytora i Tylko odczyt) oraz wpis zlecenia nieistniejącego albo usuniętego (także dla Administratora) to jedna odpowiedź `404 not_found`. Administrator czyta także wpis usunięty (EVM-040 AC1) — z `deletedAt`. Odpowiedź `200` ma `ETag` wpisu (`\"<version>\"`) — wersję do `If-Match` usunięcia, przywrócenia i redakcji. `Cache-Control: no-store`.",
         "operationId": "getTimelineEntry",
         "parameters": [
           {
@@ -17533,7 +19339,16 @@
                 }
               }
             },
-            "description": "Wpis dziennika."
+            "description": "Wpis dziennika.",
+            "headers": {
+              "ETag": {
+                "description": "Wersja wpisu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/ValidationFailed"
@@ -17563,6 +19378,175 @@
             "administrator",
             "editor",
             "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/timeline/{entryId}/redact": {
+      "post": {
+        "description": "Trwałe zastąpienie treści wpisu znacznikiem „Treść usunięta przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw) — wyjątek od zasady tylko do dopisywania, niecofalny (EVM-040 AC2, AC3, AC4, AC5, AC6; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-AUTHZ-02, SR-AUTHZ-05, SR-API-07, SR-LOG-03, SR-DATA-08). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem dostępu w ciągu ostatnich 15 minut (`403 step_up_required`; rola przed step-upem — Edytor i Tylko odczyt dostają `403 forbidden`), z audytem (`timeline_entry.redacted` — aktor, identyfikator wpisu, wynik `success` albo `failed`, `traceId`; bez treści). Wymaga `If-Match` (silny ETag wpisu): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412 version_conflict`. Kolejność: zlecenie (`404`), wpis tego zlecenia (`id AND work_order_id`, także usunięty — dane osobowe usuniętego wpisu nadal są w bazie; wpis innego zlecenia i nieistniejący to jedna odpowiedź `404`) zablokowany `FOR NO KEY UPDATE`, zdarzenie automatyczne (`409 entry_is_event`), `If-Match` (`428` / `400`), wersja (`412`), treść już zredagowana (`409 already_redacted`), POTEM zapis obiektu do rejestru usunięć (identyfikator wpisu, kod operacji, czas, aktor — bez treści), dopiero potem zmiana w bazie. Rejestr niedostępny — `503 deletion_register_unavailable`, treść i wersja bez zmian. Wersja wpisu rośnie o jeden; metadane (autor, czas, rodzaj, kategoria, etap, powiązanie z poprawką) i miejsce wpisu na osi czasu zostają. Odpowiedź `200` ma `ETag` wpisu i `redactedAt`; zredagowany wpis można usunąć i przywrócić.",
+        "operationId": "redactTimelineEntry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/TimelineEntryIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEntry"
+                }
+              }
+            },
+            "description": "Wpis ze zredagowaną treścią.",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja wpisu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/TimelineEraseConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/DeletionRegisterUnavailable"
+          }
+        },
+        "summary": "Redakcja treści wpisu (tylko Administrator, ze step-upem)",
+        "tags": [
+          "timeline"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/timeline/{entryId}/restore": {
+      "post": {
+        "description": "Przywrócenie wpisu usuniętego przez `deleteTimelineEntry` (EVM-040 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-07, SR-LOG-03). Tylko Administrator, kanał `web`, bez uwierzytelnienia kluczem dostępu (cofnięcie ukrycia jest tak samo odwracalne jak ukrycie), z audytem (`timeline_entry.restored` — osobna akcja, bez treści). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag usuniętego wpisu z `getTimelineEntry`): brak — `428`, zniekształcony — `400`, nieaktualna wersja — `412`. Wpis jest wyszukiwany warunkiem `id AND work_order_id AND deleted_at is not null`: wpis innego zlecenia, nieistniejący i nieusunięty to jedna odpowiedź `404`, przed `If-Match`. Przywrócony wpis wraca na swoje miejsce na osi czasu (kolejność wg `createdAt`). Odpowiedź `200` ma `ETag` wpisu. Powtórka z tym samym `Idempotency-Key` — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`.",
+        "operationId": "restoreTimelineEntry",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/TimelineEntryIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimelineEntry"
+                }
+              }
+            },
+            "description": "Wpis przywrócony (albo powtórka wcześniejszego przywrócenia — wtedy nagłówek `Idempotent-Replayed: true`).",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja wpisu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true` przy powtórce żądania z tym samym `Idempotency-Key`, wpisem i zleceniem.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/TimelineEraseConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/TimelineBusy"
+          }
+        },
+        "summary": "Przywrócenie usuniętego wpisu (tylko Administrator)",
+        "tags": [
+          "timeline"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
           ]
         }
       }
@@ -17774,6 +19758,10 @@
     {
       "description": "Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).",
       "name": "timeline"
+    },
+    {
+      "description": "Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).",
+      "name": "media"
     },
     {
       "description": "Urządzenia mobilne — potwierdzenie wyczyszczenia danych (moduł identity; kanał mobile).",

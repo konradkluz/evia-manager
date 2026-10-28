@@ -12,7 +12,7 @@ customersSearch:
       (nigdy NIP, adres, notatki ani tekst wyszukiwania). Paginacja (EVM-039): opcjonalne `limit` (1–100, domyślnie 25) i `cursor` w
       treści — kursor jest związany z frazą i użytkownikiem i nie zawiera żadnych danych (sama pozycja identyfikatora); zmieniony,
       wygasły, cudzy albo użyty z inną frazą — `400 invalid_cursor`. Porządek stały: klucz sortowania w kolacji ICU `pl-PL`
-      (nazwisko przed imieniem, „Ł” po „L”), potem `id`. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu. Limit 60 wyszukiwań na minutę na użytkownika
+      (nazwisko przed imieniem, „Ł” po „L”), potem `id`. Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu; pole `deleted: true` (EVM-041) to widok „Usunięci” — tylko Administrator (inne role — `403 forbidden` przed walidacją kursora), filtr jest związany z kursorem, a wyszukiwanie w tym widoku wlicza się do progu masowego odczytu tak jak zwykłe. Limit 60 wyszukiwań na minutę na użytkownika
       (`429 rate_limited` z `Retry-After`; liczy się każde wyszukiwanie, także odrzucone przez walidację); wyniki wliczają się do progu
       masowego odczytu (P10) i do licznika różnych klientów (alert przy 301. różnym kliencie w ciągu godziny). Fraza krótsza niż 3 znaki po normalizacji — `400 validation_failed`, kod `too_short`.
     x-evia-authz:
@@ -52,7 +52,10 @@ customers:
     description: >-
       Role Administrator, Edytor i Tylko odczyt, kanał `web`, bez audytu odczytu (masowy odczyt pilnuje licznik poniżej). Porządek
       stały: klucz sortowania w kolacji ICU `pl-PL` (nazwisko przed imieniem, „Ł” po „L”), potem `id` — bez parametru sortowania.
-      Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu, nie w odsiewaniu strony. `limit` 1–100 (domyślnie 25);
+      Klienci usunięci (soft delete) nie występują — warunek jest w zapytaniu, nie w odsiewaniu strony; widok „Usunięci” (EVM-041)
+      to `deleted=true` — wyłącznie klienci usunięci, tylko dla Administratora (Edytor i Tylko odczyt — `403 forbidden`, przed
+      walidacją kursora; filtr jest związany z kursorem, więc kursor widoku „Usunięci” nie otwiera się bez `deleted=true` ani dla innej
+      roli); brak parametru albo `deleted=false` — wyłącznie nieusunięci, także dla Administratora. `limit` 1–100 (domyślnie 25);
       zły `limit`, nieznany parametr (`400 unknown_parameter`) albo powtórzony (`400 duplicate_parameter`) — `400`. Paginacja kursorem
       nieprzezroczystym bez danych (sama pozycja identyfikatora, bez licznika wyników): zmieniony, wygasły albo wydany komu innemu —
       `400 invalid_cursor`. Frazy wyszukiwania nie ma w adresie (SR-API-04): do tego służy `searchCustomers`. Masowy odczyt (P10):
@@ -80,6 +83,12 @@ customers:
           type: string
           maxLength: 512
           pattern: '^[A-Za-z0-9_-]+$'
+      - name: deleted
+        in: query
+        required: false
+        description: Widok „Usunięci” (tylko Administrator) - `true` to wyłącznie klienci usunięci, brak albo `false` to wyłącznie nieusunięci.
+        schema:
+          type: boolean
     responses:
       '200':
         description: Strona klientów (pusta lista to pusta tablica `items` i `nextCursor` równy `null`).
@@ -183,9 +192,9 @@ customer:
     description: >-
       Role Administrator, Edytor i Tylko odczyt, kanał `web` (sesja mobilna — `403 forbidden`: kanał poza polityką), bez audytu odczytu.
       Odpowiedź ma `ETag` (`"<version>"`) i komplet danych klienta (telefon, e-mail, adres korespondencyjny, notatki; bez tekstu
-      wyszukiwania, klucza sortowania i znaczników usunięcia). Klient jest rozwiązywany przez politykę odczytu w zapytaniu:
-      nieistniejący i usunięty (soft delete — także dla Administratora; podgląd usuniętych to EVM-041) dają tę samą odpowiedź
-      `404 not_found`. Zły format `customerId` — `400 validation_failed`. Odczyt wlicza się do progu masowego odczytu (rekordy: 10 000
+      wyszukiwania i klucza sortowania; `deletedAt` i `anonymizedAt` — `null` albo znacznik). Klient jest rozwiązywany przez politykę odczytu
+      w zapytaniu: nieistniejący i usunięty (soft delete) dają tę samą odpowiedź `404 not_found` dla Edytora i Tylko odczyt;
+      Administrator widzi klienta usuniętego (`deletedAt` niepuste — EVM-041, W-14). Zły format `customerId` — `400 validation_failed`. Odczyt wlicza się do progu masowego odczytu (rekordy: 10 000
       w 10 minut → `429 rate_limited` z `Retry-After`) i do licznika różnych klientów (P10). Każda odpowiedź ma `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor, read_only]
@@ -235,7 +244,7 @@ customer:
       związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta: ten sam klucz z tą samą treścią dla innego klienta
       — `422 idempotency_mismatch`. Powtórka (ten sam klucz, klient i treść) — `200` z bieżącą reprezentacją odczytaną z polityką
       odczytu (usunięty w międzyczasie — `404`) i `Idempotent-Replayed: true`, bez drugiej zmiany i drugiego zdarzenia audytu, także
-      gdy `If-Match` jest już nieaktualny. Odpowiedź `200` ma nowy `ETag`.
+      gdy `If-Match` jest już nieaktualny. Klient zanonimizowany (EVM-041) — `409 customer_anonymized` (po blokadzie wiersza i powtórce idempotentnej, przed wersją). Odpowiedź `200` ma nowy `ETag`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [web]
@@ -292,6 +301,8 @@ customer:
         $ref: ../components/responses.yaml#/Forbidden
       '404':
         $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/CustomerAnonymizedConflict
       '412':
         $ref: ../components/responses.yaml#/PreconditionFailed
       '413':
@@ -304,3 +315,184 @@ customer:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteCustomer
+    tags: [customers]
+    summary: Usunięcie klienta (soft delete, tylko Administrator)
+    description: >-
+      Ukrycie klienta dodanego przez pomyłkę (EVM-041 AC1, AC2, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03,
+      SR-DATA-08). Soft delete: klient znika dla Edytora i Tylko odczyt (`404`, lista, wyszukiwanie, dane osadzone w zleceniach —
+      „Klient usunięty”); wiersz zostaje i można go przywrócić (`restoreCustomer`). Dozwolone tylko bez niezamkniętych zleceń
+      (status inny niż „Rozliczone” i „Anulowane”; zlecenia usunięte nie blokują): inaczej `409 has_active_dependents` z `openWorkOrders`
+      (liczba). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404`, `If-Match` i sprawdzeniem stanu;
+      niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem (`customer.deleted` — aktor, identyfikator klienta,
+      wynik, `traceId`, prefiks IP; bez żadnej wartości danych). Wymaga `X-CSRF-Token`, `If-Match` (silny ETag `"<version>"`: brak —
+      `428`, zniekształcony lub `*` — `400`, nieaktualna wersja — `412 version_conflict`) i `Idempotency-Key` (UUIDv7, opcjonalny;
+      panel wysyła go zawsze). Kolejność (jedna transakcja, decyzje na wierszu klienta zablokowanym `SELECT … FOR UPDATE`): guard,
+      ścieżka i klucz (`400`), klient (`404` — nieistniejący i usunięty to jedna odpowiedź), powtórka idempotentna (zapisany `204`, przed
+      regułą zależności), zależności (`409`; zlecenia liczy osobne zapytanie po zdobyciu blokady, więc zlecenie zatwierdzone przed blokadą
+      jest widoczne), `If-Match` (`412`), zapis `version + 1`, `deleted_at`, `deleted_by`, audyt i rekord idempotencji. Równoległe
+      utworzenie zlecenia klienta jest szeregowane z usunięciem (blokada `FOR KEY SHARE` przy tworzeniu zlecenia): zlecenie utworzone
+      pierwsze blokuje usunięcie (`409`), usunięcie pierwsze — tworzenie dostaje `404`/`422` jak dla nieistniejącego klienta. Klucz
+      idempotencji jest związany z użytkownikiem, metodą, szablonem ścieżki I identyfikatorem klienta. Brak rozstrzygnięcia reguły
+      zależności (błąd modułu zleceń) — `500` bez zapisu (fail closed). Oczekiwanie na blokadę dłuższe niż limit — `503 service_unavailable`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: false
+      audit: true
+    parameters:
+      - $ref: '#/CustomerIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '204':
+        description: >-
+          Klient usunięty (albo powtórka wcześniejszego usunięcia — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i klientem.'
+            schema:
+              type: string
+              enum: ['true']
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/CustomerHasActiveDependents
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/CustomerBusy
+customerRestore:
+  post:
+    operationId: restoreCustomer
+    tags: [customers]
+    summary: Przywrócenie usuniętego klienta (tylko Administrator)
+    description: >-
+      Przywrócenie klienta usuniętego przez `deleteCustomer` (EVM-041 AC3, AC6, AC7; SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03):
+      klient znów jest widoczny dla wszystkich ról. Klient zanonimizowany też da się przywrócić (zostaje zanonimizowany). Tylko
+      Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404` i `If-Match`; niezalogowany — `401`; token
+      mobilny — `403 channel_not_allowed`), z audytem (`customer.restored` — aktor, identyfikator, wynik, `traceId`; bez wartości).
+      Wymaga `X-CSRF-Token`, `If-Match` (`428` / `400` / `412 version_conflict`) i `Idempotency-Key` (opcjonalny). Klient
+      nieusunięty albo nieistniejący — `404` (tak samo; `If-Match` nie jest wtedy czytany), chyba że to powtórka z kluczem. Powtórka
+      (ten sam klucz i klient) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, także gdy `If-Match` jest nieaktualny.
+      Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki i klientem. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: false
+      audit: true
+    parameters:
+      - $ref: '#/CustomerIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+      - $ref: ./work-orders.yaml#/IdempotencyKeyHeader
+    responses:
+      '200':
+        description: >-
+          Klient po przywróceniu (albo powtórka — wtedy nagłówek `Idempotent-Replayed: true`).
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+          Idempotent-Replayed:
+            description: '`true` przy powtórce żądania z tym samym `Idempotency-Key` i klientem.'
+            schema:
+              type: string
+              enum: ['true']
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/Customer
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/IdempotencyInProgress
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '422':
+        $ref: ../components/responses.yaml#/IdempotencyMismatch
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/CustomerBusy
+customerAnonymize:
+  post:
+    operationId: anonymizeCustomer
+    tags: [customers]
+    summary: Anonimizacja klienta (tylko Administrator, ze step-upem)
+    description: >-
+      Nieodwracalne zastąpienie danych klienta wartościami neutralnymi „Klient zanonimizowany” z zachowaniem powiązań ze zleceniami
+      (EVM-041 AC2, AC4, AC5, AC6, AC7; SR-DATA-08, SR-SESS-08, SR-PRIV-04, SR-LOG-03, SR-AUTHZ-05). Imię i nazwisko (osoba) albo nazwa
+      firmy mają wartość „Klient zanonimizowany”; NIP, osoba kontaktowa, e-mail, adres i notatki są puste; telefon to stała neutralna
+      `+48000000000` (nie numer) — panel pokazuje wtedy „—”. Tekst wyszukiwania jest przeliczany: stare dane nie są znajdowane (także
+      w wyszukiwaniu zleceń). Tylko Administrator, kanał `web`, z `X-CSRF-Token`, z uwierzytelnieniem kluczem dostępu w ciągu ostatnich
+      15 minut (`403 step_up_required` przed jakimkolwiek odczytem, zapisem i liczeniem zleceń; rola przed step-upem — Edytor i Tylko
+      odczyt dostają `403 forbidden`), z audytem (`customer.anonymized` — aktor, identyfikator klienta, wynik `success` albo `failed`,
+      `traceId`; bez wartości). Wymaga `If-Match` (`428` / `400` / `412`). Bez `Idempotency-Key`: powtórka to `409 already_anonymized`
+      (bez drugiego obiektu w rejestrze). Dostępne także dla klienta usuniętego. Kolejność (jedna transakcja, wiersz klienta
+      `SELECT … FOR UPDATE`): klient (`404` — także usunięty, dla Administratora jest widoczny), już zanonimizowany (`409 already_anonymized`
+      — przed `If-Match`, więc powtórka po utracie odpowiedzi nie jest `412`), `If-Match` (`428` / `400` / `412`), niezamknięte zlecenia (`409 has_active_dependents` z `openWorkOrders`), POTEM zapis obiektu do rejestru
+      usunięć (identyfikator klienta, kod operacji `customer_anonymized`, czas, aktor — bez żadnej wartości), dopiero potem zmiana w bazie.
+      Rejestr niedostępny (brak konfiguracji, odmowa, brak odpowiedzi w terminie) — `503 deletion_register_unavailable`, dane i wersja bez
+      zmian, audyt z wynikiem `failed`, usługa pozostaje zdrowa. Odpowiedź `200` ma nowy `ETag`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: '#/CustomerIdParameter'
+      - $ref: ./work-orders.yaml#/IfMatchHeader
+    responses:
+      '200':
+        description: Klient zanonimizowany.
+        headers:
+          ETag:
+            description: Nowa wersja zasobu (`"<version>"`).
+            schema:
+              type: string
+              maxLength: 32
+        content:
+          application/json:
+            schema:
+              $ref: ../components/customers.yaml#/Customer
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/responses.yaml#/CustomerHasActiveDependents
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/responses.yaml#/DeletionRegisterUnavailable

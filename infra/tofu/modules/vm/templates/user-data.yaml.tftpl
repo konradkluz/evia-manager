@@ -93,9 +93,20 @@ write_files:
         "live-restore": true,
         "no-new-privileges": true,
         "userland-proxy": false,
-        "log-driver": "local",
-        "log-opts": { "max-size": "20m", "max-file": "5" }
+        "log-driver": "journald",
+        "log-opts": { "labels": "com.docker.compose.service,com.docker.compose.project" }
       }
+
+  # EVM-085 (security-engineer A13): the local copy of the logs is the journal; the retention follows the policy (7 days, ADR-0013, rodo.md).
+  # The user-data of an existing VM is NOT re-applied (ignore_changes = [user_data]): docs/ops/runbooks/alerty.md "Aktywacja" lists the manual steps.
+  - path: /etc/systemd/journald.conf.d/evia.conf
+    permissions: '0644'
+    content: |
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      SystemMaxUse=1G
+      MaxRetentionSec=7day
 
   - path: /etc/apt/apt.conf.d/20auto-upgrades
     permissions: '0644'

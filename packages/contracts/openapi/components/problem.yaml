@@ -34,6 +34,14 @@ Problem:
         Tylko `409 email_conflict` (EVM-024): identyfikator istniejącego konta widocznego na liście użytkowników, aby W-16 mogło je
         wskazać. Nigdy adres ani nazwa; dla konta usuniętego pole nie występuje.
       maxLength: 36
+    openWorkOrders:
+      type: integer
+      description: >-
+        Tylko `409 has_active_dependents` przy usunięciu albo anonimizacji klienta (EVM-041, odpowiedź dla Administratora): liczba
+        niezamkniętych zleceń klienta (status inny niż „Rozliczone” i „Anulowane”, bez zleceń usuniętych). Sama liczba — nigdy numer,
+        tytuł ani identyfikator zlecenia.
+      minimum: 1
+      maximum: 100000
     minSupportedVersion:
       description: >-
         Tylko `426 client_version_unsupported` (EVM-090) - minimalna wspierana wersja aplikacji per platforma.

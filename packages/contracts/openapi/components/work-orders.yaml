@@ -604,13 +604,19 @@ ScopeItemList:
         $ref: '#/ScopeItem'
 CustomerCard:
   type: object
-  description: Karta „Klient” (DO-K) — nazwa wyświetlana, telefon (E.164) i e-mail (`null`, gdy brak). Bez NIP, adresu i notatek.
-  required: [displayName, phone, email]
+  description: >-
+    Karta „Klient” (DO-K) — nazwa wyświetlana, telefon (E.164) i e-mail (`null`, gdy brak). Bez NIP, adresu i notatek. Dla klienta
+    zanonimizowanego (EVM-041) `anonymized` jest `true`, a `phone` to stała neutralna (nie numer) — panel pokazuje „—” i stan
+    „Klient zanonimizowany”, bez linku `tel:`.
+  required: [displayName, phone, email, anonymized]
   additionalProperties: false
   properties:
     displayName:
       type: string
       maxLength: 401
+    anonymized:
+      type: boolean
+      description: Klient został zanonimizowany (EVM-041); telefon i e-mail nie są danymi kontaktowymi.
     phone:
       type: string
       description: Telefon w formacie E.164.

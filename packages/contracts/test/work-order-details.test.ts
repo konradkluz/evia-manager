@@ -61,9 +61,11 @@ describe('work order detail contract (EVM-018 AC1-AC6; SR-AUTHZ-01, SR-AUTHZ-12,
   });
 
   it('EVM-018 AC5 the customer card has the name, the telephone and the e-mail only; the parties of a site are {id, displayName}', () => {
-    expect(Object.keys(zCustomerCard.shape).sort()).toEqual(['displayName', 'email', 'phone']);
+    expect(Object.keys(zCustomerCard.shape).sort()).toEqual(['anonymized', 'displayName', 'email', 'phone']);
     expect(Object.keys(bundled.components.schemas['SitePartyRef']?.properties ?? {}).sort()).toEqual(['displayName', 'id']);
-    expect(zCustomerCard.safeParse({ displayName: 'Jan Przykładowy', phone: '+48600000001', email: null }).success).toBe(true);
+    expect(zCustomerCard.safeParse({ displayName: 'Jan Przykładowy', phone: '+48600000001', email: null, anonymized: false }).success).toBe(
+      true,
+    );
     expect(zCustomerCard.safeParse({ displayName: 'Jan Przykładowy', phone: '+48600000001' }).success).toBe(false);
   });
 

@@ -82,6 +82,8 @@ describe('migration 0011 — customers (EVM-020 AC1, AC2, AC5, AC7; ADR-0003; ex
       'version',
       'deleted_at',
       'deleted_by',
+      'anonymized_at',
+      'anonymized_by',
     ]);
   });
 
@@ -175,7 +177,12 @@ describe('migration 0011 — customers (EVM-020 AC1, AC2, AC5, AC7; ADR-0003; ex
   it('EVM-020 AC1 the indexes are the key, the partial GIN trigram index on the search text (deleted_at is null) and — since EVM-039 (0017) — the partial index of the list on (sort_name, id); none on the telephone', async () => {
     const { rows } = await sql<{ indexname: string; indexdef: string }>`
       select indexname, indexdef from pg_indexes where schemaname = 'customers' order by indexname`.execute(admin());
-    expect(rows.map((row) => row.indexname)).toEqual(['customers_pkey', 'customers_search_text_trgm_idx', 'customers_sort_name_id_idx']);
+    expect(rows.map((row) => row.indexname)).toEqual([
+      'customers_deleted_sort_name_id_idx',
+      'customers_pkey',
+      'customers_search_text_trgm_idx',
+      'customers_sort_name_id_idx',
+    ]);
     const trigram = rows.find((row) => row.indexname === 'customers_search_text_trgm_idx')?.indexdef ?? '';
     expect(trigram).toMatch(/USING gin \(search_text gin_trgm_ops\) WHERE \(deleted_at IS NULL\)/);
   });

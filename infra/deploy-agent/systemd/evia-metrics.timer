@@ -1,0 +1,11 @@
+# EVM-085 AC2: every minute, started from the end of the previous run.
+[Unit]
+Description=EVia metrics of the deployment channel every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=60s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

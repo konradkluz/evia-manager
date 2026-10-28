@@ -78,3 +78,12 @@ describe('the audit of the mass-read control goes through the one way to open a 
     }
   });
 });
+
+describe('RR-NOC-T2-4 a transaction that waits for the register of deletions cannot hold its lock for ever', () => {
+  it('EVM-040 AC3 the pool ends a session that is idle in a transaction after about ten seconds', async () => {
+    const { logger } = capture();
+    const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger });
+    expect(pool.options).toMatchObject({ idle_in_transaction_session_timeout: 10_000 });
+    await pool.end();
+  });
+});

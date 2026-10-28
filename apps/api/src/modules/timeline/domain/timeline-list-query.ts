@@ -20,12 +20,17 @@ const PAYMENT_EVENT_CODES = [
   'payment_milestone_deleted',
 ] as const satisfies readonly JournalEventCode[];
 
+/** The codes of the media (EVM-044) - the group "Media i dokumenty" has its own story (E6); until then the entry is in no named group. */
+const MEDIA_EVENT_CODES = ['media_assets_added'] as const satisfies readonly JournalEventCode[];
+
 /**
  * The codes of every group of events (a closed list of disjoint groups; the group of E6 comes with its story): "Zmiany statusów" is
  * every code of the order, its stages, data and scope - every code that is not in another group.
  */
 export const EVENT_GROUP_CODES = {
-  status_changes: JOURNAL_EVENT_CODES.filter((code) => !(PAYMENT_EVENT_CODES as readonly string[]).includes(code)),
+  status_changes: JOURNAL_EVENT_CODES.filter(
+    (code) => !(PAYMENT_EVENT_CODES as readonly string[]).includes(code) && !(MEDIA_EVENT_CODES as readonly string[]).includes(code),
+  ),
   payments: PAYMENT_EVENT_CODES,
 } as const satisfies Record<z.infer<typeof zTimelineEventGroup>, readonly JournalEventCode[]>;
 
@@ -34,6 +39,10 @@ export const timelineListQuerySchema = z
     kind: zTimelineEntryInputKind.optional(),
     eventGroup: zTimelineEventGroup.optional(),
     procedureStageId: z.uuid().optional(),
+    includeDeleted: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
     limit: z
       .string()
       .regex(/^[0-9]{1,3}$/)
@@ -55,6 +64,8 @@ export interface TimelineListQuery {
   readonly kind: z.infer<typeof zTimelineEntryInputKind> | undefined;
   readonly eventGroup: z.infer<typeof zTimelineEventGroup> | undefined;
   readonly procedureStageId: string | undefined;
+  /** Also the entries that are soft deleted (EVM-040); the Administrator only - the use case refuses the others. */
+  readonly includeDeleted: boolean;
   readonly limit: number;
   readonly cursor: string | undefined;
 }
@@ -63,6 +74,7 @@ export const resolveTimelineListQuery = timelineListQuerySchema.transform((query
   kind: query.kind,
   eventGroup: query.eventGroup,
   procedureStageId: query.procedureStageId,
+  includeDeleted: query.includeDeleted ?? false,
   limit: query.limit ?? DEFAULT_LIMIT,
   cursor: query.cursor,
 }));
@@ -73,6 +85,8 @@ export const filterPartsOf = (workOrderId: string, query: TimelineListQuery): st
   query.kind ?? '',
   query.eventGroup ?? '',
   query.procedureStageId ?? '',
+  // a cursor of the list with the deleted entries is not valid for the list without them, and the other way round (EVM-040)
+  query.includeDeleted ? 'deleted' : '',
 ];
 
 const position = z.tuple([z.iso.datetime(), z.uuid()]);

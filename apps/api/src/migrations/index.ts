@@ -40,6 +40,13 @@ import * as totpAndRecoveryCodes from './0038_totp_and_recovery_codes.ts';
 import * as userAccessManagement from './0039_user_access_management.ts';
 import * as loginThrottle from './0040_login_throttle.ts';
 import * as account from './0041_account.ts';
+import * as timelineRedaction from './0042_timeline_redaction.ts';
+import * as customerAnonymization from './0043_customer_anonymization.ts';
+import * as customerDeletedIndex from './0044_customer_deleted_index.ts';
+import * as media from './0045_media.ts';
+import * as mediaQuarantine from './0046_media_quarantine.ts';
+import * as emailOutboxSubject from './0047_email_outbox_subject.ts';
+import * as mediaAlerts from './0048_media_alerts.ts';
 import * as mobileDevices from './0050_mobile_devices.ts';
 import * as mobileTokens from './0051_mobile_tokens.ts';
 import * as mobileVocabularies from './0052_mobile_vocabularies.ts';
@@ -85,6 +92,13 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0039_user_access_management': userAccessManagement,
   '0040_login_throttle': loginThrottle,
   '0041_account': account,
+  '0042_timeline_redaction': timelineRedaction,
+  '0043_customer_anonymization': customerAnonymization,
+  '0044_customer_deleted_index': customerDeletedIndex,
+  '0045_media': media,
+  '0046_media_quarantine': mediaQuarantine,
+  '0047_email_outbox_subject': emailOutboxSubject,
+  '0048_media_alerts': mediaAlerts,
   '0050_mobile_devices': mobileDevices,
   '0051_mobile_tokens': mobileTokens,
   '0052_mobile_vocabularies': mobileVocabularies,

@@ -13,7 +13,7 @@
 import type { Principal } from '../../../platform/http/principal.ts';
 import { searchTextMatches } from '../../../platform/database/search-text.ts';
 import type { CustomerKind } from '../domain/customer.ts';
-import { visibleCustomers } from './read-policy.ts';
+import { deletedCustomers, visibleCustomers } from './read-policy.ts';
 import type { CustomersDb } from './tables.ts';
 
 export interface CustomerListRow {
@@ -28,6 +28,8 @@ export interface CustomerListRow {
 export interface CustomerPageRequest {
   /** the normalised search phrase; absent for the list */
   readonly term: string | undefined;
+  /** The view "Usunięci" (the Administrator's, decided by the service): only the deleted customers; otherwise only the live ones. */
+  readonly deleted: boolean;
   readonly limit: number;
   /** where the page starts: the sort key and the id of the last customer of the previous page */
   readonly after: { readonly sortName: string; readonly id: string } | undefined;
@@ -44,7 +46,7 @@ export function readCustomerPage(db: CustomersDb, principal: Principal, request:
   let select = db
     .selectFrom('customers.customers')
     .select(['id', 'kind', 'display_name', 'sort_name', 'phone', 'email'])
-    .where(visibleCustomers(principal));
+    .where(request.deleted ? deletedCustomers(principal) : visibleCustomers(principal));
   if (request.term !== undefined) select = select.where(searchTextMatches(request.term));
   const { after } = request;
   if (after !== undefined) {

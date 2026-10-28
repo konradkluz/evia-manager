@@ -1,0 +1,27 @@
+{
+  "name": "@evia/observability-scrub",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Allow-list scrubbing of error-tracking events and breadcrumbs (EVM-085 AC6, AC7): pure TypeScript, no runtime dependencies, structural types only (no @sentry/* types).",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

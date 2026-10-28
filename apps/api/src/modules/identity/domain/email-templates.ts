@@ -97,6 +97,8 @@ export const ALERT_VARIANTS = [
   'administrator_new_browser',
   // EVM-028 (alert 9): a method of the second step of an Administrator's account was added or removed, or new recovery codes were made.
   'administrator_second_step_changed',
+  // EVM-049 (alert 9): a file of a work order was stopped by the scan; the text is a link to the order and nothing else.
+  'administrator_media_quarantined',
   // EVM-094: an Administrator signed in from a phone the account did not know / a used refresh credential came back (a session of a phone was ended).
   'administrator_new_device',
   'administrator_refresh_reuse',
@@ -114,6 +116,11 @@ const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readon
     kind: 'logowanie z nowej przeglądarki',
     sentence: 'zalogowano się do konta Administratora z przeglądarki, której to konto wcześniej nie używało.',
     lead: 'zdarzenie dotyczące logowania do konta administratora',
+  },
+  administrator_media_quarantined: {
+    kind: 'plik zatrzymany przez skan',
+    sentence: 'plik dodany do zlecenia został zatrzymany przez skan bezpieczeństwa.',
+    lead: 'zdarzenie dotyczące plików',
   },
   administrator_new_device: {
     kind: 'logowanie z nowego urządzenia mobilnego',
@@ -134,35 +141,64 @@ const ALERT_KINDS: Readonly<Record<AlertVariant, { readonly kind: string; readon
 
 export const isAlertVariant = (value: string | null): value is AlertVariant => ALERT_VARIANTS.includes(value as AlertVariant);
 
+/**
+ * The path of a work order in the panel (`apps/web/src/paths.ts`: `WORK_ORDERS_PATH` + the identifier); its Media section is on that page. The
+ * identity module builds the link of the alert of a quarantined file from the identifier in the outbox row — the one coupling to a page of the
+ * panel here (EVM-049, security-engineer C4): the origin is the configured one, the path a constant, the identifier a UUID.
+ */
+export const WORK_ORDER_PATH = '/work-orders';
+
 export interface AlertTextInput {
   readonly panelOrigin: string;
   readonly variant: AlertVariant;
   readonly occurredAt: Date;
+  /** The work order a `administrator_media_quarantined` alert is about (a UUID, from the outbox row); nothing else in the text depends on it. */
+  readonly subjectId?: string | null;
 }
 
 /** E-mail 9 (an alert for Administrators): the event and the time, no person, no address, no token — who and when is in the audit log. */
 export function alertText(input: AlertTextInput): EmailText {
-  const { kind, sentence, lead = 'zdarzenie dotyczące uprawnień administratora' } = ALERT_KINDS[input.variant];
+  const { kind } = ALERT_KINDS[input.variant];
+  const body = input.variant === 'administrator_media_quarantined' ? mediaQuarantineLines(input) : permissionsLines(input);
   return {
     subject: `EVia Manager: alert bezpieczeństwa — ${kind}`,
-    text: [
-      'Dzień dobry,',
-      '',
-      `w EVia Manager wystąpiło ${lead}`,
-      `(${formatWarsaw(input.occurredAt)}):`,
-      sentence,
-      '',
-      'Szczegóły — kto i kiedy — są w panelu: Administracja → Dziennik audytu',
-      '(wymaga potwierdzenia tożsamości):',
-      `${input.panelOrigin}${AUDIT_LOG_PATH}`,
-      '',
-      'Jeśli zdarzenie nie było zaplanowane, sprawdź dziennik audytu',
-      'i skontaktuj się z pozostałymi administratorami.',
-      '',
-      footer(input.panelOrigin),
-      '',
-    ].join('\n'),
+    text: [...body, '', footer(input.panelOrigin), ''].join('\n'),
   };
+}
+
+function permissionsLines(input: AlertTextInput): string[] {
+  const { sentence, lead = 'zdarzenie dotyczące uprawnień administratora' } = ALERT_KINDS[input.variant];
+  return [
+    'Dzień dobry,',
+    '',
+    `w EVia Manager wystąpiło ${lead}`,
+    `(${formatWarsaw(input.occurredAt)}):`,
+    sentence,
+    '',
+    'Szczegóły — kto i kiedy — są w panelu: Administracja → Dziennik audytu',
+    '(wymaga potwierdzenia tożsamości):',
+    `${input.panelOrigin}${AUDIT_LOG_PATH}`,
+    '',
+    'Jeśli zdarzenie nie było zaplanowane, sprawdź dziennik audytu',
+    'i skontaktuj się z pozostałymi administratorami.',
+  ];
+}
+
+/** Only the link to the order: no file name, no customer, no address, no reason (EVM-049 AC2; the reason is shown to an Administrator in the panel). */
+function mediaQuarantineLines(input: AlertTextInput): string[] {
+  const { sentence, lead = '' } = ALERT_KINDS[input.variant];
+  return [
+    'Dzień dobry,',
+    '',
+    `w EVia Manager wystąpiło ${lead}`,
+    `(${formatWarsaw(input.occurredAt)}):`,
+    sentence,
+    '',
+    'Zlecenie w panelu (zakładka Media; przyczynę i ponowny skan zobaczysz po zalogowaniu):',
+    `${input.panelOrigin}${WORK_ORDER_PATH}/${input.subjectId ?? ''}`,
+    '',
+    'Plik nie jest dostępny dla nikogo, dopóki skan go nie zwolni.',
+  ];
 }
 
 /** W-12 (the page a reset link leads to; the token is in the fragment) and the "Zresetuj hasło" form of W-01 (no token): paths of the panel. */

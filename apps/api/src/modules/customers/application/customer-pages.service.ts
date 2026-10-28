@@ -6,7 +6,7 @@
  * the contract (only the fields of the contract leave); and the customers returned are counted AFTER it is built — the records for the
  * mass-read limit and the different identifiers for the alert of policy P10 — so a refused or failed request counts nothing.
  *
- * The cursor is bound to the operation, to the user and to the phrase (the scope), and holds the identifier of the last customer only
+ * The cursor is bound to the operation, to the user, to the phrase and to the view live/deleted (the scope), and holds the identifier of the last customer only
  * (no name: it would not fit, and it would travel in the URL and the access log). The sort key of that customer is read by the reader.
  */
 import { zCustomerList } from '@evia/contracts/zod';
@@ -31,6 +31,8 @@ export interface CustomerPageRequest {
   readonly operation: CustomerPageOperation;
   /** the normalised search phrase; absent for the list */
   readonly term: string | undefined;
+  /** The view "Usunięci" (EVM-041): the Administrator's alone. */
+  readonly deleted: boolean;
   readonly limit: number;
   readonly cursor: string | undefined;
 }
@@ -52,13 +54,17 @@ export class CustomerPagesService {
   }
 
   async page(principal: Principal, request: CustomerPageRequest, context: EventContext): Promise<CustomerList> {
-    const scope = scopeOf([request.term ?? '']);
+    // the deleted customers are the Administrator's: a role that asks for them gets 403 - BEFORE the cursor is opened, the meter is asked
+    // or the database is read; the parameter is never ignored silently (EVM-041 AC1, AC7)
+    if (request.deleted && principal.role !== 'administrator') throw new ProblemException('forbidden');
+    // the filter is part of the scope: a cursor of the view "Usunięci" does not open on the live view, for any role, and the other way round
+    const scope = scopeOf([request.term ?? '', request.deleted ? 'deleted' : 'live']);
     const tables = customerTables(this.#db);
     const after = await this.#after(principal, request, scope);
     const eventContext = { ...context, sessionId: principal.sessionId };
     await this.#bulkRead.before(principal.userId, eventContext, 'customer');
 
-    const rows = await readCustomerPage(tables, principal, { term: request.term, limit: request.limit, after });
+    const rows = await readCustomerPage(tables, principal, { term: request.term, deleted: request.deleted, limit: request.limit, after });
     const shown = rows.slice(0, request.limit);
     const last = shown.at(-1);
     const list = zCustomerList.safeParse({
