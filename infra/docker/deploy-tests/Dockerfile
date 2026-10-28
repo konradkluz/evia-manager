@@ -10,4 +10,4 @@ RUN apt-get update \
 USER node
 WORKDIR /tmp
 HEALTHCHECK NONE
-ENTRYPOINT ["node", "--test", "/src/infra/deploy-agent/test/"]
+ENTRYPOINT ["node", "--test", "/src/infra/deploy-agent/test/", "/src/infra/observability/test/"]

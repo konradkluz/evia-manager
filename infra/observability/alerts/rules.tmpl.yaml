@@ -1,0 +1,120 @@
+# Alert rules of staging (EVM-085 AC2, AC5; architect 5, 6; security A14). Prometheus format, tested by promtool.
+# Template: placeholders in dollar-brace form come from thresholds.yaml; the result is rules.yaml (node infra/observability/render-rules.mjs).
+# Every alert has a section in docs/ops/runbooks/alerty.md (test: infra/observability/test/alerts.test.mjs).
+# Annotations hold the alert name, the environment, a closed-list label and a link only — never a log line or a free label (V16.2.5).
+# The decision rule: no deployment decision reads these data (RR-24); the metrics are written by the agent, never read from Grafana.
+groups:
+  - name: deploy-channel
+    rules:
+      - alert: EviaDeployAgentHeartbeatMissing
+        expr: (time() - evia_deploy_agent_last_success_timestamp_seconds{env="staging"}) > ${heartbeat_max_age_seconds}
+        for: 1m
+        labels: { severity: critical, ac2: heartbeat }
+        annotations:
+          summary: 'Deployment agent has not completed a cycle for more than ${heartbeat_max_age_seconds} s (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviadeployagentheartbeatmissing
+      - alert: EviaDeployedCommitBehindMain
+        expr: evia_deploy_agent_main_head_mismatch_since_seconds{env="staging"} > ${head_mismatch_max_seconds}
+        for: 1m
+        labels: { severity: warning, ac2: head-mismatch }
+        annotations:
+          summary: 'HEAD of main differs from the deployed commit for more than ${head_mismatch_max_seconds} s (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviadeployedcommitbehindmain
+      - alert: EviaDeployBlockedV0
+        expr: evia_deploy_agent_v0_blocked{env="staging"} == 1
+        for: 1m
+        labels: { severity: critical, ac2: v0-block }
+        annotations:
+          summary: 'Deployment refused by the verifier (gate V0) (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviadeployblockedv0
+      - alert: EviaTokenExpiresSoon
+        expr: (evia_token_expiry_timestamp_seconds{env="staging"} - time()) < ${token_expiry_warn_days} * 86400
+        for: 5m
+        labels: { severity: warning, ac2: token-expiry }
+        annotations:
+          summary: 'Token or key {{ $labels.token }} expires within ${token_expiry_warn_days} days (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviatokenexpiressoon
+      - alert: EviaGithubApiLimitLow
+        expr: evia_github_rate_limit_remaining{env="staging"} < ${github_rate_limit_min_remaining}
+        for: 5m
+        labels: { severity: warning, ac2: api-limit }
+        annotations:
+          summary: 'GitHub API limit of the agent is almost exhausted: below ${github_rate_limit_min_remaining} requests left (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviagithubapilimitlow
+  - name: backup
+    rules:
+      - alert: EviaBackupFailed
+        expr: |
+          evia_backup_last_failed{env="staging"} == 1
+          or (time() - evia_backup_last_success_timestamp_seconds{env="staging"}) > ${backup_max_age_seconds}
+        for: 1m
+        labels: { severity: critical, ac2: backup }
+        annotations:
+          summary: 'Database backup failed or is older than ${backup_max_age_seconds} s (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviabackupfailed
+      - alert: EviaMediaCopyFailed
+        expr: |
+          evia_media_copy_last_failed{env="staging"} == 1
+          or (time() - evia_media_copy_last_success_timestamp_seconds{env="staging"}) > ${media_copy_max_age_seconds}
+        for: 1m
+        labels: { severity: critical, ac2: backup }
+        annotations:
+          summary: 'Media copy failed or is older than ${media_copy_max_age_seconds} s (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviamediacopyfailed
+      - alert: EviaRestoreTestFailed
+        expr: |
+          evia_restore_test_last_run_failed{env="staging"} == 1
+          or (time() - evia_restore_test_last_success_timestamp_seconds{env="staging"}) > ${restore_test_max_age_seconds}
+          or evia_restore_test_last_rpo_seconds{env="staging"} > ${restore_rpo_max_seconds}
+          or evia_restore_repo_heal_failed{env="staging"} == 1
+        for: 1m
+        labels: { severity: critical, ac2: backup }
+        annotations:
+          summary: 'Restore test failed, is overdue, exceeded the RPO or left the backup repository inconsistent (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviarestoretestfailed
+      - alert: EviaRestoreResourcesLeftover
+        expr: |
+          evia_restore_sweeper_last_deleted{env="staging"} > 0
+          or evia_restore_sweeper_last_run_failed{env="staging"} == 1
+          or (time() - evia_restore_sweeper_last_run_timestamp_seconds{env="staging"}) > ${sweeper_max_silence_seconds}
+        for: 1m
+        labels: { severity: warning, ac2: restore-resources }
+        annotations:
+          summary: 'Restore test resources older than 24 h were found, or the sweeper is failing or silent (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviarestoreresourcesleftover
+  - name: usage
+    rules:
+      - alert: EviaGrafanaUsageHigh
+        expr: |
+          grafanacloud_instance_active_series > ${usage_warn_ratio} * ${grafana_active_series_limit}
+          or increase(loki_write_sent_bytes_total{env="staging"}[30d]) > ${usage_warn_ratio} * ${grafana_logs_bytes_limit}
+        for: 15m
+        labels: { severity: warning, ac2: usage-limits }
+        annotations:
+          summary: 'Usage of the free Grafana limits is above ${usage_warn_ratio} of the limit (series or log volume)'
+          runbook: docs/ops/runbooks/alerty.md#eviagrafanausagehigh
+  - name: absent
+    rules:
+      - alert: EviaStagingNoData
+        expr: absent(node_textfile_scrape_error{env="staging"})
+        for: ${no_data_for}
+        labels: { severity: critical, ac2: no-data }
+        annotations:
+          summary: 'No metrics from staging for ${no_data_for}: Alloy, the VM or the telemetry channel is down (env staging)'
+          runbook: docs/ops/runbooks/alerty.md#eviastagingnodata
+  - name: security
+    rules:
+      - alert: EviaSecurityAlert
+        expr: sum by (alertCode, env) (increase(evia_security_alerts_total{env="staging"}[${security_window}])) >= ${security_min_events}
+        for: 0m
+        labels: { severity: critical, ac5: security }
+        annotations:
+          summary: 'Security alert {{ $labels.alertCode }} from the application (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+      - alert: EviaSecurityAccountLockedBurst
+        expr: sum by (env) (increase(evia_security_alerts_total{env="staging", alertCode="account_locked"}[${security_window}])) >= ${account_locked_burst_min}
+        for: 0m
+        labels: { severity: critical, ac5: security }
+        annotations:
+          summary: 'Many account locks in ${security_window}: possible attack (env {{ $labels.env }})'
+          runbook: docs/ops/runbooks/alerty.md#eviasecurityaccountlockedburst

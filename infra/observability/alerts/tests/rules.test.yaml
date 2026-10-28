@@ -1,0 +1,309 @@
+# promtool test rules (EVM-085 AC2, AC5): every alert fires on a bad series and stays quiet on a good one.
+# Run: docker compose -f compose.yaml run --rm promtool-tests
+# Values of "now" series follow the clock (value = seconds since the start), so "age" is zero; constant series are old.
+rule_files:
+  - ../rules.yaml
+evaluation_interval: 1m
+
+tests:
+  # AC2 heartbeat: constant timestamp 0 is 20 minutes old at 20m (limit 600 s)
+  - name: EVM-085 AC2 heartbeat missing fires
+    interval: 1m
+    input_series:
+      - series: 'evia_deploy_agent_last_success_timestamp_seconds{env="staging"}'
+        values: '0+0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EviaDeployAgentHeartbeatMissing
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: heartbeat, env: staging }
+            exp_annotations:
+              summary: 'Deployment agent has not completed a cycle for more than 600 s (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviadeployagentheartbeatmissing
+      - eval_time: 5m
+        alertname: EviaDeployAgentHeartbeatMissing
+        exp_alerts: []
+  - name: EVM-085 AC2 heartbeat present is quiet
+    interval: 1m
+    input_series:
+      - series: 'evia_deploy_agent_last_success_timestamp_seconds{env="staging"}'
+        values: '0+60x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: EviaDeployAgentHeartbeatMissing
+        exp_alerts: []
+
+  # AC2 HEAD of main differs from the deployed commit for more than 30 minutes
+  - name: EVM-085 AC2 deployed commit behind main
+    interval: 1m
+    input_series:
+      - series: 'evia_deploy_agent_main_head_mismatch_since_seconds{env="staging"}'
+        values: '0+120x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EviaDeployedCommitBehindMain
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: head-mismatch, env: staging }
+            exp_annotations:
+              summary: 'HEAD of main differs from the deployed commit for more than 1800 s (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviadeployedcommitbehindmain
+      - eval_time: 10m
+        alertname: EviaDeployedCommitBehindMain
+        exp_alerts: []
+  - name: EVM-085 AC2 deployed commit equal to main is quiet
+    interval: 1m
+    input_series:
+      - series: 'evia_deploy_agent_main_head_mismatch_since_seconds{env="staging"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: EviaDeployedCommitBehindMain
+        exp_alerts: []
+
+  # AC2 gate V0
+  - name: EVM-085 AC2 gate V0 block
+    interval: 1m
+    input_series:
+      - series: 'evia_deploy_agent_v0_blocked{env="staging"}'
+        values: '0 0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: EviaDeployBlockedV0
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: v0-block, env: staging }
+            exp_annotations:
+              summary: 'Deployment refused by the verifier (gate V0) (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviadeployblockedv0
+      - eval_time: 2m
+        alertname: EviaDeployBlockedV0
+        exp_alerts: []
+
+  # AC2 expiry within 30 days: 29 days vs 31 days ahead of the clock (series at 0 means "now" is also 0)
+  - name: EVM-085 AC2 token expiry within 30 days
+    interval: 1m
+    input_series:
+      - series: 'evia_token_expiry_timestamp_seconds{env="staging", token="github-pat"}'
+        values: '2505600x20'
+      - series: 'evia_token_expiry_timestamp_seconds{env="staging", token="grafana-write-token"}'
+        values: '2678400x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: EviaTokenExpiresSoon
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: token-expiry, env: staging, token: github-pat }
+            exp_annotations:
+              summary: 'Token or key github-pat expires within 30 days (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviatokenexpiressoon
+
+  # AC2 API limit
+  - name: EVM-085 AC2 GitHub API limit low
+    interval: 1m
+    input_series:
+      - series: 'evia_github_rate_limit_remaining{env="staging"}'
+        values: '5000 4000 150 150 150 150 150 150'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: EviaGithubApiLimitLow
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: api-limit, env: staging }
+            exp_annotations:
+              summary: 'GitHub API limit of the agent is almost exhausted: below 200 requests left (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviagithubapilimitlow
+      - eval_time: 1m
+        alertname: EviaGithubApiLimitLow
+        exp_alerts: []
+
+  # AC2 failed backup: failure flag, and a stale last success
+  - name: EVM-085 AC2 backup failed by flag
+    interval: 1m
+    input_series:
+      - series: 'evia_backup_last_failed{env="staging"}'
+        values: '0 0 1 1 1'
+      - series: 'evia_backup_last_success_timestamp_seconds{env="staging"}'
+        values: '0+60x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EviaBackupFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: backup, env: staging }
+            exp_annotations:
+              summary: 'Database backup failed or is older than 93600 s (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviabackupfailed
+      - eval_time: 1m
+        alertname: EviaBackupFailed
+        exp_alerts: []
+  - name: EVM-085 AC2 backup stale by age
+    interval: 1m
+    input_series:
+      - series: 'evia_backup_last_success_timestamp_seconds{env="staging"}'
+        values: '0x1900'
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: EviaBackupFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: backup, env: staging }
+            exp_annotations:
+              summary: 'Database backup failed or is older than 93600 s (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviabackupfailed
+      - eval_time: 20h
+        alertname: EviaBackupFailed
+        exp_alerts: []
+  - name: EVM-085 AC2 media copy failed
+    interval: 1m
+    input_series:
+      - series: 'evia_media_copy_last_failed{env="staging"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EviaMediaCopyFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: backup, env: staging }
+            exp_annotations:
+              summary: 'Media copy failed or is older than 129600 s (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviamediacopyfailed
+  - name: EVM-085 AC2 restore test failed, RPO exceeded and repository not healed
+    interval: 1m
+    input_series:
+      - series: 'evia_restore_test_last_rpo_seconds{env="staging"}'
+        values: '1000x10'
+      - series: 'evia_restore_repo_heal_failed{env="staging"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EviaRestoreTestFailed
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: backup, env: staging }
+            exp_annotations:
+              summary: 'Restore test failed, is overdue, exceeded the RPO or left the backup repository inconsistent (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviarestoretestfailed
+  - name: EVM-085 AC2 restore test healthy is quiet
+    interval: 1m
+    input_series:
+      - series: 'evia_restore_test_last_rpo_seconds{env="staging"}'
+        values: '20x10'
+      - series: 'evia_restore_test_last_run_failed{env="staging"}'
+        values: '0x10'
+      - series: 'evia_restore_repo_heal_failed{env="staging"}'
+        values: '0x10'
+      - series: 'evia_restore_test_last_success_timestamp_seconds{env="staging"}'
+        values: '0+60x10'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: EviaRestoreTestFailed
+        exp_alerts: []
+
+  # AC2 restore resources older than 24 h
+  - name: EVM-085 AC2 restore resources left over
+    interval: 1m
+    input_series:
+      - series: 'evia_restore_sweeper_last_deleted{env="staging"}'
+        values: '0 0 2 2 2'
+      - series: 'evia_restore_sweeper_last_run_failed{env="staging"}'
+        values: '0x5'
+      - series: 'evia_restore_sweeper_last_run_timestamp_seconds{env="staging"}'
+        values: '0+60x5'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EviaRestoreResourcesLeftover
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: restore-resources, env: staging }
+            exp_annotations:
+              summary: 'Restore test resources older than 24 h were found, or the sweeper is failing or silent (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviarestoreresourcesleftover
+      - eval_time: 1m
+        alertname: EviaRestoreResourcesLeftover
+        exp_alerts: []
+
+  # AC2 missing data: no series at all
+  - name: EVM-085 AC2 no data from staging
+    interval: 1m
+    input_series:
+      - series: 'node_textfile_scrape_error{env="prod"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EviaStagingNoData
+        exp_alerts:
+          - exp_labels: { severity: critical, ac2: no-data, env: staging }
+            exp_annotations:
+              summary: 'No metrics from staging for 15m: Alloy, the VM or the telemetry channel is down (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviastagingnodata
+      - eval_time: 10m
+        alertname: EviaStagingNoData
+        exp_alerts: []
+  - name: EVM-085 AC2 data present is quiet
+    interval: 1m
+    input_series:
+      - series: 'node_textfile_scrape_error{env="staging"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: EviaStagingNoData
+        exp_alerts: []
+
+  # AC2 usage of the free limits: series (usage datasource) and the volume of logs sent by Alloy
+  - name: EVM-085 AC2 Grafana usage high by series
+    interval: 1m
+    input_series:
+      - series: 'grafanacloud_instance_active_series{}'
+        values: '8500x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EviaGrafanaUsageHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, ac2: usage-limits }
+            exp_annotations:
+              summary: 'Usage of the free Grafana limits is above 0.8 of the limit (series or log volume)'
+              runbook: docs/ops/runbooks/alerty.md#eviagrafanausagehigh
+  - name: EVM-085 AC2 Grafana usage below the limit is quiet
+    interval: 1m
+    input_series:
+      - series: 'grafanacloud_instance_active_series{}'
+        values: '3000x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: EviaGrafanaUsageHigh
+        exp_alerts: []
+
+  # AC5 security alerts from the application: any code, and the burst of locks
+  - name: EVM-085 AC5 security alert from the application reaches the channel
+    interval: 1m
+    input_series:
+      - series: 'evia_security_alerts_total{env="staging", alertCode="login_failure_spike"}'
+        values: '0 0 0 1 1 1 1 1'
+      - series: 'evia_security_alerts_total{env="staging", alertCode="second_step_failure_spike"}'
+        values: '3x8'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: login_failure_spike }
+            exp_annotations:
+              summary: 'Security alert login_failure_spike from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+      - eval_time: 1m
+        alertname: EviaSecurityAlert
+        exp_alerts: []
+  - name: EVM-085 AC5 single account lock alerts, burst of locks escalates
+    interval: 1m
+    input_series:
+      - series: 'evia_security_alerts_total{env="staging", alertCode="account_locked"}'
+        values: '0 1 1 1 1 1 7 7 7'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: account_locked }
+            exp_annotations:
+              summary: 'Security alert account_locked from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+      - eval_time: 2m
+        alertname: EviaSecurityAccountLockedBurst
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: EviaSecurityAccountLockedBurst
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging }
+            exp_annotations:
+              summary: 'Many account locks in 15m: possible attack (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityaccountlockedburst

@@ -113,6 +113,7 @@ export const IAC_PREFIXES = Object.freeze([
   'infra/tofu/',
   'infra/docker/iac/',
   'infra/deploy-agent/',
+  'infra/observability/',
   'infra/docker/deploy-tests/',
   '.github/',
 ]);

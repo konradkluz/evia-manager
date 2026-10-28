@@ -22,6 +22,7 @@ export const SERVICES = Object.freeze([
   'scan-trivy-image',
   'deploy-sh-tests',
   'restore-db-test',
+  'promtool-tests',
   'zap-baseline',
 ]);
 

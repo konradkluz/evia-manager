@@ -291,6 +291,9 @@ services:
     volumes:
       - ./infra/deploy-agent:/src/infra/deploy-agent:ro
       - ./infra/docker/iac:/src/infra/docker/iac:ro
+      # EVM-085: the consistency tests of the alert layer (infra/observability/test) and the runbook they check
+      - ./infra/observability:/src/infra/observability:ro
+      - ./docs/ops/runbooks/alerty.md:/src/docs/ops/runbooks/alerty.md:ro
       # release-manifest.test.mjs evaluates the jq line of the publish job taken from the workflow
       - ./.github/workflows/ci.yml:/src/.github/workflows/ci.yml:ro
 
@@ -313,6 +316,20 @@ services:
       - /tmp:exec,nosuid,nodev,mode=1777,size=512m
     volumes:
       - ./infra/deploy-agent:/src/infra/deploy-agent:ro
+
+  # Alert rules of staging (EVM-085 AC2, AC5): promtool test rules over infra/observability/alerts. Image: Prometheus
+  # (promtool only; Apache-2.0), tag + digest of the multi-arch index; no network, files read-only. Local gate and CI.
+  promtool-tests:
+    <<: *scanner
+    image: prom/prometheus:v3.5.0@sha256:63805ebb8d2b3920190daf1cb14a60871b16fd38bed42b857a3182bc621f4996
+    network_mode: none
+    working_dir: /src/infra/observability/alerts/tests
+    entrypoint: ['/bin/promtool']
+    command: ['test', 'rules', 'rules.test.yaml']
+    environment:
+      HOME: /tmp
+    volumes:
+      - ./infra/observability/alerts:/src/infra/observability/alerts:ro
 
   # Renovate configuration (bramka 12): renovate-config-validator --strict.
   renovate-validate:
