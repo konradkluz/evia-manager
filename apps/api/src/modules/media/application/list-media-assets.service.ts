@@ -5,8 +5,10 @@
  * bound to the filter, the order and the user, and expires. With `uploadState=unfinished` only the unfinished uploads of the CALLER are
  * returned - those with an active, unexpired session (the condition is in the join, not a filter of the page) and the files of the caller
  * still in `pending_upload` without one (an interrupted batch: the session expired, was aborted or never opened) - and only those carry
- * the file name and, when there is one, the session (AC4: "Nie wysłano N zdjęć — wybierz je ponownie z galerii"). Nothing returned names the object key, the checksum or the
- * reason of a quarantine.
+ * the file name and, when there is one, the session (AC4: "Nie wysłano N zdjęć — wybierz je ponownie z galerii"). Nothing returned names the object key or the
+ * checksum. EVM-049: `needsAttention=true` lists only the files held in quarantine (AC6) and `needsAttentionCount` counts them for the order
+ * (every role, the same rule as the filter); the REASON of a quarantine is part of an item only when the caller may manage the quarantine
+ * (`canManageQuarantine`, the policy `mediaQuarantine.manage` of the contract), and the cursor is bound to the filter and to that variant.
  */
 import type { MediaAssetList } from '@evia/contracts';
 import { zListMediaAssetsPath } from '@evia/contracts/zod';
@@ -22,7 +24,8 @@ import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { CLOCK, CURSOR_CODEC, DATABASE } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { listAssets, type PagePosition } from '../infrastructure/media-store.ts';
+import { canManageQuarantine } from '../../authorization/index.ts';
+import { countHeld, listAssets, type PagePosition } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { creatorOf, toMediaAsset } from './media-support.ts';
 
@@ -33,6 +36,7 @@ const MAX_LIMIT = 100;
 const pathSchema = strictObjects(zListMediaAssetsPath);
 const querySchema = z.strictObject({
   uploadState: z.literal('unfinished').optional(),
+  needsAttention: z.enum(['true', 'false']).optional(),
   limit: z
     .string()
     .regex(/^[0-9]{1,3}$/)
@@ -72,7 +76,14 @@ export class ListMediaAssetsService {
     const query = parseInput(querySchema, rawQuery);
     const limit = query.limit ?? DEFAULT_LIMIT;
     const unfinished = query.uploadState === 'unfinished';
-    const scope = scopeOf([workOrderId, query.uploadState ?? '']);
+    const attention = query.needsAttention === 'true';
+    const manageQuarantine = canManageQuarantine(principal);
+    const scope = scopeOf([
+      workOrderId,
+      query.uploadState ?? '',
+      attention ? 'attention' : '',
+      manageQuarantine ? 'variant:with-reason' : 'variant:without-reason',
+    ]);
     const position = this.#positionOf(query.cursor, principal, scope);
 
     return runInTransaction(
@@ -83,6 +94,7 @@ export class ListMediaAssetsService {
         const rows = await listAssets(mediaTables(tx), order.id, {
           creator: creatorOf(principal),
           unfinishedOnly: unfinished,
+          attentionOnly: attention,
           now: this.#clock.now(),
           limit,
           ...(position === undefined ? {} : { position }),
@@ -97,7 +109,12 @@ export class ListMediaAssetsService {
                 userId: principal.userId,
               })
             : null;
-        return { items: shown.map((row) => toMediaAsset(row, { unfinished, session: row.session })), nextCursor };
+        const needsAttentionCount = await countHeld(mediaTables(tx), order.id);
+        return {
+          items: shown.map((row) => toMediaAsset(row, { unfinished, session: row.session, manageQuarantine })),
+          nextCursor,
+          needsAttentionCount,
+        };
       },
       { isolationLevel: 'repeatable read' },
     );

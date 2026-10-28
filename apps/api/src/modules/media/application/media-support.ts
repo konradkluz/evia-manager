@@ -1,13 +1,14 @@
 /**
  * What the services of `media` share (EVM-044): the fail-closed access to the storage, the key of idempotency, the creator of a session
- * and the representation of a medium. The representation NEVER carries the object key, the S3 upload id, the checksum or the reason of a
- * quarantine (media-pipeline.md, domain-model.md: the reason is for the Administrator, EVM-049).
+ * and the representation of a medium. The representation NEVER carries the object key, the S3 upload id or the checksum; the reason of a
+ * quarantine only for the one who may manage it (`mediaQuarantine.manage`, EVM-049) - for everybody else the field is ABSENT, not `null`.
  */
 import type { MediaAsset, UploadSession } from '@evia/contracts';
 import { zCreateMediaAssetsHeaders } from '@evia/contracts/zod';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ObjectStorageError, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
+import { quarantineOf, quarantineReasonOf } from '../domain/quarantine.ts';
 import type { AssetWithFile, Creator, ListedAsset, UploadSessionRow } from '../infrastructure/media-store.ts';
 
 const RETRY_AFTER_SECONDS = 60;
@@ -50,9 +51,14 @@ interface Representation {
   /** The list with `uploadState=unfinished`: the only place the file name and the session are returned. */
   readonly unfinished: boolean;
   readonly session?: ListedAsset['session'];
+  /** The caller may manage the quarantine (an Administrator): only then the reason is part of the answer. Absent = no (deny by default). */
+  readonly manageQuarantine?: boolean;
 }
 
-export function toMediaAsset({ asset, file }: AssetWithFile, options: Representation = { unfinished: false }): MediaAsset {
+export function toMediaAsset(row: AssetWithFile, options: Representation = { unfinished: false }): MediaAsset {
+  const { asset, file } = row;
+  const quarantine = quarantineOf(file, row.quarantineExpiresAt);
+  const reason = options.manageQuarantine === true ? quarantineReasonOf(file) : undefined;
   const checksumMismatch = file.state === 'failed' && file.state_reason_code === 'checksum_mismatch';
   const session = options.unfinished ? (options.session ?? null) : null;
   return {
@@ -66,7 +72,12 @@ export function toMediaAsset({ asset, file }: AssetWithFile, options: Representa
     createdAt: asset.created_at.toISOString(),
     fileState: file.state,
     stateReasonCode: checksumMismatch ? 'checksum_mismatch' : null,
-    needsAttention: file.state === 'quarantined',
+    needsAttention: quarantine?.state === 'held',
+    quarantine:
+      quarantine === null
+        ? null
+        : { state: quarantine.state, expiresAt: quarantine.expiresAt.toISOString(), purgedAt: quarantine.purgedAt?.toISOString() ?? null },
+    ...(reason === undefined ? {} : { quarantineReasonCode: reason }),
     declaredSize: Number(file.declared_size_bytes),
     originalFilename: options.unfinished ? file.original_filename : null,
     uploadSession:

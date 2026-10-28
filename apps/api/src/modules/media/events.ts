@@ -6,8 +6,18 @@
  */
 import type { DomainEvent } from '../../platform/events/event-bus.ts';
 
-/** The audit actions: a media asset was created (per medium), a file was put in quarantine by the scan (a malware or a wrong type). */
-export const MEDIA_EVENT_TYPES = ['media_asset.created', 'media_file.quarantined'] as const;
+/**
+ * The audit actions: a media asset was created (per medium), a file was put in quarantine by the scan (a malware or a wrong type), an
+ * Administrator asked for a new scan of it (EVM-049), the worker's new scan of it ended (the result is the code `toCode`: `clean`,
+ * `quarantined` or `failed`, never the reason), the object of a file was removed after 30 days of quarantine.
+ */
+export const MEDIA_EVENT_TYPES = [
+  'media_asset.created',
+  'media_file.quarantined',
+  'media_file.rescan_requested',
+  'media_file.rescanned',
+  'media_file.quarantine_purged',
+] as const;
 
 export interface MediaAuditEvent extends DomainEvent {
   readonly type: (typeof MEDIA_EVENT_TYPES)[number];
@@ -16,6 +26,9 @@ export interface MediaAuditEvent extends DomainEvent {
   readonly outcome: 'success';
   readonly objectType: 'media_asset';
   readonly objectId: string;
+  /** Only `media_file.rescanned`: the state before and after the new scan (a closed list of codes, never a reason). */
+  readonly fromCode?: 'quarantined';
+  readonly toCode?: 'clean' | 'quarantined' | 'failed';
 }
 
 /** The entry of the journal of the order (EVM-038): ONE per batch — the count and the identifiers (at most 50). */

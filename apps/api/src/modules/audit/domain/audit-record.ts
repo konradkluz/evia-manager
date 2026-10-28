@@ -64,6 +64,8 @@ export const AUDIT_OUTCOMES = ['success', 'denied', 'failed'] as const;
 const PAYMENT_ACTION_PREFIX = 'payment_milestone.';
 /** The one identity event that carries codes: the role before and after (EVM-027). */
 const ROLE_CHANGE_ACTION = 'user.role_changed';
+/** The new scan of a quarantined file carries the state before and after (EVM-049): the result, never the reason. */
+const RESCAN_ACTION = 'media_file.rescanned';
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
 const statusCode = z
   .string()
@@ -103,8 +105,11 @@ export const auditRecordSchema = z
         ? true
         : record.fromCode !== null &&
           record.toCode !== null &&
-          (record.action.startsWith(PAYMENT_ACTION_PREFIX) || record.action === ROLE_CHANGE_ACTION),
-    { message: 'the codes of a status belong to a transition of a payment milestone or to a change of a role only, both together' },
+          (record.action.startsWith(PAYMENT_ACTION_PREFIX) || record.action === ROLE_CHANGE_ACTION || record.action === RESCAN_ACTION),
+    {
+      message:
+        'the codes of a status belong to a transition of a payment milestone, a change of a role or a new scan of a file only, both together',
+    },
   );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;

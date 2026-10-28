@@ -15,6 +15,7 @@ import { CreateMediaAssetsService } from '../application/create-media-assets.ser
 import { CreateUploadSessionService } from '../application/create-upload-session.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
 import { ListMediaAssetsService } from '../application/list-media-assets.service.ts';
+import { RescanMediaService } from '../application/rescan-media.service.ts';
 import { UploadPartsService } from '../application/upload-parts.service.ts';
 
 function requirePrincipal(request: Request): Principal {
@@ -33,6 +34,7 @@ export class MediaController {
   readonly #sessions: CreateUploadSessionService;
   readonly #parts: UploadPartsService;
   readonly #finish: FinishUploadService;
+  readonly #rescans: RescanMediaService;
 
   constructor(
     @Inject(CreateMediaAssetsService) creations: CreateMediaAssetsService,
@@ -40,12 +42,14 @@ export class MediaController {
     @Inject(CreateUploadSessionService) sessions: CreateUploadSessionService,
     @Inject(UploadPartsService) parts: UploadPartsService,
     @Inject(FinishUploadService) finish: FinishUploadService,
+    @Inject(RescanMediaService) rescans: RescanMediaService,
   ) {
     this.#creations = creations;
     this.#lists = lists;
     this.#sessions = sessions;
     this.#parts = parts;
     this.#finish = finish;
+    this.#rescans = rescans;
   }
 
   @Get(BASE)
@@ -107,6 +111,25 @@ export class MediaController {
   @HttpCode(200)
   completeUploadSession(@Param() params: unknown, @Req() request: Request): Promise<MediaAsset> {
     return this.#finish.complete(requirePrincipal(request), params);
+  }
+
+  @Post(`${BASE}/:mediaAssetId/rescan`)
+  @OperationId('rescanMediaAsset')
+  @HttpCode(202)
+  async rescanMediaAsset(
+    @Param() params: unknown,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<MediaAsset> {
+    const { asset, replayed } = await this.#rescans.rescan(
+      requirePrincipal(request),
+      params,
+      idempotencyKey,
+      webEventContext(request, response),
+    );
+    if (replayed) response.set('Idempotent-Replayed', 'true');
+    return asset;
   }
 
   @Post(`${SESSION}/abort`)

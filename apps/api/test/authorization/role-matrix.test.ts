@@ -174,6 +174,7 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'endUserSessions',
       'resetUserSecondStep',
       'endAccountSession', // EVM-028: the session of somebody else
+      'rescanMediaAsset', // EVM-049: the new scan of a file in quarantine
     ];
     expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
     for (const operationId of stepUp) {

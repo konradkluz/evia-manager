@@ -6,7 +6,8 @@
  * statement with the row of the file locked (`404`: a medium of another order is not found); the storage is configured (`503`); the
  * header and the body (`400`); the idempotency port (a repeat returns the stored result first; the key is bound to the medium); the state
  * of the file: `pending_upload` takes a session, `failed` with `checksum_mismatch` ("Ponów") goes back to `pending_upload` with the
- * SAME key (the new object is a new version of the versioned bucket), every other state is `409 invalid_state_transition`; an active
+ * SAME key (the new object is a new version of the versioned bucket) - so does `failed` with `abandoned` (EVM-049: a phone that was offline
+ * for longer than the sweeper waits loses no medium and needs no new identifier), every other state is `409 invalid_state_transition`; an active
  * session of the caller that has not expired is RETURNED (the resumption after a new choice of the file, AC4; `200`), an expired one is
  * closed, the session of another user is `409 id_conflict` without a detail; the limit of active sessions of the user (`429`,
  * `Retry-After`); `CreateMultipartUpload` with a content type FROM THE ALLOW-LIST, never the client's; the INSERT. The part size is the
@@ -102,7 +103,7 @@ export class CreateUploadSessionService {
       let status: 200 | 201 = 201;
       const perform = async () => {
         const { file } = found;
-        if (file.state === 'failed' && file.state_reason_code === 'checksum_mismatch') {
+        if (file.state === 'failed' && (file.state_reason_code === 'checksum_mismatch' || file.state_reason_code === 'abandoned')) {
           await transitionFile(
             tables,
             file.id,

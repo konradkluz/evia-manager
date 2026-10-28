@@ -5,6 +5,7 @@
  * representation never returns them.
  */
 import { sql, type Selectable } from 'kysely';
+import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 import type { FileState, ReasonCode } from '../domain/scan-outcome.ts';
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
@@ -81,6 +82,8 @@ export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Da
       original_filename: file.originalFilename,
       s3_version_id: null,
       s3_etag: null,
+      quarantined_at: null,
+      purged_at: null,
       created_at: now,
       created_by: file.createdBy,
     })
@@ -90,7 +93,17 @@ export async function insertStoredFile(db: MediaDb, file: NewStoredFile, now: Da
 export interface AssetWithFile {
   readonly asset: MediaAssetRow;
   readonly file: StoredFileRow;
+  /** The deadline of the quarantine from the database function (the one expression of the sweeper and the API); `null` for a file never in it. */
+  readonly quarantineExpiresAt: Date | null;
 }
+
+/** `media.quarantine_expires_at` of the file `f`: the start of the business day of the first entry plus 30 calendar days (migration 0046). */
+const quarantineExpiry = sql<Date | null>`media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer)`.as(
+  'quarantine_expires_at',
+);
+
+/** The file is stopped in quarantine and not yet purged: a new scan has taken it or it waits (`quarantined`, or `scanning` with the first entry set). */
+const HELD = sql<boolean>`(f.quarantined_at is not null and f.purged_at is null and f.state in ('quarantined', 'scanning'))`;
 
 /** The medium of THIS order with its file, row-locked when `lock` (the state decides what may be done to it). */
 export async function findAssetWithFile(
@@ -117,6 +130,7 @@ export async function findAssetWithFile(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      quarantineExpiry,
     ]);
   const row = await (lock ? base.forNoKeyUpdate('f') : base).executeTakeFirst();
   return row === undefined ? undefined : splitRow(row);
@@ -134,6 +148,7 @@ export type JoinedRow = StoredFileRow & {
   a_created_at: Date;
   a_created_by: string;
   a_updated_at: Date;
+  quarantine_expires_at: Date | null;
 };
 
 export function splitRow(row: JoinedRow): AssetWithFile {
@@ -149,10 +164,12 @@ export function splitRow(row: JoinedRow): AssetWithFile {
     a_created_at,
     a_created_by,
     a_updated_at,
+    quarantine_expires_at,
     ...file
   } = row;
   return {
     file,
+    quarantineExpiresAt: quarantine_expires_at,
     asset: {
       id: a_id,
       work_order_id: a_work_order_id,
@@ -283,6 +300,8 @@ export async function transitionFile(
     readonly sha256?: string | null;
     readonly s3VersionId?: string | null;
     readonly s3Etag?: string | null;
+    /** The FIRST entry into quarantine (kept when already set: the column is write-once and the clock of the retention). */
+    readonly quarantinedAt?: Date;
   },
   now: Date,
 ): Promise<boolean> {
@@ -298,6 +317,7 @@ export async function transitionFile(
       ...(to.sha256 === undefined ? {} : { sha256: to.sha256 }),
       ...(to.s3VersionId === undefined ? {} : { s3_version_id: to.s3VersionId }),
       ...(to.s3Etag === undefined ? {} : { s3_etag: to.s3Etag }),
+      ...(to.quarantinedAt === undefined ? {} : { quarantined_at: sql<Date>`coalesce(quarantined_at, ${to.quarantinedAt}::timestamptz)` }),
     })
     .where('id', '=', storedFileId)
     .where('state', 'in', froms)
@@ -329,6 +349,8 @@ export async function listAssets(
   options: {
     readonly creator: Creator;
     readonly unfinishedOnly: boolean;
+    /** Only the files held in quarantine ("Wymaga uwagi", EVM-049 AC6). */
+    readonly attentionOnly?: boolean;
     readonly now: Date;
     readonly position?: PagePosition;
     readonly limit: number;
@@ -349,9 +371,20 @@ export async function listAssets(
     .where('a.work_order_id', '=', workOrderId);
   if (options.unfinishedOnly) {
     query = query.where((eb) =>
-      eb.or([eb('s.id', 'is not', null), eb.and([eb('f.state', '=', 'pending_upload'), eb('f.created_by', '=', creator.userId)])]),
+      eb.or([
+        eb('s.id', 'is not', null),
+        // an interrupted batch, or an upload the sweeper gave up (`abandoned`, EVM-049): the creator picks the file again and resumes
+        eb.and([
+          eb.or([
+            eb('f.state', '=', 'pending_upload'),
+            eb.and([eb('f.state', '=', 'failed'), eb('f.state_reason_code', '=', 'abandoned')]),
+          ]),
+          eb('f.created_by', '=', creator.userId),
+        ]),
+      ]),
     );
   }
+  if (options.attentionOnly === true) query = query.where(HELD);
   if (position !== undefined) query = query.where(sql<boolean>`(a.created_at, a.id) < (${position.createdAt}, ${position.id})`);
   const rows = await query
     .selectAll('f')
@@ -367,6 +400,7 @@ export async function listAssets(
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      quarantineExpiry,
       's.id as s_id',
       's.expires_at as s_expires_at',
       's.part_size_bytes as s_part_size_bytes',
@@ -387,14 +421,17 @@ export async function listAssets(
   });
 }
 
-/** The files waiting for a scan: `uploaded`, or `scanning` for longer than `staleBefore` (a worker died or clamd was down), oldest first. */
+/**
+ * The files waiting for a scan: `uploaded`, `scanning` that no worker has claimed (a new scan was asked for, EVM-049) or `scanning` claimed
+ * before `staleBefore` (a worker died or clamd was down), oldest first.
+ */
 export async function findUnscanned(db: MediaDb, staleBefore: Date, limit: number): Promise<Array<{ id: string }>> {
   return db
     .selectFrom('media.stored_files')
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
-        eb.and([eb('state', '=', 'scanning'), sql<boolean>`coalesce(scan_claimed_at, state_changed_at) < ${staleBefore}`]),
+        eb.and([eb('state', '=', 'scanning'), sql<boolean>`(scan_claimed_at is null or scan_claimed_at < ${staleBefore})`]),
       ]),
     )
     .orderBy('state_changed_at', 'asc')
@@ -434,6 +471,7 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
       'a.created_at as a_created_at',
       'a.created_by as a_created_by',
       'a.updated_at as a_updated_at',
+      quarantineExpiry,
     ])
     .execute();
   const byId = new Map(rows.map((row) => [row.a_id, splitRow(row)]));
@@ -465,9 +503,167 @@ export async function claimForScan(db: MediaDb, storedFileId: string, staleBefor
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
-        eb.and([eb('state', '=', 'scanning'), sql<boolean>`coalesce(scan_claimed_at, state_changed_at) < ${staleBefore}`]),
+        eb.and([eb('state', '=', 'scanning'), sql<boolean>`(scan_claimed_at is null or scan_claimed_at < ${staleBefore})`]),
       ]),
     )
     .returningAll()
     .executeTakeFirst();
+}
+
+/** The order a medium belongs to (for the link of an alert and the audit); `undefined` for a file that has no medium. */
+export async function workOrderOfAsset(db: MediaDb, mediaAssetId: string): Promise<string | undefined> {
+  const row = await db.selectFrom('media.media_assets').where('id', '=', mediaAssetId).select('work_order_id').executeTakeFirst();
+  return row?.work_order_id;
+}
+
+/** How many files of the order are held in quarantine (the counter of the filter, EVM-049 AC6): the same rule as the filter itself. */
+export async function countHeld(db: MediaDb, workOrderId: string): Promise<number> {
+  const row = await db
+    .selectFrom('media.media_assets as a')
+    .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .where('a.work_order_id', '=', workOrderId)
+    .where(HELD)
+    .select(sql<string>`count(*)`.as('count'))
+    .executeTakeFirstOrThrow();
+  return Number(row.count);
+}
+
+/**
+ * The new scan of a quarantined file (EVM-049 AC3): `quarantined` to `scanning` - and only while the file is not purged and its deadline has
+ * not passed (the compare-and-set carries both, so a rescan never races the retention). The reason is cleared (the CHECK of 0046 wants no
+ * reason outside `failed`/`quarantined`), the claim is cleared (the loop of the worker takes the file at once) and `quarantined_at` stays.
+ * @returns whether the file was taken
+ */
+export async function requestRescan(db: MediaDb, storedFileId: string, now: Date): Promise<boolean> {
+  const result = await db
+    .updateTable('media.stored_files as f')
+    .set({ state: 'scanning', state_reason_code: null, scan_claimed_at: null, state_changed_at: now })
+    .where('f.id', '=', storedFileId)
+    .where('f.state', '=', 'quarantined')
+    .where('f.purged_at', 'is', null)
+    .where(sql<boolean>`${now}::timestamptz < media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer)`)
+    .returning('f.id')
+    .executeTakeFirst();
+  return result !== undefined;
+}
+
+export interface DueFile {
+  readonly id: string;
+  readonly objectKey: string;
+  readonly state: FileState;
+  readonly mediaAssetId: string | null;
+}
+
+/**
+ * The files whose retention has run out (EVM-049 AC5, SR-DATA-07): quarantined (or held in a new scan) and not purged, with the deadline of
+ * the database function not after `now`. Row-locked `SKIP LOCKED` in the transaction of the caller: two sweepers never take the same file.
+ */
+export async function lockDueForPurge(db: MediaDb, now: Date, limit: number): Promise<DueFile[]> {
+  const rows = await db
+    .selectFrom('media.stored_files as f')
+    .where('f.quarantined_at', 'is not', null)
+    .where('f.purged_at', 'is', null)
+    .where('f.state', 'in', ['quarantined', 'scanning'])
+    .where(sql<boolean>`media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer) <= ${now}::timestamptz`)
+    .orderBy('f.quarantined_at', 'asc')
+    .limit(limit)
+    .select(['f.id', 'f.object_key', 'f.state', 'f.media_asset_id'])
+    .forUpdate()
+    .skipLocked()
+    .execute();
+  return rows.map((row) => ({ id: row.id, objectKey: row.object_key, state: row.state, mediaAssetId: row.media_asset_id }));
+}
+
+/** Marks the object of a quarantined file as removed. @returns whether the mark was set now (`false`: someone set it first - no second audit event) */
+export async function markPurged(db: MediaDb, storedFileId: string, now: Date): Promise<boolean> {
+  const result = await db
+    .updateTable('media.stored_files')
+    .set({ purged_at: now })
+    .where('id', '=', storedFileId)
+    .where('state', '=', 'quarantined')
+    .where('purged_at', 'is', null)
+    .returning('id')
+    .executeTakeFirst();
+  return result !== undefined;
+}
+
+export interface AbandonedFile {
+  readonly id: string;
+  readonly objectKey: string;
+  readonly sessions: ReadonlyArray<{ readonly id: string; readonly uploadId: string }>;
+}
+
+/**
+ * Unfinished uploads nobody continues (EVM-049 D9, RR-NOC-T1-4): `pending_upload` since before `cutoff` and WITHOUT an active, unexpired
+ * session. Row-locked `SKIP LOCKED` with the lock `create-upload-session` also takes, so a session opened at this moment either wins (the file
+ * is not taken) or finds the file already `failed`/`abandoned`, which it resumes like a `checksum_mismatch`. The sessions still marked
+ * `active` (expired) come with the file, to be closed and aborted in the storage.
+ */
+export async function lockAbandoned(db: MediaDb, cutoff: Date, now: Date, limit: number): Promise<AbandonedFile[]> {
+  const files = await db
+    .selectFrom('media.stored_files as f')
+    .where('f.state', '=', 'pending_upload')
+    .where('f.state_changed_at', '<', cutoff)
+    .where((eb) =>
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom('media.upload_sessions as s')
+            .select('s.id')
+            .whereRef('s.stored_file_id', '=', 'f.id')
+            .where('s.state', '=', 'active')
+            .where('s.expires_at', '>', now),
+        ),
+      ),
+    )
+    .orderBy('f.state_changed_at', 'asc')
+    .limit(limit)
+    .select(['f.id', 'f.object_key'])
+    .forUpdate()
+    .skipLocked()
+    .execute();
+  if (files.length === 0) return [];
+  const sessions = await db
+    .selectFrom('media.upload_sessions')
+    .where(
+      'stored_file_id',
+      'in',
+      files.map((file) => file.id),
+    )
+    .where('state', '=', 'active')
+    .select(['id', 'stored_file_id', 's3_upload_id'])
+    .execute();
+  return files.map((file) => ({
+    id: file.id,
+    objectKey: file.object_key,
+    sessions: sessions.filter((row) => row.stored_file_id === file.id).map((row) => ({ id: row.id, uploadId: row.s3_upload_id })),
+  }));
+}
+
+/** Unfinished media of one creator (`pending_upload`): the count of the limit (EVM-049 D9). */
+export async function countPendingOfCreator(db: MediaDb, userId: string): Promise<number> {
+  const row = await db
+    .selectFrom('media.stored_files')
+    .where('state', '=', 'pending_upload')
+    .where('created_by', '=', userId)
+    .select(sql<string>`count(*)`.as('count'))
+    .executeTakeFirstOrThrow();
+  return Number(row.count);
+}
+
+/** Unfinished media of one order (`pending_upload`): the count of the limit (EVM-049 D9). */
+export async function countPendingOfOrder(db: MediaDb, workOrderId: string): Promise<number> {
+  const row = await db
+    .selectFrom('media.media_assets as a')
+    .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .where('a.work_order_id', '=', workOrderId)
+    .where('f.state', '=', 'pending_upload')
+    .select(sql<string>`count(*)`.as('count'))
+    .executeTakeFirstOrThrow();
+  return Number(row.count);
+}
+
+/** Serialises the creators of media of one subject (a user or an order) in the transaction, so the count after it cannot be passed by a parallel request (CWE-367). */
+export async function lockPendingCounter(db: MediaDb, kind: 'user' | 'order', subjectId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${`media-pending:${kind}:${subjectId}`}, 0))`.execute(db);
 }

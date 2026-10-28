@@ -12,12 +12,20 @@
  * (the first 4100 bytes) and `INSTREAM` — the three verdicts concern the same file, streamed (the worker has 512 MB). The order of the
  * verdicts is `scan-outcome.ts`. Fail closed: when the scanner cannot give a verdict the file stays `scanning` and the error is a counter
  * and a code in the log, nothing else — a file is `clean` only after an explicit `stream: OK`.
+ *
+ * EVM-049: the FIRST entry into quarantine (`quarantined_at` still empty) sets that time (write-once: the clock of the retention), writes the
+ * audit event, one e-mail per active Administrator (not a second one while one is pending for the same order) and a security alert — all in the
+ * transaction of the transition, so a failure of any of them rolls the transition back and the file is scanned again. A NEW scan (the file has
+ * `quarantined_at`: an Administrator asked for it) is the same pipeline, but it sends no e-mail and no alert: only the audit event
+ * `media_file.rescanned` with the result (a code, never the reason).
  */
 import { createHash } from 'node:crypto';
 import { fileTypeFromBuffer } from 'file-type';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
+import { enqueueSecurityAlert } from '../../../platform/alerts/security-alerts.ts';
 import type { Database } from '../../../platform/database/database.ts';
+import { enqueueEmailOnce } from '../../../platform/email/email-outbox.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
 import { newTraceId } from '../../../platform/http/request-context.ts';
@@ -27,7 +35,7 @@ import type { ObjectStorage } from '../../../platform/object-storage/object-stor
 import { normalizeContentType, typeAgrees } from '../domain/file-rules.ts';
 import { decideOutcome } from '../domain/scan-outcome.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { claimForScan, countStuck, findUnscanned, transitionFile } from '../infrastructure/media-store.ts';
+import { claimForScan, countStuck, findUnscanned, transitionFile, workOrderOfAsset } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 
 /** A file in `scanning` that nobody has touched for this long is taken again. */
@@ -48,6 +56,8 @@ export interface ScanDependencies {
   readonly logger: Logger;
   readonly storage: ObjectStorage | null;
   readonly scanner: MalwareScanner | null;
+  /** The identifiers of the active Administrators (the facade of `identity`; the recipients of the alert of a quarantine). */
+  readonly administrators: (tx: Kysely<Database>) => Promise<string[]>;
 }
 
 export class MediaScanService {
@@ -154,8 +164,11 @@ export class MediaScanService {
       typeMatches: typeAgrees(detected?.mime, file.declared_content_type, file.original_filename),
     });
     return runInTransaction(db, async (tx) => {
+      const tables = mediaTables(tx);
+      const at = this.#deps.clock.now();
+      const rescan = file.quarantined_at !== null;
       const moved = await transitionFile(
-        mediaTables(tx),
+        tables,
         file.id,
         'scanning',
         {
@@ -164,22 +177,54 @@ export class MediaScanService {
           sizeBytes: seen.oversize ? null : seen.bytes,
           sha256,
           contentType: detected === undefined ? null : (normalizeContentType(detected.mime) ?? null),
+          // the coalesce of the store keeps the first time: a new scan with a positive result never moves the clock of the retention
+          ...(outcome.state === 'quarantined' ? { quarantinedAt: at } : {}),
         },
-        this.#deps.clock.now(),
+        at,
       );
       if (!moved) return false;
-      if (outcome.state === 'quarantined' && file.media_asset_id !== null) {
-        const event: MediaAuditEvent = {
-          type: 'media_file.quarantined',
-          actor: { type: 'system' },
-          outcome: 'success',
-          objectType: 'media_asset',
-          objectId: file.media_asset_id,
-        };
-        await this.#deps.events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
+      if (file.media_asset_id !== null) {
+        if (rescan)
+          await this.#publish(tx, 'media_file.rescanned', file.media_asset_id, { fromCode: 'quarantined', toCode: outcome.state });
+        else if (outcome.state === 'quarantined') await this.#alert(tx, file.media_asset_id, at);
       }
-      logger.info({ job: 'media.scan', storedFileId: file.id, state: outcome.state }, 'media: a file was scanned');
+      logger.info({ job: 'media.scan', storedFileId: file.id, state: outcome.state, rescan }, 'media: a file was scanned');
       return true;
     });
+  }
+
+  /** The first entry into quarantine: the audit event, one e-mail per active Administrator and a security alert (AC2; SR-FILE-05, SR-LOG-07). */
+  async #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
+    await this.#publish(tx, 'media_file.quarantined', mediaAssetId, {});
+    const workOrderId = await workOrderOfAsset(mediaTables(tx), mediaAssetId);
+    if (workOrderId !== undefined) {
+      for (const recipientUserId of await this.#deps.administrators(tx)) {
+        await enqueueEmailOnce(tx, {
+          kind: 'administrator_alert',
+          variant: 'administrator_media_quarantined',
+          recipientUserId,
+          subjectId: workOrderId,
+          now: at,
+        });
+      }
+    }
+    await enqueueSecurityAlert(tx, { code: 'media_quarantined', occurredAt: at, traceId: newTraceId() });
+  }
+
+  async #publish(
+    tx: Kysely<Database>,
+    type: MediaAuditEvent['type'],
+    mediaAssetId: string,
+    codes: Pick<MediaAuditEvent, 'fromCode' | 'toCode'>,
+  ): Promise<void> {
+    const event: MediaAuditEvent = {
+      type,
+      actor: { type: 'system' },
+      outcome: 'success',
+      objectType: 'media_asset',
+      objectId: mediaAssetId,
+      ...codes,
+    };
+    await this.#deps.events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
   }
 }

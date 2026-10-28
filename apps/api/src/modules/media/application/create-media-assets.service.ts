@@ -27,13 +27,23 @@ import { parseInput, strictObjects } from '../../../platform/http/validation.ts'
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
-import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
+import type { AppConfig } from '../../../platform/config/config.ts';
+import { DEFAULT_MEDIA_LIMITS, type MediaLimits } from '../../../platform/config/media-config.ts';
+import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { checkDeclaration, type CheckedDeclaration } from '../domain/file-rules.ts';
 import { objectKeyFor } from '../domain/upload-plan.ts';
 import type { MediaAssetsAddedEvent, MediaAuditEvent } from '../events.ts';
-import { findAssetsWithFiles, insertMediaAsset, insertStoredFile, newFileIds } from '../infrastructure/media-store.ts';
-import { mediaTables } from '../infrastructure/tables.ts';
+import {
+  countPendingOfCreator,
+  countPendingOfOrder,
+  findAssetsWithFiles,
+  insertMediaAsset,
+  insertStoredFile,
+  lockPendingCounter,
+  newFileIds,
+} from '../infrastructure/media-store.ts';
+import { mediaTables, type MediaDb } from '../infrastructure/tables.ts';
 import { idempotencyKeyOf, requireStorage, toMediaAsset } from './media-support.ts';
 
 export const CREATE_MEDIA_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/media-assets';
@@ -67,6 +77,7 @@ export class CreateMediaAssetsService {
   readonly #idempotency: Idempotency;
   readonly #orders: WorkOrderDirectory;
   readonly #storage: ObjectStorage | null;
+  readonly #limits: MediaLimits;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
@@ -75,6 +86,7 @@ export class CreateMediaAssetsService {
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
+    @Inject(APP_CONFIG) config: AppConfig,
   ) {
     this.#db = db;
     this.#clock = clock;
@@ -82,6 +94,7 @@ export class CreateMediaAssetsService {
     this.#idempotency = idempotency;
     this.#orders = orders;
     this.#storage = storage;
+    this.#limits = config.media?.limits ?? DEFAULT_MEDIA_LIMITS;
   }
 
   async create(
@@ -120,6 +133,24 @@ export class CreateMediaAssetsService {
     });
   }
 
+  /**
+   * The limits of unfinished media (EVM-049 D9, RR-NOC-T1-4): per creator and per order, counted in the transaction under an advisory lock of
+   * each subject, so two parallel batches cannot both pass the count (CWE-367). `422 limit_exceeded` (a limit of subordinate objects); a
+   * batch that would pass the limit is refused whole.
+   */
+  async #checkLimits(tables: MediaDb, userId: string, workOrderId: string, adding: number): Promise<void> {
+    await lockPendingCounter(tables, 'user', userId);
+    await lockPendingCounter(tables, 'order', workOrderId);
+    const errors: Array<{ pointer: string; code: string }> = [];
+    if ((await countPendingOfCreator(tables, userId)) + adding > this.#limits.maxPendingPerUser) {
+      errors.push({ pointer: '/items', code: 'too_many_unfinished_for_user' });
+    }
+    if ((await countPendingOfOrder(tables, workOrderId)) + adding > this.#limits.maxPendingPerOrder) {
+      errors.push({ pointer: '/items', code: 'too_many_unfinished_for_order' });
+    }
+    if (errors.length > 0) throw new ProblemException('limit_exceeded', { errors });
+  }
+
   async #add(
     tx: Kysely<Database>,
     principal: Principal,
@@ -130,6 +161,7 @@ export class CreateMediaAssetsService {
   ): Promise<void> {
     const now = this.#clock.now();
     const tables = mediaTables(tx);
+    await this.#checkLimits(tables, principal.userId, workOrderId, items.length);
     const fileIds = await newFileIds(tables, items.length);
     for (const [index, item] of items.entries()) {
       const declaration = checked[index] as CheckedDeclaration;

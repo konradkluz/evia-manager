@@ -324,6 +324,11 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
     getUploadPartUrl: session('/parts/1/url'),
     completeUploadSession: session('/complete'),
     abortUploadSession: session('/abort'),
+    // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
+    rescanMediaAsset: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
+      foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
+    },
   };
 }
 

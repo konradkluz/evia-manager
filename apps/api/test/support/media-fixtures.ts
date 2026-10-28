@@ -32,6 +32,9 @@ export interface MediaSpec {
   readonly createdAt?: Date;
   readonly versionId?: string;
   readonly etag?: string;
+  /** The first entry into quarantine; for a `quarantined` file the default is `createdAt` (the CHECK of 0046 wants it). */
+  readonly quarantinedAt?: Date;
+  readonly purgedAt?: Date;
 }
 
 export interface InsertedMedia {
@@ -84,6 +87,8 @@ export async function insertMedia(db: Kysely<Database>, spec: MediaSpec): Promis
       original_filename: spec.fileName ?? 'IMG_0001.JPG',
       s3_version_id: spec.versionId ?? null,
       s3_etag: spec.etag ?? null,
+      quarantined_at: spec.quarantinedAt ?? (spec.state === 'quarantined' ? at : null),
+      purged_at: spec.purgedAt ?? null,
       created_at: at,
       created_by: spec.createdBy,
     })

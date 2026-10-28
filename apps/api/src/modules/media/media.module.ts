@@ -16,18 +16,23 @@ import { MALWARE_SCANNER } from '../../platform/malware-scan/malware-scanner.ts'
 import type { ObjectStorage } from '../../platform/object-storage/object-storage.ts';
 import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../platform/tokens.ts';
+import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateMediaAssetsService } from './application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from './application/create-upload-session.service.ts';
 import { FinishUploadService } from './application/finish-upload.service.ts';
 import { ListMediaAssetsService } from './application/list-media-assets.service.ts';
+import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
+import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
+import { RescanMediaService } from './application/rescan-media.service.ts';
+import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
 import { SessionAccess } from './application/session-access.ts';
 import { UploadPartsService } from './application/upload-parts.service.ts';
 import { MediaController } from './http/media.controller.ts';
 
 @Module({
-  imports: [WorkOrdersModule],
+  imports: [WorkOrdersModule, IdentityModule],
   controllers: [MediaController],
   providers: [
     CreateMediaAssetsService,
@@ -36,9 +41,13 @@ import { MediaController } from './http/media.controller.ts';
     UploadPartsService,
     FinishUploadService,
     SessionAccess,
+    RescanMediaService,
+    QuarantineRetentionJob,
+    AbandonedUploadsJob,
+    SignatureMonitorJob,
     {
       provide: MediaScanService,
-      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER],
+      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory],
       useFactory: (
         db: Kysely<Database>,
         clock: Clock,
@@ -46,9 +55,10 @@ import { MediaController } from './http/media.controller.ts';
         logger: Logger,
         storage: ObjectStorage | null,
         scanner: MalwareScanner | null,
-      ) => new MediaScanService({ db, clock, events, logger, storage, scanner }),
+        administrators: AdministratorDirectory,
+      ) => new MediaScanService({ db, clock, events, logger, storage, scanner, administrators: (tx) => administrators.listActiveIds(tx) }),
     },
   ],
-  exports: [MediaScanService],
+  exports: [MediaScanService, QuarantineRetentionJob, AbandonedUploadsJob, SignatureMonitorJob],
 })
 export class MediaModule {}

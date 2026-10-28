@@ -43,6 +43,10 @@ export interface StoredFilesTable {
   s3_etag: string | null;
   created_at: Date;
   created_by: string;
+  /** When the file FIRST entered quarantine (write-once; the clock of the retention, migration 0046). */
+  quarantined_at: Date | null;
+  /** When the object of a quarantined file was removed after the retention (write-once). */
+  purged_at: Date | null;
 }
 
 export interface UploadSessionsTable {
