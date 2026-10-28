@@ -33,7 +33,7 @@ InstallationSecret:
   type: string
   description: >-
     Sekret instalacji (256 bitów, base64url) nadany przez serwer; telefon trzyma go w Android Keystore i przedstawia razem z
-    `deviceId` przy ponownym logowaniu oraz przy potwierdzeniu wyczyszczenia. Serwer zna tylko jego skrót.
+    `deviceId` przy ponownym logowaniu oraz przy potwierdzeniu wyczyszczenia (dopuszczalny jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret — rotacja dwufazowa, zob. `mobileLoginTotp`). Serwer zna tylko jego skrót.
   pattern: '^[A-Za-z0-9_-]{43}$'
   minLength: 43
   maxLength: 43
@@ -42,7 +42,8 @@ WipeConfirmationRequest:
   type: object
   description: >-
     Para `deviceId` + sekret instalacji w TREŚCI (nigdy w adresie ani w nagłówku). Sekret jest tu wyłącznie dowodem przejścia stanu
-    urządzenia, a nie czynnikiem uwierzytelniania sesji (SR-AUTH-14).
+    urządzenia, a nie czynnikiem uwierzytelniania sesji (SR-AUTH-14). Przyjmowany jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret
+    instalacji (rotacja dwufazowa): telefon, który nie udowodnił nowego sekretu, wciąż może potwierdzić wyczyszczenie.
   additionalProperties: false
   required: [deviceId, installationSecret]
   properties:

@@ -1704,7 +1704,7 @@ mobileLoginTotp:
       nowym sekretem; dopiero wtedy poprzedni sekret traci ważność. Logowanie poprzednim sekretem rozpoznaje to samo urządzenie
       (to samo `deviceId`, ten sam zapis idempotencji, kursor i limit urządzeń) i rotuje ponownie — zgubiona w garażu odpowiedź
       nie tworzy nowego urządzenia. Aplikacja zapisuje nowy sekret w Android Keystore dopiero po odebraniu odpowiedzi, a stary
-      porzuca po zapisie. Odpowiedź niesie `deviceId`,
+      porzuca po zapisie. Poprzedni sekret traci ważność najpóźniej po czasie życia tokenu odświeżania (nie dłużej niż 7 dni) od wydania nowego; w danej chwili są NAJWYŻEJ dwa ważne sekrety (ostatni udowodniony i najnowszy wydany) — wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego (w wyniku kolejnego logowania poprzednim sekretem). Oba sekrety są unieważniane przy potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Odpowiedź niesie `deviceId`,
       tokeny, `accessTokenExpiresAt` (15 min), `refreshTokenExpiresAt` i `serverTime`; nigdy ciasteczek.
       Kolejność kodów: `401 invalid_credentials` to jedyna odpowiedź na zły kod oraz na zły, wygasły lub zużyty `challengeToken`;
       dopiero po poprawnym kodzie możliwe są `403 channel_not_allowed` (Tylko odczyt; dotyczy wyłącznie logowania mobilnego —

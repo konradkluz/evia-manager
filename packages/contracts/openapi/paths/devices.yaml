@@ -8,7 +8,8 @@ wipeConfirmation:
       Telefon potwierdza, że usunął dane (stan „Wyczyszczone” w W-17). Publiczna operacja kanału `mobile`: urządzenie w stanie
       wyczyszczenia nie ma ważnej sesji, więc para `deviceId` + `installationSecret` jedzie w TREŚCI (nie w adresie ani nagłówku;
       `deviceId` nie występuje w ścieżce) — tak jak przy ponownym logowaniu. Sekret jest tu dowodem przejścia stanu, nie czynnikiem
-      uwierzytelniania (SR-AUTH-14). Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`.
+      uwierzytelniania (SR-AUTH-14); przyjmowany jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret instalacji (rotacja
+      dwufazowa, zob. `mobileLoginTotp`). Po potwierdzeniu oba sekrety są unieważniane. Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`.
       Odpowiedzi: `204` dla poprawnej pary — idempotentnie, także gdy urządzenie nie jest w stanie wyczyszczenia albo już potwierdziło;
       `401 invalid_credentials` jednym komunikatem dla nieznanego urządzenia i złego sekretu (brak enumeracji urządzeń);
       `400` (zły kształt), `413` (treść > 8 KB), `429` z `Retry-After` (limit na adres IP). Unieważnienie tokenów urządzenia nie zależy od

@@ -24,6 +24,8 @@ import {
   type MobileSession,
   type SyncChangesResponse,
   SYNC_PROJECTIONS,
+  SYNC_PROJECTIONS_STRICT,
+  assertSyncProjectionStrict,
   parseSyncChange,
 } from '../src/index.ts';
 import { NoPersonalDataParameters, type RuleContext } from '../src/redocly-plugin.ts';
@@ -329,6 +331,24 @@ describe('EVM-090 AC2 registration of the device and the wipe confirmation', () 
     expect(zWipeConfirmationRequestWritable.safeParse({ deviceId: 'nope', installationSecret: 'A'.repeat(43) }).success).toBe(false);
   });
 
+  it('EVM-090 AC2 the wipe confirmation accepts the current and the previous not-yet-revoked installation secret (two-phase rotation)', () => {
+    expect(operation('confirmDeviceWipe')['description']).toMatch(/bieżący albo poprzedni, jeszcze nieprzekreślony sekret/);
+    expect(schemas['WipeConfirmationRequest'].description).toMatch(/bieżący albo poprzedni, jeszcze nieprzekreślony sekret/);
+    expect(schemas['InstallationSecret'].description).toMatch(/bieżący albo poprzedni, jeszcze nieprzekreślony sekret/);
+  });
+
+  it('EVM-090 AC2 the two-phase rotation has a deadline and a revocation rule: previous secret lives at most the refresh token lifetime (7 days), at most two secrets are valid, all are revoked on wipe confirmation, device removal and account deactivation', () => {
+    const login = operation('mobileLoginTotp')['description'] as string;
+    const secret = schemas['MobileSession'].properties.installationSecret.description as string;
+    const sync = readFileSync('../../docs/architecture/offline-sync.md', 'utf8');
+    for (const [name, text] of Object.entries({ login, secret, sync })) {
+      expect(text, name).toMatch(/najpóźniej po czasie życia tokenu odświeżania \(nie dłużej niż 7 dni\)/);
+      expect(text, name).toMatch(/NAJWYŻEJ dwa ważne sekrety/);
+      expect(text, name).toMatch(/nieudowodniony.*przestaje działać.*kolejnego logowania/s);
+      expect(text, name).toMatch(/potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta/);
+    }
+  });
+
   it('EVM-090 AC2 pendingItems is an optional integer 0..1000000 in the query of the pull and in the body of the push', () => {
     const query = (operation('getSyncChanges')['parameters'] as unknown[])
       .map((parameter) => resolve(parameter))
@@ -426,18 +446,26 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
     expect(schemas['SyncEntity'].description).toMatch(/parseSyncChange/);
   });
 
-  it('EVM-090 AC3 parseSyncChange rejects a known type with an extra field and skips an unknown type without failing the page', () => {
-    expect(parseSyncChange({ op: 'upsert', entity: { ...customerChange.entity, email: 'x@example.invalid' } })).toEqual({
-      kind: 'invalid',
-    });
+  it('EVM-090 AC3 parseSyncChange is tolerant: a known type with an added field keeps the known fields, drops the unknown one and is not rejected (ADR-0004)', () => {
+    const parsed = parseSyncChange({ op: 'upsert', entity: { ...customerChange.entity, email: 'x@example.invalid', futureField: 1 } });
+    expect(parsed).toEqual({ kind: 'upsert', entity: customerChange.entity });
+    expect(JSON.stringify(parsed)).not.toContain('example.invalid');
+  });
+
+  it('EVM-090 AC3 a known type that does not match its projection is invalid, forces a resync and carries no payload for telemetry', () => {
+    const broken = { op: 'upsert', entity: { ...customerChange.entity, displayName: 42, phone: 'Secret Name' } };
+    const result = parseSyncChange(broken);
+    expect(result).toEqual({ kind: 'invalid', resync: true, reason: 'projection_mismatch', type: 'customer' });
+    expect(JSON.stringify(result)).not.toContain('Secret Name');
+    expect(schemas['SyncEntity'].description).toMatch(/invalid.*resync/s);
+    expect(schemas['SyncEntity'].description).toMatch(/telemetri/);
+  });
+
+  it('EVM-090 AC3 parseSyncChange skips an unknown type without failing the page, and flags malformed changes for a resync', () => {
     const unknownId = '0193a000-0000-7000-8000-0000000000f1';
     expect(
       parseSyncChange({ op: 'upsert', entity: { type: 'assignment_from_the_future', id: unknownId, version: 1, extra: true } }),
-    ).toEqual({
-      kind: 'unknown',
-      type: 'assignment_from_the_future',
-      id: unknownId,
-    });
+    ).toEqual({ kind: 'unknown', type: 'assignment_from_the_future', id: unknownId });
     expect(parseSyncChange({ op: 'delete', type: 'assignment_from_the_future', id: unknownId })).toEqual({
       kind: 'unknown',
       type: 'assignment_from_the_future',
@@ -452,8 +480,31 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
       { op: 'upsert', entity: { type: 'customer' } },
       { op: 'delete' },
     ]) {
-      expect(parseSyncChange(malformed)).toEqual({ kind: 'invalid' });
+      expect(parseSyncChange(malformed)).toEqual({ kind: 'invalid', resync: true, reason: 'malformed' });
     }
+  });
+
+  it('EVM-090 AC3 assertSyncProjectionStrict (server tests) rejects any extra field, unknown type and bad shape in every projection and delete marker', () => {
+    expect(assertSyncProjectionStrict(customerChange)).toEqual({ ok: true });
+    expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id })).toEqual({ ok: true });
+    const extra = assertSyncProjectionStrict({ op: 'upsert', entity: { ...customerChange.entity, email: 'x@example.invalid' } });
+    expect(extra).toEqual({ ok: false, reason: 'extra_fields', fields: ['email'] });
+    expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id, name: 'x' })).toMatchObject({
+      ok: false,
+    });
+    expect(assertSyncProjectionStrict({ op: 'upsert', entity: { type: 'future', id: 'a', version: 1 } })).toEqual({
+      ok: false,
+      reason: 'unknown_type',
+    });
+    expect(assertSyncProjectionStrict({ op: 'upsert', entity: { ...customerChange.entity, displayName: 42 } })).toEqual({
+      ok: false,
+      reason: 'invalid_shape',
+    });
+    expect(assertSyncProjectionStrict(null)).toEqual({ ok: false, reason: 'invalid_shape' });
+    expect(assertSyncProjectionStrict({ op: 'delete' })).toEqual({ ok: false, reason: 'invalid_shape' });
+    expect(assertSyncProjectionStrict({ op: 'delete', type: 'future', id: 'a' })).toEqual({ ok: false, reason: 'unknown_type' });
+    expect(assertSyncProjectionStrict({ op: 'upsert', entity: { type: 'customer' } })).toEqual({ ok: false, reason: 'invalid_shape' });
+    for (const type of Object.keys(SYNC_PROJECTIONS)) expect(Object.keys(SYNC_PROJECTIONS_STRICT)).toContain(type);
   });
 
   it('EVM-090 AC3 every SyncEntityType has a projection in the map, and the map equals x-evia-sync-projections of the contract', () => {
