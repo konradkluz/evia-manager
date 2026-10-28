@@ -36,8 +36,26 @@ export function describeEraseFailure(error: unknown): EraseFailure {
 
 /** The words for a failure; nothing of the entry is repeated in them. */
 export function eraseFailureText(t: TFunction, failure: EraseFailure): string {
-  if (failure.kind === 'server') return t('workOrder.journal.erase.failure.server', { code: failure.code });
-  return t(`workOrder.journal.erase.failure.${failure.kind}`);
+  switch (failure.kind) {
+    case 'server':
+      return t('workOrder.journal.erase.failure.server', { code: failure.code });
+    case 'conflict':
+      return t('workOrder.journal.erase.failure.conflict');
+    case 'gone':
+      return t('workOrder.journal.erase.failure.gone');
+    case 'event':
+      return t('workOrder.journal.erase.failure.event');
+    case 'alreadyRedacted':
+      return t('workOrder.journal.erase.failure.alreadyRedacted');
+    case 'registerDown':
+      return t('workOrder.journal.erase.failure.registerDown');
+    case 'notConfirmed':
+      return t('workOrder.journal.erase.failure.notConfirmed');
+    case 'forbidden':
+      return t('workOrder.journal.erase.failure.forbidden');
+    case 'network':
+      return t('workOrder.journal.erase.failure.network');
+  }
 }
 
 /**
