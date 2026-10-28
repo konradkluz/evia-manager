@@ -378,6 +378,53 @@ describe('the same installation and the limit of devices (EVM-094 AC2; SR-SESS-0
   });
 });
 
+/** The device is removed, or wiped (the secrets burned), behind the back of the sign-in. */
+const markDevice = async (change: 'removed' | 'wiped', id: string): Promise<void> => {
+  if (change === 'removed') await sql`update identity.devices set removed_at = now() where id = ${id}`.execute(current.database.admin);
+  else await sql`update identity.devices set state = 'wiped' where id = ${id}`.execute(current.database.admin);
+};
+
+describe('the state of the account and of the device between the steps (EVM-094 AC1, AC2; CWE-367)', () => {
+  it('EVM-094 AC1 an account deactivated between the steps gets the one 401 and no device; the refusal is audited as not_active', async () => {
+    const account = await totpAccount(current);
+    const phone = newPhone(current);
+    nextStep(current);
+    const { challengeToken } = (await phone.firstStep(account)).body as { challengeToken: string };
+    await sql`update identity.users set status = 'deactivated' where id = ${account.user.id}`.execute(current.database.admin);
+    const refused = await phone.secondStep(challengeToken, codeNow(current, account.secret));
+    expect(refused.status).toBe(401);
+    expect(problemOf(refused)).toBe('invalid_credentials');
+    expect(await devicesOf(current, account.user.id)).toEqual([]);
+    expect((await auditActions(current)).filter((event) => event.reason_code === 'not_active')).toHaveLength(1);
+  });
+
+  it('EVM-094 AC2 a device removed or wiped between the steps is no longer recognised: the phone is registered as a new device (a wiped device has no valid secret)', async () => {
+    for (const change of ['removed', 'wiped'] as const) {
+      const account = await totpAccount(current);
+      const phone = await signedInPhone(current, account);
+      const known = phone.deviceId;
+      nextStep(current);
+      const { challengeToken } = (await phone.firstStep(account, { pair: true })).body as { challengeToken: string };
+      await markDevice(change, known ?? '');
+      const second = await phone.secondStep(challengeToken, codeNow(current, account.secret));
+      expect(second.status, change).toBe(200);
+      expect((second.body as { deviceId: string }).deviceId, change).not.toBe(known);
+    }
+  });
+
+  it('EVM-094 AC1 the notice of a new device for an account that has no such device is obsolete: nothing is sent', async () => {
+    const account = await totpAccount(current);
+    await sql`insert into platform.email_outbox (kind, variant, recipient_user_id, created_at) values ('new_device', null, ${account.user.id}, ${current.clock.now()})`.execute(
+      current.database.admin,
+    );
+    const harness = emailHarness(current);
+    const rows = await outboxRows(current, { recipient: account.user.id, kind: 'new_device' });
+    await harness.job.run({ ids: rows.map((row) => row.id) });
+    expect(harness.sender.sent).toEqual([]);
+    expect((await outboxRows(current, { recipient: account.user.id, kind: 'new_device' })).map((row) => row.state)).toEqual(['superseded']);
+  });
+});
+
 describe('role, channel and the order of the checks (EVM-094 AC3; SR-AUTHZ-12, SR-AUTH-05)', () => {
   it('EVM-094 AC3 a read-only account gets the challenge for a correct password (the password does not tell the role) and 403 channel_not_allowed only after the right code', async () => {
     const account = await totpAccount(current, { role: 'read_only' });

@@ -289,7 +289,7 @@ export interface LoginAttemptRecord {
 
 export async function insertLoginAttempt(
   db: IdentityDb,
-  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer; channel?: 'web' | 'mobile' },
+  attempt: { userId: string; tokenHash: Buffer; now: Date; expiresAt: Date; throttleKey: Buffer; channel: 'web' | 'mobile' },
 ): Promise<string> {
   const row = await db
     .insertInto('identity.login_attempts')
@@ -300,7 +300,7 @@ export async function insertLoginAttempt(
       expires_at: attempt.expiresAt,
       used_at: null,
       throttle_key: attempt.throttleKey,
-      channel: attempt.channel ?? 'web',
+      channel: attempt.channel,
     })
     .returning('id')
     .executeTakeFirstOrThrow();

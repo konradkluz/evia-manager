@@ -396,6 +396,37 @@ describe('the role matrix of the new operations (EVM-094 AC8; SR-AUTHZ-01, SR-AU
   });
 });
 
+describe('the state of the device on every call (EVM-094 AC4; SR-SESS-09)', () => {
+  it('EVM-094 AC4 a device that was removed or wiped ends the token at once and the refresh too: session_revoked', async () => {
+    for (const change of ['removed', 'wiped'] as const) {
+      const account = await totpAccount(current);
+      const phone = await signedInPhone(current, account);
+      expect((await config(phone)).status, change).toBe(200);
+      if (change === 'removed')
+        await sql`update identity.devices set removed_at = now() where id = ${phone.deviceId ?? ''}`.execute(current.database.admin);
+      else await sql`update identity.devices set state = 'wiped' where id = ${phone.deviceId ?? ''}`.execute(current.database.admin);
+      expect(problemOf(await config(phone)), change).toBe('session_revoked');
+      expect(problemOf(await phone.refresh()), change).toBe('session_revoked');
+    }
+  });
+
+  it('EVM-094 AC4 an access token of a session that is not of the mobile channel opens nothing (defence in depth), and a deleted account is refused', async () => {
+    const account = await totpAccount(current);
+    const phone = await signedInPhone(current, account);
+    await sql`update identity.sessions set channel = 'web', device_id = null where user_id = ${account.user.id} and channel = 'mobile'`.execute(
+      current.database.admin,
+    );
+    const refused = await config(phone);
+    expect(refused.status).toBe(401);
+    expect(problemOf(refused)).toBe('unauthenticated');
+    const other = await totpAccount(current);
+    const second = await signedInPhone(current, other);
+    await sql`update identity.users set deleted_at = now() where id = ${other.user.id}`.execute(current.database.admin);
+    expect(problemOf(await config(second))).toBe('session_revoked');
+    expect(problemOf(await second.refresh())).toBe('session_revoked');
+  });
+});
+
 describe('the proof of the installation secret by the tokens (EVM-094 AC2; B4)', () => {
   it('EVM-094 AC2 the first request with the tokens of the newest sign-in proves its secret: the previous one stops working; a device that proved it is not written to on every request', async () => {
     const account = await totpAccount(current);

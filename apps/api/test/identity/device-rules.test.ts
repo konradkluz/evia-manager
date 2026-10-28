@@ -4,6 +4,9 @@ import { PREVIOUS_SECRET_VALID_MS } from '../../src/modules/identity/domain/cons
 import { equalHashes, issueSecret, matchSecret, type SecretState } from '../../src/modules/identity/domain/device-rules.ts';
 import { isRefreshToken, newAccessToken, newRefreshToken, parseBearer } from '../../src/modules/identity/domain/mobile-tokens.ts';
 import { hashToken } from '../../src/modules/identity/domain/tokens.ts';
+import { newDeviceText } from '../../src/modules/identity/domain/email-templates.ts';
+import { ANONYMOUS, bearerAuthenticationOf, bearerPrincipalOf } from '../../src/platform/http/principal.ts';
+import type { Request } from 'express';
 import { clientConfig } from '../../src/modules/identity/domain/client-config.ts';
 
 const now = new Date('2026-10-28T08:00:00Z');
@@ -104,6 +107,7 @@ describe('the version of the app (EVM-094 AC6; SR-API-08)', () => {
     expect(atLeast('1.1.9', '1.2.0')).toBe(false);
     expect(atLeast('0.9.0', '1.0.0')).toBe(false);
     expect(atLeast('garbage', '1.0.0')).toBe(false);
+    expect(atLeast('1.0.0', 'garbage')).toBe(false);
   });
 });
 
@@ -142,5 +146,29 @@ describe('the configuration of the client (EVM-094)', () => {
     const config = clientConfig({ android: '1.2.0', ios: '1.1.0' });
     expect(config).toMatchObject({ minSupportedVersion: { android: '1.2.0', ios: '1.1.0' }, scopeRuleVersion: 1 });
     expect(JSON.stringify(config)).not.toMatch(/@|token|secret/i);
+  });
+});
+
+describe('the notice of a new device (EVM-094 AC5; SR-AUTH-15)', () => {
+  it('EVM-094 AC5 names the model, the system and the time — no IP, no token, no identifier — and the way back (a new password) without a token', () => {
+    const { subject, text } = newDeviceText({
+      panelOrigin: 'https://panel.evia.test',
+      signedInAt: new Date('2026-10-28T08:05:00Z'),
+      model: 'Pixel 8 (GKV4X)',
+      osVersion: '14',
+    });
+    expect(subject).toBe('EVia Manager: logowanie z nowego urządzenia');
+    expect(text).toContain('Pixel 8 (GKV4X), Android 14.');
+    expect(text).toContain('28.10.2026, 09:05');
+    expect(text).toContain('https://panel.evia.test');
+    expect(text).not.toMatch(/evia_(at|rt)_|\d+\.\d+\.\d+\.\d+|#/);
+  });
+});
+
+describe('the Bearer credential of a request that never went through the middleware (EVM-094 AC3)', () => {
+  it('EVM-094 AC3 is anonymous: no principal, never a guess', () => {
+    const request = {} as Request;
+    expect(bearerAuthenticationOf(request)).toBe(ANONYMOUS);
+    expect(bearerPrincipalOf(request)).toBeNull();
   });
 });
