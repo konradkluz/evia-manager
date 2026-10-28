@@ -29,7 +29,7 @@ test.describe('accessibility of the quarantine in "Media i dokumenty", with colo
       // the file leaves the quarantine (a clean verdict of the rescan): the filter has nothing to show
       api.media.media.forEach((entry) => {
         entry.quarantine = null;
-        entry.state = 'ready';
+        entry.state = 'clean';
       });
       await page.getByRole('button', { name: /^Skanuj ponownie/ }).click();
       await expect(page.getByText('Brak plików wymagających uwagi.')).toBeVisible();

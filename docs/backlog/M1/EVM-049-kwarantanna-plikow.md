@@ -116,3 +116,4 @@ _—_
 - 2026-10-28 — start realizacji (nocna kolejka, tor T1), gałąź feature/EVM-044-049-media-upload-kwarantanna
 - 2026-10-28 — plan gotowy (backend-developer)
 - 2026-10-28 — implementacja backendu (backend-developer): migracje 0046–0048, kontrakt, ponowny skan, alert, retencja, porzucone uploady, monitor sygnatur, limity; testy EVM-049 AC1–AC8 zielone w kontenerze; do wykonania: panel (web-developer), zmienne i sieć `evia-scan` w `compose.staging.yaml` (devops), AC7 na stagingu (T3)
+- 2026-10-28 — implementacja panelu (web-developer): kafle held/purged, filtr „Wymaga uwagi (n)", „Skanuj ponownie" z W-04, etykiety w media-labels.ts; testy komponentów i E2E (axe, zrzuty w docs/ux/reviews/EVM-049, PNG poza gitem); do wykonania: zmienne w compose.staging.yaml (devops)
