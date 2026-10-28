@@ -28,7 +28,7 @@ Zmienne: `S3_ENDPOINT`, `S3_REGION`, `MEDIA_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `
 | Plik `quarantined` | `malware_detected` albo `type_mismatch` | Administratorzy dostają e-mail z linkiem do zlecenia i alert bezpieczeństwa; przyczynę widzi tylko Administrator, który może zlecić „Skanuj ponownie” (sekcja „Kwarantanna” niżej); plik jest niedostępny dla nikogo |
 | Plik `failed` / `abandoned` | upload bez aktywnej sesji dłużej niż `MEDIA_ABANDON_AFTER_DAYS` (7) | nic nie zginęło: właściciel wybiera plik ponownie, to samo medium dostaje nową sesję (ten sam klucz obiektu); sprzątanie robi zadanie `media.abandoned-uploads` (02:40) |
 | `422 limit_exceeded` przy dodawaniu zdjęć | ponad `MEDIA_MAX_PENDING_PER_USER` (200) albo `MEDIA_MAX_PENDING_PER_ORDER` (500) niedokończonych | dokończ albo przerwij wysyłanie; limit liczy tylko `pending_upload`; przy wyścigu równoległych żądań blokada doradcza zapobiega przekroczeniu |
-| `clamd` zwraca `INSTREAM size limit exceeded` | limity `clamd` poniżej rozmiaru pliku | w infrastrukturze `StreamMaxLength`, `MaxFileSize` i `MaxScanSize` ≥ 64M oraz `AlertExceedsMax yes` (RR-NOC-T1-3); plik pozostaje w `scanning`, nigdy `clean` |
+| `clamd` zwraca `INSTREAM size limit exceeded` | limity `clamd` poniżej rozmiaru pliku | w infrastrukturze `StreamMaxLength`, `MaxFileSize` i `MaxScanSize` ≥ 64M oraz `AlertExceedsMax yes` (RR-44); plik pozostaje w `scanning`, nigdy `clean` |
 
 ## Kwarantyna, ponowny skan i retencja (EVM-049; P4, P5; SR-DATA-07)
 | Element | Jak działa |

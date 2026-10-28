@@ -4,6 +4,8 @@
 
 > **Aktualizacja 2026-10-21 (EVM-007 / 007a, faza offline — `security-engineer`; nowe ryzyka do akceptacji Konrada):** kanał wdrożenia staging zaimplementowany i przetestowany bez VM i bez tokenów (status mitygacji: „pass (offline)”, kontrole na żywo — „manual (sesja IaC)”). Nowe elementy C-22…C-27 (weryfikator ze stanem `cache.json`, skrypt roota z rejestrem wdrożeń `deploy`/`rollback`, `evia-secrets.service` z manifestem sekretów — także `login-throttle-key` z EVM-026, Caddy krawędziowy, sieci Docker `evia-runtime` i pozostałe, kontener `iac`), przepływy DF-31…DF-35 (wynik weryfikatora → root, wdrożenie i przełączenie krawędzi, materializacja sekretów, `staging-verify` z runnera, publiczne `GET /api/version`), zagrożenia TM-115…TM-122, stan mitygacji TM-97, TM-112, TM-113 i RR-23 z odnośnikami do testów `EVM-007 AC3/AC4/AC7`, nowe ryzyka rezydualne RR-33…RR-35 (status: **proponowane**, do akceptacji Konrada); podsumowanie ryzyka — przyrost w rozdziale 7 (tabela do przeliczenia przy zamknięciu M0). Decyzja Konrada 2026-10-13 o bramkach 7–8 (DAST) — bez zmian, stan wdrożenia w [`requirements.md`](requirements.md#bramki-bezpieczeństwa-ci-ac5).
 
+> **Aktualizacja 2026-10-28 (po nocnej kolejce — PR #107–#110: EVM-084/085, EVM-040/041, EVM-044/049, EVM-090/094; `security-engineer`):** nowe zagrożenia TM-124…TM-132 dla nowych powierzchni (sesje uploadu, skan i kwarantanna, niedokończone media, rejestr usunięć, usunięcie i anonimizacja klienta, logowanie mobilne i rejestr urządzeń, obserwowalność oraz kopie stagingu); TM-123 pozostaje zarezerwowane dla RR-39 (bez wiersza w tabeli). Tymczasowe oznaczenia ryzyk z historyjek i runbooków zastąpione numerami RR-42…RR-70 (jedno mapowanie; stare oznaczenia zostają w komentarzach kodu, nazwach testów i opisie `503` w kontrakcie — ta tabela je rozwiązuje): `RR-NOC-T1-1` → RR-42, `T1-2` → RR-43, `T1-3` → RR-44, `T1-4` → RR-45, `T1-5` → RR-46, `T1-6` → RR-47, `T1-7` → RR-48, `T1-8` → RR-49, `T1-9` → RR-50, `T1-10` → RR-51, `T1-11` → RR-52, `T1-12` → RR-53, `T1-13` → RR-54, `T2-1` → RR-55, `T2-2` → RR-56, `T2-3` → RR-57, `T2-4` → RR-58, `T2-5` → RR-59, `T2-6` → RR-60, `T2-7` → RR-61, `T3-1` → RR-62, `T3-6` → RR-63, `T3-11` → RR-64, `T3-12` → RR-65, `T3-13` → RR-66, `T4-1` → RR-67, `T4-2` → RR-68, `T4-3` → RR-69, `T4-4` → RR-70 (numery `T3-2…5` i `T3-7…10` nie występują w repozytorium). Zaakceptowane przez Konrada 2026-10-28 (delegacja „podejmij najlepsze decyzje”): RR-50 i RR-51 (podział AC7 i interpretacja AC5 w EVM-049) oraz RR-68, RR-69, RR-70 (decyzje wykonawcze EVM-094 i decyzja 8 planu M2); pozostałe — **przyjęte warunkowo, do potwierdzenia przez Konrada**. Dwa ustalenia z przeglądu stanu po scaleniu (konfiguracja, nie kod aplikacji) w RR-55 i RR-42.
+
 ## Spis treści
 1. [Zakres i metoda](#1-zakres-i-metoda)
 2. [Aktywa](#2-aktywa)
@@ -304,6 +306,17 @@ Kolumny: P, W — ryzyko bazowe; „Rezyd.” — ryzyko rezydualne po mitygacja
 | TM-120 | C-27, DF-27 | I | Agent AI w sesji IaC czyta lub wypisuje tokeny Hetzner/Scaleway (plik `../.evia-iac/staging.env`, wyjście `tofu output`, log planu) | 2 | 2 | 4 Medium | EVM-007 (plik poza repozytorium montowany jako sekret Compose; ustalone wejście kontenera, eksport tylko nazw z listy, repozytorium tylko do odczytu; brak wyjść z sekretami — test `tools/repo-policy` „no … generated secrets or secret outputs”; tokeny ≤ 24 h zawężone do `evia-staging`, unieważniane po sesji; reguły `deny` dla `../.evia-iac/**` w `.claude/settings.json` przed utworzeniem pliku — Q3, zgoda Konrada) · SR-INFRA-05, SR-CRYPTO-04 | 1×2=2 Low pod warunkiem reguł `deny` (bez nich 2×2=4 Medium) | RR-02 |
 | TM-121 | C-23, DF-24 | T | Skutki wydania wykrytego po fakcie (n5 — zdarzenie V0 w okresie już wdrożonym, np. pojawiające się w Activity z opóźnieniem) nie są cofane: automatyczny rollback przywraca obrazy, ale nie schemat i dane — migracje wykonane rolą `evia_migrator`, zapisy aplikacji i sekrety stagingu dostępne dla obrazu zostają | 2 | 2 | 4 Medium | EVM-007 (rollback do wdrożenia sprzed frontiera, potem każdy cykl `v0-blocked` do przesunięcia `baseline` w sesji IaC — bez pętli i bez powrotu do frontiera; rollback bez `migrate`, schemat tylko „expand” z testem migracji destrukcyjnych; runbook „blokada V0” — analiza, `gh cache delete --all`, rotacja sekretów, odtworzenie bazy z kopii EVM-084; staging wyłącznie z danymi syntetycznymi; prod — V5 i `staging-verify`) · SR-INFRA-14, SR-INFRA-07 | 1×2=2 Low (staging) | RR-33 |
 | TM-122 | C-22, DF-24 | S | Rozbieżność semantyki prawdziwego API GitHub z atrapą testów (pola i typy zdarzeń Activity, `actor.id`, `merged_by` przy squash, jobs API próby, artefakty i przekierowania) → weryfikator przepuszcza zdarzenie, które powinien zablokować; testy offline potwierdzają tylko założenia atrapy | 2 | 3 | 6 High | EVM-007 (fail-closed przy każdym nieoczekiwanym kształcie — wymagane pola, dokładne porównania, ID liczbowe; kanał wyłączony do sesji IaC: brak weryfikatora na VM, `STAGING_VERIFY_ENABLED` nieustawione); w sesji IaC przed pierwszym wdrożeniem: porównanie rzeczywistych odpowiedzi API (tylko odczyt) z atrapą przez `security-engineer`, przegląd kodu weryfikatora i `deploy.sh` (RR-23), próbny rollback i porażka zdrowia na żywo · SR-INFRA-14 | 1×3=3 Medium (do potwierdzenia w sesji IaC) | RR-34 |
+| TM-124 | DF-06, DF-08, C-10 | E | Sesja uploadu: otwarcie lub kontynuacja sesji na cudzym medium, zapis pod klucz spoza sesji, część większa niż podpisana, zawieszona transakcja przy wolnym magazynie | 2 | 2 | 4 Medium | EVM-044 AC6, AC7, decyzje 2, 7, 10, 16 (klucz `media/{rok}/{miesiąc}/{id pliku}/original` nadaje serwer, bez nazwy i danych osobowych; URL części ≤ 3600 s związany z kluczem, numerem i rozmiarem części; `complete` sprawdza łączny rozmiar; sesję kontynuuje tylko jej twórca — pozostali `404`, otwiera ją twórca medium albo Administrator; cudza aktywna sesja `409` bez szczegółów; klient S3 z limitami 3 s / 8 s i 2 próbami → `503 media_storage_unavailable`; sesja uploadu medium zlecenia B ścieżką zlecenia A → `404`) · SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05 | 1×2=2 Low | RR-46, RR-49 |
+| TM-125 | C-05, C-09, DF-09, DF-11 | T | Plik oznaczony `clean` bez pełnego skanu albo inną wersją obiektu niż skanowana (limity `clamd`, nieznana odpowiedź skanera, podmiana obiektu po `complete`, typ tylko z rozszerzenia) | 2 | 3 | 6 High | EVM-044 decyzje 3–6 (kolejka skanu w tabeli z compare-and-set; jeden odczyt `GetObject` z `VersionId` i `If-Match` zasila SHA-256, liczbę bajtów, typ z zawartości i `INSTREAM`; ścisły parser — tylko `stream: OK` to `clean`, każda inna odpowiedź to ponowienie; pierwszeństwo `malware_detected` > `checksum_mismatch` > `type_mismatch` > `clean`); sieć `evia-scan` `internal` · SR-FILE-03, SR-FILE-05, SR-ERR-01, SR-CRYPTO-05 | 1×2=2 Low | RR-43, RR-44, RR-47 |
+| TM-126 | C-04, C-05 | E | Kwarantanna: zwolnienie pliku bez skanu, przyczyna widoczna dla Edytora i Tylko odczyt, plik zakażony bez wiedzy biura, przechowywanie bez końca, nieaktualne sygnatury bez alertu | 2 | 2 | 4 Medium | EVM-049 AC1–AC8 (jedyna zmiana stanu to ponowny skan Administratora ze step-upem; `quarantineReasonCode` tylko przez `restrictedParams` `mediaQuarantine.manage`; e-mail do Administratorów z samym linkiem do zlecenia i alert `media_quarantined`; zadanie `media.quarantine-retention` co godzinę — znacznik usunięcia po 30 dniach od początku dnia wejścia; monitor sygnatur 24 h / 72 h, wiek nieznany ponad 24 h liczony jak stary) · SR-FILE-05, SR-LOG-07, SR-SESS-08, SR-DATA-07, SR-AUTHZ-05 | 1×2=2 Low | RR-45, RR-50, RR-51, RR-53 |
+| TM-127 | C-04, C-05, C-06 | D | Wyczerpanie zasobów przez niedokończone media i sesje uploadu (masowe `pending_upload`, porzucone sesje) | 2 | 1 | 2 Low | EVM-049 D9 (200 niedokończonych na użytkownika i 500 na zlecenie → `422 limit_exceeded`, liczone pod blokadą doradczą; po 7 dniach bez aktywnej sesji → `failed` / `abandoned`); lifecycle multipart 7 dni (IaC, EVM-084) · SR-API-02, SR-FILE-02 | 1×1=1 Low | — |
+| TM-128 | C-04, C-10 (bucket rejestru usunięć), DF-30 | T | Rejestr usunięć: operacja art. 17 bez wpisu (po odtworzeniu kopii dane wracają), nadpisanie lub odczyt wpisów kluczem aplikacji, dane osobowe w obiekcie, blokady wierszy trzymane przez wolny magazyn | 2 | 2 | 4 Medium | EVM-040 AC3, EVM-041 AC5 (zapis po walidacjach, przed `UPDATE`, w tej samej transakcji; porażka → `503 deletion_register_unavailable` bez zmiany i audyt `failed`; adapter wyłącznie `PutObject` z jawnymi poświadczeniami — test statyczny; termin 5 s, semafor 3 / 1,5 s, `idle_in_transaction_session_timeout` 10 s, błędy blokady → `503` z `Retry-After`; obiekt: `schemaVersion`, `operationId`, kod, typ i identyfikator podmiotu, zlecenie, pseudonimowy aktor, czas — bez treści); EVM-084 AC2 (polityka bucketu bez odczytu, listowania i usuwania dla klucza aplikacji, wersjonowanie, wygasanie 40 dni) · SR-PRIV-04, SR-ERR-01, SR-LOG-03, SR-INFRA-03 | 1×2=2 Low | RR-55, RR-56, RR-58 |
+| TM-129 | C-04 | I | Usunięcie i anonimizacja klienta: dane klienta usuniętego w danych osadzonych zleceń i w wyszukiwaniu, anonimizacja niepełna (lokalizacje, strony, wpisy), masowa nieodwracalna anonimizacja z przejętego konta Administratora, wyścig z tworzeniem albo ponownym otwarciem zlecenia | 2 | 2 | 4 Medium | EVM-041 AC1–AC7 (fasada `CustomerDirectory` na polityce „nieusunięci” także dla Administratora; wartości neutralne, CHECK i wyzwalacz nieodwracalności znacznika; przeliczony `search_text`; step-up; rejestr przed `UPDATE`; `FOR UPDATE` kontra `FOR KEY SHARE` przy tworzeniu zlecenia; audyt bez wartości) · SR-DATA-08, SR-SESS-08, SR-PRIV-04, SR-LOG-03 | 2×2=4 Medium | RR-59, RR-60, RR-61 |
+| TM-130 | C-01, C-04 (kanał `mobile`) | S | Logowanie mobilne i rejestr urządzeń: zgadywanie hasła lub kodu z telefonu, ujawnienie roli albo stanu urządzeń przed drugim krokiem, przypięcie cudzego `deviceId`, kradzież lub powtórka tokenu odświeżania, obejście limitu urządzeń, potwierdzenie wyczyszczenia bez czyszczenia | 2 | 3 | 6 High | EVM-090, EVM-094 AC1–AC8 (kolejność `426` → limity → `device_wipe_required` → hasło → drugi krok skonfigurowany → kod TOTP → rola × kanał → limit urządzeń; token wyzwania 256 bitów, ≤ 5 min, 5 prób; tokeny nieprzezroczyste, w bazie tylko skróty; rotacja tokenu odświeżania z oknem 30 s, ponowne użycie → wylogowanie urządzenia, audyt i alert; sekret instalacji porównywany w stałym czasie także dla nieznanego `deviceId`, rotacja dwufazowa; limit 2 urządzeń liczony pod blokadą konta; wspólny limit 20/min/IP; redakcja pól w logach; `Cache-Control: no-store`) · SR-AUTH-05, SR-AUTH-15, SR-SESS-04, SR-SESS-09, SR-AUTHZ-12, SR-MOB-04, SR-LOG-02 | 1×2=2 Low | RR-67, RR-68, RR-69, RR-70 |
+| TM-131 | C-13, C-14, DF-18, DF-19 | D | Obserwowalność stagingu: publiczny DSN panelu (zalew albo fałszywe zdarzenia), awaria wspólnego stosu wyłącza monitoring dostępności, logi kontenerów poza listą dozwolonych albo bez retencji 7 dni na istniejącej VM | 2 | 1 | 2 Low | EVM-085 D2, D3, D7, AC5–AC7 (Alloy czyta journal, lista dozwolonych usług po etykiecie compose, domyślnie `drop`, redakcja i liczniki alertów; journald 7 dni; DSN panelu w czasie działania, `connect-src` z dokładnym originem; „Allowed Domains” i limit klucza w Sentry; Synthetic Monitoring) · SR-LOG-02, SR-LOG-07, SR-PRIV-09 | 1×1=1 Low | RR-64, RR-65, RR-66 |
+| TM-132 | DF-14, DF-30 | T | Kopie i test odtworzenia stagingu: token projektu `evia-restore-staging` i klucze tylko do odczytu na VM staging, nieodwracalny lock COMPLIANCE bucketu kopii bazy | 1 | 2 | 2 Low | EVM-084 AC2–AC5 (tymczasowa VM bez portów przychodzących, wynik przez jednorazowy podpisany `PUT`, usunięcie VM także po błędzie, sprzątacz co godzinę tylko w projekcie z wartownikiem, alert zasobów > 24 h; lock 37 dni ustawiany przy utworzeniu bucketu w sesji IaC) · SR-INFRA-05, SR-INFRA-07 | 1×1=1 Low | RR-62, RR-63 |
+
+**Uwagi do TM-124…TM-132 (`security-engineer`, 2026-10-28).** Wiersze opisują stan kodu scalonego w PR #107–#110; kontrole infrastruktury (buckety, lifecycle, limity `clamd`, reguły Grafana, sekrety) są nieaktywne do sesji IaC i mają status „manual (sesja IaC)”. Ryzyka Medium RR-42, RR-44, RR-48, RR-50 i RR-55 dotyczą stanu sprzed tej sesji (funkcje fail-closed, dane syntetyczne). TM-129 pozostaje Medium po mitygacjach z powodu zakresu anonimizacji (RR-60) — do ręcznej procedury z runbooka EVM-064 i M4. TM-130 dla iOS — jak RR-09.
 
 **Uwagi do zmian z ADR-0018 (`security-engineer`, 2026-10-13).** TM-97 i TM-99 spadają do 1×1 Low, bo w GitHubie nie ma poświadczeń kanału, a VM nie ma portów przychodzących dla CI; resztkowy scenariusz TM-97 — błąd logiki weryfikatora — jest ryzykiem RR-23. TM-98 jest N/A (brak klucza wdrożeniowego SSH) i nie wchodzi do podsumowania. TM-100 przechodzi do RR-19: sekrety testu odtworzenia leżą tylko na VM środowiska i tymczasowej VM, więc ich kradzież wymaga przejęcia VM, która i tak ma dostęp do danych. TM-112 jest powodem, dla którego `publish` musi być hermetyczny: zatruty cache zapisany przez cofnięty force pushem commit albo `workflow_dispatch` na `main` daje obraz z poprawnym manifestem i przechodzi V1–V5 — wykrywa go tylko V0 (Activity), a nie dopuszcza brak cache (przegląd ADR-0018, B1). TM-112 i TM-113 zostają na 3 Medium (W3 nieredukowalne): pokrywają je RR-21, RR-23 i RR-04. TM-114 — Low pod warunkami RR-24; niespełnienie warunku (np. decyzja wdrożeniowa oparta na metryce z Grafany) = ponowna ocena.
 
@@ -607,6 +620,8 @@ Każdy przypadek: aktor, scenariusz, warunki, wpływ, ocena, mitygacje, wykrywan
 Stan na 2026-10-13 (ADR-0018): liczone z tabeli STRIDE — TM-01…TM-114 bez TM-98 (N/A od ADR-0018); wcześniejsza wersja nie obejmowała TM-106…TM-111 (EVM-034).
 
 Przyrost 2026-10-21 (EVM-007 / 007a, TM-115…TM-122 — tabela wyżej do przeliczenia przy zamknięciu M0): bazowe — High +3 (TM-115, TM-119, TM-122), Medium +4 (TM-116, TM-118, TM-120, TM-121), Low +1 (TM-117); rezydualne — Medium +2 (TM-115, TM-122), Low +6; razem TM: 121. Po mitygacjach nadal **bez ryzyk High i Critical**; nowe Medium — w RR-34 i RR-35.
+
+Przyrost 2026-10-28 (PR #107–#110, TM-124…TM-132 — tabela wyżej do przeliczenia przy zamknięciu M1): bazowe — High +2 (TM-125, TM-130), Medium +4 (TM-124, TM-126, TM-128, TM-129), Low +3 (TM-127, TM-131, TM-132); rezydualne — Medium +1 (TM-129), Low +8; razem TM: 130 (TM-123 bez wiersza). Po mitygacjach nadal **bez ryzyk High i Critical**; nowe ryzyka rezydualne RR-42…RR-70 (Medium: RR-42, RR-44, RR-48, RR-50, RR-55, RR-60, RR-61).
 
 - Po mitygacjach **nie zostaje żadne ryzyko High ani Critical**. Ryzyka Medium wynikają z wpływu W3, którego nie da się obniżyć mitygacjami (prawdopodobieństwo już minimalne), albo z cech zaakceptowanych w ADR — wszystkie są w [rozdziale 8](#8-ryzyka-rezydualne-do-akceptacji-ac6).
 - Największe ryzyka bazowe (Critical): credential stuffing (TM-16, AB-01) i IDOR (TM-17, AB-06) — dlatego MFA dla wszystkich (P1) i generowana macierz ról z przypadkiem IDOR są wymaganiami od pierwszego endpointu z sesją (EVM-016, E1; EVM-008 ma tylko publiczne `/api/health` i deny-by-default).
@@ -980,6 +995,236 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Ryzyko po mitygacjach:** staging — **P1 × W1 = 1 Low** (`p=none`, dane syntetyczne, tylko brak telemetrii); produkcja — nieakceptowane.
 - **Warunek prod:** `rua` ustawione przed uruchomieniem poczty produkcyjnej; kontrola `dns` bez `VERIFY_PROFILE=staging` zielona — punkt sign-off wydania E8.
 - **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-27; „Zapisz w rua w _dmarc jako znany problem na razie. Poprawimy go potem.” — tylko staging)**.
+
+### RR-42 — Jeden zestaw zmiennych S3 mediów dla API i workera (EVM-044; dawniej RR-NOC-T1-1)
+- **Opis:** API i worker czytają ten sam zestaw zmiennych `MEDIA_S3_*`, a SR-INFRA-03 wymaga osobnych kluczy per rola (API — podpisy URL-i; worker — odczyt oryginałów). Kod nie wymaga zmian: rozdzielenie to dwa klucze o tych samych nazwach zmiennych, wydane w sesji IaC. **Stan po scaleniu (2026-10-28):** `infra/deploy-agent/secrets.manifest.json` daje `media-s3-secret-access-key` tylko usłudze `api`; worker nie ma klucza mediów, więc na stagingu skan nie ruszy (pliki zostaną w „Sprawdzanie pliku” — fail-closed).
+- **Źródło:** EVM-044 („Decyzje”, ryzyka rezydualne), EVM-084 („Sekrety”); TM-41, TM-42, TM-125.
+- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium przy jednym kluczu (wyciek daje sumę uprawnień obu ról w całym buckecie); po dwóch kluczach — 1 × 2 = 2 Low.
+- **Rekomendacja:** w sesji IaC dwa klucze, wpis klucza workera w manifeście sekretów i w macierzy `bucket-verify` (klucz × bucket × operacja); warunek demo EVM-044.
+- **Właściciel:** `devops-engineer` (sesja IaC).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-43 — `file-type` w procesie workera poza piaskownicą SR-FILE-06 (EVM-044; dawniej RR-NOC-T1-2)
+- **Opis:** rozpoznanie typu z zawartości działa w procesie workera, a nie w kontenerze `media-processor` (SR-FILE-06) — do EVM-068; wywołanie dostaje tylko pierwsze 4100 bajtów obiektu.
+- **Źródło:** EVM-044 („Decyzje” 4, 11); TM-37, TM-125.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** akceptuj do EVM-068; przenieść rozpoznanie typu do `media-processor` razem z przetwarzaniem.
+- **Właściciel:** `backend-developer` (EVM-068).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-44 — `clamd` na konfiguracji domyślnej limitów (EVM-044; dawniej RR-NOC-T1-3)
+- **Opis:** `clamd` w `infra/runtime/compose.infra.yaml` działa z limitami domyślnymi (25M, bez `AlertExceedsMax`). Dla zdjęć do 50 MB nie prowadzi to do `clean` bez skanu (ścisły parser odpowiedzi — `INSTREAM size limit exceeded` to wyjątek i ponowienie, P5), ale większe pliki zostają w `scanning`. Test z prawdziwym ClamAV używa docelowych ustawień. **Stan (2026-10-28):** w `compose.infra.yaml` nadal brak `StreamMaxLength`, `MaxFileSize`, `MaxScanSize` i `AlertExceedsMax`.
+- **Źródło:** EVM-044 („Decyzje” 5, ryzyka rezydualne); runbook `docs/ops/runbooks/wysylanie-zdjec-i-skan.md`; TM-38, TM-125; SR-FILE-04.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium (dostępność dokumentacji zdjęciowej; poufność bez wpływu); po ustawieniu limitów — Low. **Dla filmów (EVM-046) — blokada.**
+- **Rekomendacja:** `StreamMaxLength`, `MaxFileSize`, `MaxScanSize` ≥ 64M i `AlertExceedsMax yes` w konfiguracji `clamd` przed włączeniem uploadu na stagingu.
+- **Właściciel:** `devops-engineer` (sesja IaC).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-45 — ZAMKNIĘTE: kwarantanna bez 30-dniowej retencji (EVM-044 → EVM-049; dawniej RR-NOC-T1-4)
+- **Opis:** w EVM-044 pliki w kwarantannie nie miały terminu usunięcia. EVM-049 dodało zadanie `media.quarantine-retention` (co godzinę; termin = początek dnia `Europe/Warsaw` wejścia + 30 dni), zadanie porzuconych uploadów i limity niedokończonych mediów (EVM-049 D9). Pozostała część — usunięcie bajtów przez lifecycle — w RR-51.
+- **Źródło:** EVM-044, EVM-049 (D1, D2, D9); TM-126, TM-127.
+- **Ryzyko po mitygacjach:** zamknięte; reszta w RR-51.
+- **Decyzja Konrada:** do informacji.
+
+### RR-46 — Wymuszanie podpisanego `Content-Length` części niezweryfikowane na Scaleway (EVM-044; dawniej RR-NOC-T1-5)
+- **Opis:** podpis URL-a części obejmuje rozmiar, ale to, że Scaleway odrzuca `PUT` innego rozmiaru (`403`), nie zostało sprawdzone na prawdziwym magazynie (testy — SeaweedFS). Część większa niż zadeklarowana i tak kończy się `checksum_mismatch` (skan czyta najwyżej `declaredSize`), a `complete` sprawdza łączny rozmiar.
+- **Źródło:** EVM-044 (AC6, ryzyka rezydualne); TM-124.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** sprawdzić na demo po sesji IaC (próba `PUT` części innego rozmiaru → `403`), wynik w `docs/qa/EVM-044/`.
+- **Właściciel:** `qa-engineer` z `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-47 — `clamd` po TCP przyjmuje komendy administracyjne bez uwierzytelnienia (EVM-044; dawniej RR-NOC-T1-6)
+- **Opis:** skaner jest osiągalny po TCP (`CLAMD_SOCKET=tcp://…`, odchylenie od gniazda Unix z ADR-0009), a protokół `clamd` nie ma uwierzytelnienia — proces w tej sieci może wysłać np. `SHUTDOWN`. Sieć `evia-scan` jest `internal` (bez wyjścia) i należą do niej tylko API i worker.
+- **Źródło:** EVM-044 („Decyzje” 5, ryzyka rezydualne); TM-125.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low (skutek: wstrzymanie skanu z przejętego API lub workera; fail-closed — pliki czekają).
+- **Rekomendacja:** akceptuj.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-48 — CSP `connect-src` obrazu `evia-web` bez originu bucketu (EVM-044; dawniej RR-NOC-T1-7)
+- **Opis:** `apps/web/security-headers.ts` dopuszcza dokładnie jeden origin z `MEDIA_BUCKET_ORIGIN`, ale statyczny `infra/images/web/Caddyfile` ma `connect-src 'self'`. Dopóki obraz `evia-web` nie dostanie originu bucketu, przeglądarka na stagingu zablokuje `PUT` części i upload zakończy się „Nie wysłano” (fail-closed, bez wpływu na poufność).
+- **Źródło:** EVM-044 („Decyzje” 15); EVM-085 D7 (ten sam mechanizm dla originu Sentry); SR-WEB-01.
+- **Ryzyko po mitygacjach:** P3 × W1 = 3 Medium (pewna niedostępność funkcji na stagingu do poprawki).
+- **Rekomendacja:** szablon Caddyfile (albo plik konfiguracji w czasie działania) z dokładnym originem bucketu, bez wildcardu, z testem `caddy-headers`; przed demo EVM-044.
+- **Właściciel:** `devops-engineer` z `web-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-49 — Administrator może „zająć” cudzy plik `pending_upload` sesją do jej wygaśnięcia (EVM-044; dawniej RR-NOC-T1-8)
+- **Opis:** twórcą sesji uploadu jest użytkownik, który ją otworzył; Edytor nie otworzy sesji na cudzym medium (`404`), ale Administrator może — wtedy tylko on ją kontynuuje (pozostali, także Edytor-twórca medium, dostają `404`) do wygaśnięcia sesji (7 dni).
+- **Źródło:** EVM-044 („Decyzje” 16 (c), ryzyka rezydualne); test `EVM-044 AC6 … (CWE-639)`; TM-124.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low (ślad w audycie sesji).
+- **Rekomendacja:** akceptuj.
+- **Właściciel:** `backend-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-50 — Reguły Grafana dla kwarantanny, wieku sygnatur i awarii retencji oraz test alertu na stagingu niewykonane (EVM-049 AC7; dawniej RR-NOC-T1-9)
+- **Opis:** dziś działa e-mail do Administratorów i `security_alert_outbox` (`media_quarantined`, `signature_stale`, `signature_stale_72h`), ale reguły Grafana i test alertu na stagingu (AC7) wymagają sesji IaC i nie zostały wykonane. AC7 jest podzielone: część kodowa zrobiona, część stagingowa w sesji IaC razem z EVM-085; EVM-049 zostaje `in-review` do dowodu.
+- **Źródło:** EVM-049 („Decyzje”, D5, dziennik 2026-10-28); EVM-044 („Warunek wydania M1”); SR-LOG-07; TM-34, TM-126.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium do sesji IaC; po regułach i teście — Low.
+- **Rekomendacja:** warunek sign-off wydania M1: reguły i dostarczony alert testowy, dowód w `docs/qa/EVM-049/`.
+- **Właściciel:** `devops-engineer` (sesja IaC, EVM-085).
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — podział AC7, część stagingowa w sesji IaC razem z EVM-085)**.
+
+### RR-51 — Usunięcie pliku z kwarantanny to znacznik usunięcia; lifecycle jako druga warstwa niewdrożony (EVM-049 AC5; dawniej RR-NOC-T1-10)
+- **Opis:** zadanie retencji robi `DeleteObject` bez wersji (znacznik usunięcia, ADR-0009 — governance 30 dni, bez bypass w aplikacji), a starą wersję usuwa lifecycle `noncurrent-versions` po 30 dniach — bajty znikają po ok. 60 dniach od wejścia w kwarantannę. Do sesji IaC jedyną kontrolą jest sweeper. Reguła `quarantine/` w `infra/tofu/modules/object-storage/main.tf` nie obejmuje kluczy `media/…/original` (aplikacja nie przenosi plików do prefiksu kwarantanny — EVM-044 decyzja 2), więc drugą warstwą jest wyłącznie `noncurrent-versions`.
+- **Źródło:** EVM-049 (D2, dziennik 2026-10-28 (b)); TM-126; SR-DATA-07.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** akceptuj; regułę `quarantine/` usunąć albo opisać jako nieużywaną przy najbliższej zmianie modułu.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — interpretacja AC5: znacznik usunięcia + lifecycle noncurrent ~60 dni, do tego czasu sweeper)**.
+
+### RR-52 — Kopia mediów obejmuje obiekty nieskanowane i z kwarantanny (EVM-049; dawniej RR-NOC-T1-11)
+- **Opis:** `rclone sync` do Storage Boxa (EVM-084) wyklucza `quarantine/**`, ale pliki w kwarantannie leżą pod kluczami `media/…`, więc kopia (szyfrogram `rclone crypt`) zawiera też pliki nieskanowane i zakażone; po usunięciu z bucketu znikają z kopii przy kolejnym `sync`, ale zostają w snapshotach Storage Boxa do 14 dni.
+- **Źródło:** EVM-049 („Decyzje”, ryzyka rezydualne); EVM-084 (poprawka (a)); TM-45, TM-82.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low (kopia nie jest wykonywana ani udostępniana; odtworzenie mediów przechodzi przez stan pliku w bazie).
+- **Rekomendacja:** akceptuj; przy zmianie kluczy obiektów rozważyć prefiks kwarantanny, który pozwoli na skuteczne wykluczenie.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-53 — Początek „wieku nieznanego” sygnatur w pamięci workera (EVM-049; dawniej RR-NOC-T1-12)
+- **Opis:** gdy `clamd` nie podaje daty sygnatur, licznik „wieku nieznanego” startuje w pamięci procesu; restart workera zaczyna odliczanie 24 h od nowa (przy częstych restartach alert może się nie pojawić).
+- **Źródło:** EVM-049 (D5, ryzyka rezydualne); TM-34, TM-126.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj.
+- **Właściciel:** `backend-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-54 — `original_filename` zostaje po usunięciu obiektu z kwarantanny (EVM-049; dawniej RR-NOC-T1-13)
+- **Opis:** retencja kwarantanny usuwa obiekt, ale wiersz metadanych `stored_files` z oryginalną nazwą pliku (może zawierać dane osobowe) zostaje z retencją zlecenia (M4). Ujęte w [`rodo.md`](rodo.md#retencja).
+- **Źródło:** EVM-049 (D2, ryzyka rezydualne); SR-DATA-07.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj do zadania retencji M4.
+- **Właściciel:** `security-engineer` (`rodo.md`).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-55 — Redakcja i anonimizacja zablokowane na stagingu do czasu bucketu i poprawnej konfiguracji rejestru (EVM-040, EVM-041; dawniej RR-NOC-T2-1)
+- **Opis:** bez bucketu rejestru usunięć z EVM-084 redakcja wpisu i anonimizacja klienta odpowiadają `503 deletion_register_unavailable` (fail-closed, celowo; usługa zdrowa). **Dwa ustalenia z przeglądu stanu po scaleniu (konfiguracja):** (a) polityka bucketu w `infra/tofu/modules/object-storage/main.tf` odrzuca `PutObject` bez nagłówka `If-None-Match` (`Null` na `s3:if-none-match`), a adapter `apps/api/src/platform/deletion-register/s3-deletion-register.ts` go nie wysyła (EVM-040 — „bez `IfNoneMatch`”) — każdy zapis skończy się `AccessDenied`; (b) manifest sekretów daje `deletion-register-s3-secret-access-key` usłudze `worker`, a zapis wykonuje API (`redact-entry.service.ts`, `anonymize-customer.service.ts`).
+- **Źródło:** EVM-040 („Decyzje”), EVM-041 (D6), EVM-084 (AC2, „Sekrety”); TM-128; SR-PRIV-04, SR-ERR-01.
+- **Ryzyko po mitygacjach:** P3 × W1 = 3 Medium do poprawki konfiguracji (operacje art. 17 niedostępne; poufność bez wpływu); po poprawce — Low.
+- **Rekomendacja:** przed demo EVM-040/041 i przed prod ujednolicić (a) — adapter wysyła `If-None-Match: *` po potwierdzeniu obsługi przez `bucket-verify`, albo polityka bez tego warunku (ochrona przed nadpisaniem przez wersjonowanie i unikalny klucz) — oraz (b) klucz rejestru dla `api`. Zmiana kodu lub IaC — osobny krok (backend-developer / devops-engineer), nie ta aktualizacja.
+- **Właściciel:** `devops-engineer` z `backend-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada** (fail-closed zaakceptowany jako zachowanie; ustalenia (a) i (b) do naprawy).
+
+### RR-56 — Osierocone obiekty rejestru usunięć (EVM-040; dawniej RR-NOC-T2-2)
+- **Opis:** rejestr to dziennik zamiaru „co najmniej raz”: przy porażce `UPDATE` albo `COMMIT` po zapisie do rejestru obiekt zostaje bez skutku w bazie. Ponowne zastosowanie po odtworzeniu (EVM-062) ma być idempotentne i pomijać zdarzenia oraz wpisy już zredagowane lub nieistniejące; zastosowanie osieroconego wpisu usuwa dane, które miały być usunięte (kierunek prywatności).
+- **Źródło:** EVM-040 („Decyzje”); runbook `docs/ops/runbooks/rejestr-usuniec.md`; TM-128.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj; walidacja obiektów przy odczycie (runbook) w EVM-062.
+- **Właściciel:** `backend-developer` (EVM-062).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-57 — Wpisy zlecenia usuniętego niedostępne do redakcji (EVM-040; dawniej RR-NOC-T2-3)
+- **Opis:** wpisy zlecenia usuniętego (soft delete) są pod `404` dla wszystkich ról; aby zredagować taki wpis, Administrator przywraca zlecenie, redaguje wpis i usuwa zlecenie ponownie — w tym oknie zlecenie jest widoczne dla Edytora i Tylko odczyt.
+- **Źródło:** EVM-040 („Decyzje” — granice modułów); runbook `rejestr-usuniec.md`.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj (rzadka operacja Administratora).
+- **Właściciel:** `backend-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-58 — Koszt współbieżności zapisu do rejestru przy otwartej blokadzie wiersza (EVM-040, EVM-041; dawniej RR-NOC-T2-4)
+- **Opis:** zapis do rejestru (do 5 s) odbywa się przy blokadzie wiersza i zajmuje połączenie z puli. Skutek ograniczają: 3 zapisy naraz, oczekiwanie 1,5 s, `idle_in_transaction_session_timeout` 10 s; nadmiar i kolizje na tym samym wpisie lub kliencie to `503` z `Retry-After`, nie `500` (`57014`, `55P03`). Bez kolejki i ponowień po stronie serwera.
+- **Źródło:** EVM-040 („Poprawki po przeglądach” — współbieżność), EVM-041; runbook `rejestr-usuniec.md`; testy `RR-NOC-T2-4` w `apps/api/test/` (np. `bounded-deletion-register.test.ts`); TM-128; CWE-400.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low (operacje tylko Administratora, redakcja i anonimizacja ze step-upem).
+- **Rekomendacja:** akceptuj.
+- **Właściciel:** `backend-developer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-59 — Ponowne otwarcie zlecenia klienta usuniętego (EVM-041; dawniej RR-NOC-T2-5)
+- **Opis:** przejścia `restore('cancelled','on_hold')` i `restore('settled','completed')` w `work-order-transitions.ts` pozwalają Administratorowi otworzyć zlecenie klienta już usuniętego zwykłą sekwencją kroków. Danych klienta nie widać („Klient usunięty”), ale anonimizacja takiego klienta zwraca `409 has_active_dependents` do ponownego zamknięcia zlecenia.
+- **Źródło:** EVM-041 („Uwagi do rozważenia” 1, D7); TM-129.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj; blokada ponownego otwarcia — kandydat do `/refine`.
+- **Właściciel:** `product-owner` (backlog).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-60 — Anonimizacja obejmuje tylko dane klienta (EVM-041; dawniej RR-NOC-T2-6)
+- **Opis:** anonimizacja zmienia wyłącznie `customers.customers`; lokalizacje (często adres domowy klienta), strony, wpisy dziennika, tytuły zleceń i dokumenty zostają — uzupełnia je ręczna procedura z runbooka EVM-064 (status `ready`) do M4. Do tego czasu adres lokalizacji klienta usuniętego lub zanonimizowanego jest widoczny dla Edytora i Tylko odczyt w W-06.
+- **Źródło:** EVM-041 („Poza zakresem”, „Uwagi do rozważenia” 2); TM-129; AB-15; SR-DATA-08.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium (żądanie z art. 17 wykonane częściowo bez procedury ręcznej).
+- **Rekomendacja:** akceptuj do M4 pod warunkiem, że procedura z EVM-064 (lokalizacje, strony, redakcja wpisów) jest wykonywana przy każdym żądaniu usunięcia, a wpis w rejestrze żądań wymienia jej kroki; anonimizacja lokalizacji — kandydat do `/refine`.
+- **Właściciel:** `security-engineer` (EVM-064) i `product-owner`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-61 — Masowa, nieodwracalna anonimizacja z przejętego konta Administratora (EVM-041; dawniej RR-NOC-T2-7)
+- **Opis:** step-up ogranicza okno, ale go nie zamyka; anonimizacja jest nieodwracalna, a po odtworzeniu bazy ponowne zastosowanie rejestru powtórzy także anonimizacje wykonane przez napastnika. Brak metryki i alertu na liczbę anonimizacji.
+- **Źródło:** EVM-041 („Uwagi do rozważenia” 3); runbook `rejestr-usuniec.md`; TM-129; AB-08, RR-17.
+- **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium.
+- **Rekomendacja:** do backlogu (`/refine`, bez nowych AC w EVM-041): metryka i alert na liczbę anonimizacji (np. > 5 na godzinę na użytkownika) oraz krok w runbooku EVM-062 „wyklucz wpisy rejestru z okna incydentu przed ponownym zastosowaniem”.
+- **Właściciel:** `product-owner` (backlog), `devops-engineer` (alert).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-62 — Token projektu `evia-restore-staging` i klucze testu odtworzenia na VM staging (EVM-084; dawniej RR-NOC-T3-1)
+- **Opis:** orkiestrator testu odtworzenia (`infra/deploy-agent/restore/run.sh`) działa z timera na VM staging; token projektu `evia-restore-staging` i klucze tylko do odczytu (`restore-reader`, `media-backup-reader`, `restore-orchestrator`) to pliki roota tej VM. Przejęcie VM staging daje możliwość tworzenia zasobów w projekcie testowym (koszt) i odczytu kopii stagingu (dane syntetyczne, dostępne i tak z przejętej VM).
+- **Źródło:** EVM-084 (AC3, AC4, „Sekrety”); ADR-0018; TM-100, TM-132; RR-19, RR-20.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low (sprzątacz co godzinę tylko w projekcie z wartownikiem, alert zasobów > 24 h, druga VM nie powstaje). Prod — RR-20.
+- **Rekomendacja:** akceptuj dla staging.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada (sesja IaC)**.
+
+### RR-63 — Nieodwracalny lock COMPLIANCE 37 dni bucketu kopii bazy (EVM-084; dawniej RR-NOC-T3-6)
+- **Opis:** `evia-staging-db-backup` ma object lock COMPLIANCE 37 dni ustawiany przy utworzeniu — nikt nie skróci ani nie usunie retencji, a bucketu nie da się usunąć przez co najmniej 37 dni od pierwszego obiektu. To cel (AB-21), ale błąd konfiguracji albo dane, które nie powinny trafić do kopii, zostają na ten czas (koszt i art. 17 — RR-14).
+- **Źródło:** EVM-084 („Decyzje wykonawcze” — buckety); `infra/tofu/modules/object-storage/main.tf`; TM-81, TM-132; RR-14.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low (staging z danymi syntetycznymi; dane z prod na staging zabronione).
+- **Rekomendacja:** akceptuj; `plan` przed `apply` w sesji IaC zatwierdza Konrad.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada (sesja IaC)**.
+
+### RR-64 — Monitoring dostępności na tym samym stosie Grafany (EVM-085; dawniej RR-NOC-T3-11)
+- **Opis:** checki Synthetic Monitoring (`infra/observability/synthetic/checks.json`) działają w tym samym stosie Grafany co metryki i alerty — awaria stosu wyłącza też monitoring dostępności. Niezależny monitor zewnętrzny — dopiero przy produkcji (E8).
+- **Źródło:** EVM-085 (D3, D8); runbook `docs/ops/runbooks/alerty.md`; TM-114, TM-131; RR-24.
+- **Ryzyko po mitygacjach:** staging — P1 × W1 = 1 Low; prod — do oceny w E8.
+- **Rekomendacja:** akceptuj dla staging; w E8 drugi, niezależny monitor.
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada (sesja IaC)**.
+
+### RR-65 — Publiczny DSN Sentry panelu (EVM-085; dawniej RR-NOC-T3-12)
+- **Opis:** DSN projektu `web` jest publiczny z natury (trafia do przeglądarki przez `/runtime-config.json`); można nim wysyłać fałszywe zdarzenia albo wyczerpywać wspólne limity organizacji. Ochrona: „Allowed Domains” i limit na klucz web w Sentry (ustawiane ręcznie), spike protection; SDK panelu jeszcze niewdrożone (EVM-085, dziennik 2026-10-28).
+- **Źródło:** EVM-085 (D6, D7, AC8); runbook `alerty.md` („Rotacja DSN Sentry”); TM-114, TM-131.
+- **Ryzyko po mitygacjach:** P2 × W1 = 2 Low.
+- **Rekomendacja:** akceptuj; ustawienia sprawdzane w kroku rotacji po incydencie (runbook).
+- **Właściciel:** `devops-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada (sesja IaC)**.
+
+### RR-66 — Istniejąca VM nie dostaje zmian `user_data` (journald, sterownik logów) (EVM-085; dawniej RR-NOC-T3-13)
+- **Opis:** moduł VM ma `ignore_changes = [user_data]`, więc `daemon.json` (sterownik `journald` z etykietami compose) i `journald.conf` (retencja 7 dni) z szablonu nie trafią na już utworzoną maszynę — bez kroku ręcznego Alloy nie zbiera logów kontenerów, a retencja logów lokalnych nie jest wymuszona przez journald.
+- **Źródło:** EVM-085 (D2); runbook `alerty.md` („Aktywacja w sesji IaC”, krok 3); test `EVM-085 AC1 (RR-NOC-T3-13)` w `tools/repo-policy/test/observability.test.ts`; TM-131.
+- **Ryzyko po mitygacjach:** P2 × W1 = 2 Low.
+- **Rekomendacja:** akceptuj; dowód (`docker inspect` — `LogConfig`, `journalctl`) w `docs/qa/EVM-085/`.
+- **Właściciel:** `devops-engineer` (sesja IaC).
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada (sesja IaC)**.
+
+### RR-67 — Potwierdzenie wyczyszczenia telefonu jest deklaratywne (EVM-090, EVM-094 AC7; dawniej RR-NOC-T4-1)
+- **Opis:** `confirmDeviceWipe` przyjmuje parę `deviceId` + sekret instalacji (bieżący albo poprzedni) i zmienia stan urządzenia na „Wyczyszczone”; serwer nie może sprawdzić, że aplikacja naprawdę usunęła dane. Zmodyfikowana aplikacja może potwierdzić bez czyszczenia. Po stanie `wipe_required` tokeny i logowanie dają `401 device_wipe_required`, a po potwierdzeniu oba sekrety są unieważnione — telefon nie odzyska sesji; dane offline są szyfrowane (SQLCipher, Keystore).
+- **Źródło:** EVM-090 („Decyzje” — potwierdzenie wyczyszczenia, ryzyka rezydualne), EVM-094 (AC7); TM-01, TM-130; AB-04; RR-07.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** akceptuj; w panelu (EVM-095) opisać stan „Wyczyszczone” jako potwierdzenie aplikacji, nie dowód.
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
+
+### RR-68 — Token odświeżania bez powiązania z urządzeniem w M2 (EVM-090, EVM-094 AC4; dawniej RR-NOC-T4-2)
+- **Opis:** token odświeżania (256 bitów z CSPRNG, w bazie tylko skrót) nie jest powiązany z kluczem urządzenia (`devicePublicKey` opcjonalny, PoP w backlogu po EVM-109); skradziony token działa z innego urządzenia do rotacji przez właściciela albo wykrycia ponownego użycia. Kompensacje: rotacja przy każdym użyciu z oknem 30 s tylko dla bezpośredniego poprzednika, ponowne użycie → wylogowanie urządzenia, audyt `session.revoked` / `refresh_reuse` i alert; stan sesji i urządzenia sprawdzany przy każdym żądaniu; bezczynność 14 dni, wiek 30 dni; audyt `session.refreshed` (prefiks IP, bez ASN w M2).
+- **Źródło:** EVM-094 (AC4, „Decyzje wykonawcze”), EVM-090; plan M2 — decyzja 8; TM-02, TM-130; SR-SESS-09.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** akceptuj na M2; powiązanie kluczem urządzenia — historyjka po EVM-109.
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — decyzja 8 planu M2 i decyzje wykonawcze EVM-094)**.
+
+### RR-69 — Rotacja sekretu instalacji: wariant bez rotacji odrzucony, okno poprzedniego sekretu (EVM-090, EVM-094 AC2; dawniej RR-NOC-T4-3)
+- **Opis:** alternatywą był brak rotacji sekretu instalacji w M2 (skradziony sekret przypinałby `deviceId` bez końca). Przyjęto rotację dwufazową: każde pełne logowanie wydaje nowy sekret, poprzedni działa do udowodnienia nowego, najpóźniej przez czas życia tokenu odświeżania (≤ 7 dni); najwyżej dwa ważne sekrety; oba unieważniane po potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Sekret nie jest czynnikiem uwierzytelnienia (tylko przypina `deviceId` po haśle i kodzie).
+- **Źródło:** EVM-090 („Poprawki rundy 2 i 3”), EVM-094 (AC2, „Decyzje wykonawcze”); migracja `0050_mobile_devices`; TM-130; SR-MOB-04.
+- **Ryzyko po mitygacjach:** P1 × W1 = 1 Low.
+- **Rekomendacja:** akceptuj.
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — rotacja dwufazowa sekretu instalacji)**.
+
+### RR-70 — Skradziony telefon z sekretem instalacji ma osobną pulę prób hasła (EVM-094 AC5; dawniej RR-NOC-T4-4)
+- **Opis:** para `deviceId` + sekret zgodna z urządzeniem tego konta w stanie `active` ma własny licznik prób (jak `__Host-evia_device` z EVM-026), żeby blokada z obcych klientów nie wyłączała telefonu technika; skradziony telefon z sekretem dostaje więc drugą pulę prób hasła. Wspólny limit 20/min/IP obejmuje oba kroki logowania, odświeżenie i potwierdzenie wyczyszczenia; drugi krok (TOTP) obowiązuje nadal.
+- **Źródło:** EVM-094 (AC2, AC5, „Decyzje wykonawcze”); TM-16, TM-130; RR-28, RR-30.
+- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
+- **Rekomendacja:** akceptuj (ten sam kompromis co RR-28 i RR-30); zgłoszenie utraty telefonu → „Zablokuj i wyczyść” (P2, P7).
+- **Właściciel:** `security-engineer`.
+- **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — decyzje wykonawcze EVM-094)**.
 
 ## 9. Aktualizacja modelu
 - **Kiedy:** przy `/milestone close` każdego kamienia milowego; przy nowej integracji, roli lub kanale (np. Monter, portal klienta, iOS); przy zmianie architektury (nowy ADR); po incydencie bezpieczeństwa; przy zmianie dostawcy.
