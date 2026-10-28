@@ -98,7 +98,7 @@ declare "evia_pipeline" {
 						description       = "Security alerts of the application by closed-list alertCode."
 						action            = "inc"
 						match_all         = true
-						max_idle_duration = "24h"
+						max_idle_duration = "720h"
 					}
 				}
 			}

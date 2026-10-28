@@ -271,8 +271,6 @@ tests:
     input_series:
       - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="login_failure_spike"}'
         values: '0 0 0 1 1 1 1 1'
-      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="second_step_failure_spike"}'
-        values: '3x8'
     alert_rule_test:
       - eval_time: 5m
         alertname: EviaSecurityAlert
@@ -307,3 +305,78 @@ tests:
             exp_annotations:
               summary: 'Many account locks in 15m: possible attack (env staging)'
               runbook: docs/ops/runbooks/alerty.md#eviasecurityaccountlockedburst
+  # The counter of Alloy is born at the first event with the value 1 (no zero baseline in production): increase() alone would miss it.
+  - name: EVM-085 AC5 the first event of a series born after a quiet period alerts (series starts at 1)
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="emergency_reset"}'
+        values: '_ _ _ 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EviaSecurityAlert
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: emergency_reset }
+            exp_annotations:
+              summary: 'Security alert emergency_reset from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+      - eval_time: 6m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: emergency_reset }
+            exp_annotations:
+              summary: 'Security alert emergency_reset from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+  - name: EVM-085 AC5 an old series that stopped growing is quiet and the alert resolves after the window
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="second_step_failure_spike"}'
+        values: '_x10 3x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: second_step_failure_spike }
+            exp_annotations:
+              summary: 'Security alert second_step_failure_spike from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+      - eval_time: 40m
+        alertname: EviaSecurityAlert
+        exp_alerts: []
+  - name: EVM-085 AC5 a series that reappears after a restart of Alloy (counter reset, value above 1) alerts
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="projection_authz_drift"}'
+        values: '5 5 5 5 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: EviaSecurityAlert
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging, alertCode: projection_authz_drift }
+            exp_annotations:
+              summary: 'Security alert projection_authz_drift from the application (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
+  - name: EVM-085 AC5 the burst of locks is seen in a series born with the value of the whole burst, not in a born single lock
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}'
+        values: '_ _ _ 7 7 7'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EviaSecurityAccountLockedBurst
+        exp_alerts:
+          - exp_labels: { severity: critical, ac5: security, env: staging }
+            exp_annotations:
+              summary: 'Many account locks in 15m: possible attack (env staging)'
+              runbook: docs/ops/runbooks/alerty.md#eviasecurityaccountlockedburst
+  - name: EVM-085 AC5 a single born lock does not trigger the burst
+    interval: 1m
+    input_series:
+      - series: 'loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}'
+        values: '_ _ _ 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: EviaSecurityAccountLockedBurst
+        exp_alerts: []

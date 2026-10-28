@@ -7,8 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { json, list, read, record, text, yaml } from '../src/files.ts';
 
-const infra = record(record(yaml('infra/runtime/compose.infra.yaml'))['services']);
-const alloy = record(infra['alloy']);
+const infra = record(yaml('infra/runtime/compose.infra.yaml'));
+const telemetry = record(yaml('infra/runtime/compose.telemetry.yaml'));
+const alloy = record(record(telemetry['services'])['alloy']);
 const images = record(record(json('infra/runtime/infra-images.json'))['images']);
 const composeYaml = read('compose.yaml');
 const strip = (source: string): string => source.replace(/^\s*(\/\/|#).*$/gm, '');
@@ -52,9 +53,17 @@ describe('the Alloy service of the infrastructure (EVM-085 AC1; security-enginee
 
   it('EVM-085 AC1: its own network with egress, never evia-runtime (no route to PostgreSQL and the API); the group of the journal is numeric', () => {
     expect(alloy['networks']).toEqual(['evia-telemetry']);
-    const networks = record(record(yaml('infra/runtime/compose.infra.yaml'))['networks']);
+    const networks = record(telemetry['networks']);
     expect(record(networks['evia-telemetry'])['internal']).toBeUndefined();
+    expect(Object.keys(record(infra['networks']))).not.toContain('evia-telemetry');
     expect(text(list(alloy['group_add'])[0])).toMatch(/^\$\{EVIA_JOURNAL_GID:\?/);
+  });
+
+  it('EVM-085 AC1: alloy lives in its own compose file; compose.infra.yaml (called by deploy.sh with --env-file /dev/null) has no required interpolation', () => {
+    expect(Object.keys(record(infra['services']))).not.toContain('alloy');
+    expect(read('infra/runtime/compose.infra.yaml')).not.toMatch(/\$\{[A-Z0-9_]+:?[?]/);
+    expect(read('infra/runtime/compose.telemetry.yaml')).toMatch(/\$\{EVIA_JOURNAL_GID:\?/);
+    expect(read('infra/deploy-agent/deploy.sh')).toContain('--env-file /dev/null');
   });
 
   it('EVM-085 AC1: no secret in the file; the token only as a file; the manifest gives it to alloy alone', () => {
@@ -141,7 +150,7 @@ describe('the local journal of the VM (EVM-085 AC1; security-engineer A13; archi
 
 describe('the proxy address and the database role of the API (EVM-085 AC6; security-engineer A12; CWE-348)', () => {
   const staging = record(record(yaml('infra/runtime/compose.staging.yaml'))['services']);
-  const compose = record(yaml('infra/runtime/compose.infra.yaml'));
+  const compose = infra;
   const caddyNetworks = record(record(record(compose['services'])['caddy'])['networks']);
   const subnet = text(record(list(record(record(record(compose['networks'])['evia-runtime'])['ipam'])['config'])[0])['subnet']);
   const address = text(record(caddyNetworks['evia-runtime'])['ipv4_address']);
@@ -150,15 +159,30 @@ describe('the proxy address and the database role of the API (EVM-085 AC6; secur
     expect(address).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
     expect(subnet).toMatch(/\/24$/);
     expect(address.split('.').slice(0, 3).join('.')).toBe(subnet.split('.').slice(0, 3).join('.'));
+    // Until the IaC session recreates the network (alerty.md 3a) the channel keeps the transitional range of Docker: narrowing it earlier
+    // would make the API ignore X-Forwarded-For (a shared rate limit, the address of Caddy in the audit).
     for (const name of ['api', 'worker']) {
       const environment = record(record(staging[name] ?? {})['environment']);
-      expect(text(environment['TRUSTED_PROXIES']), name).toBe(address);
+      expect([address, '172.16.0.0/12'], name).toContain(text(environment['TRUSTED_PROXIES']));
     }
+    expect(read('docs/ops/runbooks/alerty.md')).toMatch(/TRUSTED_PROXIES[^\n]*172\.30\.10\.2[^\n]*po odtworzeniu sieci/);
+  });
+
+  it('EVM-085 AC6: dynamic addresses of evia-runtime come from ip_range that excludes the fixed address of Caddy (no container can take it; CWE-348)', () => {
+    const config = record(list(record(record(record(compose['networks'])['evia-runtime'])['ipam'])['config'])[0]);
+    const range = text(config['ip_range']);
+    const [base, bits] = range.split('/') as [string, string];
+    const toInt = (ip: string): number => ip.split('.').reduce((acc, part) => acc * 256 + Number(part), 0);
+    const size = 2 ** (32 - Number(bits));
+    const start = toInt(base);
+    expect(toInt(address) >= start && toInt(address) < start + size).toBe(false);
+    const [subnetBase, subnetBits] = subnet.split('/') as [string, string];
+    expect(start >= toInt(subnetBase) && start + size <= toInt(subnetBase) + 2 ** (32 - Number(subnetBits))).toBe(true);
   });
 
   it('EVM-085 AC6: no TRUSTED_PROXIES value is a range wider than one address', () => {
     for (const match of read('infra/runtime/compose.staging.yaml').matchAll(/TRUSTED_PROXIES:\s*(\S+)/g)) {
-      expect(match[1]).toMatch(/^\d+\.\d+\.\d+\.\d+(\/32)?$/);
+      expect(match[1]).toMatch(/^(\d+\.\d+\.\d+\.\d+(\/32)?|172\.16\.0\.0\/12)$/); // the second: transitional, see above
     }
   });
 

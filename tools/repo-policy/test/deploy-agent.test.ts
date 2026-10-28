@@ -54,7 +54,10 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
   it('EVM-007 AC7: every service of the channel has its own numeric user; the secrets manifest uses the same UIDs; the migrator password goes to migrate only', () => {
     const users = Object.values(channel).map((service) => text(record(service)['user']));
     expect(new Set(users).size).toBe(users.length);
-    const infra = record(record(yaml('infra/runtime/compose.infra.yaml'))['services']);
+    const infra = {
+      ...record(record(yaml('infra/runtime/compose.infra.yaml'))['services']),
+      ...record(record(yaml('infra/runtime/compose.telemetry.yaml'))['services']),
+    };
     for (const [name, value] of Object.entries(secrets)) {
       const uid = String(record(value)['uid']);
       expect(text(record(channel[name] ?? infra[name])['user']), name).toBe(`${uid}:${uid}`);
@@ -85,7 +88,11 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
     expect(script).toMatch(/^set -euo pipefail$/m);
     expect(script.replace(/^\s*#.*$/gm, '')).not.toMatch(/\beval\b/);
     // Every bind-mounted secrets directory of the infrastructure has a service in the manifest.
-    const mounts = [...read('infra/runtime/compose.infra.yaml').matchAll(/\/run\/evia\/secrets\/([a-z]+):/g)].map((match) => match[1]);
+    const mounts = [
+      ...(read('infra/runtime/compose.infra.yaml') + read('infra/runtime/compose.telemetry.yaml')).matchAll(
+        /\/run\/evia\/secrets\/([a-z]+):/g,
+      ),
+    ].map((match) => match[1]);
     for (const name of mounts) expect(Object.keys(secrets), String(name)).toContain(name);
   });
 

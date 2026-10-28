@@ -105,15 +105,29 @@ groups:
           runbook: docs/ops/runbooks/alerty.md#eviastagingnodata
   - name: security
     rules:
+      # The counter of Alloy (stage.metrics) is BORN at the first event with the value 1 (and again after a restart of Alloy or an idle
+      # period), and increase() of a series that starts at 1 is 0: the first event would be lost. So the window counts two things, joined by
+      # the label "src" and collapsed with max: the growth of an existing series (increase, which handles resets) and the value of a series
+      # that did not exist one window ago (born).
       - alert: EviaSecurityAlert
-        expr: sum by (alertCode, env) (increase(loki_process_custom_security_alerts_total{env="staging"}[15m])) >= 1
+        expr: |
+          max by (alertCode, env) (
+            label_replace(sum by (alertCode, env) (increase(loki_process_custom_security_alerts_total{env="staging"}[15m])), "src", "grown", "", "")
+            or
+            label_replace(sum by (alertCode, env) (loki_process_custom_security_alerts_total{env="staging"} unless loki_process_custom_security_alerts_total{env="staging"} offset 15m), "src", "born", "", "")
+          ) >= 1
         for: 0m
         labels: { severity: critical, ac5: security }
         annotations:
           summary: 'Security alert {{ $labels.alertCode }} from the application (env {{ $labels.env }})'
           runbook: docs/ops/runbooks/alerty.md#eviasecurityalert
       - alert: EviaSecurityAccountLockedBurst
-        expr: sum by (env) (increase(loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}[15m])) >= 5
+        expr: |
+          max by (env) (
+            label_replace(sum by (env) (increase(loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"}[15m])), "src", "grown", "", "")
+            or
+            label_replace(sum by (env) (loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"} unless loki_process_custom_security_alerts_total{env="staging", alertCode="account_locked"} offset 15m), "src", "born", "", "")
+          ) >= 5
         for: 0m
         labels: { severity: critical, ac5: security }
         annotations:
