@@ -12,6 +12,7 @@ import {
   INITIAL_TEMPLATES,
   type OrderServer,
 } from './mock-work-orders.ts';
+import { answerMedia, newMediaServer, type MediaServer } from './mock-media.ts';
 import { answerJournalCreate, answerJournalList, newJournalServer, type JournalServer } from './mock-journal.ts';
 import {
   answerCreateProcedure,
@@ -151,6 +152,8 @@ export interface MockApi {
   account: AccountServer;
   /** EVM-037: the journal of the orders (the entries and the idempotency keys of the synthetic server). */
   journal: JournalServer;
+  /** EVM-044: the media of the orders (the batches, the upload sessions, the confirmed parts and the verdict of the scan). */
+  media: MediaServer;
   /** EVM-020: the answer to these calls is lost after the server has done the work (a network error after sending). */
   dropResponseNext: Set<string>;
 }
@@ -476,6 +479,7 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
     users: newUsersServer(),
     account: newAccountServer(PASSWORD),
     journal: newJournalServer(),
+    media: newMediaServer(),
     dropResponseNext: new Set(),
   };
   // The server of orders reads the same customers and sites that the searches use.
@@ -674,6 +678,18 @@ export async function installMockApi(page: Page, session: SessionKind, origin: s
           raw: request.postData() ?? '{}',
         }),
       );
+    }
+    // EVM-044: the media of one order and their upload sessions (the tab "Media i dokumenty" of W-06).
+    if (url.pathname.includes('/media-assets')) {
+      if (api.session !== 'active') return route.fulfill(problem(api.session === 'none' ? 401 : 403, 'forbidden'));
+      if (request.method() !== 'GET' && !csrfOk) return route.fulfill(problem(403, 'csrf_failed'));
+      const answered = answerMedia(api.media, request.method(), url.pathname, url.searchParams, {
+        role: api.role,
+        userId: '11111111-1111-4111-8111-111111111111',
+        key: headers['idempotency-key'],
+        raw: request.postData() ?? '{}',
+      });
+      if (answered !== null) return route.fulfill(answered);
     }
     // EVM-037: the journal of one order (the tab "Dziennik" of W-06) — the order is anchored in the path.
     const journal = /^\/api\/v1\/work-orders\/([0-9a-f-]{36})\/timeline$/.exec(url.pathname);
