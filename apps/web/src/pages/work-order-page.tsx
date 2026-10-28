@@ -6,6 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { MediaSection } from '../work-orders/media-section.tsx';
+import { MediaUnfinishedBanner } from '../work-orders/media-unfinished-banner.tsx';
+import { MediaUploadDialog } from '../work-orders/media-upload-dialog.tsx';
+import { mediaText } from '../work-orders/media-labels.ts';
+import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
 import { CustomerCard } from '../work-orders/customer-card.tsx';
@@ -32,6 +37,7 @@ import { WorkOrderHeader } from '../work-orders/work-order-header.tsx';
 
 const OVERVIEW_TAB = 'overview';
 const JOURNAL_TAB = 'journal';
+const MEDIA_TAB = 'media';
 
 /**
  * W-06 "Szczegóły zlecenia", the tab "Przegląd" (EVM-018 AC1–AC7): the header, the scope and the side cards "Klient" and
@@ -62,7 +68,10 @@ export function WorkOrderPage() {
   const siteOrders = useWorkOrderSiteOrders(id, active);
   const heading = useRef<HTMLHeadingElement>(null);
   // The tile "Płatności" of the summary exists for a role that reads payments (EVM-056 AC7; the server decides all the same).
-  const readsPayments = canReadPayments(useSession().data?.user.role);
+  const role = useSession().data?.user.role;
+  const readsPayments = canReadPayments(role);
+  // The upload of photos (EVM-044) lives with the page, so it goes on while another tab is shown; only Administrator and Editor upload.
+  const media = useMediaUpload(id, active && (role === 'administrator' || role === 'editor'));
 
   // The order is gone when the header or the scope says so (a card may be 404 for a customer that was deleted — the order lives).
   const notFound = gone || isNotFound(header.error) || isNotFound(scope.error);
@@ -138,6 +147,14 @@ export function WorkOrderPage() {
         onShowProcesses={showProcesses}
         {...(readsPayments ? { payments, onShowPayments: showPayments } : {})}
       />
+      <MediaUnfinishedBanner
+        media={media}
+        onChoose={() => {
+          setTab(MEDIA_TAB);
+          media.openDialog();
+        }}
+      />
+      <MediaUploadDialog media={media} />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs
@@ -145,12 +162,15 @@ export function WorkOrderPage() {
             tabs={[
               { id: OVERVIEW_TAB, label: t('workOrder.tabs.overview') },
               { id: JOURNAL_TAB, label: t('workOrder.tabs.journal') },
+              { id: MEDIA_TAB, label: mediaText.tab },
             ]}
             selectedId={tab}
             onSelect={setTab}
           >
             {tab === JOURNAL_TAB ? (
               <JournalSection order={order} procedures={procedures} />
+            ) : tab === MEDIA_TAB ? (
+              <MediaSection order={order} media={media} />
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />

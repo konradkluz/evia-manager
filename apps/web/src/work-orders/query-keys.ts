@@ -32,6 +32,12 @@ export const PARTY_KEY = 'party' as const;
 /** The locations of the earlier orders of the chosen customer (EVM-043): `[key, customerId]`; addresses are personal data — memory of the tab only. */
 export const SITE_SUGGESTIONS_KEY = 'site-suggestions' as const;
 
+/**
+ * The media of the order and the person's unfinished uploads (EVM-044): the pages of the list and the names of files, which are
+ * personal data — the memory of the tab only. Key: `[name, workOrderId, 'all' | 'unfinished']`.
+ */
+export const WORK_ORDER_MEDIA_KEY = 'work-order-media' as const;
+
 /** All keys of one order: a `404` removes them together (TM-10 — nothing of a gone order stays in the memory of the tab). */
 export const WORK_ORDER_KEYS = [
   WORK_ORDER_HEADER_KEY,
@@ -43,4 +49,5 @@ export const WORK_ORDER_KEYS = [
   WORK_ORDER_DELETED_PROCEDURES_KEY,
   WORK_ORDER_PAYMENTS_KEY,
   WORK_ORDER_JOURNAL_KEY,
+  WORK_ORDER_MEDIA_KEY,
 ] as const;
