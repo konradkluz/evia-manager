@@ -4,7 +4,7 @@ title: "sync-core: pobieranie zmian, resync i obiekty oczekujące"
 type: enabler
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-progress
 priority: P0
 path: pelna             # synchronizacja offline
 owner: mobile-developer
@@ -68,3 +68,4 @@ Szyfrowana baza (EVM-093), UI, wiring z API (EVM-107). Wartości wymagające pom
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)
+- 2026-10-29 — plan gotowy; start implementacji (mobile-developer)

@@ -4,7 +4,7 @@ title: "sync-core: trwała kolejka mutacji i wysyłka"
 type: enabler
 milestone: M2
 epic: E12 Wpisy offline
-status: in-progress
+status: done
 priority: P0
 path: pelna             # synchronizacja offline
 owner: mobile-developer
@@ -76,3 +76,4 @@ Pobieranie zmian i resync (EVM-092); szyfrowana baza (EVM-093); kolejka plików 
 - 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)
 - 2026-10-29 — plan gotowy (mobile-developer)
 - 2026-10-29 — implementacja `packages/sync-core` (kolejka, silnik, porty, UUIDv7), granice pakietu w ESLint i `deps:check`, warstwa `sync` 95%, klasyfikacja `tools/ci-changes`; testy `EVM-091 AC1–AC7`, zgodność z kontraktem sync, testy własności (mobile-developer)
+- 2026-10-29 — status done: scalona w #115, zaakceptowana przez Konrada (Tech Lead)
