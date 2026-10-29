@@ -206,3 +206,75 @@ describe('migration 0046 — the quarantine of a file (EVM-049 AC5; expand only;
     }
   });
 });
+
+describe('migration 0053 — the derivatives of a file (EVM-068; expand only)', () => {
+  const insertDerivative = (
+    fileId: string,
+    spec: { variant?: string; key?: string; type?: string; width?: number; size?: number } = {},
+  ) => {
+    const variant = spec.variant ?? 'thumbnail';
+    return sql`insert into media.file_derivatives (stored_file_id, variant, object_key, content_type, width, height, size_bytes, created_at)
+      values (${fileId}, ${variant}, ${spec.key ?? `media/2026/10/${fileId}/${variant}.webp`}, ${spec.type ?? 'image/webp'},
+        ${spec.width ?? 320}, 200, ${spec.size ?? 12_000}, ${T})`.execute(admin());
+  };
+
+  /** The trigger on the prefix runs before the CHECKs, so a bad key is refused by either (23514 or EV002) - never accepted. */
+  const refusedKey = async (statement: Promise<unknown>): Promise<void> => {
+    await expect(statement).rejects.toSatisfy((error: { code?: string }) => error.code === '23514' || error.code === 'EV002');
+  };
+
+  it('EVM-068 AC1 a file gets one thumbnail and one preview; a second row of the same variant is refused', async () => {
+    const { fileId } = await newFile({ state: 'processing' });
+    await insertDerivative(fileId);
+    await insertDerivative(fileId, { variant: 'preview', width: 1600 });
+    await fails(insertDerivative(fileId), '23505');
+    await fails(insertDerivative(fileId, { variant: 'original' }), '23514');
+  });
+
+  it('EVM-068 AC6 the type is fixed, the sizes are bounded, the key has the shape and the identifier of the file and the name of the variant', async () => {
+    const { fileId } = await newFile({ state: 'processing' });
+    await fails(insertDerivative(fileId, { type: 'image/jpeg' }), '23514');
+    await fails(insertDerivative(fileId, { width: 1601 }), '23514');
+    await fails(insertDerivative(fileId, { width: 0 }), '23514');
+    await fails(insertDerivative(fileId, { size: 5_242_881 }), '23514');
+    await refusedKey(insertDerivative(fileId, { key: `media/2026/10/${fileId}/thumb.webp` }));
+    await refusedKey(insertDerivative(fileId, { key: `media/2026/10/${fileId}/preview.webp` }));
+    await refusedKey(insertDerivative(fileId, { key: `media/2026/10/${fileId}/original` }));
+    await refusedKey(insertDerivative(fileId, { key: `media/2026/10/${fileId}/../thumbnail.webp` }));
+  });
+
+  it('EVM-068 AC2 a derivative under the prefix of ANOTHER file, or of another month, is refused (never overwrites a foreign object)', async () => {
+    const mine = await newFile({ state: 'processing' });
+    const other = await newFile({ state: 'processing' });
+    await refusedKey(insertDerivative(mine.fileId, { key: `media/2026/10/${other.fileId}/thumbnail.webp` }));
+    await fails(insertDerivative(mine.fileId, { key: `media/2026/09/${mine.fileId}/thumbnail.webp` }), 'EV002');
+    await fails(insertDerivative(uuidv7()), 'EV002'); // no such file: the trigger refuses before the foreign key
+    await insertDerivative(mine.fileId);
+  });
+
+  it('EVM-068 AC1 the application role reads and inserts a derivative but never updates or deletes it; the file cannot be deleted while it has one', async () => {
+    const app = createDatabase({ url: database.appUrl, logger: createLogger({ level: 'fatal' }), pool: { max: 1 } });
+    try {
+      const { fileId } = await newFile({ state: 'processing' });
+      await insertDerivative(fileId);
+      await sql`select count(*) from media.file_derivatives`.execute(app);
+      await fails(sql`update media.file_derivatives set width = 100 where stored_file_id = ${fileId}`.execute(app), '42501');
+      await fails(sql`delete from media.file_derivatives where stored_file_id = ${fileId}`.execute(app), '42501');
+      await fails(sql`delete from media.stored_files where id = ${fileId}`.execute(admin()), '23001');
+    } finally {
+      await app.destroy();
+    }
+  });
+
+  it('EVM-068 AC4 the counter of attempts is bounded and starts at zero; the loop index covers only the files waiting for processing', async () => {
+    const { fileId } = await newFile({ state: 'clean' });
+    const { rows } = await sql<{ process_attempts: number; process_claimed_at: Date | null }>`
+      select process_attempts, process_claimed_at from media.stored_files where id = ${fileId}`.execute(admin());
+    expect(rows[0]).toEqual({ process_attempts: 0, process_claimed_at: null });
+    await fails(sql`update media.stored_files set process_attempts = 11 where id = ${fileId}`.execute(admin()), '23514');
+    await fails(sql`update media.stored_files set process_attempts = -1 where id = ${fileId}`.execute(admin()), '23514');
+    const index = await sql<{ indexdef: string }>`
+      select indexdef from pg_indexes where schemaname = 'media' and indexname = 'stored_files_unprocessed_idx'`.execute(admin());
+    expect(index.rows[0]?.indexdef).toMatch(/where \(state = ANY \(ARRAY\['clean'::text, 'processing'::text\]\)\)/i);
+  });
+});
