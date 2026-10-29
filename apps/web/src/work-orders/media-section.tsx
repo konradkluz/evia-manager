@@ -50,6 +50,8 @@ function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQ
     case 'clean':
     case 'processing':
       // EVM-068: sent and scanned; the server is making the thumbnail and the preview (the list is read again until the file is `ready`)
+      // a video has no derivatives until EVM-046: it stays "Wysłano" without the promise of a preview
+      if (asset.mediaType !== 'photo') return { state: 'done', label: mediaText.done };
       return { state: 'done', label: mediaText.done, detail: mediaText.previewPreparing };
     case 'failed':
       // `checksum_mismatch` is the only reason the list carries as a reason; the file must be chosen again (it is not in the memory of this tab)
@@ -93,7 +95,9 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const gallery = assets.filter((asset) => asset.fileState === 'ready' && asset.mediaType === 'photo');
   const galleryIds = new Set(gallery.map((asset) => asset.id));
   const rest = assets.filter((asset) => !own.has(asset.id) && !galleryIds.has(asset.id));
-  const photos = assets.length;
+  // the heading counts photos and videos separately (everything the tiles and the lines below show)
+  const photos = assets.filter((asset) => asset.mediaType === 'photo').length;
+  const videos = assets.length - photos;
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-stack-md">
@@ -191,7 +195,9 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
       {list.isSuccess && (rest.length > 0 || gallery.length > 0) ? (
         <>
           <h3 className="text-heading-4">
-            {onlyAttention ? mediaText.attentionHeading(photos, list.hasNextPage) : mediaText.photosHeading(photos, list.hasNextPage)}
+            {onlyAttention
+              ? mediaText.attentionHeading(assets.length, list.hasNextPage)
+              : mediaText.photosHeading(photos, videos, list.hasNextPage)}
           </h3>
           <MediaGallery workOrderId={order.id} assets={gallery} online={online} />
           {rest.length > 0 ? (

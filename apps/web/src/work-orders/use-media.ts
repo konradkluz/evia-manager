@@ -7,7 +7,7 @@ import {
   type InfiniteData,
   type UseInfiniteQueryResult,
 } from '@tanstack/react-query';
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useApi } from '../api/api-context.tsx';
 import { ApiError, unwrap } from '../api/client.ts';
 import { StepUpCancelled, useGuardedCall } from '../administration/use-guarded-call.ts';
@@ -26,8 +26,40 @@ export const MEDIA_PAGE_SIZE = 50;
 /** While a file waits for the scan the list is read again (the verdict "Sprawdzanie pliku" → "Wysłano" arrives without a click). */
 export const MEDIA_POLL_MS = 3000;
 
-// `clean` and `processing` wait for the thumbnail and the preview (EVM-068): the list is read again until the file is `ready` or `failed`
-const WAITING_STATES = new Set(['pending_upload', 'uploaded', 'scanning', 'clean', 'processing']);
+/** After this long a wait for the derivatives is read less often (the server tries again after minutes, not seconds). */
+export const MEDIA_SLOW_AFTER_MS = 2 * 60_000;
+export const MEDIA_SLOW_POLL_MS = 15_000;
+/** The wait for the derivatives is given up after this long (PROCESSING_WARNING of the server); a reload of the tab starts it again. */
+export const MEDIA_GIVE_UP_AFTER_MS = 30 * 60_000;
+
+const UPLOAD_WAITING_STATES = new Set(['pending_upload', 'uploaded', 'scanning']);
+
+type WaitKind = 'upload' | 'derivatives' | 'none';
+
+/**
+ * What the list waits for. `clean` and `processing` wait for the thumbnail and the preview (EVM-068) only for a photo: a video stays
+ * `clean` until EVM-046, so it must not keep the list polling for ever.
+ */
+function waitKind(assets: readonly Pick<MediaAsset, 'fileState' | 'mediaType'>[]): WaitKind {
+  if (assets.some((asset) => UPLOAD_WAITING_STATES.has(asset.fileState))) return 'upload';
+  if (assets.some((asset) => asset.mediaType === 'photo' && (asset.fileState === 'clean' || asset.fileState === 'processing'))) {
+    return 'derivatives';
+  }
+  return 'none';
+}
+
+/** The pause before the next read of the list; `false` stops the polling. `waitedMs` is how long the wait for derivatives lasts. */
+export function mediaPollInterval(
+  assets: readonly Pick<MediaAsset, 'fileState' | 'mediaType'>[],
+  waitedMs: number,
+  watching = false,
+): number | false {
+  const kind = waitKind(assets);
+  if (kind === 'upload' || (kind === 'none' && watching)) return MEDIA_POLL_MS;
+  if (kind === 'none') return false;
+  if (waitedMs >= MEDIA_GIVE_UP_AFTER_MS) return watching ? MEDIA_POLL_MS : false;
+  return waitedMs >= MEDIA_SLOW_AFTER_MS ? MEDIA_SLOW_POLL_MS : MEDIA_POLL_MS;
+}
 
 export function useMediaList(
   workOrderId: string,
@@ -36,6 +68,7 @@ export function useMediaList(
   needsAttention = false,
 ): UseInfiniteQueryResult<InfiniteData<MediaAssetList, string | null>> {
   const client = useApi();
+  const derivativesSince = useRef<number | null>(null);
   return useInfiniteQuery({
     queryKey: [WORK_ORDER_MEDIA_KEY, workOrderId, needsAttention ? 'attention' : 'all'],
     initialPageParam: null as string | null,
@@ -53,10 +86,13 @@ export function useMediaList(
         }),
       ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    refetchInterval: (query) =>
-      watching || query.state.data?.pages.some((page) => page.items.some((asset) => WAITING_STATES.has(asset.fileState)))
-        ? MEDIA_POLL_MS
-        : false,
+    refetchInterval: (query) => {
+      const assets = query.state.data?.pages.flatMap((page) => page.items) ?? [];
+      if (waitKind(assets) === 'derivatives') derivativesSince.current ??= Date.now();
+      else derivativesSince.current = null;
+      const waited = derivativesSince.current === null ? 0 : Date.now() - derivativesSince.current;
+      return mediaPollInterval(assets, waited, watching);
+    },
     enabled,
     gcTime: 0,
     retry: false,

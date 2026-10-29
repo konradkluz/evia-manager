@@ -20,6 +20,18 @@ export function photosCount(count: number): string {
   }
 }
 
+/** `1 film`, `2 filmy`, `5 filmów`. */
+export function videosCount(count: number): string {
+  switch (plural.select(count)) {
+    case 'one':
+      return `${String(count)} film`;
+    case 'few':
+      return `${String(count)} filmy`;
+    default:
+      return `${String(count)} filmów`;
+  }
+}
+
 /** Genitive after a negation: "Nie wysłano 1 zdjęcia", "Nie wysłano 3 zdjęć". */
 export function photosNotSent(count: number): string {
   return count === 1 ? 'Nie wysłano 1 zdjęcia' : `Nie wysłano ${String(count)} zdjęć`;
@@ -73,7 +85,8 @@ export function formatBytes(bytes: number): string {
 export const mediaText = {
   tab: 'Media i dokumenty',
   heading: 'Media i dokumenty',
-  photosHeading: (count: number, more: boolean) => `Zdjęcia i filmy · ${more ? 'co najmniej ' : ''}${photosCount(count)}`,
+  photosHeading: (photos: number, videos: number, more: boolean) =>
+    `Zdjęcia i filmy · ${more ? 'co najmniej ' : ''}${[...(photos > 0 || videos === 0 ? [photosCount(photos)] : []), ...(videos > 0 ? [videosCount(videos)] : [])].join(', ')}`,
   groupHeading: (category: string, count: number) => `${category} (${String(count)})`,
   addPhotos: 'Dodaj zdjęcia lub filmy',
   dropLabel: 'Upuść zdjęcia tutaj albo',

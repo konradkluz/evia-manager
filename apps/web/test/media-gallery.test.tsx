@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiProvider } from '../src/api/api-context.tsx';
 import { createApiClient } from '../src/api/client.ts';
 import { groupByCategory, MediaGallery } from '../src/work-orders/media-gallery.tsx';
+import {
+  MEDIA_GIVE_UP_AFTER_MS,
+  MEDIA_POLL_MS,
+  MEDIA_SLOW_AFTER_MS,
+  MEDIA_SLOW_POLL_MS,
+  mediaPollInterval,
+} from '../src/work-orders/use-media.ts';
 import { MAX_PARALLEL_URL_REQUESTS, RequestLimiter } from '../src/work-orders/media-thumbnails.ts';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, problem, type Handler } from './api-fake.ts';
@@ -181,6 +188,29 @@ describe('EVM-068 AC8 the states of a tile', () => {
     });
     expect(await screen.findByText('Nie udało się przygotować podglądu. Spróbujemy ponownie.')).toBeTruthy();
     expect(screen.getAllByText('Przygotowujemy podgląd.')).toHaveLength(2);
+  });
+});
+
+describe('EVM-068 AC1 the heading counts photos and videos apart; a video does not keep the list polling', () => {
+  it('EVM-068 AC1 a mix of photos, a video and a file still being checked: "2 zdjęcia, 1 film" and no promise of a preview for the video', async () => {
+    await openMedia({
+      assets: [ready(1), ready(2), asset(3, { mediaType: 'video', fileState: 'clean' }), asset(4, { fileState: 'scanning' })],
+    });
+    expect(await screen.findByRole('heading', { level: 3, name: 'Zdjęcia i filmy · 3 zdjęcia, 1 film' })).toBeTruthy();
+    expect(screen.queryByText('Przygotowujemy podgląd.')).toBeNull();
+  });
+
+  it('EVM-068 AC4 a video that stays `clean` does not make the list poll; a photo that is `processing` does, slower and slower, and gives up', () => {
+    const video = { mediaType: 'video', fileState: 'clean' } as const;
+    const photo = { mediaType: 'photo', fileState: 'processing' } as const;
+    expect(mediaPollInterval([video], 0)).toBe(false);
+    expect(mediaPollInterval([video, { mediaType: 'photo', fileState: 'ready' }], 0)).toBe(false);
+    expect(mediaPollInterval([photo], 0)).toBe(MEDIA_POLL_MS);
+    expect(mediaPollInterval([photo], MEDIA_SLOW_AFTER_MS)).toBe(MEDIA_SLOW_POLL_MS);
+    expect(mediaPollInterval([photo], MEDIA_GIVE_UP_AFTER_MS)).toBe(false);
+    expect(mediaPollInterval([photo], MEDIA_GIVE_UP_AFTER_MS, true)).toBe(MEDIA_POLL_MS);
+    expect(mediaPollInterval([{ mediaType: 'video', fileState: 'scanning' }], MEDIA_GIVE_UP_AFTER_MS)).toBe(MEDIA_POLL_MS);
+    expect(mediaPollInterval([], 0, true)).toBe(MEDIA_POLL_MS);
   });
 });
 
