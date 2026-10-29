@@ -4,7 +4,7 @@ title: "Kontrakt OpenAPI: logowanie mobilne, urządzenia i synchronizacja"
 type: enabler
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P0
 path: pelna             # kontrakt uwierzytelniania i synchronizacji offline
 owner: backend-developer
@@ -80,7 +80,7 @@ Implementacja serwera (EVM-094, 096, 098, 099); operacje uploadu plików (`uploa
   - **Poprawki rundy 2 (2026-10-28):**
     - Odczyt zmian: `parseSyncChange` i mapa `SYNC_PROJECTIONS` w `@evia/contracts/sync` (jedno źródło prawdy; lustro `x-evia-sync-projections` w `SyncEntity`, test pilnuje równości z `SyncEntityType`). Znany `type` ściśle według projekcji (dodatkowe pole, np. e-mail klienta, odrzuca zmianę), nieznany jest pomijany; nie czytać encji przez `zSyncChangesResponse`.
     - Narzędzie zmian łamiących porównuje projekcje przez mapę (kontekst `getSyncChanges`/`getSyncWorkOrder`), pomija je, gdy wszystkie te operacje w baseline są `planned`; usunięcie typu jest łamiące (`sync-projection-removed`), dodanie nie.
-    - Rotacja sekretu instalacji jest dwufazowa (poprzedni sekret ważny do udowodnienia nowego) — zapisane w `mobileLogin`, `mobileLoginTotp`, `MobileSession.installationSecret`, `offline-sync.md`. Do potwierdzenia przez Konrada razem z EVM-094 AC2 (alternatywa: brak rotacji w M2 z ryzykiem RR-NOC-T4-3); implementacja serwera w EVM-094.
+    - Rotacja sekretu instalacji jest dwufazowa (poprzedni sekret ważny do udowodnienia nowego) — zapisane w `mobileLogin`, `mobileLoginTotp`, `MobileSession.installationSecret`, `offline-sync.md`. Do potwierdzenia przez Konrada razem z EVM-094 AC2 (alternatywa: brak rotacji w M2 z ryzykiem RR-69, dawniej RR-NOC-T4-3); implementacja serwera w EVM-094.
     - Katalog błędów (`api-guidelines.md`): `device_wipe_required` w pierwszym kroku logowania przed hasłem + reguła pierwszeństwa.
   - **Poprawki rundy 3 (2026-10-28; przeglądy architekta i security, decyzje domyślne Tech Leada):**
     - `parseSyncChange` jest TOLERANCYJNY (zachowuje znane pola, odrzuca nieznane, nie odrzuca zmiany — ADR-0004: dodanie pola jest niełamiące). Zmiana znanego typu niezgodna z projekcją albo uszkodzona daje `{ kind: "invalid", resync: true }` (wymuszenie resyncu, nie ciche pominięcie); telemetria bez treści (tylko `reason` i słownikowy `type`). Ścisła walidacja zero dodatkowych pól to osobne `assertSyncProjectionStrict` / `SYNC_PROJECTIONS_STRICT` dla testów serwera (EVM-096/097: test negatywny przez nią, nie przez `SyncChangesResponse`). Opis w `SyncEntity` i `offline-sync.md`.
@@ -88,7 +88,7 @@ Implementacja serwera (EVM-094, 096, 098, 099); operacje uploadu plików (`uploa
     - Rotacja dwufazowa: poprzedni sekret ma górny termin = czas życia tokenu odświeżania (≤ 7 dni); najwyżej dwa ważne sekrety (wydany, a nieudowodniony sekret przestaje działać po wydaniu następnego); oba unieważniane po potwierdzeniu wyczyszczenia, usunięciu urządzenia i dezaktywacji konta. Porównanie w stałym czasie także dla nieznanego `deviceId` — uwaga w EVM-094.
     - Ujednolicone AC: EVM-092 AC6 (ocena per zmiana + resync), EVM-096 AC2 i EVM-097 AC2 (ścisła walidacja projekcji); zdanie o atomowym unieważnieniu w rundzie 1 oznaczone jako zastąpione rundą 2.
   - Zmiany łamiące: własny, bezzależnościowy diff kontraktu z baseline'em (`packages/contracts/baseline/openapi.json`) jako **tymczasowy zamiennik oasdiff** (ADR-0004/0012), którego nie ma w CI — rozbieżność z `api-guidelines.md` zgłoszona jako dług techniczny.
-  - Decyzje Konrada nadal pending (rekomendacje domyślne z `docs/backlog/M2/README.md`): `devicePublicKey` opcjonalny (decyzja 8), `pendingItems` w kontrakcie (decyzja 9), telefony prywatne (BYOD, decyzja 4). Zadanie przed EVM-094: addendum ADR-0005 „Ścieżka mobilnego logowania” (dziś tylko w ADR-0021). Ryzyka rezydualne zapisane jako RR-NOC-T4-1 (potwierdzenie wyczyszczenia deklaratywne) i RR-NOC-T4-2 (refresh token bez powiązania z urządzeniem w M2) — numery RR nada security przy scaleniu.
+  - Decyzje Konrada nadal pending (rekomendacje domyślne z `docs/backlog/M2/README.md`): `devicePublicKey` opcjonalny (decyzja 8), `pendingItems` w kontrakcie (decyzja 9), telefony prywatne (BYOD, decyzja 4). Zadanie przed EVM-094: addendum ADR-0005 „Ścieżka mobilnego logowania” (dziś tylko w ADR-0021). Ryzyka rezydualne zapisane jako RR-67, dawniej RR-NOC-T4-1 (potwierdzenie wyczyszczenia deklaratywne) i RR-68, dawniej RR-NOC-T4-2 (refresh token bez powiązania z urządzeniem w M2) — numery nadane 2026-10-28 w `threat-model.md`.
 
 ## Notatki
 - Prefiks tokenów (np. `evia_rt_`) ułatwia skanery sekretów — wartość wyboru po stronie EVM-094.
@@ -101,3 +101,5 @@ Implementacja serwera (EVM-094, 096, 098, 099); operacje uploadu plików (`uploa
 - 2026-10-27 — plan gotowy (backend-developer)
 - 2026-10-27 — implementacja kontraktu: narzędzie zmian łamiących z baseline'em, 9 operacji `x-evia-planned`, reguły lint, atrapa serwera, testy `EVM-090 AC1–AC7` (backend-developer)
 - 2026-10-28 — status in-review (Tech Lead): gate zielony na gałęzi T4; decyzje z rund 1–3 w sekcji Decyzje czekają na akceptację Konrada.
+- 2026-10-28 — numery ryzyk rezydualnych nadane w `docs/security/threat-model.md`: RR-67…RR-69 (zastępują tymczasowe RR-NOC-…; security-engineer)
+- 2026-10-28 — done po scaleniu #110 (Tech Lead)

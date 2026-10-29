@@ -62,3 +62,4 @@ Jako **właściciel produktu** chcę, **aby przed pushem lokalna próba uruchami
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z pozycji po zamknięciu EVM-007
+- 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): dodać filtr ścieżek (zmiany samej dokumentacji nie uruchamiają próbnego stagingu).

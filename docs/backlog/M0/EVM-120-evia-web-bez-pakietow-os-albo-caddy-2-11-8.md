@@ -50,3 +50,4 @@ Jako **właściciel produktu** chcę **usunąć u źródła podatności w obrazi
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner) z RR-37/RR-38
+- 2026-10-28 — decyzja Konrada (pytania po nocnej kolejce): wariant B robimy teraz; `distroless` zostaje warunkiem wejścia na produkcję.

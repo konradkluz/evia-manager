@@ -4,7 +4,7 @@ title: Usunięcie i anonimizacja klienta (Administrator)
 type: story
 milestone: M1
 epic: E2 Klienci
-status: in-review
+status: done
 priority: P1
 path: pelna
 model: sonnet
@@ -101,9 +101,9 @@ Decyzje robocze (rekomendowane wartości domyślne; do potwierdzenia przez Konra
 8. **Synchronizacja mobilna** — bez zmian (aplikacja nie przechowuje klientów); każda z trzech operacji podbija `version` i `updated_at`.
 
 ## Uwagi do rozważenia
-1. **Ponowne otwarcie zlecenia klienta usuniętego (RR-NOC-T2-5, kandydat do `/refine`).** Przejścia `restore('cancelled','on_hold')` i `restore('settled','completed')` w `work-order-transitions.ts` pozwalają Administratorowi otworzyć zlecenie klienta już usuniętego zwykłą sekwencją kroków. Skutek: zlecenie pokazuje „Klient usunięty”, danych klienta nie widać (brak wycieku), a anonimizacja takiego klienta daje `409`. Nie blokujemy tego w EVM-041 (poza AC; zmiana `work-orders` byłaby „przy okazji”).
-2. **Zakres anonimizacji (RR-NOC-T2-6).** Tylko tabela klientów; lokalizacje (często adres domowy), strony, wpisy dziennika, tytuły zleceń i dokumenty zostają — ręczna procedura z runbooka EVM-064. Do tego czasu adres lokalizacji klienta usuniętego jest widoczny dla E/R w W-06.
-3. **Alert na masową anonimizację (RR-NOC-T2-7).** Metryka i alert na liczbę anonimizacji (np. > 5 na godzinę na użytkownika) oraz krok w runbooku EVM-062 „wyklucz wpisy rejestru z okna incydentu przed ponownym zastosowaniem” — do backlogu, nie nowe AC.
+1. **Ponowne otwarcie zlecenia klienta usuniętego (RR-59, dawniej RR-NOC-T2-5, kandydat do `/refine`).** Przejścia `restore('cancelled','on_hold')` i `restore('settled','completed')` w `work-order-transitions.ts` pozwalają Administratorowi otworzyć zlecenie klienta już usuniętego zwykłą sekwencją kroków. Skutek: zlecenie pokazuje „Klient usunięty”, danych klienta nie widać (brak wycieku), a anonimizacja takiego klienta daje `409`. Nie blokujemy tego w EVM-041 (poza AC; zmiana `work-orders` byłaby „przy okazji”).
+2. **Zakres anonimizacji (RR-60, dawniej RR-NOC-T2-6).** Tylko tabela klientów; lokalizacje (często adres domowy), strony, wpisy dziennika, tytuły zleceń i dokumenty zostają — ręczna procedura z runbooka EVM-064. Do tego czasu adres lokalizacji klienta usuniętego jest widoczny dla E/R w W-06.
+3. **Alert na masową anonimizację (RR-61, dawniej RR-NOC-T2-7).** Metryka i alert na liczbę anonimizacji (np. > 5 na godzinę na użytkownika) oraz krok w runbooku EVM-062 „wyklucz wpisy rejestru z okna incydentu przed ponownym zastosowaniem” — do backlogu, nie nowe AC.
 4. Kod N-1 przy edycji zanonimizowanego klienta dostanie `500` (naruszenie CHECK) — akceptowalne okno wdrożenia, fail-closed (opis w migracji 0043).
 
 ## Definition of Done
@@ -122,4 +122,6 @@ Decyzje robocze (rekomendowane wartości domyślne; do potwierdzenia przez Konra
 - 2026-10-28 — plan gotowy (backend-developer)
 - 2026-10-28 — implementacja backendu gotowa (backend-developer): kontrakt, migracje 0043–0044, usunięcie / przywrócenie / anonimizacja, port blokady, rejestr usunięć, testy `EVM-041 AC1–AC8`; panel W-14 — kolejny krok
 - 2026-10-28 — panel W-14 gotowy (web-developer): menu „Akcje klienta” (Usuń z „Cofnij”, Anonimizuj… z AlertDialog, polem „Rozumiem” i W-04), banery usunięty / zanonimizowany z „Przywróć klienta”, filtr „Usunięci” (tylko A), karta „Klient” bez numeru zastępczego; testy `EVM-041 AC1–AC8` (komponentowe, Playwright, axe)
-- 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,4% linii / 93,1% gałęzi, przeglądy zatwierdzone w 1 rundzie; decyzje D1–D7 i ryzyka RR-NOC-T2-5/6 w sekcji Decyzje.
+- 2026-10-28 — status in-review (Tech Lead): gate zielony, coverage:diff 99,4% linii / 93,1% gałęzi, przeglądy zatwierdzone w 1 rundzie; decyzje D1–D7 i ryzyka RR-59/RR-60 w sekcji Decyzje.
+- 2026-10-28 — numery ryzyk rezydualnych nadane w `docs/security/threat-model.md`: RR-59…RR-61 (zastępują tymczasowe RR-NOC-…; security-engineer)
+- 2026-10-28 — done po scaleniu #108 (Tech Lead)
