@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import {
+  DERIVATIVE_URL_SECONDS,
   MAX_PRESIGN_SECONDS,
   ObjectStorageError,
   type CompletedObject,
@@ -26,6 +27,7 @@ interface Version {
   readonly etag: string;
   readonly body: Buffer;
   readonly contentType: string;
+  readonly cacheControl?: string;
 }
 
 export class InMemoryObjectStorage implements ObjectStorage {
@@ -39,6 +41,8 @@ export class InMemoryObjectStorage implements ObjectStorage {
   unavailable = false;
   /** The lengths and part numbers of the URLs handed out, for assertions. */
   readonly presigned: Array<{ key: string; partNumber: number; contentLength: number; expiresInSeconds: number }> = [];
+  /** The signed `GET` URLs handed out, for assertions. */
+  readonly signedGets: Array<{ key: string; expiresInSeconds: number; contentType: string; cacheControl: string }> = [];
   /** Content types the uploads were created with. */
   readonly contentTypes: string[] = [];
 
@@ -143,6 +147,37 @@ export class InMemoryObjectStorage implements ObjectStorage {
     const chunks: Buffer[] = [];
     for (let offset = 0; offset < version.body.length; offset += 65_536) chunks.push(version.body.subarray(offset, offset + 65_536));
     return Promise.resolve(Readable.from(chunks, { objectMode: false }));
+  }
+
+  putObjectIfAbsent(input: { key: string; body: Buffer; contentType: string; cacheControl: string }): Promise<void> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    if ((this.#objects.get(input.key)?.length ?? 0) > 0) return Promise.reject(new ObjectStorageError('precondition_failed'));
+    this.#counter += 1;
+    this.#objects.set(input.key, [
+      {
+        versionId: `version-${this.#counter}`,
+        etag: `"${md5(input.body)}"`,
+        body: input.body,
+        contentType: input.contentType,
+        cacheControl: input.cacheControl,
+      },
+    ]);
+    return Promise.resolve();
+  }
+
+  presignGet(input: { key: string; expiresInSeconds: number; contentType: string; cacheControl: string }): Promise<PartUrl> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)
+      throw new RangeError('presign lifetime out of range');
+    this.signedGets.push({ ...input });
+    const url = `https://bucket.invalid/${input.key}?response-content-type=${encodeURIComponent(input.contentType)}&response-content-disposition=inline&X-Amz-Signature=synthetic`;
+    return Promise.resolve({ url, expiresAt: new Date(this.#now().getTime() + input.expiresInSeconds * 1000) });
+  }
+
+  /** Test helper: the bytes, type and cache control of the latest version of an object (`undefined`: none). */
+  read(key: string): { body: Buffer; contentType: string; cacheControl: string | undefined } | undefined {
+    const latest = this.#objects.get(key)?.at(-1);
+    return latest === undefined ? undefined : { body: latest.body, contentType: latest.contentType, cacheControl: latest.cacheControl };
   }
 
   /** Test helper: puts a whole object as one version (as if assembled by a complete). */
