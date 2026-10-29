@@ -46,6 +46,13 @@ describe('EVM-068 AC6 the signed GET of a derivative (SR-FILE-07, SR-WEB-04)', (
   });
 });
 
+describe('EVM-068 AC6 a failure of the signing is a fixed code, never the message of the SDK', () => {
+  it('EVM-068 AC6 a client that cannot sign gives the code `unavailable`', async () => {
+    const storage = new S3ObjectStorage({ send: () => Promise.reject(new Error('x')), config: {} } as unknown as S3Client, SETTINGS.bucket);
+    await expect(storage.presignGet(GET)).rejects.toMatchObject({ name: 'ObjectStorageError', code: 'unavailable' });
+  });
+});
+
 describe('EVM-068 AC1 the add-only write of a derivative (TM-76)', () => {
   it('EVM-068 AC1 the adapter sends If-None-Match, the type and the cache control, and maps 412 to precondition_failed', async () => {
     const sent: Array<Record<string, unknown>> = [];

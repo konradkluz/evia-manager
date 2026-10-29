@@ -33,9 +33,6 @@ export const PROCESSING_WARNING_MS = 30 * 60_000;
 /** The derivatives of a file exist only for `ready`. */
 export const hasDerivatives = (state: FileState): boolean => state === 'ready';
 
-/** Only photos are processed here; videos (EVM-046) are skipped by the loop. */
-export const isProcessable = (mediaType: 'photo' | 'video'): boolean => mediaType === 'photo';
-
 const ORIGINAL_KEY = /^(media\/[0-9]{4}\/[0-9]{2}\/[0-9a-f-]{36}\/)original$/;
 
 /** @returns the key of a derivative; `undefined` when the key of the original does not have the shape the server assigns (never guessed) */
