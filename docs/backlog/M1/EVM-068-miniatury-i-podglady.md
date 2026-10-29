@@ -111,3 +111,4 @@ Kolejka w tabeli (wzorzec EVM-044: compare-and-set, licznik prób przy przejęci
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-29 — plan gotowy (backend-developer)
 - 2026-10-29 — implementacja (backend-developer): migracja 0053, `services/media-processor`, pętla przetwarzania i operacja adresu miniatury, galeria W-09, CSP `img-src`, `compose.media.yaml`, polityka bucketu; testy `EVM-068 AC1–AC8`
+- 2026-10-29 — implementacja web (web-developer): weryfikacja galerii W-09 (testy web zielone, pokrycie linii 98,65%, typy OK); bez zmian w kodzie
