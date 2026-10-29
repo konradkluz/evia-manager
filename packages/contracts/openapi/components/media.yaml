@@ -337,3 +337,34 @@ UploadPartUrl:
       type: integer
       description: Dokładny rozmiar części w bajtach — nagłówek `Content-Length` `PUT`.
       minimum: 1
+MediaDerivativeVariant:
+  type: string
+  description: >-
+    Wariant pochodnej zdjęcia: `thumbnail` (miniatura, dłuższy bok do 320 px) albo `preview` (podgląd, dłuższy bok do 1600 px). Obie to
+    WebP bez metadanych (EVM-068). Wartość `original` (pobranie oryginału) doda addytywnie EVM-045.
+  enum: [thumbnail, preview]
+CreateMediaDerivativeUrlRequest:
+  type: object
+  description: Wskazanie wariantu pochodnej, do którego panel prosi o adres.
+  required: [variant]
+  additionalProperties: false
+  properties:
+    variant:
+      $ref: '#/MediaDerivativeVariant'
+MediaDerivativeUrl:
+  type: object
+  description: >-
+    Podpisany `GET` pochodnej z domeny bucketu (nie z originu aplikacji), ważny najwyżej 5 minut, z typem `image/webp` i
+    `Content-Disposition: inline` narzuconymi przez serwer. Adres jest sekretem krótkotrwałym: panel trzyma go tylko w pamięci i nie
+    zapisuje w logach. `Cache-Control: no-store`.
+  required: [url, expiresAt]
+  additionalProperties: false
+  properties:
+    url:
+      type: string
+      format: uri
+      maxLength: 4096
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40

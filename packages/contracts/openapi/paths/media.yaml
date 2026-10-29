@@ -447,3 +447,60 @@ mediaAssetRescan:
         $ref: ../components/media-responses.yaml#/MediaConflict
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+mediaAssetDownloadUrl:
+  post:
+    operationId: createMediaAssetDownloadUrl
+    tags: [media]
+    summary: Podpisany adres pochodnej zdjęcia (miniatura albo podgląd)
+    description: >-
+      Podpisany `GET` miniatury albo podglądu zdjęcia (EVM-068 AC6, AC7; SR-FILE-07, SR-WEB-04, SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-02).
+      Operacja wystawia adres (jak `getUploadPartUrl`), ale jest `POST` z treścią `{ variant }` — adres do pliku nie trafia do ścieżki ani
+      zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu, więc nie ma `Idempotency-Key` ani audytu odczytu (audyt
+      dotyczy oryginałów i dokumentów, EVM-045). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403
+      channel_not_allowed`), wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → treść (`400`; wariant spoza listy, pola obce) → JEDNO zapytanie z
+      polityką odczytu zlecenia po (zlecenie, medium) z dołączonym plikiem i wierszem pochodnej → `404` w jednym kształcie: zlecenie albo medium
+      nieistniejące, usunięte lub innego zlecenia, plik w stanie innym niż `ready` (dla wariantów pochodnych `clean` NIE wystarcza — to dotyczy
+      tylko oryginału), brak wiersza pochodnej. Adres jest ważny 300 s (stała serwera), pochodzi z domeny bucketu i ma `response-content-type=image/webp` oraz
+      `response-content-disposition=inline` narzucone przez serwer. Limity wystawiania adresów (SR-FILE-10, P10) dochodzą w EVM-045; do
+      tego czasu obowiązuje globalny limit. `Cache-Control: no-store`; adres nie jest logowany.
+    x-evia-authz:
+      roles: [administrator, editor, read_only]
+      channels: [web]
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/media.yaml#/CreateMediaDerivativeUrlRequest
+    responses:
+      '200':
+        description: Podpisany adres pochodnej.
+        headers:
+          Cache-Control:
+            description: Zawsze `no-store`.
+            schema:
+              type: string
+              enum: [no-store]
+        content:
+          application/json:
+            schema:
+              $ref: ../components/media.yaml#/MediaDerivativeUrl
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '413':
+        $ref: ../components/responses.yaml#/PayloadTooLarge
+      '415':
+        $ref: ../components/responses.yaml#/UnsupportedMediaType
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaStorageUnavailable

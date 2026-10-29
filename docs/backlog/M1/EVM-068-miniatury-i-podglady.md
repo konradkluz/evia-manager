@@ -103,3 +103,4 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; część (b) podziału EVM-044 — konsultacja solution-architect W3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-29 — plan gotowy (backend-developer)

@@ -349,7 +349,7 @@ Wartości z ADR (ASVS 2.1.3, 2.4.1, 15.1.3); przekroczenie limitu żądań → `
 ## Pliki i podpisane URL-e
 - Pliki **nigdy nie przechodzą przez API** — upload i pobieranie bezpośrednio do / z object storage przez podpisane URL-e (ADR-0009).
 - Upload: `POST /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions` (deklaracja rozmiaru, typu, SHA-256; `id` sesji z klienta) → URL-e części; `POST …/upload-sessions/{uploadSessionId}/complete` → stan `uploaded` i skan. Dla dokumentów analogicznie pod `…/documents/{documentId}/versions`.
-- Pobieranie: `POST …/media-assets/{mediaAssetId}/download-url` (wariant: miniatura, podgląd, oryginał) → podpisany `GET` z TTL ≤ 5 min. `POST`, a nie `GET`: brak cache'owania, limit i audyt (oryginały i dokumenty). Plik w stanie innym niż `clean` / `ready` → `404`.
+- Pobieranie: `POST …/media-assets/{mediaAssetId}/download-url` (wariant: miniatura, podgląd, oryginał) → podpisany `GET` z TTL ≤ 5 min. `POST`, a nie `GET`: brak cache'owania, limit i audyt (oryginały i dokumenty). Plik w stanie innym niż `clean` / `ready` → `404`; dla wariantów pochodnych (miniatura, podgląd; EVM-068) `404` oznacza stan inny niż `ready` albo brak wiersza pochodnej — `clean` | `ready` dotyczy tylko oryginału (EVM-045). Treść: `{ variant }` (`thumbnail` \| `preview`, `original` doda EVM-045), odpowiedź `{ url, expiresAt }`.
 - Dokumenty i oryginały z `Content-Disposition: attachment` (nazwa w `filename*` UTF-8, oczyszczona); inline tylko pochodne o stałym typie.
 
 ## Dokumentowanie operacji w OpenAPI
