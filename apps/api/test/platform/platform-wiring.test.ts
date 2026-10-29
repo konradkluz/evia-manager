@@ -86,4 +86,11 @@ describe('RR-NOC-T2-4 a transaction that waits for the register of deletions can
     expect(pool.options).toMatchObject({ idle_in_transaction_session_timeout: 10_000 });
     await pool.end();
   });
+
+  it('EVM-096 AC4 the pool ends a session whose transaction runs longer than 30 seconds (ADR-0021 D5)', async () => {
+    const { logger } = capture();
+    const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger });
+    expect(pool.options).toMatchObject({ options: '-c transaction_timeout=30000', statement_timeout: 2000 });
+    await pool.end();
+  });
 });

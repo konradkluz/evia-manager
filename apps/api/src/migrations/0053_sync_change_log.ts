@@ -31,6 +31,7 @@ export async function up(db: Kysely<Database>): Promise<void> {
     )
   `.execute(db);
   await sql`create index change_log_txid_seq_idx on sync.change_log (txid, seq)`.execute(db);
+  await sql`create index change_log_entity_idx on sync.change_log (entity_id, txid, seq)`.execute(db);
   await sql`revoke all on sync.change_log from public`.execute(db);
   await sql`grant select on sync.change_log to evia_app`.execute(db);
 

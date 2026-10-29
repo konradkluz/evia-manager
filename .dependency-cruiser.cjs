@@ -120,9 +120,9 @@ module.exports = {
     {
       name: 'api-system-ports-only-from-overview',
       comment:
-        'The system ports (modules/<name>/system-ports.ts) return minimal data WITHOUT a read policy and without a role (ADR-0017 W5, T8): only the application and infrastructure layers of `overview` may import them, and a module its own — never a controller, never another module.',
+        'The system ports (modules/<name>/system-ports.ts) return minimal data WITHOUT a read policy and without a role (ADR-0017 W5, T8): only the application and infrastructure layers of the read models `overview` and `sync` (ADR-0021 D8) may import them, and a module its own — never a controller, never another module.',
       severity: 'error',
-      from: { path: '^apps/api/src/modules/([^/]+)/', pathNot: '^apps/api/src/modules/overview/(application|infrastructure)/' },
+      from: { path: '^apps/api/src/modules/([^/]+)/', pathNot: '^apps/api/src/modules/(overview|sync)/(application|infrastructure)/' },
       to: { path: '^apps/api/src/modules/([^/]+)/system-ports\\.ts$', pathNot: '^apps/api/src/modules/$1/' },
     },
     {
@@ -132,6 +132,14 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(modules/overview/|app\\.module\\.ts$|cli/|worker(/|\\.ts$))' },
       to: { path: '^apps/api/src/modules/overview/' },
+    },
+    {
+      name: 'api-nothing-depends-on-sync',
+      comment:
+        'The pull of changes is a leaf (ADR-0021 D8; EVM-096): it depends on the source modules and the platform, nothing depends on it. Only the composition root, the worker and the server command reach it, through index.ts. The audit event of a full download lives in platform/sync, so `audit` does not import it.',
+      severity: 'error',
+      from: { path: '^apps/api/src/', pathNot: '^apps/api/src/(modules/sync/|app\\.module\\.ts$|cli/|worker(/|\\.ts$))' },
+      to: { path: '^apps/api/src/modules/sync/' },
     },
     {
       name: 'api-pg-boss-only-in-jobs-adapter',

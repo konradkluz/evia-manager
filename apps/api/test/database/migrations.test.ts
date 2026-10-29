@@ -81,6 +81,7 @@ describe('first migration (EVM-008 AC1; ADR-0003)', () => {
       '0050_mobile_devices',
       '0051_mobile_tokens',
       '0052_mobile_vocabularies',
+      '0053_sync_change_log',
     ]);
     for (const migration of Object.values(MIGRATIONS)) expect(Object.keys(migration)).toEqual(['up']);
   });

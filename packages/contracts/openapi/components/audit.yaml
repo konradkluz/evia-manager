@@ -45,6 +45,7 @@ AuditAction:
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected
+    - sync.full_download
     - customer.created
     - customer.updated
     - customer.deleted

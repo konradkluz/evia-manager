@@ -18,6 +18,60 @@ const errorOf = (env: Record<string, string | undefined>): ConfigError => {
   throw new Error('expected a ConfigError');
 };
 
+describe('configuration of the synchronisation of the phones (EVM-096; ADR-0021 D6)', () => {
+  it('EVM-096 AC3 without a ring the cursor key is ONE key derived from the cursor key of the panel - never equal to it; a ring given is kept in order', () => {
+    const derived = loadConfig(validEnv()).sync.cursorKeys;
+    expect(derived).toHaveLength(1);
+    expect(derived[0]?.key).toHaveLength(32);
+    expect(derived[0]?.key.equals(Buffer.alloc(32, 7))).toBe(false);
+    const [first, second] = [randomKey(), randomKey()];
+    expect(loadConfig(validEnv({ SYNC_CURSOR_KEYS: `k2:${first}, k1:${second}` })).sync.cursorKeys.map((key) => key.id)).toEqual([
+      'k2',
+      'k1',
+    ]);
+  });
+
+  it('EVM-096 AC3 a ring with a malformed entry, a repeated id, the key of the panel cursors or an encryption key stops the start and names only the variable; production refuses a placeholder', () => {
+    const key = randomKey();
+    const panelKey = Buffer.alloc(32, 7).toString('base64url');
+    for (const value of ['k1', 'k1:short', `k1:${key},k1:${randomKey()}`, `k1:${panelKey}`, `k1:${TEST_FIELD_ENCRYPTION_KEY}`]) {
+      expect(errorOf(validEnv({ SYNC_CURSOR_KEYS: value })).keys, value).toEqual(['SYNC_CURSOR_KEYS']);
+    }
+    const placeholder = Buffer.alloc(32, 9).toString('base64url');
+    expect(
+      errorOf({ ...validEnv({ CURSOR_KEY: randomKey(), SYNC_CURSOR_KEYS: `k1:${placeholder}` }), NODE_ENV: 'production' }).keys,
+    ).toEqual(['SYNC_CURSOR_KEYS']);
+  });
+
+  it('EVM-096 AC2 AC7 AC8 the scope, the periodic resync, the limit of full downloads and the budget of a page are settings of the server with bounds', () => {
+    expect(
+      loadConfig(
+        validEnv({
+          SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS: '14',
+          SYNC_PERIODIC_RESYNC_DAYS: '3',
+          SYNC_SCOPE_RULE_VERSION: '4',
+          SYNC_FULL_DOWNLOADS_PER_DAY: '5',
+          SYNC_PAGE_MAX_BYTES: '500000',
+        }),
+      ).sync,
+    ).toMatchObject({
+      closedOrdersInScopeDays: 14,
+      periodicResyncDays: 3,
+      scopeRuleVersion: 4,
+      fullDownloadsPerDay: 5,
+      pageMaxBytes: 500_000,
+    });
+    for (const [name, value] of [
+      ['SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS', '0'],
+      ['SYNC_PERIODIC_RESYNC_DAYS', '1000'],
+      ['SYNC_FULL_DOWNLOADS_PER_DAY', 'many'],
+      ['SYNC_PAGE_MAX_BYTES', '2000000'],
+    ] as const) {
+      expect(errorOf(validEnv({ [name]: value })).keys, name).toEqual([name]);
+    }
+  });
+});
+
 describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)', () => {
   it('EVM-008 AC1 config reads the minimum supported app versions, the database URL and defaults', () => {
     expect(loadConfig(validEnv())).toEqual({
@@ -35,6 +89,14 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
       loginThrottleKey: Buffer.from(TEST_LOGIN_THROTTLE_KEY, 'base64url'),
       loginAlerts: { passwordFailures: 30, secondStepFailures: 3 },
       deletionRegister: { status: 'unconfigured' },
+      sync: {
+        cursorKeys: [{ id: 'derived', key: expect.any(Buffer) as Buffer }],
+        closedOrdersInScopeDays: 30,
+        periodicResyncDays: 7,
+        scopeRuleVersion: 1,
+        fullDownloadsPerDay: 3,
+        pageMaxBytes: 900_000,
+      },
     });
     expect(
       loadConfig({ ...validEnv({ CURSOR_KEY: randomKey() }), NODE_ENV: undefined, API_PORT: '8080', LOG_LEVEL: 'warn' }),

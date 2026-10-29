@@ -7,7 +7,13 @@
 export type Labels = Readonly<Record<string, string>>;
 
 export interface Counter {
-  increment(labels: Labels): void;
+  /** Adds `by` (default 1) to the sample of these labels. */
+  increment(labels: Labels, by?: number): void;
+}
+
+/** A value that goes up and down (the lag of the horizon); the last `set` wins. */
+export interface Gauge {
+  set(value: number): void;
 }
 
 export interface CounterSample {
@@ -22,6 +28,7 @@ const LABEL_VALUE = /^[a-z][a-z_]{0,31}$/;
 export class MetricsRegistry {
   readonly #counters = new Map<string, Map<string, CounterSample>>();
   readonly #labelNames = new Map<string, readonly string[]>();
+  readonly #gauges = new Map<string, CounterSample>();
 
   /** Registers (or returns) a counter with the label names it accepts. */
   counter(name: string, labelNames: readonly string[]): Counter {
@@ -32,7 +39,7 @@ export class MetricsRegistry {
     const samples = this.#counters.get(name) ?? new Map<string, CounterSample>();
     this.#counters.set(name, samples);
     return {
-      increment: (labels) => {
+      increment: (labels, by = 1) => {
         const keys = Object.keys(labels);
         if (keys.length !== labelNames.length || !labelNames.every((label) => Object.hasOwn(labels, label))) {
           throw new Error(`metric ${name} takes the labels ${labelNames.join(', ')}`);
@@ -41,12 +48,22 @@ export class MetricsRegistry {
           throw new Error(`metric ${name}: a label value must be a short code`);
         const key = labelNames.map((label) => `${label}=${labels[label]}`).join('|');
         const sample = samples.get(key);
-        samples.set(key, { name, labels: { ...labels }, value: (sample?.value ?? 0) + 1 });
+        samples.set(key, { name, labels: { ...labels }, value: (sample?.value ?? 0) + by });
+      },
+    };
+  }
+
+  /** Registers (or returns) a gauge without labels. */
+  gauge(name: string): Gauge {
+    if (!NAME.test(name)) throw new Error('invalid metric name');
+    return {
+      set: (value) => {
+        this.#gauges.set(name, { name, labels: {}, value });
       },
     };
   }
 
   snapshot(): CounterSample[] {
-    return [...this.#counters.values()].flatMap((samples) => [...samples.values()]);
+    return [...this.#counters.values()].flatMap((samples) => [...samples.values()]).concat([...this.#gauges.values()]);
   }
 }

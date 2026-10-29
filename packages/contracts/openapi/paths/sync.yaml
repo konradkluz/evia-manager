@@ -56,17 +56,16 @@ changes:
     description: >-
       Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub
       przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`,
-      `access_changed`), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki
+      `access_changed`), kursor innego użytkownika lub urządzenia albo zmodyfikowany (zły tag przy znanym kluczu) daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki
       (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo
       `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie”
       (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie.
       Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone
-      wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10).
+      wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`). Pełne pobranie (bez kursora, także po `resync_required`) jest limitowane na urządzenie (domyślnie 3 na kroczącą dobę → `429` z `Retry-After`); zwykłe pobieranie zmian nie. Odczyty synchronizacji NIE zasilają licznika różnych klientów (EVM-039). `limit` powyżej 500 jest ograniczany do 500.
       `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:

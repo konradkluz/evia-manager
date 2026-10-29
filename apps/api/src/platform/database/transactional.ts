@@ -48,6 +48,8 @@ const REGISTRIES = new WeakMap<object, PreCommitRegistry>();
 export interface TransactionOptions {
   /** Default is the isolation level of the connection (READ COMMITTED); the consistent reads of several queries use `repeatable read`. */
   readonly isolationLevel?: 'repeatable read';
+  /** `read only`: the transaction gets no transaction id and holds no horizon of the change log (EVM-096). */
+  readonly accessMode?: 'read only';
 }
 
 /** Runs `work` in a transaction, then the pre-commit actions of the registry, then commits. Any error rolls everything back. */
@@ -57,7 +59,8 @@ export function runInTransaction<T>(
   options: TransactionOptions = {},
 ): Promise<T> {
   const builder = db.transaction();
-  const configured = options.isolationLevel === undefined ? builder : builder.setIsolationLevel(options.isolationLevel);
+  const isolated = options.isolationLevel === undefined ? builder : builder.setIsolationLevel(options.isolationLevel);
+  const configured = options.accessMode === undefined ? isolated : isolated.setAccessMode(options.accessMode);
   return configured.execute(async (tx) => {
     const registry = new PreCommitRegistry();
     REGISTRIES.set(tx, registry);

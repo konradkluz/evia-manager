@@ -39,7 +39,8 @@ import { WorkOrderScopeRegistry } from './scope-participant.ts';
 import { WorkOrderTransitionRegistry } from './transition-participant.ts';
 import { WORK_ORDER_DIRECTORY } from './work-order-directory.ts';
 import { WorkOrderProjectionSourceService } from './infrastructure/projection-source.ts';
-import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
+import { WorkOrderSyncSourceService } from './infrastructure/sync-source.ts';
+import { WORK_ORDER_PROJECTION_SOURCE, WORK_ORDER_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [IdentityModule, CatalogModule, CustomersModule, SitesModule, PartiesModule],
@@ -62,6 +63,7 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     OpenOrdersDependentsGuard,
     { provide: WORK_ORDER_DIRECTORY, useClass: WorkOrderDirectoryService },
     { provide: WORK_ORDER_PROJECTION_SOURCE, useClass: WorkOrderProjectionSourceService },
+    { provide: WORK_ORDER_SYNC_SOURCE, useClass: WorkOrderSyncSourceService },
   ],
   exports: [
     WorkOrderCompositionRegistry,
@@ -70,6 +72,7 @@ import { WORK_ORDER_PROJECTION_SOURCE } from './system-ports.ts';
     WorkOrderDeletionRegistry,
     WORK_ORDER_DIRECTORY,
     WORK_ORDER_PROJECTION_SOURCE,
+    WORK_ORDER_SYNC_SOURCE,
   ],
 })
 export class WorkOrdersModule {}

@@ -78,6 +78,10 @@ export const DATABASE_BOUND: readonly string[] = [
   // and the controller are SQL against PostgreSQL; the rules of the domain (file rules, plan of the upload, verdicts) are measured by the unit run
   'src/modules/media/application/**/*.ts',
   'src/modules/media/infrastructure/**/*.ts',
+  // EVM-096: the pull of changes - the transactions (READ ONLY and the full download under a lock), the queries on the change log and the horizon, the controller; the domain (cursor decisions, assembly of a page, projections) is measured by the unit run
+  'src/modules/sync/application/**/*.ts',
+  'src/modules/sync/infrastructure/**/*.ts',
+  'src/modules/sync/http/sync.controller.ts',
   'src/modules/media/http/media.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',

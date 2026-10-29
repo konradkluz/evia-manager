@@ -54,12 +54,13 @@ export const AUTHENTICATION_OPERATIONS: readonly string[] = Object.freeze([
  */
 export const PASSIVE_OPERATIONS: readonly string[] = Object.freeze(['getCurrentSession', 'extendSession']);
 
-/** The version of the app is checked on the sign-in, the renewal of tokens and the logout; not on getClientConfig (the app must read the minimum) nor on the confirmation of the wipe. */
+/** The version of the app is checked on the sign-in, the renewal of tokens, the logout and the pull of changes (426, EVM-096); not on getClientConfig (the app must read the minimum) nor on the confirmation of the wipe. */
 export const CLIENT_VERSION_OPERATIONS: readonly string[] = Object.freeze([
   'mobileLogin',
   'mobileLoginTotp',
   'refreshMobileSession',
   'mobileLogout',
+  'getSyncChanges',
 ]);
 
 export const CONTRACT_POLICIES: PolicySource = Object.freeze({
