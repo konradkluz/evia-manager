@@ -120,9 +120,12 @@ module.exports = {
     {
       name: 'api-system-ports-only-from-overview',
       comment:
-        'The system ports (modules/<name>/system-ports.ts) return minimal data WITHOUT a read policy and without a role (ADR-0017 W5, T8): only the application and infrastructure layers of the read models `overview` and `sync` (ADR-0021 D8) may import them, and a module its own — never a controller, never another module.',
+        'The system ports (modules/<name>/system-ports.ts) return minimal data WITHOUT a read policy and without a role (ADR-0017 W5, T8): only the application and infrastructure layers of the read model `overview` and the layers below the controller of `sync` (ADR-0021 D8) may import them, and a module its own — never a controller, never another module.',
       severity: 'error',
-      from: { path: '^apps/api/src/modules/([^/]+)/', pathNot: '^apps/api/src/modules/(overview|sync)/(application|infrastructure)/' },
+      from: {
+        path: '^apps/api/src/modules/([^/]+)/',
+        pathNot: '^apps/api/src/modules/(overview/(application|infrastructure)|sync/(application|infrastructure|domain))/',
+      },
       to: { path: '^apps/api/src/modules/([^/]+)/system-ports\\.ts$', pathNot: '^apps/api/src/modules/$1/' },
     },
     {
