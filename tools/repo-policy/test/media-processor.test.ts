@@ -59,6 +59,16 @@ describe('EVM-068 AC5: the container of the media processor', () => {
     expect(read('infra/runtime/compose.infra.yaml')).not.toContain('media-work');
   });
 
+  it('EVM-068 AC5: the processor image is referenced by a digest (placeholder replaced at installation), never by a floating tag; the runbook requires a scan and an SBOM first', () => {
+    const compose = read('infra/runtime/compose.media.yaml');
+    expect(compose).toMatch(/image: evia-media-processor@sha256:[0-9a-f]{64}$/m);
+    expect(compose).not.toMatch(/image: evia-media-processor:/);
+    const runbook = read('docs/ops/runbooks/media-processor.md');
+    expect(runbook).toContain('@sha256:');
+    expect(runbook).toContain('--severity HIGH,CRITICAL');
+    expect(runbook).toContain('CycloneDX');
+  });
+
   it('EVM-068 AC5: the image — bases by digest, the exact pnpm, install scripts off, a distroless non-root runtime without a package manager', () => {
     const dockerfile = read('infra/images/media-processor/Dockerfile');
     const code = dockerfile.replace(/^\s*#.*$/gm, '');

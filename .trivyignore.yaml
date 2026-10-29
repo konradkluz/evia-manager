@@ -7,6 +7,9 @@ licenses:
   - id: MIT-0
     statement: 'nodemailer — server-only (api/worker), not distributed; MIT-0 is more permissive than MIT; no runtime dependencies · owner: security-engineer · EVM-024'
     expired_at: 2027-01-10
+  - id: LGPL-3.0-or-later
+    statement: '@img/sharp-libvips-* (libvips, prebuilt shared library of sharp) — server-only (services/media-processor, run in a network-less sandbox container), not redistributed to users; linked dynamically and unmodified, replaceable by the sharp package; applies to the license name, so it also covers the platform packages of the lockfile (tools/scan/platform-licenses.json) · owner: devops-engineer · EVM-068 · decision of Konrad needed (ADR-0009)'
+    expired_at: 2027-01-27
 vulnerabilities:
   # (A) gosu 1.19 (Go 1.24.6) in postgres:18.6-trixie — NOT REACHABLE (security-engineer 2026-10-21; RR-36). gosu links
   # none of the affected packages: no symbols of crypto/tls, crypto/x509, encoding/asn1, encoding/xml, html/template,

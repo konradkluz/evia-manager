@@ -3,7 +3,7 @@
 #   docker compose --project-name evia-media -f /etc/evia/runtime/compose.media.yaml up -d
 # — never by the deployment channel (it is a separate file from compose.infra.yaml, like compose.telemetry.yaml, so the fixed list of infrastructure
 # images does not grow with an image built from this repository). The image is built by the IaC session from the commit of the release with
-# infra/images/media-processor/Dockerfile (docs/ops/runbooks/media-processor.md); its tag is set there.
+# infra/images/media-processor/Dockerfile (docs/ops/runbooks/media-processor.md); it is referenced by the digest of the scanned build (the IaC session replaces the all-zero placeholder in the installed copy; with the placeholder nothing starts), never by a floating tag.
 #
 # The container parses files from outside (libvips), so it is the most restricted one of the VM:
 # - no network at all (network_mode none): it listens ONLY on a Unix socket and cannot send anything anywhere;
@@ -16,7 +16,7 @@
 
 services:
   media-processor:
-    image: evia-media-processor:local
+    image: evia-media-processor@sha256:0000000000000000000000000000000000000000000000000000000000000000
     restart: unless-stopped
     network_mode: none
     user: '10005:10002'
