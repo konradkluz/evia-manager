@@ -95,7 +95,7 @@ describe('EVM-084 AC2: the S3 keys, the pgBackRest password and the restore secr
     const services = JSON.parse(readFileSync(MANIFEST, 'utf8')).services;
     const holders = (/** @type {string} */ file) => Object.keys(services).filter((name) => services[name].files.includes(file));
     assert.deepEqual(holders('media-s3-secret-access-key'), ['api']);
-    assert.deepEqual(holders('deletion-register-s3-secret-access-key'), ['worker']);
+    assert.deepEqual(holders('deletion-register-s3-secret-access-key'), ['api']); // RR-55 (b): api writes the register
     assert.deepEqual(holders('pgbackrest-cipher-pass'), ['postgres']);
     assert.deepEqual(holders('backup-s3-secret-access-key'), ['postgres']);
     assert.deepEqual(holders('grafana-write-token'), ['alloy']);

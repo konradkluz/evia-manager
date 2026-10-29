@@ -16,7 +16,7 @@
 #   field-encryption-keys      k1:<32 random bytes, base64url>   (list `id:key,…`; a rotation adds an entry by hand)
 #   login-throttle-key         32 random bytes, base64url (separate secret, EVM-026)
 # Files provided by hand in the IaC session (EVM-084; never generated, never read; --check reports MISSING until they exist):
-#   media-s3-secret-access-key, deletion-register-s3-secret-access-key   S3 keys of the applications (api / worker)
+#   media-s3-secret-access-key, deletion-register-s3-secret-access-key   S3 keys of the applications (both api)
 #   backup-s3-secret-access-key, pgbackrest-cipher-pass                  pgBackRest on PostgreSQL (key of backup-writer)
 #   grafana-write-token  Grafana Cloud access policy token, write scopes only, with an expiry (EVM-085; reaches alloy only)
 #   restore-reader-s3-secret-access-key, restore-orchestrator-s3-secret-access-key, media-backup-reader-s3-secret-access-key,

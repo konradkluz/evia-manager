@@ -56,6 +56,8 @@ services:
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
+      # the key of the register of deletions (EVM-040/084); the endpoint, region, bucket and key id come with the IaC session
+      DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/deletion-register-s3-secret-access-key
     volumes:
       - /run/evia/secrets/api:/run/secrets:ro
     tmpfs:
