@@ -49,6 +49,8 @@ export interface SyncCore {
   readonly pull?: PullEngine;
   /** One whole cycle, single-flight: push (flush) first, then pull. A pause from either side stops both. */
   sync(options?: FlushOptions): Promise<CycleResult>;
+  /** Resumes the shared session pause and, when that succeeded, the pull-only hold. */
+  resume(): Promise<boolean>;
 }
 
 /** Wires the queue and the engines on the given ports (one UUIDv7 generator and one session gate for the whole core). */
@@ -99,5 +101,10 @@ export function createSyncCore(deps: SyncCoreDeps): SyncCore {
     running = run;
     return run;
   };
-  return { queue, engine, ...(pull === undefined ? {} : { pull }), sync };
+  const resume = async (): Promise<boolean> => {
+    const ok = await engine.resume();
+    if (ok) pull?.resume();
+    return ok;
+  };
+  return { queue, engine, ...(pull === undefined ? {} : { pull }), sync, resume };
 }

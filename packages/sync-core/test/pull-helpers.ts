@@ -30,6 +30,7 @@ interface Gen {
   tombstones: Record<string, number>;
   cursor: unknown;
   complete: boolean;
+  initialLoadDone: boolean;
   hydration: HydrationItem[];
 }
 
@@ -45,7 +46,7 @@ export interface Disk {
   config: unknown;
 }
 
-const emptyGen = (): Gen => ({ entities: {}, tombstones: {}, cursor: null, complete: false, hydration: [] });
+const emptyGen = (): Gen => ({ entities: {}, tombstones: {}, cursor: null, complete: false, initialLoadDone: false, hydration: [] });
 
 export function newDisk(): Disk {
   return {
@@ -97,7 +98,7 @@ export class FakeReplica implements ReplicaStore {
     const d = structuredClone(this.disk.data);
     const view = (n: number) => {
       const g = d.gens[n] as Gen;
-      return { generation: n, cursor: g.cursor, complete: g.complete, hydration: g.hydration };
+      return { generation: n, cursor: g.cursor, complete: g.complete, initialLoadDone: g.initialLoadDone, hydration: g.hydration };
     };
     return Promise.resolve({
       ownerUserId: d.owner,
@@ -172,6 +173,7 @@ export class FakeReplica implements ReplicaStore {
       g.complete = input.complete;
       g.hydration = g.hydration.filter((h) => !input.hydrationRemove.includes(h.workOrderId));
       for (const item of input.hydrationAdd) if (!g.hydration.some((h) => h.workOrderId === item.workOrderId)) g.hydration.push(item);
+      if (g.complete && g.hydration.length === 0) g.initialLoadDone = true;
       d.owner = input.ownerUserId;
       d.lastServerTime = input.serverTime;
       if (input.plannedResync !== undefined && input.generation === d.active) d.pendingResync = { reason: input.plannedResync };
@@ -189,6 +191,7 @@ export class FakeReplica implements ReplicaStore {
         FakeReplica.#cascade(g, 'work_order', input.removeWorkOrderId);
       }
       g.hydration = g.hydration.filter((h) => !input.hydrationRemove.includes(h.workOrderId));
+      if (g.complete && g.hydration.length === 0) g.initialLoadDone = true;
       d.owner = input.ownerUserId;
       d.lastServerTime = input.serverTime;
       return 'applied';
@@ -214,6 +217,7 @@ export class FakeReplica implements ReplicaStore {
       Reflect.deleteProperty(d.gens, d.active);
       d.active = generation;
       d.shadow = null;
+      (d.gens[generation] as Gen).initialLoadDone = true;
       return 'applied';
     });
   }

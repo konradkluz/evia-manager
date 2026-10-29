@@ -9,6 +9,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./conformance/replica": {
+      "types": "./conformance/replica.ts",
+      "default": "./conformance/replica.ts"
     }
   },
   "scripts": {

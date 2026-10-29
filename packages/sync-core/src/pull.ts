@@ -28,9 +28,20 @@ export interface PullResult {
    */
   readonly status: 'complete' | 'partial' | 'retry' | 'paused' | 'stale' | 'backoff';
   readonly pages: number;
-  readonly paused?: PauseReason;
+  /** A shared session pause, or a pull-only hold (`PullHold`): the push side keeps working under a hold. */
+  readonly paused?: PauseReason | PullHold;
   readonly nextAttemptAt?: number;
 }
+
+/**
+ * Pull-only holds (they never stop `flush`): `unexpected_response` - an endpoint of the read path answered with something the contract
+ * does not allow (404, 400, ...); `replica_stale` - a resync keeps failing on invalid changes, the active replica no longer receives
+ * increments (the host shows "data may be outdated"). Cleared by `PullEngine.resume()`.
+ */
+export type PullHold = 'unexpected_response' | 'replica_stale';
+
+/** Consecutive `invalid_change_in_resync` failures after which the pull is held (`replica_stale`). */
+export const MAX_INVALID_RESYNCS = 3;
 
 export interface PullOptions {
   /** Changes per page requested from the server (1-500). */
@@ -43,7 +54,7 @@ export interface PullOptions {
   readonly baseDelayMs?: number;
   readonly maxDelayMs?: number;
   readonly maxRetryAfterMs?: number;
-  /** `true` (default): a field outside a projection makes a change invalid; `false`: such fields are dropped. */
+  /** `false` (default, tolerant reader as the contract requires): a field outside a projection is dropped; `true`: it makes a change invalid (tests only). */
   readonly strictProjection?: boolean;
 }
 
@@ -140,6 +151,8 @@ export class PullEngine {
   #wipe: Promise<void> = Promise.resolve();
   /** A wipe after `session_revoked` that failed is retried before anything else (privacy). */
   #wipeOwed = false;
+  #hold: PullHold | undefined;
+  #invalidResyncs = 0;
 
   constructor(deps: PullDeps) {
     this.#d = deps;
@@ -152,7 +165,7 @@ export class PullEngine {
       baseDelayMs: o.baseDelayMs ?? 2000,
       maxDelayMs: o.maxDelayMs ?? 5 * 60_000,
       maxRetryAfterMs: o.maxRetryAfterMs ?? 60 * 60_000,
-      strict: o.strictProjection ?? true,
+      strict: o.strictProjection ?? false,
     };
     this.#contact = new ContactClock(deps.replica, deps.clock, deps.monotonic);
     deps.gate.attachContact(this.#contact);
@@ -163,6 +176,22 @@ export class PullEngine {
         this.#wipe = this.#wipe.then(() => this.#wipeNow('session_revoked')).catch(() => undefined);
       }
     });
+  }
+
+  /** Clears a pull-only hold (the host calls it after an update or on a manual retry). */
+  resume(): void {
+    this.#hold = undefined;
+    this.#invalidResyncs = 0;
+    this.#nextAttemptAt = undefined;
+  }
+
+  get hold(): PullHold | undefined {
+    return this.#hold;
+  }
+
+  /** Whether the first download finished: before that the active replica may hold a partial list and must not be shown (AC1). */
+  async initialLoadDone(): Promise<boolean> {
+    return (await this.#d.replica.loadState()).active.initialLoadDone;
   }
 
   /** Single-flight. */
@@ -178,6 +207,14 @@ export class PullEngine {
   /** Whether the replica may be shown (AC7): hidden, not wiped, when the offline window passed or the clock looks wrong. */
   async visibility(): Promise<Visibility> {
     const state = await this.#d.replica.loadState();
+    // Another user signed in on this phone: the previous user's data is never shown, even before the first pull wipes it (SR-MOB).
+    if (state.hasData && state.ownerUserId !== null) {
+      const userId = await this.#d.gate.currentUserId();
+      if (userId !== null && userId !== state.ownerUserId) {
+        this.#emit({ kind: 'data_hidden', reason: 'owner_mismatch' });
+        return { visible: false, reason: 'owner_mismatch' };
+      }
+    }
     const { config } = readConfig(state.config);
     const result = await this.#contact.visibility(state.contact, state.hasData, config.offlineContactWindowDays);
     if (!result.visible) this.#emit({ kind: 'data_hidden', reason: result.reason });
@@ -195,6 +232,7 @@ export class PullEngine {
       }
     }
     if (gate.paused !== undefined) return { status: 'paused', pages: 0, paused: gate.paused };
+    if (this.#hold !== undefined) return { status: 'paused', pages: 0, paused: this.#hold };
     const now = this.#d.clock.now();
     if (
       this.#nextAttemptAt !== undefined &&
@@ -218,6 +256,7 @@ export class PullEngine {
     await this.#wipe;
     if (result.status === 'complete' || result.status === 'partial') {
       this.#attempts = 0;
+      this.#invalidResyncs = 0;
       this.#nextAttemptAt = undefined;
       this.#lastFailure = undefined;
     }
@@ -340,7 +379,7 @@ export class PullEngine {
       else valid.push(change);
     }
     if (unknown > 0) this.#emit({ kind: 'change_unknown_skipped', count: unknown });
-    if (invalid > 0 && target.isShadow) return { next: 'stop', result: this.#transient('invalid_change_in_resync', undefined, ctx) };
+    if (invalid > 0 && target.isShadow) return { next: 'stop', result: this.#invalidInResync(ctx) };
 
     const keys = collectKeys(valid);
     const versions = keys.length === 0 ? new Map() : await replica.readVersions(target.generation, keys);
@@ -430,7 +469,7 @@ export class PullEngine {
       const versions = entities.length === 0 ? new Map() : await replica.readVersions(target.generation, snapshotKeys(entities));
       const plan = bad ? ({ ok: false } as const) : planSnapshot({ requestedId: item.workOrderId, entities, versions });
       if (!plan.ok) {
-        if (target.isShadow) return { next: 'stop', result: this.#transient('invalid_change_in_resync', undefined, ctx) };
+        if (target.isShadow) return { next: 'stop', result: this.#invalidInResync(ctx) };
         await replica.beginShadow('invalid_change');
         this.#emit({ kind: 'resync_scheduled', reason: 'invalid_change' });
         return { next: 'replan' };
@@ -495,8 +534,20 @@ export class PullEngine {
 
   #unexpected(ctx: Ctx): PullResult {
     this.#emit({ kind: 'pull_failed', code: 'unexpected_status' });
-    this.#d.gate.pauseWith('unexpected_response', ctx.userId);
+    this.#hold = 'unexpected_response';
     return { status: 'paused', pages: ctx.pages, paused: 'unexpected_response' };
+  }
+
+  /** An invalid change inside a shadow resync repeats forever; after a few rounds the pull is held and the host is told. */
+  #invalidInResync(ctx: Ctx): PullResult {
+    this.#invalidResyncs += 1;
+    if (this.#invalidResyncs >= MAX_INVALID_RESYNCS) {
+      this.#hold = 'replica_stale';
+      this.#emit({ kind: 'signal', signal: 'replica_stale' });
+      this.#emit({ kind: 'pull_failed', code: 'invalid_change_in_resync' });
+      return { status: 'paused', pages: ctx.pages, paused: 'replica_stale' };
+    }
+    return this.#transient('invalid_change_in_resync', undefined, ctx);
   }
 
   #stale(ctx: Ctx): PullResult {

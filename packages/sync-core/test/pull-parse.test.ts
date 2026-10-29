@@ -14,7 +14,7 @@ describe('reader of server data (EVM-092 AC6)', () => {
     }
   });
 
-  it('EVM-092 AC6: a field outside the projection (e-mail, tax id, notes, payments) is projection_mismatch in the strict reader; the tolerant reader drops it', () => {
+  it('EVM-092 AC6: a field outside the projection (e-mail, tax id, notes, payments) is dropped by the default tolerant reader and is projection_mismatch only in strict mode', () => {
     const extras: [EntityType, string][] = [
       ['customer', 'email'],
       ['customer', 'nip'],
@@ -23,12 +23,12 @@ describe('reader of server data (EVM-092 AC6)', () => {
       ['user', 'role'],
     ];
     for (const [type, field] of extras) {
-      expect(parseChange(upsert(type, 1, 1, { [field]: 'synthetic' })), `${type}.${field}`).toEqual({
+      expect(parseChange(upsert(type, 1, 1, { [field]: 'synthetic' }), { strict: true }), `${type}.${field}`).toEqual({
         kind: 'invalid',
         reason: 'projection_mismatch',
         type,
       });
-      const tolerant = parseChange(upsert(type, 1, 1, { [field]: 'synthetic' }), { strict: false });
+      const tolerant = parseChange(upsert(type, 1, 1, { [field]: 'synthetic' }));
       expect(tolerant.kind).toBe('upsert');
       expect(JSON.stringify(tolerant)).not.toContain('synthetic');
     }
@@ -116,15 +116,25 @@ describe('reader of server data (EVM-092 AC6)', () => {
       { op: 'upsert', entity: 'x' },
       { op: 'upsert', entity: {} },
       { op: 'upsert', entity: { type: 'x'.repeat(65) } },
-      { op: 'upsert', extra: 1, entity: wireEntity('user', 1, 1) },
       { op: 'delete' },
       { op: 'delete', type: 'user', id: 'x' },
       { op: 'delete', type: 'user', id: uid('user', 1), version: 0 },
-      { op: 'delete', type: 'user', id: uid('user', 1), extra: 1 },
       { op: 'delete', type: 'x'.repeat(65), id: uid('user', 1) },
     ];
     for (const raw of malformed)
       expect(parseChange(raw), JSON.stringify(raw)).toEqual({ kind: 'invalid', reason: 'malformed', type: 'unknown' });
+  });
+
+  it('EVM-092 AC6: an extra field in the envelope or in a delete is ignored by the default (tolerant) reader and invalid only in strict mode', () => {
+    const withExtra = [
+      { op: 'upsert', extra: 1, entity: wireEntity('user', 1, 1) },
+      { op: 'delete', type: 'user', id: uid('user', 1), extra: 1 },
+    ];
+    for (const raw of withExtra) {
+      expect(parseChange(raw).kind, JSON.stringify(raw)).not.toBe('invalid');
+      expect(JSON.stringify(parseChange(raw))).not.toContain('extra');
+      expect(parseChange(raw, { strict: true }), JSON.stringify(raw)).toEqual({ kind: 'invalid', reason: 'malformed', type: 'unknown' });
+    }
   });
 
   it('EVM-092 AC6: an unknown type is "unknown" (upsert and delete), a delete may carry a version', () => {

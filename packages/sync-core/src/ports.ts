@@ -88,6 +88,9 @@ export interface PendingObjectsSource {
  * The only durable surface of the replica (production: SQLCipher, EVM-093). Every write method is ONE transaction: on failure
  * nothing is stored. Generation numbers are never reused, so a response fetched before a wipe cannot be applied afterwards.
  * Bulk contract (no N+1): `readVersions` and `findWorkOrdersBySite` get a whole page at once, `sweep` and cascades are set operations.
+ * Semantics every adapter must reproduce (executable: `@evia/sync-core/conformance/replica`, run on the fake here and on SQLCipher):
+ * a write to a generation that is gone returns `stale`; `plannedResync` is stored for the ACTIVE generation only; a delete marker keeps
+ * the maximum version and blocks older upserts; deleting a work order cascades to its children; `initialLoadDone` is sticky.
  */
 export interface ReplicaStore {
   loadState(): Promise<ReplicaState>;

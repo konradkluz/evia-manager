@@ -112,7 +112,14 @@ export type ReplicaOp =
 export interface GenerationState {
   readonly generation: number;
   readonly cursor: unknown;
+  /** Cycle state: the feed reached its end (`hasMore = false` in phase `changes`). Drops to `false` on the next incremental page. */
   readonly complete: boolean;
+  /**
+   * Durable and never reverted until the replica is wiped: the first download of this generation finished (feed complete and no
+   * snapshot left to fetch). A shadow generation gets it when promoted. Until then the active generation may hold a PARTIAL list, so
+   * the host shows a loading state instead of the data (`PullEngine.initialLoadDone()`).
+   */
+  readonly initialLoadDone: boolean;
   readonly hydration: readonly unknown[];
 }
 
@@ -136,7 +143,10 @@ export interface ApplyPageInput {
   readonly ops: readonly ReplicaOp[];
   readonly cursor: string;
   readonly phase: ChangePhase;
-  /** The last page of the feed: phase `changes` and no more pages. */
+  /**
+   * The last page of the feed: phase `changes` and no more pages. The store stores it as `complete` and, when the hydration list is
+   * empty afterwards, sets the sticky `initialLoadDone` (also after `applySnapshot` that empties the list on a complete generation).
+   */
   readonly complete: boolean;
   readonly serverTime: number;
   readonly hydrationAdd: readonly HydrationItem[];
@@ -183,4 +193,5 @@ export const EMPTY_PENDING: PendingObjects = { objectIds: new Set(), workOrderId
 
 /** Result of reading a record of the last contact with the server (AC7). */
 export type Visibility =
-  { readonly visible: true } | { readonly visible: false; readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly' };
+  | { readonly visible: true }
+  | { readonly visible: false; readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly' | 'owner_mismatch' };

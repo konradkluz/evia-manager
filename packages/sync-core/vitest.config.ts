@@ -5,6 +5,6 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     testTimeout: 20_000,
-    coverage: coverage({ layer: 'sync', include: ['src/**/*.ts'] }),
+    coverage: coverage({ layer: 'sync', include: ['src/**/*.ts', 'conformance/**/*.ts'] }),
   },
 });

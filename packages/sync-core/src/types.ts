@@ -76,7 +76,8 @@ export type PauseReason =
 export type EngineEvent =
   | {
       readonly kind: 'signal';
-      readonly signal: 'session_revoked' | 'device_wipe_required' | 'upgrade_required' | 'auth_required' | 'owner_mismatch';
+      readonly signal:
+        'session_revoked' | 'device_wipe_required' | 'upgrade_required' | 'auth_required' | 'owner_mismatch' | 'replica_stale';
     }
   | { readonly kind: 'paused'; readonly reason: PauseReason }
   | { readonly kind: 'batch_sent'; readonly size: number }
@@ -96,7 +97,7 @@ export type EngineEvent =
   | { readonly kind: 'sweep_done'; readonly removedWorkOrders: number; readonly removedOrphans: number }
   | { readonly kind: 'pull_retry_scheduled'; readonly code: PullFailureCode; readonly attempts: number; readonly delayMs: number }
   | { readonly kind: 'pull_failed'; readonly code: PullFailureCode }
-  | { readonly kind: 'data_hidden'; readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly' };
+  | { readonly kind: 'data_hidden'; readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly' | 'owner_mismatch' };
 
 /** Closed vocabulary of pull failures (no messages of adapters or servers, SR-LOG-08). */
 export type PullFailureCode =

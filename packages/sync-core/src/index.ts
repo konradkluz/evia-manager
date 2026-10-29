@@ -18,7 +18,8 @@ export type {
   TransportResponse,
 } from './ports.ts';
 export { PullEngine } from './pull.ts';
-export type { PullCycleOptions, PullDeps, PullOptions, PullResult } from './pull.ts';
+export { MAX_INVALID_RESYNCS } from './pull.ts';
+export type { PullCycleOptions, PullDeps, PullHold, PullOptions, PullResult } from './pull.ts';
 export { SessionGate } from './session-gate.ts';
 export { ContactClock, evaluateContact, parseContactRecord, windowDays } from './contact-clock.ts';
 export type { ContactRecord } from './contact-clock.ts';

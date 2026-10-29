@@ -211,7 +211,7 @@ describe('entering the scope and completeness of references (EVM-092 AC5)', () =
     const cases: unknown[][] = [
       [wireEntity('work_order', 1, 2), wireEntity('timeline_entry', 2, 1)],
       [wireEntity('customer', 1, 1)],
-      [wireEntity('work_order', 1, 2), wireEntity('customer', 1, 1, { email: 'x@example.invalid' })],
+      [wireEntity('work_order', 1, 2), wireEntity('customer', 1, 1, { phone: 5, email: 'x@example.invalid' })],
     ];
     for (const entities of cases) {
       const h = makePull();

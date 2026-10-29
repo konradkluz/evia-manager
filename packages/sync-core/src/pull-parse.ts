@@ -17,9 +17,10 @@ import { UUID_PATTERN } from './types.ts';
 import { parseServerTime } from './util.ts';
 
 /**
- * Hand-written reader of server data (SR-MOB-10, SR-SYNC-04, CWE-20/CWE-1321), as strict as the contract's `strictObject`: a field
- * outside the projection, a missing field or a wrong value makes the change `invalid`. Fields are copied one by one from an explicit
- * list; server data is never spread. An unknown value of an extensible vocabulary is stored as `'unknown'`.
+ * Hand-written reader of server data (SR-MOB-10, SR-SYNC-04, CWE-20/CWE-1321), TOLERANT like the contract's `parseSyncChange`
+ * (`looseObject`, ADR-0004: adding a field is not a breaking change): a missing or malformed field makes the change `invalid`, an extra
+ * field is dropped (never copied). `strict: true` (server-side contract tests only) makes an extra field `invalid` too. Fields are
+ * copied one by one from an explicit list; server data is never spread. An unknown value of an extensible vocabulary is stored as `'unknown'`.
  */
 type Spec =
   | { readonly k: 'uuid'; readonly nullable?: boolean; readonly ref?: EntityType }
@@ -221,13 +222,13 @@ function readEntity(type: EntityType, raw: Record<string, unknown>, strict: bool
 }
 
 export interface ParseOptions {
-  /** `true` (default): a field outside the projection is `invalid`. `false`: such fields are dropped (forward compatible reader). */
+  /** `false` (default): a field outside the projection is dropped (forward compatible reader). `true`: it makes the change `invalid`. */
   readonly strict?: boolean;
 }
 
 /** Parses ONE element of a page (the page is never rejected because of one element). Failures carry only a reason and a vocabulary type. */
 export function parseChange(raw: unknown, options: ParseOptions = {}): ParsedChange {
-  const strict = options.strict ?? true;
+  const strict = options.strict ?? false;
   const malformed: ParsedChange = { kind: 'invalid', reason: 'malformed', type: 'unknown' };
   if (!isObject(raw)) return malformed;
   const op = raw['op'];
