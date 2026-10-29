@@ -189,8 +189,8 @@ describe('EVM-090 AC1 the mobile family in the contract (SR-AUTHZ-12, SR-AUTHZ-0
   });
 });
 
-// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the sync operations keep the marker.
-const STILL_PLANNED = ['getSyncChanges', 'getSyncWorkOrder', 'pushSyncMutations'] as const;
+// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the sync operations keep the marker (EVM-096 implemented the pull of changes).
+const STILL_PLANNED = ['getSyncWorkOrder', 'pushSyncMutations'] as const;
 
 /**
  * The two tests that compare the contract with the prose of docs/ run wherever docs/ is present (the native gate, CI). The Linux container of the backend
@@ -212,7 +212,7 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
   });
 
   it('EVM-090 AC1 onlyImplemented drops the planned ids of a list such as PUBLIC_OPERATIONS and keeps the others in order', () => {
-    expect(onlyImplemented(['login', 'getSyncChanges', 'getHealth', 'pushSyncMutations', 'unknownId'])).toEqual([
+    expect(onlyImplemented(['login', 'getSyncWorkOrder', 'getHealth', 'pushSyncMutations', 'unknownId'])).toEqual([
       'login',
       'getHealth',
       'unknownId',
