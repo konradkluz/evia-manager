@@ -4,7 +4,7 @@ title: Kwarantanna plików — „Wymaga uwagi”, alert i ponowny skan
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-review
+status: done
 priority: P1
 path: pelna
 model: sonnet
@@ -121,3 +121,4 @@ _—_
 - 2026-10-28 — Tech Lead (nocna kolejka, bez pytania do Konrada), decyzje warunkowe do potwierdzenia na demo: (a) AC7 dzielimy na część kodową (monitor sygnatur i alert w outboxie — zrobione) i stagingową (reguły Grafana i test alertu — do sesji IaC / historyjki T3 z nowym ID); AC7 nie jest zamknięte do tego czasu; (b) AC5 „usunięty ze storage'u” = DeleteObject bez wersji (delete marker, ADR-0009) + lifecycle noncurrent (~60 dni, T3), do tego czasu kontrola przez sweeper (RR-51; w pierwotnym wpisie oznaczone RR-NOC-T1-9). Web: poprawki po przeglądzie (stan „Sprawdzanie pliku” dla held+scanning, potwierdzenie ponownego skanu) w aa077b2. Status in-review jako kandydat; DoD/done dopiero po decyzji Konrada.
 - 2026-10-28 — Decyzja Konrada (delegacja: „podejmij najlepsze decyzje”): przyjęte (a) podział AC7 — część stagingowa (reguły Grafana, test alertu) wykonywana w sesji IaC razem z EVM-085, bez osobnej historyjki; AC7 w pełni zamknięte dopiero wtedy, (b) interpretacja AC5 (delete marker + lifecycle noncurrent ~60 dni; do tego czasu sweeper). Historyjka zostaje `in-review`, `done` po dowodzie z sesji IaC.
 - 2026-10-28 — numery ryzyk rezydualnych nadane w `docs/security/threat-model.md`: RR-50…RR-54 (zastępują tymczasowe RR-NOC-…; security-engineer)
+- 2026-10-29 — Konrad zaakceptował EVM-049; status `done` (wpis w gałęzi EVM-091, bez osobnego PR).
