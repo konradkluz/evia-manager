@@ -1001,6 +1001,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Źródło:** EVM-044 („Decyzje”, ryzyka rezydualne), EVM-084 („Sekrety”); TM-41, TM-42, TM-125.
 - **Ryzyko po mitygacjach:** P1 × W3 = 3 Medium przy jednym kluczu (wyciek daje sumę uprawnień obu ról w całym buckecie); po dwóch kluczach — 1 × 2 = 2 Low.
 - **Rekomendacja:** w sesji IaC dwa klucze, wpis klucza workera w manifeście sekretów i w macierzy `bucket-verify` (klucz × bucket × operacja); warunek demo EVM-044.
+- **Naprawa w kodzie/IaC (2026-10-29):** worker ma własny plik `media-worker-s3-secret-access-key` (manifest, `init-secrets.sh`, `compose.staging.yaml` pod tą samą zmienną `MEDIA_S3_SECRET_ACCESS_KEY_FILE`), klucz `media_worker` z uprawnieniami `GetObject`, `DeleteObject`, `ListBucket` (bez zapisu) w `BUCKET_POLICIES`, module `object-storage` i macierzy `bucket-verify`; `api` dostał brakujące `MEDIA_S3_SECRET_ACCESS_KEY_FILE`. Zostaje czynność ręczna sesji IaC: wydanie obu kluczy i `MEDIA_S3_ACCESS_KEY_ID` per usługa. **Ryzyko po naprawie:** P1 × W2 = 2 Low (po wydaniu dwóch kluczy; do tego czasu staging bez kluczy — funkcja wyłączona).
 - **Właściciel:** `devops-engineer` (sesja IaC).
 - **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
 
@@ -1047,6 +1048,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Źródło:** EVM-044 („Decyzje” 15); EVM-085 D7 (ten sam mechanizm dla originu Sentry); SR-WEB-01.
 - **Ryzyko po mitygacjach:** P3 × W1 = 3 Medium (pewna niedostępność funkcji na stagingu do poprawki).
 - **Rekomendacja:** szablon Caddyfile (albo plik konfiguracji w czasie działania) z dokładnym originem bucketu, bez wildcardu, z testem `caddy-headers`; przed demo EVM-044.
+- **Naprawa w kodzie/IaC (2026-10-29):** `infra/images/web/Caddyfile` składa `connect-src 'self' {$MEDIA_BUCKET_ORIGIN:}`; `compose.staging.yaml` ustawia dla `web` dokładnie `https://evia-staging-media.s3.pl-waw.scw.cloud`; test `caddy-headers` porównuje nagłówki z `panelSecurityHeaders({ mediaOrigin })`, a wartość z compose przechodzi przez `parseMediaOrigin` (bez wildcardu i ścieżki). Origin w stylu virtual-host zakłada `S3_FORCE_PATH_STYLE` nieustawione; weryfikacja na żywo (`PUT` z przeglądarki, CORS) w sesji IaC. **Ryzyko po naprawie:** P1 × W1 = 1 Low.
 - **Właściciel:** `devops-engineer` z `web-developer`.
 - **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
 

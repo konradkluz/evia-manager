@@ -58,6 +58,8 @@ services:
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
       # the key of the register of deletions (EVM-040/084); the endpoint, region, bucket and key id come with the IaC session
       DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/deletion-register-s3-secret-access-key
+      # the media key of the API (signs the uploads; RR-42); the endpoint, region, bucket and key id come with the IaC session
+      MEDIA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/media-s3-secret-access-key
     volumes:
       - /run/evia/secrets/api:/run/secrets:ro
     tmpfs:
@@ -89,6 +91,8 @@ services:
       CURSOR_KEY_FILE: /run/secrets/cursor-key
       FIELD_ENCRYPTION_KEYS_FILE: /run/secrets/field-encryption-keys
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
+      # the narrower media key of the worker (reads originals for the scan, deletes the expired ones; RR-42); the same variable name as in the API
+      MEDIA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/media-worker-s3-secret-access-key
     volumes:
       - /run/evia/secrets/worker:/run/secrets:ro
     tmpfs:
@@ -104,6 +108,9 @@ services:
     cap_drop: [ALL]
     security_opt: ['no-new-privileges:true']
     restart: unless-stopped
+    environment:
+      # the one origin of the media bucket for connect-src of the panel (RR-48; the same value as MEDIA_BUCKET_ORIGIN of the API, region pl-waw)
+      MEDIA_BUCKET_ORIGIN: https://evia-staging-media.s3.pl-waw.scw.cloud
     tmpfs:
       - /tmp:size=16m,noexec,nosuid,nodev
     mem_limit: 128m

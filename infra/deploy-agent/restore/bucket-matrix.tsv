@@ -2,6 +2,7 @@
 # key <name> <variable with the access key id> <secret file>; bucket <name> <variable with the bucket>; area <name> <prefix>;
 # row <key> <bucket> <area> <operation> <allow|deny>
 key	media_app	MEDIA_S3_ACCESS_KEY_ID	media-s3-secret-access-key
+key	media_worker	MEDIA_WORKER_S3_ACCESS_KEY_ID	media-worker-s3-secret-access-key
 key	media_backup_reader	MEDIA_BACKUP_READER_ACCESS_KEY_ID	media-backup-reader-s3-secret-access-key
 key	register_writer	DELETION_REGISTER_S3_ACCESS_KEY_ID	deletion-register-s3-secret-access-key
 key	backup_writer	BACKUP_WRITER_ACCESS_KEY_ID	backup-s3-secret-access-key
@@ -28,6 +29,21 @@ row	media_app	db_backup	repo	delete	deny
 row	media_app	db_backup	results	put	deny
 row	media_app	db_backup	results	get	deny
 row	media_app	db_backup	results	delete	deny
+row	media_worker	media	-	list	allow
+row	media_worker	media	any	put	deny
+row	media_worker	media	any	get	allow
+row	media_worker	media	any	delete	allow
+row	media_worker	register	-	list	deny
+row	media_worker	register	any	put	deny
+row	media_worker	register	any	get	deny
+row	media_worker	register	any	delete	deny
+row	media_worker	db_backup	-	list	deny
+row	media_worker	db_backup	repo	put	deny
+row	media_worker	db_backup	repo	get	deny
+row	media_worker	db_backup	repo	delete	deny
+row	media_worker	db_backup	results	put	deny
+row	media_worker	db_backup	results	get	deny
+row	media_worker	db_backup	results	delete	deny
 row	media_backup_reader	media	-	list	allow
 row	media_backup_reader	media	any	put	deny
 row	media_backup_reader	media	any	get	allow

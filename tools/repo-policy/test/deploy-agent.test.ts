@@ -87,6 +87,20 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
     expect('DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE' in record(record(channel['worker'])['environment'])).toBe(false);
   });
 
+  it('EVM-084 (RR-42): api and worker each get their own media key under the same variable name, and neither file reaches the other service', () => {
+    const holdersOf = (file: string) =>
+      Object.entries(secrets)
+        .filter(([, value]) => list(record(value)['files']).includes(file))
+        .map(([name]) => name);
+    expect(holdersOf('media-s3-secret-access-key')).toEqual(['api']);
+    expect(holdersOf('media-worker-s3-secret-access-key')).toEqual(['worker']);
+    for (const [service, file] of [
+      ['api', 'media-s3-secret-access-key'],
+      ['worker', 'media-worker-s3-secret-access-key'],
+    ] as const)
+      expect(record(record(channel[service])['environment'])['MEDIA_S3_SECRET_ACCESS_KEY_FILE'], service).toBe(`/run/secrets/${file}`);
+  });
+
   it('EVM-007 AC7 (SR-INFRA-05): after a reboot the secrets are restored before Docker, fail-closed, by the same script as deploy.sh', () => {
     const unit = read('infra/deploy-agent/systemd/evia-secrets.service');
     expect(unit).toContain('Before=docker.service');
