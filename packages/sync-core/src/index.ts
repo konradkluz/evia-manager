@@ -17,3 +17,15 @@ export type {
   Transport,
   TransportResponse,
 } from './ports.ts';
+export { PullEngine } from './pull.ts';
+export { MAX_INVALID_RESYNCS } from './pull.ts';
+export type { PullCycleOptions, PullDeps, PullHold, PullOptions, PullResult } from './pull.ts';
+export { SessionGate } from './session-gate.ts';
+export { ContactClock, evaluateContact, parseContactRecord, windowDays } from './contact-clock.ts';
+export type { ContactRecord } from './contact-clock.ts';
+export { queuePendingSource } from './pending.ts';
+export { parseChange, parseClientConfig, parsePage } from './pull-parse.ts';
+export { CASCADE_CHILDREN, collectKeys, planPage, planSnapshot, planSweep, snapshotKeys } from './replica-rules.ts';
+export type { CycleResult, PullDepsConfig } from './core.ts';
+export * from './pull-types.ts';
+export type { MonotonicClock, PendingObjectsSource, PullTransport, ReplicaStore } from './ports.ts';

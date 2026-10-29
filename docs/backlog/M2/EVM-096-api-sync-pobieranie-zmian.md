@@ -4,7 +4,7 @@ title: "API: dziennik zmian i pobieranie zmian (zlecenia, klienci, lokalizacje)"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: draft
+status: ready
 priority: P0
 path: pelna             # synchronizacja offline, migracja, uprawnienia
 owner: backend-developer
@@ -59,15 +59,17 @@ Jako **technik** chcę **pobrać swoje zlecenia z klientami i lokalizacjami na t
 **AC8 — Masowy odczyt (AB-08)**
 - Zakładając pobranie pełne (bez kursora lub po resyncie)
 - Gdy telefon je wykonuje
-- Wtedy audyt zapisuje liczbę encji (bez danych), obowiązuje limit pełnych pobrań na urządzenie na dobę, a alerty wykrywają „pełne pobranie częściej niż N” i „urządzenie pobiera, nie wysyłając”; decyzja, czy odczyty sync zasilają licznik EVM-039, jest zapisana w historyjce.
+- Wtedy audyt zapisuje liczbę encji wg typu (bez danych osobowych); ponad limit pełnych pobrań na urządzenie na dobę (konfiguracja, domyślnie 3) odpowiedź to `429` z `Retry-After`, a zwykłe pobieranie zmian nie jest limitowane tym licznikiem; alerty operatora: „więcej niż 2 pełne pobrania urządzenia w 24 h” i „urządzenie pobiera zmiany od ponad 3 dni, nie wysyłając nic” (ten drugi dopiero z EVM-098 — tu tylko metryka bazowa); odczyty sync NIE zasilają licznika różnych klientów z EVM-039 (patrz „Decyzje”).
 
 ## Poza zakresem
-Pozostałe encje i migawka pojedynczego zlecenia (EVM-097), mutacje (EVM-098), media (E6, `StoredFile` — EVM-048).
+Pozostałe encje (procesy, etapy, strony, zakres, przypisania, wpisy, użytkownicy, konfiguracja), `GET /sync/work-orders/{id}`, wyjście z zakresu przez utratę dostępu i `resync_required` przy zmianie roli lub reguły N (EVM-097); mutacje i kolejka wysyłki (EVM-098); media (E6, EVM-048); rola Monter (M4); UI aplikacji mobilnej (klient synchronizacji).
 
 ## Decyzje i ograniczenia
-- **Wymaga ADR-0021 w statusie Zaakceptowana przed `ready`** (m.in. wyzwalacz `sync.record_change` zamiast portu w `platform`, resync „w cieniu”, wejście do zakresu); odrzucenie ADR-u wymaga przeglądu AC1, AC3 i AC6.
+- Podstawa: ADR-0021 (Zaakceptowana 2026-10-27, Konrad) — wyzwalacz `sync.record_change`, resync „w cieniu”, kursor z listą kluczy; zależności EVM-090 i EVM-094 są `done`.
+- **Do akceptacji (propozycja PO, 2026-10-29): odczyty sync nie zasilają licznika EVM-039** (różni klienci/60 min). Powód: jedno prawidłowe pierwsze pobranie obejmuje dziesiątki klientów i dawałoby stałe fałszywe alarmy; masowy odczyt przez telefon pokrywają osobne kontrole z AC8 (limit i alerty pełnych pobrań, audyt liczby encji, sesja urządzenia unieważnialna z EVM-095). Zapis nie powstrzymuje ryzyka kradzieży zarejestrowanego urządzenia — to ryzyko resztkowe.
+- Wartości domyślne AC8 (3 pełne pobrania/dobę, alert > 2/24 h) i AC2/AC7 (N = 30, limit 200/500, 900 KB) to konfiguracja serwera, nie stałe w kodzie.
 - Moduł `sync` (`apps/api/src/modules/sync/`, schemat `sync`): nic nie zależy od `sync` (nowa reguła granic modułów), a użycie portów systemowych przez `sync` wymaga rozszerzenia istniejącej reguły; kod SQL `sync` liczony w przebiegu integracyjnym.
-- **Na tej nocy tor EVM-007/084/085 nie dodaje migracji** (kolizja numeracji z torem A).
+- Migracje (schemat `sync`, wyzwalacze): przed startem sprawdzić najwyższy numer migracji na `main` (kolizja numeracji z równoległymi torami).
 - Bezpieczeństwo i prywatność: klucz kursora z listą rotacji; brak nowego sekretu (rekomendacja: istniejący klucz).
 
 ## Notatki
@@ -76,3 +78,5 @@ Pozostałe encje i migawka pojedynczego zlecenia (EVM-097), mutacje (EVM-098), m
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
+- 2026-10-29 — dopracowanie do DoR: ADR-0021 zaakceptowany, AC8 uczyniono testowalnym, rozgraniczenie z EVM-097, propozycja decyzji o liczniku EVM-039 (product-owner).
+- 2026-10-29 — zaakceptowano przez Konrada: AC1–8, sync nie zasila licznika EVM-039, domyślne limity (3 pełne pobrania/dobę → 429, alert >2/24 h, N=30, strona 200/500, ~900 KB); status ready
