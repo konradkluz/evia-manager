@@ -79,6 +79,12 @@ MediaAsset:
       maxLength: 40
     fileState:
       $ref: '#/MediaFileState'
+    processingFailed:
+      type: boolean
+      description: >-
+        Występuje (i jest `true`) WYŁĄCZNIE dla pliku w stanie `failed` z przyczyną `processing_error` (EVM-068 AC4): plik przeszedł skan, ale
+        nie udało się przygotować miniatury i podglądu po kolejnych próbach — panel pokazuje „Nie udało się przygotować podglądu. Spróbujemy
+        ponownie.” Oryginał pozostaje (pobranie: EVM-045). W każdym innym przypadku pola nie ma.
     stateReasonCode:
       description: Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.
       oneOf:

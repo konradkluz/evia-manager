@@ -72,6 +72,7 @@ export function toMediaAsset(row: AssetWithFile, options: Representation = { unf
     createdAt: asset.created_at.toISOString(),
     fileState: file.state,
     stateReasonCode: checksumMismatch ? 'checksum_mismatch' : null,
+    ...(file.state === 'failed' && file.state_reason_code === 'processing_error' ? { processingFailed: true } : {}),
     needsAttention: quarantine?.state === 'held',
     quarantine:
       quarantine === null

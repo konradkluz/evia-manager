@@ -457,8 +457,8 @@ mediaAssetDownloadUrl:
       Operacja wystawia adres (jak `getUploadPartUrl`), ale jest `POST` z treścią `{ variant }` — adres do pliku nie trafia do ścieżki ani
       zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu, więc nie ma `Idempotency-Key` ani audytu odczytu (audyt
       dotyczy oryginałów i dokumentów, EVM-045). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403
-      channel_not_allowed`), wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → treść (`400`; wariant spoza listy, pola obce) → JEDNO zapytanie z
-      polityką odczytu zlecenia po (zlecenie, medium) z dołączonym plikiem i wierszem pochodnej → `404` w jednym kształcie: zlecenie albo medium
+      channel_not_allowed`), wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`, jak w pozostałych operacjach modułu) → treść (`400`; wariant
+      spoza listy, pola obce) → JEDNO zapytanie o medium TEGO zlecenia z dołączonym plikiem i wierszem pochodnej → `404` w jednym kształcie: zlecenie albo medium
       nieistniejące, usunięte lub innego zlecenia, plik w stanie innym niż `ready` (dla wariantów pochodnych `clean` NIE wystarcza — to dotyczy
       tylko oryginału), brak wiersza pochodnej. Adres jest ważny 300 s (stała serwera), pochodzi z domeny bucketu i ma `response-content-type=image/webp` oraz
       `response-content-disposition=inline` narzucone przez serwer. Limity wystawiania adresów (SR-FILE-10, P10) dochodzą w EVM-045; do

@@ -7,6 +7,7 @@
 import { sql, type Selectable } from 'kysely';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 import type { FileState, ReasonCode } from '../domain/scan-outcome.ts';
+import type { DerivativeVariant } from '../domain/derivatives.ts';
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
 export type StoredFileRow = Selectable<StoredFilesTable>;
@@ -666,4 +667,132 @@ export async function countPendingOfOrder(db: MediaDb, workOrderId: string): Pro
 /** Serialises the creators of media of one subject (a user or an order) in the transaction, so the count after it cannot be passed by a parallel request (CWE-367). */
 export async function lockPendingCounter(db: MediaDb, kind: 'user' | 'order', subjectId: string): Promise<void> {
   await sql`select pg_advisory_xact_lock(hashtextextended(${`media-pending:${kind}:${subjectId}`}, 0))`.execute(db);
+}
+
+export interface Unprocessed {
+  readonly id: string;
+  readonly state: 'clean' | 'processing';
+  readonly attempts: number;
+}
+
+/**
+ * The photos waiting for their derivatives (EVM-068): `clean`, or `processing` that nobody touched since `staleBefore` (a worker died, the processor
+ * failed on a try), oldest first. Videos are skipped by the filter (EVM-046). A file `clean` before the deployment is simply found here.
+ */
+export async function findUnprocessed(db: MediaDb, staleBefore: Date, limit: number): Promise<Unprocessed[]> {
+  const rows = await db
+    .selectFrom('media.stored_files as f')
+    .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
+    .where('a.media_type', '=', 'photo')
+    .where((eb) =>
+      eb.or([
+        eb('f.state', '=', 'clean'),
+        eb.and([eb('f.state', '=', 'processing'), sql<boolean>`(f.process_claimed_at is null or f.process_claimed_at < ${staleBefore})`]),
+      ]),
+    )
+    .orderBy('f.state_changed_at', 'asc')
+    .limit(limit)
+    .select(['f.id', 'f.state', 'f.process_attempts'])
+    .execute();
+  return rows.map((row) => ({ id: row.id, state: row.state as 'clean' | 'processing', attempts: row.process_attempts }));
+}
+
+/** Photos that still wait for derivatives after `olderThan` - the count for the warning of the worker (nothing stays silent). */
+export async function countUnprocessedStuck(db: MediaDb, olderThan: Date): Promise<number> {
+  const row = await db
+    .selectFrom('media.stored_files as f')
+    .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
+    .where('a.media_type', '=', 'photo')
+    .where('f.state', 'in', ['clean', 'processing'])
+    .where('f.state_changed_at', '<', olderThan)
+    .select(sql<string>`count(*)`.as('count'))
+    .executeTakeFirstOrThrow();
+  return Number(row.count);
+}
+
+/**
+ * Takes a file for processing: `clean` at once, `processing` only when nobody has touched it since `staleBefore`. The take RAISES the counter
+ * (a crash of the processor then uses an attempt too — no poison pill) and only while fewer than `maxAttempts` takes were made. One worker wins
+ * (compare-and-set, ADR-0010); the others get `undefined`.
+ */
+export async function claimForProcessing(
+  db: MediaDb,
+  storedFileId: string,
+  staleBefore: Date,
+  now: Date,
+  maxAttempts: number,
+): Promise<StoredFileRow | undefined> {
+  return db
+    .updateTable('media.stored_files')
+    .set({
+      state: 'processing',
+      process_claimed_at: now,
+      process_attempts: sql<number>`process_attempts + 1`,
+      state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
+    })
+    .where('id', '=', storedFileId)
+    .where('process_attempts', '<', maxAttempts)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'clean'),
+        eb.and([eb('state', '=', 'processing'), sql<boolean>`(process_claimed_at is null or process_claimed_at < ${staleBefore})`]),
+      ]),
+    )
+    .returningAll()
+    .executeTakeFirst();
+}
+
+export interface NewDerivative {
+  readonly storedFileId: string;
+  readonly variant: DerivativeVariant;
+  readonly objectKey: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sizeBytes: number;
+}
+
+/** Writes the rows of the derivatives of a file (once; the table has no UPDATE and no DELETE for the application role). */
+export async function insertDerivatives(db: MediaDb, derivatives: readonly NewDerivative[], now: Date): Promise<void> {
+  await db
+    .insertInto('media.file_derivatives')
+    .values(
+      derivatives.map((item) => ({
+        stored_file_id: item.storedFileId,
+        variant: item.variant,
+        object_key: item.objectKey,
+        content_type: 'image/webp' as const,
+        width: item.width,
+        height: item.height,
+        size_bytes: item.sizeBytes,
+        created_at: now,
+      })),
+    )
+    .execute();
+}
+
+export interface DerivativeSource {
+  readonly objectKey: string;
+}
+
+/**
+ * The derivative a caller may be given an address for, in ONE statement (EVM-068 AC6, AC7; CWE-639): the medium of THIS order, its file
+ * only when it is `ready`, and the row of the variant. A medium of another order, a missing one, a file in any other state and a missing row
+ * are the same absence. The order itself was resolved through the read policy by the caller.
+ */
+export async function findReadyDerivative(
+  db: MediaDb,
+  workOrderId: string,
+  mediaAssetId: string,
+  variant: DerivativeVariant,
+): Promise<DerivativeSource | undefined> {
+  const row = await db
+    .selectFrom('media.media_assets as a')
+    .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .innerJoin('media.file_derivatives as d', (join) => join.onRef('d.stored_file_id', '=', 'f.id').on('d.variant', '=', variant))
+    .where('a.id', '=', mediaAssetId)
+    .where('a.work_order_id', '=', workOrderId)
+    .where('f.state', '=', 'ready')
+    .select('d.object_key')
+    .executeTakeFirst();
+  return row === undefined ? undefined : { objectKey: row.object_key };
 }

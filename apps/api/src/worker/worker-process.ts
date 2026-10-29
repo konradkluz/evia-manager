@@ -24,7 +24,13 @@ import {
   PurgeLoginSecurityJob,
   PurgeSessionsJob,
 } from '../modules/identity/index.ts';
-import { AbandonedUploadsJob, MediaScanService, QuarantineRetentionJob, SignatureMonitorJob } from '../modules/media/index.ts';
+import {
+  AbandonedUploadsJob,
+  MediaProcessingService,
+  MediaScanService,
+  QuarantineRetentionJob,
+  SignatureMonitorJob,
+} from '../modules/media/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
 import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.job.ts';
 import type { Kysely } from 'kysely';
@@ -62,6 +68,8 @@ export interface WorkerWiring {
   readonly relayIntervalMs?: number;
   /** The interval of the scan of uploaded files (EVM-044); shortened by the tests only (the default is 5 seconds). */
   readonly mediaScanIntervalMs?: number;
+  /** The interval of the making of derivatives (EVM-068); shortened by the tests only (the default is 5 seconds). */
+  readonly mediaProcessIntervalMs?: number;
 }
 
 /** @returns the exit code of the process */
@@ -98,6 +106,21 @@ export async function runWorkerFromProcess(
         { job: 'media.scan' },
         'worker: the media scan is off (storage or scanner not configured); uploaded files wait in the state uploaded',
       );
+
+    // EVM-068: the derivatives need the storage and the processor. Without the processor the photos stay `clean`; in production (staging included) that
+    // is a mistake of the deployment, so the worker refuses to start rather than skip the processing silently (fail fast).
+    const mediaProcessing = app.get(MediaProcessingService, { strict: false });
+    if (mediaProcessing.enabled) {
+      await mediaProcessing.cleanWorkArea();
+      tasks.push({ start: () => mediaProcessing.start(wiring.mediaProcessIntervalMs) });
+    } else if (mediaScan.enabled && config.nodeEnv === 'production') {
+      throw new Error('worker: MEDIA_PROCESSOR_SOCKET and MEDIA_PROCESSOR_WORKDIR are required where the media scan runs');
+    } else {
+      logger.warn(
+        { job: 'media.process' },
+        'worker: the making of derivatives is off (storage or processor not configured); scanned photos wait in the state clean',
+      );
+    }
 
     if (config.email.transport === 'smtp') {
       const sender = wiring.createEmailSender?.(config.email) ?? new SmtpEmailSender(config.email);

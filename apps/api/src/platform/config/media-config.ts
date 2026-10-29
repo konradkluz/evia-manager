@@ -19,7 +19,8 @@ export const MEDIA_REQUIRED_KEYS = [
 ] as const;
 const SHARED_KEYS: readonly string[] = ['S3_ENDPOINT', 'S3_REGION'];
 const LIMIT_KEYS = ['MEDIA_MAX_PENDING_PER_USER', 'MEDIA_MAX_PENDING_PER_ORDER', 'MEDIA_ABANDON_AFTER_DAYS'] as const;
-const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...LIMIT_KEYS] as const;
+const PROCESSOR_KEYS = ['MEDIA_PROCESSOR_SOCKET', 'MEDIA_PROCESSOR_WORKDIR'] as const;
+const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...PROCESSOR_KEYS, ...LIMIT_KEYS] as const;
 
 /** The limits of unfinished media (EVM-049 D9, RR-NOC-T1-4) and the age after which an unfinished upload without a session is abandoned. */
 export interface MediaLimits {
@@ -37,6 +38,12 @@ export const DEFAULT_MEDIA_LIMITS: MediaLimits = { maxPendingPerUser: 200, maxPe
 export type ClamdAddress =
   { readonly kind: 'tcp'; readonly host: string; readonly port: number } | { readonly kind: 'unix'; readonly path: string };
 
+/** The image processor (EVM-068): the Unix socket of its container and the work area both share (a tmpfs, never the disk of the host). */
+export interface ImageProcessorConfig {
+  readonly socketPath: string;
+  readonly workDir: string;
+}
+
 export interface MediaConfig {
   readonly s3: {
     readonly endpoint: string;
@@ -48,6 +55,8 @@ export interface MediaConfig {
     readonly forcePathStyle: boolean;
   };
   readonly clamd: ClamdAddress | undefined;
+  /** Without it the worker makes no derivatives and the files stay `clean`; in production the worker refuses to start (EVM-068, fail fast). */
+  readonly processor: ImageProcessorConfig | undefined;
   /** The single https origin of the bucket for the CSP `connect-src` of the panel; `undefined` = `'self'` only. */
   readonly bucketOrigin: string | undefined;
   readonly limits: MediaLimits;
@@ -86,6 +95,12 @@ export function parseClamdAddress(value: string): ClamdAddress | undefined {
   return port >= 1 && port <= 65_535 ? { kind: 'tcp', host: match[1] as string, port } : undefined;
 }
 
+/** An absolute path of a plain location: no `..`, no NUL, at most 200 characters. */
+const absolutePath = z
+  .string()
+  .regex(/^\/[^\0]{1,199}$/)
+  .refine((value) => !value.split('/').includes('..'));
+
 const blank = (value: string | undefined): boolean => value === undefined || value === '';
 
 /** A whole number from 1 to `max` written in digits only (no sign, no exponent, no spaces); `undefined` for anything else. */
@@ -118,6 +133,10 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
   check('MEDIA_S3_SECRET_ACCESS_KEY', secretAccessKey.safeParse(value('MEDIA_S3_SECRET_ACCESS_KEY')).success);
   const clamd = blank(env['CLAMD_SOCKET']) ? undefined : parseClamdAddress(value('CLAMD_SOCKET'));
   check('CLAMD_SOCKET', blank(env['CLAMD_SOCKET']) || clamd !== undefined);
+  const hasSocket = !blank(env['MEDIA_PROCESSOR_SOCKET']);
+  const hasWorkDir = !blank(env['MEDIA_PROCESSOR_WORKDIR']);
+  check('MEDIA_PROCESSOR_SOCKET', !hasSocket ? !hasWorkDir : absolutePath.safeParse(value('MEDIA_PROCESSOR_SOCKET')).success);
+  check('MEDIA_PROCESSOR_WORKDIR', !hasWorkDir ? !hasSocket : absolutePath.safeParse(value('MEDIA_PROCESSOR_WORKDIR')).success);
   const forcePathStyle = env['S3_FORCE_PATH_STYLE'];
   check('S3_FORCE_PATH_STYLE', blank(forcePathStyle) || forcePathStyle === 'true' || forcePathStyle === 'false');
   const origin = env['MEDIA_BUCKET_ORIGIN'];
@@ -145,6 +164,8 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
       forcePathStyle: forcePathStyle === 'true',
     },
     clamd,
+    processor:
+      hasSocket && hasWorkDir ? { socketPath: value('MEDIA_PROCESSOR_SOCKET'), workDir: value('MEDIA_PROCESSOR_WORKDIR') } : undefined,
     bucketOrigin: blank(origin) ? undefined : value('MEDIA_BUCKET_ORIGIN'),
     limits,
   };

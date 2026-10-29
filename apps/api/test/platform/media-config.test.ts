@@ -99,3 +99,27 @@ describe('EVM-044 AC3 media configuration is all or nothing (P5, fail closed)', 
     }
   });
 });
+
+describe('EVM-068 AC5 the settings of the image processor come as a pair of absolute paths', () => {
+  const PROCESSOR = { MEDIA_PROCESSOR_SOCKET: '/run/evia/media-work/processor.sock', MEDIA_PROCESSOR_WORKDIR: '/run/evia/media-work' };
+
+  it('EVM-068 AC5 without them the processor is off (the photos stay clean); with both it is read', () => {
+    expect(loadConfig(validEnv(MEDIA)).media?.processor).toBeUndefined();
+    expect(loadConfig(validEnv({ ...MEDIA, ...PROCESSOR })).media?.processor).toEqual({
+      socketPath: '/run/evia/media-work/processor.sock',
+      workDir: '/run/evia/media-work',
+    });
+  });
+
+  it('EVM-068 AC5 one of them without the other, a relative path, a path with `..` and a NUL are refused by name, never echoed', () => {
+    expect(keysOf(validEnv({ ...MEDIA, MEDIA_PROCESSOR_SOCKET: PROCESSOR.MEDIA_PROCESSOR_SOCKET }))).toEqual(['MEDIA_PROCESSOR_WORKDIR']);
+    expect(keysOf(validEnv({ ...MEDIA, MEDIA_PROCESSOR_WORKDIR: PROCESSOR.MEDIA_PROCESSOR_WORKDIR }))).toEqual(['MEDIA_PROCESSOR_SOCKET']);
+    expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_SOCKET: 'p.sock' }))).toEqual(['MEDIA_PROCESSOR_SOCKET']);
+    expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_WORKDIR: '/run/../etc' }))).toEqual(['MEDIA_PROCESSOR_WORKDIR']);
+    expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_WORKDIR: '/run/evia\0' }))).toEqual(['MEDIA_PROCESSOR_WORKDIR']);
+  });
+
+  it('EVM-068 AC5 the processor settings alone are media settings: without the storage the start stops and names the missing keys', () => {
+    expect(keysOf(validEnv(PROCESSOR))).toEqual(expect.arrayContaining(['MEDIA_BUCKET']));
+  });
+});
