@@ -205,7 +205,7 @@ describe.skipIf(!unixSockets)('EVM-068 AC3 the answer of the processor is not tr
     await failsWith(derive(await stub(() => `{"pad":"${'x'.repeat(5000)}"}`)), 'internal');
   });
 
-  it('EVM-068 AC3 a processor that does not answer is unavailable after the timeout (a hung socket never holds the worker); one that is not there is unavailable at once', async () => {
+  it('EVM-068 AC3 a processor that does not answer is unavailable after the timeout (a hung socket never holds the worker); one that is not there is unreachable at once', async () => {
     const silent = await stub(() => undefined, { connectMs: 1000, exchangeMs: 150 });
     const started = Date.now();
     await failsWith(derive(silent), 'unavailable');
@@ -222,7 +222,23 @@ describe.skipIf(!unixSockets)('EVM-068 AC3 the answer of the processor is not tr
           ),
       ),
     );
-    await failsWith(derive(gone, { jobId: '0198a7a0-0000-7000-8000-000000000009' }), 'unavailable');
+    await failsWith(derive(gone, { jobId: '0198a7a0-0000-7000-8000-000000000009' }), 'unreachable');
+  });
+
+  it('EVM-068 AC3 the work directory is writable by the group whatever the umask (the processor is another user of the group)', async () => {
+    const previous = process.umask(0o022);
+    try {
+      let mode = 0;
+      const seen = await stub(async (dir) => {
+        mode = (await stat(dir)).mode & 0o777;
+        await writeBoth(dir);
+        return OK;
+      });
+      await derive(seen);
+      expect(mode.toString(8)).toBe('770');
+    } finally {
+      process.umask(previous);
+    }
   });
 
   it('EVM-068 AC3 outputs that are not exactly the two variants within their edges are invalid_output', async () => {

@@ -14,7 +14,7 @@
  */
 import { createConnection } from 'node:net';
 import { constants } from 'node:fs';
-import { lstat, mkdir, open, readdir, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -121,6 +121,8 @@ export class UnixSocketImageProcessor implements ImageProcessor {
     const dir = join(this.#settings.workDir, input.jobId);
     try {
       await mkdir(dir, { mode: 0o770 });
+      // mkdir's mode is cut by the umask (022 in a container: 0750); the processor runs as another user of the group and must write here
+      await chmod(dir, 0o770);
       try {
         await pipeline(input.original, capped(input.maxBytes), createWriteStream(join(dir, 'input'), { flags: 'wx', mode: 0o640 }));
       } catch (error) {
@@ -155,13 +157,14 @@ export class UnixSocketImageProcessor implements ImageProcessor {
     }
   }
 
-  /** One line out, one line in (at most 4 KB); every failure of the transport is `unavailable`. */
+  /** One line out, one line in (at most 4 KB); a failure before the connection is `unreachable` (the job never reached the processor), any later one `unavailable`. */
   #ask(request: string): Promise<{ outputs: ClaimedOutput[] } | { code: ImageProcessingErrorCode }> {
     const { connectMs, exchangeMs } = this.#settings.timeouts ?? DEFAULT_TIMEOUTS;
     return new Promise((resolve) => {
       const socket = createConnection(this.#settings.socketPath);
       let received = '';
       let settled = false;
+      let connected = false;
       const finish = (value: { outputs: ClaimedOutput[] } | { code: ImageProcessingErrorCode }): void => {
         if (settled) return;
         settled = true;
@@ -171,17 +174,18 @@ export class UnixSocketImageProcessor implements ImageProcessor {
         resolve(value);
       };
       const connectTimer = setTimeout(() => {
-        finish({ code: 'unavailable' });
+        finish({ code: 'unreachable' });
       }, connectMs);
       const exchangeTimer = setTimeout(() => {
         finish({ code: 'unavailable' });
       }, exchangeMs);
       socket.on('connect', () => {
+        connected = true;
         clearTimeout(connectTimer);
         socket.write(`${request}\n`);
       });
       socket.on('error', () => {
-        finish({ code: 'unavailable' });
+        finish({ code: connected ? 'unavailable' : 'unreachable' });
       });
       socket.on('data', (chunk) => {
         received += chunk.toString('utf8');

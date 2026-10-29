@@ -18,9 +18,10 @@ export const MAX_DERIVATIVE_BYTES = 2 * 1024 * 1024;
 
 /**
  * `pixel_limit`, `unsupported`, `invalid_output` — the file will never convert (permanent); `timeout`, `internal` — the processor failed on this
- * try; `unavailable` — the processor did not answer (transport). See `domain/derivatives.ts` for what each code means for the file.
+ * try; `unavailable` — the processor did not answer (transport, after the job was handed over); `unreachable` — the processor could not be reached at all (the job was never delivered; no fault of the file). See `domain/derivatives.ts` for what each code means for the file.
  */
-export type ImageProcessingErrorCode = 'pixel_limit' | 'unsupported' | 'invalid_output' | 'timeout' | 'internal' | 'unavailable';
+export type ImageProcessingErrorCode =
+  'pixel_limit' | 'unsupported' | 'invalid_output' | 'timeout' | 'internal' | 'unavailable' | 'unreachable';
 
 export class ImageProcessingError extends Error {
   readonly code: ImageProcessingErrorCode;
