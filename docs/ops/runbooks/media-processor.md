@@ -25,9 +25,14 @@ Pętla bierze każde zdjęcie w stanie `clean` albo `processing` nietknięte od 
 | Objaw | Znaczenie | Reakcja |
 |---|---|---|
 | plik `failed` / `processing_error`, panel: „Nie udało się przygotować podglądu. Spróbujemy ponownie.” | trzy próby wyczerpane albo błąd trwały (bomba pikseli > 100 MP, nieobsługiwany format, uszkodzony plik, zły wynik procesora, suma kontrolna oryginału inna niż po skanie) | oryginał zostaje i jest po udanym skanie (do pobrania w EVM-045); sprawdź log workera (`job: media.process`, kod: `pixel_limit`, `unsupported`, `invalid_output`, `timeout`, `internal`, `storage`, `original_changed`) |
-| wszystkie nowe zdjęcia `failed` | procesor nie działa albo zła grupa/uprawnienia obszaru | `docker compose -p evia-media ps`, `ls -ln /run/evia/media-work`, sprawdź gniazdo; po naprawie pliki `failed` nie wracają same (tylko `clean`/`processing` są brane) — zgłoś, jeśli trzeba je ponowić ręcznie (osobna decyzja, nie ma jeszcze operacji) |
+| wszystkie nowe zdjęcia `failed` | procesor nie działa albo zła grupa/uprawnienia obszaru | `docker compose -p evia-media ps`, `ls -ln /run/evia/media-work`, sprawdź gniazdo; jeśli procesor był niedostępny (gniazdo nie przyjmuje połączeń), zdjęcia czekają w `processing` bez zużywania prób i dokończą się same po naprawie; pliki już `failed` nie wracają same — ponowienie opisuje sekcja „Ponowienie po wyczerpaniu prób” |
 | OOM kontenera | bomba dekompresji mimo limitu 100 MP | próba została zużyta już przy przejęciu pliku, więc plik kończy `failed` po trzech próbach; kontener wstaje sam (`restart: unless-stopped`) |
 | katalogi UUID w `/run/media-work` | pozostałość po awarii workera | zniknie przy starcie workera (`cleanup`); ręcznie: usuń katalogi, nie dotykaj `processor.sock` |
+
+## Ponowienie po wyczerpaniu prób
+Plik `failed` / `processing_error` wraca do kolejki tylko decyzją operatora, w sesji operacyjnej (po naprawie przyczyny; bez zmiany oryginału). Najpierw ustal listę (`select id from media.stored_files where state = 'failed' and state_reason_code = 'processing_error'`), potem dla wybranych identyfikatorów, w jednej transakcji, jednym poleceniem (to jedyna dozwolona ręczna zmiana; zapis w dzienniku sesji operacyjnej):
+`update media.stored_files set state = 'clean', state_reason_code = null, process_attempts = 0, process_claimed_at = null, state_changed_at = now() where id in (...) and state = 'failed' and state_reason_code = 'processing_error'`. Pętla workera weźmie je w najbliższym przebiegu. Nie robimy tego dla błędów trwałych (`pixel_limit`, `unsupported`, HEIC) - dadzą ten sam wynik.
+Weryfikacja uprawnień obszaru roboczego: podczas pracy `ls -ln /run/evia/media-work/<uuid>` pokazuje katalog zadania `drwxrwx---` (770) - worker wymusza ten tryb niezależnie od umask.
 
 ## HEIC
 Upload przyjmuje `image/heic`, ale prebuilt libvips z `sharp` nie dekoduje HEVC. Takie pliki kończą jako `failed` / `processing_error` od razu (błąd trwały `unsupported`, bez ponowień). Pełne wsparcie HEIC (własny build libvips z libheif+x265, licencje GPL/patenty) to osobna decyzja — historyjka EVM-068, „Uwagi do rozważenia”.

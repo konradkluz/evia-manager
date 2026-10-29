@@ -46,7 +46,9 @@ export function derivativeKey(originalKey: string, variant: DerivativeVariant): 
  * - permanent (`pixel_limit`, `unsupported`, `invalid_output`): the same file will give the same result — `failed` / `processing_error` at once;
  *   this includes HEIC (a prebuilt libvips does not decode HEVC) — EVM-068 "Uwagi do rozważenia";
  * - transient (`timeout`, `internal`, `unavailable`, and any fault of the storage): retried after {@link STALE_PROCESSING_MS}, at most
- *   {@link MAX_PROCESSING_ATTEMPTS} takes in all, then `failed` / `processing_error`.
+ *   {@link MAX_PROCESSING_ATTEMPTS} takes in all, then `failed` / `processing_error`;
+ * - `unreachable` (the socket of the processor cannot be connected): the job never reached the processor, so it is no fault of the file - the take
+ *   is given back (the attempt is not used) and the file waits for the stale period; an outage of the processor does not fail photos.
  */
 export function isPermanent(code: ImageProcessingErrorCode): boolean {
   return code === 'pixel_limit' || code === 'unsupported' || code === 'invalid_output';

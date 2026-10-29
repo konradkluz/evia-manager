@@ -742,6 +742,16 @@ export async function claimForProcessing(
     .executeTakeFirst();
 }
 
+/** Gives back the attempt of a take that never reached the processor (the claim time stays: the file is retried after the stale period). */
+export async function releaseProcessingAttempt(db: MediaDb, storedFileId: string): Promise<void> {
+  await db
+    .updateTable('media.stored_files')
+    .set({ process_attempts: sql<number>`greatest(process_attempts - 1, 0)` })
+    .where('id', '=', storedFileId)
+    .where('state', '=', 'processing')
+    .execute();
+}
+
 export interface NewDerivative {
   readonly storedFileId: string;
   readonly variant: DerivativeVariant;

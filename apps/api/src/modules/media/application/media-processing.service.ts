@@ -37,6 +37,7 @@ import {
 import { normalizeContentType } from '../domain/file-rules.ts';
 import {
   claimForProcessing,
+  releaseProcessingAttempt,
   countUnprocessedStuck,
   findUnprocessed,
   insertDerivatives,
@@ -63,7 +64,7 @@ export interface ProcessingDependencies {
   readonly newJobId?: () => string;
 }
 
-export type ProcessingOutcome = 'ready' | 'failed' | 'retry' | 'skipped';
+export type ProcessingOutcome = 'ready' | 'failed' | 'retry' | 'deferred' | 'skipped';
 
 export class MediaProcessingService {
   readonly #deps: ProcessingDependencies;
@@ -130,13 +131,15 @@ export class MediaProcessingService {
       }
       const outcome = await this.processFile(item.id);
       if (outcome === 'ready' || outcome === 'failed') decided += 1;
+      // the processor cannot be reached: the next photos would only wait for the connection too; the next pass asks again
+      if (outcome === 'deferred') break;
     }
     const stuck = await countUnprocessedStuck(mediaTables(db), new Date(now.getTime() - PROCESSING_WARNING_MS));
     if (stuck > 0) logger.warn({ job: 'media.process', stuck }, 'media: photos wait for their derivatives for over 30 minutes');
     return decided;
   }
 
-  /** @returns what happened to the file; `skipped`: taken by someone else (or no attempts left) */
+  /** @returns what happened to the file; `deferred`: the processor was unreachable (the attempt was given back); `skipped`: taken by someone else (or no attempts left) */
   async processFile(storedFileId: string): Promise<ProcessingOutcome> {
     const { db, clock, logger, storage, processor } = this.#deps;
     // runOnce checks `enabled` first; the guard keeps a direct call from processing without a processor
@@ -245,6 +248,15 @@ export class MediaProcessingService {
             : error instanceof ObjectStorageError
               ? 'storage'
               : 'internal';
+    if (error instanceof ImageProcessingError && error.code === 'unreachable') {
+      // never delivered to the processor: no fault of the file, so the take is given back and the photo cannot run out of attempts during an outage
+      await releaseProcessingAttempt(mediaTables(this.#deps.db), file.id);
+      logger.warn(
+        { job: 'media.process', storedFileId: file.id, code: error.code },
+        'media: the processor is unreachable; the photo waits',
+      );
+      return 'deferred';
+    }
     if (permanent || file.process_attempts >= MAX_PROCESSING_ATTEMPTS) {
       await this.#fail(file.id);
       logger.warn(
