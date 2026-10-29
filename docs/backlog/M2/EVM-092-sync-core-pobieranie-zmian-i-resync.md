@@ -69,3 +69,4 @@ Szyfrowana baza (EVM-093), UI, wiring z API (EVM-107). Wartości wymagające pom
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-27 — status ready: zaakceptowane przez Konrada ("Tak" na liście decyzji M2); ADR-0021 zaakceptowany (Tech Lead)
 - 2026-10-29 — plan gotowy; start implementacji (mobile-developer)
+- 2026-10-29 — implementacja pull w `packages/sync-core` (PullEngine, SessionGate wspólny z push, ContactClock, replika w generacjach z cieniem, znaczniki usunięcia, migawka zlecenia, parser ścisły, telemetria słownikowa), README pakietu i offline-sync.md (pkt 4, 5, 11, 12); testy `EVM-092 AC1–AC7` (mobile-developer)

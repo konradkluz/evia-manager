@@ -30,3 +30,37 @@ Testowy `InMemoryQueueStore` jest tylko w `test/` i nie jest eksportowany.
 
 ## Polecenia
 `pnpm --filter @evia/sync-core run test:coverage` (próg 95%, warstwa `sync`).
+
+## Pobieranie zmian i resync (EVM-092)
+Strona „pull” (`PullEngine`, `createSyncCore({ ..., pull })`; ADR-0021, `offline-sync.md`: „Pobieranie”, „Resync…”, „Zakres…”). Nadal bez zależności i bez importu `@evia/contracts` w runtime; zgodność typów z kontraktem sprawdza EVM-107. `core.sync()` to jeden cykl (single-flight): najpierw wysyłka kolejki, potem pobieranie. Pauza z dowolnej strony (401, `session_revoked`, 426, 403, `device_wipe_required`) zatrzymuje obie, a `resume()` jest wspólne (`SessionGate`).
+
+### Nowe porty
+| Port | Rola | Kontrakt dla adaptera (EVM-093 / EVM-107) |
+|---|---|---|
+| `PullTransport` | `getChanges`, `getWorkOrderSnapshot`, `getClientConfig` | Wynik jak w `Transport`. **Segment ścieżki `{id}` koduje adapter (`encodeURIComponent`)**; rdzeń przekazuje wyłącznie UUID (waliduje je przed wywołaniem, CWE-22/CWE-918). Tylko TLS. |
+| `ReplicaStore` | jedyna trwała powierzchnia repliki | Docelowo SQLCipher (SR-MOB-01), nigdy AsyncStorage. **Każda metoda zapisu to jedna transakcja** (awaria w środku = brak zmian). Numery generacji nigdy nie wracają, więc odpowiedź pobrana przed `wipeReplica` nie da się zastosować po nim (`applyPage` zwraca `stale`). |
+| `MonotonicClock` | `monotonicNow()`, `bootId()` | `monotonicNow` musi być **ciągły w obrębie `bootId`** (Android: `SystemClock.elapsedRealtime`), nie per proces. Jeśli adapter ma tylko czas per proces, `bootId` = identyfikator procesu. |
+| `PendingObjectsSource` | obiekty oczekujące | Domyślnie wyprowadzone z `QueueStore` (`queuePendingSource`). **Zalecenie/wymaganie dla EVM-093:** odczyt kolejki w tej samej transakcji SQLCipher co `applyPage`. |
+
+### Kontrakt wydajności adaptera (bez N+1)
+- `readVersions(generation, keys[])` i `findWorkOrdersBySite(generation, ids[])` dostają **całą stronę naraz**: jedno wywołanie na stronę. `readVersions` zwraca też wersje znaczników usunięcia (`deleted: true`).
+- `sweep(rule)` i kaskada `delete` to **operacje zbiorowe**. Kaskadę opisuje statyczna mapa rodzic → dzieci po `type` (`CASCADE_CHILDREN` w `replica-rules.ts`: zlecenie → pozycje zakresu, etapy, wpisy, media po `workOrderId`); reguły sprzątania w `planSweep` (czas N dni wg `serverTime`, osierocone klient/lokalizacja/strona/użytkownik).
+- `PendingObjectsSource` jest czytany raz na stronę i raz przed sprzątaniem.
+- Adapter ponownie sprawdza `version` w transakcji (obrona w głąb): nigdy nie zastępuje nowszej wersji starszą ani znacznika usunięcia starszym upsertem.
+
+### Model repliki
+- **Generacje:** aktywna (czytana przez UI) i cieniowa (resync). Kursor, flaga „komplet”, lista dociągnięć i **znaczniki usunięcia `(type, id, version)`** należą do generacji; `promoteShadow` w jednej transakcji podmienia generację, usuwa starą (dane, znaczniki, listę) i przenosi kursor. Aktywna generacja nie przyjmuje przyrostów w trakcie resyncu. `beginShadow` kasuje poprzedni cień i czyści `pendingResync` w jednej transakcji.
+- **Właściciel:** `ownerUserId` ustawia `applyPage`/`applySnapshot`. Replika innego użytkownika albo dane bez właściciela są usuwane (`wipeReplica`) **przed** jakimkolwiek odczytem lub pobraniem; kolejka nie jest ruszana.
+- **Trwała intencja resyncu:** zmiana `invalid` zapisuje `pendingResync` w tej samej transakcji co strona i kursor, więc awaria przed startem cienia nie gubi resyncu.
+- **Kursor** jest nieprzezroczysty: rdzeń sprawdza tylko wzorzec (`^[A-Za-z0-9_-]{16,1024}$`); zapis niezgodny albo nieczytelny = resync w cieniu z powodem `cursor_invalid`. Kursora nie logujemy.
+- **Parser** (`pull-parse.ts`) jest tak ścisły jak kontrakt: pole spoza projekcji, brak pola, zła wartość, klucze `__proto__`/`constructor`/`prototype` lub przekroczony limit to `invalid` (`projection_mismatch`); pola kopiowane są jedno po drugim z listy dozwolonych (bez spreadu). Nieznana wartość słownika rozszerzalnego jest zapisywana jako `unknown`, nieznany `type` jest pomijany. Opcja `strictProjection: false` zamienia „pole spoza projekcji” na odrzucenie tego pola (czytnik tolerancyjny jak `parseSyncChange`).
+- **Konfiguracja klienta** jest walidowana jak dane serwera: okno kontaktu 1–7 dni (konfiguracja może je skrócić, nie wydłużyć ponad 7), N 1–365 (domyślnie 30), resync kontrolny 1–90 (domyślnie 7); wartość spoza zakresu = domyślna.
+
+### Ostatni kontakt i ukrywanie danych (AC7)
+`ContactClock` zapisuje po **uwierzytelnionym 2xx** (push, pull, migawka; nie `health`/`meta`, nie 3xx/4xx/5xx/sieć) rekord `{serverTime, offset, bootId, mono, wall, carried, maxObservedWall}` przez `ReplicaStore.saveContact`. `pull.visibility()` ocenia: ten sam rozruch — upływ z czasu monotonicznego; po restarcie — z zegara ściennego z przenoszeniem sumy; fail-closed (dane ukryte, nie usunięte) przy cofnięciu zegara poniżej maksimum zaobserwowanego lub poniżej odczytu z chwili kontaktu (w ramie przesuniętej o `offset`, więc rozjazd ±2 min nie daje fałszywych alarmów), monotonicznym czasie mniejszym niż zapisany, NaN/ujemnym upływie, braku lub uszkodzeniu rekordu przy niepustej replice. `maxObservedWall` jest utrwalany przy każdej ocenie.
+
+### Telemetria
+`EngineEvent` to zamknięta unia: powody ze słownika, `type` ze słownika albo `unknown`, `count` jako liczba. Bez identyfikatorów, kursorów, `serverTime`, komunikatów wyjątków adaptera i treści zmian (test przechodzący po wszystkich zdarzeniach).
+
+### Zachowanie przy błędach
+Sieć, 429, 408, 5xx, zła odpowiedź i awaria magazynu: `retry` z wykładniczym opóźnieniem z jitterem (jak push; stan w pamięci). `404` na strumieniu zmian, `400` (w tym `invalid_cursor`) i inne statusy: pauza `unexpected_response`. Niepoprawna zmiana podczas już trwającego resyncu nie startuje kolejnego (backoff, nic nie jest stosowane). Limity cyklu (`maxPagesPerCycle`, `maxHydrationsPerCycle`) kończą cykl jako `partial`; sprzątanie działa tylko po cyklu kompletnym.

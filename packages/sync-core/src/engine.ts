@@ -1,5 +1,6 @@
 import type { MutationQueue } from './queue.ts';
-import type { Clock, EventSink, QueueStore, Random, RefreshResult, SessionOwner, Transport, TransportResponse } from './ports.ts';
+import type { Clock, EventSink, QueueStore, Random, SessionOwner, Transport, TransportResponse } from './ports.ts';
+import { SessionGate } from './session-gate.ts';
 import {
   CODE_PATTERN,
   KNOWN_REJECTION_CODES,
@@ -13,7 +14,7 @@ import {
   type RecordPatch,
   type SettledInfo,
 } from './types.ts';
-import { backoffDelay, parseRetryAfter } from './util.ts';
+import { backoffDelay, parseRetryAfter, parseServerTime } from './util.ts';
 import { toWire, wireBytes } from './validate.ts';
 
 export interface EngineOptions {
@@ -33,6 +34,8 @@ export interface EngineDeps {
   readonly session: SessionOwner;
   readonly events?: EventSink;
   readonly options?: EngineOptions;
+  /** Pause/session state shared with the pull side; created internally when absent (push-only use). */
+  readonly gate?: SessionGate;
 }
 
 export interface FlushOptions {
@@ -88,14 +91,13 @@ export class SyncEngine {
   readonly #maxBatchBytes: number;
   #running: Promise<FlushResult> | undefined;
   #requests = 0;
-  #pause: PauseReason | undefined;
-  #pausedOwner: string | null = null;
-  #refreshing: Promise<RefreshResult> | undefined;
+  readonly #gate: SessionGate;
   #foreignNotified = false;
   readonly #corruptReported = new Set<number>();
 
   constructor(deps: EngineDeps) {
     this.#d = deps;
+    this.#gate = deps.gate ?? new SessionGate(deps.session, deps.events);
     const o = deps.options ?? {};
     this.#baseDelayMs = o.baseDelayMs ?? 2000;
     this.#maxDelayMs = o.maxDelayMs ?? 5 * 60_000;
@@ -117,21 +119,9 @@ export class SyncEngine {
     return run;
   }
 
-  /** Resumes after a pause. `session_revoked` only for the same user after a full sign-in; `device_wipe_required` never. */
-  async resume(): Promise<boolean> {
-    const pause = this.#pause;
-    if (pause === undefined) return true;
-    if (pause === 'device_wipe_required') return false;
-    if (pause === 'session_revoked') {
-      const userId = await this.#d.session.currentUserId();
-      if (userId === null) return false;
-      if (userId !== this.#pausedOwner) {
-        this.#emit({ kind: 'signal', signal: 'owner_mismatch' });
-        return false;
-      }
-    }
-    this.#pause = undefined;
-    return true;
+  /** Resumes after a pause (shared with pull). `session_revoked` only for the same user; `device_wipe_required` never. */
+  resume(): Promise<boolean> {
+    return this.#gate.resume();
   }
 
   async status(): Promise<EngineStatus> {
@@ -166,7 +156,7 @@ export class SyncEngine {
       oldestCreatedAt = oldestCreatedAt === undefined ? r.createdAt : Math.min(oldestCreatedAt, r.createdAt);
     }
     return {
-      ...(this.#pause === undefined ? {} : { paused: this.#pause }),
+      ...(this.#gate.paused === undefined ? {} : { paused: this.#gate.paused }),
       ownerUserId: userId,
       pending,
       retrying,
@@ -184,16 +174,16 @@ export class SyncEngine {
     let seen: number;
     do {
       seen = this.#requests;
-      while (this.#pause === undefined) {
+      while (this.#gate.paused === undefined) {
         if ((await this.#cycle(options, tally)) === 'stop') break;
       }
-    } while (this.#requests !== seen && this.#pause === undefined && !tally.retryScheduled);
-    return { ...tally, ...(this.#pause === undefined ? {} : { paused: this.#pause }) };
+    } while (this.#requests !== seen && this.#gate.paused === undefined && !tally.retryScheduled);
+    return { ...tally, ...(this.#gate.paused === undefined ? {} : { paused: this.#gate.paused }) };
   }
 
   async #cycle(options: FlushOptions, tally: Tally): Promise<Step> {
     const userId = await this.#d.session.currentUserId();
-    if (userId === null) return this.#pauseWith('auth_required', null);
+    if (userId === null) return this.#gate.pauseWith('auth_required', null);
     const entries = await this.#d.queue.entries();
     const mine: QueueRecord[] = [];
     let foreign = 0;
@@ -276,6 +266,7 @@ export class SyncEngine {
     userId: string,
   ): Promise<Step> {
     this.#emit({ kind: 'batch_sent', size: batch.length });
+    const epoch = this.#gate.epoch;
     let response: TransportResponse;
     try {
       response = await this.#d.transport.sendBatch({ mutations: batch.map(toWire), pendingItems });
@@ -286,6 +277,7 @@ export class SyncEngine {
       case 'network':
         return this.#transient(batch, 'network', undefined, tally);
       case 'ok':
+        await this.#gate.recordContact(serverTimeOf(response.body), epoch);
         return this.#results(batch, response.body, tally);
       case 'http':
         return this.#httpFailure(batch, response, pendingItems, tally, canRefresh, canSplit, userId);
@@ -303,17 +295,9 @@ export class SyncEngine {
   ): Promise<Step> {
     const { status } = response;
     const code = response.code !== undefined && CODE_PATTERN.test(response.code) ? response.code : undefined;
-    if (status === 401) {
-      if (code === 'device_wipe_required') return this.#pauseWith('device_wipe_required', userId);
-      if (code === 'session_revoked') return this.#pauseWith('session_revoked', userId);
-      if (!canRefresh) return this.#pauseWith('auth_required', userId);
-      const refreshed = await this.#refresh();
-      if (refreshed === 'session_revoked') return this.#pauseWith('session_revoked', userId);
-      if (refreshed === 'unavailable') return this.#pauseWith('auth_required', userId);
-      return this.#send(batch, pendingItems, tally, false, canSplit, userId);
-    }
-    if (status === 426) return this.#pauseWith('upgrade_required', userId);
-    if (status === 403) return this.#pauseWith('forbidden', userId);
+    const verdict = await this.#gate.onHttpFailure(status, code, userId, canRefresh);
+    if (verdict === 'retry') return this.#send(batch, pendingItems, tally, false, canSplit, userId);
+    if (verdict === 'stop') return 'stop';
     if (status === 400 || status === 413) {
       if (batch.length > 1 && canSplit) {
         for (const record of batch) {
@@ -328,18 +312,7 @@ export class SyncEngine {
       const transientCode = status === 429 ? 'rate_limited' : status === 408 ? 'timeout' : 'server_error';
       return this.#transient(batch, transientCode, response.retryAfter, tally);
     }
-    return this.#pauseWith('unexpected_response', userId);
-  }
-
-  /** One refresh for all callers: concurrent 401s wait for the same promise. */
-  #refresh(): Promise<RefreshResult> {
-    this.#refreshing ??= this.#d.session
-      .refresh()
-      .catch((): RefreshResult => 'unavailable')
-      .finally(() => {
-        this.#refreshing = undefined;
-      });
-    return this.#refreshing;
+    return this.#gate.pauseWith('unexpected_response', userId);
   }
 
   async #results(batch: readonly QueueRecord[], body: unknown, tally: Tally): Promise<Step> {
@@ -417,30 +390,8 @@ export class SyncEngine {
     }
   }
 
-  #pauseWith(reason: PauseReason, owner: string | null): Step {
-    if (this.#pause === 'device_wipe_required') return 'stop';
-    if (this.#pause !== reason) {
-      this.#pause = reason;
-      this.#pausedOwner = owner;
-      this.#emit({ kind: 'paused', reason });
-      if (
-        reason === 'session_revoked' ||
-        reason === 'device_wipe_required' ||
-        reason === 'upgrade_required' ||
-        reason === 'auth_required'
-      ) {
-        this.#emit({ kind: 'signal', signal: reason });
-      }
-    }
-    return 'stop';
-  }
-
   #emit(event: EngineEvent): void {
-    try {
-      this.#d.events?.emit(event);
-    } catch {
-      // diagnostics must never break synchronization
-    }
+    this.#gate.emit(event);
   }
 }
 
@@ -461,4 +412,9 @@ function parseResult(item: Record<string, unknown>): ResultItem {
     };
   }
   return { outcome, ...(code === undefined ? {} : { code }), info };
+}
+
+/** `serverTime` of an authenticated 2xx body, or undefined when it is missing or unreadable. */
+function serverTimeOf(body: unknown): number | undefined {
+  return typeof body === 'object' && body !== null ? parseServerTime((body as { serverTime?: unknown }).serverTime) : undefined;
 }
