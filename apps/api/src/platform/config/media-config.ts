@@ -19,8 +19,9 @@ export const MEDIA_REQUIRED_KEYS = [
 ] as const;
 const SHARED_KEYS: readonly string[] = ['S3_ENDPOINT', 'S3_REGION'];
 const LIMIT_KEYS = ['MEDIA_MAX_PENDING_PER_USER', 'MEDIA_MAX_PENDING_PER_ORDER', 'MEDIA_ABANDON_AFTER_DAYS'] as const;
-const PROCESSOR_KEYS = ['MEDIA_PROCESSOR_SOCKET', 'MEDIA_PROCESSOR_WORKDIR'] as const;
-const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...PROCESSOR_KEYS, ...LIMIT_KEYS] as const;
+// The processor settings are NOT here: they alone do not switch the media on (the compose file of the channel names them before the IaC session gives the
+// worker the rest of the media settings), they are only checked together with the rest.
+const MEDIA_OPTIONAL_KEYS = ['CLAMD_SOCKET', 'S3_FORCE_PATH_STYLE', 'MEDIA_BUCKET_ORIGIN', ...LIMIT_KEYS] as const;
 
 /** The limits of unfinished media (EVM-049 D9, RR-NOC-T1-4) and the age after which an unfinished upload without a session is abandoned. */
 export interface MediaLimits {

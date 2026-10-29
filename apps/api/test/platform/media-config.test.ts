@@ -119,7 +119,8 @@ describe('EVM-068 AC5 the settings of the image processor come as a pair of abso
     expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_WORKDIR: '/run/evia\0' }))).toEqual(['MEDIA_PROCESSOR_WORKDIR']);
   });
 
-  it('EVM-068 AC5 the processor settings alone are media settings: without the storage the start stops and names the missing keys', () => {
-    expect(keysOf(validEnv(PROCESSOR))).toEqual(expect.arrayContaining(['MEDIA_BUCKET']));
+  it('EVM-068 AC5 the processor settings alone do not switch the media on (the compose file names them before the rest of the media settings exists)', () => {
+    expect(loadConfig(validEnv(PROCESSOR)).media).toBeUndefined();
+    expect(keysOf(validEnv({ MEDIA_PROCESSOR_SOCKET: PROCESSOR.MEDIA_PROCESSOR_SOCKET }))).toEqual([]);
   });
 });
