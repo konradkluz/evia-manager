@@ -346,9 +346,10 @@ UploadPartUrl:
 MediaDerivativeVariant:
   type: string
   description: >-
-    Wariant pochodnej zdjęcia: `thumbnail` (miniatura, dłuższy bok do 320 px) albo `preview` (podgląd, dłuższy bok do 1600 px). Obie to
-    WebP bez metadanych (EVM-068). Wartość `original` (pobranie oryginału) doda addytywnie EVM-045.
-  enum: [thumbnail, preview]
+    Wariant pochodnej zdjęcia, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068).
+    Podgląd `preview` (1600 px) powstaje w przetwarzaniu, ale adres do niego doda addytywnie EVM-045 razem z limitem wystawiania
+    adresów (SR-FILE-10) i audytem odczytu; w EVM-045 dojdzie też `original`.
+  enum: [thumbnail]
 CreateMediaDerivativeUrlRequest:
   type: object
   description: Wskazanie wariantu pochodnej, do którego panel prosi o adres.
