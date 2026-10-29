@@ -30,6 +30,7 @@ export {
   EyeOff,
   FileText,
   Hourglass,
+  Image as ImageIcon,
   Images,
   Inbox,
   Info,

@@ -26,7 +26,8 @@ export const MEDIA_PAGE_SIZE = 50;
 /** While a file waits for the scan the list is read again (the verdict "Sprawdzanie pliku" → "Wysłano" arrives without a click). */
 export const MEDIA_POLL_MS = 3000;
 
-const WAITING_STATES = new Set(['pending_upload', 'uploaded', 'scanning']);
+// `clean` and `processing` wait for the thumbnail and the preview (EVM-068): the list is read again until the file is `ready` or `failed`
+const WAITING_STATES = new Set(['pending_upload', 'uploaded', 'scanning', 'clean', 'processing']);
 
 export function useMediaList(
   workOrderId: string,

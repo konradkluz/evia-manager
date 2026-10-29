@@ -48,6 +48,11 @@ export const mediaCategoryLabels: Readonly<Record<MediaCategory, string>> = {
   other: 'Inne',
 };
 
+/** The heading of a group of the gallery (W-09): the categories of the dialog, except that "Przed pracami" is told "Stan przed pracami" over the tiles (EVM-068 AC1). */
+export function groupLabel(category: string): string {
+  return category === 'before_work' ? 'Stan przed pracami' : categoryLabel(category);
+}
+
 export function categoryLabel(category: string): string {
   return (mediaCategoryLabels as Readonly<Record<string, string>>)[category] ?? mediaCategoryLabels.other;
 }
@@ -68,7 +73,8 @@ export function formatBytes(bytes: number): string {
 export const mediaText = {
   tab: 'Media i dokumenty',
   heading: 'Media i dokumenty',
-  photosHeading: (count: number, more: boolean) => `Zdjęcia · ${more ? 'co najmniej ' : ''}${photosCount(count)}`,
+  photosHeading: (count: number, more: boolean) => `Zdjęcia i filmy · ${more ? 'co najmniej ' : ''}${photosCount(count)}`,
+  groupHeading: (category: string, count: number) => `${category} (${String(count)})`,
   addPhotos: 'Dodaj zdjęcia lub filmy',
   dropLabel: 'Upuść zdjęcia tutaj albo',
   chooseFiles: 'Wybierz pliki',
@@ -109,6 +115,13 @@ export const mediaText = {
   attentionDetail: 'Nie usuwaj tego pliku z telefonu. Administrator został powiadomiony.',
   attentionPlain: 'Plik zatrzymany przez skan bezpieczeństwa. Administrator został powiadomiony.',
   failedChecksum: 'Nie wysłano — plik uszkodzony w transmisji',
+  // EVM-068: after the scan the server makes the thumbnail and the preview; the file is safe and sent, only the picture is not ready yet
+  previewPreparing: 'Przygotowujemy podgląd.',
+  processingFailed: 'Nie udało się przygotować podglądu. Spróbujemy ponownie.',
+  thumbnailUnavailable: 'Nie można wyświetlić',
+  thumbnailLoading: 'Wczytywanie miniatury',
+  thumbnailOffline: 'Brak połączenia — miniatura wczyta się po jego powrocie.',
+  galleryOffline: 'Brak połączenia. Pokazujemy zdjęcia zapamiętane w tej karcie; pozostałe wczytają się po powrocie połączenia.',
   failedDifferent: 'Nie wysłano — plik różni się od wysłanego wcześniej',
   failedAnnounce: (count: number) =>
     `${count === 1 ? 'Nie wysłano 1 pliku' : `Nie wysłano ${String(count)} plików`}. Użyj przycisku „Ponów”.`,

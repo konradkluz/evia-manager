@@ -15,6 +15,7 @@ import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { formatDate, formatClock } from './format.ts';
 import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.ts';
+import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
 import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
@@ -46,11 +47,16 @@ function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQ
       return { state: 'checking', label: mediaText.checking, detail: mediaText.checkingDetail };
     case 'quarantined':
       return { state: 'attention', label: mediaText.attention, detail: mediaText.attentionPlain };
+    case 'clean':
+    case 'processing':
+      // EVM-068: sent and scanned; the server is making the thumbnail and the preview (the list is read again until the file is `ready`)
+      return { state: 'done', label: mediaText.done, detail: mediaText.previewPreparing };
     case 'failed':
-      // Only `checksum_mismatch` carries a reason; the file must be chosen again (it is not in the memory of this tab).
-      return asset.stateReasonCode === 'checksum_mismatch'
-        ? { state: 'failed', label: mediaText.failedChecksum }
-        : { state: 'done', label: mediaText.done };
+      // `checksum_mismatch` is the only reason the list carries as a reason; the file must be chosen again (it is not in the memory of this tab)
+      if (asset.stateReasonCode === 'checksum_mismatch') return { state: 'failed', label: mediaText.failedChecksum };
+      // EVM-068 AC4: the file passed the scan, the picture could not be made after the tries of the server
+      if (asset.processingFailed === true) return { state: 'failed', label: mediaText.processingFailed };
+      return { state: 'done', label: mediaText.done };
     default:
       return { state: 'done', label: mediaText.done };
   }
@@ -83,7 +89,10 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   }, [data, engine, items, onlyAttention]);
 
   const own = new Set(media.items.map((item) => item.key));
-  const rest = assets.filter((asset) => !own.has(asset.id));
+  // the photos that are `ready` are the gallery (also the ones this tab sent); the rest keep their line with the state of the file
+  const gallery = assets.filter((asset) => asset.fileState === 'ready' && asset.mediaType === 'photo');
+  const galleryIds = new Set(gallery.map((asset) => asset.id));
+  const rest = assets.filter((asset) => !own.has(asset.id) && !galleryIds.has(asset.id));
   const photos = assets.length;
 
   return (
@@ -179,43 +188,46 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
       {list.isSuccess && !onlyAttention && assets.length === 0 && media.items.length === 0 ? (
         <EmptyState icon={Images} title={mediaText.empty} description={canUpload ? mediaText.emptyHint : mediaText.emptyReadOnly} />
       ) : null}
-      {list.isSuccess && rest.length > 0 ? (
+      {list.isSuccess && (rest.length > 0 || gallery.length > 0) ? (
         <>
           <h3 className="text-heading-4">
             {onlyAttention ? mediaText.attentionHeading(photos, list.hasNextPage) : mediaText.photosHeading(photos, list.hasNextPage)}
           </h3>
-          <ul aria-label={mediaText.heading} className="flex flex-col">
-            {rest.map((asset) => {
-              const look = serverLook(asset, role === 'administrator');
-              const name = `${asset.mediaType === 'video' ? mediaText.video : mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.createdAt)} ${formatClock(Date.parse(asset.createdAt))}`;
-              // Only an Administrator gets the action; the server decides all the same (`403`, `409`).
-              const canRescan = role === 'administrator' && asset.quarantine?.state === 'held' && asset.fileState === 'quarantined';
-              return (
-                <UploadQueueItem
-                  key={asset.id}
-                  name={name}
-                  actions={
-                    canRescan ? (
-                      <Button
-                        variant="secondary"
-                        aria-label={mediaText.rescanFile(name)}
-                        disabled={!online}
-                        loading={rescan.pendingId === asset.id}
-                        onClick={() => {
-                          rescan.run(asset.id);
-                        }}
-                      >
-                        {mediaText.rescan}
-                      </Button>
-                    ) : undefined
-                  }
-                  state={look.state}
-                  statusLabel={look.label}
-                  {...(look.detail === undefined ? {} : { detail: look.detail })}
-                />
-              );
-            })}
-          </ul>
+          <MediaGallery workOrderId={order.id} assets={gallery} online={online} />
+          {rest.length > 0 ? (
+            <ul aria-label={mediaText.heading} className="flex flex-col">
+              {rest.map((asset) => {
+                const look = serverLook(asset, role === 'administrator');
+                const name = `${asset.mediaType === 'video' ? mediaText.video : mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.createdAt)} ${formatClock(Date.parse(asset.createdAt))}`;
+                // Only an Administrator gets the action; the server decides all the same (`403`, `409`).
+                const canRescan = role === 'administrator' && asset.quarantine?.state === 'held' && asset.fileState === 'quarantined';
+                return (
+                  <UploadQueueItem
+                    key={asset.id}
+                    name={name}
+                    actions={
+                      canRescan ? (
+                        <Button
+                          variant="secondary"
+                          aria-label={mediaText.rescanFile(name)}
+                          disabled={!online}
+                          loading={rescan.pendingId === asset.id}
+                          onClick={() => {
+                            rescan.run(asset.id);
+                          }}
+                        >
+                          {mediaText.rescan}
+                        </Button>
+                      ) : undefined
+                    }
+                    state={look.state}
+                    statusLabel={look.label}
+                    {...(look.detail === undefined ? {} : { detail: look.detail })}
+                  />
+                );
+              })}
+            </ul>
+          ) : null}
           {list.hasNextPage ? (
             <Button
               variant="secondary"
