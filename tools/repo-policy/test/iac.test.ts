@@ -472,11 +472,12 @@ describe('EVM-084 AC2: the matrix key × bucket (one source of truth for bucket-
       'backup_writer',
       'media_app',
       'media_backup_reader',
+      'media_worker',
       'register_writer',
       'restore_orchestrator',
       'restore_reader',
     ]);
-    expect(rows).toHaveLength(6 * (3 * 4 + 3));
+    expect(rows).toHaveLength(7 * (3 * 4 + 3));
     for (const key of Object.keys(APPLICATION_KEYS))
       for (const bucket of Object.keys(MATRIX_BUCKETS))
         for (const operation of Object.keys(MATRIX_OPERATIONS))

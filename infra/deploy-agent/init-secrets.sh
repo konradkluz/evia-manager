@@ -17,6 +17,7 @@
 #   login-throttle-key         32 random bytes, base64url (separate secret, EVM-026)
 # Files provided by hand in the IaC session (EVM-084; never generated, never read; --check reports MISSING until they exist):
 #   media-s3-secret-access-key, deletion-register-s3-secret-access-key   S3 keys of the applications (both api)
+#   media-worker-s3-secret-access-key                                     S3 key of the worker (read and delete in the media bucket; RR-42)
 #   backup-s3-secret-access-key, pgbackrest-cipher-pass                  pgBackRest on PostgreSQL (key of backup-writer)
 #   grafana-write-token  Grafana Cloud access policy token, write scopes only, with an expiry (EVM-085; reaches alloy only)
 #   restore-reader-s3-secret-access-key, restore-orchestrator-s3-secret-access-key, media-backup-reader-s3-secret-access-key,
@@ -41,7 +42,7 @@ readonly DB_NAME="evia"
 readonly ROLE_MIGRATOR="evia_migrator"
 readonly ROLE_API="evia_api"
 readonly FILES=(postgres-password evia-migrator-password evia-api-password database-url-migrator database-url-app cursor-key field-encryption-keys login-throttle-key)
-readonly EXTERNAL=(media-s3-secret-access-key deletion-register-s3-secret-access-key backup-s3-secret-access-key pgbackrest-cipher-pass restore-reader-s3-secret-access-key restore-orchestrator-s3-secret-access-key media-backup-reader-s3-secret-access-key restore-hcloud-token rclone-crypt-password rclone-crypt-password2 restore-storagebox-password media-copy-storagebox-password grafana-write-token)
+readonly EXTERNAL=(media-s3-secret-access-key media-worker-s3-secret-access-key deletion-register-s3-secret-access-key backup-s3-secret-access-key pgbackrest-cipher-pass restore-reader-s3-secret-access-key restore-orchestrator-s3-secret-access-key media-backup-reader-s3-secret-access-key restore-hcloud-token rclone-crypt-password rclone-crypt-password2 restore-storagebox-password media-copy-storagebox-password grafana-write-token)
 
 log() { printf 'init-secrets: %s\n' "$1" >&2; }
 fail() {

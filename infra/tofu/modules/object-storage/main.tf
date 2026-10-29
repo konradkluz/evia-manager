@@ -52,6 +52,7 @@ locals {
   # Permission sets limit the product; the project-wide reach is narrowed by the bucket policies below.
   apps = {
     media_app            = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
+    media_worker         = ["ObjectStorageObjectsRead", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     register_writer      = ["ObjectStorageObjectsWrite"]
     backup_writer        = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     media_backup_reader  = ["ObjectStorageObjectsRead", "ObjectStorageBucketsRead"]
@@ -76,6 +77,7 @@ locals {
 
   media_allow = {
     media_app           = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucket"]
+    media_worker        = ["s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
     media_backup_reader = ["s3:ListBucket", "s3:GetObject"]
   }
   register_allow = {

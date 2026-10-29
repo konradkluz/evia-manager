@@ -16,6 +16,7 @@ import { join } from 'node:path';
 const DIR = new URL('../restore/', import.meta.url).pathname;
 const SECRET_VALUES = {
   'media-s3-secret-access-key': 'SYNTHETIC-MEDIA-SECRET-MARKER',
+  'media-worker-s3-secret-access-key': 'SYNTHETIC-MEDIA-WORKER-MARKER',
   'deletion-register-s3-secret-access-key': 'SYNTHETIC-REGISTER-SECRET-MARKER',
   'backup-s3-secret-access-key': 'SYNTHETIC-BACKUP-SECRET-MARKER',
   'media-backup-reader-s3-secret-access-key': 'SYNTHETIC-READER-SECRET-MARKER',
@@ -184,6 +185,7 @@ async function startS3(/** @type {string} */ broken = '') {
   const tuples = new Set();
   const keyIds = {
     SCWMEDIA0001: 'media_app',
+    SCWMWORKER001: 'media_worker',
     SCWMBREADER01: 'media_backup_reader',
     SCWREGISTER01: 'register_writer',
     SCWBACKUP0001: 'backup_writer',
@@ -244,6 +246,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
     DELETION_REGISTER_BUCKET: 'evia-staging-deletion-register',
     DB_BACKUP_BUCKET: 'evia-staging-db-backup',
     MEDIA_S3_ACCESS_KEY_ID: 'SCWMEDIA0001',
+    MEDIA_WORKER_S3_ACCESS_KEY_ID: 'SCWMWORKER001',
     MEDIA_BACKUP_READER_ACCESS_KEY_ID: 'SCWMBREADER01',
     DELETION_REGISTER_S3_ACCESS_KEY_ID: 'SCWREGISTER01',
     BACKUP_WRITER_ACCESS_KEY_ID: 'SCWBACKUP0001',
@@ -256,6 +259,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
       'backup_writer',
       'media_app',
       'media_backup_reader',
+      'media_worker',
       'register_writer',
       'restore_orchestrator',
       'restore_reader',
@@ -272,7 +276,7 @@ describe('EVM-084 AC2: bucket-verify.sh', () => {
             `${key} ${bucket} ${operation}`,
           );
       }
-    assert.equal(MATRIX_ROWS.length, 6 * (3 * 4 + 3));
+    assert.equal(MATRIX_ROWS.length, 7 * (3 * 4 + 3));
     const decision = (/** @type {string[]} */ ...tuple) => MATRIX_ROWS.find((row) => row.slice(0, 4).join('|') === tuple.join('|'))?.[4];
     assert.equal(decision('restore_orchestrator', 'db_backup', 'results', 'put'), 'allow');
     assert.equal(decision('restore_orchestrator', 'db_backup', 'repo', 'get'), 'deny');

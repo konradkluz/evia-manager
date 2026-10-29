@@ -27,6 +27,7 @@ const GENERATED = [
 // EVM-084: provided by hand in the IaC session; the script neither generates nor reads them
 const EXTERNAL = [
   'media-s3-secret-access-key',
+  'media-worker-s3-secret-access-key',
   'deletion-register-s3-secret-access-key',
   'backup-s3-secret-access-key',
   'pgbackrest-cipher-pass',
@@ -95,6 +96,7 @@ describe('EVM-084 AC2: the S3 keys, the pgBackRest password and the restore secr
     const services = JSON.parse(readFileSync(MANIFEST, 'utf8')).services;
     const holders = (/** @type {string} */ file) => Object.keys(services).filter((name) => services[name].files.includes(file));
     assert.deepEqual(holders('media-s3-secret-access-key'), ['api']);
+    assert.deepEqual(holders('media-worker-s3-secret-access-key'), ['worker']); // RR-42: its own, narrower key
     assert.deepEqual(holders('deletion-register-s3-secret-access-key'), ['api']); // RR-55 (b): api writes the register
     assert.deepEqual(holders('pgbackrest-cipher-pass'), ['postgres']);
     assert.deepEqual(holders('backup-s3-secret-access-key'), ['postgres']);

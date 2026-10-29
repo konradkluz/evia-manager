@@ -256,6 +256,8 @@ export const BUCKET_POLICIES: Readonly<Record<string, Readonly<Record<string, re
       's3:ListMultipartUploadParts',
       's3:ListBucket',
     ],
+    // RR-42: the worker reads originals for the scan (GetObject, HeadObject) and removes the expired ones (DeleteObject); it never writes.
+    media_worker: ['s3:GetObject', 's3:DeleteObject', 's3:ListBucket'],
     media_backup_reader: ['s3:ListBucket', 's3:GetObject'],
   },
   register_allow: {
@@ -501,6 +503,7 @@ export function pgbackrestPinProblems(dockerfile: string, postgresDigest: string
  */
 export const APPLICATION_KEYS: Readonly<Record<string, { readonly idVariable: string; readonly secretFile: string }>> = Object.freeze({
   media_app: { idVariable: 'MEDIA_S3_ACCESS_KEY_ID', secretFile: 'media-s3-secret-access-key' },
+  media_worker: { idVariable: 'MEDIA_WORKER_S3_ACCESS_KEY_ID', secretFile: 'media-worker-s3-secret-access-key' },
   media_backup_reader: { idVariable: 'MEDIA_BACKUP_READER_ACCESS_KEY_ID', secretFile: 'media-backup-reader-s3-secret-access-key' },
   register_writer: { idVariable: 'DELETION_REGISTER_S3_ACCESS_KEY_ID', secretFile: 'deletion-register-s3-secret-access-key' },
   backup_writer: { idVariable: 'BACKUP_WRITER_ACCESS_KEY_ID', secretFile: 'backup-s3-secret-access-key' },

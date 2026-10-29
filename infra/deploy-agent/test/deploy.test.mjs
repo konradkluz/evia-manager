@@ -131,6 +131,7 @@ function setup() {
     'postgres-password',
     // EVM-084: provided by hand on the VM, listed in the manifest
     'media-s3-secret-access-key',
+    'media-worker-s3-secret-access-key',
     'deletion-register-s3-secret-access-key',
     'pgbackrest-cipher-pass',
     'backup-s3-secret-access-key',
