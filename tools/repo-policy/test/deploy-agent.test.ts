@@ -76,6 +76,17 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
     for (const name of ['api', 'worker']) expect(list(record(secrets[name])['files'])).toContain('database-url-app');
   });
 
+  it('EVM-084 (RR-55 b): the register key reaches api only (the service that writes the register), and api reads it from the file', () => {
+    const file = 'deletion-register-s3-secret-access-key';
+    const holders = Object.entries(secrets)
+      .filter(([, value]) => list(record(value)['files']).includes(file))
+      .map(([name]) => name);
+    expect(holders).toEqual(['api']);
+    const apiEnvironment = record(record(channel['api'])['environment']);
+    expect(apiEnvironment['DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE']).toBe(`/run/secrets/${file}`);
+    expect('DELETION_REGISTER_S3_SECRET_ACCESS_KEY_FILE' in record(record(channel['worker'])['environment'])).toBe(false);
+  });
+
   it('EVM-007 AC7 (SR-INFRA-05): after a reboot the secrets are restored before Docker, fail-closed, by the same script as deploy.sh', () => {
     const unit = read('infra/deploy-agent/systemd/evia-secrets.service');
     expect(unit).toContain('Before=docker.service');

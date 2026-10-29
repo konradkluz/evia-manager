@@ -5,7 +5,8 @@
  *   (`AWS_*` variables, `~/.aws`, the metadata service) is never consulted;
  * - ONE command in the whole file, `PutObjectCommand`: no read, list, head or delete - the bucket grants nothing else and the code does not ask;
  * - path-style addressing, `requestChecksumCalculation: 'WHEN_REQUIRED'` (a provider other than AWS does not accept the newer checksums), the
- *   key of the object is new for every record (versioning of the bucket guards an overwrite, not a condition on the request), `Content-Type:
+ *   key of the object is new for every record and the request carries `If-None-Match: *` (the policy of the bucket denies a write without it;
+ *   versioning keeps older versions anyway); 412 means the key exists and is a failure like any other, never a success; `Content-Type:
  *   application/json`, no metadata headers, no ACL;
  * - bounded: two attempts, timeouts of the connection and of the request, and a total deadline of about five seconds for the whole record;
  * - every failure is a {@link DeletionRegisterUnavailable} with a fixed reason; the answer of the storage and the error object are never logged
@@ -68,7 +69,14 @@ export class S3DeletionRegister implements DeletionRegister {
     const object = registerObjectOf(record, this.#clock.now());
     try {
       await this.#client.send(
-        new PutObjectCommand({ Bucket: this.#bucket, Key: object.key, Body: object.body, ContentType: 'application/json' }),
+        new PutObjectCommand({
+          Bucket: this.#bucket,
+          Key: object.key,
+          Body: object.body,
+          ContentType: 'application/json',
+          // add-only (RR-55): the bucket policy denies a PutObject without this condition; an existing key answers 412, which fails closed
+          IfNoneMatch: '*',
+        }),
         { abortSignal: AbortSignal.timeout(this.#deadlineMs) },
       );
     } catch (error) {

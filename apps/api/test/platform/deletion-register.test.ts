@@ -52,7 +52,7 @@ interface Seen {
 /** A local S3: records every request; `mode` decides the answer. Loopback only. */
 class FakeStorage {
   readonly seen: Seen[] = [];
-  mode: 'ok' | 'error' | 'hang' = 'ok';
+  mode: 'ok' | 'error' | 'hang' | 'exists' = 'ok';
   readonly #server: Server;
 
   constructor() {
@@ -67,7 +67,7 @@ class FakeStorage {
           body: Buffer.concat(chunks).toString('utf8'),
         });
         if (this.mode === 'hang') return;
-        response.statusCode = this.mode === 'ok' ? 200 : 500;
+        response.statusCode = this.mode === 'ok' ? 200 : this.mode === 'exists' ? 412 : 500;
         response.setHeader('ETag', '"abc"');
         response.end(this.mode === 'ok' ? '' : `<Error><Message>${CANARY}</Message></Error>`);
       });
@@ -228,7 +228,8 @@ describe('the S3 adapter against a local server (EVM-040 AC3; SR-PRIV-04, SR-CRY
     expect(String(seen?.headers['authorization'])).toMatch(/^AWS4-HMAC-SHA256 Credential=SCWACCESSCANARY\/\d{8}\/pl-waw\/s3\/aws4_request/);
     expect(seen?.headers['x-amz-acl']).toBeUndefined();
     expect(Object.keys(seen?.headers ?? {}).filter((header) => header.startsWith('x-amz-meta-'))).toEqual([]);
-    expect(seen?.headers['if-none-match']).toBeUndefined();
+    // RR-55 (a): the bucket policy denies a PutObject without this header (no overwrite of an entry)
+    expect(seen?.headers['if-none-match']).toBe('*');
     expect(seen?.headers['x-amz-checksum-crc32']).toBeUndefined();
     expect(JSON.parse(seen?.body ?? '{}')).toMatchObject({ operationId: receipt.operationId, subjectId: record.subjectId });
   });
@@ -276,6 +277,13 @@ describe('the S3 adapter against a local server (EVM-040 AC3; SR-PRIV-04, SR-CRY
     expect(logs.text).toContain('deletion register write failed');
     for (const forbidden of [CANARY, SECRET, ACCESS_KEY, 'Authorization']) expect(logs.text).not.toContain(forbidden);
     expect(storage.seen.length).toBeLessThanOrEqual(2);
+  });
+
+  it('EVM-040 AC3 (RR-55) 412 PreconditionFailed (the key exists) fails closed: the keys are new per record, so it is never a success; one PUT, no retry', async () => {
+    storage.mode = 'exists';
+    await expect(adapter().record(record)).rejects.toMatchObject({ name: 'DeletionRegisterUnavailable', reason: 'write_failed' });
+    expect(storage.seen).toHaveLength(1);
+    expect(logs.text).not.toContain(CANARY);
   });
 
   it('EVM-040 AC3 no answer within the deadline is DeletionRegisterUnavailable', async () => {
