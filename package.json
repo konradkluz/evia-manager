@@ -13,7 +13,7 @@
     "prepare": "node tools/git-hooks/cli.mjs install",
     "gate": "node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run gate:deploy && pnpm run coverage:diff",
     "gate:native": "pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check",
-    "gate:backend": "turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api",
+    "gate:backend": "turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api --filter=./services/media-processor",
     "gate:integration": "docker compose -f compose.yaml run --rm backend-tests pnpm --filter @evia/api run test:integration",
     "gate:deploy": "docker compose -f compose.yaml run --rm deploy-sh-tests && docker compose -f compose.yaml run --rm restore-db-test && docker compose -f compose.yaml run --rm promtool-tests && docker compose -f compose.yaml run --rm caddy-log-test && docker compose -f compose.yaml run --rm alloy-tests",
     "format": "prettier --write .",

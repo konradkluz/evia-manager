@@ -48,6 +48,22 @@ module.exports = {
       to: { path: '^services/deploy-agent/' },
     },
     {
+      name: 'media-processor-self-contained',
+      comment:
+        'EVM-068 (architect 7): the media processor parses hostile files in its own container — it never imports applications, shared packages, tools or other services (only node:* and sharp); the protocol is defined on both sides separately.',
+      severity: 'error',
+      from: { path: '^services/media-processor/(src|test)/' },
+      to: { path: '^(apps|packages|tools|services/(?!media-processor/))' },
+    },
+    {
+      name: 'nothing-imports-media-processor',
+      comment:
+        'EVM-068 (architect 7): no other code imports the processor — the worker talks to it only through the Unix socket (the adapter keeps its own copy of the protocol).',
+      severity: 'error',
+      from: { pathNot: '^services/media-processor/' },
+      to: { path: '^services/media-processor/' },
+    },
+    {
       name: 'tools-not-to-apps-or-services',
       comment: 'Repository tools never import application or service code (W13).',
       severity: 'error',
