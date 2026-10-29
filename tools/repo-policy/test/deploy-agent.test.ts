@@ -101,6 +101,17 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
       expect(record(record(channel[service])['environment'])['MEDIA_S3_SECRET_ACCESS_KEY_FILE'], service).toBe(`/run/secrets/${file}`);
   });
 
+  it('EVM-044 (RR-44): clamd runs with explicit limits of 64M and AlertExceedsMax, the same as the test with the real ClamAV', () => {
+    const infra = read('infra/runtime/compose.infra.yaml');
+    for (const line of [
+      'CLAMD_CONF_StreamMaxLength: 64M',
+      'CLAMD_CONF_MaxFileSize: 64M',
+      'CLAMD_CONF_MaxScanSize: 64M',
+      "CLAMD_CONF_AlertExceedsMax: 'yes'",
+    ])
+      expect(infra, line).toContain(line);
+  });
+
   it('EVM-007 AC7 (SR-INFRA-05): after a reboot the secrets are restored before Docker, fail-closed, by the same script as deploy.sh', () => {
     const unit = read('infra/deploy-agent/systemd/evia-secrets.service');
     expect(unit).toContain('Before=docker.service');

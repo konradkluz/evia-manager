@@ -4,6 +4,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/), wersjonowanie:
 
 ## [Unreleased]
 ### Naprawiono
+- Kwarantanna i skan na stagingu [RR-44, RR-51, RR-52; EVM-044, EVM-049, EVM-084]: `clamd` z jawnymi limitami 64M i `AlertExceedsMax` (jak w teście z prawdziwym ClamAV), usunięta martwa reguła lifecycle `quarantine/` (klucze są pod `media/…`; bajty znikają po ok. 60 dniach: znacznik usunięcia + `noncurrent-versions`), a walidator IaC zabrania jej powrotu; komentarz kopii mediów opisuje uczciwie, że wykluczenie `quarantine/` to tylko zabezpieczenie na przyszły prefiks
 - Media na stagingu [RR-42, RR-48; EVM-044, EVM-084]: worker ma własny, węższy klucz mediów (`media-worker-s3-secret-access-key` — odczyt i usunięcie, bez zapisu; w manifeście sekretów, macierzy `bucket-verify` i modelu IaC), `api` dostaje `MEDIA_S3_SECRET_ACCESS_KEY_FILE` w `compose.staging.yaml`, a wewnętrzny Caddy obrazu `evia-web` dopuszcza w `connect-src` dokładnie jeden origin bucketu z `MEDIA_BUCKET_ORIGIN` (testy `caddy-headers` i `deploy-agent`)
 - Rejestr usunięć: adapter S3 wysyła `If-None-Match: *` zgodnie z polityką bucketu (bez tego każdy zapis kończył się `AccessDenied`), odpowiedź 412 to porażka fail-closed; klucz rejestru w manifeście sekretów i w `compose.staging.yaml` należy do `api` (zapisuje API), nie do `worker` [EVM-084, EVM-040; RR-55 (a)(b)]. Weryfikacja na stagingu w sesji IaC (`bucket-verify`).
 
