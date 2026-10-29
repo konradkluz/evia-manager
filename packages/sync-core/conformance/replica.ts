@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest';
-import type { ApplyPageInput, EntityKey, ReplicaEntity, ReplicaStore } from '../src/index.ts';
+import { planSweep, type ApplyPageInput, type EntityKey, type ReplicaEntity, type ReplicaStore } from '../src/index.ts';
+
+/** The subset of matchers the suite uses; Vitest, Jest (jest-expo) and compatible runners satisfy it. */
+export interface ConformanceMatchers {
+  toBe(expected: unknown): void;
+  toEqual(expected: unknown): void;
+  toBeGreaterThan(expected: number): void;
+  toBeNull(): void;
+  readonly not: { toBeNull(): void };
+}
+
+/** Test API injected by the caller, so this file does not depend on any runner (Vitest here, Jest in apps/mobile). */
+export interface ConformanceTestApi {
+  readonly describe: (name: string, body: () => void) => void;
+  readonly it: (name: string, body: () => void | Promise<void>) => void;
+  readonly expect: (actual: unknown) => ConformanceMatchers;
+}
 
 /**
  * Executable contract of `ReplicaStore` (EVM-092). It runs on the reference fake in this package and MUST run on every production
@@ -8,6 +23,7 @@ import type { ApplyPageInput, EntityKey, ReplicaEntity, ReplicaStore } from '../
  */
 export interface ReplicaConformanceOptions {
   readonly create: () => ReplicaStore | Promise<ReplicaStore>;
+  readonly test: ConformanceTestApi;
 }
 
 const WO = '10000000-0000-4000-8000-000000000001';
@@ -43,7 +59,22 @@ const page = (generation: number, patch: Partial<ApplyPageInput> = {}): ApplyPag
   ...patch,
 });
 
+const CUSTOMER = '20000000-0000-4000-8000-000000000001';
+const CUSTOMER2 = '20000000-0000-4000-8000-000000000002';
+const OLD_CLOSED = '2026-01-01T00:00:00Z';
+const CLOSED_BEFORE = Date.UTC(2026, 5, 1);
+
+const closedOrder = (id: string, status: string, closedAt: string | null, customerId: string | null = null): ReplicaEntity => ({
+  type: 'work_order',
+  id,
+  version: 1,
+  fields: { status, closedAt, customerId, siteId: null },
+});
+const customer = (id: string): ReplicaEntity => ({ type: 'customer', id, version: 1, fields: {} });
+const upserts = (entities: readonly ReplicaEntity[]): ApplyPageInput['ops'] => entities.map((entity) => ({ op: 'upsert', entity }));
+
 export function replicaStoreConformance(options: ReplicaConformanceOptions): void {
+  const { describe, it, expect } = options.test;
   const fresh = async (): Promise<{ store: ReplicaStore; active: number }> => {
     const store = await options.create();
     return { store, active: (await store.loadState()).active.generation };
@@ -202,6 +233,86 @@ export function replicaStoreConformance(options: ReplicaConformanceOptions): voi
       expect([...(found.get(site) ?? [])]).toEqual([WO]);
       const shadow = await store.beginShadow('periodic');
       expect((await store.findWorkOrdersBySite(shadow, [site])).size).toBe(0);
+    });
+
+    it('EVM-092 AC5: sweep removes an order closed before the limit with its children and the orphans it leaves, as planSweep does', async () => {
+      const { store, active } = await fresh();
+      const entities = [
+        closedOrder(WO, 'settled', OLD_CLOSED, CUSTOMER),
+        scopeItem(SCOPE, WO),
+        customer(CUSTOMER),
+        closedOrder(WO2, 'in_progress', OLD_CLOSED),
+      ];
+      await store.applyPage(page(active, { ops: upserts(entities) }));
+      const rule = { generation: active, closedBefore: CLOSED_BEFORE, keepWorkOrderIds: [], keepReferencedIds: [] };
+      const expected = planSweep(entities, rule);
+      const result = await store.sweep(rule);
+      expect(result).toEqual({ removedWorkOrders: 1, removedOrphans: 1 });
+      expect(result).toEqual({ removedWorkOrders: expected.removedWorkOrders, removedOrphans: expected.removedOrphans });
+      const left = await store.readVersions(active, entities.map(key));
+      expect([...left.keys()]).toEqual([key(workOrder(WO2, 1))]);
+    });
+
+    it('EVM-092 AC5: sweep keeps a closed order listed in keepWorkOrderIds together with what it references', async () => {
+      const { store, active } = await fresh();
+      const entities = [closedOrder(WO, 'cancelled', OLD_CLOSED, CUSTOMER), customer(CUSTOMER)];
+      await store.applyPage(page(active, { ops: upserts(entities) }));
+      const result = await store.sweep({ generation: active, closedBefore: CLOSED_BEFORE, keepWorkOrderIds: [WO], keepReferencedIds: [] });
+      expect(result).toEqual({ removedWorkOrders: 0, removedOrphans: 0 });
+      expect((await store.readVersions(active, entities.map(key))).size).toBe(2);
+    });
+
+    it('EVM-092 AC5: sweep keeps an object from keepReferencedIds and removes an orphan without references', async () => {
+      const { store, active } = await fresh();
+      const entities = [customer(CUSTOMER), customer(CUSTOMER2), workOrder(WO, 1)];
+      await store.applyPage(page(active, { ops: upserts(entities) }));
+      const result = await store.sweep({
+        generation: active,
+        closedBefore: CLOSED_BEFORE,
+        keepWorkOrderIds: [],
+        keepReferencedIds: [CUSTOMER],
+      });
+      expect(result).toEqual({ removedWorkOrders: 0, removedOrphans: 1 });
+      const left = await store.readVersions(active, entities.map(key));
+      expect([...left.keys()].sort()).toEqual([key(customer(CUSTOMER)), key(workOrder(WO, 1))].sort());
+    });
+
+    it('EVM-092 AC5: sweep touches only the given generation', async () => {
+      const { store, active } = await fresh();
+      const shadow = await store.beginShadow('periodic');
+      const old = closedOrder(WO, 'settled', OLD_CLOSED);
+      await store.applyPage(page(active, { ops: upserts([old]) }));
+      await store.applyPage(page(shadow, { ops: upserts([old]) }));
+      const result = await store.sweep({ generation: active, closedBefore: CLOSED_BEFORE, keepWorkOrderIds: [], keepReferencedIds: [] });
+      expect(result.removedWorkOrders).toBe(1);
+      expect((await store.readVersions(active, [key(old)])).size).toBe(0);
+      expect((await store.readVersions(shadow, [key(old)])).size).toBe(1);
+    });
+
+    it('EVM-092 AC4: discardShadow drops the shadow so a write to it is stale; the active generation stays intact', async () => {
+      const { store, active } = await fresh();
+      await store.applyPage(page(active, { ops: upserts([workOrder(WO, 1)]) }));
+      const shadow = await store.beginShadow('periodic');
+      await store.applyPage(page(shadow, { ops: upserts([workOrder(WO2, 1)]) }));
+      await store.discardShadow();
+      expect((await store.loadState()).shadow).toBeNull();
+      expect(await store.applyPage(page(shadow))).toBe('stale');
+      expect(await store.promoteShadow(shadow)).toBe('stale');
+      expect((await store.readVersions(active, [key(workOrder(WO, 1))])).size).toBe(1);
+    });
+
+    it('EVM-092 AC4: wipeReplica removes both generations, so a write to either of them is stale', async () => {
+      const { store, active } = await fresh();
+      await store.applyPage(page(active, { ops: upserts([workOrder(WO, 1)]) }));
+      const shadow = await store.beginShadow('periodic');
+      await store.applyPage(page(shadow, { ops: upserts([workOrder(WO2, 1)]) }));
+      await store.wipeReplica();
+      const state = await store.loadState();
+      expect(state.shadow).toBeNull();
+      expect(state.active.generation).toBeGreaterThan(shadow);
+      expect(await store.applyPage(page(active))).toBe('stale');
+      expect(await store.applyPage(page(shadow))).toBe('stale');
+      expect((await store.readVersions(state.active.generation, [key(workOrder(WO, 1)), key(workOrder(WO2, 1))])).size).toBe(0);
     });
 
     it('EVM-092 AC7: saveContact and saveConfig store the records as given', async () => {
