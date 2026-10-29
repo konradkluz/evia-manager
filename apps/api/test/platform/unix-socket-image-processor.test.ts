@@ -15,6 +15,9 @@ const THUMB = { variant: 'thumbnail', width: 160, height: 320 } as const;
 const PREVIEW = { variant: 'preview', width: 800, height: 1600 } as const;
 const OK = JSON.stringify({ ok: true, outputs: [THUMB, PREVIEW] });
 
+// Node on Windows cannot listen on a socket file (EACCES): these tests run in the Linux container (ADR-0015), where the worker and the processor run.
+const unixSockets = process.platform !== 'win32';
+
 const servers: Server[] = [];
 afterEach(async () => {
   await Promise.all(
@@ -91,80 +94,92 @@ const failsWith = async (promise: Promise<unknown>, code: string): Promise<void>
   await expect(promise).rejects.toMatchObject({ name: 'ImageProcessingError', code });
 };
 
-describe('EVM-068 AC5 the worker talks to the processor through a Unix socket and a work area of its own, with paths it chose', () => {
-  it('EVM-068 AC5 stages the original as `input` of the directory of the job, sends ONE line with the job id and the type only, and cleans the directory', async () => {
-    let staged: { content: string; mode: number } | undefined;
-    const target = await stub(async (dir) => {
-      staged = {
-        content: (await import('node:fs')).readFileSync(join(dir, 'input'), 'utf8'),
-        mode: (await stat(join(dir, 'input'))).mode & 0o777,
-      };
-      await writeBoth(dir);
-      return OK;
+describe.skipIf(!unixSockets)(
+  'EVM-068 AC5 the worker talks to the processor through a Unix socket and a work area of its own, with paths it chose',
+  () => {
+    it('EVM-068 AC5 stages the original as `input` of the directory of the job, sends ONE line with the job id and the type only, and cleans the directory', async () => {
+      let staged: { content: string; mode: number } | undefined;
+      const target = await stub(async (dir) => {
+        staged = {
+          content: (await import('node:fs')).readFileSync(join(dir, 'input'), 'utf8'),
+          mode: (await stat(join(dir, 'input'))).mode & 0o777,
+        };
+        await writeBoth(dir);
+        return OK;
+      });
+      const images = await derive(target);
+      expect(target.requests).toEqual([JSON.stringify({ jobId: JOB, contentType: 'image/jpeg' })]);
+      expect(staged).toEqual({ content: 'the original', mode: 0o640 });
+      expect(images.map((image) => [image.variant, image.width, image.height])).toEqual([
+        ['thumbnail', 160, 320],
+        ['preview', 800, 1600],
+      ]);
+      expect(images[0]?.body.equals(syntheticWebp(160, 320))).toBe(true);
+      expect(await readdir(target.workDir)).toEqual(['p.sock']);
     });
-    const images = await derive(target);
-    expect(target.requests).toEqual([JSON.stringify({ jobId: JOB, contentType: 'image/jpeg' })]);
-    expect(staged).toEqual({ content: 'the original', mode: 0o640 });
-    expect(images.map((image) => [image.variant, image.width, image.height])).toEqual([
-      ['thumbnail', 160, 320],
-      ['preview', 800, 1600],
-    ]);
-    expect(images[0]?.body.equals(syntheticWebp(160, 320))).toBe(true);
-    expect(await readdir(target.workDir)).toEqual(['p.sock']);
-  });
 
-  it('EVM-068 AC1 the checksum check runs between the staging and the request; a verdict of the caller goes back unchanged and the processor is never asked', async () => {
-    const target = await stub(() => OK);
-    const verdict = new Error('the object is not the scanned one');
-    await expect(
-      derive(target, {
-        beforeProcessing: () => {
-          throw verdict;
+    it('EVM-068 AC1 the checksum check runs between the staging and the request; a verdict of the caller goes back unchanged and the processor is never asked', async () => {
+      const target = await stub(() => OK);
+      const verdict = new Error('the object is not the scanned one');
+      await expect(
+        derive(target, {
+          beforeProcessing: () => {
+            throw verdict;
+          },
+        }),
+      ).rejects.toBe(verdict);
+      expect(target.requests).toEqual([]);
+      expect(await readdir(target.workDir)).toEqual(['p.sock']);
+    });
+
+    it('EVM-068 AC3 an original longer than its recorded size is refused while it is staged', async () => {
+      const target = await stub(() => OK);
+      await failsWith(derive(target, { body: Buffer.alloc(100), maxBytes: 99 }), 'unsupported');
+      expect(target.requests).toEqual([]);
+    });
+
+    it('EVM-068 AC5 a work area that does not exist, and a directory of the job that already exists, are the fault of the system (internal), not a message with a path', async () => {
+      const target = await stub(() => OK);
+      await mkdir(join(target.workDir, JOB));
+      await failsWith(derive(target), 'internal');
+      const missing = new UnixSocketImageProcessor({
+        socketPath: join(target.workDir, 'p.sock'),
+        workDir: join(target.workDir, 'nowhere'),
+      });
+      await failsWith(
+        missing.derive({
+          jobId: JOB,
+          contentType: 'image/jpeg',
+          original: Readable.from([Buffer.from('x')]),
+          maxBytes: 1,
+          beforeProcessing: () => undefined,
+        }),
+        'internal',
+      );
+    });
+
+    it('EVM-068 AC3 a stream of the original that fails is internal', async () => {
+      const target = await stub(() => OK);
+      const broken = new Readable({
+        read() {
+          this.destroy(new Error('socket hang up at /srv/secret'));
         },
-      }),
-    ).rejects.toBe(verdict);
-    expect(target.requests).toEqual([]);
-    expect(await readdir(target.workDir)).toEqual(['p.sock']);
-  });
-
-  it('EVM-068 AC3 an original longer than its recorded size is refused while it is staged', async () => {
-    const target = await stub(() => OK);
-    await failsWith(derive(target, { body: Buffer.alloc(100), maxBytes: 99 }), 'unsupported');
-    expect(target.requests).toEqual([]);
-  });
-
-  it('EVM-068 AC5 a work area that does not exist, and a directory of the job that already exists, are the fault of the system (internal), not a message with a path', async () => {
-    const target = await stub(() => OK);
-    await mkdir(join(target.workDir, JOB));
-    await failsWith(derive(target), 'internal');
-    const missing = new UnixSocketImageProcessor({ socketPath: join(target.workDir, 'p.sock'), workDir: join(target.workDir, 'nowhere') });
-    await failsWith(
-      missing.derive({
-        jobId: JOB,
-        contentType: 'image/jpeg',
-        original: Readable.from([Buffer.from('x')]),
-        maxBytes: 1,
-        beforeProcessing: () => undefined,
-      }),
-      'internal',
-    );
-  });
-
-  it('EVM-068 AC3 a stream of the original that fails is internal', async () => {
-    const target = await stub(() => OK);
-    const broken = new Readable({
-      read() {
-        this.destroy(new Error('socket hang up at /srv/secret'));
-      },
+      });
+      await failsWith(
+        target.processor.derive({
+          jobId: JOB,
+          contentType: 'image/jpeg',
+          original: broken,
+          maxBytes: 10,
+          beforeProcessing: () => undefined,
+        }),
+        'internal',
+      );
     });
-    await failsWith(
-      target.processor.derive({ jobId: JOB, contentType: 'image/jpeg', original: broken, maxBytes: 10, beforeProcessing: () => undefined }),
-      'internal',
-    );
-  });
-});
+  },
+);
 
-describe('EVM-068 AC3 the answer of the processor is not trusted (TM-35)', () => {
+describe.skipIf(!unixSockets)('EVM-068 AC3 the answer of the processor is not trusted (TM-35)', () => {
   it('EVM-068 AC3 the fixed codes of the processor pass through; an unknown code, extra fields and text are internal', async () => {
     for (const code of ['pixel_limit', 'unsupported', 'timeout', 'internal']) {
       const target = await stub(() => JSON.stringify({ ok: false, code }));
@@ -232,66 +247,69 @@ describe('EVM-068 AC3 the answer of the processor is not trusted (TM-35)', () =>
   });
 });
 
-describe('EVM-068 AC3 the files of the processor are not trusted either: a link, a large or a foreign file is never read as a thumbnail (CWE-59, TM-35)', () => {
-  const withOutputs = (prepare: (dir: string, workDir: string) => Promise<void>) => async (dir: string) => {
-    await mkdir(dir, { recursive: true });
-    await writeBoth(dir);
-    await prepare(dir, join(dir, '..'));
-    return OK;
-  };
+describe.skipIf(!unixSockets)(
+  'EVM-068 AC3 the files of the processor are not trusted either: a link, a large or a foreign file is never read as a thumbnail (CWE-59, TM-35)',
+  () => {
+    const withOutputs = (prepare: (dir: string, workDir: string) => Promise<void>) => async (dir: string) => {
+      await mkdir(dir, { recursive: true });
+      await writeBoth(dir);
+      await prepare(dir, join(dir, '..'));
+      return OK;
+    };
 
-  it('EVM-068 AC3 a symbolic link in the place of an output (to a file the worker can read) is invalid_output - the secret is never uploaded', async () => {
-    const target = await stub(
-      withOutputs(async (dir, workDir) => {
-        await writeFile(join(workDir, 'a-secret-of-the-worker'), syntheticWebp(160, 320));
-        const { rm } = await import('node:fs/promises');
-        await rm(join(dir, 'thumbnail.webp'));
-        await symlink(join(workDir, 'a-secret-of-the-worker'), join(dir, 'thumbnail.webp'));
-      }),
-    );
-    await failsWith(derive(target), 'invalid_output');
-  });
-
-  it('EVM-068 AC3 a hard link (two names for one file) is invalid_output', async () => {
-    const target = await stub(
-      withOutputs(async (dir, workDir) => {
-        await link(join(dir, 'preview.webp'), join(workDir, 'second-name'));
-      }),
-    );
-    await failsWith(derive(target), 'invalid_output');
-  });
-
-  it('EVM-068 AC3 a file above 2 MB, an empty file, a missing file and a directory are invalid_output', async () => {
-    const cases: Array<(dir: string) => Promise<void>> = [
-      async (dir) => write(dir, 'thumbnail.webp', Buffer.alloc(MAX_DERIVATIVE_BYTES + 1)),
-      async (dir) => write(dir, 'thumbnail.webp', Buffer.alloc(0)),
-      async (dir) => (await import('node:fs/promises')).rm(join(dir, 'preview.webp')),
-      async (dir) => {
-        const { rm } = await import('node:fs/promises');
-        await rm(join(dir, 'preview.webp'));
-        await mkdir(join(dir, 'preview.webp'));
-      },
-    ];
-    for (const change of cases) {
-      const target = await stub(withOutputs(async (dir) => change(dir)));
+    it('EVM-068 AC3 a symbolic link in the place of an output (to a file the worker can read) is invalid_output - the secret is never uploaded', async () => {
+      const target = await stub(
+        withOutputs(async (dir, workDir) => {
+          await writeFile(join(workDir, 'a-secret-of-the-worker'), syntheticWebp(160, 320));
+          const { rm } = await import('node:fs/promises');
+          await rm(join(dir, 'thumbnail.webp'));
+          await symlink(join(workDir, 'a-secret-of-the-worker'), join(dir, 'thumbnail.webp'));
+        }),
+      );
       await failsWith(derive(target), 'invalid_output');
-    }
-  });
+    });
 
-  it('EVM-068 AC3 a file that is not a WebP (a JPEG, text, a truncated container, a lie about the length) or has other dimensions than claimed is invalid_output', async () => {
-    const truncated = syntheticWebp(160, 320).subarray(0, 25);
-    const wrongLength = Buffer.from(syntheticWebp(160, 320));
-    wrongLength.writeUInt32LE(999, 4);
-    const text = Buffer.from('<html><script>alert(1)</script></html> padded to be long enough to pass the length check');
-    const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
-    for (const content of [truncated, wrongLength, text, jpeg, syntheticWebp(100, 100), syntheticWebp(1600, 1600)]) {
-      const target = await stub(withOutputs(async (dir) => write(dir, 'thumbnail.webp', content)));
+    it('EVM-068 AC3 a hard link (two names for one file) is invalid_output', async () => {
+      const target = await stub(
+        withOutputs(async (dir, workDir) => {
+          await link(join(dir, 'preview.webp'), join(workDir, 'second-name'));
+        }),
+      );
       await failsWith(derive(target), 'invalid_output');
-    }
-  });
-});
+    });
 
-describe('EVM-068 AC1 the work area is cleaned when the worker starts (P3)', () => {
+    it('EVM-068 AC3 a file above 2 MB, an empty file, a missing file and a directory are invalid_output', async () => {
+      const cases: Array<(dir: string) => Promise<void>> = [
+        async (dir) => write(dir, 'thumbnail.webp', Buffer.alloc(MAX_DERIVATIVE_BYTES + 1)),
+        async (dir) => write(dir, 'thumbnail.webp', Buffer.alloc(0)),
+        async (dir) => (await import('node:fs/promises')).rm(join(dir, 'preview.webp')),
+        async (dir) => {
+          const { rm } = await import('node:fs/promises');
+          await rm(join(dir, 'preview.webp'));
+          await mkdir(join(dir, 'preview.webp'));
+        },
+      ];
+      for (const change of cases) {
+        const target = await stub(withOutputs(async (dir) => change(dir)));
+        await failsWith(derive(target), 'invalid_output');
+      }
+    });
+
+    it('EVM-068 AC3 a file that is not a WebP (a JPEG, text, a truncated container, a lie about the length) or has other dimensions than claimed is invalid_output', async () => {
+      const truncated = syntheticWebp(160, 320).subarray(0, 25);
+      const wrongLength = Buffer.from(syntheticWebp(160, 320));
+      wrongLength.writeUInt32LE(999, 4);
+      const text = Buffer.from('<html><script>alert(1)</script></html> padded to be long enough to pass the length check');
+      const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]);
+      for (const content of [truncated, wrongLength, text, jpeg, syntheticWebp(100, 100), syntheticWebp(1600, 1600)]) {
+        const target = await stub(withOutputs(async (dir) => write(dir, 'thumbnail.webp', content)));
+        await failsWith(derive(target), 'invalid_output');
+      }
+    });
+  },
+);
+
+describe.skipIf(!unixSockets)('EVM-068 AC1 the work area is cleaned when the worker starts (P3)', () => {
   it('EVM-068 AC1 removes the directories of earlier jobs and leaves the socket and everything that is not a job', async () => {
     const target = await stub(() => OK);
     await mkdir(join(target.workDir, JOB));
