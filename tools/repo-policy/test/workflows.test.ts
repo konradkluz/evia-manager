@@ -237,8 +237,8 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
       isNotRelevantToE2e: (path: string) => boolean;
       isNotRelevantToIntegration: (path: string) => boolean;
     };
-    expect(classify.E2E_NOT_RELEVANT_PREFIXES).toEqual(['apps/api/', 'apps/mobile/']);
-    expect(classify.INTEGRATION_NOT_RELEVANT_PREFIXES).toEqual(['apps/web/', 'apps/mobile/']);
+    expect(classify.E2E_NOT_RELEVANT_PREFIXES).toEqual(['apps/api/', 'apps/mobile/', 'packages/sync-core/']); // EVM-091: the sync core is pure TypeScript for the app
+    expect(classify.INTEGRATION_NOT_RELEVANT_PREFIXES).toEqual(['apps/web/', 'apps/mobile/', 'packages/sync-core/']);
     const always = [
       'packages/contracts/a.ts',
       'pnpm-lock.yaml',
@@ -257,7 +257,10 @@ describe('EVM-086 AC1, AC3, AC4: filters of the heavy jobs', () => {
       expect(classify.isNotRelevantToIntegration(path), path).toBe(false);
     }
     for (const prefix of [...classify.E2E_NOT_RELEVANT_PREFIXES, ...classify.INTEGRATION_NOT_RELEVANT_PREFIXES])
-      expect(prefix.startsWith('apps/') && prefix.endsWith('/') && !prefix.includes('*'), prefix).toBe(true);
+      expect(
+        (prefix.startsWith('apps/') || prefix === 'packages/sync-core/') && prefix.endsWith('/') && !prefix.includes('*'),
+        prefix,
+      ).toBe(true);
   });
 
   it('EVM-086 AC4: the filter exists only in the changes job (never a trigger filter), pull_request is the only event that can skip, ci-gate is the only job with always()', () => {

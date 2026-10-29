@@ -137,6 +137,14 @@ describe('EVM-086 AC1: explicit lists of paths not relevant to a job', () => {
     assert.deepEqual([docs.heavy, docs.e2e, docs.integration], [false, false, false]);
   });
 
+  it('EVM-091: packages/sync-core is not relevant to e2e-web and backend-integration, but still runs the quality gate (heavy)', () => {
+    const syncCore = pr('packages/sync-core/src/engine.ts');
+    assert.deepEqual([syncCore.heavy, syncCore.e2e, syncCore.integration], [true, false, false]);
+    const withLock = pr('packages/sync-core/src/engine.ts', 'pnpm-lock.yaml');
+    assert.deepEqual([withLock.heavy, withLock.e2e, withLock.integration], [true, true, true]);
+    assert.equal(isNotRelevantToE2e('packages/sync-core-evil/a.ts'), false);
+  });
+
   it('EVM-086 AC1: paths that are never "not relevant" run both jobs', () => {
     for (const path of [
       'packages/contracts/src/a.ts',

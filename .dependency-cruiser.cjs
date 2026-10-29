@@ -31,6 +31,14 @@ module.exports = {
       to: { path: '^(apps|services)/' },
     },
     {
+      name: 'sync-core-portable',
+      comment:
+        'EVM-091 (architect 1, security 11): the sync core source has no runtime dependencies and imports only its own modules — no Node built-ins, npm packages (React Native, Expo, Zod), @evia/contracts, applications, services or tools. Tests may use @evia/contracts (the compatibility test).',
+      severity: 'error',
+      from: { path: '^packages/sync-core/src/' },
+      to: { pathNot: '^packages/sync-core/src/' },
+    },
+    {
       name: 'deploy-agent-self-contained',
       comment:
         'EVM-007 (architect 1): the deployment verifier runs on the VM from its own image — it never imports applications, shared packages or tools (only node:* and yaml).',
