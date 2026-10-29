@@ -18,7 +18,7 @@ Wszystko, co technik zapisze, trafia do kolejki **przed** potwierdzeniem; mutacj
 Testowy `InMemoryQueueStore` jest tylko w `test/` i nie jest eksportowany.
 
 ## Użycie
-`createSyncCore(deps)` zwraca `{ queue, engine }`. `queue.enqueue(...)` nadaje UUIDv7 mutacji i obiektu, bierze właściciela z `SessionOwner` (nie od wywołującego) i odrzuca mutację > 64 KB. `engine.flush()` jest single-flight (równoległe wyzwalacze łączą się w jedno wywołanie); `flush({ networkRestored: true })` ponawia od razu tylko to, co czeka na błąd sieci. `engine.status()` daje liczniki, wiek najstarszego wpisu, `nextAttemptAt` i powód pauzy dla wskaźnika; harmonogram wybudzenia należy do hosta (silnik nie ma timerów).
+`createSyncCore(deps)` zwraca `{ queue, engine }`. `queue.enqueue(...)` nadaje UUIDv7 mutacji, wyprowadza `objectId` i `orderingKey` z ładunku (`payload.id` albo `workOrderId`; jawne wartości muszą być równe, inaczej `invalid_input`), bierze właściciela z `SessionOwner` (nie od wywołującego) i odrzuca mutację > 64 KB. `engine.flush()` jest single-flight (równoległe wyzwalacze łączą się w jedno wywołanie); `flush({ networkRestored: true })` ponawia od razu tylko to, co czeka na błąd sieci. `engine.status()` daje liczniki, wiek najstarszego wpisu, `nextAttemptAt` i powód pauzy dla wskaźnika; harmonogram wybudzenia należy do hosta (silnik nie ma timerów).
 
 ## Zachowanie
 - **Kolejność:** FIFO po `orderingKey` (zlecenie); mutacja zależna (`parentMutationId`) czeka na wynik rodzica. Odrzucenie niezależnej mutacji nie blokuje innych; wstrzymane (`blocked`) są tylko jawnie zależne.

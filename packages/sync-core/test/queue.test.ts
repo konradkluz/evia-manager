@@ -15,7 +15,8 @@ describe('queue: saving (EVM-091 AC1)', () => {
     const { core, store } = makeCore();
     const record = await core.queue.enqueue(noteInput());
     expect(record.mutationId).toMatch(CLIENT_ID_PATTERN);
-    expect(record.objectId).toMatch(CLIENT_ID_PATTERN);
+    expect(record.objectId).toBe(record.payload['id']);
+    expect(record.orderingKey).toBe(record.payload['workOrderId']);
     expect(record).toMatchObject({
       type: 'CreateNote',
       commandVersion: 1,
@@ -119,12 +120,75 @@ describe('queue: saving (EVM-091 AC1)', () => {
   });
 });
 
+describe('queue: object id and FIFO key come from the payload (EVM-091 AC1)', () => {
+  it('EVM-091 AC1: objectId is payload.id and orderingKey is payload.workOrderId, also without explicit fields', async () => {
+    const { core } = makeCore();
+    const note = noteInput(WORK_ORDER);
+    const record = await core.queue.enqueue({ type: note.type, commandVersion: 1, payload: note.payload });
+    expect(record.objectId).toBe(note.payload['id']);
+    expect(record.orderingKey).toBe(WORK_ORDER);
+    const comment = await core.queue.enqueue({ type: 'CreateComment', commandVersion: 1, payload: note.payload });
+    expect(comment.objectId).toBe(note.payload['id']);
+    expect(comment.orderingKey).toBe(WORK_ORDER);
+    const quick = await core.queue.enqueue({ type: 'CreateQuickWorkOrder', commandVersion: 1, payload: quickOrder().payload });
+    expect(quick.objectId).toBe(WORK_ORDER);
+    expect(quick.orderingKey).toBe(WORK_ORDER);
+  });
+
+  it('EVM-091 AC1: a note without an explicit key joins the FIFO of its work order', async () => {
+    const { core } = makeCore();
+    const quick = await core.queue.enqueue(quickOrder());
+    const note = await core.queue.enqueue({ ...noteInput(), orderingKey: undefined });
+    expect(note.orderingKey).toBe(quick.orderingKey);
+  });
+
+  it('EVM-091 AC1: explicit objectId or orderingKey that differ from the payload, and missing or non-UUID payload fields, are refused', async () => {
+    const { core, store } = makeCore();
+    const other = '0194c2a0-0000-7000-8000-0000000000cc';
+    const note = noteInput();
+    const noId = { ...note.payload, id: undefined };
+    const noWorkOrder = { ...note.payload, workOrderId: undefined };
+    const bad = [
+      { ...note, objectId: other },
+      { ...note, orderingKey: other },
+      { ...quickOrder(), objectId: other },
+      { ...note, payload: noId },
+      { ...note, payload: noWorkOrder, orderingKey: undefined },
+      { ...note, payload: { ...note.payload, id: 'not-a-uuid' } },
+      { ...note, payload: { ...note.payload, workOrderId: 5 } },
+      { ...quickOrder(), payload: { title: 'x' } },
+    ];
+    for (const input of bad) await expect(core.queue.enqueue(input as never)).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(store.records()).toHaveLength(0);
+  });
+
+  it('EVM-091 AC1: an entry whose keys differ from its payload is reported as corrupt_record (SR-MOB-10)', () => {
+    const base = {
+      mutationId: '0194c2a0-0000-7000-8000-000000000010',
+      type: 'CreateNote',
+      commandVersion: 1,
+      payload: { id: WORK_ORDER, workOrderId: WORK_ORDER },
+      objectId: WORK_ORDER,
+      orderingKey: WORK_ORDER,
+      createdAt: 1,
+      ownerUserId: USER_A,
+      state: 'pending',
+      attempts: 0,
+    };
+    const other = '0194c2a0-0000-7000-8000-0000000000cc';
+    expect(parseEntry(base)).toMatchObject({ ok: true });
+    expect(parseEntry({ ...base, objectId: other })).toMatchObject({ ok: false, code: 'corrupt_record' });
+    expect(parseEntry({ ...base, orderingKey: other })).toMatchObject({ ok: false, code: 'corrupt_record' });
+    expect(parseEntry({ ...base, payload: { workOrderId: WORK_ORDER } })).toMatchObject({ ok: false, code: 'corrupt_record' });
+  });
+});
+
 describe('queue: validation after reading (EVM-091 AC1; SR-MOB-10)', () => {
   const good = (): QueueRecord => ({
     mutationId: '0194c2a0-0000-7000-8000-000000000010',
     type: 'CreateNote',
     commandVersion: 1,
-    payload: { a: 1 },
+    payload: { id: WORK_ORDER, workOrderId: WORK_ORDER, a: 1 },
     objectId: WORK_ORDER,
     orderingKey: WORK_ORDER,
     createdAt: 1,

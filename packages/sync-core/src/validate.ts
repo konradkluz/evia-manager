@@ -25,6 +25,29 @@ export function isMutationType(value: unknown): value is MutationType {
   return typeof value === 'string' && (MUTATION_TYPES as readonly string[]).includes(value);
 }
 
+/**
+ * Which payload fields identify the object and the FIFO aggregate, per type (offline-sync.md, "Komendy mobilne MVP"; paths/sync.yaml).
+ * Own map, no import of the contract; a contract test checks that these fields exist in the payload schemas.
+ */
+export const KEY_FIELDS: Readonly<Record<MutationType, { readonly objectId: string; readonly orderingKey: string }>> = {
+  CreateNote: { objectId: 'id', orderingKey: 'workOrderId' },
+  CreateComment: { objectId: 'id', orderingKey: 'workOrderId' },
+  CreateQuickWorkOrder: { objectId: 'workOrderId', orderingKey: 'workOrderId' },
+};
+
+/** The object id and FIFO key the payload carries, or `null` when a field is missing or is not a UUID. */
+export function deriveKeys(
+  type: MutationType,
+  payload: Readonly<Record<string, unknown>>,
+): { objectId: string; orderingKey: string } | null {
+  const fields = KEY_FIELDS[type];
+  const objectId = payload[fields.objectId];
+  const orderingKey = payload[fields.orderingKey];
+  if (typeof objectId !== 'string' || !UUID_PATTERN.test(objectId)) return null;
+  if (typeof orderingKey !== 'string' || !UUID_PATTERN.test(orderingKey)) return null;
+  return { objectId, orderingKey };
+}
+
 /** Byte size of the envelope as it goes on the wire. */
 export function wireBytes(wire: WireMutation): number {
   return utf8Length(JSON.stringify(wire));
@@ -62,6 +85,8 @@ export function parseEntry(raw: unknown): ParsedEntry {
   if (!isInt(commandVersion, 1, 1000) || !isObject(payload)) return corrupt();
   if (typeof objectId !== 'string' || !UUID_PATTERN.test(objectId)) return corrupt();
   if (typeof orderingKey !== 'string' || !UUID_PATTERN.test(orderingKey)) return corrupt();
+  const keys = deriveKeys(type, payload);
+  if (keys === null || keys.objectId !== objectId || keys.orderingKey !== orderingKey) return corrupt();
   if (parentMutationId !== undefined && !(typeof parentMutationId === 'string' && CLIENT_ID_PATTERN.test(parentMutationId)))
     return corrupt();
   if (!isInt(createdAt, 0, Number.MAX_SAFE_INTEGER) || !isText(ownerUserId, 128)) return corrupt();

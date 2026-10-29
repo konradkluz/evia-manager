@@ -39,7 +39,12 @@ describe('nothing is lost, nothing is applied twice, order holds (EVM-091 AC1, A
         const action = roll(5);
         if (action <= 1) {
           const k = key(1 + roll(4));
-          const record = await current.core.queue.enqueue({ type: 'CreateNote', commandVersion: 1, orderingKey: k, payload: { n: step } });
+          const record = await current.core.queue.enqueue({
+            type: 'CreateNote',
+            commandVersion: 1,
+            orderingKey: k,
+            payload: { id: `0194c2a0-0000-7000-8000-${String(step + 1000).padStart(12, '0')}`, workOrderId: k, n: step },
+          });
           enqueued.push({ id: record.mutationId, key: k });
         } else if (action === 4) {
           current = build();

@@ -1,6 +1,8 @@
 import { zSyncMutationResult, zSyncMutationsRequest, zSyncMutationsResponse } from '@evia/contracts/zod';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { EngineEvent, QueueRecord, SyncRequest } from '../src/index.ts';
+import { KEY_FIELDS } from '../src/validate.ts';
 import { FakeServer, InMemoryQueueStore, USER_A, makeCore } from './helpers.ts';
 
 const wo = (n: number): string => `0194c2a0-0000-7000-8000-${String(n).padStart(12, '0')}`;
@@ -19,6 +21,7 @@ const PII_VALUES = Object.values(PII);
 
 function piiPayload(i: number): Record<string, unknown> {
   return {
+    id: uuid(i + 300),
     workOrderId: wo(i),
     templateId: uuid(i),
     title: `Zlecenie ${PII.name}`,
@@ -38,7 +41,7 @@ describe('diagnostics without personal data (EVM-091 AC7; SR-LOG-08, SR-PRIV-09)
       commandVersion: 1,
       orderingKey: wo(1),
       parentMutationId: parent.mutationId,
-      payload: piiPayload(2),
+      payload: { ...piiPayload(2), workOrderId: wo(1) },
     });
     for (let i = 3; i <= 8; i += 1)
       await core.queue.enqueue({ type: 'CreateComment', commandVersion: 1, orderingKey: wo(i), payload: piiPayload(i) });
@@ -101,7 +104,7 @@ describe('diagnostics without personal data (EVM-091 AC7; SR-LOG-08, SR-PRIV-09)
     );
     errors.push(
       await core.queue
-        .enqueue({ type: 'CreateNote', commandVersion: 1, payload: { body: PII.note.repeat(5000) } })
+        .enqueue({ type: 'CreateNote', commandVersion: 1, payload: { id: uuid(1), workOrderId: wo(1), body: PII.note.repeat(5000) } })
         .catch((e: unknown) => e),
     );
     errors.push(await core.queue.enqueue({ type: PII.name, commandVersion: 1, payload: piiPayload(1) }).catch((e: unknown) => e));
@@ -180,7 +183,14 @@ describe('compatibility with the sync contract (EVM-091; EVM-090)', () => {
     const { core, server, store } = makeCore();
     const records: QueueRecord[] = [];
     for (let i = 1; i <= 9; i += 1)
-      records.push(await core.queue.enqueue({ type: 'CreateNote', commandVersion: 1, orderingKey: wo(i), payload: { n: i } }));
+      records.push(
+        await core.queue.enqueue({
+          type: 'CreateNote',
+          commandVersion: 1,
+          orderingKey: wo(i),
+          payload: { id: uuid(i + 300), workOrderId: wo(i), n: i },
+        }),
+      );
     const results = [
       {
         mutationId: records[0]?.mutationId,
@@ -204,6 +214,28 @@ describe('compatibility with the sync contract (EVM-091; EVM-090)', () => {
     expect(store.settled.map((s) => s.info.outcome)).toEqual(['applied', 'duplicate']);
     expect(store.records().map((r) => r.lastCode)).toEqual([...codes, 'idempotency_in_progress']);
     expect(USER_A).toBeDefined();
+  });
+});
+
+describe('payload key fields exist in the contract (EVM-091 AC1)', () => {
+  it('EVM-091 AC1: the fields that give objectId and orderingKey are required properties of each payload schema', () => {
+    const yaml = readFileSync(new URL('../../contracts/openapi/components/sync.yaml', import.meta.url), 'utf8');
+    for (const [type, fields] of Object.entries(KEY_FIELDS)) {
+      const start = yaml.indexOf(`\n${type}Payload:\n`);
+      expect(start, type).toBeGreaterThanOrEqual(0);
+      const rest = yaml.slice(start + 1);
+      const end = rest.slice(1).search(/\n[A-Za-z]/);
+      const block = end < 0 ? rest : rest.slice(0, end + 1);
+      const required =
+        /\n {2}required: \[([^\]]*)\]/
+          .exec(block)?.[1]
+          ?.split(',')
+          .map((x) => x.trim()) ?? [];
+      for (const field of new Set([fields.objectId, fields.orderingKey])) {
+        expect(required, `${type}.${field} required`).toContain(field);
+        expect(block, `${type}.${field} property`).toMatch(new RegExp(`\n {4}${field}:\n`));
+      }
+    }
   });
 });
 

@@ -1,15 +1,15 @@
 import type { Clock, QueueStore, SessionOwner } from './ports.ts';
-import { CLIENT_ID_PATTERN, MAX_MUTATION_BYTES, QueueError, UUID_PATTERN, type QueueRecord } from './types.ts';
-import { isMutationType, parseEntry, wireBytes } from './validate.ts';
+import { CLIENT_ID_PATTERN, MAX_MUTATION_BYTES, QueueError, type QueueRecord } from './types.ts';
+import { deriveKeys, isMutationType, parseEntry, wireBytes } from './validate.ts';
 
 export interface EnqueueInput {
   readonly type: string;
   readonly commandVersion: number;
   /** A JSON object; the queue stores a copy, so the envelope cannot change after `enqueue`. */
   readonly payload: unknown;
-  /** Id of the created object (note, comment, work order); generated when absent. */
+  /** Optional; derived from the payload (`id` or `workOrderId`) and accepted only when equal to it. */
   readonly objectId?: string;
-  /** FIFO key (the work order); defaults to `objectId`. */
+  /** Optional; derived from the payload (`workOrderId`) and accepted only when equal to it. */
   readonly orderingKey?: string;
   /** A mutation that must be applied first (e.g. the quick work order a note belongs to). */
   readonly parentMutationId?: string;
@@ -52,9 +52,11 @@ export class MutationQueue {
     const { commandVersion } = input;
     if (!Number.isInteger(commandVersion) || commandVersion < 1 || commandVersion > 1000) throw new QueueError('invalid_input');
     const payload = clonePayload(input.payload);
-    const objectId = input.objectId ?? this.#deps.newId();
-    const orderingKey = input.orderingKey ?? objectId;
-    if (!UUID_PATTERN.test(objectId) || !UUID_PATTERN.test(orderingKey)) throw new QueueError('invalid_input');
+    const keys = deriveKeys(input.type, payload);
+    if (keys === null) throw new QueueError('invalid_input');
+    const { objectId, orderingKey } = keys;
+    if (input.objectId !== undefined && input.objectId !== objectId) throw new QueueError('invalid_input');
+    if (input.orderingKey !== undefined && input.orderingKey !== orderingKey) throw new QueueError('invalid_input');
     const { parentMutationId } = input;
     if (parentMutationId !== undefined && !CLIENT_ID_PATTERN.test(parentMutationId)) throw new QueueError('invalid_input');
 
