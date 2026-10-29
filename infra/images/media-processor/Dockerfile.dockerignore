@@ -1,0 +1,15 @@
+# Allow-list build context of evia-media-processor (EVM-068 AC5; SR-INFRA-05, CWE-538): the repository root is the context, but only these paths
+# enter the build. Never .env*, .scratch/, .git/, coverage/, docs/, tools/, apps or tests.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!patches
+!apps/*/package.json
+!packages/*/package.json
+!tools/*/package.json
+!services/*/package.json
+!services/media-processor/src
+# Generated or local output inside the allowed directories
+**/node_modules
+**/dist

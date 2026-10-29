@@ -113,7 +113,7 @@ export async function runWorkerFromProcess(
     if (mediaProcessing.enabled) {
       await mediaProcessing.cleanWorkArea();
       tasks.push({ start: () => mediaProcessing.start(wiring.mediaProcessIntervalMs) });
-    } else if (mediaScan.enabled && config.nodeEnv === 'production') {
+    } else if (mediaScan.enabled && config.media?.processorRequired === true) {
       throw new Error('worker: MEDIA_PROCESSOR_SOCKET and MEDIA_PROCESSOR_WORKDIR are required where the media scan runs');
     } else {
       logger.warn(

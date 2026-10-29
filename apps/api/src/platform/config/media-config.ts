@@ -57,6 +57,8 @@ export interface MediaConfig {
   readonly clamd: ClamdAddress | undefined;
   /** Without it the worker makes no derivatives and the files stay `clean`; in production the worker refuses to start (EVM-068, fail fast). */
   readonly processor: ImageProcessorConfig | undefined;
+  /** Set by `loadConfig` in production: a worker that scans photos must have a processor, or it does not start. */
+  readonly processorRequired?: boolean;
   /** The single https origin of the bucket for the CSP `connect-src` of the panel; `undefined` = `'self'` only. */
   readonly bucketOrigin: string | undefined;
   readonly limits: MediaLimits;
