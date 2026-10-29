@@ -144,14 +144,9 @@ resource "scaleway_object_bucket" "media" {
     }
   }
 
-  lifecycle_rule {
-    id      = "quarantine"
-    enabled = true
-    prefix  = "quarantine/"
-    expiration {
-      days = 30
-    }
-  }
+  # RR-51: there is no `quarantine/` rule on purpose. The application keeps a quarantined file under its `media/…` key (EVM-044 decision 2),
+  # so a prefix rule would never match; the 30 days are enforced by the retention job (a delete marker) and `noncurrent-versions` above
+  # removes the bytes about 30 days later.
 
   tags = {
     purpose = "media"

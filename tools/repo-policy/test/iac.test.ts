@@ -335,12 +335,7 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(bucketProblems(swap('mode = "COMPLIANCE"', 'mode = "GOVERNANCE"'))).not.toEqual([]);
     expect(bucketProblems(swap('noncurrent_days = 37', 'noncurrent_days = 10'))).not.toEqual([]);
     expect(
-      bucketProblems(
-        swap(
-          'noncurrent_days = 30\n    }\n  }\n\n  lifecycle_rule {\n    id      = "quarantine"',
-          'noncurrent_days = 90\n    }\n  }\n\n  lifecycle_rule {\n    id      = "quarantine"',
-        ),
-      ),
+      bucketProblems(swap('noncurrent_days = 30\n    }\n  }\n\n  # RR-51', 'noncurrent_days = 90\n    }\n  }\n\n  # RR-51')),
     ).not.toEqual([]);
   });
 
@@ -364,9 +359,13 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     ).not.toEqual([]);
   });
 
-  it('EVM-084 AC2 (P3): the register expires after 40 days; the media quarantine after 30 days', () => {
+  it('EVM-084 AC2 (P3): the register expires after 40 days; the media bucket has no quarantine/ prefix rule (RR-51)', () => {
     expect(bucketProblems(swap(/(id\s*=\s*"register-retention"[\s\S]*?days\s*=\s*)40/, '$1400'))).not.toEqual([]);
-    expect(bucketProblems(swap('prefix  = "quarantine/"', 'prefix  = "other/"'))).not.toEqual([]);
+    const withRule = swap(
+      'noncurrent_days = 30',
+      'noncurrent_days = 30\n    }\n  }\n  lifecycle_rule {\n    id = "q"\n    prefix = "quarantine/"\n    expiration {\n      days = 30',
+    );
+    expect(bucketProblems(withRule)).not.toEqual([]);
   });
 
   it('EVM-084 AC2 (P4): every policy names the IaC application, denies the privileged actions and the other applications, no Allow for "*"', () => {

@@ -18,7 +18,7 @@ Hasło szyfrowania repozytorium, hasła `rclone crypt` i klucze są **tylko** na
 | `evia-backup-full.timer` | niedziela 01:30 (Europe/Warsaw) | pełna kopia + `pgbackrest check` |
 | `evia-backup-diff.timer` | pon–sob 01:30 | kopia różnicowa + `check` |
 | (archiwum WAL) | ciągle, `archive_timeout = 300 s` | RPO ≤ 15 min także na bezczynnym stagingu |
-| `evia-media-copy.timer` | codziennie 03:30 | `rclone sync --checksum --exclude 'quarantine/**'` (ADR-0009, ADR-0011): usunięcie w buckecie (purge, anonimizacja, żądanie z art. 17 RODO) dociera do kopii; usunięte dane żyją tylko w snapshotach Storage Boxa (14 dni, poza VM), które chronią też kopię przed usunięciem z przejętej VM. Pliki z `quarantine/` (wirus) nie są kopiowane |
+| `evia-media-copy.timer` | codziennie 03:30 | `rclone sync --checksum --exclude 'quarantine/**'` (wykluczenie nie działa dla plików z kwarantanny, bo mają klucze `media/…`: RR-52) (ADR-0009, ADR-0011): usunięcie w buckecie (purge, anonimizacja, żądanie z art. 17 RODO) dociera do kopii; usunięte dane żyją tylko w snapshotach Storage Boxa (14 dni, poza VM), które chronią też kopię przed usunięciem z przejętej VM. Pliki z `quarantine/` (wirus) nie są kopiowane |
 | `evia-restore-sweep.timer` | co godzinę | usuwa zasoby projektu `evia-restore-staging` starsze niż 24 h, **tylko** w projekcie z wartownikiem i bez obcych zasobów (sekcja „Sprzątacz”) |
 | `evia-restore-test.timer` | 3. dnia miesiąca 04:00 + ręcznie (`systemctl start evia-restore-test`) | test odtworzenia ze scenariuszem „backup usunięty z przejętej VM” |
 

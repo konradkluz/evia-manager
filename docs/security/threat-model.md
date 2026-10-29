@@ -1018,6 +1018,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Źródło:** EVM-044 („Decyzje” 5, ryzyka rezydualne); runbook `docs/ops/runbooks/wysylanie-zdjec-i-skan.md`; TM-38, TM-125; SR-FILE-04.
 - **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium (dostępność dokumentacji zdjęciowej; poufność bez wpływu); po ustawieniu limitów — Low. **Dla filmów (EVM-046) — blokada.**
 - **Rekomendacja:** `StreamMaxLength`, `MaxFileSize`, `MaxScanSize` ≥ 64M i `AlertExceedsMax yes` w konfiguracji `clamd` przed włączeniem uploadu na stagingu.
+- **Naprawa w IaC (2026-10-29):** `compose.infra.yaml` ustawia `CLAMD_CONF_StreamMaxLength`, `CLAMD_CONF_MaxFileSize`, `CLAMD_CONF_MaxScanSize` = 64M i `CLAMD_CONF_AlertExceedsMax: 'yes'` (test w `tools/repo-policy`). **Ryzyko po naprawie:** Low dla zdjęć; dla filmów (EVM-046) nadal blokada (limit 64M). Zostaje sprawdzenie na stagingu, że plik ponad limitem kończy się błędem, a nie `clean`.
 - **Właściciel:** `devops-engineer` (sesja IaC).
 - **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
 
@@ -1073,6 +1074,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Źródło:** EVM-049 (D2, dziennik 2026-10-28 (b)); TM-126; SR-DATA-07.
 - **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
 - **Rekomendacja:** akceptuj; regułę `quarantine/` usunąć albo opisać jako nieużywaną przy najbliższej zmianie modułu.
+- **Zrealizowane (2026-10-29):** reguła `quarantine/` usunięta z modułu `object-storage` (komentarz wyjaśnia dlaczego), walidator `bucketProblems` zabrania reguły z prefiksem `quarantine/`.
 - **Właściciel:** `devops-engineer`.
 - **Decyzja Konrada:** **zaakceptowane (Konrad, 2026-10-28; delegacja „podejmij najlepsze decyzje” — interpretacja AC5: znacznik usunięcia + lifecycle noncurrent ~60 dni, do tego czasu sweeper)**.
 
@@ -1081,6 +1083,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Źródło:** EVM-049 („Decyzje”, ryzyka rezydualne); EVM-084 (poprawka (a)); TM-45, TM-82.
 - **Ryzyko po mitygacjach:** P1 × W2 = 2 Low (kopia nie jest wykonywana ani udostępniana; odtworzenie mediów przechodzi przez stan pliku w bazie).
 - **Rekomendacja:** akceptuj; przy zmianie kluczy obiektów rozważyć prefiks kwarantanny, który pozwoli na skuteczne wykluczenie.
+- **Stan (2026-10-29):** ryzyko świadomie zostaje (zmiana układu kluczy to osobna historyjka); poprawiony komentarz w `media-copy.sh`, że wykluczenie `quarantine/` jest tylko zabezpieczeniem na przyszły prefiks, a nie działającą kontrolą.
 - **Właściciel:** `devops-engineer`.
 - **Decyzja Konrada:** **przyjęte warunkowo — do potwierdzenia przez Konrada**.
 

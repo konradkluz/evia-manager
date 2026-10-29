@@ -395,7 +395,10 @@ export function bucketProblems(raw: string): string[] {
   const media = bucket('media');
   need(/abort_incomplete_multipart_upload_days\s*=\s*7\b/.test(media), 'media: niedokończone multipart 7 dni');
   need(/noncurrent_days\s*=\s*30\b/.test(media), 'media: stare wersje 30 dni');
-  need(/prefix\s*=\s*"quarantine\/"[\s\S]*?days\s*=\s*30\b/.test(media), 'media: kwarantanna 30 dni');
+  need(
+    !/prefix\s*=\s*"quarantine\//.test(media.replace(/^\s*#.*$/gm, '')),
+    'media: reguła prefiksu quarantine/ nie pasuje do kluczy media/… (RR-51)',
+  );
   const cors = hclBlock(media, /cors_rule\s*\{/) ?? '';
   need(/allowed_origins\s*=\s*\[var\.panel_origin\]/.test(cors), 'CORS: jeden origin ze zmiennej');
   need(/allowed_methods\s*=\s*\["PUT"\]/.test(cors), 'CORS: wyłącznie PUT');

@@ -6,7 +6,8 @@
 # as ADR-0009/ADR-0011 decide: a deletion in the bucket (purge, anonymisation, a request under art. 17 GDPR) reaches the copy, and
 # the data removed that way survives only in the snapshots of the Storage Box (14 days), which are managed OUTSIDE the VM (the
 # write-only subaccount of the copy has no access to them) and so also protect the copy against a deletion from a taken-over VM.
-# `quarantine/` (files with a virus) is never copied. Secrets reach only the environment of the rclone processes, never argv or the log.
+# The exclusion of `quarantine/` is only a safeguard for a future prefix: today a quarantined file keeps its `media/…` key, so the copy
+# contains it until the next sync after its removal (RR-52). Secrets reach only the environment of the rclone processes, never argv or the log.
 set -euo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
