@@ -4,7 +4,7 @@ title: Miniatury i podglądy zdjęć — przetwarzanie w izolacji
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
