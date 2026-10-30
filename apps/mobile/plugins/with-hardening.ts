@@ -7,6 +7,8 @@
  * - the release variant produces an UNSIGNED APK (the Gradle template signs it with the public debug key otherwise): the key of the
  *   app lives outside the repository and the owner signs the package locally (tools/mobile-apk sign, docs/ops/dystrybucja-apk-android.md,
  *   ADR-0019); the e2e variant keeps the debug signature so that the emulator can install it;
+ * - the e2e variant only is debuggable (EVM-093: `run-as` reads the app directory on the emulator, a Google Play image has no root);
+ *   set in the release build type of app/build.gradle (a hardcoded manifest attribute fails lintVital); verify rejects it in release;
  * - the Gradle wrapper verifies its download: distributionSha256Sum is pinned to the published SHA-256 of the distribution.
  */
 import { AndroidConfig, withAndroidManifest, withAppBuildGradle, withDangerousMod, withGradleProperties } from 'expo/config-plugins';
@@ -74,6 +76,13 @@ export function withoutReleaseDebugSigning(gradle: string): string {
   return gradle.replace(release, '$1');
 }
 
+/** EVM-093 (e2e only): `debuggable true` in the release build type, which the e2e build assembles (assembleRelease). */
+export function withE2eDebuggable(gradle: string): string {
+  const release = /(\n\s*release \{)/;
+  if (!release.test(gradle)) throw new Error('with-hardening: the release build type was not found in app/build.gradle (template changed)');
+  return gradle.replace(release, '$1\n            debuggable true');
+}
+
 const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { variant }) => {
   config = withAndroidManifest(config, (modConfig) => {
     const application = AndroidConfig.Manifest.getMainApplicationOrThrow(modConfig.modResults);
@@ -111,12 +120,11 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
     }
     return modConfig;
   });
-  if (variant === 'release') {
-    config = withAppBuildGradle(config, (modConfig) => {
-      modConfig.modResults.contents = withoutReleaseDebugSigning(modConfig.modResults.contents);
-      return modConfig;
-    });
-  }
+  config = withAppBuildGradle(config, (modConfig) => {
+    const gradle = modConfig.modResults.contents;
+    modConfig.modResults.contents = variant === 'release' ? withoutReleaseDebugSigning(gradle) : withE2eDebuggable(gradle);
+    return modConfig;
+  });
   return config;
 };
 

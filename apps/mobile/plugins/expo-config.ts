@@ -41,6 +41,11 @@ export function resolveVersionCode(value: string | undefined): number {
 
 export function buildExpoConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
   const variant = resolveBuildVariant(env['EVIA_BUILD_VARIANT']);
+  // EVM-093 (security K1): the API address is the only public build variable; e2e hooks are chosen by the Metro resolver.
+  for (const [name, value] of Object.entries(env)) {
+    if (name.startsWith('EXPO_PUBLIC_') && name !== 'EXPO_PUBLIC_API_BASE_URL' && value !== undefined && value !== '')
+      throw new Error(`${name} is not allowed in the ${variant} build: EXPO_PUBLIC_API_BASE_URL is the only public variable.`);
+  }
   const url = parseApiBaseUrl(env['EXPO_PUBLIC_API_BASE_URL'], { allowLocalHttp: variant === 'e2e' });
   if (!url.ok) {
     throw new Error(

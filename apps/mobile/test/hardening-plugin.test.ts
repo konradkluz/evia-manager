@@ -7,6 +7,7 @@ import withHardening, {
   GRADLE_DISTRIBUTION_SHA256,
   GRADLE_DISTRIBUTION_URL,
   networkSecurityConfigXml,
+  withE2eDebuggable,
   withGradleDistributionChecksum,
   withoutReleaseDebugSigning,
 } from '../plugins/with-hardening';
@@ -125,9 +126,49 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
     }
   });
 
-  it('EVM-009 AC6: the plugin registers the manifest, resource, Gradle properties and (release only) the build script mods', () => {
+  it('EVM-009 AC6: the plugin registers the manifest, resource, Gradle properties and the build script mods', () => {
     expect(Object.keys(plugged('release')).sort()).toEqual(['appBuildGradle', 'dangerous', 'gradleProperties', 'manifest']);
-    expect(Object.keys(plugged('e2e')).sort()).toEqual(['dangerous', 'gradleProperties', 'manifest']);
+    expect(Object.keys(plugged('e2e')).sort()).toEqual(['appBuildGradle', 'dangerous', 'gradleProperties', 'manifest']);
+  });
+
+  async function patchedGradle(variant: 'release' | 'e2e'): Promise<string> {
+    const mod = plugged(variant)['appBuildGradle'];
+    const result = (await mod?.({ modResults: { contents: TEMPLATE_GRADLE }, modRequest: {}, mods: {} })) as {
+      modResults: { contents: string };
+    };
+    return result.modResults.contents;
+  }
+
+  it('EVM-093 AC1: only the e2e variant is debuggable (run-as on the emulator); the release build script has no debuggable line', async () => {
+    const e2e = await patchedGradle('e2e');
+    expect(e2e).toMatch(/release \{\n\s*debuggable true\n/);
+    expect(e2e.match(/debuggable/g)).toHaveLength(1);
+    // the e2e APK keeps the debug signature: it can never be installed over a release-signed app on a field phone
+    expect(e2e).toMatch(/release \{[^}]*signingConfig signingConfigs\.debug/);
+    const release = await patchedGradle('release');
+    expect(release).not.toContain('debuggable');
+    expect(release).not.toMatch(/release \{[^}]*signingConfig/);
+  });
+
+  it('EVM-093 AC1: a template without a release build type fails the e2e build instead of producing a non-debuggable APK', () => {
+    expect(() => withE2eDebuggable('android { buildTypes { debug { } } }')).toThrow(/release build type/);
+  });
+
+  it('EVM-093 AC4: the e2e manifest keeps the backup attributes of release (allowBackup=false and the same exclusion rules)', async () => {
+    const attributesOf = async (variant: 'release' | 'e2e') => {
+      const manifest = { manifest: { $: {}, application: [{ $: { 'android:name': '.MainApplication' }, activity: [] }] } };
+      const result = (await plugged(variant)['manifest']?.({ modResults: manifest, modRequest: {}, mods: {} })) as {
+        modResults: typeof manifest;
+      };
+      return result.modResults.manifest.application[0]?.$ as Record<string, string>;
+    };
+    const release = await attributesOf('release');
+    const e2e = await attributesOf('e2e');
+    for (const name of ['android:allowBackup', 'android:dataExtractionRules', 'android:fullBackupContent'])
+      expect(e2e[name]).toBe(release[name]);
+    expect(e2e['android:allowBackup']).toBe('false');
+    expect(e2e['android:debuggable']).toBeUndefined();
+    expect(release['android:debuggable']).toBeUndefined();
   });
 
   it('EVM-009 AC6: the manifest mod disables backup, points to the rules and forbids cleartext in the manifest itself', async () => {

@@ -61,6 +61,15 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
     expect(JSON.stringify(buildExpoConfig(releaseEnv))).not.toMatch(/expo-updates|expo-dev-client|sentry|analytics/i);
   });
 
+  it('EVM-093 AC1: a build with another public variable (e.g. a switch of the e2e hooks) fails: hooks are chosen by Metro, never by EXPO_PUBLIC_*', () => {
+    for (const name of ['EXPO_PUBLIC_EVIA_E2E_HOOKS', 'EXPO_PUBLIC_DEBUG']) {
+      expect(() => buildExpoConfig({ ...releaseEnv, [name]: '1' })).toThrow(new RegExp(`${name} is not allowed in the release build`));
+      expect(() => buildExpoConfig({ ...releaseEnv, EVIA_BUILD_VARIANT: 'e2e', [name]: '1' })).toThrow(/e2e build/);
+    }
+    // an empty value is not set (a CI variable may exist and be empty)
+    expect(() => buildExpoConfig({ ...releaseEnv, EXPO_PUBLIC_EVIA_E2E_HOOKS: '' })).not.toThrow();
+  });
+
   it('EVM-009 AC6: a release build without an https API address fails at build time', () => {
     expect(() => buildExpoConfig({})).toThrow(/missing/);
     expect(() => buildExpoConfig({ EXPO_PUBLIC_API_BASE_URL: 'http://api.example.test' })).toThrow(/insecure-host/);
