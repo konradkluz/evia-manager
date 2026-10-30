@@ -9,7 +9,8 @@ import java.security.KeyStore
 import javax.crypto.SecretKeyFactory
 
 /**
- * Keystore operations expo-secure-store does not offer (EVM-093 AC1, AC6; SR-CRYPTO-06, MASVS-CRYPTO-2).
+ * Keystore operations expo-secure-store does not offer (EVM-093 AC1, AC6; SR-CRYPTO-06, MASVS-CRYPTO-2), and the description of the
+ * phone for the sign-in (EVM-100).
  * expo-secure-store wraps every value of a keychain service with the AES-GCM key `AES/GCM/NoPadding:<service>:<suffix>`; deleting the
  * wrapped value alone leaves that key alive, so the wipe deletes the aliases of the database key's own service as well.
  * Nothing here logs, and no alias, service name or exception text is returned to JavaScript.
@@ -26,6 +27,18 @@ class EviaKeystoreModule : Module() {
         if (alias == prefix || alias.startsWith("$prefix:")) keyStore.deleteEntry(alias)
       }
       keyStore.aliases().toList().none { it == prefix || it.startsWith("$prefix:") }
+    }
+
+    /**
+     * Description of the phone for the sign-in (EVM-100 AC1; contract `MobileDeviceInfo`, MASVS-PRIVACY-1): model, Android version
+     * and security patch level only — no IMEI, serial number, ANDROID_ID or advertising id. Normalised to the contract in JavaScript.
+     */
+    Function("deviceInfo") {
+      mapOf(
+        "model" to (Build.MODEL ?: ""),
+        "osVersion" to (Build.VERSION.RELEASE ?: ""),
+        "securityPatch" to (Build.VERSION.SECURITY_PATCH ?: ""),
+      )
     }
 
     /** `strongbox` | `secure_hardware` | `software` | `unknown` — a diagnostic fact that never blocks (the emulator has no TEE). */

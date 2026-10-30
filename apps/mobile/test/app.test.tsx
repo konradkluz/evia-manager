@@ -5,6 +5,7 @@ import { pl } from '../src/i18n/pl';
 import { SLOW_CHECK_MS } from '../src/startup';
 import type { StartupChecker, StartupState } from '../src/startup';
 import { size } from '../src/ui/theme';
+import { signedIn } from './session-helpers';
 
 jest.mock('react-native-safe-area-context', () => {
   const actual = jest.requireActual<typeof import('react-native-safe-area-context')>('react-native-safe-area-context');
@@ -24,7 +25,7 @@ const resolved =
 const flat = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as never) as Record<string, unknown>;
 
 async function start(state: StartupState) {
-  const view = await render(<App checker={resolved(state)} />);
+  const view = await render(<App session={signedIn} checker={resolved(state)} />);
   await act(async () => {
     await Promise.resolve();
   });
@@ -54,7 +55,7 @@ describe('app shell (EVM-009 AC1)', () => {
   });
 
   it('EVM-009 AC1: the shell renders at once with a skeleton while the first check runs, and the navigation is already usable', async () => {
-    await render(<App checker={() => new Promise<StartupState>(() => undefined)} />);
+    await render(<App session={signedIn} checker={() => new Promise<StartupState>(() => undefined)} />);
     expect(screen.getByRole('header', { name: pl.shell.orders.title })).toBeOnTheScreen();
     expect(screen.getByLabelText(pl.shell.loading.label)).toBeBusy();
     expect(screen.queryByText(pl.shell.orders.emptyTitle)).toBeNull();
@@ -66,7 +67,7 @@ describe('app shell (EVM-009 AC1)', () => {
   it('EVM-009 AC1: a slow first check adds the "takes longer than usual" note after the limit', async () => {
     jest.useFakeTimers();
     try {
-      await render(<App checker={() => new Promise<StartupState>(() => undefined)} />);
+      await render(<App session={signedIn} checker={() => new Promise<StartupState>(() => undefined)} />);
       expect(screen.queryByText(pl.shell.loading.slow)).toBeNull();
       await act(() => {
         jest.advanceTimersByTime(SLOW_CHECK_MS);
@@ -164,7 +165,7 @@ describe('connection with the API (EVM-009 AC2)', () => {
       .fn<ReturnType<StartupChecker>, []>()
       .mockResolvedValueOnce({ kind: 'serverUnavailable', problem: 'server' })
       .mockResolvedValueOnce({ kind: 'online' });
-    await render(<App checker={checker} />);
+    await render(<App session={signedIn} checker={checker} />);
     await act(async () => {
       await Promise.resolve();
     });

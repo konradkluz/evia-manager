@@ -7,12 +7,14 @@ import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import type { ClientPlatform } from '../api/health';
-import { parseApiBaseUrl, resolveBuildVariant } from './api-base-url';
+import { parseApiBaseUrl, resolveBuildVariant, type BuildVariant } from './api-base-url';
 
 export interface RuntimeConfig {
   readonly apiBaseUrl: string;
   readonly platform: ClientPlatform;
   readonly appVersion: string;
+  /** `e2e` only in the test build of tools/mobile-e2e (plain HTTP to the emulator host is allowed there, nowhere else). */
+  readonly buildVariant: BuildVariant;
 }
 
 /** The build variant recorded by app.config.ts in `extra` (absent in an Expo Go or test environment). */
@@ -40,5 +42,6 @@ export function readRuntimeConfig(rawBaseUrl: string | undefined = buildApiBaseU
     platform: Platform.OS === 'ios' ? 'ios' : 'android',
     // `version` of app.config.ts is the single source; the native value is the installed one.
     appVersion: Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? 'unknown',
+    buildVariant: variant,
   };
 }

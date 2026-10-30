@@ -93,6 +93,11 @@ export class MobileSessionOwner implements SessionOwner {
     return this.#userId === null ? null : this.#displayName;
   }
 
+  /** Unsent items of the signed-in user's queue (the sign-out warning, AC7); 0 without a session. */
+  async unsentItemCount(): Promise<number> {
+    return (await this.#store?.unsentItemCount().catch(() => 0)) ?? 0;
+  }
+
   /** The two sign-in steps, serialised with the refresh and the revocation (security W1d). */
   signInClient(): SignInClient {
     return {
@@ -429,3 +434,19 @@ export class MobileSessionOwner implements SessionOwner {
     return second === undefined ? response : send(second);
   }
 }
+
+/** What the composition and the screens use of the owner (never the token store). */
+export type SessionControl = Pick<
+  MobileSessionOwner,
+  | 'restore'
+  | 'completeSignIn'
+  | 'continueDeviceCheck'
+  | 'abandonSignIn'
+  | 'signOut'
+  | 'flushPendingRevocation'
+  | 'onSessionEnded'
+  | 'displayName'
+  | 'refresh'
+  | 'signInClient'
+  | 'unsentItemCount'
+>;
