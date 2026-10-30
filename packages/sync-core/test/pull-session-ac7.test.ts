@@ -202,6 +202,11 @@ describe('session and pauses shared with the push side (EVM-092 AC4)', () => {
     h3.session.refreshResult = 'session_revoked';
     h3.transport.changesScript.push({ kind: 'http', status: 401 });
     expect((await h3.pull.pull()).paused).toBe('session_revoked');
+    // EVM-100 AC5: a refresh answered with device_wipe_required stops pull with the terminal wipe pause
+    const h5 = makePull();
+    h5.session.refreshResult = 'device_wipe_required';
+    h5.transport.changesScript.push({ kind: 'http', status: 401 });
+    expect((await h5.pull.pull()).paused).toBe('device_wipe_required');
     const h4 = makePull();
     h4.transport.changesScript.push({ kind: 'http', status: 401 }, { kind: 'http', status: 401 });
     expect((await h4.pull.pull()).paused).toBe('auth_required');

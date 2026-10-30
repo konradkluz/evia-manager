@@ -51,11 +51,17 @@ export interface Random {
   getRandomValues(bytes: Uint8Array): Uint8Array;
 }
 
-export type RefreshResult = 'refreshed' | 'session_revoked' | 'unavailable';
+/**
+ * Outcome of one refresh: `refreshed`; `session_revoked` (the refresh token is gone — reuse, expiry, sign-out elsewhere);
+ * `device_wipe_required` (the server ordered a wipe of this phone: terminal, takes precedence over `session_revoked`, EVM-100 AC5);
+ * `unavailable` (network, 5xx, 429 — nothing is ended, the next request retries).
+ */
+export type RefreshResult = 'refreshed' | 'session_revoked' | 'device_wipe_required' | 'unavailable';
 
 /**
  * The session of the signed-in user. `refresh` must persist the new refresh token before it hands out the new access token and
- * must hold the cross-process lock (background task) itself.
+ * must hold the cross-process lock (background task) itself. On the phone the owner is `MobileSessionOwner` of apps/mobile (EVM-100;
+ * JavaScript until the native owner of EVM-109, ADR-0020 option (a)) — this package never sees a token.
  */
 export interface SessionOwner {
   currentUserId(): Promise<string | null>;

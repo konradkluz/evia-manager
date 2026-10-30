@@ -114,6 +114,7 @@ export class SessionGate {
       if (code === 'session_revoked') return this.pauseWith('session_revoked', userId);
       if (!canRefresh) return this.pauseWith('auth_required', userId);
       const refreshed = await this.refresh();
+      if (refreshed === 'device_wipe_required') return this.pauseWith('device_wipe_required', userId);
       if (refreshed === 'session_revoked') return this.pauseWith('session_revoked', userId);
       if (refreshed === 'unavailable') return this.pauseWith('auth_required', userId);
       return 'retry';
