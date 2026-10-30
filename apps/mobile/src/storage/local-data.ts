@@ -143,7 +143,7 @@ export class LocalDataHost {
   }
 
   async #openOrClassify(userId: string): Promise<{ kind: 'open'; db: Database; fresh: boolean } | { kind: 'result'; result: OpenResult }> {
-    const { vault, engine, files, crypto } = this.#deps;
+    const { vault, engine, files } = this.#deps;
     const key = await vault.read().catch(() => ({ kind: 'unavailable' }) as const);
     if (key.kind === 'unavailable') return this.#unavailable('key_unavailable');
     let exists: boolean;
@@ -160,16 +160,16 @@ export class LocalDataHost {
     } catch {
       stored = undefined;
     }
-    const expected = await keyCheckValue(crypto, key.hex);
-    if (typeof stored === 'string' && stored !== expected) return this.#lost('key_invalid', userId);
+    const expected = await this.#keyCheck(key.hex);
+    if (expected !== null && typeof stored === 'string' && stored !== expected) return this.#lost('key_invalid', userId);
     const opened = await this.#open(key.hex);
     if (opened.ok) {
-      if (stored === null) await files.write(KEY_CHECK_FILE, expected).catch(() => undefined);
+      if (stored === null && expected !== null) await files.write(KEY_CHECK_FILE, expected).catch(() => undefined);
       this.#reportHardware();
       return { kind: 'open', db: opened.db, fresh: false };
     }
     if (opened.code === 'update_required') return { kind: 'result', result: { kind: 'update_required' } };
-    if (opened.code === 'not_a_database' && stored === expected) return this.#lost('file_corrupt', userId);
+    if (opened.code === 'not_a_database' && expected !== null && stored === expected) return this.#lost('file_corrupt', userId);
     return this.#unavailable(opened.code);
   }
 
@@ -217,9 +217,22 @@ export class LocalDataHost {
     }
     const opened = await this.#open(hex);
     if (!opened.ok) return this.#unavailable(opened.code === 'update_required' ? 'sql_failed' : opened.code);
-    await files.write(KEY_CHECK_FILE, await keyCheckValue(crypto, hex)).catch(() => undefined);
+    const check = await this.#keyCheck(hex);
+    if (check !== null) await files.write(KEY_CHECK_FILE, check).catch(() => undefined);
     this.#reportHardware();
     return { kind: 'open', db: opened.db, fresh: true };
+  }
+
+  /**
+   * The key check value, or `null` when the digest fails: an error of expo-crypto may name its input (the key; SR-LOG-08), so it is
+   * dropped here, and without a KCV no certain cause exists — the classification stays fail-safe (`unavailable`, nothing deleted).
+   */
+  async #keyCheck(hex: string): Promise<string | null> {
+    try {
+      return await keyCheckValue(this.#deps.crypto, hex);
+    } catch {
+      return null;
+    }
   }
 
   #reportHardware(): void {

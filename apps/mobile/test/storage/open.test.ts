@@ -303,6 +303,39 @@ describe('classification of a database that cannot be opened (EVM-093 AC5; fail-
     expect(device.files.has(KEY_CHECK_FILE)).toBe(true);
   });
 
+  /** expo-crypto whose digest rejects with a native-looking message that names the key (SR-LOG-08: it must never surface). */
+  const failingDigest = (): FakeCrypto => {
+    const crypto = new FakeCrypto(device);
+    crypto.sha256Hex = () => Promise.reject(new Error(`digest failed for x'${device.key ?? ''}'`));
+    return crypto;
+  };
+
+  it('EVM-093 AC5, SR-LOG-08: a failing digest of the key check value opens the database anyway; no raw error escapes', async () => {
+    await installed(3);
+    const { host, diagnostics } = boot(device, { crypto: failingDigest() });
+    const store = unlocked(await host.openForUser(USER_A));
+    expect((await store.queue.readAll()).length).toBe(3);
+    expect(device.deletions).toEqual([]);
+    expect(JSON.stringify(diagnostics)).not.toContain(device.key);
+  });
+
+  it('EVM-093 AC5: without a key check value (digest failed) a file that does not open is "unavailable", never a reason to delete', async () => {
+    await installed(1);
+    device.key = generateKeyHex(new FakeCrypto(device));
+    const result = await boot(device, { crypto: failingDigest() }).host.openForUser(USER_A);
+    expect(result).toEqual({ kind: 'unavailable', code: 'not_a_database' });
+    expect(device.deletions).toEqual([]);
+  });
+
+  it('EVM-093 AC1: a failing digest at a fresh install still creates the database; the next start writes the key check value', async () => {
+    const { host } = boot(device, { crypto: failingDigest() });
+    expect(await host.openForUser(USER_A)).toMatchObject({ kind: 'unlocked', initialPullRequired: true });
+    expect(device.files.has(KEY_CHECK_FILE)).toBe(false);
+    await closeAll();
+    unlocked(await boot(device).host.openForUser(USER_A));
+    expect(device.files.has(KEY_CHECK_FILE)).toBe(true);
+  });
+
   it('EVM-093 AC5: diagnostics carry only the code of the cause — no number, content or path', async () => {
     await installed(5);
     device.key = null;
