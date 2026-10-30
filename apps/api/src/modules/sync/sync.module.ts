@@ -4,7 +4,7 @@
  * entities through the SYNC ports of `work-orders`, `customers` and `sites` (`system-ports.ts`: a listed set of columns, the read policy and the rule of scope in
  * the query). Nothing depends on this module: the composition root registers it, and no other module imports it.
  */
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { KeyRingCursorCodec } from '../../platform/crypto/key-ring-cursor.ts';
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { AppConfig } from '../../platform/config/config.ts';
@@ -20,6 +20,7 @@ import { AggregateReader } from './application/aggregate-reader.ts';
 import { CurrentStateReader } from './application/current-state.ts';
 import { SyncChangesService } from './application/sync-changes.service.ts';
 import { SyncSnapshotService } from './application/sync-snapshot.service.ts';
+import { withoutEtag } from './http/no-etag.ts';
 import { SyncController } from './http/sync.controller.ts';
 import { SYNC_CURSOR_CODEC } from './sync.tokens.ts';
 
@@ -38,4 +39,8 @@ import { SYNC_CURSOR_CODEC } from './sync.tokens.ts';
     },
   ],
 })
-export class SyncModule {}
+export class SyncModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(withoutEtag).forRoutes('/api/v1/sync/work-orders/:workOrderId');
+  }
+}

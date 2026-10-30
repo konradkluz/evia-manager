@@ -79,6 +79,7 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       workOrderCount: null,
       customerCount: null,
       siteCount: null,
+      entityCount: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -257,6 +258,7 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       workOrderCount: null,
       customerCount: null,
       siteCount: null,
+      entityCount: null,
     });
   });
 });
@@ -303,6 +305,7 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'workOrderCount',
         'customerCount',
         'siteCount',
+        'entityCount',
       ].sort(),
     );
   });
@@ -334,6 +337,7 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       workOrderCount: null,
       customerCount: null,
       siteCount: null,
+      entityCount: null,
     });
   });
 
@@ -392,6 +396,7 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       workOrderCount: null,
       customerCount: null,
       siteCount: null,
+      entityCount: null,
     });
   });
 
@@ -443,6 +448,7 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       workOrderCount: null,
       customerCount: null,
       siteCount: null,
+      entityCount: null,
     });
   });
 
@@ -629,5 +635,39 @@ describe('the counts of a full download in the trail (EVM-096 AC8; AB-08)', () =
     expect(start).toMatchObject({ workOrderCount: null, customerCount: null, siteCount: null });
     expect(() => toAuditRecord(completed({ counts: undefined }), context, at)).toThrow();
     expect(() => toAuditRecord(completed({ type: 'sync.full_download' }), context, at)).toThrow();
+  });
+});
+
+describe('the number of entities of a snapshot of an order in the trail (EVM-097 AC7; AB-08)', () => {
+  const device = '0190a1b2-0000-7000-8000-00000000d002';
+  const snapshot = (overrides: Partial<SyncAuditEvent> = {}): SyncAuditEvent => ({
+    type: 'sync.work_order_snapshot',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'device',
+    objectId: device,
+    entityCount: 37,
+    ...overrides,
+  });
+  const context: EventContext = { origin: 'web', traceId };
+
+  it('EVM-097 AC7 a served snapshot carries the NUMBER of its entities - and no other count, no object of the order', () => {
+    const record = toAuditRecord(snapshot(), context, at);
+    expect(record).toMatchObject({
+      action: 'sync.work_order_snapshot',
+      objectType: 'device',
+      objectId: device,
+      entityCount: 37,
+      workOrderCount: null,
+      customerCount: null,
+      siteCount: null,
+    });
+  });
+
+  it('EVM-097 AC7 a refusal by the limit carries no number; a number on a refusal, on another event or below zero is refused', () => {
+    expect(toAuditRecord(snapshot({ outcome: 'denied', entityCount: undefined }), context, at)).toMatchObject({ entityCount: null });
+    expect(() => toAuditRecord(snapshot({ outcome: 'denied' }), context, at)).toThrow();
+    expect(() => toAuditRecord(snapshot({ type: 'sync.full_download' }), context, at)).toThrow();
+    expect(() => toAuditRecord(snapshot({ entityCount: -1 }), context, at)).toThrow();
   });
 });

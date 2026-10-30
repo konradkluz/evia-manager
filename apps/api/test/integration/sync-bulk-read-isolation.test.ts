@@ -12,7 +12,7 @@ afterEach(async () => {
   await current.close();
 });
 
-describe('sync reads and the meters of EVM-039 (EVM-096 AC8; AB-08, SR-API-02)', () => {
+describe('sync reads and the meters of EVM-039 (EVM-096 AC8, EVM-097 AC7; AB-08, SR-API-02)', () => {
   it('EVM-096 AC8 a full download and a pull with a cursor never reach the meter of different customers or of records', async () => {
     const distinctCalls: string[] = [];
     const recordCalls: string[] = [];
@@ -43,10 +43,14 @@ describe('sync reads and the meters of EVM-039 (EVM-096 AC8; AB-08, SR-API-02)',
 
     const full = await phone.get('/api/v1/sync/changes', phone.authorised());
     expect(full.status).toBe(200);
-    const body = full.body as { changes: Array<{ entity?: { type: string } }>; cursor: string };
+    const body = full.body as { changes: Array<{ entity?: { type: string; id?: string } }>; cursor: string };
     expect(body.changes.map((change) => change.entity?.type)).toContain('customer');
     const next = await phone.get(`/api/v1/sync/changes?cursor=${body.cursor}`, phone.authorised());
     expect(next.status).toBe(200);
+    // EVM-097: the snapshot of one order is a sync read too - it never reaches either meter
+    const orderId = body.changes.map((change) => change.entity).find((entity) => entity?.type === 'work_order');
+    const snapshot = await phone.get(`/api/v1/sync/work-orders/${orderId?.id ?? ''}`, phone.authorised());
+    expect(snapshot.status).toBe(200);
     expect(distinctCalls).toEqual([]);
     expect(recordCalls).toEqual([]);
   });
