@@ -453,18 +453,18 @@ describe('EVM-068 two workers and the add-only write', () => {
   });
 });
 
-describe('EVM-068 AC6 AC7 the signed address of a thumbnail (the preview has no address until EVM-045)', () => {
+describe('EVM-068 AC6 AC7 the signed address of a thumbnail and a preview (the original and the limits: EVM-045)', () => {
   async function readyPhoto(orderId: string, userId: string): Promise<Clean> {
     const photo = await cleanPhoto(orderId, userId);
     expect(await processing().processFile(photo.storedFileId)).toBe('ready');
     return photo;
   }
 
-  it('EVM-068 AC6 a signed GET of 300 s for the key of the derivative, typed image/webp and inline, not cached; the preview is not issued before the limits of EVM-045', async () => {
+  it('EVM-068 AC6 a signed GET of 300 s for the key of the derivative, typed image/webp and inline, for the thumbnail and the preview', async () => {
     const orderId = await order();
     const owner = await signIn('editor');
     const photo = await readyPhoto(orderId, owner.userId);
-    for (const variant of ['thumbnail'] as const) {
+    for (const variant of ['thumbnail', 'preview'] as const) {
       const response = await downloadUrl(owner, orderId, photo.mediaAssetId, { variant });
       expect(response.status).toBe(200);
       expect(response.headers['cache-control']).toBe('no-store');
@@ -480,7 +480,10 @@ describe('EVM-068 AC6 AC7 the signed address of a thumbnail (the preview has no 
         entry.contentType,
         entry.cacheControl,
       ]),
-    ).toEqual([[true, 300, 'image/webp', 'private, max-age=300']]);
+    ).toEqual([
+      [true, 300, 'image/webp', 'private, max-age=300'],
+      [true, 300, 'image/webp', 'private, max-age=300'],
+    ]);
   });
 
   it('EVM-068 AC7 Administrator, Editor and Read-only get the address; anonymous is 401; a mobile token is 403', async () => {
@@ -536,14 +539,7 @@ describe('EVM-068 AC6 AC7 the signed address of a thumbnail (the preview has no 
     const orderId = await order();
     const owner = await signIn('editor');
     const photo = await readyPhoto(orderId, owner.userId);
-    for (const body of [
-      { variant: 'preview' },
-      { variant: 'original' },
-      { variant: 'huge' },
-      {},
-      { variant: 'thumbnail', extra: 1 },
-      { variant: ['thumbnail'] },
-    ]) {
+    for (const body of [{ variant: 'huge' }, { variant: 'Original' }, {}, { variant: 'thumbnail', extra: 1 }, { variant: ['thumbnail'] }]) {
       expect((await downloadUrl(owner, orderId, photo.mediaAssetId, body)).status, JSON.stringify(body)).toBe(400);
     }
     expect((await downloadUrl(owner, orderId, 'not-a-uuid')).status).toBe(400);

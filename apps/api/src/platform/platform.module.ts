@@ -21,6 +21,7 @@ import { TimerSleeper } from './http/response-floor.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
+import { InMemorySignedUrlMeters } from './signed-url-limits/signed-url-meters.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
 import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
 import { fieldEncryptionFor } from './crypto/field-encryption.ts';
@@ -32,6 +33,7 @@ import {
   APP_CONFIG,
   BULK_READ_CONTROL,
   BULK_READ_METER,
+  SIGNED_URL_METERS,
   DISTINCT_READ_METER,
   CLOCK,
   CURSOR_CODEC,
@@ -89,6 +91,7 @@ export class PlatformModule {
         // EVM-068: `null` without the processor settings - no derivatives are made and the photos stay `clean`
         { provide: IMAGE_PROCESSOR, useFactory: () => createImageProcessor(config.media) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
+        { provide: SIGNED_URL_METERS, inject: [CLOCK], useFactory: (clock: Clock) => new InMemorySignedUrlMeters(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
           provide: BULK_READ_CONTROL,
@@ -147,6 +150,7 @@ export class PlatformModule {
         MALWARE_SCANNER,
         IMAGE_PROCESSOR,
         DELETION_REGISTER,
+        SIGNED_URL_METERS,
       ],
     };
   }

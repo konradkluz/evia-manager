@@ -97,6 +97,7 @@ printf '%s' "$clean" | grep 'REDACTED' | grep -qF 'env=\"prod\"' && fail "env fr
 # --- 3. Security alerts: counted by closed-list alertCode, anything else as `other`; only from api and worker.
 for _ in 1 2; do push 3100 '{"compose_service":"api"}' '{"level":"error","alert":"security","alertCode":"account_locked","msg":"security alert"}'; done
 push 3100 '{"compose_service":"api"}' '{"level":"error","alert":"security","alertCode":"login_failure_spike"}'
+push 3100 '{"compose_service":"api"}' '{"level":"error","alert":"security","alertCode":"mass_download"}'
 push 3100 '{"compose_service":"worker"}' '{"level":"error","alert":"security","alertCode":"user@example.test"}'
 push 3100 '{"compose_service":"web"}' '{"level":"error","alert":"security","alertCode":"account_locked"}'
 push 3100 '{"compose_service":"api"}' '{"level":"info","alert":"other-kind","alertCode":"account_locked"}'
@@ -105,6 +106,7 @@ metrics="$(http GET 12345 /metrics)"
 series() { printf '%s\n' "$metrics" | grep '^loki_process_custom_security_alerts_total' ; }
 series | grep 'alertCode="account_locked"' | grep -q ' 2$' || fail "account_locked is not counted exactly twice: $(series | tr '\n' ';')"
 series | grep 'alertCode="login_failure_spike"' | grep -q ' 1$' || fail "login_failure_spike is not counted once"
+series | grep 'alertCode="mass_download"' | grep -q ' 1$' || fail "mass_download is not counted once"
 series | grep 'alertCode="other"' | grep -q ' 1$' || fail "an unknown code is not counted as other"
 series | grep -q 'example.test' && fail "a free value became a metric label"
 series | grep -q 'service="web"' && fail "an alert from the web service was counted"

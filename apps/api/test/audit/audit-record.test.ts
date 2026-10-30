@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AUDIT_ACTIONS, AUDIT_OBJECT_TYPES, auditRecordSchema, toAuditRecord } from '../../src/modules/audit/domain/audit-record.ts';
 import { truncateIp } from '../../src/modules/audit/domain/ip-prefix.ts';
 import { AuditSubscriber } from '../../src/modules/audit/audit.module.ts';
+import { MEDIA_EVENT_TYPES } from '../../src/modules/media/index.ts';
 import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../../src/modules/payments/index.ts';
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
@@ -577,5 +578,54 @@ describe('the status codes of a transition of a payment milestone (EVM-054 AC1, 
       false,
     );
     expect(auditRecordSchema.safeParse({ ...base, fromCode: null, toCode: null }).success).toBe(true);
+  });
+});
+
+describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-07)', () => {
+  const context: EventContext = { origin: 'web', traceId, ip: '203.0.113.77', sessionId: session };
+  const media = '0190a1b2-0000-7000-8000-00000000c001';
+
+  it('EVM-045 AC3 the closed list of the media actions is a snapshot (a new type is a conscious change)', () => {
+    expect([...MEDIA_EVENT_TYPES]).toEqual([
+      'media_asset.created',
+      'media_file.quarantined',
+      'media_file.rescan_requested',
+      'media_file.rescanned',
+      'media_file.quarantine_purged',
+      'media_file.original_downloaded',
+      'media_file.original_download_denied',
+      'media_file.download_alerted',
+      'media_file.download_rejected',
+    ]);
+    for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
+  });
+
+  it('EVM-045 AC3 AC5 the record names who, which medium, when and the outcome - and has no file name, address, key or order', () => {
+    for (const [type, outcome] of [
+      ['media_file.original_downloaded', 'success'],
+      ['media_file.original_download_denied', 'denied'],
+      ['media_file.download_alerted', 'success'],
+      ['media_file.download_rejected', 'denied'],
+    ] as const) {
+      const record = toAuditRecord(
+        { type, actor: { type: 'user', userId: user }, outcome, objectType: 'media_asset', objectId: media },
+        context,
+        at,
+      );
+      expect(record).toMatchObject({
+        action: type,
+        outcome,
+        actorUserId: user,
+        objectType: 'media_asset',
+        objectId: media,
+        occurredAt: at,
+        origin: 'web',
+        traceId,
+        ipPrefix: '203.0.113.0/24',
+        fromCode: null,
+        toCode: null,
+      });
+      expect(Object.keys(record).sort()).toEqual(Object.keys(auditRecordSchema.shape).sort());
+    }
   });
 });

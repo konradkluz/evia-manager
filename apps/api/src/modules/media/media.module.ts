@@ -27,7 +27,7 @@ import { ListMediaAssetsService } from './application/list-media-assets.service.
 import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 import { MediaProcessingService } from './application/media-processing.service.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
-import { MediaDerivativeUrlService } from './application/media-derivative-url.service.ts';
+import { MediaDownloadUrlService } from './application/media-download-url.service.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 import { RescanMediaService } from './application/rescan-media.service.ts';
 import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
@@ -46,7 +46,7 @@ import { MediaController } from './http/media.controller.ts';
     FinishUploadService,
     SessionAccess,
     RescanMediaService,
-    MediaDerivativeUrlService,
+    MediaDownloadUrlService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,

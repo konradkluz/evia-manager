@@ -80,7 +80,7 @@ declare "evia_pipeline" {
 
 			stage.template {
 				source   = "alertCode_safe"
-				template = "{{ if ne .alert \"security\" }}{{ else if or (eq .alert_raw \"account_locked\") (eq .alert_raw \"login_failure_spike\") (eq .alert_raw \"second_step_failure_spike\") (eq .alert_raw \"emergency_reset\") (eq .alert_raw \"projection_authz_drift\") (eq .alert_raw \"bulk_read_customers\") }}{{ .alert_raw }}{{ else }}other{{ end }}"
+				template = "{{ if ne .alert \"security\" }}{{ else if or (eq .alert_raw \"account_locked\") (eq .alert_raw \"login_failure_spike\") (eq .alert_raw \"second_step_failure_spike\") (eq .alert_raw \"emergency_reset\") (eq .alert_raw \"projection_authz_drift\") (eq .alert_raw \"bulk_read_customers\") (eq .alert_raw \"mass_download\") }}{{ .alert_raw }}{{ else }}other{{ end }}"
 			}
 
 			stage.labels {

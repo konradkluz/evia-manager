@@ -451,18 +451,22 @@ mediaAssetDownloadUrl:
   post:
     operationId: createMediaAssetDownloadUrl
     tags: [media]
-    summary: Podpisany adres miniatury zdjęcia
+    summary: Podpisany adres pliku zdjęcia (miniatura, podgląd, oryginał)
     description: >-
-      Podpisany `GET` miniatury zdjęcia (podgląd 1600 px nie ma jeszcze adresu - dojdzie z limitami w EVM-045; EVM-068 AC6, AC7; SR-FILE-07, SR-WEB-04, SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-02).
+      Podpisany `GET` miniatury, podglądu 1600 px albo oryginału zdjęcia (EVM-068 AC6, AC7; EVM-045 AC2-AC7; SR-FILE-07, SR-FILE-10, SR-WEB-04, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-06, SR-LOG-02, SR-LOG-03).
       Operacja wystawia adres (jak `getUploadPartUrl`), ale jest `POST` z treścią `{ variant }` — adres do pliku nie trafia do ścieżki ani
-      zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu, więc nie ma `Idempotency-Key` ani audytu odczytu (audyt
-      dotyczy oryginałów i dokumentów, EVM-045). Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403
-      channel_not_allowed`), wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`, jak w pozostałych operacjach modułu) → treść (`400`; wariant
-      spoza listy, pola obce) → JEDNO zapytanie o medium TEGO zlecenia z dołączonym plikiem i wierszem pochodnej → `404` w jednym kształcie: zlecenie albo medium
-      nieistniejące, usunięte lub innego zlecenia, plik w stanie innym niż `ready` (dla wariantów pochodnych `clean` NIE wystarcza — to dotyczy
-      tylko oryginału), brak wiersza pochodnej. Adres jest ważny 300 s (stała serwera), pochodzi z domeny bucketu i ma `response-content-type=image/webp` oraz
-      `response-content-disposition=inline` narzucone przez serwer. Limity wystawiania adresów (SR-FILE-10, P10) dochodzą w EVM-045; do
-      tego czasu obowiązuje globalny limit. `Cache-Control: no-store`; adres nie jest logowany.
+      zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu medium, więc nie ma `Idempotency-Key`. Wystawienie adresu
+      ORYGINAŁU jest zapisane w dzienniku audytu (`media_file.original_downloaded`, w tej samej transakcji co wystawienie — błąd zapisu
+      oznacza brak adresu); audyt dotyczy wystawienia adresu, nie samego pobrania z bucketu. Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny —
+      `403 channel_not_allowed`), wymaga `X-CSRF-Token`; wariant `original` tylko dla Administratora i Edytora — Tylko odczyt dostaje `403
+      forbidden` PRZED sprawdzeniem medium (odpowiedź nie zdradza, czy medium istnieje). Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) →
+      zlecenie przez politykę odczytu (`404`) → treść (`400`; wariant spoza listy, pola obce) → uprawnienie do wariantu (`403`) → JEDNO zapytanie o
+      medium TEGO zlecenia → `404` w jednym kształcie: zlecenie albo medium nieistniejące, usunięte lub innego zlecenia, plik w stanie
+      niedostępnym (dla pochodnych wymagane `ready`, dla oryginału `clean`, `ready` albo `failed` z przyczyną `processing_error`; plik w
+      kwarantannie, skanowany, nieukończony i `failed` z innej przyczyny — `404`), brak wiersza pochodnej, zdjęcie bez oryginału do
+      pobrania (wideo i dokumenty — EVM-046, EVM-047) → limit wystawiania adresów (`429 rate_limited` z `Retry-After`; osobno
+      miniatury i podglądy: 1000 / 10 min per użytkownik, oryginały: 100 / 10 min; polityka P10, alert „masowe pobranie” od 600 i 50). Adres jest ważny 300 s (stała serwera) i pochodzi z domeny
+      bucketu. `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani zapisywane w audycie.
     x-evia-authz:
       roles: [administrator, editor, read_only]
       channels: [web]

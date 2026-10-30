@@ -35,6 +35,7 @@ import {
   type SignedGetInput,
   type StoredPart,
 } from './object-storage.ts';
+import { dispositionHeader } from './content-disposition.ts';
 
 export interface S3ObjectStorageSettings {
   readonly endpoint: string;
@@ -249,12 +250,14 @@ export class S3ObjectStorage implements ObjectStorage {
   async presignGet(input: SignedGetInput): Promise<PartUrl> {
     if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)
       throw new RangeError('presign lifetime out of range');
+    const disposition = dispositionHeader(input.disposition);
     try {
       const command = new GetObjectCommand({
         Bucket: this.#bucket,
         Key: input.key,
         ResponseContentType: input.contentType,
-        ResponseContentDisposition: 'inline',
+        ...(input.versionId === undefined ? {} : { VersionId: input.versionId }),
+        ResponseContentDisposition: disposition,
         ResponseCacheControl: input.cacheControl,
       });
       const url = await getSignedUrl(this.#client, command, { expiresIn: input.expiresInSeconds });

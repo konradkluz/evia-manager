@@ -5,7 +5,9 @@ import {
   PUBLIC_OPERATIONS,
   type AuthzManifest,
 } from '@evia/contracts/authz';
+import { zCreateMediaAssetDownloadUrlBody } from '@evia/contracts/zod';
 import { describe, expect, it } from 'vitest';
+import { DOWNLOAD_VARIANTS, mayRequest } from '../../src/modules/media/domain/downloads.ts';
 import { buildMatrix, expectationFor, type Caller, type MatrixLists } from './role-matrix.ts';
 
 /** The operations that have a route: planned ones (`x-evia-planned`) join the matrix when their story removes the marker. */
@@ -396,5 +398,28 @@ describe('the step-up in the matrix (EVM-029 AC7; SR-AUTHZ-05, SR-AUTHZ-11, SR-S
         code: 'mfa_enrollment_required',
       });
     }
+  });
+});
+
+describe('the operation of the signed address of a file has variants (EVM-045 AC7; SR-AUTHZ-05, SR-AUTHZ-06)', () => {
+  it('EVM-045 AC7 the variants of the contract are those of the code and the policy of the variant forces the case "Read-only + original" for every one of them', () => {
+    expect([...zCreateMediaAssetDownloadUrlBody.shape.variant.options].sort()).toEqual([...DOWNLOAD_VARIANTS].sort());
+    const table = Object.fromEntries(
+      (['administrator', 'editor', 'read_only'] as const).map((role) => [
+        role,
+        Object.fromEntries(DOWNLOAD_VARIANTS.map((variant) => [variant, mayRequest(role, variant)])),
+      ]),
+    );
+    expect(table).toEqual({
+      administrator: { thumbnail: true, preview: true, original: true },
+      editor: { thumbnail: true, preview: true, original: true },
+      read_only: { thumbnail: true, preview: true, original: false },
+    });
+  });
+
+  it('EVM-045 AC7 the guard admits Read-only to the operation (the variant is restricted in the service) and the web channel only', () => {
+    const entry = AUTHZ_MANIFEST['createMediaAssetDownloadUrl'];
+    expect(entry?.authz.roles).toEqual(['administrator', 'editor', 'read_only']);
+    expect(entry?.authz.channels).toEqual(['web']);
   });
 });

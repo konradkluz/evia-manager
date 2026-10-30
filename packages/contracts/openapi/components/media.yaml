@@ -346,10 +346,11 @@ UploadPartUrl:
 MediaDerivativeVariant:
   type: string
   description: >-
-    Wariant pochodnej zdjęcia, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068).
-    Podgląd `preview` (1600 px) powstaje w przetwarzaniu, ale adres do niego doda addytywnie EVM-045 razem z limitem wystawiania
-    adresów (SR-FILE-10) i audytem odczytu; w EVM-045 dojdzie też `original`.
-  enum: [thumbnail]
+    Wariant pliku zdjęcia, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068),
+    `preview` (podgląd, dłuższy bok do 1600 px, WebP bez metadanych) i `original` (oryginał zdjęcia, który może zawierać metadane, np.
+    lokalizację; tylko Administrator i Edytor, EVM-045 — Tylko odczyt dostaje `403 forbidden`). Pochodne są serwowane `inline`, oryginał
+    jako `attachment` z nazwą oczyszczoną przez serwer. Nazwa schematu zostaje z EVM-068 (zmiana byłaby zmianą łamiącą klienta).
+  enum: [thumbnail, preview, original]
 CreateMediaDerivativeUrlRequest:
   type: object
   description: Wskazanie wariantu pochodnej, do którego panel prosi o adres.
@@ -361,8 +362,9 @@ CreateMediaDerivativeUrlRequest:
 MediaDerivativeUrl:
   type: object
   description: >-
-    Podpisany `GET` pochodnej z domeny bucketu (nie z originu aplikacji), ważny najwyżej 5 minut, z typem `image/webp` i
-    `Content-Disposition: inline` narzuconymi przez serwer. Adres jest sekretem krótkotrwałym: panel trzyma go tylko w pamięci i nie
+    Podpisany `GET` pliku z domeny bucketu (nie z originu aplikacji), ważny najwyżej 5 minut. Pochodna: typ `image/webp` i
+    `Content-Disposition: inline` narzucone przez serwer. Oryginał: wykryty przez serwer typ z listy dozwolonych i `Content-Disposition:
+    attachment; filename*=UTF-8''…` (nazwa oczyszczona). Adres jest sekretem krótkotrwałym: panel trzyma go tylko w pamięci i nie
     zapisuje w logach. `Cache-Control: no-store`.
   required: [url, expiresAt]
   additionalProperties: false

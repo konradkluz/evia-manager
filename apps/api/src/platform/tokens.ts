@@ -10,6 +10,7 @@ export const SECURITY_ALERT_EMITTER = Symbol('SECURITY_ALERT_EMITTER');
 export const CURSOR_CODEC = Symbol('CURSOR_CODEC');
 export const FIELD_ENCRYPTION = Symbol('FIELD_ENCRYPTION');
 export const BULK_READ_METER = Symbol('BULK_READ_METER');
+export const SIGNED_URL_METERS = Symbol('SIGNED_URL_METERS');
 export const DISTINCT_READ_METER = Symbol('DISTINCT_READ_METER');
 export const BULK_READ_CONTROL = Symbol('BULK_READ_CONTROL');
 export const SLEEPER = Symbol('SLEEPER');

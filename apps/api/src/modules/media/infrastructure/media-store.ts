@@ -806,3 +806,40 @@ export async function findReadyDerivative(
     .executeTakeFirst();
   return row === undefined ? undefined : { objectKey: row.object_key };
 }
+
+export interface OriginalSource {
+  readonly objectKey: string;
+  /** The version the scan passed (`null` for an object written before versions were recorded): the signed address pins it (TOCTOU). */
+  readonly versionId: string | null;
+  readonly contentType: string | null;
+  readonly originalFilename: string | null;
+  readonly state: FileState;
+  readonly reason: ReasonCode | null;
+}
+
+/**
+ * The original a caller may be given an address for, in ONE statement scoped to the order (EVM-045 AC6; CWE-639): the PHOTO of THIS order
+ * with its file. Whether the state allows the download is decided by the caller ({@link isOriginalDownloadable}); a medium of another order, a
+ * missing one, a video and a document (EVM-046, EVM-047) are the same absence.
+ */
+export async function findOriginal(db: MediaDb, workOrderId: string, mediaAssetId: string): Promise<OriginalSource | undefined> {
+  const row = await db
+    .selectFrom('media.media_assets as a')
+    .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .where('a.id', '=', mediaAssetId)
+    .where('a.work_order_id', '=', workOrderId)
+    .where('a.media_type', '=', 'photo')
+    .where('f.purpose', '=', 'media_original')
+    .select(['f.object_key', 'f.s3_version_id', 'f.content_type', 'f.original_filename', 'f.state', 'f.state_reason_code'])
+    .executeTakeFirst();
+  return row === undefined
+    ? undefined
+    : {
+        objectKey: row.object_key,
+        versionId: row.s3_version_id,
+        contentType: row.content_type,
+        originalFilename: row.original_filename,
+        state: row.state,
+        reason: row.state_reason_code,
+      };
+}

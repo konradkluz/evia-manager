@@ -92,6 +92,10 @@ AuditAction:
     - media_file.rescan_requested
     - media_file.rescanned
     - media_file.quarantine_purged
+    - media_file.original_downloaded
+    - media_file.original_download_denied
+    - media_file.download_alerted
+    - media_file.download_rejected
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
