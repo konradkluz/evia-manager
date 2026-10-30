@@ -1,7 +1,7 @@
 import type { QueueRecord } from '@evia/sync-core';
 import { Database } from '../../src/storage/database';
 import { KEY_CHECK_FILE, type OpenResult, type UnlockedStore } from '../../src/storage/local-data';
-import { cipherVersionSupported, generateKeyHex, keyPragma } from '../../src/storage/key';
+import { cipherVersionSupported, generateKeyHex, keyCheckValue, keyPragma } from '../../src/storage/key';
 import { SCHEMA, createReplicaTablesV1, dropReplicaTables, type SchemaPlan } from '../../src/storage/schema';
 import { FakeCrypto, boot, newDevice, type Device } from './fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './node-sqlite-engine';
@@ -438,6 +438,95 @@ describe('opening guards (EVM-093 AC1, AC5, AC7)', () => {
     await expect(host.openForUser('')).rejects.toMatchObject({ code: 'locked' });
     host.registerUnsentCounter('files', () => Promise.resolve(1));
     expect(await host.unsentItemCount()).toBe(1);
+  });
+
+  it('EVM-093 AC2: a migration failing with "malformed JSON" is unavailable (sql_failed) — never file_corrupt; file and queue stay', async () => {
+    await installed(4);
+    const failing: SchemaPlan = {
+      queue: [
+        ...SCHEMA.queue,
+        {
+          version: 2,
+          up: () => Promise.reject(new Error('malformed JSON')),
+        },
+      ],
+      replica: SCHEMA.replica,
+    };
+    const { host, diagnostics } = boot(device, { schema: failing });
+    expect(await host.openForUser(USER_A)).toEqual({ kind: 'unavailable', code: 'sql_failed' });
+    expect(diagnostics).not.toContainEqual({ event: 'db-open-failed', code: 'file_corrupt' });
+    expect(device.deletions).toEqual([]);
+    await closeAll();
+    const store = unlocked(await boot(device).host.openForUser(USER_A));
+    expect(((await store.queue.readAll()) as QueueRecord[]).map((r) => r.mutationId)).toEqual([mid(1), mid(2), mid(3), mid(4)]);
+  });
+
+  it('EVM-093 AC1: two parallel openForUser on a fresh install create ONE key; the KCV matches the vault and a restart opens the same queue', async () => {
+    const { host } = boot(device);
+    const [first, second] = await Promise.all([host.openForUser(USER_A), host.openForUser(USER_A)]);
+    expect(first.kind).toBe('unlocked');
+    expect(second.kind).toBe('unlocked');
+    expect(device.log.filter((e) => e === 'vault.write')).toEqual(['vault.write']);
+    await unlocked(second).queue.append(record(1));
+    expect(device.files.get(KEY_CHECK_FILE)).toBe(await keyCheckValue(new FakeCrypto(device), device.key ?? ''));
+    expect(disk.owners.get(new NodeSqliteEngine(disk).path)).toBe(device.key);
+    await closeAll();
+    const again = await boot(device).host.openForUser(USER_A);
+    expect(again).toMatchObject({ kind: 'unlocked', initialPullRequired: false });
+    expect(((await unlocked(again).queue.readAll()) as QueueRecord[]).map((r) => r.mutationId)).toEqual([mid(1)]);
+    expect(device.deletions).toEqual([]);
+  });
+
+  it('EVM-093 AC6: openForUser racing the wipe never creates a database with a key that is not in the vault', async () => {
+    await installed(2);
+    const { host } = boot(device);
+    unlocked(await host.openForUser(USER_A));
+    const [wiped, reopened] = await Promise.all([host.wipeCompanyData(), host.openForUser(USER_A)]);
+    expect(wiped).toBe('done');
+    expect(reopened).toMatchObject({ kind: 'unlocked', initialPullRequired: true });
+    expect(disk.owners.get(new NodeSqliteEngine(disk).path)).toBe(device.key);
+    await closeAll();
+    const next = await boot(device).host.openForUser(USER_A);
+    expect(next).toMatchObject({ kind: 'unlocked', initialPullRequired: false });
+    expect(await unlocked(next).queue.readAll()).toEqual([]);
+  });
+
+  it('EVM-093 AC5: "Rozumiem" waits for a running open; both end with one key that opens the new database after a restart', async () => {
+    await installed(1);
+    device.key = null;
+    const { host } = boot(device);
+    const lost = await host.openForUser(USER_A);
+    if (lost.kind !== 'data_lost') throw new Error(`expected data_lost, got ${lost.kind}`);
+    const before = device.log.length;
+    const [reset, opened] = await Promise.all([lost.acknowledge(), host.openForUser(USER_A)]);
+    expect(reset.kind).toBe('unlocked');
+    expect(opened.kind).toBe('unlocked');
+    expect(device.log.slice(before).filter((e) => e === 'vault.write')).toEqual(['vault.write']);
+    expect(disk.owners.get(new NodeSqliteEngine(disk).path)).toBe(device.key);
+    await closeAll();
+    expect(await boot(device).host.openForUser(USER_A)).toMatchObject({ kind: 'unlocked', initialPullRequired: false });
+  });
+
+  it('EVM-093 AC5: a double tap on "Rozumiem" resets once; the second keeps the new database and its key (nothing deleted again)', async () => {
+    await installed(1);
+    device.key = null;
+    const { host } = boot(device);
+    const lost = await host.openForUser(USER_A);
+    if (lost.kind !== 'data_lost') throw new Error(`expected data_lost, got ${lost.kind}`);
+    const [first, second] = await Promise.all([lost.acknowledge(), lost.acknowledge()]);
+    expect(first).toMatchObject({ kind: 'unlocked', initialPullRequired: true });
+    expect(second.kind).toBe('unlocked');
+    await unlocked(second).queue.append(record(7));
+    await closeAll();
+    const again = await boot(device).host.openForUser(USER_A);
+    expect(((await unlocked(again).queue.readAll()) as QueueRecord[]).map((r) => r.mutationId)).toEqual([mid(7)]);
+  });
+
+  it('EVM-093 AC1: a rejected task of the host does not block the next one (the queue of the host keeps running)', async () => {
+    const { host } = boot(device);
+    const [refused, opened] = await Promise.allSettled([host.openForUser(''), host.openForUser(USER_A)]);
+    expect(refused).toMatchObject({ status: 'rejected', reason: { code: 'locked' } });
+    expect(opened).toMatchObject({ status: 'fulfilled', value: { kind: 'unlocked' } });
   });
 
   it('EVM-093 AC3, AC7: settled results reach the owner; lock ends the unlock of that user (every handle) and is idempotent', async () => {

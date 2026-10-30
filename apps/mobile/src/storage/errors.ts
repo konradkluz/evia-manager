@@ -30,7 +30,8 @@ export function classifySqlError(error: unknown): StorageErrorCode {
   // duck typing, not `instanceof Error`: native errors may come from another realm (JSI bridge, node:sqlite under Jest)
   const fields = typeof error === 'object' && error !== null ? (error as { message?: unknown; code?: unknown }) : {};
   const text = `${typeof fields.message === 'string' ? fields.message : ''} ${typeof fields.code === 'string' ? fields.code : ''}`;
-  if (/not a database|SQLITE_NOTADB|file is encrypted|malformed|SQLITE_CORRUPT/i.test(text)) return 'not_a_database';
+  // corruption of the FILE only: "malformed JSON" or a malformed schema entry is an uncertain cause and must never lead to data_lost
+  if (/database disk image is malformed|SQLITE_CORRUPT|not a database|SQLITE_NOTADB|file is encrypted/i.test(text)) return 'not_a_database';
   if (/disk is full|SQLITE_FULL|ENOSPC/i.test(text)) return 'disk_full';
   if (/database is locked|SQLITE_BUSY/i.test(text)) return 'busy';
   return 'sql_failed';

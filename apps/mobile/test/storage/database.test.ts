@@ -135,6 +135,13 @@ describe('serialized database access (EVM-093 AC3; architecture review 1)', () =
     expect(classifySqlError(new StorageError('closed'))).toBe('closed');
   });
 
+  it('EVM-093 AC2, AC5: only corruption of the file is "not a database" — a malformed value (JSON) is an ordinary SQL failure', () => {
+    expect(classifySqlError(new Error('malformed JSON'))).toBe('sql_failed');
+    expect(classifySqlError(new Error('malformed database schema (x)'))).toBe('sql_failed');
+    expect(classifySqlError(Object.assign(new Error('x'), { code: 'SQLITE_CORRUPT' }))).toBe('not_a_database');
+    expect(classifySqlError(new Error('file is encrypted or is not a database'))).toBe('not_a_database');
+  });
+
   it('EVM-093 AC3: chunk splits bulk parameters into bounded statements', () => {
     expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
     expect(chunk([], 2)).toEqual([]);

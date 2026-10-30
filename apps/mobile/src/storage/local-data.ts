@@ -100,6 +100,8 @@ export class LocalDataHost {
   #unlocked: string | null = null;
   readonly #wipeSteps: { name: string; run: () => Promise<void> }[] = [];
   readonly #unsentCounters: { name: string; count: () => Promise<number> }[] = [];
+  /** Tail of the host queue: prepare, openForUser, "Rozumiem" and the wipe run one at a time (one key, one database). */
+  #tail: Promise<unknown> = Promise.resolve();
 
   constructor(deps: LocalDataDeps) {
     this.#deps = deps;
@@ -116,8 +118,22 @@ export class LocalDataHost {
     this.#unsentCounters.push({ name, count });
   }
 
+  /**
+   * Runs the state-changing operations of the host one after another (like `Database.#serialize`): two parallel opens on a fresh
+   * install would otherwise generate two keys, and an open during the wipe would create a database with a key already destroyed.
+   */
+  #exclusive<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.#tail.then(task);
+    this.#tail = run.catch(() => undefined);
+    return run;
+  }
+
   /** Before sign-in: finishes an interrupted wipe (AC6) before any data is read; `onResume` lets the UI show "Kończymy czyszczenie…". */
-  async prepare(onResume?: () => void): Promise<'ready' | 'wipe_incomplete'> {
+  prepare(onResume?: () => void): Promise<'ready' | 'wipe_incomplete'> {
+    return this.#exclusive(() => this.#prepare(onResume));
+  }
+
+  async #prepare(onResume?: () => void): Promise<'ready' | 'wipe_incomplete'> {
     let marker: string | null;
     try {
       marker = await this.#deps.files.read(WIPE_MARKER_FILE);
@@ -129,9 +145,13 @@ export class LocalDataHost {
     return (await this.#runWipeSteps()) === 'done' ? 'ready' : 'wipe_incomplete';
   }
 
-  async openForUser(userId: string): Promise<OpenResult> {
-    if (userId === '') throw new StorageError('locked');
-    if ((await this.prepare()) === 'wipe_incomplete') return { kind: 'wipe_incomplete' };
+  openForUser(userId: string): Promise<OpenResult> {
+    if (userId === '') return Promise.reject(new StorageError('locked'));
+    return this.#exclusive(() => this.#openForUser(userId));
+  }
+
+  async #openForUser(userId: string): Promise<OpenResult> {
+    if ((await this.#prepare()) === 'wipe_incomplete') return { kind: 'wipe_incomplete' };
     this.#unlocked = null;
     if (this.#db === null) {
       const opened = await this.#openOrClassify(userId);
@@ -180,12 +200,19 @@ export class LocalDataHost {
 
   #lost(reason: DataLossReason, userId: string): { kind: 'result'; result: OpenResult } {
     this.#deps.diagnostics({ event: 'db-open-failed', code: reason });
-    return { kind: 'result', result: { kind: 'data_lost', reason, acknowledge: () => this.#resetAfterLoss(userId) } };
+    return {
+      kind: 'result',
+      result: { kind: 'data_lost', reason, acknowledge: () => this.#exclusive(() => this.#resetAfterLoss(userId)) },
+    };
   }
 
-  /** "Rozumiem" (AC5): a new device — identity, old file, KCV and old key go, then a new key and database are created. */
+  /**
+   * "Rozumiem" (AC5): a new device — identity, old file, KCV and old key go, then a new key and database are created. A database opened
+   * meanwhile (another open ran first in the host queue) is already the new one: it is kept, nothing is deleted again.
+   */
   async #resetAfterLoss(userId: string): Promise<OpenResult> {
     const { secrets, engine, files, vault } = this.#deps;
+    if (this.#db !== null) return this.#unlock(userId, false);
     try {
       await secrets.deleteIdentity();
       await engine.remove();
@@ -279,7 +306,11 @@ export class LocalDataHost {
         await tx.exec('PRAGMA journal_mode = WAL');
         await tx.exec('PRAGMA synchronous = FULL');
       });
-      const migrated = await migrate(db, this.#schema);
+      // a failing migration is never a certain cause (AC2: the queue is never lost): unavailable, nothing deleted
+      const migrated = await migrate(db, this.#schema).catch((error: unknown) => {
+        const code = toStorageError(error).code;
+        throw new StorageError(code === 'not_a_database' ? 'sql_failed' : code);
+      });
       if (migrated.kind === 'update_required') throw new StorageError('sql_failed');
       return { ok: true, db };
     } catch (error) {
@@ -387,7 +418,11 @@ export class LocalDataHost {
    * "Wyczyść dane firmowe" (AC6; port for EVM-101): the marker first, then every step in a fixed order, each idempotent; a failing step
    * keeps the marker and the whole sequence is repeated on the next start. Afterwards no old file can be opened (its key is gone).
    */
-  async wipeCompanyData(): Promise<'done' | 'incomplete'> {
+  wipeCompanyData(): Promise<'done' | 'incomplete'> {
+    return this.#exclusive(() => this.#wipeCompanyData());
+  }
+
+  async #wipeCompanyData(): Promise<'done' | 'incomplete'> {
     try {
       await this.#deps.files.write(WIPE_MARKER_FILE, WIPE_MARKER_CONTENT);
     } catch {
