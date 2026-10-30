@@ -57,3 +57,26 @@ describe('EVM-044 AC6 CSP connect-src pins the one origin of the media bucket (S
     expect(connectSrc(headers['Content-Security-Policy'])).toBe(`connect-src 'self' ${BUCKET}`);
   });
 });
+
+const imgSrc = (csp: string | undefined) => (csp ?? '').split('; ').find((directive) => directive.startsWith('img-src'));
+
+describe('EVM-068 AC6 CSP img-src pins the same one origin for the thumbnails and previews (SR-WEB-04, SR-WEB-01)', () => {
+  it("EVM-068 AC6 without the origin img-src stays 'self', data: and blob:", () => {
+    expect(imgSrc(panelSecurityHeaders({ variant: 'strict', https: true })['Content-Security-Policy'])).toBe("img-src 'self' data: blob:");
+  });
+
+  it('EVM-068 AC6 with the origin img-src gets exactly that origin - never a wildcard, never https: as a whole scheme', () => {
+    const csp = panelSecurityHeaders({ variant: 'strict', https: true, mediaOrigin: BUCKET })['Content-Security-Policy'];
+    expect(imgSrc(csp)).toBe(`img-src 'self' data: blob: ${BUCKET}`);
+    // no bare `*` and no bare `https:` scheme source (a `https:` followed by the host of the origin is the origin itself)
+    expect((imgSrc(csp) ?? '').split(' ')).not.toContain('*');
+    expect((imgSrc(csp) ?? '').split(' ')).not.toContain('https:');
+    // the other directives are untouched: the bucket is not a source of scripts, styles, frames or media elements
+    for (const name of ['script-src', 'style-src', 'media-src', 'frame-src', 'default-src']) {
+      expect(
+        (csp ?? '').split('; ').find((directive) => directive.startsWith(name)),
+        name,
+      ).not.toContain(BUCKET);
+    }
+  });
+});

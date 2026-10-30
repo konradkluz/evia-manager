@@ -81,3 +81,22 @@ Szczegółowe liczby i pliki wyników: [raport spike'a](../spikes/EVM-011-kolejk
 
 ## 9. Niezmierzone w spike'u
 Bateria (emulator nie mierzy), prawdziwe przełączenie Wi-Fi ↔ LTE, wydajność SQLCipher na telefonie, wygaśnięcie URL-a na urządzeniu, Android ≤ 13, iOS (ADR-0007 pytania 13, 14, 16 oraz iOS-owe części 1, 2, 11), Scaleway, strona zmian 200/500 i N = 30 dni z [`offline-sync.md`](offline-sync.md) (to nie dotyczy uploadu plików).
+
+## 10. Pochodne zdjęć po stronie serwera (EVM-068)
+Po skanie (`clean`) zdjęcie dostaje miniaturę (dłuższy bok 320 px) i podgląd (1600 px) — WebP bez metadanych, z zastosowaną orientacją. Szczegóły wdrożenia i operacji: [runbook `media-processor`](../ops/runbooks/media-processor.md); model: [`domain-model.md`](domain-model.md#storedfile-filederivative-i-uploadsession); decyzja: [ADR-0009](adr/0009-storage-i-przetwarzanie-mediow.md).
+
+```text
+worker (pętla co 5 s)                 media-processor (kontener bez sieci)
+  clean ──CAS, attempts+1──▶ processing
+  pobranie oryginału (przypięta wersja + ETag), SHA-256 i rozmiar jak po skanie
+  zapis do /run/media-work/<jobId>/input ─────────────▶ gniazdo Unix, jedna linia JSON { jobId, contentType }
+                                                         potomek (SIGKILL po 60 s): sharp, bez metadanych
+  ◀──────────── { outputs: [{variant, width, height}] } albo stały kod błędu
+  odczyt wyników: lstat + O_NOFOLLOW, ≤ 2 MB, RIFF/WEBP, wymiary z nagłówka
+  PutObject If-None-Match: * ── media/…/{id}/thumbnail.webp, preview.webp
+  jedna transakcja: processing ──▶ ready + 2 wiersze file_derivatives
+```
+
+- **Klucze i usuwanie:** pochodne leżą pod prefiksem oryginału `media/{rok}/{miesiąc}/{id}/`, więc usunięcie pliku prefiksem (EVM-051, rejestr usunięć) obejmuje je; klucz workera ma `PutObject` tylko na dwie nazwy pochodnych, warunkowo (nigdy nie nadpisze oryginału — TM-76).
+- **Ponowienia:** licznik prób rośnie przy przejęciu, więc OOM lub crash procesora zużywa próbę (brak „poison pill”); błędy trwałe (`pixel_limit` > 100 MP, `unsupported`, `invalid_output`) kończą od razu `failed` / `processing_error`, przejściowe (`timeout`, `internal`, transport, storage) są ponawiane po okresie nieaktywności (5 min), najwyżej 3 razy. HEIC jest dziś błędem trwałym `unsupported` (prebuilt libvips nie dekoduje HEVC).
+- **Adres miniatury:** `POST …/media-assets/{id}/download-url` z `{ variant }` → podpisany `GET` 300 s z domeny bucketu, `response-content-type=image/webp`, `inline`; panel prosi o adres tylko dla kafli w widoku, po sześć naraz (limit wystawiania adresów — EVM-045; galerie do 5000 mediów: uwaga w historyjce).

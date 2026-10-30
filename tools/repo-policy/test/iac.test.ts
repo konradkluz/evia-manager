@@ -318,6 +318,24 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(Object.keys(BUCKET_POLICIES['media_allow'] ?? {})).not.toContain('backup_writer');
   });
 
+  it('EVM-068 AC5 (TM-76): the key of the worker may put the two derivative names only, add-only, never an original — each of the three statements is required', () => {
+    expect(storage).toContain('Sid       = "AllowWorkerDerivatives"');
+    expect(storage).toContain('derivative_object_names = ["thumbnail.webp", "preview.webp"]');
+    expect(
+      bucketProblems(
+        swap('derivative_object_names = ["thumbnail.webp", "preview.webp"]', 'derivative_object_names = ["thumbnail.webp", "*"]'),
+      ),
+    ).not.toEqual([]);
+    expect(bucketProblems(swap('Sid       = "AllowWorkerDerivatives"', 'Sid       = "AllowWorker"'))).not.toEqual([]);
+    expect(bucketProblems(swap('Sid       = "DenyWorkerOverwrite"', 'Sid       = "DenyWorker"'))).not.toEqual([]);
+    expect(bucketProblems(swap(/(Sid\s*=\s*"DenyWorkerOverwrite"[\s\S]*?"s3:if-none-match"\s*=\s*)"true"/, '$1"false"'))).not.toEqual([]);
+    expect(bucketProblems(swap('/media/*/original"]', '/media/*/original2"]'))).not.toEqual([]);
+    expect(bucketProblems(swap('concat(actions, ["s3:PutObject"])', 'concat(actions, ["s3:PutObject", "s3:*"])'))).not.toEqual([]);
+    expect(bucketProblems(swap(/(media_worker\s*=\s*\[[^\]]*?)"ObjectStorageObjectsWrite", /, '$1'))).not.toEqual([]);
+    // the list of media_allow stays without PutObject for the worker (the matrix of the verification script proves the denial of a plain PUT)
+    expect(BUCKET_POLICIES['media_allow']?.['media_worker']).not.toContain('s3:PutObject');
+  });
+
   it('EVM-084 AC2 (P1): a bucket or provider outside pl-waw is refused', () => {
     expect(bucketProblems(swap('default     = "pl-waw"', 'default     = "fr-par"'))).not.toEqual([]);
     expect(bucketProblems(swap('contains(["pl-waw"], var.region)', 'contains(["pl-waw", "fr-par"], var.region)'))).not.toEqual([]);

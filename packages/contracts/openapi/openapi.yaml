@@ -199,6 +199,8 @@ paths:
     $ref: paths/media.yaml#/uploadSessionAbort
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan:
     $ref: paths/media.yaml#/mediaAssetRescan
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url:
+    $ref: paths/media.yaml#/mediaAssetDownloadUrl
   /api/v1/users:
     $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
@@ -505,6 +507,12 @@ components:
       $ref: components/media.yaml#/UploadPartList
     UploadPartUrl:
       $ref: components/media.yaml#/UploadPartUrl
+    MediaDerivativeVariant:
+      $ref: components/media.yaml#/MediaDerivativeVariant
+    CreateMediaDerivativeUrlRequest:
+      $ref: components/media.yaml#/CreateMediaDerivativeUrlRequest
+    MediaDerivativeUrl:
+      $ref: components/media.yaml#/MediaDerivativeUrl
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:

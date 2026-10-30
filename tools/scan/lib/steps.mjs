@@ -191,6 +191,23 @@ export const SECURITY_STEPS = [
 ];
 
 /**
+ * License ids of .trivyignore.yaml → licenses whose exception has not expired (line-based, no YAML dependency).
+ * @param {string} ignoreFile
+ * @param {string} [today] ISO date (default: today, UTC)
+ * @returns {string[]}
+ */
+export function exceptedLicenses(ignoreFile, today = new Date().toISOString().slice(0, 10)) {
+  const block = /^licenses:[^\n]*\n((?:[ \t#][^\n]*\n?|\n)*)/m.exec(ignoreFile)?.[1] ?? '';
+  const result = [];
+  for (const item of block.split(/^[ \t]*- (?=id:)/m).slice(1)) {
+    const id = /^id:\s*(\S+)/.exec(item)?.[1];
+    const expires = /expired_at:\s*(\d{4}-\d{2}-\d{2})/.exec(item)?.[1];
+    if (id !== undefined && expires !== undefined && expires >= today) result.push(id);
+  }
+  return result;
+}
+
+/**
  * Lockfile and reviewed platform-package licenses of this repository (see trivyLicenseVerdict).
  * @returns {import('./reports.mjs').LicenseOptions}
  */
@@ -198,7 +215,12 @@ function platformLicenseOptions() {
   const repo = fileURLToPath(new URL('../../../', import.meta.url));
   const raw = /** @type {unknown} */ (JSON.parse(readFileSync(join(repo, 'tools', 'scan', 'platform-licenses.json'), 'utf8')));
   const reviewed = /** @type {{ entries?: import('./reports.mjs').LicenseOptions['entries'] }} */ (raw);
-  return { lockfile: readFileSync(join(repo, 'pnpm-lock.yaml'), 'utf8'), entries: reviewed.entries ?? [] };
+  const ignore = readFileSync(join(repo, '.trivyignore.yaml'), 'utf8');
+  return {
+    lockfile: readFileSync(join(repo, 'pnpm-lock.yaml'), 'utf8'),
+    entries: reviewed.entries ?? [],
+    excepted: exceptedLicenses(ignore),
+  };
 }
 
 /** @type {Step[]} */

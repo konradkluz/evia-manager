@@ -93,8 +93,12 @@ services:
       LOGIN_THROTTLE_KEY_FILE: /run/secrets/login-throttle-key
       # the narrower media key of the worker (reads originals for the scan, deletes the expired ones; RR-42); the same variable name as in the API
       MEDIA_S3_SECRET_ACCESS_KEY_FILE: /run/secrets/media-worker-s3-secret-access-key
+      # EVM-068: the image processor (compose.media.yaml, IaC session) shares ONE tmpfs of the host with the worker - the socket and the work area of the jobs
+      MEDIA_PROCESSOR_SOCKET: /run/media-work/processor.sock
+      MEDIA_PROCESSOR_WORKDIR: /run/media-work
     volumes:
       - /run/evia/secrets/worker:/run/secrets:ro
+      - /run/evia/media-work:/run/media-work
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
     mem_limit: 512m

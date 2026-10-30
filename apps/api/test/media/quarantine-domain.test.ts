@@ -176,8 +176,16 @@ describe('EVM-049 AC4 nothing leaves the system and nothing releases a quarantin
       .filter(([, operation]) => operation.path.includes('/media-assets') && operation.method !== 'get')
       .map(([id]) => id)
       .sort();
+    // `createMediaAssetDownloadUrl` (EVM-068) is a POST only because the address must not travel in a URL: it issues a signed GET of a derivative and changes nothing
     expect(changing).toEqual(
-      ['abortUploadSession', 'completeUploadSession', 'createMediaAssets', 'createUploadSession', 'rescanMediaAsset'].sort(),
+      [
+        'abortUploadSession',
+        'completeUploadSession',
+        'createMediaAssetDownloadUrl',
+        'createMediaAssets',
+        'createUploadSession',
+        'rescanMediaAsset',
+      ].sort(),
     );
     expect(Object.keys(AUTHZ_MANIFEST).filter((id) => /release|override|unquarantine|whitelist|approveMedia/i.test(id))).toEqual([]);
     const rescan = AUTHZ_MANIFEST['rescanMediaAsset']?.authz;

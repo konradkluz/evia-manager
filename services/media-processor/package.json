@@ -1,0 +1,24 @@
+{
+  "name": "@evia/media-processor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Image processor of the media pipeline (EVM-068; ADR-0009): turns an uploaded photo into a thumbnail and a preview (WebP, no metadata). Runs in its own container without a network, listens on a Unix socket of a shared tmpfs volume and does every job in a child process killed after 60 s. Runs without a build (Node.js type stripping).",
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@evia/config": "workspace:*",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "sharp": "0.35.5"
+  }
+}

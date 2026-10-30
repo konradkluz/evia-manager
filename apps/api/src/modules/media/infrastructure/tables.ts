@@ -1,5 +1,5 @@
 /**
- * Kysely types of the tables the `media` module owns (migration 0045; EVM-044). The application role has SELECT, INSERT and UPDATE
+ * Kysely types of the tables the `media` module owns (migration 0045; EVM-044; derivatives: 0053, EVM-068). The application role has SELECT, INSERT and UPDATE
  * (no DELETE). Times are written by the application with millisecond precision (no `now()` defaults), because the cursor of the list
  * carries a time as ISO 8601 with milliseconds.
  */
@@ -47,6 +47,22 @@ export interface StoredFilesTable {
   quarantined_at: Date | null;
   /** When the object of a quarantined file was removed after the retention (write-once). */
   purged_at: Date | null;
+  /** How many times the processing loop TOOK the file (raised at the take; migration 0053), at most 10. */
+  process_attempts: Generated<number>;
+  /** When the loop last took the file (`null` until then): a take that never finished is retried only after the stale period. */
+  process_claimed_at: Generated<Date | null>;
+}
+
+/** The thumbnail and the preview of a photo (migration 0053). The application role has SELECT and INSERT only: a derivative is written once. */
+export interface FileDerivativesTable {
+  stored_file_id: string;
+  variant: 'thumbnail' | 'preview';
+  object_key: string;
+  content_type: 'image/webp';
+  width: number;
+  height: number;
+  size_bytes: number;
+  created_at: Date;
 }
 
 export interface UploadSessionsTable {
@@ -66,6 +82,7 @@ export interface UploadSessionsTable {
 export type MediaTables = {
   'media.media_assets': MediaAssetsTable;
   'media.stored_files': StoredFilesTable;
+  'media.file_derivatives': FileDerivativesTable;
   'media.upload_sessions': UploadSessionsTable;
 };
 

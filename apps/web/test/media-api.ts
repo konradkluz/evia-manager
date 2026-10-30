@@ -5,6 +5,7 @@ import { ORDER_ID } from './work-order-api.ts';
 
 /** Synthetic media of the order ZL-2026-0042 (EVM-044): a fake of the media API with sessions, parts and the verdict of the scan. */
 export const MEDIA_BASE = `/api/v1/work-orders/${ORDER_ID}/media-assets`;
+export const THUMBNAIL_HOST = 'https://bucket.example.test';
 export const BUCKET_URL = 'https://bucket.example.test/media/2026/10/part';
 
 export function asset(n: number, extra: Partial<MediaAsset> = {}): MediaAsset {
@@ -59,6 +60,8 @@ export interface MediaServerOptions {
   readonly complete?: Handler;
   /** `POST …/media-assets/{id}/rescan` (EVM-049). */
   readonly rescan?: Handler;
+  /** `POST …/media-assets/{id}/download-url` (EVM-068): the address of a thumbnail; the default hands out a synthetic address of the bucket. */
+  readonly downloadUrl?: Handler;
   readonly routes?: Record<string, Handler>;
 }
 
@@ -144,6 +147,19 @@ export function mediaApi(options: MediaServerOptions = {}) {
     ],
     [/\/upload-sessions\/[^/]+\/complete$/, complete],
     [/\/[^/]+\/rescan$/, options.rescan ?? (() => problem(500, 'internal_error'))],
+    [
+      /\/[^/]+\/download-url$/,
+      options.downloadUrl ??
+        ((request) =>
+          json(
+            200,
+            {
+              url: `${THUMBNAIL_HOST}/media/2026/10/${request.path.split('/').at(-2) ?? ''}/thumbnail.webp?X-Amz-Signature=sig`,
+              expiresAt: '2026-10-11T12:05:00.000Z',
+            },
+            { 'Cache-Control': 'no-store' },
+          )),
+    ],
   ]);
   const base = api.fetch;
   const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {

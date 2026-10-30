@@ -9,7 +9,8 @@
  * - `dev` — `vite dev` only: the same headers WITHOUT Content-Security-Policy, because the React Refresh preamble is an
  *   inline script and HMR uses ws:. Never used for anything served to users (residual risk RR-c).
  * - EVM-044: `mediaOrigin` — the ONE https origin of the media bucket (`MEDIA_BUCKET_ORIGIN`, the same value as in the API) is added to
- *   `connect-src`, because the browser sends the parts of a photo straight to the bucket with a signed `PUT`. Exactly one origin, no
+ *   `connect-src`, because the browser sends the parts of a photo straight to the bucket with a signed `PUT`, and (EVM-068) to `img-src`, because the
+ *   thumbnails and previews are images loaded from the bucket by a signed `GET` (never from `'self'`, never `https:` or `*`). Exactly one origin, no
  *   path, no wildcard (a wildcard such as `*.scw.cloud` would give a script an exfiltration channel to any bucket); no value means
  *   `'self'` only. A wrong value is a configuration error and stops the start (`parseMediaOrigin`).
  * `https: true` (EVM-076, behind TLS) adds upgrade-insecure-requests and HSTS; on http://localhost they would break
@@ -75,9 +76,13 @@ export function panelSecurityHeaders({ variant, https = false, mediaOrigin }: Pa
     'X-Frame-Options': 'DENY',
   };
   if (variant === 'strict') {
-    const directives = CSP_DIRECTIVES.map((directive) =>
-      directive === "connect-src 'self'" && mediaOrigin !== undefined ? `connect-src 'self' ${mediaOrigin}` : directive,
-    );
+    // the same single origin serves the signed `PUT` of the parts (connect-src) and the thumbnails and previews as images (img-src, EVM-068)
+    const directives = CSP_DIRECTIVES.map((directive) => {
+      if (mediaOrigin === undefined) return directive;
+      if (directive === "connect-src 'self'") return `connect-src 'self' ${mediaOrigin}`;
+      if (directive === "img-src 'self' data: blob:") return `img-src 'self' data: blob: ${mediaOrigin}`;
+      return directive;
+    });
     headers['Content-Security-Policy'] = (https ? [...directives, 'upgrade-insecure-requests'] : directives).join('; ');
   }
   if (https) headers['Strict-Transport-Security'] = HSTS;

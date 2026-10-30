@@ -79,6 +79,12 @@ MediaAsset:
       maxLength: 40
     fileState:
       $ref: '#/MediaFileState'
+    processingFailed:
+      type: boolean
+      description: >-
+        Występuje (i jest `true`) WYŁĄCZNIE dla pliku w stanie `failed` z przyczyną `processing_error` (EVM-068 AC4): plik przeszedł skan, ale
+        nie udało się przygotować miniatury i podglądu po kolejnych próbach — panel pokazuje „Nie udało się przygotować podglądu. Spróbujemy
+        ponownie.” Oryginał pozostaje (pobranie: EVM-045). W każdym innym przypadku pola nie ma.
     stateReasonCode:
       description: Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.
       oneOf:
@@ -337,3 +343,35 @@ UploadPartUrl:
       type: integer
       description: Dokładny rozmiar części w bajtach — nagłówek `Content-Length` `PUT`.
       minimum: 1
+MediaDerivativeVariant:
+  type: string
+  description: >-
+    Wariant pochodnej zdjęcia, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068).
+    Podgląd `preview` (1600 px) powstaje w przetwarzaniu, ale adres do niego doda addytywnie EVM-045 razem z limitem wystawiania
+    adresów (SR-FILE-10) i audytem odczytu; w EVM-045 dojdzie też `original`.
+  enum: [thumbnail]
+CreateMediaDerivativeUrlRequest:
+  type: object
+  description: Wskazanie wariantu pochodnej, do którego panel prosi o adres.
+  required: [variant]
+  additionalProperties: false
+  properties:
+    variant:
+      $ref: '#/MediaDerivativeVariant'
+MediaDerivativeUrl:
+  type: object
+  description: >-
+    Podpisany `GET` pochodnej z domeny bucketu (nie z originu aplikacji), ważny najwyżej 5 minut, z typem `image/webp` i
+    `Content-Disposition: inline` narzuconymi przez serwer. Adres jest sekretem krótkotrwałym: panel trzyma go tylko w pamięci i nie
+    zapisuje w logach. `Cache-Control: no-store`.
+  required: [url, expiresAt]
+  additionalProperties: false
+  properties:
+    url:
+      type: string
+      format: uri
+      maxLength: 4096
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40

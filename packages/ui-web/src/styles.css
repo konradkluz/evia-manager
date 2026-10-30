@@ -196,9 +196,11 @@
   --spacing-dialog-width-md: var(--evm-size-dialog-width-md);
   --spacing-control-height-web-sm: var(--evm-size-control-height-web-sm);
   --spacing-timeline-marker: var(--evm-size-timeline-marker);
+  --spacing-thumbnail-md: var(--evm-size-thumbnail-md);
 
   --radius-control: var(--evm-radius-control);
   --radius-card: var(--evm-radius-card);
+  --radius-thumbnail: var(--evm-radius-thumbnail);
   --radius-dialog: var(--evm-radius-dialog);
   --radius-pill: var(--evm-radius-pill);
   --shadow-card: var(--evm-elevation-card);

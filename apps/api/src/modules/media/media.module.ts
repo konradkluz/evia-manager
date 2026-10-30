@@ -13,6 +13,8 @@ import type { Database } from '../../platform/database/database.ts';
 import type { Logger } from '../../platform/logging/logger.ts';
 import type { MalwareScanner } from '../../platform/malware-scan/malware-scanner.ts';
 import { MALWARE_SCANNER } from '../../platform/malware-scan/malware-scanner.ts';
+import type { ImageProcessor } from '../../platform/media-processing/image-processor.ts';
+import { IMAGE_PROCESSOR } from '../../platform/media-processing/image-processor.ts';
 import type { ObjectStorage } from '../../platform/object-storage/object-storage.ts';
 import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../platform/tokens.ts';
@@ -23,7 +25,9 @@ import { CreateUploadSessionService } from './application/create-upload-session.
 import { FinishUploadService } from './application/finish-upload.service.ts';
 import { ListMediaAssetsService } from './application/list-media-assets.service.ts';
 import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
+import { MediaProcessingService } from './application/media-processing.service.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
+import { MediaDerivativeUrlService } from './application/media-derivative-url.service.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 import { RescanMediaService } from './application/rescan-media.service.ts';
 import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
@@ -42,6 +46,7 @@ import { MediaController } from './http/media.controller.ts';
     FinishUploadService,
     SessionAccess,
     RescanMediaService,
+    MediaDerivativeUrlService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,
@@ -58,7 +63,13 @@ import { MediaController } from './http/media.controller.ts';
         administrators: AdministratorDirectory,
       ) => new MediaScanService({ db, clock, events, logger, storage, scanner, administrators: (tx) => administrators.listActiveIds(tx) }),
     },
+    {
+      provide: MediaProcessingService,
+      inject: [DATABASE, CLOCK, LOGGER, OBJECT_STORAGE, IMAGE_PROCESSOR],
+      useFactory: (db: Kysely<Database>, clock: Clock, logger: Logger, storage: ObjectStorage | null, processor: ImageProcessor | null) =>
+        new MediaProcessingService({ db, clock, logger, storage, processor }),
+    },
   ],
-  exports: [MediaScanService, QuarantineRetentionJob, AbandonedUploadsJob, SignatureMonitorJob],
+  exports: [MediaScanService, MediaProcessingService, QuarantineRetentionJob, AbandonedUploadsJob, SignatureMonitorJob],
 })
 export class MediaModule {}
