@@ -42,9 +42,9 @@ export function resolveVersionCode(value: string | undefined): number {
 export function buildExpoConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
   const variant = resolveBuildVariant(env['EVIA_BUILD_VARIANT']);
   // EVM-093 (security K1): no public switch of our own besides the API address (e2e hooks are chosen by the Metro resolver).
-  // EXPO_PUBLIC_* of Expo itself (EXPO_PUBLIC_PROJECT_ROOT, set by the CLI) are not ours and never inlined unless referenced.
+  // Public variables of Expo itself (the project root, set by the CLI while it reads this config) are not switches of the app.
   for (const [name, value] of Object.entries(env)) {
-    if (name.startsWith('EXPO_PUBLIC_EVIA_') && value !== undefined && value !== '')
+    if (name.startsWith('EXPO_PUBLIC_') && name.slice('EXPO_PUBLIC_'.length).startsWith('EVIA_') && value !== undefined && value !== '')
       throw new Error(`${name} is not allowed in the ${variant} build: EXPO_PUBLIC_API_BASE_URL is the only public variable of the app.`);
   }
   const url = parseApiBaseUrl(env['EXPO_PUBLIC_API_BASE_URL'], { allowLocalHttp: variant === 'e2e' });
