@@ -1,0 +1,19 @@
+# EVM-100 AC4, AC5: the start of a signed-in phone refreshes in the background; the scenario server answers 401 session_revoked —
+# M-02 "Wylogowano ten telefon", action "Zaloguj się" back to M-01.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Wylogowano ten telefon'
+    timeout: 45000
+- assertVisible: 'Dane zleceń usunęliśmy z telefonu.'
+- assertNotVisible:
+    id: 'nav-orders'
+- takeScreenshot: m02-revoked
+- tapOn:
+    id: 'device-state-primary'
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000

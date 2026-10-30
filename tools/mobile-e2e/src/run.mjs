@@ -145,7 +145,7 @@ export async function runE2e({ skipBuild, port }, host) {
           results.push({ scenario: scenario.name, flow: step.flow, status: 'skipped', seconds: 0 });
           continue;
         }
-        stub.setMode(step.server);
+        stub.setMode(step.server, step.auth ?? 'ok');
         if (step.background === true) {
           adb(...adbArgs(serial, 'shell', 'input', 'keyevent', 'KEYCODE_HOME'));
           await host.sleep(BACKGROUND_WAIT_MS);

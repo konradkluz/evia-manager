@@ -1,8 +1,8 @@
-# EVM-009 AC2: a network exists but the API answers 503 — "Brak połączenia z serwerem" with a retry; the content stays usable.
+# EVM-009 AC2: a signed-in phone (05-sign-in.yaml); a network exists but the API answers 503 — "Brak połączenia z serwerem" with a retry; the content stays usable.
 appId: pl.eviacharge.manager
 ---
 - launchApp:
-    clearState: true
+    stopApp: true
 - extendedWaitUntil:
     visible: 'Brak połączenia z serwerem'
     timeout: 30000

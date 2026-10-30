@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-0(09|93) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100) AC\d/m, flow);
     }
   });
 
@@ -35,10 +35,15 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
   it('EVM-009 AC4: the offline scenario starts without a network and the update scenario raises the minimum version', () => {
     /** @param {string} name @param {number} index */
     const step = (name, index) => SCENARIOS.find((scenario) => scenario.name === name)?.steps.at(index);
-    assert.equal(step('airplane-mode-and-return', 0)?.airplane, true);
+    // EVM-100: the shell needs a session, so the scenario signs in with the network first and then starts without it
+    assert.equal(step('airplane-mode-and-return', 0)?.flow, '02-sign-in.yaml');
+    assert.equal(step('airplane-mode-and-return', 0)?.airplane, false);
+    assert.equal(step('airplane-mode-and-return', 1)?.flow, '02-offline.yaml');
+    assert.equal(step('airplane-mode-and-return', 1)?.airplane, true);
     assert.equal(step('airplane-mode-and-return', -1)?.airplane, false);
     assert.equal(step('update-required', 0)?.server, 'update');
-    assert.equal(step('server-down-and-retry', 0)?.server, 'down');
+    assert.equal(step('server-down-and-retry', 0)?.server, 'ok');
+    assert.equal(step('server-down-and-retry', 1)?.server, 'down');
   });
 
   it('EVM-009 AC4: the flows take the review screenshots of the key states, each name once, in kebab-case', () => {
@@ -62,6 +67,17 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         's01-server-back',
         's01-server-down',
         's02-update-required',
+        'm01-login',
+        'm01-code',
+        'm01-wrong-code',
+        'm01-rate-limited',
+        'm01-offline',
+        'm02-role',
+        'm02-update',
+        'm02-revoked',
+        'm02-signed-out',
+        'm09-more',
+        'm09-logout-dialog',
       ].sort(),
     );
   });
@@ -115,6 +131,40 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
       assert.match(text, /text: 'open=unlocked;queue=20;identity=kept;pull=no'/, flow);
       assert.doesNotMatch(text, /clearState/, flow);
     }
+  });
+
+  it('EVM-100 AC1: every flow that needs the shell signs in first (shared subflow) and every sub-flow it runs exists', () => {
+    for (const flow of referenced) {
+      const text = readFileSync(join(FLOWS, flow), 'utf8');
+      for (const match of text.matchAll(/^- runFlow: (\S+)$/gm))
+        assert.ok(readdirSync(join(FLOWS, 'common')).includes((match[1] ?? '').replace('common/', '')), flow);
+    }
+    for (const flow of ['01-online.yaml', '04-update-required.yaml', '20-login-ok.yaml', '22-login-role.yaml', '26-logout-online.yaml'])
+      assert.match(
+        readFileSync(join(FLOWS, flow), 'utf8'),
+        /clearState: true[\s\S]*(runFlow: common\/sign-in\.yaml|id: 'login-email')/,
+        flow,
+      );
+    const signIn = readFileSync(join(FLOWS, 'common', 'sign-in.yaml'), 'utf8');
+    assert.match(signIn, /inputText: 'technik@example\.test'/);
+    assert.match(signIn, /inputText: '123456'/);
+  });
+
+  it('EVM-100 AC2–AC4: the sign-in modes of the scenario server are set for the steps that need them', () => {
+    const modes = SCENARIOS.flatMap((scenario) => scenario.steps).filter((step) => step.auth !== undefined);
+    assert.deepEqual(
+      modes.map((step) => [step.flow, step.auth]),
+      [
+        ['21-login-rate-limited.yaml', 'rate_limited'],
+        ['22-login-role.yaml', 'channel_not_allowed'],
+        ['22-login-update.yaml', 'version_unsupported'],
+        ['23-session-revoked.yaml', 'session_revoked'],
+      ],
+    );
+    /** @param {string} name */
+    const airplane = (name) => SCENARIOS.find((scenario) => scenario.name === name)?.steps.map((step) => step.airplane);
+    assert.deepEqual(airplane('sign-in-offline'), [true, false]);
+    assert.deepEqual(airplane('sign-out'), [false, true, false]);
   });
 
   it('EVM-093 AC1: the flows reach the hooks by the testIDs of the hook panel only, and the panel carries the marker of verify', () => {

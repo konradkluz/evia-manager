@@ -45,6 +45,8 @@ function fakeMachine({
   let packagePolls = 0;
   /** @type {string[]} */
   const modes = [];
+  /** @type {string[]} */
+  const auths = [];
   let closed = false;
   let devicePolls = 0;
   /** @type {{ command: string, args: string[] }[]} */
@@ -144,8 +146,9 @@ function fakeMachine({
       stubPort = port;
       return Promise.resolve({
         port,
-        setMode: (mode) => {
+        setMode: (mode, auth) => {
           modes.push(mode);
+          auths.push(auth ?? 'ok');
         },
         requests: () => requests ?? [{ platform: 'android', version: '0.1.0' }],
         close: () => {
@@ -165,6 +168,7 @@ function fakeMachine({
     logs,
     written,
     modes,
+    auths,
     resets,
     collected,
     detached,
@@ -190,6 +194,21 @@ function must(value) {
 }
 
 const ALL_FLOWS = SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.flow));
+
+/**
+ * The airplane-mode commands a sequence of steps needs: one whenever a step wants another state than the previous one (start: off).
+ * @param {{ airplane: boolean }[]} steps
+ */
+function expectedAirplane(steps) {
+  let on = false;
+  /** @type {string[]} */
+  const commands = [];
+  for (const step of steps) {
+    if (step.airplane !== on) commands.push(step.airplane ? 'enable' : 'disable');
+    on = step.airplane;
+  }
+  return commands;
+}
 
 describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
   it('EVM-009 AC4: builds the e2e variant, installs on the emulator, runs every flow and reports green', async () => {
@@ -223,8 +242,12 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
       machine.modes,
       SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.server)),
     );
-    // airplane on for the offline flow, off before the return (and nothing else)
-    assert.deepEqual(machine.airplane(), ['enable', 'disable']);
+    assert.deepEqual(
+      machine.auths,
+      SCENARIOS.flatMap((scenario) => scenario.steps.map((step) => step.auth ?? 'ok')),
+    );
+    // airplane mode changes exactly where two consecutive steps differ (the offline flows of EVM-009 and EVM-100), nothing else
+    assert.deepEqual(machine.airplane(), expectedAirplane(SCENARIOS.flatMap((scenario) => scenario.steps)));
     const homeIndex = machine.processes.findIndex((entry) => entry.args.includes('KEYCODE_HOME'));
     assert.ok(homeIndex > 0, 'the app goes to the background before the reconnect flow');
   });
@@ -377,7 +400,8 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...machine.host, exists: () => true }), 1);
     assert.ok(!machine.maestroFlows().includes('03-reconnect.yaml'));
     assert.ok(machine.maestroFlows().includes('04-update-required.yaml'));
-    assert.deepEqual(machine.airplane(), ['enable', 'disable']);
+    // the failed offline flow skips its return step: the next scenario switches airplane mode off, the later ones toggle as planned
+    assert.deepEqual(machine.airplane(), ['enable', 'disable', 'enable', 'disable', 'enable', 'disable']);
     const report = Object.values(machine.written).join('\n');
     assert.match(report, /\| airplane-mode-and-return \| 02-offline\.yaml \| failed \|/);
     assert.match(report, /\| airplane-mode-and-return \| 03-reconnect\.yaml \| skipped \|/);

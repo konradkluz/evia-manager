@@ -1,0 +1,45 @@
+# EVM-100 AC1, AC2: a wrong code — "Kod jest nieprawidłowy albo wygasł…", the step and the e-mail stay; "Zmień konto" returns to
+# the e-mail without losing it; a wrong password gives the one message about e-mail or password.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'haslo-testowe'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'login-code'
+    timeout: 30000
+- tapOn:
+    id: 'login-code'
+- inputText: '000000'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Kod jest nieprawidłowy albo wygasł. Wpisz nowy kod z aplikacji.'
+    timeout: 30000
+- takeScreenshot: m01-wrong-code
+- tapOn:
+    id: 'login-change-account'
+- assertVisible: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'zle-haslo'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Nieprawidłowy e-mail lub hasło.'
+    timeout: 30000

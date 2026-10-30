@@ -50,8 +50,8 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
   });
   return {
     port: await listening,
-    setMode: (mode) => {
-      worker.postMessage({ mode });
+    setMode: (mode, auth = 'ok') => {
+      worker.postMessage({ mode, auth });
     },
     requests: () => {
       if (!exited) drain();

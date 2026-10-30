@@ -1,9 +1,9 @@
-# EVM-009 AC2: the app starts without a network (airplane mode, set by tools/mobile-e2e) — the offline banner and capsule,
+# EVM-009 AC2, EVM-100 AC6: a signed-in phone (02-sign-in.yaml) starts without a network (airplane mode, set by tools/mobile-e2e) — the offline banner and capsule,
 # the app keeps working (the empty list stays, nothing blocks).
 appId: pl.eviacharge.manager
 ---
 - launchApp:
-    clearState: true
+    stopApp: true
 - extendedWaitUntil:
     visible: 'Brak zasięgu.*'
     timeout: 30000

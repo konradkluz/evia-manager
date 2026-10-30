@@ -6,12 +6,14 @@
  * @typedef {{
  *   flow: string,
  *   server: import('./stub-api.mjs').StubMode,
+ *   auth?: import('./stub-api.mjs').AuthMode,
  *   airplane: boolean,
  *   background?: boolean,
  *   before?: import('./device.mjs').DeviceAction[],
  *   after?: import('./device.mjs').DeviceAction[],
  * }} Step
  * `before` runs ahead of the flow (a failure skips it), `after` once the flow passed (EVM-093 device steps, src/device.mjs).
+ * `auth` is the sign-in mode of the scenario server for the step (EVM-100; default `ok`).
  * @typedef {{ name: string, ac: string, steps: Step[] }} Scenario
  */
 
@@ -20,8 +22,10 @@ export const SCENARIOS = [
   { name: 'online', ac: 'AC1 AC2', steps: [{ flow: '01-online.yaml', server: 'ok', airplane: false }] },
   {
     name: 'airplane-mode-and-return',
-    ac: 'AC2',
+    ac: 'AC2 EVM-100 AC6',
     steps: [
+      // EVM-100: a signed-in phone first, then the start without a network goes straight into the shell
+      { flow: '02-sign-in.yaml', server: 'ok', airplane: false },
       { flow: '02-offline.yaml', server: 'ok', airplane: true },
       // The app goes to the background, the network returns, the app comes back to the foreground: it checks again by itself.
       { flow: '03-reconnect.yaml', server: 'ok', airplane: false, background: true },
@@ -32,6 +36,7 @@ export const SCENARIOS = [
     name: 'server-down-and-retry',
     ac: 'AC2',
     steps: [
+      { flow: '05-sign-in.yaml', server: 'ok', airplane: false },
       { flow: '05-server-down.yaml', server: 'down', airplane: false },
       { flow: '06-server-retry.yaml', server: 'ok', airplane: false },
     ],
@@ -85,8 +90,58 @@ export const SCENARIOS = [
     ],
   },
   { name: 'local-store-owner', ac: 'EVM-093 AC7', steps: [{ flow: '14-owner.yaml', server: 'ok', airplane: false }] },
+  // EVM-100: the sign-in (M-01), the device states (M-02) and the sign-out (M-09) against the sign-in modes of the scenario server.
+  { name: 'sign-in', ac: 'EVM-100 AC1', steps: [{ flow: '20-login-ok.yaml', server: 'ok', airplane: false }] },
+  {
+    name: 'sign-in-errors',
+    ac: 'EVM-100 AC1 AC2',
+    steps: [
+      { flow: '21-login-wrong-code.yaml', server: 'ok', airplane: false },
+      { flow: '21-login-rate-limited.yaml', server: 'ok', auth: 'rate_limited', airplane: false },
+    ],
+  },
+  {
+    name: 'sign-in-blocked',
+    ac: 'EVM-100 AC3',
+    steps: [
+      { flow: '22-login-role.yaml', server: 'ok', auth: 'channel_not_allowed', airplane: false },
+      { flow: '22-login-update.yaml', server: 'ok', auth: 'version_unsupported', airplane: false },
+    ],
+  },
+  {
+    name: 'session-revoked',
+    ac: 'EVM-100 AC4 AC5',
+    steps: [
+      { flow: '23-session-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '23-session-revoked.yaml', server: 'ok', auth: 'session_revoked', airplane: false },
+    ],
+  },
+  {
+    name: 'sign-in-offline',
+    ac: 'EVM-100 AC6',
+    steps: [
+      { flow: '24-login-offline.yaml', server: 'ok', airplane: true },
+      { flow: '24-login-reconnect.yaml', server: 'ok', airplane: false },
+    ],
+  },
+  {
+    name: 'sign-out',
+    ac: 'EVM-100 AC6 AC7',
+    steps: [
+      { flow: '26-logout-online.yaml', server: 'ok', airplane: false },
+      { flow: '26-logout-offline.yaml', server: 'ok', airplane: true },
+      { flow: '26-logout-reconnect.yaml', server: 'ok', airplane: false },
+    ],
+  },
   // Last: the held request keeps the app in its loading state (skeleton), and the first-flow retry of the runner is not affected.
-  { name: 'loading', ac: 'AC1', steps: [{ flow: '07-loading.yaml', server: 'hang', airplane: false }] },
+  {
+    name: 'loading',
+    ac: 'AC1',
+    steps: [
+      { flow: '07-sign-in.yaml', server: 'ok', airplane: false },
+      { flow: '07-loading.yaml', server: 'hang', airplane: false },
+    ],
+  },
 ];
 
 /** Waits (ms) around the state changes; they exceed the debounce of the foreground check (5 s) and the network restore. */

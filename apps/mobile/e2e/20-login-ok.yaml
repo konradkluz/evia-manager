@@ -1,0 +1,42 @@
+# EVM-100 AC1: the full sign-in — e-mail and password, the code (masked, "Pokaż" shows it), then the shell (device checks of
+# EVM-101/EVM-107 are a stand-in). Screenshots are allowed only because this is the e2e variant (FLAG_SECURE is off only there).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Zaloguj się'
+    timeout: 30000
+- assertVisible: 'Nie pamiętasz hasła?'
+- takeScreenshot: m01-login
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'haslo-testowe'
+- hideKeyboard
+- tapOn:
+    id: 'login-password-toggle'
+- assertVisible: 'Ukryj'
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Kod z aplikacji uwierzytelniającej'
+    timeout: 30000
+- assertVisible: 'Zmień konto'
+- tapOn:
+    id: 'login-code'
+- inputText: '123456'
+- hideKeyboard
+- takeScreenshot: m01-code
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000
+- assertVisible: 'Moje zlecenia'
+- tapOn:
+    id: 'nav-more'
+- assertVisible: 'Technik Testowy'
+- takeScreenshot: m09-more

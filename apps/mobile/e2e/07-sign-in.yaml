@@ -1,0 +1,9 @@
+# EVM-100 AC1 (preparation of EVM-009 AC1): sign in while the API answers; the next flow restarts the app with the check held.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000
