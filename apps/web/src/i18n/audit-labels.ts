@@ -57,6 +57,7 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'bulk_read.rejected': 'Odrzucony masowy odczyt',
   // EVM-096: a full download of the data to a phone (started, or refused by the limit per day)
   'sync.full_download': 'Pełne pobranie danych na urządzenie mobilne',
+  'sync.full_download_completed': 'Zakończenie pełnego pobrania danych na urządzenie mobilne',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
   'customer.deleted': 'Usunięcie klienta',
@@ -156,7 +157,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     label: 'Reset hasła',
     actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
-  { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected', 'sync.full_download'] },
+  {
+    label: 'Dziennik audytu',
+    actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected', 'sync.full_download', 'sync.full_download_completed'],
+  },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
   {

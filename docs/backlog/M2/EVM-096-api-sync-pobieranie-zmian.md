@@ -81,3 +81,4 @@ Pozostałe encje (procesy, etapy, strony, zakres, przypisania, wpisy, użytkowni
 - 2026-10-29 — dopracowanie do DoR: ADR-0021 zaakceptowany, AC8 uczyniono testowalnym, rozgraniczenie z EVM-097, propozycja decyzji o liczniku EVM-039 (product-owner).
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–8, sync nie zasila licznika EVM-039, domyślne limity (3 pełne pobrania/dobę → 429, alert >2/24 h, N=30, strona 200/500, ~900 KB); status ready
 - 2026-10-29 — zaimplementowano (backend-developer): migracja 0053, moduł `sync`, `GET /api/v1/sync/changes`; kod `forbidden` (nie `channel_not_allowed`) dla roli Tylko odczyt, jak w pozostałych operacjach kanału `mobile` (kontrakt EVM-090); `SYNC_CURSOR_KEYS` opcjonalny (pusty = klucz pochodny od `CURSOR_KEY`); status in-review
+- 2026-10-30 — plan gotowy (backend-developer)
