@@ -47,7 +47,7 @@ class EviaKeystoreModule : Module() {
           @Suppress("DEPRECATION")
           if (info.isInsideSecureHardware) "secure_hardware" else "software"
         }
-      } catch (_: Exception) {
+      } catch (error: Exception) {
         UNKNOWN
       }
     }
