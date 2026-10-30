@@ -71,6 +71,17 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 ## Notatki
 - Backlog po M2: rozdzielenie kluczy (replika z `setUnlockedDeviceRequired`, kolejka z kluczem „po pierwszym odblokowaniu”) — wymaga własnego kodu Kotlin i dwóch baz.
 - Zależność od EVM-092 dotyczy portu magazynu repliki; port `QueueStore` (EVM-091) jest scalony i można zacząć od AC1–AC5.
+- Weryfikacja natywna 2026-10-30 (emulator `Medium_Phone_API_35`, Android 15 / API 35, wariant e2e z commitu `b8281e5b`, krótki klon `C:\e93`; Maestro 20/21):
+
+| AC | Dowód natywny | Wynik |
+|---|---|---|
+| AC1 | 08-encryption + `run-as`: nagłówek, znacznik w katalogu aplikacji (przy żywym procesie i po `force-stop`), logcat, fakty haka | zgodne: nagłówek ≠ `SQLite format 3`, 0 trafień znacznika, SQLCipher ≥ 4.6, `temp_store=2`; moduł Kotlin `evia-keystore` się kompiluje |
+| AC2 | (Jest `migrations.test.ts`) | natywnie poza minimum |
+| AC3 | 09: 20 wpisów, `force-stop`, `kill -9`, restart emulatora | zgodne |
+| AC4 | `verify` release / e2e; `bmgr` (transport lokalny); `adb backup` | `verify` release: kod 0 (bez znacznika haków i `debuggable`); `verify` e2e: znacznik haków wykryty; `bmgr`: aplikacja odrzucona; **`adb backup` wariantu e2e (debuggable) zawiera bazę i `SecureStore.xml`**, a na paczce niedebugowalnej: „not eligible”, 0 wpisów — do decyzji Konrada |
+| AC5 | 11-key-missing, 12-file-corrupt | zgodne: komunikat i „Rozumiem”, plik istnieje do potwierdzenia, nowa baza i nowe `deviceId` |
+| AC6 | 13-wipe (awaria po kroku), kontrola 13-wipe-control | zgodne: czyszczenie dokończone przy starcie, 0 wpisów secure-store, kopia sprzed czyszczenia → `not_a_database` |
+| AC7 | 14-owner | zgodne: `owner_mismatch`, liczba 5, po czyszczeniu pusto i nowe `deviceId` |
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
@@ -79,3 +90,5 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–7; utrata klucza = niewysłane dane przepadają (crypto-shred); model opus; zależność od EVM-092; status ready
 - 2026-10-30 — plan gotowy (mobile-developer)
 - 2026-10-30 — implementacja: zakazy importów w `mobileUi()`, wariant e2e `debuggable`, haki e2e wybierane resolverem Metro (znacznik odrzucany przez `verify`), przepływy Maestro 08–14 z krokami adb; natywne części AC1, AC3–AC7 niezweryfikowane — build e2e zablokowany długimi ścieżkami poza worktree (`.scratch/queue-C/blockers.md`) (mobile-developer)
+- 2026-10-30 — plan gotowy (mobile-developer) — wznowienie: weryfikacja natywna w jednorazowym krótkim klonie `C:\e93` (Droga A) i przeglądy
+- 2026-10-30 — weryfikacja natywna (API 35): AC1, AC3, AC5–AC7 zgodne, `verify` release 0 i e2e ze znacznikiem haków; APK release +11,6 MiB; AC4 `adb backup` wariantu e2e (debuggable) zawiera dane — platforma ignoruje `allowBackup` dla debuggable, na paczce niedebugowalnej 0 wpisów; czeka na decyzję Konrada (mobile-developer)
