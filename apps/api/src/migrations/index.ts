@@ -51,6 +51,7 @@ import * as mobileDevices from './0050_mobile_devices.ts';
 import * as mobileTokens from './0051_mobile_tokens.ts';
 import * as mobileVocabularies from './0052_mobile_vocabularies.ts';
 import * as mediaDerivatives from './0053_media_derivatives.ts';
+import * as mediaVideo from './0055_media_video.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -104,4 +105,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0051_mobile_tokens': mobileTokens,
   '0052_mobile_vocabularies': mobileVocabularies,
   '0053_media_derivatives': mediaDerivatives,
+  '0055_media_video': mediaVideo,
 });

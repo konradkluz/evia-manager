@@ -29,6 +29,8 @@ export function isOriginalDownloadable(state: FileState, reason: ReasonCode | nu
 }
 
 const EXTENSION_OF_TYPE: Readonly<Record<AllowedContentType, string>> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',

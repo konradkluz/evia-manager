@@ -26,7 +26,7 @@ Jako **pracownik biura** chcę **oglądać zdjęcia w powiększeniu i w razie po
 **AC1 — Lightbox**
 - Zakładając galerię zlecenia
 - Gdy klikam miniaturę
-- Wtedy widzę podgląd 1600 px z przyciskami „Poprzednie” / „Następne”, powiększeniem przyciskami i metadanymi (kategoria, autor, czas, „z telefonu”), bez panelu EXIF / GPS i bez „Kopiuj link”; Esc zamyka, a fokus wraca do miniatury.
+- Wtedy widzę podgląd 1600 px z przyciskami „Poprzednie” / „Następne”, powiększeniem przyciskami i metadanymi (kategoria, czas, „z telefonu”), bez panelu EXIF / GPS i bez „Kopiuj link”; Esc zamyka, a fokus wraca do miniatury.
 
 **AC2 — Pobranie oryginału (SR-FILE-07, SR-FILE-08)**
 - Zakładając Edytora w lightboxie
@@ -104,3 +104,4 @@ _—_
 - 2026-10-30 — API gotowe (backend-developer): `preview` i `original` w `createMediaAssetDownloadUrl`, limity P10, audyt, nagłówek attachment z serwera; testy `EVM-045 AC2–AC7` zielone w kontenerze; UI (AC1, AC8, część AC2) czeka na web-developera
 - 2026-10-30 — UI gotowe (web-developer): Lightbox w bibliotece `@evia/ui-web` (§ 3.11), kafle galerii jako przyciski, podgląd 1600, dialog „Pobrać oryginał?”, stany AC8, testy `EVM-045 AC1/2/4/5/8`; metadana „autor” pominięta — kontrakt `MediaAsset` nie ma pola autora (do decyzji: zmiana kontraktu)
 - 2026-10-30 — runda poprawek (backend-developer): fokusowalny przewijany obszar powiększonego zdjęcia w Lightboxie (WCAG 2.1.1) z testem; status in-review. AC1 „autor” — czeka na decyzję Konrada: (a) addytywne pole createdByName (tylko nazwa wyświetlana, join przy odczycie, aktualizacja rodo.md) albo (b) usunięcie „autor” z AC1; AC bez zmian
+- 2026-10-30 — decyzja Konrada: AC1 bez metadanej „autor” (opcja b) — kontrakt `MediaAsset` bez zmian, brak nowych danych osobowych w galerii; autor mediów ewentualnie w osobnej historyjce (tech lead)

@@ -1,21 +1,31 @@
 /**
- * What may be uploaded as a photo (SR-FILE-01, SR-FILE-03; EVM-044 AC2): the allow-list of types, the extensions that match them, the
+ * What may be uploaded as a photo or a video (SR-FILE-01, SR-FILE-03; EVM-044 AC2): the allow-list of types, the extensions that match them, the
  * size limit and the cleaning of the file name. Pure functions of data. The type is decided by the CONTENT at scan time (`file-type`
  * on the first bytes); the declaration checked here only keeps obviously unsupported files (SVG, HTML, archives, anything above
  * 50 MB) from starting an upload at all.
  */
 
-/** 50 MB (SR-FILE-03). */
+/** 50 MB (SR-FILE-03): the limit of a PHOTO. */
 export const MAX_FILE_BYTES = 52_428_800;
+/** 4 GiB (ADR-0009; EVM-046 AC1): the limit of a VIDEO. */
+export const MAX_VIDEO_BYTES = 4_294_967_296;
 
-export type AllowedContentType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
+export type PhotoContentType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/heic';
+export type VideoContentType = 'video/mp4' | 'video/quicktime';
+export type AllowedContentType = PhotoContentType | VideoContentType;
+export type MediaKind = 'photo' | 'video';
 
 const EXTENSIONS: Readonly<Record<AllowedContentType, readonly string[]>> = {
   'image/jpeg': ['jpg', 'jpeg'],
   'image/png': ['png'],
   'image/webp': ['webp'],
   'image/heic': ['heic', 'heif'],
+  'video/mp4': ['mp4'],
+  'video/quicktime': ['mov'],
 };
+
+/** The kind of medium a type belongs to; the server derives it from the type, never from a field of the client (EVM-046 AC1). */
+export const mediaKindOf = (type: AllowedContentType): MediaKind => (type.startsWith('video/') ? 'video' : 'photo');
 
 /** `image/heif` is the same family as `image/heic` (file-type reports either, depending on the brand). */
 const ALIASES: Readonly<Record<string, AllowedContentType>> = { 'image/jpg': 'image/jpeg', 'image/heif': 'image/heic' };
@@ -61,6 +71,7 @@ export interface Declaration {
 
 export interface CheckedDeclaration {
   readonly contentType: AllowedContentType;
+  readonly mediaType: MediaKind;
   readonly originalFilename: string;
 }
 
@@ -78,10 +89,11 @@ export function checkDeclaration(declaration: Declaration):
   if (contentType === undefined) issues.push({ field: 'contentType', code: 'unsupported_type' });
   else if (originalFilename !== undefined && !extensionMatches(contentType, originalFilename))
     issues.push({ field: 'fileName', code: 'unsupported_type' });
-  if (declaration.declaredSize > MAX_FILE_BYTES) issues.push({ field: 'declaredSize', code: 'file_too_large' });
+  const limit = contentType !== undefined && mediaKindOf(contentType) === 'video' ? MAX_VIDEO_BYTES : MAX_FILE_BYTES;
+  if (declaration.declaredSize > limit) issues.push({ field: 'declaredSize', code: 'file_too_large' });
   else if (declaration.declaredSize < 1) issues.push({ field: 'declaredSize', code: 'size_out_of_range' });
   if (issues.length > 0 || originalFilename === undefined || contentType === undefined) return { ok: false, issues };
-  return { ok: true, value: { contentType, originalFilename } };
+  return { ok: true, value: { contentType, mediaType: mediaKindOf(contentType), originalFilename } };
 }
 
 /**
@@ -92,6 +104,12 @@ export function typeAgrees(detected: string | undefined, declared: string, origi
   if (detected === undefined) return false;
   const detectedType = normalizeContentType(detected);
   const declaredType = normalizeContentType(declared);
-  if (detectedType === undefined || declaredType === undefined || detectedType !== declaredType) return false;
+  if (detectedType === undefined || declaredType === undefined) return false;
+  // MP4 and MOV are one family (ISO base media): a phone writes `.mov` with an `isom` brand and the reverse. The structure is judged by ffprobe
+  // (EVM-046 AC2); here only the family and the extension of the DECLARED type must agree.
+  if (mediaKindOf(declaredType) === 'video') {
+    return mediaKindOf(detectedType) === 'video' && (originalFilename === null || extensionMatches(declaredType, originalFilename));
+  }
+  if (detectedType !== declaredType) return false;
   return originalFilename === null || extensionMatches(detectedType, originalFilename);
 }
