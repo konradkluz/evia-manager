@@ -27,6 +27,10 @@ export interface AuditEventsTable {
   /** The codes of the status before and after (EVM-054; 0029): both or neither. */
   from_code: string | null;
   to_code: string | null;
+  /** The counts of the entities by type of a full download of a phone (EVM-096; 0053): all three or none. */
+  work_order_count: number | null;
+  customer_count: number | null;
+  site_count: number | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

@@ -21,6 +21,7 @@ export interface DeviceSyncStateTable {
   device_id: string;
   last_full_sync_at: Date | null;
   resync_requested_reason: 'periodic' | 'access_changed' | 'scope_changed' | 'cursor_expired' | 'cursor_invalid' | null;
+  last_pulled_at: Date | null;
   updated_at: Date;
 }
 
@@ -30,6 +31,9 @@ export interface FullDownloadsTable {
   user_id: string;
   reason: string;
   started_at: Date;
+  completed_at: Date | null;
+  last_after: string | null;
+  prev_after: string | null;
   work_order_count: Generated<number>;
   customer_count: Generated<number>;
   site_count: Generated<number>;

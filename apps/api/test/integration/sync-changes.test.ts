@@ -244,7 +244,8 @@ describe('the snapshot: the first pull (EVM-096 AC2; SR-SYNC-04, SR-AUTHZ-03, CW
       expect((await pull(phone, query)).status).toBe(200);
       return statements.filter((text) => !/identity\./.test(text)).length;
     };
-    await measure('limit=1'); // the first call of a device also creates its state
+    // the first call of a device also creates its state; the third full download of a day also raises an alert (one more statement, once)
+    for (let warm = 0; warm < 3; warm += 1) await measure('limit=1');
     const small = await measure('limit=2');
     const large = await measure('limit=30');
     expect(large).toBe(small);
@@ -662,7 +663,7 @@ describe('the cursor: every way it can be unusable (EVM-096 AC3, AC6; ADR-0021 D
 });
 
 describe('the mass read: full downloads (EVM-096 AC8; AB-08, SR-API-02, SR-LOG-03)', () => {
-  it('EVM-096 AC8 the 4th full download in a rolling day is 429 with Retry-After; ordinary pulls with a cursor are not counted; it is audited with the counts by type; after the day it works again', async () => {
+  it('EVM-096 AC8 the 4th full download in a rolling day is 429 with Retry-After; ordinary pulls with a cursor are not counted; it is audited, and the end of each download carries the counts by type in the trail; after the day it works again', async () => {
     await boot({ SYNC_FULL_DOWNLOADS_PER_DAY: '3' });
     const { phone } = await editor();
     const customer = await insertCustomer(admin());
@@ -690,6 +691,13 @@ describe('the mass read: full downloads (EVM-096 AC8; AB-08, SR-API-02, SR-LOG-0
     const audit = (await auditActions(current)).filter((event) => event.action === 'sync.full_download');
     expect(audit.map((event) => event.outcome)).toEqual(['success', 'success', 'success', 'denied']);
     expect(audit.every((event) => event.object_id === phone.deviceId)).toBe(true);
+    const trail = await sql<{ work_order_count: number; customer_count: number; site_count: number; object_id: string }>`
+      select work_order_count, customer_count, site_count, object_id from audit.events where action = 'sync.full_download_completed' order by occurred_at, id`.execute(
+      admin(),
+    );
+    expect(trail.rows).toEqual(
+      Array.from({ length: 3 }, () => ({ work_order_count: 2, customer_count: 1, site_count: 1, object_id: phone.deviceId })),
+    );
     const counts = await sql<{ work_order_count: number; customer_count: number; site_count: number; reason: string }>`
       select work_order_count, customer_count, site_count, reason from sync.full_downloads where device_id = ${phone.deviceId ?? ''} order by started_at`.execute(
       admin(),
@@ -730,6 +738,116 @@ describe('the mass read: full downloads (EVM-096 AC8; AB-08, SR-API-02, SR-LOG-0
     const rows = await sql<{ count: string }>`select count(*)::text as count from sync.full_downloads`.execute(admin());
     expect(rows.rows[0]?.count).toBe('1');
     expect((await auditActions(current)).filter((event) => event.action === 'sync.full_download')).toHaveLength(1);
+  });
+});
+
+describe('the cursor of a snapshot is tied to the life of its download (EVM-096 AC8; AB-08, CWE-799)', () => {
+  const pageOf = async (phone: Phone, query: string): Promise<Body> => {
+    const response = await pull(phone, query);
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    return response.body as Body;
+  };
+  const totals = async (): Promise<string> => {
+    const rows = await sql<{ total: string }>`select coalesce(sum(work_order_count), 0)::text as total from sync.full_downloads`.execute(
+      admin(),
+    );
+    return rows.rows[0]?.total ?? '';
+  };
+
+  it('EVM-096 AC8 a cursor of the snapshot replayed after the download ended is a resync, is counted and adds nothing to the register', async () => {
+    await boot();
+    const { phone } = await editor();
+    for (let index = 1; index <= 4; index += 1) await order({ number: numberOf(2026, index) });
+    const first = await pageOf(phone, 'limit=1');
+    const middle = await pageOf(phone, `limit=1&cursor=${first.cursor}`);
+    const rest = await drain(phone, 'limit=2', middle.cursor);
+    expect(rest.pages.at(-1)).toMatchObject({ phase: 'changes' });
+    const before = await totals();
+    for (let round = 0; round < 3; round += 1) {
+      expect((await pull(phone, `limit=1&cursor=${middle.cursor}`)).body).toMatchObject({
+        result: 'resync_required',
+        reason: 'cursor_invalid',
+      });
+    }
+    expect(counter('sync_cursor_rejected_total', { reason: 'snapshot_replay' })).toBe(3);
+    expect(await totals()).toBe(before);
+  });
+
+  it('EVM-096 AC8 a page asked again (the answer was lost) is served and not counted twice; going back further is a replay', async () => {
+    await boot();
+    const { phone } = await editor();
+    for (let index = 1; index <= 5; index += 1) await order({ number: numberOf(2026, index) });
+    const first = await pageOf(phone, 'limit=1');
+    const second = await pageOf(phone, `limit=1&cursor=${first.cursor}`);
+    const third = await pageOf(phone, `limit=1&cursor=${second.cursor}`);
+    const repeat = await pageOf(phone, `limit=1&cursor=${second.cursor}`);
+    expect(repeat.changes).toEqual(third.changes);
+    expect(await totals()).toBe('3');
+    expect((await pull(phone, `limit=1&cursor=${first.cursor}`)).body).toMatchObject({
+      result: 'resync_required',
+      reason: 'cursor_invalid',
+    });
+  });
+
+  it('EVM-096 AC8 a cursor of a download begun over a day ago is a resync', async () => {
+    await boot();
+    const { phone } = await editor();
+    for (let index = 1; index <= 3; index += 1) await order({ number: numberOf(2026, index) });
+    const first = await pageOf(phone, 'limit=1');
+    await sql`update sync.full_downloads set started_at = ${ago(1, 1000)}`.execute(admin());
+    expect((await pull(phone, `limit=1&cursor=${first.cursor}`)).body).toMatchObject({
+      result: 'resync_required',
+      reason: 'cursor_invalid',
+    });
+  });
+});
+
+describe('the alerts of the mass read (EVM-096 AC8; AB-08, SR-LOG-07)', () => {
+  const alerts = async (): Promise<number> => {
+    const rows = await sql<{
+      count: string;
+    }>`select count(*)::text as count from platform.security_alert_outbox where alert_code = 'sync_full_downloads_excess'`.execute(admin());
+    return Number(rows.rows[0]?.count);
+  };
+
+  it('EVM-096 AC8 the third full download in a day raises exactly one alert of the operator, the refused fourth does not repeat it; the trail names the device', async () => {
+    await boot({ SYNC_FULL_DOWNLOADS_PER_DAY: '3' });
+    const { phone } = await editor();
+    await order({ number: numberOf(2026, 1) });
+    for (let round = 0; round < 2; round += 1) {
+      await drain(phone);
+      expect(await alerts()).toBe(0);
+      current.clock.advance(60_000);
+    }
+    await drain(phone);
+    expect(await alerts()).toBe(1);
+    expect((await pull(phone)).status).toBe(429);
+    expect(await alerts()).toBe(1);
+    const trace = await sql<{ object_id: string }>`
+      select e.object_id from audit.events e join platform.security_alert_outbox a on a.trace_id = e.trace_id
+      where a.alert_code = 'sync_full_downloads_excess' and e.action = 'sync.full_download'`.execute(admin());
+    expect(trace.rows.map((row) => row.object_id)).toEqual([phone.deviceId]);
+  });
+
+  it('EVM-096 AC8 the device that pulls is noted at most once an hour (the base measure of the alert "pulls and sends nothing", EVM-098)', async () => {
+    await boot();
+    const { phone } = await editor();
+    await order({ number: numberOf(2026, 1) });
+    const result = await drain(phone);
+    const noted = async (): Promise<Date | null> => {
+      const rows = await sql<{
+        last_pulled_at: Date | null;
+      }>`select last_pulled_at from sync.device_sync_state where device_id = ${phone.deviceId ?? ''}`.execute(admin());
+      return rows.rows[0]?.last_pulled_at ?? null;
+    };
+    const firstNote = await noted();
+    expect(firstNote).toEqual(current.clock.now());
+    current.clock.advance(10 * 60_000);
+    await pull(phone, `cursor=${result.cursor}`);
+    expect(await noted()).toEqual(firstNote);
+    await sql`update sync.device_sync_state set last_pulled_at = ${new Date(current.clock.now().getTime() - 61 * 60_000)}`.execute(admin());
+    await pull(phone, `cursor=${result.cursor}`);
+    expect(await noted()).toEqual(current.clock.now());
   });
 });
 

@@ -83,6 +83,13 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Eskalacja:** potwierdzony atak → blokada konta, rotacja kluczy, zgłoszenie incydentu wg polityki.
 - **Test:** wywołaj zdarzenie z aplikacji (konto syntetyczne, blokada po serii błędnych haseł) i potwierdź e-mail.
 
+## Alerty pobierania zmian na telefon (EVM-096 AC8, AB-08)
+- **`sync_full_downloads_excess` (przez `EviaSecurityAlert`):** urządzenie wykonało trzecie pełne pobranie danych w ciągu 24 godzin (limit to 3, czwarte dostaje `429`). Jeden alert na okno. Alert nie niesie urządzenia: znajdź je w dzienniku audytu po `traceId` (akcja `sync.full_download`, obiekt `device`) i sprawdź konto oraz urządzenie.
+  - **Pierwsza reakcja:** zapytaj użytkownika, czy reinstalował aplikację; jeśli nie, unieważnij sesję urządzenia (Administrator, EVM-095) i zablokuj konto do wyjaśnienia.
+  - **Liczby:** koniec każdego pobrania (`sync.full_download_completed`) zapisuje w dzienniku audytu liczbę zleceń, klientów i lokalizacji; nagły wzrost wobec poprzednich pobrań tego urządzenia to sygnał wyniesienia danych.
+  - Metryki bez etykiety urządzenia: `sync_full_downloads_total`, `sync_full_downloads_limited_total`, `sync_cursor_rejected_total{reason="snapshot_replay"}` (odtwarzanie kursora migawki po końcu pobrania; ponowne pobranie w tej samej dobie jest liczone i limitowane).
+- **„Urządzenie pobiera zmiany od ponad 3 dni, nie wysyłając nic”:** baza to kolumna `sync.device_sync_state.last_pulled_at` (ostatnie pobranie, zapis najwyżej raz na godzinę). Reguła alertu powstaje z EVM-098 (dopiero wtedy jest czas ostatniego wysłania); do tego czasu przegląd ręczny: `select device_id, last_pulled_at from sync.device_sync_state where last_pulled_at > now() - interval '1 day'` zestawiony z aktywnością zleceń użytkownika.
+
 ## EviaSecurityAccountLockedBurst
 - **Znaczenie:** 5 lub więcej blokad kont w 15 minut (agregacja `account_locked`): możliwy atak szeregowy.
 - **Pierwsza reakcja:** jak wyżej; sprawdź źródła (adresy zamaskowane do /24) i czas.

@@ -6,6 +6,7 @@ import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../..
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
+import type { SyncAuditEvent } from '../../src/platform/sync/sync-event.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { FixedClock } from '../support/clock.ts';
 
@@ -577,5 +578,38 @@ describe('the status codes of a transition of a payment milestone (EVM-054 AC1, 
       false,
     );
     expect(auditRecordSchema.safeParse({ ...base, fromCode: null, toCode: null }).success).toBe(true);
+  });
+});
+
+describe('the counts of a full download in the trail (EVM-096 AC8; AB-08)', () => {
+  const device = '0190a1b2-0000-7000-8000-00000000d001';
+  const completed = (overrides: Partial<SyncAuditEvent> = {}): SyncAuditEvent => ({
+    type: 'sync.full_download_completed',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'device',
+    objectId: device,
+    counts: { workOrders: 12, customers: 5, sites: 7 },
+    ...overrides,
+  });
+  const context: EventContext = { origin: 'web', traceId };
+
+  it('EVM-096 AC8 the end of a full download carries the counts of the entities by type', () => {
+    const record = toAuditRecord(completed(), context, at);
+    expect(record).toMatchObject({
+      action: 'sync.full_download_completed',
+      objectType: 'device',
+      objectId: device,
+      workOrderCount: 12,
+      customerCount: 5,
+      siteCount: 7,
+    });
+  });
+
+  it('EVM-096 AC8 the start of a download has no counts, and the end without counts or counts on another event is refused', () => {
+    const start = toAuditRecord(completed({ type: 'sync.full_download', counts: undefined }), context, at);
+    expect(start).toMatchObject({ workOrderCount: null, customerCount: null, siteCount: null });
+    expect(() => toAuditRecord(completed({ counts: undefined }), context, at)).toThrow();
+    expect(() => toAuditRecord(completed({ type: 'sync.full_download' }), context, at)).toThrow();
   });
 });

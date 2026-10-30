@@ -70,6 +70,9 @@ const ROLE_CHANGE_ACTION = 'user.role_changed';
 /** The new scan of a quarantined file carries the state before and after (EVM-049): the result, never the reason. */
 const RESCAN_ACTION = 'media_file.rescanned';
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
+const entityCount = z.int().min(0).max(1_000_000).nullable();
+/** The one event that carries the counts of the entities by type: the end of a full download of a phone (EVM-096 AC8). */
+const FULL_DOWNLOAD_COMPLETED_ACTION = 'sync.full_download_completed';
 const statusCode = z
   .string()
   .regex(/^[a-z][a-z_]{0,39}$/)
@@ -94,6 +97,9 @@ export const auditRecordSchema = z
     currency: z.literal('PLN').nullable(),
     fromCode: statusCode,
     toCode: statusCode,
+    workOrderCount: entityCount,
+    customerCount: entityCount,
+    siteCount: entityCount,
   })
   .refine(
     (record) =>
@@ -113,6 +119,15 @@ export const auditRecordSchema = z
       message:
         'the codes of a status belong to a transition of a payment milestone, a change of a role or a new scan of a file only, both together',
     },
+  )
+  .refine(
+    (record) => {
+      const counts = [record.workOrderCount, record.customerCount, record.siteCount];
+      return record.action === FULL_DOWNLOAD_COMPLETED_ACTION
+        ? counts.every((count) => count !== null)
+        : counts.every((count) => count === null);
+    },
+    { message: 'the counts of the entities by type belong to the end of a full download only, all three together' },
   );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
@@ -150,7 +165,14 @@ export function toAuditRecord(
     traceId: context.traceId,
     ...amountsOf(event),
     ...codesOf(event),
+    ...countsOf(event),
   });
+}
+
+/** The counts of the entities by type of the end of a full download (EVM-096); `null` for every other event. */
+function countsOf(event: object): { workOrderCount: number | null; customerCount: number | null; siteCount: number | null } {
+  const counts = 'counts' in event ? (event.counts as { workOrders: number; customers: number; sites: number }) : undefined;
+  return { workOrderCount: counts?.workOrders ?? null, customerCount: counts?.customers ?? null, siteCount: counts?.sites ?? null };
 }
 
 /** The codes of the status before and after of an event of a payment milestone (EVM-054); `null` for every other event. */

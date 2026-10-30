@@ -10,6 +10,7 @@ import type { SyncEntityType } from '../domain/projection.ts';
 import { syncTables } from './tables.ts';
 
 const DAY_MS = 24 * 3_600_000;
+const PULL_NOTE_INTERVAL_MS = 3_600_000;
 
 /** The horizon of the log: every transaction below it has finished, so every row below it is visible and none will appear later. */
 export async function currentHorizon(tx: Kysely<Database>): Promise<string> {
@@ -56,7 +57,7 @@ export async function lockDeviceState(tx: Kysely<Database>, deviceId: string, no
   const db = syncTables(tx);
   await db
     .insertInto('sync.device_sync_state')
-    .values({ device_id: deviceId, last_full_sync_at: null, resync_requested_reason: null, updated_at: now })
+    .values({ device_id: deviceId, last_full_sync_at: null, resync_requested_reason: null, last_pulled_at: null, updated_at: now })
     .onConflict((conflict) => conflict.column('device_id').doNothing())
     .execute();
   const row = await db
@@ -95,27 +96,72 @@ export async function startFullDownload(
   return row.id;
 }
 
-/** True when the download of this device and user exists (a cursor of the snapshot names it). */
-export async function fullDownloadExists(tx: Kysely<Database>, id: string, deviceId: string, userId: string): Promise<boolean> {
+/**
+ * True when a cursor of the snapshot may be served: the download is of THIS device and user, still open (a cursor replayed after the end would hand out the
+ * snapshot again outside the daily limit - AB-08), younger than a day (the window of the limit) and at the position the server last issued or the one before
+ * it (a page whose answer was lost is asked again; going back further is a replay).
+ */
+export async function snapshotCursorAccepted(
+  tx: Kysely<Database>,
+  download: { readonly id: string; readonly deviceId: string; readonly userId: string; readonly after: string | null },
+  now: Date,
+): Promise<boolean> {
+  // The server seals a cursor of the snapshot only after a page, so it always names a position; a cursor without one was not issued by us.
+  const { after } = download;
+  if (after === null) return false;
   const row = await syncTables(tx)
     .selectFrom('sync.full_downloads')
     .select('id')
-    .where('id', '=', id)
-    .where('device_id', '=', deviceId)
-    .where('user_id', '=', userId)
+    .where('id', '=', download.id)
+    .where('device_id', '=', download.deviceId)
+    .where('user_id', '=', download.userId)
+    .where('completed_at', 'is', null)
+    .where('started_at', '>', new Date(now.getTime() - DAY_MS))
+    .where((eb) => eb.or([eb('last_after', '=', after), eb('prev_after', '=', after)]))
     .executeTakeFirst();
   return row !== undefined;
 }
 
-export async function addDownloadedCounts(
-  tx: Kysely<Database>,
-  id: string,
-  counts: { readonly workOrders: number; readonly customers: number; readonly sites: number },
-): Promise<void> {
+/** Moves the position of the download from `from` to `to`; false when `from` is not the last issued position (the page is a repeat and must not be counted twice). */
+export async function advanceDownload(tx: Kysely<Database>, id: string, from: string | null, to: string): Promise<boolean> {
+  const result = await sql`
+    update sync.full_downloads set prev_after = last_after, last_after = ${to}::uuid
+    where id = ${id} and last_after is not distinct from ${from}::uuid`.execute(tx);
+  return Number(result.numAffectedRows ?? 0n) > 0;
+}
+
+export interface DownloadedCounts {
+  readonly workOrders: number;
+  readonly customers: number;
+  readonly sites: number;
+}
+
+export async function addDownloadedCounts(tx: Kysely<Database>, id: string, counts: DownloadedCounts): Promise<void> {
   await sql`
     update sync.full_downloads set work_order_count = work_order_count + ${counts.workOrders},
       customer_count = customer_count + ${counts.customers}, site_count = site_count + ${counts.sites}
     where id = ${id}`.execute(tx);
+}
+
+/** The download is over: closes it (its cursors are no longer served) and returns the counts it served by type. */
+export async function completeDownload(tx: Kysely<Database>, id: string, now: Date): Promise<DownloadedCounts> {
+  const row = await syncTables(tx)
+    .updateTable('sync.full_downloads')
+    .set({ completed_at: now })
+    .where('id', '=', id)
+    .returning(['work_order_count', 'customer_count', 'site_count'])
+    .executeTakeFirstOrThrow();
+  return { workOrders: row.work_order_count, customers: row.customer_count, sites: row.site_count };
+}
+
+/** Notes that the device pulled (at most once an hour per device): the base measure of the alert "pulls for over 3 days and sends nothing" (EVM-098). */
+export async function touchPulled(db: Kysely<Database>, deviceId: string, now: Date): Promise<void> {
+  await syncTables(db)
+    .updateTable('sync.device_sync_state')
+    .set({ last_pulled_at: now })
+    .where('device_id', '=', deviceId)
+    .where((eb) => eb.or([eb('last_pulled_at', 'is', null), eb('last_pulled_at', '<', new Date(now.getTime() - PULL_NOTE_INTERVAL_MS))]))
+    .execute();
 }
 
 /** The snapshot is complete: the device is current as of `now`, and a flag that asked for this resync is spent. */

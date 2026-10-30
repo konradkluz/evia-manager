@@ -36,6 +36,24 @@ export const POOL_SETTINGS: PoolSettings = Object.freeze({
   application_name: 'evia-api',
 });
 
+/**
+ * Profiles of the other processes (ADR-0021 D5). The worker runs jobs (retention, purge, rebuild of projections, exports) whose transactions legitimately outlast an
+ * API request: 5 minutes per transaction, 30 s idle in a transaction. Every CLI that rebuilds data (`overview`) runs with the worker profile.
+ */
+export const WORKER_POOL_SETTINGS: Partial<PoolSettings> = Object.freeze({
+  idle_in_transaction_session_timeout: 30_000,
+  options: '-c transaction_timeout=300000',
+});
+
+/** The migrator: the runner applies ALL pending migrations in ONE transaction and DDL may take long, so it inherits NO limit of the API (ADR-0021 D5). */
+export const MIGRATOR_POOL_SETTINGS: Partial<PoolSettings> = Object.freeze({
+  max: 1,
+  statement_timeout: undefined,
+  query_timeout: undefined,
+  idle_in_transaction_session_timeout: undefined,
+  options: undefined,
+});
+
 export interface DatabaseOptions {
   readonly url: string;
   readonly logger: Logger;

@@ -23,6 +23,7 @@ import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { Logger } from '../../../platform/logging/logger.ts';
 import type { MetricsRegistry } from '../../../platform/metrics/metrics.ts';
+import { enqueueSecurityAlert } from '../../../platform/alerts/security-alerts.ts';
 import type { SyncAuditEvent } from '../../../platform/sync/sync-event.ts';
 import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../../platform/tokens.ts';
 import { CUSTOMER_SYNC_SOURCE, type CustomerSyncSource } from '../../customers/system-ports.ts';
@@ -41,21 +42,27 @@ import {
 import { changeBytes, customerChange, deleteChange, siteChange, workOrderChange, type SyncChange } from '../domain/projection.ts';
 import {
   addDownloadedCounts,
+  advanceDownload,
+  completeDownload,
   completeFullSync,
   currentHorizon,
-  fullDownloadExists,
+  type DownloadedCounts,
   horizonLagSeconds,
   lockDeviceState,
   readDeviceState,
   readLogAfter,
   recentFullDownloads,
+  snapshotCursorAccepted,
   startFullDownload,
+  touchPulled,
 } from '../infrastructure/sync-queries.ts';
 import { SYNC_CURSOR_CODEC } from '../sync.tokens.ts';
 
 const OPERATION = 'getSyncChanges';
 const DAY_MS = 24 * 3_600_000;
 /** The contract allows 500 changes in a page. */
+/** AB-08: a device downloads the whole snapshot at most this many times in 24 h without a signal; the next one (the third) raises the alert of the operator, once per window. */
+const FULL_DOWNLOADS_BEFORE_ALERT = 2;
 const MAX_PAGE_ENTITIES = 500;
 /** Room for the envelope of the answer (the cursor, the times) inside the byte budget of the changes. */
 const ENVELOPE_BYTES = 2048;
@@ -149,23 +156,35 @@ export class SyncChangesService {
     const identity: Identity = { principal, userId: principal.userId, deviceId };
     const started = performance.now();
     try {
-      return query.cursor === undefined
-        ? await this.#startFullDownload(identity, query.limit, context)
-        : await this.#continue(identity, query.cursor, query.limit);
+      const response =
+        query.cursor === undefined
+          ? await this.#startFullDownload(identity, query.limit, context)
+          : await this.#continue(identity, query.cursor, query.limit, context);
+      if (response.result === 'changes') await touchPulled(this.#db, deviceId, this.#clock.now());
+      return response;
     } finally {
       this.#durationCount.increment({});
       this.#durationSum.increment({}, (performance.now() - started) / 1000);
     }
   }
 
-  async #continue(identity: Identity, cursor: string, limit: number): Promise<PullResponse> {
+  async #continue(identity: Identity, cursor: string, limit: number, context: EventContext): Promise<PullResponse> {
     const step = await runInTransaction(this.#db, (tx) => this.#decide(tx, identity, cursor, limit), { accessMode: 'read only' });
     if (step.kind === 'done') return step.response;
     this.#requests.increment({ phase: 'snapshot' });
     return runInTransaction(this.#db, async (tx) => {
-      // The snapshot names a download of THIS device (it was started here); anything else is a cursor from nowhere.
-      if (!(await fullDownloadExists(tx, step.claims.dl, identity.deviceId, identity.userId))) return this.#resync('cursor_invalid');
-      return this.#snapshotPage(tx, identity, step.claims, limit);
+      // The snapshot names an OPEN download of THIS device, begun within the day, at the position last issued or the one before; anything else is a cursor
+      // from nowhere or a replay (AB-08: the snapshot would be handed out again outside the limit). Security event: who and why, never the cursor.
+      const download = { id: step.claims.dl, deviceId: identity.deviceId, userId: identity.userId, after: step.claims.after };
+      if (!(await snapshotCursorAccepted(tx, download, this.#clock.now()))) {
+        this.#rejected.increment({ reason: 'snapshot_replay' });
+        this.#logger.warn(
+          { event: 'sync.cursor_rejected', reason: 'snapshot_replay', userId: identity.userId, deviceId: identity.deviceId },
+          'sync cursor rejected',
+        );
+        return this.#resync('cursor_invalid');
+      }
+      return this.#snapshotPage(tx, identity, step.claims, limit, context);
     });
   }
 
@@ -216,6 +235,10 @@ export class SyncChangesService {
         const free = (recent.oldest?.getTime() ?? now.getTime()) + DAY_MS - now.getTime();
         return { denied: Math.max(1, Math.ceil(free / 1000)) } as const;
       }
+      // The third full download of the device in a rolling day: one alert per window (the device is named by the audit event of the same trace).
+      if (recent.count === FULL_DOWNLOADS_BEFORE_ALERT) {
+        await enqueueSecurityAlert(tx, { code: 'sync_full_downloads_excess', occurredAt: now, traceId: context.traceId });
+      }
       const id = await startFullDownload(tx, {
         deviceId: identity.deviceId,
         userId: identity.userId,
@@ -232,7 +255,7 @@ export class SyncChangesService {
         d: identity.deviceId,
         sv: this.#settings.scopeRuleVersion,
       };
-      return { page: await this.#snapshotPage(tx, identity, claims, limit) } as const;
+      return { page: await this.#snapshotPage(tx, identity, claims, limit, context) } as const;
     });
     if ('denied' in outcome) {
       this.#limited.increment({});
@@ -264,6 +287,18 @@ export class SyncChangesService {
     return this.#events.publish(tx, event, context);
   }
 
+  #publishCompleted(tx: Kysely<Database>, identity: Identity, counts: DownloadedCounts, context: EventContext): Promise<void> {
+    const event: SyncAuditEvent = {
+      type: 'sync.full_download_completed',
+      actor: { type: 'user', userId: identity.userId },
+      outcome: 'success',
+      objectType: 'device',
+      objectId: identity.deviceId,
+      counts,
+    };
+    return this.#events.publish(tx, event, context);
+  }
+
   #scope(): SyncScopeRule {
     return { closedSince: new Date(this.#clock.now().getTime() - this.#settings.closedOrdersInScopeDays * DAY_MS) };
   }
@@ -273,7 +308,13 @@ export class SyncChangesService {
   }
 
   /** One page of the snapshot: `limit` orders after the cursor, each with the customer and the site it names (once per page), trimmed to the contract and the budget. */
-  async #snapshotPage(tx: Kysely<Database>, identity: Identity, claims: SnapshotCursorClaims, limit: number): Promise<ChangesPage> {
+  async #snapshotPage(
+    tx: Kysely<Database>,
+    identity: Identity,
+    claims: SnapshotCursorClaims,
+    limit: number,
+    context: EventContext,
+  ): Promise<ChangesPage> {
     const { principal } = identity;
     const fetched = await this.#orders.snapshotPage(tx, principal, this.#scope(), claims.after ?? undefined, limit + 1);
     const orders = fetched.slice(0, limit);
@@ -306,16 +347,20 @@ export class SyncChangesService {
       bytes += size;
       included += 1;
     }
-    await addDownloadedCounts(tx, claims.dl, counts);
     const more = fetched.length > limit || included < orders.length;
     const last = included === 0 ? undefined : orders[included - 1];
     const now = this.#clock.now();
+    // A page asked again (its answer was lost) is served but not counted twice.
+    const advanced = more && last !== undefined ? await advanceDownload(tx, claims.dl, claims.after, last.id) : true;
+    if (advanced) await addDownloadedCounts(tx, claims.dl, counts);
     if (more && last !== undefined) {
       const cursor = this.#codec.seal(OPERATION, { ...claims, after: last.id } satisfies CursorClaims);
       return { result: 'changes', phase: 'snapshot', changes, cursor, hasMore: true, serverTime: now.toISOString() };
     }
     // The last page of the snapshot: the device is current as of now, and the phase of changes starts at the horizon taken before the snapshot.
     await completeFullSync(tx, identity.deviceId, now);
+    // The end of the download: the trail holds the counts of the entities by type (AC8, AB-08), and the cursors of the snapshot are no longer served.
+    await this.#publishCompleted(tx, identity, await completeDownload(tx, claims.dl, now), context);
     const next: ChangesCursorClaims = { ph: 'changes', tx: claims.tx, sq: '0', u: claims.u, d: claims.d, sv: claims.sv };
     return {
       result: 'changes',

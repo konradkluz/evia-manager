@@ -21,7 +21,9 @@ export type SecurityAlertCode =
   // EVM-049: a file was put in quarantine by the scan; the signatures of the scanner are older than 24 h (a stale alert once per episode) or 72 h (daily)
   | 'media_quarantined'
   | 'signature_stale'
-  | 'signature_stale_72h';
+  | 'signature_stale_72h'
+  // EVM-096 AB-08: the third full download of one device in a rolling day (the device is named in the audit event of the same trace, never in the alert)
+  | 'sync_full_downloads_excess';
 
 export interface SecurityAlertsTable {
   id: string;

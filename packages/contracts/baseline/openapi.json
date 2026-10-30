@@ -2294,6 +2294,7 @@
           "bulk_read.alerted",
           "bulk_read.rejected",
           "sync.full_download",
+          "sync.full_download_completed",
           "customer.created",
           "customer.updated",
           "customer.deleted",
