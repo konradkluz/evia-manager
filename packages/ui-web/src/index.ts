@@ -16,6 +16,7 @@ export {
   type PaymentStatusKey,
 } from './status-badge.tsx';
 export { Combobox, type ComboboxOption, type ComboboxProps } from './combobox.tsx';
+export { Lightbox, type LightboxProps } from './lightbox.tsx';
 export { Dialog, type DialogProps } from './dialog.tsx';
 export { ProcedureProgress, type ProcedureProgressProps } from './procedure-progress.tsx';
 export { Disclosure, type DisclosureProps } from './disclosure.tsx';
@@ -36,6 +37,7 @@ export { EmptyState, type EmptyStateProps } from './empty-state.tsx';
 export {
   AlarmClock,
   ArrowLeft,
+  ArrowRight,
   Ban,
   Banknote,
   Calculator,
@@ -91,6 +93,8 @@ export {
   WifiOff,
   Wrench,
   X,
+  ZoomIn,
+  ZoomOut,
   type Icon,
 } from './icons.ts';
 export { InlineAlert, type InlineAlertProps } from './inline-alert.tsx';

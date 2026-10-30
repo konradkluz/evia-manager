@@ -5,6 +5,7 @@
 export {
   AlarmClock,
   ArrowLeft,
+  ArrowRight,
   Ban,
   Banknote,
   Calculator,
@@ -62,5 +63,7 @@ export {
   WifiOff,
   Wrench,
   X,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 export type { LucideIcon as Icon } from 'lucide-react';
