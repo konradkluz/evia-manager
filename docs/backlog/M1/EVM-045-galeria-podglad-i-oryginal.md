@@ -101,3 +101,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-30 — plan gotowy (backend-developer)
+- 2026-10-30 — API gotowe (backend-developer): `preview` i `original` w `createMediaAssetDownloadUrl`, limity P10, audyt, nagłówek attachment z serwera; testy `EVM-045 AC2–AC7` zielone w kontenerze; UI (AC1, AC8, część AC2) czeka na web-developera

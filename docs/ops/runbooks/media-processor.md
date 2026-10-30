@@ -47,4 +47,4 @@ Upload przyjmuje `image/heic`, ale prebuilt libvips z `sharp` nie dekoduje HEVC.
 ## Dług i otwarte kroki
 - Publikacja obrazu `evia-media-processor` w CI (`publish`, manifest wydania) i skan Trivy (obraz) w `pnpm run scan`/CI — dziś obraz buduje sesja IaC.
 - Macierz `bucket-verify` (`bucket-matrix.tsv`) bez komórek `PUT pochodnej = OK` / `PUT oryginału = odmowa` — wymaga rozszerzenia skryptu o sufiks klucza próbnego.
-- SR-FILE-10 (limity wystawiania adresów miniatur, P10) dochodzi w EVM-045; do tego czasu chroni globalny limit 300/min/użytkownika.
+- SR-FILE-10 (limity wystawiania adresów, P10) działa od EVM-045: miniatury i podglądy 1000 / 10 min, oryginały 100 / 10 min per użytkownik; od 600 i 50 alert `mass_download` (log `alert: "security"`, metryka `signed_url_alert`, zdarzenie audytu `media_file.download_alerted`), po przekroczeniu `429`. Licznik jest w pamięci procesu API (restart go zeruje; przy kilku instancjach limit się mnoży — ryzyko RR-13).
