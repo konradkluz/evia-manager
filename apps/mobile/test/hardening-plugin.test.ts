@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import withHardening, {
@@ -7,9 +7,12 @@ import withHardening, {
   GRADLE_DISTRIBUTION_SHA256,
   GRADLE_DISTRIBUTION_URL,
   networkSecurityConfigXml,
+  SCREENSHOTS_RESOURCE,
+  screenshotsAllowedXml,
   withE2eDebuggable,
   withGradleDistributionChecksum,
   withoutReleaseDebugSigning,
+  withSecureWindow,
 } from '../plugins/with-hardening';
 
 const TEMPLATE_GRADLE = `android {
@@ -126,9 +129,64 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
     }
   });
 
-  it('EVM-009 AC6: the plugin registers the manifest, resource, Gradle properties and the build script mods', () => {
-    expect(Object.keys(plugged('release')).sort()).toEqual(['appBuildGradle', 'dangerous', 'gradleProperties', 'manifest']);
-    expect(Object.keys(plugged('e2e')).sort()).toEqual(['appBuildGradle', 'dangerous', 'gradleProperties', 'manifest']);
+  it('EVM-009 AC6, EVM-100 AC1: the plugin registers the manifest, resource, Gradle properties, build script and MainActivity mods', () => {
+    const mods = ['appBuildGradle', 'dangerous', 'gradleProperties', 'mainActivity', 'manifest'];
+    expect(Object.keys(plugged('release')).sort()).toEqual(mods);
+    expect(Object.keys(plugged('e2e')).sort()).toEqual(mods);
+  });
+
+  const TEMPLATE_ACTIVITY = `class MainActivity : ReactActivity() {
+  override fun onCreate(savedInstanceState: Bundle?) {
+    setTheme(R.style.AppTheme);
+    super.onCreate(null)
+  }
+}`;
+
+  it('EVM-100 AC1 (decision 5, SR-MOB-08): FLAG_SECURE is set on the whole window BEFORE super.onCreate, fail closed, in every variant', async () => {
+    for (const variant of ['release', 'e2e'] as const) {
+      const result = (await plugged(variant)['mainActivity']?.({
+        modResults: { contents: TEMPLATE_ACTIVITY, language: 'kt' },
+        modRequest: {},
+        mods: {},
+      })) as { modResults: { contents: string } };
+      const code = result.modResults.contents;
+      const flag = code.indexOf('window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE');
+      expect(flag).toBeGreaterThan(code.indexOf('setTheme'));
+      expect(flag).toBeLessThan(code.indexOf('super.onCreate('));
+      // the flag is turned off ONLY by a resource that exists and is true; no resource (0) keeps it
+      expect(code).toContain('resources.getIdentifier("evia_screenshots_allowed", "bool", packageName)');
+      expect(code).toContain('if (eviaScreenshots == 0 || !resources.getBoolean(eviaScreenshots)) window.setFlags(');
+      expect(code).toMatch(/\n {4}val eviaScreenshots/);
+      expect(withSecureWindow(code)).toBe(code);
+    }
+  });
+
+  it('EVM-100 AC1: a MainActivity without super.onCreate or not in Kotlin fails the build instead of shipping a window without the flag', async () => {
+    expect(() => withSecureWindow('class MainActivity {}')).toThrow(/super\.onCreate/);
+    await expect(
+      plugged('release')['mainActivity']?.({ modResults: { contents: TEMPLATE_ACTIVITY, language: 'java' }, modRequest: {}, mods: {} }),
+    ).rejects.toThrow(/not Kotlin/);
+  });
+
+  it('EVM-100 AC1: only the e2e variant writes the resource that allows screenshots (kept from the shrinker); release removes it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'evia-hardening-'));
+    try {
+      mkdirSync(join(root, 'gradle', 'wrapper'), { recursive: true });
+      writeFileSync(join(root, 'gradle', 'wrapper', 'gradle-wrapper.properties'), TEMPLATE_WRAPPER);
+      const file = join(root, 'app', 'src', 'main', 'res', 'values', 'evia_screenshots.xml');
+      await plugged('e2e')['dangerous']?.({ modResults: {}, modRequest: { platformProjectRoot: root }, mods: {} });
+      expect(readFileSync(file, 'utf8')).toBe(screenshotsAllowedXml());
+      expect(screenshotsAllowedXml()).toContain('<bool name="evia_screenshots_allowed">true</bool>');
+      expect(screenshotsAllowedXml()).toContain('tools:keep="@bool/evia_screenshots_allowed"');
+      await plugged('release')['dangerous']?.({ modResults: {}, modRequest: { platformProjectRoot: root }, mods: {} });
+      expect(existsSync(file)).toBe(false);
+      expect(SCREENSHOTS_RESOURCE).toBe('evia_screenshots_allowed');
+      expect(readFileSync(join(__dirname, '..', '..', '..', 'tools', 'mobile-apk', 'src', 'verify.mjs'), 'utf8')).toContain(
+        "export const SCREENSHOTS_RESOURCE = 'evia_screenshots_allowed';",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   async function patchedGradle(variant: 'release' | 'e2e'): Promise<string> {
