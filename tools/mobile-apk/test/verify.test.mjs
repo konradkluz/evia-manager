@@ -33,8 +33,6 @@ function analyzer(overrides = {}) {
     'files list app.apk': `${read('files-list.txt')}\n/assets/index.android.bundle\n/assets/fonts/Inter.ttf\n`,
     'files cat --file assets/index.android.bundle app.apk': 'var url="https://api.example.test"',
     'apk summary app.apk': read('apk-summary.txt'),
-    // a release package has no such resource: apkanalyzer fails to find it
-    'resources value --config default --type bool --name evia_screenshots_allowed app.apk': null,
     ...overrides,
   };
   const run = (/** @type {string} */ command, /** @type {string[]} */ args, /** @type {{ binary?: boolean } | undefined} */ options) => {
@@ -71,18 +69,6 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
       'the bundle is read as binary',
     );
     assert.ok(!calls.some((call) => call.some((part) => part.includes('Inter.ttf'))), 'fonts are not read');
-  });
-
-  it('EVM-100 AC1 (SR-MOB-08): a package of the e2e variant (screenshots allowed, FLAG_SECURE off) is rejected', () => {
-    const key = 'resources value --config default --type bool --name evia_screenshots_allowed app.apk';
-    for (const answer of ['true\n', '0xffffffff']) {
-      const { host } = analyzer({ [key]: answer });
-      assert.deepEqual(verifyApk(OPTIONS, host).problems, [
-        'resource evia_screenshots_allowed is in the package (screenshots allowed, FLAG_SECURE off — an e2e build)',
-      ]);
-    }
-    const { host } = analyzer({ [key]: 'false\n' });
-    assert.deepEqual(verifyApk(OPTIONS, host).problems, []);
   });
 
   it('EVM-009 AC6: a failing apkanalyzer is a finding for that step, not a silent pass', () => {

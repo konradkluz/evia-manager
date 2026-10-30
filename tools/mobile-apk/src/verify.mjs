@@ -16,9 +16,6 @@ const RESOURCES = /** @type {const} */ ([
   ['evia_data_extraction_rules', checkDataExtractionRules],
 ]);
 
-/** The resource of the e2e variant that turns FLAG_SECURE off (apps/mobile/plugins/with-hardening.ts `SCREENSHOTS_RESOURCE`). */
-export const SCREENSHOTS_RESOURCE = 'evia_screenshots_allowed';
-
 /** @typedef {{ status: number | null, stdout: string }} Outcome */
 /** @typedef {{ run: (command: string, args: string[], options?: { binary?: boolean }) => Outcome }} Host */
 
@@ -75,18 +72,6 @@ export function verifyApk({ apk, applicationId, java, cmdlineTools }, host) {
     }
     const xml = analyzer(['resources', 'xml', '--file', path, apk], `xml ${name}`);
     if (xml !== null) problems.push(...guarded(name, () => check(xml)));
-  }
-
-  // EVM-100 (SR-MOB-08, decision 5): only the e2e variant writes this resource; MainActivity keeps FLAG_SECURE without it (fail closed)
-  // a missing resource makes apkanalyzer fail: that is the expected answer of a release package, not a finding
-  const query = apkanalyzerCommand({
-    java,
-    cmdlineTools,
-    args: ['resources', 'value', '--config', 'default', '--type', 'bool', '--name', SCREENSHOTS_RESOURCE, apk],
-  });
-  const screenshots = host.run(query.command, query.args);
-  if (screenshots.status === 0 && screenshots.stdout.trim() !== 'false') {
-    problems.push(`resource ${SCREENSHOTS_RESOURCE} is in the package (screenshots allowed, FLAG_SECURE off — an e2e build)`);
   }
 
   const listing = analyzer(['files', 'list', apk], 'files list');

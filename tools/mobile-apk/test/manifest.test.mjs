@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { checkManifest } from '../src/manifest.mjs';
+import { checkManifest, SCREENSHOTS_META } from '../src/manifest.mjs';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 const ID = 'pl.eviacharge.manager';
@@ -89,6 +89,17 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
     assert.deepEqual(checkManifest(changed('android:targetSdkVersion="36"', 'android:targetSdkVersion="30"'), { applicationId: ID }), [
       'targetSdkVersion is below 34',
     ]);
+  });
+
+  it('EVM-100 AC1 (SR-MOB-08): a package of the e2e variant (screenshots allowed, FLAG_SECURE off) is rejected', () => {
+    const e2e = changed(
+      '</application>',
+      '<meta-data android:name="pl.eviacharge.SCREENSHOTS_ALLOWED" android:value="true" /></application>',
+    );
+    assert.deepEqual(checkManifest(e2e, { applicationId: ID }), [
+      'pl.eviacharge.SCREENSHOTS_ALLOWED is in the manifest (screenshots allowed, FLAG_SECURE off — an e2e build)',
+    ]);
+    assert.equal(SCREENSHOTS_META, 'pl.eviacharge.SCREENSHOTS_ALLOWED');
   });
 
   it('EVM-009 AC6: OTA updates (expo-updates) and developer tools are forbidden (SR-MOB-09)', () => {

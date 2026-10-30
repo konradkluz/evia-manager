@@ -7,8 +7,7 @@ import withHardening, {
   GRADLE_DISTRIBUTION_SHA256,
   GRADLE_DISTRIBUTION_URL,
   networkSecurityConfigXml,
-  SCREENSHOTS_RESOURCE,
-  screenshotsAllowedXml,
+  SCREENSHOTS_META,
   withE2eDebuggable,
   withGradleDistributionChecksum,
   withoutReleaseDebugSigning,
@@ -153,10 +152,11 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
       const flag = code.indexOf('window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE');
       expect(flag).toBeGreaterThan(code.indexOf('setTheme'));
       expect(flag).toBeLessThan(code.indexOf('super.onCreate('));
-      // the flag is turned off ONLY by a resource that exists and is true; no resource (0) keeps it
-      expect(code).toContain('resources.getIdentifier("evia_screenshots_allowed", "bool", packageName)');
-      expect(code).toContain('if (eviaScreenshots == 0 || !resources.getBoolean(eviaScreenshots)) window.setFlags(');
-      expect(code).toMatch(/\n {4}val eviaScreenshots/);
+      // the flag is turned off ONLY by a meta-data entry that exists and is true; none, or a failed read, keeps it
+      expect(code).toContain('.metaData?.getBoolean("pl.eviacharge.SCREENSHOTS_ALLOWED", false) == true');
+      expect(code).toMatch(/\} catch \(error: Exception\) \{\n {6}false\n {4}\}/);
+      expect(code).toContain('if (!eviaScreenshots) window.setFlags(');
+      expect(code).toMatch(/\n {4}val eviaScreenshots = try \{/);
       expect(withSecureWindow(code)).toBe(code);
     }
   });
@@ -168,22 +168,36 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
     ).rejects.toThrow(/not Kotlin/);
   });
 
-  it('EVM-100 AC1: only the e2e variant writes the resource that allows screenshots (kept from the shrinker); release removes it', async () => {
+  it('EVM-100 AC1: only the e2e manifest carries the meta-data that allows screenshots; release removes it; verify knows the name', async () => {
+    const metaOf = async (variant: 'release' | 'e2e', existing: { $: Record<string, string> }[] = []) => {
+      const manifest = {
+        manifest: { $: {}, application: [{ $: { 'android:name': '.MainApplication' }, activity: [], 'meta-data': existing }] },
+      };
+      const result = (await plugged(variant)['manifest']?.({ modResults: manifest, modRequest: {}, mods: {} })) as {
+        modResults: typeof manifest;
+      };
+      return result.modResults.manifest.application[0]?.['meta-data'] ?? [];
+    };
+    expect(await metaOf('e2e')).toEqual([{ $: { 'android:name': SCREENSHOTS_META, 'android:value': 'true' } }]);
+    const stale: { $: Record<string, string> }[] = [
+      { $: { 'android:name': SCREENSHOTS_META, 'android:value': 'true' } },
+      { $: { 'android:name': 'other' } },
+    ];
+    expect(await metaOf('release', stale)).toEqual([{ $: { 'android:name': 'other' } }]);
+    expect(SCREENSHOTS_META).toBe('pl.eviacharge.SCREENSHOTS_ALLOWED');
+    expect(readFileSync(join(__dirname, '..', '..', '..', 'tools', 'mobile-apk', 'src', 'manifest.mjs'), 'utf8')).toContain(
+      "export const SCREENSHOTS_META = 'pl.eviacharge.SCREENSHOTS_ALLOWED';",
+    );
+    // the resource switch of an earlier prebuild is removed
     const root = mkdtempSync(join(tmpdir(), 'evia-hardening-'));
     try {
       mkdirSync(join(root, 'gradle', 'wrapper'), { recursive: true });
       writeFileSync(join(root, 'gradle', 'wrapper', 'gradle-wrapper.properties'), TEMPLATE_WRAPPER);
-      const file = join(root, 'app', 'src', 'main', 'res', 'values', 'evia_screenshots.xml');
+      const old = join(root, 'app', 'src', 'main', 'res', 'values', 'evia_screenshots.xml');
+      mkdirSync(join(root, 'app', 'src', 'main', 'res', 'values'), { recursive: true });
+      writeFileSync(old, '<resources />');
       await plugged('e2e')['dangerous']?.({ modResults: {}, modRequest: { platformProjectRoot: root }, mods: {} });
-      expect(readFileSync(file, 'utf8')).toBe(screenshotsAllowedXml());
-      expect(screenshotsAllowedXml()).toContain('<bool name="evia_screenshots_allowed">true</bool>');
-      expect(screenshotsAllowedXml()).toContain('tools:keep="@bool/evia_screenshots_allowed"');
-      await plugged('release')['dangerous']?.({ modResults: {}, modRequest: { platformProjectRoot: root }, mods: {} });
-      expect(existsSync(file)).toBe(false);
-      expect(SCREENSHOTS_RESOURCE).toBe('evia_screenshots_allowed');
-      expect(readFileSync(join(__dirname, '..', '..', '..', 'tools', 'mobile-apk', 'src', 'verify.mjs'), 'utf8')).toContain(
-        "export const SCREENSHOTS_RESOURCE = 'evia_screenshots_allowed';",
-      );
+      expect(existsSync(old)).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

@@ -6,6 +6,9 @@
  */
 import { childrenNamed, parseXml } from './xml.mjs';
 
+/** The meta-data of the e2e variant that turns FLAG_SECURE off (apps/mobile/plugins/with-hardening.ts `SCREENSHOTS_META`). */
+export const SCREENSHOTS_META = 'pl.eviacharge.SCREENSHOTS_ALLOWED';
+
 /** Components that may have an intent filter or be exported: the launcher activity only. */
 const LAUNCHER_ACTIVITY_SUFFIX = '.MainActivity';
 const COMPONENT_TAGS = ['activity', 'activity-alias', 'service', 'receiver', 'provider'];
@@ -54,6 +57,10 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   }
 
   for (const meta of childrenNamed(application, 'meta-data')) {
+    // EVM-100 (SR-MOB-08, decision 5): the switch of the e2e variant; MainActivity keeps FLAG_SECURE without it (fail closed)
+    if (meta.attributes['android:name'] === SCREENSHOTS_META) {
+      problems.push(`${SCREENSHOTS_META} is in the manifest (screenshots allowed, FLAG_SECURE off — an e2e build)`);
+    }
     if (meta.attributes['android:name'] === 'expo.modules.updates.ENABLED' && meta.attributes['android:value'] !== 'false') {
       problems.push('OTA updates are enabled (expo.modules.updates.ENABLED)');
     }
