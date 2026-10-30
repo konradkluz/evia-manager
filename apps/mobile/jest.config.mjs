@@ -13,7 +13,9 @@ const { mobile } = thresholds;
 
 export default {
   preset: 'jest-expo',
-  testMatch: ['<rootDir>/test/**/*.test.{ts,tsx}'],
+  // A regex, not `testMatch`: on Windows Jest builds the glob from the native rootDir, so a backslash before a dot segment
+  // (`…\.scratch\wt-C`, a git worktree) escapes the dot and no test is found. Same set of files: test/**/*.test.{ts,tsx}.
+  testRegex: String.raw`[/\\]test[/\\].+\.test\.tsx?$`,
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   collectCoverageFrom: ['src/**/*.{ts,tsx}', 'plugins/**/*.ts', '!**/*.d.ts'],
   coverageReporters: ['text', 'lcov'],
