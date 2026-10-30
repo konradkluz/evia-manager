@@ -2936,6 +2936,19 @@
         ],
         "type": "object"
       },
+      "CreateMediaDerivativeUrlRequest": {
+        "additionalProperties": false,
+        "description": "Wskazanie wariantu pochodnej, do którego panel prosi o adres.",
+        "properties": {
+          "variant": {
+            "$ref": "#/components/schemas/MediaDerivativeVariant"
+          }
+        },
+        "required": [
+          "variant"
+        ],
+        "type": "object"
+      },
       "CreateNoteMutation": {
         "additionalProperties": false,
         "properties": {
@@ -4256,6 +4269,10 @@
         "additionalProperties": false,
         "description": "Medium zlecenia ze stanem jego pliku. `stateReasonCode` jest ustawiony WYŁĄCZNIE dla `failed` z przyczyną `checksum_mismatch` („Nie wysłano — plik uszkodzony w transmisji”, „Ponów”). Kwarantanna (EVM-049): `quarantine` jest `null`, gdy plik nie jest w kwarantannie; w przeciwnym razie ma stan `held` (plik zatrzymany — `needsAttention: true`, znacznik „Wymaga uwagi”) albo `purged` (obiekt usunięty po 30 dniach — kafel „Plik usunięty po 30 dniach kwarantanny”, bez akcji). Przyczyna kwarantanny (`quarantineReasonCode`: `malware_detected`, `type_mismatch`) jest zwracana WYŁĄCZNIE Administratorowi i tylko dla `held` (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pole w ogóle nie występuje (nie `null`), w żadnej odpowiedzi. `originalFilename` (dane osobowe możliwe — panel wyświetla jako tekst) i `uploadSession` występują tylko na liście z `uploadState=unfinished`; poza nią są `null`. Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
         "properties": {
+          "avScanned": {
+            "description": "`true` — plik przeszedł skan antywirusowy; `false` — nie (film większy niż 2 000 000 000 B, P5: panel pokazuje „Nieskanowany antywirusem — plik za duży”) albo skan jeszcze się nie odbył. Wartość jest ustawiana jawnie przez serwer; brak informacji to `false`.",
+            "type": "boolean"
+          },
           "capturedAt": {
             "description": "Czas wykonania zdjęcia (UTC) albo `null`.",
             "oneOf": [
@@ -4278,8 +4295,8 @@
             "type": "string"
           },
           "declaredSize": {
-            "description": "Rozmiar zadeklarowany przy dodaniu (bajty).",
-            "maximum": 52428800,
+            "description": "Rozmiar zadeklarowany przy dodaniu (bajty); zdjęcie do 50 MB, film do 4 GiB.",
+            "maximum": 4294967296,
             "minimum": 1,
             "type": "integer"
           },
@@ -4289,6 +4306,19 @@
               {
                 "maxLength": 1000,
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "durationSeconds": {
+            "description": "Czas trwania filmu w pełnych sekundach (zaokrąglony w górę, 1 … 1800) — ustawiany po udanej weryfikacji strukturalnej (EVM-046); `null` dla zdjęcia i dla filmu jeszcze niezweryfikowanego. To samo pole i znaczenie co `SyncMediaAsset.durationSeconds`.",
+            "oneOf": [
+              {
+                "maximum": 1800,
+                "minimum": 1,
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4332,6 +4362,10 @@
                 "type": "null"
               }
             ]
+          },
+          "processingFailed": {
+            "description": "Występuje (i jest `true`) WYŁĄCZNIE dla pliku w stanie `failed` z przyczyną `processing_error` (EVM-068 AC4): plik przeszedł skan, ale nie udało się przygotować miniatury i podglądu po kolejnych próbach — panel pokazuje „Nie udało się przygotować podglądu. Spróbujemy ponownie.” Oryginał pozostaje (pobranie: EVM-045). W każdym innym przypadku pola nie ma.",
+            "type": "boolean"
           },
           "quarantine": {
             "description": "Stan kwarantanny pliku albo `null`, gdy plik nie jest w kwarantannie.",
@@ -4397,6 +4431,8 @@
           "needsAttention",
           "quarantine",
           "declaredSize",
+          "durationSeconds",
+          "avScanned",
           "originalFilename",
           "uploadSession"
         ],
@@ -4421,7 +4457,7 @@
       },
       "MediaAssetCreateItem": {
         "additionalProperties": false,
-        "description": "Jedno medium w żądaniu. Pola serwera (`workOrderId`, `mediaType`, `origin`, `fileState`, `createdAt`, klucz obiektu, `sha256` obliczony) są odrzucane (`400 read_only_field`), nieznane — `400 unknown_field`. Typ i rozmiar sprawdza serwer: format spoza JPEG, PNG, WebP i HEIC (SVG, HTML, archiwa) albo rozmiar spoza 1 bajt … 50 MB to `400 validation_failed` (`/items/N/contentType` albo `/items/N/declaredSize`).",
+        "description": "Jedno medium w żądaniu. Pola serwera (`workOrderId`, `mediaType`, `origin`, `fileState`, `createdAt`, klucz obiektu, `sha256` obliczony) są odrzucane (`400 read_only_field`), nieznane — `400 unknown_field`. Typ i rozmiar sprawdza serwer: format spoza JPEG, PNG, WebP i HEIC oraz MP4 i MOV (SVG, HTML, archiwa, AVI, MKV) albo rozmiar spoza 1 bajt … 50 MB (zdjęcie) / 4 GiB (film) to `400 validation_failed` (`/items/N/contentType` albo `/items/N/declaredSize`).",
         "properties": {
           "category": {
             "$ref": "#/components/schemas/MediaCategory"
@@ -4432,8 +4468,8 @@
             "type": "string"
           },
           "declaredSize": {
-            "description": "Rozmiar pliku w bajtach (1 … 52 428 800).",
-            "maximum": 52428800,
+            "description": "Rozmiar pliku w bajtach (zdjęcie 1 … 52 428 800, film 1 … 4 294 967 296; granicę per typ sprawdza serwer po typie).",
+            "maximum": 4294967296,
             "minimum": 1,
             "type": "integer"
           },
@@ -4518,6 +4554,36 @@
           "defect",
           "measurement",
           "other"
+        ],
+        "type": "string"
+      },
+      "MediaDerivativeUrl": {
+        "additionalProperties": false,
+        "description": "Podpisany `GET` pliku z domeny bucketu (nie z originu aplikacji), ważny najwyżej 5 minut. Pochodna: typ `image/webp` i `Content-Disposition: inline` narzucone przez serwer. Oryginał: wykryty przez serwer typ z listy dozwolonych i `Content-Disposition: attachment; filename*=UTF-8''…` (nazwa oczyszczona). Adres jest sekretem krótkotrwałym: panel trzyma go tylko w pamięci i nie zapisuje w logach. `Cache-Control: no-store`.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "MediaDerivativeVariant": {
+        "description": "Film (EVM-046): `thumbnail` to klatka WebP, `preview` to wideo 720p MP4 bez metadanych (`Content-Type: video/mp4`, `inline`); `original` filmu tylko po udanej weryfikacji strukturalnej, a nieskanowanego antywirusem — dopiero po zakończeniu przetwarzania. Adres wygasa po 5 minutach, więc odtwarzacz po błędzie prosi o nowy. Zdjęcie: wariant pliku, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068), `preview` (podgląd, dłuższy bok do 1600 px, WebP bez metadanych) i `original` (oryginał zdjęcia, który może zawierać metadane, np. lokalizację; tylko Administrator i Edytor, EVM-045 — Tylko odczyt dostaje `403 forbidden`). Pochodne są serwowane `inline`, oryginał jako `attachment` z nazwą oczyszczoną przez serwer. Nazwa schematu zostaje z EVM-068 (zmiana byłaby zmianą łamiącą klienta).",
+        "enum": [
+          "thumbnail",
+          "preview",
+          "original"
         ],
         "type": "string"
       },
@@ -16605,7 +16671,7 @@
         }
       },
       "post": {
-        "description": "Utworzenie medium i rekordu pliku w stanie `pending_upload` dla każdej pozycji (EVM-044 AC1, AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed treścią; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`media_asset.created` per medium — aktor, identyfikator, wynik, `traceId`; bez nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera — `read_only_field`; format spoza JPEG/PNG/WebP/HEIC lub rozmiar spoza 1 B … 50 MB — `400` ze wskaźnikiem `/items/N/…`), powtórka idempotentna, zlecenie zamknięte PRZYJMUJE media („nic nie ginie”), zapis wszystkich pozycji (istniejące `id` — także medium innego zlecenia lub użytkownika — `409 id_conflict` bez danych istniejącego), jedno zdarzenie dziennika zlecenia (`media_assets_added`: liczba i identyfikatory, najwyżej 50), audyt, rekord idempotencji. Brak konfiguracji magazynu — `503 media_storage_unavailable` (usługa zdrowa). Klucz obiektu nadaje serwer (`media/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Klucz idempotencji jest związany z użytkownikiem, metodą, szablonem ścieżki i zleceniem.",
+        "description": "Utworzenie medium i rekordu pliku w stanie `pending_upload` dla każdej pozycji (EVM-044 AC1, AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt — `403 forbidden` przed treścią; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem (`media_asset.created` per medium — aktor, identyfikator, wynik, `traceId`; bez nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera — `read_only_field`; format spoza JPEG/PNG/WebP/HEIC/MP4/MOV lub rozmiar spoza 1 B … 50 MB (zdjęcie) / 4 GiB (film) — `400` ze wskaźnikiem `/items/N/…`), powtórka idempotentna, zlecenie zamknięte PRZYJMUJE media („nic nie ginie”), zapis wszystkich pozycji (istniejące `id` — także medium innego zlecenia lub użytkownika — `409 id_conflict` bez danych istniejącego), jedno zdarzenie dziennika zlecenia (`media_assets_added`: liczba i identyfikatory, najwyżej 50), audyt, rekord idempotencji. Brak konfiguracji magazynu — `503 media_storage_unavailable` (usługa zdrowa). Klucz obiektu nadaje serwer (`media/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Klucz idempotencji jest związany z użytkownikiem, metodą, szablonem ścieżki i zleceniem.",
         "operationId": "createMediaAssets",
         "parameters": [
           {
@@ -16690,6 +16756,91 @@
           "roles": [
             "administrator",
             "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url": {
+      "post": {
+        "description": "Podpisany `GET` miniatury, podglądu 1600 px albo oryginału zdjęcia (EVM-068 AC6, AC7; EVM-045 AC2-AC7; SR-FILE-07, SR-FILE-10, SR-WEB-04, SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-06, SR-LOG-02, SR-LOG-03). Operacja wystawia adres (jak `getUploadPartUrl`), ale jest `POST` z treścią `{ variant }` — adres do pliku nie trafia do ścieżki ani zapytania (api-guidelines, „Pliki i podpisane URL-e”); nie zmienia stanu medium, więc nie ma `Idempotency-Key`. Wystawienie adresu ORYGINAŁU jest zapisane w dzienniku audytu (`media_file.original_downloaded`, w tej samej transakcji co wystawienie — błąd zapisu oznacza brak adresu); audyt dotyczy wystawienia adresu, nie samego pobrania z bucketu. Role Administrator, Edytor i Tylko odczyt, kanał `web` (token mobilny — `403 channel_not_allowed`), wymaga `X-CSRF-Token`; wariant `original` tylko dla Administratora i Edytora — Tylko odczyt dostaje `403 forbidden` PRZED sprawdzeniem medium (odpowiedź nie zdradza, czy medium istnieje). Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → treść (`400`; wariant spoza listy, pola obce) → uprawnienie do wariantu (`403`) → JEDNO zapytanie o medium TEGO zlecenia → `404` w jednym kształcie: zlecenie albo medium nieistniejące, usunięte lub innego zlecenia, plik w stanie niedostępnym (dla pochodnych wymagane `ready`, dla oryginału `clean`, `ready` albo `failed` z przyczyną `processing_error`; plik w kwarantannie, skanowany, nieukończony i `failed` z innej przyczyny — `404`), brak wiersza pochodnej, zdjęcie bez oryginału do pobrania (wideo i dokumenty — EVM-046, EVM-047) → limit wystawiania adresów (`429 rate_limited` z `Retry-After`; osobno miniatury i podglądy: 1000 / 10 min per użytkownik, oryginały: 100 / 10 min; polityka P10, alert „masowe pobranie” od 600 i 50). Adres jest ważny 300 s (stała serwera) i pochodzi z domeny bucketu. `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani zapisywane w audycie.",
+        "operationId": "createMediaAssetDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMediaDerivativeUrlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaDerivativeUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pochodnej.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku zdjęcia (miniatura, podgląd, oryginał)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
           ]
         }
       }

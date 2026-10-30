@@ -40,6 +40,8 @@ MediaAsset:
     - needsAttention
     - quarantine
     - declaredSize
+    - durationSeconds
+    - avScanned
     - originalFilename
     - uploadSession
   additionalProperties: false
@@ -107,9 +109,23 @@ MediaAsset:
       enum: [malware_detected, type_mismatch]
     declaredSize:
       type: integer
-      description: Rozmiar zadeklarowany przy dodaniu (bajty).
+      description: Rozmiar zadeklarowany przy dodaniu (bajty); zdjęcie do 50 MB, film do 4 GiB.
       minimum: 1
-      maximum: 52428800
+      maximum: 4294967296
+    durationSeconds:
+      description: >-
+        Czas trwania filmu w pełnych sekundach (zaokrąglony w górę, 1 … 1800) — ustawiany po udanej weryfikacji strukturalnej (EVM-046);
+        `null` dla zdjęcia i dla filmu jeszcze niezweryfikowanego. To samo pole i znaczenie co `SyncMediaAsset.durationSeconds`.
+      oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 1800
+        - type: 'null'
+    avScanned:
+      type: boolean
+      description: >-
+        `true` — plik przeszedł skan antywirusowy; `false` — nie (film większy niż 2 000 000 000 B, P5: panel pokazuje „Nieskanowany
+        antywirusem — plik za duży”) albo skan jeszcze się nie odbył. Wartość jest ustawiana jawnie przez serwer; brak informacji to `false`.
     originalFilename:
       description: Oczyszczona nazwa pliku (tylko `uploadState=unfinished`) albo `null`.
       oneOf:
@@ -172,7 +188,7 @@ MediaAssetCreateItem:
   description: >-
     Jedno medium w żądaniu. Pola serwera (`workOrderId`, `mediaType`, `origin`, `fileState`, `createdAt`, klucz obiektu, `sha256` obliczony)
     są odrzucane (`400 read_only_field`), nieznane — `400 unknown_field`. Typ i rozmiar sprawdza serwer: format spoza JPEG, PNG, WebP
-    i HEIC (SVG, HTML, archiwa) albo rozmiar spoza 1 bajt … 50 MB to `400 validation_failed` (`/items/N/contentType` albo
+    i HEIC oraz MP4 i MOV (SVG, HTML, archiwa, AVI, MKV) albo rozmiar spoza 1 bajt … 50 MB (zdjęcie) / 4 GiB (film) to `400 validation_failed` (`/items/N/contentType` albo
     `/items/N/declaredSize`).
   required: [id, category, fileName, declaredSize, contentType, sha256]
   additionalProperties: false
@@ -195,9 +211,9 @@ MediaAssetCreateItem:
       maxLength: 1000
     declaredSize:
       type: integer
-      description: Rozmiar pliku w bajtach (1 … 52 428 800).
+      description: Rozmiar pliku w bajtach (zdjęcie 1 … 52 428 800, film 1 … 4 294 967 296; granicę per typ sprawdza serwer po typie).
       minimum: 1
-      maximum: 52428800
+      maximum: 4294967296
     contentType:
       type: string
       description: Zadeklarowany typ (informacja; serwer ustawia typ obiektu z listy dozwolonych i wykrywa go z zawartości).
@@ -346,7 +362,9 @@ UploadPartUrl:
 MediaDerivativeVariant:
   type: string
   description: >-
-    Wariant pliku zdjęcia, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068),
+    Film (EVM-046): `thumbnail` to klatka WebP, `preview` to wideo 720p MP4 bez metadanych (`Content-Type: video/mp4`, `inline`); `original`
+    filmu tylko po udanej weryfikacji strukturalnej, a nieskanowanego antywirusem — dopiero po zakończeniu przetwarzania. Adres wygasa po
+    5 minutach, więc odtwarzacz po błędzie prosi o nowy. Zdjęcie: wariant pliku, do którego API wydaje adres: `thumbnail` (miniatura, dłuższy bok do 320 px, WebP bez metadanych, EVM-068),
     `preview` (podgląd, dłuższy bok do 1600 px, WebP bez metadanych) i `original` (oryginał zdjęcia, który może zawierać metadane, np.
     lokalizację; tylko Administrator i Edytor, EVM-045 — Tylko odczyt dostaje `403 forbidden`). Pochodne są serwowane `inline`, oryginał
     jako `attachment` z nazwą oczyszczoną przez serwer. Nazwa schematu zostaje z EVM-068 (zmiana byłaby zmianą łamiącą klienta).

@@ -122,7 +122,7 @@ workOrderMediaAssets:
       forbidden` przed treścią; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), kanał `web`, z audytem
       (`media_asset.created` per medium — aktor, identyfikator, wynik, `traceId`; bez nazwy pliku). Wymaga `X-CSRF-Token` i
       `Idempotency-Key`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera —
-      `read_only_field`; format spoza JPEG/PNG/WebP/HEIC lub rozmiar spoza 1 B … 50 MB — `400` ze wskaźnikiem `/items/N/…`),
+      `read_only_field`; format spoza JPEG/PNG/WebP/HEIC/MP4/MOV lub rozmiar spoza 1 B … 50 MB (zdjęcie) / 4 GiB (film) — `400` ze wskaźnikiem `/items/N/…`),
       powtórka idempotentna, zlecenie zamknięte PRZYJMUJE media („nic nie ginie”), zapis wszystkich pozycji (istniejące `id` — także
       medium innego zlecenia lub użytkownika — `409 id_conflict` bez danych istniejącego), jedno zdarzenie dziennika zlecenia
       (`media_assets_added`: liczba i identyfikatory, najwyżej 50), audyt, rekord idempotencji. Brak konfiguracji magazynu — `503
