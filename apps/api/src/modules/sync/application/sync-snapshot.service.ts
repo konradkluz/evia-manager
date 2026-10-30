@@ -80,7 +80,7 @@ export class SyncSnapshotService {
         const state = (await this.#orders.statesOf(tx, principal, scope, [workOrderId])).get(workOrderId);
         if (state?.kind !== 'upsert') return undefined;
         const groups = await this.#reader.read(tx, principal, [state.projection]);
-        return groups.flatMap((group) => group.items.map((item) => item.change.entity));
+        return groups.flatMap((group) => group.items.flatMap((item) => (item.change.op === 'upsert' ? [item.change.entity] : [])));
       },
       { accessMode: 'read only' },
     );

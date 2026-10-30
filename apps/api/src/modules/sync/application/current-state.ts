@@ -83,13 +83,18 @@ export class CurrentStateReader {
   ): Promise<ReadonlyMap<string, SyncChange>> {
     const idsOf = (type: SyncEntityType): string[] => unique(rows.filter((row) => row.type === type).map((row) => row.id));
     const due = new Map<string, SyncChange>();
+    // The version of a soft-deleted object is the highest one the log named for it (a purged object has none: it is not asked for).
+    const versions = new Map<string, number>();
+    for (const row of rows) versions.set(entityKey(row), Math.max(versions.get(entityKey(row)) ?? 0, row.version));
+    const mark = (type: SyncEntityType, id: string): SyncChange => deleteChange(type, id, versions.get(entityKey({ type, id })));
     const put = (type: SyncEntityType, id: string, change: SyncChange): void => void due.set(entityKey({ type, id }), change);
 
     const orderIds = idsOf('work_order');
     const orders = await this.#orders.statesOf(tx, principal, scope, orderIds);
     for (const id of orderIds) {
       const state = orders.get(id);
-      if (state === undefined || state.kind === 'delete') put('work_order', id, deleteChange('work_order', id));
+      if (state === undefined) put('work_order', id, deleteChange('work_order', id));
+      else if (state.kind === 'delete') put('work_order', id, mark('work_order', id));
       else if (state.kind === 'upsert') put('work_order', id, workOrderChange(state.projection));
     }
 
@@ -105,7 +110,7 @@ export class CurrentStateReader {
       const state = customers.get(id);
       if (state === undefined) put('customer', id, deleteChange('customer', id));
       else if (usedCustomers.has(id))
-        put('customer', id, state.kind === 'upsert' ? customerChange(state.projection) : deleteChange('customer', id));
+        put('customer', id, state.kind === 'upsert' ? customerChange(state.projection) : mark('customer', id));
     }
 
     const siteIds = idsOf('site');
@@ -119,7 +124,7 @@ export class CurrentStateReader {
     for (const id of siteIds) {
       const state = sites.get(id);
       if (state === undefined) put('site', id, deleteChange('site', id));
-      else if (usedSites.has(id)) put('site', id, state.kind === 'upsert' ? siteChange(state.projection) : deleteChange('site', id));
+      else if (usedSites.has(id)) put('site', id, state.kind === 'upsert' ? siteChange(state.projection) : mark('site', id));
     }
 
     const partyIds = idsOf('party');
@@ -133,7 +138,7 @@ export class CurrentStateReader {
     for (const id of partyIds) {
       const state = parties.get(id);
       if (state === undefined) put('party', id, deleteChange('party', id));
-      else if (namedParties.has(id)) put('party', id, state.kind === 'upsert' ? partyChange(state.projection) : deleteChange('party', id));
+      else if (namedParties.has(id)) put('party', id, state.kind === 'upsert' ? partyChange(state.projection) : mark('party', id));
     }
 
     const userIds = idsOf('user');
@@ -147,12 +152,12 @@ export class CurrentStateReader {
     for (const id of userIds) {
       const state = users.get(id);
       if (state === undefined) put('user', id, deleteChange('user', id));
-      else if (namedUsers.has(id)) put('user', id, state.kind === 'upsert' ? userChange(state.projection) : deleteChange('user', id));
+      else if (namedUsers.has(id)) put('user', id, state.kind === 'upsert' ? userChange(state.projection) : mark('user', id));
     }
 
-    await this.#anchored(tx, principal, scope, 'scope_item', idsOf('scope_item'), this.#items, scopeItemChange, put);
-    await this.#anchored(tx, principal, scope, 'procedure_stage', idsOf('procedure_stage'), this.#stages, procedureStageChange, put);
-    await this.#anchored(tx, principal, scope, 'timeline_entry', idsOf('timeline_entry'), this.#entries, timelineEntryChange, put);
+    await this.#anchored(tx, principal, scope, 'scope_item', idsOf('scope_item'), this.#items, scopeItemChange, put, mark);
+    await this.#anchored(tx, principal, scope, 'procedure_stage', idsOf('procedure_stage'), this.#stages, procedureStageChange, put, mark);
+    await this.#anchored(tx, principal, scope, 'timeline_entry', idsOf('timeline_entry'), this.#entries, timelineEntryChange, put, mark);
     return due;
   }
 
@@ -166,6 +171,7 @@ export class CurrentStateReader {
     source: OrderChildSyncSource<Projection>,
     serialize: (projection: Projection) => SyncChange,
     put: (type: SyncEntityType, id: string, change: SyncChange) => void,
+    mark: (type: SyncEntityType, id: string) => SyncChange,
   ): Promise<void> {
     if (ids.length === 0) return;
     const anchors = await source.anchorsOf(tx, ids);
@@ -184,7 +190,7 @@ export class CurrentStateReader {
       const anchor = anchors.get(id);
       if (anchor === undefined) put(type, id, deleteChange(type, id));
       else if (anchor.state === 'hidden' || !inScope.has(anchor.workOrderId)) continue;
-      else if (anchor.state === 'deleted') put(type, id, deleteChange(type, id));
+      else if (anchor.state === 'deleted') put(type, id, mark(type, id));
       else {
         const projection = live.get(id);
         if (projection !== undefined) put(type, id, serialize(projection));

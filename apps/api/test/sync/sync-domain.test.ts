@@ -98,6 +98,7 @@ const row = (seq: number, id: string, superseded = false): ChangeLogRow => ({
   txid: '7',
   type: 'work_order',
   id,
+  version: 1,
   superseded,
 });
 const order = (id: string, title = 'T') =>

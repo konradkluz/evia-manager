@@ -193,9 +193,9 @@ describe('the remaining types in the phase of changes (EVM-097 AC1; ADR-0021 D4)
     const deleted = await drain(phone, '', changed.cursor);
     expect(deleted.changes).toEqual(
       expect.arrayContaining([
-        { op: 'delete', type: 'scope_item', id: s.itemIds[1] },
-        { op: 'delete', type: 'procedure_stage', id: s.stageIds[1] },
-        { op: 'delete', type: 'timeline_entry', id: s.entryIds[1] },
+        { op: 'delete', type: 'scope_item', id: s.itemIds[1], version: 2 },
+        { op: 'delete', type: 'procedure_stage', id: s.stageIds[1], version: 2 },
+        { op: 'delete', type: 'timeline_entry', id: s.entryIds[1], version: 2 },
       ]),
     );
     expect(deleted.changes).toHaveLength(3);
@@ -221,7 +221,11 @@ describe('the remaining types in the phase of changes (EVM-097 AC1; ADR-0021 D4)
     // the deletion of the process takes its stages away
     await softDelete(app(), 'procedures', s.procedureId);
     const gone = await drain(phone, '', changed.cursor);
-    expect(gone.changes).toEqual(expect.arrayContaining(s.stageIds.map((id) => ({ op: 'delete', type: 'procedure_stage', id }))));
+    expect(gone.changes).toEqual(
+      expect.arrayContaining(
+        s.stageIds.map((id) => ({ op: 'delete', type: 'procedure_stage', id, version: expect.any(Number) as number })),
+      ),
+    );
   });
 
   it('EVM-097 AC1 the redaction of an entry reaches the phone: the marker and redactedAt, the original text is nowhere; the same for a snapshot', async () => {
@@ -327,7 +331,7 @@ describe('the scope of the entities without an anchor order (EVM-097 AC2; SR-AUT
     await softDelete(app(), 'parties', s.managerPartyId);
     await softDelete(app(), 'parties', s.strayPartyId);
     const next = await drain(phone, '', first.cursor);
-    expect(next.changes).toEqual([{ op: 'delete', type: 'party', id: s.managerPartyId }]);
+    expect(next.changes).toEqual([{ op: 'delete', type: 'party', id: s.managerPartyId, version: 2 }]);
     expect(JSON.stringify(next.pages)).not.toContain(s.strayPartyId);
     expect(JSON.stringify(next.pages)).not.toContain('Zarzadca Testowy');
     // a purge: the log cannot tell whether the phone ever had the row, so the marker (type and id, nothing else) is sent
@@ -370,7 +374,7 @@ describe('leaving the scope (EVM-097 AC5; ADR-0021 D1)', () => {
     // the order deleted in the office: the marker of the order (its entities leave with it by the anchor, on the phone)
     await softDelete(app(), 'orders', live.orderId);
     const removed = await drain(phone, '', purged.cursor);
-    expect(removed.changes).toEqual([{ op: 'delete', type: 'work_order', id: live.orderId }]);
+    expect(removed.changes).toEqual([{ op: 'delete', type: 'work_order', id: live.orderId, version: expect.any(Number) as number }]);
   });
 
   it('EVM-097 AC5 a closed order within N days stays with all its entities; the answer after a resync has no order outside the scope', async () => {
@@ -498,7 +502,7 @@ describe('a deleted or purged object that an order still names (EVM-097 AC1, AC2
     const first = await drain(phone);
     await sql`update identity.users set deleted_at = ${app().clock.now()}, version = version + 1 where id = ${s.author.id}`.execute(db());
     const named = await drain(phone, '', first.cursor);
-    expect(named.changes).toEqual([{ op: 'delete', type: 'user', id: s.author.id }]);
+    expect(named.changes).toEqual([{ op: 'delete', type: 'user', id: s.author.id, version: 2 }]);
     // an unnamed user that is deleted gets nothing at all
     await sql`update identity.users set deleted_at = ${app().clock.now()}, version = version + 1 where id = ${s.stranger.id}`.execute(db());
     expect((await drain(phone, '', named.cursor)).changes).toEqual([]);
@@ -513,10 +517,11 @@ describe('a deleted or purged object that an order still names (EVM-097 AC1, AC2
         { op: 'delete', type: 'user', id: s.stranger.id },
       ]),
     );
+    // after a purge the version is not known: the marker is type and id only
     for (const change of purged.changes) if (change['op'] === 'delete') expect(Object.keys(change).sort()).toEqual(['id', 'op', 'type']);
   });
 
-  it('EVM-097 AC3 a party and a user that are deleted are not in the snapshot of the order, the rest of it is (the phone does not get a name it may not show)', async () => {
+  it('EVM-097 AC4 a party and a user that are deleted come as markers in the snapshot, never as a name; no reference is left without an object or a marker', async () => {
     await boot();
     const s = await scenario(app());
     await softDelete(app(), 'parties', s.waitedPartyId);
@@ -527,6 +532,35 @@ describe('a deleted or purged object that an order still names (EVM-097 AC1, AC2
     const result = await drain(phone);
     expect(keysOf(result.changes)).not.toContain(`party:${s.waitedPartyId}`);
     expect(keysOf(result.changes)).not.toContain(`user:${s.responsible.id}`);
+    expect(result.changes).toEqual(
+      expect.arrayContaining([
+        { op: 'delete', type: 'party', id: s.waitedPartyId },
+        { op: 'delete', type: 'user', id: s.responsible.id },
+      ]),
+    );
+    expect(JSON.stringify(result.pages)).not.toContain(s.responsible.email);
+    // the closure: every id an upsert references is an upsert or a marker of the same download
+    const resolved = new Set(
+      result.changes
+        .map((change) => (change['op'] === 'delete' ? `${String(change['type'])}:${String(change['id'])}` : ''))
+        .concat(keysOf(result.changes)),
+    );
+    const dangling = result.changes.flatMap((change) => {
+      const entity = entityOf(change);
+      if (entity === undefined) return [];
+      const refs: string[] = [];
+      for (const [field, type] of [
+        ['responsibleUserId', 'user'],
+        ['authorUserId', 'user'],
+        ['coordinatorUserId', 'user'],
+        ['waitingPartyId', 'party'],
+      ] as const) {
+        const id = entity[field];
+        if (typeof id === 'string') refs.push(`${type}:${id}`);
+      }
+      return refs.filter((ref) => !resolved.has(ref));
+    });
+    expect(dangling).toEqual([]);
     expect(keysOf(result.changes)).toContain(`party:${s.managerPartyId}`);
     expect(keysOf(result.changes)).toContain(`user:${s.coordinator.id}`);
   });

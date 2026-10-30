@@ -351,7 +351,7 @@ describe('the phase of changes (EVM-096 AC3, AC4; ADR-0021 D3, D4)', () => {
     const result = await drain(phone, 'limit=1', start.cursor);
     expect(result.changes).toHaveLength(2);
     expect(idsOf(result.changes, 'work_order').sort()).toEqual([keep, `delete:${drop}`].sort());
-    expect(result.changes.find((change) => change['op'] === 'delete')).toEqual({ op: 'delete', type: 'work_order', id: drop });
+    expect(result.changes.find((change) => change['op'] === 'delete')).toEqual({ op: 'delete', type: 'work_order', id: drop, version: 2 });
   });
 
   it('EVM-096 AC7 the page closes before the byte budget and the cursor stays on the last included row: a long page is split, nothing is lost', async () => {
@@ -412,7 +412,7 @@ describe('the markers of deletion (EVM-096 AC1, AC5; ADR-0021 D1; CWE-200)', () 
     const result = await drain(phone, '', start.cursor);
     expect(result.changes.sort((x, y) => String(x['id']).localeCompare(String(y['id'])))).toEqual(
       [
-        { op: 'delete', type: 'work_order', id: inScope },
+        { op: 'delete', type: 'work_order', id: inScope, version: 2 },
         { op: 'delete', type: 'work_order', id: purged },
       ].sort((x, y) => x.id.localeCompare(y.id)),
     );
@@ -437,7 +437,9 @@ describe('the markers of deletion (EVM-096 AC1, AC5; ADR-0021 D1; CWE-200)', () 
     const result = await drain(phone, '', start.cursor);
     expect(idsOf(result.changes, 'customer').sort()).toEqual([`delete:${usedCustomer}`, `delete:${purgedCustomer}`].sort());
     expect(idsOf(result.changes, 'site')).toEqual([`delete:${usedSite}`]);
-    for (const change of result.changes) expect(Object.keys(change).sort()).toEqual(['id', 'op', 'type']);
+    // a soft delete carries the version, a purge only the type and the id
+    for (const change of result.changes)
+      expect(Object.keys(change).sort()).toEqual(change['id'] === purgedCustomer ? ['id', 'op', 'type'] : ['id', 'op', 'type', 'version']);
   });
 
   it('EVM-096 AC1 anonymisation of a customer reaches the phone as an upsert with the values after it; the restoration of a deleted order is an upsert', async () => {
@@ -455,7 +457,7 @@ describe('the markers of deletion (EVM-096 AC1, AC5; ADR-0021 D1; CWE-200)', () 
     expect(JSON.stringify(anonymised.changes)).not.toContain('Prawdziwa');
     await sql`update work_orders.work_orders set deleted_at = now(), version = version + 1 where id = ${mine}`.execute(admin());
     const first = await drain(phone, '', anonymised.cursor);
-    expect(first.changes).toContainEqual({ op: 'delete', type: 'work_order', id: mine });
+    expect(first.changes).toContainEqual({ op: 'delete', type: 'work_order', id: mine, version: 2 });
     await sql`update work_orders.work_orders set deleted_at = null, version = version + 1 where id = ${mine}`.execute(admin());
     const second = await drain(phone, '', first.cursor);
     expect(idsOf(second.changes, 'work_order')).toEqual([mine]);
@@ -666,7 +668,7 @@ describe('the cursor: every way it can be unusable (EVM-096 AC3, AC6; ADR-0021 D
     await sql`update work_orders.work_orders set title = 'tytul', version = version + 1 where id = ${doomed}`.execute(admin());
     await sql`update work_orders.work_orders set deleted_at = now(), version = version + 1 where id = ${doomed}`.execute(admin());
     const result = await drain(phone, '', start.cursor);
-    expect(result.changes).toEqual([{ op: 'delete', type: 'work_order', id: doomed }]);
+    expect(result.changes).toEqual([{ op: 'delete', type: 'work_order', id: doomed, version: 3 }]);
   });
 });
 

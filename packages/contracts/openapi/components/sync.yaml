@@ -575,7 +575,10 @@ SyncUpsert:
       $ref: '#/SyncEntity'
 SyncDelete:
   type: object
-  description: Znacznik usunięcia albo wyjścia z zakresu — tylko `type` i `id`, bez danych osobowych.
+  description: >-
+    Znacznik usunięcia albo wyjścia z zakresu — tylko `type`, `id` i opcjonalnie `version`, bez danych osobowych. `version` jest wersją
+    obiektu w chwili usunięcia (soft delete), dolną granicą dla późniejszego `upsert` w strażniku wersji klienta; po trwałym usunięciu
+    (purge) pola nie ma.
   additionalProperties: false
   required: [op, type, id]
   properties:
@@ -586,6 +589,9 @@ SyncDelete:
       $ref: '#/SyncEntityType'
     id:
       $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
 SyncChange:
   description: Jedna zmiana na stronie.
   oneOf:

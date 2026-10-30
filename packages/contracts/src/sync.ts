@@ -59,7 +59,8 @@ export type SyncProjection = { [K in SyncProjectionType]: z.infer<(typeof SYNC_P
 
 export type ParsedSyncChange =
   | { readonly kind: 'upsert'; readonly entity: SyncProjection }
-  | { readonly kind: 'delete'; readonly type: SyncProjectionType; readonly id: string }
+  /** `version`: the version of the object at the soft delete; absent after a purge. */
+  | { readonly kind: 'delete'; readonly type: SyncProjectionType; readonly id: string; readonly version?: number }
   /** A type this app version does not know: skip, count in telemetry, advance the cursor. */
   | { readonly kind: 'unknown'; readonly type: string; readonly id: string }
   /** Malformed change or a known type that does not match its projection: never store, never skip silently — schedule a resync. */
@@ -75,7 +76,7 @@ const MALFORMED = { kind: 'invalid', resync: true, reason: 'malformed' } as cons
 
 const envelope = z.looseObject({ op: z.enum(['upsert', 'delete']), type: z.string().max(64).optional(), entity: z.unknown().optional() });
 const entityEnvelope = z.looseObject({ type: z.string().max(64), id: z.string().max(64), version: z.int().gte(1) });
-const deleteEnvelope = z.looseObject({ type: z.string().max(64), id: z.string().max(64) });
+const deleteEnvelope = z.looseObject({ type: z.string().max(64), id: z.string().max(64), version: z.int().gte(1).optional() });
 
 const isProjectionType = (type: string): type is SyncProjectionType => Object.hasOwn(SYNC_PROJECTIONS, type);
 
@@ -86,8 +87,9 @@ export function parseSyncChange(raw: unknown): ParsedSyncChange {
   if (head.data.op === 'delete') {
     const target = deleteEnvelope.safeParse(raw);
     if (!target.success) return MALFORMED;
-    const { type, id } = target.data;
-    return isProjectionType(type) ? { kind: 'delete', type, id } : { kind: 'unknown', type, id };
+    const { type, id, version } = target.data;
+    if (!isProjectionType(type)) return { kind: 'unknown', type, id };
+    return version === undefined ? { kind: 'delete', type, id } : { kind: 'delete', type, id, version };
   }
   const base = entityEnvelope.safeParse(head.data.entity);
   if (!base.success) return MALFORMED;
@@ -103,7 +105,12 @@ export type StrictProjectionResult =
   /** Names of the fields outside the projection (never their values). */
   | { readonly ok: false; readonly reason: 'extra_fields'; readonly fields: readonly string[] };
 
-const strictDelete = z.strictObject({ op: z.literal('delete'), type: z.string().max(64), id: z.string().max(64) });
+const strictDelete = z.strictObject({
+  op: z.literal('delete'),
+  type: z.string().max(64),
+  id: z.string().max(64),
+  version: z.int().gte(1).optional(),
+});
 
 function strictResult(schema: z.ZodType, value: unknown): StrictProjectionResult {
   const result = schema.safeParse(value);

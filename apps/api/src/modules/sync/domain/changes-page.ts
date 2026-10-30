@@ -11,6 +11,8 @@ export interface ChangeLogRow {
   readonly txid: string;
   readonly type: SyncEntityType;
   readonly id: string;
+  /** `entity_version` of the row of the log (the version of the object right after the change). */
+  readonly version: number;
   /** A later row of the same entity is below the horizon already: this row emits nothing. */
   readonly superseded: boolean;
 }

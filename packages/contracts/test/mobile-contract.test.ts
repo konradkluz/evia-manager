@@ -400,9 +400,10 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
     expect(schemas['SyncChange'].discriminator.propertyName).toBe('op');
   });
 
-  it('EVM-090 AC3 an upsert carries the version of the object; a delete is exactly {op, type, id} and nothing else', () => {
+  it('EVM-090 AC3 an upsert carries the version of the object; a delete is {op, type, id} and the optional version (EVM-097) and nothing else', () => {
     expect(schemas['SyncDelete']).toMatchObject({ additionalProperties: false, required: ['op', 'type', 'id'] });
-    expect(Object.keys(schemas['SyncDelete'].properties).sort()).toEqual(['id', 'op', 'type']);
+    expect(Object.keys(schemas['SyncDelete'].properties).sort()).toEqual(['id', 'op', 'type', 'version']);
+    expect(schemas['SyncDelete'].required).not.toContain('version');
     expect(schemas['SyncUpsert'].required.sort()).toEqual(['entity', 'op']);
     const projections = ['WorkOrder', 'Customer', 'Site', 'Party', 'ScopeItem', 'ProcedureStage', 'TimelineEntry', 'MediaAsset', 'User'];
     for (const name of projections) {
@@ -486,6 +487,17 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
       id: unknownId,
     });
     expect(parseSyncChange({ op: 'delete', type: 'customer', id: unknownId })).toEqual({ kind: 'delete', type: 'customer', id: unknownId });
+    expect(parseSyncChange({ op: 'delete', type: 'customer', id: unknownId, version: 3 })).toEqual({
+      kind: 'delete',
+      type: 'customer',
+      id: unknownId,
+      version: 3,
+    });
+    expect(parseSyncChange({ op: 'delete', type: 'customer', id: unknownId, version: 0 })).toEqual({
+      kind: 'invalid',
+      resync: true,
+      reason: 'malformed',
+    });
     for (const malformed of [
       null,
       'x',
@@ -501,6 +513,10 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
   it('EVM-090 AC3 assertSyncProjectionStrict (server tests) rejects any extra field, unknown type and bad shape in every projection and delete marker', () => {
     expect(assertSyncProjectionStrict(customerChange)).toEqual({ ok: true });
     expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id })).toEqual({ ok: true });
+    expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id, version: 4 })).toEqual({ ok: true });
+    expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id, version: 0 })).toMatchObject({
+      ok: false,
+    });
     const extra = assertSyncProjectionStrict({ op: 'upsert', entity: { ...customerChange.entity, email: 'x@example.invalid' } });
     expect(extra).toEqual({ ok: false, reason: 'extra_fields', fields: ['email'] });
     expect(assertSyncProjectionStrict({ op: 'delete', type: 'customer', id: customerChange.entity.id, name: 'x' })).toMatchObject({

@@ -7637,7 +7637,7 @@
       },
       "SyncDelete": {
         "additionalProperties": false,
-        "description": "Znacznik usunięcia albo wyjścia z zakresu — tylko `type` i `id`, bez danych osobowych.",
+        "description": "Znacznik usunięcia albo wyjścia z zakresu — tylko `type`, `id` i opcjonalnie `version`, bez danych osobowych. `version` jest wersją obiektu w chwili usunięcia (soft delete), dolną granicą dla późniejszego `upsert` w strażniku wersji klienta; po trwałym usunięciu (purge) pola nie ma.",
         "properties": {
           "id": {
             "$ref": "#/components/schemas/SyncId"
@@ -7648,6 +7648,10 @@
           },
           "type": {
             "$ref": "#/components/schemas/SyncEntityType"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [

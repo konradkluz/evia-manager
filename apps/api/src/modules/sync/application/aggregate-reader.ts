@@ -20,6 +20,7 @@ import { TIMELINE_ENTRY_SYNC_SOURCE, type TimelineEntrySyncSource } from '../../
 import { SCOPE_ITEM_SYNC_SOURCE, type ScopeItemSyncSource, type SyncWorkOrderProjection } from '../../work-orders/system-ports.ts';
 import {
   customerChange,
+  deleteChange,
   partyChange,
   procedureStageChange,
   scopeItemChange,
@@ -27,7 +28,8 @@ import {
   timelineEntryChange,
   userChange,
   workOrderChange,
-  type SyncUpsertChange,
+  type SyncChange,
+  type SyncEntityType,
 } from '../domain/projection.ts';
 
 /** What a download counts (the audit trail holds these three; the rest of the entities are only served). */
@@ -36,7 +38,8 @@ export type CountKind = 'workOrders' | 'customers' | 'sites' | 'other';
 export interface GroupItem {
   /** `type:id` - the identity of the entity, for the deduplication within a page. */
   readonly key: string;
-  readonly change: SyncUpsertChange;
+  /** An `upsert`, or a `delete` marker for a referenced object that is deleted (the reference is resolved, not left dangling). */
+  readonly change: SyncChange;
   readonly kind: CountKind;
 }
 
@@ -46,11 +49,13 @@ export interface OrderGroup {
   readonly items: readonly GroupItem[];
 }
 
-const item = (type: string, id: string, change: SyncUpsertChange, kind: CountKind = 'other'): GroupItem => ({
+const item = (type: string, id: string, change: SyncChange, kind: CountKind = 'other'): GroupItem => ({
   key: `${type}:${id}`,
   change,
   kind,
 });
+/** A marker for a referenced object that is deleted (soft): the phone resolves the reference as "deleted" instead of asking for the order again (ADR-0021 D3). */
+const tombstone = (type: SyncEntityType, id: string): GroupItem => item(type, id, deleteChange(type, id));
 const unique = (ids: ReadonlyArray<string | null | undefined>): string[] => [
   ...new Set(ids.filter((id): id is string => id !== null && id !== undefined)),
 ];
@@ -119,8 +124,10 @@ export class AggregateReader {
       const customer = order.customerId === null ? undefined : customers.get(order.customerId);
       if (customer?.kind === 'upsert')
         group.push(item('customer', customer.projection.id, customerChange(customer.projection), 'customers'));
+      else if (customer?.kind === 'delete' && order.customerId !== null) group.push(tombstone('customer', order.customerId));
       const site = siteOf(order);
       if (site !== undefined) group.push(item('site', site.id, siteChange(site), 'sites'));
+      else if (order.siteId !== null && sites.get(order.siteId)?.kind === 'delete') group.push(tombstone('site', order.siteId));
       const orderStages = stages.get(order.id) ?? [];
       const orderEntries = entries.get(order.id) ?? [];
       for (const id of unique([
@@ -130,6 +137,7 @@ export class AggregateReader {
       ])) {
         const party = parties.get(id);
         if (party?.kind === 'upsert') group.push(item('party', id, partyChange(party.projection)));
+        else if (party?.kind === 'delete') group.push(tombstone('party', id));
       }
       for (const id of unique([
         order.coordinatorUserId,
@@ -138,6 +146,7 @@ export class AggregateReader {
       ])) {
         const user = users.get(id);
         if (user?.kind === 'upsert') group.push(item('user', id, userChange(user.projection)));
+        else if (user?.kind === 'delete') group.push(tombstone('user', id));
       }
       for (const row of items.get(order.id) ?? []) group.push(item('scope_item', row.id, scopeItemChange(row)));
       for (const row of orderStages) group.push(item('procedure_stage', row.id, procedureStageChange(row)));

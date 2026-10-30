@@ -21,8 +21,15 @@ export async function currentHorizon(tx: Kysely<Database>): Promise<string> {
 /** The rows after `(txid, seq)` below the horizon, in the order of the log; `limit` rows at most. */
 export async function readLogAfter(tx: Kysely<Database>, txid: string, seq: string, limit: number): Promise<readonly ChangeLogRow[]> {
   // `superseded`: a LATER row of the same entity is already below the horizon, so this one has nothing to say - the later one gives the current state, once.
-  const { rows } = await sql<{ seq: string; txid: string; entity_type: SyncEntityType; entity_id: string; superseded: boolean }>`
-    select l.seq::text as seq, l.txid::text as txid, l.entity_type, l.entity_id,
+  const { rows } = await sql<{
+    seq: string;
+    txid: string;
+    entity_type: SyncEntityType;
+    entity_id: string;
+    entity_version: number;
+    superseded: boolean;
+  }>`
+    select l.seq::text as seq, l.txid::text as txid, l.entity_type, l.entity_id, l.entity_version,
       exists (
         select 1 from sync.change_log later where later.entity_id = l.entity_id and (later.txid, later.seq) > (l.txid, l.seq)
           and later.txid < pg_snapshot_xmin(pg_current_snapshot())
@@ -30,7 +37,14 @@ export async function readLogAfter(tx: Kysely<Database>, txid: string, seq: stri
     from sync.change_log l
     where (l.txid, l.seq) > (${txid}::xid8, ${seq}::bigint) and l.txid < pg_snapshot_xmin(pg_current_snapshot())
     order by l.txid, l.seq limit ${limit}`.execute(tx);
-  return rows.map((row) => ({ seq: row.seq, txid: row.txid, type: row.entity_type, id: row.entity_id, superseded: row.superseded }));
+  return rows.map((row) => ({
+    seq: row.seq,
+    txid: row.txid,
+    type: row.entity_type,
+    id: row.entity_id,
+    version: row.entity_version,
+    superseded: row.superseded,
+  }));
 }
 
 /** The age in seconds of the oldest committed row above the horizon (0 when there is none): a long transaction holds the pull back (ADR-0021 D5). */

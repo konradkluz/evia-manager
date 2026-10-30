@@ -30,6 +30,8 @@ export interface SyncDeleteChange {
   readonly op: 'delete';
   readonly type: SyncEntityType;
   readonly id: string;
+  /** The version at the soft delete (the lower bound for a later upsert in the guard of the client); absent after a purge. */
+  readonly version?: number;
 }
 export type SyncChange = SyncUpsertChange | SyncDeleteChange;
 
@@ -159,7 +161,8 @@ export const userChange = (row: SyncUserProjection): SyncUpsertChange => ({
   entity: { type: 'user', id: row.id, version: row.version, displayName: row.displayName },
 });
 
-export const deleteChange = (type: SyncEntityType, id: string): SyncChange => ({ op: 'delete', type, id });
+export const deleteChange = (type: SyncEntityType, id: string, version?: number): SyncChange =>
+  version === undefined ? { op: 'delete', type, id } : { op: 'delete', type, id, version };
 
 /** The bytes a change takes in the answer (the comma between elements included); the page closes before the budget is exceeded. */
 export const changeBytes = (change: SyncChange): number => Buffer.byteLength(JSON.stringify(change), 'utf8') + 1;
