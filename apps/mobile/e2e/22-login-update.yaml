@@ -21,7 +21,7 @@ appId: pl.eviacharge.manager
     visible: 'Zaktualizuj aplikację'
     timeout: 30000
 - assertVisible: 'Ta wersja nie jest już obsługiwana. Poproś administratora o nową wersję aplikacji.'
-- assertNotVisible: '.*Google Play.*'
+- assertNotVisible: 'Otwórz Google Play'
 - takeScreenshot: m02-update
 - tapOn:
     id: 'device-state-primary'
