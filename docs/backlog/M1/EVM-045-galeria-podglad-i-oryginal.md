@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-30 — plan gotowy (backend-developer)
 - 2026-10-30 — API gotowe (backend-developer): `preview` i `original` w `createMediaAssetDownloadUrl`, limity P10, audyt, nagłówek attachment z serwera; testy `EVM-045 AC2–AC7` zielone w kontenerze; UI (AC1, AC8, część AC2) czeka na web-developera
+- 2026-10-30 — UI gotowe (web-developer): Lightbox w bibliotece `@evia/ui-web` (§ 3.11), kafle galerii jako przyciski, podgląd 1600, dialog „Pobrać oryginał?”, stany AC8, testy `EVM-045 AC1/2/4/5/8`; metadana „autor” pominięta — kontrakt `MediaAsset` nie ma pola autora (do decyzji: zmiana kontraktu)
