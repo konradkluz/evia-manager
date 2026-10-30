@@ -76,7 +76,11 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         now,
         onSession: async (session) => {
           const result = afterStep(await owner.completeSignIn(session));
-          if (result === 'done') void owner.flushPendingRevocation();
+          if (result === 'done') {
+            // a fresh access token is in memory: no refresh "at start" for this session
+            refreshedAtStart.current = true;
+            void owner.flushPendingRevocation();
+          }
           return result;
         },
       }),

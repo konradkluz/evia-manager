@@ -65,6 +65,8 @@ describe('M-01 sign-in (EVM-100 AC1, AC8)', () => {
     await settle();
     expect(rig.owner.calls).toContain('completeSignIn');
     expect(rig.owner.calls).toContain('flush');
+    // a fresh session needs no refresh (the access token of step 2 is in memory)
+    expect(rig.owner.calls).not.toContain('refresh');
     expect(screen.getByRole('header', { name: pl.shell.orders.title })).toBeOnTheScreen();
   });
 
