@@ -366,3 +366,57 @@ describe('classification of a database that cannot be opened (EVM-093 AC5; fail-
     await expect(db.read((tx) => tx.get('SELECT count(*) AS n FROM sqlite_master'))).rejects.toMatchObject({ code: 'not_a_database' });
   });
 });
+
+describe('opening guards (EVM-093 AC1, AC5, AC7)', () => {
+  /** An engine whose answers to some PRAGMAs are replaced (a misconfigured native build). */
+  const answering = (answers: Record<string, readonly Record<string, unknown>[]>): NodeSqliteEngine => {
+    const engine = new NodeSqliteEngine(disk);
+    const open = engine.open.bind(engine);
+    engine.open = async () => {
+      const connection = await open();
+      return { ...connection, all: (sql, params) => (sql in answers ? Promise.resolve(answers[sql] ?? []) : connection.all(sql, params)) };
+    };
+    return engine;
+  };
+
+  it('EVM-093 AC1: temp_store other than MEMORY is refused (no temporary files of decrypted pages)', async () => {
+    const engine = answering({ 'PRAGMA temp_store': [{ temp_store: 1 }] });
+    expect(await boot(device, { engine }).host.openForUser(USER_A)).toEqual({ kind: 'unavailable', code: 'cipher_misconfigured' });
+  });
+
+  it('EVM-093 AC5: an integrity check other than "ok" counts as not a database (file_corrupt when the KCV matches)', async () => {
+    await installed(1);
+    const engine = answering({ 'PRAGMA quick_check': [{ quick_check: 'row 1 missing from index' }] });
+    const result = await boot(device, { engine }).host.openForUser(USER_A);
+    expect(result).toMatchObject({ kind: 'data_lost', reason: 'file_corrupt' });
+  });
+
+  it('EVM-093 AC5: a reset whose new key cannot be generated stays unavailable (nothing is opened without a key)', async () => {
+    await installed(1);
+    device.key = null;
+    const lost = await boot(device).host.openForUser(USER_A);
+    if (lost.kind !== 'data_lost') throw new Error(lost.kind);
+    device.random = 'throws';
+    expect(await lost.acknowledge()).toEqual({ kind: 'unavailable', code: 'csprng_unavailable' });
+  });
+
+  it('EVM-093 AC7: an empty user id is refused; the count before opening covers registered sources only', async () => {
+    const { host } = boot(device);
+    await expect(host.openForUser('')).rejects.toMatchObject({ code: 'locked' });
+    host.registerUnsentCounter('files', () => Promise.resolve(1));
+    expect(await host.unsentItemCount()).toBe(1);
+  });
+
+  it('EVM-093 AC3, AC7: settled results reach the owner; lock ends the unlock of that user (every handle) and is idempotent', async () => {
+    const { host } = boot(device);
+    const first = unlocked(await host.openForUser(USER_A));
+    await first.queue.append(record(1));
+    await first.queue.settle(mid(1), { outcome: 'applied', warnings: [] });
+    expect((await first.takeSettled()).map((s) => s.mutationId)).toEqual([mid(1)]);
+    const second = unlocked(await host.openForUser(USER_A));
+    first.lock();
+    await expect(second.queue.readAll()).rejects.toMatchObject({ code: 'locked' });
+    first.lock();
+    expect(await unlocked(await host.openForUser(USER_A)).queue.readAll()).toEqual([]);
+  });
+});

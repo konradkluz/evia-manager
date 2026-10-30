@@ -7,7 +7,7 @@
 /** Result of reading the database key. `unavailable` = any error (Keystore busy, I/O, unknown): retried, never a reason to delete. */
 export type KeyRead = { readonly kind: 'present'; readonly hex: string } | { readonly kind: 'absent' } | { readonly kind: 'unavailable' };
 
-export type KeyHardware = 'secure_hardware' | 'software' | 'unknown';
+export type KeyHardware = 'strongbox' | 'secure_hardware' | 'software' | 'unknown';
 
 /** The 256-bit database key, wrapped by a non-exportable AES-GCM key of the Android Keystore (expo-secure-store, own service). */
 export interface KeyVault {
@@ -28,7 +28,7 @@ export interface AppFiles {
   remove(name: string): Promise<void>;
 }
 
-/** CSPRNG and digest (expo-crypto). There is no fallback: without a CSPRNG there is no database (never `Math.random`). */
+/** CSPRNG and digest (expo-crypto). There is no fallback: without a CSPRNG there is no database (never a non-cryptographic generator). */
 export interface CryptoSource {
   getRandomBytes(length: number): Uint8Array;
   sha256Hex(text: string): Promise<string>;

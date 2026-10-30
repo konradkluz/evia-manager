@@ -18,7 +18,7 @@ export interface SqlConnection {
 
 /**
  * The database file of the app. One connection per JS process; the port does not assume an exclusive lock of the file, so a native
- * process (background tasks, EVM-109) can open the same file later (WAL + busy_timeout, never `locking_mode=EXCLUSIVE`).
+ * process (background tasks, EVM-109) can open the same file later (WAL + busy_timeout, never an exclusive locking mode).
  */
 export interface SqlEngine {
   /** Whether the main file exists (an empty file counts). */

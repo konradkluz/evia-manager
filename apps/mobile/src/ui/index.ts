@@ -11,4 +11,4 @@ export type { AlertTone, InlineAlertProps } from './InlineAlert';
 export { Skeleton } from './Skeleton';
 export { SyncIndicator } from './SyncIndicator';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
-export { ClipboardList, Download, ListChecks } from './icons';
+export { CircleAlert, ClipboardList, Download, ListChecks } from './icons';

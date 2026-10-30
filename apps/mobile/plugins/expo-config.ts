@@ -4,7 +4,8 @@
  * - the Android `versionCode` comes from the CI run number so that it only grows (an older code cannot be installed over a newer one);
  * - a release build fails when the API address is not HTTPS (SR-COMM-04); plain HTTP to the emulator host exists in the e2e variant only;
  * - no permission is requested (INTERNET is added by the platform template) and risky defaults are blocked (SR-MOB-02);
- * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09).
+ * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09);
+ * - the local database is SQLCipher only (EVM-093 AC1): expo-sqlite with `useSQLCipher`, there is no build without the cipher.
  */
 import type { ExpoConfig } from 'expo/config';
 import { parseApiBaseUrl, resolveBuildVariant } from '../src/config/api-base-url.ts';
@@ -60,7 +61,8 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       permissions: [],
       blockedPermissions: [...BLOCKED_ANDROID_PERMISSIONS],
     },
-    plugins: ['expo-secure-store', ['./plugins/with-hardening.ts', { variant }]],
+    // EVM-093 (ADR-0007): expo-sqlite compiled with SQLCipher (community 4.17, OpenSSL from expo-sqlite's Gradle dependency).
+    plugins: ['expo-secure-store', ['expo-sqlite', { useSQLCipher: true }], ['./plugins/with-hardening.ts', { variant }]],
     extra: { buildVariant: variant },
   };
 }

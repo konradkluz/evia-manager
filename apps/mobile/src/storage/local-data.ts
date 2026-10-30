@@ -262,7 +262,7 @@ export class LocalDataHost {
 
   async #unlock(userId: string, fresh: boolean): Promise<OpenResult> {
     const db = this.#db;
-    if (db === null) return { kind: 'unavailable', code: 'closed' };
+    if (db === null) throw new StorageError('closed');
     const owner = await db.read(async (tx) => (await tx.get('SELECT value FROM meta WHERE key = ?', [OWNER_KEY]))?.['value']);
     if (owner === undefined) {
       await db.transaction((tx) => tx.run('INSERT INTO meta (key, value) VALUES (?, ?)', [OWNER_KEY, userId]));

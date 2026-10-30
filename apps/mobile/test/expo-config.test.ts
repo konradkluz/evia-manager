@@ -52,7 +52,12 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
 
   it('EVM-009 AC6: no OTA updates, no dev client, no analytics SDK among the plugins (SR-MOB-09)', () => {
     const names = (buildExpoConfig(releaseEnv).plugins ?? []).map((plugin) => (Array.isArray(plugin) ? plugin[0] : plugin));
-    expect(names).toEqual(['expo-secure-store', './plugins/with-hardening.ts']);
+    expect(names).toEqual(['expo-secure-store', 'expo-sqlite', './plugins/with-hardening.ts']);
+  });
+
+  it('EVM-093 AC1: expo-sqlite is always built with SQLCipher, in the release and the e2e variant', () => {
+    for (const env of [releaseEnv, { ...releaseEnv, EVIA_BUILD_VARIANT: 'e2e' }])
+      expect(buildExpoConfig(env).plugins).toContainEqual(['expo-sqlite', { useSQLCipher: true }]);
     expect(JSON.stringify(buildExpoConfig(releaseEnv))).not.toMatch(/expo-updates|expo-dev-client|sentry|analytics/i);
   });
 

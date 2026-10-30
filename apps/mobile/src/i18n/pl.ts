@@ -1,4 +1,4 @@
-/** Polish catalogue of the mobile app (EVM-009 AC1, AC3; UX copy of the story). Keys: `shell.*`, `update.*`. */
+/** Polish catalogue of the mobile app (EVM-009 AC1, AC3; UX copy of the story). Keys: `shell.*`, `localData.*` (EVM-093 AC5, AC6), `update.*`. */
 export const pl = {
   shell: {
     appName: 'EVia Manager',
@@ -20,6 +20,13 @@ export const pl = {
       body: 'Nie możemy połączyć się z serwerem EVia. Spróbuj ponownie za chwilę.',
     },
     reconnected: 'Połączono z serwerem.',
+  },
+  localData: {
+    lostTitle: 'Dane zapisane na tym telefonie, które nie zostały wysłane, są niedostępne.',
+    lostBody: 'Dane zleceń pobierzemy ponownie.',
+    acknowledge: 'Rozumiem',
+    wiping: 'Kończymy czyszczenie…',
+    wipingRetry: 'Spróbuj ponownie',
   },
   update: {
     title: 'Zaktualizuj aplikację',

@@ -17,7 +17,8 @@ export default {
   // (`…\.scratch\wt-C`, a git worktree) escapes the dot and no test is found. Same set of files: test/**/*.test.{ts,tsx}.
   testRegex: String.raw`[/\\]test[/\\].+\.test\.tsx?$`,
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
-  collectCoverageFrom: ['src/**/*.{ts,tsx}', 'plugins/**/*.ts', '!**/*.d.ts'],
+  // The native SQLCipher shell is excluded together with its entry in packages/config/coverage-exclusions.json (EVM-093).
+  collectCoverageFrom: ['src/**/*.{ts,tsx}', 'plugins/**/*.ts', '!**/*.d.ts', '!src/storage/expo-sqlite-driver.ts'],
   coverageReporters: ['text', 'lcov'],
   coverageDirectory: 'coverage',
   // The first render of a worker loads react-native lazily and transforms its modules; on a cold Babel cache (a CI runner) that exceeded
