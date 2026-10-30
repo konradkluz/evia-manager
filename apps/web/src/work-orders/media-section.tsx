@@ -199,7 +199,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               ? mediaText.attentionHeading(assets.length, list.hasNextPage)
               : mediaText.photosHeading(photos, videos, list.hasNextPage)}
           </h3>
-          <MediaGallery workOrderId={order.id} assets={gallery} online={online} />
+          <MediaGallery workOrderId={order.id} assets={gallery} online={online} canDownloadOriginal={canUpload} />
           {rest.length > 0 ? (
             <ul aria-label={mediaText.heading} className="flex flex-col">
               {rest.map((asset) => {

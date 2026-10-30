@@ -1,4 +1,5 @@
-import type { MediaCategory } from '@evia/contracts';
+import type { MediaAsset, MediaCategory } from '@evia/contracts';
+import { formatDate } from './format.ts';
 
 /**
  * Polish texts of the tab "Media i dokumenty" and of the upload (EVM-044; docs/ux/flows/06-galeria-i-upload.md → W-09, W-09 w
@@ -131,6 +132,28 @@ export const mediaText = {
   // EVM-068: after the scan the server makes the thumbnail and the preview; the file is safe and sent, only the picture is not ready yet
   previewPreparing: 'Przygotowujemy podgląd.',
   processingFailed: 'Nie udało się przygotować podglądu. Spróbujemy ponownie.',
+  // EVM-045: the lightbox (W-09, § 3.11) and the download of the original
+  openPhoto: (alt: string) => `Powiększ: ${alt}`,
+  lightboxTitle: (position: number, total: number, alt: string) => `${alt} (${String(position)} z ${String(total)})`,
+  previous: 'Poprzednie',
+  next: 'Następne',
+  zoomIn: 'Powiększ',
+  zoomOut: 'Pomniejsz',
+  zoomStatus: (percent: number) => `Powiększenie ${String(percent)}%`,
+  previewLoading: 'Wczytywanie podglądu',
+  previewOffline: 'Brak połączenia — podgląd wczyta się po jego powrocie.',
+  fileGone: 'Nie znaleziono pliku. Mógł zostać usunięty.',
+  downloadLimited: 'Pobrano dużo plików w krótkim czasie. Spróbuj ponownie za 5 min.',
+  downloadForbidden: 'Nie masz uprawnień do pobrania tego pliku.',
+  downloadFailed: 'Nie udało się pobrać pliku. Spróbuj ponownie.',
+  takenAt: (date: string, time: string) => `zrobione ${date}, ${time}`,
+  fromPhone: 'z telefonu',
+  descriptionLine: (text: string) => `Opis: ${text}`,
+  downloadOriginal: 'Pobierz oryginał',
+  downloadOffline: 'Brak połączenia — pobieranie jest wyłączone do jego powrotu.',
+  originalTitle: 'Pobrać oryginał?',
+  originalBody: 'Plik może zawierać metadane, np. lokalizację. Do udostępnienia poza firmą użyj podglądu.',
+  downloadPreview: 'Pobierz podgląd',
   thumbnailUnavailable: 'Nie można wyświetlić',
   thumbnailLoading: 'Wczytywanie miniatury',
   thumbnailOffline: 'Brak połączenia — miniatura wczyta się po jego powrocie.',
@@ -210,3 +233,7 @@ export function quarantineReasonLabel(code: string | undefined): string {
       return mediaText.reasonGeneral;
   }
 }
+
+/** The alternative text of a photo from its metadata (§ 3.11): the category and the date. */
+export const mediaAlt = (asset: MediaAsset): string =>
+  `${mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.capturedAt ?? asset.createdAt)}`;

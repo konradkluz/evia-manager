@@ -1,8 +1,8 @@
 import type { MediaAsset } from '@evia/contracts';
 import { ImageIcon, InlineAlert, Skeleton } from '@evia/ui-web';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { formatDate } from './format.ts';
-import { categoryLabel, groupLabel, mediaText } from './media-labels.ts';
+import { groupLabel, mediaAlt, mediaText } from './media-labels.ts';
+import { MediaViewer } from './media-viewer.tsx';
 import { MAX_PARALLEL_URL_REQUESTS, RequestLimiter, useSeen, useThumbnailRequest } from './media-thumbnails.ts';
 
 // The gallery of W-09 (EVM-068 AC1, AC6, AC8; styleguide § 3.11 Thumbnail, Gallery): the photos that are `ready`, grouped by the category, tiles that
@@ -30,16 +30,16 @@ export function groupByCategory(assets: readonly MediaAsset[]): Group[] {
   });
 }
 
-/** The alternative text of a photo from its metadata (§ 3.11): the category and the date. */
-const altOf = (asset: MediaAsset): string =>
-  `${mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.capturedAt ?? asset.createdAt)}`;
+const altOf = mediaAlt;
 
 function Tile({
   asset,
   workOrderId,
   online,
   limiter,
+  onOpen,
 }: {
+  readonly onOpen: () => void;
   readonly asset: MediaAsset;
   readonly workOrderId: string;
   readonly online: boolean;
@@ -74,7 +74,12 @@ function Tile({
 
   return (
     <li ref={ref}>
-      <div className="relative aspect-square min-w-thumbnail-md overflow-hidden rounded-thumbnail bg-bg-skeleton">
+      <button
+        type="button"
+        aria-label={mediaText.openPhoto(altOf(asset))}
+        onClick={onOpen}
+        className="relative block aspect-square w-full min-w-thumbnail-md overflow-hidden rounded-thumbnail bg-bg-skeleton focus-visible:focus-ring"
+      >
         {broken ? (
           <div className="flex size-full flex-col items-center justify-center gap-stack-xs p-inset-sm text-center text-body-sm text-text-secondary">
             <ImageIcon aria-hidden="true" className="size-icon-lg text-icon-secondary" />
@@ -107,7 +112,7 @@ function Tile({
             }}
           />
         )}
-      </div>
+      </button>
     </li>
   );
 }
@@ -117,13 +122,20 @@ export function MediaGallery({
   workOrderId,
   assets,
   online,
+  canDownloadOriginal = false,
 }: {
   readonly workOrderId: string;
   readonly assets: readonly MediaAsset[];
   readonly online: boolean;
+  /** Administrator and Editor (convenience only; the server decides). */
+  readonly canDownloadOriginal?: boolean;
 }) {
   const limiter = useMemo(() => new RequestLimiter(MAX_PARALLEL_URL_REQUESTS), []);
   const groups = useMemo(() => groupByCategory(assets), [assets]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  // the order of the lightbox is the order of the tiles (group after group)
+  const flat = useMemo(() => groups.flatMap((group) => group.assets), [groups]);
+  const openIndex = openId === null ? -1 : flat.findIndex((entry) => entry.id === openId);
   if (assets.length === 0) return null;
   return (
     <div className="flex flex-col gap-stack-md">
@@ -136,11 +148,33 @@ export function MediaGallery({
             className="grid gap-inline-sm [grid-template-columns:repeat(auto-fill,minmax(var(--evm-size-thumbnail-md),1fr))]"
           >
             {group.assets.map((asset) => (
-              <Tile key={asset.id} asset={asset} workOrderId={workOrderId} online={online} limiter={limiter} />
+              <Tile
+                key={asset.id}
+                asset={asset}
+                workOrderId={workOrderId}
+                online={online}
+                limiter={limiter}
+                onOpen={() => {
+                  setOpenId(asset.id);
+                }}
+              />
             ))}
           </ul>
         </section>
       ))}
+      <MediaViewer
+        workOrderId={workOrderId}
+        assets={flat}
+        index={openIndex < 0 ? null : openIndex}
+        online={online}
+        canDownloadOriginal={canDownloadOriginal}
+        onIndex={(index) => {
+          setOpenId(flat[index]?.id ?? null);
+        }}
+        onClose={() => {
+          setOpenId(null);
+        }}
+      />
     </div>
   );
 }
