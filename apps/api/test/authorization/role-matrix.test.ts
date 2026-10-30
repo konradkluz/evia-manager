@@ -85,7 +85,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
   });
 
   it('EVM-094 AC8 a mobile session is allowed on the public operations and on the operations of the mobile channel for the Administrator and the Editor — never for the Read-only role (SR-AUTHZ-06), never on an operation of the panel', () => {
-    for (const cell of cells.filter((item) => item.caller.kind === 'session' && item.caller.channel === 'mobile')) {
+    // the IDOR cells of an operation of the phone (EVM-097) are asserted where the object operations are
+    for (const cell of cells.filter((item) => !item.idor && item.caller.kind === 'session' && item.caller.channel === 'mobile')) {
       const policy = AUTHZ_MANIFEST[cell.operationId]?.authz;
       const mobileOperation = policy?.public !== true && policy?.channels?.includes('mobile') === true;
       const role = cell.caller.kind === 'session' ? cell.caller.role : undefined;
@@ -218,7 +219,16 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'redactTimelineEntry', // EVM-040: the redaction of the text of an entry
       'anonymizeCustomer', // EVM-041: the anonymization of a customer
     ];
-    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp]));
+    // EVM-097: the snapshot of an order is an operation of the mobile channel - its IDOR cells are the Administrator and the Editor with a Bearer token
+    const mobileObjects = ['getSyncWorkOrder'];
+    expect(new Set(idor.map((cell) => cell.operationId))).toEqual(new Set([...all, ...stepUp, ...mobileObjects]));
+    for (const operationId of mobileObjects) {
+      const cellsOf = idor.filter((cell) => cell.operationId === operationId);
+      const callers = cellsOf.flatMap((cell) => (cell.caller.kind === 'session' ? [`${cell.caller.role}/${cell.caller.channel}`] : []));
+      expect([...new Set(callers)].sort()).toEqual(['administrator/mobile', 'editor/mobile']);
+      expect(callers).toHaveLength(cellsOf.length);
+      for (const cell of cellsOf) expect(cell.credential).toBe('bearer');
+    }
     for (const operationId of stepUp) {
       expect(idor.filter((cell) => cell.operationId === operationId).map((cell) => cell.caller)).toEqual([
         { kind: 'session', role: 'administrator', channel: 'web', state: 'active', passkey: 'fresh' },

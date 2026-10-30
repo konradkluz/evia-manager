@@ -42,6 +42,7 @@ beforeAll(async () => {
     '0051_mobile_tokens',
     '0052_mobile_vocabularies',
     '0053_sync_change_log',
+    '0054_sync_remaining_entities',
   ]);
 });
 afterAll(async () => {

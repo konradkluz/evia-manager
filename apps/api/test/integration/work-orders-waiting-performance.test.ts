@@ -55,11 +55,15 @@ beforeAll(async () => {
     coordinators.map((user) => user.id),
   );
   const admin = app.database.admin;
-  await sql`
+  // The fixture is bulk data written under the triggers of the log of the synchronisation (EVM-097: the stages are a synchronised entity, 30 000 rows of the log),
+  // so the statements of the setup get the time of a fixture; the measured requests below keep the timeouts of the application.
+  await admin.transaction().execute(async (trx) => {
+    await sql`set local statement_timeout = '120s'`.execute(trx);
+    await sql`
     insert into procedures.procedures (work_order_id, code, name, position, created_at, updated_at)
-    select id, 'process_one', 'Proces syntetyczny', 1, now(), now() from work_orders.work_orders`.execute(admin);
-  // stage 1: every second order waits for the OSD (days 1..120 ago), stage 2: every third waits for the customer, stage 3 has a deadline
-  await sql`
+    select id, 'process_one', 'Proces syntetyczny', 1, now(), now() from work_orders.work_orders`.execute(trx);
+    // stage 1: every second order waits for the OSD (days 1..120 ago), stage 2: every third waits for the customer, stage 3 has a deadline
+    await sql`
     insert into procedures.procedure_stages (procedure_id, work_order_id, code, name, position, status, waiting_on, waiting_on_party_id,
       waiting_since, due_date, output_document_kind_codes, created_at, updated_at)
     select p.id, p.work_order_id, s.code, 'Etap syntetyczny', s.position,
@@ -72,7 +76,8 @@ beforeAll(async () => {
       '{}', now(), now()
     from procedures.procedures p
     join (select work_order_id, row_number() over (order by work_order_id) as n from procedures.procedures) r on r.work_order_id = p.work_order_id
-    cross join (values ('stage_1', 1), ('stage_2', 2), ('stage_3', 3)) as s(code, position)`.execute(admin);
+    cross join (values ('stage_1', 1), ('stage_2', 2), ('stage_3', 3)) as s(code, position)`.execute(trx);
+  });
   const started = performance.now();
   const report = await projectionTools(admin).maintenance.rebuild();
   rebuildMs = performance.now() - started;
