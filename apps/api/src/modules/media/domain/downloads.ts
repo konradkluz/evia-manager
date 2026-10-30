@@ -11,7 +11,7 @@
 import type { UserRole } from '@evia/contracts';
 import { extensionOf, normalizeContentType, type AllowedContentType } from './file-rules.ts';
 import { URL_LIMITS, type UrlLimits, type VariantClass } from '../../../platform/signed-url-limits/signed-url-meters.ts';
-import type { FileState, ReasonCode } from './scan-outcome.ts';
+import { isVideoOriginalReleasable, type VideoFileFacts } from './video-rules.ts';
 
 export { URL_LIMITS, type UrlLimits, type VariantClass };
 
@@ -23,9 +23,17 @@ export const variantClass = (variant: DownloadVariant): VariantClass => (variant
 /** P6: Read-only gets the derivatives, never the original. */
 export const mayRequest = (role: UserRole, variant: DownloadVariant): boolean => variant !== 'original' || role !== 'read_only';
 
-/** The files whose original may be handed out: they passed the scan (`failed` with `processing_error` did too - the processor failed, not the scan). */
-export function isOriginalDownloadable(state: FileState, reason: ReasonCode | null): boolean {
-  return state === 'clean' || state === 'ready' || (state === 'failed' && reason === 'processing_error');
+export interface OriginalFacts extends VideoFileFacts {
+  readonly mediaType: 'photo' | 'video';
+}
+
+/**
+ * The files whose original may be handed out. A photo: it passed the scan (`failed` with `processing_error` did too - the processor failed, not the scan).
+ * A video: only after the structural check, see {@link isVideoOriginalReleasable}.
+ */
+export function isOriginalDownloadable(facts: OriginalFacts): boolean {
+  if (facts.mediaType === 'video') return isVideoOriginalReleasable(facts);
+  return facts.state === 'clean' || facts.state === 'ready' || (facts.state === 'failed' && facts.reason === 'processing_error');
 }
 
 const EXTENSION_OF_TYPE: Readonly<Record<AllowedContentType, string>> = {

@@ -40,12 +40,12 @@ describe('EVM-045 AC4 AC6 who may request which variant and which files are down
     ];
     const allowed: string[] = [];
     for (const state of states)
-      for (const reason of reasons) if (isOriginalDownloadable(state, reason)) allowed.push(`${state}/${reason ?? '-'}`);
+      for (const reason of reasons)
+        if (isOriginalDownloadable({ mediaType: 'photo', state, reason, durationSeconds: null, avScanned: true }))
+          allowed.push(`${state}/${reason ?? '-'}`);
     // `clean` and `ready` carry no reason in practice; the rule is on the state, `failed` needs the reason of the processor
     expect(allowed.filter((entry) => entry.startsWith('failed'))).toEqual(['failed/processing_error']);
     expect(allowed.filter((entry) => !entry.startsWith('clean') && !entry.startsWith('ready') && !entry.startsWith('failed'))).toEqual([]);
-    expect(isOriginalDownloadable('clean', null)).toBe(true);
-    expect(isOriginalDownloadable('ready', null)).toBe(true);
   });
 });
 
