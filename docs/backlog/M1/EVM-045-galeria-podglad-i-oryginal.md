@@ -4,7 +4,7 @@ title: Galeria — podgląd i pobranie oryginału
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -103,3 +103,4 @@ _—_
 - 2026-10-30 — plan gotowy (backend-developer)
 - 2026-10-30 — API gotowe (backend-developer): `preview` i `original` w `createMediaAssetDownloadUrl`, limity P10, audyt, nagłówek attachment z serwera; testy `EVM-045 AC2–AC7` zielone w kontenerze; UI (AC1, AC8, część AC2) czeka na web-developera
 - 2026-10-30 — UI gotowe (web-developer): Lightbox w bibliotece `@evia/ui-web` (§ 3.11), kafle galerii jako przyciski, podgląd 1600, dialog „Pobrać oryginał?”, stany AC8, testy `EVM-045 AC1/2/4/5/8`; metadana „autor” pominięta — kontrakt `MediaAsset` nie ma pola autora (do decyzji: zmiana kontraktu)
+- 2026-10-30 — runda poprawek (backend-developer): fokusowalny przewijany obszar powiększonego zdjęcia w Lightboxie (WCAG 2.1.1) z testem; status in-review. AC1 „autor” — czeka na decyzję Konrada: (a) addytywne pole createdByName (tylko nazwa wyświetlana, join przy odczycie, aktualizacja rodo.md) albo (b) usunięcie „autor” z AC1; AC bez zmian
