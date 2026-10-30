@@ -251,6 +251,29 @@ module.exports = {
       to: { path: 'node_modules/expo-secure-store(/|$)' },
     },
     {
+      name: 'mobile-installation-proof-only-in-sign-in-adapter',
+      comment:
+        'The installation proof (pair deviceId + secret, EVM-100 security W3) is created by the local store and unwrapped only by the HTTP adapter of the sign-in.',
+      severity: 'error',
+      from: { path: '^apps/mobile/', pathNot: '^apps/mobile/(src/storage/|src/api/auth-client\.ts$|test/)' },
+      to: { path: '^apps/mobile/src/storage/installation-proof' },
+    },
+    {
+      name: 'mobile-auth-without-screens',
+      comment: 'The sign-in and session logic has no UI: it never imports screens or the UI library (EVM-100, architect 6).',
+      severity: 'error',
+      from: { path: '^apps/mobile/src/auth/' },
+      to: { path: '^apps/mobile/src/(screens|ui)/' },
+    },
+    {
+      name: 'mobile-screens-without-adapters',
+      comment:
+        'Screens get the session owner and the sign-in client injected (composition in App.tsx): no HTTP adapter of the sign-in, secure store or local store (EVM-100, architect 6).',
+      severity: 'error',
+      from: { path: '^apps/mobile/src/screens/' },
+      to: { path: '^apps/mobile/src/(api/auth-client|secure-store/|storage/)' },
+    },
+    {
       name: 'mobile-no-async-storage',
       comment:
         'AsyncStorage keeps plain text on the phone: tokens and data of the app never go there (EVM-009; SR-MOB-01, MASVS-STORAGE-1).',

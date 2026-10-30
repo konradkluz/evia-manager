@@ -1,6 +1,7 @@
 /**
  * Thin client of `GET /api/health` over the generated contract client (EVM-009 AC2, AC3; ADR-0004): it returns a state, never an
- * exception, and never the address or the content of an answer (SR-LOG-08, SR-MOB-10). Only this module imports @evia/contracts.
+ * exception, and never the address or the content of an answer (SR-LOG-08, SR-MOB-10). The API adapters (this module and
+ * `src/auth/http-auth-client.ts`) are the only importers of @evia/contracts; both send the compatibility headers of `clientHeaders`.
  */
 import { createClient, getHealth } from '@evia/contracts';
 import { zGetHealthResponse } from '@evia/contracts/zod';
@@ -29,6 +30,11 @@ export interface HealthClientOptions {
 
 export const DEFAULT_HEALTH_TIMEOUT_MS = 10_000;
 
+/** Compatibility headers of every request of the app (api-guidelines → "Minimalna wersja aplikacji"). */
+export function clientHeaders(platform: ClientPlatform, appVersion: string): Record<'X-Client-Platform' | 'X-Client-Version', string> {
+  return { 'X-Client-Platform': platform, 'X-Client-Version': appVersion };
+}
+
 export interface HealthClient {
   fetchHealth: () => Promise<HealthResult>;
 }
@@ -53,7 +59,7 @@ export function createHealthClient({
   // The compatibility headers (api-guidelines → "Minimalna wersja aplikacji") are set here, once, for every request of this client.
   const client = createClient({
     baseUrl,
-    headers: { 'X-Client-Platform': platform, 'X-Client-Version': appVersion },
+    headers: clientHeaders(platform, appVersion),
     ...(fetch === undefined ? {} : { fetch: requestFetch(fetch) }),
   });
 
