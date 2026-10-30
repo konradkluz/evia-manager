@@ -4,7 +4,7 @@ title: "Aplikacja: szyfrowana baza lokalna i adapter magazynu"
 type: enabler
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-review
 priority: P0
 path: pelna             # dane na urządzeniu, synchronizacja offline, migracje
 owner: mobile-developer
@@ -92,3 +92,5 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 - 2026-10-30 — implementacja: zakazy importów w `mobileUi()`, wariant e2e `debuggable`, haki e2e wybierane resolverem Metro (znacznik odrzucany przez `verify`), przepływy Maestro 08–14 z krokami adb; natywne części AC1, AC3–AC7 niezweryfikowane — build e2e zablokowany długimi ścieżkami poza worktree (`.scratch/queue-C/blockers.md`) (mobile-developer)
 - 2026-10-30 — plan gotowy (mobile-developer) — wznowienie: weryfikacja natywna w jednorazowym krótkim klonie `C:\e93` (Droga A) i przeglądy
 - 2026-10-30 — weryfikacja natywna (API 35): AC1, AC3, AC5–AC7 zgodne, `verify` release 0 i e2e ze znacznikiem haków; APK release +11,6 MiB; AC4 `adb backup` wariantu e2e (debuggable) zawiera dane — platforma ignoruje `allowBackup` dla debuggable, na paczce niedebugowalnej 0 wpisów; czeka na decyzję Konrada (mobile-developer)
+- 2026-10-30 — plan gotowy (mobile-developer) — etap przeglądów (code-reviewer, security-engineer) na diffie względem EVM-092
+- 2026-10-30 — przegląd na diffie względem EVM-092 (kontrole 1–10 security-engineer; `mobile-developer` — samodzielne uruchomienie agentów code-reviewer i security-engineer nie było dostępne w tym kroku, niezależny przegląd zleca orkiestrator): major — błąd skrótu KCV (expo-crypto) wychodził z `openForUser` jako surowy błąd natywny z możliwym kluczem, poprawione TDD; threat-model (TM-01, TM-04, nowe RR-71 OpenSSL 3.3.2 z SHA-256 AAR, do akceptacji), requirements (SR-MOB-01/02/04/13), checklista wydania; brak zmian w Kotlinie, pluginie i manifeście; status in-review; **AC4 (`adb backup`) czeka na decyzję Konrada**, K9 (OpenSSL) otwarte (mobile-developer)
