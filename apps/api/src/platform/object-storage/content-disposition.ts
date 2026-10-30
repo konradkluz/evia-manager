@@ -10,6 +10,7 @@ export type Disposition = { readonly kind: 'inline' } | { readonly kind: 'attach
 
 const REFUSED = /[\p{Cc}"\\/]/u;
 const MAX_FALLBACK = 100;
+// The fallback keeps letters, digits, space and `. _ ( ) -` only: NFKD turns full-width quotes, `;` and `=` into ASCII ones that would open a parameter.
 
 /** RFC 8187 `attr-char`: everything `encodeURIComponent` leaves except `! ' ( ) *`, which are encoded too. */
 const percentEncode = (value: string): string =>
@@ -20,7 +21,7 @@ export function attachmentHeader(filename: string): string {
   const name = filename.toWellFormed();
   if (name === '' || REFUSED.test(name)) throw new RangeError('unsafe download name');
   const fallback = Array.from(name.normalize('NFKD').replace(/\p{M}/gu, ''))
-    .map((char) => (/^[\x20-\x7e]$/.test(char) && char !== '%' ? char : '_'))
+    .map((char) => (/^[A-Za-z0-9 ._()-]$/.test(char) ? char : '_'))
     .join('')
     .slice(0, MAX_FALLBACK);
   return `attachment; filename="${fallback}"; filename*=UTF-8''${percentEncode(name)}`;

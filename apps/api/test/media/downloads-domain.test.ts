@@ -82,7 +82,7 @@ describe('EVM-045 AC2 the Content-Disposition is built by the server (SR-FILE-07
     expect(attachmentHeader('Zdjęcie przyłącza (1).jpg')).toBe(
       'attachment; filename="Zdjecie przy_acza (1).jpg"; filename*=UTF-8\'\'Zdj%C4%99cie%20przy%C5%82%C4%85cza%20%281%29.jpg',
     );
-    expect(attachmentHeader("it's*.jpg")).toBe("attachment; filename=\"it's*.jpg\"; filename*=UTF-8''it%27s%2A.jpg");
+    expect(attachmentHeader("it's*.jpg")).toBe('attachment; filename="it_s_.jpg"; filename*=UTF-8\'\'it%27s%2A.jpg');
   });
 
   it('EVM-045 AC2 a percent sign and a lone surrogate never reach the fallback raw; a long fallback is cut', () => {
@@ -90,6 +90,22 @@ describe('EVM-045 AC2 the Content-Disposition is built by the server (SR-FILE-07
     expect(attachmentHeader('a\uD800b.jpg')).toContain("filename*=UTF-8''a%EF%BF%BDb.jpg");
     const fallback = /filename="([^"]*)"/.exec(attachmentHeader('x'.repeat(300)))?.[1] ?? '';
     expect(fallback).toHaveLength(100);
+  });
+
+  it('EVM-045 AC2 full-width quote, semicolon, equals, apostrophe, backslash and slash cannot open a parameter in the fallback', () => {
+    const hostile = 'x＂； filename*=UTF-8＇＇evil.hta； a＝＂＼／.jpg';
+    const header = attachmentHeader(downloadFileName(hostile, ID, 'image/jpeg'));
+    expect(header.match(/filename=/g)).toHaveLength(1);
+    expect(header.match(/filename\*=/g)).toHaveLength(1);
+    const fallback = /filename="([^"]*)"/.exec(header)?.[1] ?? '';
+    expect(fallback).not.toMatch(/["';=/]/);
+    expect(attachmentHeader(hostile.replace(/＼|／/g, ''))).toMatch(
+      /^attachment; filename="[A-Za-z0-9 ._()-]*"; filename\*=UTF-8''[A-Za-z0-9%._-]*$/,
+    );
+  });
+
+  it('EVM-045 AC2 the download name is normalised (NFKC) before the unsafe characters are stripped', () => {
+    expect(downloadFileName('a＂b；c＼d／e.jpg', ID, 'image/jpeg')).toBe('abcde.jpg');
   });
 
   it('EVM-045 AC2 a name with a control character, a quote, a backslash or a slash - or an empty one - is refused, never repaired', () => {

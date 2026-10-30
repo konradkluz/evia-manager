@@ -45,6 +45,7 @@ const STRIPPED = /[\p{Cc}\p{Cf}"\\/;%]/gu;
  */
 export function downloadFileName(storedName: string | null, mediaAssetId: string, contentType: string | null): string {
   const cleaned = (storedName ?? '')
+    .normalize('NFKC')
     .replace(STRIPPED, '')
     .replace(/\.{2,}/g, '.')
     .trim()
