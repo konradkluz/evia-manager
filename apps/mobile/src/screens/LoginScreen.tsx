@@ -42,8 +42,11 @@ function useOfflineRecheck(offline: boolean, retry: () => void) {
   }, [offline, retry]);
 }
 
-/** Re-renders when the next whole minute of a `429` lock passes (AC2: the text is refreshed every minute) and ends the lock. */
-function useLockClock(machine: LoginMachine, state: LoginState, now: () => number): number {
+/**
+ * Re-renders when the next whole minute of a `429` lock passes (AC2: the text is refreshed every minute) and ends the lock. The minutes
+ * are counted from the time of the render (`now()`), never from the time the screen was opened.
+ */
+function useLockClock(machine: LoginMachine, state: LoginState, now: () => number): void {
   const [current, setCurrent] = useState(now);
   useEffect(() => {
     if (state.lockedUntil === null) return undefined;
@@ -59,7 +62,6 @@ function useLockClock(machine: LoginMachine, state: LoginState, now: () => numbe
       clearTimeout(timer);
     };
   }, [machine, state.lockedUntil, current, now]);
-  return current;
 }
 
 const ERROR_TEXT = {
@@ -92,8 +94,9 @@ export function LoginScreen({
   const [codeShown, setCodeShown] = useState(false);
   const offline = startup.kind === 'offline';
   const online = !offline;
-  const clock = useLockClock(machine, state, now);
-  const minutes = lockMinutes(state, clock);
+  useLockClock(machine, state, now);
+  // counted at render time: a lock that starts long after the screen opened still says "4 min" for 230 s (Maestro 21)
+  const minutes = lockMinutes(state, now());
   useOfflineRecheck(offline, retry);
 
   // a challenge left in the background longer than it lives is dropped on return (security W2)

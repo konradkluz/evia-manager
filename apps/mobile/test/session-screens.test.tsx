@@ -244,6 +244,20 @@ describe('M-01 errors (EVM-100 AC2)', () => {
     }
   });
 
+  it('EVM-100 AC2: the minutes of 429 are counted from the answer, not from the moment M-01 was opened (found by Maestro 21)', async () => {
+    jest.useFakeTimers({ now: Date.parse('2026-10-30T08:00:00Z') });
+    try {
+      await open(signedOut(failing(429, 'too_many_requests', 230_000)));
+      await act(() => {
+        jest.advanceTimersByTime(45_000);
+      });
+      await toCode();
+      expect(screen.getByTestId('login-error')).toHaveTextContent('Zbyt wiele prób. Spróbuj ponownie za 4 min.');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('EVM-100 AC2: a server or network failure shows the generic message', async () => {
     await open(signedOut(okSignIn({ login: () => Promise.resolve({ kind: 'unavailable' }) })));
     await toCode();
