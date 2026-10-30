@@ -4,7 +4,7 @@ title: "API: pobieranie pozostałych encji, wejście i wyjście z zakresu"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: ready
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, uprawnienia
 owner: backend-developer
@@ -74,3 +74,5 @@ Jako **technik** chcę, aby **szczegóły zlecenia na telefonie były kompletne 
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-29 — doprecyzowano do DoR: zgodność z kontraktem EVM-090 (typy projekcji, `404` w migawce, powody resyncu), rozgraniczenie z EVM-096/098/099, konkretne limity (product-owner)
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–7; ładowarki i konfiguracja globalna do EVM-099; limit migawek 120/h na urządzenie; sync nie zasila licznika EVM-039; status ready
+- 2026-10-30 — plan gotowy (backend-developer)
+- 2026-10-30 — zaimplementowano (backend-developer): migracja 0054 (numer po 0053 z EVM-096; EVM-068 w PR #117 też używa 0053 — kolizja do rozstrzygnięcia przy scalaniu), pozostałe typy w `GET /api/v1/sync/changes`, `getSyncWorkOrder` z limitem 120/h na urządzenie w PostgreSQL, `scopeRuleVersion` pochodna N; kod `forbidden` (nie `channel_not_allowed`) dla roli Tylko odczyt, jak w EVM-096; interpretacja zgodna z 096: `delete` ma `type` i `id` (kontrakt `SyncDelete`, bez `version`), a dla trwale usuniętego `Party`/`User` jest wysyłany zawsze (serwer nie zna listy obiektów z urządzenia; znacznik nie niesie danych osobowych); status in-review

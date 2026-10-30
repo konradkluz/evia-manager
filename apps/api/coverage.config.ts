@@ -17,6 +17,9 @@ export const DATABASE_BOUND: readonly string[] = [
   // EVM-026: the counters against guessing (FOR UPDATE, ON CONFLICT, the retention) and the register of known browsers — SQL against PostgreSQL
   'src/modules/identity/infrastructure/throttle-queries.ts',
   'src/modules/identity/infrastructure/tables.ts',
+  // EVM-097: the names of the users for the phone - a query with the soft deletion; no-etag: the headers of the answers of the snapshot of an order
+  'src/modules/identity/infrastructure/sync-source.ts',
+  'src/modules/sync/http/no-etag.ts',
   // EVM-094: the register of mobile devices and the tokens of a phone — locks, conditional UPDATEs, and joins that read the session, the account and the device on every request: SQL against PostgreSQL
   'src/modules/identity/infrastructure/device-queries.ts',
   'src/modules/identity/infrastructure/mobile-token-queries.ts',

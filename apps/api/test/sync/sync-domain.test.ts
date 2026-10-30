@@ -284,6 +284,51 @@ describe('the serializers of the remaining types list the fields of the contract
   });
 });
 
+describe('the serializers keep a missing time as null (EVM-097 AC1)', () => {
+  it('EVM-097 AC1 a stage that has not started, an entry without the time of the phone and one that is not redacted carry null, not a date', () => {
+    const id = randomUUID();
+    const stage = procedureStageChange({
+      id,
+      version: 1,
+      workOrderId: id,
+      procedureId: id,
+      procedureCode: 'connection',
+      procedureName: 'Przylaczenie',
+      code: 'design',
+      name: 'Projekt',
+      position: 1,
+      status: 'todo',
+      dueDate: null,
+      responsibleUserId: null,
+      waitingOn: null,
+      waitingPartyId: null,
+      waitingSince: null,
+      blockedReason: null,
+      startedAt: null,
+      completedOn: null,
+    });
+    const entry = timelineEntryChange({
+      id,
+      version: 1,
+      workOrderId: id,
+      kind: 'comment',
+      noteCategory: null,
+      body: 'tresc',
+      procedureStageId: null,
+      authorUserId: null,
+      createdAt: NOW,
+      origin: 'web',
+      capturedAt: null,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
+      redactedAt: null,
+    });
+    expect(stage).toMatchObject({ entity: { startedAt: null } });
+    expect(entry).toMatchObject({ entity: { capturedAt: null, redactedAt: null, createdAt: NOW.toISOString() } });
+    for (const change of [stage, entry]) expect(assertSyncProjectionStrict(change)).toEqual({ ok: true });
+  });
+});
+
 describe('the cursor claims of the snapshot carry a sub-cursor and a role from closed sets (EVM-097; SR-SYNC-07)', () => {
   const base = { ph: 'snapshot', tx: '10', after: randomUUID(), dl: randomUUID(), u: randomUUID(), d: randomUUID(), sv: 292, r: 'editor' };
 

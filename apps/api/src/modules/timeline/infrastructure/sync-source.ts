@@ -61,11 +61,12 @@ export class TimelineEntrySyncSourceService implements TimelineEntrySyncSource {
       .selectFrom(ENTRIES)
       .select([`${ENTRIES}.created_by as userId`, `${ENTRIES}.work_order_id as workOrderId`])
       .distinct()
+      .$narrowType<{ userId: string }>()
       .where(`${ENTRIES}.created_by`, 'in', ids)
       .where(`${ENTRIES}.deleted_at`, 'is', null)
       .where(notAboutPayment)
       .execute();
-    return rows.flatMap((row) => (row.userId === null ? [] : [{ userId: row.userId, workOrderId: row.workOrderId }]));
+    return rows;
   }
 
   #select(tx: Kysely<Database>) {

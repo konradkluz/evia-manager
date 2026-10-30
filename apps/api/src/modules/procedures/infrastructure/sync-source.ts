@@ -59,11 +59,12 @@ export class ProcedureStageSyncSourceService implements ProcedureStageSyncSource
       .selectFrom(STAGES)
       .innerJoin(PROCEDURES, `${PROCEDURES}.id`, `${STAGES}.procedure_id`)
       .select([`${STAGES}.waiting_on_party_id as partyId`, `${STAGES}.work_order_id as workOrderId`])
+      .$narrowType<{ partyId: string }>()
       .where(`${STAGES}.waiting_on_party_id`, 'in', ids)
       .where(`${STAGES}.deleted_at`, 'is', null)
       .where(`${PROCEDURES}.deleted_at`, 'is', null)
       .execute();
-    return rows.flatMap((row) => (row.partyId === null ? [] : [{ partyId: row.partyId, workOrderId: row.workOrderId }]));
+    return rows;
   }
 
   async responsibleUsers(
@@ -75,11 +76,12 @@ export class ProcedureStageSyncSourceService implements ProcedureStageSyncSource
       .selectFrom(STAGES)
       .innerJoin(PROCEDURES, `${PROCEDURES}.id`, `${STAGES}.procedure_id`)
       .select([`${STAGES}.responsible_user_id as userId`, `${STAGES}.work_order_id as workOrderId`])
+      .$narrowType<{ userId: string }>()
       .where(`${STAGES}.responsible_user_id`, 'in', ids)
       .where(`${STAGES}.deleted_at`, 'is', null)
       .where(`${PROCEDURES}.deleted_at`, 'is', null)
       .execute();
-    return rows.flatMap((row) => (row.userId === null ? [] : [{ userId: row.userId, workOrderId: row.workOrderId }]));
+    return rows;
   }
 
   #select(tx: Kysely<Database>) {

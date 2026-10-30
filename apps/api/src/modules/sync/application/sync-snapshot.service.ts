@@ -80,7 +80,7 @@ export class SyncSnapshotService {
         const state = (await this.#orders.statesOf(tx, principal, scope, [workOrderId])).get(workOrderId);
         if (state?.kind !== 'upsert') return undefined;
         const groups = await this.#reader.read(tx, principal, [state.projection]);
-        return groups.flatMap((group) => group.items.map((item) => (item.change.op === 'upsert' ? item.change.entity : undefined)));
+        return groups.flatMap((group) => group.items.map((item) => item.change.entity));
       },
       { accessMode: 'read only' },
     );
@@ -88,10 +88,9 @@ export class SyncSnapshotService {
       this.#requests.increment({ result: 'not_found' });
       throw new ProblemException('not_found');
     }
-    const served = entities.filter((entity) => entity !== undefined);
-    const body: WorkOrderSnapshot = { serverTime: now.toISOString(), entities: served };
+    const body: WorkOrderSnapshot = { serverTime: now.toISOString(), entities };
     if (Buffer.byteLength(JSON.stringify(body), 'utf8') > SNAPSHOT_OVERSIZE_BYTES) this.#oversize.increment({});
-    await runInTransaction(this.#db, (tx) => this.#publish(tx, principal, deviceId, 'success', context, served.length));
+    await runInTransaction(this.#db, (tx) => this.#publish(tx, principal, deviceId, 'success', context, entities.length));
     this.#requests.increment({ result: 'served' });
     return body;
   }

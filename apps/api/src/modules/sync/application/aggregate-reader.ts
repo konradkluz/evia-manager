@@ -27,7 +27,7 @@ import {
   timelineEntryChange,
   userChange,
   workOrderChange,
-  type SyncChange,
+  type SyncUpsertChange,
 } from '../domain/projection.ts';
 
 /** What a download counts (the audit trail holds these three; the rest of the entities are only served). */
@@ -36,7 +36,7 @@ export type CountKind = 'workOrders' | 'customers' | 'sites' | 'other';
 export interface GroupItem {
   /** `type:id` - the identity of the entity, for the deduplication within a page. */
   readonly key: string;
-  readonly change: SyncChange;
+  readonly change: SyncUpsertChange;
   readonly kind: CountKind;
 }
 
@@ -46,7 +46,7 @@ export interface OrderGroup {
   readonly items: readonly GroupItem[];
 }
 
-const item = (type: string, id: string, change: SyncChange, kind: CountKind = 'other'): GroupItem => ({
+const item = (type: string, id: string, change: SyncUpsertChange, kind: CountKind = 'other'): GroupItem => ({
   key: `${type}:${id}`,
   change,
   kind,

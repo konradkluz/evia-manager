@@ -33,7 +33,7 @@ export interface SyncDeleteChange {
 }
 export type SyncChange = SyncUpsertChange | SyncDeleteChange;
 
-export const workOrderChange = (row: SyncWorkOrderProjection): SyncChange => ({
+export const workOrderChange = (row: SyncWorkOrderProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'work_order',
@@ -52,12 +52,12 @@ export const workOrderChange = (row: SyncWorkOrderProjection): SyncChange => ({
   },
 });
 
-export const customerChange = (row: SyncCustomerProjection): SyncChange => ({
+export const customerChange = (row: SyncCustomerProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: { type: 'customer', id: row.id, version: row.version, kind: row.kind, displayName: row.displayName, phone: row.phone },
 });
 
-export const siteChange = (row: SyncSiteProjection): SyncChange => ({
+export const siteChange = (row: SyncSiteProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'site',
@@ -78,7 +78,7 @@ export const siteChange = (row: SyncSiteProjection): SyncChange => ({
   },
 });
 
-export const partyChange = (row: SyncPartyProjection): SyncChange => ({
+export const partyChange = (row: SyncPartyProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'party',
@@ -91,7 +91,7 @@ export const partyChange = (row: SyncPartyProjection): SyncChange => ({
   },
 });
 
-export const scopeItemChange = (row: SyncScopeItemProjection): SyncChange => ({
+export const scopeItemChange = (row: SyncScopeItemProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'scope_item',
@@ -108,7 +108,7 @@ export const scopeItemChange = (row: SyncScopeItemProjection): SyncChange => ({
   },
 });
 
-export const procedureStageChange = (row: SyncProcedureStageProjection): SyncChange => ({
+export const procedureStageChange = (row: SyncProcedureStageProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'procedure_stage',
@@ -133,7 +133,7 @@ export const procedureStageChange = (row: SyncProcedureStageProjection): SyncCha
   },
 });
 
-export const timelineEntryChange = (row: SyncTimelineEntryProjection): SyncChange => ({
+export const timelineEntryChange = (row: SyncTimelineEntryProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: {
     type: 'timeline_entry',
@@ -154,7 +154,7 @@ export const timelineEntryChange = (row: SyncTimelineEntryProjection): SyncChang
   },
 });
 
-export const userChange = (row: SyncUserProjection): SyncChange => ({
+export const userChange = (row: SyncUserProjection): SyncUpsertChange => ({
   op: 'upsert',
   entity: { type: 'user', id: row.id, version: row.version, displayName: row.displayName },
 });

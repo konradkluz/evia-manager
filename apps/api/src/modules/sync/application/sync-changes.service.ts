@@ -341,7 +341,8 @@ export class SyncChangesService {
     // The order that was cut by the previous page is read again under the policy and the scope of NOW (it may be gone: then nothing of it comes).
     const resumed =
       claims.sub === undefined ? undefined : (await this.#orders.statesOf(tx, principal, scope, [claims.sub.o])).get(claims.sub.o);
-    const resumedOrders = resumed?.kind === 'upsert' ? [resumed.projection] : [];
+    const resume = claims.sub !== undefined && resumed?.kind === 'upsert' ? { order: resumed.projection, from: claims.sub.n } : undefined;
+    const resumedOrders = resume === undefined ? [] : [resume.order];
     const fetched = await this.#orders.snapshotPage(tx, principal, scope, claims.after ?? undefined, limit + 1);
     const orders = fetched.slice(0, limit);
     const groups = await this.#reader.read(tx, principal, [...resumedOrders, ...orders]);
@@ -357,7 +358,7 @@ export class SyncChangesService {
     let included = 0;
     let cut: { readonly orderId: string; readonly sent: number } | undefined;
     for (const [index, group] of groups.entries()) {
-      const offset = index === 0 && resumedOrders.length > 0 ? (claims.sub?.n ?? 0) : 0;
+      const offset = index === 0 && resume !== undefined ? resume.from : 0;
       const fresh = group.items.slice(offset).filter((item) => !seen.has(item.key));
       const size = fresh.reduce((sum, item) => sum + changeBytes(item.change), 0);
       if (changes.length + fresh.length > MAX_PAGE_ENTITIES || bytes + size > this.#budget()) {

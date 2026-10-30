@@ -124,10 +124,10 @@ export async function snapshotCursorAccepted(
 
 /** Moves the position of the download from `from` to `to`; false when `from` is not the last issued position (the page is a repeat and must not be counted twice). */
 export async function advanceDownload(tx: Kysely<Database>, id: string, from: string | null, to: string): Promise<boolean> {
-  const result = await sql`
+  const { rows } = await sql`
     update sync.full_downloads set prev_after = last_after, last_after = ${to}::uuid
-    where id = ${id} and last_after is not distinct from ${from}::uuid`.execute(tx);
-  return Number(result.numAffectedRows ?? 0n) > 0;
+    where id = ${id} and last_after is not distinct from ${from}::uuid returning 1 as moved`.execute(tx);
+  return rows.length > 0;
 }
 
 export interface DownloadedCounts {
@@ -193,10 +193,10 @@ export async function countSnapshotRequest(tx: Kysely<Database>, deviceId: strin
 
 /** True exactly once per device and window: the caller that gets `true` raises the alert (the row is locked by the count of the same transaction). */
 export async function markSnapshotAlerted(tx: Kysely<Database>, deviceId: string, windowStart: Date): Promise<boolean> {
-  const result = await sql`
+  const { rows } = await sql`
     update sync.snapshot_requests set alerted = true
-    where device_id = ${deviceId}::uuid and window_start = ${windowStart} and alerted = false`.execute(tx);
-  return Number(result.numAffectedRows ?? 0n) > 0;
+    where device_id = ${deviceId}::uuid and window_start = ${windowStart} and alerted = false returning 1 as raised`.execute(tx);
+  return rows.length > 0;
 }
 
 /** The counters of the device from windows that are over (a device keeps one row per hour it used, no more than two live ones). */
