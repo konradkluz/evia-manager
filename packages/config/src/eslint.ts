@@ -98,6 +98,23 @@ const MOBILE_TOKENS_MESSAGE = 'Styleguide § 7.2: styles only through design tok
 /** Style properties whose number must come from a token (0 is allowed: no space). */
 const TOKEN_STYLE_KEYS = String.raw`/^(padding|margin|gap|rowGap|columnGap|width|height|minWidth|minHeight|maxWidth|maxHeight|fontSize|lineHeight|letterSpacing|borderRadius|top|left|right|bottom)([A-Z]\w*)?$/`;
 const MOBILE_CONTRACT_MESSAGE = 'ADR-0004: only src/api (the API client) imports the generated contract; other code takes its own types.';
+const MOBILE_CONTRACT_PATH = { name: '@evia/contracts', message: MOBILE_CONTRACT_MESSAGE };
+const MOBILE_CONTRACT_PATTERN = { group: ['@evia/contracts/*'], message: MOBILE_CONTRACT_MESSAGE };
+/** The only file that may open the SQLCipher database through expo-sqlite (EVM-093). */
+export const MOBILE_STORAGE_DRIVER_FILES = ['src/storage/expo-sqlite-driver.ts'];
+const MOBILE_SQLITE_MESSAGE = 'Only src/storage/expo-sqlite-driver.ts may import expo-sqlite (SQLCipher driver, EVM-093).';
+const MOBILE_SQLITE_PATHS = [{ name: 'expo-sqlite', message: MOBILE_SQLITE_MESSAGE }];
+const MOBILE_SQLITE_PATTERN = {
+  group: ['expo-sqlite/*', '!expo-sqlite/kv-store', '!expo-sqlite/localStorage', '!expo-sqlite/localStorage/*'],
+  message: MOBILE_SQLITE_MESSAGE,
+};
+const MOBILE_PLAIN_STORE_MESSAGE = 'SR-MOB-01, MASVS-STORAGE-1: no plain-text store; data lives in the SQLCipher database only (EVM-093).';
+const MOBILE_PLAIN_STORE_PATHS = [
+  { name: 'expo-sqlite/kv-store', message: MOBILE_PLAIN_STORE_MESSAGE },
+  { name: 'expo-sqlite/localStorage', message: MOBILE_PLAIN_STORE_MESSAGE },
+  { name: 'expo-sqlite/localStorage/install', message: MOBILE_PLAIN_STORE_MESSAGE },
+];
+const MOBILE_ASYNC_STORAGE_PATTERN = { group: ['@react-native-async-storage/*'], message: MOBILE_PLAIN_STORE_MESSAGE };
 /** A number literal other than 0 (raw text of the literal). */
 const NONZERO_NUMBER = String.raw`/^-?([1-9]\d*|0\.\d+)/`;
 
@@ -108,7 +125,8 @@ const NONZERO_NUMBER = String.raw`/^-?([1-9]\d*|0\.\d+)/`;
 export function mobileUi({
   files = MOBILE_UI_FILES,
   apiClientFiles = ['src/api/**'],
-}: { files?: string[]; apiClientFiles?: string[] } = {}): Linter.Config[] {
+  storageDriverFiles = MOBILE_STORAGE_DRIVER_FILES,
+}: { files?: string[]; apiClientFiles?: string[]; storageDriverFiles?: string[] } = {}): Linter.Config[] {
   return [
     {
       files,
@@ -136,15 +154,17 @@ export function mobileUi({
       },
     },
     {
-      // Contract imports (ADR-0004): only the API client uses the generated contract.
+      // Contract imports (ADR-0004) and storage (EVM-093): only the API client uses the generated contract, only the SQLCipher
+      // driver opens expo-sqlite, and nobody keeps data in a plain-text store. A later block replaces these options as a whole
+      // (flat config), so each block below lists every ban that applies to its files.
       files,
-      ignores: apiClientFiles,
+      ignores: [...apiClientFiles, ...storageDriverFiles],
       rules: {
         'no-restricted-imports': [
           'error',
           {
-            paths: [...PG_PATHS, { name: '@evia/contracts', message: MOBILE_CONTRACT_MESSAGE }],
-            patterns: [{ group: ['@evia/contracts/*'], message: MOBILE_CONTRACT_MESSAGE }],
+            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS],
+            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_SQLITE_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN],
           },
         ],
       },
@@ -155,8 +175,25 @@ export function mobileUi({
         'no-restricted-imports': [
           'error',
           {
-            paths: PG_PATHS,
-            patterns: [{ group: ['@evia/contracts/authz'], message: 'The authorization manifest is a server concern (ADR-0004).' }],
+            paths: [...PG_PATHS, ...MOBILE_SQLITE_PATHS, ...MOBILE_PLAIN_STORE_PATHS],
+            patterns: [
+              { group: ['@evia/contracts/authz'], message: 'The authorization manifest is a server concern (ADR-0004).' },
+              MOBILE_SQLITE_PATTERN,
+              MOBILE_ASYNC_STORAGE_PATTERN,
+            ],
+          },
+        ],
+      },
+    },
+    {
+      // The SQLCipher driver (EVM-093): expo-sqlite itself is allowed here, its plain-text stores and the contract are not.
+      files: storageDriverFiles,
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [...PG_PATHS, MOBILE_CONTRACT_PATH, ...MOBILE_PLAIN_STORE_PATHS],
+            patterns: [MOBILE_CONTRACT_PATTERN, MOBILE_ASYNC_STORAGE_PATTERN],
           },
         ],
       },
