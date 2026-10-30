@@ -77,3 +77,5 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 - 2026-10-27 — naniesiono konsultację security (product-owner)
 - 2026-10-29 — doprecyzowanie do DoR: migracje i downgrade schematu, utrata klucza z komunikatem, właściciel kolejki, kroki czyszczenia i testowalność na emulatorze, zależność od EVM-092, model `opus` do zatwierdzenia (product-owner)
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–7; utrata klucza = niewysłane dane przepadają (crypto-shred); model opus; zależność od EVM-092; status ready
+- 2026-10-30 — plan gotowy (mobile-developer)
+- 2026-10-30 — implementacja: zakazy importów w `mobileUi()`, wariant e2e `debuggable`, haki e2e wybierane resolverem Metro (znacznik odrzucany przez `verify`), przepływy Maestro 08–14 z krokami adb; natywne części AC1, AC3–AC7 niezweryfikowane — build e2e zablokowany długimi ścieżkami poza worktree (`.scratch/queue-C/blockers.md`) (mobile-developer)
