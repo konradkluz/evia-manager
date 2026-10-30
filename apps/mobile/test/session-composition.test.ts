@@ -1,5 +1,9 @@
 import { Linking } from 'react-native';
-import { createSessionPorts, originOf, PASSWORD_RESET_PATH, sessionPorts } from '../src/session';
+import { Challenge } from '../src/auth/opaque';
+import { useSession } from '../src/screens/session-context';
+import { createSessionPorts, NO_API, originOf, PASSWORD_RESET_PATH, sessionPorts } from '../src/session';
+
+jest.mock('react', () => ({ ...jest.requireActual<typeof import('react')>('react'), useContext: () => null }));
 
 jest.mock('../src/storage', () => {
   const host = {
@@ -43,6 +47,29 @@ describe('composition of the session (EVM-100; architect 6)', () => {
     ports.requestCompanyDataWipe();
     ports.wipe.wipeRequired();
     expect(await ports.owner.restore()).toBeDefined();
+  });
+
+  it('EVM-100 AC1: the real client sends the description of the phone and asks the store for the proof of the installation', async () => {
+    const original = global.fetch;
+    global.fetch = jest.fn(() => Promise.reject(new Error('offline (synthetic)')));
+    try {
+      const ports = createSessionPorts(config);
+      expect(await ports.owner.signInClient().login({ email: 'a@example.test', password: 'p' })).toEqual({ kind: 'unavailable' });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    } finally {
+      global.fetch = original;
+    }
+  });
+
+  it('EVM-100: without an API address every operation of the client is unavailable', async () => {
+    expect(await NO_API.login({ email: 'a', password: 'p' })).toEqual({ kind: 'unavailable' });
+    expect(await NO_API.loginTotp(Challenge.of('c', 0), '123456')).toEqual({ kind: 'unavailable' });
+    expect(await NO_API.refresh('r')).toEqual({ kind: 'unavailable' });
+    expect(await NO_API.logout('a')).toEqual({ kind: 'unavailable' });
+  });
+
+  it('EVM-100: the session actions exist only inside the session gate', () => {
+    expect(() => useSession()).toThrow(/inside SessionContext/);
   });
 
   it('EVM-100: one session per process; the origin keeps scheme, host and port', () => {

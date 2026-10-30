@@ -17,7 +17,7 @@ import { localData } from './storage';
 export const PASSWORD_RESET_PATH = '/login/reset';
 
 /** Without a valid API address every call is "unavailable" (the sign-in shows the generic error, nothing is sent). */
-const NO_API: AuthClient = {
+export const NO_API: AuthClient = {
   login: () => Promise.resolve({ kind: 'unavailable' }),
   loginTotp: () => Promise.resolve({ kind: 'unavailable' }),
   refresh: () => Promise.resolve({ kind: 'unavailable' }),

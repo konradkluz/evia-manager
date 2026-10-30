@@ -121,6 +121,25 @@ describe('M-01 sign-in (EVM-100 AC1, AC8)', () => {
     back.mockRestore();
   });
 
+  it('EVM-100 AC1: the system "back" in step 2 is "Zmień konto"; in step 1 it leaves the app as usual', async () => {
+    const handlers: Parameters<typeof BackHandler.addEventListener>[1][] = [];
+    const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_event, handler) => {
+      handlers.push(handler);
+      return { remove: () => undefined };
+    });
+    try {
+      await open(signedOut());
+      expect(handlers.map((handler) => handler({} as never)).includes(true)).toBe(false);
+      await toCode();
+      await act(() => {
+        for (const handler of handlers) handler({} as never);
+      });
+      expect(screen.getByLabelText(pl.login.email)).toHaveProp('value', 'jan@example.test');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('EVM-100 AC1: "Nie pamiętasz hasła?" opens the panel through its port', async () => {
     const rig = signedOut();
     await open(rig);
