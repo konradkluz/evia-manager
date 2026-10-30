@@ -11,6 +11,12 @@ const LAUNCHER_ACTIVITY_SUFFIX = '.MainActivity';
 const COMPONENT_TAGS = ['activity', 'activity-alias', 'service', 'receiver', 'provider'];
 /** Packages of the modules that must not be in the app (OTA updates, developer tools). */
 const FORBIDDEN_COMPONENT = /expo\.modules\.(updates|devlauncher|devmenu)|com\.facebook\.react\.devsupport|expo\.dev|devclient/i;
+/**
+ * Permissions named explicitly by EVM-093 AC4 (gallery, external storage, contacts, location; MASVS-PRIVACY-1): reported with their own
+ * reason on top of the white list, so a review sees at once that the local data could leave the sandbox or that privacy is at stake.
+ */
+const FORBIDDEN_PERMISSION =
+  /^android\.permission\.(READ_MEDIA_[A-Z_]+|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|READ_CONTACTS|WRITE_CONTACTS|GET_ACCOUNTS|ACCESS_[A-Z_]*LOCATION)$/;
 
 /**
  * @param {string} manifestText the output of `apkanalyzer manifest print`
@@ -23,9 +29,15 @@ export function checkManifest(manifestText, { applicationId, minimumTargetSdk = 
   const manifest = parseXml(manifestText);
   if (manifest.attributes['package'] !== applicationId) problems.push(`package is not ${applicationId}`);
 
-  const permissions = childrenNamed(manifest, 'uses-permission').map((element) => element.attributes['android:name'] ?? '');
+  // `uses-permission-sdk-23` grants a permission as well (Android 6+), so both tags are checked
+  const permissions = [...childrenNamed(manifest, 'uses-permission'), ...childrenNamed(manifest, 'uses-permission-sdk-23')].map(
+    (element) => element.attributes['android:name'] ?? '',
+  );
   const allowed = ['android.permission.INTERNET', `${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`];
-  for (const permission of permissions) if (!allowed.includes(permission)) problems.push(`unexpected permission ${permission}`);
+  for (const permission of permissions) {
+    if (FORBIDDEN_PERMISSION.test(permission)) problems.push(`forbidden permission ${permission} (gallery, storage, contacts or location)`);
+    else if (!allowed.includes(permission)) problems.push(`unexpected permission ${permission}`);
+  }
   if (!permissions.includes('android.permission.INTERNET')) problems.push('INTERNET permission is missing');
 
   const targetSdk = Number(childrenNamed(manifest, 'uses-sdk')[0]?.attributes['android:targetSdkVersion']);

@@ -24,6 +24,30 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
     assert.deepEqual(checkManifest(MANIFEST, { applicationId: 'pl.other.app' }).slice(0, 1), ['package is not pl.other.app']);
   });
 
+  it('EVM-093 AC4: gallery, external storage, contacts and location permissions are forbidden by name (both permission tags)', () => {
+    const names = [
+      'READ_MEDIA_IMAGES',
+      'READ_MEDIA_VIDEO',
+      'READ_MEDIA_VISUAL_USER_SELECTED',
+      'READ_EXTERNAL_STORAGE',
+      'WRITE_EXTERNAL_STORAGE',
+      'MANAGE_EXTERNAL_STORAGE',
+      'READ_CONTACTS',
+      'WRITE_CONTACTS',
+      'ACCESS_FINE_LOCATION',
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_BACKGROUND_LOCATION',
+    ];
+    for (const name of names) {
+      for (const tag of ['uses-permission', 'uses-permission-sdk-23']) {
+        const manifest = changed('</manifest>', `<${tag} android:name="android.permission.${name}" /></manifest>`);
+        assert.deepEqual(checkManifest(manifest, { applicationId: ID }), [
+          `forbidden permission android.permission.${name} (gallery, storage, contacts or location)`,
+        ]);
+      }
+    }
+  });
+
   it('EVM-009 AC6: a permission outside the white list is reported, the missing INTERNET too', () => {
     const extra = changed('</manifest>', '<uses-permission android:name="android.permission.CAMERA" /></manifest>');
     assert.deepEqual(checkManifest(extra, { applicationId: ID }), ['unexpected permission android.permission.CAMERA']);
