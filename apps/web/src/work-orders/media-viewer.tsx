@@ -230,6 +230,7 @@ export function MediaViewer({
         zoomInLabel={mediaText.zoomIn}
         zoomOutLabel={mediaText.zoomOut}
         zoomStatus={mediaText.zoomStatus}
+        scrollAreaLabel={mediaText.scrollAreaLabel}
         onPrevious={previous}
         onNext={next}
         onDismiss={onClose}

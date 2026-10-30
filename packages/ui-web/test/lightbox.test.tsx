@@ -13,6 +13,7 @@ const base = (extra: Partial<LightboxProps> = {}): LightboxProps => ({
   zoomInLabel: 'Powiększ',
   zoomOutLabel: 'Pomniejsz',
   zoomStatus: (percent) => `Powiększenie ${String(percent)}%`,
+  scrollAreaLabel: 'Powiększone zdjęcie',
   onPrevious: vi.fn(),
   onNext: vi.fn(),
   onDismiss: vi.fn(),
@@ -117,5 +118,14 @@ describe('Lightbox (styleguide § 3.11; EVM-045 AC1)', () => {
   it('EVM-045 AC1 an element marked data-initial-focus gets the focus on opening', () => {
     render(<Lightbox {...base({ details: <button data-initial-focus>Pobierz oryginał</button> })} />);
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pobierz oryginał' }));
+  });
+
+  it('EVM-045 AC1 the scrolling picture area is a focusable named region with a visible focus ring (WCAG 2.1.1, 2.4.7)', () => {
+    render(<Lightbox {...base()} />);
+    const area = screen.getByRole('region', { name: 'Powiększone zdjęcie' });
+    expect(area.getAttribute('tabindex')).toBe('0');
+    expect(area.className).toContain('focus-visible:focus-ring');
+    area.focus();
+    expect(document.activeElement).toBe(area);
   });
 });

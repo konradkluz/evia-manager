@@ -13,6 +13,8 @@ export interface LightboxProps {
   readonly zoomOutLabel: string;
   /** The text announced politely after a zoom step, e.g. "Powiększenie 150%". */
   readonly zoomStatus: (percent: number) => string;
+  /** The accessible name of the scrolling picture area (focusable for the keyboard, WCAG 2.1.1); a general text, never the file name. */
+  readonly scrollAreaLabel: string;
   /** `undefined` disables the button (the first / the last item). */
   readonly onPrevious?: (() => void) | undefined;
   readonly onNext?: (() => void) | undefined;
@@ -50,6 +52,7 @@ export function Lightbox({
   zoomInLabel,
   zoomOutLabel,
   zoomStatus,
+  scrollAreaLabel,
   onPrevious,
   onNext,
   onDismiss,
@@ -130,7 +133,12 @@ export function Lightbox({
           <span className="sr-only" aria-live="polite">
             {step === 0 ? '' : zoomStatus(zoom?.percent ?? 100)}
           </span>
-          <div className="flex min-h-0 flex-1 overflow-auto bg-bg-canvas p-inset-sm">
+          <div
+            role="region"
+            aria-label={scrollAreaLabel}
+            tabIndex={0}
+            className="flex min-h-0 flex-1 overflow-auto bg-bg-canvas p-inset-sm focus-visible:focus-ring"
+          >
             <div className={`m-auto shrink-0 ${zoom?.className ?? 'origin-top-left'}`}>{children}</div>
           </div>
           <div className="flex flex-col gap-stack-sm p-inset-md">{details}</div>
