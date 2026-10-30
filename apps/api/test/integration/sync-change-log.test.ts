@@ -150,7 +150,7 @@ describe('the migration 0054 (EVM-097; ADR-0021 D4)', () => {
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'sync' and p.proname like 'record\_%' order by 1`.execute(
       admin(),
     );
-    expect(functions.rows.map((row) => row.name)).toEqual(['record_change', 'record_procedure_change']);
+    expect(functions.rows.map((row) => row.name)).toEqual(['record_change', 'record_procedure_change', 'record_superseded_change']);
     for (const row of functions.rows) {
       expect(row.definer, row.name).toBe(true);
       expect(row.config, row.name).toEqual(['search_path=pg_catalog, pg_temp']);

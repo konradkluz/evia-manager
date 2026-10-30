@@ -34,8 +34,11 @@ const snapshotClaims = z.strictObject({
   tx: digits,
   after: z.uuid().nullable(),
   dl: z.uuid(),
-  /** The order whose group is longer than a page: the rest of it comes first - from the entity number `n` of its group (EVM-097). */
-  sub: z.strictObject({ o: z.uuid(), n: z.int().min(1).max(10_000_000) }).optional(),
+  /**
+   * The order whose group is longer than a page: the rest of it comes first - AFTER the entity `k` (`type:id`, the last one sent) in the fixed order of its
+   * group. A key and not a position: an entity that disappears between two pages shifts the positions and would skip one that did not change (EVM-097).
+   */
+  sub: z.strictObject({ o: z.uuid(), k: z.string().regex(/^[a-z_]{1,32}:[0-9a-f-]{36}$/) }).optional(),
   ...common,
 });
 

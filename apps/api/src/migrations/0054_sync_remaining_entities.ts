@@ -80,6 +80,28 @@ export async function up(db: Kysely<Database>): Promise<void> {
       execute function sync.record_procedure_change()
   `.execute(db);
 
+  // A correction is a NEW entry that points at the original; the original row is untouched, yet the phone shows it as superseded (`supersededByEntryId`
+  // is derived from the correction), so the original gets an `upsert` in the log too - the pull and the snapshot must describe the same state.
+  await sql`
+    create function sync.record_superseded_change() returns trigger
+    language plpgsql volatile security definer set search_path = pg_catalog, pg_temp
+    as $$
+    begin
+      insert into sync.change_log (entity_type, entity_id, operation, work_order_id, entity_version)
+      select 'timeline_entry', original.id, 'upsert', original.work_order_id, original.version
+      from timeline.timeline_entries original
+      where original.id = new.supersedes_entry_id and original.deleted_at is null;
+      return null;
+    end
+    $$
+  `.execute(db);
+  await sql`revoke all on function sync.record_superseded_change() from public`.execute(db);
+  await sql`
+    create trigger record_superseded_change after insert on timeline.timeline_entries
+      for each row when (new.supersedes_entry_id is not null)
+      execute function sync.record_superseded_change()
+  `.execute(db);
+
   await sql`
     create table sync.snapshot_requests (
       device_id uuid not null references identity.devices (id) on delete cascade,

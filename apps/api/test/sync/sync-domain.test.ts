@@ -332,14 +332,16 @@ describe('the serializers keep a missing time as null (EVM-097 AC1)', () => {
 describe('the cursor claims of the snapshot carry a sub-cursor and a role from closed sets (EVM-097; SR-SYNC-07)', () => {
   const base = { ph: 'snapshot', tx: '10', after: randomUUID(), dl: randomUUID(), u: randomUUID(), d: randomUUID(), sv: 292, r: 'editor' };
 
-  it('EVM-097 AC3 the sub-cursor is a strict object of an order and a positive offset; anything else in it, or a stray claim, is refused', () => {
-    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 500 } }).success).toBe(true);
-    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 0 } }).success).toBe(false);
-    expect(cursorClaims.safeParse({ ...base, sub: { o: 'not-a-uuid', n: 5 } }).success).toBe(false);
-    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 5, extra: 1 } }).success).toBe(false);
+  it('EVM-097 AC3 the sub-cursor is a strict object of an order and the key (type:id) of the last entity sent; anything else in it, or a stray claim, is refused', () => {
+    const key = `timeline_entry:${randomUUID()}`;
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), k: key } }).success).toBe(true);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), k: 'timeline_entry:short' } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 5 } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: 'not-a-uuid', k: key } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), k: key, extra: 1 } }).success).toBe(false);
     expect(cursorClaims.safeParse({ ...base, stray: 1 }).success).toBe(false);
     const changesPhase = { ph: 'changes', tx: '1', sq: '0', u: base.u, d: base.d, sv: 292, r: 'editor' };
-    expect(cursorClaims.safeParse({ ...changesPhase, sub: { o: randomUUID(), n: 1 } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...changesPhase, sub: { o: randomUUID(), k: key } }).success).toBe(false);
   });
 });
 

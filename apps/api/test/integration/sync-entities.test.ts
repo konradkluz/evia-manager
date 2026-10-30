@@ -243,6 +243,21 @@ describe('the remaining types in the phase of changes (EVM-097 AC1; ADR-0021 D4)
     expect(JSON.stringify(again.pages)).not.toContain('SENTINEL-ORIGINAL-TEXT');
   });
 
+  it('EVM-097 AC1 a correction made in the office reaches the phone that holds the original: the original comes again with supersededByEntryId, as in a fresh snapshot', async () => {
+    await boot();
+    const { phone } = await editor(app());
+    const s = await scenario(app());
+    const [original = ''] = await insertEntries(db(), s.orderId, s.author.id, [{ body: 'Wpis do poprawy' }]);
+    const first = await drain(phone);
+    expect(upsertOf(first.changes, 'timeline_entry', original)?.['supersededByEntryId'] ?? null).toBeNull();
+    const [correction = ''] = await insertEntries(db(), s.orderId, s.author.id, [{ body: 'Wpis poprawiony', supersedesEntryId: original }]);
+    const next = await drain(phone, '', first.cursor);
+    expect(upsertOf(next.changes, 'timeline_entry', original)).toMatchObject({ supersededByEntryId: correction });
+    expect(upsertOf(next.changes, 'timeline_entry', correction)).toBeDefined();
+    const fresh = await drain(phone);
+    expect(upsertOf(fresh.changes, 'timeline_entry', original)).toMatchObject({ supersededByEntryId: correction });
+  });
+
   it('EVM-097 AC1 a change of the role or a reset of the second step of a user is NOT a change for the phones (the version goes up, the row of the log does not)', async () => {
     await boot();
     const { phone } = await editor(app());
@@ -428,6 +443,32 @@ describe('an order with more than a page of entities (EVM-097 AC3; the contract 
     expect(result.pages.length).toBeGreaterThan(2);
     for (const page of result.pages) expect(page.changes?.length ?? 0).toBeLessThanOrEqual(500);
     expect(idsOfType(result.changes, 'timeline_entry').filter((id) => more.includes(id))).toHaveLength(600);
+  });
+});
+
+describe('a group cut between pages is resumed by a key, not by a position (EVM-097 AC3)', () => {
+  it('EVM-097 AC3 an entity removed between two pages does not make the next one skip a neighbour: every remaining entity arrives at least once', async () => {
+    await boot();
+    const { phone } = await editor(app());
+    const big = await scenario(app());
+    const more = await insertEntries(
+      db(),
+      big.orderId,
+      big.author.id,
+      Array.from({ length: 600 }, (_, index) => ({ body: `Wpis ${index}` })),
+    );
+    const firstPage = await pull(phone, 'limit=1');
+    expect(firstPage.status).toBe(200);
+    const body = firstPage.body as { changes: Array<Record<string, unknown>>; cursor: string; hasMore: boolean };
+    expect(body.hasMore).toBe(true);
+    const sentEntries = idsOfType(body.changes, 'timeline_entry');
+    const removed = sentEntries[0] ?? '';
+    await sql`update timeline.timeline_entries set deleted_at = ${app().clock.now()}, version = version + 1 where id = ${removed}`.execute(
+      db(),
+    );
+    const rest = await drain(phone, 'limit=1', body.cursor);
+    const arrived = new Set([...sentEntries, ...idsOfType(rest.changes, 'timeline_entry')]);
+    for (const id of [...more, ...big.entryIds]) if (id !== removed) expect(arrived.has(id), id).toBe(true);
   });
 });
 

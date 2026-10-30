@@ -326,7 +326,7 @@ export class SyncChangesService {
   /**
    * One page of the snapshot: `limit` orders after the cursor, each as a GROUP - the order with everything the phone needs to show it (`AggregateReader`, the
    * reader the snapshot of one order shares) - trimmed to the contract (500) and the byte budget. A group is never cut between pages, except when ONE group is
-   * longer than a page: then its first entities fill the page and the cursor carries `sub` - the order and how many of its entities went out - so the next page
+   * longer than a page: then its first entities fill the page and the cursor carries `sub` - the order and the key of the last entity that went out - so the next page
    * continues it (a group of 600 journal entries cannot be a page of 500).
    */
   async #snapshotPage(
@@ -341,7 +341,7 @@ export class SyncChangesService {
     // The order that was cut by the previous page is read again under the policy and the scope of NOW (it may be gone: then nothing of it comes).
     const resumed =
       claims.sub === undefined ? undefined : (await this.#orders.statesOf(tx, principal, scope, [claims.sub.o])).get(claims.sub.o);
-    const resume = claims.sub !== undefined && resumed?.kind === 'upsert' ? { order: resumed.projection, from: claims.sub.n } : undefined;
+    const resume = claims.sub !== undefined && resumed?.kind === 'upsert' ? { order: resumed.projection, after: claims.sub.k } : undefined;
     const resumedOrders = resume === undefined ? [] : [resume.order];
     const fetched = await this.#orders.snapshotPage(tx, principal, scope, claims.after ?? undefined, limit + 1);
     const orders = fetched.slice(0, limit);
@@ -356,22 +356,27 @@ export class SyncChangesService {
     const seen = new Set<string>();
     let bytes = 0;
     let included = 0;
-    let cut: { readonly orderId: string; readonly sent: number } | undefined;
+    let cut: { readonly orderId: string; readonly lastKey: string } | undefined;
     for (const [index, group] of groups.entries()) {
-      const offset = index === 0 && resume !== undefined ? resume.from : 0;
+      // Resumed after the key of the last entity sent; a key that is gone (the entity was removed meanwhile) restarts the group - a repeat is harmless
+      // (the guard of the version of the client), a skipped entity would stay missing until the periodic resync.
+      const resumeAt = index === 0 && resume !== undefined ? group.items.findIndex((candidate) => candidate.key === resume.after) : -1;
+      const offset = resumeAt + 1;
       const fresh = group.items.slice(offset).filter((item) => !seen.has(item.key));
       const size = fresh.reduce((sum, item) => sum + changeBytes(item.change), 0);
       if (changes.length + fresh.length > MAX_PAGE_ENTITIES || bytes + size > this.#budget()) {
         if (included === 0) {
           let taken = 0;
+          let lastKey = group.items[offset - 1]?.key ?? '';
           for (const item of fresh) {
             const itemSize = changeBytes(item.change);
             if (taken > 0 && (changes.length >= MAX_PAGE_ENTITIES || bytes + itemSize > this.#budget())) break;
             add(item);
             bytes += itemSize;
             taken += 1;
+            lastKey = item.key;
           }
-          cut = { orderId: group.orderId, sent: offset + taken };
+          cut = { orderId: group.orderId, lastKey };
         }
         break;
       }
@@ -398,7 +403,7 @@ export class SyncChangesService {
         d: claims.d,
         sv: claims.sv,
         r: cursorRole(principal),
-        ...(cut === undefined ? {} : { sub: { o: cut.orderId, n: cut.sent } }),
+        ...(cut === undefined ? {} : { sub: { o: cut.orderId, k: cut.lastKey } }),
       };
       const cursor = this.#codec.seal(OPERATION, next satisfies CursorClaims);
       return { result: 'changes', phase: 'snapshot', changes, cursor, hasMore: true, serverTime: now.toISOString() };
