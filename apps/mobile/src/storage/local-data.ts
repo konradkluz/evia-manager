@@ -1,6 +1,7 @@
 import type { QueueStore, ReplicaStore, SettledInfo } from '@evia/sync-core';
 import { Database } from './database';
 import { StorageError, toStorageError, type StorageErrorCode } from './errors';
+import { InstallationProof } from './installation-proof';
 import { cipherVersionSupported, generateKeyHex, keyCheckValue, keyPragma } from './key';
 import type { AppFiles, CryptoSource, DeviceSecrets, InstallationIdentity, KeyVault, StorageDiagnostic } from './ports';
 import { SqlQueueStore } from './queue-store';
@@ -32,7 +33,12 @@ export interface UnlockedStore {
   readonly userId: string;
   readonly queue: QueueStore;
   readonly replica: ReplicaStore;
-  /** Installation identity of this device (behind the guard: user B must not register with A's `deviceId`). */
+  /**
+   * Installation identity of this device. The guard protects the WRITE (only the owner after a full sign-in stores the new secret of
+   * step 2, EVM-100). Before the password the first step carries the pair as an opaque proof (`LocalDataHost.installationProof`):
+   * protection against user B registering with A's `deviceId` lies on the server, which ignores a pair that does not belong to the
+   * account (contract EVM-090 `MobileLoginRequest`).
+   */
   readonly identity: {
     read(): Promise<InstallationIdentity | null>;
     write(identity: InstallationIdentity): Promise<void>;
@@ -367,6 +373,43 @@ export class LocalDataHost {
         if (this.#unlocked === userId) this.#unlocked = null;
       },
     };
+  }
+
+  /**
+   * EVM-100 AC1: the pair `deviceId` + installation secret for the first step of the sign-in, as an opaque value (security W3). `null`
+   * = a new device (no identity, or it cannot be read): the request then carries no pair — never an error. Runs in the host queue, so
+   * it never sees the identity half-way through a wipe or a reset.
+   */
+  installationProof(): Promise<InstallationProof | null> {
+    return this.#exclusive(async () => {
+      try {
+        const identity = await this.#deps.secrets.readIdentity();
+        return identity === null ? null : InstallationProof.of(identity);
+      } catch {
+        return null;
+      }
+    });
+  }
+
+  /**
+   * EVM-100 AC3 (`426`, "Zobacz kolejkę"): the number of unsent items BEFORE a sign-in, so the update screen can say that they are
+   * safe. Only a number leaves (as with `owner_mismatch`); nothing is unlocked and no database is created — without a file it is the
+   * count of the registered sources, and any uncertain state (no key, a wipe to finish, a file that does not open) is `null`.
+   */
+  unsentItemCountBeforeSignIn(): Promise<number | null> {
+    return this.#exclusive(async () => {
+      if ((await this.#prepare()) === 'wipe_incomplete') return null;
+      try {
+        if (this.#db === null && (await this.#deps.engine.exists())) {
+          const opened = await this.#openOrClassify('');
+          if (opened.kind !== 'open') return null;
+          this.#db = opened.db;
+        }
+        return await this.unsentItemCount();
+      } catch {
+        return null;
+      }
+    });
   }
 
   /** EVM-093 AC1 (e2e diagnostics): cipher version and temp_store of the open database; nothing is opened or created here. */

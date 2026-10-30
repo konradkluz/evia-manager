@@ -55,7 +55,22 @@ describe('secure store for secrets (EVM-009 AC6; SR-MOB-01)', () => {
       'evia.refresh-token',
       'evia.database-key',
       'evia.installation-identity',
+      'evia.revocation-token',
+      'evia.session-meta',
     ]);
+  });
+
+  it('EVM-100 AC7, AC1: the pending revocation and the session record are own slots of the same class as the refresh token, removed by the wipe', async () => {
+    await tokenStore.set('revocationToken', 'synthetic-revocation');
+    await tokenStore.set('sessionMeta', '{"v":1}');
+    const options = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY, requireAuthentication: false };
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('evia.revocation-token', 'synthetic-revocation', options);
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith('evia.session-meta', '{"v":1}', options);
+    await tokenStore.delete('refreshToken');
+    expect(await tokenStore.get('revocationToken')).toBe('synthetic-revocation');
+    await tokenStore.clear();
+    expect(await tokenStore.get('revocationToken')).toBeNull();
+    expect(await tokenStore.get('sessionMeta')).toBeNull();
   });
 
   it('EVM-093 AC6: the database key has its own keychain service (its Keystore alias can be destroyed alone)', async () => {

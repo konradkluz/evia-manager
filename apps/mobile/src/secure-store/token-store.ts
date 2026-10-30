@@ -1,19 +1,23 @@
 /**
  * Secure store for secrets (EVM-009 AC6, EVM-093; SR-MOB-01, SR-MOB-03, SR-MOB-04; MASVS-STORAGE-1): the only module that touches
- * expo-secure-store (Android Keystore / iOS Keychain). Slots: the refresh token, the key of the local database and the installation
- * identity of the device. Nothing here logs a value. No biometric prompt (`requireAuthentication` off) — the decision on biometrics is
+ * expo-secure-store (Android Keystore / iOS Keychain). Slots: the refresh token (the only slot of a live session), the key of the
+ * local database, the installation identity of the device, the pending revocation of a session ended offline (EVM-100 AC7: a refresh
+ * token that only ever ends its session on the server) and the session record (EVM-100: user id, display name, role for the UI,
+ * start — no e-mail, no token). Nothing here logs a value. No biometric prompt (`requireAuthentication` off) — the decision on biometrics is
  * an ADR; the iOS accessibility class is set although it has no effect on Android.
  * The database key has its OWN keychain service, so its Keystore alias can be deleted on its own (crypto-shred, EVM-093 AC6) without
  * touching the alias that wraps the refresh token.
  */
 import * as SecureStore from 'expo-secure-store';
 
-export type SecretSlot = 'refreshToken' | 'databaseKey' | 'installationIdentity';
+export type SecretSlot = 'refreshToken' | 'databaseKey' | 'installationIdentity' | 'revocationToken' | 'sessionMeta';
 
 const KEYS: Readonly<Record<SecretSlot, string>> = {
   refreshToken: 'evia.refresh-token',
   databaseKey: 'evia.database-key',
   installationIdentity: 'evia.installation-identity',
+  revocationToken: 'evia.revocation-token',
+  sessionMeta: 'evia.session-meta',
 };
 
 /** Keychain service (Android: suffix of the Keystore alias) of the database key. */
