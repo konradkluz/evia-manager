@@ -189,8 +189,8 @@ describe('EVM-090 AC1 the mobile family in the contract (SR-AUTHZ-12, SR-AUTHZ-0
   });
 });
 
-// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the sync operations keep the marker (EVM-096 implemented the pull of changes).
-const STILL_PLANNED = ['getSyncWorkOrder', 'pushSyncMutations'] as const;
+// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the mutations keep the marker (EVM-096 implemented the pull of changes, EVM-097 the snapshot of an order).
+const STILL_PLANNED = ['pushSyncMutations'] as const;
 
 /**
  * The two tests that compare the contract with the prose of docs/ run wherever docs/ is present (the native gate, CI). The Linux container of the backend
@@ -214,6 +214,7 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
   it('EVM-090 AC1 onlyImplemented drops the planned ids of a list such as PUBLIC_OPERATIONS and keeps the others in order', () => {
     expect(onlyImplemented(['login', 'getSyncWorkOrder', 'getHealth', 'pushSyncMutations', 'unknownId'])).toEqual([
       'login',
+      'getSyncWorkOrder',
       'getHealth',
       'unknownId',
     ]);
@@ -231,7 +232,9 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
       else expect(authz?.roles?.length ?? 0, id).toBeGreaterThan(0);
     }
     expect(AUTHZ_MANIFEST['getSyncWorkOrder']?.authz).toMatchObject({ policy: 'sync.deviceScope', anchor: 'path.workOrderId' });
-    expect(AUTHZ_MANIFEST['getSyncWorkOrder']?.planned).toBe(true);
+    // EVM-097 implemented it: the marker is gone, the policy stays
+    expect(AUTHZ_MANIFEST['getSyncWorkOrder']?.planned).toBeUndefined();
+    expect(AUTHZ_MANIFEST['pushSyncMutations']?.planned).toBe(true);
     expect(AUTHZ_MANIFEST['getHealth']?.planned).toBeUndefined();
   });
 });
@@ -653,7 +656,7 @@ describe('EVM-090 AC3 pulling changes and the snapshot of an order', () => {
 
   it('EVM-090 AC3 the snapshot is a mobile operation on a path parameter with an object policy, answering 404 for what the device may not see, never 403', () => {
     const snapshot = operation('getSyncWorkOrder');
-    expect(Object.keys(snapshot['responses']).sort()).toEqual(['200', '401', '403', '404', '426', '429']);
+    expect(Object.keys(snapshot['responses']).sort()).toEqual(['200', '400', '401', '403', '404', '426', '429']);
     expect(snapshot['description']).toMatch(/404 not_found/);
     expect(snapshot['description']).toMatch(/IDOR/);
     expect(snapshot['description']).toMatch(/licznikowi masowego odczytu/);

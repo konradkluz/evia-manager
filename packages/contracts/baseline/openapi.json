@@ -2295,6 +2295,7 @@
           "bulk_read.rejected",
           "sync.full_download",
           "sync.full_download_completed",
+          "sync.work_order_snapshot",
           "customer.created",
           "customer.updated",
           "customer.deleted",
@@ -15068,7 +15069,7 @@
     },
     "/api/v1/sync/work-orders/{workOrderId}": {
       "get": {
-        "description": "Administrator i Edytor, kanał `mobile`. Bieżący agregat zlecenia w projekcji dla telefonu (zlecenie, zakres, procesy i etapy, wpisy, klient, lokalizacja, strony, nazwy użytkowników, metadane mediów), każdy obiekt z `version`. Polityka obiektowa: zakres urządzenia (ADR-0021 D3) przy KAŻDYM odczycie. Zlecenie nieistniejące, usunięte, poza zakresem albo bez dostępu → jednakowe `404 not_found` (nie `403`: istnienie jest informacją, ochrona przed IDOR). Podlega limitowi na użytkownika i licznikowi masowego odczytu (P10, insider): `429` z `Retry-After`. `Cache-Control: no-store`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Bieżący agregat zlecenia w projekcji dla telefonu (zlecenie, zakres, procesy i etapy, wpisy, klient, lokalizacja, strony, nazwy użytkowników, metadane mediów), każdy obiekt z `version`. Polityka obiektowa: zakres urządzenia (ADR-0021 D3) przy KAŻDYM odczycie. Zlecenie nieistniejące, usunięte, poza zakresem albo bez dostępu → jednakowe `404 not_found` (nie `403`: istnienie jest informacją, ochrona przed IDOR). Podlega limitowi na użytkownika i licznikowi masowego odczytu (P10, insider): limit 120 żądań na godzinę na urządzenie (liczone także żądania kończące się `404`), powyżej `429` z `Retry-After`. Ta sama projekcja i ten sam czytnik agregatu co pierwsze pobranie. Zły format identyfikatora → `400 validation_failed`. `Cache-Control: no-store`.",
         "operationId": "getSyncWorkOrder",
         "parameters": [
           {
@@ -15129,6 +15130,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/MobileSyncBadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/MobileSessionUnauthorized"
           },
@@ -15164,8 +15168,7 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/users": {
