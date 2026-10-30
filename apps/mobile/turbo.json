@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tools/mobile-apk/src/contents.mjs", "$TURBO_ROOT$/.gitignore"]
+    },
+    "test:coverage": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tools/mobile-apk/src/contents.mjs", "$TURBO_ROOT$/.gitignore"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}

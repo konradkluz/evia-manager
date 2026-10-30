@@ -3,10 +3,20 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/e2e/**", "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts"]
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/mobile/e2e/**",
+        "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts",
+        "$TURBO_ROOT$/apps/mobile/src/e2e-hooks/**"
+      ]
     },
     "test:coverage": {
-      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/e2e/**", "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/mobile/e2e/**",
+        "$TURBO_ROOT$/apps/mobile/plugins/expo-config.ts",
+        "$TURBO_ROOT$/apps/mobile/src/e2e-hooks/**"
+      ],
       "outputs": ["coverage/**"]
     }
   }
