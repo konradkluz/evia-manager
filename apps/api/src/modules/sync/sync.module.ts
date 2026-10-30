@@ -11,17 +11,26 @@ import type { AppConfig } from '../../platform/config/config.ts';
 import { APP_CONFIG, CLOCK } from '../../platform/tokens.ts';
 import { CustomersModule } from '../customers/index.ts';
 import { IdentityModule } from '../identity/index.ts';
+import { PartiesModule } from '../parties/index.ts';
+import { ProceduresModule } from '../procedures/index.ts';
 import { SitesModule } from '../sites/index.ts';
+import { TimelineModule } from '../timeline/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
+import { AggregateReader } from './application/aggregate-reader.ts';
+import { CurrentStateReader } from './application/current-state.ts';
 import { SyncChangesService } from './application/sync-changes.service.ts';
+import { SyncSnapshotService } from './application/sync-snapshot.service.ts';
 import { SyncController } from './http/sync.controller.ts';
 import { SYNC_CURSOR_CODEC } from './sync.tokens.ts';
 
 @Module({
-  imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule],
+  imports: [IdentityModule, WorkOrdersModule, CustomersModule, SitesModule, PartiesModule, ProceduresModule, TimelineModule],
   controllers: [SyncController],
   providers: [
+    AggregateReader,
+    CurrentStateReader,
     SyncChangesService,
+    SyncSnapshotService,
     {
       provide: SYNC_CURSOR_CODEC,
       inject: [APP_CONFIG, CLOCK],

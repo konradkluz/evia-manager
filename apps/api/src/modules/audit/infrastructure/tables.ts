@@ -31,6 +31,8 @@ export interface AuditEventsTable {
   work_order_count: number | null;
   customer_count: number | null;
   site_count: number | null;
+  /** The number of entities of a served snapshot of one order (EVM-097; 0054): null for every other event. */
+  entity_count: number | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

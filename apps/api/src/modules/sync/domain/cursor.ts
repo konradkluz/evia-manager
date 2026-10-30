@@ -3,8 +3,8 @@
  * - never personal data. `decideCursor` is the ONE mapping of every way a cursor can be unusable to its answer, so the table of cases is a single function:
  *
  * - the token is damaged under a known key (the tag does not match), or it opens but names another user or device -> `reject` (`400 invalid_cursor`, a security event);
- * - the token is not ours, names a key that left the ring, is expired, or the scope rule changed -> `resync` with the reason (`cursor_invalid`, `cursor_expired`,
- *   `scope_changed`); the device flag and the periodic control apply to the phase of changes only (a snapshot in progress IS the resync).
+ * - the token is not ours, names a key that left the ring, is expired, the scope rule changed or the role of the user is not the one it was issued under -> `resync`
+ *   with the reason (`cursor_invalid`, `cursor_expired`, `scope_changed`, `access_changed`); the device flag and the periodic control apply to the phase of changes only (a snapshot in progress IS the resync).
  */
 import { z } from 'zod';
 import type { KeyRingOpenResult } from '../../../platform/crypto/key-ring-cursor.ts';
@@ -20,7 +20,13 @@ export type CursorRejection = 'tampered' | 'identity_mismatch';
 
 const digits = z.string().regex(/^[0-9]{1,20}$/);
 
-const common = { u: z.uuid(), d: z.uuid(), sv: z.int().min(1).max(1_000_000) };
+/**
+ * `sv`: the version of the rule of scope (an int32 - `effectiveScopeRuleVersion`); `r`: the role the cursor was issued under (a closed set - the roles of the
+ * mobile channel). `r` is OPTIONAL at parsing on purpose: a cursor issued before the role was bound has an older `sv`, so it must reach the comparison of `sv`
+ * (`scope_changed`) and not die on the schema (`cursor_invalid`); one with the current `sv` and without `r` was not issued by us and is a resync.
+ */
+export const CURSOR_ROLES = ['administrator', 'editor'] as const;
+const common = { u: z.uuid(), d: z.uuid(), sv: z.int().min(1).max(2_147_483_647), r: z.enum(CURSOR_ROLES).optional() };
 
 /** Phase 1: the snapshot, paged by the aggregates (the orders) in the order of the identifier. `tx` is the horizon taken BEFORE the snapshot. */
 const snapshotClaims = z.strictObject({
@@ -28,6 +34,8 @@ const snapshotClaims = z.strictObject({
   tx: digits,
   after: z.uuid().nullable(),
   dl: z.uuid(),
+  /** The order whose group is longer than a page: the rest of it comes first - from the entity number `n` of its group (EVM-097). */
+  sub: z.strictObject({ o: z.uuid(), n: z.int().min(1).max(10_000_000) }).optional(),
   ...common,
 });
 
@@ -48,6 +56,8 @@ export interface CursorContext {
   readonly userId: string;
   readonly deviceId: string;
   readonly scopeRuleVersion: number;
+  /** The role of the principal NOW: a cursor issued under another role is a resync (`access_changed`). */
+  readonly role: string;
   readonly now: Date;
   readonly periodicResyncMs: number;
   readonly state: DeviceSyncState | undefined;
@@ -77,6 +87,7 @@ export function decideCursor(opened: KeyRingOpenResult, context: CursorContext):
   const claims = parsed.data;
   if (claims.u !== context.userId || claims.d !== context.deviceId) return { kind: 'reject', reason: 'identity_mismatch' };
   if (claims.sv !== context.scopeRuleVersion) return resync('scope_changed');
+  if (claims.r !== context.role) return resync('access_changed');
   if (claims.ph === 'changes') {
     const { state } = context;
     if (state?.resyncRequestedReason != null) return resync(state.resyncRequestedReason);

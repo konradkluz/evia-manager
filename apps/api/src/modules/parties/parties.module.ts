@@ -14,7 +14,8 @@ import { UpdatePartyService } from './application/update-party.service.ts';
 import { PartiesController } from './http/parties.controller.ts';
 import { PartyProjectionSourceService } from './infrastructure/projection-source.ts';
 import { PARTY_DIRECTORY } from './party-directory.ts';
-import { PARTY_PROJECTION_SOURCE } from './system-ports.ts';
+import { PartySyncSourceService } from './infrastructure/sync-source.ts';
+import { PARTY_PROJECTION_SOURCE, PARTY_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   controllers: [PartiesController],
@@ -25,7 +26,8 @@ import { PARTY_PROJECTION_SOURCE } from './system-ports.ts';
     UpdatePartyService,
     { provide: PARTY_DIRECTORY, useClass: PartyDirectoryService },
     { provide: PARTY_PROJECTION_SOURCE, useClass: PartyProjectionSourceService },
+    { provide: PARTY_SYNC_SOURCE, useClass: PartySyncSourceService },
   ],
-  exports: [PARTY_DIRECTORY, PARTY_PROJECTION_SOURCE],
+  exports: [PARTY_DIRECTORY, PARTY_PROJECTION_SOURCE, PARTY_SYNC_SOURCE],
 })
 export class PartiesModule {}

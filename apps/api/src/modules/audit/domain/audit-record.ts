@@ -73,6 +73,8 @@ const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
 const entityCount = z.int().min(0).max(1_000_000).nullable();
 /** The one event that carries the counts of the entities by type: the end of a full download of a phone (EVM-096 AC8). */
 const FULL_DOWNLOAD_COMPLETED_ACTION = 'sync.full_download_completed';
+/** The one event that carries the number of entities of one snapshot of an order (EVM-097 AC7). */
+const SNAPSHOT_ACTION = 'sync.work_order_snapshot';
 const statusCode = z
   .string()
   .regex(/^[a-z][a-z_]{0,39}$/)
@@ -100,6 +102,7 @@ export const auditRecordSchema = z
     workOrderCount: entityCount,
     customerCount: entityCount,
     siteCount: entityCount,
+    entityCount,
   })
   .refine(
     (record) =>
@@ -128,7 +131,10 @@ export const auditRecordSchema = z
         : counts.every((count) => count === null);
     },
     { message: 'the counts of the entities by type belong to the end of a full download only, all three together' },
-  );
+  )
+  .refine((record) => (record.entityCount === null ? true : record.action === SNAPSHOT_ACTION && record.outcome === 'success'), {
+    message: 'the number of entities belongs to a served snapshot of an order only',
+  });
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
 
@@ -166,6 +172,7 @@ export function toAuditRecord(
     ...amountsOf(event),
     ...codesOf(event),
     ...countsOf(event),
+    entityCount: 'entityCount' in event ? (event.entityCount ?? null) : null,
   });
 }
 

@@ -26,11 +26,11 @@ import type { MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { enqueueSecurityAlert } from '../../../platform/alerts/security-alerts.ts';
 import type { SyncAuditEvent } from '../../../platform/sync/sync-event.ts';
 import { APP_CONFIG, CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../../platform/tokens.ts';
-import { CUSTOMER_SYNC_SOURCE, type CustomerSyncSource } from '../../customers/system-ports.ts';
-import { SITE_SYNC_SOURCE, type SiteSyncSource } from '../../sites/system-ports.ts';
+import { effectiveScopeRuleVersion } from '../../../platform/sync/scope-rule.ts';
 import { WORK_ORDER_SYNC_SOURCE, type SyncScopeRule, type WorkOrderSyncSource } from '../../work-orders/system-ports.ts';
-import { assemblePage, entityKey, type ChangeLogRow } from '../domain/changes-page.ts';
+import { assemblePage } from '../domain/changes-page.ts';
 import {
+  CURSOR_ROLES,
   decideCursor,
   type ChangesCursorClaims,
   type CursorClaims,
@@ -39,7 +39,7 @@ import {
   type ResyncReason,
   type SnapshotCursorClaims,
 } from '../domain/cursor.ts';
-import { changeBytes, customerChange, deleteChange, siteChange, workOrderChange, type SyncChange } from '../domain/projection.ts';
+import { changeBytes, type SyncChange } from '../domain/projection.ts';
 import {
   addDownloadedCounts,
   advanceDownload,
@@ -57,6 +57,15 @@ import {
   touchPulled,
 } from '../infrastructure/sync-queries.ts';
 import { SYNC_CURSOR_CODEC } from '../sync.tokens.ts';
+import { AggregateReader, type CountKind } from './aggregate-reader.ts';
+import { CurrentStateReader } from './current-state.ts';
+
+/** The role a cursor is bound to: only the roles of the mobile channel pull, the guard has refused the others already. */
+function cursorRole(principal: Principal): (typeof CURSOR_ROLES)[number] {
+  const role = CURSOR_ROLES.find((candidate) => candidate === principal.role);
+  if (role === undefined) throw new ProblemException('forbidden');
+  return role;
+}
 
 const OPERATION = 'getSyncChanges';
 const DAY_MS = 24 * 3_600_000;
@@ -107,8 +116,9 @@ export class SyncChangesService {
   readonly #events: EventBus;
   readonly #logger: Logger;
   readonly #orders: WorkOrderSyncSource;
-  readonly #customers: CustomerSyncSource;
-  readonly #sites: SiteSyncSource;
+  readonly #reader: AggregateReader;
+  readonly #current: CurrentStateReader;
+  readonly #scopeRuleVersion: number;
   readonly #requests;
   readonly #resyncs;
   readonly #rejected;
@@ -127,8 +137,8 @@ export class SyncChangesService {
     @Inject(METRICS) metrics: MetricsRegistry,
     @Inject(LOGGER) logger: Logger,
     @Inject(WORK_ORDER_SYNC_SOURCE) orders: WorkOrderSyncSource,
-    @Inject(CUSTOMER_SYNC_SOURCE) customers: CustomerSyncSource,
-    @Inject(SITE_SYNC_SOURCE) sites: SiteSyncSource,
+    @Inject(AggregateReader) reader: AggregateReader,
+    @Inject(CurrentStateReader) current: CurrentStateReader,
   ) {
     this.#db = db;
     this.#clock = clock;
@@ -137,8 +147,12 @@ export class SyncChangesService {
     this.#events = events;
     this.#logger = logger;
     this.#orders = orders;
-    this.#customers = customers;
-    this.#sites = sites;
+    this.#reader = reader;
+    this.#current = current;
+    this.#scopeRuleVersion = effectiveScopeRuleVersion({
+      configured: config.sync.scopeRuleVersion,
+      closedDays: config.sync.closedOrdersInScopeDays,
+    });
     // Label values are closed sets (SR-LOG-02): never a user, a device or an identifier.
     this.#requests = metrics.counter('sync_changes_requests_total', ['phase']);
     this.#resyncs = metrics.counter('sync_resync_required_total', ['reason']);
@@ -195,7 +209,8 @@ export class SyncChangesService {
     const decision = decideCursor(this.#codec.open(OPERATION, cursor), {
       userId: identity.userId,
       deviceId: identity.deviceId,
-      scopeRuleVersion: this.#settings.scopeRuleVersion,
+      scopeRuleVersion: this.#scopeRuleVersion,
+      role: identity.principal.role,
       now,
       periodicResyncMs: this.#settings.periodicResyncDays * DAY_MS,
       state,
@@ -253,7 +268,8 @@ export class SyncChangesService {
         dl: id,
         u: identity.userId,
         d: identity.deviceId,
-        sv: this.#settings.scopeRuleVersion,
+        sv: this.#scopeRuleVersion,
+        r: cursorRole(identity.principal),
       };
       return { page: await this.#snapshotPage(tx, identity, claims, limit, context) } as const;
     });
@@ -307,7 +323,12 @@ export class SyncChangesService {
     return this.#settings.pageMaxBytes - ENVELOPE_BYTES;
   }
 
-  /** One page of the snapshot: `limit` orders after the cursor, each with the customer and the site it names (once per page), trimmed to the contract and the budget. */
+  /**
+   * One page of the snapshot: `limit` orders after the cursor, each as a GROUP - the order with everything the phone needs to show it (`AggregateReader`, the
+   * reader the snapshot of one order shares) - trimmed to the contract (500) and the byte budget. A group is never cut between pages, except when ONE group is
+   * longer than a page: then its first entities fill the page and the cursor carries `sub` - the order and how many of its entities went out - so the next page
+   * continues it (a group of 600 journal entries cannot be a page of 500).
+   */
   async #snapshotPage(
     tx: Kysely<Database>,
     identity: Identity,
@@ -316,52 +337,84 @@ export class SyncChangesService {
     context: EventContext,
   ): Promise<ChangesPage> {
     const { principal } = identity;
-    const fetched = await this.#orders.snapshotPage(tx, principal, this.#scope(), claims.after ?? undefined, limit + 1);
+    const scope = this.#scope();
+    // The order that was cut by the previous page is read again under the policy and the scope of NOW (it may be gone: then nothing of it comes).
+    const resumed =
+      claims.sub === undefined ? undefined : (await this.#orders.statesOf(tx, principal, scope, [claims.sub.o])).get(claims.sub.o);
+    const resumedOrders = resumed?.kind === 'upsert' ? [resumed.projection] : [];
+    const fetched = await this.#orders.snapshotPage(tx, principal, scope, claims.after ?? undefined, limit + 1);
     const orders = fetched.slice(0, limit);
-    const customerIds = [...new Set(orders.flatMap((order) => (order.customerId === null ? [] : [order.customerId])))];
-    const siteIds = [...new Set(orders.flatMap((order) => (order.siteId === null ? [] : [order.siteId])))];
-    const customers = await this.#customers.statesOf(tx, principal, customerIds);
-    const sites = await this.#sites.statesOf(tx, principal, siteIds);
+    const groups = await this.#reader.read(tx, principal, [...resumedOrders, ...orders]);
 
     const changes: SyncChange[] = [];
     const counts = { workOrders: 0, customers: 0, sites: 0 };
+    const add = (item: { readonly change: SyncChange; readonly kind: CountKind }): void => {
+      changes.push(item.change);
+      if (item.kind !== 'other') counts[item.kind] += 1;
+    };
     const seen = new Set<string>();
     let bytes = 0;
     let included = 0;
-    for (const order of orders) {
-      const group: Array<{ change: SyncChange; kind: keyof typeof counts }> = [{ change: workOrderChange(order), kind: 'workOrders' }];
-      const customer = order.customerId === null ? undefined : customers.get(order.customerId);
-      if (customer?.kind === 'upsert' && !seen.has(`c:${customer.projection.id}`))
-        group.push({ change: customerChange(customer.projection), kind: 'customers' });
-      const site = order.siteId === null ? undefined : sites.get(order.siteId);
-      if (site?.kind === 'upsert' && !seen.has(`s:${site.projection.id}`))
-        group.push({ change: siteChange(site.projection), kind: 'sites' });
-      const size = group.reduce((sum, item) => sum + changeBytes(item.change), 0);
-      if (included > 0 && (changes.length + group.length > MAX_PAGE_ENTITIES || bytes + size > this.#budget())) break;
-      for (const item of group) {
-        changes.push(item.change);
-        counts[item.kind] += 1;
+    let cut: { readonly orderId: string; readonly sent: number } | undefined;
+    for (const [index, group] of groups.entries()) {
+      const offset = index === 0 && resumedOrders.length > 0 ? (claims.sub?.n ?? 0) : 0;
+      const fresh = group.items.slice(offset).filter((item) => !seen.has(item.key));
+      const size = fresh.reduce((sum, item) => sum + changeBytes(item.change), 0);
+      if (changes.length + fresh.length > MAX_PAGE_ENTITIES || bytes + size > this.#budget()) {
+        if (included === 0) {
+          let taken = 0;
+          for (const item of fresh) {
+            const itemSize = changeBytes(item.change);
+            if (taken > 0 && (changes.length >= MAX_PAGE_ENTITIES || bytes + itemSize > this.#budget())) break;
+            add(item);
+            bytes += itemSize;
+            taken += 1;
+          }
+          cut = { orderId: group.orderId, sent: offset + taken };
+        }
+        break;
       }
-      if (customer?.kind === 'upsert') seen.add(`c:${customer.projection.id}`);
-      if (site?.kind === 'upsert') seen.add(`s:${site.projection.id}`);
+      for (const item of fresh) {
+        add(item);
+        seen.add(item.key);
+      }
       bytes += size;
       included += 1;
     }
-    const more = fetched.length > limit || included < orders.length;
-    const last = included === 0 ? undefined : orders[included - 1];
+    const more = fetched.length > limit || included < groups.length;
+    const lastId = cut?.orderId ?? (included === 0 ? undefined : groups[included - 1]?.orderId);
     const now = this.#clock.now();
     // A page asked again (its answer was lost) is served but not counted twice.
-    const advanced = more && last !== undefined ? await advanceDownload(tx, claims.dl, claims.after, last.id) : true;
+    const advanced = more && lastId !== undefined ? await advanceDownload(tx, claims.dl, claims.after, lastId) : true;
     if (advanced) await addDownloadedCounts(tx, claims.dl, counts);
-    if (more && last !== undefined) {
-      const cursor = this.#codec.seal(OPERATION, { ...claims, after: last.id } satisfies CursorClaims);
+    if (more && lastId !== undefined) {
+      const next: SnapshotCursorClaims = {
+        ph: 'snapshot',
+        tx: claims.tx,
+        after: lastId,
+        dl: claims.dl,
+        u: claims.u,
+        d: claims.d,
+        sv: claims.sv,
+        r: cursorRole(principal),
+        ...(cut === undefined ? {} : { sub: { o: cut.orderId, n: cut.sent } }),
+      };
+      const cursor = this.#codec.seal(OPERATION, next satisfies CursorClaims);
       return { result: 'changes', phase: 'snapshot', changes, cursor, hasMore: true, serverTime: now.toISOString() };
     }
     // The last page of the snapshot: the device is current as of now, and the phase of changes starts at the horizon taken before the snapshot.
     await completeFullSync(tx, identity.deviceId, now);
     // The end of the download: the trail holds the counts of the entities by type (AC8, AB-08), and the cursors of the snapshot are no longer served.
     await this.#publishCompleted(tx, identity, await completeDownload(tx, claims.dl, now), context);
-    const next: ChangesCursorClaims = { ph: 'changes', tx: claims.tx, sq: '0', u: claims.u, d: claims.d, sv: claims.sv };
+    const next: ChangesCursorClaims = {
+      ph: 'changes',
+      tx: claims.tx,
+      sq: '0',
+      u: claims.u,
+      d: claims.d,
+      sv: claims.sv,
+      r: cursorRole(principal),
+    };
     return {
       result: 'changes',
       phase: 'changes',
@@ -377,9 +430,10 @@ export class SyncChangesService {
     const now = this.#clock.now();
     const rows = await readLogAfter(tx, claims.tx, claims.sq, limit + 1);
     const taken = rows.slice(0, limit);
-    const current = await this.#currentChanges(
+    const current = await this.#current.changesFor(
       tx,
       identity.principal,
+      this.#scope(),
       taken.filter((row) => !row.superseded),
     );
     const page = assemblePage(taken, current, this.#budget());
@@ -395,55 +449,5 @@ export class SyncChangesService {
       hasMore: page.consumed < taken.length || rows.length > limit,
       serverTime: now.toISOString(),
     };
-  }
-
-  /** The change due for each entity the rows name (constant number of queries): its current projection, a marker, or nothing. */
-  async #currentChanges(
-    tx: Kysely<Database>,
-    principal: Principal,
-    rows: readonly ChangeLogRow[],
-  ): Promise<ReadonlyMap<string, SyncChange>> {
-    const idsOf = (type: ChangeLogRow['type']): string[] => [...new Set(rows.filter((row) => row.type === type).map((row) => row.id))];
-    const scope = this.#scope();
-    const due = new Map<string, SyncChange>();
-
-    const orders = await this.#orders.statesOf(tx, principal, scope, idsOf('work_order'));
-    for (const id of idsOf('work_order')) {
-      const state = orders.get(id);
-      if (state === undefined || state.kind === 'delete') due.set(entityKey({ type: 'work_order', id }), deleteChange('work_order', id));
-      else if (state.kind === 'upsert') due.set(entityKey({ type: 'work_order', id }), workOrderChange(state.projection));
-    }
-
-    const customerIds = idsOf('customer');
-    const customers = await this.#customers.statesOf(tx, principal, customerIds);
-    const usedCustomers = await this.#orders.customersInScope(
-      tx,
-      principal,
-      scope,
-      customerIds.filter((id) => customers.has(id)),
-    );
-    for (const id of customerIds) {
-      const state = customers.get(id);
-      const key = entityKey({ type: 'customer', id });
-      if (state === undefined) due.set(key, deleteChange('customer', id));
-      else if (usedCustomers.has(id))
-        due.set(key, state.kind === 'upsert' ? customerChange(state.projection) : deleteChange('customer', id));
-    }
-
-    const siteIds = idsOf('site');
-    const sites = await this.#sites.statesOf(tx, principal, siteIds);
-    const usedSites = await this.#orders.sitesInScope(
-      tx,
-      principal,
-      scope,
-      siteIds.filter((id) => sites.has(id)),
-    );
-    for (const id of siteIds) {
-      const state = sites.get(id);
-      const key = entityKey({ type: 'site', id });
-      if (state === undefined) due.set(key, deleteChange('site', id));
-      else if (usedSites.has(id)) due.set(key, state.kind === 'upsert' ? siteChange(state.projection) : deleteChange('site', id));
-    }
-    return due;
   }
 }

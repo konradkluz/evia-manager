@@ -8,6 +8,25 @@ import { visibleSites } from './read-policy.ts';
 import { siteTables } from './tables.ts';
 
 export class SiteSyncSourceService implements SiteSyncSource {
+  async partyReferences(
+    tx: Kysely<Database>,
+    ids: readonly string[],
+  ): Promise<ReadonlyArray<{ readonly partyId: string; readonly siteId: string }>> {
+    if (ids.length === 0) return [];
+    const rows = await siteTables(tx)
+      .selectFrom('sites.sites')
+      .select(['id', 'manager_party_id as managerPartyId', 'distribution_system_operator_party_id as operatorPartyId'])
+      .where('deleted_at', 'is', null)
+      .where((eb) => eb.or([eb('manager_party_id', 'in', ids), eb('distribution_system_operator_party_id', 'in', ids)]))
+      .execute();
+    const wanted = new Set(ids);
+    return rows.flatMap((row) =>
+      [row.managerPartyId, row.operatorPartyId].flatMap((partyId) =>
+        partyId !== null && wanted.has(partyId) ? [{ partyId, siteId: row.id }] : [],
+      ),
+    );
+  }
+
   async statesOf(
     tx: Kysely<Database>,
     principal: Principal,

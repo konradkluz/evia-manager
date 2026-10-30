@@ -108,7 +108,8 @@ describe('the change log written by the trigger (EVM-096 AC1; ADR-0021 D4)', () 
       where table_type = 'BASE TABLE' and table_schema in (${sql.join([...SYNC_SCOPE_SCHEMAS])})`.execute(admin());
     const known = new Set([...SYNCED_ENTITIES.map((entity) => entity.table), ...Object.keys(SYNC_EXCLUDED_TABLES)]);
     expect(tables.rows.map((row) => row.table).filter((table) => !known.has(table))).toEqual([]);
-    expect([...known].filter((table) => !tables.rows.some((row) => row.table === table))).toEqual([]);
+    // `identity.users` is outside the scope schemas on purpose (the other tables of `identity` never reach the phone) - it is registered and has its trigger
+    expect([...known].filter((table) => table !== 'identity.users' && !tables.rows.some((row) => row.table === table))).toEqual([]);
     for (const reason of Object.values(SYNC_EXCLUDED_TABLES)) expect(reason.length).toBeGreaterThan(10);
   });
 });

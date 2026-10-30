@@ -172,3 +172,34 @@ export async function completeFullSync(tx: Kysely<Database>, deviceId: string, n
     .where('device_id', '=', deviceId)
     .execute();
 }
+
+const HOUR_MS = 3_600_000;
+
+/** The start of the hour (UTC) the instant falls in: the window of the limit of the snapshots. */
+export const snapshotWindowStart = (now: Date): Date => new Date(Math.floor(now.getTime() / HOUR_MS) * HOUR_MS);
+
+/**
+ * Counts one request for a snapshot of the device in the window and returns how many it has made in it, this one included. ONE atomic statement
+ * (`INSERT … ON CONFLICT`), so processes of the API that count at the same moment cannot both pass under the limit (SR-API-02, CWE-770); the counter stops
+ * growing at a bound, so a flood cannot overflow it. The row is locked until the transaction ends.
+ */
+export async function countSnapshotRequest(tx: Kysely<Database>, deviceId: string, windowStart: Date): Promise<number> {
+  const { rows } = await sql<{ request_count: number }>`
+    insert into sync.snapshot_requests (device_id, window_start, request_count) values (${deviceId}::uuid, ${windowStart}, 1)
+    on conflict (device_id, window_start) do update set request_count = least(sync.snapshot_requests.request_count + 1, 1000000)
+    returning request_count`.execute(tx);
+  return rows[0]?.request_count ?? 1;
+}
+
+/** True exactly once per device and window: the caller that gets `true` raises the alert (the row is locked by the count of the same transaction). */
+export async function markSnapshotAlerted(tx: Kysely<Database>, deviceId: string, windowStart: Date): Promise<boolean> {
+  const result = await sql`
+    update sync.snapshot_requests set alerted = true
+    where device_id = ${deviceId}::uuid and window_start = ${windowStart} and alerted = false`.execute(tx);
+  return Number(result.numAffectedRows ?? 0n) > 0;
+}
+
+/** The counters of the device from windows that are over (a device keeps one row per hour it used, no more than two live ones). */
+export async function purgeSnapshotWindows(tx: Kysely<Database>, deviceId: string, before: Date): Promise<void> {
+  await sql`delete from sync.snapshot_requests where device_id = ${deviceId}::uuid and window_start < ${before}`.execute(tx);
+}

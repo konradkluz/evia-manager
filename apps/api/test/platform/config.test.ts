@@ -51,6 +51,7 @@ describe('configuration of the synchronisation of the phones (EVM-096; ADR-0021 
           SYNC_PERIODIC_RESYNC_DAYS: '3',
           SYNC_SCOPE_RULE_VERSION: '4',
           SYNC_FULL_DOWNLOADS_PER_DAY: '5',
+          SYNC_SNAPSHOTS_PER_HOUR: '60',
           SYNC_PAGE_MAX_BYTES: '500000',
         }),
       ).sync,
@@ -59,12 +60,15 @@ describe('configuration of the synchronisation of the phones (EVM-096; ADR-0021 
       periodicResyncDays: 3,
       scopeRuleVersion: 4,
       fullDownloadsPerDay: 5,
+      snapshotsPerHour: 60,
       pageMaxBytes: 500_000,
     });
     for (const [name, value] of [
       ['SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS', '0'],
       ['SYNC_PERIODIC_RESYNC_DAYS', '1000'],
       ['SYNC_FULL_DOWNLOADS_PER_DAY', 'many'],
+      ['SYNC_SNAPSHOTS_PER_HOUR', '0'],
+      ['SYNC_SCOPE_RULE_VERSION', '100001'],
       ['SYNC_PAGE_MAX_BYTES', '2000000'],
     ] as const) {
       expect(errorOf(validEnv({ [name]: value })).keys, name).toEqual([name]);
@@ -95,6 +99,7 @@ describe('configuration from the environment (EVM-008 AC1; ADR-0002, SR-LOG-02)'
         periodicResyncDays: 7,
         scopeRuleVersion: 1,
         fullDownloadsPerDay: 3,
+        snapshotsPerHour: 120,
         pageMaxBytes: 900_000,
       },
     });

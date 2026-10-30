@@ -58,6 +58,8 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   // EVM-096: a full download of the data to a phone (started, or refused by the limit per day)
   'sync.full_download': 'Pełne pobranie danych na urządzenie mobilne',
   'sync.full_download_completed': 'Zakończenie pełnego pobrania danych na urządzenie mobilne',
+  // EVM-097: the snapshot of one order for a phone (served, or refused by the limit per hour)
+  'sync.work_order_snapshot': 'Pobranie migawki zlecenia na urządzenie mobilne',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
   'customer.deleted': 'Usunięcie klienta',
@@ -159,7 +161,14 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
   },
   {
     label: 'Dziennik audytu',
-    actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected', 'sync.full_download', 'sync.full_download_completed'],
+    actions: [
+      'audit.read',
+      'bulk_read.alerted',
+      'bulk_read.rejected',
+      'sync.full_download',
+      'sync.full_download_completed',
+      'sync.work_order_snapshot',
+    ],
   },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },

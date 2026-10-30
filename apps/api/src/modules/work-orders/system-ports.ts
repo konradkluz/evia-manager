@@ -8,7 +8,7 @@
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
 import type { Principal } from '../../platform/http/principal.ts';
-import type { SyncRowState } from '../../platform/sync/sync-row-state.ts';
+import type { OrderChildSyncSource, SyncRowState } from '../../platform/sync/sync-row-state.ts';
 
 export const WORK_ORDER_PROJECTION_SOURCE = Symbol('WORK_ORDER_PROJECTION_SOURCE');
 
@@ -79,4 +79,32 @@ export interface WorkOrderSyncSource {
   /** Which of the customers / sites among `ids` are used by an order in scope that the caller may read (1 query each). */
   customersInScope(tx: Kysely<Database>, principal: Principal, scope: SyncScopeRule, ids: readonly string[]): Promise<ReadonlySet<string>>;
   sitesInScope(tx: Kysely<Database>, principal: Principal, scope: SyncScopeRule, ids: readonly string[]): Promise<ReadonlySet<string>>;
+  /** Which of the orders among `ids` are in scope AND readable by the caller (1 query): the ONE judge of the scope for the entities anchored to an order (EVM-097). */
+  ordersInScope(tx: Kysely<Database>, principal: Principal, scope: SyncScopeRule, ids: readonly string[]): Promise<ReadonlySet<string>>;
+  /** Which of the users among `ids` coordinate an order in scope the caller may read (1 query). */
+  coordinatorsInScope(
+    tx: Kysely<Database>,
+    principal: Principal,
+    scope: SyncScopeRule,
+    ids: readonly string[],
+  ): Promise<ReadonlySet<string>>;
 }
+
+export const SCOPE_ITEM_SYNC_SOURCE = Symbol('SCOPE_ITEM_SYNC_SOURCE');
+
+/** The fields of `SyncScopeItem` (contract) that come from the item; `type` is added by the serializer of `sync`. */
+export interface SyncScopeItemProjection {
+  readonly id: string;
+  readonly version: number;
+  readonly workOrderId: string;
+  readonly position: number;
+  readonly code: string;
+  readonly name: string;
+  readonly parameterSetCode: string | null;
+  readonly parameters: Readonly<Record<string, string | number | boolean>>;
+  readonly quantity: number;
+  readonly notes: string | null;
+}
+
+/** The scope items of the orders for the phone (EVM-097): the order is judged by {@link WorkOrderSyncSource.ordersInScope}, the content is read only for the orders in scope. */
+export type ScopeItemSyncSource = OrderChildSyncSource<SyncScopeItemProjection>;

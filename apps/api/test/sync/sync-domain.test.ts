@@ -2,8 +2,20 @@ import { randomUUID } from 'node:crypto';
 import { assertSyncProjectionStrict } from '@evia/contracts/sync';
 import { describe, expect, it } from 'vitest';
 import { assemblePage, entityKey, type ChangeLogRow } from '../../src/modules/sync/domain/changes-page.ts';
-import { decideCursor, type CursorContext } from '../../src/modules/sync/domain/cursor.ts';
-import { changeBytes, customerChange, deleteChange, siteChange, workOrderChange } from '../../src/modules/sync/domain/projection.ts';
+import { cursorClaims, decideCursor, type CursorContext } from '../../src/modules/sync/domain/cursor.ts';
+import {
+  changeBytes,
+  customerChange,
+  deleteChange,
+  partyChange,
+  procedureStageChange,
+  scopeItemChange,
+  siteChange,
+  timelineEntryChange,
+  userChange,
+  workOrderChange,
+} from '../../src/modules/sync/domain/projection.ts';
+import { effectiveScopeRuleVersion, MAX_CLOSED_DAYS, MAX_SCOPE_RULE_COUNTER } from '../../src/platform/sync/scope-rule.ts';
 import { SYNC_EXCLUDED_TABLES, SYNC_SCOPE_SCHEMAS, SYNCED_ENTITIES } from '../../src/modules/sync/domain/synced-entities.ts';
 
 const NOW = new Date('2026-10-29T08:00:00.000Z');
@@ -13,12 +25,13 @@ const context = (overrides: Partial<CursorContext> = {}): CursorContext => ({
   userId: user,
   deviceId: device,
   scopeRuleVersion: 1,
+  role: 'editor',
   now: NOW,
   periodicResyncMs: 7 * 24 * 3_600_000,
   state: { lastFullSyncAt: NOW, resyncRequestedReason: null },
   ...overrides,
 });
-const changes = { ph: 'changes', tx: '10', sq: '5', u: user, d: device, sv: 1 };
+const changes = { ph: 'changes', tx: '10', sq: '5', u: user, d: device, sv: 1, r: 'editor' };
 
 describe('the decision about a cursor (EVM-096 AC3, AC6; SR-SYNC-07)', () => {
   it.each([
@@ -30,6 +43,22 @@ describe('the decision about a cursor (EVM-096 AC3, AC6; SR-SYNC-07)', () => {
     ['another user', { kind: 'ok', claims: { ...changes, u: randomUUID() } }, { kind: 'reject', reason: 'identity_mismatch' }],
     ['another device', { kind: 'ok', claims: { ...changes, d: randomUUID() } }, { kind: 'reject', reason: 'identity_mismatch' }],
     ['another rule of scope', { kind: 'ok', claims: { ...changes, sv: 2 } }, { kind: 'resync', reason: 'scope_changed' }],
+    ['EVM-097 AC6 another role', { kind: 'ok', claims: { ...changes, r: 'administrator' } }, { kind: 'resync', reason: 'access_changed' }],
+    [
+      'EVM-097 AC6 no role in a cursor of the current rule',
+      { kind: 'ok', claims: { ...changes, r: undefined } },
+      { kind: 'resync', reason: 'access_changed' },
+    ],
+    [
+      'EVM-097 AC6 an old cursor without a role is a change of scope, not garbage',
+      { kind: 'ok', claims: { ...changes, sv: 2, r: undefined } },
+      { kind: 'resync', reason: 'scope_changed' },
+    ],
+    [
+      'EVM-097 AC6 a role outside the closed set',
+      { kind: 'ok', claims: { ...changes, r: 'read_only' } },
+      { kind: 'resync', reason: 'cursor_invalid' },
+    ],
   ] as const)('EVM-096 AC3 %s', (_name, opened, expected) => {
     expect(decideCursor(opened, context())).toMatchObject(expected);
   });
@@ -56,7 +85,7 @@ describe('the decision about a cursor (EVM-096 AC3, AC6; SR-SYNC-07)', () => {
     });
     const snapshot = {
       kind: 'ok',
-      claims: { ph: 'snapshot', tx: '10', after: null, dl: randomUUID(), u: user, d: device, sv: 1 },
+      claims: { ph: 'snapshot', tx: '10', after: null, dl: randomUUID(), u: user, d: device, sv: 1, r: 'editor' },
     } as const;
     expect(decideCursor(snapshot, context({ state: { lastFullSyncAt: old, resyncRequestedReason: 'scope_changed' } })).kind).toBe(
       'proceed',
@@ -163,7 +192,121 @@ describe('the registry of the synchronised tables (EVM-096 AC1)', () => {
     const tables = SYNCED_ENTITIES.map((entity) => entity.table);
     expect(new Set(tables).size).toBe(tables.length);
     expect(new Set(SYNCED_ENTITIES.map((entity) => entity.type)).size).toBe(tables.length);
-    for (const table of [...tables, ...Object.keys(SYNC_EXCLUDED_TABLES)]) expect(SYNC_SCOPE_SCHEMAS).toContain(table.split('.')[0]);
+    // `identity.users` is the one carve-out: the other tables of `identity` (credentials, sessions) are not candidates for the phone at all
+    for (const table of [...tables, ...Object.keys(SYNC_EXCLUDED_TABLES)].filter((name) => name !== 'identity.users'))
+      expect(SYNC_SCOPE_SCHEMAS).toContain(table.split('.')[0]);
     expect(tables.filter((table) => Object.hasOwn(SYNC_EXCLUDED_TABLES, table))).toEqual([]);
+  });
+});
+
+describe('the serializers of the remaining types list the fields of the contract and nothing else (EVM-097 AC1; SR-SYNC-04)', () => {
+  const id = randomUUID();
+  const leaks = {
+    email: 'party-email@example.invalid',
+    notes: 'SENTINEL-NOTES',
+    legalForm: 'SENTINEL-LEGAL',
+    role: 'administrator',
+    lastLoginAt: NOW,
+    eventCode: 'payment_milestone_status_changed',
+    eventPayload: { amount: 1 },
+    createdBy: id,
+    deletedAt: NOW,
+    search_text: 'SENTINEL-SEARCH',
+  };
+
+  it('EVM-097 AC1 a row with more fields than the projection keeps only the listed ones, for each of the five types, and passes the strict check', () => {
+    const party = partyChange({
+      id,
+      version: 1,
+      kind: 'supplier',
+      displayName: 'Dostawca',
+      contactPersonName: null,
+      phone: null,
+      ...leaks,
+    });
+    const item = scopeItemChange({
+      ...leaks,
+      id,
+      version: 1,
+      workOrderId: id,
+      position: 1,
+      code: 'wallbox',
+      name: 'Wallbox',
+      parameterSetCode: null,
+      parameters: { power: 11 },
+      quantity: 1,
+      notes: 'nota pozycji',
+    });
+    const stage = procedureStageChange({
+      id,
+      version: 1,
+      workOrderId: id,
+      procedureId: id,
+      procedureCode: 'connection',
+      procedureName: 'Przylaczenie',
+      code: 'design',
+      name: 'Projekt',
+      position: 1,
+      status: 'todo',
+      dueDate: '2026-11-01',
+      responsibleUserId: null,
+      waitingOn: null,
+      waitingPartyId: null,
+      waitingSince: null,
+      blockedReason: null,
+      startedAt: NOW,
+      completedOn: null,
+      ...leaks,
+    });
+    const entry = timelineEntryChange({
+      id,
+      version: 1,
+      workOrderId: id,
+      kind: 'note',
+      noteCategory: 'phone_call',
+      body: 'tresc',
+      procedureStageId: null,
+      authorUserId: id,
+      createdAt: NOW,
+      origin: 'web',
+      capturedAt: NOW,
+      supersedesEntryId: null,
+      supersededByEntryId: null,
+      redactedAt: NOW,
+      ...leaks,
+    });
+    const named = userChange({ id, version: 3, displayName: 'Jan Testowy', ...leaks });
+    const all = [party, item, stage, entry, named];
+    for (const change of all) expect(assertSyncProjectionStrict(change), JSON.stringify(change)).toEqual({ ok: true });
+    expect(JSON.stringify(all)).not.toMatch(/SENTINEL|example\.invalid|payment_milestone|administrator|lastLoginAt/);
+    expect(named).toEqual({ op: 'upsert', entity: { type: 'user', id, version: 3, displayName: 'Jan Testowy' } });
+    expect(stage).toMatchObject({ entity: { startedAt: NOW.toISOString(), procedureCode: 'connection' } });
+  });
+});
+
+describe('the cursor claims of the snapshot carry a sub-cursor and a role from closed sets (EVM-097; SR-SYNC-07)', () => {
+  const base = { ph: 'snapshot', tx: '10', after: randomUUID(), dl: randomUUID(), u: randomUUID(), d: randomUUID(), sv: 292, r: 'editor' };
+
+  it('EVM-097 AC3 the sub-cursor is a strict object of an order and a positive offset; anything else in it, or a stray claim, is refused', () => {
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 500 } }).success).toBe(true);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 0 } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: 'not-a-uuid', n: 5 } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, sub: { o: randomUUID(), n: 5, extra: 1 } }).success).toBe(false);
+    expect(cursorClaims.safeParse({ ...base, stray: 1 }).success).toBe(false);
+    const changesPhase = { ph: 'changes', tx: '1', sq: '0', u: base.u, d: base.d, sv: 292, r: 'editor' };
+    expect(cursorClaims.safeParse({ ...changesPhase, sub: { o: randomUUID(), n: 1 } }).success).toBe(false);
+  });
+});
+
+describe('the version of the rule of scope (EVM-097 AC6)', () => {
+  it('EVM-097 AC6 it is above the 1 of EVM-096, differs for every N and counter, and is an int32 at the bounds of the configuration', () => {
+    const at = (configured: number, closedDays: number) => effectiveScopeRuleVersion({ configured, closedDays });
+    expect(at(1, 30)).toBeGreaterThan(1);
+    expect(at(1, 1)).toBeGreaterThan(1);
+    const versions = new Set<number>();
+    for (let configured = 1; configured <= 3; configured += 1)
+      for (let days = 1; days <= MAX_CLOSED_DAYS; days += 1) versions.add(at(configured, days));
+    expect(versions.size).toBe(3 * MAX_CLOSED_DAYS);
+    expect(at(MAX_SCOPE_RULE_COUNTER, MAX_CLOSED_DAYS)).toBeLessThanOrEqual(2_147_483_647);
   });
 });

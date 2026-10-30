@@ -3,10 +3,24 @@
  * named here cannot reach the phone, whatever the row contains. The tests check every page with `assertSyncProjectionStrict` of `@evia/contracts`.
  */
 import type { SyncCustomerProjection } from '../../customers/system-ports.ts';
+import type { SyncUserProjection } from '../../identity/system-ports.ts';
+import type { SyncPartyProjection } from '../../parties/system-ports.ts';
+import type { SyncProcedureStageProjection } from '../../procedures/system-ports.ts';
 import type { SyncSiteProjection } from '../../sites/system-ports.ts';
-import type { SyncWorkOrderProjection } from '../../work-orders/system-ports.ts';
+import type { SyncTimelineEntryProjection } from '../../timeline/system-ports.ts';
+import type { SyncScopeItemProjection, SyncWorkOrderProjection } from '../../work-orders/system-ports.ts';
 
-export type SyncEntityType = 'work_order' | 'customer' | 'site';
+export const SYNC_ENTITY_TYPES = [
+  'work_order',
+  'customer',
+  'site',
+  'party',
+  'scope_item',
+  'procedure_stage',
+  'timeline_entry',
+  'user',
+] as const;
+export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number];
 
 export interface SyncUpsertChange {
   readonly op: 'upsert';
@@ -62,6 +76,87 @@ export const siteChange = (row: SyncSiteProjection): SyncChange => ({
     distributionSystemOperatorPartyId: row.distributionSystemOperatorPartyId,
     notes: row.notes,
   },
+});
+
+export const partyChange = (row: SyncPartyProjection): SyncChange => ({
+  op: 'upsert',
+  entity: {
+    type: 'party',
+    id: row.id,
+    version: row.version,
+    kind: row.kind,
+    displayName: row.displayName,
+    contactPersonName: row.contactPersonName,
+    phone: row.phone,
+  },
+});
+
+export const scopeItemChange = (row: SyncScopeItemProjection): SyncChange => ({
+  op: 'upsert',
+  entity: {
+    type: 'scope_item',
+    id: row.id,
+    version: row.version,
+    workOrderId: row.workOrderId,
+    position: row.position,
+    code: row.code,
+    name: row.name,
+    parameterSetCode: row.parameterSetCode,
+    parameters: row.parameters,
+    quantity: row.quantity,
+    notes: row.notes,
+  },
+});
+
+export const procedureStageChange = (row: SyncProcedureStageProjection): SyncChange => ({
+  op: 'upsert',
+  entity: {
+    type: 'procedure_stage',
+    id: row.id,
+    version: row.version,
+    workOrderId: row.workOrderId,
+    procedureId: row.procedureId,
+    procedureCode: row.procedureCode,
+    procedureName: row.procedureName,
+    code: row.code,
+    name: row.name,
+    position: row.position,
+    status: row.status,
+    dueDate: row.dueDate,
+    responsibleUserId: row.responsibleUserId,
+    waitingOn: row.waitingOn,
+    waitingPartyId: row.waitingPartyId,
+    waitingSince: row.waitingSince,
+    blockedReason: row.blockedReason,
+    startedAt: row.startedAt === null ? null : row.startedAt.toISOString(),
+    completedOn: row.completedOn,
+  },
+});
+
+export const timelineEntryChange = (row: SyncTimelineEntryProjection): SyncChange => ({
+  op: 'upsert',
+  entity: {
+    type: 'timeline_entry',
+    id: row.id,
+    version: row.version,
+    workOrderId: row.workOrderId,
+    kind: row.kind,
+    noteCategory: row.noteCategory,
+    body: row.body,
+    procedureStageId: row.procedureStageId,
+    authorUserId: row.authorUserId,
+    createdAt: row.createdAt.toISOString(),
+    origin: row.origin,
+    capturedAt: row.capturedAt === null ? null : row.capturedAt.toISOString(),
+    supersedesEntryId: row.supersedesEntryId,
+    supersededByEntryId: row.supersededByEntryId,
+    redactedAt: row.redactedAt === null ? null : row.redactedAt.toISOString(),
+  },
+});
+
+export const userChange = (row: SyncUserProjection): SyncChange => ({
+  op: 'upsert',
+  entity: { type: 'user', id: row.id, version: row.version, displayName: row.displayName },
 });
 
 export const deleteChange = (type: SyncEntityType, id: string): SyncChange => ({ op: 'delete', type, id });

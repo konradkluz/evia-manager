@@ -3,7 +3,14 @@ import { sql, type Kysely, type SqlBool } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import type { SyncRowState } from '../../../platform/sync/sync-row-state.ts';
-import type { SyncScopeRule, SyncWorkOrderProjection, WorkOrderSyncSource } from '../system-ports.ts';
+import type { SyncChildAnchor } from '../../../platform/sync/sync-row-state.ts';
+import type {
+  ScopeItemSyncSource,
+  SyncScopeItemProjection,
+  SyncScopeRule,
+  SyncWorkOrderProjection,
+  WorkOrderSyncSource,
+} from '../system-ports.ts';
 import { visibleWorkOrders } from './read-policy.ts';
 import { workOrderTables } from './tables.ts';
 
@@ -81,6 +88,47 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
     return new Set(rows.flatMap((row) => (row.id === null ? [] : [row.id])));
   }
 
+  async ordersInScope(
+    tx: Kysely<Database>,
+    principal: Principal,
+    scope: SyncScopeRule,
+    ids: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await workOrderTables(tx)
+      .selectFrom(ORDERS)
+      .select(`${ORDERS}.id as id`)
+      .where(`${ORDERS}.id`, 'in', ids)
+      .where(visibleWorkOrders(principal))
+      .where(inScope(scope))
+      .execute();
+    return new Set(rows.map((row) => row.id));
+  }
+
+  async coordinatorsInScope(
+    tx: Kysely<Database>,
+    principal: Principal,
+    scope: SyncScopeRule,
+    ids: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await workOrderTables(tx)
+      .selectFrom(ORDERS)
+      .innerJoin(ASSIGNMENTS, (join) =>
+        join
+          .onRef(`${ASSIGNMENTS}.work_order_id`, '=', `${ORDERS}.id`)
+          .on(`${ASSIGNMENTS}.role`, '=', 'coordinator')
+          .on(`${ASSIGNMENTS}.deleted_at`, 'is', null),
+      )
+      .select(`${ASSIGNMENTS}.user_id as id`)
+      .distinct()
+      .where(`${ASSIGNMENTS}.user_id`, 'in', ids)
+      .where(visibleWorkOrders(principal))
+      .where(inScope(scope))
+      .execute();
+    return new Set(rows.map((row) => row.id));
+  }
+
   #projection(tx: Kysely<Database>) {
     return workOrderTables(tx)
       .selectFrom(ORDERS)
@@ -104,5 +152,57 @@ export class WorkOrderSyncSourceService implements WorkOrderSyncSource {
         `${ORDERS}.created_at as createdAt`,
         `${ORDERS}.closed_at as closedAt`,
       ]);
+  }
+}
+
+const ITEMS = 'work_orders.scope_items';
+
+/** The scope items for the phone (see `../system-ports.ts`): the listed columns, no `created_by`, `updated_by` or `deleted_by`. */
+export class ScopeItemSyncSourceService implements ScopeItemSyncSource {
+  async anchorsOf(tx: Kysely<Database>, ids: readonly string[]): Promise<ReadonlyMap<string, SyncChildAnchor>> {
+    if (ids.length === 0) return new Map();
+    const rows = await workOrderTables(tx)
+      .selectFrom(ITEMS)
+      .select([`${ITEMS}.id as id`, `${ITEMS}.work_order_id as workOrderId`, `${ITEMS}.deleted_at as deletedAt`])
+      .where(`${ITEMS}.id`, 'in', ids)
+      .execute();
+    return new Map(rows.map((row) => [row.id, { workOrderId: row.workOrderId, state: row.deletedAt === null ? 'live' : 'deleted' }]));
+  }
+
+  async liveOf(
+    tx: Kysely<Database>,
+    ids: readonly string[],
+    workOrderIds: readonly string[],
+  ): Promise<ReadonlyMap<string, SyncScopeItemProjection>> {
+    if (ids.length === 0 || workOrderIds.length === 0) return new Map();
+    const rows = await this.#select(tx).where(`${ITEMS}.id`, 'in', ids).where(`${ITEMS}.work_order_id`, 'in', workOrderIds).execute();
+    return new Map(rows.map((row) => [row.id, row]));
+  }
+
+  async ofOrders(tx: Kysely<Database>, workOrderIds: readonly string[]): Promise<readonly SyncScopeItemProjection[]> {
+    if (workOrderIds.length === 0) return [];
+    return this.#select(tx)
+      .where(`${ITEMS}.work_order_id`, 'in', workOrderIds)
+      .orderBy(`${ITEMS}.work_order_id`)
+      .orderBy(`${ITEMS}.position`)
+      .execute();
+  }
+
+  #select(tx: Kysely<Database>) {
+    return workOrderTables(tx)
+      .selectFrom(ITEMS)
+      .select([
+        `${ITEMS}.id as id`,
+        `${ITEMS}.version as version`,
+        `${ITEMS}.work_order_id as workOrderId`,
+        `${ITEMS}.position as position`,
+        `${ITEMS}.code as code`,
+        `${ITEMS}.name as name`,
+        `${ITEMS}.parameter_set_code as parameterSetCode`,
+        `${ITEMS}.parameters as parameters`,
+        `${ITEMS}.quantity as quantity`,
+        `${ITEMS}.notes as notes`,
+      ])
+      .where(`${ITEMS}.deleted_at`, 'is', null);
   }
 }

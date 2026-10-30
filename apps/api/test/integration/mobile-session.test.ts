@@ -356,7 +356,7 @@ describe('the role matrix of the new operations (EVM-094 AC8; SR-AUTHZ-01, SR-AU
         offlineContactWindowDays: 7,
         closedWorkOrdersInScopeDays: 30,
         periodicResyncDays: 7,
-        scopeRuleVersion: 1,
+        scopeRuleVersion: 292,
       });
       noCookies(response);
     }

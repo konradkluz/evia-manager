@@ -66,9 +66,11 @@ export interface SyncSettings {
   /** Closed orders stay in the scope of the phone for this many days (N). */
   readonly closedOrdersInScopeDays: number;
   readonly periodicResyncDays: number;
-  /** Version of the rule of scope: raised by the operator whenever N or the set of types changes (the phones then resync). */
+  /** The operator's counter of the rule of scope: part of the derived version (`effectiveScopeRuleVersion`, which N and the set of types also change); raising it makes the phones resync. */
   readonly scopeRuleVersion: number;
   readonly fullDownloadsPerDay: number;
+  /** Snapshots of an order (`GET /api/v1/sync/work-orders/{id}`) per device per hour (SR-API-02); the next one is `429`. */
+  readonly snapshotsPerHour: number;
   /** The page is closed before the serialised answer exceeds this many bytes. */
   readonly pageMaxBytes: number;
 }
@@ -177,8 +179,9 @@ const schema = z
     SYNC_CURSOR_KEYS: fieldEncryptionKeys,
     SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
     SYNC_PERIODIC_RESYNC_DAYS: z.coerce.number().int().min(1).max(90).default(7),
-    SYNC_SCOPE_RULE_VERSION: z.coerce.number().int().min(1).max(1_000_000).default(1),
+    SYNC_SCOPE_RULE_VERSION: z.coerce.number().int().min(1).max(100_000).default(1),
     SYNC_FULL_DOWNLOADS_PER_DAY: z.coerce.number().int().min(1).max(100).default(3),
+    SYNC_SNAPSHOTS_PER_HOUR: z.coerce.number().int().min(1).max(10_000).default(120),
     SYNC_PAGE_MAX_BYTES: z.coerce.number().int().min(10_000).max(1_000_000).default(900_000),
     // Empty (an image built without the argument, the example file) is the same as absent.
     EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
@@ -336,6 +339,7 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
       periodicResyncDays: value.SYNC_PERIODIC_RESYNC_DAYS,
       scopeRuleVersion: value.SYNC_SCOPE_RULE_VERSION,
       fullDownloadsPerDay: value.SYNC_FULL_DOWNLOADS_PER_DAY,
+      snapshotsPerHour: value.SYNC_SNAPSHOTS_PER_HOUR,
       pageMaxBytes: value.SYNC_PAGE_MAX_BYTES,
     },
   };

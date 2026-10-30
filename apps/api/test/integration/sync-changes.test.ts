@@ -2,6 +2,7 @@ import { assertSyncProjectionStrict } from '@evia/contracts/sync';
 import { Kysely, PostgresDialect, sql } from 'kysely';
 import { afterEach, describe, expect, it } from 'vitest';
 import { KeyRingCursorCodec } from '../../src/platform/crypto/key-ring-cursor.ts';
+import { effectiveScopeRuleVersion } from '../../src/platform/sync/scope-rule.ts';
 import type { AppConfig } from '../../src/platform/config/config.ts';
 import { createPool, type Database } from '../../src/platform/database/database.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
@@ -120,13 +121,19 @@ async function markSynced(deviceId: string, at: Date, reason: string | null = nu
 const syncRing = () => current.app.get<AppConfig>(APP_CONFIG, { strict: false }).sync.cursorKeys;
 const forge = (claims: object, at: Date = current.clock.now(), keys = syncRing()): string =>
   new KeyRingCursorCodec(keys, new FixedClock(at)).seal(OPERATION, claims);
+/** The version of the rule of scope the server in the test derives (EVM-097 AC6: from N, the counter of the operator and the set of types). */
+const scopeVersion = (): number => {
+  const { sync } = current.app.get<AppConfig>(APP_CONFIG, { strict: false });
+  return effectiveScopeRuleVersion({ configured: sync.scopeRuleVersion, closedDays: sync.closedOrdersInScopeDays });
+};
 const changesClaims = (account: TotpAccount, phone: Phone, extra: Record<string, unknown> = {}) => ({
   ph: 'changes',
   tx: '1',
   sq: '0',
   u: account.user.id,
   d: phone.deviceId,
-  sv: 1,
+  sv: scopeVersion(),
+  r: 'editor',
   ...extra,
 });
 const counter = (name: string, labels: Record<string, string> = {}): number =>
@@ -590,7 +597,8 @@ describe('the cursor: every way it can be unusable (EVM-096 AC3, AC6; ADR-0021 D
           dl: '0193a000-0000-7000-8000-000000000001',
           u: account.user.id,
           d: phone.deviceId,
-          sv: 1,
+          sv: scopeVersion(),
+          r: 'editor',
         }),
         status: 200,
         reason: 'cursor_invalid',

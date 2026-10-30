@@ -37,6 +37,11 @@ export interface SyncSiteProjection {
 }
 
 export interface SiteSyncSource {
+  /** Which live sites name one of the parties among `ids` as the manager or the operator of the network: the party and the site (ONE query, EVM-097). */
+  partyReferences(
+    tx: Kysely<Database>,
+    ids: readonly string[],
+  ): Promise<ReadonlyArray<{ readonly partyId: string; readonly siteId: string }>>;
   /** The state of every site among `ids` that exists (ONE query for the content, ONE for the deleted ones); the caller applies the scope. */
   statesOf(
     tx: Kysely<Database>,

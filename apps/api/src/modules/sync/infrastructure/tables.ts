@@ -39,10 +39,18 @@ export interface FullDownloadsTable {
   site_count: Generated<number>;
 }
 
+export interface SnapshotRequestsTable {
+  device_id: string;
+  window_start: Date;
+  request_count: number;
+  alerted: Generated<boolean>;
+}
+
 export type SyncTables = {
   'sync.change_log': ChangeLogTable;
   'sync.device_sync_state': DeviceSyncStateTable;
   'sync.full_downloads': FullDownloadsTable;
+  'sync.snapshot_requests': SnapshotRequestsTable;
 };
 
 export type SyncDb = Kysely<SyncTables>;

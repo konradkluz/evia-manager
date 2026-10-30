@@ -26,6 +26,8 @@ import { ReadEntryService } from './application/read-entry.service.ts';
 import { RedactEntryService } from './application/redact-entry.service.ts';
 import { RestoreEntryService } from './application/restore-entry.service.ts';
 import { TimelineController } from './http/timeline.controller.ts';
+import { TimelineEntrySyncSourceService } from './infrastructure/sync-source.ts';
+import { TIMELINE_ENTRY_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [IdentityModule, PartiesModule, WorkOrdersModule, ProceduresModule, PaymentsModule],
@@ -39,6 +41,8 @@ import { TimelineController } from './http/timeline.controller.ts';
     DeleteEntryService,
     RestoreEntryService,
     RedactEntryService,
+    { provide: TIMELINE_ENTRY_SYNC_SOURCE, useClass: TimelineEntrySyncSourceService },
   ],
+  exports: [TIMELINE_ENTRY_SYNC_SOURCE],
 })
 export class TimelineModule {}
