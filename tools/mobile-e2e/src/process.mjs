@@ -123,6 +123,10 @@ export function realHost(repoRoot) {
     writeText: (path, text) => {
       writeFileSync(path, text);
     },
+    readBytes: (path) => (existsSync(path) ? readFileSync(path) : null),
+    removeFile: (path) => {
+      rmSync(path, { force: true });
+    },
     makeDirectory: (path) => {
       mkdirSync(path, { recursive: true });
     },

@@ -18,10 +18,17 @@ export function scanLogcat(logcat) {
 }
 
 /**
- * @typedef {{ scenario: string, flow: string, status: 'passed' | 'failed' | 'skipped', seconds: number, attempts?: 1 | 2 }} Result
+ * @typedef {{
+ *   scenario: string,
+ *   flow: string,
+ *   status: 'passed' | 'failed' | 'skipped',
+ *   seconds: number,
+ *   attempts?: 1 | 2,
+ *   checks?: import('./device.mjs').Check[],
+ * }} Result
  * @typedef {{
  *   date: string,
- *   device: { serial: string, apiLevel: string, androidRelease: string, model: string },
+ *   device: { serial: string, apiLevel: string, androidRelease: string, model: string, buildType?: string },
  *   maestroVersion: string,
  *   appVersion: string,
  *   results: Result[],
@@ -46,7 +53,10 @@ export function buildReport(evidence) {
   return [
     `# Maestro smoke test — ${evidence.date}`,
     '',
-    `- Emulator: ${evidence.device.model}, Android ${evidence.device.androidRelease} (API ${evidence.device.apiLevel}), ${evidence.device.serial}`,
+    `- Emulator: ${evidence.device.model}, Android ${evidence.device.androidRelease} (API ${evidence.device.apiLevel}), ${evidence.device.serial}` +
+      (evidence.device.buildType === undefined || evidence.device.buildType === ''
+        ? ''
+        : `, ${evidence.device.buildType} build (${evidence.device.buildType === 'user' ? 'Google Play image, no adb root' : 'adb root possible'})`),
     `- Maestro: ${evidence.maestroVersion}`,
     `- Application version in the build: ${evidence.appVersion}`,
     `- Result: ${String(passed)} passed, ${String(failed)} failed, ${String(evidence.results.length - passed - failed)} skipped`,
@@ -61,7 +71,20 @@ export function buildReport(evidence) {
     '| --- | --- | --- | --- |',
     ...rows,
     '',
+    ...deviceStepRows(evidence.results),
   ].join('\n');
+}
+
+/**
+ * The device steps of EVM-093 (adb run-as, backup, restart) with their verdicts: counts and codes only.
+ * @param {Result[]} results
+ * @returns {string[]}
+ */
+function deviceStepRows(results) {
+  const rows = results.flatMap((result) =>
+    (result.checks ?? []).map((check) => `| ${result.flow} | ${check.action} | ${check.ok ? 'ok' : 'FAILED'} | ${check.detail} |`),
+  );
+  return rows.length === 0 ? [] : ['| Flow | Device step | Result | Detail |', '| --- | --- | --- | --- |', ...rows, ''];
 }
 
 /** @param {Evidence} evidence @returns {boolean} true when every flow passed and the compatibility headers were sent */

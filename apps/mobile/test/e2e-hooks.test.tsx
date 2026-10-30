@@ -119,7 +119,7 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     await tap('e2e-append');
     await expectStatus('open=unlocked;appended=1;queue=20');
     await tap('e2e-facts');
-    await expectStatus('open=yes;cipher_version=4.17.0 community;temp_store=2;queue=20');
+    await expectStatus('open=yes;cipher_version=4.17.0 community;temp_store=2;wipe_pending=no;queue=20');
     expect(status()).not.toContain(sentinel());
   });
 
@@ -168,6 +168,7 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     await opened({ ...deps, host: boot(device).host });
     await tap('e2e-login-a');
     expect(screen.getByTestId('local-data-lost')).toBeOnTheScreen();
+    await expectStatus('open=data_lost;reason=key_missing');
     await tap('local-data-lost-ack');
     await expectStatus('open=unlocked;queue=0;identity=new;pull=first');
   });
@@ -205,7 +206,7 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     await tap('e2e-login-a');
     await expectStatus('open=update_required');
     await tap('e2e-facts');
-    await expectStatus('open=no;cipher_version=none;temp_store=none;queue=locked');
+    await expectStatus('open=no;cipher_version=none;temp_store=none;wipe_pending=no;queue=locked');
   });
 
   it('EVM-093 AC1: synthetic records belong to the given user and carry the sentinel in the payload only', () => {

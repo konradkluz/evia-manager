@@ -1,0 +1,66 @@
+# EVM-093 AC5: the wrapped key is deleted (hook); on the next start the sign-in finds the file without its key (key_missing),
+# shows the one blocking message, and only "Rozumiem" creates a new database for a new device.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '3'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=3;queue=3'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-delete-key'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'key=deleted'
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'local-data-lost'
+    timeout: 30000
+- assertVisible: 'Dane zapisane na tym telefonie, które nie zostały wysłane, są niedostępne.'
+- assertVisible: 'Dane zleceń pobierzemy ponownie.'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=data_lost;reason=key_missing'
+    timeout: 30000
+- tapOn:
+    id: 'local-data-lost-ack'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000

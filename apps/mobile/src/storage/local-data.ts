@@ -77,6 +77,8 @@ export interface StoreFacts {
   readonly open: boolean;
   readonly cipherVersion: string | null;
   readonly tempStore: number | null;
+  /** The wipe marker is present (an unfinished wipe); `null` when the marker cannot be read. */
+  readonly wipePending: boolean | null;
 }
 
 type Opened = { readonly ok: true; readonly db: Database } | { readonly ok: false; readonly code: StorageErrorCode | 'update_required' };
@@ -325,8 +327,12 @@ export class LocalDataHost {
 
   /** EVM-093 AC1 (e2e diagnostics): cipher version and temp_store of the open database; nothing is opened or created here. */
   async facts(): Promise<StoreFacts> {
+    const wipePending = await this.#deps.files.read(WIPE_MARKER_FILE).then(
+      (marker) => marker !== null,
+      () => null,
+    );
     const db = this.#db;
-    if (db === null || db.closed) return { open: false, cipherVersion: null, tempStore: null };
+    if (db === null || db.closed) return { open: false, cipherVersion: null, tempStore: null, wipePending };
     return db.read(async (tx) => {
       const version = (await tx.get('PRAGMA cipher_version'))?.['cipher_version'];
       const tempStore = Number((await tx.get('PRAGMA temp_store'))?.['temp_store']);
@@ -334,6 +340,7 @@ export class LocalDataHost {
         open: true,
         cipherVersion: typeof version === 'string' ? version : null,
         tempStore: Number.isFinite(tempStore) ? tempStore : null,
+        wipePending,
       };
     });
   }

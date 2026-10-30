@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { deflateSync } from 'node:zlib';
 import { runE2e } from '../src/run.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
 
@@ -51,6 +52,9 @@ function fakeMachine({
   let stubPort = 0;
   const apk = join('/repo', 'apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
   let built = false;
+  let appRunning = false;
+  /** @type {string[]} */
+  const removed = [];
 
   const host = /** @type {import('../src/run.mjs').Host} */ ({
     repoRoot: '/repo',
@@ -61,6 +65,10 @@ function fakeMachine({
     exists: (path) => (exists === undefined ? path !== apk || built : exists(path)),
     writeText: (path, text) => {
       written[path] = text;
+    },
+    readBytes: () => Buffer.concat([Buffer.from('ANDROID BACKUP\n5\n1\nnone\n'), deflateSync(Buffer.alloc(1024))]),
+    removeFile: (path) => {
+      removed.push(path);
     },
     makeDirectory: () => undefined,
     resetDirectory: (path) => {
@@ -93,11 +101,28 @@ function fakeMachine({
         if (joined.endsWith('ro.build.version.sdk')) return { status: 0, stdout: '35\n', stderr: '' };
         if (joined.endsWith('ro.build.version.release')) return { status: 0, stdout: '15\n', stderr: '' };
         if (joined.endsWith('ro.product.model')) return { status: 0, stdout: 'sdk_gphone64_x86_64\n', stderr: '' };
-        if (joined.endsWith(`pidof pl.eviacharge.manager`)) return { status: 0, stdout: `${pid}\n`, stderr: '' };
+        if (joined.endsWith(`pidof pl.eviacharge.manager`)) return { status: 0, stdout: appRunning ? `${pid}\n` : '', stderr: '' };
+        // EVM-093 device steps (src/device.mjs)
+        if (joined.includes('am force-stop') || joined.includes('kill -9')) appRunning = false;
+        if (joined.includes(' od -A n ')) return { status: 0, stdout: ' 8a 11 52 c0 9d 3e 77 01 aa 5b 42 19 e0 33 6c 0f\n', stderr: '' };
+        if (joined.includes(' stat -c ')) return { status: 0, stdout: '32768\n', stderr: '' };
+        if (joined.includes('grep -r -l -a') || joined.includes('ls -d /sdcard')) return { status: 1, stdout: '', stderr: '' };
+        if (joined.endsWith('bmgr enabled')) return { status: 0, stdout: 'Backup Manager currently enabled\n', stderr: '' };
+        if (joined.endsWith('bmgr list transports'))
+          return {
+            status: 0,
+            stdout: '    com.android.localtransport/.LocalTransport\n  * com.google.android.gms/.backup.BackupTransportService\n',
+            stderr: '',
+          };
+        if (joined.endsWith('backupnow com.android.providers.settings'))
+          return { status: 0, stdout: 'Package com.android.providers.settings with result: Success\n', stderr: '' };
+        if (joined.endsWith('backupnow pl.eviacharge.manager'))
+          return { status: 0, stdout: 'Package pl.eviacharge.manager with result: Backup is not allowed\n', stderr: '' };
         if (joined.includes('logcat')) return { status: 0, stdout: 'I/app: started\nI/app: health checked\n', stderr: '' };
         return { status: 0, stdout: '', stderr: '' };
       }
       if (joined.includes('GradleWrapperMain')) built = true;
+      if (joined.includes('maestro.cli.AppKt') && args.includes('test')) appRunning = true;
       if (joined.endsWith('--version')) return { status: 0, stdout: 'update available\n2.11.0\n', stderr: '' };
       return { status: 0, stdout: '', stderr: '' };
     },
@@ -143,6 +168,7 @@ function fakeMachine({
     resets,
     collected,
     detached,
+    removed,
     isClosed: () => closed,
     stubPort: () => stubPort,
     maestroFlows: () =>
@@ -209,7 +235,7 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     const report = machine.written[join('/repo', '.scratch', 'mobile-e2e', 'report.md')];
     assert.match(report ?? '', /API 35/);
     assert.match(report ?? '', /Maestro: 2\.11\.0/);
-    assert.match(report ?? '', /7 passed, 0 failed, 0 skipped/);
+    assert.match(report ?? '', new RegExp(`${String(ALL_FLOWS.length)} passed, 0 failed, 0 skipped`));
     assert.ok(machine.logs.some((line) => line.includes('Maestro smoke test')));
   });
 
@@ -283,8 +309,9 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
   it('EVM-009 AC4: without a running emulator the AVD is started and awaited, once', async () => {
     const machine = fakeMachine({ devices: [DEVICES_NONE, DEVICES_NONE, DEVICES_ONE] });
     assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...machine.host, exists: () => true }), 0);
-    assert.equal(machine.detached.length, 1);
-    assert.deepEqual(machine.detached[0]?.args, ['-avd', 'Medium_Phone_API_35', '-no-snapshot-save', '-no-boot-anim']);
+    const emulators = machine.detached.filter((entry) => entry.command.includes('emulator'));
+    assert.equal(emulators.length, 1);
+    assert.deepEqual(emulators[0]?.args, ['-avd', 'Medium_Phone_API_35', '-no-snapshot-save', '-no-boot-anim']);
   });
 
   it('EVM-009 AC4: a second emulator appearing while the first starts is a refusal', async () => {

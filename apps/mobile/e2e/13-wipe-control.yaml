@@ -1,0 +1,25 @@
+# EVM-093 AC6: positive control of the probe: a copy of the CURRENT database opens with the current key (the refusal above
+# is not an artefact of copying).
+appId: pl.eviacharge.manager
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-b'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=kept;pull=no'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-probe'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'probe=opened'
+    timeout: 30000

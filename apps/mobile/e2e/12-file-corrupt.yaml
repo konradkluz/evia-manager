@@ -1,0 +1,29 @@
+# EVM-093 AC5: the key matches its check value but the file is damaged (file_corrupt): the same blocking message, then a new
+# database for a new device after "Rozumiem".
+appId: pl.eviacharge.manager
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'local-data-lost'
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=data_lost;reason=file_corrupt'
+    timeout: 30000
+- tapOn:
+    id: 'local-data-lost-ack'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000

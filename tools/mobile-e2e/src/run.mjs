@@ -20,6 +20,7 @@ import {
   prebuildCommand,
   toolPaths,
 } from './commands.mjs';
+import { runDeviceAction } from './device.mjs';
 import { checkPreflight } from './preflight.mjs';
 import { buildReport, isGreen, scanLogcat } from './report.mjs';
 import { BACKGROUND_WAIT_MS, NETWORK_RESTORE_WAIT_MS, SCENARIOS } from './scenarios.mjs';
@@ -37,6 +38,8 @@ const BOOT_POLL_MS = 2000;
  *   execPath: string,
  *   exists: (path: string) => boolean,
  *   writeText: (path: string, text: string) => void,
+ *   readBytes: (path: string) => Buffer | null,
+ *   removeFile: (path: string) => void,
  *   makeDirectory: (path: string) => void,
  *   resetDirectory: (path: string) => void,
  *   collectScreenshots: (source: string, targets: string[]) => string[],
@@ -111,6 +114,22 @@ export async function runE2e({ skipBuild, port }, host) {
   let airplane = false;
   /** @type {import('./report.mjs').Result[]} */
   const results = [];
+  /** @type {import('./device.mjs').DeviceContext} */
+  const device = {
+    adb: (...args) => adb(...adbArgs(serial, ...args)),
+    startAdb: (...args) => {
+      host.startDetached(tools.adb, adbArgs(serial, ...args), { env });
+    },
+    sleep: (ms) => host.sleep(ms),
+    readBytes: (path) => host.readBytes(path),
+    removeFile: (path) => {
+      host.removeFile(path);
+    },
+    // the adb backup archive of EVM-093 AC4 stays in .scratch and is removed right after its check (security K7)
+    backupFile: join(reportDirectory, 'evm093-backup.ab'),
+  };
+  /** after a restart of the emulator Maestro installs its driver again: the next flow may be retried once */
+  let rebooted = false;
   /** @type {import('./report.mjs').Evidence['logcat'] | undefined} */
   let logcat;
   try {
@@ -137,6 +156,18 @@ export async function runE2e({ skipBuild, port }, host) {
           await host.sleep(NETWORK_RESTORE_WAIT_MS);
         }
         const started = host.now();
+        /** @type {import('./device.mjs').Check[]} */
+        const checks = [];
+        for (const action of step.before ?? []) {
+          const check = await runDeviceAction(action, device);
+          checks.push(check);
+          if (!check.ok) break;
+        }
+        if (checks.some((check) => !check.ok)) {
+          failed = true;
+          results.push({ scenario: scenario.name, flow: step.flow, status: 'failed', seconds: (host.now() - started) / 1000, checks });
+          continue;
+        }
         const command = maestroCommand({
           java: tools.java,
           classpath: tools.maestroClasspath,
@@ -148,13 +179,28 @@ export async function runE2e({ skipBuild, port }, host) {
         let outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
         /** @type {1 | 2} */
         let attempts = 1;
-        if (outcome.status !== 0 && results.length === 0) {
-          // The very first Maestro connection to a fresh emulator installs the driver and can fail once; later flows are not retried.
-          host.log(`MAESTRO: the first flow ${step.flow} failed, one retry (driver installation on a fresh emulator)`);
+        if (outcome.status !== 0 && (results.length === 0 || rebooted)) {
+          // The very first Maestro connection to a fresh (or restarted) emulator installs the driver and can fail once.
+          host.log(`MAESTRO: the flow ${step.flow} failed on a fresh emulator, one retry (driver installation)`);
           outcome = host.run(command.command, command.args, { cwd: appDirectory, env, stream: true });
           attempts = 2;
         }
-        const passed = outcome.status === 0;
+        rebooted = false;
+        let passed = outcome.status === 0;
+        if (passed) {
+          for (const action of step.after ?? []) {
+            const check = await runDeviceAction(action, device);
+            checks.push(check);
+            if (action === 'reboot') {
+              rebooted = true;
+              airplane = false;
+            }
+            if (!check.ok) {
+              passed = false;
+              break;
+            }
+          }
+        }
         failed = !passed;
         results.push({
           scenario: scenario.name,
@@ -162,6 +208,7 @@ export async function runE2e({ skipBuild, port }, host) {
           status: passed ? 'passed' : 'failed',
           seconds: (host.now() - started) / 1000,
           attempts,
+          ...(checks.length === 0 ? {} : { checks }),
         });
       }
     }
@@ -276,6 +323,7 @@ function deviceInfo(adb, serial) {
     apiLevel: prop('ro.build.version.sdk'),
     androidRelease: prop('ro.build.version.release'),
     model: prop('ro.product.model'),
+    buildType: prop('ro.build.type'),
   };
 }
 

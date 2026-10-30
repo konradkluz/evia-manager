@@ -1,0 +1,43 @@
+# EVM-093 AC3: 19 entries, then one more; the status shows the count only after every append resolved (the write is durable),
+# and only then tools/mobile-e2e stops the app (am force-stop right after the confirmation).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '19'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=19;queue=19'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '1'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=1;queue=20'
+    timeout: 30000

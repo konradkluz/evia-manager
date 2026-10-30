@@ -163,6 +163,7 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
       open: found.open ? 'yes' : 'no',
       cipher_version: found.cipherVersion ?? 'none',
       temp_store: found.tempStore ?? 'none',
+      wipe_pending: found.wipePending === null ? 'unknown' : found.wipePending ? 'yes' : 'no',
       queue: store.current === null ? 'locked' : await store.current.unsentItemCount(),
     });
   });
@@ -179,6 +180,9 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
             await report(await lost.acknowledge());
           })}
         />
+        <Text testID="e2e-status" style={{ ...text.body, color: color.text.secondary, padding: space.inset.sm }}>
+          {statusLine(status)}
+        </Text>
       </View>
     );
 

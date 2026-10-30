@@ -41,9 +41,13 @@ function unlocked(result: OpenResult): UnlockedStore {
 describe('ports of the e2e hooks (EVM-093 AC1, AC6)', () => {
   it('EVM-093 AC1: facts report the cipher version and temp_store of the open database, and nothing before it is opened', async () => {
     const { host } = boot(device);
-    expect(await host.facts()).toEqual({ open: false, cipherVersion: null, tempStore: null });
+    expect(await host.facts()).toEqual({ open: false, cipherVersion: null, tempStore: null, wipePending: false });
     unlocked(await host.openForUser(USER_A));
-    expect(await host.facts()).toEqual({ open: true, cipherVersion: '4.17.0 community', tempStore: 2 });
+    expect(await host.facts()).toEqual({ open: true, cipherVersion: '4.17.0 community', tempStore: 2, wipePending: false });
+    device.files.set(WIPE_MARKER_FILE, '1');
+    expect((await host.facts()).wipePending).toBe(true);
+    device.fail.set(`files.read:${WIPE_MARKER_FILE}`, { after: false, sticky: false });
+    expect((await host.facts()).wipePending).toBeNull();
   });
 
   it('EVM-093 AC6: a copy taken before the wipe does not open with the new key (code only), the current file does (positive control)', async () => {

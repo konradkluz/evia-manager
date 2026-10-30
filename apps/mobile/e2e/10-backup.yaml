@@ -1,0 +1,8 @@
+# EVM-093 AC4: tools/mobile-e2e has checked Auto Backup through the local transport (bmgr) and started adb backup; this flow
+# confirms the backup on the device. The archive must hold no entry of the app data (adb-backup-check).
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    visible: 'Back up my data'
+    timeout: 30000
+- tapOn: 'Back up my data'

@@ -1,0 +1,30 @@
+# EVM-093 AC5: a database with 3 entries; tools/mobile-e2e then stops the app and zeroes the first page (corrupt-db).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '3'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=3;queue=3'
+    timeout: 30000
