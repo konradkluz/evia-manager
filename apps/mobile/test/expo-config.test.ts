@@ -62,10 +62,12 @@ describe('Expo configuration of the build (EVM-009 AC3, AC5, AC6)', () => {
   });
 
   it('EVM-093 AC1: a build with another public variable (e.g. a switch of the e2e hooks) fails: hooks are chosen by Metro, never by EXPO_PUBLIC_*', () => {
-    for (const name of ['EXPO_PUBLIC_EVIA_E2E_HOOKS', 'EXPO_PUBLIC_DEBUG']) {
+    for (const name of ['EXPO_PUBLIC_EVIA_E2E_HOOKS', 'EXPO_PUBLIC_EVIA_DEBUG']) {
       expect(() => buildExpoConfig({ ...releaseEnv, [name]: '1' })).toThrow(new RegExp(`${name} is not allowed in the release build`));
       expect(() => buildExpoConfig({ ...releaseEnv, EVIA_BUILD_VARIANT: 'e2e', [name]: '1' })).toThrow(/e2e build/);
     }
+    // variables of Expo itself (set by the CLI while it reads the config) are not a switch of the app
+    expect(() => buildExpoConfig({ ...releaseEnv, EXPO_PUBLIC_PROJECT_ROOT: '/app' })).not.toThrow();
     // an empty value is not set (a CI variable may exist and be empty)
     expect(() => buildExpoConfig({ ...releaseEnv, EXPO_PUBLIC_EVIA_E2E_HOOKS: '' })).not.toThrow();
   });

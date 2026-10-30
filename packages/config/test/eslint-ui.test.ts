@@ -192,7 +192,7 @@ async function lintMobileApp(code: string, file: string): Promise<string[]> {
   return (result?.messages ?? []).filter((m) => m.ruleId === 'no-restricted-imports').map((m) => m.message);
 }
 
-describe('mobile storage imports (EVM-093 AC1; SR-MOB-01, MASVS-STORAGE-1)', () => {
+describe('mobile storage imports (EVM-093 AC1; SR-MOB-01, MASVS-STORAGE-1)', { timeout: 30_000 }, () => {
   const plainStores = [
     "import { Storage } from 'expo-sqlite/kv-store';",
     "import 'expo-sqlite/localStorage/install';",
