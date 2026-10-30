@@ -66,6 +66,19 @@ export type OpenResult =
   /** An interrupted wipe could not be finished yet; it is retried on every start ("Kończymy czyszczenie…"). */
   | { readonly kind: 'wipe_incomplete' };
 
+/**
+ * Fault of the e2e hooks (EVM-093 AC6, scenario 13): the named wipe step fails once AFTER it ran, as if the process died there. Only
+ * the e2e hooks set it (src/e2e-hooks/panel.tsx, bundled in the e2e variant only); no configuration of the app reaches it.
+ */
+export const wipeFaultForE2e: { afterStep: string | null } = { afterStep: null };
+
+/** Read-only facts of the open database for the e2e diagnostics (EVM-093 AC1): no key, no path, no content. */
+export interface StoreFacts {
+  readonly open: boolean;
+  readonly cipherVersion: string | null;
+  readonly tempStore: number | null;
+}
+
 type Opened = { readonly ok: true; readonly db: Database } | { readonly ok: false; readonly code: StorageErrorCode | 'update_required' };
 
 const OWNER_KEY = 'owner_user_id';
@@ -220,10 +233,10 @@ export class LocalDataHost {
    * Opening sequence (architecture review 2, security 5/8): key → cipher check → key test → integrity → versions; writing PRAGMAs and
    * migrations only after the version check. A newer file is left read-only and closed.
    */
-  async #open(hex: string): Promise<Opened> {
+  async #open(hex: string, engine: SqlEngine = this.#deps.engine): Promise<Opened> {
     let connection;
     try {
-      connection = await this.#deps.engine.open();
+      connection = await engine.open();
     } catch (error) {
       return { ok: false, code: toStorageError(error).code };
     }
@@ -310,6 +323,34 @@ export class LocalDataHost {
     };
   }
 
+  /** EVM-093 AC1 (e2e diagnostics): cipher version and temp_store of the open database; nothing is opened or created here. */
+  async facts(): Promise<StoreFacts> {
+    const db = this.#db;
+    if (db === null || db.closed) return { open: false, cipherVersion: null, tempStore: null };
+    return db.read(async (tx) => {
+      const version = (await tx.get('PRAGMA cipher_version'))?.['cipher_version'];
+      const tempStore = Number((await tx.get('PRAGMA temp_store'))?.['temp_store']);
+      return {
+        open: true,
+        cipherVersion: typeof version === 'string' ? version : null,
+        tempStore: Number.isFinite(tempStore) ? tempStore : null,
+      };
+    });
+  }
+
+  /**
+   * EVM-093 AC6 (e2e proof that an old file is unrecoverable): opens ANOTHER file with the current key by the same opening sequence and
+   * closes it again. Answers a code only; the database of the host is untouched.
+   */
+  async probe(engine: SqlEngine): Promise<'opened' | StorageErrorCode | 'update_required'> {
+    const key = await this.#deps.vault.read().catch(() => ({ kind: 'unavailable' }) as const);
+    if (key.kind !== 'present') return 'key_unavailable';
+    const opened = await this.#open(key.hex, engine);
+    if (!opened.ok) return opened.code;
+    await opened.db.close();
+    return 'opened';
+  }
+
   /**
    * Unsent items = entries of the queue (pending, retrying, blocked and "Wymaga uwagi" — all of them are queue entries; objects created
    * on the phone are derived from the queue, offline-sync.md) + registered sources (pending files, E11). Only a number leaves here.
@@ -368,6 +409,10 @@ export class LocalDataHost {
     for (const step of this.#steps()) {
       try {
         await step.run();
+        if (wipeFaultForE2e.afterStep === step.name) {
+          wipeFaultForE2e.afterStep = null;
+          throw new StorageError('file_unavailable');
+        }
       } catch {
         this.#deps.diagnostics({ event: 'wipe-step-failed', step: step.name });
         return 'incomplete';

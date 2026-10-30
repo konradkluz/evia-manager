@@ -12,27 +12,34 @@ import type { SqlConnection, SqlEngine } from './sql';
 export const DATABASE_NAME = 'evia.db';
 const SIDECARS = ['', '-wal', '-shm', '-journal'] as const;
 
-const fileOf = (suffix: string): File => new File(`file://${String(defaultDatabaseDirectory)}`, `${DATABASE_NAME}${suffix}`);
+/** Name of the copy that the e2e scenario 13 takes with `run-as cp` before the wipe (EVM-093 AC6); used by the e2e hooks only. */
+export const E2E_COPY_NAME = 'evia-copy.db';
 
-export const expoSqliteEngine: SqlEngine = {
-  exists: () => Promise.resolve(fileOf('').exists),
+/** The engine of one database file in the default internal directory (`files/SQLite`). */
+export function createExpoSqliteEngine(name: string = DATABASE_NAME): SqlEngine {
+  const fileOf = (suffix: string): File => new File(`file://${String(defaultDatabaseDirectory)}`, `${name}${suffix}`);
+  return {
+    exists: () => Promise.resolve(fileOf('').exists),
 
-  async open(): Promise<SqlConnection> {
-    const db = await openDatabaseAsync(DATABASE_NAME);
-    return {
-      exec: (sql) => db.execAsync(sql),
-      run: async (sql, params) => (await db.runAsync(sql, [...params])).changes,
-      all: (sql, params) => db.getAllAsync<Record<string, unknown>>(sql, [...params]),
-      close: () => db.closeAsync(),
-    };
-  },
+    async open(): Promise<SqlConnection> {
+      const db = await openDatabaseAsync(name);
+      return {
+        exec: (sql) => db.execAsync(sql),
+        run: async (sql, params) => (await db.runAsync(sql, [...params])).changes,
+        all: (sql, params) => db.getAllAsync<Record<string, unknown>>(sql, [...params]),
+        close: () => db.closeAsync(),
+      };
+    },
 
-  /** Main file and sidecars one by one (expo-sqlite's deleteDatabaseAsync fails when only a sidecar is left after a crash). */
-  remove(): Promise<void> {
-    for (const suffix of SIDECARS) {
-      const file = fileOf(suffix);
-      if (file.exists) file.delete();
-    }
-    return Promise.resolve();
-  },
-};
+    /** Main file and sidecars one by one (expo-sqlite's deleteDatabaseAsync fails when only a sidecar is left after a crash). */
+    remove(): Promise<void> {
+      for (const suffix of SIDECARS) {
+        const file = fileOf(suffix);
+        if (file.exists) file.delete();
+      }
+      return Promise.resolve();
+    },
+  };
+}
+
+export const expoSqliteEngine: SqlEngine = createExpoSqliteEngine();

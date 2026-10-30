@@ -69,7 +69,32 @@ describe('security and design rules of the app source (EVM-009 AC1, AC6)', () =>
       ),
     ).toEqual([]);
     const driver = read(join(APP, 'src', 'storage', 'expo-sqlite-driver.ts'));
-    expect([...driver.matchAll(/openDatabaseAsync\(([^)]*)\)/g)].map((m) => m[1])).toEqual(['DATABASE_NAME']);
+    // one argument (no options, no custom directory); the name is the app database or the e2e copy of scenario 13
+    expect([...driver.matchAll(/openDatabaseAsync\(([^)]*)\)/g)].map((m) => m[1])).toEqual(['name']);
+    const sources2 = [...files(join(APP, 'src')), ...files(join(APP, 'plugins'))];
+    const calls = sources2.flatMap((path) => [...read(path).matchAll(/createExpoSqliteEngine\(([^)]*)\)/g)].map((m) => m[1]));
+    expect(calls.sort()).toEqual(['', 'E2E_COPY_NAME', 'name: string = DATABASE_NAME'].sort());
+  });
+
+  it('EVM-093 AC1: the e2e hooks are reachable only through their empty slot; the support of the store is used by the panel only', () => {
+    const sources = [...files(join(APP, 'src')), ...files(join(APP, 'plugins')), join(APP, 'index.ts')];
+    // nothing imports the panel: only the Metro resolver of the e2e variant swaps the slot for it
+    expect(matching(sources, /from '[^']*e2e-hooks\/panel|require\([^)]*e2e-hooks\/panel/)).toEqual([]);
+    expect(matching(sources, /from '\.\/e2e-hooks'|from '\.\.\/e2e-hooks'/)).toEqual(['src/App.tsx']);
+    const slot = read(join(APP, 'src', 'e2e-hooks', 'index.ts'));
+    expect(slot).not.toMatch(/^import /m);
+    expect(slot).not.toContain('evia-e2e-hooks-panel');
+    const outsideStorage = sources.filter((path) => !path.includes(join('src', 'storage')));
+    expect(matching(outsideStorage, /storageE2eSupport|wipeFaultForE2e/)).toEqual(['src/e2e-hooks/panel.tsx']);
+    expect(matching(sources, /evia-e2e-hooks-panel/)).toEqual(['src/e2e-hooks/panel.tsx']);
+    // the hooks never touch the database driver or the key directly
+    expect(read(join(APP, 'src', 'e2e-hooks', 'panel.tsx'))).not.toMatch(/from 'expo-sqlite|tokenStore\.get|keyPragma|KEY_CHECK/);
+  });
+
+  it('EVM-093 AC1: the marker of the hooks is the one tools/mobile-apk verify searches in a release bundle', () => {
+    const contents = read(join(APP, '..', '..', 'tools', 'mobile-apk', 'src', 'contents.mjs'));
+    expect(contents).toContain("export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';");
+    expect(read(join(APP, 'src', 'e2e-hooks', 'panel.tsx'))).toContain("export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';");
   });
 
   it('EVM-093 AC1: keys come from the CSPRNG of expo-crypto only — no Math.random anywhere in the app source', () => {

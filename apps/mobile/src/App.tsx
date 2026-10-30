@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { E2eHooks } from './e2e-hooks';
 import './i18n';
 import { LocalDataGate } from './screens/LocalDataScreens';
 import type { WipePreparer } from './screens/LocalDataScreens';
@@ -21,6 +22,8 @@ export function App({ checker, storage = localData }: { checker?: StartupChecker
           <Shell />
         </StartupProvider>
       </LocalDataGate>
+      {/* empty in every bundle but the e2e variant (Metro resolver, EVM-093) */}
+      <E2eHooks />
     </SafeAreaProvider>
   );
 }

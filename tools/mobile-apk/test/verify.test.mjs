@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { PLACEHOLDER_API_HOST } from '../src/contents.mjs';
+import { E2E_HOOKS_MARKER, PLACEHOLDER_API_HOST } from '../src/contents.mjs';
 import { apkanalyzerCommand, verifyApk } from '../src/verify.mjs';
 
 /** @param {string} name */
@@ -122,6 +122,11 @@ describe('verification of the built APK (EVM-009 AC5, AC6)', () => {
       'private-key-block in /assets/index.android.bundle',
       'public variable EXPO_PUBLIC_SENTRY_DSN in /assets/index.android.bundle',
     ]);
+  });
+
+  it('EVM-093 AC1: the marker of the e2e hooks in the bundle of the package is a finding with the path', () => {
+    const result = verifyApk(OPTIONS, analyzer({ 'files cat --file assets/index.android.bundle app.apk': `x${E2E_HOOKS_MARKER}y` }).host);
+    assert.deepEqual(result.problems, ['e2e hooks marker in /assets/index.android.bundle']);
   });
 
   it('EVM-009 AC6: the stand-in API address of CI in the bundle is reported as a note and a flag, not as a finding', () => {
