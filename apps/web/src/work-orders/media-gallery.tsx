@@ -1,7 +1,8 @@
 import type { MediaAsset } from '@evia/contracts';
-import { ImageIcon, InlineAlert, Skeleton } from '@evia/ui-web';
+import { CirclePlay, ImageIcon, InlineAlert, Skeleton } from '@evia/ui-web';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { groupLabel, mediaAlt, mediaText } from './media-labels.ts';
+import { formatDuration, groupLabel, mediaAlt, mediaText } from './media-labels.ts';
+import { UnscannedMark } from './media-unscanned.tsx';
 import { MediaViewer } from './media-viewer.tsx';
 import { MAX_PARALLEL_URL_REQUESTS, RequestLimiter, useSeen, useThumbnailRequest } from './media-thumbnails.ts';
 
@@ -73,10 +74,10 @@ function Tile({
   }, [seen, online, src, broken, asset.id, limiter]);
 
   return (
-    <li ref={ref}>
+    <li ref={ref} className="flex flex-col gap-stack-xs">
       <button
         type="button"
-        aria-label={mediaText.openPhoto(altOf(asset))}
+        aria-label={asset.mediaType === 'video' ? mediaText.openVideo(altOf(asset)) : mediaText.openPhoto(altOf(asset))}
         onClick={onOpen}
         className="relative block aspect-square w-full min-w-thumbnail-md overflow-hidden rounded-thumbnail bg-bg-skeleton focus-visible:focus-ring"
       >
@@ -112,7 +113,14 @@ function Tile({
             }}
           />
         )}
+        {asset.mediaType === 'video' ? (
+          <span className="absolute bottom-0 start-0 flex items-center gap-inline-xs bg-bg-surface px-inset-xs py-inset-xs text-body-sm text-text-primary">
+            <CirclePlay aria-hidden="true" className="size-icon-sm" />
+            {asset.durationSeconds === null ? null : <span>{formatDuration(asset.durationSeconds)}</span>}
+          </span>
+        ) : null}
       </button>
+      {asset.mediaType === 'video' && !asset.avScanned ? <UnscannedMark /> : null}
     </li>
   );
 }

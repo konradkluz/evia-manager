@@ -153,6 +153,13 @@ export const mediaText = {
   processingFailed: 'Nie udało się przygotować podglądu. Spróbujemy ponownie.',
   // EVM-045: the lightbox (W-09, § 3.11) and the download of the original
   openPhoto: (alt: string) => `Powiększ: ${alt}`,
+  openVideo: (alt: string) => `Odtwórz: ${alt}`,
+  unscanned: 'Nieskanowany antywirusem — plik za duży',
+  processingFailedVideo: 'Nie udało się przygotować podglądu filmu.',
+  videoPreviewLabel: (alt: string) => `Podgląd 720p: ${alt}`,
+  videoKeys: 'Spacja — odtwarzanie i pauza, strzałki — przewijanie o 5 s, F — pełny ekran.',
+  videoUnavailable: 'Nie można odtworzyć filmu. Zamknij podgląd i otwórz go ponownie.',
+  videoPreviewOnly: 'W przeglądarce dostępny jest tylko podgląd 720p.',
   lightboxTitle: (position: number, total: number, alt: string) => `${alt} (${String(position)} z ${String(total)})`,
   previous: 'Poprzednie',
   next: 'Następne',
@@ -282,4 +289,11 @@ export function quarantineReasonLabel(code: string | undefined): string {
 
 /** The alternative text of a photo from its metadata (§ 3.11): the category and the date. */
 export const mediaAlt = (asset: MediaAsset): string =>
-  `${mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.capturedAt ?? asset.createdAt)}`;
+  asset.mediaType === 'video'
+    ? [
+        mediaText.video,
+        categoryLabel(asset.category),
+        formatDate(asset.capturedAt ?? asset.createdAt),
+        ...(asset.durationSeconds === null ? [] : [formatDuration(asset.durationSeconds)]),
+      ].join(' · ')
+    : `${mediaText.photo} · ${categoryLabel(asset.category)} · ${formatDate(asset.capturedAt ?? asset.createdAt)}`;

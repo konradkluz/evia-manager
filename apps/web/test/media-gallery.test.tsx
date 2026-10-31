@@ -192,19 +192,29 @@ describe('EVM-068 AC8 the states of a tile', () => {
 });
 
 describe('EVM-068 AC1 the heading counts photos and videos apart; a video does not keep the list polling', () => {
-  it('EVM-068 AC1 a mix of photos, a video and a file still being checked: "2 zdjęcia, 1 film" and no promise of a preview for the video', async () => {
+  // EVM-046: a film is processed now, so it waits for its derivatives like a photo (the earlier rule "a video stays clean" is gone)
+  it('EVM-068 AC1 a mix of photos, a video and a file still being checked: "2 zdjęcia, 1 film"; EVM-046 the film promises its preview', async () => {
     await openMedia({
       assets: [ready(1), ready(2), asset(3, { mediaType: 'video', fileState: 'clean' }), asset(4, { fileState: 'scanning' })],
     });
     expect(await screen.findByRole('heading', { level: 3, name: 'Zdjęcia i filmy · 3 zdjęcia, 1 film' })).toBeTruthy();
-    expect(screen.queryByText('Przygotowujemy podgląd.')).toBeNull();
+    expect(screen.getAllByText('Przygotowujemy podgląd.')).toHaveLength(1);
   });
 
-  it('EVM-068 AC4 a video that stays `clean` does not make the list poll; a photo that is `processing` does, slower and slower, and gives up', () => {
+  it('EVM-068 AC4 a photo that is `processing` makes the list poll, slower and slower, and gives up; EVM-046 a film that is `clean` waits the same way', () => {
     const video = { mediaType: 'video', fileState: 'clean' } as const;
     const photo = { mediaType: 'photo', fileState: 'processing' } as const;
-    expect(mediaPollInterval([video], 0)).toBe(false);
-    expect(mediaPollInterval([video, { mediaType: 'photo', fileState: 'ready' }], 0)).toBe(false);
+    expect(mediaPollInterval([video], 0)).toBe(MEDIA_POLL_MS);
+    expect(mediaPollInterval([video], MEDIA_GIVE_UP_AFTER_MS)).toBe(false);
+    expect(
+      mediaPollInterval(
+        [
+          { mediaType: 'video', fileState: 'ready' },
+          { mediaType: 'photo', fileState: 'ready' },
+        ],
+        0,
+      ),
+    ).toBe(false);
     expect(mediaPollInterval([photo], 0)).toBe(MEDIA_POLL_MS);
     expect(mediaPollInterval([photo], MEDIA_SLOW_AFTER_MS)).toBe(MEDIA_SLOW_POLL_MS);
     expect(mediaPollInterval([photo], MEDIA_GIVE_UP_AFTER_MS)).toBe(false);

@@ -50,14 +50,15 @@ function serverLook(asset: MediaAsset, administrator: boolean): { state: UploadQ
     case 'clean':
     case 'processing':
       // EVM-068: sent and scanned; the server is making the thumbnail and the preview (the list is read again until the file is `ready`)
-      // a video has no derivatives until EVM-046: it stays "Wysłano" without the promise of a preview
-      if (asset.mediaType !== 'photo') return { state: 'done', label: mediaText.done };
       return { state: 'done', label: mediaText.done, detail: mediaText.previewPreparing };
     case 'failed':
       // `checksum_mismatch` is the only reason the list carries as a reason; the file must be chosen again (it is not in the memory of this tab)
       if (asset.stateReasonCode === 'checksum_mismatch') return { state: 'failed', label: mediaText.failedChecksum };
       // EVM-068 AC4: the file passed the scan, the picture could not be made after the tries of the server
-      if (asset.processingFailed === true) return { state: 'failed', label: mediaText.processingFailed };
+      if (asset.processingFailed === true) {
+        // a film that ran over the limit of time is not tried again (EVM-046 AC5), so the text does not promise it
+        return { state: 'failed', label: asset.mediaType === 'video' ? mediaText.processingFailedVideo : mediaText.processingFailed };
+      }
       return { state: 'done', label: mediaText.done };
     default:
       return { state: 'done', label: mediaText.done };
@@ -92,7 +93,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
 
   const own = new Set(media.items.map((item) => item.key));
   // the photos that are `ready` are the gallery (also the ones this tab sent); the rest keep their line with the state of the file
-  const gallery = assets.filter((asset) => asset.fileState === 'ready' && asset.mediaType === 'photo');
+  const gallery = assets.filter((asset) => asset.fileState === 'ready');
   const galleryIds = new Set(gallery.map((asset) => asset.id));
   const rest = assets.filter((asset) => !own.has(asset.id) && !galleryIds.has(asset.id));
   // the heading counts photos and videos separately (everything the tiles and the lines below show)

@@ -37,14 +37,13 @@ const UPLOAD_WAITING_STATES = new Set(['pending_upload', 'uploaded', 'scanning']
 type WaitKind = 'upload' | 'derivatives' | 'none';
 
 /**
- * What the list waits for. `clean` and `processing` wait for the thumbnail and the preview (EVM-068) only for a photo: a video stays
- * `clean` until EVM-046, so it must not keep the list polling for ever.
+ * What the list waits for. `clean` and `processing` wait for the thumbnail and the preview (EVM-068 for a photo, EVM-046 for a film);
+ * the wait is given up after `MEDIA_GIVE_UP_AFTER_MS`.
  */
 function waitKind(assets: readonly Pick<MediaAsset, 'fileState' | 'mediaType'>[]): WaitKind {
   if (assets.some((asset) => UPLOAD_WAITING_STATES.has(asset.fileState))) return 'upload';
-  if (assets.some((asset) => asset.mediaType === 'photo' && (asset.fileState === 'clean' || asset.fileState === 'processing'))) {
-    return 'derivatives';
-  }
+  // a film waits for its derivatives too since EVM-046 (the worker makes the preview 720p and the frame)
+  if (assets.some((asset) => asset.fileState === 'clean' || asset.fileState === 'processing')) return 'derivatives';
   return 'none';
 }
 
