@@ -100,6 +100,10 @@ AuditAction:
     - media_file.original_download_denied
     - media_file.download_alerted
     - media_file.download_rejected
+    - document.created
+    - document.confidentiality_raised
+    - document_file.downloaded
+    - document_file.download_denied
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.
@@ -124,6 +128,7 @@ AuditObjectType:
       timeline_entry,
       payment_milestone,
       media_asset,
+      document,
     ]
 AuditReasonCode:
   type: string
@@ -246,7 +251,7 @@ AuditEvent:
       description: >-
         Kod statusu obiektu przed zmianą (EVM-054: przejścia transzy — `payment_milestone.invoiced`, `.paid`, `.cancelled`; EVM-057:
         korekty — `.invoice_withdrawn`, `.invoice_cancelled`, `.payment_undone`, `.restored`; EVM-049: `media_file.rescanned` — `quarantined`; EVM-027: `user.role_changed` — kod
-        roli przed zmianą); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze
+        roli przed zmianą; EVM-047: `document.confidentiality_raised` — klasa poufności przed podniesieniem, a przy `document.created`, `document_file.downloaded` i `document_file.download_denied` — klasa dokumentu, powtórzona w obu polach); `null` (albo brak pola), gdy zdarzenie nie zmienia statusu (także `.amount_corrected` i `.deleted`). Zawsze
         razem z `toCode`.
       oneOf:
         - type: string
@@ -254,7 +259,7 @@ AuditEvent:
           pattern: '^[a-z][a-z_]{0,39}$'
         - type: 'null'
     toCode:
-      description: Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049); `null` (albo brak pola) razem z `fromCode`.
+      description: Kod statusu obiektu po zmianie (EVM-054; `user.role_changed` — kod roli po zmianie, EVM-027; `media_file.rescanned` — wynik ponownego skanu, `clean`, `quarantined` albo `failed`, EVM-049; EVM-047 — klasa poufności dokumentu po podniesieniu albo klasa dokumentu — `standard`, `building_security`, `identity_data`); `null` (albo brak pola) razem z `fromCode`.
       oneOf:
         - type: string
           maxLength: 40

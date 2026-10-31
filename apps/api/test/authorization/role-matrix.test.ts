@@ -165,6 +165,9 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listMediaAssets',
       // EVM-068: the signed address of a thumbnail or a preview (every role of the web)
       'createMediaAssetDownloadUrl',
+      // EVM-047: the list of the documents and the address of a file (the class is decided by the use case; every role of the web is let through by the guard)
+      'listDocuments',
+      'createDocumentDownloadUrl',
     ];
     const writers = [
       'transitionWorkOrder',
@@ -193,6 +196,14 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'getUploadPartUrl',
       'completeUploadSession',
       'abortUploadSession',
+      // EVM-047: the creation of a document, the raise of its class and the six operations of the upload session of its file
+      'createDocument',
+      'raiseDocumentConfidentiality',
+      'createDocumentUploadSession',
+      'listDocumentUploadParts',
+      'getDocumentUploadPartUrl',
+      'completeDocumentUploadSession',
+      'abortDocumentUploadSession',
     ];
     // EVM-042: the restoration and the list of the deleted ones are the Administrator's alone; EVM-060: so are the deletion and the
     // restoration of an order (no step-up at the level of the operation: it depends on the milestones, so the cells are those of any role)

@@ -642,6 +642,11 @@ describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-
       'media_file.original_download_denied',
       'media_file.download_alerted',
       'media_file.download_rejected',
+      // EVM-047: the documents
+      'document.created',
+      'document.confidentiality_raised',
+      'document_file.downloaded',
+      'document_file.download_denied',
     ]);
     for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
   });
