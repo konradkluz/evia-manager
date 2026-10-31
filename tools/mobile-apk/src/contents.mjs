@@ -9,6 +9,13 @@
 /** Host of the stand-in API address that CI uses while the repository variable EVIA_API_BASE_URL is empty (.github/workflows/ci.yml). */
 export const PLACEHOLDER_API_HOST = 'api.example.invalid';
 
+/**
+ * Marker of the e2e hooks (EVM-093; security K1/K2, SR-MOB-11): the testID of the hidden hook panel (apps/mobile/src/e2e-hooks/panel.tsx),
+ * a plain ASCII literal that survives Hermes bytecode (string table). A release package carrying it is refused; the e2e package must
+ * carry it (positive control of the emulator run), otherwise the absence in release proves nothing.
+ */
+export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
+
 export const ALLOWED_PUBLIC_VARIABLES = Object.freeze(['EXPO_PUBLIC_API_BASE_URL']);
 
 /** Files that never belong in a package (keys, certificates, environment files, source maps with sources). */
@@ -44,6 +51,7 @@ export function checkFileList(paths) {
 export function scanText(path, text) {
   /** @type {string[]} */
   const problems = SECRET_PATTERNS.filter(([, pattern]) => pattern.test(text)).map(([rule]) => `${rule} in ${path}`);
+  if (text.includes(E2E_HOOKS_MARKER)) problems.push(`e2e hooks marker in ${path}`);
   const variables = new Set(text.match(/EXPO_PUBLIC_[A-Z0-9_]+/g) ?? []);
   for (const variable of variables) {
     if (!ALLOWED_PUBLIC_VARIABLES.includes(variable)) problems.push(`public variable ${variable} in ${path}`);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { basename, delimiter, join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
+import { E2E_HOOKS_MARKER } from '../src/contents.mjs';
 import { sha256 } from '../src/digest.mjs';
 import { main } from '../src/main.mjs';
 import { compareVersions, DEFAULT_KEY_PASS_ENV, DEFAULT_KS_PASS_ENV, parseSignArguments, redact, signApk } from '../src/sign.mjs';
@@ -391,6 +392,14 @@ describe('local signing of the package (EVM-009 AC5; security-engineer K-A)', ()
     assert.match(logs.join('\n'), /check the place of the output, but it failed or refused/);
     const plain = world();
     assert.equal(signApk(options(), plain.host), 0, plain.logs.join('\n'));
+  });
+
+  it('EVM-093 AC1: a package carrying the e2e hooks is never signed (verify finds the marker), even with --allow-placeholder-api', () => {
+    const bundle = `var url="https://api.evia.example.test";var id="${E2E_HOOKS_MARKER}"`;
+    const refused = world({ bundle });
+    assert.equal(signApk(options({ allowPlaceholderApi: true }), refused.host), 1);
+    assert.match(refused.logs.join(' '), /e2e hooks marker/);
+    assert.ok(!refused.runs.some((run) => run.args[2] === 'sign'));
   });
 
   it('EVM-009 AC5: a package with the placeholder API address is refused unless --allow-placeholder-api is given', () => {

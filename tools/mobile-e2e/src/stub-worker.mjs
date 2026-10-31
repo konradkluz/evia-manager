@@ -17,13 +17,16 @@ const stub = await startStubApi({
     channel.postMessage(request);
   },
 });
-parent.on('message', (/** @type {{ mode?: import('./stub-api.mjs').StubMode, close?: true }} */ message) => {
-  if (message.mode !== undefined) stub.setMode(message.mode);
-  if (message.close === true) {
-    void stub.close().then(() => {
-      channel.close();
-      parent.close();
-    });
-  }
-});
+parent.on(
+  'message',
+  (/** @type {{ mode?: import('./stub-api.mjs').StubMode, auth?: import('./stub-api.mjs').AuthMode, close?: true }} */ message) => {
+    if (message.mode !== undefined) stub.setMode(message.mode, message.auth ?? 'ok');
+    if (message.close === true) {
+      void stub.close().then(() => {
+        channel.close();
+        parent.close();
+      });
+    }
+  },
+);
 parent.postMessage({ port: stub.port });

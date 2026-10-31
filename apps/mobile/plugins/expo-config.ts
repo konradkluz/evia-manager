@@ -4,7 +4,8 @@
  * - the Android `versionCode` comes from the CI run number so that it only grows (an older code cannot be installed over a newer one);
  * - a release build fails when the API address is not HTTPS (SR-COMM-04); plain HTTP to the emulator host exists in the e2e variant only;
  * - no permission is requested (INTERNET is added by the platform template) and risky defaults are blocked (SR-MOB-02);
- * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09).
+ * - no OTA updates, no dev client, no analytics SDK (SR-MOB-09);
+ * - the local database is SQLCipher only (EVM-093 AC1): expo-sqlite with `useSQLCipher`, there is no build without the cipher.
  */
 import type { ExpoConfig } from 'expo/config';
 import { parseApiBaseUrl, resolveBuildVariant } from '../src/config/api-base-url.ts';
@@ -40,6 +41,12 @@ export function resolveVersionCode(value: string | undefined): number {
 
 export function buildExpoConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
   const variant = resolveBuildVariant(env['EVIA_BUILD_VARIANT']);
+  // EVM-093 (security K1): no public switch of our own besides the API address (e2e hooks are chosen by the Metro resolver).
+  // Public variables of Expo itself (the project root, set by the CLI while it reads this config) are not switches of the app.
+  for (const [name, value] of Object.entries(env)) {
+    if (name.startsWith('EXPO_PUBLIC_') && name.slice('EXPO_PUBLIC_'.length).startsWith('EVIA_') && value !== undefined && value !== '')
+      throw new Error(`${name} is not allowed in the ${variant} build: EXPO_PUBLIC_API_BASE_URL is the only public variable of the app.`);
+  }
   const url = parseApiBaseUrl(env['EXPO_PUBLIC_API_BASE_URL'], { allowLocalHttp: variant === 'e2e' });
   if (!url.ok) {
     throw new Error(
@@ -60,7 +67,8 @@ export function buildExpoConfig(env: Readonly<Record<string, string | undefined>
       permissions: [],
       blockedPermissions: [...BLOCKED_ANDROID_PERMISSIONS],
     },
-    plugins: ['expo-secure-store', ['./plugins/with-hardening.ts', { variant }]],
+    // EVM-093 (ADR-0007): expo-sqlite compiled with SQLCipher (community 4.17, OpenSSL from expo-sqlite's Gradle dependency).
+    plugins: ['expo-secure-store', ['expo-sqlite', { useSQLCipher: true }], ['./plugins/with-hardening.ts', { variant }]],
     extra: { buildVariant: variant },
   };
 }

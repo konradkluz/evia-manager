@@ -1,0 +1,52 @@
+# EVM-093 AC6: the wipe fails right after the step database_file (hook, as if the process died there): the marker stays. The
+# next start finishes the wipe before anything else (wipe_pending=no before any sign-in); B starts empty as a new device, and
+# the copy taken before the wipe does not open with the new key.
+appId: pl.eviacharge.manager
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-wipe-fault'
+- inputText: 'database_file'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-wipe'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'wipe=incomplete'
+    timeout: 30000
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-facts'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=no;cipher_version=none;temp_store=none;wipe_pending=no;queue=locked'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-login-b'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-probe'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'probe=not_a_database'
+    timeout: 30000

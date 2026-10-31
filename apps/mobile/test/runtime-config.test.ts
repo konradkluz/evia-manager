@@ -39,6 +39,7 @@ describe('runtime configuration (EVM-009 AC2, AC3, AC6)', () => {
       apiBaseUrl: 'https://api.example.test',
       platform: 'android',
       appVersion: '0.3.0',
+      buildVariant: 'release',
     });
   });
 

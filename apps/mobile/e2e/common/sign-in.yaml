@@ -1,0 +1,31 @@
+# EVM-100 AC1: the shared sign-in of the synthetic account of the scenario server (tools/mobile-e2e/src/stub-api.mjs E2E_ACCOUNT):
+# e-mail and password, then the 6-digit code; ends when M-01 is gone. Used by the flows that need a signed-in phone.
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'haslo-testowe'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible:
+      id: 'login-code'
+    timeout: 30000
+- tapOn:
+    id: 'login-code'
+- inputText: '123456'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    notVisible:
+      id: 'login-submit'
+    timeout: 30000

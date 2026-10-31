@@ -1,0 +1,26 @@
+# EVM-100 AC2: 429 with Retry-After 230 s — "Zbyt wiele prób. Spróbuj ponownie za 4 min.", the button disabled with the reason
+# in the text (the scenario server answers in the mode rate_limited).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'haslo-testowe'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Zbyt wiele prób. Spróbuj ponownie za 4 min.'
+    timeout: 30000
+- assertVisible:
+    id: 'login-submit'
+    enabled: false
+- takeScreenshot: m01-rate-limited

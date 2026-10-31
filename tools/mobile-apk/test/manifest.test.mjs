@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { checkManifest } from '../src/manifest.mjs';
+import { checkManifest, SCREENSHOTS_META } from '../src/manifest.mjs';
 
 const FIXTURES = join(import.meta.dirname, 'fixtures');
 const ID = 'pl.eviacharge.manager';
@@ -22,6 +22,30 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
 
   it('EVM-009 AC6: the package must carry the application id', () => {
     assert.deepEqual(checkManifest(MANIFEST, { applicationId: 'pl.other.app' }).slice(0, 1), ['package is not pl.other.app']);
+  });
+
+  it('EVM-093 AC4: gallery, external storage, contacts and location permissions are forbidden by name (both permission tags)', () => {
+    const names = [
+      'READ_MEDIA_IMAGES',
+      'READ_MEDIA_VIDEO',
+      'READ_MEDIA_VISUAL_USER_SELECTED',
+      'READ_EXTERNAL_STORAGE',
+      'WRITE_EXTERNAL_STORAGE',
+      'MANAGE_EXTERNAL_STORAGE',
+      'READ_CONTACTS',
+      'WRITE_CONTACTS',
+      'ACCESS_FINE_LOCATION',
+      'ACCESS_COARSE_LOCATION',
+      'ACCESS_BACKGROUND_LOCATION',
+    ];
+    for (const name of names) {
+      for (const tag of ['uses-permission', 'uses-permission-sdk-23']) {
+        const manifest = changed('</manifest>', `<${tag} android:name="android.permission.${name}" /></manifest>`);
+        assert.deepEqual(checkManifest(manifest, { applicationId: ID }), [
+          `forbidden permission android.permission.${name} (gallery, storage, contacts or location)`,
+        ]);
+      }
+    }
   });
 
   it('EVM-009 AC6: a permission outside the white list is reported, the missing INTERNET too', () => {
@@ -65,6 +89,17 @@ describe('manifest of the built APK (EVM-009 AC6; SR-MOB-02, SR-MOB-07, SR-MOB-0
     assert.deepEqual(checkManifest(changed('android:targetSdkVersion="36"', 'android:targetSdkVersion="30"'), { applicationId: ID }), [
       'targetSdkVersion is below 34',
     ]);
+  });
+
+  it('EVM-100 AC1 (SR-MOB-08): a package of the e2e variant (screenshots allowed, FLAG_SECURE off) is rejected', () => {
+    const e2e = changed(
+      '</application>',
+      '<meta-data android:name="pl.eviacharge.SCREENSHOTS_ALLOWED" android:value="true" /></application>',
+    );
+    assert.deepEqual(checkManifest(e2e, { applicationId: ID }), [
+      'pl.eviacharge.SCREENSHOTS_ALLOWED is in the manifest (screenshots allowed, FLAG_SECURE off — an e2e build)',
+    ]);
+    assert.equal(SCREENSHOTS_META, 'pl.eviacharge.SCREENSHOTS_ALLOWED');
   });
 
   it('EVM-009 AC6: OTA updates (expo-updates) and developer tools are forbidden (SR-MOB-09)', () => {

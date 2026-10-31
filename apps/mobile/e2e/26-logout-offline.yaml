@@ -1,0 +1,21 @@
+# EVM-100 AC6, AC7: a signed-in phone starts in airplane mode straight into the shell (no sign-in, no M-02); "Wyloguj" offline
+# ends the session on the phone and stores the revocation for the next connection — M-02 "Wylogowano".
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000
+- tapOn:
+    id: 'nav-more'
+- tapOn:
+    id: 'more-sign-out'
+- extendedWaitUntil:
+    visible: 'Wylogować się?'
+    timeout: 30000
+- tapOn:
+    id: 'logout-confirm'
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 30000

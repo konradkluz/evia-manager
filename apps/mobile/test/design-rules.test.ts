@@ -59,6 +59,75 @@ describe('security and design rules of the app source (EVM-009 AC1, AC6)', () =>
     expect(matching(sources, /-----BEGIN [A-Z ]*PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|\bgh[pousr]_[0-9A-Za-z]{36,}\b/)).toEqual([]);
   });
 
+  it('EVM-093 AC1: expo-sqlite is imported only by the SQLCipher driver, and none of its risky surfaces is used (security review 7)', () => {
+    const sources = [...files(join(APP, 'src')), ...files(join(APP, 'plugins'))];
+    expect(matching(sources, /from 'expo-sqlite[^']*'|require\('expo-sqlite/)).toEqual(['src/storage/expo-sqlite-driver.ts']);
+    expect(
+      matching(
+        sources,
+        /expo-sqlite\/(kv-store|localStorage)|serializeAsync|backupDatabase|deserializeDatabase|loadExtension|locking_mode/,
+      ),
+    ).toEqual([]);
+    const driver = read(join(APP, 'src', 'storage', 'expo-sqlite-driver.ts'));
+    // one argument (no options, no custom directory); the name is the app database or the e2e copy of scenario 13
+    expect([...driver.matchAll(/openDatabaseAsync\(([^)]*)\)/g)].map((m) => m[1])).toEqual(['name']);
+    const sources2 = [...files(join(APP, 'src')), ...files(join(APP, 'plugins'))];
+    const calls = sources2.flatMap((path) => [...read(path).matchAll(/createExpoSqliteEngine\(([^)]*)\)/g)].map((m) => m[1]));
+    expect(calls.sort()).toEqual(['', 'E2E_COPY_NAME', 'name: string = DATABASE_NAME'].sort());
+  });
+
+  it('EVM-093 AC1: the e2e hooks are reachable only through their empty slot; the support of the store is used by the panel only', () => {
+    const sources = [...files(join(APP, 'src')), ...files(join(APP, 'plugins')), join(APP, 'index.ts')];
+    // nothing imports the panel: only the Metro resolver of the e2e variant swaps the slot for it
+    expect(matching(sources, /from '[^']*e2e-hooks\/panel|require\([^)]*e2e-hooks\/panel/)).toEqual([]);
+    expect(matching(sources, /from '\.\/e2e-hooks'|from '\.\.\/e2e-hooks'/)).toEqual(['src/App.tsx']);
+    const slot = read(join(APP, 'src', 'e2e-hooks', 'index.ts'));
+    expect(slot).not.toMatch(/^import /m);
+    expect(slot).not.toContain('evia-e2e-hooks-panel');
+    const outsideStorage = sources.filter((path) => !path.includes(join('src', 'storage')));
+    expect(matching(outsideStorage, /storageE2eSupport|wipeFaultForE2e/)).toEqual(['src/e2e-hooks/panel.tsx']);
+    expect(matching(sources, /evia-e2e-hooks-panel/)).toEqual(['src/e2e-hooks/panel.tsx']);
+    // the hooks never touch the database driver or the key directly
+    expect(read(join(APP, 'src', 'e2e-hooks', 'panel.tsx'))).not.toMatch(/from 'expo-sqlite|tokenStore\.get|keyPragma|KEY_CHECK/);
+  });
+
+  it('EVM-093 AC1: the marker of the hooks is the one tools/mobile-apk verify searches in a release bundle', () => {
+    const contents = read(join(APP, '..', '..', 'tools', 'mobile-apk', 'src', 'contents.mjs'));
+    expect(contents).toContain("export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';");
+    expect(read(join(APP, 'src', 'e2e-hooks', 'panel.tsx'))).toContain("export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';");
+  });
+
+  it('EVM-093 AC1: keys come from the CSPRNG of expo-crypto only — no Math.random anywhere in the app source', () => {
+    expect(matching(files(join(APP, 'src')), /Math\.random/)).toEqual([]);
+    expect(matching(files(join(APP, 'src')), /'expo-crypto'/)).toEqual(['src/storage/platform.ts']);
+  });
+
+  it('EVM-093 AC7: the SQL stores are reachable only through the owner guard (not exported, not imported outside the store)', () => {
+    const barrel = read(join(APP, 'src', 'storage', 'index.ts'));
+    expect(barrel).not.toMatch(/SqlQueueStore|SqlReplicaStore|queue-store|replica-store|from '\.\/database'/);
+    const outside = files(join(APP, 'src')).filter((path) => !path.includes(join('src', 'storage')));
+    expect(matching(outside, /storage\/(queue-store|replica-store|database|local-data|expo-sqlite-driver|platform)'/)).toEqual([]);
+  });
+
+  it('EVM-100 AC1 (security W4): no React Native Modal or native Alert — their own Android windows do not inherit FLAG_SECURE', () => {
+    const sources = files(join(APP, 'src'));
+    expect(matching(sources, /import\s*\{[^}]*\b(Modal|Alert)\b[^}]*\}\s*from\s*'react-native'/)).toEqual([]);
+    expect(matching(sources, /\bAlert\.alert\(|\bToastAndroid\b/)).toEqual([]);
+  });
+
+  it('EVM-100 AC1 (security W3): the installation proof is unwrapped only by the HTTP adapter of the sign-in', () => {
+    const outsideStorage = files(join(APP, 'src')).filter((path) => !path.includes(join('src', 'storage')));
+    expect(matching(outsideStorage, /installation-proof'/)).toEqual(['src/api/auth-client.ts']);
+    expect(matching(files(join(APP, 'src')), /\bproofFields\(/)).toEqual(['src/api/auth-client.ts', 'src/storage/installation-proof.ts']);
+  });
+
+  it('EVM-100 AC1 (architect 4): only the session owner and the composition know the token store; screens never import it', () => {
+    expect(matching(files(join(APP, 'src')), /from '[^']*secure-store'/).sort()).toEqual(
+      ['src/e2e-hooks/panel.tsx', 'src/secure-store/token-store.ts', 'src/session.ts', 'src/storage/platform.ts'].sort(),
+    );
+    expect(matching(files(join(APP, 'src', 'screens')), /\.refresh\(|\.logout\(|TokenStore/)).toEqual(['src/screens/SessionRoot.tsx']);
+  });
+
   it('EVM-009 AC6: the native projects generated by expo prebuild are never committed (CNG)', () => {
     const ignore = readFileSync(join(APP, '..', '..', '.gitignore'), 'utf8');
     expect(ignore).toContain('apps/mobile/android/');

@@ -1,0 +1,9 @@
+# EVM-100 AC6 (preparation of EVM-009 AC2): sign in with the network, so that the next flow starts a signed-in phone offline.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000

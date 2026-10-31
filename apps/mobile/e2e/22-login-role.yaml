@@ -1,0 +1,18 @@
+# EVM-100 AC3: the role Tylko odczyt — 403 channel_not_allowed after the correct code — M-02 "Aplikacja jest niedostępna dla
+# Twojej roli" with one main action and "Pomoc"; no navigation, nothing stored.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Aplikacja jest niedostępna dla Twojej roli'
+    timeout: 30000
+- assertVisible: 'Wróć do logowania'
+- assertVisible: 'Pomoc'
+- assertNotVisible:
+    id: 'nav-orders'
+- takeScreenshot: m02-role
+- tapOn:
+    id: 'device-state-primary'
+- assertVisible: 'technik@example.test'

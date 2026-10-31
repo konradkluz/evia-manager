@@ -1,0 +1,59 @@
+# EVM-093 AC7: A has 5 entries and signs out (the queue stays); B is refused with the number only (owner_mismatch); after the
+# wipe B starts with an empty database as a new device.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '5'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=5;queue=5'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-end-session'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=locked'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-login-b'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=owner_mismatch;queue=5'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-wipe'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'wipe=done'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-login-b'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000

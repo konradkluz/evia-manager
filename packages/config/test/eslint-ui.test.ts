@@ -1,6 +1,12 @@
-import { Linter } from 'eslint';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { ESLint, Linter } from 'eslint';
+import tseslint from 'typescript-eslint';
 import { describe, expect, it } from 'vitest';
-import { MOBILE_UI_FILES, mobileUi, sqlSafety, WEB_UI_FILES, webUi } from '../src/eslint.ts';
+import { MOBILE_STORAGE_DRIVER_FILES, MOBILE_UI_FILES, mobileUi, sqlSafety, WEB_UI_FILES, webUi } from '../src/eslint.ts';
+
+/** The real mobile app: rules are checked against its sources and its own eslint.config.js, not only the block shape. */
+const MOBILE_APP_DIR = fileURLToPath(new URL('../../../apps/mobile/', import.meta.url));
 
 /** Lints a TSX-like snippet (JSX in a .jsx file — no type information needed) with the web UI block. */
 function lint(code: string, filename = 'src/shell/app-shell.jsx'): string[] {
@@ -157,6 +163,118 @@ describe('mobile UI lint rules (EVM-009 AC1, AC6; styleguide § 7.2, SR-LOG-08)'
 
   it('EVM-009 AC1 by default the rules cover TypeScript and TSX sources of src/', () => {
     expect(MOBILE_UI_FILES).toEqual(['src/**/*.ts', 'src/**/*.tsx']);
-    expect(mobileUi().every((block) => block.files === MOBILE_UI_FILES || block.files?.[0] === 'src/api/**')).toBe(true);
+    expect(
+      mobileUi().every(
+        (block) => block.files === MOBILE_UI_FILES || block.files?.[0] === 'src/api/**' || block.files === MOBILE_STORAGE_DRIVER_FILES,
+      ),
+    ).toBe(true);
+  });
+
+  it('EVM-093 AC1 no mobile UI block switches a rule off', () => {
+    for (const block of mobileUi()) {
+      for (const [rule, setting] of Object.entries(block.rules ?? {})) {
+        const level = Array.isArray(setting) ? setting[0] : setting;
+        expect(level, rule).not.toBe('off');
+        expect(level, rule).not.toBe(0);
+      }
+    }
+  });
+});
+
+/** Lints TypeScript text as if it were the given file of apps/mobile (cwd = apps/mobile), with the parser and mobileUi() only. */
+async function lintMobileApp(code: string, file: string): Promise<string[]> {
+  const eslint = new ESLint({
+    cwd: MOBILE_APP_DIR,
+    overrideConfigFile: true,
+    overrideConfig: [{ files: ['**/*.ts', '**/*.tsx'], languageOptions: { parser: tseslint.parser } }, ...mobileUi()],
+  });
+  const [result] = await eslint.lintText(code, { filePath: `${MOBILE_APP_DIR}${file}` });
+  return (result?.messages ?? []).filter((m) => m.ruleId === 'no-restricted-imports').map((m) => m.message);
+}
+
+describe('mobile storage imports (EVM-093 AC1; SR-MOB-01, MASVS-STORAGE-1)', { timeout: 30_000 }, () => {
+  const plainStores = [
+    "import { Storage } from 'expo-sqlite/kv-store';",
+    "import 'expo-sqlite/localStorage/install';",
+    "import Storage from 'expo-sqlite/localStorage';",
+    "import AsyncStorage from '@react-native-async-storage/async-storage';",
+  ];
+
+  it('EVM-093 AC1 expo-sqlite is rejected outside the SQLCipher driver, also in the API client', async () => {
+    for (const file of ['src/screens/orders.ts', 'src/storage/platform.ts', 'src/storage/database.ts', 'src/api/health.ts']) {
+      for (const code of ["import { openDatabaseAsync } from 'expo-sqlite';", "import { x } from 'expo-sqlite/next';"]) {
+        expect(await lintMobileApp(code, file), `${file}: ${code}`).toEqual([expect.stringContaining('EVM-093')]);
+      }
+    }
+  });
+
+  it('EVM-093 AC1 the SQLCipher driver may import expo-sqlite', async () => {
+    expect(await lintMobileApp("import { openDatabaseAsync } from 'expo-sqlite';", 'src/storage/expo-sqlite-driver.ts')).toEqual([]);
+  });
+
+  it('EVM-093 AC1 plain-text stores (kv-store, localStorage, AsyncStorage) are rejected everywhere, the driver included', async () => {
+    for (const file of ['src/screens/orders.ts', 'src/api/health.ts', 'src/storage/expo-sqlite-driver.ts']) {
+      for (const code of plainStores) {
+        expect(await lintMobileApp(code, file), `${file}: ${code}`).toEqual([expect.stringContaining('SR-MOB-01')]);
+      }
+    }
+  });
+
+  it('EVM-093 AC1 the driver still may not import the generated contract or the pg driver', async () => {
+    for (const code of [
+      "import { client } from '@evia/contracts';",
+      "import { z } from '@evia/contracts/zod';",
+      "import { Pool } from 'pg';",
+    ]) {
+      expect(await lintMobileApp(code, 'src/storage/expo-sqlite-driver.ts'), code).toEqual([expect.any(String)]);
+    }
+  });
+
+  it('EVM-093 AC1 the contract and pg bans stay in force outside the API client next to the storage bans', async () => {
+    for (const code of ["import { client } from '@evia/contracts';", "import { Pool } from 'pg';"]) {
+      expect(await lintMobileApp(code, 'src/storage/platform.ts'), code).toEqual([expect.any(String)]);
+    }
+    expect(await lintMobileApp("import { m } from '@evia/contracts/authz';", 'src/api/health.ts')).toEqual([expect.any(String)]);
+  });
+
+  it('EVM-093 AC1 the real sources of apps/mobile pass the storage import rules', async () => {
+    const eslint = new ESLint({
+      cwd: MOBILE_APP_DIR,
+      overrideConfigFile: true,
+      overrideConfig: [{ files: ['**/*.ts', '**/*.tsx'], languageOptions: { parser: tseslint.parser } }, ...mobileUi()],
+    });
+    const results = await eslint.lintFiles(['src/storage/*.ts']);
+    expect(results.length).toBeGreaterThan(3);
+    const restricted = results.flatMap((r) =>
+      r.messages.filter((m) => m.ruleId === 'no-restricted-imports').map((m) => `${r.filePath}: ${m.message}`),
+    );
+    expect(restricted).toEqual([]);
+  });
+
+  it('EVM-093 AC1 the eslint.config.js of apps/mobile applies the storage bans from mobileUi() (no local override)', () => {
+    // A child process loads the app's own config (as `eslint .` does), so this file is not loaded twice in the measured process.
+    const script = [
+      "import { ESLint } from 'eslint';",
+      'const eslint = new ESLint({ cwd: process.cwd() });',
+      "const rules = async (file) => (await eslint.calculateConfigForFile(file)).rules['no-restricted-imports'];",
+      "process.stdout.write(JSON.stringify({ screen: await rules('src/screens/Shell.tsx'), driver: await rules('src/storage/expo-sqlite-driver.ts') }));",
+    ].join(';');
+    const output = execFileSync(process.execPath, ['--input-type=module', '-e', script], { cwd: MOBILE_APP_DIR, encoding: 'utf8' });
+    const { screen, driver } = JSON.parse(output) as { screen: unknown; driver: unknown };
+    const screenText = JSON.stringify(screen);
+    for (const banned of [
+      '"expo-sqlite"',
+      'expo-sqlite/kv-store',
+      'expo-sqlite/localStorage',
+      '@react-native-async-storage/*',
+      '@evia/contracts',
+      '"pg"',
+    ]) {
+      expect(screenText, banned).toContain(banned);
+    }
+    const driverText = JSON.stringify(driver);
+    expect(driverText).not.toContain('"expo-sqlite"');
+    for (const banned of ['expo-sqlite/kv-store', '@react-native-async-storage/*', '@evia/contracts', '"pg"'])
+      expect(driverText, banned).toContain(banned);
   });
 });

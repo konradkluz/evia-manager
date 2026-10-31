@@ -3,7 +3,7 @@ import { createStartupChecker } from '../src/startup';
 
 jest.mock('../src/config', () => ({ readRuntimeConfig: jest.fn() }));
 
-const config = { apiBaseUrl: 'https://api.example.test', platform: 'android', appVersion: '0.1.0' } as const;
+const config = { apiBaseUrl: 'https://api.example.test', platform: 'android', appVersion: '0.1.0', buildVariant: 'release' } as const;
 const health = (android: string) =>
   new Response(JSON.stringify({ status: 'ok', minSupportedAppVersion: { android, ios: '1.0.0' } }), {
     headers: { 'Content-Type': 'application/json' },

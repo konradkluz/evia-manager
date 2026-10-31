@@ -4,6 +4,8 @@ appId: pl.eviacharge.manager
 ---
 - launchApp:
     clearState: true
+# EVM-100: the shell (and so its update screen) needs a session
+- runFlow: common/sign-in.yaml
 - extendedWaitUntil:
     visible: 'Zaktualizuj aplikację'
     timeout: 30000

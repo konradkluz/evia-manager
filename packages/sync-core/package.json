@@ -13,6 +13,10 @@
     "./conformance/replica": {
       "types": "./conformance/replica.ts",
       "default": "./conformance/replica.ts"
+    },
+    "./conformance/queue": {
+      "types": "./conformance/queue.ts",
+      "default": "./conformance/queue.ts"
     }
   },
   "scripts": {

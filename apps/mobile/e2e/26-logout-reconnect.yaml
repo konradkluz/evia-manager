@@ -1,0 +1,11 @@
+# EVM-100 AC7: the network returns; a restart shows M-01 (the pending revocation is sent in the background, never a session).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- assertNotVisible: 'Moje zlecenia'
+- assertNotVisible: 'Brak zasięgu.*'

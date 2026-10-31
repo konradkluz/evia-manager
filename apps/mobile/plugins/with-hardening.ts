@@ -7,11 +7,24 @@
  * - the release variant produces an UNSIGNED APK (the Gradle template signs it with the public debug key otherwise): the key of the
  *   app lives outside the repository and the owner signs the package locally (tools/mobile-apk sign, docs/ops/dystrybucja-apk-android.md,
  *   ADR-0019); the e2e variant keeps the debug signature so that the emulator can install it;
- * - the Gradle wrapper verifies its download: distributionSha256Sum is pinned to the published SHA-256 of the distribution.
+ * - the e2e variant only is debuggable (EVM-093: `run-as` reads the app directory on the emulator, a Google Play image has no root);
+ *   set in the release build type of app/build.gradle (a hardcoded manifest attribute fails lintVital); verify rejects it in release;
+ * - the Gradle wrapper verifies its download: distributionSha256Sum is pinned to the published SHA-256 of the distribution;
+ * - EVM-100 (decision 5, SR-MOB-08, MASVS-PLATFORM-3): FLAG_SECURE on the WHOLE window, set in MainActivity before `super.onCreate`
+ *   (no screenshots, no preview in "Recent apps"). Fail closed: it is turned off only when the resource `evia_screenshots_allowed`
+ *   is true, and only the e2e variant writes it (Maestro and QA screenshots); release and every other build keep the flag, and
+ *   `tools/mobile-apk verify` rejects a package that carries the resource.
  */
-import { AndroidConfig, withAndroidManifest, withAppBuildGradle, withDangerousMod, withGradleProperties } from 'expo/config-plugins';
+import {
+  AndroidConfig,
+  withAndroidManifest,
+  withAppBuildGradle,
+  withDangerousMod,
+  withGradleProperties,
+  withMainActivity,
+} from 'expo/config-plugins';
 import type { ConfigPlugin } from 'expo/config-plugins';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LOCAL_HTTP_HOSTS } from '../src/config/api-base-url.ts';
 import type { BuildVariant } from '../src/config/api-base-url.ts';
@@ -74,7 +87,55 @@ export function withoutReleaseDebugSigning(gradle: string): string {
   return gradle.replace(release, '$1');
 }
 
+/** EVM-093 (e2e only): `debuggable true` in the release build type, which the e2e build assembles (assembleRelease). */
+export function withE2eDebuggable(gradle: string): string {
+  const release = /(\n\s*release \{)/;
+  if (!release.test(gradle)) throw new Error('with-hardening: the release build type was not found in app/build.gradle (template changed)');
+  return gradle.replace(release, '$1\n            debuggable true');
+}
+
+/**
+ * EVM-100: the manifest meta-data of the e2e variant that turns FLAG_SECURE off (tools/mobile-apk/src/manifest.mjs
+ * `SCREENSHOTS_META`). A manifest entry, not a resource: the release resource optimisation renames or drops resources looked up by
+ * name, and the emulator proved it (every screenshot of the first e2e run was black) — the merged manifest is kept as written and
+ * `verify` reads it from the finished package.
+ */
+export const SCREENSHOTS_META = 'pl.eviacharge.SCREENSHOTS_ALLOWED';
+/** File of the earlier resource switch, removed from a project prebuilt before. */
+const OLD_SCREENSHOTS_FILE = 'evia_screenshots.xml';
+const SECURE_WINDOW_MARKER = 'EVM-100 secure window';
+
+/**
+ * FLAG_SECURE before `super.onCreate` of MainActivity (Kotlin template of Expo). Fail closed: without the meta-data (every build but
+ * e2e), or when it cannot be read, the flag is set. A template without `super.onCreate(` fails the build instead of shipping a window
+ * without the flag.
+ */
+export function withSecureWindow(mainActivity: string): string {
+  if (mainActivity.includes(SECURE_WINDOW_MARKER)) return mainActivity;
+  const call = /\n([ \t]*)super\.onCreate\(/;
+  const match = call.exec(mainActivity);
+  if (match === null) throw new Error('with-hardening: super.onCreate was not found in MainActivity (template changed)');
+  const indent = match[1] ?? '';
+  const flag = 'android.view.WindowManager.LayoutParams.FLAG_SECURE';
+  const lines = [
+    `// ${SECURE_WINDOW_MARKER} (SR-MOB-08): no screenshots and no preview in "Recent apps" unless the e2e build allows them`,
+    `val eviaScreenshots = try {`,
+    `  @Suppress("DEPRECATION")`,
+    `  packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_META_DATA).metaData?.getBoolean("${SCREENSHOTS_META}", false) == true`,
+    `} catch (error: Exception) {`,
+    `  false`,
+    `}`,
+    `if (!eviaScreenshots) window.setFlags(${flag}, ${flag})`,
+  ];
+  return mainActivity.replace(call, `\n${lines.map((line) => `${indent}${line}`).join('\n')}\n${indent}super.onCreate(`);
+}
+
 const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { variant }) => {
+  config = withMainActivity(config, (modConfig) => {
+    if (modConfig.modResults.language !== 'kt') throw new Error('with-hardening: MainActivity is not Kotlin (template changed)');
+    modConfig.modResults.contents = withSecureWindow(modConfig.modResults.contents);
+    return modConfig;
+  });
   config = withAndroidManifest(config, (modConfig) => {
     const application = AndroidConfig.Manifest.getMainApplicationOrThrow(modConfig.modResults);
     application.$['android:allowBackup'] = 'false';
@@ -85,6 +146,9 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
     // The only exported component is MainActivity: the AndroidX profile installer receiver (exported, guarded by DUMP) is removed.
     modConfig.modResults.manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
     application.receiver = [...(application.receiver ?? []), { $: { 'android:name': PROFILE_INSTALL_RECEIVER, 'tools:node': 'remove' } }];
+    // EVM-100: screenshots (FLAG_SECURE off) only in the e2e variant; any other build never carries the entry
+    const meta = (application['meta-data'] ?? []).filter((item) => item.$['android:name'] !== SCREENSHOTS_META);
+    application['meta-data'] = variant === 'e2e' ? [...meta, { $: { 'android:name': SCREENSHOTS_META, 'android:value': 'true' } }] : meta;
     return modConfig;
   });
   config = withDangerousMod(config, [
@@ -95,6 +159,8 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
       writeFileSync(join(directory, 'evia_data_extraction_rules.xml'), dataExtractionRulesXml());
       writeFileSync(join(directory, 'evia_backup_rules.xml'), backupRulesXml());
       writeFileSync(join(directory, 'evia_network_security_config.xml'), networkSecurityConfigXml(variant));
+      // the resource switch of an earlier prebuild is gone (the switch is the manifest meta-data now)
+      rmSync(join(modConfig.modRequest.platformProjectRoot, 'app', 'src', 'main', 'res', 'values', OLD_SCREENSHOTS_FILE), { force: true });
       const wrapper = join(modConfig.modRequest.platformProjectRoot, 'gradle', 'wrapper', 'gradle-wrapper.properties');
       if (!existsSync(wrapper)) throw new Error('with-hardening: gradle-wrapper.properties was not found (template changed)');
       writeFileSync(wrapper, withGradleDistributionChecksum(readFileSync(wrapper, 'utf8')));
@@ -111,12 +177,11 @@ const withHardening: ConfigPlugin<{ variant: BuildVariant }> = (config, { varian
     }
     return modConfig;
   });
-  if (variant === 'release') {
-    config = withAppBuildGradle(config, (modConfig) => {
-      modConfig.modResults.contents = withoutReleaseDebugSigning(modConfig.modResults.contents);
-      return modConfig;
-    });
-  }
+  config = withAppBuildGradle(config, (modConfig) => {
+    const gradle = modConfig.modResults.contents;
+    modConfig.modResults.contents = variant === 'release' ? withoutReleaseDebugSigning(gradle) : withE2eDebuggable(gradle);
+    return modConfig;
+  });
   return config;
 };
 

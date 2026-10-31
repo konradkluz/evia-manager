@@ -1,0 +1,17 @@
+# EVM-100 AC6: M-01 in airplane mode — "Brak zasięgu. Zalogujesz się, gdy wróci połączenie.", the button disabled, the e-mail
+# stays (tools/mobile-e2e switched airplane mode on).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu. Zalogujesz się, gdy wróci połączenie.'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- hideKeyboard
+- assertVisible:
+    id: 'login-submit'
+    enabled: false
+- takeScreenshot: m01-offline

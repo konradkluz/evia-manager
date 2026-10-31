@@ -1,0 +1,17 @@
+# EVM-093 AC3: after the restart of the emulator all 20 entries are there.
+appId: pl.eviacharge.manager
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=20;identity=kept;pull=no'
+    timeout: 30000

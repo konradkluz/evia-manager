@@ -1,0 +1,39 @@
+# EVM-093 AC1: a fresh install creates the SQLCipher database on the first sign-in (hook), entries with the synthetic sentinel go
+# into the queue, and the database runs SQLCipher >= 4.6 with temp_store=MEMORY. tools/mobile-e2e then reads the app directory
+# through run-as: the header is not "SQLite format 3", no file and no logcat line carries the sentinel (check-encrypted).
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=0;identity=new;pull=first'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '5'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-append'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;appended=5;queue=5'
+    timeout: 30000
+- tapOn:
+    id: 'e2e-facts'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=yes;cipher_version=4\.([6-9]|[1-9][0-9])\..*;temp_store=2;wipe_pending=no;queue=5'
+    timeout: 30000

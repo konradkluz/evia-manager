@@ -107,6 +107,21 @@ describe('engine: session and version (EVM-091 AC6)', () => {
     expect(server.requests).toHaveLength(1);
   });
 
+  it('EVM-100 AC5: a refresh answered with device_wipe_required pauses with the terminal wipe signal (not session_revoked), queue untouched, no resume', async () => {
+    const { core, server, session, store, events } = makeCore();
+    await core.queue.enqueue(noteInput(wo(1)));
+    session.refreshResult = 'device_wipe_required';
+    server.script.push({ kind: 'http', status: 401 });
+    const result = await core.engine.flush();
+    expect(result.paused).toBe('device_wipe_required');
+    expect(events.filter((e) => e.kind === 'signal' && e.signal === 'device_wipe_required')).toHaveLength(1);
+    expect(events.some((e) => e.kind === 'signal' && e.signal === 'session_revoked')).toBe(false);
+    expect(store.records()).toHaveLength(1);
+    expect(server.requests).toHaveLength(1);
+    expect(await core.engine.resume()).toBe(false);
+    expect(session.refreshCalls).toBe(1);
+  });
+
   it('EVM-091 AC6: a refresh that is unavailable or throws stops with auth_required without dropping anything', async () => {
     for (const mode of ['unavailable', 'throws'] as const) {
       const { core, server, session, store } = makeCore();

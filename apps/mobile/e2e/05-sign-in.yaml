@@ -1,0 +1,9 @@
+# EVM-100 AC1 (preparation of EVM-009 AC2): sign in while the API is healthy; the next flow restarts the app with the API down.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000
