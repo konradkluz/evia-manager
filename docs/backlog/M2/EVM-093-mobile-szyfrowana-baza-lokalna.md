@@ -38,7 +38,7 @@ Jako **firma** chcemy, aby **dane zleceń i kolejka na telefonie leżały wyłą
 
 **AC4 — Kopie zapasowe i uprawnienia**
 - Zakładając paczkę release
-- Gdy `tools/mobile-apk verify` ją sprawdza, a na emulatorze (wariant e2e) uruchamiam `adb backup` i kopię z Auto Backup (`bmgr`)
+- Gdy `tools/mobile-apk verify` ją sprawdza, a na emulatorze uruchamiam `adb backup` na buildzie nie-debuggable z tego samego commitu (release podpisany lokalnie kluczem debug) i kopię z Auto Backup (`bmgr`, wariant e2e)
 - Wtedy `allowBackup=false` i reguły wykluczeń (`dataExtractionRules`, `fullBackupContent`) są ustawione, kopia nie zawiera bazy ani wpisów magazynu kluczy, a manifest nie deklaruje uprawnień do galerii (`READ_MEDIA_*`, `READ/WRITE_EXTERNAL_STORAGE`), kontaktów ani lokalizacji (`ACCESS_*_LOCATION`); każde odstępstwo daje kod wyjścia ≠ 0 weryfikatora.
 
 **AC5 — Baza nieotwieralna (utrata klucza, uszkodzenie)**
@@ -95,3 +95,4 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 - 2026-10-30 — plan gotowy (mobile-developer) — etap przeglądów (code-reviewer, security-engineer) na diffie względem EVM-092
 - 2026-10-30 — przegląd na diffie względem EVM-092 (kontrole 1–10 security-engineer; `mobile-developer` — samodzielne uruchomienie agentów code-reviewer i security-engineer nie było dostępne w tym kroku, niezależny przegląd zleca orkiestrator): major — błąd skrótu KCV (expo-crypto) wychodził z `openForUser` jako surowy błąd natywny z możliwym kluczem, poprawione TDD; threat-model (TM-01, TM-04, nowe RR-71 OpenSSL 3.3.2 z SHA-256 AAR, do akceptacji), requirements (SR-MOB-01/02/04/13), checklista wydania; brak zmian w Kotlinie, pluginie i manifeście; status in-review; **AC4 (`adb backup`) czeka na decyzję Konrada**, K9 (OpenSSL) otwarte (mobile-developer)
 - 2026-10-30 — poprawki rundy 1 (code-reviewer, 2× major, TDD): operacje `LocalDataHost` zmieniające stan (`prepare`, `openForUser`, „Rozumiem”, czyszczenie) idą przez jedną kolejkę hosta — dwa równoległe otwarcia na świeżej instalacji dają jeden klucz, otwarcie w trakcie czyszczenia nie tworzy bazy kluczem spoza magazynu, podwójne „Rozumiem” resetuje raz; błąd migracji i wartość „malformed JSON” nie są już korupcją pliku (`sql_failed`, stan `unavailable`, nic nie jest usuwane); status in-review; **AC4 (`adb backup` na wariancie debuggable) nadal czeka na decyzję Konrada**, K9 (OpenSSL) otwarte (mobile-developer)
+- 2026-10-30 — decyzje Konrada: AC4 — dowód `adb backup` na buildzie nie-debuggable (opcja a; wariant e2e musi być debuggable dla `run-as`, a Android 12+ pozwala wtedy na `adb backup` niezależnie od `allowBackup`), przepływ 10 do przebudowy; K9 — Konrad akceptuje ryzyko rezydualne OpenSSL 3.3.2 (RR-71) (tech lead)
