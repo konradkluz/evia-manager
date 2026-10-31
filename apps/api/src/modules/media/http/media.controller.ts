@@ -23,7 +23,7 @@ import { webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateMediaAssetsService } from '../application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from '../application/create-upload-session.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
-import { MediaDerivativeUrlService } from '../application/media-derivative-url.service.ts';
+import { MediaDownloadUrlService } from '../application/media-download-url.service.ts';
 import { ListMediaAssetsService } from '../application/list-media-assets.service.ts';
 import { RescanMediaService } from '../application/rescan-media.service.ts';
 import { UploadPartsService } from '../application/upload-parts.service.ts';
@@ -45,7 +45,7 @@ export class MediaController {
   readonly #parts: UploadPartsService;
   readonly #finish: FinishUploadService;
   readonly #rescans: RescanMediaService;
-  readonly #derivatives: MediaDerivativeUrlService;
+  readonly #derivatives: MediaDownloadUrlService;
 
   constructor(
     @Inject(CreateMediaAssetsService) creations: CreateMediaAssetsService,
@@ -54,7 +54,7 @@ export class MediaController {
     @Inject(UploadPartsService) parts: UploadPartsService,
     @Inject(FinishUploadService) finish: FinishUploadService,
     @Inject(RescanMediaService) rescans: RescanMediaService,
-    @Inject(MediaDerivativeUrlService) derivatives: MediaDerivativeUrlService,
+    @Inject(MediaDownloadUrlService) derivatives: MediaDownloadUrlService,
   ) {
     this.#creations = creations;
     this.#lists = lists;
@@ -148,8 +148,13 @@ export class MediaController {
   @Post(`${BASE}/:mediaAssetId/download-url`)
   @OperationId('createMediaAssetDownloadUrl')
   @HttpCode(200)
-  createMediaAssetDownloadUrl(@Param() params: unknown, @Body() body: unknown, @Req() request: Request): Promise<MediaDerivativeUrl> {
-    return this.#derivatives.create(requirePrincipal(request), params, body);
+  createMediaAssetDownloadUrl(
+    @Param() params: unknown,
+    @Body() body: unknown,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<MediaDerivativeUrl> {
+    return this.#derivatives.create(requirePrincipal(request), params, body, webEventContext(request, response));
   }
 
   @Post(`${SESSION}/abort`)

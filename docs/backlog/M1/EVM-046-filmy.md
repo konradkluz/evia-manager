@@ -87,7 +87,10 @@ Jako **pracownik biura albo technik z przeglądarką w telefonie** chcę **doda�
 _Uzupełnia wykonawca przed implementacją._
 
 ## Decyzje
-_—_
+- **Do akceptacji na demo (odstępstwo od P3 i ADR-0009, ustalone z architektem i security-engineerem):** obszar roboczy filmów to osobny wolumen **na dysku hosta** (`noexec,nosuid,nodev`, 2770, tylko worker i `media-processor`, sprzątany po zadaniu i przy starcie), bo tmpfs ≥ 4 GiB nie mieści się w RAM serwera CX33; zdjęcia zostają na tmpfs. Zalecenie security-engineera: dm-crypt z kluczem efemerycznym — do wyboru przez Konrada. Bez szyfrowania: ryzyko rezydualne (kopie robocze filmów na dysku do sprzątania). Opis: `media-pipeline.md` §11, runbook `media-processor.md`.
+- **Limity w bajtach:** film ≤ 4 294 967 296 B (4 GiB), skan antywirusowy do 2 000 000 000 B (świadomie poniżej granicy ClamAV ~2^31 B; interfejs pokazuje „4 GB” / „2 GB” dziesiętnie). Film > 2 000 000 000 B nie jest skanowany (AC3, P5).
+- **Adres podglądu żyje 300 s,** film trwa do 30 min: odtwarzacz przy błędzie pobiera nowy adres i wraca do `currentTime` (jedna próba na błąd, potem W-09). Czasu ważności nie wydłużamy.
+- **Pomiar na stagingu przed demo (nieblokujący):** czy CX33 zdąży z transkodowaniem HEVC 30 min w 15 min (AC5).
 
 ## Uwagi do rozważenia
 _—_
@@ -103,3 +106,9 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): AC8 — film z przeglądarki w telefonie (ostrzeżenie o rozmiarze przed wysłaniem przez sieć komórkową, status, stan po utracie karty)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-31 — backend-developer: część backendowa gotowa (migracja 0057 (pierwotnie 0055), wideo w `media`, procesor ffprobe/ffmpeg, pętla filmów ze współbieżnością 1 w bazie, kwarantanna `type_mismatch`, adresy filmu, CSP `media-src`, clamd 2000M); web (AC1, AC4, AC7, AC8 po stronie panelu) czeka na web-developera
+- 2026-10-31 — web-developer: część panelu gotowa (wybór i kontrola filmu, hash po kawałkach, ostrzeżenie > 100 MB, kafel z czasem, znacznik nieskanowanego, odtwarzacz 720p z klawiaturą i odnawianiem adresu, teksty „Wysłano film…” / „Nie wysłano filmu…”); brak zrzutów ekranu (brak żywej aplikacji) — do demo
+- 2026-10-31 — devops-engineer: przegląd infrastruktury filmów (wolumen roboczy, clamd 2000M + dysk, CSP media-src, ffmpeg przypięty); poprawiono komentarz licencji ffmpeg w Dockerfile (pakiet OS, SR-SUPPLY-06); `pnpm run gate` zielony; aktywacja w sesji IaC
+- 2026-10-31 — backend-developer, poprawki rundy 1: obraz `backend-tests` ma teraz prawdziwe ffmpeg/ffprobe (pakiet `7:7.1.5-0+deb13u1`, `EVIA_REQUIRE_FFMPEG=1` — brak narzędzia = czerwony test, nie pominięcie; wyjątek w W9 repo-policy tylko dla tej instalacji). `ffmpeg-real.test.ts` uruchomiony w kontenerze: 4/4 zielone i od razu wykrył błąd — `ffprobe` nie zna opcji `-nostdin` (każdy film kończyłby jako `unsupported`); usunięto. Dodano test integracyjny AC7 (audyt `media_asset.created` i wpis `media_assets_added` dla filmu) oraz asercję etykiety w panelu.
+- 2026-10-31 — migracja wideo przenumerowana 0055 → 0057 (kolizja z torem A, EVM-096–098)
+- 2026-10-31 — scalono main (tor A i C) do gałęzi; numery bez przenumerowania: migracje 0054–0056 (tor A) + nasza 0057_media_video, RR-71/RR-72 (EVM-093/100) obok naszych RR-75…RR-78 (RR-73/74 wolne), brak kolizji TM/rodo; konflikty w index.ts, testach migracji, audit-record.test.ts, rodo.md i threat-model.md rozwiązane zachowaniem obu stron.

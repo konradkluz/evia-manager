@@ -13,8 +13,10 @@ import {
   type ObjectHead,
   type ObjectStorage,
   type PartUrl,
+  type SignedGetInput,
   type StoredPart,
 } from './object-storage.ts';
+import { dispositionHeader } from './content-disposition.ts';
 
 interface Upload {
   readonly key: string;
@@ -42,7 +44,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
   /** The lengths and part numbers of the URLs handed out, for assertions. */
   readonly presigned: Array<{ key: string; partNumber: number; contentLength: number; expiresInSeconds: number }> = [];
   /** The signed `GET` URLs handed out, for assertions. */
-  readonly signedGets: Array<{ key: string; expiresInSeconds: number; contentType: string; cacheControl: string }> = [];
+  readonly signedGets: SignedGetInput[] = [];
   /** Content types the uploads were created with. */
   readonly contentTypes: string[] = [];
 
@@ -165,12 +167,28 @@ export class InMemoryObjectStorage implements ObjectStorage {
     return Promise.resolve();
   }
 
-  presignGet(input: { key: string; expiresInSeconds: number; contentType: string; cacheControl: string }): Promise<PartUrl> {
+  async putObjectStreamIfAbsent(input: {
+    key: string;
+    body: Readable;
+    size: number;
+    contentType: string;
+    cacheControl: string;
+  }): Promise<void> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of input.body) chunks.push(Buffer.from(chunk as Uint8Array));
+    const body = Buffer.concat(chunks);
+    if (body.length !== input.size) throw new ObjectStorageError('unavailable');
+    await this.putObjectIfAbsent({ key: input.key, body, contentType: input.contentType, cacheControl: input.cacheControl });
+  }
+
+  presignGet(input: SignedGetInput): Promise<PartUrl> {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)
       throw new RangeError('presign lifetime out of range');
+    const disposition = dispositionHeader(input.disposition);
     this.signedGets.push({ ...input });
-    const url = `https://bucket.invalid/${input.key}?response-content-type=${encodeURIComponent(input.contentType)}&response-content-disposition=inline&X-Amz-Signature=synthetic`;
+    const version = input.versionId === undefined ? '' : `&versionId=${encodeURIComponent(input.versionId)}`;
+    const url = `https://bucket.invalid/${input.key}?response-content-type=${encodeURIComponent(input.contentType)}&response-content-disposition=${encodeURIComponent(disposition)}&X-Amz-Expires=${input.expiresInSeconds}${version}&X-Amz-Signature=synthetic`;
     return Promise.resolve({ url, expiresAt: new Date(this.#now().getTime() + input.expiresInSeconds * 1000) });
   }
 

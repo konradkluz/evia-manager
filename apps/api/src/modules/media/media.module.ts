@@ -15,9 +15,11 @@ import type { MalwareScanner } from '../../platform/malware-scan/malware-scanner
 import { MALWARE_SCANNER } from '../../platform/malware-scan/malware-scanner.ts';
 import type { ImageProcessor } from '../../platform/media-processing/image-processor.ts';
 import { IMAGE_PROCESSOR } from '../../platform/media-processing/image-processor.ts';
+import { VIDEO_PROCESSOR, type VideoProcessor } from '../../platform/media-processing/video-processor.ts';
 import type { ObjectStorage } from '../../platform/object-storage/object-storage.ts';
 import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts';
-import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../platform/tokens.ts';
+import type { MetricsRegistry } from '../../platform/metrics/metrics.ts';
+import { CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../platform/tokens.ts';
 import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateMediaAssetsService } from './application/create-media-assets.service.ts';
@@ -26,8 +28,9 @@ import { FinishUploadService } from './application/finish-upload.service.ts';
 import { ListMediaAssetsService } from './application/list-media-assets.service.ts';
 import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 import { MediaProcessingService } from './application/media-processing.service.ts';
+import { VideoProcessingService } from './application/video-processing.service.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
-import { MediaDerivativeUrlService } from './application/media-derivative-url.service.ts';
+import { MediaDownloadUrlService } from './application/media-download-url.service.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 import { RescanMediaService } from './application/rescan-media.service.ts';
 import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
@@ -46,13 +49,13 @@ import { MediaController } from './http/media.controller.ts';
     FinishUploadService,
     SessionAccess,
     RescanMediaService,
-    MediaDerivativeUrlService,
+    MediaDownloadUrlService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,
     {
       provide: MediaScanService,
-      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory],
+      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory, METRICS],
       useFactory: (
         db: Kysely<Database>,
         clock: Clock,
@@ -61,7 +64,18 @@ import { MediaController } from './http/media.controller.ts';
         storage: ObjectStorage | null,
         scanner: MalwareScanner | null,
         administrators: AdministratorDirectory,
-      ) => new MediaScanService({ db, clock, events, logger, storage, scanner, administrators: (tx) => administrators.listActiveIds(tx) }),
+        metrics: MetricsRegistry,
+      ) =>
+        new MediaScanService({
+          db,
+          clock,
+          events,
+          logger,
+          storage,
+          scanner,
+          administrators: (tx) => administrators.listActiveIds(tx),
+          metrics,
+        }),
     },
     {
       provide: MediaProcessingService,
@@ -69,7 +83,38 @@ import { MediaController } from './http/media.controller.ts';
       useFactory: (db: Kysely<Database>, clock: Clock, logger: Logger, storage: ObjectStorage | null, processor: ImageProcessor | null) =>
         new MediaProcessingService({ db, clock, logger, storage, processor }),
     },
+    {
+      provide: VideoProcessingService,
+      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, VIDEO_PROCESSOR, AdministratorDirectory, METRICS],
+      useFactory: (
+        db: Kysely<Database>,
+        clock: Clock,
+        events: EventBus,
+        logger: Logger,
+        storage: ObjectStorage | null,
+        processor: VideoProcessor | null,
+        administrators: AdministratorDirectory,
+        metrics: MetricsRegistry,
+      ) =>
+        new VideoProcessingService({
+          db,
+          clock,
+          events,
+          logger,
+          storage,
+          processor,
+          administrators: (tx) => administrators.listActiveIds(tx),
+          metrics,
+        }),
+    },
   ],
-  exports: [MediaScanService, MediaProcessingService, QuarantineRetentionJob, AbandonedUploadsJob, SignatureMonitorJob],
+  exports: [
+    MediaScanService,
+    MediaProcessingService,
+    VideoProcessingService,
+    QuarantineRetentionJob,
+    AbandonedUploadsJob,
+    SignatureMonitorJob,
+  ],
 })
 export class MediaModule {}

@@ -80,6 +80,9 @@ export function toMediaAsset(row: AssetWithFile, options: Representation = { unf
         : { state: quarantine.state, expiresAt: quarantine.expiresAt.toISOString(), purgedAt: quarantine.purgedAt?.toISOString() ?? null },
     ...(reason === undefined ? {} : { quarantineReasonCode: reason }),
     declaredSize: Number(file.declared_size_bytes),
+    durationSeconds: file.duration_seconds,
+    // only an explicit `true` counts: null (not scanned yet) is NOT "scanned" (fail closed, EVM-046 AC3)
+    avScanned: file.av_scanned === true,
     originalFilename: options.unfinished ? file.original_filename : null,
     uploadSession:
       session === null

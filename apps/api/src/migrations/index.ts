@@ -54,6 +54,7 @@ import * as mediaDerivatives from './0053_media_derivatives.ts';
 import * as syncChangeLog from './0054_sync_change_log.ts';
 import * as syncRemainingEntities from './0055_sync_remaining_entities.ts';
 import * as syncMutations from './0056_sync_mutations.ts';
+import * as mediaVideo from './0057_media_video.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -110,4 +111,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0054_sync_change_log': syncChangeLog,
   '0055_sync_remaining_entities': syncRemainingEntities,
   '0056_sync_mutations': syncMutations,
+  '0057_media_video': mediaVideo,
 });

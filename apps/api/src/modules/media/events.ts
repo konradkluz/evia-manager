@@ -9,7 +9,10 @@ import type { DomainEvent } from '../../platform/events/event-bus.ts';
 /**
  * The audit actions: a media asset was created (per medium), a file was put in quarantine by the scan (a malware or a wrong type), an
  * Administrator asked for a new scan of it (EVM-049), the worker's new scan of it ended (the result is the code `toCode`: `clean`,
- * `quarantined` or `failed`, never the reason), the object of a file was removed after 30 days of quarantine.
+ * `quarantined` or `failed`, never the reason), the object of a file was removed after 30 days of quarantine. EVM-045 (SR-FILE-07, SR-FILE-10,
+ * SR-LOG-03): the address of an ORIGINAL was issued (`original_downloaded`, in the transaction of the issue), a Read-only caller asked for one
+ * (`original_download_denied`), the user passed the alert threshold of the addresses of a window (`download_alerted`) and the first refusal
+ * of a window for the limit (`download_rejected`). The object is always the medium; never an address, a name or a key.
  */
 export const MEDIA_EVENT_TYPES = [
   'media_asset.created',
@@ -17,13 +20,17 @@ export const MEDIA_EVENT_TYPES = [
   'media_file.rescan_requested',
   'media_file.rescanned',
   'media_file.quarantine_purged',
+  'media_file.original_downloaded',
+  'media_file.original_download_denied',
+  'media_file.download_alerted',
+  'media_file.download_rejected',
 ] as const;
 
 export interface MediaAuditEvent extends DomainEvent {
   readonly type: (typeof MEDIA_EVENT_TYPES)[number];
   /** A user for the creation; the system (the scan of the worker) for a quarantine. */
   readonly actor: { readonly type: 'user'; readonly userId: string } | { readonly type: 'system' };
-  readonly outcome: 'success';
+  readonly outcome: 'success' | 'denied';
   readonly objectType: 'media_asset';
   readonly objectId: string;
   /** Only `media_file.rescanned`: the state before and after the new scan (a closed list of codes, never a reason). */

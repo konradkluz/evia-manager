@@ -19,7 +19,7 @@ import type { BulkReadMeter } from './bulk-read-meter.ts';
 import type { DistinctReadMeter } from './distinct-read-meter.ts';
 
 /** Alerts raised by the API process while it serves a request (never stored in the outbox). */
-export type RequestSecurityAlertCode = 'bulk_read' | 'bulk_read_customers';
+export type RequestSecurityAlertCode = 'bulk_read' | 'bulk_read_customers' | 'mass_download';
 
 /** What the distinct-object meter watches, and the code of the alert it raises (EVM-039: more than 300 different customers in an hour). */
 export type DistinctObjectType = Extract<BulkReadObjectType, 'customer'>;

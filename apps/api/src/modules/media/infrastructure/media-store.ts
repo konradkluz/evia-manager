@@ -23,6 +23,7 @@ export interface Creator {
 export interface NewMediaAsset {
   readonly id: string;
   readonly workOrderId: string;
+  readonly mediaType: 'photo' | 'video';
   readonly category: string;
   readonly description: string | null;
   readonly createdBy: string;
@@ -47,7 +48,7 @@ export async function insertMediaAsset(db: MediaDb, asset: NewMediaAsset, now: D
       id: asset.id,
       work_order_id: asset.workOrderId,
       procedure_stage_id: null,
-      media_type: 'photo',
+      media_type: asset.mediaType,
       category: asset.category,
       description: asset.description,
       origin: 'web',
@@ -301,6 +302,8 @@ export async function transitionFile(
     readonly sha256?: string | null;
     readonly s3VersionId?: string | null;
     readonly s3Etag?: string | null;
+    /** Set EXPLICITLY by the scan: `true` after the antivirus, `false` for a video above the scan limit (P5). Never defaulted. */
+    readonly avScanned?: boolean;
     /** The FIRST entry into quarantine (kept when already set: the column is write-once and the clock of the retention). */
     readonly quarantinedAt?: Date;
   },
@@ -318,6 +321,7 @@ export async function transitionFile(
       ...(to.sha256 === undefined ? {} : { sha256: to.sha256 }),
       ...(to.s3VersionId === undefined ? {} : { s3_version_id: to.s3VersionId }),
       ...(to.s3Etag === undefined ? {} : { s3_etag: to.s3Etag }),
+      ...(to.avScanned === undefined ? {} : { av_scanned: to.avScanned }),
       ...(to.quarantinedAt === undefined ? {} : { quarantined_at: sql<Date>`coalesce(quarantined_at, ${to.quarantinedAt}::timestamptz)` }),
     })
     .where('id', '=', storedFileId)
@@ -677,13 +681,18 @@ export interface Unprocessed {
 
 /**
  * The photos waiting for their derivatives (EVM-068): `clean`, or `processing` that nobody touched since `staleBefore` (a worker died, the processor
- * failed on a try), oldest first. Videos are skipped by the filter (EVM-046). A file `clean` before the deployment is simply found here.
+ * failed on a try), oldest first, of ONE kind of medium (photos and videos have separate loops, EVM-046). A file `clean` before the deployment is simply found here.
  */
-export async function findUnprocessed(db: MediaDb, staleBefore: Date, limit: number): Promise<Unprocessed[]> {
+export async function findUnprocessed(
+  db: MediaDb,
+  staleBefore: Date,
+  limit: number,
+  mediaType: 'photo' | 'video' = 'photo',
+): Promise<Unprocessed[]> {
   const rows = await db
     .selectFrom('media.stored_files as f')
     .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
-    .where('a.media_type', '=', 'photo')
+    .where('a.media_type', '=', mediaType)
     .where((eb) =>
       eb.or([
         eb('f.state', '=', 'clean'),
@@ -698,11 +707,11 @@ export async function findUnprocessed(db: MediaDb, staleBefore: Date, limit: num
 }
 
 /** Photos that still wait for derivatives after `olderThan` - the count for the warning of the worker (nothing stays silent). */
-export async function countUnprocessedStuck(db: MediaDb, olderThan: Date): Promise<number> {
+export async function countUnprocessedStuck(db: MediaDb, olderThan: Date, mediaType: 'photo' | 'video' = 'photo'): Promise<number> {
   const row = await db
     .selectFrom('media.stored_files as f')
     .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
-    .where('a.media_type', '=', 'photo')
+    .where('a.media_type', '=', mediaType)
     .where('f.state', 'in', ['clean', 'processing'])
     .where('f.state_changed_at', '<', olderThan)
     .select(sql<string>`count(*)`.as('count'))
@@ -756,6 +765,7 @@ export interface NewDerivative {
   readonly storedFileId: string;
   readonly variant: DerivativeVariant;
   readonly objectKey: string;
+  readonly contentType?: 'image/webp' | 'video/mp4';
   readonly width: number;
   readonly height: number;
   readonly sizeBytes: number;
@@ -770,7 +780,7 @@ export async function insertDerivatives(db: MediaDb, derivatives: readonly NewDe
         stored_file_id: item.storedFileId,
         variant: item.variant,
         object_key: item.objectKey,
-        content_type: 'image/webp' as const,
+        content_type: item.contentType ?? ('image/webp' as const),
         width: item.width,
         height: item.height,
         size_bytes: item.sizeBytes,
@@ -782,6 +792,8 @@ export async function insertDerivatives(db: MediaDb, derivatives: readonly NewDe
 
 export interface DerivativeSource {
   readonly objectKey: string;
+  /** The type recorded with the row of the derivative (set by the server when it was written): the `Content-Type` of the signed address. */
+  readonly contentType: 'image/webp' | 'video/mp4';
 }
 
 /**
@@ -802,7 +814,124 @@ export async function findReadyDerivative(
     .where('a.id', '=', mediaAssetId)
     .where('a.work_order_id', '=', workOrderId)
     .where('f.state', '=', 'ready')
-    .select('d.object_key')
+    .select(['d.object_key', 'd.content_type'])
     .executeTakeFirst();
-  return row === undefined ? undefined : { objectKey: row.object_key };
+  return row === undefined ? undefined : { objectKey: row.object_key, contentType: row.content_type };
+}
+
+export interface OriginalSource {
+  readonly objectKey: string;
+  /** The version the scan passed (`null` for an object written before versions were recorded): the signed address pins it (TOCTOU). */
+  readonly versionId: string | null;
+  readonly contentType: string | null;
+  readonly originalFilename: string | null;
+  readonly state: FileState;
+  readonly reason: ReasonCode | null;
+  readonly mediaType: 'photo' | 'video';
+  readonly durationSeconds: number | null;
+  readonly avScanned: boolean | null;
+}
+
+/**
+ * The original a caller may be given an address for, in ONE statement scoped to the order (EVM-045 AC6; CWE-639): the medium of THIS order
+ * with its file. Whether the state allows the download is decided by the caller ({@link isOriginalDownloadable}); a medium of another order and a
+ * missing one are the same absence.
+ */
+export async function findOriginal(db: MediaDb, workOrderId: string, mediaAssetId: string): Promise<OriginalSource | undefined> {
+  const row = await db
+    .selectFrom('media.media_assets as a')
+    .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
+    .where('a.id', '=', mediaAssetId)
+    .where('a.work_order_id', '=', workOrderId)
+    .where('f.purpose', '=', 'media_original')
+    .select([
+      'f.object_key',
+      'f.s3_version_id',
+      'f.content_type',
+      'f.original_filename',
+      'f.state',
+      'f.state_reason_code',
+      'f.duration_seconds',
+      'f.av_scanned',
+      'a.media_type',
+    ])
+    .executeTakeFirst();
+  return row === undefined
+    ? undefined
+    : {
+        objectKey: row.object_key,
+        versionId: row.s3_version_id,
+        contentType: row.content_type,
+        originalFilename: row.original_filename,
+        state: row.state,
+        reason: row.state_reason_code,
+        mediaType: row.media_type,
+        durationSeconds: row.duration_seconds,
+        avScanned: row.av_scanned,
+      };
+}
+
+/**
+ * Records the result of the structural check of a video (ffprobe): the duration, in its OWN short transaction BEFORE the transcoding starts, so that a
+ * timeout of the transcoding does not lose it. Compare-and-set on `processing`; the column is written once (a repeat of the probe keeps the first value).
+ * @returns whether the file was in `processing`
+ */
+export async function recordDuration(db: MediaDb, storedFileId: string, durationSeconds: number): Promise<boolean> {
+  const result = await db
+    .updateTable('media.stored_files')
+    .set({ duration_seconds: sql<number>`coalesce(duration_seconds, ${durationSeconds}::integer)` })
+    .where('id', '=', storedFileId)
+    .where('state', '=', 'processing')
+    .returning('id')
+    .executeTakeFirst();
+  return result !== undefined;
+}
+
+/** One key for the claim of a film: the claims of films are serialised by it (ONE film is transcoded at a time, whatever the number of workers). */
+const VIDEO_CLAIM_LOCK = 'media-video-claim';
+
+/**
+ * The take of a FILM by the processing loop (EVM-046 AC5: the concurrency is ONE and it holds in the database, not only in the process): like
+ * {@link claimForProcessing}, and in addition no other film may be `processing` with a fresh claim. The check and the update must not race, so the
+ * claims of films are serialised by a transaction-scoped advisory lock taken FIRST - the second claim waits, then its statement sees the committed
+ * `processing` row of the first and takes nothing. MUST run inside a transaction (the lock lives as long as it). Photos do not take this path.
+ */
+export async function claimVideoForProcessing(
+  db: MediaDb,
+  storedFileId: string,
+  staleBefore: Date,
+  now: Date,
+  maxAttempts: number,
+): Promise<StoredFileRow | undefined> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${VIDEO_CLAIM_LOCK}, 0))`.execute(db);
+  return db
+    .updateTable('media.stored_files')
+    .set({
+      state: 'processing',
+      process_claimed_at: now,
+      process_attempts: sql<number>`process_attempts + 1`,
+      state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
+    })
+    .where('id', '=', storedFileId)
+    .where('process_attempts', '<', maxAttempts)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'clean'),
+        eb.and([eb('state', '=', 'processing'), sql<boolean>`(process_claimed_at is null or process_claimed_at < ${staleBefore})`]),
+      ]),
+    )
+    .where(
+      sql<boolean>`not exists (
+        select 1 from media.stored_files other join media.media_assets a on a.id = other.media_asset_id
+        where a.media_type = 'video' and other.state = 'processing' and other.id <> media.stored_files.id and other.process_claimed_at >= ${staleBefore}
+      )`,
+    )
+    .returningAll()
+    .executeTakeFirst();
+}
+
+/** The recorded size of a file (the room the film needs is decided from it BEFORE the film is taken); `undefined` for a missing file or one the scan has not measured. */
+export async function recordedSize(db: MediaDb, storedFileId: string): Promise<number | undefined> {
+  const row = await db.selectFrom('media.stored_files').where('id', '=', storedFileId).select('size_bytes').executeTakeFirst();
+  return row?.size_bytes == null ? undefined : Number(row.size_bytes);
 }

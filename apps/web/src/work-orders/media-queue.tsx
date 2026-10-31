@@ -66,7 +66,7 @@ export function MediaQueue({ media }: { readonly media: MediaUpload }) {
     <section aria-label={mediaText.progressRegion} className="flex flex-col gap-stack-sm">
       {online || !working ? null : <Banner icon={WifiOff}>{mediaText.offline}</Banner>}
       {allDone ? (
-        <InlineAlert tone="success">{mediaText.sentAll(items.length)}</InlineAlert>
+        <InlineAlert tone="success">{mediaText.sentAll(items.length, items.filter((item) => item.kind === 'video').length)}</InlineAlert>
       ) : (
         <>
           {/* Announced as a whole when the count changes ("Wysyłanie · 3 z 5"), never every percent (styleguide § 5.4). */}

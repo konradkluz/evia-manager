@@ -20,6 +20,8 @@ export interface MediaSpec {
   readonly state?: FileState;
   readonly reason?: ReasonCode;
   readonly fileName?: string;
+  /** The kind of the medium; the default is a photo. */
+  readonly mediaType?: 'photo' | 'video';
   readonly contentType?: string;
   readonly size?: number;
   readonly sha256?: string;
@@ -57,7 +59,7 @@ export async function insertMedia(db: Kysely<Database>, spec: MediaSpec): Promis
       id: mediaAssetId,
       work_order_id: spec.workOrderId,
       procedure_stage_id: null,
-      media_type: 'photo',
+      media_type: spec.mediaType ?? 'photo',
       category: 'in_progress',
       description: null,
       origin: 'web',

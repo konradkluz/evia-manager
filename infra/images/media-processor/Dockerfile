@@ -3,7 +3,12 @@
 #   docker build -f infra/images/media-processor/Dockerfile .   (the context is the repository root, restricted by Dockerfile.dockerignore)
 # Every base by tag + digest (the same ones as the image of the API), pnpm in the exact version of package.json "packageManager" verified by its SHA-512,
 # the lockfile frozen, install scripts disabled (sharp has none: the prebuilt libvips comes in @img/sharp-libvips-*, with the integrity of the lockfile).
-# Runtime: distroless Node.js 26 (no shell, no package manager), non-root; the process runs `src/main.ts` with type stripping, no build step.
+# Runtime: Node.js 26 on Debian slim (the same base, by digest, as the image of the API) with ffmpeg and ffprobe from the Debian archive at an EXACT pinned version
+# (EVM-046, SR-SUPPLY-06: the build fails without FFMPEG_VERSION); non-root; the process runs `src/main.ts` with type stripping, no build step.
+# EVM-046 departs from the distroless runtime of EVM-068: ffprobe and ffmpeg are programs with many shared libraries, which the distroless image does not have.
+# The container stays closed by its configuration, not by the image alone (no network, read-only root, no capabilities - compose.media.yaml). The build of
+# ffmpeg in Debian is GPL (libx264); the image is not redistributed (server tool, scan 4 in docs/security/requirements.md lists ffmpeg). It is an OS package, so the library licence scan
+# (`--pkg-types library`) does not see it and no `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
 FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
 
 # renovate: datasource=npm depName=pnpm
@@ -35,7 +40,16 @@ RUN --mount=type=bind,source=.,target=/context \
     done \
  && pnpm install --frozen-lockfile --ignore-scripts --prod --os=linux --cpu="$cpu" --libc=glibc --filter "@evia/media-processor..."
 
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:96455baef11b178fc135b32206e3922c515dbed2400676c94f907f8f84e6abf6 AS runtime
+FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS runtime
+
+# renovate: datasource=deb depName=ffmpeg
+# The exact Debian package version (`apt-cache madison ffmpeg` in the image of the build date), given by the IaC session and recorded in the register of releases.
+ARG FFMPEG_VERSION
+RUN test -n "${FFMPEG_VERSION}" \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" \
+  && rm -rf /var/lib/apt/lists/* \
+  && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1
 
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"
@@ -52,5 +66,6 @@ COPY services/media-processor/src ./services/media-processor/src
 USER 65532:65532
 WORKDIR /app/services/media-processor
 HEALTHCHECK NONE
-# The entry point of the base image is node; the compose file chooses src/main.ts (and the user of the container, which shares the group of the worker).
+# The entry point is node itself (the entry script of the Node image is bypassed); the compose file chooses src/main.ts (and the user of the container, which shares the group of the worker).
+ENTRYPOINT ["/usr/local/bin/node"]
 CMD ["src/main.ts"]

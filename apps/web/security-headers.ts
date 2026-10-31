@@ -10,7 +10,7 @@
  *   inline script and HMR uses ws:. Never used for anything served to users (residual risk RR-c).
  * - EVM-044: `mediaOrigin` — the ONE https origin of the media bucket (`MEDIA_BUCKET_ORIGIN`, the same value as in the API) is added to
  *   `connect-src`, because the browser sends the parts of a photo straight to the bucket with a signed `PUT`, and (EVM-068) to `img-src`, because the
- *   thumbnails and previews are images loaded from the bucket by a signed `GET` (never from `'self'`, never `https:` or `*`). Exactly one origin, no
+ *   thumbnails and previews are images loaded from the bucket by a signed `GET`, and (EVM-046) to `media-src`, because the 720p preview of a film is a `<video>` played from a signed `GET` (never from `'self'`, never `https:` or `*`). Exactly one origin, no
  *   path, no wildcard (a wildcard such as `*.scw.cloud` would give a script an exfiltration channel to any bucket); no value means
  *   `'self'` only. A wrong value is a configuration error and stops the start (`parseMediaOrigin`).
  * `https: true` (EVM-076, behind TLS) adds upgrade-insecure-requests and HSTS; on http://localhost they would break
@@ -81,6 +81,8 @@ export function panelSecurityHeaders({ variant, https = false, mediaOrigin }: Pa
       if (mediaOrigin === undefined) return directive;
       if (directive === "connect-src 'self'") return `connect-src 'self' ${mediaOrigin}`;
       if (directive === "img-src 'self' data: blob:") return `img-src 'self' data: blob: ${mediaOrigin}`;
+      // EVM-046: the preview of a film is a <video> with a signed address of the bucket (no `crossorigin` attribute, so the CORS of the bucket is not needed)
+      if (directive === "media-src 'self' blob:") return `media-src 'self' blob: ${mediaOrigin}`;
       return directive;
     });
     headers['Content-Security-Policy'] = (https ? [...directives, 'upgrade-insecure-requests'] : directives).join('; ');

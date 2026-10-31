@@ -99,4 +99,28 @@ worker (pętla co 5 s)                 media-processor (kontener bez sieci)
 
 - **Klucze i usuwanie:** pochodne leżą pod prefiksem oryginału `media/{rok}/{miesiąc}/{id}/`, więc usunięcie pliku prefiksem (EVM-051, rejestr usunięć) obejmuje je; klucz workera ma `PutObject` tylko na dwie nazwy pochodnych, warunkowo (nigdy nie nadpisze oryginału — TM-76).
 - **Ponowienia:** licznik prób rośnie przy przejęciu, więc OOM lub crash procesora zużywa próbę (brak „poison pill”); błędy trwałe (`pixel_limit` > 100 MP, `unsupported`, `invalid_output`) kończą od razu `failed` / `processing_error`, przejściowe (`timeout`, `internal`, transport, storage) są ponawiane po okresie nieaktywności (5 min), najwyżej 3 razy. HEIC jest dziś błędem trwałym `unsupported` (prebuilt libvips nie dekoduje HEVC).
-- **Adres miniatury:** `POST …/media-assets/{id}/download-url` z `{ variant }` → podpisany `GET` 300 s z domeny bucketu, `response-content-type=image/webp`, `inline`; panel prosi o adres tylko dla kafli w widoku, po sześć naraz (limit wystawiania adresów — EVM-045; galerie do 5000 mediów: uwaga w historyjce).
+- **Adres pliku:** `POST …/media-assets/{id}/download-url` z `{ variant }` (`thumbnail`, `preview`, `original`) → podpisany `GET` 300 s z domeny bucketu. Pochodne: `response-content-type=image/webp`, `inline`. Oryginał (EVM-045): typ wykryty przez serwer, `attachment` z nazwą oczyszczoną przez serwer, `private, no-store`, `VersionId` przeskanowanej wersji (TOCTOU), dozwolony w stanach `clean`, `ready` i `failed` z `processing_error`; wideo i dokumenty — `404` do EVM-046/047. Panel prosi o adres miniatury tylko dla kafli w widoku, po sześć naraz; limity wystawiania adresów (P10, SR-FILE-10) liczy API per użytkownik: miniatury i podglądy razem 1000 / 10 min, oryginały 100 / 10 min (galerie do 5000 mediów: uwaga w historyjce EVM-068).
+
+## 11. Filmy po stronie serwera (EVM-046)
+Film (`video/mp4`, `video/quicktime`; H.264 lub H.265; do 30 min i 4 GiB, czyli **4 294 967 296 B** — jak limit zdjęcia 50 MB = 52 428 800 B; w interfejsie „4 GB” przez `formatBytes`, dziesiętnie) idzie tą samą drogą uploadu (256 części po 16 MiB) i skanu. Dalej:
+
+```text
+worker (pętla filmów co 10 s, współbieżność 1)        media-processor
+  clean ──CAS + blokada doradcza──▶ processing   (bez innego filmu „processing” ze świeżym przejęciem)
+  wolne miejsce w obszarze filmów? nie ─▶ zostaje clean, bez zużycia próby, metryka
+  oryginał (przypięta wersja + ETag) strumieniem ─▶ /var/lib/media-video/<jobId>/input   (dysk, nie tmpfs)
+  krok probe  ───────────────────────────────────▶ ffprobe: -f mov, protokół file, bez dref; kontener, kodek, ≤ 4096², ≤ 120 kl/s, ≤ 1800 s
+  ◀──── { probe: duration, width, height, codec, hasAudio }   niezgodny ─▶ quarantined / type_mismatch (audyt + e-mail + alert, 1 transakcja)
+  duration_seconds zapisane (osobna transakcja) — od teraz oryginał może być wydany
+  krok transcode ────────────────────────────────▶ ffmpeg: 720p ≤ 30 kl/s, -map 0:v:0 -map 0:a:0?, -map_metadata -1, +faststart, SIGKILL po 15 min
+  ◀──── { frame, preview } ; odczyt: lstat + O_NOFOLLOW, ftyp, rozmiar ≤ 1 GiB; klatka WebP ≤ 2 MB
+  PutObject If-None-Match: * (strumieniem) ─ media/…/{id}/preview.mp4, thumbnail.webp
+  jedna transakcja: processing ──▶ ready + 2 wiersze file_derivatives ; katalog zadania usunięty
+```
+
+- **Skan.** Do 2 000 000 000 B film idzie do `clamd` (limity 2000M, `TemporaryDirectory` na dysku); powyżej — bez antywirusa, `av_scanned = false` (P5, SR-FILE-12). Limit skanu w bajtach (2 000 000 000, nie 2 GiB) leży świadomie poniżej granicy ClamAV (~2^31 B); limit filmu to 4 GiB.
+- **Wydawanie oryginału.** Wyłącznie przez `isVideoOriginalReleasable`: po `ffprobe` (jest `duration_seconds`) w stanie `ready`, albo `failed`/`processing_error` dla filmu przeskanowanego. `clean` przed `ffprobe`, `processing` i kwarantanna → `404`. Tylko odczyt: `403` dla `original` zawsze.
+- **Podgląd.** `video/mp4`, `inline`; adres ważny 300 s, więc odtwarzacz przy błędzie (`403` na żądaniach Range po wygaśnięciu) prosi o nowy adres i wraca do zapamiętanego `currentTime` (jedna próba na błąd, potem komunikat W-09); odświeżenia liczą się do limitu P10. CSP: ten sam jedyny origin bucketu w `media-src` (`<video>` bez `crossorigin`).
+- **Ponowny skan (EVM-049).** `processing → quarantined(type_mismatch)` współpracuje z nim: `quarantined → scanning → clean → processing → ponowny ffprobe`; `duration_seconds` pozostaje puste, retencja kwarantanny liczy się od pierwszego `quarantined_at`.
+- **Obszar roboczy na dysku — odstępstwo od P3/ADR-0009.** Zdjęcia zostają na tmpfs; filmy używają osobnego wolumenu dyskowego (`noexec,nosuid,nodev`, 2770, tylko worker i procesor), sprzątanego po zadaniu i przy starcie. Zalecenie: dm-crypt z kluczem efemerycznym. Wymuszone rozmiarem (tmpfs ≥ 4 GiB nie zmieści się w RAM CX33); decyzja do akceptacji na demo. **To samo odstępstwo dotyczy katalogu tymczasowego `clamd`** (`/scan-tmp`, strumień każdego skanowanego pliku, także zdjęć): osobny montaż hosta `/var/lib/evia/clamav-scan` (dm-crypt, klucz efemeryczny, `nodev,nosuid,noexec`, limit ≥ 2,5 GB, alert 80%), czyszczony przy starcie `clamd` (RR-71). Szczegóły: [runbook `media-processor`](../ops/runbooks/media-processor.md).
+- **Narzędzia.** `ffprobe`/`ffmpeg` tylko w kontenerze `media-processor` (bez sieci, root FS tylko do odczytu); wejście wymuszone demuxerem `mov`, protokół `file`, `-enable_drefs 0`; stderr narzędzi nigdy nie trafia do logów (zawiera tagi z lokalizacją). Odpowiedź procesora to allow-lista pól, nigdy tagi.

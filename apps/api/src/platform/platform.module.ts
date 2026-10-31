@@ -21,6 +21,7 @@ import { TimerSleeper } from './http/response-floor.ts';
 import type { Logger } from './logging/logger.ts';
 import { MetricsRegistry } from './metrics/metrics.ts';
 import { BulkReadControl } from './bulk-read/bulk-read-control.ts';
+import { InMemorySignedUrlMeters } from './signed-url-limits/signed-url-meters.ts';
 import { InMemoryBulkReadMeter, type BulkReadMeter } from './bulk-read/bulk-read-meter.ts';
 import { InMemoryDistinctReadMeter, type DistinctReadMeter } from './bulk-read/distinct-read-meter.ts';
 import { fieldEncryptionFor } from './crypto/field-encryption.ts';
@@ -32,6 +33,7 @@ import {
   APP_CONFIG,
   BULK_READ_CONTROL,
   BULK_READ_METER,
+  SIGNED_URL_METERS,
   DISTINCT_READ_METER,
   CLOCK,
   CURSOR_CODEC,
@@ -47,6 +49,8 @@ import {
 import { runInTransaction } from './database/transactional.ts';
 import { createImageProcessor } from './media-processing/create-image-processor.ts';
 import { IMAGE_PROCESSOR } from './media-processing/image-processor.ts';
+import { createVideoProcessor } from './media-processing/create-video-processor.ts';
+import { VIDEO_PROCESSOR } from './media-processing/video-processor.ts';
 import { createMalwareScanner } from './malware-scan/create-malware-scanner.ts';
 import { MALWARE_SCANNER } from './malware-scan/malware-scanner.ts';
 import { createObjectStorage } from './object-storage/create-object-storage.ts';
@@ -92,7 +96,10 @@ export class PlatformModule {
         { provide: MALWARE_SCANNER, useFactory: () => createMalwareScanner(config.media) },
         // EVM-068: `null` without the processor settings - no derivatives are made and the photos stay `clean`
         { provide: IMAGE_PROCESSOR, useFactory: () => createImageProcessor(config.media) },
+        // EVM-046: `null` without the work area of videos - the films stay `clean` and their originals are not released (fail closed)
+        { provide: VIDEO_PROCESSOR, useFactory: () => createVideoProcessor(config.media) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
+        { provide: SIGNED_URL_METERS, inject: [CLOCK], useFactory: (clock: Clock) => new InMemorySignedUrlMeters(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
           provide: BULK_READ_CONTROL,
@@ -151,7 +158,9 @@ export class PlatformModule {
         OBJECT_STORAGE,
         MALWARE_SCANNER,
         IMAGE_PROCESSOR,
+        VIDEO_PROCESSOR,
         DELETION_REGISTER,
+        SIGNED_URL_METERS,
       ],
     };
   }

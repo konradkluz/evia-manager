@@ -20,23 +20,24 @@
  * `media_file.rescanned` with the result (a code, never the reason).
  */
 import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { fileTypeFromBuffer } from 'file-type';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
-import { enqueueSecurityAlert } from '../../../platform/alerts/security-alerts.ts';
 import type { Database } from '../../../platform/database/database.ts';
-import { enqueueEmailOnce } from '../../../platform/email/email-outbox.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
-import { newTraceId } from '../../../platform/http/request-context.ts';
 import type { Logger } from '../../../platform/logging/logger.ts';
 import { MalwareScanError, type MalwareScanner } from '../../../platform/malware-scan/malware-scanner.ts';
 import type { ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
-import { normalizeContentType, typeAgrees } from '../domain/file-rules.ts';
+import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
+import { mediaKindOf, normalizeContentType, typeAgrees } from '../domain/file-rules.ts';
 import { decideOutcome } from '../domain/scan-outcome.ts';
+import { SCAN_LIMIT_BYTES, skipsAntivirus } from '../domain/video-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { claimForScan, countStuck, findUnscanned, transitionFile, workOrderOfAsset } from '../infrastructure/media-store.ts';
+import { claimForScan, countStuck, findUnscanned, transitionFile } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { publishMediaEvent, raiseQuarantineAlert } from './quarantine-alert.ts';
 
 /** A file in `scanning` that nobody has touched for this long is taken again. */
 export const STALE_SCANNING_MS = 2 * 60_000;
@@ -58,15 +59,23 @@ export interface ScanDependencies {
   readonly scanner: MalwareScanner | null;
   /** The identifiers of the active Administrators (the facade of `identity`; the recipients of the alert of a quarantine). */
   readonly administrators: (tx: Kysely<Database>) => Promise<string[]>;
+  /** For the counter of videos left out of the scan (EVM-046 AC3; no labels, no identifiers). Optional: the scan works without it. */
+  readonly metrics?: MetricsRegistry;
+  /** The largest file the antivirus scans; the default is the limit of P5 (tests inject a small one instead of a 2.5 GB object). */
+  readonly scanLimitBytes?: number;
 }
+
+export const UNSCANNED_LARGE_FILE_METRIC = 'media_unscanned_large_file_total';
 
 export class MediaScanService {
   readonly #deps: ScanDependencies;
+  readonly #unscanned: Counter | undefined;
   #running = false;
   #pass: Promise<number> | undefined;
 
   constructor(deps: ScanDependencies) {
     this.#deps = deps;
+    this.#unscanned = deps.metrics?.counter(UNSCANNED_LARGE_FILE_METRIC, []);
   }
 
   /** Both the storage and the scanner are configured; without them nothing is scanned (and nothing becomes `clean`). */
@@ -123,6 +132,18 @@ export class MediaScanService {
     if (file === undefined) return false;
 
     const declaredSize = Number(file.declared_size_bytes);
+    // EVM-046 AC3 (P5, SR-FILE-12): a VIDEO above the limit is not sent to the antivirus. The decision rests on the size the STORAGE reports (never on the
+    // declaration), and only a video is ever left out: any other file that is too large for the scanner stays unscanned (fail closed).
+    const limit = this.#deps.scanLimitBytes ?? SCAN_LIMIT_BYTES;
+    const declaredType = normalizeContentType(file.declared_content_type);
+    let skipScan = false;
+    try {
+      const head = declaredType !== undefined && mediaKindOf(declaredType) === 'video' ? await storage.head(file.object_key) : undefined;
+      skipScan = head !== undefined && skipsAntivirus(head.size, limit);
+    } catch {
+      logger.warn({ job: 'media.scan', storedFileId }, 'media: the size of a file could not be read; it stays in scanning and is retried');
+      return false;
+    }
     const hash = createHash('sha256');
     // mutated by the observer while the scanner reads: one object, so the later reads see the final values
     const seen = { bytes: 0, head: Buffer.alloc(0), oversize: false };
@@ -144,7 +165,9 @@ export class MediaScanService {
           yield chunk;
         }
       }
-      infected = (await scanner.scan(observed())).status === 'infected';
+      if (skipScan)
+        await Readable.from(observed()).forEach(() => undefined); // the same bytes feed the SHA-256, the size and the type; no verdict of the scanner
+      else infected = (await scanner.scan(observed())).status === 'infected';
     } catch (error) {
       if (!seen.oversize) {
         // no verdict: the file stays `scanning` and is taken again after the stale period (never clean without a scan)
@@ -156,6 +179,14 @@ export class MediaScanService {
       }
     }
 
+    // the file changed between the check of its size and the read (it is no longer above the limit): it was NOT scanned, so it is no verdict (fail closed)
+    if (skipScan && !seen.oversize && !skipsAntivirus(seen.bytes, limit)) {
+      logger.warn(
+        { job: 'media.scan', storedFileId },
+        'media: a file left out of the scan is not above the limit; it stays in scanning and is retried',
+      );
+      return false;
+    }
     const sha256 = seen.oversize ? null : hash.digest('hex');
     const detected = seen.oversize ? undefined : await fileTypeFromBuffer(seen.head);
     const outcome = decideOutcome({
@@ -175,6 +206,8 @@ export class MediaScanService {
           state: outcome.state,
           reason: outcome.reason,
           sizeBytes: seen.oversize ? null : seen.bytes,
+          // set EXPLICITLY (never a default): true after the antivirus, false for a video above the limit; an oversize stream was never judged
+          ...(seen.oversize ? {} : { avScanned: !skipScan }),
           sha256,
           contentType: detected === undefined ? null : (normalizeContentType(detected.mime) ?? null),
           // the coalesce of the store keeps the first time: a new scan with a positive result never moves the clock of the retention
@@ -188,43 +221,26 @@ export class MediaScanService {
           await this.#publish(tx, 'media_file.rescanned', file.media_asset_id, { fromCode: 'quarantined', toCode: outcome.state });
         else if (outcome.state === 'quarantined') await this.#alert(tx, file.media_asset_id, at);
       }
-      logger.info({ job: 'media.scan', storedFileId: file.id, state: outcome.state, rescan }, 'media: a file was scanned');
+      if (skipScan && !seen.oversize && outcome.state === 'clean') this.#unscanned?.increment({});
+      logger.info(
+        { job: 'media.scan', storedFileId: file.id, state: outcome.state, rescan, scanned: !skipScan },
+        'media: a file was scanned',
+      );
       return true;
     });
   }
 
   /** The first entry into quarantine: the audit event, one e-mail per active Administrator and a security alert (AC2; SR-FILE-05, SR-LOG-07). */
-  async #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
-    await this.#publish(tx, 'media_file.quarantined', mediaAssetId, {});
-    const workOrderId = await workOrderOfAsset(mediaTables(tx), mediaAssetId);
-    if (workOrderId !== undefined) {
-      for (const recipientUserId of await this.#deps.administrators(tx)) {
-        await enqueueEmailOnce(tx, {
-          kind: 'administrator_alert',
-          variant: 'administrator_media_quarantined',
-          recipientUserId,
-          subjectId: workOrderId,
-          now: at,
-        });
-      }
-    }
-    await enqueueSecurityAlert(tx, { code: 'media_quarantined', occurredAt: at, traceId: newTraceId() });
+  #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
+    return raiseQuarantineAlert(this.#deps, tx, mediaAssetId, at);
   }
 
-  async #publish(
+  #publish(
     tx: Kysely<Database>,
     type: MediaAuditEvent['type'],
     mediaAssetId: string,
     codes: Pick<MediaAuditEvent, 'fromCode' | 'toCode'>,
   ): Promise<void> {
-    const event: MediaAuditEvent = {
-      type,
-      actor: { type: 'system' },
-      outcome: 'success',
-      objectType: 'media_asset',
-      objectId: mediaAssetId,
-      ...codes,
-    };
-    await this.#deps.events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
+    return publishMediaEvent(this.#deps.events, tx, type, mediaAssetId, codes);
   }
 }

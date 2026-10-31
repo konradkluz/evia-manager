@@ -4,30 +4,42 @@
  */
 import { chmod, rm } from 'node:fs/promises';
 import type { Server } from 'node:net';
-import { isAbsolute } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { runJob } from './run-job.ts';
-import { createProcessorServer, type JobLogger } from './server.ts';
+import { defaultTools, probeVideo, transcodeVideo, type VideoTools } from './run-video.ts';
+import { createProcessorServer, type JobLogger, type JobRunner } from './server.ts';
 
 export interface ProcessorSettings {
   readonly socketPath: string;
   readonly workDir: string;
+  /** The work area of VIDEOS: a separate disk volume (noexec, nosuid, nodev); without it a video job is refused (EVM-046). */
+  readonly videoWorkDir?: string;
 }
 
 /** @returns the settings, or `undefined` when a path is missing or not absolute */
 export function settingsOf(env: Readonly<Record<string, string | undefined>>): ProcessorSettings | undefined {
   const socketPath = env['MEDIA_PROCESSOR_SOCKET'];
   const workDir = env['MEDIA_PROCESSOR_WORKDIR'];
+  const videoWorkDir = env['MEDIA_PROCESSOR_VIDEO_WORKDIR'];
+  if (videoWorkDir !== undefined && !isAbsolute(videoWorkDir)) return undefined;
   return socketPath !== undefined && workDir !== undefined && isAbsolute(socketPath) && isAbsolute(workDir)
-    ? { socketPath, workDir }
+    ? { socketPath, workDir, ...(videoWorkDir === undefined ? {} : { videoWorkDir }) }
     : undefined;
 }
 
+/** The runner of the listener: photos in a child process, videos through ffprobe and ffmpeg in the work area of videos (a request carries no path). */
+export function createRunner(settings: ProcessorSettings, timeoutMs?: number, tools: VideoTools = defaultTools()): JobRunner {
+  return (request) => {
+    if (!('step' in request)) return runJob(request, { workDir: settings.workDir, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
+    if (settings.videoWorkDir === undefined) return Promise.resolve({ ok: false, code: 'internal' });
+    const dir = join(settings.videoWorkDir, request.jobId);
+    return request.step === 'probe' ? probeVideo(dir, tools) : transcodeVideo(dir, tools);
+  };
+}
+
 /** Starts the listener; the promise settles once the socket accepts connections. */
-export async function startProcessor(settings: ProcessorSettings, log: JobLogger, timeoutMs?: number): Promise<Server> {
-  const server = createProcessorServer(
-    (request) => runJob(request, { workDir: settings.workDir, ...(timeoutMs === undefined ? {} : { timeoutMs }) }),
-    log,
-  );
+export async function startProcessor(settings: ProcessorSettings, log: JobLogger, timeoutMs?: number, tools?: VideoTools): Promise<Server> {
+  const server = createProcessorServer(createRunner(settings, timeoutMs, tools), log);
   await rm(settings.socketPath, { force: true });
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -42,7 +54,9 @@ export async function startProcessor(settings: ProcessorSettings, log: JobLogger
 if (import.meta.main) {
   const settings = settingsOf(process.env);
   if (settings === undefined) {
-    process.stderr.write('media-processor: MEDIA_PROCESSOR_SOCKET and MEDIA_PROCESSOR_WORKDIR must be absolute paths\n');
+    process.stderr.write(
+      'media-processor: MEDIA_PROCESSOR_SOCKET and MEDIA_PROCESSOR_WORKDIR (and MEDIA_PROCESSOR_VIDEO_WORKDIR when set) must be absolute paths\n',
+    );
     process.exit(1);
   }
   const server = await startProcessor(settings, (entry) => {

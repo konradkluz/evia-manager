@@ -24,7 +24,10 @@ describe('EVM-044 AC2 type and size of a file are checked before the upload (SR-
     ] as const) {
       expect(checkDeclaration({ ...ok, fileName, contentType }).ok).toBe(true);
     }
-    expect(checkDeclaration(ok)).toEqual({ ok: true, value: { contentType: 'image/jpeg', originalFilename: 'IMG_0001.JPG' } });
+    expect(checkDeclaration(ok)).toEqual({
+      ok: true,
+      value: { contentType: 'image/jpeg', mediaType: 'photo', originalFilename: 'IMG_0001.JPG' },
+    });
   });
 
   it('EVM-044 AC2 refuses SVG, HTML, archives and unknown types with stable codes', () => {

@@ -51,6 +51,10 @@ export interface StoredFilesTable {
   process_attempts: Generated<number>;
   /** When the loop last took the file (`null` until then): a take that never finished is retried only after the stale period. */
   process_claimed_at: Generated<Date | null>;
+  /** Whole seconds of a video, written once after the structural check (migration 0057); `null` for a photo and before the probe. */
+  duration_seconds: Generated<number | null>;
+  /** `true` after the antivirus, `false` for a video above the scan limit, `null` before the scan (migration 0057: no default - fail closed). */
+  av_scanned: Generated<boolean | null>;
 }
 
 /** The thumbnail and the preview of a photo (migration 0053). The application role has SELECT and INSERT only: a derivative is written once. */
@@ -58,7 +62,7 @@ export interface FileDerivativesTable {
   stored_file_id: string;
   variant: 'thumbnail' | 'preview';
   object_key: string;
-  content_type: 'image/webp';
+  content_type: 'image/webp' | 'video/mp4';
   width: number;
   height: number;
   size_bytes: number;

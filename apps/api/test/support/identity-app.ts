@@ -11,6 +11,8 @@ import type { Sleeper } from '../../src/platform/http/response-floor.ts';
 import { FakeMalwareScanner } from '../../src/platform/malware-scan/fake-malware-scanner.ts';
 import { FakeImageProcessor } from '../../src/platform/media-processing/fake-image-processor.ts';
 import { IMAGE_PROCESSOR } from '../../src/platform/media-processing/image-processor.ts';
+import { FakeVideoProcessor } from '../../src/platform/media-processing/fake-video-processor.ts';
+import { VIDEO_PROCESSOR } from '../../src/platform/media-processing/video-processor.ts';
 import { MALWARE_SCANNER } from '../../src/platform/malware-scan/malware-scanner.ts';
 import { InMemoryObjectStorage } from '../../src/platform/object-storage/in-memory-object-storage.ts';
 import { OBJECT_STORAGE } from '../../src/platform/object-storage/object-storage.ts';
@@ -56,6 +58,8 @@ export interface IdentityApp extends TestApp {
   readonly scanner: FakeMalwareScanner;
   /** The image processor of the media pipeline (EVM-068): a double, no socket. */
   readonly imageProcessor: FakeImageProcessor;
+  /** The video processor (EVM-046): a double, no socket. */
+  readonly videoProcessor: FakeVideoProcessor;
   /** A browser of the panel talking to this API. */
   panel(): PanelClient;
   /** An invited Administrator with an unused activation link (what the server command leaves behind). */
@@ -84,6 +88,7 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
   const storage = new InMemoryObjectStorage(() => clock.now());
   const scanner = new FakeMalwareScanner();
   const imageProcessor = new FakeImageProcessor();
+  const videoProcessor = new FakeVideoProcessor();
   const app = await createTestApp({
     env: { DATABASE_URL: database.appUrl, ...options.env },
     ...(options.imports === undefined ? {} : { imports: options.imports }),
@@ -100,7 +105,9 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
         .overrideProvider(MALWARE_SCANNER)
         .useValue(scanner)
         .overrideProvider(IMAGE_PROCESSOR)
-        .useValue(imageProcessor);
+        .useValue(imageProcessor)
+        .overrideProvider(VIDEO_PROCESSOR)
+        .useValue(videoProcessor);
       return options.configure === undefined ? base : options.configure(base);
     },
   });
@@ -113,6 +120,7 @@ export async function createIdentityApp(options: IdentityAppOptions = {}): Promi
     storage,
     scanner,
     imageProcessor,
+    videoProcessor,
     panel: () => new PanelClient(app.app.getHttpServer(), PANEL_ORIGIN),
     pendingAdministrator: async ({ email, ttlMs }: { email?: string; ttlMs?: number } = {}) => {
       const user = await createUser(database.admin, clock, {

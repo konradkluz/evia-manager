@@ -22,6 +22,17 @@ ENV XDG_CACHE_HOME=/work/cache \
     TURBO_NO_UPDATE_NOTIFIER=1 \
     DO_NOT_TRACK=1
 
+# EVM-046: the real ffprobe and ffmpeg for services/media-processor/test/ffmpeg-real.test.ts (synthetic films made by ffmpeg itself).
+# The only system package of this image: the exact Debian version (the same as in the processor image), no recommended packages,
+# the lists of the repository removed. EVIA_REQUIRE_FFMPEG=1 turns a missing tool into a failing test instead of a skipped one.
+# renovate: datasource=deb depName=ffmpeg
+ARG FFMPEG_VERSION=7:7.1.5-0+deb13u1
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" \
+ && rm -rf /var/lib/apt/lists/* \
+ && ffmpeg -version | head -n 1
+ENV EVIA_REQUIRE_FFMPEG=1
+
 USER node
 WORKDIR /work/repo
 # One-off test runs, not a service: no health check.

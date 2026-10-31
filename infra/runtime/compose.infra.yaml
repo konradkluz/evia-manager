@@ -78,17 +78,26 @@ services:
       CLAMAV_NO_MILTERD: 'true'
       # EVM-049 AC7: the date in the reply to VERSION is in the local time of the container; the monitor of the signatures reads it as UTC.
       TZ: UTC
-      # RR-44: limits above the largest photo (50 MB) and AlertExceedsMax, so a file over the limit is an error and never `clean` without a scan.
-      CLAMD_CONF_StreamMaxLength: 64M
-      CLAMD_CONF_MaxFileSize: 64M
-      CLAMD_CONF_MaxScanSize: 64M
+      # RR-44: limits above the largest scanned file and AlertExceedsMax, so a file over the limit is an error and never `clean` without a scan.
+      # EVM-046 (P5): the largest scanned file is 2 000 000 000 B (SCAN_LIMIT_BYTES of the API; a film above it is left out of the scan by the API, never by clamd).
+      # 2000M (2 097 152 000 B) is above that and below the ~2^31 B at which clamd stops scanning streams.
+      CLAMD_CONF_StreamMaxLength: 2000M
+      CLAMD_CONF_MaxFileSize: 2000M
+      CLAMD_CONF_MaxScanSize: 2000M
       CLAMD_CONF_AlertExceedsMax: 'yes'
+      # clamd keeps a stream it scans in TemporaryDirectory: a DISK volume (a tmpfs inside the 2 GB memory limit would not hold a film of 2 GB); a full or missing
+      # directory is an error of the scan (the file stays `scanning` and is retried), never a `clean`. The timeouts allow a slow upload of 2 GB (the client of the
+      # API waits for the verdict in proportion to the size).
+      CLAMD_CONF_TemporaryDirectory: /scan-tmp
+      CLAMD_CONF_ReadTimeout: '300'
+      CLAMD_CONF_CommandReadTimeout: '30'
       # P5: no statistics and no samples leave the system - no option that reports detections is set (clamd has no egress to report to).
     tmpfs:
       - /tmp:size=256m,noexec,nosuid,nodev
       - /run/clamav:size=8m,nosuid,nodev
     volumes:
       - clamav-signatures:/var/lib/clamav:ro
+      - clamav-scan-tmp:/scan-tmp
 
   freshclam:
     image: clamav/clamav-debian:1.5.4@sha256:cce3e1a43ae2bb40e11335c52c0e1e98273b12fa3d587e617f63a6907cc4b70b
@@ -131,3 +140,14 @@ volumes:
     name: evia-caddy-data
   clamav-signatures:
     name: evia-clamav-signatures
+  # EVM-046: the scratch space of clamd for streams up to 2 GB (a disk volume; the size limit and the alert at 80% are set by the IaC session)
+  clamav-scan-tmp:
+    name: evia-clamav-scan-tmp
+    # A deviation from P3 (photos and films pass through this scratch space), accepted by the user at the demo of EVM-046 (RR-71): the directory is
+    # a SEPARATE mount of the host (not the root file system), encrypted with dm-crypt under an ephemeral key (kept in RAM only), mounted
+    # nodev,nosuid,noexec with a size quota >= 2.5 GB and an alert at 80%; the IaC session creates it. Cleaned at the start of clamd (CWE-459).
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/evia/clamav-scan

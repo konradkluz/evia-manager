@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { isListening } from '../src/healthcheck.ts';
 import { settingsOf, startProcessor } from '../src/main.ts';
-import { MAX_REQUEST_BYTES, type JobRequest, type JobResult } from '../src/protocol.ts';
-import { createProcessorServer } from '../src/server.ts';
+import { MAX_REQUEST_BYTES, type JobResult } from '../src/protocol.ts';
+import { createProcessorServer, type JobRunner } from '../src/server.ts';
 import { JOB_ID, jobDirectory, photoWithMetadata, stage } from './support/synthetic.ts';
 
 const servers: Array<{ close: (callback?: () => void) => unknown }> = [];
@@ -47,7 +47,7 @@ function exchange(address: Address, payload: string): Promise<string> {
 }
 
 /** The listener of the processor on a loopback port: the server is transport-agnostic, so its tests run natively too (Windows cannot listen on a socket file). */
-async function listen(run: (request: JobRequest) => Promise<JobResult>, log: (entry: object) => void = () => undefined): Promise<number> {
+async function listen(run: JobRunner, log: (entry: object) => void = () => undefined): Promise<number> {
   const server = createProcessorServer(run, log);
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

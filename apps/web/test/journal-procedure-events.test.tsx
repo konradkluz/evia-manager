@@ -74,12 +74,12 @@ describe('W-08 Dziennik: ręczne procesy i etapy (EVM-042 AC5)', () => {
 });
 
 describe('W-08 Dziennik: zdjęcia dodane do zlecenia (EVM-044)', () => {
-  it('EVM-044 AC1 the event media_assets_added is told "Dodano zdjęcia", not as an unknown event', async () => {
+  it('EVM-044 AC1 EVM-046 AC7 the event media_assets_added is told "Dodano zdjęcia lub filmy", not as an unknown event', async () => {
     await renderPanel(PATH, journalApi({ entries: [eventEntry(1, { code: 'media_assets_added', objectType: 'work_order' })] }));
     await screen.findByRole('heading', { level: 1, name: 'ZL-2026-0042' });
     await userEvent.click(await screen.findByRole('tab', { name: 'Dziennik' }));
     const item = await screen.findByRole('listitem', { name: /^Zmiana w zleceniu:/ });
-    expect(item.textContent).toContain('Dodano zdjęcia');
+    expect(item.textContent).toContain('Dodano zdjęcia lub filmy');
     expect(item.textContent).not.toContain('Zdarzenie w zleceniu');
   });
 });

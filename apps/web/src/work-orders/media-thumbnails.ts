@@ -1,5 +1,5 @@
 import { createMediaAssetDownloadUrl } from '@evia/contracts';
-import { useEffect, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useState, type RefObject } from 'react';
 import { useApi } from '../api/api-context.tsx';
 import { unwrap } from '../api/client.ts';
 
@@ -65,4 +65,27 @@ export function useThumbnailRequest(workOrderId: string) {
     unwrap(createMediaAssetDownloadUrl({ client, path: { workOrderId, mediaAssetId }, body: { variant: 'thumbnail' } })).then(
       (answer) => answer.url,
     );
+}
+
+/** Like `useVariantRequest`, with the end of the address (the player of a film renews it before it runs out). */
+export function useVariantTicket(workOrderId: string) {
+  const client = useApi();
+  return useCallback(
+    (mediaAssetId: string, variant: 'preview'): Promise<{ readonly url: string; readonly expiresAt: string }> =>
+      unwrap(createMediaAssetDownloadUrl({ client, path: { workOrderId, mediaAssetId }, body: { variant } })).then((answer) => ({
+        url: answer.url,
+        expiresAt: answer.expiresAt,
+      })),
+    [client, workOrderId],
+  );
+}
+
+/** One request for the address of the preview (inline) or the original (attachment) of a medium; the address is returned to the caller, never kept. */
+export function useVariantRequest(workOrderId: string) {
+  const client = useApi();
+  return useCallback(
+    (mediaAssetId: string, variant: 'preview' | 'original'): Promise<string> =>
+      unwrap(createMediaAssetDownloadUrl({ client, path: { workOrderId, mediaAssetId }, body: { variant } })).then((answer) => answer.url),
+    [client, workOrderId],
+  );
 }

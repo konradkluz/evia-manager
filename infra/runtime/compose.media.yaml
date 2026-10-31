@@ -11,7 +11,13 @@
 # - ONE writable place shared with the worker: the work area /run/media-work, a tmpfs of the HOST (mounted by the IaC session, size-limited: the photos
 #   of private sites never reach the disk of the host - P3). The worker (uid 10002) and this container (uid 10005) share the GROUP 10002: the
 #   directory has mode 2770 and the group 10002, so the jobs of the worker are readable and the outputs of this container are readable by it.
-# - one job at a time; every job in a child process that gets SIGKILL after 60 s (services/media-processor).
+# - EVM-046 (films): a SECOND shared place, the work area of videos /var/lib/media-video: a DISK volume of the host (a film of 4 GiB does not fit in a tmpfs of
+#   a VM with 8 GB; the departure from P3 is recorded in docs/architecture/media-pipeline.md and accepted at the demo). It is a separate mount of the host
+#   (noexec,nosuid,nodev, mode 2770, group 10002, a size limit - the quota is set by the IaC session; docs/ops/runbooks/media-processor.md) that ONLY this
+#   container and the worker mount - not the api, not clamd. Photos stay on the tmpfs. The worker removes the directory of a job after it (also after a
+#   SIGKILL or a timeout) and everything at its start; the root file system of this container stays read-only.
+# - one job at a time; every photo job in a child process that gets SIGKILL after 60 s; a film is probed (30 s) and transcoded (15 min) by ffprobe and ffmpeg
+#   that get SIGKILL after their time (services/media-processor).
 # The worker gets the same directory as /run/media-work (compose.staging.yaml); no other service (api, clamd) mounts it.
 
 services:
@@ -29,16 +35,18 @@ services:
       NODE_ENV: production
       MEDIA_PROCESSOR_SOCKET: /run/media-work/processor.sock
       MEDIA_PROCESSOR_WORKDIR: /run/media-work
+      MEDIA_PROCESSOR_VIDEO_WORKDIR: /var/lib/media-video
     volumes:
       - /run/evia/media-work:/run/media-work
+      - /var/lib/evia/media-video:/var/lib/media-video
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
-    mem_limit: 1536m
+    mem_limit: 2048m
     cpus: 2
-    pids_limit: 128
+    pids_limit: 256
     stop_grace_period: 10s
     healthcheck:
-      test: ['CMD', '/nodejs/bin/node', 'src/healthcheck.ts']
+      test: ['CMD', '/usr/local/bin/node', 'src/healthcheck.ts']
       interval: 30s
       timeout: 5s
       retries: 3

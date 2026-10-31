@@ -62,7 +62,7 @@ describe('EVM-007 AC3: the committed compose file of the channel passes V4', () 
       expect(service['volumes'] ?? [`/run/evia/secrets/${name}:/run/secrets:ro`]).toEqual([
         `/run/evia/secrets/${name}:/run/secrets:ro`,
         // EVM-068: the work area shared with the image processor belongs to the worker alone
-        ...(name === 'worker' ? ['/run/evia/media-work:/run/media-work'] : []),
+        ...(name === 'worker' ? ['/run/evia/media-work:/run/media-work', '/var/lib/evia/media-video:/var/lib/media-video'] : []),
       ]);
   });
 });
@@ -71,9 +71,20 @@ describe('EVM-068 AC5: the worker alone may mount the work area it shares with t
   const worker = (compose: Compose): Record<string, unknown> => compose.services['worker'] ?? {};
   const SECRETS = '/run/evia/secrets/worker:/run/secrets:ro';
   const MEDIA = '/run/evia/media-work:/run/media-work';
+  const VIDEO = '/var/lib/evia/media-video:/var/lib/media-video';
   const cases: Array<[string, (c: Compose) => void, string]> = [
     ['the secrets alone', (c) => (worker(c)['volumes'] = [SECRETS]), 'accepted'],
     ['the secrets and the work area', (c) => (worker(c)['volumes'] = [SECRETS, MEDIA]), 'accepted'],
+    ['EVM-046 the work area and the volume of films', (c) => (worker(c)['volumes'] = [SECRETS, MEDIA, VIDEO]), 'accepted'],
+    ['EVM-046 the volume of films without the work area', (c) => (worker(c)['volumes'] = [SECRETS, VIDEO]), 'v4-volume'],
+    ['EVM-046 the volume of films before the work area', (c) => (worker(c)['volumes'] = [SECRETS, VIDEO, MEDIA]), 'v4-volume'],
+    [
+      'EVM-046 the volume of films at another place',
+      (c) => (worker(c)['volumes'] = [SECRETS, MEDIA, '/var/lib/evia/media-video:/data']),
+      'v4-volume',
+    ],
+    ['EVM-046 a fourth volume', (c) => (worker(c)['volumes'] = [SECRETS, MEDIA, VIDEO, '/etc:/etc:ro']), 'v4-volume'],
+    ['EVM-046 the volume of films for the api', (c) => (api(c)['volumes'] = ['/run/evia/secrets/api:/run/secrets:ro', VIDEO]), 'v4-volume'],
     ['the work area without the secrets', (c) => (worker(c)['volumes'] = [MEDIA]), 'v4-volume'],
     ['the work area before the secrets', (c) => (worker(c)['volumes'] = [MEDIA, SECRETS]), 'v4-volume'],
     ['the work area read-write at another place', (c) => (worker(c)['volumes'] = [SECRETS, '/run/evia/media-work:/data']), 'v4-volume'],

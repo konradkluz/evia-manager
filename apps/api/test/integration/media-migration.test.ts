@@ -92,7 +92,7 @@ describe('migration 0045 — media (EVM-044 AC1, AC6; ADR-0009; expand only)', (
     await fails(insertFile({ assetId, state: 'clean', reason: 'checksum_mismatch' }), '23514');
     await fails(insertFile({ assetId, state: 'quarantined', reason: 'unknown_reason' }), '23514');
     await fails(insertFile({ assetId, state: 'archived' }), '23514');
-    await fails(insertFile({ assetId, size: 52_428_801 }), '23514');
+    await fails(insertFile({ assetId, size: 52_428_801 }), 'EV002'); // the trigger of 0057 (the limit of a photo) answers before the CHECK
     await fails(insertFile({ assetId, sha: 'NOT-HEX' }), '23514');
     await insertFile({ assetId, state: 'quarantined', reason: 'malware_detected' });
     await fails(insertFile({ assetId }), '23505');
@@ -276,5 +276,60 @@ describe('migration 0053 — the derivatives of a file (EVM-068; expand only)', 
     const index = await sql<{ indexdef: string }>`
       select indexdef from pg_indexes where schemaname = 'media' and indexname = 'stored_files_unprocessed_idx'`.execute(admin());
     expect(index.rows[0]?.indexdef).toMatch(/where \(state = ANY \(ARRAY\['clean'::text, 'processing'::text\]\)\)/i);
+  });
+});
+
+describe('migration 0057 — videos (EVM-046; expand only)', () => {
+  const videoFile = async (spec: FileSpec = {}) => {
+    const assetId = uuidv7();
+    await insertAsset(assetId, { mediaType: 'video', category: 'measurement' });
+    const fileId = uuidv7();
+    await insertFile({ ...spec, id: fileId, assetId });
+    return { assetId, fileId };
+  };
+  const insertDerivative = (fileId: string, variant: string, file: string, type: string, size = 12_000) =>
+    sql`insert into media.file_derivatives (stored_file_id, variant, object_key, content_type, width, height, size_bytes, created_at)
+      values (${fileId}, ${variant}, ${`media/2026/10/${fileId}/${file}`}, ${type}, 1280, 720, ${size}, ${T})`.execute(admin());
+
+  it('EVM-046 AC1 a video may be declared up to 4 GiB, a photo only up to 50 MB (trigger by the type of the medium)', async () => {
+    await videoFile({ size: 4_294_967_296 });
+    await fails(videoFile({ size: 4_294_967_297 }), '23514');
+    await fails(newFile({ size: 52_428_801 }), 'EV002');
+    await newFile({ size: 52_428_800 });
+  });
+
+  it('EVM-046 AC3 av_scanned is nullable with no default; an unscanned file must be above the scan limit (2 000 000 000 B)', async () => {
+    const { fileId } = await videoFile({ state: 'scanning', size: 3_000_000_000 });
+    const { rows } = await sql<{ av_scanned: boolean | null }>`select av_scanned from media.stored_files where id = ${fileId}`.execute(
+      admin(),
+    );
+    expect(rows[0]?.av_scanned).toBeNull();
+    await sql`update media.stored_files set size_bytes = 2000000001, av_scanned = false where id = ${fileId}`.execute(admin());
+    await fails(
+      sql`update media.stored_files set size_bytes = 2000000000, av_scanned = false where id = ${fileId}`.execute(admin()),
+      '23514',
+    );
+    await sql`update media.stored_files set size_bytes = 2000000000, av_scanned = true where id = ${fileId}`.execute(admin());
+  });
+
+  it('EVM-046 AC2 duration is 1..1800 seconds or empty', async () => {
+    const { fileId } = await videoFile({ state: 'processing' });
+    for (const bad of [0, 1801])
+      await fails(sql`update media.stored_files set duration_seconds = ${bad} where id = ${fileId}`.execute(admin()), '23514');
+    await sql`update media.stored_files set duration_seconds = 1800 where id = ${fileId}`.execute(admin());
+  });
+
+  it('EVM-046 AC4 a video has thumbnail.webp and preview.mp4 (up to 1 GiB); .mp4 is refused for a photo and for the thumbnail', async () => {
+    const { fileId } = await videoFile({ state: 'processing' });
+    await insertDerivative(fileId, 'thumbnail', 'thumbnail.webp', 'image/webp');
+    await insertDerivative(fileId, 'preview', 'preview.mp4', 'video/mp4', 1_073_741_824);
+    const other = await videoFile({ state: 'processing' });
+    await fails(insertDerivative(other.fileId, 'preview', 'preview.mp4', 'video/mp4', 1_073_741_825), '23514');
+    await fails(insertDerivative(other.fileId, 'preview', 'preview.mp4', 'image/webp'), '23514');
+    await fails(insertDerivative(other.fileId, 'preview', 'preview.webp', 'image/webp'), 'EV002');
+    await fails(insertDerivative(other.fileId, 'thumbnail', 'thumbnail.mp4', 'video/mp4'), 'EV002');
+    const photo = await newFile({ state: 'processing' });
+    await fails(insertDerivative(photo.fileId, 'preview', 'preview.mp4', 'video/mp4'), 'EV002');
+    await insertDerivative(photo.fileId, 'preview', 'preview.webp', 'image/webp');
   });
 });

@@ -83,7 +83,7 @@ locals {
   }
   # EVM-068 (TM-76): the key of the worker may PutObject ONLY the two names of the derivatives (the originals are `.../original`), and only conditionally
   # (If-None-Match: *, add-only); PutObject is therefore not in the list above but in its own statements of the media policy.
-  derivative_object_names = ["thumbnail.webp", "preview.webp"]
+  derivative_object_names = ["thumbnail.webp", "preview.webp", "preview.mp4"]
   register_allow = {
     register_writer = ["s3:PutObject"]
     restore_reader  = ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket", "s3:ListBucketVersions"]
