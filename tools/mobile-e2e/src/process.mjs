@@ -124,6 +124,11 @@ export function realHost(repoRoot) {
       writeFileSync(path, text);
     },
     readBytes: (path) => (existsSync(path) ? readFileSync(path) : null),
+    readText: (path) => (existsSync(path) ? readFileSync(path, 'utf8') : null),
+    copyFile: (source, target) => {
+      copyFileSync(source, target);
+    },
+    listDirectory: (path) => (existsSync(path) ? readdirSync(path) : []),
     removeFile: (path) => {
       rmSync(path, { force: true });
     },

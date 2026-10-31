@@ -102,8 +102,21 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
       steps('local-store-durability').map((step) => step.after ?? []),
       [['force-stop'], ['kill-9'], ['reboot'], []],
     );
-    assert.deepEqual(steps('local-store-backup').at(-1)?.before, ['check-backup-transport', 'adb-backup-start']);
-    assert.deepEqual(steps('local-store-backup').at(-1)?.after, ['adb-backup-check']);
+    // EVM-093 AC4 (decision of Konrad, option a): bmgr on the e2e data, the positive control of adb backup on the debuggable e2e
+    // build, then adb backup of the NOT debuggable release package over the same data, the e2e package back, the data still there
+    assert.deepEqual(
+      steps('local-store-backup').map((step) => [step.flow, step.before ?? [], step.after ?? []]),
+      [
+        ['10-backup-seed.yaml', [], []],
+        [
+          '10-backup-control.yaml',
+          ['check-backup-transport', 'adb-backup-start'],
+          ['adb-backup-control-check', 'install-release-debugkey'],
+        ],
+        ['10-backup.yaml', ['adb-backup-start'], ['adb-backup-check', 'reinstall-e2e']],
+        ['10-backup-after.yaml', [], []],
+      ],
+    );
     assert.deepEqual(steps('local-store-file-corrupt')[0]?.after, ['force-stop', 'corrupt-db']);
     // the copy before the wipe, then the copy of the current database for the positive control
     assert.deepEqual(
@@ -121,6 +134,20 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
       'local-store-owner',
     ])
       assert.ok(names.indexOf(name) >= 0 && names.indexOf(name) < names.indexOf('loading'), name);
+  });
+
+  it('EVM-093 AC4: the backup is judged with 3 entries on the phone, and they are still there after the release package (no clearState)', () => {
+    const seed = readFileSync(join(FLOWS, '10-backup-seed.yaml'), 'utf8');
+    assert.match(seed, /clearState: true/);
+    assert.match(seed, /text: 'open=unlocked;appended=3;queue=3'/);
+    const after = readFileSync(join(FLOWS, '10-backup-after.yaml'), 'utf8');
+    assert.doesNotMatch(after, /clearState/);
+    assert.match(after, /text: 'open=unlocked;queue=3;identity=kept;pull=no'/);
+    for (const flow of ['10-backup-control.yaml', '10-backup.yaml']) {
+      const text = readFileSync(join(FLOWS, flow), 'utf8');
+      assert.match(text, /tapOn: 'Back up my data'/, flow);
+      assert.doesNotMatch(text, /launchApp/, flow);
+    }
   });
 
   it('EVM-093 AC3: the seed flow shows the count after the LAST append resolved, the later flows find all 20 entries', () => {

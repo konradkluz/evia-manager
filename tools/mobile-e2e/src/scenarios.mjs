@@ -57,18 +57,33 @@ export const SCENARIOS = [
       { flow: '09-durability-reboot.yaml', server: 'ok', airplane: false },
     ],
   },
+  // EVM-093 AC4 (decision of Konrad 2026-10-30, option a). Android 12+ (API 31+) runs `adb backup` of a DEBUGGABLE app whatever
+  // allowBackup and the exclusion rules say, and the e2e variant must be debuggable for run-as (AC1, AC5, AC6): adb backup of the e2e
+  // build says nothing about the release package. So adb backup of the e2e build is only the POSITIVE CONTROL (it must hold app data:
+  // the transport and the parser work), and the proof is adb backup of the NOT debuggable release package of the same run, signed
+  // with the debug key of the template so that `install -r` keeps the e2e data (3 entries, still there afterwards: 10-backup-after).
+  // Auto Backup (bmgr, local transport) stays on the e2e variant: it follows allowBackup and the rules also for a debuggable app.
+  // After install-release-debugkey the runner always puts the e2e package back (reinstall-e2e, also when a step failed).
   {
     name: 'local-store-backup',
     ac: 'EVM-093 AC4',
     steps: [
       { flow: '10-backup-seed.yaml', server: 'ok', airplane: false },
       {
-        flow: '10-backup.yaml',
+        flow: '10-backup-control.yaml',
         server: 'ok',
         airplane: false,
         before: ['check-backup-transport', 'adb-backup-start'],
-        after: ['adb-backup-check'],
+        after: ['adb-backup-control-check', 'install-release-debugkey'],
       },
+      {
+        flow: '10-backup.yaml',
+        server: 'ok',
+        airplane: false,
+        before: ['adb-backup-start'],
+        after: ['adb-backup-check', 'reinstall-e2e'],
+      },
+      { flow: '10-backup-after.yaml', server: 'ok', airplane: false },
     ],
   },
   { name: 'local-store-key-missing', ac: 'EVM-093 AC5', steps: [{ flow: '11-key-missing.yaml', server: 'ok', airplane: false }] },

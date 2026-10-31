@@ -4,7 +4,7 @@
  * arguments and never a shell (CWE-78): Gradle and Maestro are started as `java -classpath … <main class>`, exactly what their
  * `.bat` launchers do, because Node refuses to start `.bat` files without a shell.
  */
-import { join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 
 /** Application id of the app (apps/mobile/plugins/expo-config.ts); the Maestro flows carry the same literal. */
 export const APPLICATION_ID = 'pl.eviacharge.manager';
@@ -53,6 +53,26 @@ export function toolPaths({ androidHome, javaHome, maestroHome, platform }) {
  * @returns {Record<string, string>}
  */
 export function buildEnv(base, { androidHome, port }) {
+  return {
+    ...toolEnv(base, androidHome),
+    EVIA_BUILD_VARIANT: 'e2e',
+    EXPO_PUBLIC_API_BASE_URL: `http://10.0.2.2:${String(port)}`,
+  };
+}
+
+/**
+ * EVM-093 AC4: the release build of the same run (no e2e variant: not debuggable, no hooks). The package is installed but never
+ * started, so the address is a placeholder that cannot reach anything (`.invalid`, RFC 2606).
+ * @param {NodeJS.ProcessEnv} base
+ * @param {{ androidHome: string }} options
+ * @returns {Record<string, string>}
+ */
+export function releaseBuildEnv(base, { androidHome }) {
+  return { ...toolEnv(base, androidHome), EXPO_PUBLIC_API_BASE_URL: 'https://api.example.invalid' };
+}
+
+/** @param {NodeJS.ProcessEnv} base @param {string} androidHome @returns {Record<string, string>} */
+function toolEnv(base, androidHome) {
   /** @type {Record<string, string>} */
   const env = {};
   for (const name of PASSED_ENV) {
@@ -66,8 +86,6 @@ export function buildEnv(base, { androidHome, port }) {
     EXPO_NO_TELEMETRY: '1',
     MAESTRO_CLI_NO_ANALYTICS: '1',
     CI: '1',
-    EVIA_BUILD_VARIANT: 'e2e',
-    EXPO_PUBLIC_API_BASE_URL: `http://10.0.2.2:${String(port)}`,
   };
 }
 
@@ -162,3 +180,120 @@ export function maestroCommand({ java, classpath, serial, flow, junitFile, outpu
 
 /** @param {string} appDirectory */
 export const apkPath = (appDirectory) => join(appDirectory, 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+
+/** @param {string} appDirectory the unsigned package of the release build (`withoutReleaseDebugSigning`) */
+export const unsignedReleaseApkPath = (appDirectory) =>
+  join(appDirectory, 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk');
+
+/**
+ * EVM-093 AC4 (security K5): the files of the release package for the backup test, only in .scratch/mobile-e2e (never dist/, the path
+ * of the CI artifact). The signed file ends with -debugkey.apk: it is a test package, never one to distribute.
+ * @param {string} reportDirectory
+ */
+export const releasePaths = (reportDirectory) => ({
+  unsigned: join(reportDirectory, 'evm093-release-unsigned.apk'),
+  aligned: join(reportDirectory, 'evm093-release-aligned.apk'),
+  signed: join(reportDirectory, 'evm093-release-debugkey.apk'),
+});
+
+/** @param {string} appDirectory the debug key of the Expo template (public, not a secret): a fixed path, no parameter */
+export const debugKeystorePath = (appDirectory) => join(appDirectory, 'android', 'app', 'debug.keystore');
+
+/** Names of the variables that carry the passwords of the template debug key to apksigner (`env:`, never argv, never logged). */
+export const DEBUG_KS_PASS_ENV = 'EVIA_E2E_DEBUG_KS_PASS';
+export const DEBUG_KEY_PASS_ENV = 'EVIA_E2E_DEBUG_KEY_PASS';
+
+/**
+ * The values of `signingConfigs { debug { … } }` of the generated android/app/build.gradle — the same that signed the e2e package, so
+ * that `install -r` of the release package keeps the data. Only with the template keystore file `debug.keystore`.
+ * @param {string} gradle
+ * @returns {{ storePassword: string, keyAlias: string, keyPassword: string } | null}
+ */
+export function parseDebugSigning(gradle) {
+  const block = /signingConfigs\s*\{\s*debug\s*\{([^}]*)\}/.exec(gradle)?.[1];
+  if (block === undefined) return null;
+  /** @param {string} name */
+  const value = (name) => new RegExp(`\\b${name}\\s+'([^']*)'`).exec(block)?.[1];
+  if (!/\bstoreFile\s+file\('debug\.keystore'\)/.test(block)) return null;
+  const storePassword = value('storePassword');
+  const keyAlias = value('keyAlias');
+  const keyPassword = value('keyPassword');
+  if (storePassword === undefined || keyAlias === undefined || keyPassword === undefined) return null;
+  return { storePassword, keyAlias, keyPassword };
+}
+
+/**
+ * The highest stable build-tools version that has zipalign -P 16 (35.0.0 or newer).
+ * @param {string[]} names directory names of <sdk>/build-tools
+ * @returns {string | null}
+ */
+export function selectBuildTools(names) {
+  /** @param {string} name */
+  const parts = (name) => name.split('.').map(Number);
+  const versions = names
+    .filter((name) => /^\d+\.\d+\.\d+$/.test(name) && (parts(name)[0] ?? 0) >= 35)
+    .sort((a, b) => {
+      const left = parts(a);
+      const right = parts(b);
+      for (let index = 0; index < 3; index += 1) {
+        const difference = (left[index] ?? 0) - (right[index] ?? 0);
+        if (difference !== 0) return difference;
+      }
+      return 0;
+    });
+  return versions.at(-1) ?? null;
+}
+
+/** @param {{ buildTools: string, platform: string, input: string, output: string }} options */
+export function zipalignCommand({ buildTools, platform, input, output }) {
+  return { command: join(buildTools, platform === 'win32' ? 'zipalign.exe' : 'zipalign'), args: ['-P', '16', '-f', '4', input, output] };
+}
+
+/**
+ * apksigner through java -jar (no .bat, no shell); passwords by variable name only (security K5).
+ * @param {{ java: string, buildTools: string, keystore: string, keyAlias: string, input: string, output: string }} options
+ */
+export function apksignerCommand({ java, buildTools, keystore, keyAlias, input, output }) {
+  return {
+    command: java,
+    args: [
+      '-jar',
+      join(buildTools, 'lib', 'apksigner.jar'),
+      'sign',
+      '--ks',
+      keystore,
+      '--ks-key-alias',
+      keyAlias,
+      '--ks-pass',
+      `env:${DEBUG_KS_PASS_ENV}`,
+      '--key-pass',
+      `env:${DEBUG_KEY_PASS_ENV}`,
+      '--v4-signing-enabled',
+      'false',
+      '--out',
+      output,
+      input,
+    ],
+  };
+}
+
+/** @param {string} nodeExecutable @param {string} repoRoot @param {string} apk */
+export function verifyCommand(nodeExecutable, repoRoot, apk) {
+  return { command: nodeExecutable, args: [join(repoRoot, 'tools', 'mobile-apk', 'cli.mjs'), 'verify', '--apk', apk] };
+}
+
+/**
+ * git from the first absolute directory of PATH (never the current folder, which Windows would search first).
+ * @param {NodeJS.ProcessEnv} env @param {string} platform @param {(path: string) => boolean} exists
+ * @returns {string | null}
+ */
+export function resolveGit(env, platform, exists) {
+  const entry = Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH');
+  const file = platform === 'win32' ? 'git.exe' : 'git';
+  for (const directory of (entry?.[1] ?? '').split(delimiter)) {
+    if (directory === '' || !isAbsolute(directory)) continue;
+    const candidate = join(directory, file);
+    if (exists(candidate)) return candidate;
+  }
+  return null;
+}

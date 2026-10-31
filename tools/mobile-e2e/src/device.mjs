@@ -5,11 +5,16 @@
  * AVD is a Google Play image, `adb root` does not work there). Builders return arguments for adb; strings for `adb shell` are fixed
  * text without input from outside. Every judgement reports counts and codes — never a path inside the app, a file content or a key.
  *
+ * AC4 (decision of Konrad, option a): `adb backup` is judged on a NOT debuggable release package of the same run (signed locally with
+ * the debug key of the template so that `install -r` keeps the data of the e2e variant), installed over the e2e app and replaced by
+ * the e2e package again right after (`install-release-debugkey`, `adb-backup-check`, `reinstall-e2e`).
+ *
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
- *   | 'adb-backup-start' | 'adb-backup-check'} DeviceAction
+ *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
  * @typedef {{ action: DeviceAction, ok: boolean, detail: string }} Check
  */
+import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { APPLICATION_ID } from './commands.mjs';
 
@@ -61,6 +66,14 @@ export const deviceCommands = {
   bmgrBackupNow: (packageName) => ['shell', 'bmgr', 'backupnow', packageName],
   /** @param {string} file local path of the archive (.scratch) */
   adbBackup: (file) => ['backup', '-f', file, '-noapk', APPLICATION_ID],
+  /** @param {string} apk local path of the package; `-r` keeps the data of the app */
+  install: (apk) => ['install', '-r', apk],
+  dumpsysPackage: () => ['shell', 'dumpsys', 'package', APPLICATION_ID],
+  /** run-as of a package that is not debuggable is refused by the system ("package not debuggable") */
+  runAsProbe: () => ['shell', 'run-as', APPLICATION_ID, 'id'],
+  packagePath: () => ['shell', 'pm', 'path', APPLICATION_ID],
+  /** @param {string} path checked by `installedApkPath` (a plain /data/app path, no shell characters) */
+  sha256sum: (path) => ['shell', 'sha256sum', path],
 };
 
 /**
@@ -198,6 +211,101 @@ export function judgeAdbBackup(archive) {
 }
 
 /**
+ * AC4 positive control on the debuggable e2e build: Android 12+ backs up a debuggable app whatever allowBackup says, so the archive
+ * MUST hold app data. It is NOT the proof of AC4; it shows that the transport and the parser work, so that "0 entries" of the release
+ * package is the policy of the system and not a broken transport that wrote only a header.
+ * @param {Buffer | null} archive
+ * @returns {{ ok: boolean, detail: string }}
+ */
+export function judgeAdbBackupControl(archive) {
+  if (archive === null || archive.length === 0)
+    return { ok: false, detail: 'adb backup produced no archive (not confirmed on the device?)' };
+  const names = backupEntries(archive);
+  if (names === null) return { ok: false, detail: 'the archive is not a readable adb backup' };
+  const ofApp = names.filter((name) => name.startsWith(`apps/${APPLICATION_ID}/`) && !name.endsWith('/_manifest'));
+  const domains = [...new Set(ofApp.map((name) => name.split('/')[2] ?? '?'))].sort();
+  return ofApp.length > 0
+    ? {
+        ok: true,
+        detail: `positive control (debuggable e2e build): ${String(ofApp.length)} entries of the app data (domains: ${domains.join(', ')}), the transport works`,
+      }
+    : {
+        ok: false,
+        detail: 'positive control failed: no entry of the app data in the archive of the debuggable build (the transport proves nothing)',
+      };
+}
+
+/** @param {Outcome} outcome */
+export function judgeInstall(outcome) {
+  return outcome.status === 0 && /^Success\s*$/m.test(outcome.stdout)
+    ? { ok: true, detail: 'installed with -r (data kept)' }
+    : { ok: false, detail: `adb install -r failed (exit ${String(outcome.status)})` };
+}
+
+/**
+ * The flags of the package section of `dumpsys package` (`flags=[ … ]`, `pkgFlags=[ … ]` on older releases; never privateFlags).
+ * Deny by default: no package section or no flags line is a failure, not a pass.
+ * @param {Outcome} outcome
+ * @param {boolean} debuggable what the package must be
+ * @returns {{ ok: boolean, detail: string }}
+ */
+export function judgeDebuggable(outcome, debuggable) {
+  if (outcome.status !== 0) return { ok: false, detail: `dumpsys package failed (exit ${String(outcome.status)})` };
+  if (!outcome.stdout.includes(`Package [${APPLICATION_ID}]`)) return { ok: false, detail: 'dumpsys: the package is not installed' };
+  const lines = outcome.stdout
+    .split(NEWLINE)
+    .map((line) => /^\s*(?:pkgFlags|flags)=\[(.*)\]\s*$/.exec(line)?.[1])
+    .filter((flags) => flags !== undefined);
+  if (lines.length === 0) return { ok: false, detail: 'dumpsys: no flags line of the package (cannot tell whether it is debuggable)' };
+  const flags = new Set(lines.flatMap((line) => line.trim().split(/\s+/)));
+  if (debuggable) {
+    return flags.has('DEBUGGABLE')
+      ? { ok: true, detail: 'the e2e package is installed again (DEBUGGABLE)' }
+      : { ok: false, detail: 'the package on the device is not the debuggable e2e build' };
+  }
+  if (flags.has('DEBUGGABLE')) return { ok: false, detail: 'the installed package is DEBUGGABLE: it is not the release build' };
+  if (flags.has('ALLOW_BACKUP')) return { ok: false, detail: 'the installed package has ALLOW_BACKUP' };
+  return { ok: true, detail: 'dumpsys: flags without DEBUGGABLE and ALLOW_BACKUP' };
+}
+
+/** @param {Outcome} outcome */
+export function judgeRunAsRefused(outcome) {
+  if (outcome.status === 0) return { ok: false, detail: 'run-as works: the installed package is debuggable' };
+  return /not debuggable/i.test(`${outcome.stdout}\n${outcome.stderr}`)
+    ? { ok: true, detail: 'run-as refused (package not debuggable)' }
+    : { ok: false, detail: `run-as failed for another reason (exit ${String(outcome.status)})` };
+}
+
+/**
+ * @param {Outcome} outcome answer of `pm path`
+ * @returns {string | null} the base.apk path, only a plain /data/app path (it goes into an adb shell command)
+ */
+export function installedApkPath(outcome) {
+  if (outcome.status !== 0) return null;
+  for (const line of outcome.stdout.split(NEWLINE)) {
+    const path = /^package:(\/data\/app\/[\w.~=+-]+(?:\/[\w.~=+-]+)*\/base\.apk)$/.exec(line.trim())?.[1];
+    if (path !== undefined) return path;
+  }
+  return null;
+}
+
+/**
+ * The last logcat line about the backup eligibility of the app, as "tag: message" (no other line, no time or pids — security K7).
+ * @param {Outcome} outcome
+ * @returns {string | null}
+ */
+export function backupLogLine(outcome) {
+  if (outcome.status !== 0) return null;
+  const line = outcome.stdout
+    .split(NEWLINE)
+    .filter((text) => text.includes(APPLICATION_ID) && /eligible/i.test(text))
+    .at(-1);
+  if (line === undefined) return null;
+  const parsed = /\s[VDIWEF]\s+([^:]+):\s(.*)$/.exec(line);
+  return (parsed === null ? line.trim() : `${(parsed[1] ?? '').trim()}: ${(parsed[2] ?? '').trim()}`).slice(0, 200);
+}
+
+/**
  * @typedef {{
  *   adb: (...args: string[]) => Outcome,
  *   startAdb: (...args: string[]) => void,
@@ -205,7 +313,10 @@ export function judgeAdbBackup(archive) {
  *   readBytes: (path: string) => Buffer | null,
  *   removeFile: (path: string) => void,
  *   backupFile: string,
- * }} DeviceContext adb with the serial already applied; the archive lives in .scratch and is removed after the check
+ *   releaseApk: string,
+ *   e2eApk: string,
+ * }} DeviceContext adb with the serial already applied; the archive lives in .scratch and is removed after the check;
+ * `releaseApk` is the not debuggable release package signed with the debug key (.scratch/mobile-e2e/*-debugkey.apk), `e2eApk` the e2e one
  */
 
 /** @param {Outcome} outcome */
@@ -279,18 +390,70 @@ export async function runDeviceAction(action, context) {
       await context.sleep(3000);
       return check(true, 'adb backup started (the flow confirms it on the device)');
     case 'adb-backup-check': {
-      /** @type {Buffer | null} */
-      let archive = null;
-      let previousLength = -1;
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        archive = context.readBytes(context.backupFile);
-        if (archive !== null && archive.length > 0 && archive.length === previousLength) break;
-        previousLength = archive?.length ?? -1;
-        await context.sleep(1000);
-      }
-      const judged = judgeAdbBackup(archive);
-      context.removeFile(context.backupFile);
+      const judged = judgeAdbBackup(await settledArchive(context));
+      const line = backupLogLine(adb(...deviceCommands.logcat()));
+      return check(judged.ok, `${judged.detail}; logcat: ${line === null ? 'no line about the backup of the app' : `"${line}"`}`);
+    }
+    case 'adb-backup-control-check': {
+      const judged = judgeAdbBackupControl(await settledArchive(context));
+      return check(judged.ok, judged.detail);
+    }
+    case 'install-release-debugkey': {
+      const installed = judgeInstall(adb(...deviceCommands.install(context.releaseApk)));
+      if (!installed.ok) return check(false, `release package: ${installed.detail}`);
+      const results = [
+        judgeDebuggable(adb(...deviceCommands.dumpsysPackage()), false),
+        judgeRunAsRefused(adb(...deviceCommands.runAsProbe())),
+        judgeInstalledDigest(context),
+      ];
+      return check(
+        results.every((result) => result.ok),
+        `release package installed over the e2e data; ${results.map((result) => result.detail).join('; ')}`,
+      );
+    }
+    case 'reinstall-e2e': {
+      const installed = judgeInstall(adb(...deviceCommands.install(context.e2eApk)));
+      if (!installed.ok) return check(false, `e2e package: ${installed.detail}`);
+      const judged = judgeDebuggable(adb(...deviceCommands.dumpsysPackage()), true);
       return check(judged.ok, judged.detail);
     }
   }
+}
+
+/**
+ * Waits until the archive stops growing (adb writes it while the device streams), reads it and removes it (security K7).
+ * @param {DeviceContext} context
+ * @returns {Promise<Buffer | null>}
+ */
+async function settledArchive(context) {
+  /** @type {Buffer | null} */
+  let archive = null;
+  let previousLength = -1;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    archive = context.readBytes(context.backupFile);
+    if (archive !== null && archive.length > 0 && archive.length === previousLength) break;
+    previousLength = archive?.length ?? -1;
+    await context.sleep(1000);
+  }
+  context.removeFile(context.backupFile);
+  return archive;
+}
+
+/**
+ * The base.apk on the device is exactly the local release file (SHA-256 of both).
+ * @param {DeviceContext} context
+ * @returns {{ ok: boolean, detail: string }}
+ */
+function judgeInstalledDigest(context) {
+  const local = context.readBytes(context.releaseApk);
+  if (local === null) return { ok: false, detail: 'the local release package is missing' };
+  const expected = createHash('sha256').update(local).digest('hex');
+  const path = installedApkPath(context.adb(...deviceCommands.packagePath()));
+  if (path === null) return { ok: false, detail: 'pm path gave no base.apk of the app' };
+  const answer = context.adb(...deviceCommands.sha256sum(path));
+  const actual = /^([0-9a-f]{64})\b/i.exec(answer.stdout.trim())?.[1]?.toLowerCase();
+  if (answer.status !== 0 || actual === undefined) return { ok: false, detail: 'sha256sum of the installed base.apk failed' };
+  return actual === expected
+    ? { ok: true, detail: `installed base.apk = built file, SHA-256 ${expected}` }
+    : { ok: false, detail: 'the installed base.apk is not the built release file' };
 }

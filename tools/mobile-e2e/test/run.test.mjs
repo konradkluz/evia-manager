@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
+import { createHash } from 'node:crypto';
 import { deflateSync } from 'node:zlib';
 import { runE2e } from '../src/run.mjs';
 import { SCENARIOS } from '../src/scenarios.mjs';
@@ -8,6 +9,27 @@ import { SCENARIOS } from '../src/scenarios.mjs';
 const DEVICES_ONE = 'List of devices attached\nemulator-5554\tdevice\n';
 const DEVICES_NONE = 'List of devices attached\n';
 const DEVICES_TWO = 'List of devices attached\nemulator-5554\tdevice\nemulator-5556\tdevice\n';
+const APP = 'pl.eviacharge.manager';
+/** synthetic bytes of every local APK; the device answers sha256sum with their digest unless told otherwise */
+const APK_BYTES = Buffer.from('synthetic apk');
+const APK_SHA = createHash('sha256').update(APK_BYTES).digest('hex');
+const TEMPLATE_GRADLE =
+  "signingConfigs {\n  debug {\n    storeFile file('debug.keystore')\n    storePassword 'tmpl-store-pw'\n    keyAlias 'androiddebugkey'\n    keyPassword 'tmpl-key-pw'\n  }\n}\n";
+/** @param {string} name @param {string} content */
+function tarEntry(name, content) {
+  const header = Buffer.alloc(512);
+  header.write(name, 0, 'latin1');
+  header.write(content.length.toString(8).padStart(11, '0'), 124, 'latin1');
+  const body = Buffer.alloc(Math.ceil(content.length / 512) * 512);
+  body.write(content, 0, 'latin1');
+  return Buffer.concat([header, body]);
+}
+/** @param {Buffer[]} entries */
+const backupArchive = (entries) =>
+  Buffer.concat([Buffer.from('ANDROID BACKUP\n5\n1\nnone\n'), deflateSync(Buffer.concat([...entries, Buffer.alloc(1024)]))]);
+/** the debuggable e2e build is backed up with its data (positive control), the release package is not */
+const E2E_ARCHIVE = backupArchive([tarEntry(`apps/${APP}/f/SQLite/evia.db`, 'x'), tarEntry(`apps/${APP}/sp/SecureStore.xml`, 'x')]);
+const RELEASE_ARCHIVE = backupArchive([]);
 
 /**
  * A fake machine: every process is recorded, answers come from `responder`.
@@ -20,6 +42,10 @@ const DEVICES_TWO = 'List of devices attached\nemulator-5554\tdevice\nemulator-5
  *   longPaths?: boolean | null,
  *   env?: Record<string, string>,
  *   packageServiceAfter?: number,
+ *   releaseArchive?: Buffer,
+ *   installedSha?: string,
+ *   gradle?: string | null,
+ *   buildTools?: string[],
  * }} [options]
  */
 function fakeMachine({
@@ -31,7 +57,15 @@ function fakeMachine({
   longPaths = true,
   env,
   packageServiceAfter = 0,
+  releaseArchive = RELEASE_ARCHIVE,
+  installedSha = APK_SHA,
+  gradle = TEMPLATE_GRADLE,
+  buildTools = ['34.0.0', '35.0.0', '37.0.0'],
 } = {}) {
+  /** which package is on the emulator (EVM-093 AC4): the e2e one or the release one signed with the debug key */
+  let releaseOnDevice = false;
+  /** @type {{ source: string, target: string }[]} */
+  const copied = [];
   /** @type {{ command: string, args: string[], cwd?: string, env?: Record<string, string> }[]} */
   const processes = [];
   /** @type {string[]} */
@@ -61,14 +95,23 @@ function fakeMachine({
   const host = /** @type {import('../src/run.mjs').Host} */ ({
     repoRoot: '/repo',
     platform: 'win32',
-    env: { ANDROID_HOME: '/sdk', JAVA_HOME: '/jdk', EVIA_MAESTRO_HOME: '/m', GITHUB_TOKEN: 'synthetic-token', ...env },
+    env: { ANDROID_HOME: '/sdk', JAVA_HOME: '/jdk', EVIA_MAESTRO_HOME: '/m', GITHUB_TOKEN: 'synthetic-token', PATH: '/usr/bin', ...env },
     homedir: '/home/test',
     execPath: 'node',
-    exists: (path) => (exists === undefined ? path !== apk || built : exists(path)),
+    exists: (path) =>
+      exists === undefined ? (path !== apk && !path.endsWith('-unsigned.apk') && !path.endsWith('-debugkey.apk')) || built : exists(path),
     writeText: (path, text) => {
       written[path] = text;
     },
-    readBytes: () => Buffer.concat([Buffer.from('ANDROID BACKUP\n5\n1\nnone\n'), deflateSync(Buffer.alloc(1024))]),
+    readBytes: (path) => {
+      if (path.endsWith('.ab')) return releaseOnDevice ? releaseArchive : E2E_ARCHIVE;
+      return path.endsWith('.apk') ? APK_BYTES : null;
+    },
+    readText: (path) => (path.endsWith('build.gradle') ? gradle : null),
+    copyFile: (source, target) => {
+      copied.push({ source, target });
+    },
+    listDirectory: (path) => (path.endsWith('build-tools') ? buildTools : []),
     removeFile: (path) => {
       removed.push(path);
     },
@@ -105,6 +148,23 @@ function fakeMachine({
         if (joined.endsWith('ro.product.model')) return { status: 0, stdout: 'sdk_gphone64_x86_64\n', stderr: '' };
         if (joined.endsWith(`pidof pl.eviacharge.manager`)) return { status: 0, stdout: appRunning ? `${pid}\n` : '', stderr: '' };
         // EVM-093 device steps (src/device.mjs)
+        if (args.includes('install')) {
+          releaseOnDevice = (args.at(-1) ?? '').endsWith('-debugkey.apk');
+          appRunning = false;
+          return { status: 0, stdout: 'Performing Streamed Install\nSuccess\n', stderr: '' };
+        }
+        if (joined.endsWith(`dumpsys package ${APP}`))
+          return {
+            status: 0,
+            stdout: `  Package [${APP}] (1):\n    flags=[ ${releaseOnDevice ? '' : 'DEBUGGABLE '}HAS_CODE ALLOW_CLEAR_USER_DATA ]\n`,
+            stderr: '',
+          };
+        if (joined.endsWith(`run-as ${APP} id`))
+          return releaseOnDevice
+            ? { status: 1, stdout: '', stderr: `run-as: package not debuggable: ${APP}\n` }
+            : { status: 0, stdout: 'uid=10190', stderr: '' };
+        if (joined.endsWith(`pm path ${APP}`)) return { status: 0, stdout: `package:/data/app/~~a==/${APP}-b==/base.apk\n`, stderr: '' };
+        if (joined.includes('sha256sum')) return { status: 0, stdout: `${installedSha}  /data/app/x/base.apk\n`, stderr: '' };
         if (joined.includes('am force-stop') || joined.includes('kill -9')) appRunning = false;
         if (joined.includes(' od -A n ')) return { status: 0, stdout: ' 8a 11 52 c0 9d 3e 77 01 aa 5b 42 19 e0 33 6c 0f\n', stderr: '' };
         if (joined.includes(' stat -c ')) return { status: 0, stdout: '32768\n', stderr: '' };
@@ -123,6 +183,9 @@ function fakeMachine({
         if (joined.includes('logcat')) return { status: 0, stdout: 'I/app: started\nI/app: health checked\n', stderr: '' };
         return { status: 0, stdout: '', stderr: '' };
       }
+      if (command.endsWith('git.exe') && joined === 'rev-parse HEAD') return { status: 0, stdout: `${'ab12'.repeat(10)}\n`, stderr: '' };
+      if (command.endsWith('git.exe') && joined === 'status --porcelain')
+        return { status: 0, stdout: ' M pnpm-workspace.yaml\n', stderr: '' };
       if (joined.includes('GradleWrapperMain')) built = true;
       if (joined.includes('maestro.cli.AppKt') && args.includes('test')) appRunning = true;
       if (joined.endsWith('--version')) return { status: 0, stdout: 'update available\n2.11.0\n', stderr: '' };
@@ -173,6 +236,8 @@ function fakeMachine({
     collected,
     detached,
     removed,
+    copied,
+    releaseOnDevice: () => releaseOnDevice,
     isClosed: () => closed,
     stubPort: () => stubPort,
     maestroFlows: () =>
@@ -215,7 +280,8 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     const machine = fakeMachine();
     const code = await runE2e({ skipBuild: false, port: 3199 }, machine.host);
     assert.equal(code, 0, machine.logs.join('\n'));
-    const prebuild = must(machine.processes.find((entry) => entry.args.includes('prebuild')));
+    // EVM-093 AC4: the release build comes first; the e2e build is the last prebuild, so android/ stays in the e2e state
+    const prebuild = must(machine.processes.findLast((entry) => entry.args.includes('prebuild')));
     const gradle = must(machine.processes.find((entry) => entry.args.includes('assembleRelease')));
     const install = must(machine.processes.find((entry) => entry.args.includes('install')));
     assert.deepEqual(prebuild.args.slice(0, 2), ['/expo/bin/cli', 'prebuild']);
@@ -432,5 +498,168 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     linux.host.env['ANDROID_HOME'] = undefined;
     await runE2e({ skipBuild: true, port: 3199 }, { ...linux.host, platform: 'linux', exists: () => true });
     assert.ok(linux.processes.some((entry) => entry.command.startsWith(join('/home/test', 'Android', 'Sdk'))));
+  });
+});
+
+const SCRATCH = join('/repo', '.scratch', 'mobile-e2e');
+const UNSIGNED_COPY = join(SCRATCH, 'evm093-release-unsigned.apk');
+const SIGNED = join(SCRATCH, 'evm093-release-debugkey.apk');
+const REPORT = join(SCRATCH, 'report.md');
+
+describe('the AC4 release package of the same run (EVM-093 AC4; security controls 2, 3, 5, 6)', () => {
+  it('EVM-093 AC4: release build, its verify, then the e2e build, then align, debug-key signature and verify of the signed file', async () => {
+    const machine = fakeMachine();
+    assert.equal(await runE2e({ skipBuild: false, port: 3199 }, machine.host), 0, machine.logs.join('\n'));
+    const index = (/** @type {(entry: { command: string, args: string[] }) => boolean} */ match) => machine.processes.findIndex(match);
+    const prebuilds = machine.processes.filter((entry) => entry.args.includes('prebuild'));
+    assert.equal(prebuilds.length, 2);
+    assert.equal(prebuilds[0]?.env?.['EVIA_BUILD_VARIANT'], undefined);
+    assert.equal(prebuilds[0]?.env?.['EXPO_PUBLIC_API_BASE_URL'], 'https://api.example.invalid');
+    assert.equal(prebuilds[1]?.env?.['EVIA_BUILD_VARIANT'], 'e2e');
+    const verifyUnsigned = index((entry) => entry.args.includes('verify') && entry.args.at(-1) === UNSIGNED_COPY);
+    const e2ePrebuild = machine.processes.indexOf(must(prebuilds[1]));
+    const zipalign = index((entry) => entry.command.endsWith('zipalign.exe'));
+    const sign = index((entry) => entry.args.includes('sign'));
+    const verifySigned = index((entry) => entry.args.includes('verify') && entry.args.at(-1) === SIGNED);
+    const install = index((entry) => entry.args.includes('install'));
+    // the unsigned package is copied and verified BEFORE the e2e build replaces android/ (security K2)
+    assert.deepEqual(machine.copied, [
+      {
+        source: join('/repo', 'apps', 'mobile', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk'),
+        target: UNSIGNED_COPY,
+      },
+    ]);
+    assert.ok(verifyUnsigned >= 0 && verifyUnsigned < e2ePrebuild, 'verify of the unsigned release before the e2e build');
+    assert.ok(e2ePrebuild < zipalign && zipalign < sign && sign < verifySigned && verifySigned < install);
+    assert.ok(must(machine.processes[zipalign]).command.startsWith(join('/sdk', 'build-tools', '37.0.0')));
+    const signer = must(machine.processes[sign]);
+    assert.equal(signer.args[signer.args.indexOf('--ks') + 1], join('/repo', 'apps', 'mobile', 'android', 'app', 'debug.keystore'));
+    assert.equal(signer.args[signer.args.indexOf('--out') + 1], SIGNED);
+    // the passwords of the template key: only in the environment of apksigner, never in argv, a log line or the report
+    assert.equal(signer.env?.['EVIA_E2E_DEBUG_KS_PASS'], 'tmpl-store-pw');
+    assert.equal(signer.env['EVIA_E2E_DEBUG_KEY_PASS'], 'tmpl-key-pw');
+    for (const entry of machine.processes) {
+      assert.ok(!entry.args.some((argument) => argument.includes('tmpl-store-pw') || argument.includes('tmpl-key-pw')));
+      if (entry !== signer) assert.equal(entry.env?.['EVIA_E2E_DEBUG_KS_PASS'], undefined);
+    }
+    const everything = `${machine.logs.join('\n')}\n${Object.values(machine.written).join('\n')}`;
+    assert.doesNotMatch(everything, /tmpl-store-pw|tmpl-key-pw/);
+    assert.ok(machine.removed.includes(join(SCRATCH, 'evm093-release-aligned.apk')));
+    // the report binds the proof to the build: commit and SHA-256 of the installed release package
+    assert.match(
+      machine.written[REPORT] ?? '',
+      new RegExp(`commit ${'ab12'.repeat(10)}, 1 local change\\(s\\) in the tree, SHA-256 ${APK_SHA}`),
+    );
+  });
+
+  it('EVM-093 AC4: the backup proof runs on the release package over the e2e data, and the e2e package comes back for the next scenarios', async () => {
+    const machine = fakeMachine({ exists: () => true });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, machine.host), 0, machine.logs.join('\n'));
+    const installs = machine.processes.filter((entry) => entry.args.includes('install')).map((entry) => entry.args.at(-1));
+    assert.equal(installs.length, 3);
+    assert.equal(installs[1], SIGNED);
+    assert.ok(installs[2]?.endsWith('app-release.apk'));
+    assert.equal(machine.releaseOnDevice(), false);
+    const report = machine.written[REPORT] ?? '';
+    assert.match(report, /\| 10-backup-control\.yaml \| adb-backup-control-check \| ok \| positive control/);
+    assert.match(report, /\| 10-backup-control\.yaml \| install-release-debugkey \| ok \| .*run-as refused/);
+    assert.match(report, /\| 10-backup\.yaml \| adb-backup-check \| ok \| .*none from the app data/);
+    assert.match(report, /\| 10-backup\.yaml \| reinstall-e2e \| ok \|/);
+    assert.match(report, /\| local-store-backup \| 10-backup-after\.yaml \| passed \|/);
+    assert.match(report, /release package \(not debuggable, debug key\): commit not built in this run \(--skip-build\), SHA-256 /);
+  });
+
+  it('EVM-093 AC4: app data in the archive of the release package fails AC4, and the e2e package is still put back', async () => {
+    const leaked = fakeMachine({
+      exists: () => true,
+      releaseArchive: Buffer.concat([
+        Buffer.from('ANDROID BACKUP\n5\n0\nnone\n'),
+        tarEntry(`apps/${APP}/f/SQLite/evia.db`, 'x'),
+        Buffer.alloc(1024),
+      ]),
+    });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, leaked.host), 1);
+    const report = leaked.written[REPORT] ?? '';
+    assert.match(report, /\| 10-backup\.yaml \| adb-backup-check \| FAILED \| 1 entries of the app data/);
+    assert.match(report, /\| local-store-backup \| \(restore the e2e package\) \| passed \|/);
+    assert.match(report, /\| local-store-backup \| 10-backup-after\.yaml \| skipped \|/);
+    assert.equal(leaked.releaseOnDevice(), false);
+    assert.ok(leaked.maestroFlows().includes('11-key-missing.yaml'));
+  });
+
+  it('EVM-093 AC4: a release package that is not the built file fails, and a failed restore of the e2e package stops all later scenarios', async () => {
+    const other = fakeMachine({ exists: () => true, installedSha: '0'.repeat(64) });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, other.host), 1);
+    assert.match(other.written[REPORT] ?? '', /install-release-debugkey \| FAILED \| .*not the built release file/);
+    const stuck = fakeMachine({
+      exists: () => true,
+      installedSha: '0'.repeat(64),
+      failing: (_c, args) => args.includes('install') && (args.at(-1) ?? '').endsWith('app-release.apk') && stuckInstalls++ > 0,
+    });
+    let stuckInstalls = 0;
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, stuck.host), 1);
+    assert.match(stuck.logs.join('\n'), /CLEANUP: the e2e package could not be installed again/);
+    const report = stuck.written[REPORT] ?? '';
+    assert.match(report, /\| local-store-backup \| \(restore the e2e package\) \| failed \|/);
+    assert.match(report, /\| local-store-key-missing \| 11-key-missing\.yaml \| skipped \|/);
+    assert.match(report, /\| loading \| 07-loading\.yaml \| skipped \|/);
+    assert.ok(!stuck.maestroFlows().includes('11-key-missing.yaml'));
+  });
+
+  it('EVM-093 AC4: a failing verify of the release package, a missing debug signing or no new build-tools stop before the install', async () => {
+    /** @type {[string, Parameters<typeof fakeMachine>[0], RegExp][]} */
+    const cases = [
+      [
+        'verify unsigned',
+        { failing: (_c, args) => args.includes('verify') && args.at(-1) === UNSIGNED_COPY },
+        /verify of the unsigned release package failed/,
+      ],
+      [
+        'verify signed',
+        { failing: (_c, args) => args.includes('verify') && args.at(-1) === SIGNED },
+        /verify of the release package signed with the debug key failed/,
+      ],
+      ['no signing', { gradle: null }, /debug signing of the template/],
+      ['old build-tools', { buildTools: ['34.0.0'] }, /no build-tools 35\.0\.0 or newer/],
+      ['zipalign', { failing: (command) => command.endsWith('zipalign.exe') }, /zipalign of the release package failed/],
+      ['apksigner', { failing: (_c, args) => args.includes('sign') }, /apksigner failed for the release package \(exit 1\)/],
+      ['release prebuild', { failing: (_c, args) => args.includes('prebuild') }, /expo prebuild failed \(release\)/],
+      ['no release APK', { exists: (path) => !path.endsWith('-unsigned.apk') }, /release APK was not produced/],
+    ];
+    for (const [name, options, message] of cases) {
+      const machine = fakeMachine(options);
+      assert.equal(await runE2e({ skipBuild: false, port: 3199 }, machine.host), 1, name);
+      assert.match(machine.logs.join('\n'), message, name);
+      assert.ok(!machine.processes.some((entry) => entry.args.includes('install')), name);
+    }
+    // verify of the unsigned release fails: the e2e build does not even start
+    const early = fakeMachine({ failing: (_c, args) => args.includes('verify') });
+    await runE2e({ skipBuild: false, port: 3199 }, early.host);
+    assert.equal(early.processes.filter((entry) => entry.args.includes('prebuild')).length, 1);
+  });
+
+  it('EVM-093 AC4: --skip-build needs the signed release package of an earlier build; without git the commit is reported as unknown', async () => {
+    const missing = fakeMachine({ exists: (path) => !path.endsWith('-debugkey.apk') });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, missing.host), 1);
+    assert.match(missing.logs.join('\n'), /PREFLIGHT: --skip-build/);
+    const noGit = fakeMachine({ env: { PATH: 'relative' } });
+    assert.equal(await runE2e({ skipBuild: false, port: 3199 }, noGit.host), 0);
+    assert.match(noGit.written[REPORT] ?? '', /commit unknown \(git not on PATH\), SHA-256/);
+  });
+});
+
+describe('the Auto Backup check before the backup proof (EVM-093 AC4)', () => {
+  it('EVM-093 AC4: a local transport that cannot be selected fails the step before adb backup; the release package never reaches the device', async () => {
+    const machine = fakeMachine({
+      exists: () => true,
+      failing: (_c, args) => args.join(' ').endsWith('bmgr transport com.android.localtransport/.LocalTransport'),
+    });
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, machine.host), 1);
+    const report = machine.written[REPORT] ?? '';
+    assert.match(report, /\| local-store-backup \| 10-backup-control\.yaml \| failed \|/);
+    assert.match(report, /\| local-store-backup \| 10-backup\.yaml \| skipped \|/);
+    assert.ok(!machine.maestroFlows().includes('10-backup-control.yaml'));
+    assert.ok(!machine.processes.some((entry) => entry.args.includes('install') && (entry.args.at(-1) ?? '').endsWith('-debugkey.apk')));
+    assert.ok(machine.maestroFlows().includes('11-key-missing.yaml'));
   });
 });

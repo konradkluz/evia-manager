@@ -1,9 +1,21 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { describe, it } from 'node:test';
 import {
   adbArgs,
   airplaneArgs,
+  apksignerCommand,
+  DEBUG_KEY_PASS_ENV,
+  DEBUG_KS_PASS_ENV,
+  debugKeystorePath,
+  parseDebugSigning,
+  releaseBuildEnv,
+  releasePaths,
+  resolveGit,
+  selectBuildTools,
+  unsignedReleaseApkPath,
+  verifyCommand,
+  zipalignCommand,
   apkPath,
   APPLICATION_ID,
   AVD_NAME,
@@ -145,5 +157,119 @@ describe('commands of the smoke test (EVM-009 AC4)', () => {
   it('EVM-009 AC4: the APK of the release build and the application id are fixed', () => {
     assert.equal(apkPath('/app'), join('/app', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk'));
     assert.equal(APPLICATION_ID, 'pl.eviacharge.manager');
+  });
+});
+
+const TEMPLATE_GRADLE = `android {
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'tmpl-store'
+            keyAlias 'androiddebugkey'
+            keyPassword 'tmpl-key'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+    }
+}
+`;
+
+describe('the AC4 release package of the same run (EVM-093 AC4, security controls 2 and 5)', () => {
+  it('EVM-093 AC4: the release build gets no e2e variant and a placeholder https address (the package is never started)', () => {
+    const env = releaseBuildEnv({ PATH: '/bin', GITHUB_TOKEN: 'synthetic-token' }, { androidHome: '/sdk' });
+    assert.equal(env['EVIA_BUILD_VARIANT'], undefined);
+    assert.equal(env['EXPO_PUBLIC_API_BASE_URL'], 'https://api.example.invalid');
+    assert.equal(env['GITHUB_TOKEN'], undefined);
+    assert.equal(env['EXPO_NO_TELEMETRY'], '1');
+    assert.equal(env['PATH'], '/bin');
+  });
+
+  it('EVM-093 AC4: the files of the release package live in .scratch/mobile-e2e, the signed one ends with -debugkey.apk', () => {
+    const paths = releasePaths('/repo/.scratch/mobile-e2e');
+    assert.equal(paths.unsigned, join('/repo/.scratch/mobile-e2e', 'evm093-release-unsigned.apk'));
+    assert.equal(paths.aligned, join('/repo/.scratch/mobile-e2e', 'evm093-release-aligned.apk'));
+    assert.match(paths.signed, /evm093-release-debugkey\.apk$/);
+    assert.equal(
+      unsignedReleaseApkPath('/app'),
+      join('/app', 'android', 'app', 'build', 'outputs', 'apk', 'release', 'app-release-unsigned.apk'),
+    );
+    // fixed path, no parameter: the debug key of the template next to build.gradle
+    assert.equal(debugKeystorePath('/app'), join('/app', 'android', 'app', 'debug.keystore'));
+  });
+
+  it('EVM-093 AC4: the debug signing values are read from the template (signingConfigs.debug), only with the fixed keystore file', () => {
+    assert.deepEqual(parseDebugSigning(TEMPLATE_GRADLE), {
+      storePassword: 'tmpl-store',
+      keyAlias: 'androiddebugkey',
+      keyPassword: 'tmpl-key',
+    });
+    assert.equal(parseDebugSigning(TEMPLATE_GRADLE.replace("file('debug.keystore')", "file('/elsewhere/release.jks')")), null);
+    assert.equal(parseDebugSigning('android { }'), null);
+    assert.equal(parseDebugSigning(TEMPLATE_GRADLE.replace("            keyAlias 'androiddebugkey'\n", '')), null);
+  });
+
+  it('EVM-093 AC4: build-tools: the highest stable version of at least 35.0.0 (zipalign -P 16), none = null', () => {
+    assert.equal(selectBuildTools(['34.0.0', '35.0.0', '36.0.0-rc1', '37.0.0', '36.0.0']), '37.0.0');
+    assert.equal(selectBuildTools(['36.1.0', '36.0.9', '36.1.0']), '36.1.0');
+    assert.equal(selectBuildTools(['34.0.0', 'notes']), null);
+    assert.equal(selectBuildTools([]), null);
+  });
+
+  it('EVM-093 AC4: zipalign and apksigner run without a shell; the passwords are passed only as env: names, never in the arguments', () => {
+    const bt = '/sdk/build-tools/37.0.0';
+    assert.deepEqual(zipalignCommand({ buildTools: bt, platform: 'win32', input: 'in.apk', output: 'out.apk' }), {
+      command: join(bt, 'zipalign.exe'),
+      args: ['-P', '16', '-f', '4', 'in.apk', 'out.apk'],
+    });
+    assert.equal(zipalignCommand({ buildTools: bt, platform: 'linux', input: 'a', output: 'b' }).command, join(bt, 'zipalign'));
+    const signer = apksignerCommand({
+      java: 'java',
+      buildTools: bt,
+      keystore: '/app/android/app/debug.keystore',
+      keyAlias: 'k',
+      input: 'a',
+      output: 'b',
+    });
+    assert.equal(signer.command, 'java');
+    assert.deepEqual(signer.args, [
+      '-jar',
+      join(bt, 'lib', 'apksigner.jar'),
+      'sign',
+      '--ks',
+      '/app/android/app/debug.keystore',
+      '--ks-key-alias',
+      'k',
+      '--ks-pass',
+      `env:${DEBUG_KS_PASS_ENV}`,
+      '--key-pass',
+      `env:${DEBUG_KEY_PASS_ENV}`,
+      '--v4-signing-enabled',
+      'false',
+      '--out',
+      'b',
+      'a',
+    ]);
+    assert.ok(!signer.args.some((argument) => argument.startsWith('pass:') || argument.startsWith('file:')));
+  });
+
+  it('EVM-093 AC4: verify of tools/mobile-apk runs with the same node, on the given file', () => {
+    assert.deepEqual(verifyCommand('node', '/repo', 'x.apk'), {
+      command: 'node',
+      args: [join('/repo', 'tools', 'mobile-apk', 'cli.mjs'), 'verify', '--apk', 'x.apk'],
+    });
+  });
+
+  it('EVM-093 AC4: git is taken from an absolute PATH directory only (never the current folder)', () => {
+    const exists = (/** @type {string} */ path) => path === join('/usr/bin', 'git') || path === join('C:/Git/cmd', 'git.exe');
+    assert.equal(resolveGit({ PATH: `relative${delimiter}/usr/bin` }, 'linux', exists), join('/usr/bin', 'git'));
+    assert.equal(resolveGit({ Path: 'C:/Git/cmd' }, 'win32', exists), join('C:/Git/cmd', 'git.exe'));
+    assert.equal(
+      resolveGit({ PATH: 'relative' }, 'linux', () => true),
+      null,
+    );
+    assert.equal(resolveGit({}, 'linux', exists), null);
   });
 });

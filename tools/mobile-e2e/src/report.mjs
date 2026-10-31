@@ -35,7 +35,9 @@ export function scanLogcat(logcat) {
  *   requests: { platform: string | undefined, version: string | undefined }[],
  *   logcat: { lines: number, withAddress: number, withSecret: number } | null,
  *   screenshots?: string[],
+ *   release?: { commit: string, localChanges: number | null, sha256: string },
  * }} Evidence
+ * `release`: EVM-093 AC4 — the not debuggable release package (debug key) whose adb backup is judged: commit of the build and SHA-256
  */
 
 /** @param {Evidence} evidence */
@@ -65,6 +67,7 @@ export function buildReport(evidence) {
     evidence.logcat === null
       ? '- Logcat of the app process: not collected'
       : `- Logcat of the app process: ${String(evidence.logcat.lines)} lines, ${String(evidence.logcat.withAddress)} with an address, ${String(evidence.logcat.withSecret)} with a secret-like word`,
+    ...releaseLine(evidence.release),
     `- Screenshots for the UX review: ${screenshots.length === 0 ? 'none' : `${String(screenshots.length)} (${screenshots.join(', ')})`}`,
     '',
     '| Scenario | Flow | Status | Seconds |',
@@ -94,4 +97,16 @@ export function isGreen(evidence) {
     evidence.requests.length > 0 && evidence.requests.every((request) => request.platform === 'android' && request.version !== undefined);
   const cleanLog = evidence.logcat === null || (evidence.logcat.withAddress === 0 && evidence.logcat.withSecret === 0);
   return flowsPassed && headersSent && cleanLog;
+}
+
+/** @param {Evidence['release']} release @returns {string[]} */
+function releaseLine(release) {
+  if (release === undefined) return [];
+  const changes =
+    release.localChanges === null
+      ? ''
+      : release.localChanges === 0
+        ? ', clean tree'
+        : `, ${String(release.localChanges)} local change(s) in the tree`;
+  return [`- EVM-093 AC4 release package (not debuggable, debug key): commit ${release.commit}${changes}, SHA-256 ${release.sha256}`];
 }

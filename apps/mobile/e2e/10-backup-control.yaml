@@ -1,0 +1,9 @@
+# EVM-093 AC4 (positive control, not the proof): adb backup of the DEBUGGABLE e2e build was started by tools/mobile-e2e; this flow
+# confirms it on the device. Android 12+ backs up a debuggable app whatever allowBackup says, so the archive must hold app data
+# (adb-backup-control-check): the transport works, and the empty archive of the release package is the policy of the system.
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    visible: 'Back up my data'
+    timeout: 30000
+- tapOn: 'Back up my data'

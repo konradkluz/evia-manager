@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { describe, it } from 'node:test';
 import { deflateSync } from 'node:zlib';
 import {
@@ -7,8 +8,14 @@ import {
   currentTransport,
   DATABASE,
   deviceCommands,
+  backupLogLine,
+  installedApkPath,
   judgeAdbBackup,
+  judgeAdbBackupControl,
   judgeBackupTransport,
+  judgeDebuggable,
+  judgeInstall,
+  judgeRunAsRefused,
   judgeGrep,
   judgeHeader,
   judgeLogcat,
@@ -167,9 +174,9 @@ describe('device steps of the local-store scenarios (EVM-093 AC1, AC3–AC7)', (
 /**
  * A fake device for runDeviceAction: answers by the joined arguments (first match of a substring), records every call.
  * @param {[string, { status: number | null, stdout: string, stderr: string } | (() => { status: number | null, stdout: string, stderr: string })][]} answers
- * @param {{ archive?: Buffer | null }} [options]
+ * @param {{ archive?: Buffer | null, files?: Record<string, Buffer> }} [options]
  */
-function fakeDevice(answers, { archive: bytes = null } = {}) {
+function fakeDevice(answers, { archive: bytes = null, files = {} } = {}) {
   /** @type {string[]} */
   const calls = [];
   /** @type {string[]} */
@@ -188,14 +195,160 @@ function fakeDevice(answers, { archive: bytes = null } = {}) {
       started.push(args.join(' '));
     },
     sleep: () => Promise.resolve(),
-    readBytes: () => bytes,
+    readBytes: (path) => files[path] ?? (path.endsWith('.ab') ? bytes : null),
     removeFile: (path) => {
       removed.push(path);
     },
     backupFile: '/r/.scratch/mobile-e2e/evm093-backup.ab',
+    releaseApk: RELEASE_APK,
+    e2eApk: E2E_APK,
   });
   return { context, calls, started, removed };
 }
+
+const RELEASE_APK = '/r/.scratch/mobile-e2e/evm093-release-debugkey.apk';
+const E2E_APK = '/r/apps/mobile/android/app/build/outputs/apk/release/app-release.apk';
+const RELEASE_BYTES = Buffer.from('synthetic release package');
+const RELEASE_SHA = createHash('sha256').update(RELEASE_BYTES).digest('hex');
+const BASE_APK = `/data/app/~~Qx1_a-b==/${APP}-Zy9==/base.apk`;
+/** dumpsys package of the app: `flags=[ … ]` of the package section (`pkgFlags=[ … ]` on older releases) @param {string} flags */
+const dumpsys = (flags) =>
+  out(
+    0,
+    `Packages:\n  Package [${APP}] (1a2b3c):\n    versionCode=1\n    flags=[ ${flags} ]\n    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE ]\n`,
+  );
+/** @type {[string, { status: number | null, stdout: string, stderr: string }][]} */
+const RELEASE_DEVICE = [
+  ['install -r', out(0, 'Performing Streamed Install\nSuccess\n')],
+  ['dumpsys package', dumpsys('HAS_CODE ALLOW_CLEAR_USER_DATA')],
+  ['run-as', { status: 1, stdout: '', stderr: `run-as: package not debuggable: ${APP}\n` }],
+  ['pm path', out(0, `package:${BASE_APK}\n`)],
+  ['sha256sum', out(0, `${RELEASE_SHA}  ${BASE_APK}\n`)],
+];
+
+describe('the AC4 release package on the device (EVM-093 AC4, security controls 1, 2, 4, 6)', () => {
+  it('EVM-093 AC4: install, dumpsys, run-as, pm path and sha256sum commands', () => {
+    assert.deepEqual(deviceCommands.install(RELEASE_APK), ['install', '-r', RELEASE_APK]);
+    assert.deepEqual(deviceCommands.dumpsysPackage(), ['shell', 'dumpsys', 'package', APP]);
+    assert.deepEqual(deviceCommands.runAsProbe(), ['shell', 'run-as', APP, 'id']);
+    assert.deepEqual(deviceCommands.packagePath(), ['shell', 'pm', 'path', APP]);
+    assert.deepEqual(deviceCommands.sha256sum(BASE_APK), ['shell', 'sha256sum', BASE_APK]);
+  });
+
+  it('EVM-093 AC4: an install passes only with exit 0 and "Success"', () => {
+    assert.equal(judgeInstall(out(0, 'Performing Streamed Install\nSuccess\n')).ok, true);
+    assert.equal(judgeInstall(out(1, 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]')).ok, false);
+    assert.equal(judgeInstall(out(0, 'Failure [INSTALL_FAILED_VERSION_DOWNGRADE]')).ok, false);
+  });
+
+  it('EVM-093 AC4: dumpsys: not debuggable means a flags line without DEBUGGABLE (and without ALLOW_BACKUP); no flags line is a failure', () => {
+    assert.equal(judgeDebuggable(dumpsys('HAS_CODE ALLOW_CLEAR_USER_DATA'), false).ok, true);
+    assert.match(judgeDebuggable(dumpsys('DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA'), false).detail, /DEBUGGABLE/);
+    assert.match(judgeDebuggable(dumpsys('HAS_CODE ALLOW_BACKUP'), false).detail, /ALLOW_BACKUP/);
+    // older releases print pkgFlags; privateFlags never counts as the flags line
+    assert.equal(judgeDebuggable(out(0, `  Package [${APP}] (1):\n    pkgFlags=[ HAS_CODE ]\n`), false).ok, true);
+    assert.match(judgeDebuggable(out(0, `  Package [${APP}] (1):\n    privateFlags=[ X ]\n`), false).detail, /no flags line/);
+    assert.match(judgeDebuggable(out(0, 'Unable to find package: x\n    flags=[ HAS_CODE ]\n'), false).detail, /not installed/);
+    assert.match(judgeDebuggable(out(1, ''), false).detail, /dumpsys/);
+    // the e2e package back on the device is debuggable again (run-as of the next scenarios)
+    assert.equal(judgeDebuggable(dumpsys('DEBUGGABLE HAS_CODE'), true).ok, true);
+    assert.equal(judgeDebuggable(dumpsys('HAS_CODE'), true).ok, false);
+  });
+
+  it('EVM-093 AC4: run-as must be refused because the package is not debuggable; a working run-as or another error fails', () => {
+    assert.equal(judgeRunAsRefused({ status: 1, stdout: '', stderr: `run-as: package not debuggable: ${APP}\n` }).ok, true);
+    assert.match(judgeRunAsRefused(out(0, 'uid=10190(u0_a190)')).detail, /run-as works/);
+    assert.match(judgeRunAsRefused({ status: 1, stdout: '', stderr: 'run-as: unknown package' }).detail, /another reason/);
+  });
+
+  it('EVM-093 AC4: the installed base.apk path is taken from pm path only when it is a plain /data/app path', () => {
+    assert.equal(installedApkPath(out(0, `package:${BASE_APK}\n`)), BASE_APK);
+    assert.equal(installedApkPath(out(0, 'package:/data/app/x;rm -rf y/base.apk\n')), null);
+    assert.equal(installedApkPath(out(0, `package:${BASE_APK}\npackage:/data/app/a/split_config.apk\n`)), BASE_APK);
+    assert.equal(installedApkPath(out(1, '')), null);
+  });
+
+  it('EVM-093 AC4: only the logcat line about the backup of the app is kept (tag and message, no other line)', () => {
+    const logcat = [
+      '10-31 10:00:00.000  100  200 I ActivityManager: Start proc 4242:com.other/u0a1',
+      `10-31 10:00:01.000  100  201 W BackupManagerService: Package ${APP} is not eligible for backup, removing.`,
+      '10-31 10:00:02.000  100  202 I app: token=abc',
+    ].join('\n');
+    assert.equal(backupLogLine(out(0, logcat)), `BackupManagerService: Package ${APP} is not eligible for backup, removing.`);
+    assert.equal(backupLogLine(out(0, `${APP} is not eligible\n`)), `${APP} is not eligible`);
+    assert.equal(backupLogLine(out(0, 'nothing\n')), null);
+    assert.equal(backupLogLine(out(1, '')), null);
+  });
+
+  it('EVM-093 AC4: install-release-debugkey passes for a not debuggable package whose base.apk is the built file', async () => {
+    const device = fakeDevice(RELEASE_DEVICE, { files: { [RELEASE_APK]: RELEASE_BYTES } });
+    const result = await runDeviceAction('install-release-debugkey', device.context);
+    assert.equal(result.ok, true, result.detail);
+    assert.match(result.detail, new RegExp(`SHA-256 ${RELEASE_SHA}`));
+    assert.equal(device.calls[0], `install -r ${RELEASE_APK}`);
+  });
+
+  it('EVM-093 AC4: install-release-debugkey fails on a failed install, DEBUGGABLE, no flags line, a working run-as or another base.apk', async () => {
+    /** @param {[string, { status: number | null, stdout: string, stderr: string }][]} overrides */
+    const run = async (overrides) =>
+      runDeviceAction(
+        'install-release-debugkey',
+        fakeDevice([...overrides, ...RELEASE_DEVICE], { files: { [RELEASE_APK]: RELEASE_BYTES } }).context,
+      );
+    /** @type {[string, [string, { status: number | null, stdout: string, stderr: string }][]][]} */
+    const cases = [
+      ['install failed', [['install -r', out(1, 'Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE]')]]],
+      ['debuggable', [['dumpsys package', dumpsys('DEBUGGABLE HAS_CODE')]]],
+      ['no flags line', [['dumpsys package', out(0, `  Package [${APP}] (1):\n`)]]],
+      ['run-as works', [['run-as', out(0, 'uid=10190')]]],
+      ['other apk', [['sha256sum', out(0, `${'0'.repeat(64)}  ${BASE_APK}\n`)]]],
+      ['sha256sum failed', [['sha256sum', out(1, '')]]],
+      ['no base.apk', [['pm path', out(0, '')]]],
+    ];
+    for (const [name, overrides] of cases) assert.equal((await run(overrides)).ok, false, name);
+    const noLocal = await runDeviceAction('install-release-debugkey', fakeDevice(RELEASE_DEVICE).context);
+    assert.equal(noLocal.ok, false);
+  });
+
+  it('EVM-093 AC4: reinstall-e2e installs the e2e package again and passes only when it is debuggable again', async () => {
+    const back = fakeDevice([
+      ['install -r', out(0, 'Success\n')],
+      ['dumpsys package', dumpsys('DEBUGGABLE HAS_CODE')],
+    ]);
+    assert.equal((await runDeviceAction('reinstall-e2e', back.context)).ok, true);
+    assert.equal(back.calls[0], `install -r ${E2E_APK}`);
+    assert.equal((await runDeviceAction('reinstall-e2e', fakeDevice([['install -r', out(1, 'Failure')]]).context)).ok, false);
+    const notBack = fakeDevice([
+      ['install -r', out(0, 'Success\n')],
+      ['dumpsys package', dumpsys('HAS_CODE')],
+    ]);
+    assert.equal((await runDeviceAction('reinstall-e2e', notBack.context)).ok, false);
+  });
+
+  it('EVM-093 AC4: positive control on the debuggable e2e build: the archive MUST hold app data, otherwise the transport proves nothing', () => {
+    const withData = archive([tarEntry(`apps/${APP}/f/SQLite/evia.db`, 'x'), tarEntry(`apps/${APP}/sp/SecureStore.xml`, 'x')]);
+    const control = judgeAdbBackupControl(withData);
+    assert.equal(control.ok, true, control.detail);
+    assert.match(control.detail, /2 entries of the app data \(domains: f, sp\)/);
+    assert.match(judgeAdbBackupControl(archive([tarEntry(`apps/${APP}/_manifest`, 'm')])).detail, /no entry of the app data/);
+    assert.match(judgeAdbBackupControl(null).detail, /no archive/);
+    assert.match(judgeAdbBackupControl(Buffer.from('garbage')).detail, /not a readable adb backup/);
+  });
+
+  it('EVM-093 AC4: the release backup check keeps the logcat line of the refusal in its detail; the control check removes its archive', async () => {
+    const line = `10-31 10:00:01.000  100  201 W BackupManagerService: Package ${APP} is not eligible for backup, removing.`;
+    const release = fakeDevice([['logcat', out(0, `${line}\n`)]], { archive: archive([]) });
+    const result = await runDeviceAction('adb-backup-check', release.context);
+    assert.equal(result.ok, true, result.detail);
+    assert.match(result.detail, /logcat: "BackupManagerService: Package pl\.eviacharge\.manager is not eligible for backup, removing\."/);
+    const silent = await runDeviceAction('adb-backup-check', fakeDevice([], { archive: archive([]) }).context);
+    assert.match(silent.detail, /logcat: no line about the backup of the app/);
+    const withData = archive([tarEntry(`apps/${APP}/f/SQLite/evia.db`, 'x')]);
+    const control = fakeDevice([], { archive: withData });
+    assert.equal((await runDeviceAction('adb-backup-control-check', control.context)).ok, true);
+    assert.deepEqual(control.removed, ['/r/.scratch/mobile-e2e/evm093-backup.ab']);
+  });
+});
 
 describe('running the device steps (EVM-093 AC1, AC3–AC6)', () => {
   it('EVM-093 AC3: force-stop and the damage of the file report the outcome of adb', async () => {
