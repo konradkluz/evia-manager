@@ -143,9 +143,25 @@ describe('the opaque tokens of the phone (EVM-094 AC4; SR-CRYPTO-01, ASVS V7.2.1
 
 describe('the configuration of the client (EVM-094)', () => {
   it('EVM-094 AC6 carries the minimum version of the API settings and no personal data', () => {
-    const config = clientConfig({ android: '1.2.0', ios: '1.1.0' });
-    expect(config).toMatchObject({ minSupportedVersion: { android: '1.2.0', ios: '1.1.0' }, scopeRuleVersion: 1 });
+    const config = clientConfig(
+      { android: '1.2.0', ios: '1.1.0' },
+      { closedOrdersInScopeDays: 30, periodicResyncDays: 7, scopeRuleVersion: 1 },
+    );
+    expect(config).toMatchObject({
+      minSupportedVersion: { android: '1.2.0', ios: '1.1.0' },
+      closedWorkOrdersInScopeDays: 30,
+      periodicResyncDays: 7,
+    });
     expect(JSON.stringify(config)).not.toMatch(/@|token|secret/i);
+  });
+
+  it('EVM-097 AC6 the version of the rule of scope is greater than the 1 of EVM-096 and follows N and the counter of the operator', () => {
+    const at = (closedOrdersInScopeDays: number, scopeRuleVersion: number) =>
+      clientConfig({ android: '1.2.0', ios: '1.1.0' }, { closedOrdersInScopeDays, periodicResyncDays: 7, scopeRuleVersion });
+    expect(at(30, 1).scopeRuleVersion).toBeGreaterThan(1);
+    expect(at(30, 1)).toMatchObject({ closedWorkOrdersInScopeDays: 30 });
+    expect(at(31, 1).scopeRuleVersion).not.toBe(at(30, 1).scopeRuleVersion);
+    expect(at(30, 2).scopeRuleVersion).not.toBe(at(30, 1).scopeRuleVersion);
   });
 });
 

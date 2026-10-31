@@ -1,0 +1,31 @@
+# EVM-100 AC3: 426 client_version_unsupported at sign-in — "Zaktualizuj aplikację" without Google Play ("Poproś administratora o
+# nową wersję aplikacji."), "Zobacz kolejkę" shows the read-only preview.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- tapOn:
+    id: 'login-email'
+- inputText: 'technik@example.test'
+- tapOn:
+    id: 'login-password'
+- inputText: 'haslo-testowe'
+- hideKeyboard
+- tapOn:
+    id: 'login-submit'
+- extendedWaitUntil:
+    visible: 'Zaktualizuj aplikację'
+    timeout: 30000
+- assertVisible: 'Ta wersja nie jest już obsługiwana. Poproś administratora o nową wersję aplikacji.'
+- assertNotVisible: 'Otwórz Google Play'
+- takeScreenshot: m02-update
+- tapOn:
+    id: 'device-state-primary'
+- assertVisible: 'Kolejka'
+- tapOn:
+    id: 'queue-preview-back'
+- assertVisible: 'Zaktualizuj aplikację'

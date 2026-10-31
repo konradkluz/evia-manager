@@ -4,6 +4,8 @@ appId: pl.eviacharge.manager
 ---
 - launchApp:
     clearState: true
+# EVM-100: the shell needs a session — the sign-in of the synthetic account first
+- runFlow: common/sign-in.yaml
 - extendedWaitUntil:
     visible: 'Brak zleceń'
     timeout: 30000

@@ -1,0 +1,16 @@
+// Local Expo module of the app (EVM-093): crypto-shred of the Keystore alias of the database key and the diagnostic security level.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'pl.eviacharge'
+version = '0.1.0'
+
+android {
+  namespace "pl.eviacharge.keystore"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

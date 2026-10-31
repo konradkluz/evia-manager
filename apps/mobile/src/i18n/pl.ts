@@ -1,10 +1,14 @@
-/** Polish catalogue of the mobile app (EVM-009 AC1, AC3; UX copy of the story). Keys: `shell.*`, `update.*`. */
+/**
+ * Polish catalogue of the mobile app (EVM-009 AC1, AC3; UX copy of the story). Keys: `shell.*`, `localData.*` (EVM-093 AC5, AC6),
+ * `update.*`, and for EVM-100 (M-01, M-02, M-09; UX 01 and 16) `login.*`, `deviceState.*`, `more.*`, `logout.*`.
+ */
 export const pl = {
   shell: {
     appName: 'EVia Manager',
     orders: { title: 'Moje zlecenia', emptyTitle: 'Brak zleceń', emptyBody: 'Zlecenia pojawią się tu po zalogowaniu i synchronizacji.' },
     queue: { title: 'Kolejka', emptyTitle: 'Nic nie czeka na wysłanie.' },
     nav: { label: 'Nawigacja główna' },
+    more: { title: 'Więcej' },
     sync: {
       online: 'Połączono',
       offline: 'Offline',
@@ -20,6 +24,104 @@ export const pl = {
       body: 'Nie możemy połączyć się z serwerem EVia. Spróbuj ponownie za chwilę.',
     },
     reconnected: 'Połączono z serwerem.',
+  },
+  localData: {
+    lostTitle: 'Dane zapisane na tym telefonie, które nie zostały wysłane, są niedostępne.',
+    lostBody: 'Dane zleceń pobierzemy ponownie.',
+    acknowledge: 'Rozumiem',
+    wiping: 'Kończymy czyszczenie…',
+    wipingRetry: 'Spróbuj ponownie',
+  },
+  login: {
+    title: 'Zaloguj się',
+    email: 'E-mail',
+    password: 'Hasło',
+    show: 'Pokaż',
+    hide: 'Ukryj',
+    showPassword: 'Pokaż hasło',
+    hidePassword: 'Ukryj hasło',
+    showCode: 'Pokaż kod',
+    hideCode: 'Ukryj kod',
+    submit: 'Zaloguj się',
+    code: 'Kod z aplikacji uwierzytelniającej',
+    codeHint: '6 cyfr z aplikacji uwierzytelniającej.',
+    confirm: 'Potwierdź',
+    changeAccount: 'Zmień konto',
+    forgot: 'Nie pamiętasz hasła?',
+    offline: 'Brak zasięgu. Zalogujesz się, gdy wróci połączenie.',
+    invalidCredentials: 'Nieprawidłowy e-mail lub hasło.',
+    invalidCode: 'Kod jest nieprawidłowy albo wygasł. Wpisz nowy kod z aplikacji.',
+    locked: 'Zbyt wiele prób. Spróbuj ponownie za {{minutes}} min.',
+    unavailable: 'Nie udało się zalogować. Spróbuj ponownie za chwilę.',
+    challengeExpired: 'Czas na wpisanie kodu minął. Zaloguj się ponownie.',
+  },
+  deviceState: {
+    help: 'Pomoc',
+    backToSignIn: 'Wróć do logowania',
+    signIn: 'Zaloguj się',
+    retry: 'Spróbuj ponownie',
+    viewQueue: 'Zobacz kolejkę',
+    channelNotAllowed: {
+      title: 'Aplikacja jest niedostępna dla Twojej roli',
+      body: 'Z kontem „Tylko odczyt” korzystasz w panelu na komputerze. Jeśli potrzebujesz aplikacji w terenie, poproś administratora o zmianę roli.',
+    },
+    totpNotConfigured: {
+      title: 'Dodaj kod z aplikacji uwierzytelniającej',
+      body: 'Aplikacja na telefonie wymaga kodu z aplikacji uwierzytelniającej — klucz dostępu działa tylko w panelu. Dodasz go w panelu na komputerze: Konto → Drugi krok logowania. Potem zaloguj się tutaj ponownie.',
+    },
+    mfaEnrollmentRequired: {
+      title: 'Skonfiguruj drugi krok logowania',
+      body: 'Zrobisz to w panelu na komputerze — po zalogowaniu panel Cię poprowadzi. Wybierz kod z aplikacji uwierzytelniającej (sam albo obok klucza dostępu) — bez niego nie zalogujesz się na telefonie.',
+    },
+    deviceLimit: {
+      title: 'Limit urządzeń',
+      body: 'Masz już 2 aktywne telefony. Wyloguj jeden z nich w panelu na komputerze (Konto → Urządzenia) albo poproś administratora. Z tego telefonu nie można wylogować innych urządzeń.',
+    },
+    updateRequired: {
+      title: 'Zaktualizuj aplikację',
+      body: 'Ta wersja nie jest już obsługiwana. Poproś administratora o nową wersję aplikacji.',
+      unsent: 'Niewysłane elementy ({{count}}) są bezpieczne w telefonie — wyślemy je po aktualizacji.',
+    },
+    sessionRevoked: { title: 'Wylogowano ten telefon', body: 'Dane zleceń usunęliśmy z telefonu.' },
+    sessionExpired: { title: 'Sesja wygasła', body: 'Zaloguj się ponownie.' },
+    signedOut: { title: 'Wylogowano', body: 'Dane zleceń usunęliśmy z telefonu.' },
+    wiped: {
+      title: 'Dane firmowe usunięte z telefonu',
+      body: 'Administrator zablokował ten telefon. Usunęliśmy wszystkie dane firmowe, także niewysłane elementy.',
+    },
+    unsentAfterSignIn: 'Niewysłane elementy ({{count}}) są zaszyfrowane w telefonie — wyślemy je po zalogowaniu.',
+    unsentSameAccount:
+      'Niewysłane elementy ({{count}}) są zaszyfrowane w telefonie — wyślemy je, gdy zalogujesz się ponownie na to samo konto.',
+    unsentExpired: 'Niewysłane elementy ({{count}}) są zaszyfrowane w telefonie — wyślemy je po zalogowaniu na to samo konto.',
+    queuePreview: {
+      title: 'Kolejka',
+      body: 'Niewysłane elementy ({{count}}) czekają zaszyfrowane w telefonie. Wyślemy je po aktualizacji aplikacji.',
+      back: 'Wróć',
+    },
+  },
+  more: {
+    account: 'Konto i urządzenia',
+    accountNote: 'Hasło, drugi krok logowania i listę urządzeń zmienisz w panelu na komputerze.',
+    help: 'Pomoc',
+    version: 'Wersja {{version}}',
+    signOut: 'Wyloguj',
+    wipe: 'Wyczyść dane firmowe',
+  },
+  logout: {
+    title: 'Wylogować się?',
+    unsentOne:
+      '{{count}} niewysłany element zostanie zaszyfrowany w telefonie — wyślemy go, gdy zalogujesz się ponownie na to samo konto. Dane zleceń usuniemy z telefonu.',
+    unsentFew:
+      '{{count}} niewysłane elementy zostaną zaszyfrowane w telefonie — wyślemy je, gdy zalogujesz się ponownie na to samo konto. Dane zleceń usuniemy z telefonu.',
+    unsentMany:
+      '{{count}} niewysłanych elementów zostanie zaszyfrowanych w telefonie — wyślemy je, gdy zalogujesz się ponownie na to samo konto. Dane zleceń usuniemy z telefonu.',
+    plain: 'Dane zleceń usuniemy z telefonu. Zalogujesz się ponownie tym samym hasłem i kodem.',
+    sendFirst: 'Najpierw wyślij',
+    sendFirstOffline: 'Wyślesz po powrocie połączenia.',
+    confirmWithUnsent: 'Wyloguj mimo to',
+    confirm: 'Wyloguj',
+    cancel: 'Anuluj',
+    wipe: 'Wyczyść dane firmowe',
   },
   update: {
     title: 'Zaktualizuj aplikację',

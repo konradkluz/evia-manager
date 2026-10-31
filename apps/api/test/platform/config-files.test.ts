@@ -48,6 +48,7 @@ describe('settings from files — <KEY>_FILE (EVM-007 AC7; ADR-0018 "Gdzie żyj�
       'DATABASE_URL',
       'CURSOR_KEY',
       'FIELD_ENCRYPTION_KEYS',
+      'SYNC_CURSOR_KEYS',
       'LOGIN_THROTTLE_KEY',
       'EVIA_RELEASE_MANIFEST_SHA256',
       'MEDIA_S3_SECRET_ACCESS_KEY',

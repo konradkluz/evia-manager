@@ -1,0 +1,9 @@
+# EVM-100 AC4 (preparation): sign in; the next flow restarts the app while the scenario server revokes the session.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- extendedWaitUntil:
+    visible: 'Brak zleceń'
+    timeout: 30000

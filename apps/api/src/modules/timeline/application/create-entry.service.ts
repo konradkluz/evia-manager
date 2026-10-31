@@ -29,23 +29,21 @@ import type { TimelineEntry } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import { z } from 'zod';
-import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
-import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
+import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/validation.ts';
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
-import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { PROCEDURE_STAGE_DIRECTORY, type ProcedureStageDirectory } from '../../procedures/index.ts';
+import { DATABASE } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
 import { resolveCreateEntry, type CreateEntryCommand, type CreateEntryInput } from '../domain/create-entry-rules.ts';
 import { rethrowMapped } from '../domain/integrity-violation.ts';
-import type { TimelineEntryEvent } from '../events.ts';
 import { timelineTables } from '../infrastructure/tables.ts';
-import { findEntry, hasCorrection, insertEntry, lockCorrectable, type EntryRow } from '../infrastructure/timeline-store.ts';
+import { findEntry, hasCorrection, lockCorrectable, type EntryRow } from '../infrastructure/timeline-store.ts';
 import { EntryPresenter } from './entry-page.ts';
+import { EntryWriter } from './entry-writer.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
 /** Method and route template; the key of an idempotency record is bound to it AND to the order (see {@link createTimelineEntryScope}). */
@@ -85,28 +83,22 @@ export interface CreatedEntry {
 @Injectable()
 export class CreateEntryService {
   readonly #db: Kysely<Database>;
-  readonly #clock: Clock;
-  readonly #events: EventBus;
   readonly #idempotency: Idempotency;
   readonly #orders: WorkOrderDirectory;
-  readonly #stages: ProcedureStageDirectory;
+  readonly #writer: EntryWriter;
   readonly #presenter: EntryPresenter;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
-    @Inject(CLOCK) clock: Clock,
-    @Inject(EVENT_BUS) events: EventBus,
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(WORK_ORDER_DIRECTORY) orders: WorkOrderDirectory,
-    @Inject(PROCEDURE_STAGE_DIRECTORY) stages: ProcedureStageDirectory,
+    @Inject(EntryWriter) writer: EntryWriter,
     @Inject(EntryPresenter) presenter: EntryPresenter,
   ) {
     this.#db = db;
-    this.#clock = clock;
-    this.#events = events;
     this.#idempotency = idempotency;
     this.#orders = orders;
-    this.#stages = stages;
+    this.#writer = writer;
     this.#presenter = presenter;
   }
 
@@ -169,7 +161,7 @@ export class CreateEntryService {
   ): Promise<void> {
     const tables = timelineTables(tx);
     let stageId = command.procedureStageId ?? null;
-    if (stageId !== null && !(await this.#stages.existsInOrder(tx, workOrderId, stageId, { lock: true }))) {
+    if (stageId !== null && !(await this.#writer.stageInOrder(tx, workOrderId, stageId))) {
       throw new ProblemException('validation_failed', { errors: [{ pointer: '/procedureStageId', code: 'unknown_stage' }] });
     }
 
@@ -186,27 +178,8 @@ export class CreateEntryService {
       if (command.procedureStageId === undefined) stageId = target.procedure_stage_id;
     }
 
-    const row = await this.#write(tables, principal, workOrderId, command, stageId);
-    if (row === undefined) throw new ProblemException('id_conflict');
-    const event: TimelineEntryEvent = {
-      type: 'timeline_entry.created',
-      actor: { type: 'user', userId: principal.userId },
-      outcome: 'success',
-      objectType: 'timeline_entry',
-      objectId: row.id,
-    };
-    await this.#events.publish(tx, event, request);
-  }
-
-  async #write(
-    tables: ReturnType<typeof timelineTables>,
-    principal: Principal,
-    workOrderId: string,
-    command: CreateEntryCommand,
-    stageId: string | null,
-  ) {
-    return insertEntry(
-      tables,
+    const row = await this.#writer.write(
+      tx,
       {
         id: command.id,
         workOrderId,
@@ -216,9 +189,13 @@ export class CreateEntryService {
         procedureStageId: stageId,
         supersedesEntryId: command.supersedesEntryId,
         authorUserId: principal.userId,
+        origin: 'web',
+        capturedAt: null,
+        createdViaDeviceId: null,
       },
-      this.#clock.now(),
+      request,
     );
+    if (row === undefined) throw new ProblemException('id_conflict');
   }
 
   #present(tx: Kysely<Database>, principal: Principal, workOrderId: string, row: EntryRow): Promise<TimelineEntry> {

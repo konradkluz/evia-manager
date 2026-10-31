@@ -1,0 +1,13 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/eslint.config.js", "$TURBO_ROOT$/apps/mobile/src/**"]
+    },
+    "test:coverage": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/mobile/eslint.config.js", "$TURBO_ROOT$/apps/mobile/src/**"],
+      "outputs": ["coverage/**"]
+    }
+  }
+}

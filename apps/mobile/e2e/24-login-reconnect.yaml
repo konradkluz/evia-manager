@@ -1,0 +1,8 @@
+# EVM-100 AC6: the network returns (airplane mode off) while M-01 stays open — the banner goes by itself (re-check 10 s → 60 s),
+# the e-mail is still there. Continues the app of 24-login-offline.yaml (no launchApp).
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    notVisible: 'Brak zasięgu. Zalogujesz się, gdy wróci połączenie.'
+    timeout: 90000
+- assertVisible: 'technik@example.test'

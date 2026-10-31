@@ -50,8 +50,8 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
   });
   return {
     port: await listening,
-    setMode: (mode) => {
-      worker.postMessage({ mode });
+    setMode: (mode, auth = 'ok') => {
+      worker.postMessage({ mode, auth });
     },
     requests: () => {
       if (!exited) drain();
@@ -122,6 +122,15 @@ export function realHost(repoRoot) {
     exists: existsSync,
     writeText: (path, text) => {
       writeFileSync(path, text);
+    },
+    readBytes: (path) => (existsSync(path) ? readFileSync(path) : null),
+    readText: (path) => (existsSync(path) ? readFileSync(path, 'utf8') : null),
+    copyFile: (source, target) => {
+      copyFileSync(source, target);
+    },
+    listDirectory: (path) => (existsSync(path) ? readdirSync(path) : []),
+    removeFile: (path) => {
+      rmSync(path, { force: true });
     },
     makeDirectory: (path) => {
       mkdirSync(path, { recursive: true });

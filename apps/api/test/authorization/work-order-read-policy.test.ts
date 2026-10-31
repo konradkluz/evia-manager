@@ -1,4 +1,6 @@
 import { DummyDriver, Kysely, PostgresAdapter, PostgresIntrospector, PostgresQueryCompiler } from 'kysely';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { workOrderReadCondition } from '../../src/modules/authorization/work-order-read-policy.ts';
 import type { Principal } from '../../src/platform/http/principal.ts';
@@ -48,5 +50,35 @@ describe('the read policy of work orders as a condition of a query (EVM-034 W2; 
         workOrderReadCondition(principalOf(role), 'work_orders.work_orders', 'visible').compile(db).sql,
       );
     }
+  });
+});
+
+const SOURCE = join(import.meta.dirname, '../../src');
+const sourceFiles = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? sourceFiles(join(dir, entry.name)) : entry.name.endsWith('.ts') ? [join(dir, entry.name)] : [],
+  );
+
+describe('the mode "access" of the policy: the target of a mutation of the phone only (EVM-098 AC6; SR-AUTHZ-02, SR-AUTHZ-05)', () => {
+  it('EVM-098 AC6 Administrator and Editor have access to every order, deleted or not; Read-only to none (defence in depth: the phone is closed to it) - with no parameter', () => {
+    for (const role of ['administrator', 'editor'] as const) {
+      const compiled = workOrderReadCondition(principalOf(role), 'work_orders.work_orders', 'access').compile(db);
+      expect(compiled.sql, role).toBe('true');
+      expect(compiled.parameters).toEqual([]);
+    }
+    expect(workOrderReadCondition(principalOf('read_only'), 'work_orders.work_orders', 'access').compile(db).sql).toBe('false');
+  });
+
+  it('EVM-098 AC6 the mode is named in the policy and in the read policy of work orders only, and the condition built from it is used by the target of a mutation only', () => {
+    const files = sourceFiles(SOURCE);
+    const naming = files
+      .filter((file) => /'access'\)/.test(readFileSync(file, 'utf8')))
+      .map((file) => relative(SOURCE, file).replaceAll(sep, '/'));
+    expect(naming).toEqual(['modules/work-orders/infrastructure/read-policy.ts']);
+    const users = files
+      .filter((file) => readFileSync(file, 'utf8').includes('accessibleWorkOrders'))
+      .map((file) => relative(SOURCE, file).replaceAll(sep, '/'))
+      .sort();
+    expect(users).toEqual(['modules/work-orders/infrastructure/mutation-target.ts', 'modules/work-orders/infrastructure/read-policy.ts']);
   });
 });

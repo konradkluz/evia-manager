@@ -6,6 +6,12 @@
  */
 import { Inject, Injectable, Module, type OnModuleInit } from '@nestjs/common';
 import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../platform/bulk-read/bulk-read-event.ts';
+import {
+  SYNC_EVENT_TYPES,
+  SYNC_MUTATION_EVENT_TYPES,
+  type SyncAuditEvent,
+  type SyncMutationAuditEvent,
+} from '../../platform/sync/sync-event.ts';
 import type { Clock } from '../../platform/clock/clock.ts';
 import type { EventBus } from '../../platform/events/event-bus.ts';
 import { CLOCK, EVENT_BUS } from '../../platform/tokens.ts';
@@ -81,6 +87,16 @@ export class AuditSubscriber implements OnModuleInit {
     }
     for (const type of BULK_READ_EVENT_TYPES) {
       this.#events.subscribe<BulkReadEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of SYNC_EVENT_TYPES) {
+      this.#events.subscribe<SyncAuditEvent>(type, (tx, event, context) =>
+        insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
+      );
+    }
+    for (const type of SYNC_MUTATION_EVENT_TYPES) {
+      this.#events.subscribe<SyncMutationAuditEvent>(type, (tx, event, context) =>
         insertAuditRecord(tx, toAuditRecord(event, context, this.#clock.now())),
       );
     }

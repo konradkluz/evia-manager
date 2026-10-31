@@ -37,11 +37,13 @@ export const RATE_LIMITS = Object.freeze({
   search: 60,
   /** every request of a signed-in user, reads and writes, all sessions and both channels together (EVM-082; ADR-0004; `consumeSubject`) */
   user: 300,
+  /** the push of mutations of a phone, per DEVICE of the session (EVM-098 AC5; a batch is one request; `consumeSubject` with the device as the subject) */
+  syncMutationsDevice: 60,
 });
 
 export type RateBucket = keyof typeof RATE_LIMITS;
-/** Buckets counted per client address; `search` and `user` are per user (`consumeSubject`) and must never be passed to `consume`. */
-export type AddressRateBucket = Exclude<RateBucket, 'search' | 'user'>;
+/** Buckets counted per client address; `search`, `user` and `syncMutationsDevice` are per subject (`consumeSubject`) and must never be passed to `consume`. */
+export type AddressRateBucket = Exclude<RateBucket, 'search' | 'user' | 'syncMutationsDevice'>;
 
 interface Window {
   readonly startedAt: number;

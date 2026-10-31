@@ -27,6 +27,12 @@ describe('wiring of the smoke test to the machine (EVM-009 AC4)', () => {
       host.writeText(join(root, 'a', 'b', 'f.txt'), 'x');
       assert.equal(host.exists(join(root, 'a', 'b', 'f.txt')), true);
       assert.equal(host.exists(join(root, 'missing')), false);
+      // EVM-093 AC4: the release package is copied into .scratch, build-tools are listed, build.gradle is read
+      host.copyFile(join(root, 'a', 'b', 'f.txt'), join(root, 'a', 'copy.txt'));
+      assert.equal(host.readText(join(root, 'a', 'copy.txt')), 'x');
+      assert.equal(host.readText(join(root, 'missing')), null);
+      assert.deepEqual(host.listDirectory(join(root, 'a')).sort(), ['b', 'copy.txt']);
+      assert.deepEqual(host.listDirectory(join(root, 'missing')), []);
       const out = host.run(process.execPath, ['-e', 'process.stdout.write("hi")'], { cwd: root, env: { PATH: process.env['PATH'] ?? '' } });
       assert.deepEqual(out, { status: 0, stdout: 'hi', stderr: '' });
       const streamed = host.run(process.execPath, ['-e', ''], { stream: true });

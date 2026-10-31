@@ -56,6 +56,10 @@ import { PwnedPasswordsCheck } from './infrastructure/pwned-passwords.ts';
 import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys.ts';
 import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts';
 
+import { UserSyncSourceService } from './infrastructure/sync-source.ts';
+import { DevicePendingItemsService } from './infrastructure/pending-items.ts';
+import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
+
 @Module({
   controllers: [AuthController, AccountController, UsersController, MobileController],
   providers: [
@@ -99,6 +103,8 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
     InvitationEmailComposer,
     InvitationService,
     ListUsersService,
+    { provide: USER_SYNC_SOURCE, useClass: UserSyncSourceService },
+    { provide: DEVICE_PENDING_ITEMS, useClass: DevicePendingItemsService },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOTP_ENGINE, useClass: OtpauthTotpEngine },
     { provide: BREACHED_PASSWORD_CHECK, useFactory: () => new PwnedPasswordsCheck() },
@@ -121,6 +127,8 @@ import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts'
     PurgeLoginSecurityJob,
     PurgeSessionsJob,
     AdministratorDirectory,
+    USER_SYNC_SOURCE,
+    DEVICE_PENDING_ITEMS,
   ],
 })
 export class IdentityModule {}

@@ -1,0 +1,18 @@
+# EVM-093 AC4: the e2e package is back over the same data and all 3 entries are still there, so the data was on the phone during
+# the backup of the release package (an empty archive is not an empty phone).
+appId: pl.eviacharge.manager
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: 'evia-e2e-hooks-panel'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-login-a'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'open=unlocked;queue=3;identity=kept;pull=no'
+    timeout: 30000

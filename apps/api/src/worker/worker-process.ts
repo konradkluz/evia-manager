@@ -37,7 +37,7 @@ import { PurgeIdempotencyJob } from '../platform/idempotency/purge-idempotency.j
 import type { Kysely } from 'kysely';
 import { loadWorkerConfig, type EmailConfig } from '../platform/config/config.ts';
 import type { Clock } from '../platform/clock/clock.ts';
-import type { Database } from '../platform/database/database.ts';
+import { WORKER_POOL_SETTINGS, type Database } from '../platform/database/database.ts';
 import { EmailRelay } from '../platform/email/email-relay.ts';
 import type { EmailSender } from '../platform/email/email-sender.ts';
 import { SendEmailJob } from '../platform/email/send-email.job.ts';
@@ -84,7 +84,9 @@ export async function runWorkerFromProcess(
   const config = loadWorkerConfig(env);
   const logger = createLogger({ level: config.logLevel, destination: io.stdout });
   if (io.process !== undefined) installProcessHandlers(io.process, logger);
-  const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger }), { logger: new NestLoggerAdapter(logger) });
+  const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger, pool: WORKER_POOL_SETTINGS }), {
+    logger: new NestLoggerAdapter(logger),
+  });
   try {
     const queue = wiring.createQueue?.(config.databaseUrl, logger) ?? new PgBossJobQueue({ connectionString: config.databaseUrl, logger });
     const jobs: JobDefinition[] = [

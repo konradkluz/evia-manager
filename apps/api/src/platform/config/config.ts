@@ -4,7 +4,7 @@
  * The minimum supported app version uses the Semver schema generated from the contract (one source of the pattern);
  * EVM-009 (meta/client-config, 426) reads the same `minSupportedAppVersion` object.
  */
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { zSemver } from '@evia/contracts/zod';
@@ -56,6 +56,23 @@ export interface AppConfig {
    * the process (a staging without the bucket must still deploy), it makes the erasing operations answer `503`. The secret never reaches a log.
    */
   readonly deletionRegister: DeletionRegisterSettings;
+  /** The synchronisation of the phones (EVM-096; ADR-0021). The keys of the cursors are secrets: never logged. */
+  readonly sync: SyncSettings;
+}
+
+/** Settings of the pull of changes: the ring of the cursor keys (the first seals, all open) and the values the story leaves to the server. */
+export interface SyncSettings {
+  readonly cursorKeys: readonly FieldKey[];
+  /** Closed orders stay in the scope of the phone for this many days (N). */
+  readonly closedOrdersInScopeDays: number;
+  readonly periodicResyncDays: number;
+  /** The operator's counter of the rule of scope: part of the derived version (`effectiveScopeRuleVersion`, which N and the set of types also change); raising it makes the phones resync. */
+  readonly scopeRuleVersion: number;
+  readonly fullDownloadsPerDay: number;
+  /** Snapshots of an order (`GET /api/v1/sync/work-orders/{id}`) per device per hour (SR-API-02); the next one is `429`. */
+  readonly snapshotsPerHour: number;
+  /** The page is closed before the serialised answer exceeds this many bytes. */
+  readonly pageMaxBytes: number;
 }
 
 /**
@@ -66,6 +83,7 @@ export const FILE_KEYS = [
   'DATABASE_URL',
   'CURSOR_KEY',
   'FIELD_ENCRYPTION_KEYS',
+  'SYNC_CURSOR_KEYS',
   'LOGIN_THROTTLE_KEY',
   'EVIA_RELEASE_MANIFEST_SHA256',
   'MEDIA_S3_SECRET_ACCESS_KEY',
@@ -158,6 +176,13 @@ const schema = z
     TRUSTED_PROXIES: proxyList,
     CURSOR_KEY: cursorKey,
     FIELD_ENCRYPTION_KEYS: fieldEncryptionKeys,
+    SYNC_CURSOR_KEYS: fieldEncryptionKeys,
+    SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+    SYNC_PERIODIC_RESYNC_DAYS: z.coerce.number().int().min(1).max(90).default(7),
+    SYNC_SCOPE_RULE_VERSION: z.coerce.number().int().min(1).max(100_000).default(1),
+    SYNC_FULL_DOWNLOADS_PER_DAY: z.coerce.number().int().min(1).max(100).default(3),
+    SYNC_SNAPSHOTS_PER_HOUR: z.coerce.number().int().min(1).max(10_000).default(120),
+    SYNC_PAGE_MAX_BYTES: z.coerce.number().int().min(10_000).max(1_000_000).default(900_000),
     // Empty (an image built without the argument, the example file) is the same as absent.
     EVIA_RELEASE_COMMIT: releaseValue(/^[0-9a-f]{40}$/),
     EVIA_RELEASE_MANIFEST_SHA256: releaseValue(/^[0-9a-f]{64}$/),
@@ -196,6 +221,17 @@ const schema = z
           (env.NODE_ENV !== 'production' || new Set(key).size >= MIN_DISTINCT_KEY_BYTES),
       ),
     { path: ['FIELD_ENCRYPTION_KEYS'] },
+  )
+  // The ring of the keys of the sync cursors (EVM-096; ADR-0021 D6): when given, never a placeholder in production and never the key of the panel cursors or an encryption key.
+  .refine(
+    (env) =>
+      keysOf(env.SYNC_CURSOR_KEYS).every(
+        ({ key }) =>
+          !key.equals(Buffer.from(env.CURSOR_KEY, 'base64url')) &&
+          keysOf(env.FIELD_ENCRYPTION_KEYS).every((field) => !field.key.equals(key)) &&
+          (env.NODE_ENV !== 'production' || new Set(key).size >= MIN_DISTINCT_KEY_BYTES),
+      ),
+    { path: ['SYNC_CURSOR_KEYS'] },
   )
   // The key of the counters against guessing: required in production, never a placeholder, and one key serves one purpose (EVM-026; SR-CRYPTO).
   .refine((env) => env.NODE_ENV !== 'production' || (env.LOGIN_THROTTLE_KEY !== undefined && env.LOGIN_THROTTLE_KEY !== ''), {
@@ -298,7 +334,26 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     // EVM-068: in production (staging included) the worker refuses to scan without an image processor instead of leaving photos `clean` silently
     ...(media === undefined ? {} : { media: { ...media, processorRequired: value.NODE_ENV === 'production' } }),
     deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV !== 'production'),
+    sync: {
+      cursorKeys: syncCursorKeysOf(value),
+      closedOrdersInScopeDays: value.SYNC_CLOSED_ORDERS_IN_SCOPE_DAYS,
+      periodicResyncDays: value.SYNC_PERIODIC_RESYNC_DAYS,
+      scopeRuleVersion: value.SYNC_SCOPE_RULE_VERSION,
+      fullDownloadsPerDay: value.SYNC_FULL_DOWNLOADS_PER_DAY,
+      snapshotsPerHour: value.SYNC_SNAPSHOTS_PER_HOUR,
+      pageMaxBytes: value.SYNC_PAGE_MAX_BYTES,
+    },
   };
+}
+
+/**
+ * The ring of the sync cursor keys. An absent ring is ONE key derived from the panel cursor key (a different key: HMAC-SHA-256 with a label), so a deployment that
+ * has not provisioned `SYNC_CURSOR_KEYS` yet still starts (the story names the existing key as the minimum); the rotation of a ring needs the explicit list.
+ */
+function syncCursorKeysOf(value: { readonly CURSOR_KEY: string; readonly SYNC_CURSOR_KEYS?: string | undefined }): readonly FieldKey[] {
+  const configured = keysOf(value.SYNC_CURSOR_KEYS);
+  if (configured.length > 0) return configured;
+  return [{ id: 'derived', key: createHmac('sha256', Buffer.from(value.CURSOR_KEY, 'base64url')).update('evia-sync-cursor-v1').digest() }];
 }
 
 /** The media settings, all or nothing (EVM-044); an error names the keys only. */

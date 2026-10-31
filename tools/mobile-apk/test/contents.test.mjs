@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { ALLOWED_PUBLIC_VARIABLES, checkFileList, isScannable, scanText } from '../src/contents.mjs';
+import { ALLOWED_PUBLIC_VARIABLES, checkFileList, E2E_HOOKS_MARKER, isScannable, scanText } from '../src/contents.mjs';
 
 describe('contents of the built APK (EVM-009 AC6; SR-MOB-11 secrets in the package)', () => {
   it('EVM-009 AC6: the file list of the real package has nothing forbidden', () => {
@@ -56,6 +56,22 @@ describe('contents of the built APK (EVM-009 AC6; SR-MOB-11 secrets in the packa
       assert.deepEqual(findings, [`${rule} in /assets/index.android.bundle`], rule);
       assert.ok(!findings.join().includes('topsecret') && !findings.join().includes('synthetic-pass'), rule);
     }
+  });
+
+  it('EVM-093 AC1: the marker of the e2e hooks in the bundle or an asset is a finding (path only), also inside binary bytecode', () => {
+    assert.equal(E2E_HOOKS_MARKER, 'evia-e2e-hooks-panel');
+    // Hermes bytecode keeps ASCII literals in its string table: the bytes around the marker are binary, read as latin1 text
+    const hbc = Buffer.concat([
+      Buffer.from([0xc6, 0x1f, 0xbc, 0x03, 0x00]),
+      Buffer.from(E2E_HOOKS_MARKER),
+      Buffer.from([0x00, 0xff, 0x01]),
+    ]);
+    assert.deepEqual(scanText('/assets/index.android.bundle', hbc.toString('latin1')), [
+      'e2e hooks marker in /assets/index.android.bundle',
+    ]);
+    assert.deepEqual(scanText('/assets/app.json', `{"id":"${E2E_HOOKS_MARKER}"}`), ['e2e hooks marker in /assets/app.json']);
+    // the slot of a release bundle has no marker; a similar name is not the marker
+    assert.deepEqual(scanText('/assets/index.android.bundle', 'function E2eHooks(){return null} evia-e2e-hooks'), []);
   });
 
   it('EVM-009 AC6: ordinary bundle content has no findings', () => {

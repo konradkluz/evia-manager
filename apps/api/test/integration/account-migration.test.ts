@@ -42,6 +42,9 @@ beforeAll(async () => {
     '0051_mobile_tokens',
     '0052_mobile_vocabularies',
     '0053_media_derivatives',
+    '0054_sync_change_log',
+    '0055_sync_remaining_entities',
+    '0056_sync_mutations',
     '0057_media_video',
   ]);
 });

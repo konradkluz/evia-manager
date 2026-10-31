@@ -1,0 +1,29 @@
+# EVM-100 AC7: "Więcej" → "Wyloguj" with no unsent items — a plain confirmation; online the session ends on the server; M-02
+# "Wylogowano"; a restart shows M-01, not data. Signs in again for the offline sign-out of the next flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    clearState: true
+- runFlow: common/sign-in.yaml
+- tapOn:
+    id: 'nav-more'
+- tapOn:
+    id: 'more-sign-out'
+- extendedWaitUntil:
+    visible: 'Wylogować się?'
+    timeout: 30000
+- takeScreenshot: m09-logout-dialog
+- tapOn:
+    id: 'logout-confirm'
+- extendedWaitUntil:
+    visible: 'Wylogowano'
+    timeout: 30000
+- takeScreenshot: m02-signed-out
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible:
+      id: 'login-email'
+    timeout: 30000
+- assertNotVisible: 'Moje zlecenia'
+- runFlow: common/sign-in.yaml

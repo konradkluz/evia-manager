@@ -83,6 +83,17 @@ Test dostarczenia e-maila wykonywany w sesji IaC: na VM staging zapisz do katalo
 - **Eskalacja:** potwierdzony atak → blokada konta, rotacja kluczy, zgłoszenie incydentu wg polityki.
 - **Test:** wywołaj zdarzenie z aplikacji (konto syntetyczne, blokada po serii błędnych haseł) i potwierdź e-mail.
 
+## Alerty pobierania zmian na telefon (EVM-096 AC8, AB-08)
+- **`sync_full_downloads_excess` (przez `EviaSecurityAlert`):** urządzenie wykonało trzecie pełne pobranie danych w ciągu 24 godzin (limit to 3, czwarte dostaje `429`). Jeden alert na okno. Alert nie niesie urządzenia: znajdź je w dzienniku audytu po `traceId` (akcja `sync.full_download`, obiekt `device`) i sprawdź konto oraz urządzenie.
+  - **Pierwsza reakcja:** zapytaj użytkownika, czy reinstalował aplikację; jeśli nie, unieważnij sesję urządzenia (Administrator, EVM-095) i zablokuj konto do wyjaśnienia.
+  - **Liczby:** koniec każdego pobrania (`sync.full_download_completed`) zapisuje w dzienniku audytu liczbę zleceń, klientów i lokalizacji; nagły wzrost wobec poprzednich pobrań tego urządzenia to sygnał wyniesienia danych.
+  - Metryki bez etykiety urządzenia: `sync_full_downloads_total`, `sync_full_downloads_limited_total`, `sync_cursor_rejected_total{reason="snapshot_replay"}` (odtwarzanie kursora migawki po końcu pobrania; ponowne pobranie w tej samej dobie jest liczone i limitowane).
+- **`sync_snapshot_rate_exceeded` (przez `EviaSecurityAlert`, EVM-097 AC7):** urządzenie przekroczyło limit 120 pobrań migawki zlecenia (`GET /api/v1/sync/work-orders/{id}`) na godzinę; kolejne żądania dostają `429` z `Retry-After`. Jeden alert na urządzenie i godzinę (kolumna `sync.snapshot_requests.alerted`). Alert nie niesie urządzenia: znajdź je w dzienniku audytu po `traceId` (akcja `sync.work_order_snapshot`, `outcome=denied`, obiekt `device`).
+  - **Pierwsza reakcja:** jak przy `sync_full_downloads_excess` - zapytaj użytkownika, czy aplikacja działała normalnie (pętla klienta dociągającego brakującą referencję też przekracza limit); jeśli nie, unieważnij sesję urządzenia (Administrator, EVM-095) i zablokuj konto do wyjaśnienia.
+  - **Liczby:** każde pobranie migawki zapisuje w audycie tylko liczbę encji (`entity_count`); nagły wzrost wobec poprzednich pobrań to sygnał wyniesienia danych.
+  - Metryki bez etykiety urządzenia: `sync_snapshot_requests_total{result="limited"}` (żądania odrzucone limitem) i `sync_snapshot_oversize_total` (agregat powyżej 1 MB; pomiar do EVM-107).
+- **„Urządzenie pobiera zmiany od ponad 3 dni, nie wysyłając nic”:** baza to kolumna `sync.device_sync_state.last_pulled_at` (ostatnie pobranie, zapis najwyżej raz na godzinę). Reguła alertu jest **planowana w osobnej historyjce** (poza zakresem EVM-098, która wdrożyła wysyłanie mutacji; czas ostatniego wysłania da się wyznaczyć z audytu `sync.mutation_applied`); do tego czasu przegląd ręczny: `select device_id, last_pulled_at from sync.device_sync_state where last_pulled_at > now() - interval '1 day'` zestawiony z aktywnością zleceń użytkownika.
+
 ## EviaSecurityAccountLockedBurst
 - **Znaczenie:** 5 lub więcej blokad kont w 15 minut (agregacja `account_locked`): możliwy atak szeregowy.
 - **Pierwsza reakcja:** jak wyżej; sprawdź źródła (adresy zamaskowane do /24) i czas.

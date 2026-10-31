@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
-import { createPool } from '../../src/platform/database/database.ts';
+import { createPool, MIGRATOR_POOL_SETTINGS, WORKER_POOL_SETTINGS } from '../../src/platform/database/database.ts';
 import { currentTraceId, newTraceId, requestContextMixin } from '../../src/platform/http/request-context.ts';
 import { createLogger } from '../../src/platform/logging/logger.ts';
 import { NestLoggerAdapter } from '../../src/platform/logging/nest-logger.ts';
@@ -58,6 +58,24 @@ describe('platform wiring (EVM-008 AC4; SR-API-01, ADR-0013)', () => {
     expect(pool.options).toMatchObject({ max: 10, connectionTimeoutMillis: 2000, statement_timeout: 2000, query_timeout: 3000 });
     pool.emit('error', new Error('synthetic idle error'), undefined);
     expect(destination.entries[0]).toMatchObject({ level: 'warn', msg: 'database pool: idle connection error' });
+    expect(pool.options).toMatchObject({ idle_in_transaction_session_timeout: 10_000 });
+    await pool.end();
+  });
+
+  it('EVM-096 AC4 the worker keeps 5 minutes per transaction and 30 s idle (ADR-0021 D5), its jobs outlast a request', async () => {
+    const { logger } = capture();
+    const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger, pool: WORKER_POOL_SETTINGS });
+    expect(pool.options).toMatchObject({ options: '-c transaction_timeout=300000', idle_in_transaction_session_timeout: 30_000 });
+    await pool.end();
+  });
+
+  it('EVM-096 AC4 the migrator inherits no timeout of the API: it applies all migrations in one transaction (ADR-0021 D5)', async () => {
+    const { logger } = capture();
+    const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger, pool: MIGRATOR_POOL_SETTINGS });
+    expect(pool.options.options).toBeUndefined();
+    expect(pool.options.statement_timeout).toBeUndefined();
+    expect(pool.options.query_timeout).toBeUndefined();
+    expect(pool.options.idle_in_transaction_session_timeout).toBeUndefined();
     await pool.end();
   });
 });
@@ -84,6 +102,13 @@ describe('RR-NOC-T2-4 a transaction that waits for the register of deletions can
     const { logger } = capture();
     const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger });
     expect(pool.options).toMatchObject({ idle_in_transaction_session_timeout: 10_000 });
+    await pool.end();
+  });
+
+  it('EVM-096 AC4 the pool ends a session whose transaction runs longer than 30 seconds (ADR-0021 D5)', async () => {
+    const { logger } = capture();
+    const pool = createPool({ url: UNREACHABLE_DATABASE_URL, logger });
+    expect(pool.options).toMatchObject({ options: '-c transaction_timeout=30000', statement_timeout: 2000 });
     await pool.end();
   });
 });

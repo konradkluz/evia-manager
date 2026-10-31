@@ -10,6 +10,7 @@ import { AppModule } from '../app.module.ts';
 import { ProjectionMaintenance } from '../modules/overview/index.ts';
 import { loadConfig } from '../platform/config/config.ts';
 import { newTraceId } from '../platform/http/request-context.ts';
+import { WORKER_POOL_SETTINGS } from '../platform/database/database.ts';
 import { createLogger } from '../platform/logging/logger.ts';
 import { NestLoggerAdapter } from '../platform/logging/nest-logger.ts';
 import { executeOverviewCommand } from './overview-run.ts';
@@ -28,7 +29,9 @@ export async function runOverviewFromProcess(
   const config = loadConfig(env);
   // The log is structured and goes to stderr; the report goes to stdout (it holds numbers and identifiers of orders only).
   const logger = createLogger({ level: config.logLevel, destination: streams.stderr });
-  const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger }), { logger: new NestLoggerAdapter(logger) });
+  const app = await NestFactory.createApplicationContext(AppModule.register({ config, logger, pool: WORKER_POOL_SETTINGS }), {
+    logger: new NestLoggerAdapter(logger),
+  });
   try {
     return await executeOverviewCommand(
       argv,

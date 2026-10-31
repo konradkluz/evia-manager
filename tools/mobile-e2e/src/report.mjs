@@ -18,17 +18,26 @@ export function scanLogcat(logcat) {
 }
 
 /**
- * @typedef {{ scenario: string, flow: string, status: 'passed' | 'failed' | 'skipped', seconds: number, attempts?: 1 | 2 }} Result
+ * @typedef {{
+ *   scenario: string,
+ *   flow: string,
+ *   status: 'passed' | 'failed' | 'skipped',
+ *   seconds: number,
+ *   attempts?: 1 | 2,
+ *   checks?: import('./device.mjs').Check[],
+ * }} Result
  * @typedef {{
  *   date: string,
- *   device: { serial: string, apiLevel: string, androidRelease: string, model: string },
+ *   device: { serial: string, apiLevel: string, androidRelease: string, model: string, buildType?: string },
  *   maestroVersion: string,
  *   appVersion: string,
  *   results: Result[],
  *   requests: { platform: string | undefined, version: string | undefined }[],
  *   logcat: { lines: number, withAddress: number, withSecret: number } | null,
  *   screenshots?: string[],
+ *   release?: { commit: string, localChanges: number | null, sha256: string },
  * }} Evidence
+ * `release`: EVM-093 AC4 — the not debuggable release package (debug key) whose adb backup is judged: commit of the build and SHA-256
  */
 
 /** @param {Evidence} evidence */
@@ -46,7 +55,10 @@ export function buildReport(evidence) {
   return [
     `# Maestro smoke test — ${evidence.date}`,
     '',
-    `- Emulator: ${evidence.device.model}, Android ${evidence.device.androidRelease} (API ${evidence.device.apiLevel}), ${evidence.device.serial}`,
+    `- Emulator: ${evidence.device.model}, Android ${evidence.device.androidRelease} (API ${evidence.device.apiLevel}), ${evidence.device.serial}` +
+      (evidence.device.buildType === undefined || evidence.device.buildType === ''
+        ? ''
+        : `, ${evidence.device.buildType} build (${evidence.device.buildType === 'user' ? 'Google Play image, no adb root' : 'adb root possible'})`),
     `- Maestro: ${evidence.maestroVersion}`,
     `- Application version in the build: ${evidence.appVersion}`,
     `- Result: ${String(passed)} passed, ${String(failed)} failed, ${String(evidence.results.length - passed - failed)} skipped`,
@@ -55,13 +67,27 @@ export function buildReport(evidence) {
     evidence.logcat === null
       ? '- Logcat of the app process: not collected'
       : `- Logcat of the app process: ${String(evidence.logcat.lines)} lines, ${String(evidence.logcat.withAddress)} with an address, ${String(evidence.logcat.withSecret)} with a secret-like word`,
+    ...releaseLine(evidence.release),
     `- Screenshots for the UX review: ${screenshots.length === 0 ? 'none' : `${String(screenshots.length)} (${screenshots.join(', ')})`}`,
     '',
     '| Scenario | Flow | Status | Seconds |',
     '| --- | --- | --- | --- |',
     ...rows,
     '',
+    ...deviceStepRows(evidence.results),
   ].join('\n');
+}
+
+/**
+ * The device steps of EVM-093 (adb run-as, backup, restart) with their verdicts: counts and codes only.
+ * @param {Result[]} results
+ * @returns {string[]}
+ */
+function deviceStepRows(results) {
+  const rows = results.flatMap((result) =>
+    (result.checks ?? []).map((check) => `| ${result.flow} | ${check.action} | ${check.ok ? 'ok' : 'FAILED'} | ${check.detail} |`),
+  );
+  return rows.length === 0 ? [] : ['| Flow | Device step | Result | Detail |', '| --- | --- | --- | --- |', ...rows, ''];
 }
 
 /** @param {Evidence} evidence @returns {boolean} true when every flow passed and the compatibility headers were sent */
@@ -71,4 +97,16 @@ export function isGreen(evidence) {
     evidence.requests.length > 0 && evidence.requests.every((request) => request.platform === 'android' && request.version !== undefined);
   const cleanLog = evidence.logcat === null || (evidence.logcat.withAddress === 0 && evidence.logcat.withSecret === 0);
   return flowsPassed && headersSent && cleanLog;
+}
+
+/** @param {Evidence['release']} release @returns {string[]} */
+function releaseLine(release) {
+  if (release === undefined) return [];
+  const changes =
+    release.localChanges === null
+      ? ''
+      : release.localChanges === 0
+        ? ', clean tree'
+        : `, ${String(release.localChanges)} local change(s) in the tree`;
+  return [`- EVM-093 AC4 release package (not debuggable, debug key): commit ${release.commit}${changes}, SHA-256 ${release.sha256}`];
 }

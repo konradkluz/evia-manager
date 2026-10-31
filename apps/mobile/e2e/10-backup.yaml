@@ -1,0 +1,9 @@
+# EVM-093 AC4: the NOT debuggable release package of the same run (signed locally with the debug key) is installed over the e2e data
+# and tools/mobile-e2e has started adb backup; this flow confirms the backup on the device. The archive must hold no entry of the
+# app data (adb-backup-check); the e2e package is installed again right after (reinstall-e2e).
+appId: pl.eviacharge.manager
+---
+- extendedWaitUntil:
+    visible: 'Back up my data'
+    timeout: 30000
+- tapOn: 'Back up my data'
