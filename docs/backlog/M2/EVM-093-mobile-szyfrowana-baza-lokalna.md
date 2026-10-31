@@ -78,10 +78,23 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 | AC1 | 08-encryption + `run-as`: nagłówek, znacznik w katalogu aplikacji (przy żywym procesie i po `force-stop`), logcat, fakty haka | zgodne: nagłówek ≠ `SQLite format 3`, 0 trafień znacznika, SQLCipher ≥ 4.6, `temp_store=2`; moduł Kotlin `evia-keystore` się kompiluje |
 | AC2 | (Jest `migrations.test.ts`) | natywnie poza minimum |
 | AC3 | 09: 20 wpisów, `force-stop`, `kill -9`, restart emulatora | zgodne |
-| AC4 | `verify` release / e2e; `bmgr` (transport lokalny); `adb backup` | `verify` release: kod 0 (bez znacznika haków i `debuggable`); `verify` e2e: znacznik haków wykryty; `bmgr`: aplikacja odrzucona; **`adb backup` wariantu e2e (debuggable) zawiera bazę i `SecureStore.xml`**, a na paczce niedebugowalnej: „not eligible”, 0 wpisów — do decyzji Konrada |
+| AC4 | `verify` release / e2e; `bmgr` (transport lokalny); `adb backup` | `verify` release: kod 0 (bez znacznika haków i `debuggable`); `verify` e2e: znacznik haków wykryty; `bmgr`: aplikacja odrzucona; **`adb backup` wariantu e2e (debuggable) zawiera bazę i `SecureStore.xml`**, a na paczce niedebugowalnej: „not eligible”, 0 wpisów — do decyzji Konrada (rozstrzygnięte: opcja a, weryfikacja 2026-10-31 niżej) |
 | AC5 | 11-key-missing, 12-file-corrupt | zgodne: komunikat i „Rozumiem”, plik istnieje do potwierdzenia, nowa baza i nowe `deviceId` |
 | AC6 | 13-wipe (awaria po kroku), kontrola 13-wipe-control | zgodne: czyszczenie dokończone przy starcie, 0 wpisów secure-store, kopia sprzed czyszczenia → `not_a_database` |
 | AC7 | 14-owner | zgodne: `owner_mismatch`, liczba 5, po czyszczeniu pusto i nowe `deviceId` |
+
+- Weryfikacja natywna AC4 2026-10-31 (decyzja Konrada, opcja a; emulator `Medium_Phone_API_35`, Android 15 / API 35, obraz Google Play bez `adb root`; commit `71c7f25b`, krótki klon `C:\e93` — jedyna zmiana lokalna to `nodeLinker: hoisted` w `pnpm-workspace.yaml`; Maestro 38/38, kod 0). Dlaczego `adb backup` wariantu e2e nie jest dowodem: Android 12+ (API 31+) wykonuje `adb backup` aplikacji `debuggable` niezależnie od `allowBackup` i reguł wykluczeń, a wariant e2e musi być `debuggable` dla `run-as` (AC1, AC5, AC6); dlatego na e2e zostaje tylko jako kontrola pozytywna transportu, a `bmgr` (Auto Backup respektuje reguły także dla `debuggable`) zostaje na e2e jako dowód reguł.
+
+| AC4 — krok przepływu 10 (`local-store-backup`) | Wynik |
+|---|---|
+| build release (ten sam przebieg, przed e2e) + `tools/mobile-apk verify` niepodpisanej kopii i kopii podpisanej kluczem debug | kod 0 obu; instalowany APK SHA-256 `debddbcc0ee768ec57bbf3babf23dec0bfd5285950ae46749e0c2adc40e7f179` |
+| `10-backup-seed` (e2e, 3 wpisy) + `bmgr` (transport lokalny, pakiet kontrolny) | aplikacja odrzucona, pakiet kontrolny skopiowany |
+| `adb backup` wariantu e2e — kontrola pozytywna (nie dowód AC4) | 15 wpisów danych aplikacji (domeny `f`, `r`, `sp`) — transport i parser działają |
+| `install -r` release (debug key) na dane e2e | `dumpsys`: bez `DEBUGGABLE` i `ALLOW_BACKUP`; `run-as` odmawia („not debuggable”); SHA-256 `base.apk` = zbudowany plik |
+| `adb backup` paczki release | archiwum czytelne (47 B), 0 wpisów danych aplikacji; logcat: „Package pl.eviacharge.manager is not eligible for backup, removing.” |
+| powrót e2e + `10-backup-after` (bez `clearState`) | e2e znów `DEBUGGABLE`, `queue=3` — dane były w telefonie przez cały czas |
+
+**AC4 spełnione.**
 
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
@@ -96,3 +109,5 @@ Pliki mediów, miniatury i kolejka uploadu (E11, EVM-109 — podpinają się do 
 - 2026-10-30 — przegląd na diffie względem EVM-092 (kontrole 1–10 security-engineer; `mobile-developer` — samodzielne uruchomienie agentów code-reviewer i security-engineer nie było dostępne w tym kroku, niezależny przegląd zleca orkiestrator): major — błąd skrótu KCV (expo-crypto) wychodził z `openForUser` jako surowy błąd natywny z możliwym kluczem, poprawione TDD; threat-model (TM-01, TM-04, nowe RR-71 OpenSSL 3.3.2 z SHA-256 AAR, do akceptacji), requirements (SR-MOB-01/02/04/13), checklista wydania; brak zmian w Kotlinie, pluginie i manifeście; status in-review; **AC4 (`adb backup`) czeka na decyzję Konrada**, K9 (OpenSSL) otwarte (mobile-developer)
 - 2026-10-30 — poprawki rundy 1 (code-reviewer, 2× major, TDD): operacje `LocalDataHost` zmieniające stan (`prepare`, `openForUser`, „Rozumiem”, czyszczenie) idą przez jedną kolejkę hosta — dwa równoległe otwarcia na świeżej instalacji dają jeden klucz, otwarcie w trakcie czyszczenia nie tworzy bazy kluczem spoza magazynu, podwójne „Rozumiem” resetuje raz; błąd migracji i wartość „malformed JSON” nie są już korupcją pliku (`sql_failed`, stan `unavailable`, nic nie jest usuwane); status in-review; **AC4 (`adb backup` na wariancie debuggable) nadal czeka na decyzję Konrada**, K9 (OpenSSL) otwarte (mobile-developer)
 - 2026-10-30 — decyzje Konrada: AC4 — dowód `adb backup` na buildzie nie-debuggable (opcja a; wariant e2e musi być debuggable dla `run-as`, a Android 12+ pozwala wtedy na `adb backup` niezależnie od `allowBackup`), przepływ 10 do przebudowy; K9 — Konrad akceptuje ryzyko rezydualne OpenSSL 3.3.2 (RR-71) (tech lead)
+- 2026-10-31 — plan gotowy (mobile-developer)
+- 2026-10-31 — przepływ 10 przebudowany wg opcji a (TDD, `node:test` `EVM-093 AC4`): `adb backup` na paczce release nie-debuggable z tego samego przebiegu (podpis kluczem debug szablonu, `install -r` na dane e2e, kontrola `dumpsys`/`run-as`/SHA-256, powrót e2e także po awarii), `adb backup` e2e tylko jako kontrola pozytywna, `bmgr` na e2e; emulator API 35: 38/38, **AC4 spełnione**; status in-review (mobile-developer)
