@@ -8,6 +8,7 @@ import { sql, type Selectable } from 'kysely';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
 import type { FileState, ReasonCode } from '../domain/scan-outcome.ts';
 import type { DerivativeVariant } from '../domain/derivatives.ts';
+import { findDocumentWithFile, type DocumentWithFile } from './document-store.ts';
 import type { MediaDb, MediaAssetsTable, StoredFilesTable, UploadSessionsTable } from './tables.ts';
 
 export type StoredFileRow = Selectable<StoredFilesTable>;
@@ -188,31 +189,58 @@ export function splitRow(row: JoinedRow): AssetWithFile {
   };
 }
 
-export interface SessionChain extends AssetWithFile {
+/** The owner of an uploaded file, named by the PATH of the request: a medium or a document (the path decides, never the data). */
+export type OwnerRef = { readonly kind: 'media_asset'; readonly id: string } | { readonly kind: 'document'; readonly id: string };
+
+export type Owned =
+  { readonly kind: 'media_asset'; readonly found: AssetWithFile } | { readonly kind: 'document'; readonly found: DocumentWithFile };
+
+/**
+ * The owner of THIS order with its file, in ONE statement, by the kind the path names (EVM-047): a document used through the path of the media - and the
+ * other way round - is not found, the same absence as a missing one.
+ */
+export async function findOwnerWithFile(db: MediaDb, workOrderId: string, owner: OwnerRef, lock = false): Promise<Owned | undefined> {
+  if (owner.kind === 'media_asset') {
+    const found = await findAssetWithFile(db, workOrderId, owner.id, lock);
+    return found === undefined ? undefined : { kind: 'media_asset', found };
+  }
+  const found = await findDocumentWithFile(db, workOrderId, owner.id, lock);
+  return found === undefined ? undefined : { kind: 'document', found };
+}
+
+export const fileOfOwner = (owned: Owned): StoredFileRow => owned.found.file;
+/** The user who created the owner: only they (or an Administrator) open a session on it. */
+export const creatorOfOwner = (owned: Owned): string =>
+  owned.kind === 'media_asset' ? owned.found.asset.created_by : owned.found.document.created_by;
+
+export interface SessionChain {
+  readonly owned: Owned;
+  readonly file: StoredFileRow;
   readonly session: UploadSessionRow;
 }
 
 /**
- * The chain order → medium → file → session in ONE statement, with the creator in the condition (AC6, AC7): another user's session,
- * another device's, a session of another medium or order and a missing one are all the same absence.
+ * The chain order → owner → file → session in ONE statement, with the creator in the condition (AC6, AC7): another user's session,
+ * another device's, a session of another owner or order and a missing one are all the same absence.
  */
 export async function findSessionChain(
   db: MediaDb,
-  ids: { readonly workOrderId: string; readonly mediaAssetId: string; readonly sessionId: string },
+  ids: { readonly workOrderId: string; readonly owner: OwnerRef; readonly sessionId: string },
   creator: Creator,
   lock = false,
 ): Promise<SessionChain | undefined> {
-  const found = await findAssetWithFile(db, ids.workOrderId, ids.mediaAssetId, lock);
-  if (found === undefined) return undefined;
+  const owned = await findOwnerWithFile(db, ids.workOrderId, ids.owner, lock);
+  if (owned === undefined) return undefined;
+  const file = fileOfOwner(owned);
   const base = db
     .selectFrom('media.upload_sessions')
     .where('id', '=', ids.sessionId)
-    .where('stored_file_id', '=', found.file.id)
+    .where('stored_file_id', '=', file.id)
     .where('user_id', '=', creator.userId)
     .where(sql<boolean>`device_id is not distinct from ${creator.deviceId}`)
     .selectAll();
   const session = await (lock ? base.forUpdate() : base).executeTakeFirst();
-  return session === undefined ? undefined : { ...found, session };
+  return session === undefined ? undefined : { owned, file, session };
 }
 
 /** The active session of a file, whoever made it (at most one: a partial unique index). */
@@ -557,6 +585,7 @@ export interface DueFile {
   readonly objectKey: string;
   readonly state: FileState;
   readonly mediaAssetId: string | null;
+  readonly documentVersionId: string | null;
 }
 
 /**
@@ -572,11 +601,17 @@ export async function lockDueForPurge(db: MediaDb, now: Date, limit: number): Pr
     .where(sql<boolean>`media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer) <= ${now}::timestamptz`)
     .orderBy('f.quarantined_at', 'asc')
     .limit(limit)
-    .select(['f.id', 'f.object_key', 'f.state', 'f.media_asset_id'])
+    .select(['f.id', 'f.object_key', 'f.state', 'f.media_asset_id', 'f.document_version_id'])
     .forUpdate()
     .skipLocked()
     .execute();
-  return rows.map((row) => ({ id: row.id, objectKey: row.object_key, state: row.state, mediaAssetId: row.media_asset_id }));
+  return rows.map((row) => ({
+    id: row.id,
+    objectKey: row.object_key,
+    state: row.state,
+    mediaAssetId: row.media_asset_id,
+    documentVersionId: row.document_version_id,
+  }));
 }
 
 /** Marks the object of a quarantined file as removed. @returns whether the mark was set now (`false`: someone set it first - no second audit event) */

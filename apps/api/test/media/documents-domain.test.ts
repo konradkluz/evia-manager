@@ -1,3 +1,4 @@
+import type { UserRole } from '@evia/contracts';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import {
@@ -47,7 +48,7 @@ describe('EVM-047 AC2 the effective class is the higher of the kind and the over
     expect(mayDownloadDocument('read_only', 'standard')).toBe(true);
     expect(mayDownloadDocument('read_only', 'building_security')).toBe(false);
     expect(mayDownloadDocument('read_only', 'identity_data')).toBe(false);
-    expect(mayDownloadDocument('somebody', 'standard')).toBe(false);
+    expect(mayDownloadDocument('somebody' as unknown as UserRole, 'standard')).toBe(false);
   });
 
   it('EVM-047 AC3 the kind `other` needs the answer; `true` is stored as the override `identity_data`', () => {

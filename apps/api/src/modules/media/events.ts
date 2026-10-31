@@ -24,22 +24,31 @@ export const MEDIA_EVENT_TYPES = [
   'media_file.original_download_denied',
   'media_file.download_alerted',
   'media_file.download_rejected',
+  // EVM-047: the documents - created (the class as a code), the class raised (`fromCode`, `toCode`), the address of the file issued or refused (the class as a code)
+  'document.created',
+  'document.confidentiality_raised',
+  'document_file.downloaded',
+  'document_file.download_denied',
 ] as const;
+
+/** The confidentiality classes as the codes of an audit event (a closed list; never a title, a name or a reason). */
+export type ClassCode = 'standard' | 'building_security' | 'identity_data';
 
 export interface MediaAuditEvent extends DomainEvent {
   readonly type: (typeof MEDIA_EVENT_TYPES)[number];
   /** A user for the creation; the system (the scan of the worker) for a quarantine. */
   readonly actor: { readonly type: 'user'; readonly userId: string } | { readonly type: 'system' };
   readonly outcome: 'success' | 'denied';
-  readonly objectType: 'media_asset';
+  /** A medium, or - for the events of EVM-047 and the quarantine of the file of a document - a document (the object is its id). */
+  readonly objectType: 'media_asset' | 'document';
   readonly objectId: string;
   /** Only `media_file.rescanned`: the state before and after the new scan (a closed list of codes, never a reason). */
-  readonly fromCode?: 'quarantined';
-  readonly toCode?: 'clean' | 'quarantined' | 'failed';
+  readonly fromCode?: 'quarantined' | ClassCode;
+  readonly toCode?: 'clean' | 'quarantined' | 'failed' | ClassCode;
 }
 
 /** The entry of the journal of the order (EVM-038): ONE per batch — the count and the identifiers (at most 50). */
-export const MEDIA_JOURNAL_EVENT_TYPES = ['media.assets_added'] as const;
+export const MEDIA_JOURNAL_EVENT_TYPES = ['media.assets_added', 'media.document_added'] as const;
 
 export interface MediaAssetsAddedEvent extends DomainEvent {
   readonly type: 'media.assets_added';
@@ -47,4 +56,14 @@ export interface MediaAssetsAddedEvent extends DomainEvent {
   readonly outcome: 'success';
   readonly workOrderId: string;
   readonly mediaAssetIds: readonly string[];
+}
+
+/** The entry of the journal of the order for a new document (EVM-047 AC1): the identifier and the code of the kind - never the title or the file name. */
+export interface DocumentAddedEvent extends DomainEvent {
+  readonly type: 'media.document_added';
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'success';
+  readonly workOrderId: string;
+  readonly documentId: string;
+  readonly kindCode: string;
 }

@@ -1491,6 +1491,7 @@ export const pl = {
         partyWithKind: '{{name}} ({{kind}})',
         partyHidden: 'strona niedostępna',
         mediaAssetsAdded: 'Dodano zdjęcia lub filmy',
+        documentAdded: 'Dodano dokument',
         unknown: 'Zdarzenie w zleceniu.',
       },
       correction: {

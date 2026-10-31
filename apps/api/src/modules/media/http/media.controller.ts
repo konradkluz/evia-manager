@@ -104,7 +104,7 @@ export class MediaController {
     const { session, status, replayed } = await this.#sessions.create(requirePrincipal(request), params, body, idempotencyKey);
     response.status(status);
     if (replayed) response.set('Idempotent-Replayed', 'true');
-    return session;
+    return session as UploadSession;
   }
 
   @Get(`${SESSION}/parts`)
@@ -123,7 +123,7 @@ export class MediaController {
   @OperationId('completeUploadSession')
   @HttpCode(200)
   completeUploadSession(@Param() params: unknown, @Req() request: Request): Promise<MediaAsset> {
-    return this.#finish.complete(requirePrincipal(request), params);
+    return this.#finish.completeMedia(requirePrincipal(request), params);
   }
 
   @Post(`${BASE}/:mediaAssetId/rescan`)

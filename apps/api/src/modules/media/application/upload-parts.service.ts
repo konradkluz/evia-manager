@@ -6,7 +6,6 @@
  * and travels in a response with `Cache-Control: no-store`.
  */
 import type { UploadPartList, UploadPartUrl } from '@evia/contracts';
-import { zGetUploadPartUrlPath, zListUploadPartsPath } from '@evia/contracts/zod';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
@@ -14,16 +13,13 @@ import type { Database } from '../../../platform/database/database.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import { OBJECT_STORAGE, type ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
 import { partLength, PART_URL_SECONDS } from '../domain/upload-plan.ts';
 import type { SessionChain } from '../infrastructure/media-store.ts';
 import { requireStorage, viaStorage } from './media-support.ts';
+import { parseOwnerPath, type OwnerKind } from './owner-path.ts';
 import { SessionAccess } from './session-access.ts';
-
-const listPath = strictObjects(zListUploadPartsPath);
-const urlPath = strictObjects(zGetUploadPartUrlPath);
 
 /** The path parameters arrive as strings: a part number of up to four digits becomes a number, anything else stays and fails the schema. */
 function withNumericPart(rawParams: unknown): unknown {
@@ -52,8 +48,8 @@ export class UploadPartsService {
     this.#storage = storage;
   }
 
-  async list(principal: Principal, rawParams: unknown): Promise<UploadPartList> {
-    const ids = parseInput(listPath, rawParams) as { workOrderId: string; mediaAssetId: string; sessionId: string };
+  async list(principal: Principal, rawParams: unknown, kind: OwnerKind = 'media_asset'): Promise<UploadPartList> {
+    const ids = parseOwnerPath(kind, 'list', rawParams);
     return runInTransaction(this.#db, async (tx) => {
       const chain = await this.#access.open(tx, principal, ids);
       const storage = requireStorage(this.#storage);
@@ -69,13 +65,8 @@ export class UploadPartsService {
     });
   }
 
-  async url(principal: Principal, rawParams: unknown): Promise<UploadPartUrl> {
-    const ids = parseInput(urlPath, withNumericPart(rawParams)) as {
-      workOrderId: string;
-      mediaAssetId: string;
-      sessionId: string;
-      partNumber: number;
-    };
+  async url(principal: Principal, rawParams: unknown, kind: OwnerKind = 'media_asset'): Promise<UploadPartUrl> {
+    const ids = parseOwnerPath(kind, 'url', withNumericPart(rawParams));
     return runInTransaction(this.#db, async (tx) => {
       const chain = await this.#access.open(tx, principal, ids);
       const storage = requireStorage(this.#storage);

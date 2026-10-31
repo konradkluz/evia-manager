@@ -21,7 +21,12 @@ import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts'
 import type { MetricsRegistry } from '../../platform/metrics/metrics.ts';
 import { CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../platform/tokens.ts';
 import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
+import { CatalogModule } from '../catalog/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
+import { CreateDocumentService } from './application/create-document.service.ts';
+import { DocumentDownloadUrlService } from './application/document-download-url.service.ts';
+import { ListDocumentsService } from './application/list-documents.service.ts';
+import { RaiseDocumentConfidentialityService } from './application/raise-document-confidentiality.service.ts';
 import { CreateMediaAssetsService } from './application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from './application/create-upload-session.service.ts';
 import { FinishUploadService } from './application/finish-upload.service.ts';
@@ -36,11 +41,12 @@ import { RescanMediaService } from './application/rescan-media.service.ts';
 import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
 import { SessionAccess } from './application/session-access.ts';
 import { UploadPartsService } from './application/upload-parts.service.ts';
+import { DocumentsController } from './http/documents.controller.ts';
 import { MediaController } from './http/media.controller.ts';
 
 @Module({
-  imports: [WorkOrdersModule, IdentityModule],
-  controllers: [MediaController],
+  imports: [WorkOrdersModule, IdentityModule, CatalogModule],
+  controllers: [MediaController, DocumentsController],
   providers: [
     CreateMediaAssetsService,
     ListMediaAssetsService,
@@ -50,6 +56,10 @@ import { MediaController } from './http/media.controller.ts';
     SessionAccess,
     RescanMediaService,
     MediaDownloadUrlService,
+    CreateDocumentService,
+    ListDocumentsService,
+    RaiseDocumentConfidentialityService,
+    DocumentDownloadUrlService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,

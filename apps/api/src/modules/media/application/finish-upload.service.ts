@@ -14,8 +14,7 @@
  * `abort`: an active session is closed and its upload dropped in the storage; an `aborted` or `expired` one answers `204` again;
  * a `completed` one is `409`. The file stays `pending_upload` and may get a new session.
  */
-import type { MediaAsset } from '@evia/contracts';
-import { zAbortUploadSessionPath, zCompleteUploadSessionPath } from '@evia/contracts/zod';
+import type { Document, MediaAsset } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
@@ -23,7 +22,6 @@ import type { Database } from '../../../platform/database/database.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
-import { parseInput, strictObjects } from '../../../platform/http/validation.ts';
 import {
   ObjectStorageError,
   OBJECT_STORAGE,
@@ -32,15 +30,20 @@ import {
 } from '../../../platform/object-storage/object-storage.ts';
 import { CLOCK, DATABASE } from '../../../platform/tokens.ts';
 import { checkStoredParts } from '../domain/upload-plan.ts';
-import { findAssetWithFile, setSessionState, transitionFile, type SessionChain } from '../infrastructure/media-store.ts';
+import { DOCUMENT_KIND_DIRECTORY, type DocumentKindDirectory } from '../../catalog/index.ts';
+import { findDocumentWithFile, type DocumentWithFile } from '../infrastructure/document-store.ts';
+import {
+  findAssetWithFile,
+  setSessionState,
+  transitionFile,
+  type AssetWithFile,
+  type SessionChain,
+} from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { requireStorage, toMediaAsset, viaStorage } from './media-support.ts';
+import { parseOwnerPath, type OwnerKind, type OwnerPath } from './owner-path.ts';
+import { presentDocuments } from './document-support.ts';
 import { SessionAccess } from './session-access.ts';
-
-const completePath = strictObjects(zCompleteUploadSessionPath);
-const abortPath = strictObjects(zAbortUploadSessionPath);
-
-type Ids = { workOrderId: string; mediaAssetId: string; sessionId: string };
 
 @Injectable()
 export class FinishUploadService {
@@ -48,27 +51,53 @@ export class FinishUploadService {
   readonly #clock: Clock;
   readonly #access: SessionAccess;
   readonly #storage: ObjectStorage | null;
+  readonly #kinds: DocumentKindDirectory;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
     @Inject(CLOCK) clock: Clock,
     @Inject(SessionAccess) access: SessionAccess,
     @Inject(OBJECT_STORAGE) storage: ObjectStorage | null,
+    @Inject(DOCUMENT_KIND_DIRECTORY) kinds: DocumentKindDirectory,
   ) {
     this.#db = db;
     this.#clock = clock;
     this.#access = access;
     this.#storage = storage;
+    this.#kinds = kinds;
   }
 
-  async complete(principal: Principal, rawParams: unknown): Promise<MediaAsset> {
-    const ids = parseInput(completePath, rawParams) as Ids;
+  /** `complete` of a session of a MEDIUM: the answer is the medium. */
+  completeMedia(principal: Principal, rawParams: unknown): Promise<MediaAsset> {
+    return this.#complete(principal, rawParams, 'media_asset', async (tx, chain, ids) => {
+      const fresh =
+        chain.owned.kind === 'media_asset' ? await findAssetWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id) : undefined;
+      return toMediaAsset(fresh ?? (chain.owned.found as AssetWithFile));
+    });
+  }
+
+  /** `complete` of a session of a DOCUMENT: the answer is the document (the kind and the class are the server's, from the catalog). */
+  completeDocument(principal: Principal, rawParams: unknown): Promise<Document> {
+    return this.#complete(principal, rawParams, 'document', async (tx, chain, ids) => {
+      const fresh = await findDocumentWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id);
+      const found = fresh ?? (chain.owned.found as DocumentWithFile);
+      return (await presentDocuments(tx, this.#kinds, principal.role, [found]))[0] as Document;
+    });
+  }
+
+  async #complete<T>(
+    principal: Principal,
+    rawParams: unknown,
+    kind: OwnerKind,
+    present: (tx: Kysely<Database>, chain: SessionChain, ids: OwnerPath) => Promise<T>,
+  ): Promise<T> {
+    const ids = parseOwnerPath(kind, 'complete', rawParams);
     return runInTransaction(this.#db, async (tx) => {
       const chain = await this.#access.open(tx, principal, ids, true);
       const storage = requireStorage(this.#storage);
       const now = this.#clock.now();
       const tables = mediaTables(tx);
-      if (chain.session.state === 'completed') return toMediaAsset(chain);
+      if (chain.session.state === 'completed') return present(tx, chain, ids);
       if (chain.session.state !== 'active') throw new ProblemException('invalid_state_transition');
       if (chain.session.expires_at <= now) throw new ProblemException('invalid_state_transition');
       if (chain.file.state !== 'pending_upload') throw new ProblemException('invalid_state_transition');
@@ -84,13 +113,12 @@ export class FinishUploadService {
         now,
       );
       await setSessionState(tables, chain.session.id, 'active', 'completed', now);
-      const fresh = await findAssetWithFile(tables, ids.workOrderId, ids.mediaAssetId);
-      return toMediaAsset(fresh ?? chain);
+      return present(tx, chain, ids);
     });
   }
 
-  async abort(principal: Principal, rawParams: unknown): Promise<void> {
-    const ids = parseInput(abortPath, rawParams) as Ids;
+  async abort(principal: Principal, rawParams: unknown, kind: OwnerKind = 'media_asset'): Promise<void> {
+    const ids = parseOwnerPath(kind, 'abort', rawParams);
     await runInTransaction(this.#db, async (tx) => {
       const chain = await this.#access.open(tx, principal, ids, true);
       if (chain.session.state === 'completed') throw new ProblemException('invalid_state_transition');

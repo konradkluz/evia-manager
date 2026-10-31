@@ -1,10 +1,13 @@
 import { randomInt } from 'node:crypto';
+import type { Kysely } from 'kysely';
+import type { Database } from '../../src/platform/database/database.ts';
 import { sql } from 'kysely';
 import type { ObjectPaths } from '../authorization/role-matrix.ts';
 import { catalogObjects } from './catalog-objects.ts';
 import { insertCustomer } from './customer-fixtures.ts';
 import type { IdentityApp } from './identity-app.ts';
 import { createPasskey, createSession, createUser } from './identity-fixtures.ts';
+import { insertDocumentRow } from './document-fixtures.ts';
 import { insertMedia } from './media-fixtures.ts';
 import { insertMilestones } from './payment-fixtures.ts';
 import { insertProcedure } from './procedure-fixtures.ts';
@@ -370,6 +373,43 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
       foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
     },
+    ...(await documentObjects(db, { own, other, deleted, creatorId: creator.id })),
+  };
+}
+
+/**
+ * The IDOR fixture of the documents (EVM-047 AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): the list and the creation - "foreign" is the soft deleted order; the
+ * operations on a document and on its session - "foreign" is the document of ANOTHER live order named in the path of the first.
+ */
+async function documentObjects(
+  db: Kysely<Database>,
+  orders: { own: string; other: string; deleted: string; creatorId: string },
+): Promise<Record<string, ObjectPaths>> {
+  const { own, other, deleted, creatorId } = orders;
+  const mine = await insertDocumentRow(db, { workOrderId: own, createdBy: creatorId, session: { userId: creatorId } });
+  const theirs = await insertDocumentRow(db, { workOrderId: other, createdBy: creatorId, session: { userId: creatorId } });
+  const orderLevel: ObjectPaths = {
+    own: () => `${WORK_ORDERS}/${own}/documents`,
+    foreign: () => `${WORK_ORDERS}/${deleted}/documents`,
+  };
+  const document = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/documents/${mine.documentId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/documents/${theirs.documentId}${suffix}`,
+  });
+  const session = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/documents/${mine.documentId}/upload-sessions/${mine.sessionId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/documents/${theirs.documentId}/upload-sessions/${theirs.sessionId}${suffix}`,
+  });
+  return {
+    listDocuments: orderLevel,
+    createDocument: orderLevel,
+    raiseDocumentConfidentiality: document(''),
+    createDocumentUploadSession: document('/upload-sessions'),
+    listDocumentUploadParts: session('/parts'),
+    getDocumentUploadPartUrl: session('/parts/1/url'),
+    completeDocumentUploadSession: session('/complete'),
+    abortDocumentUploadSession: session('/abort'),
+    createDocumentDownloadUrl: document('/download-url'),
   };
 }
 

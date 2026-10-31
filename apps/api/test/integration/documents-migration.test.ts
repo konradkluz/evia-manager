@@ -25,7 +25,9 @@ beforeAll(async () => {
     { number: 'ZL-4700-0001', customerId, siteId },
     { number: 'ZL-4700-0002', customerId, siteId },
   ]);
-  [orderId, otherOrderId] = [...orders.values()];
+  const ids = [...orders.values()];
+  orderId = ids[0] ?? '';
+  otherOrderId = ids[1] ?? '';
 });
 afterAll(async () => {
   await database.close();

@@ -21,7 +21,7 @@ const PAYMENT_EVENT_CODES = [
 ] as const satisfies readonly JournalEventCode[];
 
 /** The codes of the media (EVM-044) - the group "Media i dokumenty" has its own story (E6); until then the entry is in no named group. */
-const MEDIA_EVENT_CODES = ['media_assets_added'] as const satisfies readonly JournalEventCode[];
+const MEDIA_EVENT_CODES = ['media_assets_added', 'document_added'] as const satisfies readonly JournalEventCode[];
 
 /**
  * The codes of every group of events (a closed list of disjoint groups; the group of E6 comes with its story): "Zmiany statusów" is

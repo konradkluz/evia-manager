@@ -14,7 +14,7 @@
  * - `media.stored_files`: `document_version_id` (unique, RESTRICT). The owner CHECK is replaced: a `media_original` file has exactly a media asset, a
  *   `document` file exactly a document version. The key CHECK is tied to the purpose: `media/{yyyy}/{mm}/{id}/original` only for `media_original`,
  *   `documents/{yyyy}/{mm}/{id}/original` only for `document` (the worker may only read it: its bucket policy allows writes of the derivatives of `media/*`).
- *   The trigger of immutability now covers `document_version_id` too. The size trigger of 0057 is replaced: a document is at most 100 MB (104 857 600 B).
+ *   The trigger of immutability now covers `document_version_id` too (and keeps the write-once clauses of `quarantined_at` and `purged_at` from 0046). The size trigger of 0057 is replaced: a document is at most 100 MB (104 857 600 B).
  */
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '../platform/database/database.ts';
@@ -119,7 +119,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
           or new.declared_content_type is distinct from old.declared_content_type
           or new.created_by is distinct from old.created_by
           or new.media_asset_id is distinct from old.media_asset_id
-          or new.document_version_id is distinct from old.document_version_id then
+          or new.document_version_id is distinct from old.document_version_id
+          or (old.quarantined_at is not null and new.quarantined_at is distinct from old.quarantined_at)
+          or (old.purged_at is not null and new.purged_at is distinct from old.purged_at) then
           raise exception 'media.stored_files identity is immutable' using errcode = 'EV002';
         end if;
         return new;

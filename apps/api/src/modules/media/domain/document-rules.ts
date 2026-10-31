@@ -3,6 +3,7 @@
  * agreeing with the type. SVG, HTML, archives and the macro-enabled formats (`.docm`, `.xlsm`) never start an upload; the type DETECTED from the bytes
  * decides at scan time. Pure functions of data. This is the check of the SERVER; the check of the panel is only a convenience.
  */
+import { cleanDownloadName } from './downloads.ts';
 import { extensionOf, sanitizeFileName } from './file-rules.ts';
 
 /** 100 MB (SR-FILE-03): the limit of a DOCUMENT. */
@@ -28,6 +29,9 @@ export const normalizeDocumentType = (value: string): DocumentContentType | unde
   const type = ALIASES[lower] ?? lower;
   return type in EXTENSIONS ? (type as DocumentContentType) : undefined;
 };
+
+/** @returns whether the extension of the name belongs to the type */
+export const extensionMatches = (type: DocumentContentType, fileName: string): boolean => EXTENSIONS[type].includes(extensionOf(fileName));
 
 /** OOXML containers: the formats whose archive is read for macros. */
 export const isOoxml = (type: DocumentContentType): boolean => type === DOCX_TYPE || type === XLSX_TYPE;
@@ -73,3 +77,14 @@ export function documentTypeAgrees(detected: string | undefined, declared: strin
 
 /** Only the original of a file that PASSED the scan is released: `clean` or `ready` (a document has no processing, so no `failed` is ever released). */
 export const isDocumentOriginalReleasable = (state: string): boolean => state === 'clean' || state === 'ready';
+
+/**
+ * The name under which the browser saves a document: the stored name cleaned for the header (`filename*`, RFC 6266), else `dokument-<first 8 of the id>.<extension
+ * of the type the SERVER detected>` (CWE-113, CWE-22).
+ */
+export function documentDownloadName(storedName: string | null, documentId: string, contentType: string | null): string {
+  const cleaned = cleanDownloadName(storedName);
+  if (cleaned !== undefined) return cleaned;
+  const type = contentType === null ? undefined : normalizeDocumentType(contentType);
+  return `dokument-${documentId.replace(/-/g, '').slice(0, 8)}.${type === undefined ? 'bin' : (EXTENSIONS[type][0] as string)}`;
+}

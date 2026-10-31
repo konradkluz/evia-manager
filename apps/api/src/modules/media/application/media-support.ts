@@ -3,7 +3,7 @@
  * and the representation of a medium. The representation NEVER carries the object key, the S3 upload id or the checksum; the reason of a
  * quarantine only for the one who may manage it (`mediaQuarantine.manage`, EVM-049) - for everybody else the field is ABSENT, not `null`.
  */
-import type { MediaAsset, UploadSession } from '@evia/contracts';
+import type { DocumentUploadSession, MediaAsset, UploadSession } from '@evia/contracts';
 import { zCreateMediaAssetsHeaders } from '@evia/contracts/zod';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
@@ -95,6 +95,17 @@ export function toUploadSession(session: UploadSessionRow, mediaAssetId: string)
   return {
     id: session.id,
     mediaAssetId,
+    state: session.state,
+    partSize: Number(session.part_size_bytes),
+    partCount: session.part_count,
+    expiresAt: session.expires_at.toISOString(),
+  };
+}
+
+export function toDocumentUploadSession(session: UploadSessionRow, documentId: string): DocumentUploadSession {
+  return {
+    id: session.id,
+    documentId,
     state: session.state,
     partSize: Number(session.part_size_bytes),
     partCount: session.part_count,

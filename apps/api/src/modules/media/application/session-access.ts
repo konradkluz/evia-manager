@@ -1,7 +1,7 @@
 /**
  * The one way the operations on a session reach it (EVM-044 AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, CWE-639): the order of the path through
- * the read policy, then the chain order → medium → file → session in ONE statement with the creator (user AND device) in the condition.
- * A session of another user, another medium or another order, and a missing one, are the same `404` — never `403`.
+ * the read policy, then the chain order → owner (a medium or a document, as the path says) → file → session in ONE statement with the creator (user AND device) in the condition.
+ * A session of another user, another owner (or an owner of the other kind) or another order, and a missing one, are the same `404` — never `403`.
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
@@ -9,13 +9,13 @@ import type { Database } from '../../../platform/database/database.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { findSessionChain, type SessionChain } from '../infrastructure/media-store.ts';
+import { findSessionChain, type OwnerRef, type SessionChain } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
 import { creatorOf } from './media-support.ts';
 
 export interface SessionIds {
   readonly workOrderId: string;
-  readonly mediaAssetId: string;
+  readonly owner: OwnerRef;
   readonly sessionId: string;
 }
 

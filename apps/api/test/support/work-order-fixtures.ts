@@ -142,6 +142,8 @@ export async function clearWorkOrderCreation(db: Kysely<Database>): Promise<void
   await sql`delete from media.file_derivatives`.execute(db);
   await sql`delete from media.stored_files`.execute(db);
   await sql`delete from media.media_assets`.execute(db);
+  await sql`delete from media.document_versions`.execute(db);
+  await sql`delete from media.documents`.execute(db);
   await sql`delete from timeline.timeline_entries`.execute(db);
   await sql`delete from payments.payment_milestones`.execute(db);
   await sql`delete from procedures.procedure_stages`.execute(db);

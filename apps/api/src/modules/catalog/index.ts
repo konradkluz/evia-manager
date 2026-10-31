@@ -13,3 +13,9 @@ export {
 } from './template-directory.ts';
 export { CATALOG_ITEM_DIRECTORY, type CatalogItemDirectory, type CatalogItemForScope } from './catalog-item-directory.ts';
 export { MAX_PARAMETERS_BYTES, parseParameters, type ParameterIssue, type ParameterResult } from './domain/parameter-sets.ts';
+export {
+  DOCUMENT_KIND_DIRECTORY,
+  type DocumentKindConfidentiality,
+  type DocumentKindDirectory,
+  type DocumentKindForDocument,
+} from './document-kind-directory.ts';

@@ -58,3 +58,8 @@ export function objectKeyFor(storedFileId: string, at: Date): string {
   const month = String(at.getUTCMonth() + 1).padStart(2, '0');
   return `media/${year}/${month}/${storedFileId}/original`;
 }
+
+/** `documents/{year}/{month}/{storedFileId}/original` (UTC) for the file of a document (EVM-047): same rules as {@link objectKeyFor}, no title, no name, no order number. */
+export function documentObjectKeyFor(storedFileId: string, at: Date): string {
+  return objectKeyFor(storedFileId, at).replace(/^media\//, 'documents/');
+}

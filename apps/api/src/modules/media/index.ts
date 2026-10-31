@@ -6,4 +6,10 @@ export { VideoProcessingService } from './application/video-processing.service.t
 export { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 export { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 export { SignatureMonitorJob } from './application/signature-monitor.job.ts';
-export { MEDIA_EVENT_TYPES, MEDIA_JOURNAL_EVENT_TYPES, type MediaAssetsAddedEvent, type MediaAuditEvent } from './events.ts';
+export {
+  MEDIA_EVENT_TYPES,
+  MEDIA_JOURNAL_EVENT_TYPES,
+  type DocumentAddedEvent,
+  type MediaAssetsAddedEvent,
+  type MediaAuditEvent,
+} from './events.ts';

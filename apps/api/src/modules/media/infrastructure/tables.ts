@@ -25,6 +25,8 @@ export interface StoredFilesTable {
   id: Generated<string>;
   purpose: 'media_original' | 'document';
   media_asset_id: string | null;
+  /** The version of a document the file belongs to (migration 0059); exactly one of this and `media_asset_id` is set. */
+  document_version_id: Generated<string | null>;
   object_key: string;
   state: FileState;
   state_reason_code: ReasonCode | null;
@@ -57,6 +59,39 @@ export interface StoredFilesTable {
   av_scanned: Generated<boolean | null>;
 }
 
+/**
+ * A document of a work order (migration 0059; EVM-047). The kind and the anchor never change; the override of the class only rises (triggers). The
+ * application role has SELECT, INSERT and UPDATE. `version` is the optimistic lock.
+ */
+export interface DocumentsTable {
+  id: string;
+  kind_code: string;
+  title: string;
+  description: string | null;
+  work_order_id: string | null;
+  customer_id: string | null;
+  site_id: string | null;
+  procedure_stage_id: string | null;
+  confidentiality_override: 'building_security' | 'identity_data' | null;
+  created_at: Date;
+  created_by: string;
+  updated_at: Date;
+  updated_by: string;
+  version: Generated<number>;
+  deleted_at: Date | null;
+  deleted_by: string | null;
+}
+
+/** The versions of a document: append-only (SELECT and INSERT only). */
+export interface DocumentVersionsTable {
+  id: string;
+  document_id: string;
+  version_number: number;
+  change_note: string | null;
+  created_at: Date;
+  created_by: string;
+}
+
 /** The thumbnail and the preview of a photo (migration 0053). The application role has SELECT and INSERT only: a derivative is written once. */
 export interface FileDerivativesTable {
   stored_file_id: string;
@@ -86,6 +121,8 @@ export interface UploadSessionsTable {
 export type MediaTables = {
   'media.media_assets': MediaAssetsTable;
   'media.stored_files': StoredFilesTable;
+  'media.documents': DocumentsTable;
+  'media.document_versions': DocumentVersionsTable;
   'media.file_derivatives': FileDerivativesTable;
   'media.upload_sessions': UploadSessionsTable;
 };

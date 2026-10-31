@@ -54,15 +54,21 @@ const STRIPPED = /[\p{Cc}\p{Cf}"\\/;%]/gu;
  * the SERVER detected>` (CWE-113, CWE-22).
  */
 export function downloadFileName(storedName: string | null, mediaAssetId: string, contentType: string | null): string {
+  const cleaned = cleanDownloadName(storedName);
+  if (cleaned !== undefined) return cleaned;
+  const type = contentType === null ? undefined : normalizeContentType(contentType);
+  return `media-${mediaAssetId.replace(/-/g, '').slice(0, 8)}.${type === undefined ? 'bin' : EXTENSION_OF_TYPE[type]}`;
+}
+
+/** The stored name cleaned for a header (see {@link downloadFileName}); `undefined` when nothing is left (the caller builds a fallback). */
+export function cleanDownloadName(storedName: string | null): string | undefined {
   const cleaned = (storedName ?? '')
     .normalize('NFKC')
     .replace(STRIPPED, '')
     .replace(/\.{2,}/g, '.')
     .trim()
     .replace(/^\.+/, '');
-  if (cleaned !== '') return cut(cleaned);
-  const type = contentType === null ? undefined : normalizeContentType(contentType);
-  return `media-${mediaAssetId.replace(/-/g, '').slice(0, 8)}.${type === undefined ? 'bin' : EXTENSION_OF_TYPE[type]}`;
+  return cleaned === '' ? undefined : cut(cleaned);
 }
 
 function cut(name: string): string {

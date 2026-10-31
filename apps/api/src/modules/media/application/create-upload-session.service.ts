@@ -15,8 +15,8 @@
  * everybody else, RR-NOC-T1-8). A REPEAT (same key) whose session is aborted or expired is `409 invalid_state_transition`: the client sends a new
  * key and a new session id.
  */
-import type { UploadSession } from '@evia/contracts';
-import { zCreateUploadSessionBody, zCreateUploadSessionPath } from '@evia/contracts/zod';
+import type { DocumentUploadSession, UploadSession } from '@evia/contracts';
+import { zCreateUploadSessionBody } from '@evia/contracts/zod';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
@@ -33,28 +33,33 @@ import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders
 import { MAX_ACTIVE_SESSIONS_PER_USER, planUpload, SESSION_LIFETIME_MS } from '../domain/upload-plan.ts';
 import {
   countActiveSessions,
+  creatorOfOwner,
+  fileOfOwner,
   findActiveSession,
-  findAssetWithFile,
+  findOwnerWithFile,
   findSessionChain,
   insertSession,
   setSessionState,
   transitionFile,
 } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
-import { creatorOf, idempotencyKeyOf, requireStorage, toUploadSession, viaStorage } from './media-support.ts';
+import { creatorOf, idempotencyKeyOf, requireStorage, toDocumentUploadSession, toUploadSession, viaStorage } from './media-support.ts';
+import { parseOwnerPath, type OwnerKind } from './owner-path.ts';
 
 export const CREATE_SESSION_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions';
-const scopeOf = (workOrderId: string, mediaAssetId: string): string =>
-  CREATE_SESSION_SCOPE.replace('{workOrderId}', workOrderId).replace('{mediaAssetId}', mediaAssetId);
+export const CREATE_DOCUMENT_SESSION_SCOPE = 'POST /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions';
+const scopeOf = (kind: OwnerKind, workOrderId: string, ownerId: string): string =>
+  kind === 'document'
+    ? CREATE_DOCUMENT_SESSION_SCOPE.replace('{workOrderId}', workOrderId).replace('{documentId}', ownerId)
+    : CREATE_SESSION_SCOPE.replace('{workOrderId}', workOrderId).replace('{mediaAssetId}', ownerId);
 
-const pathSchema = strictObjects(zCreateUploadSessionPath);
 const bodySchema = strictObjects(zCreateUploadSessionBody);
 const RETRY_AFTER_SECONDS = 60;
 const sessionIsGone = (session: { state: string; expires_at: Date }, now: Date): boolean =>
   session.state === 'aborted' || session.state === 'expired' || (session.state === 'active' && session.expires_at <= now);
 
 export interface CreatedSession {
-  readonly session: UploadSession;
+  readonly session: UploadSession | DocumentUploadSession;
   /** `201` for a new session, `200` for the resumption of an active one. */
   readonly status: 200 | 201;
   readonly replayed: boolean;
@@ -82,17 +87,23 @@ export class CreateUploadSessionService {
     this.#storage = storage;
   }
 
-  async create(principal: Principal, rawParams: unknown, rawBody: unknown, rawKey: string | undefined): Promise<CreatedSession> {
-    const { workOrderId, mediaAssetId } = parseInput(pathSchema, rawParams) as { workOrderId: string; mediaAssetId: string };
+  async create(
+    principal: Principal,
+    rawParams: unknown,
+    rawBody: unknown,
+    rawKey: string | undefined,
+    kind: OwnerKind = 'media_asset',
+  ): Promise<CreatedSession> {
+    const { workOrderId, owner } = parseOwnerPath(kind, 'create', rawParams);
     const creator = creatorOf(principal);
 
     return runInTransaction(this.#db, async (tx) => {
       const order = await this.#orders.findVisible(tx, principal, workOrderId);
       if (order === undefined) throw new ProblemException('not_found');
       const tables = mediaTables(tx);
-      const found = await findAssetWithFile(tables, order.id, mediaAssetId, true);
-      // the creator of the medium or an Administrator (RR-NOC-T1-8): a colleague cannot open a session on a medium he did not add
-      if (found === undefined || (found.asset.created_by !== principal.userId && principal.role !== 'administrator')) {
+      const found = await findOwnerWithFile(tables, order.id, owner, true);
+      // the creator of the medium or document, or an Administrator (RR-NOC-T1-8): a colleague cannot open a session on what he did not add
+      if (found === undefined || (creatorOfOwner(found) !== principal.userId && principal.role !== 'administrator')) {
         throw new ProblemException('not_found');
       }
       const storage = requireStorage(this.#storage);
@@ -102,7 +113,7 @@ export class CreateUploadSessionService {
 
       let status: 200 | 201 = 201;
       const perform = async () => {
-        const { file } = found;
+        const file = fileOfOwner(found);
         if (file.state === 'failed' && (file.state_reason_code === 'checksum_mismatch' || file.state_reason_code === 'abandoned')) {
           await transitionFile(
             tables,
@@ -152,20 +163,25 @@ export class CreateUploadSessionService {
 
       const outcome = await this.#idempotency.run(
         tx,
-        { userId: principal.userId, deviceId: null, key, scope: scopeOf(order.id, mediaAssetId), bodyHash: requestHash({ id: sessionId }) },
+        {
+          userId: principal.userId,
+          deviceId: null,
+          key,
+          scope: scopeOf(kind, order.id, owner.id),
+          bodyHash: requestHash({ id: sessionId }),
+        },
         perform,
       );
       const resourceId = outcome.replayed ? outcome.result.resourceId : outcome.value;
       if (outcome.replayed) status = outcome.result.status === 200 ? 200 : 201;
       // read again with the order, the medium and the creator in the condition — a repeat never names the session of another
       const chain =
-        resourceId === null
-          ? undefined
-          : await findSessionChain(tables, { workOrderId: order.id, mediaAssetId, sessionId: resourceId }, creator);
+        resourceId === null ? undefined : await findSessionChain(tables, { workOrderId: order.id, owner, sessionId: resourceId }, creator);
       if (chain === undefined) throw new ProblemException('not_found');
       // a repeat of a creation whose session is gone must not answer 201 with a session nobody can use: the client opens a new one
       if (outcome.replayed && sessionIsGone(chain.session, now)) throw new ProblemException('invalid_state_transition');
-      return { session: toUploadSession(chain.session, mediaAssetId), status, replayed: outcome.replayed };
+      const session = kind === 'document' ? toDocumentUploadSession(chain.session, owner.id) : toUploadSession(chain.session, owner.id);
+      return { session, status, replayed: outcome.replayed };
     });
   }
 }
