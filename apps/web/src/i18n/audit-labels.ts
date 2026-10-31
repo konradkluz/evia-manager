@@ -110,6 +110,10 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'media_file.original_download_denied': 'Odmowa adresu oryginału zdjęcia lub filmu (rola)',
   'media_file.download_alerted': 'Masowe pobieranie plików (alert)',
   'media_file.download_rejected': 'Odmowa adresu pliku (limit pobrań)',
+  'document.created': 'Dodanie dokumentu do zlecenia',
+  'document.confidentiality_raised': 'Podniesienie klasy poufności dokumentu',
+  'document_file.downloaded': 'Adres do pobrania pliku dokumentu',
+  'document_file.download_denied': 'Odmowa adresu pliku dokumentu (klasa poufności)',
   'timeline_entry.deleted': 'Usunięcie wpisu dziennika',
   'timeline_entry.restored': 'Przywrócenie wpisu dziennika',
   'timeline_entry.redacted': 'Redakcja treści wpisu dziennika',
@@ -239,6 +243,10 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'media_file.download_rejected',
     ],
   },
+  {
+    label: 'Dokumenty',
+    actions: ['document.created', 'document.confidentiality_raised', 'document_file.downloaded', 'document_file.download_denied'],
+  },
 ];
 
 export const auditOutcomeLabels: Readonly<Record<AuditOutcome, string>> = {
@@ -263,6 +271,7 @@ export const auditObjectTypeLabels: Readonly<Record<AuditObjectType, string>> = 
   timeline_entry: 'Wpis dziennika',
   payment_milestone: 'Transza płatności',
   media_asset: 'Zdjęcie',
+  document: 'Dokument',
 };
 
 /** Events of the server itself (a job, an emergency command) — the API sends no person for them ("System"). */
