@@ -217,3 +217,30 @@ export async function markSnapshotAlerted(tx: Kysely<Database>, deviceId: string
 export async function purgeSnapshotWindows(tx: Kysely<Database>, deviceId: string, before: Date): Promise<void> {
   await sql`delete from sync.snapshot_requests where device_id = ${deviceId}::uuid and window_start < ${before}`.execute(tx);
 }
+
+/**
+ * Serialises the commands of ONE device that create a customer or a site (EVM-099 AC7): the count of the last 24 hours and the insert that follows are not one
+ * statement, so two batches of the device would both read 19 and pass. A transaction-scoped advisory lock with its own key space (`sync-quota:` + the device;
+ * the idempotency port locks other keys) held until the end of the transaction of the mutation.
+ */
+export async function lockDeviceQuota(tx: Kysely<Database>, deviceId: string): Promise<void> {
+  await sql`select pg_advisory_xact_lock(pg_catalog.hashtextextended(${`sync-quota:${deviceId}`}, 0))`.execute(tx);
+}
+
+/** True exactly once per device, kind and window: the caller that gets `true` writes the alert and the audit event of the exceeded limit (EVM-099 AC7). */
+export async function markQuotaAlerted(
+  tx: Kysely<Database>,
+  deviceId: string,
+  kind: 'customer' | 'site',
+  windowStart: Date,
+): Promise<boolean> {
+  const { rows } = await sql`
+    insert into sync.quota_alerts (device_id, kind, window_start) values (${deviceId}::uuid, ${kind}, ${windowStart})
+    on conflict do nothing returning 1 as raised`.execute(tx);
+  return rows.length > 0;
+}
+
+/** The marks of the device from windows that are over. */
+export async function purgeQuotaAlerts(tx: Kysely<Database>, deviceId: string, before: Date): Promise<void> {
+  await sql`delete from sync.quota_alerts where device_id = ${deviceId}::uuid and window_start < ${before}`.execute(tx);
+}

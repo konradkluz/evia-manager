@@ -84,6 +84,7 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       deviceId: null,
       workOrderId: null,
       commandType: null,
+      quotaKind: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -266,6 +267,7 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       deviceId: null,
       workOrderId: null,
       commandType: null,
+      quotaKind: null,
     });
   });
 });
@@ -316,6 +318,7 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'deviceId',
         'workOrderId',
         'commandType',
+        'quotaKind',
       ].sort(),
     );
   });
@@ -351,6 +354,7 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       deviceId: null,
       workOrderId: null,
       commandType: null,
+      quotaKind: null,
     });
   });
 
@@ -413,6 +417,7 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       deviceId: null,
       workOrderId: null,
       commandType: null,
+      quotaKind: null,
     });
   });
 
@@ -470,6 +475,7 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       deviceId: null,
       workOrderId: null,
       commandType: null,
+      quotaKind: null,
     });
   });
 
@@ -781,9 +787,63 @@ describe('the applied mutation of a phone in the trail (EVM-098 AC8; SR-LOG-03, 
   });
 
   it('EVM-098 AC8 a type outside the closed list, a missing field of the three or the fields on another action are refused', () => {
-    expect(() => toAuditRecord(applied({ commandType: 'CreateQuickWorkOrder' }), context, at)).toThrow();
+    expect(() => toAuditRecord(applied({ commandType: 'DropTable' }), context, at)).toThrow();
     expect(() => toAuditRecord(applied({ deviceId: 'not-a-uuid' }), context, at)).toThrow();
     expect(() => toAuditRecord(applied({ type: 'timeline_entry.created' }), context, at)).toThrow();
     expect(() => toAuditRecord(applied({ deviceId: null }), context, at)).toThrow();
+  });
+});
+
+describe('audit record of the quick work order of the phone (EVM-099 AC1, AC7; SR-LOG-03)', () => {
+  const device = '0193a000-0000-7000-8000-0000000000d1';
+  const order = '0193a000-0000-7000-8000-0000000000b1';
+  const quick = {
+    type: 'sync.mutation_applied',
+    actor: { type: 'user', userId: user },
+    outcome: 'success',
+    objectType: 'work_order',
+    objectId: order,
+    deviceId: device,
+    workOrderId: order,
+    commandType: 'CreateQuickWorkOrder',
+  } as const;
+  const exceeded = {
+    type: 'sync.quota_exceeded',
+    actor: { type: 'user', userId: user },
+    outcome: 'denied',
+    objectType: 'device',
+    objectId: device,
+    deviceId: device,
+    quotaKind: 'customer',
+  } as const;
+
+  it('EVM-099 AC1 the applied quick order names the device, the order and the command, nothing else', () => {
+    expect(toAuditRecord(quick, { origin: 'web', traceId }, at)).toMatchObject({
+      action: 'sync.mutation_applied',
+      objectType: 'work_order',
+      deviceId: device,
+      workOrderId: order,
+      commandType: 'CreateQuickWorkOrder',
+      quotaKind: null,
+    });
+  });
+
+  it('EVM-099 AC7 the exceeded limit names the device and the kind only - no order, no command', () => {
+    expect(toAuditRecord(exceeded, { origin: 'web', traceId }, at)).toMatchObject({
+      action: 'sync.quota_exceeded',
+      outcome: 'denied',
+      objectType: 'device',
+      objectId: device,
+      deviceId: device,
+      workOrderId: null,
+      commandType: null,
+      quotaKind: 'customer',
+    });
+  });
+
+  it('EVM-099 AC7 a kind outside the closed list, a kind on another action or a missing kind are refused', () => {
+    expect(() => toAuditRecord({ ...exceeded, quotaKind: 'party' } as never, { origin: 'web', traceId }, at)).toThrow();
+    expect(() => toAuditRecord({ ...quick, quotaKind: 'site' } as never, { origin: 'web', traceId }, at)).toThrow();
+    expect(() => toAuditRecord({ ...exceeded, quotaKind: undefined } as never, { origin: 'web', traceId }, at)).toThrow();
   });
 });

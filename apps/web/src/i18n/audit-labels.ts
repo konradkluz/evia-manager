@@ -62,6 +62,8 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'sync.work_order_snapshot': 'Pobranie migawki zlecenia na urządzenie mobilne',
   // EVM-098: an entry or a comment written on a phone and applied by the server
   'sync.mutation_applied': 'Zastosowanie zmiany z urządzenia mobilnego',
+  // EVM-099: a phone tried to create more than 20 customers or 20 sites in 24 hours
+  'sync.quota_exceeded': 'Przekroczony limit nowych klientów lub lokalizacji z urządzenia mobilnego',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
   'customer.deleted': 'Usunięcie klienta',
@@ -175,6 +177,7 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
       'sync.full_download_completed',
       'sync.work_order_snapshot',
       'sync.mutation_applied',
+      'sync.quota_exceeded',
     ],
   },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },

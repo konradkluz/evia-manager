@@ -33,6 +33,7 @@ import { UpdateScopeItemService } from './application/update-scope-item.service.
 import { UpdateWorkOrderService } from './application/update-work-order.service.ts';
 import { WorkOrderDirectoryService } from './application/work-order-directory.service.ts';
 import { WorkOrderComposer } from './application/work-order-composer.ts';
+import { WorkOrderQuickCreationService } from './application/work-order-quick-creation.service.ts';
 import { WorkOrderCompositionRegistry } from './composition-contributor.ts';
 import { WorkOrdersController } from './http/work-orders.controller.ts';
 import { WorkOrderDeletionRegistry } from './deletion-participant.ts';
@@ -46,6 +47,7 @@ import {
   SCOPE_ITEM_SYNC_SOURCE,
   WORK_ORDER_MUTATION_TARGET,
   WORK_ORDER_PROJECTION_SOURCE,
+  WORK_ORDER_QUICK_CREATION,
   WORK_ORDER_SYNC_SOURCE,
 } from './system-ports.ts';
 
@@ -73,6 +75,7 @@ import {
     { provide: WORK_ORDER_PROJECTION_SOURCE, useClass: WorkOrderProjectionSourceService },
     { provide: WORK_ORDER_SYNC_SOURCE, useClass: WorkOrderSyncSourceService },
     { provide: WORK_ORDER_MUTATION_TARGET, useClass: WorkOrderMutationTargetService },
+    { provide: WORK_ORDER_QUICK_CREATION, useClass: WorkOrderQuickCreationService },
     { provide: SCOPE_ITEM_SYNC_SOURCE, useClass: ScopeItemSyncSourceService },
   ],
   exports: [
@@ -84,6 +87,7 @@ import {
     WORK_ORDER_PROJECTION_SOURCE,
     WORK_ORDER_SYNC_SOURCE,
     WORK_ORDER_MUTATION_TARGET,
+    WORK_ORDER_QUICK_CREATION,
     SCOPE_ITEM_SYNC_SOURCE,
   ],
 })

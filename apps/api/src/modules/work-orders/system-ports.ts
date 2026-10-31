@@ -7,6 +7,7 @@
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
+import type { EventContext } from '../../platform/events/event-bus.ts';
 import type { Principal } from '../../platform/http/principal.ts';
 import type { OrderChildSyncSource, SyncRowState } from '../../platform/sync/sync-row-state.ts';
 
@@ -119,4 +120,53 @@ export type MutationTargetState = 'available' | 'target_unavailable' | 'forbidde
 
 export interface WorkOrderMutationTarget {
   stateOf(tx: Kysely<Database>, principal: Principal, workOrderId: string): Promise<MutationTargetState>;
+}
+
+/**
+ * The COMMAND port of `work-orders` for the quick work order of the phone (EVM-099; ADR-0008): the order created by `CreateQuickWorkOrder` through the SAME
+ * component as the panel (`WorkOrderComposer`: one path of composition), with the origin `mobile_quick` and the device of the session. It runs in the transaction
+ * of `sync`, which decides the ORDER of the steps (the identifier, the targets, the limit, the inserts of the customer and the site, then this). The answers are
+ * codes and the number only - never a field of an existing order. Not part of `index.ts`: only `sync` may import it.
+ */
+export const WORK_ORDER_QUICK_CREATION = Symbol('WORK_ORDER_QUICK_CREATION');
+
+export interface QuickWorkOrderInput {
+  readonly id: string;
+  readonly templateId: string;
+  readonly title: string;
+  readonly customerId: string;
+  readonly siteId: string;
+}
+
+/** The order with an identifier the command wants to create: free, the caller's OWN old one (the rule of `idempotency_expired`), or somebody else's / any other. */
+export type QuickOrderProbe = { readonly kind: 'free' } | { readonly kind: 'own'; readonly number: string } | { readonly kind: 'conflict' };
+
+export type QuickCreationResult =
+  | { readonly ok: true; readonly number: string }
+  | { readonly ok: false; readonly reason: 'id_conflict' | 'template_unavailable' | 'target_unavailable' };
+
+export interface WorkOrderQuickCreation {
+  /**
+   * Does an order with this identifier exist - deleted ones too - and is it the caller's own quick order (the same user AND device, origin `mobile_quick`, created
+   * no later than `createdBefore`)? Asked BEFORE any insert of the command, so a retry after the record of idempotency expired never reaches the conflict of
+   * the customer. A yes or a no and the number of the own order only.
+   */
+  probe(
+    tx: Kysely<Database>,
+    id: string,
+    author: { readonly userId: string; readonly deviceId: string },
+    createdBefore: Date,
+  ): Promise<QuickOrderProbe>;
+  /** The number of an order, a deleted one too (the answer of a `duplicate`): the key of idempotency belongs to the user and the device, so no read policy applies. */
+  numberOf(tx: Kysely<Database>, id: string): Promise<string | undefined>;
+  /** Is the template active (a missing, retired and deleted one alike are `false`)? Asked before the customer and the site are inserted. */
+  templateAvailable(tx: Kysely<Database>, templateId: string): Promise<boolean>;
+  /** Composes the order; a limit of the template (30 processes or stages, more than 20 milestones) is `template_unavailable`. Publishes `work_order.created`. */
+  create(
+    tx: Kysely<Database>,
+    principal: Principal,
+    deviceId: string,
+    input: QuickWorkOrderInput,
+    context: EventContext,
+  ): Promise<QuickCreationResult>;
 }
