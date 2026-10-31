@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
+import { problem } from './api-fake.ts';
 import { MEDIA_BASE, mediaApi, unfinished, type MediaServerOptions } from './media-api.ts';
 import { renderPanel } from './render.tsx';
 import { userEvent } from './user.ts';
@@ -11,6 +12,8 @@ const PATH = `/work-orders/${ORDER_ID}`;
 
 class FakeBucket {
   static puts: { size: number }[] = [];
+  /** A bucket that takes a part and never answers: the film stays "being sent". */
+  static hold = false;
   withCredentials = true;
   upload: { onprogress: ((event: { loaded: number }) => void) | null } = { onprogress: null };
   onload: (() => void) | null = null;
@@ -22,6 +25,7 @@ class FakeBucket {
   }
   send(body: Blob) {
     FakeBucket.puts.push({ size: body.size });
+    if (FakeBucket.hold) return;
     queueMicrotask(() => {
       this.upload.onprogress?.({ loaded: body.size });
       this.onload?.();
@@ -66,6 +70,7 @@ function stubDurations(seconds: Record<string, number>) {
 
 beforeEach(() => {
   FakeBucket.puts = [];
+  FakeBucket.hold = false;
   vi.stubGlobal('XMLHttpRequest', FakeBucket);
 });
 
@@ -214,5 +219,56 @@ describe('EVM-046 AC8 the warning before a large film (W-09 compact)', () => {
     });
     // the medium that was made earlier is continued, none is made again
     expect(api.calls(`POST ${MEDIA_BASE}`)).toHaveLength(0);
+  });
+});
+
+describe('EVM-046 AC7 states of the upload of a film', () => {
+  it('EVM-046 AC7 closing the tab while a film is being sent asks the browser for the warning', async () => {
+    FakeBucket.hold = true;
+    stubDurations({ 'VID_0415.mp4': 242 });
+    await openMedia();
+    await openDialog();
+    choose([film('VID_0415.mp4', 50_000_000)]);
+    await within(dialog()).findByText('Wybrano 1 plik · 50 MB');
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 1 plik' }));
+    await waitFor(() => {
+      expect(FakeBucket.puts).toHaveLength(1);
+    });
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('EVM-046 AC7 offline the buttons that start an upload are disabled, and a film that loses the connection waits for it', async () => {
+    stubDurations({ 'VID_0415.mp4': 242 });
+    class DeadBucket extends FakeBucket {
+      override send() {
+        Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+        queueMicrotask(() => this.onerror?.());
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', DeadBucket);
+    await openMedia();
+    await openDialog();
+    choose([film('VID_0415.mp4', 50_000_000)]);
+    await within(dialog()).findByText('Wybrano 1 plik · 50 MB');
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 1 plik' }));
+    expect(await screen.findByText('Wysyłanie wznowimy po powrocie połączenia — nie zamykaj karty.')).toBeTruthy();
+    fireEvent(window, new Event('offline'));
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Dodaj zdjęcia lub filmy' }).getAttribute('aria-disabled')).toBe('true');
+    });
+    expect(screen.getByText('Brak połączenia — wysyłanie wstrzymane.')).toBeTruthy();
+  });
+
+  it('EVM-046 AC7 429 on starting the upload of a film says when to try again and offers "Ponów"', async () => {
+    stubDurations({ 'VID_0415.mp4': 242 });
+    await openMedia({ create: () => problem(429, 'rate_limited', {}, { 'Retry-After': '30' }) });
+    await openDialog();
+    choose([film('VID_0415.mp4', 50_000_000)]);
+    await within(dialog()).findByText('Wybrano 1 plik · 50 MB');
+    await userEvent.click(within(dialog()).getByRole('button', { name: 'Wyślij 1 plik' }));
+    expect(await screen.findByText('Zbyt wiele zapytań. Spróbuj ponownie za 30 s.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Ponów wysyłanie: VID_0415.mp4' })).toBeTruthy();
   });
 });
