@@ -10,7 +10,7 @@ import { composeArgs, composeRunner, SERVICES } from '../lib/compose.mjs';
 import { pushRanges, runHook } from '../lib/hooks.mjs';
 import { defaultIo, main, oneLine, runStep, SCANS_DIR } from '../lib/main.mjs';
 import { fixtures, SELFTEST_DIR, syntheticGithubToken } from '../lib/selftest.mjs';
-import { LICENSE_STEPS, SECURITY_STEPS, SELFTEST_STEPS, workflows } from '../lib/steps.mjs';
+import { exceptedLicenses, LICENSE_STEPS, SECURITY_STEPS, SELFTEST_STEPS, workflows } from '../lib/steps.mjs';
 
 const CLI = fileURLToPath(new URL('../cli.mjs', import.meta.url));
 const ALL = [...SECURITY_STEPS, ...LICENSE_STEPS, ...SELFTEST_STEPS];
@@ -340,5 +340,36 @@ describe('self-test fixtures and compose helper (EVM-006 AC4, AC5; SR-PRIV-08)',
     assert.equal(result.status, 2);
     assert.match(result.stderr, /Użycie/);
     assert.equal(readFileSync(CLI, 'utf8').includes('defaultIo'), true);
+  });
+});
+
+describe('EVM-068: licenses with an exception in .trivyignore.yaml', () => {
+  const ignore = [
+    '# comment',
+    'misconfigurations: []',
+    'licenses:',
+    '  - id: MIT-0',
+    "    statement: 'x'",
+    '    expired_at: 2027-01-10',
+    '  # note',
+    '  - id: LGPL-3.0-or-later',
+    "    statement: 'y'",
+    '    expired_at: 2026-12-01',
+    '  - id: NoDate',
+    'vulnerabilities:',
+    '  - id: CVE-1',
+    '    expired_at: 2027-01-01',
+    '',
+  ].join('\n');
+
+  it('lists only unexpired license exceptions of the licenses section', () => {
+    assert.deepEqual(exceptedLicenses(ignore, '2026-10-29'), ['MIT-0', 'LGPL-3.0-or-later']);
+    assert.deepEqual(exceptedLicenses(ignore, '2026-12-02'), ['MIT-0']);
+    assert.deepEqual(exceptedLicenses('misconfigurations: []\n'), []);
+  });
+
+  it('the repository exception for LGPL-3.0-or-later (libvips of sharp) exists and expires within 90 days', () => {
+    const repoIgnore = readFileSync(new URL('../../../.trivyignore.yaml', import.meta.url), 'utf8');
+    assert.ok(exceptedLicenses(repoIgnore).includes('LGPL-3.0-or-later'));
   });
 });

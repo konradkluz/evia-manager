@@ -252,7 +252,7 @@ describe('EVM-049 AC5 the purged tile', () => {
 
 describe('EVM-049 AC6 the filter "Wymaga uwagi (n)"', () => {
   it('EVM-049 AC6 the chip shows the count, selects the files held and "Wszystkie" brings the list back', async () => {
-    const api = await openMedia({ assets: [held(), asset(4, { fileState: 'ready' })] });
+    const api = await openMedia({ assets: [held(), asset(4, { fileState: 'clean' })] });
     const chip = await screen.findByRole('button', { name: 'Wymaga uwagi (1)' });
     expect(chip.getAttribute('aria-pressed')).toBe('false');
     await userEvent.click(chip);
@@ -270,7 +270,7 @@ describe('EVM-049 AC6 the filter "Wymaga uwagi (n)"', () => {
   });
 
   it('EVM-049 AC6 without files held there is no filter', async () => {
-    await openMedia({ assets: [asset(4, { fileState: 'ready' })] });
+    await openMedia({ assets: [asset(4, { fileState: 'clean' })] });
     await screen.findByRole('list', { name: 'Media i dokumenty' });
     expect(screen.queryByRole('button', { name: /^Wymaga uwagi/ })).toBeNull();
   });

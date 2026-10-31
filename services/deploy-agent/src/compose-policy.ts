@@ -22,6 +22,9 @@ export const CHANNEL_SERVICES: Readonly<Record<string, 'evia-api' | 'evia-web'>>
   web: 'evia-web',
 });
 
+/** The one host directory the worker may mount besides its secrets: the tmpfs it shares with the image processor (EVM-068). */
+export const WORKER_MEDIA_WORK = '/run/evia/media-work:/run/media-work';
+
 const ENV_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** Variables that would weaken the runtime (TLS, module loading, proxies) — never settable by the channel. */
 const ENV_FORBIDDEN =
@@ -131,10 +134,13 @@ function service(name: string, value: unknown, image: string): Record<string, un
   }
   if ('environment' in value) result['environment'] = environment(name, value['environment']);
   if ('volumes' in value) {
+    const secrets = `/run/evia/secrets/${name}:/run/secrets:ro`;
+    // EVM-068: the worker alone also gets the work area it shares with the image processor (a tmpfs of the host, mounted in an IaC session)
+    const allowed = name === 'worker' ? [[secrets], [secrets, WORKER_MEDIA_WORK]] : [[secrets]];
     ensure(
-      exactly(value['volumes'], [`/run/evia/secrets/${name}:/run/secrets:ro`]),
+      allowed.some((candidate) => exactly(value['volumes'], candidate)),
       'v4-volume',
-      `${name}: only /run/evia/secrets/${name}:/run/secrets:ro`,
+      `${name}: only ${secrets}${name === 'worker' ? ` and, additionally, ${WORKER_MEDIA_WORK}` : ''}`,
     );
     result['volumes'] = value['volumes'];
   }

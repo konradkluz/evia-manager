@@ -92,7 +92,7 @@ Doprecyzowanie mapy modułów z ADR-0001 (zmiany: nowy moduł `parties`; `sites`
 | `procedures` | `procedures` | `Procedure`, `ProcedureStage` | `work-orders`, `catalog`, `parties`, `identity` |
 | `payments` | `payments` | `PaymentMilestone` | `work-orders`, `catalog` |
 | `timeline` | `timeline` | `TimelineEntry` | `work-orders`, `procedures`, `payments` (nazwy transz dla dziennika — fasada zawężona do zlecenia, EVM-054); subskrybuje zdarzenia `procedures`, `payments`, `media` |
-| `media` | `media` | `MediaAsset`, `Document`, `DocumentVersion`, `StoredFile`, `UploadSession` | `work-orders`, `procedures`, `customers`, `sites`, `catalog`, `identity` |
+| `media` | `media` | `MediaAsset`, `Document`, `DocumentVersion`, `StoredFile`, `FileDerivative`, `UploadSession` | `work-orders`, `procedures`, `customers`, `sites`, `catalog`, `identity` |
 | `sync` | `sync` | `SyncChange`, `DeviceSyncState` | `identity` i fasady modułów w zakresie synchronizacji |
 | `overview` ([ADR-0017](adr/0017-model-odczytu-listy-i-podsumowania-zlecenia.md); powstał w EVM-034) | `overview` | projekcje odczytu `WorkOrderSummary` (`work_order_summaries`) i `WorkOrderWait` (`work_order_waits`) — bez encji domenowych | `work-orders` (klucz obcy z `ON DELETE CASCADE`), `procedures`, `payments`, `sites`, `parties`, `customers`, `identity`, `authorization` — fasady, porty systemowe i zdarzenia; **żaden moduł nie zależy od `overview`** |
 | pg-boss | `pgboss` | kolejka zadań (ADR-0010) | — |
@@ -152,6 +152,7 @@ erDiagram
   MediaAsset ||--o| StoredFile : "plik"
   DocumentVersion ||--|| StoredFile : "plik"
   StoredFile ||--o{ UploadSession : "upload"
+  StoredFile ||--o{ FileDerivative : "pochodne"
   User ||--o{ Session : "sesje"
   User ||--o{ Device : "urządzenia"
   Device |o--o{ Session : "sesje mobilne"
@@ -406,6 +407,7 @@ erDiagram
   Document ||--|{ DocumentVersion : "wersje"
   DocumentVersion ||--|| StoredFile : "plik"
   StoredFile ||--o{ UploadSession : "upload"
+  StoredFile ||--o{ FileDerivative : "pochodne"
   TimelineEntry {
     uuid id PK "z telefonu lub panelu"
     uuid work_order_id FK "kotwica"
@@ -471,6 +473,16 @@ erDiagram
     int height_px
     int duration_seconds
     text storage_class "standard | archive"
+  }
+  FileDerivative {
+    uuid stored_file_id PK "FK, on delete restrict"
+    text variant PK "thumbnail | preview"
+    text object_key UK "nadaje serwer: media/rok/miesiąc/storedFileId/variant.webp"
+    text content_type "zawsze image/webp"
+    int width "1…1600"
+    int height "1…1600"
+    int size_bytes "≤ 5 MB"
+    timestamptz created_at
   }
   UploadSession {
     uuid id PK "z telefonu lub panelu"
@@ -693,11 +705,12 @@ Zasady: ładunek nigdy nie zawiera powodu wstrzymania, anulowania ani blokady, n
 - **Atrybuty:** `kindCode` (`DocumentKind`, np. `power_of_attorney`, `connection_conditions`, `technical_assessment`, `fire_safety_opinion`); `title`; kotwica — dokładnie jedno z: `workOrderId`, `customerId`, `siteId` (ograniczenie `CHECK`); `procedureStageId` (tylko przy `workOrderId`); `description`. Wersja: `documentId`, `versionNumber` **(serwer)**, `changeNote`, plik `StoredFile`.
 - **Reguły:** nowa wersja zamiast edycji pliku (append-only wersji). Rodzaj dokumentu niesie `confidentiality` (`standard` / `identity_data` — dane identyfikacyjne, np. pełnomocnictwo / `building_security` — projekt, ekspertyza, opinia ppoż) — podstawa polityk roli Tylko odczyt i telefonu (EVM-005).
 
-### `StoredFile` i `UploadSession`
+### `StoredFile`, `FileDerivative` i `UploadSession`
 - **Moduł:** `media`. **Słownik:** plik (obiekt w storage'u) i sesja uploadu.
 - **Atrybuty `StoredFile`:** `purpose` (`media_original` / `document`); właściciel — dokładnie jedno z `mediaAssetId`, `documentVersionId`; `objectKey` **(serwer)**; `state` **(serwer)**: `pending_upload → uploaded → scanning → clean → processing → ready`, `quarantined`, `failed` (ADR-0009); `declaredSizeBytes`, `sizeBytes` **(serwer, zweryfikowany)**; `declaredContentType`, `contentType` **(serwer, wykryty z zawartości)**; `declaredSha256` (deklaracja klienta w sesji uploadu), `sha256` **(serwer, obliczony z zawartości)**; `stateReasonCode` **(serwer)** — kod przyczyny stanu `failed` lub `quarantined` (`checksum_mismatch`, `processing_error`, `type_mismatch`, `malware_detected`), bez danych osobowych; `originalFilename` (oczyszczona metadana); `widthPx`, `heightPx`, `durationSeconds` **(serwer)**; `storageClass` (`standard` / `archive`).
+- **Atrybuty `FileDerivative` (EVM-068, migracja 0053):** `storedFileId` + `variant` (`thumbnail` 320 px, `preview` 1600 px) — klucz główny; `objectKey` **(serwer)** `media/{rok}/{miesiąc}/{storedFileId}/{variant}.webp` (ten sam prefiks co oryginał `…/original`, unikalny, wzorzec wymuszony przez `CHECK` i wyzwalacz); `contentType` zawsze `image/webp`; `width`, `height` (1…1600), `sizeBytes` (≤ 5 MB), `createdAt`. Pochodne są WebP **bez metadanych** (EXIF, GPS, XMP, IPTC, ICC — P3), z zastosowaną orientacją. Klucz obcy do `StoredFile` jest `on delete restrict`: usuwanie pliku (retencja, art. 17 RODO — EVM-051) musi jawnie usunąć obiekty pochodnych (prefiksem `…/{storedFileId}/`). Rola aplikacji ma `SELECT` i `INSERT` — pochodna jest zapisywana raz.
 - **Atrybuty `UploadSession`:** `storedFileId`, `deviceId` **(serwer, z sesji)**, `s3UploadId`, `partSizeBytes`, `partCount`, `state`, `expiresAt`.
-- **Reguły (niezmienniki):** plik w stanie innym niż `clean` / `ready` nie jest pobieralny dla nikogo; `contentType` nadaje serwer; klucz obiektu nadaje serwer wg ADR-0009 z identyfikatorem rekordu pliku: `media/{rok}/{miesiąc}/{storedFileId}/original` i `documents/{rok}/{miesiąc}/{storedFileId}/original` — **bez danych osobowych, nazwy pliku i numeru zlecenia**; pochodne mają deterministyczne klucze obok oryginału. `StoredFile` nie ma własnych uprawnień — dostęp zawsze przez właściciela. Sesję uploadu może kontynuować wyłącznie jej twórca (użytkownik i urządzenie).
+- **Reguły (niezmienniki):** plik w stanie innym niż `clean` / `ready` nie jest pobieralny dla nikogo; `contentType` nadaje serwer; klucz obiektu nadaje serwer wg ADR-0009 z identyfikatorem rekordu pliku: `media/{rok}/{miesiąc}/{storedFileId}/original` i `documents/{rok}/{miesiąc}/{storedFileId}/original` — **bez danych osobowych, nazwy pliku i numeru zlecenia**; pochodne mają deterministyczne klucze obok oryginału (patrz `FileDerivative` niżej). **Pochodne (EVM-068):** pochodna jest dostępna wyłącznie, gdy plik jest `ready` (`clean` wystarcza tylko dla oryginału) i ma wiersz `FileDerivative`; przejście `processing → ready` i wiersze obu pochodnych powstają w jednej transakcji (`ready` bez pary nie istnieje). Licznik `processAttempts` rośnie przy **przejęciu** pliku przez pętlę (nie przy błędzie), po 3 przejęciach plik jest `failed` z `processing_error`. **Niezmiennik dla pobierania oryginału (EVM-045 AC4):** `failed` z `processing_error` oznacza plik, który **przeszedł skan** (wcześniej był `clean`), więc jego oryginał jest do pobrania; `failed` z `checksum_mismatch` — nie. Nie kopiuj `isDownloadable` do nowego kodu: osobne predykaty dla oryginału (`clean` / `ready` / `failed`+`processing_error`) i pochodnych (`ready`). `StoredFile` nie ma własnych uprawnień — dostęp zawsze przez właściciela. Sesję uploadu może kontynuować wyłącznie jej twórca (użytkownik i urządzenie).
 - **`clean` tylko przy zgodnym SHA-256:** serwer oblicza skrót złożonego obiektu podczas skanu (worker i tak czyta cały plik; alternatywa — sumy kontrolne S3, do sprawdzenia w EVM-011). Do `clean` przechodzi wyłącznie wtedy, gdy `sha256 = declaredSha256`, a skan i walidacja typu są pozytywne. Niezgodny skrót → `failed` z `stateReasonCode = checksum_mismatch`; telefon wysyła plik ponownie z lokalnej kopii (szczegóły przejścia — `media-pipeline.md`, EVM-011). Na tym niezmienniku opiera się reguła usuwania lokalnego oryginału na telefonie ([`offline-sync.md`](offline-sync.md#otwarte--evm-011), punkt 7).
 - **Stan pliku na telefonie:** zmiana `state` (i podsumowania pliku) zapisuje w dzienniku zmian, w tej samej transakcji, `upsert` właściciela (`MediaAsset`, `DocumentVersion`). `StoredFile` nie jest synchronizowany osobno ([`offline-sync.md`](offline-sync.md#3-wersjonowanie-i-dziennik-zmian)). Przyczyna kwarantanny jest widoczna tylko w panelu (Administrator).
 

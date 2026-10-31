@@ -154,6 +154,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'listPaymentMilestones',
       // EVM-044: the media of an order (the list is read by every role; the rest are the writers below)
       'listMediaAssets',
+      // EVM-068: the signed address of a thumbnail or a preview (every role of the web)
+      'createMediaAssetDownloadUrl',
     ];
     const writers = [
       'transitionWorkOrder',

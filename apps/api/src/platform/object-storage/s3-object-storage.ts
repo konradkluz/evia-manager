@@ -17,12 +17,14 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListPartsCommand,
+  PutObjectCommand,
   S3Client,
   UploadPartCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'node:stream';
 import {
+  DERIVATIVE_URL_SECONDS,
   MAX_PRESIGN_SECONDS,
   ObjectStorageError,
   type CompletedObject,
@@ -30,6 +32,7 @@ import {
   type ObjectStorage,
   type ObjectStorageErrorCode,
   type PartUrl,
+  type SignedGetInput,
   type StoredPart,
 } from './object-storage.ts';
 
@@ -220,6 +223,42 @@ export class S3ObjectStorage implements ObjectStorage {
       );
       if (out.Body === undefined) throw new ObjectStorageError('unavailable');
       return out.Body as Readable;
+    } catch (error) {
+      throw translateS3Error(error);
+    }
+  }
+
+  async putObjectIfAbsent(input: { key: string; body: Buffer; contentType: string; cacheControl: string }): Promise<void> {
+    try {
+      await this.#client.send(
+        new PutObjectCommand({
+          Bucket: this.#bucket,
+          Key: input.key,
+          Body: input.body,
+          ContentLength: input.body.length,
+          ContentType: input.contentType,
+          CacheControl: input.cacheControl,
+          IfNoneMatch: '*',
+        }),
+      );
+    } catch (error) {
+      throw translateS3Error(error);
+    }
+  }
+
+  async presignGet(input: SignedGetInput): Promise<PartUrl> {
+    if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)
+      throw new RangeError('presign lifetime out of range');
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.#bucket,
+        Key: input.key,
+        ResponseContentType: input.contentType,
+        ResponseContentDisposition: 'inline',
+        ResponseCacheControl: input.cacheControl,
+      });
+      const url = await getSignedUrl(this.#client, command, { expiresIn: input.expiresInSeconds });
+      return { url, expiresAt: new Date(this.#now().getTime() + input.expiresInSeconds * 1000) };
     } catch (error) {
       throw translateS3Error(error);
     }

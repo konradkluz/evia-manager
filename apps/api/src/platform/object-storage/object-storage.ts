@@ -45,6 +45,20 @@ export interface PartUrl {
   readonly expiresAt: Date;
 }
 
+/**
+ * The life of a signed `GET` of a derivative (EVM-068 AC6, SR-FILE-07): a constant of the server, never a parameter of the caller — a longer
+ * value is refused by the adapter, not trusted to the service.
+ */
+export const DERIVATIVE_URL_SECONDS = 300;
+
+/** A signed `GET` of a derivative: the type and the disposition are forced by the SERVER in the signed query (the object is served `inline`). */
+export interface SignedGetInput {
+  readonly key: string;
+  readonly expiresInSeconds: number;
+  readonly contentType: string;
+  readonly cacheControl: string;
+}
+
 export interface ObjectStorage {
   /** The content type is set by the server from an allow-list — never taken from the declaration of the client (SR-WEB-04). */
   createMultipartUpload(key: string, contentType: string): Promise<{ readonly uploadId: string }>;
@@ -72,4 +86,17 @@ export interface ObjectStorage {
   head(key: string): Promise<ObjectHead | undefined>;
   /** One read of a pinned version (`versionId`) and, when given, of the exact ETag (`ifMatch`): the three verdicts concern the same bytes. */
   getObjectStream(key: string, pin: { readonly versionId?: string; readonly ifMatch?: string }): Promise<Readable>;
+  /**
+   * Writes a whole object ONLY when the key is free (`If-None-Match: *`; add-only: a derivative is never overwritten, and a key of an original is
+   * never reachable with the key of the worker). The type and the cache control are set by the server (SR-WEB-04).
+   * @throws ObjectStorageError `precondition_failed` when the object already exists (the caller decides whether that is a success)
+   */
+  putObjectIfAbsent(input: {
+    readonly key: string;
+    readonly body: Buffer;
+    readonly contentType: string;
+    readonly cacheControl: string;
+  }): Promise<void>;
+  /** A signed `GET` for the browser: `response-content-type`, `response-content-disposition: inline` and `response-cache-control` are signed. */
+  presignGet(input: SignedGetInput): Promise<PartUrl>;
 }

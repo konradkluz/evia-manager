@@ -87,6 +87,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'apps/mobile',
       'apps/web',
       'services/deploy-agent',
+      'services/media-processor',
       'packages/config',
       'packages/contracts',
       'packages/observability-scrub',
@@ -209,7 +210,10 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
       'node tools/git-hooks/cli.mjs check && node tools/docs-lifecycle/cli.mjs check && node tools/diff-coverage/cli.mjs clean && pnpm run gate:native && docker compose -f compose.yaml run --rm backend-tests pnpm run gate:backend && pnpm run gate:integration && pnpm run gate:deploy && pnpm run coverage:diff',
     );
     expect(root.scripts?.['gate:native']).toBe('pnpm run format:check && turbo run lint typecheck test:coverage && pnpm run deps:check');
-    expect(root.scripts?.['gate:backend']).toBe('turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api');
+    // EVM-068: the processor is tested with the real libvips of Linux, as in production (ADR-0015)
+    expect(root.scripts?.['gate:backend']).toBe(
+      'turbo run lint typecheck test:coverage --filter=./packages/* --filter=./apps/api --filter=./services/media-processor',
+    );
     expect(root.scripts?.['gate:integration']).toBe(
       'docker compose -f compose.yaml run --rm backend-tests pnpm --filter @evia/api run test:integration',
     );
@@ -322,6 +326,8 @@ describe('versions and supply chain (EVM-006 AC1; D1, SR-SUPPLY-01, -03, -04)', 
       protobufjs: false,
       '@parcel/watcher': false,
       'unrs-resolver': false,
+      // EVM-068: sharp ships prebuilt libvips; its only build script compiles from source, which is never wanted
+      sharp: false,
     });
   });
 

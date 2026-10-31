@@ -245,7 +245,7 @@ Do rozstrzygnięcia w spike'u EVM-011 (Android; iOS odłożony — ADR-0015) i w
 7. **Pliki lokalne — kiedy usuwać własny oryginał z urządzenia.** *Rekomendacja do potwierdzenia w EVM-011:* usuwamy go **dopiero**, gdy projekcja `MediaAsset` pokaże `fileState` równe `clean`, `processing` lub `ready`. Niezmiennik: `clean` tylko przy zgodnym SHA-256 i pozytywnym skanie ([`domain-model.md`](domain-model.md#storedfile-i-uploadsession)). Nie usuwamy po `uploaded`, bo `complete` sprawdza tylko rozmiar (ADR-0009). Przy `quarantined` lub `failed` przed `clean` lokalna kopia zostaje:
    - `failed` z `checksum_mismatch` → „Ponów” (nowa sesja uploadu z lokalnego pliku);
    - `quarantined` → „Wymaga uwagi”;
-   - `failed` z `processing_error` (po `clean`) nie dotyczy oryginału — przetwarzanie ponawia serwer.
+   - `failed` z `processing_error` (po `clean`) nie dotyczy oryginału — serwer ponawia przetwarzanie (do trzech prób; niedostępność procesora nie zużywa prób); po wyczerpaniu prób ponowienie to świadoma operacja wg runbooka `media-processor.md`.
 
    *Wynik EVM-011 (Android, emulator):* rekomendacja potwierdzona jako ostrożna. W spike'u „potwierdzone przez serwer” oznaczało tylko zgodne SHA-256 obiektu w S3 (usunięcie lokalnego pliku odbywa się wyłącznie przy stanie `uploaded` **i** zgodnym SHA-256); produkcyjnym warunkiem pozostaje `clean` (SR-FILE-05). Do czasu `clean` oryginał zostaje także po `uploaded` i po weryfikacji SHA-256 przez klienta.
 

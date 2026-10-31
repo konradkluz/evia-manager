@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -71,5 +72,41 @@ describe('EVM-044 AC3 the worker scans only with both the storage and the scanne
     const lines = await runUntilReady({ ...MEDIA, CLAMD_SOCKET: 'tcp://127.0.0.1:9' });
     expect(lines.some(isOff)).toBe(false);
     expect(lines.some((line) => line['msg'] === 'worker: ready')).toBe(true);
+  }, 60_000);
+});
+
+const PROCESSOR = { MEDIA_PROCESSOR_SOCKET: '/tmp/evia-test-processor/p.sock', MEDIA_PROCESSOR_WORKDIR: '/tmp/evia-test-processor' };
+const processOff = (line: Record<string, unknown>): boolean => String(line['msg']).includes('the making of derivatives is off');
+
+describe('EVM-068 AC1 the worker makes derivatives only with the storage and the processor configured (fail fast in production)', () => {
+  it('EVM-068 AC1 outside production a worker with the scan but without the processor starts and says the derivatives are off', async () => {
+    const lines = await runUntilReady({ ...MEDIA, CLAMD_SOCKET: 'tcp://127.0.0.1:9' });
+    expect(lines.some(processOff)).toBe(true);
+    expect(lines.some((line) => line['msg'] === 'worker: ready')).toBe(true);
+  }, 60_000);
+
+  it('EVM-068 AC1 with the processor settings the loop starts and stops with the worker', async () => {
+    const lines = await runUntilReady({ ...MEDIA, CLAMD_SOCKET: 'tcp://127.0.0.1:9', ...PROCESSOR });
+    expect(lines.some(processOff)).toBe(false);
+    expect(lines.some((line) => line['msg'] === 'worker: ready')).toBe(true);
+  }, 60_000);
+
+  it('EVM-068 AC1 in production a worker that scans but has no processor refuses to start (no silent skipping)', async () => {
+    const production = (extra: Record<string, string>) =>
+      runWorkerFromProcess(
+        validEnv({
+          NODE_ENV: 'production',
+          DATABASE_URL: database.appUrl,
+          CURSOR_KEY: randomBytes(32).toString('base64url'), // generated per run, never committed
+          LOGIN_THROTTLE_KEY: randomBytes(32).toString('base64url'),
+          EMAIL_TRANSPORT: 'none',
+          ...MEDIA,
+          CLAMD_SOCKET: 'tcp://127.0.0.1:9',
+          ...extra,
+        }),
+        { stdout: new PassThrough(), signals: new EventEmitter() },
+        { healthFile: join(tmpdir(), `worker-media-health-prod-${String(process.pid)}`) },
+      );
+    await expect(production({})).rejects.toThrow('MEDIA_PROCESSOR_SOCKET');
   }, 60_000);
 });

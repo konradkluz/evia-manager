@@ -44,6 +44,8 @@ import {
   SLEEPER,
 } from './tokens.ts';
 import { runInTransaction } from './database/transactional.ts';
+import { createImageProcessor } from './media-processing/create-image-processor.ts';
+import { IMAGE_PROCESSOR } from './media-processing/image-processor.ts';
 import { createMalwareScanner } from './malware-scan/create-malware-scanner.ts';
 import { MALWARE_SCANNER } from './malware-scan/malware-scanner.ts';
 import { createObjectStorage } from './object-storage/create-object-storage.ts';
@@ -84,6 +86,8 @@ export class PlatformModule {
         // EVM-044: both are `null` without the media configuration (fail closed: the upload answers 503, nothing is scanned or served)
         { provide: OBJECT_STORAGE, useFactory: () => createObjectStorage(config.media) },
         { provide: MALWARE_SCANNER, useFactory: () => createMalwareScanner(config.media) },
+        // EVM-068: `null` without the processor settings - no derivatives are made and the photos stay `clean`
+        { provide: IMAGE_PROCESSOR, useFactory: () => createImageProcessor(config.media) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
         {
@@ -141,6 +145,7 @@ export class PlatformModule {
         BULK_READ_CONTROL,
         OBJECT_STORAGE,
         MALWARE_SCANNER,
+        IMAGE_PROCESSOR,
         DELETION_REGISTER,
       ],
     };

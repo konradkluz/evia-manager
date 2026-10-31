@@ -358,6 +358,11 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
     getUploadPartUrl: session('/parts/1/url'),
     completeUploadSession: session('/complete'),
     abortUploadSession: session('/abort'),
+    // EVM-068: the signed address of a derivative - "foreign" is the soft deleted order (the media of another LIVE order are in the test of the endpoint, with a valid body)
+    createMediaAssetDownloadUrl: {
+      own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/download-url`,
+      foreign: () => `${WORK_ORDERS}/${deleted}/media-assets/${mine.mediaAssetId}/download-url`,
+    },
     // EVM-049: the new scan of a quarantined file - "foreign" is a medium of another live order named in the path of the first
     rescanMediaAsset: {
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,

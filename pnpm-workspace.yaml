@@ -32,6 +32,11 @@ allowBuilds:
   # comes from optional dependencies, so the script stays blocked (SR-SUPPLY-06).
   unrs-resolver: false
 
+  # EVM-068: sharp 0.35.5 (Apache-2.0; services/media-processor) ships prebuilt libvips in the optional packages @img/sharp-* and
+  # @img/sharp-libvips-* (LGPL-3.0, dynamically linked, never modified; integrity pinned in the lockfile). Its only build script
+  # compiles from source when no prebuilt binary matches, which we never want (a compiler toolchain in the image), so it stays blocked (SR-SUPPLY-06).
+  sharp: false
+
 catalog:
   '@types/node': 26.6.3
   '@vitest/coverage-v8': 5.0.3
