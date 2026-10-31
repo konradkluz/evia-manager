@@ -46,6 +46,7 @@ beforeAll(async () => {
     '0055_sync_remaining_entities',
     '0056_sync_mutations',
     '0057_media_video',
+    '0059_documents',
   ]);
 });
 afterAll(async () => {
