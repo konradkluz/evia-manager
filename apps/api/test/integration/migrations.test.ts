@@ -247,6 +247,10 @@ describe('roles and privileges (EVM-016 AC7; ADR-0003, W7)', () => {
       'customer_count',
       'site_count',
       'entity_count',
+      // EVM-098 (0055): the applied mutation of the phone - the device, the order and the type of the command; never the text of an entry
+      'device_id',
+      'work_order_id',
+      'command_type',
     ]);
   });
 

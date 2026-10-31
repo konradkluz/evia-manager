@@ -52,6 +52,7 @@ import * as mobileTokens from './0051_mobile_tokens.ts';
 import * as mobileVocabularies from './0052_mobile_vocabularies.ts';
 import * as syncChangeLog from './0053_sync_change_log.ts';
 import * as syncRemainingEntities from './0054_sync_remaining_entities.ts';
+import * as syncMutations from './0055_sync_mutations.ts';
 
 export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0001_foundation': foundation,
@@ -106,4 +107,5 @@ export const MIGRATIONS: Readonly<Record<string, Migration>> = Object.freeze({
   '0052_mobile_vocabularies': mobileVocabularies,
   '0053_sync_change_log': syncChangeLog,
   '0054_sync_remaining_entities': syncRemainingEntities,
+  '0055_sync_mutations': syncMutations,
 });

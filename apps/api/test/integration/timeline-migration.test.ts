@@ -137,6 +137,8 @@ describe('migration 0020 — the journal of a work order (EVM-037 AC1, AC3, AC7;
       ['redacted_at', sql`redacted_at = ${T}, redacted_by = ${AUTHOR}`],
       ['created_at', sql`created_at = ${'2026-01-01T00:00:00Z'}`],
       ['created_by', sql`created_by = ${uuidv7()}`],
+      // EVM-098 (0055): the device of an entry from the phone is immutable too
+      ['created_via_device_id', sql`created_via_device_id = ${uuidv7()}`],
     ];
     for (const [column, set] of changes) {
       const target = column === 'supersedes_entry_id' ? corrected : original;
@@ -382,5 +384,64 @@ describe('migration 0042 - the redaction of an entry (EVM-040 AC2, AC5; ADR-0003
       app,
     );
     expect(await row(redacted)).toMatchObject({ body: MARKER, version: 4 });
+  });
+});
+
+describe('migration 0055 — the device of an entry from the phone (EVM-098 AC2, AC4; SR-SYNC-03; expand only)', () => {
+  const MARKER = 'Treść usunięta przez administratora 31.10.2026.';
+  const row = async (id: string) =>
+    (await sql<{ body: string; version: number }>`select body, version from timeline.timeline_entries where id = ${id}`.execute(admin()))
+      .rows[0];
+  const insertWithDevice = (orderId: string, origin: string, deviceId: string | null, id: string = uuidv7()) =>
+    sql`insert into timeline.timeline_entries
+        (id, work_order_id, kind, note_category, body, origin, created_at, created_by, created_via_device_id)
+      values (${id}, ${orderId}, 'comment', null, 'Treść syntetyczna', ${origin}, ${T}, ${AUTHOR}, ${deviceId})`.execute(app);
+
+  it('EVM-098 AC2 an entry from the phone has the device of the session and only such an entry has one; there is no foreign key to the register of devices', async () => {
+    const { orderId } = await insertOrder();
+    const device = uuidv7();
+    // a device that is not (or no longer) in identity.devices: no foreign key, the identifier is kept as long as the entry
+    await insertWithDevice(orderId, 'mobile', device);
+    await fails(insertWithDevice(orderId, 'mobile', null), '23514');
+    await fails(insertWithDevice(orderId, 'web', device), '23514');
+    // N-1 writes the panel's entries without naming the column
+    await insertEntry(orderId);
+    const { rows } = await sql<{ n: string }>`
+      select count(*)::text as n from pg_constraint
+      where conrelid = 'timeline.timeline_entries'::regclass and contype = 'f'
+        and pg_get_constraintdef(oid) like '%created_via_device_id%'`.execute(admin());
+    expect(rows[0]?.n).toBe('0');
+    const { rows: valid } = await sql<{ convalidated: boolean }>`
+      select convalidated from pg_constraint where conname = 'timeline_entries_device_of_mobile'`.execute(admin());
+    expect(valid[0]?.convalidated).toBe(true);
+  });
+
+  it('EVM-098 AC4 the device of an entry cannot be changed nor removed; the soft delete and the redaction of an entry from the phone still work', async () => {
+    const { orderId } = await insertOrder();
+    const id = uuidv7();
+    await insertWithDevice(orderId, 'mobile', uuidv7(), id);
+    await fails(sql`update timeline.timeline_entries set created_via_device_id = ${uuidv7()} where id = ${id}`.execute(app), 'EV001');
+    await fails(sql`update timeline.timeline_entries set created_via_device_id = null where id = ${id}`.execute(admin()), 'EV001');
+    await sql`update timeline.timeline_entries set body = ${MARKER}, redacted_at = ${T}, redacted_by = ${AUTHOR}, version = version + 1
+      where id = ${id}`.execute(app);
+    await sql`update timeline.timeline_entries set deleted_at = ${T}, deleted_by = ${AUTHOR}, version = version + 1 where id = ${id}`.execute(
+      app,
+    );
+    expect(await row(id)).toMatchObject({ body: MARKER, version: 3 });
+  });
+
+  it('EVM-098 AC8 the audit trail takes the device, the order and the type of the command all together or none, and a type of a closed list only', async () => {
+    const event = (device: string | null, order: string | null, command: string | null) =>
+      sql`insert into audit.events (occurred_at, actor_type, origin, action, outcome, object_type, trace_id, device_id, work_order_id, command_type)
+        values (now(), 'system', 'web', 'sync.mutation_applied', 'success', 'timeline_entry', ${'0'.repeat(32)}, ${device}, ${order}, ${command})`.execute(
+        admin(),
+      );
+    await event(uuidv7(), uuidv7(), 'CreateNote');
+    await event(uuidv7(), uuidv7(), 'CreateComment');
+    await event(null, null, null);
+    await fails(event(uuidv7(), uuidv7(), 'DeleteEverything'), '23514');
+    await fails(event(uuidv7(), null, 'CreateNote'), '23514');
+    await fails(event(null, uuidv7(), 'CreateNote'), '23514');
+    await fails(event(uuidv7(), uuidv7(), null), '23514');
   });
 });
