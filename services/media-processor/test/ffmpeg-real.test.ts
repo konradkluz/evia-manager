@@ -1,6 +1,6 @@
 /**
  * The real ffprobe and ffmpeg against SYNTHETIC films made by ffmpeg itself (lavfi sources: no binary file in the repository, no real recording).
- * They run where the tools are installed (the image of the processor, the image of the tests) and are skipped elsewhere - the rules and the command
+ * They run where the tools are installed (the image of the processor, the image of the tests; there EVIA_REQUIRE_FFMPEG=1 makes a missing tool a failure) and are skipped elsewhere - the rules and the command
  * lines are covered without the tools by run-video.test.ts.
  */
 import { execFileSync } from 'node:child_process';
@@ -46,7 +46,14 @@ function synthetic(target: string, options: { seconds?: number; size?: string; c
   );
 }
 
-describe.skipIf(!available)('EVM-046 AC2 AC4 the real tools on synthetic films', () => {
+// Where EVIA_REQUIRE_FFMPEG=1 (the image backend-tests, so the gate and CI) the tools must exist: a missing tool fails, it is never a skip.
+const required = process.env.EVIA_REQUIRE_FFMPEG === '1';
+
+describe.skipIf(!available && !required)('EVM-046 AC2 AC4 the real tools on synthetic films', () => {
+  it('EVM-046 AC2 AC4 ffmpeg and ffprobe are installed where they are required', () => {
+    expect(available).toBe(true);
+  });
+
   it('EVM-046 AC4 the preview and the frame carry none of the tags of the input (P3: no location, title or time)', async () => {
     const dir = await directory();
     synthetic(join(dir, 'input'));
@@ -65,6 +72,9 @@ describe.skipIf(!available)('EVM-046 AC2 AC4 the real tools on synthetic films',
       join(dir, 'preview.mp4'),
     ]);
     expect(tags.toString()).not.toMatch(/location|title|creation_time/i);
+    // at the level of the container only the structural brands of the format remain: no encoder tag, no title, no time, no place
+    const format = (JSON.parse(tags.toString()) as { format: { tags?: Record<string, string> } }).format.tags ?? {};
+    expect(Object.keys(format).filter((key) => !['major_brand', 'minor_version', 'compatible_brands'].includes(key))).toEqual([]);
     expect((await sharp(join(dir, 'thumbnail.webp')).metadata()).exif).toBeUndefined();
   });
 

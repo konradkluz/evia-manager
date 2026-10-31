@@ -148,6 +148,16 @@ describe('compose.yaml checker (EVM-006 AC1; A6, W9)', () => {
     const bad = 'FROM node:26\nARG PNPM_VERSION=12.0.0\nRUN apt-get update && curl -fsSL x | sh\nUSER root\n';
     expect(dockerfileProblems(bad, '12.8.1')).toHaveLength(5);
   });
+
+  it('EVM-046 AC2 (W9): only the pinned ffmpeg may be installed with apt-get; any other package, an unpinned ffmpeg or recommended packages stay forbidden', () => {
+    const head = `FROM node:26.10.0-trixie-slim@sha256:${DIGEST}\nARG PNPM_VERSION=12.8.1\nRUN npm install --global "pnpm@\${PNPM_VERSION}" --ignore-scripts\n`;
+    const install = (args: string) =>
+      `RUN apt-get update \\\n && apt-get install -y ${args} \\\n && rm -rf /var/lib/apt/lists/*\nUSER node\n`;
+    expect(dockerfileProblems(head + install('--no-install-recommends "ffmpeg=${FFMPEG_VERSION}"'), '12.8.1')).toEqual([]);
+    expect(dockerfileProblems(head + install('--no-install-recommends ffmpeg'), '12.8.1')).toHaveLength(1);
+    expect(dockerfileProblems(head + install('"ffmpeg=${FFMPEG_VERSION}"'), '12.8.1')).toHaveLength(1);
+    expect(dockerfileProblems(head + install('--no-install-recommends "ffmpeg=${FFMPEG_VERSION}" curl'), '12.8.1')).toHaveLength(1);
+  });
 });
 
 describe('workflow checkers (EVM-006 AC4; A2, A6, A7, W6)', () => {

@@ -139,7 +139,7 @@ async function probeFile(path: string, tools: VideoTools): Promise<VideoProbeInf
   const result = await tools.run(
     tools.ffprobe,
     [
-      ...['-v', 'error', '-nostdin', '-probesize', '5000000', '-analyzeduration', '5000000'],
+      ...['-v', 'error', '-probesize', '5000000', '-analyzeduration', '5000000'],
       ...INPUT_FLAGS,
       ...['-print_format', 'json'],
       ...['-show_entries', 'format=format_name,duration:stream=codec_type,codec_name,width,height,duration,r_frame_rate'],

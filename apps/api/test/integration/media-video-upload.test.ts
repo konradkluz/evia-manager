@@ -107,6 +107,30 @@ describe('EVM-046 AC1 AC6 adding a film', () => {
     expect((await anonymous.post(`${BASE}/${orderId}/media-assets`, { items: [] })).status).toBe(401);
   });
 
+  it('EVM-046 AC7 adding a film creates the audit record media_asset.created and the journal entry media_assets_added, with no file name in either', async () => {
+    const orderId = await order();
+    const editor = await signIn('editor');
+    const item = film_item(film(), { fileName: 'Kowalski-ul-Kwiatowa-7.mp4' });
+    const response = await createMedia(editor, orderId, [item]);
+    expect(response.status).toBe(201);
+    const audited = (
+      await sql<
+        Record<string, unknown>
+      >`select * from audit.events where action = 'media_asset.created' and object_id = ${item.id}`.execute(admin())
+    ).rows;
+    expect(audited).toHaveLength(1);
+    expect(audited[0]).toMatchObject({ actor_user_id: editor.userId, outcome: 'success', object_type: 'media_asset' });
+    const journal = (
+      await sql<{ event_payload: Record<string, unknown> }>`
+        select event_payload from timeline.timeline_entries where work_order_id = ${orderId} and event_code = 'media_assets_added'`.execute(
+        admin(),
+      )
+    ).rows;
+    expect(journal).toHaveLength(1);
+    expect(journal[0]?.event_payload).toEqual({ objectType: 'work_order', objectId: orderId, count: 1, mediaAssetIds: [item.id] });
+    expect(JSON.stringify([audited, journal])).not.toContain('Kowalski');
+  });
+
   it('EVM-046 AC1 exactly 4 GiB is accepted and one byte more is file_too_large; a photo is still limited to 50 MB; the type of the file and its name must agree', async () => {
     const orderId = await order();
     const editor = await signIn('editor');

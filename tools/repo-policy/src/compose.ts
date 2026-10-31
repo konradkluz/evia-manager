@@ -154,7 +154,12 @@ export function dockerfileProblems(content: string, pnpmVersion: string): string
   const froms = lines.filter((line) => /^\s*FROM\s/i.test(line));
   if (froms.length === 0 || !froms.every((line) => /:[\w.-]+@sha256:[0-9a-f]{64}/.test(line)))
     problems.push('Dockerfile: każde FROM musi mieć tag i digest');
-  if (/\b(apt-get|apt|apk|yum|dnf|curl|wget)\b/.test(content.replace(/^#.*$/gm, '')))
+  // The one exception (EVM-046): ffmpeg in the exact version of ARG FFMPEG_VERSION, no recommended packages, for the real-tool tests.
+  const withoutAllowed = content
+    .replace(/^#.*$/gm, '')
+    .replace(/apt-get update \\\r?\n && apt-get install -y --no-install-recommends "ffmpeg=\$\{FFMPEG_VERSION\}" \\\r?\n/, '')
+    .replace('/var/lib/apt/lists/*', '');
+  if (/\b(apt-get|apt|apk|yum|dnf|curl|wget)\b/.test(withoutAllowed))
     problems.push('Dockerfile: zabronione pobieranie pakietów systemowych i plików (apt-get, curl, wget …)');
   if (!content.includes('npm install --global "pnpm@${PNPM_VERSION}" --ignore-scripts'))
     problems.push('Dockerfile: pnpm instalowany wyłącznie jako npm install --global "pnpm@${PNPM_VERSION}" --ignore-scripts');
