@@ -166,7 +166,10 @@ export class MobileSessionOwner implements SessionOwner {
       if (result.kind !== 'unlocked') return { kind: 'device_check', result };
       if (data !== null) {
         this.#pending = null;
-        if (result.store.userId !== data.user.id) return { kind: 'failed' };
+        if (result.store.userId !== data.user.id) {
+          await this.#discard(data);
+          return { kind: 'failed' };
+        }
         return this.#commit(result.store, data);
       }
       const meta = parseSessionMeta(await this.#deps.tokens.get('sessionMeta').catch(() => null));
@@ -180,9 +183,27 @@ export class MobileSessionOwner implements SessionOwner {
     });
   }
 
-  /** The device check was cancelled: the session of step 2 is dropped from memory (nothing was stored). */
-  abandonSignIn(): void {
-    this.#pending = null;
+  /**
+   * The device check was cancelled: the session of step 2 is dropped from memory (nothing was stored) and ended on the server, so it
+   * neither stays valid for 14 idle days nor counts towards the device limit of the user (code review, RR-72). Never rejects.
+   */
+  abandonSignIn(): Promise<void> {
+    return this.#exclusive(async () => {
+      const data = this.#pending;
+      this.#pending = null;
+      if (data !== null) await this.#discard(data);
+    });
+  }
+
+  /**
+   * Ends a session of step 2 that is not kept (abandoned, refused or not stored): a best-effort logout with its access token; when the
+   * server cannot be asked (network, 5xx, 429, 426) its refresh token becomes a pending revocation, sent at the next connection.
+   * Runs inside the lock of the caller.
+   */
+  async #discard(data: SessionData): Promise<void> {
+    const outcome = await this.#deps.client.logout(data.accessToken).catch((): AuthFailure => ({ kind: 'unavailable' }));
+    if (outcome.kind === 'ok' || isAuthEnd(outcome)) return;
+    await this.#writePending([...(await this.#readPending()), data.refreshToken]).catch(() => undefined);
   }
 
   async #commit(store: UnlockedStore, data: SessionData): Promise<SessionStep> {
@@ -191,8 +212,9 @@ export class MobileSessionOwner implements SessionOwner {
     try {
       if (data.installationSecret !== undefined) await store.identity.write({ deviceId: data.deviceId, secret: data.installationSecret });
     } catch {
-      // the old secret stays valid on the server (RR-69): the sign-in fails, nothing else is stored
+      // the old secret stays valid on the server (RR-69): the sign-in fails, nothing else is stored, the new session is ended
       store.lock();
+      await this.#discard(data);
       return { kind: 'failed' };
     }
     const mark = checkpoint(data.serverTime, clock);
@@ -210,6 +232,7 @@ export class MobileSessionOwner implements SessionOwner {
     } catch {
       await tokens.delete('refreshToken').catch(() => undefined);
       store.lock();
+      await this.#discard(data);
       return { kind: 'failed' };
     }
     // the same installation was recognised: the server already ended its earlier sessions ('rotated') — a pending revocation of

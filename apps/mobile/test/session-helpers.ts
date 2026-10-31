@@ -40,6 +40,7 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
     },
     abandonSignIn: () => {
       owner.calls.push('abandon');
+      return Promise.resolve();
     },
     signOut: ({ online }) => {
       owner.calls.push(`signOut:${online ? 'online' : 'offline'}`);

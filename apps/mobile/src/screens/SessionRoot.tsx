@@ -60,8 +60,9 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         setView({ kind: 'dataLost', check: step.result });
         return 'done';
       }
-      // the other device checks belong to EVM-101/EVM-107; until then the session of step 2 is dropped (nothing was stored)
-      owner.abandonSignIn();
+      // the other device checks belong to EVM-101/EVM-107; until then the session of step 2 is dropped (nothing was stored) and
+      // ended on the server (the owner keeps a pending revocation when it cannot ask)
+      void owner.abandonSignIn();
       setView({ kind: 'signIn' });
       return 'failed';
     },

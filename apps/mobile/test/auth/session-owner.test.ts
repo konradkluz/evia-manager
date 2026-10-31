@@ -59,7 +59,9 @@ describe('sign-in commit (EVM-100 AC1; architect 1, security W2)', () => {
       expect(await rig.owner.currentUserId()).toBeNull();
       expect(await rig.owner.accessToken()).toBeNull();
       expect(rig.client.calls).toEqual([]);
-      rig.owner.abandonSignIn();
+      await rig.owner.abandonSignIn();
+      expect(rig.client.calls).toEqual([`logout:${token('access-1')}`]);
+      expect(phone.slots.size).toBe(0);
       expect(await rig.owner.continueDeviceCheck({ kind: 'wipe_incomplete' })).toEqual({
         kind: 'device_check',
         result: { kind: 'wipe_incomplete' },
@@ -138,6 +140,119 @@ describe('sign-in commit (EVM-100 AC1; architect 1, security W2)', () => {
       }
       expect(restarted.client.calls).toEqual([]);
     }
+  });
+});
+
+describe('a session of step 2 that is not kept is ended on the server (EVM-100 AC1; code review: device limit, RR-72)', () => {
+  it('EVM-100 AC1: abandoning the device check logs the session of step 2 out at once; nothing is stored', async () => {
+    phone.owner = USER_B;
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    await rig.owner.abandonSignIn();
+    expect(rig.client.calls).toEqual([`logout:${token('access-1')}`]);
+    expect(phone.slots.size).toBe(0);
+    await rig.owner.abandonSignIn();
+    expect(rig.client.calls).toHaveLength(1);
+  });
+
+  it('EVM-100 AC1: abandoning without a session of step 2 sends nothing', async () => {
+    const rig = start(phone);
+    await rig.owner.abandonSignIn();
+    expect(rig.client.calls).toEqual([]);
+    expect(phone.slots.size).toBe(0);
+  });
+
+  it('EVM-100 AC1: a logout that fails on the network keeps the refresh token of step 2 as a pending revocation, sent at the next connection', async () => {
+    phone.openAs = 'unavailable';
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    rig.client.logoutScript.push(unavailable);
+    await rig.owner.abandonSignIn();
+    expect(pending()).toEqual([token('refresh-1')]);
+    expect(phone.slots.has('refreshToken')).toBe(false);
+    expect(phone.slots.has('sessionMeta')).toBe(false);
+    rig.client.refreshScript.push(ok(issued({ n: 2 })));
+    await rig.owner.flushPendingRevocation();
+    expect(rig.client.calls).toEqual([`logout:${token('access-1')}`, `refresh:${token('refresh-1')}`, `logout:${token('access-2')}`]);
+    expect(phone.slots.has('revocationToken')).toBe(false);
+  });
+
+  it.each([
+    ['500', problem(500, 'internal')],
+    ['429', problem(429, 'rate_limited')],
+    ['426', problem(426, 'update_required')],
+  ] as const)('EVM-100 AC1: a logout answered %s keeps the pending revocation', async (_label, outcome) => {
+    phone.openAs = 'update_required';
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    rig.client.logoutScript.push(outcome);
+    await rig.owner.abandonSignIn();
+    expect(pending()).toEqual([token('refresh-1')]);
+  });
+
+  it('EVM-100 AC1: a logout answered 401/403 needs no pending revocation (the session is already over)', async () => {
+    for (const outcome of [problem(401, 'session_revoked'), problem(403, 'forbidden')]) {
+      phone = newPhone();
+      phone.openAs = 'wipe_incomplete';
+      const rig = start(phone);
+      await rig.owner.completeSignIn(issued());
+      rig.client.logoutScript.push(outcome);
+      await rig.owner.abandonSignIn();
+      expect(phone.slots.has('revocationToken')).toBe(false);
+    }
+  });
+
+  it('EVM-100 AC1: a pending revocation that cannot be stored does not break the abandon', async () => {
+    phone.openAs = 'unavailable';
+    phone.faults.set('set:revocationToken', 'fail');
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    rig.client.logoutScript.push(unavailable);
+    await expect(rig.owner.abandonSignIn()).resolves.toBeUndefined();
+    expect(phone.slots.size).toBe(0);
+  });
+
+  it('EVM-100 AC1: a logout that throws is treated like no network (the pending revocation stays)', async () => {
+    phone.openAs = 'unavailable';
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    rig.client.logout = () => Promise.reject(new Error('boom'));
+    await expect(rig.owner.abandonSignIn()).resolves.toBeUndefined();
+    expect(pending()).toEqual([token('refresh-1')]);
+  });
+
+  it('EVM-100 AC1: a store unlocked for another user ends the session of step 2 on the server', async () => {
+    phone.openAs = 'unavailable';
+    const rig = start(phone);
+    await rig.owner.completeSignIn(issued());
+    phone.openAs = null;
+    const other = await rig.host.openForUser(USER_B);
+    expect(await rig.owner.continueDeviceCheck(other)).toEqual({ kind: 'failed' });
+    expect(rig.client.calls).toEqual([`logout:${token('access-1')}`]);
+    expect(phone.slots.size).toBe(0);
+  });
+
+  it.each(['identity.write', 'set:refreshToken', 'set:sessionMeta'])(
+    'EVM-100 AC1: a commit that fails at %s ends the session of step 2 on the server and keeps no session token',
+    async (write) => {
+      phone.faults.set(write, 'fail');
+      const rig = start(phone);
+      expect(await rig.owner.completeSignIn(issued())).toEqual({ kind: 'failed' });
+      expect(rig.client.calls).toEqual([`logout:${token('access-1')}`]);
+      expect(phone.slots.has('refreshToken')).toBe(false);
+      expect(phone.slots.has('sessionMeta')).toBe(false);
+      expect(phone.slots.has('revocationToken')).toBe(false);
+    },
+  );
+
+  it('EVM-100 AC1: a failed commit offline keeps the refresh token of step 2 only as a pending revocation', async () => {
+    phone.faults.set('set:sessionMeta', 'fail');
+    const rig = start(phone);
+    rig.client.logoutScript.push(unavailable);
+    expect(await rig.owner.completeSignIn(issued())).toEqual({ kind: 'failed' });
+    expect(phone.slots.has('refreshToken')).toBe(false);
+    expect(pending()).toEqual([token('refresh-1')]);
+    expect(await start(phone).owner.restore()).toEqual({ kind: 'signed_out' });
   });
 });
 
@@ -609,10 +724,10 @@ describe('sign-out and the pending revocation (EVM-100 AC7; architect 3, securit
     await rig.owner.completeSignIn(issued({ n: 2 }));
     await rig.owner.flushPendingRevocation();
     expect(rig.client.calls).toEqual([]);
-    rig.owner.abandonSignIn();
+    await rig.owner.abandonSignIn();
     rig.client.refreshScript.push(unavailable);
     await rig.owner.flushPendingRevocation();
-    expect(rig.client.calls).toEqual([`refresh:${token('refresh-1')}`]);
+    expect(rig.client.calls).toEqual([`logout:${token('access-2')}`, `refresh:${token('refresh-1')}`]);
   });
 
   it('EVM-100 AC7 (W1d): the HTTP calls of the sign-in steps are serialised with the revocation', async () => {
