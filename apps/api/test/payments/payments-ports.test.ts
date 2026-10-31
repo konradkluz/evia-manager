@@ -5,6 +5,7 @@ import { PaymentsCompositionContributor } from '../../src/modules/payments/appli
 import { PaymentsTransitionParticipant } from '../../src/modules/payments/application/payments-transition-participant.ts';
 import { amountFromDatabase } from '../../src/modules/payments/infrastructure/milestone-store.ts';
 import {
+  CompositionRejectedError,
   WorkOrderCompositionRegistry,
   WorkOrderTransitionRegistry,
   type CompositionContext,
@@ -64,6 +65,16 @@ describe('the contributor of the payment milestones (EVM-053 AC1; SR-API-06)', (
   it('EVM-053 AC1 fail closed: a plan of 21 milestones fails the creation before any write; nothing is cut off', async () => {
     const { contributor, context } = contributorWith(plan(21));
     await expect(contributor.contribute(TRANSACTION, context(uuidv7()))).rejects.toThrow(/more than 20 milestones/);
+  });
+
+  it('EVM-099 AC5 the plan of 21 milestones is told to work-orders as CompositionRejectedError (the phone gets template_unavailable, not a 500), with the cause kept', async () => {
+    const { contributor, context } = contributorWith(plan(21));
+    const error = await contributor.contribute(TRANSACTION, context(uuidv7())).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(CompositionRejectedError);
+    expect((error as Error).cause).toBeInstanceOf(Error);
   });
 });
 

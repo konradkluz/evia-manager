@@ -64,8 +64,9 @@ export class WorkOrderCompositionRegistry {
  * `template_unavailable`.
  */
 export class CompositionRejectedError extends Error {
-  constructor(options?: { readonly cause: unknown }) {
-    super('the composition of the template passes a limit', options);
+  /** @param message the message of the limit error of the contributor (a reason code, no data) */
+  constructor(message: string, options?: { readonly cause: unknown }) {
+    super(message, options);
     this.name = 'CompositionRejectedError';
   }
 }

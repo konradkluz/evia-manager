@@ -60,7 +60,7 @@ function planned(brought: Parameters<typeof planProcedures>[0], context: Composi
   try {
     return planProcedures(brought, context.scopeItems);
   } catch (error) {
-    if (error instanceof CompositionLimitError) throw new CompositionRejectedError({ cause: error });
+    if (error instanceof CompositionLimitError) throw new CompositionRejectedError(error.message, { cause: error });
     throw error;
   }
 }

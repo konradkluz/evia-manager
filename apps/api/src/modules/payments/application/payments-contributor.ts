@@ -56,7 +56,7 @@ function planned(plan: Parameters<typeof planMilestones>[0]): ReturnType<typeof 
   try {
     return planMilestones(plan);
   } catch (error) {
-    if (error instanceof PaymentPlanLimitError) throw new CompositionRejectedError({ cause: error });
+    if (error instanceof PaymentPlanLimitError) throw new CompositionRejectedError(error.message, { cause: error });
     throw error;
   }
 }
