@@ -7,8 +7,8 @@
 # (EVM-046, SR-SUPPLY-06: the build fails without FFMPEG_VERSION); non-root; the process runs `src/main.ts` with type stripping, no build step.
 # EVM-046 departs from the distroless runtime of EVM-068: ffprobe and ffmpeg are programs with many shared libraries, which the distroless image does not have.
 # The container stays closed by its configuration, not by the image alone (no network, read-only root, no capabilities - compose.media.yaml). The build of
-# ffmpeg in Debian is GPL (libx264); the image is not redistributed, so it falls under the exception of the licence scan for server tools (docs/security/requirements.md,
-# scan 4: ffmpeg is listed; `.trivyignore.yaml` carries the justification and the date, SR-SUPPLY-06).
+# ffmpeg in Debian is GPL (libx264); the image is not redistributed (server tool, scan 4 in docs/security/requirements.md lists ffmpeg). It is an OS package, so the library licence scan
+# (`--pkg-types library`) does not see it and no `.trivyignore.yaml` entry is needed; exception noted 2026-10-31 (SR-SUPPLY-06, as libvips in EVM-068).
 FROM --platform=$BUILDPLATFORM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS pnpm
 
 # renovate: datasource=npm depName=pnpm
