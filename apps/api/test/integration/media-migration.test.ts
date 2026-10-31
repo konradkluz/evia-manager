@@ -92,7 +92,7 @@ describe('migration 0045 — media (EVM-044 AC1, AC6; ADR-0009; expand only)', (
     await fails(insertFile({ assetId, state: 'clean', reason: 'checksum_mismatch' }), '23514');
     await fails(insertFile({ assetId, state: 'quarantined', reason: 'unknown_reason' }), '23514');
     await fails(insertFile({ assetId, state: 'archived' }), '23514');
-    await fails(insertFile({ assetId, size: 52_428_801 }), 'EV002'); // the trigger of 0055 (the limit of a photo) answers before the CHECK
+    await fails(insertFile({ assetId, size: 52_428_801 }), 'EV002'); // the trigger of 0057 (the limit of a photo) answers before the CHECK
     await fails(insertFile({ assetId, sha: 'NOT-HEX' }), '23514');
     await insertFile({ assetId, state: 'quarantined', reason: 'malware_detected' });
     await fails(insertFile({ assetId }), '23505');
@@ -279,7 +279,7 @@ describe('migration 0053 — the derivatives of a file (EVM-068; expand only)', 
   });
 });
 
-describe('migration 0055 — videos (EVM-046; expand only)', () => {
+describe('migration 0057 — videos (EVM-046; expand only)', () => {
   const videoFile = async (spec: FileSpec = {}) => {
     const assetId = uuidv7();
     await insertAsset(assetId, { mediaType: 'video', category: 'measurement' });

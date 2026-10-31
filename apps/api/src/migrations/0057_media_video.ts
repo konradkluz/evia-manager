@@ -1,8 +1,8 @@
 /**
- * 0055 — videos in a work order (EVM-046; ADR-0009; P5; domain-model.md D6). Expand only: nothing is dropped, renamed or retyped; the constraints
+ * 0057 — videos in a work order (EVM-046; ADR-0009; P5; domain-model.md D6). Expand only: nothing is dropped, renamed or retyped; the constraints
  * that change are replaced under their own names with ones that admit a superset of the old values.
  *
- * Numbering: 0053 is `media_derivatives` on this branch; another track also owns a 0053 and a 0054, so this one takes the next free number (0055).
+ * Numbering: 0053 is `media_derivatives` on main; track A (EVM-096–098) owns 0054–0056, so this one takes 0057 (renumbered from 0055).
  *
  * - `media.stored_files`: the limit of the size grows to 4 GiB (`bigint` already); the limit PER TYPE (photo 50 MB, video 4 GiB) is kept in
  *   the database by a trigger that reads `media_assets.media_type`, not left to the application alone.

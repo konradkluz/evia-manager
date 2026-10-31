@@ -51,9 +51,9 @@ export interface StoredFilesTable {
   process_attempts: Generated<number>;
   /** When the loop last took the file (`null` until then): a take that never finished is retried only after the stale period. */
   process_claimed_at: Generated<Date | null>;
-  /** Whole seconds of a video, written once after the structural check (migration 0055); `null` for a photo and before the probe. */
+  /** Whole seconds of a video, written once after the structural check (migration 0057); `null` for a photo and before the probe. */
   duration_seconds: Generated<number | null>;
-  /** `true` after the antivirus, `false` for a video above the scan limit, `null` before the scan (migration 0055: no default - fail closed). */
+  /** `true` after the antivirus, `false` for a video above the scan limit, `null` before the scan (migration 0057: no default - fail closed). */
   av_scanned: Generated<boolean | null>;
 }
 

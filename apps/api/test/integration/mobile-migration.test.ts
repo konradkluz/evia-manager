@@ -37,7 +37,7 @@ beforeAll(async () => {
     '0051_mobile_tokens',
     '0052_mobile_vocabularies',
     '0053_media_derivatives',
-    '0055_media_video',
+    '0057_media_video',
   ]);
 });
 afterAll(async () => {
