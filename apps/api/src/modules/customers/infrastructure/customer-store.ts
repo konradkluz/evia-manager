@@ -38,7 +38,13 @@ const COLUMNS = [
  * INSERT only: an existing identifier — also of a soft-deleted customer — inserts nothing (`undefined`), whatever the content, and
  * the caller answers `409 id_conflict` without a word about the existing row.
  */
-export function insertCustomer(db: CustomersDb, customer: NewCustomer, actorUserId: string, now: Date) {
+export function insertCustomer(
+  db: CustomersDb,
+  customer: NewCustomer,
+  actorUserId: string,
+  now: Date,
+  createdViaDeviceId: string | null = null,
+) {
   return db
     .insertInto('customers.customers')
     .values({
@@ -63,10 +69,25 @@ export function insertCustomer(db: CustomersDb, customer: NewCustomer, actorUser
       updated_by: actorUserId,
       deleted_at: null,
       deleted_by: null,
+      created_via_device_id: createdViaDeviceId,
     })
     .onConflict((conflict) => conflict.column('id').doNothing())
     .returning(COLUMNS)
     .executeTakeFirst();
+}
+
+/**
+ * How many customers the device has created since `since` (EVM-099 AC7): ALL rows, a deleted or anonymized one too, so a deletion does not reset the limit.
+ * The window is the time of the server (`created_at`), never a time from the phone (SR-SYNC-05); the partial index of 0058 serves it.
+ */
+export async function countCustomersCreatedBy(db: CustomersDb, deviceId: string, since: Date): Promise<number> {
+  const row = await db
+    .selectFrom('customers.customers')
+    .select((eb) => eb.fn.countAll<string>().as('total'))
+    .where('created_via_device_id', '=', deviceId)
+    .where('created_at', '>', since)
+    .executeTakeFirstOrThrow();
+  return Number(row.total);
 }
 
 export function findVisibleCustomer(db: CustomersDb, principal: Principal, id: string) {

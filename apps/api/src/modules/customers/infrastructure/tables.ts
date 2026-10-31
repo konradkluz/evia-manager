@@ -36,6 +36,8 @@ export interface CustomersTable {
   /** The mark "anonymized" (EVM-041, migration 0043): set once, never cleared; the personal columns hold the neutral values. */
   anonymized_at: Generated<Date | null>;
   anonymized_by: Generated<string | null>;
+  /** The device of the session that created the customer from the phone (EVM-099; 0058); `NULL` for the panel. Kept by the anonymization: it is a datum of the worker. */
+  created_via_device_id: Generated<string | null>;
 }
 
 export type CustomerTables = { 'customers.customers': CustomersTable };

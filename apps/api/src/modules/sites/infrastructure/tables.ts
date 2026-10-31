@@ -31,6 +31,8 @@ export interface SitesTable {
   version: Generated<number>;
   deleted_at: Date | null;
   deleted_by: string | null;
+  /** The device of the session that created the site from the phone (EVM-099; 0058); `NULL` for the panel. */
+  created_via_device_id: Generated<string | null>;
 }
 
 export type SiteTables = { 'sites.sites': SitesTable };
