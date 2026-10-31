@@ -31,6 +31,8 @@ export interface QueueItem {
   readonly name: string;
   readonly size: number;
   readonly status: ItemStatus;
+  /** A film is told apart in the texts ("Wysłano film — możesz go usunąć z telefonu."). */
+  readonly kind: 'photo' | 'video';
   /** 0 … 100 of the bytes of the confirmed parts and of the part in flight. */
   readonly percent: number;
   readonly failure: FailureKind | null;
@@ -171,6 +173,7 @@ export class UploadEngine {
           key,
           name: file.name,
           size: file.size,
+          kind: (options.contentTypes.get(file) ?? file.type).startsWith('video/') ? 'video' : 'photo',
           status: 'hashing',
           percent: 0,
           failure: null,

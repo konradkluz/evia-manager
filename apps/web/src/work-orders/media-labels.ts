@@ -42,6 +42,11 @@ export function formatDuration(totalSeconds: number): string {
   return hours > 0 ? `${String(hours)}:${String(minutes).padStart(2, '0')}:${rest}` : `${String(minutes)}:${rest}`;
 }
 
+/** Genitive after a negation: "Nie wysłano 2 filmów". */
+export function videosNotSent(count: number): string {
+  return count === 1 ? 'Nie wysłano 1 filmu' : `Nie wysłano ${String(count)} filmów`;
+}
+
 /** Genitive after a negation: "Nie wysłano 1 zdjęcia", "Nie wysłano 3 zdjęć". */
 export function photosNotSent(count: number): string {
   return count === 1 ? 'Nie wysłano 1 zdjęcia' : `Nie wysłano ${String(count)} zdjęć`;
@@ -113,8 +118,8 @@ export const mediaText = {
   removeFromChoice: (name: string) => `Usuń z wyboru: ${name}`,
   removeFromChoiceShort: 'Usuń z wyboru',
   skipped: (count: number) => (count === 1 ? 'Pominięto 1 plik:' : `Pominięto ${filesCount(count)}:`),
-  unsupportedFormat: (name: string) =>
-    `Plik „${name}” ma nieobsługiwany format. Wybierz zdjęcie JPEG, HEIC, PNG albo WebP albo film MP4 albo MOV.`,
+  unsupportedFormat: (name: string) => `Plik „${name}” ma nieobsługiwany format. Wybierz zdjęcie JPEG, HEIC, PNG albo WebP.`,
+  unsupportedVideoFormat: (name: string) => `Plik „${name}” ma nieobsługiwany format. Wybierz film MP4 albo MOV.`,
   tooLarge: (name: string, video = false) =>
     video
       ? `Plik „${name}” jest większy niż 4 GB. Wybierz krótszy film.`
@@ -190,10 +195,36 @@ export const mediaText = {
   resumeFile: (name: string) => `Wznów wysyłanie: ${name}`,
   retry: 'Ponów',
   retryFile: (name: string) => `Ponów wysyłanie: ${name}`,
-  sentAll: (count: number) => `Wysłano ${photosCount(count)} — możesz je usunąć z telefonu. Potem opróżnij kosz galerii.`,
+  // EVM-046 AC8: a film is told apart ("Wysłano film — możesz go usunąć z telefonu."), photos and films together are counted apart
+  sentAll: (count: number, videos = 0) => {
+    const photos = count - videos;
+    const what =
+      videos === 0
+        ? photosCount(photos)
+        : photos === 0
+          ? videos === 1
+            ? 'film'
+            : videosCount(videos)
+          : `${photosCount(photos)} i ${videosCount(videos)}`;
+    return `Wysłano ${what} — możesz ${count === 1 ? (videos === 1 ? 'go' : 'je') : 'je'} usunąć z telefonu. Potem opróżnij kosz galerii.`;
+  },
+  largeVideo: (bytes: number, count: number) =>
+    `${count === 1 ? 'Film ma' : 'Wybrane filmy mają razem'} ${formatBytes(bytes)}. Przez sieć komórkową wysyłanie zużyje pakiet danych i może potrwać długo — najlepiej wyślij przez Wi-Fi.`,
+  largeVideoLabel: 'Duży film',
+  togetherWith: (videos: number, others: string) => `Razem z ${videos === 1 ? 'filmem' : 'filmami'} wyślemy ${others}.`,
+  sendNow: 'Wyślij teraz',
+  unfinishedBannerFor: (kind: 'photo' | 'video' | 'mixed') =>
+    kind === 'photo'
+      ? 'Niedokończone wysyłanie zdjęć'
+      : kind === 'video'
+        ? 'Niedokończone wysyłanie filmów'
+        : 'Niedokończone wysyłanie plików',
+  unfinishedVideo: (name: string) => `Nie wysłano filmu „${name}” — wybierz go ponownie z galerii.`,
+  unfinishedVideos: (count: number) => `${videosNotSent(count)} — wybierz je ponownie z galerii.`,
+  unfinishedFiles: (count: number) =>
+    `${count === 1 ? 'Nie wysłano 1 pliku' : `Nie wysłano ${String(count)} plików`} — wybierz je ponownie z galerii.`,
   sentSome: (done: number, total: number) => `Wysłano ${String(done)} z ${String(total)} plików.`,
   startFailed: 'Nie udało się rozpocząć wysyłania. Spróbuj ponownie — nie dodamy plików dwa razy.',
-  unfinishedBanner: 'Niedokończone wysyłanie zdjęć',
   unfinished: (count: number) => `${photosNotSent(count)} — wybierz je ponownie z galerii.`,
   unfinishedHelp: 'Wybierz te same pliki — dopasujemy je po nazwie i rozmiarze.',
   chooseAgain: 'Wybierz ponownie z galerii',
