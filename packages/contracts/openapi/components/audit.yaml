@@ -48,6 +48,7 @@ AuditAction:
     - sync.full_download
     - sync.full_download_completed
     - sync.work_order_snapshot
+    - sync.mutation_applied
     - customer.created
     - customer.updated
     - customer.deleted

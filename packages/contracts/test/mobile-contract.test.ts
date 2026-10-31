@@ -189,8 +189,9 @@ describe('EVM-090 AC1 the mobile family in the contract (SR-AUTHZ-12, SR-AUTHZ-0
   });
 });
 
-// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration: only the mutations keep the marker (EVM-096 implemented the pull of changes, EVM-097 the snapshot of an order).
-const STILL_PLANNED = ['pushSyncMutations'] as const;
+// EVM-094 implemented the sign-in, the renewal, the logout, the wipe confirmation and the configuration; EVM-096 the pull of changes, EVM-097 the snapshot of
+// an order and EVM-098 the mutations: no operation of the phone keeps the marker.
+const STILL_PLANNED: readonly string[] = [];
 
 /**
  * The two tests that compare the contract with the prose of docs/ run wherever docs/ is present (the native gate, CI). The Linux container of the backend
@@ -216,6 +217,7 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
       'login',
       'getSyncWorkOrder',
       'getHealth',
+      'pushSyncMutations',
       'unknownId',
     ]);
     // EVM-094: the four public operations of the phone have routes, so none of PUBLIC_OPERATIONS is planned any more
@@ -234,7 +236,13 @@ describe('EVM-090 planned operations (x-evia-planned; deny-by-default, SR-AUTHZ)
     expect(AUTHZ_MANIFEST['getSyncWorkOrder']?.authz).toMatchObject({ policy: 'sync.deviceScope', anchor: 'path.workOrderId' });
     // EVM-097 implemented it: the marker is gone, the policy stays
     expect(AUTHZ_MANIFEST['getSyncWorkOrder']?.planned).toBeUndefined();
-    expect(AUTHZ_MANIFEST['pushSyncMutations']?.planned).toBe(true);
+    // EVM-098 AC5 implemented it: the marker is gone, the policy stays (Administrator and Editor, the mobile channel, audited)
+    expect(AUTHZ_MANIFEST['pushSyncMutations']?.planned).toBeUndefined();
+    expect(AUTHZ_MANIFEST['pushSyncMutations']?.authz).toMatchObject({
+      roles: ['administrator', 'editor'],
+      channels: ['mobile'],
+      audit: true,
+    });
     expect(AUTHZ_MANIFEST['getHealth']?.planned).toBeUndefined();
   });
 });

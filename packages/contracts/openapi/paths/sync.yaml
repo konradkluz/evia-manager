@@ -222,13 +222,13 @@ mutations:
       (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik
       JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej
       partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka
-      obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z
-      `Retry-After`.
+      obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60
+      żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków.
+      `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
       audit: true
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:

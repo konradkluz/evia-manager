@@ -2296,6 +2296,7 @@
           "sync.full_download",
           "sync.full_download_completed",
           "sync.work_order_snapshot",
+          "sync.mutation_applied",
           "customer.created",
           "customer.updated",
           "customer.deleted",
@@ -14946,7 +14947,7 @@
     },
     "/api/v1/sync/mutations": {
       "post": {
-        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z `Retry-After`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60 żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków. `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.",
         "operationId": "pushSyncMutations",
         "parameters": [
           {
@@ -15067,8 +15068,7 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/sync/work-orders/{workOrderId}": {
