@@ -48,3 +48,12 @@ export function backoffDelay(attempt: number, random: Random, baseMs: number, ca
   const ceiling = Math.min(capMs, baseMs * 2 ** exponent);
   return Math.max(MIN_RETRY_AFTER_MS, Math.floor(unitRandom(random) * ceiling));
 }
+
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+
+/** A `date-time` string of the contract as epoch milliseconds, or undefined (shape checked first, then `Date.parse`). */
+export function parseServerTime(value: unknown): number | undefined {
+  if (typeof value !== 'string' || value.length > 40 || !TIMESTAMP.test(value)) return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : undefined;
+}

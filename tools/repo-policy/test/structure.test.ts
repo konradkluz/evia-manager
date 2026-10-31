@@ -144,8 +144,9 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
           'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts', 'dev/**/*.ts'], exclude: [...DATABASE_BOUND] })",
           'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
           'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
-          // EVM-091: queue and sync engine of the app — the 'sync' layer (95%, testing-strategy.md).
-          'packages/sync-core': "coverage({ layer: 'sync', include: ['src/**/*.ts'] })",
+          // EVM-091: queue and sync engine of the app — the 'sync' layer (95%, testing-strategy.md). EVM-092: the executable
+          // ReplicaStore contract (conformance/) is measured too.
+          'packages/sync-core': "coverage({ layer: 'sync', include: ['src/**/*.ts', 'conformance/**/*.ts'] })",
         };
         expect(config, workspace).toContain(
           `coverage: ${expected[workspace] ?? "coverage({ layer: 'shared', include: ['src/**/*.ts'] })"}`,
