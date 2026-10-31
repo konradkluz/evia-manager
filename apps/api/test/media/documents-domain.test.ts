@@ -18,7 +18,8 @@ import {
   MAX_DOCUMENT_BYTES,
   normalizeDocumentType,
 } from '../../src/modules/media/domain/document-rules.ts';
-import { inspectOoxml, MAX_ENTRIES } from '../../src/modules/media/domain/ooxml-inspect.ts';
+import { HEAD_BYTES, inspectOoxml, MAX_ENTRIES, TAIL_BYTES } from '../../src/modules/media/domain/ooxml-inspect.ts';
+import { RollingTail } from '../../src/modules/media/domain/rolling-tail.ts';
 import { buildOoxml, buildZip, headAndTail } from '../support/zip-builder.ts';
 
 const inspect = (file: Buffer) => {
@@ -307,5 +308,33 @@ describe('EVM-047 AC6 the inspection of an OOXML file for macros (SR-FILE-03, TM
     const file = buildOoxml();
     const { head, size } = headAndTail(file);
     expect(inspectOoxml(head, file.subarray(file.length - 30), size)).toEqual({ ok: false, reason: 'limits' });
+  });
+});
+
+describe('EVM-047 AC6 a large file is judged from the last bytes kept while the stream passes (one read, bounded memory)', () => {
+  const stream = (file: Buffer, chunkSize = 65_536) => {
+    const tail = new RollingTail();
+    for (let at = 0; at < file.length; at += chunkSize) tail.push(file.subarray(at, at + chunkSize));
+    return { head: file.subarray(0, HEAD_BYTES), tail: tail.bytes(), size: file.length };
+  };
+
+  it('EVM-047 AC6 the rolling tail keeps at most TAIL_BYTES and exactly the last bytes of the stream', () => {
+    const file = Buffer.alloc(4 * 1024 * 1024, 1);
+    file.writeUInt32LE(0xdeadbeef, file.length - 4);
+    const { tail } = stream(file);
+    expect(tail.length).toBe(TAIL_BYTES);
+    expect(tail.equals(file.subarray(file.length - TAIL_BYTES))).toBe(true);
+    const short = new RollingTail();
+    short.push(Buffer.from('abc'));
+    expect(short.bytes().toString()).toBe('abc');
+    expect(new RollingTail().bytes().length).toBe(0);
+  });
+
+  it('EVM-047 AC6 a DOCX of several megabytes is read (macro found, plain one clean) although its directory is far from the start', () => {
+    const filler = { name: 'word/media/image1.bin', data: Buffer.alloc(5 * 1024 * 1024, 7), method: 'store' as const };
+    const plain = stream(buildOoxml({ extra: [filler] }));
+    expect(inspectOoxml(plain.head, plain.tail, plain.size)).toEqual({ ok: true, kind: 'docx', macros: false });
+    const macro = stream(buildOoxml({ extra: [filler, { name: 'word/vbaProject.bin', data: 'x' }] }));
+    expect(inspectOoxml(macro.head, macro.tail, macro.size)).toEqual({ ok: true, kind: 'docx', macros: true });
   });
 });

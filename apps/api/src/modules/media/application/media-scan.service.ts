@@ -33,7 +33,8 @@ import type { ObjectStorage } from '../../../platform/object-storage/object-stor
 import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics.ts';
 import { judgeDocument } from '../domain/document-scan.ts';
 import { isOoxml, normalizeDocumentType } from '../domain/document-rules.ts';
-import { HEAD_BYTES, TAIL_BYTES } from '../domain/ooxml-inspect.ts';
+import { HEAD_BYTES } from '../domain/ooxml-inspect.ts';
+import { RollingTail } from '../domain/rolling-tail.ts';
 import { mediaKindOf, normalizeContentType, typeAgrees } from '../domain/file-rules.ts';
 import { decideOutcome } from '../domain/scan-outcome.ts';
 import { SCAN_LIMIT_BYTES, skipsAntivirus } from '../domain/video-rules.ts';
@@ -49,28 +50,6 @@ export const STUCK_WARNING_MS = 30 * 60_000;
 const BATCH = 5;
 /** What `file-type` needs to recognise the formats of the allow-list. */
 const SNIFF_BYTES = 4100;
-
-/**
- * The last bytes of a stream, kept for the central directory of an OOXML document (EVM-047): the chunks that can still be part of the last
- * {@link TAIL_BYTES} are held, older ones are dropped, so memory stays bounded whatever the size of the file.
- */
-class RollingTail {
-  #chunks: Uint8Array[] = [];
-  #held = 0;
-
-  push(chunk: Uint8Array): void {
-    this.#chunks.push(chunk);
-    this.#held += chunk.length;
-    while (this.#chunks.length > 1 && this.#held - (this.#chunks[0] as Uint8Array).length >= TAIL_BYTES) {
-      this.#held -= (this.#chunks.shift() as Uint8Array).length;
-    }
-  }
-
-  bytes(): Buffer {
-    const all = Buffer.concat(this.#chunks);
-    return all.subarray(Math.max(0, all.length - TAIL_BYTES));
-  }
-}
 
 /** The stream is longer than the file was declared: the transfer is damaged — no verdict of the scanner is needed. */
 class OversizeError extends Error {}

@@ -29,8 +29,17 @@ export const isRaised = (kindClass: ConfidentialityClass, override: Confidential
   isHigher(effectiveClass(kindClass, override), kindClass);
 
 /** P6 and SR-AUTHZ-06: Administrator and Editor take every class; Read-only only `standard`. Deny by default for any other role. */
-export const mayDownloadDocument = (role: UserRole, documentClass: ConfidentialityClass): boolean =>
-  role === 'administrator' || role === 'editor' || (role === 'read_only' && documentClass === 'standard');
+export function mayDownloadDocument(role: UserRole, documentClass: ConfidentialityClass): boolean {
+  switch (role) {
+    case 'administrator':
+    case 'editor':
+      return true;
+    case 'read_only':
+      return documentClass === 'standard';
+    default:
+      return false;
+  }
+}
 
 export interface DocumentClassInput {
   readonly kindCode: string;
