@@ -1,0 +1,241 @@
+# Module `media` - the documents of a work order (EVM-047; W-09 "Dokumenty zlecenia"; ADR-0009; P5, P6). A document has a kind from the catalog (its class of
+# confidentiality), an optional override of the class (it can only RISE), a title and, in version 1, one file. The bytes travel exactly as the media do
+# (upload session, signed `PUT` of parts, scan by the worker); the file is served only when `clean`. The object key, the upload id and the checksum are
+# NEVER in a response. Documents are a channel `web` object: they do not go to the phone.
+DocumentConfidentiality:
+  type: string
+  description: >-
+    Klasa poufności dokumentu (zamknięta lista; klient toleruje wartość nieznaną jako najbardziej ograniczoną): `standard` (Standardowy),
+    `building_security` (Bezpieczeństwo budynku), `identity_data` (Dane identyfikacyjne). Porządek: `standard` < `building_security` <
+    `identity_data`. Klasa efektywna to wyższa z klasy rodzaju (katalog) i podniesienia dokumentu; liczy ją serwer.
+  enum: [standard, building_security, identity_data]
+DocumentConfidentialityOverride:
+  type: string
+  description: Klasa, do której można podnieść dokument (`standard` nie jest podniesieniem). Musi być ściśle wyższa od klasy efektywnej.
+  enum: [building_security, identity_data]
+DocumentFile:
+  type: object
+  description: >-
+    Plik wersji 1 dokumentu. Nazwa pliku jest tekstem (dane osobowe możliwe) - panel wyświetla ją jako tekst. Serwer sprawdza typ (PDF, DOCX, XLSX,
+    JPEG, PNG), rozszerzenie i rozmiar (1 B … 100 MB): inny typ, SVG, HTML, archiwum, `.docm`, `.xlsm` albo rozmiar spoza zakresu to `400
+    validation_failed` (`/file/contentType`, `/file/fileName`, `/file/declaredSize`).
+  required: [fileName, contentType, declaredSize, sha256]
+  additionalProperties: false
+  properties:
+    fileName:
+      type: string
+      description: Nazwa pliku z urządzenia - serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).
+      minLength: 1
+      maxLength: 1000
+    contentType:
+      type: string
+      description: Zadeklarowany typ (informacja; serwer wykrywa typ z zawartości po skanie).
+      maxLength: 100
+    declaredSize:
+      type: integer
+      description: Rozmiar pliku w bajtach (1 … 104 857 600).
+      minimum: 1
+      maximum: 104857600
+    sha256:
+      type: string
+      description: SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.
+      pattern: '^[a-f0-9]{64}$'
+      maxLength: 64
+CreateDocumentRequest:
+  type: object
+  description: >-
+    Nowy dokument zlecenia (wersja 1). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`,
+    `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400`
+    (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400`
+    (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400
+    read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.
+  required: [id, kindCode, title, file]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      maxLength: 36
+    kindCode:
+      type: string
+      description: Kod rodzaju dokumentu z katalogu (np. `connection_conditions`).
+      pattern: '^[a-z][a-z0-9_]{1,63}$'
+      maxLength: 64
+    title:
+      type: string
+      description: Tytuł (zwykły tekst).
+      minLength: 1
+      maxLength: 200
+    description:
+      type: string
+      description: Opis (do 2000 znaków, zwykły tekst); pominięty = brak.
+      minLength: 1
+      maxLength: 2000
+    containsIdentityData:
+      type: boolean
+      description: >-
+        „Czy dokument zawiera PESEL lub numer dokumentu tożsamości?” - wymagane dla rodzaju `other`, niedozwolone dla innych rodzajów.
+    confidentialityOverride:
+      $ref: '#/DocumentConfidentialityOverride'
+    file:
+      $ref: '#/DocumentFile'
+Document:
+  type: object
+  description: >-
+    Dokument zlecenia z jego plikiem (wersja 1). `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę
+    rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko
+    `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną
+    `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `"<version>"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy
+    nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.
+  required:
+    - id
+    - workOrderId
+    - kindCode
+    - kindName
+    - title
+    - description
+    - versionNumber
+    - confidentiality
+    - confidentialityRaised
+    - fileState
+    - stateReasonCode
+    - declaredSize
+    - originalFilename
+    - canDownload
+    - createdAt
+    - version
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    workOrderId:
+      type: string
+      format: uuid
+      maxLength: 36
+    kindCode:
+      type: string
+      maxLength: 64
+    kindName:
+      type: string
+      description: Nazwa rodzaju z katalogu (tekst).
+      maxLength: 200
+    title:
+      type: string
+      maxLength: 200
+    description:
+      oneOf:
+        - type: string
+          maxLength: 2000
+        - type: 'null'
+    versionNumber:
+      type: integer
+      minimum: 1
+    confidentiality:
+      $ref: '#/DocumentConfidentiality'
+    confidentialityRaised:
+      type: boolean
+    fileState:
+      $ref: ./media.yaml#/MediaFileState
+    stateReasonCode:
+      description: Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.
+      oneOf:
+        - type: string
+          enum: [checksum_mismatch]
+        - type: 'null'
+    declaredSize:
+      type: integer
+      minimum: 1
+    originalFilename:
+      description: Oczyszczona nazwa pliku (tekst; dane osobowe możliwe).
+      oneOf:
+        - type: string
+          maxLength: 255
+        - type: 'null'
+    canDownload:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+      maxLength: 40
+    version:
+      type: integer
+      minimum: 1
+DocumentList:
+  type: object
+  description: >-
+    Strona dokumentów zlecenia (`createdAt` malejąco, potem `id`). `totalCount` to liczba dokumentów zlecenia („Dokumenty zlecenia (n)”), niezależna od
+    strony. `nextCursor` jest `null` na ostatniej stronie.
+  required: [items, nextCursor, totalCount]
+  additionalProperties: false
+  properties:
+    items:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/Document'
+    nextCursor:
+      oneOf:
+        - type: string
+          maxLength: 512
+          pattern: '^[A-Za-z0-9_-]+$'
+        - type: 'null'
+    totalCount:
+      type: integer
+      minimum: 0
+RaiseDocumentConfidentialityRequest:
+  type: object
+  description: >-
+    „Podnieś klasę” (merge-patch): jedyne pole, które można zmienić. Klasa musi być ściśle wyższa od efektywnej, inaczej `400 validation_failed`
+    (`/confidentialityOverride`, `not_higher`). Każde inne pole (`title`, `kindCode`, `versionNumber` …) - `400 read_only_field`.
+  required: [confidentialityOverride]
+  additionalProperties: false
+  properties:
+    confidentialityOverride:
+      $ref: '#/DocumentConfidentialityOverride'
+DocumentUploadSession:
+  type: object
+  description: Sesja uploadu pliku dokumentu (jak `UploadSession` medium, z identyfikatorem dokumentu).
+  required: [id, documentId, state, partSize, partCount, expiresAt]
+  additionalProperties: false
+  properties:
+    id:
+      type: string
+      format: uuid
+      maxLength: 36
+    documentId:
+      type: string
+      format: uuid
+      maxLength: 36
+    state:
+      type: string
+      enum: [active, completed, aborted, expired]
+    partSize:
+      type: integer
+      minimum: 1
+    partCount:
+      type: integer
+      minimum: 1
+      maximum: 1000
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40
+DocumentDownloadUrl:
+  type: object
+  description: >-
+    Podpisany `GET` pliku dokumentu z domeny bucketu, ważny najwyżej 5 minut: typ wykryty przez serwer i `Content-Disposition: attachment;
+    filename*=UTF-8''…` (nazwa oczyszczona). Adres jest sekretem krótkotrwałym - panel trzyma go tylko w pamięci i nie zapisuje w logach.
+  required: [url, expiresAt]
+  additionalProperties: false
+  properties:
+    url:
+      type: string
+      format: uri
+      maxLength: 4096
+    expiresAt:
+      type: string
+      format: date-time
+      maxLength: 40

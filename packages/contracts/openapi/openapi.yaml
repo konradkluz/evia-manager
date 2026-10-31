@@ -39,7 +39,7 @@ tags:
   - name: timeline
     description: Dziennik zlecenia — wpisy, komentarze i poprawki, tylko do dopisywania (moduł timeline).
   - name: media
-    description: Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).
+    description: Zdjęcia, filmy i dokumenty zlecenia — dodanie, wieloczęściowy upload do prywatnego storage'u, stan pliku po skanie, klasa poufności dokumentu i podpisane adresy pobrania (moduł media; panel web).
   - name: devices
     description: Urządzenia mobilne — potwierdzenie wyczyszczenia danych (moduł identity; kanał mobile).
   - name: sync
@@ -201,6 +201,22 @@ paths:
     $ref: paths/media.yaml#/mediaAssetRescan
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url:
     $ref: paths/media.yaml#/mediaAssetDownloadUrl
+  /api/v1/work-orders/{workOrderId}/documents:
+    $ref: paths/documents.yaml#/workOrderDocuments
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}:
+    $ref: paths/documents.yaml#/documentById
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions:
+    $ref: paths/documents.yaml#/documentUploadSessions
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts:
+    $ref: paths/documents.yaml#/documentUploadParts
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts/{partNumber}/url:
+    $ref: paths/documents.yaml#/documentUploadPartUrl
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/complete:
+    $ref: paths/documents.yaml#/documentUploadComplete
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/abort:
+    $ref: paths/documents.yaml#/documentUploadAbort
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/download-url:
+    $ref: paths/documents.yaml#/documentDownloadUrl
   /api/v1/users:
     $ref: paths/identity.yaml#/users
   /api/v1/users/assignable:
@@ -513,6 +529,24 @@ components:
       $ref: components/media.yaml#/CreateMediaDerivativeUrlRequest
     MediaDerivativeUrl:
       $ref: components/media.yaml#/MediaDerivativeUrl
+    DocumentConfidentiality:
+      $ref: components/documents.yaml#/DocumentConfidentiality
+    DocumentConfidentialityOverride:
+      $ref: components/documents.yaml#/DocumentConfidentialityOverride
+    DocumentFile:
+      $ref: components/documents.yaml#/DocumentFile
+    CreateDocumentRequest:
+      $ref: components/documents.yaml#/CreateDocumentRequest
+    Document:
+      $ref: components/documents.yaml#/Document
+    DocumentList:
+      $ref: components/documents.yaml#/DocumentList
+    RaiseDocumentConfidentialityRequest:
+      $ref: components/documents.yaml#/RaiseDocumentConfidentialityRequest
+    DocumentUploadSession:
+      $ref: components/documents.yaml#/DocumentUploadSession
+    DocumentDownloadUrl:
+      $ref: components/documents.yaml#/DocumentDownloadUrl
     AssignableUser:
       $ref: components/identity.yaml#/AssignableUser
     AssignableUserList:

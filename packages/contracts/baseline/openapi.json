@@ -45,6 +45,17 @@
           "type": "string"
         }
       },
+      "DocumentIdParameter": {
+        "description": "Identyfikator dokumentu (UUIDv7).",
+        "in": "path",
+        "name": "documentId",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "maxLength": 36,
+          "type": "string"
+        }
+      },
       "IdempotencyKeyHeader": {
         "description": "Klucz idempotencji (UUIDv7) generowany raz na akcję użytkownika.",
         "in": "header",
@@ -71,6 +82,17 @@
       },
       "IfMatchHeader": {
         "description": "Silny ETag wersji zasobu, na której użytkownik podjął decyzję (`\"<version>\"`, z `ETag` odczytu albo pola `version`).",
+        "in": "header",
+        "name": "If-Match",
+        "required": true,
+        "schema": {
+          "maxLength": 12,
+          "pattern": "^\"[1-9][0-9]{0,9}\"$",
+          "type": "string"
+        }
+      },
+      "IfMatchHeader-2": {
+        "description": "Silny ETag wersji dokumentu (`\"<version>\"`, z pola `version` albo `ETag`).",
         "in": "header",
         "name": "If-Match",
         "required": true,
@@ -2922,6 +2944,53 @@
         ],
         "type": "object"
       },
+      "CreateDocumentRequest": {
+        "additionalProperties": false,
+        "description": "Nowy dokument zlecenia (wersja 1). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
+        "properties": {
+          "confidentialityOverride": {
+            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
+          },
+          "containsIdentityData": {
+            "description": "„Czy dokument zawiera PESEL lub numer dokumentu tożsamości?” - wymagane dla rodzaju `other`, niedozwolone dla innych rodzajów.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Opis (do 2000 znaków, zwykły tekst); pominięty = brak.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "file": {
+            "$ref": "#/components/schemas/DocumentFile"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "kindCode": {
+            "description": "Kod rodzaju dokumentu z katalogu (np. `connection_conditions`).",
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "type": "string"
+          },
+          "title": {
+            "description": "Tytuł (zwykły tekst).",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kindCode",
+          "title",
+          "file"
+        ],
+        "type": "object"
+      },
       "CreateMediaAssetsRequest": {
         "additionalProperties": false,
         "description": "Partia mediów jednego zlecenia (najwyżej 50). Serwer tworzy po jednym medium i pliku w stanie `pending_upload` w jednej transakcji.",
@@ -3996,6 +4065,194 @@
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         "type": "string"
       },
+      "Document": {
+        "additionalProperties": false,
+        "description": "Dokument zlecenia z jego plikiem (wersja 1). `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `\"<version>\"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
+        "properties": {
+          "canDownload": {
+            "type": "boolean"
+          },
+          "confidentiality": {
+            "$ref": "#/components/schemas/DocumentConfidentiality"
+          },
+          "confidentialityRaised": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "declaredSize": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "description": {
+            "oneOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileState": {
+            "$ref": "#/components/schemas/MediaFileState"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "kindCode": {
+            "maxLength": 64,
+            "type": "string"
+          },
+          "kindName": {
+            "description": "Nazwa rodzaju z katalogu (tekst).",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "originalFilename": {
+            "description": "Oczyszczona nazwa pliku (tekst; dane osobowe możliwe).",
+            "oneOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateReasonCode": {
+            "description": "Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.",
+            "oneOf": [
+              {
+                "enum": [
+                  "checksum_mismatch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "versionNumber": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "workOrderId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workOrderId",
+          "kindCode",
+          "kindName",
+          "title",
+          "description",
+          "versionNumber",
+          "confidentiality",
+          "confidentialityRaised",
+          "fileState",
+          "stateReasonCode",
+          "declaredSize",
+          "originalFilename",
+          "canDownload",
+          "createdAt",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DocumentConfidentiality": {
+        "description": "Klasa poufności dokumentu (zamknięta lista; klient toleruje wartość nieznaną jako najbardziej ograniczoną): `standard` (Standardowy), `building_security` (Bezpieczeństwo budynku), `identity_data` (Dane identyfikacyjne). Porządek: `standard` < `building_security` < `identity_data`. Klasa efektywna to wyższa z klasy rodzaju (katalog) i podniesienia dokumentu; liczy ją serwer.",
+        "enum": [
+          "standard",
+          "building_security",
+          "identity_data"
+        ],
+        "type": "string"
+      },
+      "DocumentConfidentialityOverride": {
+        "description": "Klasa, do której można podnieść dokument (`standard` nie jest podniesieniem). Musi być ściśle wyższa od klasy efektywnej.",
+        "enum": [
+          "building_security",
+          "identity_data"
+        ],
+        "type": "string"
+      },
+      "DocumentDownloadUrl": {
+        "additionalProperties": false,
+        "description": "Podpisany `GET` pliku dokumentu z domeny bucketu, ważny najwyżej 5 minut: typ wykryty przez serwer i `Content-Disposition: attachment; filename*=UTF-8''…` (nazwa oczyszczona). Adres jest sekretem krótkotrwałym - panel trzyma go tylko w pamięci i nie zapisuje w logach.",
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "maxLength": 4096,
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "DocumentFile": {
+        "additionalProperties": false,
+        "description": "Plik wersji 1 dokumentu. Nazwa pliku jest tekstem (dane osobowe możliwe) - panel wyświetla ją jako tekst. Serwer sprawdza typ (PDF, DOCX, XLSX, JPEG, PNG), rozszerzenie i rozmiar (1 B … 100 MB): inny typ, SVG, HTML, archiwum, `.docm`, `.xlsm` albo rozmiar spoza zakresu to `400 validation_failed` (`/file/contentType`, `/file/fileName`, `/file/declaredSize`).",
+        "properties": {
+          "contentType": {
+            "description": "Zadeklarowany typ (informacja; serwer wykrywa typ z zawartości po skanie).",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "declaredSize": {
+            "description": "Rozmiar pliku w bajtach (1 … 104 857 600).",
+            "maximum": 104857600,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fileName": {
+            "description": "Nazwa pliku z urządzenia - serwer zapisuje oczyszczoną (nigdy w kluczu, logach ani audycie).",
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sha256": {
+            "description": "SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.",
+            "maxLength": 64,
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileName",
+          "contentType",
+          "declaredSize",
+          "sha256"
+        ],
+        "type": "object"
+      },
       "DocumentKind": {
         "properties": {
           "code": {
@@ -4032,6 +4289,89 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "DocumentList": {
+        "additionalProperties": false,
+        "description": "Strona dokumentów zlecenia (`createdAt` malejąco, potem `id`). `totalCount` to liczba dokumentów zlecenia („Dokumenty zlecenia (n)”), niezależna od strony. `nextCursor` jest `null` na ostatniej stronie.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "nextCursor": {
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "pattern": "^[A-Za-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "totalCount": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor",
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      "DocumentUploadSession": {
+        "additionalProperties": false,
+        "description": "Sesja uploadu pliku dokumentu (jak `UploadSession` medium, z identyfikatorem dokumentu).",
+        "properties": {
+          "documentId": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "maxLength": 36,
+            "type": "string"
+          },
+          "partCount": {
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "partSize": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "completed",
+              "aborted",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "documentId",
+          "state",
+          "partSize",
+          "partCount",
+          "expiresAt"
         ],
         "type": "object"
       },
@@ -6415,6 +6755,19 @@
         "required": [
           "items",
           "nextCursor"
+        ],
+        "type": "object"
+      },
+      "RaiseDocumentConfidentialityRequest": {
+        "additionalProperties": false,
+        "description": "„Podnieś klasę” (merge-patch): jedyne pole, które można zmienić. Klasa musi być ściśle wyższa od efektywnej, inaczej `400 validation_failed` (`/confidentialityOverride`, `not_higher`). Każde inne pole (`title`, `kindCode`, `versionNumber` …) - `400 read_only_field`.",
+        "properties": {
+          "confidentialityOverride": {
+            "$ref": "#/components/schemas/DocumentConfidentialityOverride"
+          }
+        },
+        "required": [
+          "confidentialityOverride"
         ],
         "type": "object"
       },
@@ -16575,6 +16928,689 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/documents": {
+      "get": {
+        "description": "„Dokumenty zlecenia (n)” W-09 (EVM-047 AC1, AC2, AC5, AC7, AC8; SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07, SR-API-02). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas - tytuł, rodzaj, klasa, nazwa pliku - widzi także Tylko odczyt; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`), bez audytu odczytu. Zlecenie jest rozwiązywane najpierw polityką odczytu: nieistniejące i usunięte - `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z wariantem roli - z innym `400 invalid_cursor`. Jedno zapytanie (dokument, wersja, plik, rodzaj z katalogu), bez N+1. Klasa efektywna jest liczona przez serwer. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Zlecenie - dokumenty z rodzajem i klasą poufności (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      },
+      "post": {
+        "description": "Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
+        "operationId": "createDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument utworzony (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`).",
+            "headers": {
+              "ETag": {
+                "description": "Wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "description": "`true`, gdy odpowiedź powtarza wcześniejszy zapis (ten sam klucz, zlecenie i treść).",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Dodanie dokumentu do zlecenia („Dodaj dokument”)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}": {
+      "patch": {
+        "description": "Podniesienie klasy dokumentu (EVM-047 AC4, AC7; SR-AUTHZ-07, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed treścią), kanał `web`, z audytem (`document.confidentiality_raised` - aktor, identyfikator, `fromCode` i `toCode`, `traceId`; bez tytułu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Jedyne pole to `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce - `404` (jak nieistniejący).",
+        "operationId": "raiseDocumentConfidentiality",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RaiseDocumentConfidentialityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument po podniesieniu klasy.",
+            "headers": {
+              "ETag": {
+                "description": "Nowa wersja zasobu (`\"<version>\"`).",
+                "schema": {
+                  "maxLength": 32,
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Podniesienie klasy poufności dokumentu („Podnieś klasę”)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Podpisany `GET` pliku dokumentu (EVM-047 AC5, AC7; SR-FILE-07, SR-FILE-10, SR-AUTHZ-06, SR-AUTHZ-07, SR-LOG-02, SR-LOG-03). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik (`401`/`403`) → ścieżka (`400`) → zlecenie przez politykę odczytu (`404`) → JEDNO zapytanie o dokument TEGO zlecenia (`404`: nieistniejący, innego zlecenia, medium o tym id) → klasa efektywna wyliczona przez serwer z bazy (rodzaj z katalogu i podniesienie): Tylko odczyt dla klasy `building_security` i `identity_data` - `403 forbidden` NIEZALEŻNIE od stanu pliku (z audytem odmowy `document_file.download_denied` w osobnej transakcji, z kodem klasy, bez nazwy pliku) → plik w stanie innym niż `clean`/`ready` - `404` → limit wystawiania adresów (ten sam licznik „oryginały i dokumenty”: 100 / 10 min per użytkownik, alert od 50; `429` z `Retry-After`) → podpis. Audyt wystawienia (`document_file.downloaded`, kod klasy) jest w transakcji wystawienia (błąd zapisu = brak adresu). Adres jest przypięty do wersji obiektu, która przeszła skan, ważny 300 s, ma `Content-Disposition: attachment; filename*=UTF-8''…` i typ WYKRYTY przez serwer. `Cache-Control: no-store`; adres i nazwa pliku nie są logowane ani audytowane.",
+        "operationId": "createDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions": {
+      "post": {
+        "description": "Sesja uploadu pliku wersji 1 (EVM-047 AC1, AC6, AC7; SR-FILE-02, SR-AUTHZ-02, SR-AUTHZ-05) - jak `createUploadSession` medium (części 16 MiB, najwyżej 1000, sesja ważna 7 dni, `Idempotency-Key`, wznowienie `200`). Role Administrator i Edytor (Tylko odczyt - `403`), kanał `web`. Sesję otwiera wyłącznie twórca dokumentu albo Administrator (inny Edytor - `404`); dokument innego zlecenia niż w ścieżce oraz MEDIUM o tym identyfikatorze - `404`. Stan pliku inny niż `pending_upload` lub `failed` z `checksum_mismatch` - `409 invalid_state_transition`. Brak konfiguracji magazynu - `503`.",
+        "operationId": "createDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyHeader-2"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadSession"
+                }
+              }
+            },
+            "description": "Istniejąca aktywna sesja wołającego (wznowienie)."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentUploadSession"
+                }
+              }
+            },
+            "description": "Sesja utworzona (albo powtórka wcześniejszego zapisu, z nagłówkiem `Idempotent-Replayed`)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Sesja uploadu pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/abort": {
+      "post": {
+        "description": "Jak `abortUploadSession` (EVM-047 AC7). Role Administrator i Edytor, kanał `web`; tylko twórca sesji. Idempotentne; zakończona sesja - `409`.",
+        "operationId": "abortDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Sesja przerwana."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Przerwanie sesji uploadu pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/complete": {
+      "post": {
+        "description": "Jak `completeUploadSession` (EVM-047 AC1, AC6, AC7; SR-FILE-02): serwer czyta części ze storage'u, składa obiekt i sprawdza rozmiar (≤ 100 MB); plik przechodzi do `uploaded` i czeka na skan (typ z zawartości, makra OOXML, ClamAV). Role Administrator i Edytor, kanał `web`; tylko twórca sesji. Powtórka po złożeniu jest idempotentna. Odpowiedź - dokument z aktualnym stanem pliku.",
+        "operationId": "completeDocumentUploadSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Dokument ze stanem pliku po zakończeniu wysyłania."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/MediaUnprocessable"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Zakończenie wysyłania pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts": {
+      "get": {
+        "description": "Jak `listUploadParts` (EVM-047 AC6, AC7). Role Administrator i Edytor, kanał `web`; sesję widzi wyłącznie jej twórca (inny użytkownik, sesja innego dokumentu lub zlecenia, nieistniejąca - jedna odpowiedź `404`). Sesja zakończona lub wygasła - `409`. `Cache-Control: no-store`.",
+        "operationId": "listDocumentUploadParts",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartList"
+                }
+              }
+            },
+            "description": "Części potwierdzone w storage'u."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Części sesji uploadu dokumentu potwierdzone w storage'u",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts/{partNumber}/url": {
+      "get": {
+        "description": "Jak `getUploadPartUrl` (EVM-047 AC6, AC7; SR-FILE-02, SR-WEB-04): podpisany `PUT` jednej części, związany z kluczem obiektu, identyfikatorem uploadu, numerem części i dokładnym `Content-Length`; ważny 60 minut. Role Administrator i Edytor, kanał `web`; tylko twórca sesji. `Cache-Control: no-store`; adres nie jest logowany.",
+        "operationId": "getDocumentUploadPartUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/UploadSessionIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/PartNumberParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPartUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres części.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres wysłania jednej części pliku dokumentu",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/media-assets": {
       "get": {
         "description": "Lista „Media i dokumenty” W-09 (EVM-044 AC1, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-05, SR-API-02). Role Administrator, Edytor i Tylko odczyt (bez audytu odczytu), kanał `web`. Zlecenie jest rozwiązywane najpierw polityką odczytu w zapytaniu: nieistniejące i usunięte — `404`. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1–100 (domyślnie 25); jedno zapytanie ze stanami plików. Filtr `uploadState=unfinished` zwraca WYŁĄCZNIE niedokończone wysyłania wołającego: media z aktywną, niewygasłą (`expiresAt` w przyszłości) sesją uploadu wołającego (twórca: użytkownik i urządzenie) ORAZ media wołającego, których plik wciąż jest w `pending_upload`, a aktywnej sesji brak (przerwana partia: sesja wygasła, została przerwana albo nigdy nie powstała — baner liczy całą partię i nie powstają duplikaty). Tylko te media niosą `originalFilename`, a `uploadSession` jest w nich `null`, gdy sesji nie ma (wtedy wybór pliku otwiera nową sesję). Z nich panel buduje „Nie wysłano N zdjęć — wybierz je ponownie z galerii.” Filtr `needsAttention=true` (EVM-049 AC6) zwraca tylko pliki w kwarantannie `held`; `false` — wszystkie; inna wartość — `400 validation_failed`. `needsAttentionCount` liczy pliki `held` zlecenia tymi samymi regułami widoczności. Przyczyna kwarantanny (`quarantineReasonCode`) wraca WYŁĄCZNIE Administratorowi (polityka `mediaQuarantine.manage`); dla Edytora i Tylko odczyt pola nie ma. Kursor jest związany z filtrem i wariantem polityki — z innym filtrem `400 invalid_cursor`. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. Nieznany lub powtórzony parametr — `400`. `Cache-Control: no-store`.",
@@ -19923,7 +20959,7 @@
       "name": "timeline"
     },
     {
-      "description": "Zdjęcia zlecenia — dodanie partii, wieloczęściowy upload do prywatnego storage'u i stan pliku po skanie (moduł media; tylko panel web w EVM-044).",
+      "description": "Zdjęcia, filmy i dokumenty zlecenia — dodanie, wieloczęściowy upload do prywatnego storage'u, stan pliku po skanie, klasa poufności dokumentu i podpisane adresy pobrania (moduł media; panel web).",
       "name": "media"
     },
     {
