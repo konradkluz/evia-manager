@@ -24,6 +24,8 @@ export const CHANNEL_SERVICES: Readonly<Record<string, 'evia-api' | 'evia-web'>>
 
 /** The one host directory the worker may mount besides its secrets: the tmpfs it shares with the image processor (EVM-068). */
 export const WORKER_MEDIA_WORK = '/run/evia/media-work:/run/media-work';
+/** EVM-046: and the disk volume of the work area of films, shared with the image processor only (noexec,nosuid,nodev, mounted in an IaC session). */
+export const WORKER_MEDIA_VIDEO = '/var/lib/evia/media-video:/var/lib/media-video';
 
 const ENV_NAME = /^[A-Z][A-Z0-9_]{0,63}$/;
 /** Variables that would weaken the runtime (TLS, module loading, proxies) — never settable by the channel. */
@@ -136,11 +138,13 @@ function service(name: string, value: unknown, image: string): Record<string, un
   if ('volumes' in value) {
     const secrets = `/run/evia/secrets/${name}:/run/secrets:ro`;
     // EVM-068: the worker alone also gets the work area it shares with the image processor (a tmpfs of the host, mounted in an IaC session)
-    const allowed = name === 'worker' ? [[secrets], [secrets, WORKER_MEDIA_WORK]] : [[secrets]];
+    // EVM-046: and the disk volume of the films. Three fixed shapes, in this order; nothing else (a deployed worker of an older release has fewer volumes)
+    const allowed =
+      name === 'worker' ? [[secrets], [secrets, WORKER_MEDIA_WORK], [secrets, WORKER_MEDIA_WORK, WORKER_MEDIA_VIDEO]] : [[secrets]];
     ensure(
       allowed.some((candidate) => exactly(value['volumes'], candidate)),
       'v4-volume',
-      `${name}: only ${secrets}${name === 'worker' ? ` and, additionally, ${WORKER_MEDIA_WORK}` : ''}`,
+      `${name}: only ${secrets}${name === 'worker' ? ` and, additionally, ${WORKER_MEDIA_WORK} and ${WORKER_MEDIA_VIDEO}` : ''}`,
     );
     result['volumes'] = value['volumes'];
   }
