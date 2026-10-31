@@ -4,7 +4,7 @@ title: Galeria — podgląd i pobranie oryginału
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-review
+status: done
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
