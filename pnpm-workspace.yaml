@@ -54,6 +54,9 @@ overrides:
   # check in v3/v5/v6 when a buffer is passed; fixed in 11.1.1). xcode only calls v4(), so it is not reachable, but the scan is
   # blocking and 11.1.1 is the first fixed release that still ships CommonJS (xcode uses require). Remove when xcode drops uuid 7.
   'uuid@7.0.3': 11.1.1
+  # node-forge@1.4.0 (via @expo/cli and @expo/code-signing-certificates, dev tooling only, not shipped in the APK or the API) carries
+  # five High advisories published 2026-10-30 (fixed in 1.4.1). Remove when Expo ships node-forge >= 1.4.1.
+  'node-forge@1.4.0': 1.4.1
   # Maintenance: vite 8.3.2 (auto-installed peer of vitest in the non-web workspaces) bundles launch-editor with
   # GHSA-587h-7wmj-h5pm, GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw. 8.3.4 is a compatible patch release.
   # Remove when apps/web and the vitest peer resolve to the same vite >= 8.3.3 without this override.

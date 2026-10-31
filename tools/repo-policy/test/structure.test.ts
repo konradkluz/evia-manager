@@ -91,6 +91,7 @@ describe('monorepo structure (EVM-006 AC1, ADR-0012)', () => {
       'packages/config',
       'packages/contracts',
       'packages/observability-scrub',
+      'packages/sync-core',
       'packages/tokens',
       'packages/ui-web',
       'tools/ci-changes',
@@ -143,6 +144,8 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
           'apps/api': "coverage({ layer: 'backend', include: ['src/**/*.ts', 'dev/**/*.ts'], exclude: [...DATABASE_BOUND] })",
           'apps/web': "coverage({ layer: 'web', include: ['src/**/*.{ts,tsx}', 'security-headers.ts'] })",
           'packages/ui-web': "coverage({ layer: 'shared', include: ['src/**/*.{ts,tsx}'] })",
+          // EVM-091: queue and sync engine of the app — the 'sync' layer (95%, testing-strategy.md).
+          'packages/sync-core': "coverage({ layer: 'sync', include: ['src/**/*.ts'] })",
         };
         expect(config, workspace).toContain(
           `coverage: ${expected[workspace] ?? "coverage({ layer: 'shared', include: ['src/**/*.ts'] })"}`,
@@ -256,7 +259,13 @@ describe('quality gate of every workspace (EVM-006 AC2, AC3; W2, W3)', () => {
     const roots = ['apps', 'services', 'packages', 'tools'].filter((dir) => exists(dir));
     expect(root.scripts?.['deps:check']).toBe(`depcruise --config .dependency-cruiser.cjs ${roots.join(' ')}`);
     const config = read('.dependency-cruiser.cjs');
-    for (const rule of ['no-circular', 'product-code-not-to-tools', 'packages-not-to-apps-or-services', 'tools-not-to-apps-or-services']) {
+    for (const rule of [
+      'no-circular',
+      'product-code-not-to-tools',
+      'packages-not-to-apps-or-services',
+      'tools-not-to-apps-or-services',
+      'sync-core-portable', // EVM-091 AC1
+    ]) {
       expect(config).toContain(`name: '${rule}'`);
     }
   });

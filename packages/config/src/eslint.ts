@@ -164,6 +164,87 @@ export function mobileUi({
   ];
 }
 
+/** Sources of the portable sync core (EVM-091); the block below applies to them only. */
+export const PORTABLE_CORE_FILES = ['src/**/*.ts'];
+
+const PORTABLE_MESSAGE =
+  'EVM-091: the sync core is portable (Hermes, no Node): no built-ins, React Native, Expo, contract or runtime dependencies; time, randomness and timers only through ports.';
+const NODE_BUILTINS = [
+  'assert',
+  'buffer',
+  'child_process',
+  'crypto',
+  'events',
+  'fs',
+  'http',
+  'https',
+  'net',
+  'os',
+  'path',
+  'stream',
+  'url',
+  'util',
+  'worker_threads',
+  'zlib',
+];
+
+/**
+ * Boundaries of packages/sync-core/src (EVM-091; architect 1, security 6, 11): imports of Node built-ins, React Native, Expo,
+ * `@evia/contracts` and Zod are errors, and so are the globals that do not exist in Hermes or hide non-determinism
+ * (Buffer, process, setImmediate, timers, Math.random). One `no-restricted-*` list together with the SQL safety block.
+ */
+export function portableCore({ files = PORTABLE_CORE_FILES }: { files?: string[] } = {}): Linter.Config[] {
+  return [
+    {
+      files,
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: [
+              ...PG_PATHS,
+              ...NODE_BUILTINS.map((name) => ({ name, message: PORTABLE_MESSAGE })),
+              { name: 'zod', message: PORTABLE_MESSAGE },
+            ],
+            patterns: [
+              {
+                group: [
+                  'node:*',
+                  'react',
+                  'react-native',
+                  'react-native/*',
+                  'expo',
+                  'expo-*',
+                  'expo/*',
+                  '@evia/*',
+                  'zod/*',
+                  ...NODE_BUILTINS.map((name) => `${name}/*`),
+                ],
+                message: PORTABLE_MESSAGE,
+              },
+            ],
+          },
+        ],
+        'no-restricted-globals': [
+          'error',
+          ...['Buffer', 'process', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'require'].map((name) => ({
+            name,
+            message: PORTABLE_MESSAGE,
+          })),
+        ],
+        'no-restricted-syntax': [
+          'error',
+          ...SQL_SELECTORS,
+          { selector: "MemberExpression[object.name='Math'][property.name='random']", message: PORTABLE_MESSAGE },
+        ],
+      },
+    },
+  ];
+}
+
+/** `config()` adds the portable-core block for the workspace packages/sync-core (the directory decides; the workspace file stays shared). */
+const PORTABLE_CORE_ROOT = /[\\/]packages[\\/]sync-core$/;
+
 export function config({ tsconfigRootDir, ignores = [] }: { tsconfigRootDir: string; ignores?: string[] }): ConfigArray {
   return [
     { ignores: ['dist/**', '.dev-build/**', 'coverage/**', 'node_modules/**', 'generated/**', ...ignores] },
@@ -192,5 +273,6 @@ export function config({ tsconfigRootDir, ignores = [] }: { tsconfigRootDir: str
       },
     },
     ...sqlSafety(),
+    ...(PORTABLE_CORE_ROOT.test(tsconfigRootDir) ? portableCore() : []),
   ];
 }

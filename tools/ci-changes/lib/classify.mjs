@@ -19,9 +19,9 @@ const SHA = /^[0-9a-f]{40}$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
 /** Not relevant to the panel E2E besides documentation (EVM-086 AC1): the API and the mobile app do not affect the panel. */
-export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobile/']);
+export const E2E_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/api/', 'apps/mobile/', 'packages/sync-core/']);
 /** Not relevant to the API integration tests besides documentation (EVM-086 AC1). */
-export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/']);
+export const INTEGRATION_NOT_RELEVANT_PREFIXES = Object.freeze(['apps/web/', 'apps/mobile/', 'packages/sync-core/']);
 
 /** Paths that can change the Android package (EVM-009; architect: the app, the tokens and the contract client, the lockfile, the job itself). */
 export const MOBILE_RELEVANT_PREFIXES = Object.freeze([

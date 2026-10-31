@@ -4,3 +4,15 @@
 
 # reason: synthetic placeholder in a log-redaction test (replaced by 'fake-nine' in a later commit), not a secret · owner: devops-engineer · review_by: 2026-12-05
 db948eecc86005ecc8d36b56614642b63a22b6c3:apps/api/test/platform/logger.test.ts:generic-api-key:26
+
+# reason: synthetic JWT-like and install-key strings in the sync-core diagnostics test (AC7 checks they never reach diagnostics), not secrets; fingerprint of the squash commit on main (#115) · owner: mobile-developer · review_by: 2026-12-05
+26fad2e615b837ac9bb2e2ba4275b276007899ca:packages/sync-core/test/diagnostics-contract.test.ts:jwt:17
+
+# reason: synthetic JWT-like and install-key strings in the sync-core diagnostics test (AC7 checks they never reach diagnostics), not secrets; fingerprint of the squash commit on main (#115) · owner: mobile-developer · review_by: 2026-12-05
+26fad2e615b837ac9bb2e2ba4275b276007899ca:packages/sync-core/test/diagnostics-contract.test.ts:generic-api-key:18
+
+# reason: synthetic JWT-like and install-key strings in the sync-core diagnostics test (AC7 checks they never reach diagnostics), not secrets; fingerprint of the EVM-091 branch commit, still reachable from origin/feature/EVM-091-* (full-history scan) · owner: mobile-developer · review_by: 2026-12-05
+82844f644812f1a817b63581c116982ae0a9d334:packages/sync-core/test/diagnostics-contract.test.ts:jwt:15
+
+# reason: synthetic JWT-like and install-key strings in the sync-core diagnostics test (AC7 checks they never reach diagnostics), not secrets; fingerprint of the EVM-091 branch commit, still reachable from origin/feature/EVM-091-* (full-history scan) · owner: mobile-developer · review_by: 2026-12-05
+82844f644812f1a817b63581c116982ae0a9d334:packages/sync-core/test/diagnostics-contract.test.ts:generic-api-key:16

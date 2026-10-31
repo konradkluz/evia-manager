@@ -3,5 +3,6 @@
   "shared": 90,
   "backend": 85,
   "web": 80,
-  "mobile": 80
+  "mobile": 80,
+  "sync": 95
 }

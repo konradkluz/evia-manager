@@ -4,8 +4,8 @@ import { coverageExclusions } from '../src/coverage-exclusions.ts';
 import { COVERAGE_THRESHOLDS, coverage } from '../src/vitest.ts';
 
 describe('Vitest preset (EVM-006 AC3)', () => {
-  it('EVM-006 AC3: thresholds follow docs/process/testing-strategy.md (shared and tools 90, backend 85, web and mobile 80)', () => {
-    expect(COVERAGE_THRESHOLDS).toEqual({ shared: 90, backend: 85, web: 80, mobile: 80 });
+  it('EVM-006 AC3: thresholds follow docs/process/testing-strategy.md (shared and tools 90, backend 85, web and mobile 80, sync 95)', () => {
+    expect(COVERAGE_THRESHOLDS).toEqual({ shared: 90, backend: 85, web: 80, mobile: 80, sync: 95 });
   });
 
   it('EVM-006 AC3: coverage uses V8, writes lcov and enforces line and branch thresholds', () => {

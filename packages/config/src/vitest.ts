@@ -10,16 +10,17 @@ interface Thresholds {
   readonly backend: number;
   readonly web: number;
   readonly mobile: number;
+  readonly sync: number;
 }
 
 /** Global line and branch thresholds per layer, in percent — the single source is coverage-thresholds.json (EVM-009: Jest reads it too). */
 export const COVERAGE_THRESHOLDS: Readonly<Thresholds> = readThresholds();
 
 function readThresholds(): Readonly<Thresholds> {
-  const { shared, backend, web, mobile } = JSON.parse(
+  const { shared, backend, web, mobile, sync } = JSON.parse(
     readFileSync(new URL('../coverage-thresholds.json', import.meta.url), 'utf8'),
   ) as Thresholds;
-  return Object.freeze({ shared, backend, web, mobile });
+  return Object.freeze({ shared, backend, web, mobile, sync });
 }
 
 export type Layer = keyof typeof COVERAGE_THRESHOLDS;
