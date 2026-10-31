@@ -1,3 +1,5 @@
+import type { EntityType, HydrationReason, ResyncReason } from './pull-types.ts';
+
 /** Own types of the sync core (EVM-091): the core does not import the OpenAPI contract; compatibility is proven by a test. */
 
 export const MUTATION_TYPES = ['CreateNote', 'CreateComment', 'CreateQuickWorkOrder'] as const;
@@ -74,7 +76,8 @@ export type PauseReason =
 export type EngineEvent =
   | {
       readonly kind: 'signal';
-      readonly signal: 'session_revoked' | 'device_wipe_required' | 'upgrade_required' | 'auth_required' | 'owner_mismatch';
+      readonly signal:
+        'session_revoked' | 'device_wipe_required' | 'upgrade_required' | 'auth_required' | 'owner_mismatch' | 'replica_stale';
     }
   | { readonly kind: 'paused'; readonly reason: PauseReason }
   | { readonly kind: 'batch_sent'; readonly size: number }
@@ -83,7 +86,30 @@ export type EngineEvent =
   | { readonly kind: 'blocked'; readonly mutationId: string }
   | { readonly kind: 'retry_scheduled'; readonly code: string; readonly attempts: number; readonly delayMs: number; readonly size: number }
   | { readonly kind: 'corrupt_record'; readonly index: number }
-  | { readonly kind: 'ignored_result' };
+  | { readonly kind: 'ignored_result' }
+  | { readonly kind: 'pull_page_applied'; readonly count: number; readonly phase: 'snapshot' | 'changes' }
+  | { readonly kind: 'resync_scheduled'; readonly reason: ResyncReason }
+  | { readonly kind: 'resync_completed' }
+  | { readonly kind: 'hydration'; readonly reason: HydrationReason }
+  | { readonly kind: 'change_invalid'; readonly reason: 'malformed' | 'projection_mismatch'; readonly type: EntityType | 'unknown' }
+  | { readonly kind: 'change_unknown_skipped'; readonly count: number }
+  | { readonly kind: 'replica_wiped'; readonly reason: 'access_changed' | 'session_revoked' | 'owner_changed' }
+  | { readonly kind: 'sweep_done'; readonly removedWorkOrders: number; readonly removedOrphans: number }
+  | { readonly kind: 'pull_retry_scheduled'; readonly code: PullFailureCode; readonly attempts: number; readonly delayMs: number }
+  | { readonly kind: 'pull_failed'; readonly code: PullFailureCode }
+  | { readonly kind: 'data_hidden'; readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly' | 'owner_mismatch' };
+
+/** Closed vocabulary of pull failures (no messages of adapters or servers, SR-LOG-08). */
+export type PullFailureCode =
+  | 'network'
+  | 'rate_limited'
+  | 'timeout'
+  | 'server_error'
+  | 'invalid_response'
+  | 'invalid_change_in_resync'
+  | 'store_failure'
+  | 'contact_not_saved'
+  | 'unexpected_status';
 
 /** Typed errors carry a fixed code and never data from the payload. */
 export type QueueErrorCode = 'no_session' | 'invalid_input' | 'payload_too_large' | 'owner_mismatch' | 'storage_failure';
