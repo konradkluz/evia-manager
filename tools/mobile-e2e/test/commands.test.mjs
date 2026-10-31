@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { delimiter, join } from 'node:path';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import {
   adbArgs,
@@ -264,7 +264,7 @@ describe('the AC4 release package of the same run (EVM-093 AC4, security control
 
   it('EVM-093 AC4: git is taken from an absolute PATH directory only (never the current folder)', () => {
     const exists = (/** @type {string} */ path) => path === join('/usr/bin', 'git') || path === join('C:/Git/cmd', 'git.exe');
-    assert.equal(resolveGit({ PATH: `relative${delimiter}/usr/bin` }, 'linux', exists), join('/usr/bin', 'git'));
+    assert.equal(resolveGit({ PATH: 'relative:/usr/bin' }, 'linux', exists), join('/usr/bin', 'git'));
     assert.equal(resolveGit({ Path: 'C:/Git/cmd' }, 'win32', exists), join('C:/Git/cmd', 'git.exe'));
     assert.equal(
       resolveGit({ PATH: 'relative' }, 'linux', () => true),

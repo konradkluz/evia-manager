@@ -4,7 +4,7 @@
  * arguments and never a shell (CWE-78): Gradle and Maestro are started as `java -classpath … <main class>`, exactly what their
  * `.bat` launchers do, because Node refuses to start `.bat` files without a shell.
  */
-import { delimiter, isAbsolute, join } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 
 /** Application id of the app (apps/mobile/plugins/expo-config.ts); the Maestro flows carry the same literal. */
 export const APPLICATION_ID = 'pl.eviacharge.manager';
@@ -289,9 +289,10 @@ export function verifyCommand(nodeExecutable, repoRoot, apk) {
  */
 export function resolveGit(env, platform, exists) {
   const entry = Object.entries(env).find(([key]) => key.toUpperCase() === 'PATH');
-  const file = platform === 'win32' ? 'git.exe' : 'git';
-  for (const directory of (entry?.[1] ?? '').split(delimiter)) {
-    if (directory === '' || !isAbsolute(directory)) continue;
+  const windows = platform === 'win32';
+  const file = windows ? 'git.exe' : 'git';
+  for (const directory of (entry?.[1] ?? '').split(windows ? win32.delimiter : posix.delimiter)) {
+    if (directory === '' || !(windows ? win32 : posix).isAbsolute(directory)) continue;
     const candidate = join(directory, file);
     if (exists(candidate)) return candidate;
   }
