@@ -143,3 +143,11 @@ volumes:
   # EVM-046: the scratch space of clamd for streams up to 2 GB (a disk volume; the size limit and the alert at 80% are set by the IaC session)
   clamav-scan-tmp:
     name: evia-clamav-scan-tmp
+    # A deviation from P3 (photos and films pass through this scratch space), accepted by the user at the demo of EVM-046 (RR-71): the directory is
+    # a SEPARATE mount of the host (not the root file system), encrypted with dm-crypt under an ephemeral key (kept in RAM only), mounted
+    # nodev,nosuid,noexec with a size quota >= 2.5 GB and an alert at 80%; the IaC session creates it. Cleaned at the start of clamd (CWE-459).
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/evia/clamav-scan

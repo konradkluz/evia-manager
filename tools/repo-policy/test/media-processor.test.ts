@@ -89,6 +89,11 @@ describe('EVM-068 AC5: the container of the media processor', () => {
     expect(code).toContain('ARG FFMPEG_VERSION');
     expect(code).toContain('test -n "${FFMPEG_VERSION}"');
     expect(code).toContain('apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}"');
+    // a literal backslash-n (a typo for a line continuation) would break the build; the RUN must be real continued lines
+    expect(code).not.toContain(String.raw`\n`);
+    expect(code).toMatch(
+      /test -n "\$\{FFMPEG_VERSION\}" \\\r?\n\s+&& apt-get update \\\r?\n\s+&& apt-get install[^\n]*\\\r?\n\s+&& rm -rf \/var\/lib\/apt\/lists\/\* \\\r?\n\s+&& ffmpeg -version/,
+    );
     expect(code).toContain('ENTRYPOINT ["/usr/local/bin/node"]');
     expect(code).toMatch(/^USER 65532:65532$/m);
     expect(code).toContain('--frozen-lockfile --ignore-scripts --prod');

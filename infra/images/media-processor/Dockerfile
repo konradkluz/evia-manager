@@ -45,7 +45,11 @@ FROM node:26.10.0-trixie-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb98
 # renovate: datasource=deb depName=ffmpeg
 # The exact Debian package version (`apt-cache madison ffmpeg` in the image of the build date), given by the IaC session and recorded in the register of releases.
 ARG FFMPEG_VERSION
-RUN test -n "${FFMPEG_VERSION}" \n && apt-get update \n && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" \n && rm -rf /var/lib/apt/lists/* \n && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1
+RUN test -n "${FFMPEG_VERSION}" \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends "ffmpeg=${FFMPEG_VERSION}" \
+  && rm -rf /var/lib/apt/lists/* \
+  && ffmpeg -version | head -n 1 && ffprobe -version | head -n 1
 
 # Metadata only (no RUN): links the GHCR package to the repository.
 LABEL org.opencontainers.image.source="https://github.com/konradkluz/evia-manager"

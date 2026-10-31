@@ -113,6 +113,9 @@ describe('the VM side of the channel (EVM-007 AC1, AC4, AC7; architect 3, 12–1
       "CLAMD_CONF_AlertExceedsMax: 'yes'",
     ])
       expect(infra, line).toContain(line);
+    // RR-71: the scratch space of clamd is a separate host mount (encrypted, size-limited by the IaC session), never the root file system
+    expect(infra).toContain('device: /var/lib/evia/clamav-scan');
+    expect(infra).toContain('dm-crypt');
   });
 
   it('EVM-007 AC7 (SR-INFRA-05): after a reboot the secrets are restored before Docker, fail-closed, by the same script as deploy.sh', () => {
