@@ -4,7 +4,7 @@ title: "API: pobieranie pozostałych encji, wejście i wyjście z zakresu"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P1
 path: pelna             # synchronizacja offline, uprawnienia
 owner: backend-developer

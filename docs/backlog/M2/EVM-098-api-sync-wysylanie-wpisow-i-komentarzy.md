@@ -4,7 +4,7 @@ title: "API: wysyłanie mutacji — wpisy i komentarze"
 type: story
 milestone: M2
 epic: E12 Wpisy offline
-status: ready
+status: done
 priority: P1
 path: pelna             # synchronizacja offline, uprawnienia
 owner: backend-developer
