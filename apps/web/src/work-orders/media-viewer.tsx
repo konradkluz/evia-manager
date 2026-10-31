@@ -4,7 +4,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError } from '../api/client.ts';
 import { formatClock, formatDate } from './format.ts';
 import { categoryLabel, mediaAlt, mediaText } from './media-labels.ts';
-import { useVariantRequest } from './media-thumbnails.ts';
+import { useVariantRequest, useVariantTicket } from './media-thumbnails.ts';
+import { UnscannedMark } from './media-unscanned.tsx';
+import { VideoPlayer } from './media-video-player.tsx';
 
 // The lightbox of W-09 (EVM-045 AC1, AC2, AC4, AC5, AC8; styleguide § 3.11, § 3.13): the preview 1600 px of a photo, the metadata of the medium
 // (the API sends no EXIF / GPS and the panel has no "Kopiuj link"), the download of the original after the warning about metadata. The addresses
@@ -12,7 +14,9 @@ import { useVariantRequest } from './media-thumbnails.ts';
 // with `rel="noreferrer"` and forgotten. The button of the original is a convenience of the interface - the server decides (`403`, `404`, `429`).
 
 type View =
-  { readonly kind: 'loading' } | { readonly kind: 'ready'; readonly url: string } | { readonly kind: 'error'; readonly text: string };
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'ready'; readonly url: string; readonly expiresAt: string }
+  | { readonly kind: 'error'; readonly text: string };
 
 const LOADING: View = { kind: 'loading' };
 
@@ -103,6 +107,7 @@ function OriginalDialog({
         </>
       }
     >
+      {asset?.mediaType === 'video' && !asset.avScanned ? <UnscannedMark /> : null}
       <p>{mediaText.originalBody}</p>
       {failure === null ? null : <InlineAlert tone="error">{failure}</InlineAlert>}
     </Dialog>
@@ -132,7 +137,7 @@ export function MediaViewer({
   readonly onIndex: (index: number) => void;
   readonly onClose: () => void;
 }) {
-  const request = useVariantRequest(workOrderId);
+  const request = useVariantTicket(workOrderId);
   const asset = index === null ? undefined : assets[index];
   const [state, setState] = useState<{ readonly id: string; readonly view: View }>({ id: '', view: LOADING });
   const [asking, setAsking] = useState(false);
@@ -148,9 +153,9 @@ export function MediaViewer({
     if (!online || loadedFor.current === assetId) return;
     let cancelled = false;
     request(assetId, 'preview')
-      .then((url) => {
+      .then((ticket) => {
         loadedFor.current = assetId;
-        if (!cancelled) setState({ id: assetId, view: { kind: 'ready', url } });
+        if (!cancelled) setState({ id: assetId, view: { kind: 'ready', url: ticket.url, expiresAt: ticket.expiresAt } });
       })
       .catch((error: unknown) => {
         if (!cancelled) setState({ id: assetId, view: { kind: 'error', text: previewFailureText(error) } });
@@ -178,6 +183,16 @@ export function MediaViewer({
 
   const picture = (): ReactNode => {
     if (asset === undefined) return null;
+    if (view.kind === 'ready' && asset.mediaType === 'video') {
+      return (
+        <VideoPlayer
+          key={asset.id}
+          initial={{ url: view.url, expiresAt: view.expiresAt }}
+          label={mediaText.videoPreviewLabel(mediaAlt(asset))}
+          renew={() => request(asset.id, 'preview')}
+        />
+      );
+    }
     if (view.kind === 'ready') {
       return (
         <img
@@ -235,7 +250,7 @@ export function MediaViewer({
         onNext={next}
         onDismiss={onClose}
         itemKey={asset?.id ?? ''}
-        zoomable={ready}
+        zoomable={ready && asset?.mediaType !== 'video'}
         details={
           asset === undefined ? null : (
             <>
@@ -246,6 +261,13 @@ export function MediaViewer({
                   ...(asset.origin === 'mobile' ? [mediaText.fromPhone] : []),
                 ].join(' · ')}
               </p>
+              {asset.mediaType === 'video' ? <p className="text-body-sm text-text-secondary">{mediaText.videoKeys}</p> : null}
+              {asset.mediaType === 'video' && !asset.avScanned ? (
+                <>
+                  <UnscannedMark />
+                  <p className="text-body-sm text-text-secondary">{mediaText.videoPreviewOnly}</p>
+                </>
+              ) : null}
               {asset.description === null ? null : <p className="text-body-sm">{mediaText.descriptionLine(asset.description)}</p>}
               {canDownloadOriginal ? (
                 <div className="flex flex-wrap items-center gap-inline-md">
