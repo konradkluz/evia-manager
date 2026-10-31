@@ -717,6 +717,7 @@ describe('EVM-090 AC4 sending mutations', () => {
       'idempotency_mismatch',
       'idempotency_in_progress',
       'template_unavailable',
+      'quota_exceeded',
     ]);
     expect(result.properties.warnings.items['x-extensible-enum']).toEqual(['captured_at_out_of_range', 'idempotency_expired']);
     expect(result.properties.outcome.enum).toBeUndefined();
