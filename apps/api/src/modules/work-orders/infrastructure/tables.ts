@@ -28,6 +28,10 @@ export interface WorkOrdersTable {
   closed_at: Generated<Date | null>;
   /** `date`: written as `YYYY-MM-DD` and read through `to_char`, like `planned_date`. */
   completed_on: Generated<string | null>;
+  /** `office` (the panel) or `mobile_quick` (`CreateQuickWorkOrder`, EVM-099; migration 0058): server only, read-only in the contract. */
+  origin: Generated<'office' | 'mobile_quick'>;
+  /** The device of the session that created a `mobile_quick` order (no foreign key, 0058): both or neither (CHECK). */
+  created_via_device_id: Generated<string | null>;
   created_at: Date;
   created_by: string | null;
   updated_at: Date;

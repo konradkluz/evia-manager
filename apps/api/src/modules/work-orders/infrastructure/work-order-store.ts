@@ -21,6 +21,9 @@ export interface WorkOrderToInsert {
   readonly sourceTemplateId: string | null;
   readonly plannedDate: string | null;
   readonly description: string | null;
+  /** The origin of the order (EVM-099): `office` by default; an order of the phone names the device of the session. */
+  readonly origin?: 'office' | 'mobile_quick';
+  readonly createdViaDeviceId?: string | null;
 }
 
 /**
@@ -40,6 +43,8 @@ export function insertWorkOrder(db: WorkOrdersDb, order: WorkOrderToInsert, acto
       source_template_id: order.sourceTemplateId,
       planned_date: order.plannedDate,
       description: order.description,
+      origin: order.origin ?? 'office',
+      created_via_device_id: order.createdViaDeviceId ?? null,
       created_at: now,
       created_by: actorUserId,
       updated_at: now,
@@ -198,6 +203,8 @@ export function findReadableWorkOrder(db: WorkOrdersDb, principal: Principal, id
       'description',
       'version',
       'created_at',
+      'created_by',
+      'origin',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))

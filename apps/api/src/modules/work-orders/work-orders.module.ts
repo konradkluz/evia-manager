@@ -32,6 +32,7 @@ import { TransitionWorkOrderService } from './application/transition-work-order.
 import { UpdateScopeItemService } from './application/update-scope-item.service.ts';
 import { UpdateWorkOrderService } from './application/update-work-order.service.ts';
 import { WorkOrderDirectoryService } from './application/work-order-directory.service.ts';
+import { WorkOrderComposer } from './application/work-order-composer.ts';
 import { WorkOrderCompositionRegistry } from './composition-contributor.ts';
 import { WorkOrdersController } from './http/work-orders.controller.ts';
 import { WorkOrderDeletionRegistry } from './deletion-participant.ts';
@@ -52,6 +53,7 @@ import {
   imports: [IdentityModule, CatalogModule, CustomersModule, SitesModule, PartiesModule],
   controllers: [WorkOrdersController],
   providers: [
+    WorkOrderComposer,
     CreateWorkOrderService,
     ReadWorkOrderService,
     ListSiteOrdersService,

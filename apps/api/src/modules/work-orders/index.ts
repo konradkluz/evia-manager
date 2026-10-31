@@ -18,6 +18,7 @@ export { WorkOrderTransitionRegistry, type TransitionContext, type WorkOrderTran
 export { WorkOrderDeletionRegistry, type DeletionContext, type WorkOrderDeletionParticipant } from './deletion-participant.ts';
 export { decideDeletion, type DeletionAssessment, type DeletionDecision } from './domain/work-order-deletion.ts';
 export {
+  CompositionRejectedError,
   WorkOrderCompositionRegistry,
   type CompositionContext,
   type CompositionScopeItem,

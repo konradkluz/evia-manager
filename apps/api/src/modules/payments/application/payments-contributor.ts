@@ -12,8 +12,13 @@ import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import { TEMPLATE_DIRECTORY, type TemplateDirectory } from '../../catalog/index.ts';
-import { WorkOrderCompositionRegistry, type CompositionContext, type WorkOrderCompositionContributor } from '../../work-orders/index.ts';
-import { planMilestones } from '../domain/composition-plan.ts';
+import {
+  CompositionRejectedError,
+  WorkOrderCompositionRegistry,
+  type CompositionContext,
+  type WorkOrderCompositionContributor,
+} from '../../work-orders/index.ts';
+import { PaymentPlanLimitError, planMilestones } from '../domain/composition-plan.ts';
 import { insertPlannedMilestones } from '../infrastructure/milestone-store.ts';
 import { paymentTables } from '../infrastructure/tables.ts';
 
@@ -39,8 +44,19 @@ export class PaymentsCompositionContributor implements WorkOrderCompositionContr
 
   async contribute(tx: Kysely<Database>, context: CompositionContext): Promise<void> {
     if (context.templateId === null) return;
-    const milestones = planMilestones(await this.#templates.findPaymentPlanForCopy(tx, context.templateId));
+    const plan = await this.#templates.findPaymentPlanForCopy(tx, context.templateId);
+    const milestones = planned(plan);
     if (milestones.length === 0) return;
     await insertPlannedMilestones(paymentTables(tx), context.workOrderId, milestones, context.principal.userId, context.now);
+  }
+}
+
+/** More than 20 milestones is the template's limit: told to `work-orders` in its own language (EVM-099); nothing is trimmed. */
+function planned(plan: Parameters<typeof planMilestones>[0]): ReturnType<typeof planMilestones> {
+  try {
+    return planMilestones(plan);
+  } catch (error) {
+    if (error instanceof PaymentPlanLimitError) throw new CompositionRejectedError({ cause: error });
+    throw error;
   }
 }
