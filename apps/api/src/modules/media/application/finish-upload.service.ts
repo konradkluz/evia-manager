@@ -67,20 +67,17 @@ export class FinishUploadService {
     this.#kinds = kinds;
   }
 
-  /** `complete` of a session of a MEDIUM: the answer is the medium. */
+  /** `complete` of a session of a MEDIUM: the answer is the medium (read again: the chain was read and locked in this very transaction, so the row is there). */
   completeMedia(principal: Principal, rawParams: unknown): Promise<MediaAsset> {
-    return this.#complete(principal, rawParams, 'media_asset', async (tx, chain, ids) => {
-      const fresh =
-        chain.owned.kind === 'media_asset' ? await findAssetWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id) : undefined;
-      return toMediaAsset(fresh ?? (chain.owned.found as AssetWithFile));
-    });
+    return this.#complete(principal, rawParams, 'media_asset', async (tx, _chain, ids) =>
+      toMediaAsset((await findAssetWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as AssetWithFile),
+    );
   }
 
   /** `complete` of a session of a DOCUMENT: the answer is the document (the kind and the class are the server's, from the catalog). */
   completeDocument(principal: Principal, rawParams: unknown): Promise<Document> {
-    return this.#complete(principal, rawParams, 'document', async (tx, chain, ids) => {
-      const fresh = await findDocumentWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id);
-      const found = fresh ?? (chain.owned.found as DocumentWithFile);
+    return this.#complete(principal, rawParams, 'document', async (tx, _chain, ids) => {
+      const found = (await findDocumentWithFile(mediaTables(tx), ids.workOrderId, ids.owner.id)) as DocumentWithFile;
       return (await presentDocuments(tx, this.#kinds, principal.role, [found]))[0] as Document;
     });
   }

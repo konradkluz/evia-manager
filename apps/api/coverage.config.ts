@@ -91,6 +91,8 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/sync/infrastructure/**/*.ts',
   'src/modules/sync/http/sync.controller.ts',
   'src/modules/media/http/media.controller.ts',
+  // EVM-047: the documents - the controller of the use cases above (same reasoning as the controller of the media)
+  'src/modules/media/http/documents.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',

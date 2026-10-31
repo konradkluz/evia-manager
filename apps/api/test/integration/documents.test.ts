@@ -1090,6 +1090,30 @@ describe('EVM-047 AC8 states', () => {
   });
 });
 
+describe('EVM-047 AC8 the state of the file and the kind in the list', () => {
+  it('EVM-047 AC8 a file damaged in transfer shows its reason code (and only that one); a quarantined file shows no reason; a retired kind keeps its name and its class', async () => {
+    const orderId = await order();
+    const editor = await signIn('editor');
+    const damaged = await cleanDocument(orderId, editor.userId, { state: 'pending_upload' });
+    await sql`update media.stored_files set state = 'failed', state_reason_code = 'checksum_mismatch' where id = ${damaged.storedFileId}`.execute(
+      admin(),
+    );
+    const held = await cleanDocument(orderId, editor.userId, { state: 'quarantined' });
+    const power = await cleanDocument(orderId, editor.userId, { kindCode: 'dso_application' });
+    await sql`update catalog.document_kinds set deleted_at = ${NOW} where code = 'dso_application'`.execute(admin());
+    try {
+      const items = ((await listDocuments(editor, orderId)).body as { items: Array<DocumentBody & { stateReasonCode: string | null }> })
+        .items;
+      const byId = new Map(items.map((item) => [item.id, item]));
+      expect(byId.get(damaged.documentId)).toMatchObject({ fileState: 'failed', stateReasonCode: 'checksum_mismatch' });
+      expect(byId.get(held.documentId)).toMatchObject({ fileState: 'quarantined', stateReasonCode: null });
+      expect(byId.get(power.documentId)).toMatchObject({ kindName: 'Wniosek do OSD', confidentiality: 'identity_data' });
+    } finally {
+      await sql`update catalog.document_kinds set deleted_at = null where code = 'dso_application'`.execute(admin());
+    }
+  });
+});
+
 describe('EVM-047 documents stay off the phone (P6; the channel is web; domain-model D6)', () => {
   it('EVM-047 AC7 the schema `media` is outside the scope of the synchronisation and no table of it carries a trigger of the change log', async () => {
     expect(SYNC_SCOPE_SCHEMAS).not.toContain('media');
