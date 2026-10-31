@@ -33,6 +33,7 @@ export const HEADER: WorkOrderDetails = {
   allowedTransitions: ['completed', 'on_hold', 'cancelled'],
   version: 3,
   createdAt: '2026-09-01T10:00:00.000Z',
+  origin: 'office',
 };
 
 export const CUSTOMER: CustomerCard = {

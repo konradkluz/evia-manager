@@ -17,5 +17,7 @@ export function headerOf(order: WorkOrder): WorkOrderDetails {
     allowedTransitions: [],
     version: order.version,
     createdAt: order.createdAt,
+    // the answer of the creation names the origin; the detail that replaces this header confirms it (EVM-099)
+    origin: order.origin ?? 'office',
   };
 }
