@@ -119,6 +119,17 @@ describe('EVM-068 AC5 the settings of the image processor come as a pair of abso
     expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_WORKDIR: '/run/evia\0' }))).toEqual(['MEDIA_PROCESSOR_WORKDIR']);
   });
 
+  it('EVM-046 AC5 the work area of videos is a separate absolute disk path; it needs the processor and differs from the tmpfs of photos', () => {
+    const video = { MEDIA_PROCESSOR_VIDEO_WORKDIR: '/var/lib/evia/media-video' };
+    expect(loadConfig(validEnv({ ...MEDIA, ...PROCESSOR })).media?.processor?.videoWorkDir).toBeUndefined();
+    expect(loadConfig(validEnv({ ...MEDIA, ...PROCESSOR, ...video })).media?.processor?.videoWorkDir).toBe('/var/lib/evia/media-video');
+    expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_VIDEO_WORKDIR: 'video' }))).toEqual(['MEDIA_PROCESSOR_VIDEO_WORKDIR']);
+    expect(keysOf(validEnv({ ...MEDIA, ...PROCESSOR, MEDIA_PROCESSOR_VIDEO_WORKDIR: PROCESSOR.MEDIA_PROCESSOR_WORKDIR }))).toEqual([
+      'MEDIA_PROCESSOR_VIDEO_WORKDIR',
+    ]);
+    expect(keysOf(validEnv({ ...MEDIA, ...video }))).toEqual(['MEDIA_PROCESSOR_VIDEO_WORKDIR']);
+  });
+
   it('EVM-068 AC5 the processor settings alone do not switch the media on (the compose file names them before the rest of the media settings exists)', () => {
     expect(loadConfig(validEnv(PROCESSOR)).media).toBeUndefined();
     expect(keysOf(validEnv({ MEDIA_PROCESSOR_SOCKET: PROCESSOR.MEDIA_PROCESSOR_SOCKET }))).toEqual([]);

@@ -43,6 +43,8 @@ export type ClamdAddress =
 export interface ImageProcessorConfig {
   readonly socketPath: string;
   readonly workDir: string;
+  /** The work area of VIDEOS (EVM-046): a separate DISK volume (a film of 4 GiB does not fit in a tmpfs); without it the worker makes no derivatives of films. */
+  readonly videoWorkDir?: string;
 }
 
 export interface MediaConfig {
@@ -140,6 +142,15 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
   const hasWorkDir = !blank(env['MEDIA_PROCESSOR_WORKDIR']);
   check('MEDIA_PROCESSOR_SOCKET', !hasSocket ? !hasWorkDir : absolutePath.safeParse(value('MEDIA_PROCESSOR_SOCKET')).success);
   check('MEDIA_PROCESSOR_WORKDIR', !hasWorkDir ? !hasSocket : absolutePath.safeParse(value('MEDIA_PROCESSOR_WORKDIR')).success);
+  const hasVideoWorkDir = !blank(env['MEDIA_PROCESSOR_VIDEO_WORKDIR']);
+  // the work area of videos is useless without the processor, and it is a DIFFERENT directory than the tmpfs of photos
+  check(
+    'MEDIA_PROCESSOR_VIDEO_WORKDIR',
+    !hasVideoWorkDir ||
+      (hasSocket &&
+        absolutePath.safeParse(value('MEDIA_PROCESSOR_VIDEO_WORKDIR')).success &&
+        value('MEDIA_PROCESSOR_VIDEO_WORKDIR') !== value('MEDIA_PROCESSOR_WORKDIR')),
+  );
   const forcePathStyle = env['S3_FORCE_PATH_STYLE'];
   check('S3_FORCE_PATH_STYLE', blank(forcePathStyle) || forcePathStyle === 'true' || forcePathStyle === 'false');
   const origin = env['MEDIA_BUCKET_ORIGIN'];
@@ -168,7 +179,13 @@ export function loadMediaConfig(env: Env): MediaConfigResult {
     },
     clamd,
     processor:
-      hasSocket && hasWorkDir ? { socketPath: value('MEDIA_PROCESSOR_SOCKET'), workDir: value('MEDIA_PROCESSOR_WORKDIR') } : undefined,
+      hasSocket && hasWorkDir
+        ? {
+            socketPath: value('MEDIA_PROCESSOR_SOCKET'),
+            workDir: value('MEDIA_PROCESSOR_WORKDIR'),
+            ...(hasVideoWorkDir ? { videoWorkDir: value('MEDIA_PROCESSOR_VIDEO_WORKDIR') } : {}),
+          }
+        : undefined,
     bucketOrigin: blank(origin) ? undefined : value('MEDIA_BUCKET_ORIGIN'),
     limits,
   };

@@ -886,3 +886,52 @@ export async function recordDuration(db: MediaDb, storedFileId: string, duration
     .executeTakeFirst();
   return result !== undefined;
 }
+
+/** One key for the claim of a film: the claims of films are serialised by it (ONE film is transcoded at a time, whatever the number of workers). */
+const VIDEO_CLAIM_LOCK = 'media-video-claim';
+
+/**
+ * The take of a FILM by the processing loop (EVM-046 AC5: the concurrency is ONE and it holds in the database, not only in the process): like
+ * {@link claimForProcessing}, and in addition no other film may be `processing` with a fresh claim. The check and the update must not race, so the
+ * claims of films are serialised by a transaction-scoped advisory lock taken FIRST - the second claim waits, then its statement sees the committed
+ * `processing` row of the first and takes nothing. MUST run inside a transaction (the lock lives as long as it). Photos do not take this path.
+ */
+export async function claimVideoForProcessing(
+  db: MediaDb,
+  storedFileId: string,
+  staleBefore: Date,
+  now: Date,
+  maxAttempts: number,
+): Promise<StoredFileRow | undefined> {
+  await sql`select pg_advisory_xact_lock(hashtextextended(${VIDEO_CLAIM_LOCK}, 0))`.execute(db);
+  return db
+    .updateTable('media.stored_files')
+    .set({
+      state: 'processing',
+      process_claimed_at: now,
+      process_attempts: sql<number>`process_attempts + 1`,
+      state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
+    })
+    .where('id', '=', storedFileId)
+    .where('process_attempts', '<', maxAttempts)
+    .where((eb) =>
+      eb.or([
+        eb('state', '=', 'clean'),
+        eb.and([eb('state', '=', 'processing'), sql<boolean>`(process_claimed_at is null or process_claimed_at < ${staleBefore})`]),
+      ]),
+    )
+    .where(
+      sql<boolean>`not exists (
+        select 1 from media.stored_files other join media.media_assets a on a.id = other.media_asset_id
+        where a.media_type = 'video' and other.state = 'processing' and other.id <> media.stored_files.id and other.process_claimed_at >= ${staleBefore}
+      )`,
+    )
+    .returningAll()
+    .executeTakeFirst();
+}
+
+/** The recorded size of a file (the room the film needs is decided from it BEFORE the film is taken); `undefined` for a missing file or one the scan has not measured. */
+export async function recordedSize(db: MediaDb, storedFileId: string): Promise<number | undefined> {
+  const row = await db.selectFrom('media.stored_files').where('id', '=', storedFileId).select('size_bytes').executeTakeFirst();
+  return row?.size_bytes == null ? undefined : Number(row.size_bytes);
+}

@@ -48,6 +48,8 @@ import {
 import { runInTransaction } from './database/transactional.ts';
 import { createImageProcessor } from './media-processing/create-image-processor.ts';
 import { IMAGE_PROCESSOR } from './media-processing/image-processor.ts';
+import { createVideoProcessor } from './media-processing/create-video-processor.ts';
+import { VIDEO_PROCESSOR } from './media-processing/video-processor.ts';
 import { createMalwareScanner } from './malware-scan/create-malware-scanner.ts';
 import { MALWARE_SCANNER } from './malware-scan/malware-scanner.ts';
 import { createObjectStorage } from './object-storage/create-object-storage.ts';
@@ -90,6 +92,8 @@ export class PlatformModule {
         { provide: MALWARE_SCANNER, useFactory: () => createMalwareScanner(config.media) },
         // EVM-068: `null` without the processor settings - no derivatives are made and the photos stay `clean`
         { provide: IMAGE_PROCESSOR, useFactory: () => createImageProcessor(config.media) },
+        // EVM-046: `null` without the work area of videos - the films stay `clean` and their originals are not released (fail closed)
+        { provide: VIDEO_PROCESSOR, useFactory: () => createVideoProcessor(config.media) },
         { provide: BULK_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryBulkReadMeter(clock) },
         { provide: SIGNED_URL_METERS, inject: [CLOCK], useFactory: (clock: Clock) => new InMemorySignedUrlMeters(clock) },
         { provide: DISTINCT_READ_METER, inject: [CLOCK], useFactory: (clock: Clock) => new InMemoryDistinctReadMeter(clock) },
@@ -149,6 +153,7 @@ export class PlatformModule {
         OBJECT_STORAGE,
         MALWARE_SCANNER,
         IMAGE_PROCESSOR,
+        VIDEO_PROCESSOR,
         DELETION_REGISTER,
         SIGNED_URL_METERS,
       ],

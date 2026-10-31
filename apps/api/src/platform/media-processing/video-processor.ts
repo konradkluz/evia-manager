@@ -37,8 +37,8 @@ export interface VideoProbe {
   readonly width: number;
   readonly height: number;
   readonly videoCodec: 'h264' | 'hevc';
-  /** `aac` or `null` (a video without sound). */
-  readonly audioCodec: 'aac' | null;
+  /** Whether the film has a sound track (nothing else about it is reported). */
+  readonly hasAudio: boolean;
 }
 
 export interface ProbeInput {
@@ -65,6 +65,11 @@ export interface VideoProcessor {
   transcode(jobId: string): Promise<VideoDerivatives>;
   /** Opens the preview of a job for reading, without following a link; the size is the one that `transcode` verified. */
   openPreview(jobId: string): Promise<Readable>;
+  /**
+   * Whether the work area of videos has room for a film of `originalBytes` and its preview (the original + 1.1 GiB of the preview + a reserve). The
+   * worker asks BEFORE it takes a film; a full area gives the take back without using an attempt (no fault of the file). A fault of the file system is `false`.
+   */
+  hasRoomFor(originalBytes: number): Promise<boolean>;
   /** Removes the directory of a job (after the job, on every path). */
   dispose(jobId: string): Promise<void>;
   /** Removes whatever an earlier process left in the work area (the start of the worker). */

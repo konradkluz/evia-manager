@@ -24,12 +24,9 @@ import { Readable } from 'node:stream';
 import { fileTypeFromBuffer } from 'file-type';
 import type { Kysely } from 'kysely';
 import type { Clock } from '../../../platform/clock/clock.ts';
-import { enqueueSecurityAlert } from '../../../platform/alerts/security-alerts.ts';
 import type { Database } from '../../../platform/database/database.ts';
-import { enqueueEmailOnce } from '../../../platform/email/email-outbox.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 import type { EventBus } from '../../../platform/events/event-bus.ts';
-import { newTraceId } from '../../../platform/http/request-context.ts';
 import type { Logger } from '../../../platform/logging/logger.ts';
 import { MalwareScanError, type MalwareScanner } from '../../../platform/malware-scan/malware-scanner.ts';
 import type { ObjectStorage } from '../../../platform/object-storage/object-storage.ts';
@@ -38,8 +35,9 @@ import { mediaKindOf, normalizeContentType, typeAgrees } from '../domain/file-ru
 import { decideOutcome } from '../domain/scan-outcome.ts';
 import { SCAN_LIMIT_BYTES, skipsAntivirus } from '../domain/video-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
-import { claimForScan, countStuck, findUnscanned, transitionFile, workOrderOfAsset } from '../infrastructure/media-store.ts';
+import { claimForScan, countStuck, findUnscanned, transitionFile } from '../infrastructure/media-store.ts';
 import { mediaTables } from '../infrastructure/tables.ts';
+import { publishMediaEvent, raiseQuarantineAlert } from './quarantine-alert.ts';
 
 /** A file in `scanning` that nobody has touched for this long is taken again. */
 export const STALE_SCANNING_MS = 2 * 60_000;
@@ -233,37 +231,16 @@ export class MediaScanService {
   }
 
   /** The first entry into quarantine: the audit event, one e-mail per active Administrator and a security alert (AC2; SR-FILE-05, SR-LOG-07). */
-  async #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
-    await this.#publish(tx, 'media_file.quarantined', mediaAssetId, {});
-    const workOrderId = await workOrderOfAsset(mediaTables(tx), mediaAssetId);
-    if (workOrderId !== undefined) {
-      for (const recipientUserId of await this.#deps.administrators(tx)) {
-        await enqueueEmailOnce(tx, {
-          kind: 'administrator_alert',
-          variant: 'administrator_media_quarantined',
-          recipientUserId,
-          subjectId: workOrderId,
-          now: at,
-        });
-      }
-    }
-    await enqueueSecurityAlert(tx, { code: 'media_quarantined', occurredAt: at, traceId: newTraceId() });
+  #alert(tx: Kysely<Database>, mediaAssetId: string, at: Date): Promise<void> {
+    return raiseQuarantineAlert(this.#deps, tx, mediaAssetId, at);
   }
 
-  async #publish(
+  #publish(
     tx: Kysely<Database>,
     type: MediaAuditEvent['type'],
     mediaAssetId: string,
     codes: Pick<MediaAuditEvent, 'fromCode' | 'toCode'>,
   ): Promise<void> {
-    const event: MediaAuditEvent = {
-      type,
-      actor: { type: 'system' },
-      outcome: 'success',
-      objectType: 'media_asset',
-      objectId: mediaAssetId,
-      ...codes,
-    };
-    await this.#deps.events.publish(tx, event, { origin: 'cli', traceId: newTraceId() });
+    return publishMediaEvent(this.#deps.events, tx, type, mediaAssetId, codes);
   }
 }

@@ -15,6 +15,7 @@ import type { MalwareScanner } from '../../platform/malware-scan/malware-scanner
 import { MALWARE_SCANNER } from '../../platform/malware-scan/malware-scanner.ts';
 import type { ImageProcessor } from '../../platform/media-processing/image-processor.ts';
 import { IMAGE_PROCESSOR } from '../../platform/media-processing/image-processor.ts';
+import { VIDEO_PROCESSOR, type VideoProcessor } from '../../platform/media-processing/video-processor.ts';
 import type { ObjectStorage } from '../../platform/object-storage/object-storage.ts';
 import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts';
 import type { MetricsRegistry } from '../../platform/metrics/metrics.ts';
@@ -27,6 +28,7 @@ import { FinishUploadService } from './application/finish-upload.service.ts';
 import { ListMediaAssetsService } from './application/list-media-assets.service.ts';
 import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 import { MediaProcessingService } from './application/media-processing.service.ts';
+import { VideoProcessingService } from './application/video-processing.service.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
 import { MediaDownloadUrlService } from './application/media-download-url.service.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
@@ -81,7 +83,38 @@ import { MediaController } from './http/media.controller.ts';
       useFactory: (db: Kysely<Database>, clock: Clock, logger: Logger, storage: ObjectStorage | null, processor: ImageProcessor | null) =>
         new MediaProcessingService({ db, clock, logger, storage, processor }),
     },
+    {
+      provide: VideoProcessingService,
+      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, VIDEO_PROCESSOR, AdministratorDirectory, METRICS],
+      useFactory: (
+        db: Kysely<Database>,
+        clock: Clock,
+        events: EventBus,
+        logger: Logger,
+        storage: ObjectStorage | null,
+        processor: VideoProcessor | null,
+        administrators: AdministratorDirectory,
+        metrics: MetricsRegistry,
+      ) =>
+        new VideoProcessingService({
+          db,
+          clock,
+          events,
+          logger,
+          storage,
+          processor,
+          administrators: (tx) => administrators.listActiveIds(tx),
+          metrics,
+        }),
+    },
   ],
-  exports: [MediaScanService, MediaProcessingService, QuarantineRetentionJob, AbandonedUploadsJob, SignatureMonitorJob],
+  exports: [
+    MediaScanService,
+    MediaProcessingService,
+    VideoProcessingService,
+    QuarantineRetentionJob,
+    AbandonedUploadsJob,
+    SignatureMonitorJob,
+  ],
 })
 export class MediaModule {}

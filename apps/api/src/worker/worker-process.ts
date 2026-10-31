@@ -27,6 +27,7 @@ import {
 import {
   AbandonedUploadsJob,
   MediaProcessingService,
+  VideoProcessingService,
   MediaScanService,
   QuarantineRetentionJob,
   SignatureMonitorJob,
@@ -70,6 +71,8 @@ export interface WorkerWiring {
   readonly mediaScanIntervalMs?: number;
   /** The interval of the making of derivatives (EVM-068); shortened by the tests only (the default is 5 seconds). */
   readonly mediaProcessIntervalMs?: number;
+  /** The interval of the loop of films (EVM-046); the default is 10 s. */
+  readonly mediaVideoIntervalMs?: number;
 }
 
 /** @returns the exit code of the process */
@@ -119,6 +122,19 @@ export async function runWorkerFromProcess(
       logger.warn(
         { job: 'media.process' },
         'worker: the making of derivatives is off (storage or processor not configured); scanned photos wait in the state clean',
+      );
+    }
+
+    // EVM-046: films have their own loop (concurrency one, a disk work area of their own). Without that area the films stay `clean` and their originals are
+    // not released (fail closed): a warning, not a refusal to start - photos and the rest of the worker do not depend on it.
+    const videoProcessing = app.get(VideoProcessingService, { strict: false });
+    if (videoProcessing.enabled) {
+      await videoProcessing.cleanWorkArea();
+      tasks.push({ start: () => videoProcessing.start(wiring.mediaVideoIntervalMs) });
+    } else {
+      logger.warn(
+        { job: 'media.process.video' },
+        'worker: the making of previews of films is off (storage or work area of films not configured); scanned films wait in the state clean',
       );
     }
 

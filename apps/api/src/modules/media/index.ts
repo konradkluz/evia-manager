@@ -2,6 +2,7 @@
 export { MediaModule } from './media.module.ts';
 export { MediaScanService } from './application/media-scan.service.ts';
 export { MediaProcessingService } from './application/media-processing.service.ts';
+export { VideoProcessingService } from './application/video-processing.service.ts';
 export { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 export { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 export { SignatureMonitorJob } from './application/signature-monitor.job.ts';
