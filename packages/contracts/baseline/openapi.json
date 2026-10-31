@@ -2297,6 +2297,7 @@
           "sync.full_download_completed",
           "sync.work_order_snapshot",
           "sync.mutation_applied",
+          "sync.quota_exceeded",
           "customer.created",
           "customer.updated",
           "customer.deleted",
@@ -7937,6 +7938,27 @@
           }
         ]
       },
+      "SyncMutationFieldError": {
+        "additionalProperties": false,
+        "description": "Błąd jednego pola mutacji — wskaźnik i kod, bez wartości.",
+        "properties": {
+          "code": {
+            "description": "Kod błędu pola (np. `invalid_format`, `required`, `too_long`).",
+            "maxLength": 64,
+            "type": "string"
+          },
+          "pointer": {
+            "description": "JSON Pointer (RFC 6901) do pola ładunku, np. `/newCustomer/phone`.",
+            "maxLength": 128,
+            "type": "string"
+          }
+        },
+        "required": [
+          "pointer",
+          "code"
+        ],
+        "type": "object"
+      },
       "SyncMutationResult": {
         "additionalProperties": false,
         "description": "Wynik jednej mutacji. `applied` — zastosowana; `duplicate` — ta sama mutacja już zastosowana (zapisany wynik minimalny); `conflict` — kolizja identyfikatora (`id_conflict`); `rejected` — odrzucona z kodem (mutacja zostaje na liście „Wymaga uwagi”, nie jest usuwana).",
@@ -7952,8 +7974,17 @@
               "validation_failed",
               "idempotency_mismatch",
               "idempotency_in_progress",
-              "template_unavailable"
+              "template_unavailable",
+              "quota_exceeded"
             ]
+          },
+          "errors": {
+            "description": "Błędy walidacji — wskaźnik pola (JSON Pointer w ładunku) i kod, NIGDY wartość. Tylko przy `rejected` `validation_failed` komendy `CreateQuickWorkOrder` (EVM-099 AC5); pozostałe komendy nie dostają pola.",
+            "items": {
+              "$ref": "#/components/schemas/SyncMutationFieldError"
+            },
+            "maxItems": 20,
+            "type": "array"
           },
           "mutationId": {
             "$ref": "#/components/schemas/SyncClientId"
@@ -7982,7 +8013,7 @@
             "type": "array"
           },
           "workOrderNumber": {
-            "description": "Numer nadany przez serwer — tylko przy zastosowanym `CreateQuickWorkOrder`.",
+            "description": "Numer nadany przez serwer — tylko przy `applied` i `duplicate` komendy `CreateQuickWorkOrder`.",
             "maxLength": 32,
             "type": "string"
           }
@@ -10115,6 +10146,16 @@
             "maxLength": 32,
             "type": "string"
           },
+          "origin": {
+            "description": "Skąd pochodzi zlecenie (`office` — panel, `mobile_quick` — telefon). Tylko do odczytu (zapis: `400 read_only_field`).",
+            "maxLength": 32,
+            "readOnly": true,
+            "type": "string",
+            "x-extensible-enum": [
+              "office",
+              "mobile_quick"
+            ]
+          },
           "plannedDate": {
             "format": "date",
             "maxLength": 10,
@@ -10236,6 +10277,21 @@
             "maxLength": 40,
             "type": "string"
           },
+          "createdBy": {
+            "additionalProperties": false,
+            "description": "Autor zlecenia (tylko nazwa wyświetlana). Brak pola, gdy autor jest nieznany (konto usunięte albo zlecenie sprzed konta).",
+            "properties": {
+              "displayName": {
+                "maxLength": 200,
+                "type": "string"
+              }
+            },
+            "readOnly": true,
+            "required": [
+              "displayName"
+            ],
+            "type": "object"
+          },
           "customer": {
             "oneOf": [
               {
@@ -10260,6 +10316,16 @@
             "description": "Numer zlecenia nadany przez serwer (np. `ZL-2026-0042`).",
             "maxLength": 32,
             "type": "string"
+          },
+          "origin": {
+            "description": "Skąd pochodzi zlecenie: `office` — z panelu, `mobile_quick` — szybkie zlecenie założone na telefonie (EVM-099). Tylko do odczytu (zapis: `400 read_only_field`); steruje banerem „Zlecenie założone w terenie” na W-06.",
+            "maxLength": 32,
+            "readOnly": true,
+            "type": "string",
+            "x-extensible-enum": [
+              "office",
+              "mobile_quick"
+            ]
           },
           "plannedDate": {
             "description": "Planowana data (dzień w strefie `Europe/Warsaw`, `RRRR-MM-DD`); brak pola, gdy jej nie ustawiono.",
@@ -10309,6 +10375,7 @@
           "coordinator",
           "version",
           "createdAt",
+          "origin",
           "allowedTransitions"
         ],
         "type": "object"
