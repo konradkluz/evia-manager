@@ -4,10 +4,10 @@
  * Nothing here selects the checksum or the upload id; the object key only where the service must sign it.
  */
 import { sql, type Selectable } from 'kysely';
-import type { DocumentsTable, DocumentVersionsTable, MediaDb } from './tables.ts';
+import type { DocumentsTable, DocumentVersionsTable, MediaDb, StoredFilesTable } from './tables.ts';
 import { QUARANTINE_RETENTION_DAYS } from '../domain/quarantine.ts';
-import type { StoredFileRow } from './media-store.ts';
 
+type StoredFileRow = Selectable<StoredFilesTable>;
 export type DocumentRow = Selectable<DocumentsTable>;
 export type DocumentVersionRow = Selectable<DocumentVersionsTable>;
 
