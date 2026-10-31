@@ -106,6 +106,18 @@ export interface ObjectStorage {
     readonly contentType: string;
     readonly cacheControl: string;
   }): Promise<void>;
+  /**
+   * The same as {@link putObjectIfAbsent} for a body that is NOT held in memory (the 720p preview of a video, up to 1 GiB): a stream of exactly `size` bytes
+   * (a stream of another length is an error and nothing is stored).
+   * @throws ObjectStorageError `precondition_failed` when the object already exists
+   */
+  putObjectStreamIfAbsent(input: {
+    readonly key: string;
+    readonly body: Readable;
+    readonly size: number;
+    readonly contentType: string;
+    readonly cacheControl: string;
+  }): Promise<void>;
   /** A signed `GET` for the browser: `response-content-type`, `response-content-disposition`, the version and `response-cache-control` are signed. */
   presignGet(input: SignedGetInput): Promise<PartUrl>;
 }

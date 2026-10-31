@@ -105,6 +105,30 @@ const stateOf = (photo: Photo, state: string, reason: string | null) =>
   sql`update media.stored_files set state = ${state}, state_reason_code = ${reason},
     quarantined_at = ${state === 'quarantined' ? current.clock.now() : null} where id = ${photo.storedFileId}`.execute(admin());
 
+interface VideoSpec {
+  readonly state?: string;
+  readonly reason?: string | null;
+  readonly duration?: number | null;
+  readonly avScanned?: boolean | null;
+}
+
+/** A video in the given state; a `ready` one has the two rows of derivatives (the frame and the 720p preview). */
+async function video(orderId: string, userId: string, spec: VideoSpec = {}): Promise<Photo> {
+  const media = await cleanPhoto(orderId, userId, { mediaType: 'video', contentType: 'video/mp4', fileName: 'Pomiar uziemienia.mp4' });
+  const state = spec.state ?? 'ready';
+  await stateOf(media, state, spec.reason ?? null);
+  await sql`update media.stored_files set duration_seconds = ${spec.duration === undefined ? 242 : spec.duration},
+    av_scanned = ${spec.avScanned === undefined ? true : spec.avScanned},
+    size_bytes = ${spec.avScanned === false ? 2_000_000_001 : 4096} where id = ${media.storedFileId}`.execute(admin());
+  if (state === 'ready') {
+    const prefix = media.objectKey.slice(0, -'original'.length);
+    await sql`insert into media.file_derivatives (stored_file_id, variant, object_key, content_type, width, height, size_bytes, created_at) values
+      (${media.storedFileId}, 'thumbnail', ${`${prefix}thumbnail.webp`}, 'image/webp', 320, 180, 9000, ${NOW}),
+      (${media.storedFileId}, 'preview', ${`${prefix}preview.mp4`}, 'video/mp4', 1280, 720, 900000, ${NOW})`.execute(admin());
+  }
+  return media;
+}
+
 const downloadUrl = (browser: Browser, orderId: string, mediaAssetId: string, body: unknown) =>
   browser.panel.post(`${BASE}/${orderId}/media-assets/${mediaAssetId}/download-url`, body);
 
@@ -305,15 +329,97 @@ describe('EVM-045 AC6 the files that are not served', () => {
     expect((await downloadUrl(owner, orderA, clean.mediaAssetId, { variant: 'preview' })).status).toBe(404);
   });
 
-  it('EVM-045 AC6 a video has no original address until EVM-046 (404); every address of a photo is on the host of the bucket', async () => {
+  it('EVM-045 AC6 every address of a photo is on the host of the bucket', async () => {
     const orderId = await order();
     const owner = await signIn('administrator');
-    const video = await cleanPhoto(orderId, owner.userId, { mediaType: 'video', contentType: 'video/mp4' });
-    expect((await downloadUrl(owner, orderId, video.mediaAssetId, { variant: 'original' })).status).toBe(404);
     const photo = await readyPhoto(orderId, owner.userId);
     for (const variant of ['thumbnail', 'preview', 'original'] as const) {
       const url = new URL(((await downloadUrl(owner, orderId, photo.mediaAssetId, { variant })).body as { url: string }).url);
       expect(url.hostname).toBe('bucket.invalid');
+    }
+  });
+});
+
+describe('EVM-046 AC4 AC6 the addresses of a video', () => {
+  it('EVM-046 AC4 the preview is video/mp4 inline, the frame is image/webp, the original is an attachment of the type the server detected', async () => {
+    const orderId = await order();
+    const editor = await signIn('editor');
+    const clip = await video(orderId, editor.userId);
+    const preview = new URL(((await downloadUrl(editor, orderId, clip.mediaAssetId, { variant: 'preview' })).body as { url: string }).url);
+    expect(preview.pathname).toBe(`/${clip.objectKey.replace(/original$/, 'preview.mp4')}`);
+    expect(preview.searchParams.get('response-content-type')).toBe('video/mp4');
+    expect(preview.searchParams.get('response-content-disposition')).toBe('inline');
+    const frame = new URL(((await downloadUrl(editor, orderId, clip.mediaAssetId, { variant: 'thumbnail' })).body as { url: string }).url);
+    expect(frame.searchParams.get('response-content-type')).toBe('image/webp');
+    const original = new URL(
+      ((await downloadUrl(editor, orderId, clip.mediaAssetId, { variant: 'original' })).body as { url: string }).url,
+    );
+    expect(original.searchParams.get('response-content-type')).toBe('video/mp4');
+    expect(original.searchParams.get('response-content-disposition')).toContain('attachment; filename="Pomiar uziemienia.mp4"');
+    expect(original.hostname).toBe('bucket.invalid');
+    expect(await auditOf('media_file.original_downloaded', clip.mediaAssetId)).toHaveLength(1);
+  });
+
+  it('EVM-046 AC6 the matrix for a video: Administrator and Editor 200 for the three variants, Read-only 403 for the original (also an unscanned one), anonymous 401', async () => {
+    const orderId = await order();
+    const owner = await signIn('administrator');
+    const clip = await video(orderId, owner.userId, { avScanned: false });
+    const answers: Record<string, number[]> = {};
+    for (const role of ['administrator', 'editor', 'read_only'] as const) {
+      const browser = await signIn(role);
+      answers[role] = [];
+      for (const variant of ['thumbnail', 'preview', 'original'] as const)
+        answers[role].push((await downloadUrl(browser, orderId, clip.mediaAssetId, { variant })).status);
+    }
+    expect(answers).toEqual({ administrator: [200, 200, 200], editor: [200, 200, 200], read_only: [200, 200, 403] });
+    const anonymous = { userId: '', panel: new PanelClient(current.app.getHttpServer(), PANEL_ORIGIN) };
+    for (const variant of ['thumbnail', 'preview', 'original'] as const)
+      expect((await downloadUrl(anonymous, orderId, clip.mediaAssetId, { variant })).status, `anonymous ${variant}`).toBe(401);
+  });
+
+  it('EVM-046 AC6 a video of another order is 404 for every variant, the same answer as for a missing one (IDOR)', async () => {
+    const orderA = await order();
+    const orderB = await order();
+    const owner = await signIn('administrator');
+    const foreign = await video(orderB, owner.userId);
+    for (const variant of ['thumbnail', 'preview', 'original'] as const) {
+      const answer = await downloadUrl(owner, orderA, foreign.mediaAssetId, { variant });
+      const missing = await downloadUrl(owner, orderA, uuidv7(), { variant });
+      expect(answer.status).toBe(404);
+      expect(traceless(answer)).toBe(traceless(missing));
+    }
+  });
+
+  it('EVM-046 AC2 the original of a video is released only after ffprobe: clean/processing/quarantined are 404, ready is 200, failed/processing_error is 200 only for a scanned file', async () => {
+    const orderId = await order();
+    const owner = await signIn('administrator');
+    const cases: { spec: VideoSpec; status: number }[] = [
+      { spec: { state: 'clean', duration: null }, status: 404 },
+      { spec: { state: 'processing', duration: null }, status: 404 },
+      { spec: { state: 'quarantined', reason: 'type_mismatch', duration: null }, status: 404 },
+      { spec: { state: 'ready', avScanned: true }, status: 200 },
+      { spec: { state: 'ready', avScanned: false }, status: 200 },
+      { spec: { state: 'failed', reason: 'processing_error', avScanned: true }, status: 200 },
+      { spec: { state: 'failed', reason: 'processing_error', avScanned: false }, status: 404 },
+      { spec: { state: 'failed', reason: 'processing_error', duration: null }, status: 404 },
+    ];
+    for (const { spec, status } of cases) {
+      const clip = await video(orderId, owner.userId, spec);
+      expect((await downloadUrl(owner, orderId, clip.mediaAssetId, { variant: 'original' })).status, JSON.stringify(spec)).toBe(status);
+    }
+  });
+
+  it('EVM-046 AC6 Read-only gets 403 for the original of a video in every state (the role is judged first)', async () => {
+    const orderId = await order();
+    const reader = await signIn('read_only');
+    const owner = await signIn('administrator');
+    for (const spec of [
+      { state: 'clean', duration: null },
+      { state: 'ready' },
+      { state: 'failed', reason: 'processing_error', avScanned: false },
+    ]) {
+      const clip = await video(orderId, owner.userId, spec);
+      expect((await downloadUrl(reader, orderId, clip.mediaAssetId, { variant: 'original' })).status).toBe(403);
     }
   });
 });

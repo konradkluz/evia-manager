@@ -17,7 +17,8 @@ import type { ImageProcessor } from '../../platform/media-processing/image-proce
 import { IMAGE_PROCESSOR } from '../../platform/media-processing/image-processor.ts';
 import type { ObjectStorage } from '../../platform/object-storage/object-storage.ts';
 import { OBJECT_STORAGE } from '../../platform/object-storage/object-storage.ts';
-import { CLOCK, DATABASE, EVENT_BUS, LOGGER } from '../../platform/tokens.ts';
+import type { MetricsRegistry } from '../../platform/metrics/metrics.ts';
+import { CLOCK, DATABASE, EVENT_BUS, LOGGER, METRICS } from '../../platform/tokens.ts';
 import { AdministratorDirectory, IdentityModule } from '../identity/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateMediaAssetsService } from './application/create-media-assets.service.ts';
@@ -52,7 +53,7 @@ import { MediaController } from './http/media.controller.ts';
     SignatureMonitorJob,
     {
       provide: MediaScanService,
-      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory],
+      inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory, METRICS],
       useFactory: (
         db: Kysely<Database>,
         clock: Clock,
@@ -61,7 +62,18 @@ import { MediaController } from './http/media.controller.ts';
         storage: ObjectStorage | null,
         scanner: MalwareScanner | null,
         administrators: AdministratorDirectory,
-      ) => new MediaScanService({ db, clock, events, logger, storage, scanner, administrators: (tx) => administrators.listActiveIds(tx) }),
+        metrics: MetricsRegistry,
+      ) =>
+        new MediaScanService({
+          db,
+          clock,
+          events,
+          logger,
+          storage,
+          scanner,
+          administrators: (tx) => administrators.listActiveIds(tx),
+          metrics,
+        }),
     },
     {
       provide: MediaProcessingService,

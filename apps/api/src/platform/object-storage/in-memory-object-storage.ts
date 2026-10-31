@@ -167,6 +167,20 @@ export class InMemoryObjectStorage implements ObjectStorage {
     return Promise.resolve();
   }
 
+  async putObjectStreamIfAbsent(input: {
+    key: string;
+    body: Readable;
+    size: number;
+    contentType: string;
+    cacheControl: string;
+  }): Promise<void> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of input.body) chunks.push(Buffer.from(chunk as Uint8Array));
+    const body = Buffer.concat(chunks);
+    if (body.length !== input.size) throw new ObjectStorageError('unavailable');
+    await this.putObjectIfAbsent({ key: input.key, body, contentType: input.contentType, cacheControl: input.cacheControl });
+  }
+
   presignGet(input: SignedGetInput): Promise<PartUrl> {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if (input.expiresInSeconds < 1 || input.expiresInSeconds > DERIVATIVE_URL_SECONDS)

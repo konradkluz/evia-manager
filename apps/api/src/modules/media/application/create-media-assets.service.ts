@@ -167,7 +167,14 @@ export class CreateMediaAssetsService {
       const declaration = checked[index] as CheckedDeclaration;
       const inserted = await insertMediaAsset(
         tables,
-        { id: item.id, workOrderId, category: item.category, description: item.description ?? null, createdBy: principal.userId },
+        {
+          id: item.id,
+          workOrderId,
+          mediaType: declaration.mediaType,
+          category: item.category,
+          description: item.description ?? null,
+          createdBy: principal.userId,
+        },
         now,
       );
       if (!inserted) throw new ProblemException('id_conflict');

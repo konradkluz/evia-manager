@@ -35,7 +35,7 @@ import {
 import type { SignedUrlMeters } from '../../../platform/signed-url-limits/signed-url-meters.ts';
 import { DATABASE, EVENT_BUS, LOGGER, METRICS, SIGNED_URL_METERS } from '../../../platform/tokens.ts';
 import { WORK_ORDER_DIRECTORY, type WorkOrderDirectory } from '../../work-orders/index.ts';
-import { DERIVATIVE_CACHE_CONTROL, DERIVATIVE_CONTENT_TYPE } from '../domain/derivatives.ts';
+import { DERIVATIVE_CACHE_CONTROL } from '../domain/derivatives.ts';
 import { downloadFileName, isOriginalDownloadable, mayRequest, variantClass, type DownloadVariant } from '../domain/downloads.ts';
 import { normalizeContentType } from '../domain/file-rules.ts';
 import type { MediaAuditEvent } from '../events.ts';
@@ -120,7 +120,7 @@ export class MediaDownloadUrlService {
 
   async #original(media: MediaDb, orderId: string, mediaAssetId: string): Promise<SignedGetInput> {
     const source = await findOriginal(media, orderId, mediaAssetId);
-    if (source === undefined || !isOriginalDownloadable(source.state, source.reason)) throw new ProblemException('not_found');
+    if (source === undefined || !isOriginalDownloadable(source)) throw new ProblemException('not_found');
     // the type the SERVER detected from the bytes (never the declaration of the client); a file without one is not served
     const contentType = source.contentType === null ? undefined : normalizeContentType(source.contentType);
     if (contentType === undefined) throw new ProblemException('not_found');
@@ -140,7 +140,7 @@ export class MediaDownloadUrlService {
     return {
       key: source.objectKey,
       expiresInSeconds: DERIVATIVE_URL_SECONDS,
-      contentType: DERIVATIVE_CONTENT_TYPE,
+      contentType: source.contentType,
       cacheControl: DERIVATIVE_CACHE_CONTROL,
       disposition: { kind: 'inline' },
     };
