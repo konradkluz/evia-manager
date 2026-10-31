@@ -5,8 +5,9 @@
  */
 import { createServer, type Server, type Socket } from 'node:net';
 import { MAX_REQUEST_BYTES, parseRequest, type JobRequest, type JobResult } from './protocol.ts';
+import { parseVideoRequest, type VideoRequest, type VideoResult } from './video-protocol.ts';
 
-export type JobRunner = (request: JobRequest) => Promise<JobResult>;
+export type JobRunner = (request: JobRequest | VideoRequest) => Promise<JobResult | VideoResult>;
 export type JobLogger = (entry: { readonly event: string; readonly jobId?: string; readonly code?: string }) => void;
 
 const REQUEST_WAIT_MS = 5000;
@@ -33,7 +34,8 @@ export function createProcessorServer(run: JobRunner, log: JobLogger): Server {
       if (end === -1) return;
       handled = true;
       socket.setTimeout(0);
-      const request = parseRequest(received.slice(0, end));
+      const line = received.slice(0, end);
+      const request = parseRequest(line) ?? parseVideoRequest(line);
       if (request === undefined) {
         log({ event: 'rejected' });
         socket.destroy();
