@@ -33,6 +33,15 @@ export function videosCount(count: number): string {
   }
 }
 
+/** `4:02`, `0:05`, `1:02:03` - the duration on the tile of a film. */
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.round(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, '0');
+  return hours > 0 ? `${String(hours)}:${String(minutes).padStart(2, '0')}:${rest}` : `${String(minutes)}:${rest}`;
+}
+
 /** Genitive after a negation: "Nie wysłano 1 zdjęcia", "Nie wysłano 3 zdjęć". */
 export function photosNotSent(count: number): string {
   return count === 1 ? 'Nie wysłano 1 zdjęcia' : `Nie wysłano ${String(count)} zdjęć`;
@@ -94,7 +103,7 @@ export const mediaText = {
   chooseFiles: 'Wybierz pliki',
   chooseFromGallery: 'Wybierz z galerii',
   chosenFilesInput: 'Wybrane pliki',
-  limits: 'Zdjęcia: JPEG, HEIC, PNG, WebP do 50 MB.',
+  limits: 'Zdjęcia: JPEG, HEIC, PNG, WebP do 50 MB. Filmy: MP4, MOV do 4 GB i 30 min.',
   dialogTitle: 'Dodaj zdjęcia lub filmy',
   dialogIntro: 'Zdjęcia rób aparatem telefonu, a potem wybierz je tutaj z galerii.',
   dialogPrivacy: 'Przed zdjęciami do pracy: lokalizacja w aparacie wyłączona, automatyczna kopia zdjęć w chmurze wyłączona.',
@@ -104,8 +113,13 @@ export const mediaText = {
   removeFromChoice: (name: string) => `Usuń z wyboru: ${name}`,
   removeFromChoiceShort: 'Usuń z wyboru',
   skipped: (count: number) => (count === 1 ? 'Pominięto 1 plik:' : `Pominięto ${filesCount(count)}:`),
-  unsupportedFormat: (name: string) => `Plik „${name}” ma nieobsługiwany format. Wybierz zdjęcie JPEG, HEIC, PNG albo WebP.`,
-  tooLarge: (name: string) => `Plik „${name}” jest większy niż 50 MB. Zmniejsz go albo wybierz inny.`,
+  unsupportedFormat: (name: string) =>
+    `Plik „${name}” ma nieobsługiwany format. Wybierz zdjęcie JPEG, HEIC, PNG albo WebP albo film MP4 albo MOV.`,
+  tooLarge: (name: string, video = false) =>
+    video
+      ? `Plik „${name}” jest większy niż 4 GB. Wybierz krótszy film.`
+      : `Plik „${name}” jest większy niż 50 MB. Zmniejsz go albo wybierz inny.`,
+  tooLong: (name: string) => `Film jest dłuższy niż 30 min. Plik „${name}” nie został wybrany.`,
   emptyFile: (name: string) => `Plik „${name}” jest pusty.`,
   tooMany: 'Naraz można wysłać najwyżej 50 plików. Wyślij resztę w kolejnej partii.',
   category: 'Kategoria',
