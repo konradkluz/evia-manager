@@ -38,7 +38,9 @@ describe('route policies (EVM-008 AC2, AC4; ADR-0004)', () => {
         .map((route) => route.operationId),
     );
     const planned = plannedOperations();
-    expect(planned.length).toBeGreaterThan(0);
+    // EVM-098 implemented the last planned operation of the phone (pushSyncMutations): none is planned now; the rule holds for every future one
+    expect(planned).toEqual([]);
+    expect(routed.has('pushSyncMutations')).toBe(true);
     for (const operationId of planned) expect(routed.has(operationId), `${operationId} is planned and has a route`).toBe(false);
     for (const operationId of Object.keys(AUTHZ_MANIFEST).filter((id) => !planned.includes(id))) {
       expect(routed.has(operationId), `${operationId} is not planned and has no route`).toBe(true);

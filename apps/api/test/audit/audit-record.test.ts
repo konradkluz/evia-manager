@@ -6,7 +6,7 @@ import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../..
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
-import type { SyncAuditEvent } from '../../src/platform/sync/sync-event.ts';
+import type { SyncAuditEvent, SyncMutationAuditEvent } from '../../src/platform/sync/sync-event.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { FixedClock } from '../support/clock.ts';
 
@@ -80,6 +80,9 @@ describe('audit record (EVM-016 AC7; SR-LOG-03, SR-LOG-04)', () => {
       customerCount: null,
       siteCount: null,
       entityCount: null,
+      deviceId: null,
+      workOrderId: null,
+      commandType: null,
     });
     expect(JSON.stringify(record)).not.toContain('203.0.113.200');
   });
@@ -259,6 +262,9 @@ describe('audit of the change of a stage (EVM-031; SR-LOG-03, SR-DATA-03)', () =
       customerCount: null,
       siteCount: null,
       entityCount: null,
+      deviceId: null,
+      workOrderId: null,
+      commandType: null,
     });
   });
 });
@@ -306,6 +312,9 @@ describe('audit of the transition of a stage (EVM-032; SR-LOG-03, SR-DATA-02)', 
         'customerCount',
         'siteCount',
         'entityCount',
+        'deviceId',
+        'workOrderId',
+        'commandType',
       ].sort(),
     );
   });
@@ -338,6 +347,9 @@ describe('audit record of a read of the audit log (EVM-029 AC6; SR-LOG-03)', () 
       customerCount: null,
       siteCount: null,
       entityCount: null,
+      deviceId: null,
+      workOrderId: null,
+      commandType: null,
     });
   });
 
@@ -397,6 +409,9 @@ describe('audit of the creation of a journal entry (EVM-037; SR-LOG-02, SR-LOG-0
       customerCount: null,
       siteCount: null,
       entityCount: null,
+      deviceId: null,
+      workOrderId: null,
+      commandType: null,
     });
   });
 
@@ -433,7 +448,9 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       currency: 'PLN',
     });
     expect(Object.keys(record).sort()).toEqual(Object.keys(auditRecordSchema.shape).sort());
-    expect(JSON.stringify(record)).not.toMatch(/workOrderId|name/);
+    // the order of a mutation of a phone (EVM-098) is a column of its own, empty on every other event
+    expect(record.workOrderId).toBeNull();
+    expect(JSON.stringify(record)).not.toMatch(/name/);
   });
 
   it('EVM-053 AC4 AC6 a creation without an amount and a cancellation of a milestone never priced carry no amount and no currency', () => {
@@ -449,6 +466,9 @@ describe('audit of the payment milestones (EVM-053 AC3, AC4, AC6; SR-LOG-03 — 
       customerCount: null,
       siteCount: null,
       entityCount: null,
+      deviceId: null,
+      workOrderId: null,
+      commandType: null,
     });
   });
 
@@ -591,7 +611,8 @@ describe('the status codes of a transition of a payment milestone (EVM-054 AC1, 
       fromCode: 'planned',
       toCode: 'invoiced',
     });
-    expect(JSON.stringify(record)).not.toMatch(/workOrderId|FV/);
+    expect(record.workOrderId).toBeNull();
+    expect(JSON.stringify(record)).not.toMatch(/FV/);
   });
 
   it('EVM-054 SR-LOG-03 the schema refuses one code without the other, a code that is not a code and codes on an action outside the payments', () => {
@@ -669,5 +690,50 @@ describe('the number of entities of a snapshot of an order in the trail (EVM-097
     expect(() => toAuditRecord(snapshot({ outcome: 'denied' }), context, at)).toThrow();
     expect(() => toAuditRecord(snapshot({ type: 'sync.full_download' }), context, at)).toThrow();
     expect(() => toAuditRecord(snapshot({ entityCount: -1 }), context, at)).toThrow();
+  });
+});
+
+describe('the applied mutation of a phone in the trail (EVM-098 AC8; SR-LOG-03, SR-LOG-04)', () => {
+  const device = '0190a1b2-0000-7000-8000-00000000d003';
+  const order = '0190a1b2-0000-7000-8000-00000000d004';
+  const entry = '0190a1b2-0000-7000-8000-00000000d005';
+  const applied = (overrides: Partial<Record<keyof SyncMutationAuditEvent, unknown>> = {}): SyncMutationAuditEvent =>
+    ({
+      type: 'sync.mutation_applied',
+      actor: { type: 'user', userId: user },
+      outcome: 'success',
+      objectType: 'timeline_entry',
+      objectId: entry,
+      deviceId: device,
+      workOrderId: order,
+      commandType: 'CreateNote',
+      ...overrides,
+    }) as SyncMutationAuditEvent;
+  const context: EventContext = { origin: 'web', traceId, sessionId: session };
+
+  it('EVM-098 AC8 the record is self-contained: the type of the command, the order, the entry, the device, the actor, the session, the trace - and no count, no amount', () => {
+    expect(toAuditRecord(applied(), context, at)).toMatchObject({
+      action: 'sync.mutation_applied',
+      actorUserId: user,
+      sessionId: session,
+      objectType: 'timeline_entry',
+      objectId: entry,
+      deviceId: device,
+      workOrderId: order,
+      commandType: 'CreateNote',
+      traceId,
+      occurredAt: at,
+      entityCount: null,
+      workOrderCount: null,
+      amountBeforeMinor: null,
+    });
+    expect(toAuditRecord(applied({ commandType: 'CreateComment' }), context, at)).toMatchObject({ commandType: 'CreateComment' });
+  });
+
+  it('EVM-098 AC8 a type outside the closed list, a missing field of the three or the fields on another action are refused', () => {
+    expect(() => toAuditRecord(applied({ commandType: 'CreateQuickWorkOrder' }), context, at)).toThrow();
+    expect(() => toAuditRecord(applied({ deviceId: 'not-a-uuid' }), context, at)).toThrow();
+    expect(() => toAuditRecord(applied({ type: 'timeline_entry.created' }), context, at)).toThrow();
+    expect(() => toAuditRecord(applied({ deviceId: null }), context, at)).toThrow();
   });
 });

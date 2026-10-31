@@ -6,6 +6,7 @@
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
+import type { EventContext } from '../../platform/events/event-bus.ts';
 import type { OrderChildSyncSource } from '../../platform/sync/sync-row-state.ts';
 
 export const TIMELINE_ENTRY_SYNC_SOURCE = Symbol('TIMELINE_ENTRY_SYNC_SOURCE');
@@ -32,4 +33,49 @@ export interface SyncTimelineEntryProjection {
 export interface TimelineEntrySyncSource extends OrderChildSyncSource<SyncTimelineEntryProjection> {
   /** The live entries written by one of the users among `ids`: the author and the order (ONE query). */
   authors(tx: Kysely<Database>, ids: readonly string[]): Promise<ReadonlyArray<{ readonly userId: string; readonly workOrderId: string }>>;
+}
+
+/**
+ * The COMMAND port of `timeline` for the mutations of the phone (EVM-098; ADR-0008): a note or a comment written offline, in the transaction of `sync`, with the
+ * rules of the panel (`resolveCreateEntry`: the normalisation of the text, at most 10 000 characters, the category of a note; the stage of THIS order) and INSERT
+ * only. The author and the device come from the session (the caller passes them from it). The order has been judged by `work-orders` before this runs. The
+ * answer is a code only: no pointer, no value of the request, nothing of an existing row. Not part of `index.ts`: only `sync` may import it.
+ */
+export const MOBILE_ENTRY_COMMANDS = Symbol('MOBILE_ENTRY_COMMANDS');
+
+export interface MobileEntryCommand {
+  readonly id: string;
+  readonly kind: 'note' | 'comment';
+  readonly workOrderId: string;
+  readonly noteCategory: 'phone_call' | 'meeting' | 'arrangement' | 'site_visit' | 'other' | undefined;
+  readonly body: string;
+  readonly procedureStageId: string | undefined;
+  /** In range or `null` (decided by `sync`); metadata only - the order of the journal is the time of the server. */
+  readonly capturedAt: Date | null;
+}
+
+/** The author and the device of the SESSION of the request. */
+export interface MobileAuthor {
+  readonly userId: string;
+  readonly deviceId: string;
+}
+
+/** `applied`: the entry is written and `timeline_entry.created` published; `invalid`: a rule of the content or the stage; `id_conflict`: the identifier exists. */
+export type MobileEntryResult = 'applied' | 'invalid' | 'id_conflict';
+
+export interface MobileEntryCommands {
+  create(tx: Kysely<Database>, author: MobileAuthor, command: MobileEntryCommand, context: EventContext): Promise<MobileEntryResult>;
+  /**
+   * The rule of `idempotency_expired` (EVM-098 AC4): an entry with the identifier, the kind and the order of the command, written by this user from this device
+   * no later than `createdBefore`. A yes or a no only - no field of the row - asked by `sync` only after the order passed the policy.
+   */
+  matchesOwnEntry(tx: Kysely<Database>, query: OwnEntry): Promise<boolean>;
+}
+
+export interface OwnEntry {
+  readonly id: string;
+  readonly kind: 'note' | 'comment';
+  readonly workOrderId: string;
+  readonly author: MobileAuthor;
+  readonly createdBefore: Date;
 }

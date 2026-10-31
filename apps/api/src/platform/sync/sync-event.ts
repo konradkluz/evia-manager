@@ -9,6 +9,28 @@ import type { DomainEvent } from '../events/event-bus.ts';
 
 export const SYNC_EVENT_TYPES = ['sync.full_download', 'sync.full_download_completed', 'sync.work_order_snapshot'] as const;
 
+/**
+ * The applied mutation of a phone (EVM-098 AC8; SR-LOG-03, SR-LOG-04): written in the transaction of the change, so it exists exactly when the entry does. The
+ * record is self-contained - the type of the command, the order, the entry and the device besides the actor, the session, the trace and the time - so it says
+ * what happened even after the entry is redacted. Never the text, never the category.
+ */
+export const SYNC_MUTATION_EVENT_TYPES = ['sync.mutation_applied'] as const;
+
+/** The commands whose application is audited (EVM-099 adds `CreateQuickWorkOrder` with a migration of its own: the database keeps the same closed list). */
+export const AUDITED_COMMAND_TYPES = ['CreateNote', 'CreateComment'] as const;
+
+export interface SyncMutationAuditEvent extends DomainEvent {
+  readonly type: (typeof SYNC_MUTATION_EVENT_TYPES)[number];
+  readonly actor: { readonly type: 'user'; readonly userId: string };
+  readonly outcome: 'success';
+  readonly objectType: 'timeline_entry';
+  /** The entry the mutation created. */
+  readonly objectId: string;
+  readonly deviceId: string;
+  readonly workOrderId: string;
+  readonly commandType: (typeof AUDITED_COMMAND_TYPES)[number];
+}
+
 export interface SyncAuditEvent extends DomainEvent {
   readonly type: (typeof SYNC_EVENT_TYPES)[number];
   readonly actor: { readonly type: 'user'; readonly userId: string };

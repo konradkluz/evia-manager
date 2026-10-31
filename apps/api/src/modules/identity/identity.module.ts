@@ -57,7 +57,8 @@ import { SimpleWebAuthnPasskeys } from './infrastructure/simplewebauthn-passkeys
 import { OtpauthTotpEngine, TOTP_ENGINE } from './infrastructure/totp-engine.ts';
 
 import { UserSyncSourceService } from './infrastructure/sync-source.ts';
-import { USER_SYNC_SOURCE } from './system-ports.ts';
+import { DevicePendingItemsService } from './infrastructure/pending-items.ts';
+import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   controllers: [AuthController, AccountController, UsersController, MobileController],
@@ -103,6 +104,7 @@ import { USER_SYNC_SOURCE } from './system-ports.ts';
     InvitationService,
     ListUsersService,
     { provide: USER_SYNC_SOURCE, useClass: UserSyncSourceService },
+    { provide: DEVICE_PENDING_ITEMS, useClass: DevicePendingItemsService },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: TOTP_ENGINE, useClass: OtpauthTotpEngine },
     { provide: BREACHED_PASSWORD_CHECK, useFactory: () => new PwnedPasswordsCheck() },
@@ -126,6 +128,7 @@ import { USER_SYNC_SOURCE } from './system-ports.ts';
     PurgeSessionsJob,
     AdministratorDirectory,
     USER_SYNC_SOURCE,
+    DEVICE_PENDING_ITEMS,
   ],
 })
 export class IdentityModule {}

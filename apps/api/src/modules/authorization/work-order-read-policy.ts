@@ -22,8 +22,13 @@ const deletedAtOf = (source: WorkOrderPolicySource) =>
     ? sql.ref('work_orders.work_orders.deleted_at')
     : sql.ref('overview.work_order_summaries.deleted_at');
 
-/** `visible` — the orders of every read; `deleted` — the soft deleted ones, the view of the Administrator (EVM-060). */
-export type WorkOrderReadMode = 'visible' | 'deleted';
+/**
+ * `visible` — the orders of every read; `deleted` — the soft deleted ones, the view of the Administrator (EVM-060); `access` — the orders the caller has ACCESS
+ * to whether deleted or not, so that the target of a mutation of the phone can tell "deleted" (`target_unavailable`) from "no access" (`forbidden`) in ONE
+ * query (EVM-098 AC6). `access` is never a read: its only user is the target of a mutation (`work-orders`, `findMutationTarget`; a test keeps it so). The
+ * deletion of an order is no secret for a caller with access - the phone gets its marker through the change log anyway.
+ */
+export type WorkOrderReadMode = 'visible' | 'deleted' | 'access';
 
 function visibleCondition(principal: Principal, source: WorkOrderPolicySource): RawBuilder<SqlBool> {
   switch (principal.role) {
@@ -44,6 +49,17 @@ function deletedCondition(principal: Principal, source: WorkOrderPolicySource): 
   }
 }
 
+/** v1: the Administrator and the Editor have access to every order (M4 adds the assignments); Read-only to none - the phone is closed to it, and so is this. */
+function accessCondition(principal: Principal): RawBuilder<SqlBool> {
+  switch (principal.role) {
+    case 'administrator':
+    case 'editor':
+      return sql<SqlBool>`true`;
+    case 'read_only':
+      return sql<SqlBool>`false`;
+  }
+}
+
 export function workOrderReadCondition(
   principal: Principal,
   source: WorkOrderPolicySource,
@@ -54,5 +70,7 @@ export function workOrderReadCondition(
       return visibleCondition(principal, source);
     case 'deleted':
       return deletedCondition(principal, source);
+    case 'access':
+      return accessCondition(principal);
   }
 }

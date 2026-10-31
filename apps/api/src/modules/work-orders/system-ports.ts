@@ -108,3 +108,15 @@ export interface SyncScopeItemProjection {
 
 /** The scope items of the orders for the phone (EVM-097): the order is judged by {@link WorkOrderSyncSource.ordersInScope}, the content is read only for the orders in scope. */
 export type ScopeItemSyncSource = OrderChildSyncSource<SyncScopeItemProjection>;
+
+/**
+ * The target of a mutation of the phone (EVM-098 AC6): may the caller write to this order NOW? `available`; `target_unavailable` - the caller has access but
+ * the order is soft deleted; `forbidden` - no access OR no such order (one answer). The state only, never a field of the order. Only `sync` imports it.
+ */
+export const WORK_ORDER_MUTATION_TARGET = Symbol('WORK_ORDER_MUTATION_TARGET');
+
+export type MutationTargetState = 'available' | 'target_unavailable' | 'forbidden';
+
+export interface WorkOrderMutationTarget {
+  stateOf(tx: Kysely<Database>, principal: Principal, workOrderId: string): Promise<MutationTargetState>;
+}

@@ -18,6 +18,7 @@ import { TimelineModule } from '../timeline/index.ts';
 import { WorkOrdersModule } from '../work-orders/index.ts';
 import { AggregateReader } from './application/aggregate-reader.ts';
 import { CurrentStateReader } from './application/current-state.ts';
+import { PushMutationsService } from './application/push-mutations.service.ts';
 import { SyncChangesService } from './application/sync-changes.service.ts';
 import { SyncSnapshotService } from './application/sync-snapshot.service.ts';
 import { withoutEtag } from './http/no-etag.ts';
@@ -30,6 +31,7 @@ import { SYNC_CURSOR_CODEC } from './sync.tokens.ts';
   providers: [
     AggregateReader,
     CurrentStateReader,
+    PushMutationsService,
     SyncChangesService,
     SyncSnapshotService,
     {

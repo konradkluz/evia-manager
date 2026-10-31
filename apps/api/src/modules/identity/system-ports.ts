@@ -21,3 +21,15 @@ export interface UserSyncSource {
   /** The state of every user among `ids` that exists (ONE query): `upsert` with the name, `delete` when soft deleted. */
   statesOf(tx: Kysely<Database>, ids: readonly string[]): Promise<ReadonlyMap<string, SyncRowState<SyncUserProjection>>>;
 }
+
+/**
+ * The number of items the phone has not sent yet (EVM-098 AC8; W-17): informative only - it decides nothing on the server. Written for the device of the
+ * SESSION (never of a request), at most {@link MAX_PENDING_ITEMS_REPORTED} (a larger value is lowered to it). Only `sync` imports it.
+ */
+export const DEVICE_PENDING_ITEMS = Symbol('DEVICE_PENDING_ITEMS');
+
+export const MAX_PENDING_ITEMS_REPORTED = 10_000;
+
+export interface DevicePendingItems {
+  report(tx: Kysely<Database>, deviceId: string, pendingItems: number): Promise<void>;
+}

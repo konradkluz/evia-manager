@@ -99,7 +99,13 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
     const mobileOperations = Object.entries(AUTHZ_MANIFEST).filter(
       ([, item]) => item.authz.public !== true && item.authz.channels?.includes('web') !== true,
     );
-    expect(mobileOperations.map(([id]) => id).sort()).toEqual(['getClientConfig', 'getSyncChanges', 'getSyncWorkOrder', 'mobileLogout']);
+    expect(mobileOperations.map(([id]) => id).sort()).toEqual([
+      'getClientConfig',
+      'getSyncChanges',
+      'getSyncWorkOrder',
+      'mobileLogout',
+      'pushSyncMutations',
+    ]);
     for (const [id] of mobileOperations) {
       for (const cell of cells.filter((item) => item.operationId === id && item.credential === 'bearer')) {
         const viaCookie = cell.caller.kind !== 'session' || cell.caller.channel !== 'mobile';

@@ -33,6 +33,10 @@ export interface AuditEventsTable {
   site_count: number | null;
   /** The number of entities of a served snapshot of one order (EVM-097; 0054): null for every other event. */
   entity_count: number | null;
+  /** The device, the order and the type of the command of an applied mutation of a phone (EVM-098; 0055): all three or none. */
+  device_id: string | null;
+  work_order_id: string | null;
+  command_type: string | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

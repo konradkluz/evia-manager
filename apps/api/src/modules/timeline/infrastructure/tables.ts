@@ -32,6 +32,8 @@ export interface TimelineEntriesTable {
   redacted_at: Date | null;
   redacted_by: string | null;
   deleted_by: string | null;
+  /** The device of the session of an entry from the phone (EVM-098; 0055): set exactly when `origin = mobile`, never part of an answer. */
+  created_via_device_id: string | null;
 }
 
 export type TimelineTables = {

@@ -40,7 +40,13 @@ import { WorkOrderTransitionRegistry } from './transition-participant.ts';
 import { WORK_ORDER_DIRECTORY } from './work-order-directory.ts';
 import { WorkOrderProjectionSourceService } from './infrastructure/projection-source.ts';
 import { ScopeItemSyncSourceService, WorkOrderSyncSourceService } from './infrastructure/sync-source.ts';
-import { SCOPE_ITEM_SYNC_SOURCE, WORK_ORDER_PROJECTION_SOURCE, WORK_ORDER_SYNC_SOURCE } from './system-ports.ts';
+import { WorkOrderMutationTargetService } from './infrastructure/mutation-target.ts';
+import {
+  SCOPE_ITEM_SYNC_SOURCE,
+  WORK_ORDER_MUTATION_TARGET,
+  WORK_ORDER_PROJECTION_SOURCE,
+  WORK_ORDER_SYNC_SOURCE,
+} from './system-ports.ts';
 
 @Module({
   imports: [IdentityModule, CatalogModule, CustomersModule, SitesModule, PartiesModule],
@@ -64,6 +70,7 @@ import { SCOPE_ITEM_SYNC_SOURCE, WORK_ORDER_PROJECTION_SOURCE, WORK_ORDER_SYNC_S
     { provide: WORK_ORDER_DIRECTORY, useClass: WorkOrderDirectoryService },
     { provide: WORK_ORDER_PROJECTION_SOURCE, useClass: WorkOrderProjectionSourceService },
     { provide: WORK_ORDER_SYNC_SOURCE, useClass: WorkOrderSyncSourceService },
+    { provide: WORK_ORDER_MUTATION_TARGET, useClass: WorkOrderMutationTargetService },
     { provide: SCOPE_ITEM_SYNC_SOURCE, useClass: ScopeItemSyncSourceService },
   ],
   exports: [
@@ -74,6 +81,7 @@ import { SCOPE_ITEM_SYNC_SOURCE, WORK_ORDER_PROJECTION_SOURCE, WORK_ORDER_SYNC_S
     WORK_ORDER_DIRECTORY,
     WORK_ORDER_PROJECTION_SOURCE,
     WORK_ORDER_SYNC_SOURCE,
+    WORK_ORDER_MUTATION_TARGET,
     SCOPE_ITEM_SYNC_SOURCE,
   ],
 })

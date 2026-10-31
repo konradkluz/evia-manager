@@ -29,6 +29,9 @@ export async function insertAuditRecord(tx: Kysely<Database>, record: AuditRecor
       customer_count: record.customerCount,
       site_count: record.siteCount,
       entity_count: record.entityCount,
+      device_id: record.deviceId,
+      work_order_id: record.workOrderId,
+      command_type: record.commandType,
     })
     .execute();
 }
