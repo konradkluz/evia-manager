@@ -4,7 +4,7 @@ title: "Aplikacja: logowanie (hasło + kod) i stany urządzenia"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: ready
+status: in-review
 priority: P0
 path: pelna             # uwierzytelnianie, dane na urządzeniu
 owner: mobile-developer
@@ -94,3 +94,4 @@ Kontrole urządzenia (blokada ekranu, dialog „Usunąć dane poprzedniego konta
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–8; wylogowanie offline z odwołaniem sesji po powrocie sieci; decyzje 5, 10, 17 z README M2 jak w rekomendacjach; dopuszczono drobny dodatek do kontraktu EVM-090 (powód unieważnienia sesji, bez podbicia wersji) z przeglądem architekta; status ready
 - 2026-10-30 — plan gotowy (mobile-developer)
 - 2026-10-30 — implementacja AC1–AC8 (właściciel sesji JS za portem, odwołanie offline, M-01/M-02/M-09, `FLAG_SECURE` na całym oknie, `RefreshResult.device_wipe_required` w sync-core); `pnpm run gate` zielony; weryfikacja natywna w klonie `C:\e100` (API 35, Maestro 2.11.0): 35/36 przepływów, jedyny czerwony 10-backup = znane AC4 EVM-093; z emulatora dwie poprawki (odliczanie 429, przełącznik zrzutów e2e w manifeście); ręczny przegląd 200 % / TalkBack — do przeglądu UX (mobile-developer)
+- 2026-10-31 — wznowienie po przerwie sieci (ENOTFOUND, błąd klienta Claude Code, nie kodu): bez zmian w kodzie; zacommitowano dziennik EVM-093 (16649611); wstępnie sprawdzone wyjątki `.gitleaksignore` (26fad2e6 l. 17–18, 82844f64 l. 15–16 — syntetyczny JWT `sub=synthetic` i `inst_sk_synthetic_…`, dokładne odciski, bez wzorców); dług: wpisy 82844f64 usunąć po skasowaniu `origin/feature/EVM-091-*`, najpóźniej 2026-12-05; niezależne przeglądy security-engineer i code-reviewer na `f152073b..HEAD` zleca orkiestrator (agent nie uruchamia innych agentów); status in-review (mobile-developer)
