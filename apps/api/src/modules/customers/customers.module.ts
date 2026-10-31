@@ -17,12 +17,15 @@ import { RestoreCustomerService } from './application/restore-customer.service.t
 import { UpdateCustomerService } from './application/update-customer.service.ts';
 import { SearchCustomersService } from './application/search-customers.service.ts';
 import { CUSTOMER_DIRECTORY } from './customer-directory.ts';
+import { CustomerSyncSourceService } from './infrastructure/sync-source.ts';
+import { CUSTOMER_SYNC_SOURCE } from './system-ports.ts';
 import { CustomerDependentsRegistry } from './dependents-guard.ts';
 import { CustomersController } from './http/customers.controller.ts';
 
 @Module({
   controllers: [CustomersController],
   providers: [
+    { provide: CUSTOMER_SYNC_SOURCE, useClass: CustomerSyncSourceService },
     CustomerPagesService,
     SearchCustomersService,
     ListCustomersService,
@@ -35,6 +38,6 @@ import { CustomersController } from './http/customers.controller.ts';
     CustomerDependentsRegistry,
     { provide: CUSTOMER_DIRECTORY, useClass: CustomerDirectoryService },
   ],
-  exports: [CUSTOMER_DIRECTORY, CustomerDependentsRegistry],
+  exports: [CUSTOMER_DIRECTORY, CustomerDependentsRegistry, CUSTOMER_SYNC_SOURCE],
 })
 export class CustomersModule {}

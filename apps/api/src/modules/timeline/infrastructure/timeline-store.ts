@@ -37,12 +37,18 @@ export interface NewEntry {
   readonly procedureStageId: string | null;
   readonly supersedesEntryId: string | null;
   readonly authorUserId: string;
+  /** `web` for the panel; `mobile` for a mutation of the phone (EVM-098), which also names the device of its session. */
+  readonly origin: 'web' | 'mobile';
+  /** When the phone says the entry was written (metadata only, EVM-098 AC7); `null` for the panel and out of range. */
+  readonly capturedAt: Date | null;
+  /** The device of the SESSION (never of a request); `null` for the panel. */
+  readonly createdViaDeviceId: string | null;
 }
 
 /**
  * INSERT only: an existing identifier — also of an entry of another order and of a deleted entry — inserts nothing (`undefined`),
- * whatever the content, and the caller answers `409 id_conflict` without a word about the existing row. The origin is `web`, the
- * time is the time of the SERVER: neither is a value of the request.
+ * whatever the content, and the caller answers `id_conflict` without a word about the existing row. The time is the time of the
+ * SERVER, never a value of the request; the origin and the device are decided by the caller from the channel of the session.
  */
 export function insertEntry(db: TimelineDb, entry: NewEntry, now: Date) {
   return db
@@ -55,10 +61,11 @@ export function insertEntry(db: TimelineDb, entry: NewEntry, now: Date) {
       body: entry.body,
       procedure_stage_id: entry.procedureStageId,
       supersedes_entry_id: entry.supersedesEntryId,
-      origin: 'web',
-      captured_at: null,
+      origin: entry.origin,
+      captured_at: entry.capturedAt,
       created_at: now,
       created_by: entry.authorUserId,
+      created_via_device_id: entry.createdViaDeviceId,
       deleted_at: null,
       redacted_at: null,
       event_code: null,
@@ -275,3 +282,29 @@ export function redactEntry(
 }
 
 export type EntryRow = NonNullable<Awaited<ReturnType<typeof findEntry>>>;
+
+/** What {@link matchesOwnEntry} compares: every column of the rule of `idempotency_expired` (EVM-098 AC4). */
+export interface OwnEntryQuery {
+  readonly id: string;
+  readonly kind: Exclude<EntryKind, 'event'>;
+  readonly workOrderId: string;
+  readonly userId: string;
+  readonly deviceId: string;
+  /** The entry was created at this moment or before it. */
+  readonly createdBefore: Date;
+}
+
+/** Is there an entry with exactly these identifier, kind, order, author and device, created no later than `createdBefore`? A yes or a no, nothing of the row. */
+export async function matchesOwnEntry(db: TimelineDb, query: OwnEntryQuery): Promise<boolean> {
+  const row = await db
+    .selectFrom('timeline.timeline_entries')
+    .select('id')
+    .where('id', '=', query.id)
+    .where('kind', '=', query.kind)
+    .where('work_order_id', '=', query.workOrderId)
+    .where('created_by', '=', query.userId)
+    .where('created_via_device_id', '=', query.deviceId)
+    .where('created_at', '<=', query.createdBefore)
+    .executeTakeFirst();
+  return row !== undefined;
+}

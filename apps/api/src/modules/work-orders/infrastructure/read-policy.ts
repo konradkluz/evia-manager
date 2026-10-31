@@ -10,3 +10,6 @@ export const visibleWorkOrders = (principal: Principal) => workOrderReadConditio
 
 /** The mode `deleted` of the policy (EVM-060): the soft deleted orders for the Administrator, never true for another role. Used by the view "Usunięte" only. */
 export const deletedWorkOrders = (principal: Principal) => workOrderReadCondition(principal, 'work_orders.work_orders', 'deleted');
+
+/** The mode `access` of the policy (EVM-098 AC6): deleted or not. Used by the target of a mutation of the phone ONLY (`mutation-target.ts`), never by a read. */
+export const accessibleWorkOrders = (principal: Principal) => workOrderReadCondition(principal, 'work_orders.work_orders', 'access');

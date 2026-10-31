@@ -18,6 +18,13 @@ import { SITE_EVENT_TYPES, type SiteEvent } from '../../sites/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../timeline/index.ts';
 import { WORK_ORDER_EVENT_TYPES, type WorkOrderEvent } from '../../work-orders/index.ts';
 import { BULK_READ_EVENT_TYPES, type BulkReadEvent } from '../../../platform/bulk-read/bulk-read-event.ts';
+import {
+  AUDITED_COMMAND_TYPES,
+  SYNC_EVENT_TYPES,
+  SYNC_MUTATION_EVENT_TYPES,
+  type SyncAuditEvent,
+  type SyncMutationAuditEvent,
+} from '../../../platform/sync/sync-event.ts';
 import type { EventContext } from '../../../platform/events/event-bus.ts';
 import { truncateIp } from './ip-prefix.ts';
 
@@ -34,6 +41,8 @@ export const AUDIT_ACTIONS = [
   ...IDENTITY_EVENT_TYPES,
   'audit.read',
   ...BULK_READ_EVENT_TYPES,
+  ...SYNC_EVENT_TYPES,
+  ...SYNC_MUTATION_EVENT_TYPES,
   ...CUSTOMER_EVENT_TYPES,
   ...SITE_EVENT_TYPES,
   ...PARTY_EVENT_TYPES,
@@ -68,6 +77,13 @@ const ROLE_CHANGE_ACTION = 'user.role_changed';
 /** The new scan of a quarantined file carries the state before and after (EVM-049): the result, never the reason. */
 const RESCAN_ACTION = 'media_file.rescanned';
 const amountMinor = z.int().min(1).max(99_999_999_999).nullable();
+const entityCount = z.int().min(0).max(1_000_000).nullable();
+/** The one event that carries the counts of the entities by type: the end of a full download of a phone (EVM-096 AC8). */
+const FULL_DOWNLOAD_COMPLETED_ACTION = 'sync.full_download_completed';
+/** The one event that carries the number of entities of one snapshot of an order (EVM-097 AC7). */
+const SNAPSHOT_ACTION = 'sync.work_order_snapshot';
+/** The one event that carries the device, the order and the type of a command: an applied mutation of a phone (EVM-098 AC8). */
+const MUTATION_ACTION = 'sync.mutation_applied';
 const statusCode = z
   .string()
   .regex(/^[a-z][a-z_]{0,39}$/)
@@ -92,6 +108,13 @@ export const auditRecordSchema = z
     currency: z.literal('PLN').nullable(),
     fromCode: statusCode,
     toCode: statusCode,
+    workOrderCount: entityCount,
+    customerCount: entityCount,
+    siteCount: entityCount,
+    entityCount,
+    deviceId: z.uuid().nullable(),
+    workOrderId: z.uuid().nullable(),
+    commandType: z.enum(AUDITED_COMMAND_TYPES).nullable(),
   })
   .refine(
     (record) =>
@@ -111,6 +134,25 @@ export const auditRecordSchema = z
       message:
         'the codes of a status belong to a transition of a payment milestone, a change of a role or a new scan of a file only, both together',
     },
+  )
+  .refine(
+    (record) => {
+      const counts = [record.workOrderCount, record.customerCount, record.siteCount];
+      return record.action === FULL_DOWNLOAD_COMPLETED_ACTION
+        ? counts.every((count) => count !== null)
+        : counts.every((count) => count === null);
+    },
+    { message: 'the counts of the entities by type belong to the end of a full download only, all three together' },
+  )
+  .refine((record) => (record.entityCount === null ? true : record.action === SNAPSHOT_ACTION && record.outcome === 'success'), {
+    message: 'the number of entities belongs to a served snapshot of an order only',
+  })
+  .refine(
+    (record) => {
+      const fields = [record.deviceId, record.workOrderId, record.commandType];
+      return record.action === MUTATION_ACTION ? fields.every((field) => field !== null) : fields.every((field) => field === null);
+    },
+    { message: 'the device, the order and the type of a command belong to an applied mutation of a phone only, all three together' },
   );
 
 export type AuditRecord = z.infer<typeof auditRecordSchema>;
@@ -121,6 +163,8 @@ export function toAuditRecord(
     | IdentityEvent
     | AuditReadEvent
     | BulkReadEvent
+    | SyncAuditEvent
+    | SyncMutationAuditEvent
     | CustomerEvent
     | SiteEvent
     | PartyEvent
@@ -147,7 +191,23 @@ export function toAuditRecord(
     traceId: context.traceId,
     ...amountsOf(event),
     ...codesOf(event),
+    ...countsOf(event),
+    entityCount: 'entityCount' in event ? (event.entityCount ?? null) : null,
+    ...mutationOf(event),
   });
+}
+
+/** The device, the order and the type of the command of an applied mutation of a phone (EVM-098); `null` for every other event. */
+function mutationOf(event: object): { deviceId: string | null; workOrderId: string | null; commandType: string | null } {
+  if (!('commandType' in event)) return { deviceId: null, workOrderId: null, commandType: null };
+  const mutation = event as SyncMutationAuditEvent;
+  return { deviceId: mutation.deviceId, workOrderId: mutation.workOrderId, commandType: mutation.commandType };
+}
+
+/** The counts of the entities by type of the end of a full download (EVM-096); `null` for every other event. */
+function countsOf(event: object): { workOrderCount: number | null; customerCount: number | null; siteCount: number | null } {
+  const counts = 'counts' in event ? (event.counts as { workOrders: number; customers: number; sites: number }) : undefined;
+  return { workOrderCount: counts?.workOrders ?? null, customerCount: counts?.customers ?? null, siteCount: counts?.sites ?? null };
 }
 
 /** The codes of the status before and after of an event of a payment milestone (EVM-054); `null` for every other event. */

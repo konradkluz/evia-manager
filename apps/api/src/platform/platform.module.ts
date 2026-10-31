@@ -8,7 +8,7 @@ import type { AppConfig } from './config/config.ts';
 import { SystemClock, type Clock } from './clock/clock.ts';
 import { SecurityAlertEmitter } from './alerts/security-alerts.ts';
 import { DatabaseModule } from './database/database.module.ts';
-import type { Database } from './database/database.ts';
+import type { Database, PoolSettings } from './database/database.ts';
 import type { Kysely } from 'kysely';
 import { HealthController } from './health/health.controller.ts';
 import { EventBus } from './events/event-bus.ts';
@@ -37,6 +37,7 @@ import {
   CURSOR_CODEC,
   FIELD_ENCRYPTION,
   DATABASE,
+  DATABASE_POOL,
   EVENT_BUS,
   LOGGER,
   METRICS,
@@ -54,11 +55,13 @@ import { OBJECT_STORAGE } from './object-storage/object-storage.ts';
 export interface PlatformDependencies {
   readonly config: AppConfig;
   readonly logger: Logger;
+  /** Overrides of the pool of the process (the worker and the CLI that rebuild data have longer transactions than the API). */
+  readonly pool?: Partial<PoolSettings>;
 }
 
 @Module({})
 export class PlatformModule {
-  static register({ config, logger }: PlatformDependencies): DynamicModule {
+  static register({ config, logger, pool = {} }: PlatformDependencies): DynamicModule {
     return {
       module: PlatformModule,
       global: true,
@@ -67,6 +70,7 @@ export class PlatformModule {
       providers: [
         { provide: APP_CONFIG, useValue: config },
         { provide: LOGGER, useValue: logger },
+        { provide: DATABASE_POOL, useValue: pool },
         { provide: APP_FILTER, useClass: ProblemFilter },
         { provide: CLOCK, useClass: SystemClock },
         { provide: SLEEPER, useClass: TimerSleeper },
@@ -130,6 +134,7 @@ export class PlatformModule {
       ],
       exports: [
         DatabaseModule,
+        DATABASE_POOL,
         APP_CONFIG,
         LOGGER,
         CLOCK,

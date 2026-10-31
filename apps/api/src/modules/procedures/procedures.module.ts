@@ -29,7 +29,8 @@ import { UpdateStageService } from './application/update-stage.service.ts';
 import { ProceduresController } from './http/procedures.controller.ts';
 import { PROCEDURE_STAGE_DIRECTORY } from './stage-directory.ts';
 import { ProcedureProjectionSourceService } from './infrastructure/projection-source.ts';
-import { PROCEDURE_PROJECTION_SOURCE } from './system-ports.ts';
+import { ProcedureStageSyncSourceService } from './infrastructure/sync-source.ts';
+import { PROCEDURE_PROJECTION_SOURCE, PROCEDURE_STAGE_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [IdentityModule, CatalogModule, WorkOrdersModule, PartiesModule],
@@ -49,7 +50,8 @@ import { PROCEDURE_PROJECTION_SOURCE } from './system-ports.ts';
     ProceduresScopeParticipant,
     { provide: PROCEDURE_STAGE_DIRECTORY, useClass: ProcedureStageDirectoryService },
     { provide: PROCEDURE_PROJECTION_SOURCE, useClass: ProcedureProjectionSourceService },
+    { provide: PROCEDURE_STAGE_SYNC_SOURCE, useClass: ProcedureStageSyncSourceService },
   ],
-  exports: [PROCEDURE_STAGE_DIRECTORY, PROCEDURE_PROJECTION_SOURCE],
+  exports: [PROCEDURE_STAGE_DIRECTORY, PROCEDURE_PROJECTION_SOURCE, PROCEDURE_STAGE_SYNC_SOURCE],
 })
 export class ProceduresModule {}

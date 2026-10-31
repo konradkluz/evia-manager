@@ -9,7 +9,7 @@ const limiter = (maxKeys?: number) => {
 
 describe('per-IP rate limits (EVM-016 AC4, AC5; SR-API-02, P10)', () => {
   it('EVM-016 AC5 the limits are the ones of the guidelines: 1200 per minute overall, 60 anonymous, 20 for sign-in and MFA, 60 searches and 300 requests per user', () => {
-    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20, search: 60, user: 300 });
+    expect(RATE_LIMITS).toEqual({ global: 1200, anonymous: 60, authentication: 20, search: 60, user: 300, syncMutationsDevice: 60 });
   });
 
   it('EVM-016 AC5 the 21st request of a minute is denied with the seconds left, the next window starts clean', () => {

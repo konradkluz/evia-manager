@@ -26,7 +26,7 @@ SyncCursor:
   description: >-
     Kursor nieprzezroczysty (base64url) — klient niczego z niego nie czyta i nie składa. Serwer chroni go integralnie (AES-256-GCM,
     ADR-0021 D6): niedekodowalny albo przeterminowany kursor daje `200 resync_required` (nie błąd klienta), kursor innego użytkownika
-    lub urządzenia daje `400 invalid_cursor`.
+    lub urządzenia albo zmodyfikowany (zły tag przy znanym kluczu) daje `400 invalid_cursor`.
   pattern: '^[A-Za-z0-9_-]{16,1024}$'
   minLength: 16
   maxLength: 1024
@@ -575,7 +575,10 @@ SyncUpsert:
       $ref: '#/SyncEntity'
 SyncDelete:
   type: object
-  description: Znacznik usunięcia albo wyjścia z zakresu — tylko `type` i `id`, bez danych osobowych.
+  description: >-
+    Znacznik usunięcia albo wyjścia z zakresu — tylko `type`, `id` i opcjonalnie `version`, bez danych osobowych. `version` jest wersją
+    obiektu w chwili usunięcia (soft delete), dolną granicą dla późniejszego `upsert` w strażniku wersji klienta; po trwałym usunięciu
+    (purge) pola nie ma.
   additionalProperties: false
   required: [op, type, id]
   properties:
@@ -586,6 +589,9 @@ SyncDelete:
       $ref: '#/SyncEntityType'
     id:
       $ref: '#/SyncId'
+    version:
+      type: integer
+      minimum: 1
 SyncChange:
   description: Jedna zmiana na stronie.
   oneOf:

@@ -17,6 +17,11 @@ export const DATABASE_BOUND: readonly string[] = [
   // EVM-026: the counters against guessing (FOR UPDATE, ON CONFLICT, the retention) and the register of known browsers — SQL against PostgreSQL
   'src/modules/identity/infrastructure/throttle-queries.ts',
   'src/modules/identity/infrastructure/tables.ts',
+  // EVM-097: the names of the users for the phone - a query with the soft deletion; no-etag: the headers of the answers of the snapshot of an order
+  'src/modules/identity/infrastructure/sync-source.ts',
+  // EVM-098: the number of items the phone has not sent - one UPDATE with least()
+  'src/modules/identity/infrastructure/pending-items.ts',
+  'src/modules/sync/http/no-etag.ts',
   // EVM-094: the register of mobile devices and the tokens of a phone — locks, conditional UPDATEs, and joins that read the session, the account and the device on every request: SQL against PostgreSQL
   'src/modules/identity/infrastructure/device-queries.ts',
   'src/modules/identity/infrastructure/mobile-token-queries.ts',
@@ -66,6 +71,9 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/timeline/application/restore-entry.service.ts',
   'src/modules/timeline/application/redact-entry.service.ts',
   'src/modules/timeline/application/entry-page.ts',
+  // EVM-098: the write of an entry shared by the panel and the phone, the command port of the phone (INSERT only, the stage under a lock) - SQL against PostgreSQL
+  'src/modules/timeline/application/entry-writer.ts',
+  'src/modules/timeline/application/mobile-entry-commands.service.ts',
   'src/modules/timeline/infrastructure/**/*.ts',
   // EVM-034: the read model — the recomputation, the handlers, rebuild/verify and the list are SQL against the projection; the pure
   // function of the projection and the query of the list (domain/) and the controller over fake services are measured by the unit run
@@ -78,6 +86,10 @@ export const DATABASE_BOUND: readonly string[] = [
   // and the controller are SQL against PostgreSQL; the rules of the domain (file rules, plan of the upload, verdicts) are measured by the unit run
   'src/modules/media/application/**/*.ts',
   'src/modules/media/infrastructure/**/*.ts',
+  // EVM-096: the pull of changes - the transactions (READ ONLY and the full download under a lock), the queries on the change log and the horizon, the controller; the domain (cursor decisions, assembly of a page, projections) is measured by the unit run
+  'src/modules/sync/application/**/*.ts',
+  'src/modules/sync/infrastructure/**/*.ts',
+  'src/modules/sync/http/sync.controller.ts',
   'src/modules/media/http/media.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',

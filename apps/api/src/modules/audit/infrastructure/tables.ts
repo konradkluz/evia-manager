@@ -27,6 +27,16 @@ export interface AuditEventsTable {
   /** The codes of the status before and after (EVM-054; 0029): both or neither. */
   from_code: string | null;
   to_code: string | null;
+  /** The counts of the entities by type of a full download of a phone (EVM-096; 0054): all three or none. */
+  work_order_count: number | null;
+  customer_count: number | null;
+  site_count: number | null;
+  /** The number of entities of a served snapshot of one order (EVM-097; 0055): null for every other event. */
+  entity_count: number | null;
+  /** The device, the order and the type of the command of an applied mutation of a phone (EVM-098; 0056): all three or none. */
+  device_id: string | null;
+  work_order_id: string | null;
+  command_type: string | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

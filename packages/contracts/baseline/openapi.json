@@ -2293,6 +2293,10 @@
           "audit.read",
           "bulk_read.alerted",
           "bulk_read.rejected",
+          "sync.full_download",
+          "sync.full_download_completed",
+          "sync.work_order_snapshot",
+          "sync.mutation_applied",
           "customer.created",
           "customer.updated",
           "customer.deleted",
@@ -7583,7 +7587,7 @@
         "type": "string"
       },
       "SyncCursor": {
-        "description": "Kursor nieprzezroczysty (base64url) — klient niczego z niego nie czyta i nie składa. Serwer chroni go integralnie (AES-256-GCM, ADR-0021 D6): niedekodowalny albo przeterminowany kursor daje `200 resync_required` (nie błąd klienta), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`.",
+        "description": "Kursor nieprzezroczysty (base64url) — klient niczego z niego nie czyta i nie składa. Serwer chroni go integralnie (AES-256-GCM, ADR-0021 D6): niedekodowalny albo przeterminowany kursor daje `200 resync_required` (nie błąd klienta), kursor innego użytkownika lub urządzenia albo zmodyfikowany (zły tag przy znanym kluczu) daje `400 invalid_cursor`.",
         "maxLength": 1024,
         "minLength": 16,
         "pattern": "^[A-Za-z0-9_-]{16,1024}$",
@@ -7634,7 +7638,7 @@
       },
       "SyncDelete": {
         "additionalProperties": false,
-        "description": "Znacznik usunięcia albo wyjścia z zakresu — tylko `type` i `id`, bez danych osobowych.",
+        "description": "Znacznik usunięcia albo wyjścia z zakresu — tylko `type`, `id` i opcjonalnie `version`, bez danych osobowych. `version` jest wersją obiektu w chwili usunięcia (soft delete), dolną granicą dla późniejszego `upsert` w strażniku wersji klienta; po trwałym usunięciu (purge) pola nie ma.",
         "properties": {
           "id": {
             "$ref": "#/components/schemas/SyncId"
@@ -7645,6 +7649,10 @@
           },
           "type": {
             "$ref": "#/components/schemas/SyncEntityType"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -14809,7 +14817,7 @@
     },
     "/api/v1/sync/changes": {
       "get": {
-        "description": "Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`, `access_changed`), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie” (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie. Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10). `Cache-Control: no-store`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`, `access_changed`), kursor innego użytkownika lub urządzenia albo zmodyfikowany (zły tag przy znanym kluczu) daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie” (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie. Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`). Pełne pobranie (bez kursora, także po `resync_required`) jest limitowane na urządzenie (domyślnie 3 na kroczącą dobę → `429` z `Retry-After`); zwykłe pobieranie zmian nie. Odczyty synchronizacji NIE zasilają licznika różnych klientów (EVM-039). `limit` powyżej 500 jest ograniczany do 500. `Cache-Control: no-store`.",
         "operationId": "getSyncChanges",
         "parameters": [
           {
@@ -14934,13 +14942,12 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/sync/mutations": {
       "post": {
-        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z `Retry-After`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Partia 1–50 mutacji w kolejności kolejki (`CreateNote`, `CreateComment`, `CreateQuickWorkOrder`); każda: `mutationId` (UUIDv7 — klucz idempotencji), `type`, `commandVersion`, `payload`, najwyżej 64 KB (egzekwuje serwer, EVM-098; treść partii najwyżej 1 MB → `413 payload_too_large`). Wynik per mutacja: `applied`, `duplicate` (ta sama mutacja już zastosowana), `conflict` (`id_conflict`) albo `rejected` z kodem (`forbidden`, `target_unavailable`, `validation_failed`, `idempotency_mismatch`, `idempotency_in_progress`, `template_unavailable`) i ostrzeżeniami (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60 żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków. `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.",
         "operationId": "pushSyncMutations",
         "parameters": [
           {
@@ -15061,13 +15068,12 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/sync/work-orders/{workOrderId}": {
       "get": {
-        "description": "Administrator i Edytor, kanał `mobile`. Bieżący agregat zlecenia w projekcji dla telefonu (zlecenie, zakres, procesy i etapy, wpisy, klient, lokalizacja, strony, nazwy użytkowników, metadane mediów), każdy obiekt z `version`. Polityka obiektowa: zakres urządzenia (ADR-0021 D3) przy KAŻDYM odczycie. Zlecenie nieistniejące, usunięte, poza zakresem albo bez dostępu → jednakowe `404 not_found` (nie `403`: istnienie jest informacją, ochrona przed IDOR). Podlega limitowi na użytkownika i licznikowi masowego odczytu (P10, insider): `429` z `Retry-After`. `Cache-Control: no-store`.",
+        "description": "Administrator i Edytor, kanał `mobile`. Bieżący agregat zlecenia w projekcji dla telefonu (zlecenie, zakres, procesy i etapy, wpisy, klient, lokalizacja, strony, nazwy użytkowników, metadane mediów), każdy obiekt z `version`. Polityka obiektowa: zakres urządzenia (ADR-0021 D3) przy KAŻDYM odczycie. Zlecenie nieistniejące, usunięte, poza zakresem albo bez dostępu → jednakowe `404 not_found` (nie `403`: istnienie jest informacją, ochrona przed IDOR). Podlega limitowi na użytkownika i licznikowi masowego odczytu (P10, insider): limit 120 żądań na godzinę na urządzenie (liczone także żądania kończące się `404`), powyżej `429` z `Retry-After`. Ta sama projekcja i ten sam czytnik agregatu co pierwsze pobranie. Zły format identyfikatora → `400 validation_failed`. `Cache-Control: no-store`.",
         "operationId": "getSyncWorkOrder",
         "parameters": [
           {
@@ -15128,6 +15134,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/MobileSyncBadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/MobileSessionUnauthorized"
           },
@@ -15163,8 +15172,7 @@
             "administrator",
             "editor"
           ]
-        },
-        "x-evia-planned": true
+        }
       }
     },
     "/api/v1/users": {

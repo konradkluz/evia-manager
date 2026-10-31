@@ -55,6 +55,13 @@ export const auditActionLabels: Readonly<Record<AuditAction, string>> = {
   'audit.read': 'Odczyt dziennika audytu',
   'bulk_read.alerted': 'Alert masowego odczytu',
   'bulk_read.rejected': 'Odrzucony masowy odczyt',
+  // EVM-096: a full download of the data to a phone (started, or refused by the limit per day)
+  'sync.full_download': 'Pełne pobranie danych na urządzenie mobilne',
+  'sync.full_download_completed': 'Zakończenie pełnego pobrania danych na urządzenie mobilne',
+  // EVM-097: the snapshot of one order for a phone (served, or refused by the limit per hour)
+  'sync.work_order_snapshot': 'Pobranie migawki zlecenia na urządzenie mobilne',
+  // EVM-098: an entry or a comment written on a phone and applied by the server
+  'sync.mutation_applied': 'Zastosowanie zmiany z urządzenia mobilnego',
   'customer.created': 'Dodanie klienta',
   'customer.updated': 'Zmiana danych klienta',
   'customer.deleted': 'Usunięcie klienta',
@@ -154,7 +161,18 @@ export const auditActionGroups: ReadonlyArray<{ readonly label: string; readonly
     label: 'Reset hasła',
     actions: ['password.reset_requested', 'password_reset_link.issued', 'password.reset'],
   },
-  { label: 'Dziennik audytu', actions: ['audit.read', 'bulk_read.alerted', 'bulk_read.rejected'] },
+  {
+    label: 'Dziennik audytu',
+    actions: [
+      'audit.read',
+      'bulk_read.alerted',
+      'bulk_read.rejected',
+      'sync.full_download',
+      'sync.full_download_completed',
+      'sync.work_order_snapshot',
+      'sync.mutation_applied',
+    ],
+  },
   { label: 'Klienci', actions: ['customer.created', 'customer.updated', 'customer.deleted', 'customer.restored', 'customer.anonymized'] },
   { label: 'Lokalizacje i strony', actions: ['site.created', 'site.updated', 'party.created', 'party.updated'] },
   {

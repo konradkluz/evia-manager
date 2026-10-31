@@ -4,7 +4,7 @@
  */
 import { MIGRATIONS } from './migrations/index.ts';
 import { loadMigrationConfig } from './platform/config/config.ts';
-import { createDatabase } from './platform/database/database.ts';
+import { createDatabase, MIGRATOR_POOL_SETTINGS } from './platform/database/database.ts';
 import { migrateToLatest } from './platform/database/migrator.ts';
 import { createLogger } from './platform/logging/logger.ts';
 
@@ -12,7 +12,7 @@ import { createLogger } from './platform/logging/logger.ts';
 if (import.meta.main) {
   const config = loadMigrationConfig(process.env);
   const logger = createLogger({ level: config.logLevel });
-  const db = createDatabase({ url: config.databaseUrl, logger, pool: { max: 1, statement_timeout: undefined, query_timeout: undefined } });
+  const db = createDatabase({ url: config.databaseUrl, logger, pool: MIGRATOR_POOL_SETTINGS });
   try {
     const { applied } = await migrateToLatest(db, MIGRATIONS);
     logger.info({ applied }, 'migrations applied');

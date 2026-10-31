@@ -20,18 +20,23 @@ import { WorkOrdersModule } from '../work-orders/index.ts';
 import { CreateEntryService } from './application/create-entry.service.ts';
 import { DeleteEntryService } from './application/delete-entry.service.ts';
 import { EntryPresenter } from './application/entry-page.ts';
+import { EntryWriter } from './application/entry-writer.ts';
 import { ListEntriesService } from './application/list-entries.service.ts';
+import { MobileEntryCommandsService } from './application/mobile-entry-commands.service.ts';
 import { JournalEventRecorder } from './application/record-journal-event.ts';
 import { ReadEntryService } from './application/read-entry.service.ts';
 import { RedactEntryService } from './application/redact-entry.service.ts';
 import { RestoreEntryService } from './application/restore-entry.service.ts';
 import { TimelineController } from './http/timeline.controller.ts';
+import { TimelineEntrySyncSourceService } from './infrastructure/sync-source.ts';
+import { MOBILE_ENTRY_COMMANDS, TIMELINE_ENTRY_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
   imports: [IdentityModule, PartiesModule, WorkOrdersModule, ProceduresModule, PaymentsModule],
   controllers: [TimelineController],
   providers: [
     EntryPresenter,
+    EntryWriter,
     JournalEventRecorder,
     ListEntriesService,
     ReadEntryService,
@@ -39,6 +44,9 @@ import { TimelineController } from './http/timeline.controller.ts';
     DeleteEntryService,
     RestoreEntryService,
     RedactEntryService,
+    { provide: TIMELINE_ENTRY_SYNC_SOURCE, useClass: TimelineEntrySyncSourceService },
+    { provide: MOBILE_ENTRY_COMMANDS, useClass: MobileEntryCommandsService },
   ],
+  exports: [TIMELINE_ENTRY_SYNC_SOURCE, MOBILE_ENTRY_COMMANDS],
 })
 export class TimelineModule {}

@@ -1,6 +1,6 @@
 # Module `sync` (EVM-090; offline-sync.md, ADR-0021) and the configuration of the mobile client. Every operation is on the `mobile`
 # channel for the Administrator and the Editor, authenticated by `Authorization: Bearer`, `Cache-Control: no-store`, and carries
-# `x-evia-planned: true` until its story implements the route (client-config: done in EVM-094; changes: EVM-096; snapshot: EVM-096;
+# `x-evia-planned: true` until its story implements the route (client-config: done in EVM-094; changes: EVM-096; snapshot: EVM-097;
 # mutations: EVM-098). Identity of the user and of the device always comes from the session — never from the request.
 clientConfig:
   get:
@@ -56,17 +56,16 @@ changes:
     description: >-
       Administrator i Edytor, kanał `mobile`. Kursor jest nieprzezroczysty i chroniony integralnie (ADR-0021 D6): niedekodowalny lub
       przeterminowany kursor daje `200 resync_required` (powód `cursor_invalid` / `cursor_expired`; także `periodic`, `scope_changed`,
-      `access_changed`), kursor innego użytkownika lub urządzenia daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki
+      `access_changed`), kursor innego użytkownika lub urządzenia albo zmodyfikowany (zły tag przy znanym kluczu) daje `400 invalid_cursor`. Bez kursora zaczyna się faza migawki
       (pierwsze pobranie). `limit` 1–500, domyślnie 200; strona zmian najwyżej 1 MB. Zmiana to `upsert` (bieżący stan z `version`) albo
       `delete` (`type` + `id`, bez danych osobowych); projekcje zawierają wyłącznie pola z „Projekcja pól na telefonie”
       (`offline-sync.md`). `pendingItems` (opcjonalne, 0–1 000 000) to liczba niewysłanych elementów telefonu — informacyjnie.
       Zapytanie nie niesie `userId` ani `deviceId` (wynikają z sesji). `401 device_wipe_required`, gdy urządzenie ma zlecone
-      wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`); odczyty liczą się do licznika masowego odczytu (P10).
+      wyczyszczenie (ma pierwszeństwo przed `session_revoked` i `unauthenticated`: blokada i wyczyszczenie unieważniają też rodzinę tokenów). Limit na użytkownika (`429` z `Retry-After`). Pełne pobranie (bez kursora, także po `resync_required`) jest limitowane na urządzenie (domyślnie 3 na kroczącą dobę → `429` z `Retry-After`); zwykłe pobieranie zmian nie. Odczyty synchronizacji NIE zasilają licznika różnych klientów (EVM-039). `limit` powyżej 500 jest ograniczany do 500.
       `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:
@@ -148,13 +147,14 @@ workOrder:
       wpisy, klient, lokalizacja, strony, nazwy użytkowników, metadane mediów), każdy obiekt z `version`. Polityka obiektowa:
       zakres urządzenia (ADR-0021 D3) przy KAŻDYM odczycie. Zlecenie nieistniejące, usunięte, poza zakresem albo bez dostępu → jednakowe
       `404 not_found` (nie `403`: istnienie jest informacją, ochrona przed IDOR). Podlega limitowi na użytkownika i licznikowi masowego
-      odczytu (P10, insider): `429` z `Retry-After`. `Cache-Control: no-store`.
+      odczytu (P10, insider): limit 120 żądań na godzinę na urządzenie (liczone także żądania kończące się `404`), powyżej `429` z `Retry-After`.
+      Ta sama projekcja i ten sam czytnik agregatu co pierwsze pobranie. Zły format identyfikatora → `400 validation_failed`.
+      `Cache-Control: no-store`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
       policy: sync.deviceScope
       anchor: path.workOrderId
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:
@@ -200,6 +200,8 @@ workOrder:
         $ref: ../components/responses.yaml#/MobileSessionUnauthorized
       '403':
         $ref: ../components/responses.yaml#/MobileForbidden
+      '400':
+        $ref: ../components/responses.yaml#/MobileSyncBadRequest
       '404':
         $ref: ../components/responses.yaml#/MobileNotFound
       '426':
@@ -220,13 +222,13 @@ mutations:
       (`captured_at_out_of_range`, `idempotency_expired`). Zła koperta lub partia → `400`; zły ładunek albo nieznany `type` to wynik
       JEDNEJ mutacji (`rejected` `validation_failed`), nie `400` całej partii. Sesja lub urządzenie unieważnione → `401` dla całej
       partii (`session_revoked`, `device_wipe_required`; wyczyszczenie ma pierwszeństwo). Autoryzacja mutacji następuje w chwili zastosowania (rola, polityka
-      obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; `429` z
-      `Retry-After`.
+      obiektowa). Treść nie niesie `userId` ani `deviceId`. `pendingItems` — informacyjnie. `Cache-Control: no-store`; limit 60
+      żądań na minutę na urządzenie (partia to jedno żądanie, obok limitu na użytkownika), powyżej `429` z `Retry-After` bez skutków.
+      `CreateQuickWorkOrder` do EVM-099 → `rejected` `validation_failed`.
     x-evia-authz:
       roles: [administrator, editor]
       channels: [mobile]
       audit: true
-    x-evia-planned: true
     security:
       - mobileBearer: []
     parameters:
