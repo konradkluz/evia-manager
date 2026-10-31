@@ -23,6 +23,8 @@ export function asset(n: number, extra: Partial<MediaAsset> = {}): MediaAsset {
     needsAttention: false,
     quarantine: null,
     declaredSize: 1000,
+    durationSeconds: null,
+    avScanned: true,
     originalFilename: null,
     uploadSession: null,
     ...extra,
