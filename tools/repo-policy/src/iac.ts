@@ -424,8 +424,8 @@ export function bucketProblems(raw: string): string[] {
   need(
     /Sid\s*=\s*"AllowWorkerDerivatives"[\s\S]*?Principal\s*=\s*\{\s*SCW\s*=\s*local\.app_principals\["media_worker"\]\s*\}[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Resource\s*=\s*\[for name in local\.derivative_object_names : "\$\{scaleway_object_bucket\.media\.name\}\/media\/\*\/\$\{name\}"\]/.test(
       mediaPolicy,
-    ) && JSON.stringify(hclList(content, 'derivative_object_names')) === JSON.stringify(['thumbnail.webp', 'preview.webp']),
-    'media_worker: PutObject wyłącznie na media/*/thumbnail.webp i media/*/preview.webp',
+    ) && JSON.stringify(hclList(content, 'derivative_object_names')) === JSON.stringify(['thumbnail.webp', 'preview.webp', 'preview.mp4']),
+    'media_worker: PutObject wyłącznie na media/*/thumbnail.webp, media/*/preview.webp i media/*/preview.mp4 (EVM-046)',
   );
   need(
     /Sid\s*=\s*"DenyWorkerOverwrite"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(

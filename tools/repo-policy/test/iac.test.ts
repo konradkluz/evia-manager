@@ -318,12 +318,15 @@ describe('Object Storage of staging (EVM-084 AC2; ADR-0009, ADR-0011; SR-INFRA-0
     expect(Object.keys(BUCKET_POLICIES['media_allow'] ?? {})).not.toContain('backup_writer');
   });
 
-  it('EVM-068 AC5 (TM-76): the key of the worker may put the two derivative names only, add-only, never an original — each of the three statements is required', () => {
+  it('EVM-068 AC5 (TM-76): the key of the worker may put the three derivative names only (EVM-046: preview.mp4 too), add-only, never an original — each of the three statements is required', () => {
     expect(storage).toContain('Sid       = "AllowWorkerDerivatives"');
-    expect(storage).toContain('derivative_object_names = ["thumbnail.webp", "preview.webp"]');
+    expect(storage).toContain('derivative_object_names = ["thumbnail.webp", "preview.webp", "preview.mp4"]');
     expect(
       bucketProblems(
-        swap('derivative_object_names = ["thumbnail.webp", "preview.webp"]', 'derivative_object_names = ["thumbnail.webp", "*"]'),
+        swap(
+          'derivative_object_names = ["thumbnail.webp", "preview.webp", "preview.mp4"]',
+          'derivative_object_names = ["thumbnail.webp", "preview.webp", "*"]',
+        ),
       ),
     ).not.toEqual([]);
     expect(bucketProblems(swap('Sid       = "AllowWorkerDerivatives"', 'Sid       = "AllowWorker"'))).not.toEqual([]);

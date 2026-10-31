@@ -96,9 +96,12 @@ services:
       # EVM-068: the image processor (compose.media.yaml, IaC session) shares ONE tmpfs of the host with the worker - the socket and the work area of the jobs
       MEDIA_PROCESSOR_SOCKET: /run/media-work/processor.sock
       MEDIA_PROCESSOR_WORKDIR: /run/media-work
+      # EVM-046: the work area of FILMS - a disk volume of the host shared only with the media processor (noexec,nosuid,nodev; docs/ops/runbooks/media-processor.md)
+      MEDIA_PROCESSOR_VIDEO_WORKDIR: /var/lib/media-video
     volumes:
       - /run/evia/secrets/worker:/run/secrets:ro
       - /run/evia/media-work:/run/media-work
+      - /var/lib/evia/media-video:/var/lib/media-video
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
     mem_limit: 512m
