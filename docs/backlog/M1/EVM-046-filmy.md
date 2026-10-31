@@ -107,3 +107,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (ux-designer): AC8 — film z przeglądarki w telefonie (ostrzeżenie o rozmiarze przed wysłaniem przez sieć komórkową, status, stan po utracie karty)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-31 — backend-developer: część backendowa gotowa (migracja 0055, wideo w `media`, procesor ffprobe/ffmpeg, pętla filmów ze współbieżnością 1 w bazie, kwarantanna `type_mismatch`, adresy filmu, CSP `media-src`, clamd 2000M); web (AC1, AC4, AC7, AC8 po stronie panelu) czeka na web-developera
+- 2026-10-31 — web-developer: część panelu gotowa (wybór i kontrola filmu, hash po kawałkach, ostrzeżenie > 100 MB, kafel z czasem, znacznik nieskanowanego, odtwarzacz 720p z klawiaturą i odnawianiem adresu, teksty „Wysłano film…” / „Nie wysłano filmu…”); brak zrzutów ekranu (brak żywej aplikacji) — do demo
