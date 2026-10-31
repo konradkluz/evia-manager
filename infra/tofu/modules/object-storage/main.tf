@@ -51,7 +51,7 @@ locals {
 
   # Permission sets limit the product; the project-wide reach is narrowed by the bucket policies below.
   apps = {
-    media_app            = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
+    media_app = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     # EVM-068: the worker also writes the derivatives (Write); what it may write is narrowed by the bucket policy of the media bucket (TM-76).
     media_worker         = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     register_writer      = ["ObjectStorageObjectsWrite"]
