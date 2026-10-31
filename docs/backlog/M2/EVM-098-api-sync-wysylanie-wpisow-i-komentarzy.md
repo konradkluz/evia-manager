@@ -80,3 +80,5 @@ Jako **technik** chcę, aby **wpis lub komentarz napisany bez zasięgu trafił d
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-29 — doprecyzowanie do DoR: zgodność z kontraktem (`conflict` + `id_conflict`), podział na 8 AC, macierz ról, kolejność, zakres dziennika zmian (097) (product-owner)
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–8; forbidden także dla zlecenia nieistniejącego; limit 60 żądań/min na urządzenie; odrzucone mutacje bez rekordu idempotencji; blokada w toku 60 s; kolizja id to outcome conflict z kodem id_conflict (zgodnie z kontraktem EVM-090); status ready
+- 2026-10-31 — plan gotowy (backend-developer)
+- 2026-10-31 — implementacja API (push mutacji, migracja 0055, audyt `sync.mutation_applied`); 403 dla Tylko odczyt zwraca `forbidden` zgodnie z kontraktem i decyzją dla EVM-096 AC5 — tekst AC5 (`channel_not_allowed`) do korekty przez Konrada (backend-developer)

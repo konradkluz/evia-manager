@@ -1,5 +1,6 @@
 /**
- * Module `sync` (ADR-0001, ADR-0021 D8; EVM-096): the pull of changes of the mobile app - the change log (`sync.change_log`, written by the trigger of the
+ * Module `sync` (ADR-0001, ADR-0021 D8; EVM-096, EVM-098): the pull of changes of the mobile app and the push of its mutations (notes and comments,
+ * through the command port of `timeline`, the target port of `work-orders` and the idempotency port of `platform`) - the change log (`sync.change_log`, written by the trigger of the
  * database), the cursor with a ring of keys, the state of the devices and the limit of the full downloads; owner of the `sync` schema. It reads the synchronised
  * entities through the SYNC ports of `work-orders`, `customers` and `sites` (`system-ports.ts`: a listed set of columns, the read policy and the rule of scope in
  * the query). Nothing depends on this module: the composition root registers it, and no other module imports it.

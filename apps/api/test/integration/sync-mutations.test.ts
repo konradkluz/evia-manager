@@ -9,7 +9,7 @@ import type { IdentityApp } from '../support/identity-app.ts';
 import { enrolledAccount } from '../support/login-flows.ts';
 import { MOBILE, newPhone, setDeviceState, signedInPhone, type Phone } from '../support/mobile-flows.ts';
 import { insertProcedure } from '../support/procedure-fixtures.ts';
-import { bootSync, counter, DAY, editor } from '../support/sync-harness.ts';
+import { bootSync, counter, DAY, drain, editor, upsertOf } from '../support/sync-harness.ts';
 import { insertEntries } from '../support/timeline-fixtures.ts';
 import { addTotp, totpAccount, type TotpAccount } from '../support/totp-flows.ts';
 import { uuidv7 } from '../support/uuid.ts';
@@ -272,8 +272,11 @@ describe('the entry and the comment (EVM-098 AC2; SR-AUTHZ-04, SR-INPUT-02)', ()
     const strip = (item: Record<string, unknown> | undefined) =>
       Object.fromEntries(Object.entries(item ?? {}).filter(([key]) => !['id', 'origin', 'capturedAt', 'createdAt'].includes(key)));
     expect(strip(mobile)).toEqual(strip(web));
-    // the device is never part of the answer
+    // the device is never part of an answer: neither of the panel nor of the pull of the phone (SR-SYNC-04, minimisation)
     expect(JSON.stringify(list.body)).not.toContain(phone.deviceId ?? '');
+    const pulled = await drain(phone);
+    expect(upsertOf(pulled.changes, 'timeline_entry', entryIdOf(fromPhone))).toMatchObject({ origin: 'mobile' });
+    expect(JSON.stringify(pulled.changes)).not.toContain(phone.deviceId ?? '');
   });
 
   it('EVM-098 AC2 a settled and a cancelled order take an entry; a stage of another order, a missing stage and a note without a category are validation_failed with nothing written', async () => {
