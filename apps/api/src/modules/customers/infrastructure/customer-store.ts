@@ -131,6 +131,22 @@ export function lockVisibleCustomerForOrder(db: CustomersDb, principal: Principa
     .executeTakeFirst();
 }
 
+/**
+ * An EXISTING customer a quick work order of the phone may use, LOCKED `FOR KEY SHARE` (EVM-099 AC5): visible to the caller (not deleted) AND not anonymized - a
+ * missing, deleted, anonymized and invisible customer are one answer (`false`). The lock serialises this use with a deletion and an anonymization (`FOR UPDATE`).
+ */
+export async function lockUsableCustomerForQuickOrder(db: CustomersDb, principal: Principal, id: string): Promise<boolean> {
+  const row = await db
+    .selectFrom('customers.customers')
+    .select('id')
+    .where('id', '=', id)
+    .where('anonymized_at', 'is', null)
+    .where(visibleCustomers(principal))
+    .forKeyShare()
+    .executeTakeFirst();
+  return row !== undefined;
+}
+
 /** The columns of the card "Klient" only (the facade `CustomerDirectory`): the name, the telephone, the e-mail and the mark (SR-DATA-03). */
 export function findVisibleCustomerCard(db: CustomersDb, principal: Principal, id: string) {
   return db

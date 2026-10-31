@@ -53,6 +53,11 @@ export interface CustomerQuickCreation {
     input: QuickCustomerInput,
     context: EventContext,
   ): Promise<'created' | 'invalid' | 'id_conflict'>;
+  /**
+   * An existing customer the order may use, LOCKED `FOR KEY SHARE`: not deleted, not anonymized, visible to the caller - a missing, deleted, anonymized and invisible
+   * customer are one answer, `false` (AC5). Only a yes or a no.
+   */
+  lockUsable(tx: Kysely<Database>, principal: Principal, id: string): Promise<boolean>;
   /** The customers this device created after `since`, deleted and anonymized ones included. */
   countCreatedBy(tx: Kysely<Database>, deviceId: string, since: Date): Promise<number>;
 }

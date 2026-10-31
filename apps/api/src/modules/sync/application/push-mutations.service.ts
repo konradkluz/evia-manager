@@ -46,7 +46,6 @@ import type { Counter, MetricsRegistry } from '../../../platform/metrics/metrics
 import { uuidV7 } from '../../../platform/ids/uuid-v7.ts';
 import type { SyncMutationAuditEvent, SyncQuotaAuditEvent } from '../../../platform/sync/sync-event.ts';
 import { CLOCK, DATABASE, EVENT_BUS, METRICS } from '../../../platform/tokens.ts';
-import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
 import { CUSTOMER_QUICK_CREATION, type CustomerQuickCreation } from '../../customers/system-ports.ts';
 import { DEVICE_PENDING_ITEMS, type DevicePendingItems } from '../../identity/system-ports.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
@@ -102,7 +101,6 @@ export class PushMutationsService {
   readonly #pendingItems: DevicePendingItems;
   readonly #outcomes: Counter;
   readonly #quotaRefusals: Counter;
-  readonly #customerDirectory: CustomerDirectory;
   readonly #siteDirectory: SiteDirectory;
   readonly #newCustomers: CustomerQuickCreation;
   readonly #newSites: SiteQuickCreation;
@@ -117,7 +115,6 @@ export class PushMutationsService {
     @Inject(MOBILE_ENTRY_COMMANDS) entries: MobileEntryCommands,
     @Inject(DEVICE_PENDING_ITEMS) pendingItems: DevicePendingItems,
     @Inject(METRICS) metrics: MetricsRegistry,
-    @Inject(CUSTOMER_DIRECTORY) customerDirectory: CustomerDirectory,
     @Inject(SITE_DIRECTORY) siteDirectory: SiteDirectory,
     @Inject(CUSTOMER_QUICK_CREATION) newCustomers: CustomerQuickCreation,
     @Inject(SITE_QUICK_CREATION) newSites: SiteQuickCreation,
@@ -132,7 +129,6 @@ export class PushMutationsService {
     this.#pendingItems = pendingItems;
     this.#outcomes = metrics.counter(SYNC_MUTATION_OUTCOMES_METRIC, ['type', 'outcome', 'code']);
     this.#quotaRefusals = metrics.counter(SYNC_QUOTA_EXCEEDED_METRIC, ['kind']);
-    this.#customerDirectory = customerDirectory;
     this.#siteDirectory = siteDirectory;
     this.#newCustomers = newCustomers;
     this.#newSites = newSites;
@@ -287,7 +283,7 @@ export class PushMutationsService {
     }
     if (probe.kind === 'conflict') throw verdict({ outcome: 'conflict', code: 'id_conflict' });
 
-    if (quick.customerId !== undefined && (await this.#customerDirectory.findVisible(tx, principal, quick.customerId)) === undefined) {
+    if (quick.customerId !== undefined && !(await this.#newCustomers.lockUsable(tx, principal, quick.customerId))) {
       throw verdict({ outcome: 'rejected', code: 'target_unavailable' });
     }
     if (quick.siteId !== undefined && (await this.#siteDirectory.findVisible(tx, principal, quick.siteId)) === undefined) {

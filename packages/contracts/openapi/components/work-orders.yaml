@@ -504,6 +504,13 @@ WorkOrder:
       type: string
       format: date-time
       maxLength: 40
+    origin:
+      type: string
+      readOnly: true
+      description: >-
+        Skąd pochodzi zlecenie (`office` — panel, `mobile_quick` — telefon). Tylko do odczytu (zapis: `400 read_only_field`).
+      x-extensible-enum: [office, mobile_quick]
+      maxLength: 32
 # Reading a work order (EVM-018; W-06). Four reads anchored in the order, no collective endpoint: the header, the scope, the customer
 # card and the site card. Every answer is an explicit list of fields (`additionalProperties: false`, SR-DATA-03): the customer card has
 # the display name, the telephone and the e-mail; the parties of a site are `{id, displayName}`; the keeper is `{id, displayName}`.

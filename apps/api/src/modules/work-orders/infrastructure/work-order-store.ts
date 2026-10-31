@@ -129,6 +129,7 @@ export function findVisibleWorkOrder(db: WorkOrdersDb, principal: Principal, id:
       'description',
       'version',
       'created_at',
+      'origin',
     ])
     .where('id', '=', id)
     .where(visibleWorkOrders(principal))

@@ -9,7 +9,7 @@ import type { FieldIssue } from '../../../platform/input/field-issues.ts';
 import { CLOCK, EVENT_BUS } from '../../../platform/tokens.ts';
 import { normalizeQuickCustomer, type QuickCustomerInput } from '../domain/quick-customer.ts';
 import type { CustomerEvent } from '../events.ts';
-import { countCustomersCreatedBy, insertCustomer } from '../infrastructure/customer-store.ts';
+import { countCustomersCreatedBy, insertCustomer, lockUsableCustomerForQuickOrder } from '../infrastructure/customer-store.ts';
 import { customerTables } from '../infrastructure/tables.ts';
 import type { CustomerQuickCreation } from '../system-ports.ts';
 
@@ -48,6 +48,10 @@ export class CustomerQuickCreationService implements CustomerQuickCreation {
     };
     await this.#events.publish(tx, event, context);
     return 'created';
+  }
+
+  lockUsable(tx: Kysely<Database>, principal: Principal, id: string): Promise<boolean> {
+    return lockUsableCustomerForQuickOrder(customerTables(tx), principal, id);
   }
 
   countCreatedBy(tx: Kysely<Database>, deviceId: string, since: Date): Promise<number> {
