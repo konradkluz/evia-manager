@@ -77,3 +77,4 @@ Podpowiedź duplikatów klientów po stronie biura i telefonu (EVM-106) oraz ded
 - 2026-10-27 — naniesiono konsultacje: architekt, security (product-owner)
 - 2026-10-29 — doprecyzowanie do DoR (product-owner): 8 AC (osobne: duplikaty, atomowość, limit), poprawiony baner (W-06, nie W-09; znika po opuszczeniu stanu „Nowe”), konkretny limit 20 / 24 h i kod `quota_exceeded`, reguła podziału nazwy osoby, kierunek `note`, recenzent solution-architect
 - 2026-10-29 — zaakceptowano przez Konrada: AC1–8 w całości (bez podziału); nazwa osoby jednym wyrazem odrzucana; limit 20 nowych klientów i lokalizacji/24 h blokuje (quota_exceeded, drobny dodatek do katalogu kodów kontraktu EVM-090 z przeglądem architekta); note jako pierwszy wpis dziennika; baner na W-06 bez osobnego znacznika klienta; kolizja id jako outcome conflict; status ready
+- 2026-10-31 — plan gotowy (backend-developer)
