@@ -70,6 +70,7 @@ beforeAll(async () => {
     '0052_mobile_vocabularies',
     '0053_sync_change_log',
     '0054_sync_remaining_entities',
+    '0055_sync_mutations',
   ]);
 });
 afterAll(async () => {
