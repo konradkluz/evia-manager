@@ -5,6 +5,8 @@ const BUCKET = 'https://evia-staging-media.s3.fr-par.scw.cloud';
 
 const connectSrc = (csp: string | undefined) => (csp ?? '').split('; ').find((directive) => directive.startsWith('connect-src'));
 
+const directive = (csp: string | undefined, name: string) => (csp ?? '').split('; ').find((entry) => entry.startsWith(name));
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -23,6 +25,15 @@ describe('EVM-044 AC6 CSP connect-src pins the one origin of the media bucket (S
     expect(csp).toContain('upgrade-insecure-requests');
     for (const loose of ["'unsafe-inline'", "'unsafe-eval'", 'ws:', ' *']) expect(csp, loose).not.toContain(loose);
     expect(panelSecurityHeaders({ variant: 'dev', mediaOrigin: BUCKET })['Content-Security-Policy']).toBeUndefined();
+  });
+
+  it("EVM-046 AC4 media-src gets the same ONE origin (a <video> plays the preview from a signed address of the bucket); without it media-src stays 'self' blob:", () => {
+    expect(directive(panelSecurityHeaders({ variant: 'strict' })['Content-Security-Policy'], 'media-src')).toBe("media-src 'self' blob:");
+    const csp = panelSecurityHeaders({ variant: 'strict', https: true, mediaOrigin: BUCKET })['Content-Security-Policy'];
+    expect(directive(csp, 'media-src')).toBe(`media-src 'self' blob: ${BUCKET}`);
+    // nothing else is widened by it: the frame, the object and the script stay closed
+    for (const closed of ['default-src', 'script-src', 'frame-src', 'object-src', 'worker-src'])
+      expect(directive(csp, closed), closed).not.toContain(BUCKET);
   });
 
   it('EVM-044 AC6 the origin must be exactly one https origin: no path, no wildcard, no credentials, no other scheme', () => {
@@ -71,8 +82,8 @@ describe('EVM-068 AC6 CSP img-src pins the same one origin for the thumbnails an
     // no bare `*` and no bare `https:` scheme source (a `https:` followed by the host of the origin is the origin itself)
     expect((imgSrc(csp) ?? '').split(' ')).not.toContain('*');
     expect((imgSrc(csp) ?? '').split(' ')).not.toContain('https:');
-    // the other directives are untouched: the bucket is not a source of scripts, styles, frames or media elements
-    for (const name of ['script-src', 'style-src', 'media-src', 'frame-src', 'default-src']) {
+    // the other directives are untouched: the bucket is not a source of scripts, styles or frames (media-src admits it since EVM-046: see below)
+    for (const name of ['script-src', 'style-src', 'frame-src', 'default-src']) {
       expect(
         (csp ?? '').split('; ').find((directive) => directive.startsWith(name)),
         name,
