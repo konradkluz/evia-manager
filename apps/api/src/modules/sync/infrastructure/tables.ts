@@ -1,5 +1,5 @@
 /**
- * Kysely types of the tables the `sync` module owns (EVM-096; migration 0053). `platform` does not know module tables: the module narrows a handle with
+ * Kysely types of the tables the `sync` module owns (EVM-096; migration 0054). `platform` does not know module tables: the module narrows a handle with
  * `db.$extendTables<SyncTables>()`. The application role may only READ `sync.change_log` (the trigger writes it); `txid` is an `xid8` (the driver returns a
  * string) and is compared in SQL only.
  */

@@ -418,6 +418,36 @@ export function bucketProblems(raw: string): string[] {
     'register: wygasanie 40 dni (SR-PRIV-04)',
   );
 
+  // EVM-068 (TM-76; architect 6, security-engineer 5): the key of the worker writes the derivatives and NOTHING else - two names, add-only, never an original.
+  // media_allow lists no s3:PutObject for it (checked above against BUCKET_POLICIES); the three statements below are the only PutObject it has.
+  const mediaPolicy = policyOf('media');
+  need(
+    /Sid\s*=\s*"AllowWorkerDerivatives"[\s\S]*?Principal\s*=\s*\{\s*SCW\s*=\s*local\.app_principals\["media_worker"\]\s*\}[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Resource\s*=\s*\[for name in local\.derivative_object_names : "\$\{scaleway_object_bucket\.media\.name\}\/media\/\*\/\$\{name\}"\]/.test(
+      mediaPolicy,
+    ) && JSON.stringify(hclList(content, 'derivative_object_names')) === JSON.stringify(['thumbnail.webp', 'preview.webp']),
+    'media_worker: PutObject wyłącznie na media/*/thumbnail.webp i media/*/preview.webp',
+  );
+  need(
+    /Sid\s*=\s*"DenyWorkerOverwrite"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(
+      mediaPolicy,
+    ),
+    'media_worker: PutObject tylko z If-None-Match (bez nadpisywania)',
+  );
+  need(
+    /Sid\s*=\s*"DenyWorkerOriginals"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Resource\s*=\s*\["\$\{scaleway_object_bucket\.media\.name\}\/media\/\*\/original"\]/.test(
+      mediaPolicy,
+    ),
+    'media_worker: Deny PutObject na oryginałach media/*/original',
+  );
+  need(
+    /NotAction\s*=\s*app == "media_worker" \? concat\(actions, \["s3:PutObject"\]\) : actions/.test(mediaPolicy),
+    'media_worker: PutObject poza ogólnym Deny wyłącznie przez trzy instrukcje powyżej',
+  );
+  need(
+    /media_worker\s*=\s*\[[^\]]*"ObjectStorageObjectsWrite"/.test(apps),
+    'media_worker: zestaw uprawnień Write (zawężony polityką bucketu)',
+  );
+
   // the register accepts only a conditional PutObject (no overwrite)
   need(
     /Sid\s*=\s*"DenyOverwriteByRegisterWriter"[\s\S]*?Action\s*=\s*\["s3:PutObject"\][\s\S]*?Null\s*=\s*\{\s*"s3:if-none-match"\s*=\s*"true"/.test(

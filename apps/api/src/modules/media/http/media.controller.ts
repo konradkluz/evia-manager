@@ -1,10 +1,19 @@
 /**
- * HTTP surface of the media module (EVM-044): the batch of media, the list, and the six operations of a multipart upload session. The
+ * HTTP surface of the media module (EVM-044): the batch of media, the list, and the six operations of a multipart upload session; EVM-068 adds
+ * the signed address of a derivative (a thumbnail or a preview). The
  * handlers contain no authorization — the global guard decides before they run (operation in the manifest, CSRF, channel, role); here
  * only the call and the headers of the answer. The answers are never cached (the global `Cache-Control: no-store`, which also covers the
  * signed URL of a part).
  */
-import type { MediaAsset, MediaAssetBatch, MediaAssetList, UploadPartList, UploadPartUrl, UploadSession } from '@evia/contracts';
+import type {
+  MediaAsset,
+  MediaAssetBatch,
+  MediaAssetList,
+  MediaDerivativeUrl,
+  UploadPartList,
+  UploadPartUrl,
+  UploadSession,
+} from '@evia/contracts';
 import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { OperationId } from '../../../platform/http/operation-id.ts';
@@ -14,6 +23,7 @@ import { webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateMediaAssetsService } from '../application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from '../application/create-upload-session.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
+import { MediaDerivativeUrlService } from '../application/media-derivative-url.service.ts';
 import { ListMediaAssetsService } from '../application/list-media-assets.service.ts';
 import { RescanMediaService } from '../application/rescan-media.service.ts';
 import { UploadPartsService } from '../application/upload-parts.service.ts';
@@ -35,6 +45,7 @@ export class MediaController {
   readonly #parts: UploadPartsService;
   readonly #finish: FinishUploadService;
   readonly #rescans: RescanMediaService;
+  readonly #derivatives: MediaDerivativeUrlService;
 
   constructor(
     @Inject(CreateMediaAssetsService) creations: CreateMediaAssetsService,
@@ -43,6 +54,7 @@ export class MediaController {
     @Inject(UploadPartsService) parts: UploadPartsService,
     @Inject(FinishUploadService) finish: FinishUploadService,
     @Inject(RescanMediaService) rescans: RescanMediaService,
+    @Inject(MediaDerivativeUrlService) derivatives: MediaDerivativeUrlService,
   ) {
     this.#creations = creations;
     this.#lists = lists;
@@ -50,6 +62,7 @@ export class MediaController {
     this.#parts = parts;
     this.#finish = finish;
     this.#rescans = rescans;
+    this.#derivatives = derivatives;
   }
 
   @Get(BASE)
@@ -130,6 +143,13 @@ export class MediaController {
     );
     if (replayed) response.set('Idempotent-Replayed', 'true');
     return asset;
+  }
+
+  @Post(`${BASE}/:mediaAssetId/download-url`)
+  @OperationId('createMediaAssetDownloadUrl')
+  @HttpCode(200)
+  createMediaAssetDownloadUrl(@Param() params: unknown, @Body() body: unknown, @Req() request: Request): Promise<MediaDerivativeUrl> {
+    return this.#derivatives.create(requirePrincipal(request), params, body);
   }
 
   @Post(`${SESSION}/abort`)

@@ -1,5 +1,5 @@
 /**
- * 0053 — the change log of the synchronisation (EVM-096; ADR-0021 D2, D4). Expand only: a new schema `sync`, nothing existing changes except the three triggers.
+ * 0054 — the change log of the synchronisation (EVM-096; ADR-0021 D2, D4). Expand only: a new schema `sync`, nothing existing changes except the three triggers.
  *
  * - `sync.change_log`: one row per change of a synchronised row (`seq` identity, `txid` of the writing transaction, type, identifier, `upsert`/`delete`, the anchor
  *   order, the version). NO personal data and no content of the row: the reader reads the CURRENT state of the entity the row names. The application role has

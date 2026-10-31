@@ -137,7 +137,7 @@ describe('migration 0020 — the journal of a work order (EVM-037 AC1, AC3, AC7;
       ['redacted_at', sql`redacted_at = ${T}, redacted_by = ${AUTHOR}`],
       ['created_at', sql`created_at = ${'2026-01-01T00:00:00Z'}`],
       ['created_by', sql`created_by = ${uuidv7()}`],
-      // EVM-098 (0055): the device of an entry from the phone is immutable too
+      // EVM-098 (0056): the device of an entry from the phone is immutable too
       ['created_via_device_id', sql`created_via_device_id = ${uuidv7()}`],
     ];
     for (const [column, set] of changes) {
@@ -387,7 +387,7 @@ describe('migration 0042 - the redaction of an entry (EVM-040 AC2, AC5; ADR-0003
   });
 });
 
-describe('migration 0055 — the device of an entry from the phone (EVM-098 AC2, AC4; SR-SYNC-03; expand only)', () => {
+describe('migration 0056 — the device of an entry from the phone (EVM-098 AC2, AC4; SR-SYNC-03; expand only)', () => {
   const MARKER = 'Treść usunięta przez administratora 31.10.2026.';
   const row = async (id: string) =>
     (await sql<{ body: string; version: number }>`select body, version from timeline.timeline_entries where id = ${id}`.execute(admin()))

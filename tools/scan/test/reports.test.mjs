@@ -13,6 +13,7 @@ import {
   trivyLicenseVerdict,
   zizmorVerdict,
 } from '../lib/reports.mjs';
+import { exceptedLicenses } from '../lib/steps.mjs';
 
 describe('gitleaks verdict (EVM-006 AC5, bramka 1)', () => {
   it('EVM-006 AC5: no findings in a scanned history → green; findings name rule, file, line and commit — never the secret', () => {
@@ -206,7 +207,12 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
       assert.ok(packages.length > 0);
       const verdict = trivyLicenseVerdict(
         { Results: [{ Target: 'pnpm-lock.yaml', Type: 'pnpm', Packages: packages }] },
-        { lockfile: lock, entries: reviewed.entries, today: '2026-10-06' },
+        {
+          lockfile: lock,
+          entries: reviewed.entries,
+          excepted: exceptedLicenses(readFileSync(new URL('../../../.trivyignore.yaml', import.meta.url), 'utf8'), '2026-10-06'),
+          today: '2026-10-06',
+        },
       );
       assert.equal(verdict.passed, true, verdict.problems.join(', '));
     });
@@ -220,6 +226,13 @@ describe('Trivy verdicts (EVM-006 AC4, bramki 4 i 5)', () => {
         assert.ok(!Number.isNaN(verified) && !Number.isNaN(expires), `dates of ${item.name}`);
         assert.ok(expires > verified && expires - verified <= 90 * 86_400_000, `90 days: ${item.name}`);
       }
+    });
+
+    it('EVM-068: a reviewed LGPL license passes only with an exception (also inside an AND expression)', () => {
+      const name = '@node-rs/argon2-linux-x64-musl';
+      const lgpl = { ...options, entries: [{ ...entry, license: 'Apache-2.0 AND LGPL-3.0-or-later' }] };
+      assert.equal(trivyLicenseVerdict(scan(name), lgpl).passed, false);
+      assert.equal(trivyLicenseVerdict(scan(name), { ...lgpl, excepted: ['LGPL-3.0-or-later'] }).passed, true);
     });
 
     it('EVM-016: an expired entry, another version, a disallowed license or a non-platform package stay red', () => {

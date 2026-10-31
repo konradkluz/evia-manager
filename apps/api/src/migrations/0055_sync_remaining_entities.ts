@@ -1,8 +1,8 @@
 /**
- * 0054 — the remaining synchronised entities and the limit of the snapshots (EVM-097; ADR-0021 D3, D4). Expand only: triggers and two new objects, nothing
+ * 0055 — the remaining synchronised entities and the limit of the snapshots (EVM-097; ADR-0021 D3, D4). Expand only: triggers and two new objects, nothing
  * existing changes except the closed list of alert codes and one NULLABLE column of the audit trail.
  *
- * - Triggers `sync.record_change` (the function of 0053, unchanged) on `work_orders.scope_items`, `parties.parties`, `procedures.procedure_stages`,
+ * - Triggers `sync.record_change` (the function of 0054, unchanged) on `work_orders.scope_items`, `parties.parties`, `procedures.procedure_stages`,
  *   `timeline.timeline_entries` (anchored to the order, the parties without an anchor) and on `identity.users`. The users trigger on UPDATE fires ONLY when
  *   the display name or the deletion changed: `version` is bumped by a change of the role and by a reset of the second step (`access-queries.ts`), and a
  *   trigger that reacted to it would show a technician that an Administrator touched the account of a colleague (SR-SYNC-04).
@@ -12,7 +12,7 @@
  * - `sync.snapshot_requests`: one counter per device and hour for `GET /api/v1/sync/work-orders/{id}` (120 per hour, SR-API-02). It lives in the database,
  *   because the API runs in several processes; the increment is one atomic `INSERT … ON CONFLICT`. `alerted` keeps the alert of the window to once per device.
  * - `audit.events.entity_count`: the number of entities of a served snapshot (`sync.work_order_snapshot`), the only number the trail holds for it.
- * - `platform.security_alert_outbox.alert_code`: the COMPLETE list of 0053 plus `sync_snapshot_rate_exceeded`.
+ * - `platform.security_alert_outbox.alert_code`: the COMPLETE list of 0054 plus `sync_snapshot_rate_exceeded`.
  */
 import { sql, type Kysely } from 'kysely';
 import type { Database } from '../platform/database/database.ts';

@@ -1,5 +1,5 @@
 /**
- * 0055 — the mutations of the phone: entries and comments (EVM-098; ADR-0008, ADR-0021 addendum; SR-SYNC-03, SR-LOG-03). Expand only: nullable columns
+ * 0056 — the mutations of the phone: entries and comments (EVM-098; ADR-0008, ADR-0021 addendum; SR-SYNC-03, SR-LOG-03). Expand only: nullable columns
  * (one on the journal, three on the audit trail), two CHECKs added `not valid` and validated, and the trigger function of 0042 re-created with one more immutable column. Nothing is dropped, renamed or
  * rewritten and there is no backfill. Version N-1 keeps working: it never writes `origin = 'mobile'` (so the new CHECK holds for every row it writes) and
  * never names the new columns of the audit trail.

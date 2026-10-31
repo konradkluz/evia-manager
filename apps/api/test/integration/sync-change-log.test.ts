@@ -114,7 +114,7 @@ describe('the change log written by the trigger (EVM-096 AC1; ADR-0021 D4)', () 
   });
 });
 
-describe('the migration 0054 (EVM-097; ADR-0021 D4)', () => {
+describe('the migration 0055 (EVM-097; ADR-0021 D4)', () => {
   const triggerNames = async (table: string): Promise<string[]> =>
     (
       await sql<{ name: string }>`
@@ -166,7 +166,7 @@ describe('the migration 0054 (EVM-097; ADR-0021 D4)', () => {
     expect(await privilege('truncate', 'sync.snapshot_requests')).toBe(false);
   });
 
-  it('EVM-097 AC1 a change of the name or the code of a process writes one row for each live stage; a deleted stage writes none; the rows of 0053 survive', async () => {
+  it('EVM-097 AC1 a change of the name or the code of a process writes one row for each live stage; a deleted stage writes none; the rows of 0054 survive', async () => {
     const [order] = [...(await insertWorkOrders(admin(), [{ number: 'ZL-2026-9101' }])).values()];
     const { insertProcedure } = await import('../support/procedure-fixtures.ts');
     const procedure = await insertProcedure(admin(), order ?? '', { stages: [{}, {}, { deletedAt: new Date('2026-10-02T08:00:00Z') }] });

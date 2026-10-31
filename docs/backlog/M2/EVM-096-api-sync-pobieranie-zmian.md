@@ -84,3 +84,4 @@ Pozostałe encje (procesy, etapy, strony, zakres, przypisania, wpisy, użytkowni
 - 2026-10-30 — plan gotowy (backend-developer)
 - 2026-10-30 — wznowienie po zapełnieniu dysku: bramka zielona (dodano etykietę audytu w web i pola liczników w testach audytu), status in-review (backend-developer)
 - 2026-10-30 — decyzja Konrada: AC5 — rola Tylko odczyt dostaje `403 forbidden` (spójnie z pozostałymi operacjami kanału `mobile`), nie `channel_not_allowed`; treść AC poprawiona (tech lead)
+- 2026-10-31 — migracje sync przenumerowane 0053–0055 → 0054–0056 po scaleniu main (kolizja z EVM-068)

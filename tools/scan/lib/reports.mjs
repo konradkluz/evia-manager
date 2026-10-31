@@ -39,12 +39,14 @@ export const ALLOWED_LICENSES = Object.freeze([
 /**
  * SPDX expression check: `A OR B` needs one allowed alternative, `A AND B` needs all.
  * @param {string} expression
+ * @param {readonly string[]} [excepted] licenses with an unexpired exception in .trivyignore.yaml (used for reviewed platform licenses)
+ * @returns {boolean}
  */
-export function licenseAllowed(expression) {
+export function licenseAllowed(expression, excepted = []) {
   const clean = expression.replace(/[()]/g, ' ').trim();
-  if (/\sOR\s/i.test(clean)) return clean.split(/\s+OR\s+/i).some(licenseAllowed);
-  if (/\sAND\s/i.test(clean)) return clean.split(/\s+AND\s+/i).every(licenseAllowed);
-  return ALLOWED_LICENSES.includes(clean);
+  if (/\sOR\s/i.test(clean)) return clean.split(/\s+OR\s+/i).some((part) => licenseAllowed(part, excepted));
+  if (/\sAND\s/i.test(clean)) return clean.split(/\s+AND\s+/i).every((part) => licenseAllowed(part, excepted));
+  return ALLOWED_LICENSES.includes(clean) || excepted.includes(clean);
 }
 
 /**
@@ -174,7 +176,7 @@ export function trivyLicenseVerdict(report, options = {}) {
     if (list(pkg['Licenses']).some((name) => text(name).trim() !== '') || licensed.has(text(pkg['Name']))) continue;
     const license = reviewed.get(id);
     if (license === undefined) unknown.push(id);
-    else if (!licenseAllowed(license)) reviewedViolations.push(`${license} · ${id}`);
+    else if (!licenseAllowed(license, options.excepted ?? [])) reviewedViolations.push(`${license} · ${id}`);
   }
   const uniqueUnknown = [...new Set(unknown)];
   const uniqueReviewed = [...new Set(reviewedViolations)];
@@ -193,6 +195,7 @@ export function trivyLicenseVerdict(report, options = {}) {
  * @typedef {object} LicenseOptions
  * @property {string} [lockfile] pnpm-lock.yaml text
  * @property {{ name?: unknown, version?: unknown, license?: unknown, expires?: unknown }[]} [entries] reviewed licenses
+ * @property {string[]} [excepted] license ids with an unexpired exception in .trivyignore.yaml: Trivy drops them from its report, so a reviewed platform license of the same name is accepted too
  * @property {string} [today] ISO date (default: today, UTC)
  */
 

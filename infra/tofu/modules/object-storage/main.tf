@@ -51,8 +51,9 @@ locals {
 
   # Permission sets limit the product; the project-wide reach is narrowed by the bucket policies below.
   apps = {
-    media_app            = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
-    media_worker         = ["ObjectStorageObjectsRead", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
+    media_app = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
+    # EVM-068: the worker also writes the derivatives (Write); what it may write is narrowed by the bucket policy of the media bucket (TM-76).
+    media_worker         = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     register_writer      = ["ObjectStorageObjectsWrite"]
     backup_writer        = ["ObjectStorageObjectsRead", "ObjectStorageObjectsWrite", "ObjectStorageObjectsDelete", "ObjectStorageBucketsRead"]
     media_backup_reader  = ["ObjectStorageObjectsRead", "ObjectStorageBucketsRead"]
@@ -80,6 +81,9 @@ locals {
     media_worker        = ["s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
     media_backup_reader = ["s3:ListBucket", "s3:GetObject"]
   }
+  # EVM-068 (TM-76): the key of the worker may PutObject ONLY the two names of the derivatives (the originals are `.../original`), and only conditionally
+  # (If-None-Match: *, add-only); PutObject is therefore not in the list above but in its own statements of the media policy.
+  derivative_object_names = ["thumbnail.webp", "preview.webp"]
   register_allow = {
     register_writer = ["s3:PutObject"]
     restore_reader  = ["s3:GetObject", "s3:GetObjectVersion", "s3:ListBucket", "s3:ListBucketVersions"]
@@ -324,8 +328,33 @@ resource "scaleway_object_bucket_policy" "media" {
         Sid       = "DenyOutsideList-${app}"
         Effect    = "Deny"
         Principal = { SCW = local.app_principals[app] }
-        NotAction = actions
+        # the worker's PutObject is decided by the three statements below, not blanket-denied here
+        NotAction = app == "media_worker" ? concat(actions, ["s3:PutObject"]) : actions
         Resource  = [scaleway_object_bucket.media.name, "${scaleway_object_bucket.media.name}/*"]
+      }],
+      # EVM-068: the derivatives. Allow on the two names only; Deny without If-None-Match (add-only: an object that exists is never replaced); Deny on the
+      # originals whatever the header says (the pattern of restore_results_prefix: narrow Allow + Deny of the protected area).
+      [{
+        Sid       = "AllowWorkerDerivatives"
+        Effect    = "Allow"
+        Principal = { SCW = local.app_principals["media_worker"] }
+        Action    = ["s3:PutObject"]
+        Resource  = [for name in local.derivative_object_names : "${scaleway_object_bucket.media.name}/media/*/${name}"]
+      }],
+      [{
+        Sid       = "DenyWorkerOverwrite"
+        Effect    = "Deny"
+        Principal = { SCW = local.app_principals["media_worker"] }
+        Action    = ["s3:PutObject"]
+        Resource  = ["${scaleway_object_bucket.media.name}/*"]
+        Condition = { Null = { "s3:if-none-match" = "true" } }
+      }],
+      [{
+        Sid       = "DenyWorkerOriginals"
+        Effect    = "Deny"
+        Principal = { SCW = local.app_principals["media_worker"] }
+        Action    = ["s3:PutObject"]
+        Resource  = ["${scaleway_object_bucket.media.name}/media/*/original"]
       }],
       [{
         Sid       = "DenyPrivilegedForApplications"

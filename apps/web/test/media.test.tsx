@@ -130,12 +130,12 @@ describe('EVM-044 AC1 W-09: the tab "Media i dokumenty" and the upload of photos
   it('EVM-044 AC1 the media of the order that are already on the server are listed with their state', async () => {
     await openMedia({
       assets: [
-        asset(1, { fileState: 'ready' }),
+        asset(1, { fileState: 'clean' }),
         asset(2, { fileState: 'scanning' }),
         asset(3, { category: 'defect', fileState: 'pending_upload' }),
       ],
     });
-    expect(await screen.findByRole('heading', { level: 3, name: 'Zdjęcia · 3 zdjęcia' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { level: 3, name: 'Zdjęcia i filmy · 3 zdjęcia' })).toBeTruthy();
     const list = screen.getByRole('list', { name: 'Media i dokumenty' });
     expect(within(list).getAllByRole('listitem')).toHaveLength(3);
     expect(within(list).getByText('Wysłano')).toBeTruthy();
@@ -342,7 +342,7 @@ describe('EVM-044 AC7 roles', () => {
   it('EVM-044 AC7 Tylko odczyt sees the list without the Uploader and the banner, and the unfinished uploads are not even asked for', async () => {
     const api = await openMedia({
       session: { ...ACTIVE_SESSION, user: { ...ACTIVE_SESSION.user, role: 'read_only' } },
-      assets: [asset(1, { fileState: 'ready' })],
+      assets: [asset(1, { fileState: 'clean' })],
     });
     expect(await screen.findByText('Wysłano')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Dodaj zdjęcia lub filmy' })).toBeNull();

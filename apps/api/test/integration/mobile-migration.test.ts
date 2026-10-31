@@ -14,7 +14,7 @@ import { freshDatabaseUrl } from './database.ts';
  * valid, the code that is still running (it knows none of the new columns) still writes, and the new tables and vocabularies hold their checks.
  */
 const BEFORE = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0050')) as typeof MIGRATIONS;
-const THROUGH_0052 = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0053')) as typeof MIGRATIONS;
+const THROUGH_0053 = Object.fromEntries(Object.entries(MIGRATIONS).filter(([name]) => name < '0054')) as typeof MIGRATIONS;
 const clock = new FixedClock('2026-10-28T08:00:00.000Z');
 
 let db: Kysely<Database>;
@@ -33,10 +33,11 @@ beforeAll(async () => {
       insert into identity.login_attempts (user_id, token_hash, created_at, expires_at)
       values (${owner.id}, ${randomBytes(32)}, '2026-10-28T08:00:00Z', '2026-10-28T08:05:00Z') returning id`.execute(db)
     ).rows[0]?.id ?? '';
-  expect((await migrateToLatest(db, THROUGH_0052)).applied).toEqual([
+  expect((await migrateToLatest(db, THROUGH_0053)).applied).toEqual([
     '0050_mobile_devices',
     '0051_mobile_tokens',
     '0052_mobile_vocabularies',
+    '0053_media_derivatives',
   ]);
 });
 afterAll(async () => {

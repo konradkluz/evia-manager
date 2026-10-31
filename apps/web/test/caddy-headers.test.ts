@@ -29,7 +29,7 @@ describe('release image evia-web serves the headers of the panel (EVM-007 AC2, A
   it('EVM-007 AC6: the internal Caddy sets exactly the strict HTTPS headers of security-headers.ts and removes Server', () => {
     const { set, removed } = caddyHeaders(withBucketOrigin(caddyfile, ''));
     // an empty variable leaves a space before the semicolon, which a CSP parser ignores
-    expect({ ...set, 'Content-Security-Policy': set['Content-Security-Policy']?.replace(' ;', ';') }).toEqual(
+    expect({ ...set, 'Content-Security-Policy': set['Content-Security-Policy']?.replaceAll(' ;', ';') }).toEqual(
       panelSecurityHeaders({ variant: 'strict', https: true }),
     );
     expect(removed).toEqual(['Server']);

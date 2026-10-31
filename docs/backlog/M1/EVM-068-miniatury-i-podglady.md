@@ -4,7 +4,7 @@ title: Miniatury i podglądy zdjęć — przetwarzanie w izolacji
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer, devops-engineer]
@@ -85,13 +85,19 @@ Jako **pracownik biura** chcę **widzieć zdjęcia zlecenia jako galerię miniat
 - Zasady wspólne: [README.md](README.md#zasady-wspólne-dla-historyjek-m1).
 
 ## Plan techniczny
-_Uzupełnia wykonawca przed implementacją._
+Kolejka w tabeli (wzorzec EVM-044: compare-and-set, licznik prób przy przejęciu), osobna tabela pochodnych (`media.file_derivatives`, migracja `0053`, tylko expand), port `ImageProcessor` z adapterem gniazda Unix i podwójnym w testach, workspace `services/media-processor` (sharp, proces potomny na zadanie), operacja `createMediaAssetDownloadUrl` (`POST …/download-url` z `{ variant }`, zgodnie z api-guidelines), `compose.media.yaml` + obraz, wąskie `PutObject` workera w polityce bucketu, galeria W-09. Szczegóły: `docs/architecture/media-pipeline.md` § 10, `docs/ops/runbooks/media-processor.md`, `CHANGELOG.md`.
 
 ## Decyzje
-_—_
+- Operacja adresu to `POST …/media-assets/{mediaAssetId}/download-url` z treścią `{ variant: thumbnail | preview }` (nie `GET …/derivatives/{variant}/url`): zgodnie z `api-guidelines.md`; wartość `original` doda addytywnie EVM-045. Odpowiedź `{ url, expiresAt }`, TTL 300 s ustawia stała serwera. (Konsultacja `solution-architect`.)
+- Odpowiedź `MediaAsset` dostaje opcjonalne pole `processingFailed: true` (tylko dla `failed` z `processing_error`), żeby W-09 odróżniło „Nie udało się przygotować podglądu” od porzuconego uploadu; zmiana addytywna, bez zmiany `stateReasonCode` (jego `enum` jest w odpowiedzi, więc dodanie wartości byłoby zmianą łamiącą).
+- Pętla bierze `clean` (zdjęcia sprzed wdrożenia też); nagłówek galerii to „Zdjęcia i filmy · N zdjęć”, grupa `before_work` nosi nad kaflami nazwę „Stan przed pracami” (jak w AC), w oknie dialogu zostaje „Przed pracami”.
 
 ## Uwagi do rozważenia
-_—_
+- **HEIC:** upload przyjmuje `image/heic`, ale prebuilt libvips z `sharp` nie dekoduje HEVC — takie pliki kończą dziś jako `failed` / `processing_error` od razu (błąd trwały `unsupported`, bez ponowień). Pełne wsparcie (własny build libvips z libheif i x265: licencje GPL i patenty) albo konwersja HEIC→JPEG po stronie klienta to osobna decyzja.
+- **Dla EVM-045 (P10):** galerie do 5000 mediów. Panel prosi o adres tylko dla kafli w widoku i po 6 naraz, ale limit wystawiania adresów (300 / 10 min / użytkownika, SR-FILE-10) musi uwzględniać miniatury — inaczej przewinięcie dużej galerii wyczerpie limit; rozważyć wariant zbiorczy (adresy dla wielu mediów jedną operacją) albo osobny, wyższy limit dla pochodnych. Do czasu EVM-045 chroni globalny limit 300/min/użytkownika (akceptowalne na stagingu z danymi syntetycznymi, nie przed pilotem).
+- **Dla EVM-045 (AC4):** `failed` z `processing_error` to plik po udanym skanie — jego oryginał ma być do pobrania (niezmiennik zapisany w `domain-model.md`).
+- **Dług (infra):** publikacja obrazu `evia-media-processor` w CI (`publish`, manifest) i skan Trivy obrazu; komórki macierzy `bucket-verify` dla `PUT` pochodnej / oryginału (wymaga sufiksu klucza próbnego); `tofu apply` i tmpfs hosta w sesji IaC; weryfikator `deploy-agent` musi być w wersji dopuszczającej wolumen workera przed wdrożeniem tej zmiany na staging.
+- **Dla recenzji bezpieczeństwa:** RR-43 (typ po zawartości) — procesor teraz potwierdza format libvips względem typu z rekordu (niezgodność → `unsupported`), co zamyka to ryzyko w głąb; bez NotResource w polityce bucketu (nieweryfikowalne bez sesji IaC) worker może jeszcze tworzyć dowolne nowe klucze warunkowym `PutObject`, nigdy nie nadpisze istniejącego obiektu ani oryginału.
 
 ## Definition of Done
 - [ ] Wszystkie AC spełnione i pokryte testami (`EVM-068 AC#`)
@@ -103,3 +109,7 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`; część (b) podziału EVM-044 — konsultacja solution-architect W3)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-10-29 — plan gotowy (backend-developer)
+- 2026-10-29 — implementacja (backend-developer): migracja 0053, `services/media-processor`, pętla przetwarzania i operacja adresu miniatury, galeria W-09, CSP `img-src`, `compose.media.yaml`, polityka bucketu; testy `EVM-068 AC1–AC8`
+- 2026-10-29 — implementacja web (web-developer): weryfikacja galerii W-09 (testy web zielone, pokrycie linii 98,65%, typy OK); bez zmian w kodzie
+- 2026-10-29 — bramka (devops-engineer): `pnpm run gate` zielony w worktree (w tym parytet Linux, integracja, coverage:diff 97,9% linii / 93,9% gałęzi)

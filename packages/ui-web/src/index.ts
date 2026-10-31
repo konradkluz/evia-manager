@@ -59,6 +59,7 @@ export {
   EllipsisVertical,
   EyeOff,
   Hourglass,
+  ImageIcon,
   Images,
   Inbox,
   Info,

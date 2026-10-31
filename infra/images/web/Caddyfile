@@ -1,7 +1,7 @@
 # Internal Caddy of evia-web (EVM-007 AC2, AC6; SR-WEB-01, SR-WEB-08, SR-INFRA-06): static files of the panel on :8080
 # behind the edge Caddy of the VM. No admin API, no TLS here, no Server header. The headers are those of
 # apps/web/security-headers.ts (strict, https: true) — apps/web/test/caddy-headers.test.ts compares them.
-# EVM-044 / RR-48: connect-src gets the ONE origin of the media bucket from MEDIA_BUCKET_ORIGIN (compose.staging.yaml), because the
+# EVM-044 / RR-48 (and EVM-068: img-src for the thumbnails): connect-src and img-src get the ONE origin of the media bucket from MEDIA_BUCKET_ORIGIN (compose.staging.yaml), because the
 # browser sends the parts of a photo straight to the bucket; without the variable connect-src stays 'self' (the same rule as mediaOrigin).
 {
 	admin off
@@ -19,7 +19,7 @@
 		Cross-Origin-Opener-Policy "same-origin"
 		Cross-Origin-Resource-Policy "same-origin"
 		X-Frame-Options "DENY"
-		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' {$MEDIA_BUCKET_ORIGIN:}; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: {$MEDIA_BUCKET_ORIGIN:}; media-src 'self' blob:; connect-src 'self' {$MEDIA_BUCKET_ORIGIN:}; font-src 'self'; manifest-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; upgrade-insecure-requests"
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
 	@assets path /assets/*

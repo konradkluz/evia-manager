@@ -94,6 +94,7 @@ describe('EVM-044 AC6 the double and the adapter cover the awkward answers of a 
     const media = {
       s3: SETTINGS,
       clamd: { kind: 'tcp', host: 'clamd', port: 3310 },
+      processor: undefined,
       bucketOrigin: undefined,
       limits: DEFAULT_MEDIA_LIMITS,
     } as const;

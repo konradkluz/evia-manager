@@ -83,3 +83,4 @@ Jako **technik** chcę, aby **wpis lub komentarz napisany bez zasięgu trafił d
 - 2026-10-31 — plan gotowy (backend-developer)
 - 2026-10-31 — implementacja API (push mutacji, migracja 0055, audyt `sync.mutation_applied`); 403 dla Tylko odczyt zwraca `forbidden` zgodnie z kontraktem i decyzją dla EVM-096 AC5 — tekst AC5 (`channel_not_allowed`) do korekty przez Konrada (backend-developer)
 - 2026-10-31 — decyzja Konrada: AC5 — rola Tylko odczyt dostaje `403 forbidden` (spójnie z EVM-096 AC5); treść AC poprawiona (tech lead)
+- 2026-10-31 — numery migracji z wpisów powyżej przesunięte po scaleniu main (kolizja z EVM-068): 0053→0054, 0054→0055, 0055→0056

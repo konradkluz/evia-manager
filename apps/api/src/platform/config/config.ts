@@ -331,7 +331,8 @@ export function loadConfig(env: Env, read: ReadConfigFile = readConfigFile): App
     release: { commit: value.EVIA_RELEASE_COMMIT, manifestSha256: value.EVIA_RELEASE_MANIFEST_SHA256 },
     loginThrottleKey: keyOfLoginThrottle(value.LOGIN_THROTTLE_KEY) ?? randomBytes(LOGIN_THROTTLE_KEY_MIN_BYTES),
     loginAlerts: { passwordFailures: value.LOGIN_ALERT_PASSWORD_FAILURES, secondStepFailures: value.LOGIN_ALERT_SECOND_STEP_FAILURES },
-    ...(media === undefined ? {} : { media }),
+    // EVM-068: in production (staging included) the worker refuses to scan without an image processor instead of leaving photos `clean` silently
+    ...(media === undefined ? {} : { media: { ...media, processorRequired: value.NODE_ENV === 'production' } }),
     deletionRegister: resolveDeletionRegisterSettings(value, value.NODE_ENV !== 'production'),
     sync: {
       cursorKeys: syncCursorKeysOf(value),

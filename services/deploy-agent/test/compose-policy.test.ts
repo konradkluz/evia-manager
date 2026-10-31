@@ -59,8 +59,37 @@ describe('EVM-007 AC3: the committed compose file of the channel passes V4', () 
     const users = Object.values(compose.services).map((service) => service['user']);
     expect(new Set(users).size).toBe(users.length);
     for (const [name, service] of Object.entries(compose.services))
-      expect(service['volumes'] ?? [`/run/evia/secrets/${name}:/run/secrets:ro`]).toEqual([`/run/evia/secrets/${name}:/run/secrets:ro`]);
+      expect(service['volumes'] ?? [`/run/evia/secrets/${name}:/run/secrets:ro`]).toEqual([
+        `/run/evia/secrets/${name}:/run/secrets:ro`,
+        // EVM-068: the work area shared with the image processor belongs to the worker alone
+        ...(name === 'worker' ? ['/run/evia/media-work:/run/media-work'] : []),
+      ]);
   });
+});
+
+describe('EVM-068 AC5: the worker alone may mount the work area it shares with the image processor', () => {
+  const worker = (compose: Compose): Record<string, unknown> => compose.services['worker'] ?? {};
+  const SECRETS = '/run/evia/secrets/worker:/run/secrets:ro';
+  const MEDIA = '/run/evia/media-work:/run/media-work';
+  const cases: Array<[string, (c: Compose) => void, string]> = [
+    ['the secrets alone', (c) => (worker(c)['volumes'] = [SECRETS]), 'accepted'],
+    ['the secrets and the work area', (c) => (worker(c)['volumes'] = [SECRETS, MEDIA]), 'accepted'],
+    ['the work area without the secrets', (c) => (worker(c)['volumes'] = [MEDIA]), 'v4-volume'],
+    ['the work area before the secrets', (c) => (worker(c)['volumes'] = [MEDIA, SECRETS]), 'v4-volume'],
+    ['the work area read-write at another place', (c) => (worker(c)['volumes'] = [SECRETS, '/run/evia/media-work:/data']), 'v4-volume'],
+    ['the work area of another host path', (c) => (worker(c)['volumes'] = [SECRETS, '/srv/evia/media-work:/run/media-work']), 'v4-volume'],
+    ['a third volume', (c) => (worker(c)['volumes'] = [SECRETS, MEDIA, '/etc:/etc:ro']), 'v4-volume'],
+    ['the work area for the api', (c) => (api(c)['volumes'] = ['/run/evia/secrets/api:/run/secrets:ro', MEDIA]), 'v4-volume'],
+    [
+      'the work area for the web',
+      (c) => ((c.services['web'] ?? {})['volumes'] = ['/run/evia/secrets/web:/run/secrets:ro', MEDIA]),
+      'v4-volume',
+    ],
+  ];
+  for (const [name, change, expected] of cases)
+    it(`EVM-068 AC5: ${name} is ${expected === 'accepted' ? 'accepted' : 'rejected'}`, () => {
+      expect(code(() => validateCompose(mutated(change), INPUT))).toBe(expected);
+    });
 });
 
 describe('EVM-007 AC3: V4 rejects the cases of ADR-0018', () => {

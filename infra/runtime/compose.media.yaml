@@ -1,0 +1,44 @@
+# The image processor of the media pipeline (EVM-068 AC5; ADR-0009 "Przetwarzanie w izolacji"; SR-FILE-06, SR-INPUT-04, SR-INFRA-11; TM-35, TM-36).
+# Installed ONLY in an IaC session at /etc/evia/runtime/compose.media.yaml and run as
+#   docker compose --project-name evia-media -f /etc/evia/runtime/compose.media.yaml up -d
+# — never by the deployment channel (it is a separate file from compose.infra.yaml, like compose.telemetry.yaml, so the fixed list of infrastructure
+# images does not grow with an image built from this repository). The image is built by the IaC session from the commit of the release with
+# infra/images/media-processor/Dockerfile (docs/ops/runbooks/media-processor.md); it is referenced by the digest of the scanned build (the IaC session replaces the all-zero placeholder in the installed copy; with the placeholder nothing starts), never by a floating tag.
+#
+# The container parses files from outside (libvips), so it is the most restricted one of the VM:
+# - no network at all (network_mode none): it listens ONLY on a Unix socket and cannot send anything anywhere;
+# - read-only root, all capabilities dropped, no-new-privileges, a non-root user, memory 1536 MB, 2 CPUs, a bound on the processes; no published port;
+# - ONE writable place shared with the worker: the work area /run/media-work, a tmpfs of the HOST (mounted by the IaC session, size-limited: the photos
+#   of private sites never reach the disk of the host - P3). The worker (uid 10002) and this container (uid 10005) share the GROUP 10002: the
+#   directory has mode 2770 and the group 10002, so the jobs of the worker are readable and the outputs of this container are readable by it.
+# - one job at a time; every job in a child process that gets SIGKILL after 60 s (services/media-processor).
+# The worker gets the same directory as /run/media-work (compose.staging.yaml); no other service (api, clamd) mounts it.
+
+services:
+  media-processor:
+    image: evia-media-processor@sha256:0000000000000000000000000000000000000000000000000000000000000000
+    restart: unless-stopped
+    network_mode: none
+    user: '10005:10002'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    init: true
+    command: ['src/main.ts']
+    environment:
+      NODE_ENV: production
+      MEDIA_PROCESSOR_SOCKET: /run/media-work/processor.sock
+      MEDIA_PROCESSOR_WORKDIR: /run/media-work
+    volumes:
+      - /run/evia/media-work:/run/media-work
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    mem_limit: 1536m
+    cpus: 2
+    pids_limit: 128
+    stop_grace_period: 10s
+    healthcheck:
+      test: ['CMD', '/nodejs/bin/node', 'src/healthcheck.ts']
+      interval: 30s
+      timeout: 5s
+      retries: 3
