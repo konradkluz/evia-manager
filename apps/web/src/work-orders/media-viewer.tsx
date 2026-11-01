@@ -31,7 +31,7 @@ export function downloadFailureText(error: unknown): string {
 }
 
 /** Starts the download by a navigation that stays on the page (the answer of the bucket is an attachment); the anchor sends no referrer. */
-function startDownload(url: string, inNewTab: boolean): void {
+export function startDownload(url: string, inNewTab: boolean): void {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.rel = 'noreferrer noopener';

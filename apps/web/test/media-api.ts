@@ -5,6 +5,9 @@ import { ORDER_ID } from './work-order-api.ts';
 
 /** Synthetic media of the order ZL-2026-0042 (EVM-044): a fake of the media API with sessions, parts and the verdict of the scan. */
 export const MEDIA_BASE = `/api/v1/work-orders/${ORDER_ID}/media-assets`;
+/** EVM-047: the tab also shows the documents of the order; by default the order has none. */
+export const DOCUMENTS_BASE = `/api/v1/work-orders/${ORDER_ID}/documents`;
+export const KINDS_ROUTE = 'GET /api/v1/catalog/document-kinds';
 export const THUMBNAIL_HOST = 'https://bucket.example.test';
 export const BUCKET_URL = 'https://bucket.example.test/media/2026/10/part';
 
@@ -128,6 +131,8 @@ export function mediaApi(options: MediaServerOptions = {}) {
     routes: {
       [`GET ${MEDIA_BASE}`]: list,
       [`POST ${MEDIA_BASE}`]: create,
+      [`GET ${DOCUMENTS_BASE}`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
+      [KINDS_ROUTE]: () => json(200, { items: [], nextCursor: null }),
       ...options.routes,
     },
   });

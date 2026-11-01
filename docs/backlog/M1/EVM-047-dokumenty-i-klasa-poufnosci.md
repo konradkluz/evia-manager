@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-10-31 — in-progress: backend (backend-developer, tor B nocy 31.10): migracja `0059_documents`, 9 operacji API, skan DOCX/XLSX bez nowej zależności, klasa poufności liczona przez serwer, audyt i alert kwarantanny dokumentu; panel web i dokumenty bezpieczeństwa (`rodo.md`, `threat-model.md`) — kolejne kroki
+- 2026-11-01 — in-progress: panel web (web-developer, tor B nocy 31.10): sekcja "Dokumenty zlecenia" w zakładce "Media i dokumenty" (tabela z klasą i ikoną lock, dialog "Dodaj dokument", "Podnieś klasę", pobranie wg klasy, stany AC8); testy `EVM-047 AC1–AC8` w `apps/web/test/documents.test.tsx`; zrzuty ekranu — brak żywej aplikacji, do demo

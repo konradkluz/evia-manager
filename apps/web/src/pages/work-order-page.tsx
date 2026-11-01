@@ -6,10 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { DocumentsSection } from '../work-orders/documents-section.tsx';
 import { MediaSection } from '../work-orders/media-section.tsx';
 import { MediaUnfinishedBanner } from '../work-orders/media-unfinished-banner.tsx';
 import { MediaUploadDialog } from '../work-orders/media-upload-dialog.tsx';
 import { mediaText } from '../work-orders/media-labels.ts';
+import { useDocumentUpload } from '../work-orders/use-documents.ts';
 import { useMediaUpload } from '../work-orders/use-media.ts';
 import { JournalSection } from '../work-orders/journal-section.tsx';
 import { ClosedBanner } from '../work-orders/closed-banner.tsx';
@@ -72,6 +74,7 @@ export function WorkOrderPage() {
   const readsPayments = canReadPayments(role);
   // The upload of photos (EVM-044) lives with the page, so it goes on while another tab is shown; only Administrator and Editor upload.
   const media = useMediaUpload(id, active && (role === 'administrator' || role === 'editor'));
+  const documents = useDocumentUpload(id);
 
   // The order is gone when the header or the scope says so (a card may be 404 for a customer that was deleted — the order lives).
   const notFound = gone || isNotFound(header.error) || isNotFound(scope.error);
@@ -170,7 +173,10 @@ export function WorkOrderPage() {
             {tab === JOURNAL_TAB ? (
               <JournalSection order={order} procedures={procedures} />
             ) : tab === MEDIA_TAB ? (
-              <MediaSection order={order} media={media} />
+              <div className="flex flex-col gap-stack-lg">
+                <MediaSection order={order} media={media} />
+                <DocumentsSection order={order} upload={documents} />
+              </div>
             ) : (
               <div className="flex flex-col gap-stack-lg">
                 <ProceduresSection order={order} query={procedures} />
