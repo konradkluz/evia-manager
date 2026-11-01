@@ -4,7 +4,7 @@ title: Dokumenty lokalizacji i klienta
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -97,3 +97,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
 - 2026-11-01 — ready → in-progress; implementacja backendu: kontrakt (backend-developer)
+- 2026-11-01 — backend gotowy: kontrakt, migracja 0061, listy i pobranie dla lokalizacji i klienta, W1–W3 z konsultacji security; bramka `pnpm run gate` zielona; zostaje panel (web-developer) i przeglądy (backend-developer)
