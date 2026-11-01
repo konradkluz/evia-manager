@@ -343,6 +343,38 @@ describe('EVM-048 AC2 the metadata of a medium with If-Match (SR-INPUT-05, SR-LO
   });
 });
 
+describe('EVM-048 AC2 AC3 Polish characters in the metadata', () => {
+  it('EVM-048 AC2 AC3 Polish letters in the description, the title and the name of the stage round-trip unchanged; a decomposed form is stored as NFC', async () => {
+    const orderId = await order();
+    const process = await insertProcedure(admin(), orderId, { stages: [{ name: 'Przyłączenie żółte' }] });
+    const stageId = process.stageIds[0] as string;
+    const editor = await signIn('editor');
+    const medium = await readyMedia(orderId, editor.userId);
+    const text = 'Zażółć gęślą jaźń ĄĆĘŁŃÓŚŹŻ';
+    const decomposed = 'Zȧół'; // "ż" and "ó" as base letter + combining mark
+    const mediumAnswer = await patchMedia(editor, orderId, medium.mediaAssetId, { description: text, procedureStageId: stageId });
+    expect(mediumAnswer.status).toBe(200);
+    expect(mediaOf(mediumAnswer.body)).toMatchObject({ description: text, procedureStageName: 'Przyłączenie żółte' });
+    const second = await patchMedia(editor, orderId, medium.mediaAssetId, { description: decomposed }, '"2"');
+    expect(second.status).toBe(200);
+    expect(mediaOf(second.body).description).toBe(decomposed.normalize('NFC'));
+    expect(await stateOfMedia(medium.mediaAssetId)).toMatchObject({ description: decomposed.normalize('NFC') });
+
+    const document = await insertDocumentRow(admin(), { workOrderId: orderId, createdBy: editor.userId });
+    const documentAnswer = await patchDocument(editor, orderId, document.documentId, {
+      title: 'Umowa łódzka ćwiczenie',
+      description: text,
+      procedureStageId: stageId,
+    });
+    expect(documentAnswer.status).toBe(200);
+    expect(documentOf(documentAnswer.body)).toMatchObject({
+      title: 'Umowa łódzka ćwiczenie',
+      description: text,
+      procedureStageName: 'Przyłączenie żółte',
+    });
+  });
+});
+
 describe('EVM-048 AC3 the metadata of a document with If-Match (SR-INPUT-05, SR-LOG-03)', () => {
   it('EVM-048 AC3 the title, the description and the stage change with ONE version and ONE audit event without their values', async () => {
     const orderId = await order();
