@@ -82,7 +82,9 @@ Jako **pracownik biura** chcę **pobrać wszystkie zdjęcia zlecenia jednym plik
 _Plan roboczy: .scratch/EVM-052/plan.md (nie w repo)._
 
 ## Decyzje
-_—_
+- „Maks. 5 dziennie” liczone jako kroczące 24 godziny (surowsze niż dzień kalendarzowy); nieudane eksporty też się liczą; limit rozmiaru 10 GiB (komunikat „10 GB”). (backend-developer, 2026-11-01)
+- Plik eksportu leży w OSOBNYM buckecie eksportów (`MEDIA_EXPORT_BUCKET`, bez object lock i wersjonowania, lifecycle 1 dzień) — nie w buckecie mediów (blokada 30 dni zostawiłaby oryginały ze współrzędnymi GPS po „usunięciu”); bez zmiennej eksport odpowiada `503 media_storage_unavailable`. Bucket i klucze (IaC) — dług do sesji IaC, warunek wdrożenia na prod (security-engineer, 2026-11-01).
+- Link „Pobierz ZIP” jest jednorazowym WYSTAWIENIEM podpisanego adresu (≤ 300 s; adres w oknie ważności można użyć wielokrotnie — ryzyko rezydualne jak AB-07).
 
 ## Uwagi do rozważenia
 _—_
@@ -99,3 +101,4 @@ _—_
 - 2026-10-03 — poprawki z przeglądu EVM-010 (security-engineer): AC7 — eksport widzi i pobiera wyłącznie zlecający, pobranie przez autoryzowane `download-url` z audytem; warunek wdrożenia na prod
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
+- 2026-11-01 — status in-progress; backend (kontrakt 0063, zapis ZIP, żądanie/budowa/sprzątanie/link, audyt, e-mail, alert) wdrożony na gałęzi, testy `EVM-052 AC#` zielone w kontenerze (backend-developer); UI W-09 — osobny krok web-developer
