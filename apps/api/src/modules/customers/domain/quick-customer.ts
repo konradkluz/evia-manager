@@ -23,12 +23,10 @@ const NAME_POINTERS = new Set(['/firstName', '/lastName', '/companyName']);
 
 /** Splits the name of a person at the last space: `[first name, surname]`, or `undefined` for a single word. */
 export function splitPersonName(displayName: string): readonly [string, string] | undefined {
+  // trimmed first, so neither part can be empty: the first part ends before the last space and starts at a non-space, the last one follows it
   const name = displayName.normalize('NFC').trim();
   const cut = name.lastIndexOf(' ');
-  if (cut === -1) return undefined;
-  const first = name.slice(0, cut).trim();
-  const last = name.slice(cut + 1).trim();
-  return first === '' || last === '' ? undefined : [first, last];
+  return cut === -1 ? undefined : [name.slice(0, cut).trim(), name.slice(cut + 1)];
 }
 
 export function normalizeQuickCustomer(input: QuickCustomerInput): QuickCustomerResult {

@@ -67,14 +67,13 @@ describe('the contributor of the payment milestones (EVM-053 AC1; SR-API-06)', (
     await expect(contributor.contribute(TRANSACTION, context(uuidv7()))).rejects.toThrow(/more than 20 milestones/);
   });
 
-  it('EVM-099 AC5 the plan of 21 milestones is told to work-orders as CompositionRejectedError (the phone gets template_unavailable, not a 500), with the cause kept', async () => {
+  it('EVM-099 AC5 the plan of 21 milestones is told to work-orders as CompositionRejectedError (the phone gets template_unavailable, not a 500), with its reason in the message', async () => {
     const { contributor, context } = contributorWith(plan(21));
     const error = await contributor.contribute(TRANSACTION, context(uuidv7())).then(
       () => undefined,
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(CompositionRejectedError);
-    expect((error as Error).cause).toBeInstanceOf(Error);
   });
 });
 

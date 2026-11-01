@@ -53,6 +53,11 @@ describe('the new customer of a quick work order (EVM-099 AC2)', () => {
     expect(JSON.stringify(result)).not.toContain('12345');
   });
 
+  it('EVM-099 AC5 a name whose two parts are both too long is ONE error at the pointer of the display name, not two', () => {
+    const result = normalizeQuickCustomer(person({ displayName: `${'a'.repeat(201)} ${'b'.repeat(201)}` }));
+    expect(result).toEqual({ ok: false, errors: [{ pointer: '/newCustomer/displayName', code: 'too_long' }] });
+  });
+
   it('EVM-099 AC5 control characters in the name are refused at the pointer of the display name', () => {
     const result = normalizeQuickCustomer(person({ displayName: 'Jan\u0007 Przykładowy' }));
     expect(result.ok).toBe(false);

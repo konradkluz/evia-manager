@@ -10,6 +10,8 @@ import {
   envelopeSchema,
   MAX_MUTATION_BYTES,
   MutationVerdictSignal,
+  QuotaExceededSignal,
+  capped,
   typeLabel,
   type RawMutation,
 } from '../../src/modules/sync/domain/mutations.ts';
@@ -316,5 +318,54 @@ describe('the command CreateQuickWorkOrder (EVM-099 AC1, AC2, AC4, AC5; SR-INPUT
     const other = decodeMutation(quick({ title: 'Inny' }), NOW);
     expect(first.ok && second.ok && first.hash === second.hash).toBe(true);
     expect(first.ok && other.ok && first.hash !== other.hash).toBe(true);
+  });
+});
+
+describe('the errors of the fields and the limit (EVM-099 AC5, AC7)', () => {
+  const CUSTOMER = '0193a000-0000-7000-8000-0000000000e1';
+  const SITE = '0193a000-0000-7000-8000-0000000000e2';
+  const base = { workOrderId: ORDER, templateId: ORDER, title: 'Montaż', customerId: CUSTOMER, siteId: SITE };
+  const raw = (payload: Record<string, unknown>): RawMutation => ({
+    mutationId: MUTATION,
+    type: 'CreateQuickWorkOrder',
+    commandVersion: 1,
+    payload: { ...base, ...payload },
+  });
+  const errorsOf = (mutation: RawMutation) => {
+    const decoded = decodeMutation(mutation, NOW);
+    return decoded.ok ? undefined : decoded.errors;
+  };
+
+  it('EVM-099 AC5 the code of the error comes from the kind of the issue: a length, a format, a value outside the list, a type - never a message or a value', () => {
+    expect(errorsOf(raw({ title: '' }))).toEqual([{ pointer: '/title', code: 'too_short' }]);
+    expect(
+      errorsOf(raw({ customerId: undefined, newCustomer: { id: ENTRY, kind: 'person', displayName: 'Jan Przykładowy', phone: 'abc' } })),
+    ).toEqual([
+      { pointer: '/newCustomer/phone', code: 'too_short' },
+      { pointer: '/newCustomer/phone', code: 'invalid_format' },
+    ]);
+    expect(
+      errorsOf(
+        raw({ customerId: undefined, newCustomer: { id: ENTRY, kind: 'alien', displayName: 'Jan Przykładowy', phone: '600600600' } }),
+      ),
+    ).toEqual([{ pointer: '/newCustomer/kind', code: 'invalid_value' }]);
+    expect(errorsOf(raw({ title: 7 }))).toEqual([{ pointer: '/title', code: 'invalid_type' }]);
+  });
+
+  it('EVM-099 AC5 an identifier with a slash or a tilde in the path of an unknown field cannot break the pointer: the pointer names no key of the client', () => {
+    expect(errorsOf(raw({ 'a/b~c': 1 }))).toEqual([{ pointer: '', code: 'unknown_field' }]);
+  });
+
+  it('EVM-099 AC5 the list of errors holds each error once and at most 20', () => {
+    const issues = Array.from({ length: 30 }, (_, index) => ({ pointer: `/field${index}`, code: 'invalid_type' }));
+    expect(capped(issues)).toHaveLength(20);
+    expect(capped([...issues.slice(0, 3), ...issues.slice(0, 3)])).toEqual(issues.slice(0, 3));
+  });
+
+  it('EVM-099 AC7 the refusal by the limit is a verdict that also names the kind of the limit', () => {
+    const signal = new QuotaExceededSignal('site');
+    expect(signal).toBeInstanceOf(MutationVerdictSignal);
+    expect(signal.kind).toBe('site');
+    expect(signal.verdict).toEqual({ outcome: 'rejected', code: 'quota_exceeded' });
   });
 });

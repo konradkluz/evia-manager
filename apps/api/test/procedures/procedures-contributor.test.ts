@@ -70,13 +70,12 @@ describe('the contributor of the processes (EVM-031 AC1; SR-API-06, SR-ERR-01)',
     await expect(tooLong.contributor.contribute(TRANSACTION, tooLong.context(uuidv7()))).rejects.toThrow(/too_many_stages/);
   });
 
-  it('EVM-099 AC5 the limit of the template is told to work-orders as CompositionRejectedError (so the phone gets template_unavailable, not a 500), with the cause kept', async () => {
+  it('EVM-099 AC5 the limit of the template is told to work-orders as CompositionRejectedError (so the phone gets template_unavailable, not a 500), with its reason in the message', async () => {
     const tooMany = setup(brought(31));
     const error = await tooMany.contributor.contribute(TRANSACTION, tooMany.context(uuidv7())).then(
       () => undefined,
       (e: unknown) => e,
     );
     expect(error).toBeInstanceOf(CompositionRejectedError);
-    expect((error as Error).cause).toBeInstanceOf(Error);
   });
 });

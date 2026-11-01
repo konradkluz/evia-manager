@@ -9,4 +9,12 @@ describe('UUIDv7 of the server (EVM-099 AC1)', () => {
     expect(early < late).toBe(true);
     expect(uuidV7(1_700_000_000_000)).not.toBe(early);
   });
+
+  it('EVM-099 AC1 without an argument it takes the time of the clock', () => {
+    const before = Date.now();
+    const id = uuidV7();
+    const embedded = Number.parseInt(id.replaceAll('-', '').slice(0, 12), 16);
+    expect(embedded).toBeGreaterThanOrEqual(before);
+    expect(embedded).toBeLessThanOrEqual(Date.now());
+  });
 });

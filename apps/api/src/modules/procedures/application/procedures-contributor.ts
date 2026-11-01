@@ -13,13 +13,8 @@ import { Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import type { Kysely } from 'kysely';
 import type { Database } from '../../../platform/database/database.ts';
 import { TEMPLATE_DIRECTORY, type TemplateDirectory } from '../../catalog/index.ts';
-import {
-  CompositionRejectedError,
-  WorkOrderCompositionRegistry,
-  type CompositionContext,
-  type WorkOrderCompositionContributor,
-} from '../../work-orders/index.ts';
-import { CompositionLimitError, planProcedures } from '../domain/composition-plan.ts';
+import { WorkOrderCompositionRegistry, type CompositionContext, type WorkOrderCompositionContributor } from '../../work-orders/index.ts';
+import { planProcedures } from '../domain/composition-plan.ts';
 import { insertProcedures, insertStages } from '../infrastructure/procedure-store.ts';
 import { procedureTables } from '../infrastructure/tables.ts';
 
@@ -46,21 +41,11 @@ export class ProceduresCompositionContributor implements WorkOrderCompositionCon
   async contribute(tx: Kysely<Database>, context: CompositionContext): Promise<void> {
     if (context.templateId === null) return;
     const brought = await this.#templates.findProceduresForCopy(tx, context.templateId);
-    const procedures = planned(brought, context);
+    const procedures = planProcedures(brought, context.scopeItems);
     if (procedures.length === 0) return;
 
     const tables = procedureTables(tx);
     await insertProcedures(tables, context.workOrderId, procedures, context.principal.userId, context.now);
     await insertStages(tables, context.workOrderId, procedures, context.principal.userId, context.now);
-  }
-}
-
-/** The planner refuses to trim: a limit it reports is the template's, so it is told to `work-orders` in its own language (EVM-099). */
-function planned(brought: Parameters<typeof planProcedures>[0], context: CompositionContext): ReturnType<typeof planProcedures> {
-  try {
-    return planProcedures(brought, context.scopeItems);
-  } catch (error) {
-    if (error instanceof CompositionLimitError) throw new CompositionRejectedError(error.message, { cause: error });
-    throw error;
   }
 }

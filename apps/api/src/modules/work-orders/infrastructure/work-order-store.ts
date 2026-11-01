@@ -21,9 +21,9 @@ export interface WorkOrderToInsert {
   readonly sourceTemplateId: string | null;
   readonly plannedDate: string | null;
   readonly description: string | null;
-  /** The origin of the order (EVM-099): `office` by default; an order of the phone names the device of the session. */
-  readonly origin?: 'office' | 'mobile_quick';
-  readonly createdViaDeviceId?: string | null;
+  /** The origin of the order (EVM-099); an order of the phone names the device of the session, an order of the panel has none. */
+  readonly origin: 'office' | 'mobile_quick';
+  readonly createdViaDeviceId: string | null;
 }
 
 /**
@@ -43,8 +43,8 @@ export function insertWorkOrder(db: WorkOrdersDb, order: WorkOrderToInsert, acto
       source_template_id: order.sourceTemplateId,
       planned_date: order.plannedDate,
       description: order.description,
-      origin: order.origin ?? 'office',
-      created_via_device_id: order.createdViaDeviceId ?? null,
+      origin: order.origin,
+      created_via_device_id: order.createdViaDeviceId,
       created_at: now,
       created_by: actorUserId,
       updated_at: now,

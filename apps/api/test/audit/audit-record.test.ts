@@ -7,7 +7,7 @@ import { PAYMENT_MILESTONE_EVENT_TYPES, type PaymentMilestoneEvent } from '../..
 import { PROCEDURE_EVENT_TYPES, type ProcedureAuditEvent, type ProcedureStageEvent } from '../../src/modules/procedures/index.ts';
 import { IDENTITY_EVENT_TYPES, REASON_CODES, type IdentityEvent } from '../../src/modules/identity/index.ts';
 import { TIMELINE_EVENT_TYPES, type TimelineEntryEvent } from '../../src/modules/timeline/index.ts';
-import type { SyncAuditEvent, SyncMutationAuditEvent } from '../../src/platform/sync/sync-event.ts';
+import type { SyncAuditEvent, SyncMutationAuditEvent, SyncQuotaAuditEvent } from '../../src/platform/sync/sync-event.ts';
 import { EventBus, type EventContext } from '../../src/platform/events/event-bus.ts';
 import { FixedClock } from '../support/clock.ts';
 
@@ -791,6 +791,28 @@ describe('the applied mutation of a phone in the trail (EVM-098 AC8; SR-LOG-03, 
     expect(() => toAuditRecord(applied({ deviceId: 'not-a-uuid' }), context, at)).toThrow();
     expect(() => toAuditRecord(applied({ type: 'timeline_entry.created' }), context, at)).toThrow();
     expect(() => toAuditRecord(applied({ deviceId: null }), context, at)).toThrow();
+  });
+});
+
+describe('audit subscription of the exceeded limit (EVM-099 AC7)', () => {
+  it('EVM-099 AC7 audit subscribes to sync.quota_exceeded, so publishing it has a handler', async () => {
+    const bus = new EventBus();
+    new AuditSubscriber(bus, new FixedClock(at)).onModuleInit();
+    const exceeded: SyncQuotaAuditEvent = {
+      type: 'sync.quota_exceeded',
+      actor: { type: 'user', userId: user },
+      outcome: 'denied',
+      objectType: 'device',
+      objectId: session,
+      deviceId: session,
+      quotaKind: 'customer',
+    };
+    // the handler needs a real transaction to write: reaching it (and failing there) proves that a handler is registered
+    const failure = await bus.publish({} as never, exceeded, { origin: 'web', traceId }).then(
+      () => '',
+      (error: unknown) => String(error),
+    );
+    expect(failure).not.toContain('No handler subscribed');
   });
 });
 
