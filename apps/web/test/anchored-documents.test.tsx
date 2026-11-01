@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axeViolations } from './a11y.ts';
 import { ACTIVE_SESSION, json, problem } from './api-fake.ts';
@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.stubGlobal('XMLHttpRequest', FakeBucket);
 });
 afterEach(() => {
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -155,6 +156,25 @@ describe('EVM-050 AC2 AC7 the sections of the location and of the customer', () 
     expect(await screen.findByRole('heading', { level: 2, name: 'Dokumenty lokalizacji (0)' })).toBeTruthy();
     expect(screen.getByText('Brak dokumentów lokalizacji.')).toBeTruthy();
     expect(screen.queryByText('Nie wczytano dokumentów')).toBeNull();
+  });
+
+  it('EVM-050 AC7 offline the adding and the download of the sections are off', async () => {
+    await open({
+      routes: {
+        [SITE_LIST]: page([doc(23, { anchor: 'site', workOrderId: null, siteId: SITE_ID, title: 'Plan garażu' })]),
+        [CUSTOMER_LIST]: page([]),
+      },
+    });
+    const download = await screen.findByRole('button', { name: 'Pobierz plik: Plan garażu' });
+    expect(download.getAttribute('aria-disabled')).not.toBe('true');
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    act(() => {
+      globalThis.dispatchEvent(new Event('offline'));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Pobierz plik: Plan garażu' }).getAttribute('aria-disabled')).toBe('true');
+    });
+    expect(screen.getByRole('button', { name: 'Dodaj dokument' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('EVM-050 AC7 a list that failed is an error of its section with "Spróbuj ponownie"', async () => {
