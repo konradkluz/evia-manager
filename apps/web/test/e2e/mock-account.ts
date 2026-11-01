@@ -25,6 +25,21 @@ export interface MockSessionRow {
   lastSeenAt: string;
 }
 
+/** A phone of the synthetic register (EVM-095): the own ones feed W-15, all of them W-17. Models are synthetic. */
+export interface MockDevice {
+  id: string;
+  own: boolean;
+  user: { userId: string; displayName: string };
+  model: string;
+  osVersion: string;
+  appVersion: string;
+  patchLevel: string;
+  lastContactAt: string;
+  createdAt: string;
+  state: string;
+  pendingItemsReported: number;
+}
+
 export type ReauthPurpose = 'second_step_change' | 'password_change';
 
 export interface AccountServer {
@@ -37,12 +52,19 @@ export interface AccountServer {
   /** The one-time mark of the full re-authentication (spent by the operation it was made for). */
   mark: ReauthPurpose | null;
   sessions: MockSessionRow[];
+  devices: MockDevice[];
 }
 
 export const LAPTOP_ID = '22222222-2222-4222-8222-222222222201';
 export const PHONE_ID = '22222222-2222-4222-8222-222222222202';
 export const OTHER_SESSION_ID = '44444444-4444-4444-8444-444444444402';
 export const CHROME_SESSION_ID = '44444444-4444-4444-8444-444444444403';
+
+export const SAMSUNG_ID = '55555555-5555-4555-8555-555555555501';
+export const PIXEL_ID = '55555555-5555-4555-8555-555555555502';
+export const MOTO_ID = '55555555-5555-4555-8555-555555555503';
+const ANNA = { userId: '11111111-1111-4111-8111-111111111111', displayName: 'Anna Testowa' };
+const PIOTR = { userId: '22222222-2222-4222-8222-222222222299', displayName: 'Piotr Testowy' };
 
 export const newAccountServer = (password: string): AccountServer => {
   const now = Date.now();
@@ -82,6 +104,47 @@ export const newAccountServer = (password: string): AccountServer => {
         lastSeenAt: new Date(now - 20 * 3_600_000).toISOString(),
       },
     ],
+    devices: [
+      {
+        id: SAMSUNG_ID,
+        own: true,
+        user: ANNA,
+        model: 'Samsung SM-G781B',
+        osVersion: '13',
+        appVersion: '1.0.0',
+        patchLevel: 'current',
+        lastContactAt: new Date(now - 30 * 60_000).toISOString(),
+        createdAt: '2026-10-01T08:00:00.000Z',
+        state: 'active',
+        pendingItemsReported: 0,
+      },
+      {
+        id: PIXEL_ID,
+        own: true,
+        user: ANNA,
+        model: 'Pixel 7',
+        osVersion: '14',
+        appVersion: '1.0.0',
+        patchLevel: 'older_12m',
+        lastContactAt: new Date(now - 9 * 86_400_000).toISOString(),
+        createdAt: '2026-10-02T08:00:00.000Z',
+        state: 'active',
+        pendingItemsReported: 4,
+      },
+      {
+        id: MOTO_ID,
+        own: false,
+        user: PIOTR,
+        model: 'Moto G',
+        osVersion: '12',
+        appVersion: '0.9.2',
+        patchLevel: 'unknown',
+        lastContactAt: new Date(now - 20 * 86_400_000).toISOString(),
+        createdAt: '2026-09-20T08:00:00.000Z',
+        state: 'wipe_required',
+        pendingItemsReported: 0,
+      },
+    ],
   };
 };
 
@@ -114,6 +177,7 @@ export const accountBody = (server: AccountServer, role: string, email: string) 
 export interface AccountRequest {
   readonly method: string;
   readonly pathname: string;
+  readonly query?: URLSearchParams;
   readonly body: () => unknown;
   readonly role: string;
   readonly email: string;
@@ -199,6 +263,8 @@ export function answerAccountRoute(server: AccountServer, request: AccountReques
     server.sessions = server.sessions.filter((session) => session.current);
     return ok(200, { ended });
   }
+  const devices = answerDevices(server, request);
+  if (devices !== null) return devices;
   const session = /^\/api\/v1\/account\/sessions\/([^/]+)$/.exec(pathname);
   if (session !== null && method === 'DELETE') {
     if (!request.stepUpFresh) return problem(403, 'step_up_required');
@@ -206,6 +272,71 @@ export function answerAccountRoute(server: AccountServer, request: AccountReques
     if (found === undefined) return problem(404, 'not_found');
     if (found.current) return problem(409, 'current_session');
     server.sessions = server.sessions.filter((entry) => entry.id !== found.id);
+    return NO_CONTENT;
+  }
+  return null;
+}
+
+/** The devices of EVM-095: the own phones (W-15), all of them for an Administrator (W-17), logout and wipe (the policy of the real server is covered by the API tests). */
+function answerDevices(server: AccountServer, request: AccountRequest): Answer | null {
+  const { method, pathname, role } = request;
+  const nocache = { 'Cache-Control': 'no-store' };
+  if (pathname === '/api/v1/account/devices' && method === 'GET') {
+    if (role === 'read_only') return problem(403, 'forbidden');
+    const items = server.devices
+      .filter((device) => device.own)
+      .map(({ id, model, osVersion, appVersion, lastContactAt, createdAt, state }) => ({
+        id,
+        model,
+        osVersion,
+        appVersion,
+        lastContactAt,
+        createdAt,
+        state,
+      }));
+    return ok(200, { items }, nocache);
+  }
+  const own = /^\/api\/v1\/account\/devices\/([^/]+)\/logout$/.exec(pathname);
+  if (own !== null && method === 'POST') {
+    if (role === 'read_only') return problem(403, 'forbidden');
+    const found = server.devices.find((device) => device.own && device.id === own[1]);
+    if (found === undefined) return problem(404, 'not_found');
+    if (!request.stepUpFresh) return problem(403, 'step_up_required');
+    if (found.state === 'active') found.state = 'signed_out';
+    return NO_CONTENT;
+  }
+  if (pathname === '/api/v1/devices' && method === 'GET') {
+    if (role !== 'administrator') return problem(403, 'forbidden');
+    if (!request.stepUpFresh) return problem(403, 'step_up_required');
+    const state = request.query?.get('state');
+    const items = server.devices
+      .filter((device) => state === undefined || state === null || device.state === state)
+      .map((device) => ({
+        id: device.id,
+        user: device.user,
+        model: device.model,
+        osVersion: device.osVersion,
+        appVersion: device.appVersion,
+        patchLevel: device.patchLevel,
+        lastContactAt: device.lastContactAt,
+        state: device.state,
+        pendingItemsReported: device.pendingItemsReported,
+      }));
+    return ok(200, { items, nextCursor: null }, nocache);
+  }
+  const managed = /^\/api\/v1\/devices\/([^/]+)\/(logout|wipe)$/.exec(pathname);
+  if (managed !== null && method === 'POST') {
+    if (role !== 'administrator') return problem(403, 'forbidden');
+    if (!request.stepUpFresh) return problem(403, 'step_up_required');
+    const found = server.devices.find((device) => device.id === managed[1]);
+    if (found === undefined) return problem(404, 'not_found');
+    if (managed[2] === 'logout') {
+      if (found.state === 'active') found.state = 'signed_out';
+      return NO_CONTENT;
+    }
+    const body = request.body() as { confirmModel?: unknown };
+    if (body.confirmModel !== found.model) return problem(400, 'device_model_mismatch');
+    if (found.state === 'active' || found.state === 'signed_out') found.state = 'wipe_required';
     return NO_CONTENT;
   }
   return null;
