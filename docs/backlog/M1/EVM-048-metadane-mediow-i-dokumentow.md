@@ -4,7 +4,7 @@ title: Kategorie, opis i przypisanie mediów i dokumentów do etapu
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: ready
+status: in-progress
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
@@ -95,3 +95,5 @@ _—_
 ## Dziennik
 - 2026-10-03 — utworzono (product-owner, EVM-010 — `/milestone plan M1`)
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
+- 2026-11-01 — plan gotowy (backend-developer)
+- 2026-11-01 — implementacja backendu (backend-developer): migracja 0060, `updateMediaAsset`, `updateDocument`, etap z fasady `procedures`, audyt; panel (web-developer) w kolejnym kroku
