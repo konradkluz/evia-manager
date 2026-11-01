@@ -12,6 +12,8 @@ export const DOCUMENTS_BASE = `/api/v1/work-orders/${ORDER_ID}/documents`;
 export const SITE_DOCUMENTS_ROUTE = `GET /api/v1/sites/${HEADER.site?.id ?? ''}/documents`;
 export const CUSTOMER_DOCUMENTS_ROUTE = `GET /api/v1/customers/${HEADER.customer?.id ?? ''}/documents`;
 export const KINDS_ROUTE = 'GET /api/v1/catalog/document-kinds';
+/** EVM-052: the exports of the caller for the order (none by default). */
+export const EXPORTS_BASE = `/api/v1/work-orders/${ORDER_ID}/media-exports`;
 export const THUMBNAIL_HOST = 'https://bucket.example.test';
 export const BUCKET_URL = 'https://bucket.example.test/media/2026/10/part';
 
@@ -163,6 +165,7 @@ export function mediaApi(options: MediaServerOptions = {}) {
     routes: {
       [`GET ${MEDIA_BASE}`]: list,
       [`POST ${MEDIA_BASE}`]: create,
+      [`GET ${EXPORTS_BASE}`]: () => json(200, { items: [] }),
       [`GET ${DOCUMENTS_BASE}`]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
       [SITE_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),
       [CUSTOMER_DOCUMENTS_ROUTE]: () => json(200, { items: [], nextCursor: null, totalCount: 0 }),

@@ -19,6 +19,8 @@ import { eraseText } from './erase-labels.ts';
 import { useSoftErase, type EraseSubject } from './file-erase.ts';
 import { FilePurgeDialog } from './file-purge-dialog.tsx';
 import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.ts';
+import { MediaExportButton, MediaExportStatus } from './media-export-panel.tsx';
+import { useOrderExport } from './media-export.ts';
 import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
@@ -92,6 +94,7 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const list = useMediaList(order.id, true, checking, onlyAttention);
   const rescan = useRescan(order.id);
   const softErase = useSoftErase(order.id);
+  const exporter = useOrderExport(order.id);
   const [purging, setPurging] = useState<EraseSubject | null>(null);
   const administrator = role === 'administrator';
   const attentionCount = list.data?.pages[0]?.needsAttentionCount ?? 0;
@@ -142,6 +145,13 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               {mediaText.addPhotos}
             </Button>
           </div>
+          <MediaExportButton
+            workOrderId={order.id}
+            hasPhotos={gallery.some((asset) => asset.mediaType === 'photo')}
+            online={online}
+            exporter={exporter}
+          />
+          <MediaExportStatus workOrderId={order.id} online={online} exporter={exporter} />
         </>
       ) : null}
       <MediaQueue media={media} />
