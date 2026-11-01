@@ -84,12 +84,15 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   const kinds = useDocumentKinds(canEdit);
   const request = useDocumentDownload(order.id);
   const [adding, setAdding] = useState(false);
-  const [raising, setRaising] = useState<OrderDocument | null>(null);
-  const [editing, setEditing] = useState<OrderDocument | null>(null);
+  // only the ids are kept: the dialogs always get the document from the live list (a refresh after `412` brings the new version)
+  const [raisingId, setRaisingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const documents = list.data?.pages.flatMap((page) => page.items) ?? [];
+  const raising = documents.find((entry) => entry.id === raisingId) ?? null;
+  const editing = documents.find((entry) => entry.id === editingId) ?? null;
   const total = list.data?.pages[0]?.totalCount ?? 0;
   const working = items.some((item) => ['hashing', 'creating', 'queued', 'uploading', 'paused', 'failed'].includes(item.status));
 
@@ -141,7 +144,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         id: 'edit',
         label: documentText.editMenu,
         onSelect: () => {
-          setEditing(document);
+          setEditingId(document.id);
         },
         ...(online ? {} : { disabledHint: documentText.offlineNote }),
       },
@@ -149,7 +152,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         id: 'raise',
         label: documentText.raiseMenu,
         onSelect: () => {
-          setRaising(document);
+          setRaisingId(document.id);
         },
         ...(higherClasses(document.confidentiality).length > 0 && online
           ? {}
@@ -338,14 +341,14 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         workOrderId={order.id}
         document={editing}
         onClose={() => {
-          setEditing(null);
+          setEditingId(null);
         }}
       />
       <DocumentRaiseDialog
         workOrderId={order.id}
         document={raising}
         onClose={() => {
-          setRaising(null);
+          setRaisingId(null);
         }}
       />
     </section>

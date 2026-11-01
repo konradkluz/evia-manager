@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupByStage } from '../src/work-orders/media-gallery.tsx';
 import { axeViolations } from './a11y.ts';
-import { ACTIVE_SESSION, json, problem, type Handler } from './api-fake.ts';
+import { ACTIVE_SESSION, json, parseBody, problem, type Handler } from './api-fake.ts';
 import { DOCUMENTS_BASE, doc, documentsApi, type DocumentsServerOptions } from './documents-api.ts';
 import { MEDIA_BASE, asset, mediaApi, type MediaServerOptions } from './media-api.ts';
 import { renderPanel } from './render.tsx';
@@ -364,6 +364,34 @@ describe('EVM-048 AC3 the edit of a document', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
     expect(await within(dialog).findByText(/Dokument zmienił się w międzyczasie/)).toBeTruthy();
     expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: 'Tytuł' }).value).toBe('Nowy tytuł');
+  });
+
+  it('EVM-048 AC3 after 412 the list is refreshed and the next save sends the new version in If-Match', async () => {
+    let current = doc(1, { title: 'Warunki' });
+    const api = await openDocuments({
+      documents: [current],
+      list: () => json(200, { items: [current], nextCursor: null, totalCount: 1 }),
+      raise: (request) => {
+        if (request.headers.get('If-Match') === '"1"') {
+          current = { ...current, version: 2 };
+          return problem(412, 'version_conflict');
+        }
+        return json(200, { ...current, ...(parseBody(request.body) as object), version: 3 }, { ETag: '"3"' });
+      },
+    });
+    const dialog = await openDocumentEditor('Warunki');
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Tytuł' }), ' 2');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+    expect(await within(dialog).findByText(/Dokument zmienił się w międzyczasie/)).toBeTruthy();
+    await waitFor(() => {
+      expect(api.calls(`GET ${DOCUMENTS_BASE}`).length).toBeGreaterThan(1);
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Zapisz' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Edytuj dokument' })).toBeNull();
+    });
+    const sent = api.calls(`PATCH ${DOCUMENTS_BASE}/${doc(1).id}`).map((call) => call.headers.get('If-Match'));
+    expect(sent).toEqual(['"1"', '"2"']);
   });
 
   it('EVM-048 AC3 nothing is sent when nothing changed', async () => {
