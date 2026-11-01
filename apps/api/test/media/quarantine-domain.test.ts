@@ -185,6 +185,8 @@ describe('EVM-049 AC4 nothing leaves the system and nothing releases a quarantin
         'createMediaAssets',
         'createUploadSession',
         'rescanMediaAsset',
+        // EVM-048: the metadata only (category, description, stage); the state of the file is read_only_field there (see media-metadata.test.ts)
+        'updateMediaAsset',
       ].sort(),
     );
     expect(Object.keys(AUTHZ_MANIFEST).filter((id) => /release|override|unquarantine|whitelist|approveMedia/i.test(id))).toEqual([]);
