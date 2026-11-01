@@ -93,6 +93,8 @@ export const DATABASE_BOUND: readonly string[] = [
   'src/modules/media/http/media.controller.ts',
   // EVM-047: the documents - the controller of the use cases above (same reasoning as the controller of the media)
   'src/modules/media/http/documents.controller.ts',
+  // EVM-050: the controller of the lists and the addresses of the documents of a site and a customer (same reasoning)
+  'src/modules/media/http/anchored-documents.controller.ts',
   'src/modules/overview/application/**/*.ts',
   'src/modules/overview/infrastructure/**/*.ts',
   'src/modules/audit/application/**/*.ts',
