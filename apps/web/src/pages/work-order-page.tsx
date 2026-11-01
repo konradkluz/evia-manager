@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { WORK_ORDERS_PATH } from '../paths.ts';
 import { useOnline } from '../shell/use-online.ts';
 import { usePageTitle } from '../shell/use-page-title.ts';
+import { MobileQuickBanner } from '../work-orders/mobile-quick-banner.tsx';
 import { MediaSection } from '../work-orders/media-section.tsx';
 import { MediaUnfinishedBanner } from '../work-orders/media-unfinished-banner.tsx';
 import { MediaUploadDialog } from '../work-orders/media-upload-dialog.tsx';
@@ -58,6 +59,7 @@ export function WorkOrderPage() {
   const online = useOnline();
   const [gone, setGone] = useState(false);
   const [tab, setTab] = useState(OVERVIEW_TAB);
+  const [siteEditSignal, setSiteEditSignal] = useState(0);
   const active = !gone && id !== '';
   const header = useWorkOrderHeader(id, active);
   const scope = useWorkOrderScope(id, active);
@@ -142,6 +144,13 @@ export function WorkOrderPage() {
       {online ? null : <Banner icon={WifiOff}>{t('workOrders.offline.stale', { time: formatClock(header.dataUpdatedAt) })}</Banner>}
       <WorkOrderHeader order={order} headingRef={heading} />
       <ClosedBanner order={order} />
+      <MobileQuickBanner
+        order={order}
+        onEditSite={() => {
+          setSiteEditSignal((count) => count + 1);
+        }}
+        onShowPayments={showPayments}
+      />
       <OrderSummary
         query={procedures}
         onShowProcesses={showProcesses}
@@ -182,7 +191,7 @@ export function WorkOrderPage() {
         </div>
         <aside className="flex flex-col gap-stack-md" aria-label={t('workOrder.sideLabel')}>
           <CustomerCard query={customer} customerId={order.customer?.id} />
-          <SiteCard query={site} orders={siteOrders} workOrderId={id} />
+          <SiteCard query={site} orders={siteOrders} workOrderId={id} editSignal={siteEditSignal} />
         </aside>
       </div>
     </div>

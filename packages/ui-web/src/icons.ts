@@ -4,6 +4,7 @@
  */
 export {
   AlarmClock,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   Ban,
