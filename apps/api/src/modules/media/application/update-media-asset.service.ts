@@ -112,6 +112,8 @@ export class UpdateMediaAssetService {
       const tables = mediaTables(tx);
       const current = await lockAssetOfOrder(tables, order.id, mediaAssetId);
       if (current === undefined) throw new ProblemException('not_found');
+      // a file erased by the administrator keeps its redacted record: nothing is written back into it (SR-PRIV-03)
+      if (current.file_purged_at !== null) throw new ProblemException('file_erased');
       const body = parseInput(bodySchema, rawBody, READ_ONLY_FIELDS) as Body;
       if (Object.keys(body).length === 0) {
         throw new ProblemException('validation_failed', { errors: [{ pointer: '', code: 'required' }] });

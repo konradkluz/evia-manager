@@ -130,6 +130,8 @@ export class UpdateDocumentService {
       if ((await lockDocumentInScope(tables, scope, documentId)) === undefined) throw new ProblemException('not_found');
       const found = await findDocumentWithFile(tables, scope, documentId, true);
       if (found === undefined) throw new ProblemException('not_found');
+      // a file erased by the administrator keeps its redacted record: nothing is written back into it (SR-PRIV-03)
+      if (found.document.file_purged_at !== null) throw new ProblemException('file_erased');
       const body = parseInput(bodySchema, rawBody, READ_ONLY_FIELDS) as Body;
       if (Object.keys(body).length === 0) {
         throw new ProblemException('validation_failed', { errors: [{ pointer: '', code: 'required' }] });

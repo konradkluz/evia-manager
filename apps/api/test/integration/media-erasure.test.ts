@@ -333,6 +333,11 @@ describe('EVM-051 AC2 AC3 AC4 - the erasure of the file of a medium (SR-PRIV-03,
       'Idempotency-Key': uuidv7(),
     });
     expect([rescan.status, codeOf(rescan.body)]).toEqual([409, 'file_erased']);
+    // the redacted record takes no new metadata (SR-PRIV-03)
+    const editMedium = await editor.panel.patch(mediaUrl(orderA, photo.mediaAssetId), { description: 'new text' }, { 'If-Match': tag(2) });
+    expect([editMedium.status, codeOf(editMedium.body)]).toEqual([409, 'file_erased']);
+    expect(await versionOf('media_assets', photo.mediaAssetId)).toBe(2);
+
     await administrator.panel.delete(mediaUrl(orderA, photo.mediaAssetId));
     const restore = await administrator.panel.post(mediaUrl(orderA, photo.mediaAssetId, '/restore'));
     expect([restore.status, codeOf(restore.body)]).toEqual([409, 'file_erased']);
@@ -551,6 +556,10 @@ describe('EVM-051 AC2 AC3 - the erasure of the files of a document (SR-PRIV-03, 
     const item = (await documentList(editor, orderA)).find((candidate) => candidate.id === document.documentId);
     expect(item).toMatchObject({ title: MARKER, description: null, originalFilename: null, fileErasedAt: NOW, canDownload: false });
     expect((await editor.panel.post(documentUrl(orderA, document.documentId, '/download-url'))).status).toBe(404);
+    // the redacted record takes no new title or description (SR-PRIV-03)
+    const editDocument = await editor.panel.patch(documentUrl(orderA, document.documentId), { title: 'new title' }, { 'If-Match': tag(2) });
+    expect([editDocument.status, codeOf(editDocument.body)]).toEqual([409, 'file_erased']);
+    expect((await documentList(editor, orderA)).find((candidate) => candidate.id === document.documentId)).toMatchObject({ title: MARKER });
     const restore = await administrator.panel.post(documentUrl(orderA, document.documentId, '/restore'));
     expect(restore.status).toBe(409);
     expect(register.calls).toEqual([
