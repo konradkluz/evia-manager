@@ -1341,7 +1341,7 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 
 ### RR-83 — Dane osobowe poprzedniego klienta w dokumencie `standard` albo `building_security` przypiętym do lokalizacji (EVM-050 AC2; AB-19)
 - **Opis:** dokument lokalizacji jest widoczny w zleceniach wszystkich klientów tej lokalizacji. Reguła (serwis i `CHECK` 0061) blokuje tylko klasę `identity_data`; dokument `standard` lub `building_security` (np. oświadczenie, protokół) może jednak zawierać dane osobowe poprzedniego klienta, które zobaczy następny.
-- **Mitygacje:** domyślny wybór „Przypisz do” to „Zlecenia”, a przy „Lokalizacji” panel informuje, że dokument zobaczą zlecenia innych klientów; audyt pobrań; purge przez Administratora (SR-DATA-08).
+- **Mitygacje:** domyślny wybór „Przypisz do” to „Zlecenia”, a przy „Lokalizacji” panel informuje, że dokument zobaczą zlecenia innych klientów; audyt pobrań. **Brak usunięcia dokumentu w v1** (nie ma soft delete ani purge) — dokument z danymi poprzedniego klienta nie może zostać usunięty (RR-84).
 - **Źródło:** EVM-050 (konsultacja `security-engineer`, W1); SR-AUTHZ-08, CWE-200.
 - **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium.
 - **Rekomendacja:** akceptuj; kandydat do backlogu: ograniczenie kotwicy lokalizacji do rodzajów „budynkowych”.
@@ -1349,11 +1349,11 @@ Każde ryzyko: opis, źródło, ryzyko po mitygacjach, rekomendacja (akceptacja 
 - **Decyzja Konrada:** **do akceptacji na demo EVM-050**.
 
 ### RR-84 — Retencja dokumentów klienta i lokalizacji nie jest zdefiniowana (EVM-050; SR-DATA-01)
-- **Opis:** dokumenty z kotwicą klienta lub lokalizacji nie są związane z zamknięciem zlecenia, więc retencja zlecenia ich nie obejmuje; anonimizacja klienta nie usuwa jego dokumentów (usuwa je purge przez Administratora, art. 17).
-- **Mitygacje:** purge przez Administratora; wpis w `rodo.md` (wiersz `Document`).
-- **Źródło:** EVM-050; SR-DATA-01, SR-DATA-08.
-- **Ryzyko po mitygacjach:** P1 × W2 = 2 Low.
-- **Rekomendacja:** uzupełnić przy `/milestone close M1` albo w historyjce retencji.
+- **Opis:** dokumenty z kotwicą klienta lub lokalizacji nie są związane z zamknięciem zlecenia, więc retencja zlecenia ich nie obejmuje; anonimizacja klienta (EVM-041) nie usuwa jego dokumentów, w tym `identity_data` (umowa, pełnomocnictwo ze skanem dowodu) — zostają przy zanonimizowanym kliencie (widoczne w W-14 i zleceniach: tytuł i nazwa pliku dla wszystkich ról, plik dla A/E). **Brak usunięcia dokumentu w v1:** w API nie ma operacji soft delete ani purge (`media.documents.deleted_at` nie jest ustawiane), więc prawo do usunięcia danych (art. 17) nie jest dla tych dokumentów realizowane.
+- **Mitygacje:** brak (wpis w `rodo.md`, wiersz `Document`, opisuje lukę).
+- **Źródło:** EVM-050; SR-DATA-01, SR-DATA-08, ASVS V8.3.2 / V14.2.7, CWE-212.
+- **Ryzyko po mitygacjach:** P2 × W2 = 4 Medium.
+- **Rekomendacja:** przed wydaniem M1 historyjka (`/refine`): soft delete i purge dokumentu (Administrator, step-up, rejestr usunięć, usunięcie obiektów w storage) oraz `CustomerDependentsGuard` z modułu media — blokada anonimizacji klienta z żywymi dokumentami z kotwicą klienta (409 `has_active_dependents`); wariant z blokadą najprostszy i fail-closed.
 - **Właściciel:** `security-engineer`.
 - **Decyzja Konrada:** **do akceptacji na demo EVM-050**.
 
