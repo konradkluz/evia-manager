@@ -276,10 +276,13 @@ describe('EVM-047 AC6 the inspection of an OOXML file for macros (SR-FILE-03, TM
     const bomb = '<Types>' + 'a'.repeat(2 * 1_048_576) + '</Types>';
     expect(inspect(buildZip([{ name: '[Content_Types].xml', data: bomb }]))).toEqual({ ok: false, reason: 'limits' });
     // a header that claims a small size but whose data inflates beyond the limit
-    const hidden = buildZip([{ name: '[Content_Types].xml', data: 'x'.repeat(100) }]);
+    const hidden = buildZip([
+      { name: '[Content_Types].xml', data: 'x'.repeat(100) },
+      { name: 'word/media/big.bin', data: Buffer.alloc(TAIL_BYTES + 10, 7), method: 'store' },
+    ]);
     const bombData = deflateRawSync(Buffer.alloc(3 * 1_048_576, 0x61));
     const forged = Buffer.concat([hidden.subarray(0, 30 + 19), bombData]);
-    expect(inspectOoxml(forged, hidden, hidden.length)).toMatchObject({ ok: false });
+    expect(inspectOoxml(forged, hidden.subarray(hidden.length - TAIL_BYTES), hidden.length)).toMatchObject({ ok: false });
     expect(inspect(buildZip([{ name: '[Content_Types].xml', data: '<Types/>', flags: 1 }]))).toEqual({
       ok: false,
       reason: 'unsupported_entry',
@@ -291,7 +294,12 @@ describe('EVM-047 AC6 the inspection of an OOXML file for macros (SR-FILE-03, TM
   });
 
   it('EVM-047 AC6 refuses an entry that is outside the bytes the scan kept, a damaged local header and a stored size that lies', () => {
-    const file = buildOoxml();
+    // the entry starts before the kept tail (the file is larger than the tail window) and the head does not hold it
+    const file = buildZip([
+      { name: '[Content_Types].xml', data: '<Types/>' },
+      { name: 'word/document.xml', data: '<d/>' },
+      { name: 'word/media/big.bin', data: Buffer.alloc(TAIL_BYTES + 10, 7), method: 'store' },
+    ]);
     const { tail, size } = headAndTail(file);
     expect(inspectOoxml(Buffer.alloc(0), tail, size)).toMatchObject({ ok: false, reason: 'malformed' });
     expect(inspectOoxml(file.subarray(0, 40), tail, size)).toMatchObject({ ok: false, reason: 'limits' });
@@ -302,6 +310,32 @@ describe('EVM-047 AC6 the inspection of an OOXML file for macros (SR-FILE-03, TM
     const damaged = buildOoxml();
     damaged.writeUInt32LE(0, 0);
     expect(inspect(damaged)).toEqual({ ok: false, reason: 'malformed' });
+  });
+
+  it('EVM-047 AC6 `[Content_Types].xml` written as the LAST entry after more than 64 KiB of data is read from the tail (LibreOffice layout)', () => {
+    const lastEntry = (extra: readonly { name: string; data: string }[]) =>
+      buildZip([
+        { name: 'word/document.xml', data: '<d/>' },
+        { name: 'word/media/image1.bin', data: Buffer.alloc(HEAD_BYTES * 3, 9), method: 'store' },
+        ...extra,
+        {
+          name: '[Content_Types].xml',
+          data: '<Types><Override PartName="/word/document.xml" ContentType="x"/></Types>',
+        },
+      ]);
+    const clean = headAndTail(lastEntry([]));
+    expect(clean.size).toBeGreaterThan(HEAD_BYTES);
+    expect(inspectOoxml(clean.head, clean.tail, clean.size)).toEqual({ ok: true, kind: 'docx', macros: false });
+    const xlsx = headAndTail(
+      buildZip([
+        { name: 'xl/workbook.xml', data: '<w/>' },
+        { name: 'xl/media/image1.bin', data: Buffer.alloc(HEAD_BYTES * 2, 9), method: 'store' },
+        { name: '[Content_Types].xml', data: '<Types/>' },
+      ]),
+    );
+    expect(inspectOoxml(xlsx.head, xlsx.tail, xlsx.size)).toEqual({ ok: true, kind: 'xlsx', macros: false });
+    const macro = headAndTail(lastEntry([{ name: 'word/vbaProject.bin', data: 'x' }]));
+    expect(inspectOoxml(macro.head, macro.tail, macro.size)).toEqual({ ok: true, kind: 'docx', macros: true });
   });
 
   it('EVM-047 AC6 a directory that starts before the kept tail cannot be judged', () => {

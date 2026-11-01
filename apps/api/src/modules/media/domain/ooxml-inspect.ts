@@ -1,7 +1,7 @@
 /**
  * The inspection of an OOXML document (DOCX, XLSX) for macros and for its real kind, without a new dependency (EVM-047 AC6; SR-FILE-03, SR-FILE-04,
  * SR-FILE-06; CWE-434, CWE-409; threat model TM-36, AB-05). A PURE function of two buffers the scan already holds from its ONE pass over the pinned
- * version of the object: the first bytes (`head`, where `[Content_Types].xml` lives) and the last ones (`tail`, where the central directory of the
+ * version of the object: the first bytes (`head`, where `[Content_Types].xml` usually lives; it is read from `tail` when it lies there) and the last ones (`tail`, where the central directory of the
  * ZIP lives). No second read of the object happens, so there is no window to swap it.
  *
  * What it looks at: the NAMES of the entries of the central directory, compared case-insensitively after normalising the path (`vbaProject.bin`,
@@ -114,17 +114,27 @@ function readDirectory(tail: Buffer, start: number, size: number, count: number,
   return position === end ? entries : 'malformed';
 }
 
-/** The text of `[Content_Types].xml`: from the start of the file, the stored or deflated data of that ONE entry, bounded. */
-function readContentTypes(head: Buffer, entry: Entry): { readonly text: string } | { readonly refusal: OoxmlRefusal } {
+/**
+ * The text of `[Content_Types].xml`: the stored or deflated data of that ONE entry, bounded. The entry is read from the tail when it starts inside
+ * the tail window (some generators, e.g. LibreOffice, write it last), otherwise from the head. An entry in neither window is refused (fail closed).
+ */
+function readContentTypes(
+  head: Buffer,
+  tail: Buffer,
+  tailStart: number,
+  entry: Entry,
+): { readonly text: string } | { readonly refusal: OoxmlRefusal } {
   if ((entry.flags & 1) !== 0) return { refusal: 'unsupported_entry' }; // encrypted
   if (entry.method !== 0 && entry.method !== 8) return { refusal: 'unsupported_entry' };
   if (entry.uncompressedSize > MAX_CONTENT_TYPES_BYTES) return { refusal: 'limits' };
-  const at = entry.localOffset;
-  if (at + LOCAL_MIN > head.length || head.readUInt32LE(at) !== LOCAL_SIGNATURE) return { refusal: 'malformed' };
-  const dataStart = at + LOCAL_MIN + head.readUInt16LE(at + 26) + head.readUInt16LE(at + 28);
+  const inTail = entry.localOffset >= tailStart;
+  const buffer = inTail ? tail : head;
+  const at = inTail ? entry.localOffset - tailStart : entry.localOffset;
+  if (at + LOCAL_MIN > buffer.length || buffer.readUInt32LE(at) !== LOCAL_SIGNATURE) return { refusal: 'malformed' };
+  const dataStart = at + LOCAL_MIN + buffer.readUInt16LE(at + 26) + buffer.readUInt16LE(at + 28);
   const dataEnd = dataStart + entry.compressedSize;
-  if (dataEnd > head.length) return { refusal: 'limits' }; // the entry is not within the bytes the scan kept: it cannot be judged
-  const data = head.subarray(dataStart, dataEnd);
+  if (dataEnd > buffer.length) return { refusal: 'limits' }; // the entry is not within the bytes the scan kept: it cannot be judged
+  const data = buffer.subarray(dataStart, dataEnd);
   if (entry.method === 0) {
     return data.length === entry.uncompressedSize ? { text: data.toString('utf8').toLowerCase() } : { refusal: 'malformed' };
   }
@@ -173,7 +183,7 @@ export function inspectOoxml(head: Uint8Array, tail: Uint8Array, fileSize: numbe
   const list = entries as Entry[];
   const contentTypes = list.filter((entry) => entry.name === CONTENT_TYPES);
   if (contentTypes.length !== 1) return refuse('no_content_types');
-  const read = readContentTypes(headBuffer, contentTypes[0] as Entry);
+  const read = readContentTypes(headBuffer, tailBuffer, tailStart, contentTypes[0] as Entry);
   if ('refusal' in read) return refuse(read.refusal);
   return classify(list, read.text);
 }
