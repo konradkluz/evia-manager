@@ -4,7 +4,7 @@ title: Kategorie, opis i przypisanie mediów i dokumentów do etapu
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-progress
+status: in-review
 priority: P1
 owner: backend-developer
 contributors: [web-developer]
