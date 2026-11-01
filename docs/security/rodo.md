@@ -86,7 +86,7 @@ Klasy (z EVM-002): **DO-K** — dane klientów, **DO-3** — osób trzecich, **D
 **Dane poza bazą**
 | Miejsce | Dane osobowe | Okres | Uwagi |
 |---|---|---|---|
-| Scaleway Object Storage `pl-waw` | media, dokumenty, pliki eksportu ZIP, kopie bazy (szyfrowane) | P4 | SSE, prywatny bucket; od EVM-084 osobne buckety mediów (wersjonowanie, object lock GOVERNANCE 30 dni), kopii bazy (pgBackRest, szyfrowane, object lock COMPLIANCE 37 dni) i rejestru usunięć — aktywne po sesji IaC |
+| Scaleway Object Storage `pl-waw` | media, dokumenty, pliki eksportu ZIP, kopie bazy (szyfrowane) | P4 | SSE, prywatny bucket; od EVM-084 osobne buckety mediów (wersjonowanie, object lock GOVERNANCE 30 dni), kopii bazy (pgBackRest, szyfrowane, object lock COMPLIANCE 37 dni) i rejestru usunięć — aktywne po sesji IaC; od EVM-052 osobny bucket plików eksportu ZIP (bez object lock i wersjonowania, wygaśnięcie 1 dzień, poza kopią mediów; zmienna `MEDIA_EXPORT_BUCKET`, bez niej eksport wyłączony) — aktywny po sesji IaC (RR-85) |
 | Scaleway Object Storage `pl-waw` — bucket rejestru usunięć (EVM-040, EVM-041, EVM-084) | identyfikatory pseudonimowe: wpisu i zlecenia albo klienta, Administratora wykonującego operację, kod operacji (`timeline_entry_redacted`, `customer_anonymized`), czas UTC — **bez treści, nazw i wartości danych** | 40 dni (wygasanie i starsze wersje — IaC) | klucz aplikacji tylko `PutObject`; odczyt wyłącznie przy odtworzeniu (EVM-062); obiekt `<rok>/<operationId>.json` |
 | Hetzner Storage Box (Finlandia) | kopia mediów | P4 | szyfrogram (`rclone crypt`); `rclone sync` z bucketu mediów, snapshoty 14 dni zarządzane poza VM (EVM-084) |
 | VM Hetzner (Niemcy) | baza (LUKS), logi lokalne z pełnym IP | logi — 7 dni | kopie dysku systemowego bez danych bazy (7 dni); od EVM-085 logi kontenerów w journald (`MaxRetentionSec=7day`; na istniejącej VM krok ręczny — RR-66) |
@@ -155,7 +155,7 @@ Wartości wspólne z [`policies.md` → P4](policies.md#p4--retencja-mediów-dok
 | Kopie bazy (PITR) i ich niezmienne wersje | 30 dni / 37 dni | wykonania | ADR-0003, ADR-0011 |
 | Kopia mediów — snapshoty Storage Box | 14 dni | snapshotu | ADR-0011 |
 | Kopie dysku systemowego VM | 7 dni | wykonania | ADR-0011 |
-| Pliki eksportu ZIP | 24 h | utworzenia | P10 |
+| Pliki eksportu ZIP | 24 h | utworzenia | P10; **wykonywane automatycznie (EVM-052):** worker usuwa obiekt po `expires_at` (24 h od zlecenia) albo od razu po trwałym usunięciu pliku zdjęcia zlecenia, link zwraca `404` od `expires_at`; druga linia — reguła cyklu życia bucketu (po sesji IaC, RR-85). Wiersz `media.media_exports` (zlecający, zlecenie, stan, rozmiar — bez danych klienta) zostaje bez terminu do zadania retencji danych technicznych (cel: 30 dni po końcu życia) |
 | Dane na telefonie (projekcja) | do wyjścia z zakresu (zlecenie zamknięte ponad 30 dni temu) | — | ADR-0008, `offline-sync.md` |
 | Oryginały oczekujące na telefonie | do potwierdzenia `clean` przez serwer | — | „nic nie ginie” |
 

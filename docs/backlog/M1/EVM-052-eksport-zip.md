@@ -103,3 +103,4 @@ _—_
 - 2026-11-01 — plan gotowy (backend-developer)
 - 2026-11-01 — status in-progress; backend (kontrakt 0063, zapis ZIP, żądanie/budowa/sprzątanie/link, audyt, e-mail, alert) wdrożony na gałęzi, testy `EVM-052 AC#` zielone w kontenerze (backend-developer); UI W-09 — osobny krok web-developer
 - 2026-11-01 — UI W-09/W-04 wdrożone (web-developer): przycisk, ostrzeżenie o metadanych przed zleceniem i przed pobraniem, step-up, stany AC6, jednorazowy "Pobierz ZIP"; testy `EVM-052 AC#`, bramka web zielona
+- 2026-11-01 — przegląd bezpieczeństwa runda 1 (security-engineer): threat-model (przyrost AB-07/AB-08, RR-85 dług IaC bucketu eksportów, RR-86 link w oknie 300 s — do akceptacji na demo), requirements (stan SR-FILE-09), rodo (bucket eksportów, retencja wierszy)
