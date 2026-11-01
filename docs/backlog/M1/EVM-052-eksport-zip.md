@@ -102,3 +102,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
 - 2026-11-01 — status in-progress; backend (kontrakt 0063, zapis ZIP, żądanie/budowa/sprzątanie/link, audyt, e-mail, alert) wdrożony na gałęzi, testy `EVM-052 AC#` zielone w kontenerze (backend-developer); UI W-09 — osobny krok web-developer
+- 2026-11-01 — UI W-09/W-04 wdrożone (web-developer): przycisk, ostrzeżenie o metadanych przed zleceniem i przed pobraniem, step-up, stany AC6, jednorazowy "Pobierz ZIP"; testy `EVM-052 AC#`, bramka web zielona

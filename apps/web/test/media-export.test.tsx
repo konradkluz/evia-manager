@@ -239,3 +239,49 @@ describe('EVM-052 AC7 download', () => {
     expect(click).not.toHaveBeenCalled();
   });
 });
+
+describe('EVM-052 AC2 AC6 the closed messages of the refusals of an order', () => {
+  it.each([
+    [404, 'not_found', 'Nie znaleziono zlecenia. Mogło zostać usunięte.'],
+    [409, 'no_media_to_export', 'Zlecenie nie ma zdjęć do eksportu.'],
+    [503, 'media_storage_unavailable', 'Eksport jest chwilowo niedostępny. Spróbuj ponownie później.'],
+    [500, 'internal_error', 'Nie udało się zlecić eksportu. Spróbuj ponownie.'],
+  ])('EVM-052 AC6 %i %s is told in one closed sentence', async (status, code, text) => {
+    await openMedia({ routes: { [`POST ${EXPORTS_BASE}`]: () => problem(status, code) } });
+    await userEvent.click(await screen.findByRole('button', { name: 'Eksportuj zdjęcia (ZIP)' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Wyeksportować zdjęcia?' })).getByRole('button', { name: 'Eksportuj' }),
+    );
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
+
+  it('EVM-052 AC6 a lost connection while ordering says nothing was done', async () => {
+    await openMedia({
+      routes: {
+        [`POST ${EXPORTS_BASE}`]: () => {
+          throw new TypeError('network');
+        },
+      },
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Eksportuj zdjęcia (ZIP)' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Wyeksportować zdjęcia?' })).getByRole('button', { name: 'Eksportuj' }),
+    );
+    expect(await screen.findByText('Brak połączenia z serwerem. Nie wykonano operacji.')).toBeTruthy();
+  });
+
+  it('EVM-052 AC7 a failed request of the link (not a 404) offers another try', async () => {
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    await openMedia({
+      routes: {
+        [`GET ${EXPORTS_BASE}`]: () => json(200, { items: [entry()] }),
+        [`POST ${EXPORTS_BASE}/${EXPORT_ID}/download-url`]: () => problem(503, 'media_storage_unavailable'),
+      },
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Pobierz ZIP' }));
+    await userEvent.click(
+      within(await screen.findByRole('dialog', { name: 'Pobrać plik ZIP?' })).getByRole('button', { name: 'Pobierz ZIP' }),
+    );
+    expect(await screen.findByText('Nie udało się pobrać pliku ZIP. Spróbuj ponownie.')).toBeTruthy();
+  });
+});
