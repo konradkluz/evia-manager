@@ -32,6 +32,12 @@ APK z CI: [`docs/ops/dystrybucja-apk-android.md`](../../docs/ops/dystrybucja-apk
 | `e2e/` | przepływy Maestro (`01`…`26`, wspólne logowanie w `e2e/common/`), powiązane ze scenariuszami `tools/mobile-e2e` testem zgodności |
 | `test/` | Jest; nazwy `EVM-009 AC#: …` |
 
+## Synchronizacja (EVM-107)
+- `src/sync/`: `http-transport.ts` (cztery wywołania kontraktu na `authorizedFetch`; do rdzenia trafiają tylko status, kod z allow-listy i `Retry-After`), `sync-service.ts` (jedna instancja na sesję: wyzwalacze start / sieć / pierwszy plan / dotknięcie SyncIndicator / timer backoffu, snapshot niezmienny i memoizowany), `sync-host.ts` (start po pełnym logowaniu i teście właściciela, `stop()` przed usunięciem repliki), `types.ts` (jedyne, co importują ekrany). Kompozycja w `src/session.ts`; reguły `mobile-screens-without-adapters` i `mobile-screens-without-sync-core-runtime` pilnują granic.
+- Pierwsze pobranie pokazuje M-12 aż do końca (bez częściowej listy); po zabiciu aplikacji wznawia się z kursora. Kolejność wg ADR-0021: najpierw pobranie, potem kolejka (`docs/architecture/offline-sync.md`).
+- Schowek: moduł natywny `modules/evia-clipboard` (Kotlin, bez nowej zależności npm i bez komponentów w manifeście). **Best effort:** jeśli system zabije proces przed upływem 60 s, kopia zostaje do automatycznego czyszczenia schowka przez system (Android 13+); zachowanie natywne sprawdza się ręcznie na emulatorze (dziennik EVM-107).
+- E2E: scenariusz `sync-offline-recovery` (`apps/mobile/e2e/30-sync-*.yaml`) — tryb samolotowy, pięć notatek z haka wariantu e2e, zabicie aplikacji, powrót sieci; serwer scenariuszy (`tools/mobile-e2e/src/sync-stub.mjs`) liczy unikalne mutacje i duplikaty. Hak „sync: add notes” istnieje tylko w `e2e-hooks/panel.tsx` (nie trafia do wydania).
+
 ## Decyzje i zależności
 - Rozstrzygnięcia: SDK 58 (ADR-0007 wspominał SDK 57; engines `expo` 58 obejmują Node 26, `jest-expo` 58 działa na Node 26). Bez `expo-router` w szkielecie (dwie karty; mniej natywnych bibliotek — `react-native-screens`, `gesture-handler`, `reanimated` — i mniej zależności przejściowych). Bez `expo-updates`, `expo-dev-client`, EAS i analityki (SR-MOB-09). Bez `@react-native-async-storage` (reguła `dependency-cruiser`).
 - Warstwa zapytań lokalnej bazy (`expo-sqlite` / SQLCipher) i klucz bazy: decyzja przeniesiona do EVM-011 / M2 (notka architekta do ADR-0007).

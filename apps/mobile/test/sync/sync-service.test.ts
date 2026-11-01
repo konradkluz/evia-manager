@@ -658,6 +658,25 @@ describe('errors in the indicator (EVM-107 AC8)', () => {
     expect(phone.diagnostics).toContainEqual({ event: 'sync-failure', kind: 'resync' });
   });
 
+  it('EVM-107 AC8 (security S9): a crash inside the swap of the generations leaves the old data complete and readable; the next try swaps', async () => {
+    const { server, service } = await loadedService();
+    server.changes.push(resync, page(aggregate(2), { phase: 'snapshot', cursor: 1 }), page([], { cursor: 2 }));
+    // the swap is the UPDATE that makes the shadow active: it fails inside the transaction (the old generation was dropped in it)
+    phone.engine.failNext((sql) => sql.startsWith("UPDATE replica_generations SET role = 'active'"));
+    phone.clockNow += 60_000;
+    service.trigger();
+    await settle();
+    expect(service.getSnapshot().failure).toBe('pull');
+    expect((await phone.replica.listWorkOrders()).map((w) => w.number)).toEqual(['ZL-1']);
+    expect((await phone.replica.loadState()).active.initialLoadDone).toBe(true);
+    server.changes.push(page(aggregate(2), { phase: 'snapshot', cursor: 1 }), page([], { cursor: 2 }));
+    phone.clockNow += 10 * 60_000;
+    service.trigger();
+    await settle();
+    expect(service.getSnapshot().failure).toBeNull();
+    expect((await phone.replica.listWorkOrders()).map((w) => w.number)).toEqual(['ZL-2']);
+  });
+
   it('EVM-107 AC8: the snapshot is immutable and memoized - the same object until something changes, no storm of notifications', async () => {
     const { service } = await loadedService();
     const first = service.getSnapshot();

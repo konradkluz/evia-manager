@@ -822,3 +822,37 @@ describe('sign-out and the pending revocation (EVM-100 AC7; architect 3, securit
     expect(rig.owner.displayName()).toBeNull();
   });
 });
+
+describe('the end of the session stops the synchronization first (EVM-107 AC5; security S2, S3)', () => {
+  it('EVM-107 AC5: the store for the synchronization exists only for a signed-in session (null otherwise, also after the end)', async () => {
+    const rig = start(phone);
+    expect(rig.owner.syncStore()).toBeNull();
+    await rig.owner.completeSignIn(issued());
+    expect(rig.owner.syncStore()?.userId).toBe(USER_A);
+    await rig.owner.signOut({ online: false });
+    expect(rig.owner.syncStore()).toBeNull();
+  });
+
+  it('EVM-107 AC5: session_revoked, device_wipe_required, sign-out and the wipe of company data call the listeners BEFORE the replica is removed or the store is locked; a failing listener does not break the end', async () => {
+    const orders: string[][] = [];
+    for (const how of ['revoked', 'wipe_required', 'sign_out', 'company_wipe'] as const) {
+      phone = newPhone();
+      const rig = await signedIn(phone);
+      const log: string[] = [];
+      rig.owner.onBeforeSessionEnd(() => {
+        log.push(`stop(endSession logged: ${String(phone.log.includes('endSession'))})`);
+        throw new Error('a listener that fails');
+      });
+      const off = rig.owner.onBeforeSessionEnd(() => {
+        log.push('removed listener');
+      });
+      off();
+      rig.client.refreshScript.push(problem(401, how === 'wipe_required' ? 'device_wipe_required' : 'session_revoked'));
+      if (how === 'revoked' || how === 'wipe_required') await rig.owner.refresh();
+      else if (how === 'sign_out') await rig.owner.signOut({ online: false });
+      else await rig.owner.endSessionForWipe({ online: false });
+      orders.push(log);
+    }
+    expect(orders).toEqual(Array.from({ length: 4 }, () => ['stop(endSession logged: false)']));
+  });
+});

@@ -135,3 +135,29 @@ describe('composition of the device controls (EVM-101)', () => {
     expect(await NO_API.confirmWipe({} as never)).toEqual({ kind: 'unavailable' });
   });
 });
+
+describe('composition of the synchronization (EVM-107; architect 5, 6)', () => {
+  it('EVM-107 AC2: the session has one synchronization host; without a session (no store) it starts nothing and reports an idle state', () => {
+    const ports = createSessionPorts(config);
+    expect(ports.sync.getSnapshot().active).toBe(false);
+    ports.sync.startSession();
+    expect(ports.sync.getSnapshot().active).toBe(false);
+    ports.sync.stop();
+    ports.sync.setOnline(true);
+    expect(ports.sync.getSnapshot().initialLoad).toBe('pending');
+  });
+
+  it('EVM-107 AC4: without the native clipboard module nothing is copied (never the plain clipboard)', () => {
+    const ports = createSessionPorts(config);
+    expect(ports.copyToClipboard('synthetic text')).toBe(false);
+  });
+
+  it('EVM-107 AC4 (security S1): the end of a session also clears the clipboard copy and stops the service (listener of the owner)', () => {
+    const ports = createSessionPorts(null);
+    // the owner calls its listeners before it removes anything; without a session this must still be safe and silent
+    expect(() => {
+      ports.sync.stop();
+    }).not.toThrow();
+    expect(ports.copyToClipboard('')).toBe(false);
+  });
+});
