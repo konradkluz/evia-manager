@@ -4,7 +4,7 @@ title: Eksport ZIP zdjęć zlecenia (step-up)
 type: story
 milestone: M1
 epic: E6 Dokumenty i media (web)
-status: in-progress
+status: in-review
 priority: P2
 owner: backend-developer
 contributors: [web-developer]
