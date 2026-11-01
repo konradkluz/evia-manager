@@ -6,6 +6,7 @@
  * Fail closed: a plan that would pass the limit of the API (20 milestones per order) is NOT trimmed — the planner throws, the creation
  * of the order rolls back as a whole, and the cause is the configuration of the template, not the request.
  */
+import { CompositionRejectedError } from '../../work-orders/index.ts';
 import { MAX_MILESTONES_PER_ORDER } from './milestone-rules.ts';
 
 export interface PlanMilestone {
@@ -20,7 +21,7 @@ export interface PlannedMilestone extends PlanMilestone {
   readonly position: number;
 }
 
-export class PaymentPlanLimitError extends Error {
+export class PaymentPlanLimitError extends CompositionRejectedError {
   constructor() {
     super(`the payment plan of the template has more than ${MAX_MILESTONES_PER_ORDER} milestones`);
     this.name = 'PaymentPlanLimitError';

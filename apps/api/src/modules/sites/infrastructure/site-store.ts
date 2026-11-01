@@ -74,7 +74,7 @@ export function searchVisibleSites(db: SitesDb, principal: Principal, term: stri
  * INSERT only: an existing identifier — also of a soft-deleted site — inserts nothing (`undefined`), whatever the content, and the
  * caller answers `409 id_conflict` without a word about the existing row.
  */
-export function insertSite(db: SitesDb, site: NewSite, actorUserId: string, now: Date) {
+export function insertSite(db: SitesDb, site: NewSite, actorUserId: string, now: Date, createdViaDeviceId: string | null = null) {
   return db
     .insertInto('sites.sites')
     .values({
@@ -98,10 +98,22 @@ export function insertSite(db: SitesDb, site: NewSite, actorUserId: string, now:
       updated_by: actorUserId,
       deleted_at: null,
       deleted_by: null,
+      created_via_device_id: createdViaDeviceId,
     })
     .onConflict((conflict) => conflict.column('id').doNothing())
     .returning(COLUMNS)
     .executeTakeFirst();
+}
+
+/** How many sites the device has created since `since` (EVM-099 AC7): all rows, deleted ones too; the time of the server, never of the phone (SR-SYNC-05). */
+export async function countSitesCreatedBy(db: SitesDb, deviceId: string, since: Date): Promise<number> {
+  const row = await db
+    .selectFrom('sites.sites')
+    .select((eb) => eb.fn.countAll<string>().as('total'))
+    .where('created_via_device_id', '=', deviceId)
+    .where('created_at', '>', since)
+    .executeTakeFirstOrThrow();
+  return Number(row.total);
 }
 
 export function findVisibleSite(db: SitesDb, principal: Principal, id: string) {

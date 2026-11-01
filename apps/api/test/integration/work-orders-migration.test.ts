@@ -60,6 +60,9 @@ describe('migration 0010 — work orders (EVM-017 AC1, AC2, AC4, AC6; ADR-0003, 
       'completed_on',
       // the search text of EVM-072 (migration 0025; generated)
       'search_text',
+      // EVM-099 (0058): where the order comes from and the device of the phone that created it
+      'origin',
+      'created_via_device_id',
     ]);
     expect(columns('work_order_assignments')).toEqual(['id', 'work_order_id', 'user_id', 'role', ...common]);
     expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([

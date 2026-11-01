@@ -26,7 +26,7 @@ describe('work order creation contract (EVM-022 AC1-AC7; SR-AUTHZ-01, SR-AUTHZ-0
       Object.keys(zWorkOrder.shape)
         .filter((key) => !(key in zCreateWorkOrderRequest.shape))
         .sort(),
-    ).toEqual(['coordinator', 'createdAt', 'customer', 'number', 'scopeItems', 'site', 'status', 'version']);
+    ).toEqual(['coordinator', 'createdAt', 'customer', 'number', 'origin', 'scopeItems', 'site', 'status', 'version']);
   });
 
   it('EVM-022 AC1 the request names no scope item: the server copies them from the template', () => {

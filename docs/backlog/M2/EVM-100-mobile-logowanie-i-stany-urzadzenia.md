@@ -4,7 +4,7 @@ title: "Aplikacja: logowanie (hasło + kod) i stany urządzenia"
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-review
+status: done
 priority: P0
 path: pelna             # uwierzytelnianie, dane na urządzeniu
 owner: mobile-developer

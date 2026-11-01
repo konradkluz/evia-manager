@@ -6,8 +6,11 @@
  */
 import type { Kysely } from 'kysely';
 import type { Database } from '../../platform/database/database.ts';
+import type { EventContext } from '../../platform/events/event-bus.ts';
 import type { Principal } from '../../platform/http/principal.ts';
+import type { FieldIssue } from '../../platform/input/field-issues.ts';
 import type { SyncRowState } from '../../platform/sync/sync-row-state.ts';
+import type { QuickSiteInput } from './domain/quick-site.ts';
 
 export const SITE_PROJECTION_SOURCE = Symbol('SITE_PROJECTION_SOURCE');
 
@@ -48,4 +51,26 @@ export interface SiteSyncSource {
     principal: Principal,
     ids: readonly string[],
   ): Promise<ReadonlyMap<string, SyncRowState<SyncSiteProjection>>>;
+}
+
+/**
+ * The COMMAND port of `sites` for the quick work order of the phone (EVM-099 AC2, AC3, AC7; ADR-0008): a site created from the fields of the command, INSERT only,
+ * with the device of the session recorded, and the count of the sites a device created lately (the limit of 20 in 24 hours is decided by `sync`). It runs in the
+ * transaction of `sync`. The answer is a code only. Not part of `index.ts`: only `sync` may import it.
+ */
+export const SITE_QUICK_CREATION = Symbol('SITE_QUICK_CREATION');
+
+export interface SiteQuickCreation {
+  /** The rules of the content, without a write: the pointers and the codes of the errors (never values) - empty when the site is valid. */
+  check(input: QuickSiteInput): readonly FieldIssue[];
+  /** `created`; `invalid` - a rule of the content; `id_conflict` - the identifier exists (also a deleted or foreign site). Publishes `site.created`. */
+  create(
+    tx: Kysely<Database>,
+    principal: Principal,
+    deviceId: string,
+    input: QuickSiteInput,
+    context: EventContext,
+  ): Promise<'created' | 'invalid' | 'id_conflict'>;
+  /** The sites this device created after `since`, deleted ones included. */
+  countCreatedBy(tx: Kysely<Database>, deviceId: string, since: Date): Promise<number>;
 }

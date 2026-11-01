@@ -24,33 +24,21 @@ import { zCreateWorkOrderHeaders, zCreateWorkOrderRequest, zWorkOrder } from '@e
 import type { WorkOrder } from '@evia/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely } from 'kysely';
-import type { Clock } from '../../../platform/clock/clock.ts';
 import type { Database } from '../../../platform/database/database.ts';
-import type { EventBus, EventContext } from '../../../platform/events/event-bus.ts';
+import type { EventContext } from '../../../platform/events/event-bus.ts';
 import type { Principal } from '../../../platform/http/principal.ts';
 import { ProblemException } from '../../../platform/http/problem.ts';
 import { parseInput, readOnlyKeys, strictObjects } from '../../../platform/http/validation.ts';
 import { requestHash } from '../../../platform/idempotency/canonical-json.ts';
 import { IDEMPOTENCY, type Idempotency } from '../../../platform/idempotency/idempotency.ts';
-import { CLOCK, DATABASE, EVENT_BUS } from '../../../platform/tokens.ts';
-import { TEMPLATE_DIRECTORY, type TemplateDirectory, type TemplateForCopy } from '../../catalog/index.ts';
+import { DATABASE } from '../../../platform/tokens.ts';
 import { CUSTOMER_DIRECTORY, type CustomerDirectory } from '../../customers/index.ts';
 import { UserDirectory } from '../../identity/index.ts';
 import { SITE_DIRECTORY, type SiteDirectory } from '../../sites/index.ts';
-import { WorkOrderCompositionRegistry } from '../composition-contributor.ts';
-import { normalizeNewWorkOrder, resolveTitle, type NewWorkOrder, type WorkOrderInput } from '../domain/new-work-order.ts';
-import { businessYear, formatWorkOrderNumber } from '../domain/work-order-number.ts';
-import type { WorkOrderEvent } from '../events.ts';
-import { takeNextNumber } from '../infrastructure/number-counter.ts';
+import { normalizeNewWorkOrder, type NewWorkOrder, type WorkOrderInput } from '../domain/new-work-order.ts';
 import { workOrderTables } from '../infrastructure/tables.ts';
-import {
-  findCoordinatorUserId,
-  findVisibleWorkOrder,
-  insertCoordinator,
-  insertScopeItems,
-  insertWorkOrder,
-  listScopeItems,
-} from '../infrastructure/work-order-store.ts';
+import { findCoordinatorUserId, findVisibleWorkOrder, listScopeItems } from '../infrastructure/work-order-store.ts';
+import { WorkOrderComposer } from './work-order-composer.ts';
 import { toWorkOrder } from './work-order-representation.ts';
 import { runInTransaction } from '../../../platform/database/transactional.ts';
 
@@ -71,35 +59,26 @@ export interface CreatedWorkOrder {
 @Injectable()
 export class CreateWorkOrderService {
   readonly #db: Kysely<Database>;
-  readonly #clock: Clock;
-  readonly #events: EventBus;
   readonly #idempotency: Idempotency;
   readonly #customers: CustomerDirectory;
   readonly #sites: SiteDirectory;
-  readonly #templates: TemplateDirectory;
   readonly #users: UserDirectory;
-  readonly #contributors: WorkOrderCompositionRegistry;
+  readonly #composer: WorkOrderComposer;
 
   constructor(
     @Inject(DATABASE) db: Kysely<Database>,
-    @Inject(CLOCK) clock: Clock,
-    @Inject(EVENT_BUS) events: EventBus,
     @Inject(IDEMPOTENCY) idempotency: Idempotency,
     @Inject(CUSTOMER_DIRECTORY) customers: CustomerDirectory,
     @Inject(SITE_DIRECTORY) sites: SiteDirectory,
-    @Inject(TEMPLATE_DIRECTORY) templates: TemplateDirectory,
     @Inject(UserDirectory) users: UserDirectory,
-    @Inject(WorkOrderCompositionRegistry) contributors: WorkOrderCompositionRegistry,
+    @Inject(WorkOrderComposer) composer: WorkOrderComposer,
   ) {
     this.#db = db;
-    this.#clock = clock;
-    this.#events = events;
     this.#idempotency = idempotency;
     this.#customers = customers;
     this.#sites = sites;
-    this.#templates = templates;
     this.#users = users;
-    this.#contributors = contributors;
+    this.#composer = composer;
   }
 
   /** @param rawKey the `Idempotency-Key` header as received (`undefined` when absent) */
@@ -131,79 +110,24 @@ export class CreateWorkOrderService {
     });
   }
 
+  /** The composition is the shared component's (`WorkOrderComposer`); its typed result is mapped to the problems of the panel here. */
   async #compose(tx: Kysely<Database>, principal: Principal, order: NewWorkOrder, context: EventContext): Promise<void> {
-    // the customer is LOCKED `FOR KEY SHARE`: the deletion and the anonymization of the customer (`FOR UPDATE`) and this creation are serialised (EVM-041 D7)
-    const customer = await this.#customers.lockVisible(tx, principal, order.customerId);
-    const site = await this.#sites.findVisible(tx, principal, order.siteId);
-    if (customer === undefined || site === undefined) throw new ProblemException('not_found');
-    const template = await this.#template(tx, order.templateId);
-    const assigneeId = await this.#assignee(tx, principal, order);
-
-    const now = this.#clock.now();
-    const tables = workOrderTables(tx);
-    const sequence = await takeNextNumber(tables, businessYear(now));
-    const inserted = await insertWorkOrder(
-      tables,
-      {
-        id: order.id,
-        number: formatWorkOrderNumber(businessYear(now), sequence),
-        title: resolveTitle(order.title, template?.name ?? null),
-        customerId: customer.id,
-        siteId: site.id,
-        sourceTemplateId: template?.id ?? null,
-        plannedDate: order.plannedDate,
-        description: order.description,
-      },
-      principal.userId,
-      now,
-    );
-    if (inserted === undefined) throw new ProblemException('id_conflict');
-
-    const scope = await insertScopeItems(tables, order.id, template?.items ?? [], principal.userId, now);
-    await insertCoordinator(tables, order.id, assigneeId, principal.userId, now);
-    for (const contributor of this.#contributors.ordered()) {
-      await contributor.contribute(tx, {
-        workOrderId: order.id,
-        templateId: template?.id ?? null,
-        scopeItems: scope.map((item) => ({
-          id: item.id,
-          sourceCatalogItemId: item.source_catalog_item_id,
-          position: item.position,
-          code: item.code,
-        })),
-        principal,
-        now,
-      });
+    const result = await this.#composer.compose(tx, principal, order, { origin: 'office', createdViaDeviceId: null }, context);
+    if (result.ok) return;
+    switch (result.reason) {
+      case 'target_unavailable':
+        throw new ProblemException('not_found');
+      case 'template_unavailable':
+        throw new ProblemException('template_unavailable');
+      case 'id_conflict':
+        throw new ProblemException('id_conflict');
+      case 'assignee_unavailable':
+        if (!result.named) throw new ProblemException('forbidden');
+        throw new ProblemException('validation_failed', { errors: [{ pointer: '/assigneeUserId', code: 'assignee_unavailable' }] });
+      case 'composition_limit':
+        // the configuration of the template passes a limit: as before EVM-099 a failure of the server that rolls the creation back as a whole
+        throw new Error('the composition of the template passes a limit');
     }
-
-    const event: WorkOrderEvent = {
-      type: 'work_order.created',
-      actor: { type: 'user', userId: principal.userId },
-      outcome: 'success',
-      objectType: 'work_order',
-      objectId: order.id,
-    };
-    await this.#events.publish(tx, event, context);
-  }
-
-  /** `null` is an empty order; a template that is missing or retired is `422 template_unavailable` (the same for both). */
-  async #template(tx: Kysely<Database>, templateId: string | null): Promise<TemplateForCopy | null> {
-    if (templateId === null) return null;
-    const template = await this.#templates.findActiveForCopy(tx, templateId);
-    if (template === undefined) throw new ProblemException('template_unavailable');
-    return template;
-  }
-
-  /**
-   * The user named by the request, or — when none is named — the signed-in one; always an ACTIVE user. A named user who is missing,
-   * invited, deactivated or deleted is ONE answer (`400 assignee_unavailable`): the error cannot be used to list accounts.
-   */
-  async #assignee(tx: Kysely<Database>, principal: Principal, order: NewWorkOrder): Promise<string> {
-    const named = order.assigneeUserId;
-    const user = await this.#users.findActive(named ?? principal.userId, tx);
-    if (user !== undefined) return user.id;
-    if (named === null) throw new ProblemException('forbidden');
-    throw new ProblemException('validation_failed', { errors: [{ pointer: '/assigneeUserId', code: 'assignee_unavailable' }] });
   }
 
   /** The order as the caller may read it NOW: the order, its scope, the customer and the site (through the facades) and the coordinator. */

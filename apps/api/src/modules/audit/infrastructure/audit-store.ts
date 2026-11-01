@@ -32,6 +32,7 @@ export async function insertAuditRecord(tx: Kysely<Database>, record: AuditRecor
       device_id: record.deviceId,
       work_order_id: record.workOrderId,
       command_type: record.commandType,
+      quota_kind: record.quotaKind,
     })
     .execute();
 }

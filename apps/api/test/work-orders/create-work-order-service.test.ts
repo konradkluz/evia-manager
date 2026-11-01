@@ -5,6 +5,7 @@ import type { CustomerDirectory } from '../../src/modules/customers/index.ts';
 import type { UserDirectory } from '../../src/modules/identity/index.ts';
 import type { SiteDirectory } from '../../src/modules/sites/index.ts';
 import { CreateWorkOrderService } from '../../src/modules/work-orders/application/create-work-order.service.ts';
+import { WorkOrderComposer } from '../../src/modules/work-orders/application/work-order-composer.ts';
 import { WorkOrderCompositionRegistry } from '../../src/modules/work-orders/composition-contributor.ts';
 import type { Database } from '../../src/platform/database/database.ts';
 import type { EventBus } from '../../src/platform/events/event-bus.ts';
@@ -51,18 +52,20 @@ function setup(overrides: Answers = {}) {
   const db = {
     transaction: () => ({ execute: <T>(work: (tx: Kysely<Database>) => Promise<T>) => work(TRANSACTION) }),
   } as unknown as Kysely<Database>;
-  const service = new CreateWorkOrderService(
-    db,
+  // the customer of a NEW order is locked (`lockVisible`, EVM-041 D7); `findVisible` is the read of the answer
+  const customers = { findVisible: readCustomer, lockVisible: findCustomer } as unknown as CustomerDirectory;
+  const sites = { findVisible: findSite } as unknown as SiteDirectory;
+  const users = { findActive } as unknown as UserDirectory;
+  const composer = new WorkOrderComposer(
     { now: () => new Date('2026-10-07T08:00:00Z') },
     { publish } as unknown as EventBus,
-    { run } as unknown as Idempotency,
-    // the customer of a NEW order is locked (`lockVisible`, EVM-041 D7); `findVisible` is the read of the answer
-    { findVisible: readCustomer, lockVisible: findCustomer } as unknown as CustomerDirectory,
-    { findVisible: findSite } as unknown as SiteDirectory,
+    customers,
+    sites,
     { findActiveForCopy: findTemplate } as unknown as TemplateDirectory,
-    { findActive } as unknown as UserDirectory,
+    users,
     new WorkOrderCompositionRegistry(),
   );
+  const service = new CreateWorkOrderService(db, { run } as unknown as Idempotency, customers, sites, users, composer);
   return { service, findCustomer, findSite, findTemplate, findActive, publish, run };
 }
 

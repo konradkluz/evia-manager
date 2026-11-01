@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import { describe, expect, it, vi } from 'vitest';
 import type { TemplateDirectory, TemplateProcedureForCopy } from '../../src/modules/catalog/index.ts';
 import { ProceduresCompositionContributor } from '../../src/modules/procedures/application/procedures-contributor.ts';
-import { WorkOrderCompositionRegistry, type CompositionContext } from '../../src/modules/work-orders/index.ts';
+import { CompositionRejectedError, WorkOrderCompositionRegistry, type CompositionContext } from '../../src/modules/work-orders/index.ts';
 import type { Database } from '../../src/platform/database/database.ts';
 import { principal } from '../support/principals.ts';
 import { uuidv7 } from '../support/uuid.ts';
@@ -68,5 +68,14 @@ describe('the contributor of the processes (EVM-031 AC1; SR-API-06, SR-ERR-01)',
     await expect(tooMany.contributor.contribute(TRANSACTION, tooMany.context(uuidv7()))).rejects.toThrow(/too_many_procedures/);
     const tooLong = setup(brought(1, 31));
     await expect(tooLong.contributor.contribute(TRANSACTION, tooLong.context(uuidv7()))).rejects.toThrow(/too_many_stages/);
+  });
+
+  it('EVM-099 AC5 the limit of the template is told to work-orders as CompositionRejectedError (so the phone gets template_unavailable, not a 500), with its reason in the message', async () => {
+    const tooMany = setup(brought(31));
+    const error = await tooMany.contributor.contribute(TRANSACTION, tooMany.context(uuidv7())).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(error).toBeInstanceOf(CompositionRejectedError);
   });
 });

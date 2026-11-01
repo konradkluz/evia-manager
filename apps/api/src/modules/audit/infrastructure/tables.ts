@@ -37,6 +37,8 @@ export interface AuditEventsTable {
   device_id: string | null;
   work_order_id: string | null;
   command_type: string | null;
+  /** The kind (`customer` | `site`) of an exceeded limit of new objects of a phone (EVM-099; 0058): with the device only. */
+  quota_kind: string | null;
 }
 
 export type AuditTables = { 'audit.events': AuditEventsTable };

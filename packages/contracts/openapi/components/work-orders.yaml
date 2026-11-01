@@ -504,6 +504,13 @@ WorkOrder:
       type: string
       format: date-time
       maxLength: 40
+    origin:
+      type: string
+      readOnly: true
+      description: >-
+        Skąd pochodzi zlecenie (`office` — panel, `mobile_quick` — telefon). Tylko do odczytu (zapis: `400 read_only_field`).
+      x-extensible-enum: [office, mobile_quick]
+      maxLength: 32
 # Reading a work order (EVM-018; W-06). Four reads anchored in the order, no collective endpoint: the header, the scope, the customer
 # card and the site card. Every answer is an explicit list of fields (`additionalProperties: false`, SR-DATA-03): the customer card has
 # the display name, the telephone and the e-mail; the parties of a site are `{id, displayName}`; the keeper is `{id, displayName}`.
@@ -515,9 +522,28 @@ WorkOrderDetails:
     data utworzenia oraz cykl życia (EVM-030): `allowedTransitions` dla wołającego, `resumeStatus`, `statusChangedAt`, `closedAt`, `completedOn`.
     Bez powodu wstrzymania i anulowania (pole swobodne — może zawierać dane osobowe; nie jest zwracany), zakresu, danych kontaktowych klienta, PPE i notatek (osobne odczyty). `customer` albo `site` jest `null`,
     gdy zlecenie go nie ma albo rekord został usunięty (żywe zlecenie nie ujawnia usuniętego rekordu).
-  required: [id, number, title, status, customer, site, coordinator, version, createdAt, allowedTransitions]
+  required: [id, number, title, status, customer, site, coordinator, version, createdAt, origin, allowedTransitions]
   additionalProperties: false
   properties:
+    origin:
+      type: string
+      readOnly: true
+      description: >-
+        Skąd pochodzi zlecenie: `office` — z panelu, `mobile_quick` — szybkie zlecenie założone na telefonie (EVM-099). Tylko do odczytu
+        (zapis: `400 read_only_field`); steruje banerem „Zlecenie założone w terenie” na W-06.
+      x-extensible-enum: [office, mobile_quick]
+      maxLength: 32
+    createdBy:
+      type: object
+      readOnly: true
+      description: >-
+        Autor zlecenia (tylko nazwa wyświetlana). Brak pola, gdy autor jest nieznany (konto usunięte albo zlecenie sprzed konta).
+      additionalProperties: false
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          maxLength: 200
     id:
       type: string
       format: uuid

@@ -47,6 +47,7 @@ export function toWorkOrder({ row, scope, customer, site, coordinator }: WorkOrd
     scopeItems: scope.map(scopeItemView),
     version: row.version,
     createdAt: row.created_at.toISOString(),
+    origin: row.origin,
   };
   const checked = zWorkOrder.safeParse(order);
   if (!checked.success) throw new ProblemException('internal_error');

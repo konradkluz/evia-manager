@@ -6,6 +6,7 @@
  * would pass a limit is not planned at all: the planner throws, the whole creation rolls back, no data is cut off silently
  * (SR-API-02, SR-ERR-01).
  */
+import { CompositionRejectedError } from '../../work-orders/index.ts';
 import { MAX_PROCEDURES_PER_ORDER, MAX_STAGES_PER_PROCEDURE } from './stage-rules.ts';
 
 export interface TemplateStage {
@@ -49,7 +50,7 @@ export interface PlannedProcedure {
 }
 
 /** The template brings more than the API allows. Its message names the limit and never a name or an identifier. */
-export class CompositionLimitError extends Error {
+export class CompositionLimitError extends CompositionRejectedError {
   readonly reason: 'too_many_procedures' | 'too_many_stages';
 
   constructor(reason: CompositionLimitError['reason']) {

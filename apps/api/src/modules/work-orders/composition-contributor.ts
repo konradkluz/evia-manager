@@ -56,3 +56,17 @@ export class WorkOrderCompositionRegistry {
     return [...this.#contributors.values()].sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : 1));
   }
 }
+
+/**
+ * A composition that cannot be applied because the CONFIGURATION of the template passes a limit (30 processes or stages, more than 20 payment milestones;
+ * EVM-099): not a bug of the request, not an error of the server. A contributor wraps its own limit error in this one, so `work-orders` can tell it without
+ * importing the contributor (the dependency points the other way). The creation rolls back as a whole; the panel keeps its answer, the phone gets
+ * `template_unavailable`.
+ */
+export class CompositionRejectedError extends Error {
+  /** @param message the message of the limit error of the contributor (a reason code, no data) */
+  constructor(message: string, options?: { readonly cause: unknown }) {
+    super(message, options);
+    this.name = 'CompositionRejectedError';
+  }
+}

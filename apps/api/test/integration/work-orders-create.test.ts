@@ -156,7 +156,7 @@ describe('creating a work order from a template (EVM-022 AC1; SR-AUTHZ-04, SR-DA
     const s = await scene();
     const response = await create(await signIn('administrator'), order(s), uuidv7());
     expect(Object.keys(response.body as object).sort()).toEqual(
-      ['coordinator', 'createdAt', 'customer', 'id', 'number', 'scopeItems', 'site', 'status', 'title', 'version'].sort(),
+      ['coordinator', 'createdAt', 'customer', 'id', 'number', 'origin', 'scopeItems', 'site', 'status', 'title', 'version'].sort(),
     );
     expect(Object.keys((response.body as { customer: object }).customer).sort()).toEqual(['displayName', 'id']);
     expect(Object.keys((response.body as { coordinator: object }).coordinator).sort()).toEqual(['displayName', 'id']);

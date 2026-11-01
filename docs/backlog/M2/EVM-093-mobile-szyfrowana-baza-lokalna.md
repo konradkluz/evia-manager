@@ -4,7 +4,7 @@ title: "Aplikacja: szyfrowana baza lokalna i adapter magazynu"
 type: enabler
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P0
 path: pelna             # dane na urządzeniu, synchronizacja offline, migracje
 owner: mobile-developer

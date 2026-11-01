@@ -4,7 +4,7 @@ title: "API: dziennik zmian i pobieranie zmian (zlecenia, klienci, lokalizacje)"
 type: story
 milestone: M2
 epic: E10 Zlecenia offline
-status: in-review
+status: done
 priority: P0
 path: pelna             # synchronizacja offline, migracja, uprawnienia
 owner: backend-developer

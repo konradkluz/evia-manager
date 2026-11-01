@@ -18,7 +18,8 @@ import { UpdateCustomerService } from './application/update-customer.service.ts'
 import { SearchCustomersService } from './application/search-customers.service.ts';
 import { CUSTOMER_DIRECTORY } from './customer-directory.ts';
 import { CustomerSyncSourceService } from './infrastructure/sync-source.ts';
-import { CUSTOMER_SYNC_SOURCE } from './system-ports.ts';
+import { CustomerQuickCreationService } from './application/customer-quick-creation.service.ts';
+import { CUSTOMER_QUICK_CREATION, CUSTOMER_SYNC_SOURCE } from './system-ports.ts';
 import { CustomerDependentsRegistry } from './dependents-guard.ts';
 import { CustomersController } from './http/customers.controller.ts';
 
@@ -26,6 +27,7 @@ import { CustomersController } from './http/customers.controller.ts';
   controllers: [CustomersController],
   providers: [
     { provide: CUSTOMER_SYNC_SOURCE, useClass: CustomerSyncSourceService },
+    { provide: CUSTOMER_QUICK_CREATION, useClass: CustomerQuickCreationService },
     CustomerPagesService,
     SearchCustomersService,
     ListCustomersService,
@@ -38,6 +40,6 @@ import { CustomersController } from './http/customers.controller.ts';
     CustomerDependentsRegistry,
     { provide: CUSTOMER_DIRECTORY, useClass: CustomerDirectoryService },
   ],
-  exports: [CUSTOMER_DIRECTORY, CustomerDependentsRegistry, CUSTOMER_SYNC_SOURCE],
+  exports: [CUSTOMER_DIRECTORY, CustomerDependentsRegistry, CUSTOMER_SYNC_SOURCE, CUSTOMER_QUICK_CREATION],
 })
 export class CustomersModule {}

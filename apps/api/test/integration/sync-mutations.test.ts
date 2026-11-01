@@ -134,7 +134,15 @@ describe('the batch: order, own transactions and results (EVM-098 AC1)', () => {
       { mutationId: first.mutationId, outcome: 'applied' },
       { mutationId: blank.mutationId, outcome: 'rejected', code: 'validation_failed' },
       { mutationId: third.mutationId, outcome: 'applied' },
-      { mutationId: quick.mutationId, outcome: 'rejected', code: 'validation_failed' },
+      {
+        mutationId: quick.mutationId,
+        outcome: 'rejected',
+        code: 'validation_failed',
+        errors: [
+          { pointer: '/customerId', code: 'exactly_one_of' },
+          { pointer: '/siteId', code: 'exactly_one_of' },
+        ],
+      },
       { mutationId: unknownType.mutationId, outcome: 'rejected', code: 'validation_failed' },
       { mutationId: tooLong.mutationId, outcome: 'rejected', code: 'validation_failed' },
       { mutationId: exact.mutationId, outcome: 'applied' },

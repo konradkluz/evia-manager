@@ -10,6 +10,8 @@ import {
   envelopeSchema,
   MAX_MUTATION_BYTES,
   MutationVerdictSignal,
+  QuotaExceededSignal,
+  capped,
   typeLabel,
   type RawMutation,
 } from '../../src/modules/sync/domain/mutations.ts';
@@ -109,7 +111,7 @@ describe('one mutation (EVM-098 AC1, AC2, AC4; SR-INPUT-01, SR-AUTHZ-04, CWE-915
     });
   });
 
-  it('EVM-098 AC1 a missing field, a field outside the contract (also a field of the server), a bad category, an unknown type or version and CreateQuickWorkOrder are invalid', () => {
+  it('EVM-098 AC1 a missing field, a field outside the contract (also a field of the server), a bad category, an unknown type or version are invalid', () => {
     const cases: RawMutation[] = [
       { ...note(), payload: without(note().payload as Record<string, unknown>, 'body') },
       { ...note(), payload: without(note().payload as Record<string, unknown>, 'noteCategory') },
@@ -133,12 +135,6 @@ describe('one mutation (EVM-098 AC1, AC2, AC4; SR-INPUT-01, SR-AUTHZ-04, CWE-915
       note({}, { commandVersion: '1' }),
       note({}, { extra: true }),
       note({}, { payload: 'text' }),
-      {
-        mutationId: MUTATION,
-        type: 'CreateQuickWorkOrder',
-        commandVersion: 1,
-        payload: { workOrderId: ENTRY, templateId: ORDER, title: 'Szybkie' },
-      },
       { mutationId: MUTATION, commandVersion: 1, payload: {} },
     ];
     for (const raw of cases) expect(decodeMutation(raw, NOW), JSON.stringify(raw)).toEqual({ ok: false });
@@ -221,5 +217,155 @@ describe('the verdict and the labels (EVM-098 AC4; SR-LOG-02)', () => {
       'unknown',
       'unknown',
     ]);
+  });
+});
+
+describe('the command CreateQuickWorkOrder (EVM-099 AC1, AC2, AC4, AC5; SR-INPUT-01, CWE-915)', () => {
+  const CUSTOMER = '0193a000-0000-7000-8000-0000000000e1';
+  const SITE = '0193a000-0000-7000-8000-0000000000e2';
+  const NEW_CUSTOMER = '0193a000-0000-7000-8000-0000000000f1';
+  const NEW_SITE = '0193a000-0000-7000-8000-0000000000f2';
+  const TEMPLATE = '0193a000-0000-4000-8000-0000000000a3';
+  const newCustomer = { id: NEW_CUSTOMER, kind: 'person', displayName: 'Jan Przykładowy', phone: '600 000 001' };
+  const newSite = {
+    id: NEW_SITE,
+    siteType: 'single_family_house',
+    street: 'ul. Fikcyjna',
+    buildingNumber: '7',
+    postalCode: '00-001',
+    city: 'Warszawa',
+  };
+  const quick = (payload: Record<string, unknown> = {}, extra: Record<string, unknown> = {}): RawMutation => ({
+    mutationId: MUTATION,
+    type: 'CreateQuickWorkOrder',
+    commandVersion: 1,
+    payload: { workOrderId: ORDER, templateId: TEMPLATE, title: ' Montaż  ', customerId: CUSTOMER, siteId: SITE, ...payload },
+    ...extra,
+  });
+  const errorsOf = (raw: RawMutation) => {
+    const decoded = decodeMutation(raw, NOW);
+    return decoded.ok ? undefined : decoded.errors;
+  };
+
+  it('EVM-099 AC1 existing customer and site: the title is trimmed, the note is absent', () => {
+    expect(decodeMutation(quick(), NOW)).toMatchObject({
+      ok: true,
+      type: 'CreateQuickWorkOrder',
+      quick: { workOrderId: ORDER, title: 'Montaż', customerId: CUSTOMER, siteId: SITE, note: null, duplicateIds: false },
+    });
+  });
+
+  it('EVM-099 AC2 a new customer and a new site replace the identifiers; a blank note is no note, a real one is normalised', () => {
+    const both = decodeMutation(quick({ customerId: undefined, siteId: undefined, newCustomer, newSite, note: '  Dzwonić po 16.  ' }), NOW);
+    expect(both).toMatchObject({
+      ok: true,
+      quick: { newCustomer, newSite, customerId: undefined, siteId: undefined, note: 'Dzwonić po 16.' },
+    });
+    expect(decodeMutation(quick({ note: '  \n ' }), NOW)).toMatchObject({ ok: true, quick: { note: null } });
+  });
+
+  it('EVM-099 AC4 the same identifier twice in the command is flagged (the service answers id_conflict)', () => {
+    const twice = (payload: Record<string, unknown>) => decodeMutation(quick(payload), NOW);
+    expect(twice({ customerId: undefined, newCustomer: { ...newCustomer, id: ORDER } })).toMatchObject({
+      ok: true,
+      quick: { duplicateIds: true },
+    });
+    expect(twice({ siteId: undefined, newSite: { ...newSite, id: ORDER } })).toMatchObject({ ok: true, quick: { duplicateIds: true } });
+    expect(twice({ customerId: undefined, siteId: undefined, newCustomer, newSite: { ...newSite, id: NEW_CUSTOMER } })).toMatchObject({
+      ok: true,
+      quick: { duplicateIds: true },
+    });
+  });
+
+  it('EVM-099 AC5 exactly one of each pair: both or neither is exactly_one_of at the field', () => {
+    expect(errorsOf(quick({ newCustomer }))).toEqual([{ pointer: '/customerId', code: 'exactly_one_of' }]);
+    expect(errorsOf(quick({ customerId: undefined }))).toEqual([{ pointer: '/customerId', code: 'exactly_one_of' }]);
+    expect(errorsOf(quick({ newSite }))).toEqual([{ pointer: '/siteId', code: 'exactly_one_of' }]);
+    expect(errorsOf(quick({ siteId: undefined }))).toEqual([{ pointer: '/siteId', code: 'exactly_one_of' }]);
+  });
+
+  it('EVM-099 AC5 an unknown commandVersion, a bad title and a bad telephone are a pointer and a code - the answer never repeats a value', () => {
+    expect(errorsOf(quick({}, { commandVersion: 2 }))).toEqual([{ pointer: '/commandVersion', code: 'unsupported_version' }]);
+    expect(errorsOf(quick({ title: '   ' }))).toEqual([{ pointer: '/title', code: 'required' }]);
+    expect(errorsOf(quick({ title: 'a'.repeat(201) }))).toEqual([{ pointer: '/title', code: 'too_long' }]);
+    expect(errorsOf(quick({ note: 'a'.repeat(2001) }))).toEqual([{ pointer: '/note', code: 'too_long' }]);
+    const badPhone = errorsOf(quick({ customerId: undefined, newCustomer: { ...newCustomer, phone: 'abc-def-ghij' } }));
+    expect(badPhone).toEqual([{ pointer: '/newCustomer/phone', code: 'invalid_format' }]);
+    expect(JSON.stringify(badPhone)).not.toContain('abc-def-ghij');
+  });
+
+  it('EVM-099 AC2 the fields of the server and every field outside the contract are refused in the payload and in each new object (mass assignment)', () => {
+    const extras = ['origin', 'number', 'status', 'createdViaDeviceId', 'email', 'nip', 'ppe', 'version', '__proto__'];
+    for (const extra of extras) {
+      const field = JSON.parse(`{"${extra}":"x"}`) as Record<string, unknown>;
+      expect(errorsOf(quick(field)), `payload ${extra}`).toEqual([{ pointer: '', code: 'unknown_field' }]);
+      expect(errorsOf(quick({ customerId: undefined, newCustomer: { ...newCustomer, ...field } })), `customer ${extra}`).toEqual([
+        { pointer: '/newCustomer', code: 'unknown_field' },
+      ]);
+      expect(errorsOf(quick({ siteId: undefined, newSite: { ...newSite, ...field } })), `site ${extra}`).toEqual([
+        { pointer: '/newSite', code: 'unknown_field' },
+      ]);
+    }
+  });
+
+  it('EVM-099 AC5 at most 20 errors, none repeated', () => {
+    expect(errorsOf(quick({ title: 5, customerId: 5, siteId: 5, templateId: 5, workOrderId: 5, note: 5 }))?.length).toBeLessThanOrEqual(20);
+  });
+
+  it('EVM-099 AC5 the hash is the canonical command as received: the key order does not change it, the content does', () => {
+    const first = decodeMutation(quick(), NOW);
+    const second = decodeMutation(quick({ siteId: SITE, customerId: CUSTOMER }), NOW);
+    const other = decodeMutation(quick({ title: 'Inny' }), NOW);
+    expect(first.ok && second.ok && first.hash === second.hash).toBe(true);
+    expect(first.ok && other.ok && first.hash !== other.hash).toBe(true);
+  });
+});
+
+describe('the errors of the fields and the limit (EVM-099 AC5, AC7)', () => {
+  const CUSTOMER = '0193a000-0000-7000-8000-0000000000e1';
+  const SITE = '0193a000-0000-7000-8000-0000000000e2';
+  const base = { workOrderId: ORDER, templateId: ORDER, title: 'Montaż', customerId: CUSTOMER, siteId: SITE };
+  const raw = (payload: Record<string, unknown>): RawMutation => ({
+    mutationId: MUTATION,
+    type: 'CreateQuickWorkOrder',
+    commandVersion: 1,
+    payload: { ...base, ...payload },
+  });
+  const errorsOf = (mutation: RawMutation) => {
+    const decoded = decodeMutation(mutation, NOW);
+    return decoded.ok ? undefined : decoded.errors;
+  };
+
+  it('EVM-099 AC5 the code of the error comes from the kind of the issue: a length, a format, a value outside the list, a type - never a message or a value', () => {
+    expect(errorsOf(raw({ title: '' }))).toEqual([{ pointer: '/title', code: 'too_short' }]);
+    expect(
+      errorsOf(raw({ customerId: undefined, newCustomer: { id: ENTRY, kind: 'person', displayName: 'Jan Przykładowy', phone: 'abc' } })),
+    ).toEqual([
+      { pointer: '/newCustomer/phone', code: 'too_short' },
+      { pointer: '/newCustomer/phone', code: 'invalid_format' },
+    ]);
+    expect(
+      errorsOf(
+        raw({ customerId: undefined, newCustomer: { id: ENTRY, kind: 'alien', displayName: 'Jan Przykładowy', phone: '600600600' } }),
+      ),
+    ).toEqual([{ pointer: '/newCustomer/kind', code: 'invalid_value' }]);
+    expect(errorsOf(raw({ title: 7 }))).toEqual([{ pointer: '/title', code: 'invalid_type' }]);
+  });
+
+  it('EVM-099 AC5 an identifier with a slash or a tilde in the path of an unknown field cannot break the pointer: the pointer names no key of the client', () => {
+    expect(errorsOf(raw({ 'a/b~c': 1 }))).toEqual([{ pointer: '', code: 'unknown_field' }]);
+  });
+
+  it('EVM-099 AC5 the list of errors holds each error once and at most 20', () => {
+    const issues = Array.from({ length: 30 }, (_, index) => ({ pointer: `/field${index}`, code: 'invalid_type' }));
+    expect(capped(issues)).toHaveLength(20);
+    expect(capped([...issues.slice(0, 3), ...issues.slice(0, 3)])).toEqual(issues.slice(0, 3));
+  });
+
+  it('EVM-099 AC7 the refusal by the limit is a verdict that also names the kind of the limit', () => {
+    const signal = new QuotaExceededSignal('site');
+    expect(signal).toBeInstanceOf(MutationVerdictSignal);
+    expect(signal.kind).toBe('site');
+    expect(signal.verdict).toEqual({ outcome: 'rejected', code: 'quota_exceeded' });
   });
 });

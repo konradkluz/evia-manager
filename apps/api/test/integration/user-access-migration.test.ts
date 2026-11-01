@@ -73,6 +73,7 @@ beforeAll(async () => {
     '0055_sync_remaining_entities',
     '0056_sync_mutations',
     '0057_media_video',
+    '0058_quick_work_order',
     '0059_documents',
     '0060_media_metadata',
     '0061_document_anchors',
