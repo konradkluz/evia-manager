@@ -203,6 +203,14 @@ paths:
     $ref: paths/media.yaml#/mediaAssetRescan
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/download-url:
     $ref: paths/media.yaml#/mediaAssetDownloadUrl
+  /api/v1/sites/{siteId}/documents:
+    $ref: paths/documents.yaml#/listSiteDocuments
+  /api/v1/sites/{siteId}/documents/{documentId}/download-url:
+    $ref: paths/documents.yaml#/createSiteDocumentDownloadUrl
+  /api/v1/customers/{customerId}/documents:
+    $ref: paths/documents.yaml#/listCustomerDocuments
+  /api/v1/customers/{customerId}/documents/{documentId}/download-url:
+    $ref: paths/documents.yaml#/createCustomerDocumentDownloadUrl
   /api/v1/work-orders/{workOrderId}/documents:
     $ref: paths/documents.yaml#/workOrderDocuments
   /api/v1/work-orders/{workOrderId}/documents/{documentId}:
@@ -545,6 +553,8 @@ components:
       $ref: components/documents.yaml#/Document
     DocumentList:
       $ref: components/documents.yaml#/DocumentList
+    DocumentAnchor:
+      $ref: components/documents.yaml#/DocumentAnchor
     UpdateDocumentRequest:
       $ref: components/documents.yaml#/UpdateDocumentRequest
     DocumentUploadSession:

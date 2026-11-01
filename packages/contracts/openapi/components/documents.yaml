@@ -41,10 +41,19 @@ DocumentFile:
       description: SHA-256 pliku (małe litery szesnastkowo), liczony w przeglądarce; niezgodny z zawartością to `checksum_mismatch`.
       pattern: '^[a-f0-9]{64}$'
       maxLength: 64
+DocumentAnchor:
+  type: string
+  description: >-
+    Kotwica dokumentu (EVM-050; dokładnie jedna): `work_order` - dokument tylko tego zlecenia, `site` - dokument lokalizacji zlecenia (widoczny w zleceniach
+    WSZYSTKICH klientów tej lokalizacji, dlatego nigdy klasy `identity_data`), `customer` - dokument klienta zlecenia (widoczny w jego zleceniach i w szczegółach klienta).
+  enum: [work_order, site, customer]
 CreateDocumentRequest:
   type: object
   description: >-
-    Nowy dokument zlecenia (wersja 1). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`,
+    Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia,
+    klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta - `400` (`/anchor`, `no_customer`); `anchor=site` z klasą
+    efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`);
+    `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`,
     `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400`
     (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400`
     (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400
@@ -57,6 +66,8 @@ CreateDocumentRequest:
       format: uuid
       pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       maxLength: 36
+    anchor:
+      $ref: '#/DocumentAnchor'
     kindCode:
       type: string
       description: Kod rodzaju dokumentu z katalogu (np. `connection_conditions`).
@@ -90,14 +101,18 @@ CreateDocumentRequest:
 Document:
   type: object
   description: >-
-    Dokument zlecenia z jego plikiem (wersja 1). `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę
+    Dokument (zlecenia, lokalizacji albo klienta - `anchor`) z jego plikiem (wersja 1). Dokładnie jedno z `workOrderId`, `siteId`, `customerId` jest ustawione;
+    etap (`procedureStageId`) tylko przy kotwicy zlecenia. `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę
     rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko
     `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną
     `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `"<version>"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy
     nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.
   required:
     - id
+    - anchor
     - workOrderId
+    - siteId
+    - customerId
     - kindCode
     - kindName
     - title
@@ -120,10 +135,32 @@ Document:
       type: string
       format: uuid
       maxLength: 36
+    anchor:
+      $ref: '#/DocumentAnchor'
     workOrderId:
-      type: string
-      format: uuid
-      maxLength: 36
+      description: Zlecenie kotwicy albo `null` (dokument lokalizacji albo klienta).
+      readOnly: true
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    siteId:
+      description: Lokalizacja kotwicy albo `null`.
+      readOnly: true
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
+    customerId:
+      description: Klient kotwicy albo `null`.
+      readOnly: true
+      oneOf:
+        - type: string
+          format: uuid
+          maxLength: 36
+        - type: 'null'
     kindCode:
       type: string
       maxLength: 64

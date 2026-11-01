@@ -2953,8 +2953,11 @@
       },
       "CreateDocumentRequest": {
         "additionalProperties": false,
-        "description": "Nowy dokument zlecenia (wersja 1). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
+        "description": "Nowy dokument (wersja 1) z kotwicą zlecenia (domyślnie), lokalizacji albo klienta zlecenia z URL (EVM-050): serwer bierze `siteId` i `customerId` ze zlecenia, klient ich nie podaje (`read_only_field`). `anchor=customer` przy zleceniu bez klienta - `400` (`/anchor`, `no_customer`); `anchor=site` z klasą efektywną `identity_data` (rodzaj albo `containsIdentityData`/`confidentialityOverride`) - `400` (`/anchor`, `identity_data_not_on_site`); `procedureStageId` przy kotwicy innej niż zlecenie - `400` (`/procedureStageId`, `requires_work_order_anchor`). `id` (UUIDv7) nadaje klient. Rodzaj `other` wymaga `containsIdentityData` (brak - `400 validation_failed`, `/containsIdentityData`, `required`); `true` zapisuje klasę `identity_data` jako podniesienie. `containsIdentityData` przy innym rodzaju - `400` (`not_applicable`). `confidentialityOverride` musi być ściśle wyższe od klasy rodzaju (`not_higher`). Rodzaj nieistniejący albo nieaktywny - `400` (`/kindCode`, `unknown_kind`). Pola serwera (`versionNumber`, `fileState`, `confidentiality`, `workOrderId`, `kindName`, `canDownload`, `createdAt`, `version`) - `400 read_only_field`; nieznane - `400 unknown_field`. Tytuł 1 … 200 znaków, opis do 2000, bez znaków sterujących.",
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/DocumentAnchor"
+          },
           "confidentialityOverride": {
             "$ref": "#/components/schemas/DocumentConfidentialityOverride"
           },
@@ -4080,8 +4083,11 @@
       },
       "Document": {
         "additionalProperties": false,
-        "description": "Dokument zlecenia z jego plikiem (wersja 1). `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `\"<version>\"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
+        "description": "Dokument (zlecenia, lokalizacji albo klienta - `anchor`) z jego plikiem (wersja 1). Dokładnie jedno z `workOrderId`, `siteId`, `customerId` jest ustawione; etap (`procedureStageId`) tylko przy kotwicy zlecenia. `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `\"<version>\"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
         "properties": {
+          "anchor": {
+            "$ref": "#/components/schemas/DocumentAnchor"
+          },
           "canDownload": {
             "type": "boolean"
           },
@@ -4095,6 +4101,20 @@
             "format": "date-time",
             "maxLength": 40,
             "type": "string"
+          },
+          "customerId": {
+            "description": "Klient kotwicy albo `null`.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
           },
           "declaredSize": {
             "minimum": 1,
@@ -4165,6 +4185,20 @@
               }
             ]
           },
+          "siteId": {
+            "description": "Lokalizacja kotwicy albo `null`.",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
+          },
           "stateReasonCode": {
             "description": "Tylko `checksum_mismatch` (stan `failed`); w każdym innym przypadku `null`.",
             "oneOf": [
@@ -4192,14 +4226,26 @@
             "type": "integer"
           },
           "workOrderId": {
-            "format": "uuid",
-            "maxLength": 36,
-            "type": "string"
+            "description": "Zlecenie kotwicy albo `null` (dokument lokalizacji albo klienta).",
+            "oneOf": [
+              {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "readOnly": true
           }
         },
         "required": [
           "id",
+          "anchor",
           "workOrderId",
+          "siteId",
+          "customerId",
           "kindCode",
           "kindName",
           "title",
@@ -4218,6 +4264,15 @@
           "version"
         ],
         "type": "object"
+      },
+      "DocumentAnchor": {
+        "description": "Kotwica dokumentu (EVM-050; dokładnie jedna): `work_order` - dokument tylko tego zlecenia, `site` - dokument lokalizacji zlecenia (widoczny w zleceniach WSZYSTKICH klientów tej lokalizacji, dlatego nigdy klasy `identity_data`), `customer` - dokument klienta zlecenia (widoczny w jego zleceniach i w szczegółach klienta).",
+        "enum": [
+          "work_order",
+          "site",
+          "customer"
+        ],
+        "type": "string"
       },
       "DocumentConfidentiality": {
         "description": "Klasa poufności dokumentu (zamknięta lista; klient toleruje wartość nieznaną jako najbardziej ograniczoną): `standard` (Standardowy), `building_security` (Bezpieczeństwo budynku), `identity_data` (Dane identyfikacyjne). Porządek: `standard` < `building_security` < `identity_data`. Klasa efektywna to wyższa z klasy rodzaju (katalog) i podniesienia dokumentu; liczy ją serwer.",
@@ -14369,6 +14424,150 @@
         }
       }
     },
+    "/api/v1/customers/{customerId}/documents": {
+      "get": {
+        "description": "„Dokumenty klienta (n)” W-09 i W-14 (EVM-050 AC2, AC7; SR-AUTHZ-02, SR-AUTHZ-03). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Klient jest rozwiązywany polityką odczytu: nieistniejący i usunięty - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listCustomerDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów z kotwicą klienta (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Klient - dokumenty klienta (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → klienta przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej klienta, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.",
+        "operationId": "createCustomerDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CustomerIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu klienta (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
     "/api/v1/customers/{customerId}/restore": {
       "post": {
         "description": "Przywrócenie klienta usuniętego przez `deleteCustomer` (EVM-041 AC3, AC6, AC7; SR-AUTHZ-05, SR-API-05, SR-API-06, SR-LOG-03): klient znów jest widoczny dla wszystkich ról. Klient zanonimizowany też da się przywrócić (zostaje zanonimizowany). Tylko Administrator, kanał `web` (Edytor i Tylko odczyt — `403 forbidden` przed `404` i `If-Match`; niezalogowany — `401`; token mobilny — `403 channel_not_allowed`), z audytem (`customer.restored` — aktor, identyfikator, wynik, `traceId`; bez wartości). Wymaga `X-CSRF-Token`, `If-Match` (`428` / `400` / `412 version_conflict`) i `Idempotency-Key` (opcjonalny). Klient nieusunięty albo nieistniejący — `404` (tak samo; `If-Match` nie jest wtedy czytany), chyba że to powtórka z kluczem. Powtórka (ten sam klucz i klient) — `200` z bieżącą reprezentacją i `Idempotent-Replayed: true`, także gdy `If-Match` jest nieaktualny. Klucz jest związany z użytkownikiem, metodą, szablonem ścieżki i klientem. Odpowiedź `200` ma nowy `ETag`.",
@@ -15379,6 +15578,150 @@
           "roles": [
             "administrator",
             "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/sites/{siteId}/documents": {
+      "get": {
+        "description": "„Dokumenty lokalizacji (n)” W-09 (EVM-050 AC2, AC4, AC7; SR-AUTHZ-02, SR-AUTHZ-03, SR-AUTHZ-08). Role Administrator, Edytor i Tylko odczyt (metadane WSZYSTKICH klas; pobranie reguluje `canDownload`), kanał `web` (token mobilny - `403 channel_not_allowed`; dokumenty lokalizacji i klienta nie trafiają na telefon), bez audytu odczytu. Zwracane są WYŁĄCZNIE dokumenty z tą kotwicą - nigdy dokumenty ani media zleceń (SR-AUTHZ-08, AB-19). Lokalizacja jest rozwiązywana polityką odczytu: nieistniejąca i usunięta - `404` dla każdej roli. Kolejność: `createdAt` malejąco, potem `id`; `limit` 1-100 (domyślnie 25); kursor związany z kotwicą i wariantem roli - z innym `400 invalid_cursor`. `totalCount` liczony tym samym predykatem co strona. Odpowiedź nie zawiera klucza obiektu, skrótu ani identyfikatora uploadu S3. `Cache-Control: no-store`.",
+        "operationId": "listSiteDocuments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteIdParameter"
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentList"
+                }
+              }
+            },
+            "description": "Strona dokumentów z kotwicą lokalizacji (pusta lista to pusta tablica `items`, `nextCursor` równy `null` i `totalCount` 0)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Lokalizacja - dokumenty lokalizacji (kursor)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/sites/{siteId}/documents/{documentId}/download-url": {
+      "post": {
+        "description": "Jak `createDocumentDownloadUrl` (EVM-050 AC3, AC5, AC6; SR-FILE-07, SR-FILE-10, SR-AUTHZ-02, SR-AUTHZ-06, SR-AUTHZ-07). Role Administrator, Edytor i Tylko odczyt, kanał `web`; bez treści; wymaga `X-CSRF-Token`. Kolejność: strażnik → ścieżka (`400`) → lokalizację przez politykę odczytu (`404`) → JEDNO zapytanie o dokument z TĄ kotwicą (`404`: dokument innej lokalizacji, zlecenia, medium, nieistniejący) → klasa efektywna (Tylko odczyt dla `building_security`/`identity_data` - `403` z audytem odmowy) → stan pliku (`404` poza `clean`/`ready`) → ten sam licznik „oryginały i dokumenty” co pozostałe ścieżki (`429`) → podpis (300 s, `attachment`, typ wykryty przez serwer). Audyt `document_file.downloaded` / `document_file.download_denied` z kodem klasy, bez tytułu, nazwy pliku i adresu.",
+        "operationId": "createSiteDocumentDownloadUrl",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SiteIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrl"
+                }
+              }
+            },
+            "description": "Podpisany adres pliku.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Zawsze `no-store`.",
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaStorageUnavailable"
+          }
+        },
+        "summary": "Podpisany adres pliku dokumentu lokalizacji (pobranie wg klasy poufności)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor",
+            "read_only"
           ]
         }
       }
@@ -17148,7 +17491,7 @@
         }
       },
       "post": {
-        "description": "Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
+        "description": "EVM-050: opcjonalne `anchor` (`work_order` domyślnie, `site`, `customer`) - dokument lokalizacji albo klienta ZLECENIA ze ścieżki (serwer bierze `siteId`/`customerId` ze zlecenia; w treści - `400 read_only_field`); `anchor=site` z klasą `identity_data` - `400` (`/anchor`, `identity_data_not_on_site`, SR-AUTHZ-08, AB-19); `anchor=customer` bez klienta zlecenia - `400` (`no_customer`); etap przy kotwicy innej niż zlecenie - `400` (`requires_work_order_anchor`). Idempotencja: skrót treści obejmuje `anchor` (ten sam klucz z inną kotwicą - `422 idempotency_mismatch`). Plik kotwicy lokalizacji i klienta wgrywa się ścieżką zlecenia (`upload-sessions`), z którego dokument powstał. Utworzenie dokumentu, jego wersji 1 i rekordu pliku w stanie `pending_upload` (EVM-047 AC1-AC4, AC6, AC7; SR-AUTHZ-02, SR-AUTHZ-05, SR-AUTHZ-07, SR-INPUT-01, SR-FILE-01, SR-FILE-03, SR-API-05, SR-LOG-03). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed treścią; niezalogowany - `401`; token mobilny - `403 channel_not_allowed`), kanał `web`, z audytem (`document.created` - aktor, identyfikator, kod klasy, wynik, `traceId`; bez tytułu, opisu i nazwy pliku). Wymaga `X-CSRF-Token` i `Idempotency-Key` (UUIDv7); ten sam klucz albo `id` z inną treścią - `422 idempotency_mismatch` / `409 id_conflict`. Jedna transakcja: zlecenie przez politykę odczytu (`404`), nagłówek i treść schematem (`400`; pola serwera - `read_only_field`), rodzaj z katalogu (nieistniejący lub nieaktywny - `400`), klasa (AC3/AC4), plik (typ, rozszerzenie, rozmiar - `400` ze wskaźnikiem `/file/…`), zapis, JEDEN wpis dziennika zlecenia (`document_added`: identyfikator dokumentu i kod rodzaju - bez tytułu i nazwy) i audyt. Klasa efektywna jest liczona przez serwer. Klucz obiektu nadaje serwer (`documents/{rok}/{miesiąc}/{id pliku}/original`, bez nazwy pliku i numeru zlecenia). Brak konfiguracji magazynu - `503 media_storage_unavailable`. Komunikaty błędów nie powtarzają wartości (tytuł i nazwa pliku mogą być danymi osobowymi).",
         "operationId": "createDocument",
         "parameters": [
           {

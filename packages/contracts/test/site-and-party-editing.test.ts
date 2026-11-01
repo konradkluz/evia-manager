@@ -46,8 +46,13 @@ describe('site and party editing contract (EVM-036; SR-AUTHZ-01, SR-AUTHZ-04, SR
       authz: { roles: ['administrator', 'editor', 'read_only'], channels: ['web'] },
     });
     const paths = [...new Set(Object.values(AUTHZ_MANIFEST).map((operation) => operation.path))];
-    expect(paths.filter((path) => /\{siteId\}\/(media|documents|work-orders|customers|orders)/.test(path))).toEqual([]);
-    expect(paths.filter((path) => path.includes('{siteId}'))).toEqual(['/api/v1/sites/{siteId}']);
+    // EVM-050 adds ONLY the documents anchored to a site (SR-AUTHZ-08, AB-19): never the media, the orders or the customers of a site
+    expect(paths.filter((path) => /\{siteId\}\/(media|work-orders|customers|orders)/.test(path))).toEqual([]);
+    expect(paths.filter((path) => path.includes('{siteId}')).sort()).toEqual([
+      '/api/v1/sites/{siteId}',
+      '/api/v1/sites/{siteId}/documents',
+      '/api/v1/sites/{siteId}/documents/{documentId}/download-url',
+    ]);
   });
 
   it('EVM-036 AC7 the edits need If-Match as a strong tag and take an optional UUIDv7 Idempotency-Key', () => {
