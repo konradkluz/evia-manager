@@ -97,3 +97,4 @@ _—_
 - 2026-10-03 — draft → ready: AC zaakceptowane przez Konrada (akceptacja planu M1 na demo EVM-010)
 - 2026-11-01 — plan gotowy (backend-developer)
 - 2026-11-01 — implementacja backendu (backend-developer): migracja 0060, `updateMediaAsset`, `updateDocument`, etap z fasady `procedures`, audyt; panel (web-developer) w kolejnym kroku
+- 2026-11-01 — panel (web-developer): Select „Etap” w dialogach wysyłania, edycja opisu/kategorii/etapu medium (lightbox) i dokumentu (menu ⋮), grupowanie „Grupuj: Etap”, kolumna „Etap”, stany AC8; testy `EVM-048 AC#` (Vitest + Playwright)
