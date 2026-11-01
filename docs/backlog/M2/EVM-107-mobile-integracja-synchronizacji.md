@@ -11,7 +11,7 @@ owner: mobile-developer
 contributors: []
 reviewers: [code-reviewer, security-engineer, ux-designer]
 model: sonnet
-depends_on: [EVM-092, EVM-093, EVM-094, EVM-096, EVM-098, EVM-100]
+depends_on: [EVM-092, EVM-093, EVM-094, EVM-096, EVM-098, EVM-100, EVM-101]
 ---
 
 # EVM-107: Aplikacja — integracja synchronizacji
@@ -72,3 +72,4 @@ Ekrany funkcji (EVM-103…106), pliki (E11), powiadomienia push.
 ## Dziennik
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: architekt, security, UX (product-owner)
+- 2026-11-01 — refinement: dodano zależność EVM-101 (czyszczenie danych w AC5, kontrole po logowaniu). Status zostaje `draft` do czasu `done` EVM-101 (DoR: zależności), potem `ready` (tech lead); AC zaakceptowane przez Konrada 2026-11-01 — `ready` ustawia tech lead po zakończeniu EVM-101
