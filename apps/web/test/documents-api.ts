@@ -17,7 +17,10 @@ export const KINDS: readonly DocumentKind[] = [
 export function doc(n: number, extra: Partial<OrderDocument> = {}): OrderDocument {
   return {
     id: `01968f3e-0000-7000-8000-00000e${String(n).padStart(6, '0')}`,
+    anchor: 'work_order',
     workOrderId: ORDER_ID,
+    siteId: null,
+    customerId: null,
     kindCode: 'connection_conditions',
     kindName: 'Warunki przyłączenia',
     title: `Dokument ${String(n)}`,
