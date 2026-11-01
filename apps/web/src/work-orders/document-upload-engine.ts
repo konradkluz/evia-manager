@@ -9,6 +9,7 @@ import {
 } from '@evia/contracts';
 import { ApiError, unwrap } from '../api/client.ts';
 import { uuidv7 } from '../customers/uuid.ts';
+import { isStageRejection } from './stage-choice.ts';
 import type { PutResult } from './media-upload-engine.ts';
 
 /**
@@ -18,7 +19,7 @@ import type { PutResult } from './media-upload-engine.ts';
  * memory of the tab only (SR-WEB-05): file names and titles are personal data, nothing goes to the storage of the browser.
  */
 export type DocumentItemStatus = 'hashing' | 'creating' | 'queued' | 'uploading' | 'paused' | 'done' | 'failed';
-export type DocumentFailure = 'network' | 'rate' | 'validation' | 'forbidden' | 'conflict' | 'server';
+export type DocumentFailure = 'network' | 'rate' | 'validation' | 'forbidden' | 'conflict' | 'stage' | 'server';
 
 export interface DocumentItem {
   /** The id of the document (UUIDv7 made here). */
@@ -39,6 +40,8 @@ export interface NewDocument {
   /** Asked for the kind "Inny dokument" only; `null` = not asked. */
   readonly containsIdentityData: boolean | null;
   readonly confidentialityOverride: Exclude<DocumentConfidentiality, 'standard'> | null;
+  /** The stage of the order (EVM-048 AC1); `null`/absent = none. */
+  readonly procedureStageId?: string | null;
 }
 
 export interface DocumentEngineDeps {
@@ -158,6 +161,7 @@ export class DocumentUploadEngine {
             kindCode: input.kindCode,
             title: input.title,
             ...(input.description === '' ? {} : { description: input.description }),
+            ...(input.procedureStageId == null ? {} : { procedureStageId: input.procedureStageId }),
             ...(input.containsIdentityData === null ? {} : { containsIdentityData: input.containsIdentityData }),
             ...(input.confidentialityOverride === null ? {} : { confidentialityOverride: input.confidentialityOverride }),
             file: {
@@ -179,7 +183,7 @@ export class DocumentUploadEngine {
   /** "Ponów": goes through the steps that are not finished (the same keys, so the server does not add the document twice). */
   retry(key: string): void {
     const entry = this.items.get(key);
-    if (entry?.item.status !== 'failed' || entry.item.failure === 'conflict') return;
+    if (entry?.item.status !== 'failed' || entry.item.failure === 'conflict' || entry.item.failure === 'stage') return;
     this.patch(key, { failure: null, percent: 0 });
     void this.prepare(key).then(() => this.drain());
   }
@@ -301,6 +305,7 @@ function describe(error: unknown): DocumentFailure {
   if (!(error instanceof ApiError)) return 'network';
   if (error.status === 429) return 'rate';
   if (error.status === 403) return 'forbidden';
+  if (isStageRejection(error)) return 'stage';
   if (isEndedSession(error)) return 'server';
   if (error.status === 409) return 'conflict';
   if (error.status === 400 || error.status === 422) return 'validation';

@@ -13,6 +13,8 @@ import { MAX_PARALLEL_URL_REQUESTS, RequestLimiter, useSeen, useThumbnailRequest
 /** The order of the groups: the work in progress first (W-09 mockup), then before, after, the rest. */
 const GROUP_ORDER = ['in_progress', 'before_work', 'completed_work', 'site_survey', 'defect', 'measurement', 'other'] as const;
 
+const NO_ORDER: readonly string[] = [];
+
 interface Group {
   readonly category: string;
   readonly assets: readonly MediaAsset[];
@@ -29,6 +31,39 @@ export function groupByCategory(assets: readonly MediaAsset[]): Group[] {
     const group = byCategory.get(category);
     return group === undefined ? [] : [{ category, assets: group }];
   });
+}
+
+/** A group of the tiles under one heading: a category or a stage (EVM-048 AC5). */
+interface Section {
+  readonly key: string;
+  readonly label: string;
+  readonly assets: readonly MediaAsset[];
+}
+
+/**
+ * "Grupuj: Etap" (EVM-048 AC5): the stages in the order of the processes (`order` = ids of the stages), then the stages that are gone from the order
+ * (the name stays on the medium), and "Bez etapu" last.
+ */
+export function groupByStage(assets: readonly MediaAsset[], order: readonly string[]): Section[] {
+  const byStage = new Map<string, MediaAsset[]>();
+  const names = new Map<string, string>();
+  const without: MediaAsset[] = [];
+  for (const asset of assets) {
+    if (asset.procedureStageId === null) {
+      without.push(asset);
+      continue;
+    }
+    byStage.set(asset.procedureStageId, [...(byStage.get(asset.procedureStageId) ?? []), asset]);
+    names.set(asset.procedureStageId, asset.procedureStageName ?? mediaText.noStage);
+  }
+  const rank = (id: string) => {
+    const index = order.indexOf(id);
+    return index === -1 ? order.length : index;
+  };
+  const sections = [...byStage.keys()]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((id) => ({ key: id, label: names.get(id) ?? mediaText.noStage, assets: byStage.get(id) ?? [] }));
+  return without.length === 0 ? sections : [...sections, { key: 'no-stage', label: mediaText.noStage, assets: without }];
 }
 
 const altOf = mediaAlt;
@@ -131,15 +166,30 @@ export function MediaGallery({
   assets,
   online,
   canDownloadOriginal = false,
+  canEdit = false,
+  grouping = 'category',
+  stageOrder = NO_ORDER,
 }: {
   readonly workOrderId: string;
   readonly assets: readonly MediaAsset[];
   readonly online: boolean;
   /** Administrator and Editor (convenience only; the server decides). */
   readonly canDownloadOriginal?: boolean;
+  /** Administrator and Editor: "Edytuj opis" in the lightbox (the server decides). */
+  readonly canEdit?: boolean;
+  /** "Grupuj: Kategoria / Etap" of the tab (EVM-048 AC5). */
+  readonly grouping?: 'category' | 'stage';
+  /** The ids of the stages in the order of the processes (the order of the groups). */
+  readonly stageOrder?: readonly string[];
 }) {
   const limiter = useMemo(() => new RequestLimiter(MAX_PARALLEL_URL_REQUESTS), []);
-  const groups = useMemo(() => groupByCategory(assets), [assets]);
+  const groups = useMemo<Section[]>(
+    () =>
+      grouping === 'stage'
+        ? groupByStage(assets, stageOrder)
+        : groupByCategory(assets).map((group) => ({ key: group.category, label: groupLabel(group.category), assets: group.assets })),
+    [assets, grouping, stageOrder],
+  );
   const [openId, setOpenId] = useState<string | null>(null);
   // the order of the lightbox is the order of the tiles (group after group)
   const flat = useMemo(() => groups.flatMap((group) => group.assets), [groups]);
@@ -149,10 +199,10 @@ export function MediaGallery({
     <div className="flex flex-col gap-stack-md">
       {online ? null : <InlineAlert tone="info">{mediaText.galleryOffline}</InlineAlert>}
       {groups.map((group) => (
-        <section key={group.category} aria-label={groupLabel(group.category)} className="flex flex-col gap-stack-sm">
-          <h4 className="text-heading-4">{mediaText.groupHeading(groupLabel(group.category), group.assets.length)}</h4>
+        <section key={group.key} aria-label={group.label} className="flex flex-col gap-stack-sm">
+          <h4 className="text-heading-4">{mediaText.groupHeading(group.label, group.assets.length)}</h4>
           <ul
-            aria-label={groupLabel(group.category)}
+            aria-label={group.label}
             className="grid gap-inline-sm [grid-template-columns:repeat(auto-fill,minmax(var(--evm-size-thumbnail-md),1fr))]"
           >
             {group.assets.map((asset) => (
@@ -176,6 +226,7 @@ export function MediaGallery({
         index={openIndex < 0 ? null : openIndex}
         online={online}
         canDownloadOriginal={canDownloadOriginal}
+        canEdit={canEdit}
         onIndex={(index) => {
           setOpenId(flat[index]?.id ?? null);
         }}

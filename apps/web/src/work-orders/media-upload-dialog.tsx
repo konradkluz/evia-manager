@@ -3,6 +3,7 @@ import { Banner, Button, Dialog, Images, InlineAlert, Select, TextArea, Triangle
 import { useEffect, useRef, useState } from 'react';
 import { checkFile, isVideoType, LARGE_VIDEO_BYTES, MAX_BATCH, MAX_VIDEO_SECONDS, readVideoDuration } from './media-files.ts';
 import { categoryLabel, filesCount, formatBytes, mediaCategoryLabels, mediaText, photosCount } from './media-labels.ts';
+import { NO_STAGE, stageSelectOptions, useStageChoices } from './stage-choice.ts';
 import type { MediaUpload } from './use-media.ts';
 
 const CATEGORIES = Object.keys(mediaCategoryLabels) as MediaCategory[];
@@ -35,8 +36,10 @@ const EMPTY: Selection = { chosen: [], skipped: [], overflow: false };
  * "Anuluj". A file that fits an unfinished session of the person resumes it instead of making a new medium (AC4).
  * The chosen files live in the state of the dialog only (memory of the tab; nothing in the storage of the browser — SR-WEB-05).
  */
-export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
+export function MediaUploadDialog({ media, workOrderId }: { readonly media: MediaUpload; readonly workOrderId: string }) {
   const { dialog, closeDialog, engine, sessions } = media;
+  const stages = useStageChoices(workOrderId);
+  const [stage, setStage] = useState(NO_STAGE);
   const [selection, setSelection] = useState<Selection>(EMPTY);
   const [warning, setWarning] = useState(false);
   const [category, setCategory] = useState<MediaCategory>(DEFAULT_CATEGORY);
@@ -92,6 +95,7 @@ export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
     setWarning(false);
     setCategory(DEFAULT_CATEGORY);
     setDescription('');
+    setStage(NO_STAGE);
     if (files.length > 0) void take(files);
   }, [open, files]);
 
@@ -102,7 +106,13 @@ export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
     closeDialog();
     void engine.add(
       chosen.map((entry) => entry.file),
-      { category, description: description.trim(), contentTypes, unfinished: sessions },
+      {
+        category,
+        description: description.trim(),
+        procedureStageId: stage === NO_STAGE || !stages.choices.some((choice) => choice.id === stage) ? null : stage,
+        contentTypes,
+        unfinished: sessions,
+      },
     );
   };
 
@@ -233,6 +243,8 @@ export function MediaUploadDialog({ media }: { readonly media: MediaUpload }) {
           setCategory(value as MediaCategory);
         }}
       />
+      <Select label={mediaText.stage} value={stage} options={stageSelectOptions(stages.choices, mediaText.noStage)} onChange={setStage} />
+      {stages.failed ? <InlineAlert tone="error">{mediaText.stagesFailed}</InlineAlert> : null}
       <TextArea
         label={mediaText.description}
         value={description}

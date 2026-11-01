@@ -5,6 +5,7 @@ import { checkDocumentFile, DOCUMENT_ACCEPT } from './document-files.ts';
 import { confidentialityLabel, documentText, effectiveClass, higherClasses, OTHER_KIND } from './document-labels.ts';
 import type { DocumentUploadEngine } from './document-upload-engine.ts';
 import { formatBytes } from './media-labels.ts';
+import { NO_STAGE, stageSelectOptions, useStageChoices } from './stage-choice.ts';
 
 const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 2000;
@@ -26,12 +27,14 @@ interface Errors {
  */
 export function DocumentUploadDialog({
   open,
+  workOrderId,
   kinds,
   kindsFailed,
   engine,
   onClose,
 }: {
   readonly open: boolean;
+  readonly workOrderId: string;
   readonly kinds: readonly DocumentKind[];
   readonly kindsFailed: boolean;
   readonly engine: DocumentUploadEngine;
@@ -44,6 +47,8 @@ export function DocumentUploadDialog({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [raise, setRaise] = useState('');
+  const [stage, setStage] = useState(NO_STAGE);
+  const stages = useStageChoices(workOrderId);
   const [errors, setErrors] = useState<Errors>({});
 
   useEffect(() => {
@@ -55,6 +60,7 @@ export function DocumentUploadDialog({
     setTitle('');
     setDescription('');
     setRaise('');
+    setStage(NO_STAGE);
     setErrors({});
   }, [open]);
 
@@ -102,6 +108,7 @@ export function DocumentUploadDialog({
       description: trimmedDescription,
       containsIdentityData: isOther ? identity === 'yes' : null,
       confidentialityOverride: override ?? null,
+      procedureStageId: stage === NO_STAGE || !stages.choices.some((choice) => choice.id === stage) ? null : stage,
     });
   };
 
@@ -195,6 +202,13 @@ export function DocumentUploadDialog({
           onChange={setRaise}
         />
       ) : null}
+      <Select
+        label={documentText.stage}
+        value={stage}
+        options={stageSelectOptions(stages.choices, documentText.noStage)}
+        onChange={setStage}
+      />
+      {stages.failed ? <InlineAlert tone="error">{documentText.stagesFailed}</InlineAlert> : null}
       <TextArea
         label={documentText.descriptionField}
         value={description}

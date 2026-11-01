@@ -47,7 +47,10 @@ export const documentText = {
   loadFailedHint: 'Sprawdź połączenie i spróbuj ponownie.',
   retryLoad: 'Spróbuj ponownie',
   showMore: 'Pokaż więcej',
-  columns: { kind: 'Rodzaj', title: 'Tytuł', version: 'Wersja', confidentiality: 'Klasa', state: 'Plik', actions: 'Akcje' },
+  columns: { kind: 'Rodzaj', title: 'Tytuł', stage: 'Etap', version: 'Wersja', confidentiality: 'Klasa', state: 'Plik', actions: 'Akcje' },
+  noStage: 'Bez etapu',
+  stage: 'Etap (opcjonalnie)',
+  stagesFailed: 'Nie wczytano etapów zlecenia. Dokument możesz dodać bez etapu.',
   actionsLabel: (title: string) => `Akcje dokumentu: ${title}`,
   // dialog "Dodaj dokument"
   dialogTitle: 'Dodaj dokument',
@@ -88,6 +91,20 @@ export const documentText = {
   raiseRejected: 'Wybierz klasę wyższą niż obecna.',
   raiseForbidden: 'Nie masz uprawnień do zmiany klasy dokumentu.',
   raiseFailed: 'Nie udało się podnieść klasy. Spróbuj ponownie.',
+  // EVM-048: the edit of the metadata from the menu `⋮`
+  editMenu: 'Edytuj…',
+  editTitle: 'Edytuj dokument',
+  editSave: 'Zapisz',
+  editConflict: 'Dokument zmienił się w międzyczasie. Odświeżyliśmy dane — sprawdź je i zapisz ponownie.',
+  editStageGone: 'Wybrany etap nie jest już dostępny. Odświeżyliśmy listę etapów — wybierz etap jeszcze raz.',
+  editRejected: 'Serwer odrzucił zmianę. Sprawdź tytuł i opis i spróbuj ponownie.',
+  editForbidden: 'Nie masz uprawnień do edycji dokumentu.',
+  editNotFound: 'Nie znaleziono dokumentu. Mógł zostać usunięty.',
+  editFailed: 'Nie udało się zapisać zmian. Spróbuj ponownie.',
+  editRate: (seconds: number | null) =>
+    seconds === null
+      ? 'Zbyt wiele zapytań. Spróbuj ponownie za chwilę.'
+      : `Zbyt wiele zapytań. Spróbuj ponownie za ${seconds >= 60 ? `${String(Math.ceil(seconds / 60))} min` : `${String(seconds)} s`}.`,
   // state of the file
   waiting: 'Czeka na plik',
   checking: 'Sprawdzanie pliku',
@@ -114,6 +131,7 @@ export const documentText = {
     rate: 'Zbyt wiele zapytań. Spróbuj ponownie za chwilę.',
     validation: 'Nie wysłano — serwer odrzucił dokument. Sprawdź rodzaj, tytuł i plik.',
     forbidden: 'Nie masz uprawnień do dodawania dokumentów.',
+    stage: 'Nie wysłano — wybrany etap nie jest już dostępny. Dodaj dokument ponownie, wybierając inny etap.',
     conflict: 'Nie wysłano — dokument o tym identyfikatorze już istnieje. Dodaj go ponownie.',
     server: 'Nie udało się wysłać dokumentu. Spróbuj ponownie.',
   },

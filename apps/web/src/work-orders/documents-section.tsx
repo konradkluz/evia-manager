@@ -19,6 +19,7 @@ import {
 import { useId, useState } from 'react';
 import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
+import { DocumentEditDialog } from './document-edit-dialog.tsx';
 import { DocumentRaiseDialog } from './document-raise-dialog.tsx';
 import { DocumentUploadDialog } from './document-upload-dialog.tsx';
 import { confidentialityLabel, documentText, higherClasses } from './document-labels.ts';
@@ -84,6 +85,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
   const request = useDocumentDownload(order.id);
   const [adding, setAdding] = useState(false);
   const [raising, setRaising] = useState<OrderDocument | null>(null);
+  const [editing, setEditing] = useState<OrderDocument | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -136,6 +138,14 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
         ...(canGet && online ? {} : { disabledHint: online ? documentText.checkingDetail : documentText.offlineNote }),
       },
       {
+        id: 'edit',
+        label: documentText.editMenu,
+        onSelect: () => {
+          setEditing(document);
+        },
+        ...(online ? {} : { disabledHint: documentText.offlineNote }),
+      },
+      {
         id: 'raise',
         label: documentText.raiseMenu,
         onSelect: () => {
@@ -172,6 +182,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
           {document.description === null ? null : <span className="break-words text-text-secondary">{document.description}</span>}
           {document.originalFilename === null ? null : <span className="break-words text-text-secondary">{document.originalFilename}</span>}
         </div>,
+        document.procedureStageName ?? documentText.noStage,
         String(document.versionNumber),
         <span key="class" className="inline-flex items-center gap-inline-xs">
           {restricted ? <Lock aria-hidden="true" className="size-icon-md shrink-0" /> : null}
@@ -221,7 +232,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
                 actions={
                   item.status === 'failed' || item.status === 'done' ? (
                     <>
-                      {item.status === 'failed' && item.failure !== 'conflict' ? (
+                      {item.status === 'failed' && item.failure !== 'conflict' && item.failure !== 'stage' ? (
                         <Button
                           variant="secondary"
                           onClick={() => {
@@ -293,6 +304,7 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
           columns={[
             { id: 'title-kind', header: documentText.columns.kind, card: 'meta' },
             { id: 'title', header: documentText.columns.title, card: 'primary' },
+            { id: 'stage', header: documentText.columns.stage, card: 'meta', cardLabel: true },
             { id: 'version', header: documentText.columns.version, card: 'meta', cardLabel: true },
             { id: 'class', header: documentText.columns.confidentiality, card: 'meta', cardLabel: true },
             { id: 'state', header: documentText.columns.state, card: 'detail' },
@@ -314,11 +326,19 @@ export function DocumentsSection({ order, upload }: { readonly order: WorkOrderD
       ) : null}
       <DocumentUploadDialog
         open={adding}
+        workOrderId={order.id}
         kinds={kinds.data ?? []}
         kindsFailed={kinds.isError}
         engine={engine}
         onClose={() => {
           setAdding(false);
+        }}
+      />
+      <DocumentEditDialog
+        workOrderId={order.id}
+        document={editing}
+        onClose={() => {
+          setEditing(null);
         }}
       />
       <DocumentRaiseDialog

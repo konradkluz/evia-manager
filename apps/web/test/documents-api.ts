@@ -1,6 +1,7 @@
 import type { CurrentSession, Document as OrderDocument, DocumentKind } from '@evia/contracts';
 import { json, parseBody, problem, type Handler, type Recorded } from './api-fake.ts';
 import { BUCKET_URL, DOCUMENTS_BASE, KINDS_ROUTE, mediaApi } from './media-api.ts';
+import { stageName } from './stages-api.ts';
 import { ORDER_ID } from './work-order-api.ts';
 
 export { DOCUMENTS_BASE };
@@ -54,9 +55,10 @@ export interface DocumentsServerOptions {
 export function documentsApi(options: DocumentsServerOptions = {}) {
   const created: OrderDocument[] = [];
   const completed = new Set<string>();
+  const edited = new Map<string, OrderDocument>();
   const all = () => [
     ...created.map((entry) => (completed.has(entry.id) ? { ...entry, fileState: options.stateAfterComplete ?? 'clean' } : entry)),
-    ...(options.documents ?? []),
+    ...(options.documents ?? []).map((entry) => edited.get(entry.id) ?? entry),
   ];
   const list: Handler =
     options.list ??
@@ -72,6 +74,7 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
         kindCode: string;
         title: string;
         description?: string;
+        procedureStageId?: string;
         containsIdentityData?: boolean;
         confidentialityOverride?: OrderDocument['confidentiality'];
         file: { fileName: string; declaredSize: number };
@@ -85,6 +88,8 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
         kindName: kind?.name ?? body.kindCode,
         title: body.title,
         description: body.description ?? null,
+        procedureStageId: body.procedureStageId ?? null,
+        procedureStageName: stageName(body.procedureStageId),
         confidentiality: effective,
         confidentialityRaised: effective !== kind?.confidentiality,
         fileState: 'pending_upload',
@@ -144,15 +149,19 @@ export function documentsApi(options: DocumentsServerOptions = {}) {
       /\/documents\/[^/]+$/,
       options.raise ??
         ((request) => {
-          const body = parseBody(request.body) as { confidentialityOverride: OrderDocument['confidentiality'] };
+          const body = parseBody(request.body) as Partial<OrderDocument> & { confidentialityOverride?: OrderDocument['confidentiality'] };
           const id = request.path.split('/').at(-1) ?? '';
-          const found = (options.documents ?? []).find((entry) => entry.id === id) ?? doc(0, { id });
-          return json(200, {
+          const found = edited.get(id) ?? (options.documents ?? []).find((entry) => entry.id === id) ?? doc(0, { id });
+          const { confidentialityOverride, ...fields } = body;
+          const next: OrderDocument = {
             ...found,
-            confidentiality: body.confidentialityOverride,
-            confidentialityRaised: true,
+            ...fields,
+            ...(confidentialityOverride === undefined ? {} : { confidentiality: confidentialityOverride, confidentialityRaised: true }),
+            procedureStageName: 'procedureStageId' in body ? stageName(body.procedureStageId) : found.procedureStageName,
             version: found.version + 1,
-          });
+          };
+          edited.set(id, next);
+          return json(200, next, { ETag: `"${String(next.version)}"` });
         }),
     ],
   ]);

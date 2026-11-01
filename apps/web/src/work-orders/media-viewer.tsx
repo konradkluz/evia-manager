@@ -5,6 +5,7 @@ import { ApiError } from '../api/client.ts';
 import { formatClock, formatDate } from './format.ts';
 import { categoryLabel, mediaAlt, mediaText } from './media-labels.ts';
 import { useVariantRequest, useVariantTicket } from './media-thumbnails.ts';
+import { MediaEditDialog } from './media-edit-dialog.tsx';
 import { UnscannedMark } from './media-unscanned.tsx';
 import { VideoPlayer } from './media-video-player.tsx';
 
@@ -126,6 +127,7 @@ export function MediaViewer({
   index,
   online,
   canDownloadOriginal,
+  canEdit = false,
   onIndex,
   onClose,
 }: {
@@ -134,6 +136,8 @@ export function MediaViewer({
   readonly index: number | null;
   readonly online: boolean;
   readonly canDownloadOriginal: boolean;
+  /** Administrator and Editor (convenience only; the server answers `403` to the others). */
+  readonly canEdit?: boolean;
   readonly onIndex: (index: number) => void;
   readonly onClose: () => void;
 }) {
@@ -141,6 +145,7 @@ export function MediaViewer({
   const asset = index === null ? undefined : assets[index];
   const [state, setState] = useState<{ readonly id: string; readonly view: View }>({ id: '', view: LOADING });
   const [asking, setAsking] = useState(false);
+  const [editing, setEditing] = useState(false);
   const loadedFor = useRef<string | null>(null);
   const assetId = asset?.id ?? null;
 
@@ -268,7 +273,24 @@ export function MediaViewer({
                   <p className="text-body-sm text-text-secondary">{mediaText.videoPreviewOnly}</p>
                 </>
               ) : null}
+              {asset.procedureStageName === null ? null : (
+                <p className="text-body-sm text-text-secondary">{mediaText.stageLine(asset.procedureStageName)}</p>
+              )}
               {asset.description === null ? null : <p className="text-body-sm">{mediaText.descriptionLine(asset.description)}</p>}
+              {canEdit ? (
+                <div className="flex flex-wrap items-center gap-inline-md">
+                  <Button
+                    variant="secondary"
+                    disabled={!online}
+                    onClick={() => {
+                      setEditing(true);
+                    }}
+                  >
+                    {mediaText.editDescription}
+                  </Button>
+                  {online ? null : <span className="text-body-sm text-text-secondary">{mediaText.editOffline}</span>}
+                </div>
+              ) : null}
               {canDownloadOriginal ? (
                 <div className="flex flex-wrap items-center gap-inline-md">
                   <Button
@@ -289,6 +311,15 @@ export function MediaViewer({
       >
         {picture()}
       </Lightbox>
+      {editing && asset !== undefined ? (
+        <MediaEditDialog
+          workOrderId={workOrderId}
+          asset={asset}
+          onClose={() => {
+            setEditing(false);
+          }}
+        />
+      ) : null}
       <OriginalDialog
         workOrderId={workOrderId}
         asset={asking && asset !== undefined ? asset : null}

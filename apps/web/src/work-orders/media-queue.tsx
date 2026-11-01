@@ -18,6 +18,7 @@ const FAILURE_TEXT = {
   server: mediaText.failedServer,
   storage: mediaText.failedStorage,
   incomplete: mediaText.failedIncomplete,
+  stage: mediaText.failedStage,
 } as const;
 
 /** The state of a file of the queue as the person reads it (docs/ux/flows/06 → W-09 compact, makieta 5). */

@@ -6,11 +6,12 @@ import {
   FilterChip,
   Images,
   InlineAlert,
+  RadioGroup,
   UploadQueueItem,
   Uploader,
   type UploadQueueItemState,
 } from '@evia/ui-web';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useOnline } from '../shell/use-online.ts';
 import { useSession } from '../session/session.ts';
 import { formatDate, formatClock } from './format.ts';
@@ -18,6 +19,7 @@ import { categoryLabel, mediaText, quarantineReasonLabel } from './media-labels.
 import { MediaGallery } from './media-gallery.tsx';
 import { MediaQueue } from './media-queue.tsx';
 import { SectionLoading } from './section-states.tsx';
+import { stageOrder, useStageChoices } from './stage-choice.ts';
 import { useMediaList, useRescan, type MediaUpload } from './use-media.ts';
 
 /** The state of a medium that is on the server, as the list shows it (flows/06 → § 4.14 "Stany pliku na serwerze"). */
@@ -79,6 +81,9 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
   const canUpload = role === 'administrator' || role === 'editor';
   const checking = media.items.some((item) => item.status === 'checking');
   const [onlyAttention, setOnlyAttention] = useState(false);
+  const [grouping, setGrouping] = useState<'category' | 'stage'>('category');
+  const stages = useStageChoices(order.id);
+  const stageIds = useMemo(() => stageOrder(stages.choices), [stages.choices]);
   const list = useMediaList(order.id, true, checking, onlyAttention);
   const rescan = useRescan(order.id);
   const attentionCount = list.data?.pages[0]?.needsAttentionCount ?? 0;
@@ -200,7 +205,28 @@ export function MediaSection({ order, media }: { readonly order: WorkOrderDetail
               ? mediaText.attentionHeading(assets.length, list.hasNextPage)
               : mediaText.photosHeading(photos, videos, list.hasNextPage)}
           </h3>
-          <MediaGallery workOrderId={order.id} assets={gallery} online={online} canDownloadOriginal={canUpload} />
+          {gallery.length > 0 ? (
+            <RadioGroup
+              legend={mediaText.groupLegend}
+              options={[
+                { value: 'category', label: mediaText.groupByCategory },
+                { value: 'stage', label: mediaText.groupByStage },
+              ]}
+              value={grouping}
+              onChange={(value) => {
+                setGrouping(value === 'stage' ? 'stage' : 'category');
+              }}
+            />
+          ) : null}
+          <MediaGallery
+            workOrderId={order.id}
+            assets={gallery}
+            online={online}
+            canDownloadOriginal={canUpload}
+            canEdit={canUpload}
+            grouping={grouping}
+            stageOrder={stageIds}
+          />
           {rest.length > 0 ? (
             <ul aria-label={mediaText.heading} className="flex flex-col">
               {rest.map((asset) => {

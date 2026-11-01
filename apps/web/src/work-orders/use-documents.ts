@@ -4,6 +4,7 @@ import {
   listDocuments,
   updateDocument,
   type DocumentList,
+  type UpdateDocumentRequest,
   type DocumentKind,
   type Document as OrderDocument,
 } from '@evia/contracts';
@@ -21,7 +22,8 @@ import { ApiError, unwrap } from '../api/client.ts';
 import { documentText } from './document-labels.ts';
 import { DocumentUploadEngine, type DocumentItem } from './document-upload-engine.ts';
 import { putPart } from './media-put.ts';
-import { WORK_ORDER_DOCUMENTS_KEY } from './query-keys.ts';
+import { isStageRejection } from './stage-choice.ts';
+import { WORK_ORDER_DOCUMENTS_KEY, WORK_ORDER_PROCEDURES_KEY } from './query-keys.ts';
 import { hashFile } from './sha256.ts';
 
 /** The page of the list (the API's default is 25; at most 100). */
@@ -103,6 +105,11 @@ export function useDocumentUpload(workOrderId: string): DocumentUpload {
   useEffect(() => {
     if (signature !== '') void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_DOCUMENTS_KEY, workOrderId] });
   }, [signature, queryClient, workOrderId]);
+  // A stage that is gone (EVM-048 AC8): the list of the stages is read again.
+  const stageGone = items.some((entry) => entry.failure === 'stage');
+  useEffect(() => {
+    if (stageGone) void queryClient.invalidateQueries({ queryKey: [WORK_ORDER_PROCEDURES_KEY, workOrderId] });
+  }, [stageGone, queryClient, workOrderId]);
   const unsent = items.some((entry) => entry.status !== 'done');
   useEffect(() => {
     if (!unsent) return;
@@ -160,4 +167,50 @@ export function raiseFailure(error: unknown): string {
     if (error.status === 404 || error.status === 409 || error.status === 412 || error.status === 428) return documentText.raiseConflict;
   }
   return documentText.raiseFailed;
+}
+
+export interface DocumentEdit {
+  readonly document: OrderDocument;
+  /** Only the fields that changed (`description: null` clears it, `procedureStageId: null` = no stage). */
+  readonly patch: UpdateDocumentRequest;
+}
+
+/** "Edytuj…" of a document (EVM-048 AC3): title, description and stage in one `PATCH` with the version in `If-Match`. */
+export function useEditDocument(workOrderId: string) {
+  const client = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (edit: DocumentEdit) =>
+      unwrap(
+        updateDocument({
+          client,
+          path: { workOrderId, documentId: edit.document.id },
+          headers: { 'If-Match': `"${String(edit.document.version)}"` },
+          body: edit.patch,
+        }),
+      ),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [WORK_ORDER_DOCUMENTS_KEY, workOrderId] }),
+  });
+}
+
+/** The text of a failed edit of a document (never the title, the description or the name of the stage). */
+export function editDocumentFailure(error: unknown): string {
+  if (!(error instanceof ApiError)) return documentText.editFailed;
+  if (isStageRejection(error)) return documentText.editStageGone;
+  switch (error.status) {
+    case 400:
+      return documentText.editRejected;
+    case 403:
+      return documentText.editForbidden;
+    case 404:
+      return documentText.editNotFound;
+    case 409:
+    case 412:
+    case 428:
+      return documentText.editConflict;
+    case 429:
+      return documentText.editRate(error.retryAfterSeconds ?? null);
+    default:
+      return documentText.editFailed;
+  }
 }

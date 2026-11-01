@@ -157,7 +157,7 @@ export function WorkOrderPage() {
           media.openDialog();
         }}
       />
-      <MediaUploadDialog media={media} />
+      <MediaUploadDialog media={media} workOrderId={id} />
       <div className="grid grid-cols-1 gap-stack-lg expanded:grid-cols-3">
         <div className="expanded:col-span-2">
           <Tabs
