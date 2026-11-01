@@ -71,3 +71,4 @@ Zdalne wymuszenie aktualizacji; e-mail do użytkownika o „Zablokuj i wyczyść
 - 2026-11-01 — refinement: AC zaakceptowane przez Konrada, status `ready` (tor B nocy 1/2.11)
 - 2026-11-02 — plan gotowy (backend-developer)
 - 2026-11-02 — API i retencja gotowe, testy zielone w kontenerze (backend-developer); panel W-15/W-17 w osobnym kroku
+- 2026-11-02 — panel W-15 (Urządzenia w Koncie), W-17 (Administracja → Urządzenia) i liczba telefonów przed zmianą roli na Tylko odczyt gotowe; testy komponentów, Playwright (Chromium, Firefox, Edge) i axe zielone (web-developer)
