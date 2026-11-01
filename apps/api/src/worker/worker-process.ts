@@ -30,6 +30,8 @@ import {
   VideoProcessingService,
   MediaScanService,
   QuarantineRetentionJob,
+  ErasureCompletionJob,
+  StorageReconciliationJob,
   SignatureMonitorJob,
 } from '../modules/media/index.ts';
 import { VerifyProjectionJob } from '../modules/overview/index.ts';
@@ -98,6 +100,9 @@ export async function runWorkerFromProcess(
       app.get(QuarantineRetentionJob, { strict: false }).definition(),
       app.get(AbandonedUploadsJob, { strict: false }).definition(),
       app.get(SignatureMonitorJob, { strict: false }).definition(),
+      // EVM-051: the completion of the erasure of files and the nightly reconciliation of the storage with the database
+      app.get(ErasureCompletionJob, { strict: false }).definition(),
+      app.get(StorageReconciliationJob, { strict: false }).definition(),
     ];
     const db = app.get<Kysely<Database>>(DATABASE, { strict: false });
     const clock = app.get<Clock>(CLOCK, { strict: false });

@@ -50,7 +50,9 @@ export function toDocument(
     stateReasonCode: checksumMismatch ? 'checksum_mismatch' : null,
     declaredSize: Number(file.declared_size_bytes),
     originalFilename: file.original_filename,
-    canDownload: mayDownloadDocument(role, effectiveClass(kindClass, document.confidentiality_override)),
+    fileErasedAt: document.file_purged_at?.toISOString() ?? null,
+    canDownload:
+      document.file_purged_at === null && mayDownloadDocument(role, effectiveClass(kindClass, document.confidentiality_override)),
     createdAt: document.created_at.toISOString(),
     version: document.version,
   };

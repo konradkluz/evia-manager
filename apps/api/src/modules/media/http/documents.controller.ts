@@ -12,7 +12,7 @@ import type {
   UploadPartUrl,
   UploadSession,
 } from '@evia/contracts';
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
@@ -24,6 +24,7 @@ import { CreateUploadSessionService } from '../application/create-upload-session
 import { DocumentDownloadUrlService } from '../application/document-download-url.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
 import { ListDocumentsService } from '../application/list-documents.service.ts';
+import { MediaErasureService } from '../application/media-erasure.service.ts';
 import { UpdateDocumentService } from '../application/update-document.service.ts';
 import { UploadPartsService } from '../application/upload-parts.service.ts';
 
@@ -45,6 +46,7 @@ export class DocumentsController {
   readonly #parts: UploadPartsService;
   readonly #finish: FinishUploadService;
   readonly #downloads: DocumentDownloadUrlService;
+  readonly #erasure: MediaErasureService;
 
   constructor(
     @Inject(ListDocumentsService) lists: ListDocumentsService,
@@ -54,6 +56,7 @@ export class DocumentsController {
     @Inject(UploadPartsService) parts: UploadPartsService,
     @Inject(FinishUploadService) finish: FinishUploadService,
     @Inject(DocumentDownloadUrlService) downloads: DocumentDownloadUrlService,
+    @Inject(MediaErasureService) erasure: MediaErasureService,
   ) {
     this.#lists = lists;
     this.#creations = creations;
@@ -62,6 +65,7 @@ export class DocumentsController {
     this.#parts = parts;
     this.#finish = finish;
     this.#downloads = downloads;
+    this.#erasure = erasure;
   }
 
   @Get(BASE)
@@ -104,6 +108,32 @@ export class DocumentsController {
     const { document } = await this.#updates.update(requirePrincipal(request), params, body, ifMatch, webEventContext(request, response));
     response.set('ETag', entityTag(document.version));
     return document;
+  }
+
+  @Delete(`${BASE}/:documentId`)
+  @OperationId('deleteDocument')
+  @HttpCode(204)
+  deleteDocument(@Param() params: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    return this.#erasure.deleteDocument(requirePrincipal(request), params, webEventContext(request, response));
+  }
+
+  @Post(`${BASE}/:documentId/restore`)
+  @OperationId('restoreDocument')
+  @HttpCode(204)
+  restoreDocument(@Param() params: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    return this.#erasure.restoreDocument(requirePrincipal(request), params, webEventContext(request, response));
+  }
+
+  @Post(`${BASE}/:documentId/purge-file`)
+  @OperationId('purgeDocumentFile')
+  @HttpCode(204)
+  purgeDocumentFile(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    return this.#erasure.purgeDocumentFile(requirePrincipal(request), params, ifMatch, webEventContext(request, response));
   }
 
   @Post(`${BASE}/:documentId/upload-sessions`)

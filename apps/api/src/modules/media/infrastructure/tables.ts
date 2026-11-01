@@ -68,6 +68,8 @@ export interface StoredFilesTable {
   av_scanned: Generated<boolean | null>;
   /** When the objects of the file were erased on purpose (migration 0062, write-once); a worker that takes the file after it drops the task. */
   erased_at: Generated<Date | null>;
+  /** When the objects of an erased file were removed from the storage (migration 0062); `null` after `erased_at` = the job of the worker still has to finish. */
+  objects_erased_at: Generated<Date | null>;
 }
 
 /**

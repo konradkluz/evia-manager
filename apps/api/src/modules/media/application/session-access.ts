@@ -44,6 +44,8 @@ export class SessionAccess {
       lock,
     );
     if (chain === undefined) throw new ProblemException('not_found');
+    // the file was erased on purpose (EVM-051): the upload cannot go on
+    if (chain.file.erased_at !== null) throw new ProblemException('file_erased');
     return chain;
   }
 }

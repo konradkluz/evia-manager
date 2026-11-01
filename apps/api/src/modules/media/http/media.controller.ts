@@ -14,7 +14,7 @@ import type {
   UploadPartUrl,
   UploadSession,
 } from '@evia/contracts';
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Inject, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { entityTag } from '../../../platform/http/if-match.ts';
 import { OperationId } from '../../../platform/http/operation-id.ts';
@@ -24,6 +24,7 @@ import { webEventContext } from '../../../platform/http/request-context.ts';
 import { CreateMediaAssetsService } from '../application/create-media-assets.service.ts';
 import { CreateUploadSessionService } from '../application/create-upload-session.service.ts';
 import { FinishUploadService } from '../application/finish-upload.service.ts';
+import { MediaErasureService } from '../application/media-erasure.service.ts';
 import { MediaDownloadUrlService } from '../application/media-download-url.service.ts';
 import { ListMediaAssetsService } from '../application/list-media-assets.service.ts';
 import { RescanMediaService } from '../application/rescan-media.service.ts';
@@ -49,6 +50,7 @@ export class MediaController {
   readonly #rescans: RescanMediaService;
   readonly #derivatives: MediaDownloadUrlService;
   readonly #updates: UpdateMediaAssetService;
+  readonly #erasure: MediaErasureService;
 
   constructor(
     @Inject(CreateMediaAssetsService) creations: CreateMediaAssetsService,
@@ -59,6 +61,7 @@ export class MediaController {
     @Inject(RescanMediaService) rescans: RescanMediaService,
     @Inject(MediaDownloadUrlService) derivatives: MediaDownloadUrlService,
     @Inject(UpdateMediaAssetService) updates: UpdateMediaAssetService,
+    @Inject(MediaErasureService) erasure: MediaErasureService,
   ) {
     this.#creations = creations;
     this.#lists = lists;
@@ -68,6 +71,7 @@ export class MediaController {
     this.#rescans = rescans;
     this.#derivatives = derivatives;
     this.#updates = updates;
+    this.#erasure = erasure;
   }
 
   @Get(BASE)
@@ -109,6 +113,32 @@ export class MediaController {
     const { asset } = await this.#updates.update(requirePrincipal(request), params, body, ifMatch, webEventContext(request, response));
     response.set('ETag', entityTag(asset.version));
     return asset;
+  }
+
+  @Delete(`${BASE}/:mediaAssetId`)
+  @OperationId('deleteMediaAsset')
+  @HttpCode(204)
+  deleteMediaAsset(@Param() params: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    return this.#erasure.deleteMedia(requirePrincipal(request), params, webEventContext(request, response));
+  }
+
+  @Post(`${BASE}/:mediaAssetId/restore`)
+  @OperationId('restoreMediaAsset')
+  @HttpCode(204)
+  restoreMediaAsset(@Param() params: unknown, @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    return this.#erasure.restoreMedia(requirePrincipal(request), params, webEventContext(request, response));
+  }
+
+  @Post(`${BASE}/:mediaAssetId/purge-file`)
+  @OperationId('purgeMediaAssetFile')
+  @HttpCode(204)
+  purgeMediaAssetFile(
+    @Param() params: unknown,
+    @Headers('if-match') ifMatch: string | undefined,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    return this.#erasure.purgeMediaFile(requirePrincipal(request), params, ifMatch, webEventContext(request, response));
   }
 
   @Post(`${BASE}/:mediaAssetId/upload-sessions`)

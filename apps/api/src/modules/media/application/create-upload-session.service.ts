@@ -111,6 +111,8 @@ export class CreateUploadSessionService {
       if (found === undefined || (creatorOfOwner(found) !== principal.userId && principal.role !== 'administrator')) {
         throw new ProblemException('not_found');
       }
+      // the file of this owner was erased on purpose (EVM-051): no new session, whatever the state it was left in
+      if (fileOfOwner(found).erased_at !== null) throw new ProblemException('file_erased');
       const storage = requireStorage(this.#storage);
       const key = idempotencyKeyOf(rawKey);
       const { id: sessionId } = parseInput(bodySchema, rawBody) as { id: string };

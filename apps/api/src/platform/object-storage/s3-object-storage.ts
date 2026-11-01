@@ -207,8 +207,10 @@ export class S3ObjectStorage implements ObjectStorage {
       const out = await this.#client.send(
         new ListObjectsV2Command({ Bucket: this.#bucket, Prefix: prefix, MaxKeys: limit, ContinuationToken: token }),
       );
-      const keys = (out.Contents ?? []).flatMap((object) => (object.Key === undefined ? [] : [object.Key]));
-      return { keys, nextToken: out.IsTruncated === true ? out.NextContinuationToken : undefined };
+      const objects = (out.Contents ?? []).flatMap((object) =>
+        object.Key === undefined ? [] : [{ key: object.Key, modifiedAt: object.LastModified ?? new Date(0) }],
+      );
+      return { objects, nextToken: out.IsTruncated === true ? out.NextContinuationToken : undefined };
     } catch (error) {
       throw translateS3Error(error);
     }

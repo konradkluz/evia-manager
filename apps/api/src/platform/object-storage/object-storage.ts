@@ -38,8 +38,14 @@ export interface ObjectHead {
   readonly versionId: string | undefined;
 }
 
+export interface ListedObject {
+  readonly key: string;
+  /** When the current version was written (the reconciliation leaves the young ones alone). */
+  readonly modifiedAt: Date;
+}
+
 export interface ObjectPage {
-  readonly keys: readonly string[];
+  readonly objects: readonly ListedObject[];
   readonly nextToken: string | undefined;
 }
 

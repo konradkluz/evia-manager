@@ -88,6 +88,24 @@ describe('EVM-044 AC6 the double and the adapter cover the awkward answers of a 
     await expect(storageThat(() => ({ Parts: [] })).listParts('k', 'u')).resolves.toEqual([]);
   });
 
+  it('EVM-051 AC5 the adapter lists a page of the current objects with their time and the token of the next page, and a failure is a fixed code', async () => {
+    const modified = new Date('2026-10-03T10:00:00.000Z');
+    const page = await storageThat(() => ({
+      Contents: [{ Key: 'media/a', LastModified: modified }, { Key: 'media/b' }, {}],
+      IsTruncated: true,
+      NextContinuationToken: 'next-token',
+    })).listObjects('media/', 3, 'token');
+    expect(page).toEqual({
+      objects: [
+        { key: 'media/a', modifiedAt: modified },
+        { key: 'media/b', modifiedAt: new Date(0) },
+      ],
+      nextToken: 'next-token',
+    });
+    await expect(storageThat(() => ({})).listObjects('media/', 3)).resolves.toEqual({ objects: [], nextToken: undefined });
+    await expect(failing('InternalError', 500).listObjects('media/', 3)).rejects.toMatchObject({ code: 'unavailable' });
+  });
+
   it('EVM-044 AC3 the factories return nothing without the media configuration and the real adapters with it', () => {
     expect(createObjectStorage(undefined)).toBeNull();
     expect(createMalwareScanner(undefined)).toBeNull();

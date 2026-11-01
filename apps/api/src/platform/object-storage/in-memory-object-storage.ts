@@ -38,6 +38,8 @@ export class InMemoryObjectStorage implements ObjectStorage {
   readonly #objects = new Map<string, Version[]>();
   /** Keys with a delete marker on top (a versioned bucket: the older versions stay readable by their version id). */
   readonly #markers = new Set<string>();
+  /** When each key was last written (the listing reports it). */
+  readonly #modified = new Map<string, Date>();
   readonly #now: () => Date;
   #counter = 0;
   /** When set, every call fails like an unreachable storage (`unavailable`). */
@@ -116,6 +118,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
       body,
       contentType: upload.contentType,
     };
+    this.#modified.set(key, this.#now());
     this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
     this.#markers.delete(key);
     this.#uploads.delete(uploadId);
@@ -139,7 +142,8 @@ export class InMemoryObjectStorage implements ObjectStorage {
     const keys = this.currentKeys().filter((key) => key.startsWith(prefix));
     const rest = token === undefined ? keys : keys.filter((key) => key > token);
     const page = rest.slice(0, limit);
-    return Promise.resolve({ keys: page, nextToken: rest.length > limit ? page.at(-1) : undefined });
+    const objects = page.map((key) => ({ key, modifiedAt: this.#modified.get(key) ?? this.#now() }));
+    return Promise.resolve({ objects, nextToken: rest.length > limit ? page.at(-1) : undefined });
   }
 
   /** Test helper: the keys of the objects a plain read still finds (no delete marker on top), in key order. */
@@ -169,6 +173,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if ((this.#objects.get(input.key)?.length ?? 0) > 0) return Promise.reject(new ObjectStorageError('precondition_failed'));
     this.#counter += 1;
+    this.#modified.set(input.key, this.#now());
     this.#objects.set(input.key, [
       {
         versionId: `version-${this.#counter}`,
@@ -221,9 +226,18 @@ export class InMemoryObjectStorage implements ObjectStorage {
       body,
       contentType: 'application/octet-stream',
     };
+    this.#modified.set(key, this.#now());
     this.#objects.set(key, [...(this.#objects.get(key) ?? []), version]);
     this.#markers.delete(key);
     return { etag: version.etag, versionId: version.versionId };
+  }
+
+  /** Test helper: forgets every object, marker and upload (a test that counts what is in the bucket starts from nothing). */
+  reset(): void {
+    this.#objects.clear();
+    this.#markers.clear();
+    this.#modified.clear();
+    this.#uploads.clear();
   }
 
   /** Test helper: whether the key has a delete marker on top (the object is gone for a plain read). */

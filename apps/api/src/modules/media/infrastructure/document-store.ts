@@ -169,6 +169,7 @@ const DOCUMENT_COLUMNS = [
   'd.version as d_version',
   'd.deleted_at as d_deleted_at',
   'd.deleted_by as d_deleted_by',
+  'd.file_purged_at as d_file_purged_at',
   'v.id as v_id',
   'v.version_number as v_version_number',
   'v.change_note as v_change_note',
@@ -189,6 +190,7 @@ type JoinedDocumentRow = StoredFileRow & {
   d_version: number;
   d_deleted_at: Date | null;
   d_deleted_by: string | null;
+  d_file_purged_at: Date | null;
   v_id: string;
   v_version_number: number;
   v_change_note: string | null;
@@ -215,6 +217,7 @@ function splitDocumentRow(row: JoinedDocumentRow): DocumentWithFile {
     d_version,
     d_deleted_at,
     d_deleted_by,
+    d_file_purged_at,
     v_id,
     v_version_number,
     v_change_note,
@@ -243,6 +246,7 @@ function splitDocumentRow(row: JoinedDocumentRow): DocumentWithFile {
       version: d_version,
       deleted_at: d_deleted_at,
       deleted_by: d_deleted_by,
+      file_purged_at: d_file_purged_at,
     },
     version: {
       id: v_id,
@@ -255,13 +259,13 @@ function splitDocumentRow(row: JoinedDocumentRow): DocumentWithFile {
   };
 }
 
-function baseQuery(db: MediaDb, scope: DocumentScope) {
-  return db
+function baseQuery(db: MediaDb, scope: DocumentScope, includeDeleted = false) {
+  const visible = db
     .selectFrom('media.documents as d')
     .innerJoin('media.document_versions as v', 'v.document_id', 'd.id')
     .innerJoin('media.stored_files as f', 'f.document_version_id', 'v.id')
-    .where(inScope(scope))
-    .where('d.deleted_at', 'is', null);
+    .where(inScope(scope));
+  return includeDeleted ? visible : visible.where('d.deleted_at', 'is', null);
 }
 
 /** The document of THIS scope (not deleted) with its newest version and that version's file, row-locked when `lock`. */
@@ -270,8 +274,10 @@ export async function findDocumentWithFile(
   scope: DocumentScope,
   documentId: string,
   lock = false,
+  /** Only the restore and the erasure of the files reach a document that is soft deleted (EVM-051); every other reader never sees it. */
+  includeDeleted = false,
 ): Promise<DocumentWithFile | undefined> {
-  const base = baseQuery(db, scope)
+  const base = baseQuery(db, scope, includeDeleted)
     .where('d.id', '=', documentId)
     .selectAll('f')
     .select([...DOCUMENT_COLUMNS, quarantineExpiry])
@@ -318,15 +324,14 @@ export async function countDocuments(db: MediaDb, scope: DocumentScope): Promise
 }
 
 /** The document of THIS scope (not deleted), row-locked: a document outside it, a medium with that id and a missing one are the same absence. */
-export async function lockDocumentInScope(db: MediaDb, scope: DocumentScope, documentId: string): Promise<DocumentRow | undefined> {
-  return db
-    .selectFrom('media.documents as d')
-    .where('d.id', '=', documentId)
-    .where(inScope(scope))
-    .where('d.deleted_at', 'is', null)
-    .selectAll('d')
-    .forNoKeyUpdate()
-    .executeTakeFirst();
+export async function lockDocumentInScope(
+  db: MediaDb,
+  scope: DocumentScope,
+  documentId: string,
+  includeDeleted = false,
+): Promise<DocumentRow | undefined> {
+  const visible = db.selectFrom('media.documents as d').where('d.id', '=', documentId).where(inScope(scope));
+  return (includeDeleted ? visible : visible.where('d.deleted_at', 'is', null)).selectAll('d').forNoKeyUpdate().executeTakeFirst();
 }
 
 /** What a change of a document sets; a field that is absent stays as it is (`null` clears the description and the stage). */

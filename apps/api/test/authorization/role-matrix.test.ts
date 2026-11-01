@@ -226,6 +226,11 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       // EVM-041: the deletion and the restoration of a customer (the anonymization is below: it has a step-up)
       'deleteCustomer',
       'restoreCustomer',
+      // EVM-051: the deletion and the restore of a medium and of a document (the erasure of the file is below: it has a step-up)
+      'deleteMediaAsset',
+      'restoreMediaAsset',
+      'deleteDocument',
+      'restoreDocument',
     ];
     const rolesOf = (operationId: string): string[] => {
       if (administratorOnly.includes(operationId)) return ['administrator'];
@@ -246,6 +251,8 @@ describe('the role matrix generated from the contract (EVM-016 AC8; SR-AUTHZ-01,
       'rescanMediaAsset', // EVM-049: the new scan of a file in quarantine
       'redactTimelineEntry', // EVM-040: the redaction of the text of an entry
       'anonymizeCustomer', // EVM-041: the anonymization of a customer
+      'purgeMediaAssetFile', // EVM-051: the erasure of the file of a medium
+      'purgeDocumentFile', // EVM-051: the erasure of the files of a document
     ];
     // EVM-097: the snapshot of an order is an operation of the mobile channel - its IDOR cells are the Administrator and the Editor with a Bearer token
     const mobileObjects = ['getSyncWorkOrder'];

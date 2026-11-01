@@ -43,7 +43,10 @@ import { AbandonedUploadsJob } from './application/abandoned-uploads.job.ts';
 import { MediaProcessingService } from './application/media-processing.service.ts';
 import { VideoProcessingService } from './application/video-processing.service.ts';
 import { MediaScanService } from './application/media-scan.service.ts';
+import { MediaErasureService } from './application/media-erasure.service.ts';
 import { MediaDownloadUrlService } from './application/media-download-url.service.ts';
+import { ErasureCompletionJob } from './application/erasure-completion.job.ts';
+import { StorageReconciliationJob } from './application/storage-reconciliation.job.ts';
 import { QuarantineRetentionJob } from './application/quarantine-retention.job.ts';
 import { RescanMediaService } from './application/rescan-media.service.ts';
 import { SignatureMonitorJob } from './application/signature-monitor.job.ts';
@@ -72,9 +75,12 @@ import { MediaController } from './http/media.controller.ts';
     UpdateDocumentService,
     UpdateMediaAssetService,
     DocumentDownloadUrlService,
+    MediaErasureService,
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,
+    ErasureCompletionJob,
+    StorageReconciliationJob,
     {
       provide: MediaScanService,
       inject: [DATABASE, CLOCK, EVENT_BUS, LOGGER, OBJECT_STORAGE, MALWARE_SCANNER, AdministratorDirectory, METRICS],
@@ -137,6 +143,8 @@ import { MediaController } from './http/media.controller.ts';
     QuarantineRetentionJob,
     AbandonedUploadsJob,
     SignatureMonitorJob,
+    ErasureCompletionJob,
+    StorageReconciliationJob,
   ],
 })
 export class MediaModule {}

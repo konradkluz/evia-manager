@@ -120,6 +120,8 @@ export class DocumentDownloadUrlService {
       const classCode = classOfDocument(found, kinds.get(found.document.kind_code));
       if (!mayDownloadDocument(principal.role, classCode)) return { refusal: { kind: 'forbidden', documentId, classCode } };
       const { file } = found;
+      // the files of the document were erased on purpose (EVM-051): there is nothing to sign
+      if (file.erased_at !== null) throw new ProblemException('not_found');
       // the type the SERVER detected from the bytes (never the declaration of the client); a file without one, or not past the scan, is not served
       const contentType = file.content_type === null ? undefined : normalizeDocumentType(file.content_type);
       if (!isDocumentOriginalReleasable(file.state) || contentType === undefined) throw new ProblemException('not_found');

@@ -81,6 +81,8 @@ export class RescanMediaService {
       const tables = mediaTables(tx);
       const found = await findAssetWithFile(tables, order.id, mediaAssetId, true);
       if (found === undefined) throw new ProblemException('not_found');
+      // the file was erased on purpose (EVM-051): nothing to scan
+      if (found.file.erased_at !== null) throw new ProblemException('file_erased');
       const key = idempotencyKeyOf(rawKey);
 
       const perform = async () => {

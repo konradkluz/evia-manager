@@ -115,12 +115,15 @@ export async function findAssetWithFile(
   workOrderId: string,
   mediaAssetId: string,
   lock = false,
+  /** Only the restore and the erasure of a file reach a medium that is soft deleted (EVM-051): every other reader never sees it (SR-AUTHZ-02). */
+  includeDeleted = false,
 ): Promise<AssetWithFile | undefined> {
-  const base = db
+  const visible = db
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.id', '=', mediaAssetId)
-    .where('a.work_order_id', '=', workOrderId)
+    .where('a.work_order_id', '=', workOrderId);
+  const base = (includeDeleted ? visible : visible.where('a.deleted_at', 'is', null))
     .selectAll('f')
     .select([
       'a.id as a_id',
@@ -136,6 +139,9 @@ export async function findAssetWithFile(
       'a.updated_at as a_updated_at',
       'a.version as a_version',
       'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
     ]);
   const row = await (lock ? base.forNoKeyUpdate('f') : base).executeTakeFirst();
@@ -156,6 +162,9 @@ export type JoinedRow = StoredFileRow & {
   a_updated_at: Date;
   a_version: number;
   a_updated_by: string | null;
+  a_deleted_at: Date | null;
+  a_deleted_by: string | null;
+  a_file_purged_at: Date | null;
   quarantine_expires_at: Date | null;
 };
 
@@ -174,6 +183,9 @@ export function splitRow(row: JoinedRow): AssetWithFile {
     a_updated_at,
     a_version,
     a_updated_by,
+    a_deleted_at,
+    a_deleted_by,
+    a_file_purged_at,
     quarantine_expires_at,
     ...file
   } = row;
@@ -194,6 +206,9 @@ export function splitRow(row: JoinedRow): AssetWithFile {
       updated_at: a_updated_at,
       version: a_version,
       updated_by: a_updated_by,
+      deleted_at: a_deleted_at,
+      deleted_by: a_deleted_by,
+      file_purged_at: a_file_purged_at,
     },
   };
 }
@@ -417,7 +432,8 @@ export async function listAssets(
         .on('s.user_id', '=', creator.userId)
         .on(sql<boolean>`s.device_id is not distinct from ${creator.deviceId}`),
     )
-    .where('a.work_order_id', '=', workOrderId);
+    .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null);
   if (options.unfinishedOnly) {
     query = query.where((eb) =>
       eb.or([
@@ -451,6 +467,9 @@ export async function listAssets(
       'a.updated_at as a_updated_at',
       'a.version as a_version',
       'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
       's.id as s_id',
       's.expires_at as s_expires_at',
@@ -479,6 +498,7 @@ export async function listAssets(
 export async function findUnscanned(db: MediaDb, staleBefore: Date, limit: number): Promise<Array<{ id: string }>> {
   return db
     .selectFrom('media.stored_files')
+    .where('erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
@@ -508,6 +528,7 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
     .where('a.id', 'in', [...ids])
     .selectAll('f')
     .select([
@@ -524,6 +545,9 @@ export async function findAssetsWithFiles(db: MediaDb, workOrderId: string, ids:
       'a.updated_at as a_updated_at',
       'a.version as a_version',
       'a.updated_by as a_updated_by',
+      'a.deleted_at as a_deleted_at',
+      'a.deleted_by as a_deleted_by',
+      'a.file_purged_at as a_file_purged_at',
       quarantineExpiry,
     ])
     .execute();
@@ -553,6 +577,7 @@ export async function claimForScan(db: MediaDb, storedFileId: string, staleBefor
       state_changed_at: sql<Date>`case when state = 'uploaded' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('state', '=', 'uploaded'),
@@ -575,6 +600,7 @@ export async function countHeld(db: MediaDb, workOrderId: string): Promise<numbe
     .selectFrom('media.media_assets as a')
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
     .where(HELD)
     .select(sql<string>`count(*)`.as('count'))
     .executeTakeFirstOrThrow();
@@ -594,6 +620,7 @@ export async function requestRescan(db: MediaDb, storedFileId: string, now: Date
     .where('f.id', '=', storedFileId)
     .where('f.state', '=', 'quarantined')
     .where('f.purged_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where(sql<boolean>`${now}::timestamptz < media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer)`)
     .returning('f.id')
     .executeTakeFirst();
@@ -617,6 +644,7 @@ export async function lockDueForPurge(db: MediaDb, now: Date, limit: number): Pr
     .selectFrom('media.stored_files as f')
     .where('f.quarantined_at', 'is not', null)
     .where('f.purged_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.state', 'in', ['quarantined', 'scanning'])
     .where(sql<boolean>`media.quarantine_expires_at(f.quarantined_at, ${QUARANTINE_RETENTION_DAYS}::integer) <= ${now}::timestamptz`)
     .orderBy('f.quarantined_at', 'asc')
@@ -748,6 +776,7 @@ export async function findUnprocessed(
     .selectFrom('media.stored_files as f')
     .innerJoin('media.media_assets as a', 'a.id', 'f.media_asset_id')
     .where('a.media_type', '=', mediaType)
+    .where('f.erased_at', 'is', null)
     .where((eb) =>
       eb.or([
         eb('f.state', '=', 'clean'),
@@ -795,6 +824,7 @@ export async function claimForProcessing(
       state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where('process_attempts', '<', maxAttempts)
     .where((eb) =>
       eb.or([
@@ -868,6 +898,8 @@ export async function findReadyDerivative(
     .innerJoin('media.file_derivatives as d', (join) => join.onRef('d.stored_file_id', '=', 'f.id').on('d.variant', '=', variant))
     .where('a.id', '=', mediaAssetId)
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.state', '=', 'ready')
     .select(['d.object_key', 'd.content_type'])
     .executeTakeFirst();
@@ -898,6 +930,8 @@ export async function findOriginal(db: MediaDb, workOrderId: string, mediaAssetI
     .innerJoin('media.stored_files as f', 'f.media_asset_id', 'a.id')
     .where('a.id', '=', mediaAssetId)
     .where('a.work_order_id', '=', workOrderId)
+    .where('a.deleted_at', 'is', null)
+    .where('f.erased_at', 'is', null)
     .where('f.purpose', '=', 'media_original')
     .select([
       'f.object_key',
@@ -968,6 +1002,7 @@ export async function claimVideoForProcessing(
       state_changed_at: sql<Date>`case when state = 'clean' then ${now}::timestamptz else state_changed_at end`,
     })
     .where('id', '=', storedFileId)
+    .where('erased_at', 'is', null)
     .where('process_attempts', '<', maxAttempts)
     .where((eb) =>
       eb.or([
@@ -997,6 +1032,7 @@ export async function lockAssetOfOrder(db: MediaDb, workOrderId: string, mediaAs
     .selectFrom('media.media_assets')
     .where('id', '=', mediaAssetId)
     .where('work_order_id', '=', workOrderId)
+    .where('deleted_at', 'is', null)
     .selectAll()
     .forNoKeyUpdate()
     .executeTakeFirst();

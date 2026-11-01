@@ -53,6 +53,8 @@ export const PROBLEMS = Object.freeze({
   customer_anonymized: { status: 409, title: 'The customer is anonymized' },
   already_anonymized: { status: 409, title: 'The customer is already anonymized' },
   entry_superseded: { status: 409, title: 'The entry already has a correction' },
+  file_processing: { status: 409, title: 'The file is still being processed' },
+  file_erased: { status: 409, title: 'The file was erased' },
   entry_is_event: { status: 409, title: 'The entry is an automatic event' },
   already_redacted: { status: 409, title: 'The entry text is already redacted' },
   procedure_already_active: { status: 409, title: 'A process with this code is already active in the work order' },

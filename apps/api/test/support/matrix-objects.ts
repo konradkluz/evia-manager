@@ -344,6 +344,13 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
   if (own === undefined || other === undefined || deleted === undefined) throw new Error('the fixture orders were not inserted');
   const mine = await insertMedia(db, { workOrderId: own, createdBy: creator.id, session: { userId: creator.id } });
   const theirs = await insertMedia(db, { workOrderId: other, createdBy: creator.id, session: { userId: creator.id } });
+  // EVM-051: the deletion, the restore and the erasure of a file - media of their own, so the cells that really delete do not change what the other cells look at
+  const erasable = await insertMedia(db, { workOrderId: own, createdBy: creator.id });
+  const erasableForeign = await insertMedia(db, { workOrderId: other, createdBy: creator.id });
+  const erasure = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/media-assets/${erasable.mediaAssetId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/media-assets/${erasableForeign.mediaAssetId}${suffix}`,
+  });
   const orderLevel: ObjectPaths = {
     own: () => `${WORK_ORDERS}/${own}/media-assets`,
     foreign: () => `${WORK_ORDERS}/${deleted}/media-assets`,
@@ -374,6 +381,9 @@ export async function mediaObjects(app: IdentityApp): Promise<Record<string, Obj
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}`,
       foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}`,
     },
+    deleteMediaAsset: erasure(''),
+    restoreMediaAsset: erasure('/restore'),
+    purgeMediaAssetFile: erasure('/purge-file'),
     rescanMediaAsset: {
       own: () => `${WORK_ORDERS}/${own}/media-assets/${mine.mediaAssetId}/rescan`,
       foreign: () => `${WORK_ORDERS}/${own}/media-assets/${theirs.mediaAssetId}/rescan`,
@@ -417,6 +427,13 @@ async function documentObjects(
   const missing = '0190f1a0-0000-7000-8000-00000000dead';
   const mine = await insertDocumentRow(db, { workOrderId: own, createdBy: creatorId, session: { userId: creatorId } });
   const theirs = await insertDocumentRow(db, { workOrderId: other, createdBy: creatorId, session: { userId: creatorId } });
+  // EVM-051: documents of their own for the deletion, the restore and the erasure of the files (see mediaObjects)
+  const erasable = await insertDocumentRow(db, { workOrderId: own, createdBy: creatorId });
+  const erasableForeign = await insertDocumentRow(db, { workOrderId: other, createdBy: creatorId });
+  const erasure = (suffix: string): ObjectPaths => ({
+    own: () => `${WORK_ORDERS}/${own}/documents/${erasable.documentId}${suffix}`,
+    foreign: () => `${WORK_ORDERS}/${own}/documents/${erasableForeign.documentId}${suffix}`,
+  });
   const orderLevel: ObjectPaths = {
     own: () => `${WORK_ORDERS}/${own}/documents`,
     foreign: () => `${WORK_ORDERS}/${deleted}/documents`,
@@ -434,6 +451,9 @@ async function documentObjects(
     createDocument: orderLevel,
     // EVM-048: the change of the metadata of a document (the same path as the raise of the class before it)
     updateDocument: document(''),
+    deleteDocument: erasure(''),
+    restoreDocument: erasure('/restore'),
+    purgeDocumentFile: erasure('/purge-file'),
     createDocumentUploadSession: document('/upload-sessions'),
     listDocumentUploadParts: session('/parts'),
     getDocumentUploadPartUrl: session('/parts/1/url'),

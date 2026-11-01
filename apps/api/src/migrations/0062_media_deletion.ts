@@ -9,6 +9,8 @@
  * - `media.documents.file_purged_at`: the same marker for a document (all the versions of the file).
  * - `media.stored_files.erased_at`: when the objects of the file were erased on purpose. A worker that takes the file after this time drops the task, and the
  *   original name (personal data) is gone with it.
+ * - `stored_files.objects_erased_at`: when the objects of an erased file are really gone from the storage; a file with `erased_at` and without it is
+ *   finished by a job of the worker (the erasure in the request may fail after the commit).
  * - `file_purged_at` and `erased_at` are write-once (a trigger): an erasure cannot be undone by a later update.
  */
 import { sql, type Kysely } from 'kysely';
@@ -27,7 +29,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
   await sql`
     alter table media.stored_files
       add column erased_at timestamptz,
-      add constraint stored_files_erased_without_name check (erased_at is null or original_filename is null)
+      add column objects_erased_at timestamptz,
+      add constraint stored_files_erased_without_name check (erased_at is null or original_filename is null),
+      add constraint stored_files_objects_after_erasure check (objects_erased_at is null or erased_at is not null)
   `.execute(db);
 
   await sql`
