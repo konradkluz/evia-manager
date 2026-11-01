@@ -45,6 +45,15 @@
           "type": "string"
         }
       },
+      "DeviceIdParameter": {
+        "description": "Identyfikator urządzenia (UUID).",
+        "in": "path",
+        "name": "deviceId",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/DeviceId"
+        }
+      },
       "DocumentIdParameter": {
         "description": "Identyfikator dokumentu (UUIDv7).",
         "in": "path",
@@ -471,6 +480,29 @@
             }
           }
         }
+      },
+      "DeviceModelMismatch": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "device_model_mismatch",
+              "errors": [
+                {
+                  "code": "mismatch",
+                  "pointer": "/confirmModel"
+                }
+              ],
+              "status": 400,
+              "title": "The typed model does not match the device",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/device_model_mismatch"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Treść niezgodna ze schematem (`validation_failed`) albo wpisana nazwa modelu różni się od modelu urządzenia (`device_model_mismatch`, `errors[0].pointer: /confirmModel`) — serwer porównuje sam (po przycięciu i normalizacji NFC, z rozróżnieniem wielkości liter), bez echa wpisanej wartości."
       },
       "Forbidden": {
         "content": {
@@ -2141,6 +2173,66 @@
         ],
         "type": "object"
       },
+      "AccountDevice": {
+        "additionalProperties": false,
+        "description": "Własny telefon konta (W-15). Bez sekretów, kluczy, adresów IP, numeru seryjnego i IMEI; nazwa to model z systemu.",
+        "properties": {
+          "appVersion": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/DeviceId"
+          },
+          "lastContactAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "osVersion": {
+            "maxLength": 16,
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DeviceState"
+          }
+        },
+        "required": [
+          "id",
+          "model",
+          "osVersion",
+          "appVersion",
+          "lastContactAt",
+          "createdAt",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AccountDeviceList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AccountDevice"
+            },
+            "maxItems": 10,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "AccountRecoveryCodes": {
         "description": "Stan kodów odzyskiwania (bez kodów i skrótów).",
         "properties": {
@@ -2393,6 +2485,10 @@
           "device.registered",
           "device.recognized",
           "device.wipe_confirmed",
+          "device.logged_out",
+          "device.wipe_ordered",
+          "device.list_read",
+          "device.purged",
           "session.refreshed",
           "audit.read",
           "bulk_read.alerted",
@@ -2733,7 +2829,8 @@
           "device_wipe_required",
           "totp_not_configured",
           "mfa_enrollment_required",
-          "session_revoked"
+          "session_revoked",
+          "manual"
         ],
         "type": "string"
       },
@@ -4199,6 +4296,26 @@
         "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
         "type": "string"
       },
+      "DevicePatchLevel": {
+        "description": "Poziom poprawek bezpieczeństwa systemu telefonu liczony z daty poprawki: `current` (do 6 miesięcy), `older_6m` (6-12 miesięcy), `older_12m` (ponad 12 miesięcy), `unknown` (data nieznana).",
+        "enum": [
+          "current",
+          "older_6m",
+          "older_12m",
+          "unknown"
+        ],
+        "type": "string"
+      },
+      "DeviceState": {
+        "description": "Stan urządzenia widoczny w panelu (W-15, W-17): `active` - Aktywne, `signed_out` - Wylogowane (stan pochodny: aktywne, ale bez ważnej sesji), `wipe_required` - Czeka na wyczyszczenie, `wiped` - Wyczyszczone.",
+        "enum": [
+          "active",
+          "signed_out",
+          "wipe_required",
+          "wiped"
+        ],
+        "type": "string"
+      },
       "Document": {
         "additionalProperties": false,
         "description": "Dokument (zlecenia, lokalizacji albo klienta - `anchor`) z jego plikiem (wersja 1). Dokładnie jedno z `workOrderId`, `siteId`, `customerId` jest ustawione; etap (`procedureStageId`) tylko przy kotwicy zlecenia. `confidentiality` to klasa EFEKTYWNA; `confidentialityRaised` mówi, że dokument podniesiono ponad klasę rodzaju. `canDownload` jest `true`, gdy rola wołającego może pobrać plik tej klasy (Administrator i Edytor - każda klasa, Tylko odczyt - tylko `standard`); NIE mówi, że plik jest już po skanie (`fileState`). `stateReasonCode` jest ustawiony wyłącznie dla `failed` z przyczyną `checksum_mismatch`. `version` to wersja zasobu do `If-Match` (`ETag` `\"<version>\"`), `versionNumber` - numer wersji dokumentu (1). Odpowiedź nigdy nie zawiera klucza obiektu, identyfikatora uploadu S3 ani skrótu.",
@@ -4832,6 +4949,103 @@
         "required": [
           "loginToken",
           "code"
+        ],
+        "type": "object"
+      },
+      "ManagedDevice": {
+        "additionalProperties": false,
+        "description": "Urządzenie użytkownika w widoku Administratora (W-17). Właściciel to wyłącznie `userId` i `displayName` (bez e-maila); `pendingItemsReported` to ostatnio zgłoszona przez telefon liczba niewysłanych elementów (0, gdy telefon jej nie przekazał).",
+        "properties": {
+          "appVersion": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/DeviceId"
+          },
+          "lastContactAt": {
+            "format": "date-time",
+            "maxLength": 40,
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 100,
+            "type": "string"
+          },
+          "osVersion": {
+            "maxLength": 16,
+            "type": "string"
+          },
+          "patchLevel": {
+            "$ref": "#/components/schemas/DevicePatchLevel"
+          },
+          "pendingItemsReported": {
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/components/schemas/DeviceState"
+          },
+          "user": {
+            "additionalProperties": false,
+            "properties": {
+              "displayName": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "userId": {
+                "format": "uuid",
+                "maxLength": 36,
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId",
+              "displayName"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "user",
+          "model",
+          "osVersion",
+          "appVersion",
+          "patchLevel",
+          "lastContactAt",
+          "state",
+          "pendingItemsReported"
+        ],
+        "type": "object"
+      },
+      "ManagedDeviceList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ManagedDevice"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "nextCursor": {
+            "description": "Kursor następnej strony albo `null` na ostatniej stronie.",
+            "oneOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
         ],
         "type": "object"
       },
@@ -10738,6 +10952,33 @@
         ],
         "type": "object"
       },
+      "UserDevicesSummary": {
+        "additionalProperties": false,
+        "description": "Podsumowanie urządzeń użytkownika do dialogów (zmiana roli na Tylko odczyt, wyczyszczenie).",
+        "properties": {
+          "activeDevices": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "devices": {
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pendingItemsReported": {
+            "maximum": 1000000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "devices",
+          "activeDevices",
+          "pendingItemsReported"
+        ],
+        "type": "object"
+      },
       "UserInvitation": {
         "description": "Stan ostatniego zaproszenia konta `invited`. Bez adresu e-mail i bez tokenu.",
         "properties": {
@@ -10907,6 +11148,21 @@
         "required": [
           "deviceId",
           "installationSecret"
+        ],
+        "type": "object"
+      },
+      "WipeDeviceRequest": {
+        "additionalProperties": false,
+        "description": "Potwierdzenie „Zablokuj i wyczyść”; nazwa modelu urządzenia wpisana przez Administratora (serwer porównuje ją z modelem z bazy).",
+        "properties": {
+          "confirmModel": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmModel"
         ],
         "type": "object"
       },
@@ -12024,6 +12280,102 @@
             "editor",
             "read_only"
           ]
+        }
+      }
+    },
+    "/api/v1/account/devices": {
+      "get": {
+        "description": "Administrator i Edytor, kanał `web`; Tylko odczyt dostaje `403 forbidden`. Własne, niezdjęte z rejestru telefony konta: model, system, wersja aplikacji, ostatni kontakt, stan (Aktywne, Wylogowane, Czeka na wyczyszczenie, Wyczyszczone). Stan „Wylogowane” jest pochodny (urządzenie aktywne bez ważnej sesji).",
+        "operationId": "listAccountDevices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDeviceList"
+                }
+              }
+            },
+            "description": "Urządzenia konta.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Moje urządzenia (W-15)",
+        "tags": [
+          "devices"
+        ],
+        "x-evia-authz": {
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ]
+        }
+      }
+    },
+    "/api/v1/account/devices/{deviceId}/logout": {
+      "post": {
+        "description": "Administrator i Edytor, kanał `web`, po step-upie (`403 step_up_required`); Tylko odczyt `403 forbidden`. Własność jest sprawdzana w `WHERE`: cudze, nieistniejące i zdjęte z rejestru urządzenie to jedna odpowiedź `404 not_found` (identyczna treść). Kończy sesje urządzenia (następne żądanie telefonu: `401 session_revoked`; miejsce w limicie 2 urządzeń się zwalnia); kolejka niewysłanych elementów na telefonie zostaje zaszyfrowana, a efekt następuje przy najbliższym połączeniu telefonu. Stan urządzenia nie zmienia się (nie cofa `wipe_required`). Idempotentna. Audyt `device.logged_out`. Wymaga `X-CSRF-Token`.",
+        "operationId": "logoutAccountDevice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Urządzenie wylogowane.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Wylogowanie własnego telefonu (W-15)",
+        "tags": [
+          "devices"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator",
+            "editor"
+          ],
+          "stepUp": true
         }
       }
     },
@@ -14965,6 +15317,100 @@
         }
       }
     },
+    "/api/v1/devices": {
+      "get": {
+        "description": "Tylko Administrator, kanał `web`, po step-upie (`403 step_up_required`); Edytor i Tylko odczyt dostają `403 forbidden` (nigdy `step_up_required`) i ciało bez danych. Urządzenia wszystkich użytkowników od ostatnio widzianych (`lastContactAt`, potem `id` malejąco), filtry `userId` i `state`, paginacja kursorem nieprzezroczystym (`limit` 1-100, domyślnie 50; zaszyfrowany, uwierzytelniony, ważny 30 minut, związany z operacją, użytkownikiem i filtrami; zmieniony to `400 invalid_cursor`). Właściciel to `userId` i `displayName`. Każdy udany odczyt jest audytowany (`device.list_read`, bez wartości filtrów).",
+        "operationId": "listDevices",
+        "parameters": [
+          {
+            "description": "Filtr właściciela.",
+            "in": "query",
+            "name": "userId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "maxLength": 36,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filtr stanu.",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/DeviceState"
+            }
+          },
+          {
+            "description": "Liczba pozycji na stronie.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Kursor ze strony poprzedniej (`nextCursor`) - wartość nieprzezroczysta, ważna 30 minut.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagedDeviceList"
+                }
+              }
+            },
+            "description": "Strona urządzeń.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidListQuery"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Urządzenia użytkowników (W-17)",
+        "tags": [
+          "devices"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
     "/api/v1/devices/current/wipe-confirmation": {
       "post": {
         "description": "Telefon potwierdza, że usunął dane (stan „Wyczyszczone” w W-17). Publiczna operacja kanału `mobile`: urządzenie w stanie wyczyszczenia nie ma ważnej sesji, więc para `deviceId` + `installationSecret` jedzie w TREŚCI (nie w adresie ani nagłówku; `deviceId` nie występuje w ścieżce) — tak jak przy ponownym logowaniu. Sekret jest tu dowodem przejścia stanu, nie czynnikiem uwierzytelniania (SR-AUTH-14); przyjmowany jest bieżący albo poprzedni, jeszcze nieprzekreślony sekret instalacji (rotacja dwufazowa, zob. `mobileLoginTotp`). Po potwierdzeniu oba sekrety są unieważniane. Operacja nie zwraca danych i niczego nie zmienia poza przejściem `wipe_required` → `wiped`. Odpowiedzi: `204` dla poprawnej pary — idempotentnie, także gdy urządzenie nie jest w stanie wyczyszczenia albo już potwierdziło; `401 invalid_credentials` jednym komunikatem dla nieznanego urządzenia i złego sekretu (brak enumeracji urządzeń); `400` (zły kształt), `413` (treść > 8 KB), `429` z `Retry-After` (limit na adres IP). Unieważnienie tokenów urządzenia nie zależy od potwierdzenia. Kolejność po stronie aplikacji: usuń dane, wyślij potwierdzenie, na końcu usuń sekret instalacji. Bez kontroli wersji aplikacji (`426` nie dotyczy tej operacji). `Cache-Control: no-store`. Audyt (EVM-094): potwierdzenie wyczyszczenia urządzenia — bez sekretu.",
@@ -15026,6 +15472,125 @@
             "mobile"
           ],
           "public": true
+        }
+      }
+    },
+    "/api/v1/devices/{deviceId}/logout": {
+      "post": {
+        "description": "Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. Kończy sesje urządzenia (następne żądanie telefonu: `401 session_revoked`), stan urządzenia zostaje (nie cofa `wipe_required`). Nieznane urządzenie `404`, zły UUID `400`. Idempotentna. Audyt `device.logged_out` (powód `manual`). Wymaga `X-CSRF-Token`.",
+        "operationId": "logoutDevice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Urządzenie wylogowane.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Wylogowanie urządzenia użytkownika (W-17)",
+        "tags": [
+          "devices"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/devices/{deviceId}/wipe": {
+      "post": {
+        "description": "Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. Treść `{ confirmModel }` - serwer porównuje ją z modelem urządzenia z bazy (po przycięciu i normalizacji NFC, z rozróżnieniem wielkości liter); niezgodność to `400 device_model_mismatch` bez echa. Stan przechodzi `active` do `wipe_required` (końcowy; wychodzi z niego wyłącznie `confirmDeviceWipe` do `wiped`), sesje urządzenia kończą się, a następne żądanie, odświeżenie i logowanie z sekretem instalacji dają `401 device_wipe_required`. Urządzenie `wipe_required` nie liczy się do limitu 2 urządzeń. Idempotentna: dla `wipe_required` i `wiped` `204` bez zmiany (i bez drugiego wpisu audytu). Transakcja blokuje wiersz urządzenia (wyścig z `confirmDeviceWipe`). Audyt `device.wipe_ordered` (powód `manual`). Dotyczy danych firmowych w aplikacji, nie całego telefonu. Wymaga `X-CSRF-Token`.",
+        "operationId": "wipeDevice",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DeviceIdParameter"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "confirmModel": "Pixel 8"
+              },
+              "schema": {
+                "$ref": "#/components/schemas/WipeDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Wyczyszczenie zlecone (idempotentnie).",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/DeviceModelMismatch"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "„Zablokuj i wyczyść” (W-17)",
+        "tags": [
+          "devices"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
         }
       }
     },
@@ -16657,6 +17222,71 @@
         "summary": "Dezaktywacja konta (W-16)",
         "tags": [
           "identity"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/users/{userId}/devices/summary": {
+      "get": {
+        "description": "Tylko Administrator, kanał `web`, po step-upie; pozostałe role `403 forbidden`. `{ devices, activeDevices, pendingItemsReported }` dla dialogów „Zablokuj i wyczyść” i zmiany roli na Tylko odczyt (suma ostatnio zgłoszonych niewysłanych elementów). Nieznany użytkownik `404`. Odczyt jest audytowany (`device.list_read`).",
+        "operationId": "getUserDevicesSummary",
+        "parameters": [
+          {
+            "description": "Identyfikator użytkownika (UUID).",
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "maxLength": 36,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDevicesSummary"
+                }
+              }
+            },
+            "description": "Podsumowanie.",
+            "headers": {
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControlNoStore"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Podsumowanie urządzeń użytkownika (W-17, zmiana roli)",
+        "tags": [
+          "devices"
         ],
         "x-evia-authz": {
           "audit": true,
