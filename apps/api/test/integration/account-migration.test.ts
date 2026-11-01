@@ -51,6 +51,7 @@ beforeAll(async () => {
     '0060_media_metadata',
     '0061_document_anchors',
     '0062_media_deletion',
+    '0063_media_exports',
   ]);
 });
 afterAll(async () => {

@@ -27,7 +27,9 @@ export type SecurityAlertCode =
   // EVM-097 AB-08: a device asked for more snapshots of an order in an hour than the limit allows (once per device and hour; the device is in the audit event of the same trace)
   | 'sync_snapshot_rate_exceeded'
   // EVM-099 AB-08: a device tried to create more than 20 customers or 20 sites in 24 hours (once per device, kind and hour; the device and the kind are in the audit event of the same trace)
-  | 'sync_quick_create_quota_exceeded';
+  | 'sync_quick_create_quota_exceeded'
+  // EVM-052 AB-07: a ZIP export of the photos of an order was ordered (the person is in the audit event of the same trace, never in the alert)
+  | 'media_export_started';
 
 export interface SecurityAlertsTable {
   id: string;
