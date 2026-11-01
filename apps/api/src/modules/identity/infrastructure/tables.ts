@@ -206,6 +206,8 @@ export interface DevicesTable {
   last_contact_at: Date;
   created_at: Date;
   removed_at: Date | null;
+  /** When the phone was logged out, ordered to wipe or hit by an event of the account (EVM-095, 0064); the retention counts from the later of this and the last contact. */
+  invalidated_at: ColumnType<Date | null, Date | null | undefined, Date | null>;
 }
 
 /** What the first step of the phone knows, for the second one (EVM-094, 0050). */

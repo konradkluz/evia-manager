@@ -41,11 +41,11 @@ AuditAction:
     - device.registered
     - device.recognized
     - device.wipe_confirmed
+    - session.refreshed
     - device.logged_out
     - device.wipe_ordered
     - device.list_read
     - device.purged
-    - session.refreshed
     - audit.read
     - bulk_read.alerted
     - bulk_read.rejected

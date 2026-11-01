@@ -44,6 +44,7 @@ import {
 } from '../infrastructure/queries.ts';
 import { identityTables } from '../infrastructure/tables.ts';
 import type { ClientInfo } from './activation.service.ts';
+import { applyAccountEventToDevices } from './account-device-events.ts';
 import { LoginThrottle } from './login-throttle.ts';
 import { PasswordSetting } from './password-setting.ts';
 import { openSecondStep, secondStepMethods } from './second-step.ts';
@@ -165,6 +166,14 @@ export class PasswordResetService {
       await markLinkUsed(tx, locked.linkId, now);
       await supersedeOpenResetLinksOfUser(tx, locked.userId, now);
       const revoked = await revokeSessions(tx, { userId: locked.userId }, 'password_reset', now);
+      await applyAccountEventToDevices(transaction, this.#events, {
+        userId: locked.userId,
+        mode: 'sign_out',
+        reason: 'password_reset',
+        actor: { type: 'user', userId: locked.userId },
+        context: client.context,
+        now,
+      });
       // Every earlier first step ends BEFORE the new one is opened: an old `loginToken` is dead, the new one works only for a method of the account.
       await revokeLoginAttemptsOfUser(tx, locked.userId, now);
       // The new password ends the lock whose cause is the password (a failure of the second step in the window keeps its lock, EVM-026 AC7); the browsers

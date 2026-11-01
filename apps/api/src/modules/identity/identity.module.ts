@@ -9,6 +9,7 @@ import { APP_CONFIG } from '../../platform/tokens.ts';
 import { AccountService } from './application/account.service.ts';
 import { AccountSessionsService } from './application/account-sessions.service.ts';
 import { ActivationService } from './application/activation.service.ts';
+import { DeviceAdminService } from './application/device-admin.service.ts';
 import { DeviceWipeService } from './application/device-wipe.service.ts';
 import { MobileLoginService } from './application/mobile-login.service.ts';
 import { MobileLoginTotpService } from './application/mobile-login-totp.service.ts';
@@ -48,6 +49,7 @@ import { UserDirectory } from './application/user-directory.ts';
 import { VerificationGate } from './application/verification-gate.ts';
 import { AccountController } from './http/account.controller.ts';
 import { AuthController } from './http/auth.controller.ts';
+import { DevicesController } from './http/devices.controller.ts';
 import { MobileController } from './http/mobile.controller.ts';
 import { UsersController } from './http/users.controller.ts';
 import { Argon2PasswordHasher } from './infrastructure/argon2-password-hasher.ts';
@@ -61,10 +63,11 @@ import { DevicePendingItemsService } from './infrastructure/pending-items.ts';
 import { DEVICE_PENDING_ITEMS, USER_SYNC_SOURCE } from './system-ports.ts';
 
 @Module({
-  controllers: [AuthController, AccountController, UsersController, MobileController],
+  controllers: [AuthController, AccountController, UsersController, MobileController, DevicesController],
   providers: [
     AccountService,
     AccountSessionsService,
+    DeviceAdminService,
     DeviceWipeService,
     MobileLoginService,
     MobileLoginTotpService,

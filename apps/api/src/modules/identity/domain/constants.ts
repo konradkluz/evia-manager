@@ -76,6 +76,8 @@ export const REFRESH_REUSE_WINDOW_MS = 30_000;
 export const PREVIOUS_SECRET_VALID_MS = 7 * 24 * HOUR;
 /** A device with no contact for 30 days loses its sessions (P2). */
 export const DEVICE_INACTIVE_MS = 30 * 24 * HOUR;
+/** A record of a device is deleted 90 days after the later of its last contact and its invalidation (P2, EVM-095 AC7). */
+export const DEVICE_RECORD_RETENTION_MS = 90 * 24 * HOUR;
 /** The devices an account keeps at once (SR-SESS-04). */
 export const MAX_MOBILE_DEVICES = 2;
 /** An expired access token is kept this long, so that the token of a device ordered to wipe is still recognised. */
