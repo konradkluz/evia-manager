@@ -187,6 +187,10 @@ describe('EVM-049 AC4 nothing leaves the system and nothing releases a quarantin
         'rescanMediaAsset',
         // EVM-048: the metadata only (category, description, stage); the state of the file is read_only_field there (see media-metadata.test.ts)
         'updateMediaAsset',
+        // EVM-051: the Administrator hides a medium, brings it back, or erases its file for good - none of them changes the state of the scan or releases a quarantined file
+        'deleteMediaAsset',
+        'restoreMediaAsset',
+        'purgeMediaAssetFile',
       ].sort(),
     );
     expect(Object.keys(AUTHZ_MANIFEST).filter((id) => /release|override|unquarantine|whitelist|approveMedia/i.test(id))).toEqual([]);
