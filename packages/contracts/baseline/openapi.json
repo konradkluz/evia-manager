@@ -623,6 +623,60 @@
           }
         }
       },
+      "MediaErasureConflict": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "file_processing",
+              "status": 409,
+              "title": "The file is still being processed",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/file_processing"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Konflikt usunięcia pliku (EVM-051): plik jest jeszcze przetwarzany (`file_processing`, z `Retry-After` — operacja nic nie zmieniła, można ponowić po zakończeniu zadania), plik został już trwale usunięty (`file_erased` — przywrócenie, nowa wersja pliku i ponowny skan są niemożliwe) albo element nie jest usunięty (`invalid_state_transition` przy przywracaniu). Odpowiedź nie zawiera danych elementu.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `file_processing`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "MediaErasureUnavailable": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "code": "deletion_register_unavailable",
+              "status": 503,
+              "title": "The deletion register is unavailable",
+              "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+              "type": "/problems/deletion_register_unavailable"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Trwałe usunięcie nie wystartowało albo nie zostało domknięte (EVM-051 AC3; SR-PRIV-04): rejestr usunięć nie przyjął zapisu (`deletion_register_unavailable` — plik, rekord i opis bez zmian) albo magazyn plików nie odpowiada (`media_storage_unavailable` — operację można bezpiecznie ponowić, jest idempotentna). Odpowiedź nie zawiera szczegółów infrastruktury.",
+        "headers": {
+          "Retry-After": {
+            "description": "Liczba sekund do ponowienia (tylko `media_storage_unavailable`).",
+            "schema": {
+              "maximum": 3600,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
       "MediaStorageUnavailable": {
         "content": {
           "application/problem+json": {
@@ -2375,7 +2429,13 @@
           "document_file.downloaded",
           "document_file.download_denied",
           "media_asset.metadata_updated",
-          "document.metadata_updated"
+          "document.metadata_updated",
+          "media_asset.deleted",
+          "media_asset.restored",
+          "media_asset.file_purged",
+          "document.deleted",
+          "document.restored",
+          "document.file_purged"
         ],
         "type": "string"
       },
@@ -4131,6 +4191,19 @@
               }
             ]
           },
+          "fileErasedAt": {
+            "description": "Czas trwałego usunięcia plików dokumentu przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: wszystkie wersje pliku są usunięte ze storage'u, tytuł jest zastąpiony znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis jest usunięty, `canDownload` jest `false`, a rekord zostaje. Pole jest zawsze obecne w odpowiedzi serwera.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "fileState": {
             "$ref": "#/components/schemas/MediaFileState"
           },
@@ -4758,6 +4831,19 @@
                 "maximum": 1800,
                 "minimum": 1,
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fileErasedAt": {
+            "description": "Czas trwałego usunięcia pliku przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: oryginał i pochodne są usunięte ze storage'u, opis jest usunięty, a rekord zostaje — panel pokazuje „Plik usunięty przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw), bez autora i bez akcji na pliku. Pole jest zawsze obecne w odpowiedzi serwera.",
+            "oneOf": [
+              {
+                "format": "date-time",
+                "maxLength": 40,
+                "type": "string"
               },
               {
                 "type": "null"
@@ -17588,6 +17674,48 @@
       }
     },
     "/api/v1/work-orders/{workOrderId}/documents/{documentId}": {
+      "delete": {
+        "description": "Ukrycie dokumentu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: dokument znika dla każdego czytelnika (listy zlecenia, lokalizacji i klienta, adresy plików - `404`); `restoreDocument` go przywraca. Dokument spoza zakresu zlecenia ze ścieżki (innego zlecenia, lokalizacji albo klienta, których zlecenie nie dotyka), już usunięty i nieistniejący to jedna odpowiedź `404`. Audyt: `document.deleted` (aktor, identyfikator, `traceId`; nigdy tytuł, opis ani nazwa pliku).",
+        "operationId": "deleteDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dokument usunięty."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Usunięcie dokumentu (Administrator; do cofnięcia)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      },
       "patch": {
         "description": "Edycja dokumentu (EVM-047 AC4, AC7 - podniesienie klasy; EVM-048 AC3, AC4, AC6, AC7 - tytuł, opis, etap; SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-07, SR-INPUT-02, SR-INPUT-05, SR-LOG-03; AB-20). Role Administrator i Edytor (Tylko odczyt - `403` przed `If-Match` i treścią), kanał `web` (token mobilny - `403 forbidden`), z audytem: `document.confidentiality_raised` (aktor, identyfikator, `fromCode` i `toCode`, `traceId`), gdy zmienia się klasa, i `document.metadata_updated` (aktor, identyfikator, `traceId`), gdy zmienia się tytuł, opis albo etap - NIGDY ich wartości. Jedno żądanie podnosi `version` o 1. Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict`. Pola: `title`, `description`, `procedureStageId` (etap TEGO zlecenia - inny, usunięty albo nieistniejący: `400 validation_failed`, `/procedureStageId`) i `confidentialityOverride` (ściśle wyższe od klasy efektywnej, inaczej `400 validation_failed`; nigdy poniżej klasy rodzaju); każde inne - `400 read_only_field`. Rodzaj i zlecenie dokumentu nie zmieniają się. Dokument innego zlecenia niż w ścieżce oraz medium o tym identyfikatorze - `404`. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu.",
         "operationId": "updateDocument",
@@ -17741,6 +17869,116 @@
             "administrator",
             "editor",
             "read_only"
+          ]
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/purge-file": {
+      "post": {
+        "description": "„Usuń plik trwale…” dla dokumentu (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`, `stepUp: true`, `X-CSRF-Token`, `If-Match` - jak `purgeMediaAssetFile`. Usuwa WSZYSTKIE wersje pliku dokumentu (także w kwarantannie i niedokończony upload), tytuł zastępuje znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis i nazwy plików są usunięte, rekord zostaje. Do rejestru usunięć trafiają identyfikator dokumentu, kod operacji, czas, aktor i właściciel - zlecenie albo kotwica (typ i identyfikator lokalizacji lub klienta), bez tytułu, opisu i nazw plików. Audyt: `document.file_purged`. Po usunięciu: przywrócenie, nowa wersja pliku i ponowny skan - `409 file_erased`, adres pobrania - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem ścieżki zlecenia (`404`).",
+        "operationId": "purgeDocumentFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Pliki usunięte trwale (albo powtórzenie wcześniejszego usunięcia)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaErasureUnavailable"
+          }
+        },
+        "summary": "Trwałe usunięcie plików dokumentu (Administrator, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/documents/{documentId}/restore": {
+      "post": {
+        "description": "„Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Dokument usunięty (miękko) wraca na listy; dokument nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem tej ścieżki (wymaga wcześniejszego przywrócenia kotwicy). Audyt: `document.restored`.",
+        "operationId": "restoreDocument",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/DocumentIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dokument przywrócony."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Przywrócenie usuniętego dokumentu (Administrator)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
           ]
         }
       }
@@ -18293,6 +18531,48 @@
       }
     },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}": {
+      "delete": {
+        "description": "Ukrycie zdjęcia lub filmu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: element znika dla każdego czytelnika (lista, pobranie po `id` i adresy plików - `404`), plik zostaje w storage'ie, a `restoreMediaAsset` go przywraca. Medium innego zlecenia niż w ścieżce, już usunięte i nieistniejące to jedna odpowiedź `404`. Audyt: `media_asset.deleted` (aktor, identyfikator, `traceId`; nigdy opis ani nazwa pliku). Podpisane adresy wydane przed usunięciem działają do 5 minut (do ich wygaśnięcia).",
+        "operationId": "deleteMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Medium usunięte."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Usunięcie medium (Administrator; do cofnięcia)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
+        }
+      },
       "patch": {
         "description": "Edycja metadanych medium (EVM-048 AC2, AC4, AC6, AC7, AC8; SR-AUTHZ-01, SR-AUTHZ-02, SR-AUTHZ-04, SR-AUTHZ-05, SR-INPUT-01, SR-INPUT-02, SR-INPUT-05, SR-LOG-03, SR-API-02). Role Administrator i Edytor (Tylko odczyt - `403 forbidden` przed `If-Match` i treścią; niezalogowany - `401`; token mobilny - `403 forbidden`), kanał `web`, z audytem (`media_asset.metadata_updated` - aktor, identyfikator medium, `traceId`; NIGDY opis ani nazwa etapu). Wymaga `X-CSRF-Token` i `If-Match` (silny ETag `\"<version>\"`): brak - `428`; zniekształcony - `400`; nieaktualna wersja - `412 version_conflict` (dane bez zmian). Kolejność: ścieżka (`400`) -> zlecenie przez politykę odczytu (`404`) -> `If-Match` -> medium TEGO zlecenia pod blokadą wiersza (`404`: medium innego zlecenia, nieistniejące i dokument o tym identyfikatorze to jedna odpowiedź) -> treść (`400`; `read_only_field`, `unknown_field`) -> wersja (`412`) -> etap (`400 validation_failed`, `/procedureStageId`: etap innego zlecenia, usunięty i nieistniejący to jedna odpowiedź) -> zapis (`version + 1`) i audyt w jednej transakcji. Zlecenie rozliczone albo anulowane nadal przyjmuje zmianę (PO-8). Żądanie bez realnej zmiany - `200` bez zmiany wersji i bez audytu. Odpowiedź ma tę samą postać co element listy (przyczyna kwarantanny - tylko Administrator).",
         "operationId": "updateMediaAsset",
@@ -18466,6 +18746,69 @@
         }
       }
     },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/purge-file": {
+      "post": {
+        "description": "„Usuń plik trwale…” (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`, `stepUp: true` (rola przed step-upem: Edytor i Tylko odczyt - `403 forbidden`; Administrator bez uwierzytelnienia kluczem w ciągu 15 minut - `403 step_up_required`). Wymaga `X-CSRF-Token` i `If-Match` (brak - `428`, zniekształcony - `400`, nieaktualny - `412`). Kolejność: zlecenie (`404`), medium TEGO zlecenia pod blokadą (także usunięte miękko; inne zlecenie i nieistniejące - `404`), medium z już usuniętym plikiem - `204` (powtórzenie jest idempotentne i domyka usuwanie obiektów), `If-Match`, wersja (`412`), plik w trakcie skanu lub przetwarzania - `409 file_processing` z `Retry-After` (nic się nie zmienia), POTEM zapis do rejestru usunięć (identyfikator medium, zlecenie, kod operacji, czas, aktor - bez nazwy i opisu; niedostępny rejestr - `503 deletion_register_unavailable`, plik i rekord nietknięte), zmiana w bazie (znacznik, opis usunięty, nazwa pliku usunięta) i dopiero potem usunięcie obiektów (oryginał, miniatura, podgląd, 720p, także w kwarantannie; niedokończony upload zostaje przerwany). Wersje obiektów w buckecie wygasają po 30 dniach (ADR-0009, RR-14); podpisane adresy wydane wcześniej działają do 5 minut. Audyt: `media_asset.file_purged` (aktor, identyfikator, wynik `success` albo `failed`, `reasonCode` `step_up_verified`, `traceId`). Po usunięciu pliku: przywrócenie, nowa sesja uploadu i ponowny skan - `409 file_erased`, adres pobrania - `404`.",
+        "operationId": "purgeMediaAssetFile",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/IfMatchHeader-2"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Plik usunięty trwale (albo powtórzenie wcześniejszego usunięcia)."
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/MediaErasureUnavailable"
+          }
+        },
+        "summary": "Trwałe usunięcie pliku medium (Administrator, step-up)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "stepUp": true
+        }
+      }
+    },
     "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/rescan": {
       "post": {
         "description": "Zlecenie ponownego skanu pliku `held` (EVM-049 AC3, AC4, AC8; P5; SR-SESS-08, SR-AUTHZ-05, SR-ERR-01) — JEDYNA operacja zmieniająca stan pliku w kwarantannie (nie ma zwolnienia ani ominięcia skanu). Rola Administrator, kanał `web`, `stepUp: true`. Kolejność odpowiedzi: `401` → `403 forbidden` dla Edytora i Tylko odczyt (bez odczytu stanu; nigdy `step_up_required`) → `403 step_up_required` dla Administratora ze starym uwierzytelnieniem → `404` (zlecenie nieistniejące lub usunięte, medium innego zlecenia niż w ścieżce) → `409 invalid_state_transition` (stan inny niż `quarantined` — w tym `scanning`, `purged` i po terminie 30 dni). Wymaga `X-CSRF-Token` i `Idempotency-Key`; bez `If-Match` (zmiana warunkowa po stanie pliku). Plik przechodzi do `scanning` (przyczyna jest czyszczona); worker wykonuje PEŁNY skan jak za pierwszym razem (suma kontrolna, typ po zawartości, ClamAV). Wynik czysty wraca do przepływu, pozytywny zostawia w kwarantannie bez nowego e-maila i alertu; termin 30 dni liczy się od pierwszego wejścia. Audyt: `media_file.rescan_requested` (Administrator) w tej samej transakcji, potem `media_file.rescanned` (system, wynik). Odpowiedź `202` — medium w stanie `scanning`.",
@@ -18535,6 +18878,53 @@
             "administrator"
           ],
           "stepUp": true
+        }
+      }
+    },
+    "/api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/restore": {
+      "post": {
+        "description": "„Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Medium usunięte (miękko) wraca na listę; medium nieusunięte - `409 invalid_state_transition`; medium z trwale usuniętym plikiem - `409 file_erased`; medium innego zlecenia i nieistniejące - `404`. Audyt: `media_asset.restored`.",
+        "operationId": "restoreMediaAsset",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkOrderIdParameter"
+          },
+          {
+            "$ref": "#/components/parameters/MediaAssetIdParameter"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Medium przywrócone."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MediaErasureConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "summary": "Przywrócenie usuniętego medium (Administrator)",
+        "tags": [
+          "media"
+        ],
+        "x-evia-authz": {
+          "audit": true,
+          "channels": [
+            "web"
+          ],
+          "roles": [
+            "administrator"
+          ]
         }
       }
     },

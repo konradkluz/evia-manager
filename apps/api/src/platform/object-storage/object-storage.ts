@@ -38,6 +38,11 @@ export interface ObjectHead {
   readonly versionId: string | undefined;
 }
 
+export interface ObjectPage {
+  readonly keys: readonly string[];
+  readonly nextToken: string | undefined;
+}
+
 export interface CompletedObject {
   readonly etag: string;
   readonly versionId: string | undefined;
@@ -91,6 +96,12 @@ export interface ObjectStorage {
    * object is not an error.
    */
   deleteObject(key: string): Promise<void>;
+  /**
+   * One page of the keys of the CURRENT objects under a prefix (no delete markers, no older versions), in key order (EVM-051 AC5, SR-FILE-11: the
+   * reconciliation). `nextToken` is opaque; `undefined` ends the listing. Needs the permission to list the bucket: the key of the worker has it, a key
+   * handed to a client never does.
+   */
+  listObjects(prefix: string, limit: number, token?: string): Promise<ObjectPage>;
   /** @returns `undefined` when there is no such object */
   head(key: string): Promise<ObjectHead | undefined>;
   /** One read of a pinned version (`versionId`) and, when given, of the exact ETag (`ifMatch`): the three verdicts concern the same bytes. */

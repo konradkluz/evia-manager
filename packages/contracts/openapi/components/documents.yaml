@@ -204,6 +204,16 @@ Document:
         - type: string
           enum: [checksum_mismatch]
         - type: 'null'
+    fileErasedAt:
+      description: >-
+        Czas trwałego usunięcia plików dokumentu przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: wszystkie wersje pliku są usunięte ze
+        storage'u, tytuł jest zastąpiony znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis jest usunięty, `canDownload` jest `false`, a rekord
+        zostaje. Pole jest zawsze obecne w odpowiedzi serwera.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
     declaredSize:
       type: integer
       minimum: 1

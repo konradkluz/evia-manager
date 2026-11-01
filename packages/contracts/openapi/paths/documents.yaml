@@ -200,6 +200,34 @@ documentById:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteDocument
+    tags: [media]
+    summary: Usunięcie dokumentu (Administrator; do cofnięcia)
+    description: >-
+      Ukrycie dokumentu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`, z
+      `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: dokument znika dla
+      każdego czytelnika (listy zlecenia, lokalizacji i klienta, adresy plików - `404`); `restoreDocument` go przywraca. Dokument spoza zakresu zlecenia ze
+      ścieżki (innego zlecenia, lokalizacji albo klienta, których zlecenie nie dotyka), już usunięty i nieistniejący to jedna odpowiedź `404`. Audyt:
+      `document.deleted` (aktor, identyfikator, `traceId`; nigdy tytuł, opis ani nazwa pliku).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '204':
+        description: Dokument usunięty.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 documentUploadSessions:
   post:
     operationId: createDocumentUploadSession
@@ -620,3 +648,74 @@ createCustomerDocumentDownloadUrl:
         $ref: ../components/responses.yaml#/RateLimited
       '503':
         $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+documentRestore:
+  post:
+    operationId: restoreDocument
+    tags: [media]
+    summary: Przywrócenie usuniętego dokumentu (Administrator)
+    description: >-
+      „Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Dokument usunięty (miękko) wraca na listy; dokument
+      nieusunięty - `409 invalid_state_transition`; dokument z trwale usuniętym plikiem - `409 file_erased`; spoza zakresu zlecenia i nieistniejący - `404`.
+      Dokument usuniętej lokalizacji albo klienta jest poza zakresem tej ścieżki (wymaga wcześniejszego przywrócenia kotwicy). Audyt: `document.restored`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+    responses:
+      '204':
+        description: Dokument przywrócony.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+documentPurgeFile:
+  post:
+    operationId: purgeDocumentFile
+    tags: [media]
+    summary: Trwałe usunięcie plików dokumentu (Administrator, step-up)
+    description: >-
+      „Usuń plik trwale…” dla dokumentu (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator,
+      kanał `web`, `stepUp: true`, `X-CSRF-Token`, `If-Match` - jak `purgeMediaAssetFile`. Usuwa WSZYSTKIE wersje pliku dokumentu (także w kwarantannie i
+      niedokończony upload), tytuł zastępuje znacznikiem „Plik usunięty przez administratora DD.MM.RRRR.”, opis i nazwy plików są usunięte, rekord zostaje.
+      Do rejestru usunięć trafiają identyfikator dokumentu, kod operacji, czas, aktor i właściciel - zlecenie albo kotwica (typ i identyfikator lokalizacji
+      lub klienta), bez tytułu, opisu i nazw plików. Audyt: `document.file_purged`. Po usunięciu: przywrócenie, nowa wersja pliku i ponowny skan - `409
+      file_erased`, adres pobrania - `404`. Dokument usuniętej lokalizacji albo klienta jest poza zakresem ścieżki zlecenia (`404`).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/DocumentIdParameter'
+      - $ref: '#/IfMatchHeader'
+    responses:
+      '204':
+        description: Pliki usunięte trwale (albo powtórzenie wcześniejszego usunięcia).
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaErasureUnavailable

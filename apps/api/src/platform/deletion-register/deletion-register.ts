@@ -13,10 +13,15 @@
 export const DELETION_REGISTER = Symbol('DELETION_REGISTER');
 
 /** What was done to the subject; the closed list grows with the stories that erase (EVM-040: a redaction, EVM-041: the anonymisation of a customer). */
-export const DELETION_OPERATION_CODES = ['timeline_entry_redacted', 'customer_anonymized'] as const;
+export const DELETION_OPERATION_CODES = [
+  'timeline_entry_redacted',
+  'customer_anonymized',
+  'media_file_purged',
+  'document_file_purged',
+] as const;
 export type DeletionOperationCode = (typeof DELETION_OPERATION_CODES)[number];
 
-export const DELETION_SUBJECT_TYPES = ['timeline_entry', 'customer'] as const;
+export const DELETION_SUBJECT_TYPES = ['timeline_entry', 'customer', 'media_asset', 'document'] as const;
 export type DeletionSubjectType = (typeof DELETION_SUBJECT_TYPES)[number];
 
 /** What a caller says; the identifier of the operation and the time are made by the register itself (never a value of a request). */
@@ -26,6 +31,8 @@ export interface DeletionRecord {
   readonly subjectId: string;
   /** The order the subject belongs to (`null` for a subject outside an order). */
   readonly workOrderId: string | null;
+  /** The anchor of a document of a site or a customer (EVM-051: such a document has no order); absent otherwise. Identifiers only. */
+  readonly anchor?: { readonly type: 'site' | 'customer'; readonly id: string };
   /** The pseudonymous identifier of the person who erased: the replay needs it for the columns of the redaction (`redacted_by`). */
   readonly actorUserId: string;
 }

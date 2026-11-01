@@ -11,6 +11,7 @@ import {
   ObjectStorageError,
   type CompletedObject,
   type ObjectHead,
+  type ObjectPage,
   type ObjectStorage,
   type PartUrl,
   type SignedGetInput,
@@ -131,6 +132,19 @@ export class InMemoryObjectStorage implements ObjectStorage {
     if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
     if (this.#objects.has(key)) this.#markers.add(key);
     return Promise.resolve();
+  }
+
+  listObjects(prefix: string, limit: number, token?: string): Promise<ObjectPage> {
+    if (this.unavailable) return Promise.reject(new ObjectStorageError('unavailable'));
+    const keys = this.currentKeys().filter((key) => key.startsWith(prefix));
+    const rest = token === undefined ? keys : keys.filter((key) => key > token);
+    const page = rest.slice(0, limit);
+    return Promise.resolve({ keys: page, nextToken: rest.length > limit ? page.at(-1) : undefined });
+  }
+
+  /** Test helper: the keys of the objects a plain read still finds (no delete marker on top), in key order. */
+  currentKeys(): string[] {
+    return [...this.#objects.keys()].filter((key) => !this.#markers.has(key)).sort();
   }
 
   head(key: string): Promise<ObjectHead | undefined> {

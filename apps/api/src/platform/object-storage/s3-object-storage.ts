@@ -16,6 +16,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   ListPartsCommand,
   PutObjectCommand,
   S3Client,
@@ -29,6 +30,7 @@ import {
   ObjectStorageError,
   type CompletedObject,
   type ObjectHead,
+  type ObjectPage,
   type ObjectStorage,
   type ObjectStorageErrorCode,
   type PartUrl,
@@ -197,6 +199,18 @@ export class S3ObjectStorage implements ObjectStorage {
     } catch (error) {
       const translated = translateS3Error(error);
       if (translated.code !== 'no_such_object') throw translated;
+    }
+  }
+
+  async listObjects(prefix: string, limit: number, token?: string): Promise<ObjectPage> {
+    try {
+      const out = await this.#client.send(
+        new ListObjectsV2Command({ Bucket: this.#bucket, Prefix: prefix, MaxKeys: limit, ContinuationToken: token }),
+      );
+      const keys = (out.Contents ?? []).flatMap((object) => (object.Key === undefined ? [] : [object.Key]));
+      return { keys, nextToken: out.IsTruncated === true ? out.NextContinuationToken : undefined };
+    } catch (error) {
+      throw translateS3Error(error);
     }
   }
 

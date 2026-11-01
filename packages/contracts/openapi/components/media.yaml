@@ -129,6 +129,16 @@ MediaAsset:
         Przyczyna kwarantanny — TYLKO Administrator (polityka `mediaQuarantine.manage`) i tylko dla `quarantine.state` = `held`. Dla
         Edytora i Tylko odczyt pola nie ma w odpowiedzi. Klient toleruje wartość nieznaną i pokazuje wtedy etykietę ogólną.
       enum: [malware_detected, type_mismatch]
+    fileErasedAt:
+      description: >-
+        Czas trwałego usunięcia pliku przez administratora (EVM-051; UTC) albo `null`. Gdy ustawiony: oryginał i pochodne są usunięte ze storage'u, opis jest
+        usunięty, a rekord zostaje — panel pokazuje „Plik usunięty przez administratora DD.MM.RRRR.” (data w strefie Europe/Warsaw), bez autora i bez akcji
+        na pliku. Pole jest zawsze obecne w odpowiedzi serwera.
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 40
+        - type: 'null'
     declaredSize:
       type: integer
       description: Rozmiar zadeklarowany przy dodaniu (bajty); zdjęcie do 50 MB, film do 4 GiB.

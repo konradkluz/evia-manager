@@ -106,6 +106,12 @@ AuditAction:
     - document_file.download_denied
     - media_asset.metadata_updated
     - document.metadata_updated
+    - media_asset.deleted
+    - media_asset.restored
+    - media_asset.file_purged
+    - document.deleted
+    - document.restored
+    - document.file_purged
 AuditOutcome:
   type: string
   description: Wynik zdarzenia.

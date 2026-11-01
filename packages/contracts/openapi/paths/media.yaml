@@ -458,6 +458,34 @@ mediaAssetById:
         $ref: ../components/responses.yaml#/PreconditionRequired
       '429':
         $ref: ../components/responses.yaml#/RateLimited
+  delete:
+    operationId: deleteMediaAsset
+    tags: [media]
+    summary: Usunięcie medium (Administrator; do cofnięcia)
+    description: >-
+      Ukrycie zdjęcia lub filmu dodanego przez pomyłkę (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05, SR-LOG-03). Tylko Administrator, kanał `web`,
+      z `X-CSRF-Token` (Edytor i Tylko odczyt - `403 forbidden`, token mobilny - `403 forbidden`, niezalogowany - `401`). Miękkie usunięcie: element znika
+      dla każdego czytelnika (lista, pobranie po `id` i adresy plików - `404`), plik zostaje w storage'ie, a `restoreMediaAsset` go przywraca. Medium innego
+      zlecenia niż w ścieżce, już usunięte i nieistniejące to jedna odpowiedź `404`. Audyt: `media_asset.deleted` (aktor, identyfikator, `traceId`; nigdy opis
+      ani nazwa pliku). Podpisane adresy wydane przed usunięciem działają do 5 minut (do ich wygaśnięcia).
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+    responses:
+      '204':
+        description: Medium usunięte.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
 mediaAssetRescan:
   post:
     operationId: rescanMediaAsset
@@ -569,3 +597,79 @@ mediaAssetDownloadUrl:
         $ref: ../components/responses.yaml#/RateLimited
       '503':
         $ref: ../components/media-responses.yaml#/MediaStorageUnavailable
+mediaAssetRestore:
+  post:
+    operationId: restoreMediaAsset
+    tags: [media]
+    summary: Przywrócenie usuniętego medium (Administrator)
+    description: >-
+      „Cofnij” po usunięciu (EVM-051 AC1, AC4, AC6; SR-AUTHZ-02, SR-AUTHZ-05). Tylko Administrator, kanał `web`, z `X-CSRF-Token`. Medium usunięte (miękko)
+      wraca na listę; medium nieusunięte - `409 invalid_state_transition`; medium z trwale usuniętym plikiem - `409 file_erased`; medium innego zlecenia i
+      nieistniejące - `404`. Audyt: `media_asset.restored`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+    responses:
+      '204':
+        description: Medium przywrócone.
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+mediaAssetPurgeFile:
+  post:
+    operationId: purgeMediaAssetFile
+    tags: [media]
+    summary: Trwałe usunięcie pliku medium (Administrator, step-up)
+    description: >-
+      „Usuń plik trwale…” (EVM-051 AC2, AC3, AC4, AC6, AC7; SR-PRIV-03, SR-PRIV-04, SR-SESS-08, SR-DATA-08, SR-LOG-03). Tylko Administrator, kanał `web`,
+      `stepUp: true` (rola przed step-upem: Edytor i Tylko odczyt - `403 forbidden`; Administrator bez uwierzytelnienia kluczem w ciągu 15 minut - `403
+      step_up_required`). Wymaga `X-CSRF-Token` i `If-Match` (brak - `428`, zniekształcony - `400`, nieaktualny - `412`). Kolejność: zlecenie (`404`), medium
+      TEGO zlecenia pod blokadą (także usunięte miękko; inne zlecenie i nieistniejące - `404`), medium z już usuniętym plikiem - `204` (powtórzenie jest
+      idempotentne i domyka usuwanie obiektów), `If-Match`, wersja (`412`), plik w trakcie skanu lub przetwarzania - `409 file_processing` z `Retry-After`
+      (nic się nie zmienia), POTEM zapis do rejestru usunięć (identyfikator medium, zlecenie, kod operacji, czas, aktor - bez nazwy i opisu; niedostępny
+      rejestr - `503 deletion_register_unavailable`, plik i rekord nietknięte), zmiana w bazie (znacznik, opis usunięty, nazwa pliku usunięta) i dopiero potem
+      usunięcie obiektów (oryginał, miniatura, podgląd, 720p, także w kwarantannie; niedokończony upload zostaje przerwany). Wersje obiektów w buckecie
+      wygasają po 30 dniach (ADR-0009, RR-14); podpisane adresy wydane wcześniej działają do 5 minut. Audyt: `media_asset.file_purged` (aktor, identyfikator,
+      wynik `success` albo `failed`, `reasonCode` `step_up_verified`, `traceId`). Po usunięciu pliku: przywrócenie, nowa sesja uploadu i ponowny skan -
+      `409 file_erased`, adres pobrania - `404`.
+    x-evia-authz:
+      roles: [administrator]
+      channels: [web]
+      stepUp: true
+      audit: true
+    parameters:
+      - $ref: ./work-orders.yaml#/WorkOrderIdParameter
+      - $ref: '#/MediaAssetIdParameter'
+      - $ref: ./documents.yaml#/IfMatchHeader
+    responses:
+      '204':
+        description: Plik usunięty trwale (albo powtórzenie wcześniejszego usunięcia).
+      '400':
+        $ref: ../components/responses.yaml#/ValidationFailed
+      '401':
+        $ref: ../components/responses.yaml#/Unauthenticated
+      '403':
+        $ref: ../components/responses.yaml#/Forbidden
+      '404':
+        $ref: ../components/responses.yaml#/NotFound
+      '409':
+        $ref: ../components/media-responses.yaml#/MediaErasureConflict
+      '412':
+        $ref: ../components/responses.yaml#/PreconditionFailed
+      '428':
+        $ref: ../components/responses.yaml#/PreconditionRequired
+      '429':
+        $ref: ../components/responses.yaml#/RateLimited
+      '503':
+        $ref: ../components/media-responses.yaml#/MediaErasureUnavailable

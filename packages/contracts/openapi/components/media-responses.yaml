@@ -61,3 +61,47 @@ MediaStorageUnavailable:
         status: 503
         code: media_storage_unavailable
         traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MediaErasureConflict:
+  description: >-
+    Konflikt usunięcia pliku (EVM-051): plik jest jeszcze przetwarzany (`file_processing`, z `Retry-After` — operacja nic nie zmieniła, można ponowić po
+    zakończeniu zadania), plik został już trwale usunięty (`file_erased` — przywrócenie, nowa wersja pliku i ponowny skan są niemożliwe) albo element nie
+    jest usunięty (`invalid_state_transition` przy przywracaniu). Odpowiedź nie zawiera danych elementu.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `file_processing`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/file_processing
+        title: The file is still being processed
+        status: 409
+        code: file_processing
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736
+MediaErasureUnavailable:
+  description: >-
+    Trwałe usunięcie nie wystartowało albo nie zostało domknięte (EVM-051 AC3; SR-PRIV-04): rejestr usunięć nie przyjął zapisu (`deletion_register_unavailable`
+    — plik, rekord i opis bez zmian) albo magazyn plików nie odpowiada (`media_storage_unavailable` — operację można bezpiecznie ponowić, jest
+    idempotentna). Odpowiedź nie zawiera szczegółów infrastruktury.
+  headers:
+    Retry-After:
+      description: Liczba sekund do ponowienia (tylko `media_storage_unavailable`).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3600
+  content:
+    application/problem+json:
+      schema:
+        $ref: problem.yaml#/Problem
+      example:
+        type: /problems/deletion_register_unavailable
+        title: The deletion register is unavailable
+        status: 503
+        code: deletion_register_unavailable
+        traceId: 4bf92f3577b34da6a3ce929d0e0e4736

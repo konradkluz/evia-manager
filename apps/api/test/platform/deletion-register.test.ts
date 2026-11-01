@@ -136,6 +136,52 @@ describe('EVM-040 AC3 the object of a record (SR-PRIV-04): identifiers and codes
     expect(object.key).not.toContain(customerRecord.subjectId);
   });
 
+  it('EVM-051 AC3 the object of a purge of a file holds the identifiers, the code, the owner (the order or the anchor) and the time - no name, no title', () => {
+    const media = registerObjectOf({ ...record, operationCode: 'media_file_purged', subjectType: 'media_asset' }, new Date(NOW));
+    expect(JSON.parse(media.body)).toEqual({
+      schemaVersion: 1,
+      operationId: media.operationId,
+      operationCode: 'media_file_purged',
+      subjectType: 'media_asset',
+      subjectId: record.subjectId,
+      workOrderId: record.workOrderId,
+      actorUserId: record.actorUserId,
+      occurredAt: NOW,
+    });
+    const anchored = registerObjectOf(
+      {
+        operationCode: 'document_file_purged',
+        subjectType: 'document',
+        subjectId: record.subjectId,
+        workOrderId: null,
+        anchor: { type: 'site', id: '0199aaaa-0000-7000-8000-000000000004' },
+        actorUserId: record.actorUserId,
+      },
+      new Date(NOW),
+    );
+    const body = JSON.parse(anchored.body) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      operationCode: 'document_file_purged',
+      anchorType: 'site',
+      anchorId: '0199aaaa-0000-7000-8000-000000000004',
+    });
+    expect(body).not.toHaveProperty('workOrderId');
+    expect(Object.keys(body).sort()).toEqual(
+      [
+        'actorUserId',
+        'anchorId',
+        'anchorType',
+        'occurredAt',
+        'operationCode',
+        'operationId',
+        'schemaVersion',
+        'subjectId',
+        'subjectType',
+      ].sort(),
+    );
+    expect(anchored.body).not.toContain(CANARY);
+  });
+
   it('EVM-040 AC3 every record gets a new key (the identifier is made by the server, never repeated)', () => {
     const keys = new Set(Array.from({ length: 50 }, () => registerObjectOf(record, new Date(NOW)).key));
     expect(keys.size).toBe(50);

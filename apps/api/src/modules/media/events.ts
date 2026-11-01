@@ -32,6 +32,13 @@ export const MEDIA_EVENT_TYPES = [
   // EVM-048: the metadata of a medium or of a document changed - the actor and the object only, NEVER a title, a description or a stage name
   'media_asset.metadata_updated',
   'document.metadata_updated',
+  // EVM-051: soft delete, restore and the erasure of the file of a medium or a document - the actor and the object only (a purge adds the code `step_up_verified`)
+  'media_asset.deleted',
+  'media_asset.restored',
+  'media_asset.file_purged',
+  'document.deleted',
+  'document.restored',
+  'document.file_purged',
 ] as const;
 
 /** The confidentiality classes as the codes of an audit event (a closed list; never a title, a name or a reason). */
@@ -41,7 +48,9 @@ export interface MediaAuditEvent extends DomainEvent {
   readonly type: (typeof MEDIA_EVENT_TYPES)[number];
   /** A user for the creation; the system (the scan of the worker) for a quarantine. */
   readonly actor: { readonly type: 'user'; readonly userId: string } | { readonly type: 'system' };
-  readonly outcome: 'success' | 'denied';
+  readonly outcome: 'success' | 'denied' | 'failed';
+  /** Only the erasure of a file (EVM-051): the step-up the Administrator passed. A code, never a reason in words. */
+  readonly reasonCode?: 'step_up_verified';
   /** A medium, or - for the events of EVM-047 and the quarantine of the file of a document - a document (the object is its id). */
   readonly objectType: 'media_asset' | 'document';
   readonly objectId: string;

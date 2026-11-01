@@ -189,6 +189,10 @@ paths:
     $ref: paths/media.yaml#/workOrderMediaAssets
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}:
     $ref: paths/media.yaml#/mediaAssetById
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/restore:
+    $ref: paths/media.yaml#/mediaAssetRestore
+  /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/purge-file:
+    $ref: paths/media.yaml#/mediaAssetPurgeFile
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions:
     $ref: paths/media.yaml#/mediaAssetUploadSessions
   /api/v1/work-orders/{workOrderId}/media-assets/{mediaAssetId}/upload-sessions/{sessionId}/parts:
@@ -215,6 +219,10 @@ paths:
     $ref: paths/documents.yaml#/workOrderDocuments
   /api/v1/work-orders/{workOrderId}/documents/{documentId}:
     $ref: paths/documents.yaml#/documentById
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/restore:
+    $ref: paths/documents.yaml#/documentRestore
+  /api/v1/work-orders/{workOrderId}/documents/{documentId}/purge-file:
+    $ref: paths/documents.yaml#/documentPurgeFile
   /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions:
     $ref: paths/documents.yaml#/documentUploadSessions
   /api/v1/work-orders/{workOrderId}/documents/{documentId}/upload-sessions/{sessionId}/parts:

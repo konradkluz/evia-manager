@@ -76,6 +76,7 @@ beforeAll(async () => {
     '0059_documents',
     '0060_media_metadata',
     '0061_document_anchors',
+    '0062_media_deletion',
   ]);
 });
 afterAll(async () => {

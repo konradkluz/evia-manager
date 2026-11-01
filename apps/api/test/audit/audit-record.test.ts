@@ -650,6 +650,13 @@ describe('audit of the addresses of files (EVM-045 AC3, AC5; SR-LOG-03, SR-FILE-
       // EVM-048: the metadata
       'media_asset.metadata_updated',
       'document.metadata_updated',
+      // EVM-051: the deletion, the restore and the erasure of the file
+      'media_asset.deleted',
+      'media_asset.restored',
+      'media_asset.file_purged',
+      'document.deleted',
+      'document.restored',
+      'document.file_purged',
     ]);
     for (const type of MEDIA_EVENT_TYPES) expect(AUDIT_ACTIONS).toContain(type);
   });

@@ -23,6 +23,11 @@ export interface MediaAssetsTable {
   version: Generated<number>;
   /** The last editor of the metadata (migration 0060); `null` = never edited. Not part of the API. */
   updated_by: Generated<string | null>;
+  /** The soft delete (migration 0062; EVM-051): a deleted medium is absent for every reader; set together with `deleted_by`. */
+  deleted_at: Generated<Date | null>;
+  deleted_by: Generated<string | null>;
+  /** When the file was erased on purpose (write-once): the record stays with the marker, the description is gone. */
+  file_purged_at: Generated<Date | null>;
 }
 
 export interface StoredFilesTable {
@@ -61,6 +66,8 @@ export interface StoredFilesTable {
   duration_seconds: Generated<number | null>;
   /** `true` after the antivirus, `false` for a video above the scan limit, `null` before the scan (migration 0057: no default - fail closed). */
   av_scanned: Generated<boolean | null>;
+  /** When the objects of the file were erased on purpose (migration 0062, write-once); a worker that takes the file after it drops the task. */
+  erased_at: Generated<Date | null>;
 }
 
 /**
@@ -84,6 +91,8 @@ export interface DocumentsTable {
   version: Generated<number>;
   deleted_at: Date | null;
   deleted_by: string | null;
+  /** When the files of all the versions were erased on purpose (migration 0062, write-once). */
+  file_purged_at: Generated<Date | null>;
 }
 
 /** The versions of a document: append-only (SELECT and INSERT only). */

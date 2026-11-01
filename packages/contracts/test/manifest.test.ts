@@ -46,6 +46,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'createWorkOrderScopeItem',
       'deactivateUser',
       'deleteCustomer',
+      'deleteDocument',
+      'deleteMediaAsset',
       'deletePaymentMilestone',
       'deleteProcedureStage',
       'deleteTimelineEntry',
@@ -109,6 +111,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'mobileLogin',
       'mobileLoginTotp',
       'mobileLogout',
+      'purgeDocumentFile',
+      'purgeMediaAssetFile',
       'pushSyncMutations',
       'reactivateUser',
       'reauthenticate',
@@ -122,6 +126,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'resendUserInvitation',
       'resetUserSecondStep',
       'restoreCustomer',
+      'restoreDocument',
+      'restoreMediaAsset',
       'restoreProcedureStage',
       'restoreTimelineEntry',
       'restoreWorkOrder',
@@ -178,6 +184,8 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
       'inviteUser',
       'listAccountSessions',
       'listAuditEvents',
+      'purgeDocumentFile',
+      'purgeMediaAssetFile',
       'reactivateUser',
       'redactTimelineEntry',
       'rescanMediaAsset',
@@ -380,5 +388,23 @@ describe('authorization manifest (EVM-008 AC2, AC4; SR-AUTHZ-01)', () => {
     expect(() => buildAuthzManifest(document({ public: true, roles: ['editor'] }))).toThrow(/must not declare: roles/);
     for (const planned of [false, 'true', 1, null])
       expect(() => buildAuthzManifest(document({ public: true }, planned)), String(planned)).toThrow(/x-evia-planned/);
+  });
+
+  it('EVM-051 AC6 the deletion, the restore and the erasure of a file are Administrator-only on the web; only the erasure needs a step-up', () => {
+    const operations = [
+      'deleteMediaAsset',
+      'restoreMediaAsset',
+      'purgeMediaAssetFile',
+      'deleteDocument',
+      'restoreDocument',
+      'purgeDocumentFile',
+    ];
+    for (const id of operations) {
+      const authz = AUTHZ_MANIFEST[id]?.authz;
+      expect(authz?.roles, id).toEqual(['administrator']);
+      expect(authz?.channels, id).toEqual(['web']);
+      expect(authz?.audit, id).toBe(true);
+      expect(authz?.stepUp === true, id).toBe(id.startsWith('purge'));
+    }
   });
 });
