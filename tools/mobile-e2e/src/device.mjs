@@ -12,7 +12,7 @@
  * @typedef {'force-stop' | 'kill-9' | 'reboot' | 'copy-db' | 'corrupt-db' | 'check-encrypted' | 'check-backup-transport'
  *   | 'adb-backup-start' | 'adb-backup-check' | 'adb-backup-control-check' | 'install-release-debugkey' | 'reinstall-e2e'} DeviceAction
  * @typedef {{ status: number | null, stdout: string, stderr: string }} Outcome
- * @typedef {{ action: DeviceAction, ok: boolean, detail: string }} Check
+ * @typedef {{ action: DeviceAction | 'check-sync-report', ok: boolean, detail: string }} Check
  */
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';

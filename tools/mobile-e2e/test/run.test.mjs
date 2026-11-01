@@ -82,6 +82,9 @@ function fakeMachine({
   /** @type {string[]} */
   const auths = [];
   let closed = false;
+  /** the counters of the sync part of the scenario server (EVM-107 AC6) */
+  let syncReport = { unique: 5, duplicates: 0, received: 5, requests: 3, lastPendingItems: 5 };
+  let syncResets = 0;
   let devicePolls = 0;
   /** @type {{ command: string, args: string[] }[]} */
   const detached = [];
@@ -214,6 +217,10 @@ function fakeMachine({
           auths.push(auth ?? 'ok');
         },
         requests: () => requests ?? [{ platform: 'android', version: '0.1.0' }],
+        syncReport: () => syncReport,
+        syncReset: () => {
+          syncResets += 1;
+        },
         close: () => {
           closed = true;
           return Promise.resolve();
@@ -238,6 +245,10 @@ function fakeMachine({
     removed,
     copied,
     releaseOnDevice: () => releaseOnDevice,
+    setSyncReport: (/** @type {typeof syncReport} */ report) => {
+      syncReport = report;
+    },
+    syncResets: () => syncResets,
     isClosed: () => closed,
     stubPort: () => stubPort,
     maestroFlows: () =>
@@ -467,10 +478,27 @@ describe('smoke test run (EVM-009 AC4; ADR-0015)', () => {
     assert.ok(!machine.maestroFlows().includes('03-reconnect.yaml'));
     assert.ok(machine.maestroFlows().includes('04-update-required.yaml'));
     // the failed offline flow skips its return step: the next scenario switches airplane mode off, the later ones toggle as planned
-    assert.deepEqual(machine.airplane(), ['enable', 'disable', 'enable', 'disable', 'enable', 'disable']);
+    assert.deepEqual(machine.airplane(), ['enable', 'disable', 'enable', 'disable', 'enable', 'disable', 'enable', 'disable']);
     const report = Object.values(machine.written).join('\n');
     assert.match(report, /\| airplane-mode-and-return \| 02-offline\.yaml \| failed \|/);
     assert.match(report, /\| airplane-mode-and-return \| 03-reconnect\.yaml \| skipped \|/);
+  });
+
+  it('EVM-107 AC6: after the return of the network the server must have received exactly the unique mutations and no duplicate; the counters are reset per scenario', async () => {
+    const good = fakeMachine();
+    assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...good.host, exists: () => true }), 0);
+    assert.ok(good.syncResets() >= 1);
+    assert.match(Object.values(good.written).join('\n'), /check-sync-report/);
+    for (const report of [
+      { unique: 4, duplicates: 0, received: 4, requests: 3, lastPendingItems: 4 },
+      { unique: 5, duplicates: 1, received: 6, requests: 3, lastPendingItems: 5 },
+    ]) {
+      const bad = fakeMachine();
+      bad.setSyncReport(report);
+      assert.equal(await runE2e({ skipBuild: true, port: 3199 }, { ...bad.host, exists: () => true }), 1);
+      const text = Object.values(bad.written).join('\n');
+      assert.match(text, /\| sync-offline-recovery \| 30-sync-return\.yaml \| failed \|/);
+    }
   });
 
   it('EVM-009 AC4: no compatibility header on the requests makes the run red even when every flow passed', async () => {

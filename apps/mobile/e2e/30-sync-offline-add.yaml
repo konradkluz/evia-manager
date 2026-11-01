@@ -1,0 +1,23 @@
+# EVM-107 AC6: in airplane mode (set by tools/mobile-e2e) five synthetic notes go into the durable queue through the hook of the e2e
+# variant; the status line confirms them only after every enqueue resolved, and tools/mobile-e2e kills the app right after.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Brak zasięgu.*'
+    timeout: 30000
+- tapOn:
+    id: 'evia-e2e-hooks-panel'
+- tapOn:
+    id: 'e2e-count'
+- eraseText
+- inputText: '5'
+- hideKeyboard
+- tapOn:
+    id: 'e2e-sync-add'
+- extendedWaitUntil:
+    visible:
+      id: 'e2e-status'
+      text: 'sync_added=5;unsent=5'
+    timeout: 30000

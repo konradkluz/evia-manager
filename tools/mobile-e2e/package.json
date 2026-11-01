@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@evia/config": "workspace:*",
+    "@evia/contracts": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:"

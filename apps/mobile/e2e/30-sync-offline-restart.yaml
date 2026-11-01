@@ -1,0 +1,13 @@
+# EVM-107 AC3, AC6: after the kill the five notes are still in the queue and the indicator says "Offline · 5"; nothing was sent.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: 'Offline · 5'
+    timeout: 45000
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: '5 elementów w kolejce'
+- assertVisible: 'Oczekuje'
+- takeScreenshot: kolejka-offline-5

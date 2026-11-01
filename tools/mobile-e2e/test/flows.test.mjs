@@ -15,7 +15,7 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
     for (const flow of referenced) {
       const text = readFileSync(join(FLOWS, flow), 'utf8');
       assert.match(text, new RegExp(`^appId: ${APPLICATION_ID.replaceAll('.', String.raw`\.`)}$`, 'm'), flow);
-      assert.match(text, /^# EVM-(009|093|100) AC\d/m, flow);
+      assert.match(text, /^# EVM-(009|093|100|107) AC\d/m, flow);
     }
   });
 
@@ -56,6 +56,9 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
       [...names].sort(),
       [
         'kolejka-empty',
+        'kolejka-offline-5',
+        'kolejka-po-synchronizacji',
+        's01-after-first-download',
         'kolejka-offline',
         'nav-kolejka-active',
         'nav-orders-active',
@@ -80,6 +83,26 @@ describe('Maestro flows and scenarios agree (EVM-009 AC4)', () => {
         'm09-logout-dialog',
       ].sort(),
     );
+  });
+
+  it('EVM-107 AC6: the offline recovery adds the notes in airplane mode, kills the app, restarts it offline and expects 5 unique and 0 duplicates after the return of the network', () => {
+    const scenario = SCENARIOS.find((candidate) => candidate.name === 'sync-offline-recovery');
+    assert.ok(scenario !== undefined);
+    assert.deepEqual(
+      scenario.steps.map((step) => [step.flow, step.airplane]),
+      [
+        ['30-sync-sign-in.yaml', false],
+        ['30-sync-offline-add.yaml', true],
+        ['30-sync-offline-restart.yaml', true],
+        ['30-sync-return.yaml', false],
+      ],
+    );
+    assert.deepEqual(scenario.steps[1]?.after, ['force-stop']);
+    assert.equal(scenario.steps[3]?.background, true);
+    assert.deepEqual(scenario.steps[3].expectSync, { unique: 5, duplicates: 0 });
+    const add = readFileSync(join(FLOWS, '30-sync-offline-add.yaml'), 'utf8');
+    // the confirmation of the hook comes only after every note was saved: this is the moment the app may be killed
+    assert.match(add, /text: 'sync_added=5;unsent=5'/);
   });
 
   it('EVM-009 AC1: the loading flow runs last, against a server that holds the health request', () => {

@@ -249,3 +249,41 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     Object.assign(deviceOverrides, NO_OVERRIDES);
   });
 });
+
+describe('e2e hooks of the synchronization (EVM-107 AC6)', () => {
+  it('EVM-107 AC6: "add notes" puts N notes into the durable queue of the session and reports the count only after they were saved; the status line has codes and numbers only', async () => {
+    const calls: string[] = [];
+    let unsent = 0;
+    const snapshot = {
+      active: true,
+      online: false,
+      syncing: false,
+      initialLoad: 'done' as const,
+      firstPull: { step: 1 as const, received: 0, slow: false, failure: null, attempts: 0, retryAt: null },
+      lastSuccessAt: null,
+      counts: { pending: 0, retrying: 0, blocked: 0, attention: 0, unsent: 0 },
+      failure: null,
+      retryAt: null,
+      resyncing: false,
+      paused: null,
+    };
+    const sync = {
+      enqueue: (input: { type: string; payload: unknown }) => {
+        calls.push(input.type);
+        unsent += 1;
+        return Promise.resolve({ ok: true as const });
+      },
+      getSnapshot: () => ({ ...snapshot, counts: { ...snapshot.counts, unsent } }),
+      trigger: () => undefined,
+    };
+    const deps: E2eHooksDeps = { ...depsOf(), sync: () => sync };
+    await opened(deps);
+    await type('e2e-count', '5');
+    await tap('e2e-sync-add');
+    await expectStatus('sync_added=5;unsent=5');
+    expect(calls).toEqual(['CreateNote', 'CreateNote', 'CreateNote', 'CreateNote', 'CreateNote']);
+    await tap('e2e-sync-status');
+    await expectStatus('sync=active;initial=done;unsent=5;failure=none;last=none');
+    expect(status()).not.toMatch(/e2e note|body|token/);
+  });
+});

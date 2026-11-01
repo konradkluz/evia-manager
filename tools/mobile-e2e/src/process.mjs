@@ -26,10 +26,22 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
   const worker = new Worker(workerUrl, { workerData: { port, channel: port2 }, transferList: [port2] });
   /** @type {import('./stub-api.mjs').RecordedRequest[]} */
   const recorded = [];
+  /** the latest counters of the sync part of the server and the reset they belong to */
+  let epoch = 0;
+  /** @type {import('./sync-stub.mjs').SyncReport} */
+  let lastSync = { unique: 0, duplicates: 0, received: 0, requests: 0, lastPendingItems: null };
   const drain = () => {
     for (let next = receiveMessageOnPort(port1); next !== undefined; next = receiveMessageOnPort(port1)) {
-      const message = /** @type {unknown} */ (next.message);
-      recorded.push(/** @type {import('./stub-api.mjs').RecordedRequest} */ (message));
+      // the thread boundary is untyped; the shape is fixed by stub-worker.mjs
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      const message = /** @type {{ sync?: import('./sync-stub.mjs').SyncReport, epoch?: number }} */ (
+        /** @type {unknown} */ (next.message)
+      );
+      if (message.sync !== undefined) {
+        if (message.epoch === epoch) lastSync = message.sync;
+      } else {
+        recorded.push(/** @type {import('./stub-api.mjs').RecordedRequest} */ (/** @type {unknown} */ (message)));
+      }
     }
   };
   let exited = false;
@@ -56,6 +68,15 @@ export async function startStubInWorker(port, workerUrl = new URL('./stub-worker
     requests: () => {
       if (!exited) drain();
       return [...recorded];
+    },
+    syncReport: () => {
+      if (!exited) drain();
+      return lastSync;
+    },
+    syncReset: () => {
+      epoch += 1;
+      lastSync = { unique: 0, duplicates: 0, received: 0, requests: 0, lastPendingItems: null };
+      if (!exited) worker.postMessage({ syncReset: epoch });
     },
     close: () =>
       new Promise((resolve) => {

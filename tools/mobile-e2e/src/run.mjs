@@ -181,6 +181,8 @@ export async function runE2e({ skipBuild, port }, host) {
         continue;
       }
       let failed = false;
+      // the counters of the sync part of the scenario server belong to one scenario (EVM-107 AC6)
+      stub.syncReset();
       for (const step of scenario.steps) {
         if (failed) {
           results.push({ scenario: scenario.name, flow: step.flow, status: 'skipped', seconds: 0 });
@@ -241,6 +243,16 @@ export async function runE2e({ skipBuild, port }, host) {
               break;
             }
           }
+        }
+        if (passed && step.expectSync !== undefined) {
+          const report = stub.syncReport();
+          const ok = report.unique === step.expectSync.unique && report.duplicates === step.expectSync.duplicates;
+          checks.push({
+            action: 'check-sync-report',
+            ok,
+            detail: `server received ${String(report.unique)} unique mutation(s), ${String(report.duplicates)} duplicate(s) of ${String(report.received)} (expected ${String(step.expectSync.unique)} and ${String(step.expectSync.duplicates)})`,
+          });
+          if (!ok) passed = false;
         }
         failed = !passed;
         results.push({

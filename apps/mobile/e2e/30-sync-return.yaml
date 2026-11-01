@@ -1,0 +1,16 @@
+# EVM-107 AC2, AC3, AC6: the network returns while the app was in the background; the foreground starts the synchronization, the queue
+# empties and the indicator shows the time of the last synchronization. The server counters (5 unique, 0 duplicates) are asserted by
+# tools/mobile-e2e after this flow.
+appId: pl.eviacharge.manager
+---
+- launchApp:
+    stopApp: false
+- extendedWaitUntil:
+    visible: 'Zsynchr\. .*'
+    timeout: 60000
+- assertNotVisible: 'Offline.*'
+- tapOn:
+    id: 'nav-queue'
+- assertVisible: 'Nic nie czeka na wysłanie.'
+- assertNotVisible: 'Wymaga uwagi.*'
+- takeScreenshot: kolejka-po-synchronizacji
