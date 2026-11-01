@@ -4,7 +4,7 @@ title: "API: wysyłanie szybkiego zlecenia (CreateQuickWorkOrder)"
 type: story
 milestone: M2
 epic: E13 Nowe zlecenie z telefonu
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # synchronizacja offline, dane osobowe, uprawnienia
 owner: backend-developer
