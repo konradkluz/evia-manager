@@ -4,8 +4,9 @@ import { ScrollView, Text, View } from 'react-native';
 import { useStartup } from '../startup';
 import { AlertDialog, AppBar, Button } from '../ui';
 import { borderWidth, color, space, text } from '../ui/theme';
+import { ContactWarningBanner } from './DeviceNotices';
 import { SyncCapsule } from './SyncCapsule';
-import { useSession } from './session-context';
+import { useGuard, useSession } from './session-context';
 
 /** Polish plural of "niewysłany element" (1 / 2–4 / 5+; 12–14 are "many"). */
 export function unsentKey(count: number): 'logout.unsentOne' | 'logout.unsentFew' | 'logout.unsentMany' {
@@ -74,7 +75,7 @@ export function LogoutDialog({
 }
 
 /** The sign-out flow of M-09 (AC7): the dialog is rendered by the shell over the whole window, the navigation included. */
-export function useSignOutFlow(openQueue: () => void) {
+export function useSignOutFlow(openQueue: () => void, onWipe: () => void) {
   const session = useSession();
   const { state } = useStartup();
   const online = state.kind !== 'offline';
@@ -107,7 +108,7 @@ export function useSignOutFlow(openQueue: () => void) {
         }}
         onWipe={() => {
           setUnsent(null);
-          session.requestCompanyDataWipe();
+          onWipe();
         }}
         onCancel={cancel}
       />
@@ -117,14 +118,17 @@ export function useSignOutFlow(openQueue: () => void) {
 
 /**
  * "Więcej" (M-09) — the part EVM-100 needs (AC7): the name of the user, where account settings live, "Pomoc", the version, "Wyloguj"
- * and, separated at the bottom, "Wyczyść dane firmowe" (EVM-101). Upload and handling switches arrive with their stories.
+ * and, separated at the bottom, "Wyczyść dane firmowe" (EVM-101: the dialog with the number of unsent items). Blocking is always on —
+ * there is no switch to turn the app lock off (EVM-101 AC3). Upload and handling switches arrive with their stories.
  */
-export function MoreScreen({ onOpenQueue, onSignOut }: { onOpenQueue: () => void; onSignOut: () => void }) {
+export function MoreScreen({ onOpenQueue, onSignOut, onWipe }: { onOpenQueue: () => void; onSignOut: () => void; onWipe: () => void }) {
   const { t } = useTranslation();
   const session = useSession();
+  const guard = useGuard();
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       <AppBar title={t('shell.more.title')} right={<SyncCapsule onPress={onOpenQueue} />} />
+      {guard.warning === null ? null : <ContactWarningBanner daysLeft={guard.warning.daysLeft} />}
       <ScrollView contentContainerStyle={{ padding: space.inset.md, rowGap: space.stack.lg }}>
         <Text style={{ ...text.heading3, color: color.text.primary }} testID="more-user">
           {session.displayName}
@@ -141,7 +145,7 @@ export function MoreScreen({ onOpenQueue, onSignOut }: { onOpenQueue: () => void
         <Text style={{ ...text.bodySm, color: color.text.secondary }}>{t('more.version', { version: session.appVersion })}</Text>
         <Button label={t('more.signOut')} onPress={onSignOut} fullWidth testID="more-sign-out" />
         <View style={{ borderTopWidth: borderWidth.default, borderTopColor: color.border.subtle, paddingTop: space.stack.md }}>
-          <Button label={t('more.wipe')} variant="dangerTertiary" onPress={session.requestCompanyDataWipe} fullWidth testID="more-wipe" />
+          <Button label={t('more.wipe')} variant="dangerTertiary" onPress={onWipe} fullWidth testID="more-wipe" />
         </View>
       </ScrollView>
     </View>

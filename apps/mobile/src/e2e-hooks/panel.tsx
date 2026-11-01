@@ -10,6 +10,7 @@ import type { QueueRecord } from '@evia/sync-core';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NO_OVERRIDES, type DeviceOverrides } from '../device-guard/overrides';
 import { LocalDataLostScreen } from '../screens/LocalDataScreens';
 import { tokenStore } from '../secure-store';
 import { localData, storageE2eSupport, type LocalDataHost, type OpenResult, type UnlockedStore } from '../storage';
@@ -18,6 +19,12 @@ import { borderWidth, color, size, space, text } from '../ui/theme';
 
 /** Unique marker of the hooks in a bundle (also the testID of the toggle): tools/mobile-apk/src/contents.mjs E2E_HOOKS_MARKER. */
 export const E2E_HOOKS_MARKER = 'evia-e2e-hooks-panel';
+
+/**
+ * Answers of the device controls that the scenarios move (EVM-101; security K7): the screen lock, the time without contact with the
+ * server and the time in the background. `src/session.ts` reads this object through the slot (`null` in every other bundle).
+ */
+export const deviceOverrides: DeviceOverrides = { ...NO_OVERRIDES };
 
 /** Synthetic users of the scenarios (never real people). */
 export const E2E_USERS = { a: 'e2e-user-a', b: 'e2e-user-b' } as const;
@@ -35,6 +42,13 @@ const LABELS = {
   facts: 'facts',
   probe: 'probe copy',
   close: 'close',
+  lockOff: 'screen lock off',
+  lockReal: 'screen lock real',
+  contact5: 'no contact 5 days',
+  contact8: 'no contact 8 days',
+  contactBack: 'clock back',
+  contactReset: 'contact reset',
+  background6: 'background 6 min',
 } as const;
 
 export interface E2eHooksDeps {
@@ -168,6 +182,11 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
     });
   });
 
+  const device = (name: string, change: (o: DeviceOverrides) => void) => () => {
+    change(deviceOverrides);
+    setStatus({ device: name });
+  };
+
   const probe = guarded(async () => {
     setStatus({ probe: await get().host.probe(get().copyEngine()) });
   });
@@ -221,6 +240,55 @@ export function E2eHooks({ deps: injected }: { deps?: E2eHooksDeps } = {}) {
         <Button label={LABELS.deleteKey} onPress={deleteKey} testID="e2e-delete-key" />
         <Button label={LABELS.facts} onPress={facts} testID="e2e-facts" />
         <Button label={LABELS.probe} onPress={probe} testID="e2e-probe" />
+        <Button
+          label={LABELS.lockOff}
+          onPress={device('lock_off', (o) => {
+            o.screenSecure = false;
+          })}
+          testID="e2e-lock-off"
+        />
+        <Button
+          label={LABELS.lockReal}
+          onPress={device('lock_real', (o) => {
+            o.screenSecure = null;
+          })}
+          testID="e2e-lock-real"
+        />
+        <Button
+          label={LABELS.contact5}
+          onPress={device('contact_5d', (o) => {
+            o.contactShiftMs = 5 * 86_400_000;
+          })}
+          testID="e2e-contact-5"
+        />
+        <Button
+          label={LABELS.contact8}
+          onPress={device('contact_8d', (o) => {
+            o.contactShiftMs = 8 * 86_400_000;
+          })}
+          testID="e2e-contact-8"
+        />
+        <Button
+          label={LABELS.contactBack}
+          onPress={device('clock_back', (o) => {
+            o.contactShiftMs = -86_400_000;
+          })}
+          testID="e2e-clock-back"
+        />
+        <Button
+          label={LABELS.contactReset}
+          onPress={device('contact_reset', (o) => {
+            o.contactShiftMs = 0;
+          })}
+          testID="e2e-contact-reset"
+        />
+        <Button
+          label={LABELS.background6}
+          onPress={device('background_6m', (o) => {
+            o.backgroundShiftMs = 6 * 60_000;
+          })}
+          testID="e2e-background-6"
+        />
         <Button
           label={LABELS.close}
           onPress={() => {

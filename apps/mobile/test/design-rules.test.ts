@@ -80,8 +80,10 @@ describe('security and design rules of the app source (EVM-009 AC1, AC6)', () =>
     const sources = [...files(join(APP, 'src')), ...files(join(APP, 'plugins')), join(APP, 'index.ts')];
     // nothing imports the panel: only the Metro resolver of the e2e variant swaps the slot for it
     expect(matching(sources, /from '[^']*e2e-hooks\/panel|require\([^)]*e2e-hooks\/panel/)).toEqual([]);
-    expect(matching(sources, /from '\.\/e2e-hooks'|from '\.\.\/e2e-hooks'/)).toEqual(['src/App.tsx']);
+    // EVM-101 (security K7): the composition reads `deviceOverrides` of the slot (null in every bundle but the e2e one)
+    expect(matching(sources, /from '\.\/e2e-hooks'|from '\.\.\/e2e-hooks'/).sort()).toEqual(['src/App.tsx', 'src/session.ts']);
     const slot = read(join(APP, 'src', 'e2e-hooks', 'index.ts'));
+    expect(slot).toContain("deviceOverrides: import('../device-guard/overrides').DeviceOverrides | null = null;");
     expect(slot).not.toMatch(/^import /m);
     expect(slot).not.toContain('evia-e2e-hooks-panel');
     const outsideStorage = sources.filter((path) => !path.includes(join('src', 'storage')));

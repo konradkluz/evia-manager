@@ -1,8 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ReactElement } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { E2eHooks as Slot } from '../src/e2e-hooks';
-import { E2E_HOOKS_MARKER, E2E_USERS, E2eHooks, sentinel, statusLine, syntheticRecord, type E2eHooksDeps } from '../src/e2e-hooks/panel';
+import { E2eHooks as Slot, deviceOverrides as releaseOverrides } from '../src/e2e-hooks';
+import { NO_OVERRIDES } from '../src/device-guard/overrides';
+import {
+  E2E_HOOKS_MARKER,
+  E2E_USERS,
+  E2eHooks,
+  deviceOverrides,
+  sentinel,
+  statusLine,
+  syntheticRecord,
+  type E2eHooksDeps,
+} from '../src/e2e-hooks/panel';
 import { WIPE_MARKER_FILE, wipeFaultForE2e, type OpenResult } from '../src/storage/local-data';
 import { boot, newDevice, type Device } from './storage/fakes';
 import { NodeSqliteEngine, newDisk, removeDisk, type TestDisk } from './storage/node-sqlite-engine';
@@ -215,5 +225,27 @@ describe('e2e hooks of the local store (EVM-093 AC1, AC3, AC5–AC7)', () => {
     expect(JSON.stringify(record.payload)).toContain('EVM093-SENTINEL');
     expect(record.mutationId).not.toBe(syntheticRecord(E2E_USERS.a, 8).mutationId);
     expect(statusLine({ a: 1, b: 'x' })).toBe('a=1;b=x');
+  });
+
+  it('EVM-101 AC1, AC2, AC3 (security K7): the panel moves the screen lock, the contact time and the background time; the release slot has no overrides', async () => {
+    expect(releaseOverrides).toBeNull();
+    Object.assign(deviceOverrides, NO_OVERRIDES);
+    await opened();
+    await tap('e2e-lock-off');
+    expect(deviceOverrides.screenSecure).toBe(false);
+    await tap('e2e-lock-real');
+    expect(deviceOverrides.screenSecure).toBeNull();
+    await tap('e2e-contact-5');
+    expect(deviceOverrides.contactShiftMs).toBe(5 * 86_400_000);
+    await tap('e2e-contact-8');
+    expect(deviceOverrides.contactShiftMs).toBe(8 * 86_400_000);
+    await tap('e2e-clock-back');
+    expect(deviceOverrides.contactShiftMs).toBe(-86_400_000);
+    await tap('e2e-contact-reset');
+    expect(deviceOverrides.contactShiftMs).toBe(0);
+    await tap('e2e-background-6');
+    expect(deviceOverrides.backgroundShiftMs).toBe(360_000);
+    await expectStatus('device=background_6m');
+    Object.assign(deviceOverrides, NO_OVERRIDES);
   });
 });

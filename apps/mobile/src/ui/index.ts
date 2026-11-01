@@ -16,4 +16,18 @@ export { SyncIndicator } from './SyncIndicator';
 export { TextField } from './TextField';
 export type { SecureToggle, TextFieldProps } from './TextField';
 export type { SyncIndicatorProps, SyncState } from './SyncIndicator';
-export { Ban, CircleAlert, ClipboardList, Download, Ellipsis, KeyRound, ListChecks, LogOut, ShieldOff, Smartphone } from './icons';
+export {
+  Ban,
+  Camera,
+  CircleAlert,
+  ClipboardList,
+  Download,
+  Ellipsis,
+  KeyRound,
+  ListChecks,
+  Lock,
+  LogOut,
+  Plus,
+  ShieldOff,
+  Smartphone,
+} from './icons';

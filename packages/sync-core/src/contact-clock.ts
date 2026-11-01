@@ -69,6 +69,14 @@ export function evaluateContact(record: ContactRecord, now: Reading): Evaluation
   };
 }
 
+export type ContactStatus =
+  | { readonly visible: true; readonly elapsedMs: number | null }
+  | {
+      readonly visible: false;
+      readonly reason: 'no_contact_record' | 'window_elapsed' | 'clock_anomaly';
+      readonly elapsedMs: number | null;
+    };
+
 export const DEFAULT_WINDOW_DAYS = 7;
 
 /** The window may be shortened by the server but never beyond the 7-day baseline (SR-MOB-05). */
@@ -99,13 +107,27 @@ export class ContactClock {
     await this.#store.saveContact(newContact(serverTime, at.wall, at.mono, at.bootId));
   }
 
-  /** Whether the data may be shown. An empty replica has nothing to hide; a non-empty one without a readable record is hidden. */
-  async visibility(raw: unknown, hasData: boolean, configuredWindowDays: unknown): Promise<Visibility> {
+  /**
+   * Whether the data may be shown, with the time since the last contact (EVM-101 AC2: the day-5/6 warning). Records the checkpoint
+   * (`next`) exactly once, so callers never need `evaluateContact` themselves. `elapsedMs` is `null` when no elapsed time is known.
+   * An empty replica has nothing to hide; a non-empty one without a readable record is hidden.
+   */
+  async status(raw: unknown, hasData: boolean, configuredWindowDays: unknown): Promise<ContactStatus> {
     const record = parseContactRecord(raw);
-    if (record === null) return hasData ? { visible: false, reason: 'no_contact_record' } : { visible: true };
+    if (record === null) {
+      return hasData ? { visible: false, reason: 'no_contact_record', elapsedMs: null } : { visible: true, elapsedMs: null };
+    }
     const result = evaluateContact(record, this.#reading());
     await this.#store.saveContact(result.next);
-    if (!result.ok) return { visible: false, reason: 'clock_anomaly' };
-    return result.elapsedMs < windowDays(configuredWindowDays) * DAY_MS ? { visible: true } : { visible: false, reason: 'window_elapsed' };
+    if (!result.ok) return { visible: false, reason: 'clock_anomaly', elapsedMs: null };
+    return result.elapsedMs < windowDays(configuredWindowDays) * DAY_MS
+      ? { visible: true, elapsedMs: result.elapsedMs }
+      : { visible: false, reason: 'window_elapsed', elapsedMs: result.elapsedMs };
+  }
+
+  /** Whether the data may be shown. */
+  async visibility(raw: unknown, hasData: boolean, configuredWindowDays: unknown): Promise<Visibility> {
+    const status = await this.status(raw, hasData, configuredWindowDays);
+    return status.visible ? { visible: true } : { visible: false, reason: status.reason };
   }
 }

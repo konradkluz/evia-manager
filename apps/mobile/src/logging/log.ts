@@ -11,12 +11,34 @@ export function logWarning(event: LogEvent): void {
   if (__DEV__) console.warn(`[evia] ${event}`);
 }
 
+function detailOf(diagnostic: StorageDiagnostic | GuardDiagnostic): string {
+  switch (diagnostic.event) {
+    case 'db-open-failed':
+      return diagnostic.code;
+    case 'keystore-hardware':
+      return diagnostic.level;
+    case 'wipe-step-failed':
+      return diagnostic.step;
+    case 'wipe-confirmation':
+    case 'app-lock':
+    case 'patch-level':
+      return diagnostic.outcome;
+    case 'hidden-mode':
+      return diagnostic.reason;
+  }
+}
+
 /** Codes of the local store (EVM-093): only allow-listed shapes pass (a fixed name plus a code), never a number, path or key. */
 const CODE = /^[a-z_]{1,40}$/;
 
-export function logDiagnostic(diagnostic: StorageDiagnostic): void {
-  const detail =
-    diagnostic.event === 'db-open-failed' ? diagnostic.code : diagnostic.event === 'keystore-hardware' ? diagnostic.level : diagnostic.step;
+/** Events of the device controls (EVM-101; SR-LOG-08, SR-MOB-12): codes of a fixed dictionary, never an id, a secret or a content. */
+export type GuardDiagnostic =
+  | { readonly event: 'hidden-mode'; readonly reason: string }
+  | { readonly event: 'app-lock'; readonly outcome: string }
+  | { readonly event: 'patch-level'; readonly outcome: string };
+
+export function logDiagnostic(diagnostic: StorageDiagnostic | GuardDiagnostic): void {
+  const detail = detailOf(diagnostic);
   const safe = CODE.test(detail) ? detail : 'invalid';
   // eslint-disable-next-line no-console -- see logWarning; development builds only
   if (__DEV__) console.warn(`[evia] ${diagnostic.event} ${safe}`);

@@ -4,12 +4,53 @@ import { AccessibilityInfo, BackHandler, View } from 'react-native';
 import { useStartup } from '../startup';
 import { BottomNav, ClipboardList, Ellipsis, ListChecks } from '../ui';
 import { color } from '../ui/theme';
+import { AddSheet } from './AddSheet';
 import { MoreScreen, useSignOutFlow } from './MoreScreen';
 import { OrdersScreen } from './OrdersScreen';
 import { QueueScreen } from './QueueScreen';
 import { UpdateRequiredScreen } from './UpdateRequiredScreen';
+import { WipeDialog } from './WipeDialogs';
+import { useGuard, useSession } from './session-context';
 
 type Tab = 'orders' | 'queue' | 'more';
+
+/** "Wyczyść dane firmowe" (EVM-101 AC4): the number of unsent items is read when the dialog opens; the wipe runs after the confirmation. */
+function useWipeFlow() {
+  const session = useSession();
+  const [unsent, setUnsent] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const ask = useCallback(() => {
+    setFailed(false);
+    void session.unsentItemCount().then(setUnsent, () => {
+      setUnsent(0);
+    });
+  }, [session]);
+  const dialog =
+    unsent === null ? null : (
+      <WipeDialog
+        unsentItems={unsent}
+        busy={busy}
+        failed={failed}
+        onConfirm={() => {
+          setBusy(true);
+          void session
+            .wipeCompanyData()
+            .then((done) => {
+              setFailed(!done);
+              if (done) setUnsent(null);
+            })
+            .finally(() => {
+              setBusy(false);
+            });
+        }}
+        onCancel={() => {
+          setUnsent(null);
+        }}
+      />
+    );
+  return { ask, dialog };
+}
 
 /**
  * The app shell (EVM-009 AC1–AC3, EVM-100 AC7): the tabs "Moje zlecenia", "Kolejka" and "Więcej" with the bottom navigation, or —
@@ -25,7 +66,11 @@ export function Shell() {
   const openQueue = useCallback(() => {
     setTab('queue');
   }, []);
-  const signOut = useSignOutFlow(openQueue);
+  const wipe = useWipeFlow();
+  const signOut = useSignOutFlow(openQueue, wipe.ask);
+  const session = useSession();
+  const guard = useGuard();
+  const [adding, setAdding] = useState(false);
 
   // The system "back" from the queue returns to the orders; from the orders it leaves the app (default behaviour).
   useEffect(() => {
@@ -52,7 +97,8 @@ export function Shell() {
   if (state.kind === 'updateRequired') {
     return <UpdateRequiredScreen currentVersion={state.currentVersion} requiredVersion={state.requiredVersion} />;
   }
-  const covered = signOut.dialog !== null;
+  const dialog = wipe.dialog ?? signOut.dialog;
+  const covered = dialog !== null || adding;
   return (
     <View style={{ flex: 1, backgroundColor: color.bg.canvas }}>
       {/* while the dialog is open the content behind it is hidden from the screen reader and cannot be touched */}
@@ -64,11 +110,16 @@ export function Shell() {
       >
         <View style={{ flex: 1 }}>
           {tab === 'orders' ? (
-            <OrdersScreen onOpenQueue={openQueue} />
+            <OrdersScreen
+              onOpenQueue={openQueue}
+              onAdd={() => {
+                setAdding(true);
+              }}
+            />
           ) : tab === 'queue' ? (
             <QueueScreen onOpenQueue={openQueue} />
           ) : (
-            <MoreScreen onOpenQueue={openQueue} onSignOut={signOut.ask} />
+            <MoreScreen onOpenQueue={openQueue} onSignOut={signOut.ask} onWipe={wipe.ask} />
           )}
         </View>
         <BottomNav
@@ -105,7 +156,19 @@ export function Shell() {
           ]}
         />
       </View>
-      {signOut.dialog}
+      {dialog}
+      {adding ? (
+        <AddSheet
+          hidden={guard.hidden !== null}
+          onPick={(target) => {
+            setAdding(false);
+            session.openAddTarget(target);
+          }}
+          onClose={() => {
+            setAdding(false);
+          }}
+        />
+      ) : null}
     </View>
   );
 }

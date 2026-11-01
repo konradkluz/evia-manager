@@ -124,7 +124,7 @@ EVM-109 (upload w tle: endpointy sesji uploadu z EVM-044, storage i bucket na st
 - **Faza 5:** EVM-112 — test terenowy (Konrad, fizyczny telefon).
 
 ## Kryteria wyjścia M2 (z roadmapy)
-Test terenowy w garażu podziemnym bez zasięgu: min. 30 zdjęć, 3 filmy, 2 wpisy; po wyjściu na zasięg wszystko w właściwym zleceniu, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu (EVM-112); weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach firmowych z Androidem (APK podpisany lokalnie, ADR-0019). Pokrycie scenariuszy „nic nie ginie” 1–6 z `offline-sync.md`: kliencka część w EVM-092, serwerowa w EVM-096/097/098, E2E w EVM-107/112.
+Test terenowy w garażu podziemnym bez zasięgu: min. 30 zdjęć, 3 filmy, 2 wpisy; po wyjściu na zasięg wszystko w właściwym zleceniu, bez duplikatów i strat, także po wymuszonym zamknięciu aplikacji w trakcie uploadu (EVM-112); weryfikacja MASVS i security sign-off; aplikacja zainstalowana na telefonach z Androidem — firmowych lub prywatnych (BYOD, decyzja Konrada 2026-11-01; APK podpisany lokalnie, ADR-0019). Pokrycie scenariuszy „nic nie ginie” 1–6 z `offline-sync.md`: kliencka część w EVM-092, serwerowa w EVM-096/097/098, E2E w EVM-107/112.
 
 ## Poza zakresem M2
 iOS; push i biometria jako wiązanie kluczy; edycja istniejących danych z telefonu (`UpdateStageStatus` — po MVP); rola Monter i „Moje zlecenia” wg przypisania (M4); Google Play / EAS (ADR-0019); wyszukiwanie pełnotekstowe; zdalne zarządzanie telefonem (MDM).

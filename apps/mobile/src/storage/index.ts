@@ -10,6 +10,8 @@ import { createAppFiles, createKeyVault, deviceSecrets, expoCrypto } from './pla
 export { LocalDataHost } from './local-data';
 export type { DataLossReason, OpenResult, StoreFacts, UnlockedStore } from './local-data';
 export type { InstallationIdentity, KeyHardware, StorageDiagnostic } from './ports';
+/** Opaque pair for the sign-in and the wipe confirmation: only `src/api/auth-client.ts` may unwrap it (dependency-cruiser). */
+export type { InstallationProof } from './installation-proof';
 export type { StorageErrorCode } from './errors';
 
 let host: LocalDataHost | undefined;

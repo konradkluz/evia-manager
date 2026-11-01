@@ -105,6 +105,19 @@ describe('last contact resistant to the clock (EVM-092 AC7)', () => {
     });
   }
 
+  it('EVM-101 AC2: status() reports the elapsed time with one checkpoint write and visibility() delegates to it', async () => {
+    const s = setup();
+    expect(await s.cc.status(undefined, false, 7)).toEqual({ visible: true, elapsedMs: null });
+    expect(await s.cc.status(undefined, true, 7)).toEqual({ visible: false, reason: 'no_contact_record', elapsedMs: null });
+    await s.cc.record(T0);
+    s.mono.mono += 5 * DAY;
+    expect(await s.cc.status(s.last(), true, 7)).toEqual({ visible: true, elapsedMs: 5 * DAY });
+    s.mono.mono += 2 * DAY;
+    expect(await s.cc.status(s.last(), true, 7)).toEqual({ visible: false, reason: 'window_elapsed', elapsedMs: 7 * DAY });
+    s.mono.mono -= 1;
+    expect(await s.cc.status(s.last(), true, 7)).toEqual({ visible: false, reason: 'clock_anomaly', elapsedMs: null });
+  });
+
   it('EVM-092 AC7: same boot with a monotonic value lower than stored, NaN and negative elapsed are fail-closed', async () => {
     const s = setup();
     await s.cc.record(T0);

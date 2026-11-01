@@ -89,6 +89,10 @@ export const pl = {
       title: 'Dane firmowe usunięte z telefonu',
       body: 'Administrator zablokował ten telefon. Usunęliśmy wszystkie dane firmowe, także niewysłane elementy.',
     },
+    screenLockRequired: {
+      title: 'Włącz blokadę ekranu',
+      body: 'Aplikacja działa tylko na telefonie z blokadą ekranu (PIN, wzór, hasło lub odcisk palca). Włącz ją w ustawieniach telefonu: Zabezpieczenia → Blokada ekranu. Potem wróć tutaj.',
+    },
     unsentAfterSignIn: 'Niewysłane elementy ({{count}}) są zaszyfrowane w telefonie — wyślemy je po zalogowaniu.',
     unsentSameAccount:
       'Niewysłane elementy ({{count}}) są zaszyfrowane w telefonie — wyślemy je, gdy zalogujesz się ponownie na to samo konto.',
@@ -122,6 +126,80 @@ export const pl = {
     confirm: 'Wyloguj',
     cancel: 'Anuluj',
     wipe: 'Wyczyść dane firmowe',
+  },
+  hidden: {
+    screenLockOff: {
+      title: 'Włącz blokadę ekranu',
+      body: 'Telefon nie ma blokady ekranu, więc ukryliśmy dane zleceń. Aparat i Kolejka działają. Włącz blokadę w ustawieniach telefonu.',
+      action: 'Sprawdź ponownie',
+    },
+    contactExpired: {
+      title: 'Dane zleceń są ukryte',
+      body: 'Telefon nie łączył się z serwerem przez 7 dni. Zaloguj się ponownie z hasłem i kodem — dane wrócą. Niewysłane elementy czekają w telefonie.',
+      action: 'Zaloguj się ponownie',
+    },
+    clockAnomaly: {
+      title: 'Dane zleceń są ukryte',
+      body: 'Nie możemy potwierdzić, kiedy telefon łączył się z serwerem (zegar telefonu lub restart). Zaloguj się ponownie z hasłem i kodem — dane wrócą.',
+      action: 'Zaloguj się ponownie',
+    },
+    wipe: { title: 'Czyścimy telefon', body: 'Usuwamy dane firmowe z telefonu. To potrwa chwilę.' },
+    checking: { title: 'Sprawdzamy telefon…', body: 'Chwila — sprawdzamy zabezpieczenia telefonu.' },
+    queueCount_one: '{{count}} element czeka w kolejce',
+    queueCount_few: '{{count}} elementy czekają w kolejce',
+    queueCount_many: '{{count}} elementów czeka w kolejce',
+  },
+  contactWarning: {
+    days2:
+      'Telefon nie łączył się z serwerem od 5 dni. Za 2 dni ukryjemy dane zleceń — połącz się z internetem, żeby ich nie stracić z widoku.',
+    days1:
+      'Telefon nie łączył się z serwerem od 6 dni. Jutro ukryjemy dane zleceń — połącz się z internetem, żeby ich nie stracić z widoku.',
+  },
+  patch: {
+    notice: 'System telefonu nie był aktualizowany od ponad 6 miesięcy. Zainstaluj aktualizację zabezpieczeń, gdy będzie dostępna.',
+    strong:
+      'System telefonu nie był aktualizowany od ponad 12 miesięcy i może być narażony na ataki. Zainstaluj aktualizację jak najszybciej.',
+    ack: 'Rozumiem',
+  },
+  lock: {
+    title: 'Aplikacja zablokowana',
+    body: 'Odblokuj ją kodem blokady ekranu lub odciskiem palca.',
+    unlock: 'Odblokuj',
+    prompt: 'Odblokuj EVia Manager',
+  },
+  add: {
+    open: 'Dodaj',
+    title: 'Dodaj',
+    entry: 'Wpis',
+    newOrder: 'Nowe zlecenie',
+    media: 'Zdjęcie lub film',
+    hiddenReason: 'Dane zleceń są ukryte',
+    close: 'Zamknij',
+  },
+  queue: {
+    types: { CreateNote: 'Wpis', CreateWorkOrder: 'Nowe zlecenie', other: 'Element' },
+    states: { pending: 'Oczekuje', retrying: 'Ponawiamy', blocked: 'Wstrzymany', attention: 'Wymaga uwagi' },
+  },
+  wipe: {
+    title: 'Wyczyścić dane firmowe?',
+    none: 'Usuniemy z telefonu wszystkie dane firmowe: zlecenia, zdjęcia i konto. Nie ma niewysłanych elementów. Tego nie da się cofnąć.',
+    one: 'Usuniemy z telefonu wszystkie dane firmowe. Stracisz {{count}} niewysłany element. Tego nie da się cofnąć.',
+    few: 'Usuniemy z telefonu wszystkie dane firmowe. Stracisz {{count}} niewysłane elementy. Tego nie da się cofnąć.',
+    many: 'Usuniemy z telefonu wszystkie dane firmowe. Stracisz {{count}} niewysłanych elementów. Tego nie da się cofnąć.',
+    confirm: 'Wyczyść dane',
+    cancel: 'Anuluj',
+    running: 'Czyszczenie danych…',
+    failed: 'Nie dokończyliśmy czyszczenia. Spróbuj ponownie.',
+    retry: 'Spróbuj ponownie',
+  },
+  ownerMismatch: {
+    title: 'Na tym telefonie są dane innego konta',
+    none: 'Aby zalogować się na to konto, musimy usunąć z telefonu dane poprzedniego konta. Nie ma niewysłanych elementów.',
+    one: 'Aby zalogować się na to konto, musimy usunąć z telefonu dane poprzedniego konta, w tym {{count}} niewysłany element. Tego nie da się cofnąć.',
+    few: 'Aby zalogować się na to konto, musimy usunąć z telefonu dane poprzedniego konta, w tym {{count}} niewysłane elementy. Tego nie da się cofnąć.',
+    many: 'Aby zalogować się na to konto, musimy usunąć z telefonu dane poprzedniego konta, w tym {{count}} niewysłanych elementów. Tego nie da się cofnąć.',
+    confirm: 'Usuń i zaloguj',
+    cancel: 'Anuluj',
   },
   update: {
     title: 'Zaktualizuj aplikację',

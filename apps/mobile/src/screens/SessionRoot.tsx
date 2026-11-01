@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
+import { View as Box } from 'react-native';
+import { color } from '../ui/theme';
 import { LoginMachine, type BlockedVariant } from '../auth/login-machine';
 import type { WipeSignal } from '../auth/ports';
 import type { DeviceCheck, SessionControl, SessionStep } from '../auth/session-owner';
+import type { DeviceGuard } from '../device-guard/device-guard';
 import { useStartup } from '../startup';
 import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from './DeviceStateScreen';
 import { LocalDataLostScreen } from './LocalDataScreens';
 import { LoginScreen } from './LoginScreen';
+import { LockGate } from './LockOverlay';
 import { SessionContext, type SessionActions } from './session-context';
+import type { AddTarget } from './AddSheet';
+import { OwnerMismatchDialog } from './WipeDialogs';
 
 /** Everything the session part of the app needs; composed in App.tsx (architect 6). */
 export interface SessionPorts {
@@ -19,8 +25,17 @@ export interface SessionPorts {
   readonly openForgotPassword: () => void;
   /** "Pomoc" (M-11, EVM-102). */
   readonly openHelp: () => void;
-  /** "Wyczyść dane firmowe" (EVM-101). */
-  readonly requestCompanyDataWipe: () => void;
+  /** Whether the phone has a screen lock; asked before the password is sent (EVM-101 AC1). */
+  readonly screenLockOk: () => Promise<boolean>;
+  /** The device controls of EVM-101 (screen lock, 7 days, app lock, patch level); one store, one `AppState` listener. */
+  readonly guard: DeviceGuard;
+  /** The wipe of company data (EVM-101 AC4, AC5): the number for the dialog and the run without a question to the server. */
+  readonly companyWipe: {
+    unsentItemCount(): Promise<number>;
+    runManual(): Promise<'done' | 'incomplete'>;
+  };
+  /** Destination of a pick in "Dodaj" (EVM-107 / E11 provide the screens). */
+  readonly openAddTarget: (target: AddTarget) => void;
   readonly appVersion: string;
   readonly now?: () => number;
 }
@@ -34,6 +49,7 @@ type View =
   | { readonly kind: 'state'; readonly variant: DeviceStateVariant; readonly unsent: number | null; readonly fromSignIn: boolean }
   | { readonly kind: 'queuePreview'; readonly unsent: number | null }
   | { readonly kind: 'dataLost'; readonly check: Extract<DeviceCheck, { kind: 'data_lost' }> }
+  | { readonly kind: 'ownerMismatch'; readonly unsent: number }
   | { readonly kind: 'signedIn' };
 
 /**
@@ -42,7 +58,7 @@ type View =
  * there the session is refreshed in the background (AC4 "przy starcie") and pending revocations are sent (AC7).
  */
 export function SessionRoot({ ports, children }: { ports: SessionPorts; children: ReactNode }) {
-  const { owner, wipe } = ports;
+  const { owner, wipe, guard } = ports;
   const now = ports.now ?? Date.now;
   const { state: startup } = useStartup();
   const online = startup.kind === 'online';
@@ -50,10 +66,20 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   const [attempt, setAttempt] = useState(0);
   const refreshedAtStart = useRef(false);
 
+  const guardState = useSyncExternalStore(guard.subscribe, guard.getSnapshot);
+  useEffect(() => guard.start(), [guard]);
+
   const afterStep = useCallback(
-    (step: SessionStep): 'done' | 'failed' => {
+    (step: SessionStep, fresh = false): 'done' | 'failed' => {
       if (step.kind === 'signed_in') {
+        // a full sign-in (password and code) is an authentication of the user: the app lock opens; a restored session stays locked
+        if (fresh) void guard.signedIn();
+        else void guard.refresh();
         setView({ kind: 'signedIn' });
+        return 'done';
+      }
+      if (step.kind === 'device_check' && step.result.kind === 'owner_mismatch') {
+        setView({ kind: 'ownerMismatch', unsent: step.result.unsentItemCount });
         return 'done';
       }
       if (step.kind === 'device_check' && step.result.kind === 'data_lost') {
@@ -66,7 +92,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       setView({ kind: 'signIn' });
       return 'failed';
     },
-    [owner],
+    [owner, guard],
   );
 
   const machine = useMemo(
@@ -75,8 +101,9 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
         signIn: owner.signInClient(),
         wipe,
         now,
+        screenLockOk: ports.screenLockOk,
         onSession: async (session) => {
-          const result = afterStep(await owner.completeSignIn(session));
+          const result = afterStep(await owner.completeSignIn(session), true);
           if (result === 'done') {
             // a fresh access token is in memory: no refresh "at start" for this session
             refreshedAtStart.current = true;
@@ -87,7 +114,7 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       }),
     // a new machine for every visit of M-01: nothing of an earlier form survives
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `attempt` renews the machine on purpose
-    [owner, wipe, afterStep, attempt],
+    [owner, wipe, afterStep, attempt, ports.screenLockOk],
   );
   useEffect(
     () => () => {
@@ -112,9 +139,10 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
   useEffect(
     () =>
       owner.onSessionEnded((ended) => {
+        guard.signedOut();
         setView({ kind: 'state', variant: ended.reason, unsent: ended.unsentItems, fromSignIn: false });
       }),
-    [owner],
+    [owner, guard],
   );
 
   // a blocking answer of the sign-in becomes its M-02 variant; the number of unsent items only where the copy has it
@@ -156,7 +184,17 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       signOut: async () => {
         await owner.signOut({ online });
       },
-      requestCompanyDataWipe: ports.requestCompanyDataWipe,
+      wipeCompanyData: async () => {
+        await owner.endSessionForWipe({ online });
+        return (await ports.companyWipe.runManual()) === 'done';
+      },
+      reSignIn: async () => {
+        await owner.signOut({ online });
+      },
+      recheckDevice: () => guard.refresh(),
+      guard,
+      queueEntries: (withLabels) => owner.queueEntries(withLabels),
+      openAddTarget: ports.openAddTarget,
       openHelp: ports.openHelp,
     }),
     // the name is read again whenever the view changes (a new sign-in)
@@ -168,7 +206,36 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
     case 'starting':
       return null;
     case 'signedIn':
-      return <SessionContext.Provider value={actions}>{children}</SessionContext.Provider>;
+      return (
+        <SessionContext.Provider value={actions}>
+          <LockGate
+            locked={guardState.locked}
+            prompting={guardState.prompting}
+            onUnlock={() => {
+              void guard.unlock();
+            }}
+          >
+            {children}
+          </LockGate>
+        </SessionContext.Provider>
+      );
+    case 'ownerMismatch':
+      return (
+        <Box style={{ flex: 1, backgroundColor: color.bg.canvas }}>
+          <OwnerMismatchDialog
+            unsentItems={view.unsent}
+            onCancel={() => {
+              // nothing is removed; the session of step 2 was only in memory and is ended on the server
+              void owner.abandonSignIn();
+              toSignIn();
+            }}
+            onConfirm={async () => {
+              await owner.abandonSignIn();
+              if ((await ports.companyWipe.runManual()) === 'done') toSignIn();
+            }}
+          />
+        </Box>
+      );
     case 'dataLost':
       return (
         <LocalDataLostScreen

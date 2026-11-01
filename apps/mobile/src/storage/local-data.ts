@@ -461,11 +461,43 @@ export class LocalDataHost {
    * "Wyczyść dane firmowe" (AC6; port for EVM-101): the marker first, then every step in a fixed order, each idempotent; a failing step
    * keeps the marker and the whole sequence is repeated on the next start. Afterwards no old file can be opened (its key is gone).
    */
-  wipeCompanyData(): Promise<'done' | 'incomplete'> {
-    return this.#exclusive(() => this.#wipeCompanyData());
+  wipeCompanyData(options: { readonly confirmToServer?: boolean } = {}): Promise<'done' | 'incomplete'> {
+    return this.#exclusive(() => this.#wipeCompanyData(options.confirmToServer === true));
   }
 
-  async #wipeCompanyData(): Promise<'done' | 'incomplete'> {
+  /**
+   * EVM-101 AC4 (architect 1): with `confirmToServer` (`device_wipe_required` only) the pair `deviceId` + secret is copied to its own
+   * slot of the secure store BEFORE the marker and every step, idempotently (a slot that exists is kept when the identity is already
+   * gone after an interrupted run). A failing copy never blocks the wipe — the server ends the device's tokens without it.
+   */
+  async #preserveConfirmation(): Promise<void> {
+    try {
+      const identity = await this.#deps.secrets.readIdentity();
+      if (identity !== null) await this.#deps.secrets.writeWipeConfirmation(identity);
+    } catch {
+      this.#deps.diagnostics({ event: 'wipe-step-failed', step: 'confirmation_slot' });
+    }
+  }
+
+  /** The pair owed to `confirmDeviceWipe` as an opaque proof, or `null` when nothing is owed (or it cannot be read). */
+  pendingWipeConfirmation(): Promise<InstallationProof | null> {
+    return this.#exclusive(async () => {
+      try {
+        const pair = await this.#deps.secrets.readWipeConfirmation();
+        return pair === null ? null : InstallationProof.of(pair);
+      } catch {
+        return null;
+      }
+    });
+  }
+
+  /** After `204` or `401 invalid_credentials` of the confirmation: the pair goes for good. */
+  clearWipeConfirmation(): Promise<void> {
+    return this.#exclusive(() => this.#deps.secrets.deleteWipeConfirmation());
+  }
+
+  async #wipeCompanyData(confirmToServer: boolean): Promise<'done' | 'incomplete'> {
+    if (confirmToServer) await this.#preserveConfirmation();
     try {
       await this.#deps.files.write(WIPE_MARKER_FILE, WIPE_MARKER_CONTENT);
     } catch {

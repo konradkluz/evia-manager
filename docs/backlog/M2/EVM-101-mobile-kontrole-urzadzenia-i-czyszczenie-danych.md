@@ -4,7 +4,7 @@ title: "Aplikacja: kontrole urządzenia, ukrycie danych po 7 dniach, wyczyszczen
 type: story
 milestone: M2
 epic: E9 Dostęp mobilny
-status: in-progress
+status: in-review
 priority: P1
 path: pelna             # dane na urządzeniu, uwierzytelnianie
 owner: mobile-developer
@@ -76,3 +76,5 @@ Usuwanie lokalnej bazy SQLCipher (port czyszczenia; podpina EVM-093/107); biomet
 - 2026-10-27 — utworzono (product-owner)
 - 2026-10-27 — naniesiono konsultacje: security, UX (product-owner)
 - 2026-11-01 — refinement: rozstrzygnięto FLAG_SECURE, BYOD i blokadę aplikacji (Konrad); AC zaakceptowane przez Konrada, status `ready`
+- 2026-11-02 — plan gotowy (mobile-developer)
+- 2026-11-02 — implementacja: `DeviceGuard`/`AppLock`/`CompanyDataWipe`, slot potwierdzenia czyszczenia (kontrakt `confirmDeviceWipe`), `ContactClock.status` w `sync-core`, `androidx.biometric:biometric:1.1.0`; blokada aplikacji liczy czas w tle zegarem rozruchowym (`elapsedRealtime`) i ściennym — `systemClock` dla `ContactClock` bez zmian do EVM-109 (zegar procesu; po restarcie zegar ścienny z kontrolami anomalii); AC bez zmian (mobile-developer)

@@ -21,6 +21,8 @@ export interface Device {
   keyAlias: boolean;
   readonly files: Map<string, string>;
   identity: InstallationIdentity | null;
+  /** The pair kept for `confirmDeviceWipe` (EVM-101); survives `deleteAllSecrets`. */
+  wipeConfirmation: InstallationIdentity | null;
   refreshToken: string | null;
   otherSecrets: boolean;
   preferences: boolean;
@@ -41,6 +43,7 @@ export function newDevice(disk: TestDisk): Device {
     keyAlias: false,
     files: new Map(),
     identity: null,
+    wipeConfirmation: null,
     refreshToken: null,
     otherSecrets: false,
     preferences: false,
@@ -146,6 +149,17 @@ export class FakeSecrets implements DeviceSecrets {
   }
   deleteIdentity(): Promise<void> {
     return effect(this.#d, 'secrets.deleteIdentity', () => (this.#d.identity = null), true);
+  }
+  readWipeConfirmation(): Promise<InstallationIdentity | null> {
+    return Promise.resolve(this.#d.wipeConfirmation);
+  }
+  writeWipeConfirmation(identity: InstallationIdentity): Promise<void> {
+    return effect(this.#d, 'secrets.writeWipeConfirmation', () => {
+      this.#d.wipeConfirmation = identity;
+    });
+  }
+  deleteWipeConfirmation(): Promise<void> {
+    return effect(this.#d, 'secrets.deleteWipeConfirmation', () => (this.#d.wipeConfirmation = null), true);
   }
   deleteRefreshToken(): Promise<void> {
     return effect(this.#d, 'secrets.deleteRefreshToken', () => (this.#d.refreshToken = null), true);

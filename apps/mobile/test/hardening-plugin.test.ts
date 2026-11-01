@@ -161,6 +161,29 @@ describe('Android hardening plugin (EVM-009 AC6; SR-MOB-02, SR-COMM-04, SR-MOB-1
     }
   });
 
+  it('EVM-101 AC7 (decision 2026-11-01): the release build keeps FLAG_SECURE on the whole window and carries NO entry that allows screenshots; only e2e has it', async () => {
+    const build = async (variant: 'release' | 'e2e') => {
+      const activity = (await plugged(variant)['mainActivity']?.({
+        modResults: { contents: TEMPLATE_ACTIVITY, language: 'kt' },
+        modRequest: {},
+        mods: {},
+      })) as { modResults: { contents: string } };
+      const manifest = (await plugged(variant)['manifest']?.({
+        modResults: { manifest: { $: {}, application: [{ $: { 'android:name': '.MainApplication' }, activity: [] }] } },
+        modRequest: {},
+        mods: {},
+      })) as { modResults: { manifest: { application: { 'meta-data'?: { $: Record<string, string> }[] }[] } } };
+      return {
+        flag: activity.modResults.contents.includes('FLAG_SECURE'),
+        meta: (manifest.modResults.manifest.application[0]?.['meta-data'] ?? []).some(
+          (entry) => entry.$['android:name'] === SCREENSHOTS_META,
+        ),
+      };
+    };
+    expect(await build('release')).toEqual({ flag: true, meta: false });
+    expect(await build('e2e')).toEqual({ flag: true, meta: true });
+  });
+
   it('EVM-100 AC1: a MainActivity without super.onCreate or not in Kotlin fails the build instead of shipping a window without the flag', async () => {
     expect(() => withSecureWindow('class MainActivity {}')).toThrow(/super\.onCreate/);
     await expect(
