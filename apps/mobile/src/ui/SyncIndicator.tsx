@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Icon } from './Icon';
-import { CloudCheck, WifiOff } from './icons';
+import { CloudAlert, CloudCheck, RefreshCw, WifiOff } from './icons';
 import { borderWidth, color, radius, size, space, text } from './theme';
 
-export type SyncState = 'online' | 'offline';
+/** "online" = synced or nothing to say, "syncing" = a cycle runs, "error" = a failed attempt with a retry, "attention" = items need the user. */
+export type SyncState = 'online' | 'offline' | 'syncing' | 'error' | 'attention';
+
+const LOOK = {
+  online: { tokens: color.sync.done, glyph: CloudCheck },
+  offline: { tokens: color.sync.offline, glyph: WifiOff },
+  syncing: { tokens: color.sync.inProgress, glyph: RefreshCw },
+  error: { tokens: color.sync.error, glyph: CloudAlert },
+  attention: { tokens: color.sync.error, glyph: CloudAlert },
+} as const;
 
 export interface SyncIndicatorProps {
   state: SyncState;
@@ -22,7 +31,7 @@ export interface SyncIndicatorProps {
  */
 export function SyncIndicator({ state, label, accessibilityLabel, onPress, testID }: SyncIndicatorProps) {
   const [focused, setFocused] = useState(false);
-  const tokens = state === 'offline' ? color.sync.offline : color.sync.done;
+  const { tokens, glyph } = LOOK[state];
   return (
     <Pressable
       accessibilityRole="button"
@@ -58,7 +67,7 @@ export function SyncIndicator({ state, label, accessibilityLabel, onPress, testI
           borderColor: color.border.inverse,
         }}
       >
-        <Icon icon={state === 'offline' ? WifiOff : CloudCheck} color={tokens.icon} iconSize="md" />
+        <Icon icon={glyph} color={tokens.icon} iconSize="md" />
         <Text numberOfLines={1} style={{ ...text.label, color: tokens.text }}>
           {label}
         </Text>

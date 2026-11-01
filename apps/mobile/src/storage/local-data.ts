@@ -43,6 +43,12 @@ export interface UnlockedStore {
     read(): Promise<InstallationIdentity | null>;
     write(identity: InstallationIdentity): Promise<void>;
   };
+  /** Replica extras for the screens of EVM-107: the time of the last success and the work orders a note may be moved to. */
+  readonly replicaExtras: {
+    readLastSuccess(): Promise<number | null>;
+    writeLastSuccess(at: number): Promise<void>;
+    listWorkOrders(limit?: number): Promise<{ id: string; number: string; title: string }[]>;
+  };
   /** Results of settled mutations for their consumer (EVM-107); taken = removed. */
   takeSettled(): Promise<{ mutationId: string; info: SettledInfo }[]>;
   /** `unsentItemCount` of the store (see `LocalDataHost.unsentItemCount`). */
@@ -358,6 +364,11 @@ export class LocalDataHost {
           await allowed();
           await this.#deps.secrets.writeIdentity(identity);
         },
+      },
+      replicaExtras: {
+        readLastSuccess: () => replica.readLastSuccess(),
+        writeLastSuccess: (at) => replica.writeLastSuccess(at),
+        listWorkOrders: (limit) => replica.listWorkOrders(limit),
       },
       takeSettled: () => queue.takeSettled(),
       unsentItemCount: async () => {

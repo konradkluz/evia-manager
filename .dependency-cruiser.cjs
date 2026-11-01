@@ -279,10 +279,18 @@ module.exports = {
     {
       name: 'mobile-screens-without-adapters',
       comment:
-        'Screens get the session owner and the sign-in client injected (composition in App.tsx): no HTTP adapter of the sign-in, secure store or local store (EVM-100, architect 6).',
+        'Screens get the session owner, the sign-in client and the synchronization injected (composition in session.ts): no HTTP adapter of the sign-in, secure store, local store, sync transport, sync service or sync host (EVM-100 architect 6, EVM-107 architect 6). They read hooks and types of src/sync/types only.',
       severity: 'error',
       from: { path: '^apps/mobile/src/screens/' },
-      to: { path: '^apps/mobile/src/(api/auth-client|secure-store/|storage/)' },
+      to: { path: '^apps/mobile/src/(api/auth-client|secure-store/|storage/|sync/(http-transport|sync-service|sync-host))' },
+    },
+    {
+      name: 'mobile-screens-without-sync-core-runtime',
+      comment:
+        'Screens use types of @evia/sync-core only (import type): the engines are reached through the synchronization facade, never directly - that would bypass the single flight of the core (EVM-107, architect 1 and 6).',
+      severity: 'error',
+      from: { path: '^apps/mobile/src/screens/' },
+      to: { path: '^packages/sync-core/', dependencyTypesNot: ['type-only'] },
     },
     {
       name: 'mobile-no-async-storage',

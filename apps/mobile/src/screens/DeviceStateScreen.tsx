@@ -94,7 +94,7 @@ const PRIMARY_LABEL = {
   viewQueue: 'deviceState.viewQueue',
 } as const;
 
-function useTitleFocus() {
+export function useTitleFocus() {
   const ref = useRef<ComponentRef<typeof Text>>(null);
   useEffect(() => {
     if (ref.current !== null) AccessibilityInfo.sendAccessibilityEvent(ref.current, 'focus');
@@ -103,7 +103,7 @@ function useTitleFocus() {
 }
 
 /** The system "back" never leaves a blocking state (styleguide § 3.15.1). */
-function useBlockBack() {
+export function useBlockBack() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
     return () => {

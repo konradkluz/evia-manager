@@ -11,7 +11,7 @@ export function logWarning(event: LogEvent): void {
   if (__DEV__) console.warn(`[evia] ${event}`);
 }
 
-function detailOf(diagnostic: StorageDiagnostic | GuardDiagnostic): string {
+function detailOf(diagnostic: StorageDiagnostic | GuardDiagnostic | SyncLogDiagnostic): string {
   switch (diagnostic.event) {
     case 'db-open-failed':
       return diagnostic.code;
@@ -25,11 +25,23 @@ function detailOf(diagnostic: StorageDiagnostic | GuardDiagnostic): string {
       return diagnostic.outcome;
     case 'hidden-mode':
       return diagnostic.reason;
+    case 'sync-failure':
+      return diagnostic.kind;
+    case 'sync-attention':
+      return diagnostic.code;
   }
 }
 
 /** Codes of the local store (EVM-093): only allow-listed shapes pass (a fixed name plus a code), never a number, path or key. */
 const CODE = /^[a-z_]{1,40}$/;
+
+/**
+ * Events of the synchronization (EVM-107; SR-LOG-08, security S6): a failure kind of a closed list and the code of a rejection - never
+ * an id of a work order or a mutation, a content, an address or a message of the server.
+ */
+export type SyncLogDiagnostic =
+  | { readonly event: 'sync-failure'; readonly kind: 'push' | 'pull' | 'rate_limited' | 'resync' }
+  | { readonly event: 'sync-attention'; readonly code: string };
 
 /** Events of the device controls (EVM-101; SR-LOG-08, SR-MOB-12): codes of a fixed dictionary, never an id, a secret or a content. */
 export type GuardDiagnostic =
@@ -37,7 +49,7 @@ export type GuardDiagnostic =
   | { readonly event: 'app-lock'; readonly outcome: string }
   | { readonly event: 'patch-level'; readonly outcome: string };
 
-export function logDiagnostic(diagnostic: StorageDiagnostic | GuardDiagnostic): void {
+export function logDiagnostic(diagnostic: StorageDiagnostic | GuardDiagnostic | SyncLogDiagnostic): void {
   const detail = detailOf(diagnostic);
   const safe = CODE.test(detail) ? detail : 'invalid';
   // eslint-disable-next-line no-console -- see logWarning; development builds only

@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'pl.eviacharge'
+version = '0.1.0'
+
+android {
+  namespace "pl.eviacharge.clipboard"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

@@ -38,3 +38,13 @@ export const storageE2eSupport = {
   wipeFault: wipeFaultForE2e,
   copyEngine: () => createExpoSqliteEngine(E2E_COPY_NAME),
 };
+
+/** CSPRNG for ids generated on the phone (UUIDv7 of the queue): expo-crypto behind the storage module, never a non-cryptographic generator. */
+export function randomSource(): { getRandomValues: (bytes: Uint8Array) => Uint8Array } {
+  return {
+    getRandomValues: (bytes) => {
+      bytes.set(expoCrypto.getRandomBytes(bytes.length));
+      return bytes;
+    },
+  };
+}

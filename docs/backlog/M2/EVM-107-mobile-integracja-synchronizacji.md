@@ -74,3 +74,4 @@ Ekrany funkcji (EVM-103…106), pliki (E11), powiadomienia push.
 - 2026-10-27 — naniesiono konsultacje: architekt, security, UX (product-owner)
 - 2026-11-01 — refinement: dodano zależność EVM-101 (czyszczenie danych w AC5, kontrole po logowaniu). Status zostaje `draft` do czasu `done` EVM-101 (DoR: zależności), potem `ready` (tech lead); AC zaakceptowane przez Konrada 2026-11-01 — `ready` ustawia tech lead po zakończeniu EVM-101
 - 2026-11-02 — status ready -> in-progress: EVM-101 zakończona (in-review, bramka zielona); AC zaakceptowane przez Konrada 2026-11-01 (tech lead)
+- 2026-11-02 — plan gotowy (mobile-developer)

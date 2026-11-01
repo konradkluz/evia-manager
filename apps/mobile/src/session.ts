@@ -4,6 +4,7 @@
  */
 import { Linking } from 'react-native';
 import { createHttpAuthClient } from './api/auth-client';
+import { clientHeaders } from './api/health';
 import { systemClock } from './auth/clock';
 import type { AuthClient } from './auth/ports';
 import { MobileSessionOwner } from './auth/session-owner';
@@ -19,13 +20,17 @@ import {
   reactNativeAppState,
 } from './device-guard/native';
 import { overrideBootClock, overrideLock, overrideSessionClock } from './device-guard/overrides';
+import { createSensitiveClipboard } from './clipboard/clipboard';
 import { deviceOverrides } from './e2e-hooks';
 import { i18next } from './i18n';
 import { logDiagnostic } from './logging/log';
 import { CompanyDataWipe, type WipeConfirmClient } from './wipe/company-wipe';
 import type { SessionPorts } from './screens/SessionRoot';
 import { tokenStore } from './secure-store';
-import { localData } from './storage';
+import { localData, randomSource } from './storage';
+import { createHttpSyncTransport } from './sync/http-transport';
+import { SyncHost } from './sync/sync-host';
+import { SyncService } from './sync/sync-service';
 
 /** Fixed path of the password reset of the panel (apps/web `LOGIN_RESET_PATH`); no part of it comes from input (security W9). */
 export const PASSWORD_RESET_PATH = '/login/reset';
@@ -43,6 +48,14 @@ export const NO_API: AuthClient & WipeConfirmClient = {
 export function originOf(baseUrl: string): string {
   return /^[a-z]+:\/\/[^/]+/i.exec(baseUrl)?.[0] ?? baseUrl;
 }
+
+/** Without a valid API address nothing is sent: every call is a network failure (the sign-in says the same). */
+const NO_SYNC_TRANSPORT = {
+  sendBatch: () => Promise.resolve({ kind: 'network' as const }),
+  getChanges: () => Promise.resolve({ kind: 'network' as const }),
+  getWorkOrderSnapshot: () => Promise.resolve({ kind: 'network' as const }),
+  getClientConfig: () => Promise.resolve({ kind: 'network' as const }),
+};
 
 export function createSessionPorts(config: RuntimeConfig | null = readRuntimeConfig()): SessionPorts {
   const host = localData();
@@ -74,12 +87,51 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     now: Date.now,
     diagnostics: logDiagnostic,
   });
+  const clipboard = createSensitiveClipboard();
+  // EVM-107: one synchronization service per session; the owner stops it (and the clipboard copy goes) BEFORE it removes the replica
+  const sync = new SyncHost(
+    (store, hooks) =>
+      new SyncService({
+        store,
+        owner,
+        contactVisible: async () => (await owner.contactStatus())?.status.visible === true,
+        createTransport: ({ signal, pendingItems }) =>
+          config === null
+            ? NO_SYNC_TRANSPORT
+            : createHttpSyncTransport({
+                baseUrl: config.apiBaseUrl,
+                allowLocalHttp: config.buildVariant === 'e2e',
+                fetch: (url, init) => owner.authorizedFetch(url, init),
+                headers: clientHeaders(config.platform, config.appVersion),
+                pendingItems,
+                signal,
+              }),
+        clock: { now: Date.now },
+        monotonic: contactClock,
+        random: randomSource(),
+        isOnline: hooks.isOnline,
+        onPause: hooks.onPause,
+        diagnostics: logDiagnostic,
+      }),
+    () => owner.syncStore(),
+  );
+  owner.onBeforeSessionEnd(() => {
+    sync.stop();
+    clipboard.clear();
+  });
   // a wipe in progress hides the data; a finished one is confirmed to the server at every start and return to the foreground
   companyWipe.onPhase((phase) => {
     guard.setWiping(phase !== 'idle');
+    if (phase !== 'idle') clipboard.clear();
+  });
+  // the lock and the hidden-data mode take the copy of a rejected entry off the clipboard (security S1)
+  guard.subscribe(() => {
+    const state = guard.getSnapshot();
+    if (state.locked || state.hidden !== null) clipboard.clear();
   });
   guard.onForeground(() => {
     void companyWipe.resume();
+    sync.foreground();
   });
   void companyWipe.resume();
   return {
@@ -89,6 +141,8 @@ export function createSessionPorts(config: RuntimeConfig | null = readRuntimeCon
     companyWipe,
     screenLockOk: () => deviceLock.isDeviceSecure().catch(() => false),
     openAddTarget: () => undefined,
+    sync,
+    copyToClipboard: (text) => clipboard.copy(text),
     unsentBeforeSignIn: () => host.unsentItemCountBeforeSignIn(),
     openForgotPassword: () => {
       if (config !== null) void Linking.openURL(`${originOf(config.apiBaseUrl)}${PASSWORD_RESET_PATH}`).catch(() => undefined);

@@ -139,6 +139,11 @@ export class FakeHost {
           await effect(phone, 'identity.write', () => (phone.identity = identity));
         },
       },
+      replicaExtras: {
+        readLastSuccess: () => Promise.resolve(null),
+        writeLastSuccess: () => Promise.resolve(),
+        listWorkOrders: () => Promise.resolve([]),
+      },
       takeSettled: () => Promise.resolve([]),
       unsentItemCount: async () => {
         await guard();

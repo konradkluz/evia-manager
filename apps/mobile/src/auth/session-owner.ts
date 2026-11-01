@@ -68,6 +68,7 @@ export class MobileSessionOwner implements SessionOwner {
   /** A session of step 2 held in memory while the device check of EVM-101/EVM-107 runs (nothing of it is stored yet). */
   #pending: SessionData | null = null;
   readonly #listeners = new Set<(ended: SessionEnded) => void>();
+  readonly #beforeEnd = new Set<() => void>();
 
   constructor(deps: SessionOwnerDeps) {
     this.#deps = deps;
@@ -85,6 +86,32 @@ export class MobileSessionOwner implements SessionOwner {
     return () => {
       this.#listeners.delete(listener);
     };
+  }
+
+  /**
+   * Called synchronously BEFORE the replica is removed or the store is locked (sign-out, session_revoked, wipe): the synchronization
+   * service stops, so that no answer in flight writes after the removal (EVM-107 security S2). A listener must not call the owner.
+   */
+  onBeforeSessionEnd(listener: () => void): () => void {
+    this.#beforeEnd.add(listener);
+    return () => {
+      this.#beforeEnd.delete(listener);
+    };
+  }
+
+  #stopListeners(): void {
+    for (const listener of [...this.#beforeEnd]) {
+      try {
+        listener();
+      } catch {
+        // stopping a service must not break the end of a session
+      }
+    }
+  }
+
+  /** The capability of the store for the synchronization service; null without a session. Composition only (security S3). */
+  syncStore(): UnlockedStore | null {
+    return this.#userId === null ? null : this.#store;
   }
 
   #emit(ended: SessionEnded): void {
@@ -315,6 +342,7 @@ export class MobileSessionOwner implements SessionOwner {
    */
   endSessionForWipe({ online }: { readonly online: boolean }): Promise<void> {
     return this.#exclusive(async () => {
+      this.#stopListeners();
       const access = this.#access !== null && this.#deps.clock.now() < this.#access.until - ACCESS_SKEW_MS ? this.#access.token : null;
       const store = this.#store;
       store?.lock();
@@ -403,6 +431,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `session_revoked` / expiry (AC4): N is read first, then the replica and the refresh token go; the queue stays encrypted. */
   async #end(reason: Extract<SessionEndReason, 'session_revoked' | 'session_expired'>): Promise<void> {
+    this.#stopListeners();
     const store = this.#store;
     const unsentItems = store === null ? 0 : await store.unsentItemCount().catch(() => 0);
     if (store !== null) await store.endSession().catch(() => undefined);
@@ -412,6 +441,7 @@ export class MobileSessionOwner implements SessionOwner {
 
   /** `device_wipe_required` (AC4): tokens and record go, the data become unreachable, the wipe is signalled to EVM-101. */
   async #endWipe(): Promise<void> {
+    this.#stopListeners();
     this.#store?.lock();
     await this.#clearSession();
     this.#deps.wipe.wipeRequired();
@@ -434,6 +464,7 @@ export class MobileSessionOwner implements SessionOwner {
    */
   signOut({ online }: { readonly online: boolean }): Promise<SessionEnded> {
     return this.#exclusive(async () => {
+      this.#stopListeners();
       const { tokens, clock } = this.#deps;
       const refreshToken = await tokens.get('refreshToken').catch(() => null);
       if (refreshToken !== null) await this.#writePending([...(await this.#readPending()), refreshToken]).catch(() => undefined);
@@ -558,4 +589,6 @@ export type SessionControl = Pick<
   | 'contactStatus'
   | 'queueEntries'
   | 'endSessionForWipe'
+  | 'onBeforeSessionEnd'
+  | 'syncStore'
 >;

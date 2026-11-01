@@ -5,6 +5,7 @@ import type { AuthOutcome, QueueEntryRow, SessionEnded, SignInClient } from '../
 import type { SessionControl, SessionStep } from '../src/auth/session-owner';
 import type { SessionPorts } from '../src/screens/SessionRoot';
 import { rig as guardRig, type Rig } from './device-guard/fakes';
+import { FakeSync } from './sync/fake-sync';
 
 export interface StubOwner extends SessionControl {
   readonly calls: string[];
@@ -76,6 +77,8 @@ export function stubOwner(signIn: SignInClient = okSignIn()): StubOwner {
       owner.labelRequests.push(withLabels);
       return Promise.resolve(owner.queue.map((row) => ({ ...row, label: withLabels ? row.label : null })));
     },
+    onBeforeSessionEnd: () => () => undefined,
+    syncStore: () => null,
     endSessionForWipe: ({ online }) => {
       // the real owner emits no `SessionEnded` here: the screen shows the result of the wipe itself
       owner.calls.push(`endSessionForWipe:${online ? 'online' : 'offline'}`);
@@ -107,6 +110,8 @@ export function okSignIn(overrides: Partial<SignInClient> = {}): SignInClient {
 
 export interface PortsRig {
   readonly ports: SessionPorts;
+  readonly sync: FakeSync;
+  readonly copied: string[];
   readonly owner: StubOwner;
   readonly opened: string[];
   readonly wipes: { count: number };
@@ -122,7 +127,31 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
   const wipes = { count: 0 };
   const manualWipes: { count: number; result: 'done' | 'incomplete' } = { count: 0, result: 'done' };
   const device = guardRig();
+  const sync = new FakeSync();
+  // the rows of the owner's stub, as the facade of the synchronization would return them (the label only on request)
+  sync.source = (withLabels) => {
+    owner.labelRequests.push(withLabels);
+    return owner.queue.map((row) => ({
+      id: row.id,
+      type: (row.type === 'CreateNote' ? 'CreateNote' : 'CreateComment') as 'CreateNote',
+      state: row.state === 'attention' ? 'attention' : 'pending',
+      createdAt: 0,
+      targetId: null,
+      code: null,
+      attempts: 0,
+      reason: row.state === 'attention' ? 'unknown' : null,
+      actions: [],
+      dependents: 0,
+      label: withLabels ? row.label : null,
+    }));
+  };
+  const copied: string[] = [];
   const ports: SessionPorts = {
+    sync,
+    copyToClipboard: (text) => {
+      copied.push(text);
+      return true;
+    },
     owner,
     wipe: {
       wipeRequired: () => {
@@ -144,7 +173,7 @@ export function stubPorts(owner: StubOwner = stubOwner(), unsentBeforeSignIn: nu
     openAddTarget: (target) => opened.push(`add:${target}`),
     appVersion: '0.4.0',
   };
-  return { ports, owner, opened, wipes, device, manualWipes, session: () => ports };
+  return { ports, sync, copied, owner, opened, wipes, device, manualWipes, session: () => ports };
 }
 
 /** A signed-in phone for the tests of the shell (EVM-009). */

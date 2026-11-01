@@ -7,12 +7,14 @@ import type { WipeSignal } from '../auth/ports';
 import type { DeviceCheck, SessionControl, SessionStep } from '../auth/session-owner';
 import type { DeviceGuard } from '../device-guard/device-guard';
 import { useStartup } from '../startup';
+import type { QueueItem, SyncRuntime } from '../sync/types';
 import { DeviceStateScreen, QueuePreviewScreen, type DeviceStateVariant } from './DeviceStateScreen';
 import { LocalDataLostScreen } from './LocalDataScreens';
 import { LoginScreen } from './LoginScreen';
 import { LockGate } from './LockOverlay';
 import { SessionContext, type SessionActions } from './session-context';
 import type { AddTarget } from './AddSheet';
+import { SyncGate } from './SyncGate';
 import { OwnerMismatchDialog } from './WipeDialogs';
 
 /** Everything the session part of the app needs; composed in App.tsx (architect 6). */
@@ -36,6 +38,12 @@ export interface SessionPorts {
   };
   /** Destination of a pick in "Dodaj" (EVM-107 / E11 provide the screens). */
   readonly openAddTarget: (target: AddTarget) => void;
+  /** The synchronization of the session (EVM-107): the service is started here after the sign-in and stopped when it ends. */
+  readonly sync: SyncRuntime;
+  /** The sensitive clipboard (marked, removed after 60 s); `false` = not copied. */
+  readonly copyToClipboard: (text: string) => boolean;
+  /** "Utwórz ponownie": opens the form of the quick work order (M-10) once it exists; without it the entry is created again at once. */
+  readonly openRecreate?: (item: QueueItem) => void;
   readonly appVersion: string;
   readonly now?: () => number;
 }
@@ -68,6 +76,32 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
 
   const guardState = useSyncExternalStore(guard.subscribe, guard.getSnapshot);
   useEffect(() => guard.start(), [guard]);
+  const { sync } = ports;
+  const syncSnapshot = useSyncExternalStore(sync.subscribe, sync.getSnapshot);
+
+  // The synchronization starts only for a signed-in session whose owner check has passed (the store exists only then) and while no
+  // wipe runs; it ends with the view (EVM-107 security S2, S3). The owner stops it itself before it removes the replica.
+  const syncAllowed = view.kind === 'signedIn' && !guardState.wiping;
+  useEffect(() => {
+    if (!syncAllowed) return undefined;
+    sync.startSession();
+    return () => {
+      sync.stop();
+    };
+  }, [syncAllowed, sync]);
+  useEffect(() => {
+    sync.setOnline(online);
+  }, [sync, online]);
+  useEffect(
+    () =>
+      sync.onPause((reason) => {
+        // 401 is the owner's (it ends the session itself); 426 and 403 are answered with a state of EVM-100, nothing is removed
+        const unsent = sync.getSnapshot().counts.unsent;
+        if (reason === 'upgrade_required') setView({ kind: 'state', variant: 'client_version_unsupported', unsent, fromSignIn: false });
+        else if (reason === 'forbidden') setView({ kind: 'state', variant: 'channel_not_allowed', unsent, fromSignIn: false });
+      }),
+    [sync],
+  );
 
   const afterStep = useCallback(
     (step: SessionStep, fresh = false): 'done' | 'failed' => {
@@ -201,12 +235,19 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
       recheckDevice: () => guard.refresh(),
       guard,
       queueEntries: (withLabels) => owner.queueEntries(withLabels),
+      sync,
+      copyToClipboard: ports.copyToClipboard,
+      openRecreate:
+        ports.openRecreate ??
+        ((item) => {
+          void sync.recreate(item.id);
+        }),
       openAddTarget: ports.openAddTarget,
       openHelp: ports.openHelp,
     }),
     // the name is read again whenever the view changes (a new sign-in)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `view` refreshes the display name
-    [owner, ports, online, view, guard],
+    [owner, ports, online, view, guard, sync],
   );
 
   switch (view.kind) {
@@ -222,7 +263,15 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
               void guard.unlock();
             }}
           >
-            {children}
+            <SyncGate
+              snapshot={syncSnapshot}
+              onRetry={() => {
+                sync.trigger();
+              }}
+              onHelp={ports.openHelp}
+            >
+              {children}
+            </SyncGate>
           </LockGate>
         </SessionContext.Provider>
       );
@@ -275,6 +324,9 @@ export function SessionRoot({ ports, children }: { ports: SessionPorts; children
             } else if (view.fromSignIn) {
               machine.backToSignIn();
               setView({ kind: 'signIn' });
+            } else if (view.variant === 'channel_not_allowed') {
+              // read-only account in the mobile channel (decision of the owner): the session ends on the phone, the queue stays encrypted
+              void owner.signOut({ online });
             } else {
               toSignIn();
             }

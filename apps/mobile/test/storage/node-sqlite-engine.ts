@@ -50,6 +50,7 @@ export class NodeSqliteEngine implements SqlEngine {
   /** Every statement that reached SQLite, in order (assertions like "nothing was written"). */
   readonly statements: string[] = [];
   readonly #faults: ((sql: string) => boolean)[] = [];
+  readonly #messages: string[] = [];
   openConnections = 0;
 
   constructor(disk: TestDisk, name = 'evia.db') {
@@ -58,8 +59,9 @@ export class NodeSqliteEngine implements SqlEngine {
   }
 
   /** The next statement matching the predicate throws (one-shot): a crash or an I/O error inside a transaction. */
-  failNext(predicate: (sql: string) => boolean): void {
+  failNext(predicate: (sql: string) => boolean, message = 'simulated I/O error (synthetic)'): void {
     this.#faults.push(predicate);
+    this.#messages.push(message);
   }
 
   exists(): Promise<boolean> {
@@ -95,7 +97,7 @@ export class NodeSqliteEngine implements SqlEngine {
       const fault = this.#faults.findIndex((p) => p(sql));
       if (fault >= 0) {
         this.#faults.splice(fault, 1);
-        throw new Error('simulated I/O error (synthetic)');
+        throw new Error(this.#messages.splice(fault, 1)[0] ?? 'simulated I/O error (synthetic)');
       }
       this.statements.push(sql);
       const owner = this.disk.owners.get(this.path);

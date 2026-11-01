@@ -317,11 +317,42 @@ export class SqlReplicaStore implements ReplicaStore {
     });
   }
 
+  /** Time of the last successful synchronization (EVM-107 AC3): in the replica, so it goes with it (wipe, sign-out). */
+  async readLastSuccess(): Promise<number | null> {
+    return this.#db.read(async (tx) => {
+      const row = await tx.get("SELECT value FROM replica_meta WHERE key = 'last_success_at'");
+      const value = typeof row?.['value'] === 'string' ? Number(row['value']) : NaN;
+      return Number.isSafeInteger(value) && value > 0 ? value : null;
+    });
+  }
+
+  async writeLastSuccess(at: number): Promise<void> {
+    await this.#db.transaction((tx) => SqlReplicaStore.#setMeta(tx, 'last_success_at', Math.trunc(at)));
+  }
+
+  /** Work orders of the active generation (the target list of "Dodaj do innego zlecenia"); only what the list shows. */
+  async listWorkOrders(limit = 200): Promise<{ id: string; number: string; title: string }[]> {
+    return this.#db.read(async (tx) => {
+      const rows = await tx.all(
+        "SELECT e.id AS id, e.fields AS fields FROM replica_entities e JOIN replica_generations g ON g.generation = e.generation AND g.role = 'active' WHERE e.type = 'work_order' ORDER BY e.id LIMIT ?",
+        [Math.max(1, Math.min(limit, 500))],
+      );
+      return rows.map((row) => {
+        const fields = (parse(row['fields']) ?? {}) as Record<string, unknown>;
+        return {
+          id: String(row['id']),
+          number: typeof fields['number'] === 'string' ? fields['number'] : '',
+          title: typeof fields['title'] === 'string' ? fields['title'] : '',
+        };
+      });
+    });
+  }
+
   async wipeReplica(): Promise<void> {
     await this.#db.transaction(async (tx) => {
       for (const table of ['replica_entities', 'replica_tombstones', 'replica_hydration', 'replica_generations'])
         await tx.run(`DELETE FROM ${table}`);
-      await tx.run("DELETE FROM replica_meta WHERE key IN ('owner', 'pending_resync')");
+      await tx.run("DELETE FROM replica_meta WHERE key IN ('owner', 'pending_resync', 'last_success_at')");
       await startFreshActiveGeneration(tx);
     });
   }
